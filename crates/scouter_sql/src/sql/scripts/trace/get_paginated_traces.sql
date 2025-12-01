@@ -4,7 +4,6 @@ SELECT
     service_id,
     service_name,
     scope,
-    service_name,
     root_operation,
     start_time,
     end_time,

@@ -194,6 +194,7 @@ pub struct LLMDriftRecord {
 
     pub processing_duration: Option<i32>,
 
+    // this is used to lookup entity_id from entity table
     pub entity_uid: String,
 }
 

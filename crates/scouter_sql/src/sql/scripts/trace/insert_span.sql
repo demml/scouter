@@ -1,10 +1,11 @@
+-- Refactored insert_span.sql (FIXED: entity_id removed, service_id calculation added)
+
 -- Insert spans with service_id resolution
 INSERT INTO scouter.spans (
     created_at,
     span_id,
     trace_id,
     parent_span_id,
-    entity_id,
     scope,
     span_name,
     span_kind,
@@ -20,14 +21,13 @@ INSERT INTO scouter.spans (
     input,
     output,
     service_name,
-    service_id
+    service_id  -- <--- Target Column
 )
 SELECT
     created_at,
     span_id,
     trace_id,
     parent_span_id,
-    entity_id,
     scope,
     span_name,
     span_kind,
@@ -49,28 +49,26 @@ FROM UNNEST(
     $2::text[],        -- span_id
     $3::text[],        -- trace_id
     $4::text[],        -- parent_span_id (nullable)
-    $5::integer[],     -- entity_id
-    $6::text[],        -- scope
-    $7::text[],        -- span_name
-    $8::text[],        -- span_kind
-    $9::timestamptz[], -- start_time
-    $10::timestamptz[], -- end_time
-    $11::bigint[],     -- duration_ms
-    $12::integer[],    -- status_code
-    $13::text[],       -- status_message
-    $14::jsonb[],      -- attributes
-    $15::jsonb[],      -- events
-    $16::jsonb[],      -- links
-    $17::text[],       -- label
-    $18::jsonb[],      -- input
-    $19::jsonb[],      -- output
-    $20::text[]        -- service_name
+    $5::text[],        -- scope
+    $6::text[],        -- span_name
+    $7::text[],        -- span_kind
+    $8::timestamptz[], -- start_time
+    $9::timestamptz[], -- end_time
+    $10::bigint[],     -- duration_ms
+    $11::integer[],    -- status_code
+    $12::text[],       -- status_message
+    $13::jsonb[],      -- attributes
+    $14::jsonb[],      -- events
+    $15::jsonb[],      -- links
+    $16::text[],       -- label
+    $17::jsonb[],      -- input
+    $18::jsonb[],      -- output
+    $19::text[]        -- service_name
 ) AS s(
     created_at,
     span_id,
     trace_id,
     parent_span_id,
-    entity_id,
     scope,
     span_name,
     span_kind,

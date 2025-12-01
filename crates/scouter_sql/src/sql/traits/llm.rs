@@ -40,7 +40,6 @@ pub trait LLMDriftSqlLogic {
             .bind(&record.uid)
             .bind(record.created_at)
             .bind(&entity_id)
-            .bind(&record.entity_uid)
             .bind(&record.context)
             .bind(Json(&record.prompt))
             .execute(pool)
@@ -61,7 +60,7 @@ pub trait LLMDriftSqlLogic {
 
         let query = Queries::InsertLLMMetricValuesBatch.get_query();
 
-        let (created_ats, record_uids, entity_ids, entity_uids, metrics, values): (
+        let (created_ats, record_uids, entity_ids, metrics, values): (
             Vec<DateTime<Utc>>,
             Vec<&str>,
             Vec<&i32>,
@@ -73,7 +72,6 @@ pub trait LLMDriftSqlLogic {
                 r.created_at,
                 r.uid.as_str(),
                 entity_id,
-                r.entity_uid.as_str(),
                 r.metric.as_str(),
                 r.value,
             )
@@ -83,7 +81,6 @@ pub trait LLMDriftSqlLogic {
             .bind(created_ats)
             .bind(record_uids)
             .bind(entity_ids)
-            .bind(entity_uids)
             .bind(metrics)
             .bind(values)
             .execute(pool)

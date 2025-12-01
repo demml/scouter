@@ -80,7 +80,6 @@ impl LLMMetricDataFrame {
             Field::new("metric", DataType::Utf8, false),
             Field::new("value", DataType::Float64, false),
             Field::new("entity_id", DataType::Int32, false),
-            Field::new("entity_uid", DataType::Utf8, false),
         ]));
 
         let object_store = ObjectStore::new(storage_settings)?;
@@ -102,8 +101,6 @@ impl LLMMetricDataFrame {
         );
         let uid_array = StringArray::from_iter_values(records.iter().map(|r| r.uid.as_str()));
         let entity_id_array = Int32Array::from_iter_values(records.iter().map(|r| r.entity_id));
-        let entity_uid_array =
-            StringArray::from_iter_values(records.iter().map(|r| r.entity_uid.as_str()));
         let metric_array = StringArray::from_iter_values(records.iter().map(|r| r.metric.as_str()));
 
         let value_array = Float64Array::from_iter_values(records.iter().map(|r| r.value));
@@ -116,7 +113,6 @@ impl LLMMetricDataFrame {
                 Arc::new(metric_array),
                 Arc::new(value_array),
                 Arc::new(entity_id_array),
-                Arc::new(entity_uid_array),
             ],
         )?;
 

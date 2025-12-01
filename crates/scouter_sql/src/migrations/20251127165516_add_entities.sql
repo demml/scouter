@@ -1,21 +1,123 @@
--- =================================================================
--- SERVICE ENTITIES MIGRATION
--- Separates service tracking from entity tracking for traces/spans
--- =================================================================
+-- #################################################################
+-- # REFACTORED MIGRATION SCRIPT: ENTITY & SERVICE ISOLATION
+-- #################################################################
 
 -- =================================================================
--- STEP 1: DROP EXISTING DEPENDENCIES
+-- STEP 1: DROP ALL DEPENDENCIES (Functions & Materialized View)
 -- =================================================================
 
-DROP MATERIALIZED VIEW IF EXISTS scouter.trace_summary CASCADE;
-DROP FUNCTION IF EXISTS scouter.get_trace_metrics CASCADE;
-DROP FUNCTION IF EXISTS scouter.get_traces_paginated CASCADE;
+-- Drop all objects that depend on the old schema/functions first to avoid conflicts
 DROP FUNCTION IF EXISTS scouter.get_trace_spans CASCADE;
+DROP FUNCTION IF EXISTS scouter.get_traces_paginated CASCADE;
+DROP FUNCTION IF EXISTS scouter.get_trace_metrics CASCADE;
+DROP MATERIALIZED VIEW IF EXISTS scouter.trace_summary CASCADE;
+
 
 -- =================================================================
--- STEP 2: CREATE SERVICE ENTITIES TABLE
+-- STEP 2: ENTITIES TABLE MIGRATION (For Drift/Metrics Data)
 -- =================================================================
 
+-- 2.1: Create the new central entities table
+CREATE TABLE IF NOT EXISTS scouter.entities (
+    id SERIAL PRIMARY KEY,
+    uid TEXT UNIQUE DEFAULT gen_random_uuid(),
+    space TEXT NOT NULL,
+    name TEXT NOT NULL,
+    version TEXT NOT NULL,
+    drift_type TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (space, name, version, drift_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_entities_lookup ON scouter.entities (space, name, version, drift_type);
+
+-- 2.2: Seed entities from existing drift_profile data
+INSERT INTO scouter.entities (space, name, version, drift_type)
+SELECT DISTINCT space, name, version, drift_type FROM scouter.drift_profile
+ON CONFLICT (space, name, version, drift_type) DO NOTHING;
+
+-- 2.3: Update entities with existing uids from drift_profile (if needed for consistency)
+UPDATE scouter.entities e
+SET uid = dp.uid
+FROM scouter.drift_profile dp
+WHERE e.space = dp.space AND e.name = dp.name AND e.version = dp.version;
+
+-- 2.4: Execute DDL and Backfill for tables that use the new 'entity_id' FK
+DO $$
+DECLARE
+    entity_tables TEXT[] := ARRAY[
+        'scouter.drift_profile',
+        'scouter.observability_metric',
+        'scouter.llm_drift',
+        'scouter.llm_drift_record',
+        'scouter.spc_drift',
+        'scouter.drift_alert',
+        'scouter.custom_drift',
+        'scouter.psi_drift'
+    ]::TEXT[];
+
+    entity_template_tables TEXT[] := ARRAY[
+        'scouter.template_scouter_custom_drift',
+        'scouter.template_scouter_drift_alert',
+        'scouter.template_scouter_llm_drift',
+        'scouter.template_scouter_llm_drift_record',
+        'scouter.template_scouter_observability_metric',
+        'scouter.template_scouter_psi_drift',
+        'scouter.template_scouter_spc_drift'
+    ]::TEXT[];
+
+    tbl TEXT;
+BEGIN
+    -- Handle Entity Tables (Add entity_id -> Backfill -> Enforce NOT NULL -> Drop Old)
+    FOREACH tbl IN ARRAY entity_tables LOOP
+        RAISE NOTICE 'Migrating Entity Table: %', tbl;
+
+        -- 1. Add entity_id column
+        EXECUTE format('ALTER TABLE %s ADD COLUMN IF NOT EXISTS entity_id INTEGER', tbl);
+
+        -- 2. Backfill (Heavy Operation)
+        -- NOTE: Added drift_type to the join, as per your entity index
+        EXECUTE format('
+            UPDATE %s t
+            SET entity_id = e.id
+            FROM scouter.entities e
+            WHERE t.space = e.space
+              AND t.name = e.name
+              AND t.version = e.version
+              AND COALESCE(t.drift_type, '') = COALESCE(e.drift_type, '')
+              AND t.entity_id IS NULL
+        ', tbl);
+
+        -- 3. Delete bad data and enforce NOT NULL (essential step)
+        EXECUTE format('DELETE FROM %s WHERE entity_id IS NULL', tbl);
+        EXECUTE format('ALTER TABLE %s ALTER COLUMN entity_id SET NOT NULL', tbl);
+
+        -- 4. Drop Old Columns (Space, Name, Version)
+        BEGIN
+            EXECUTE format('ALTER TABLE %s DROP COLUMN IF EXISTS space, DROP COLUMN IF EXISTS name, DROP COLUMN IF EXISTS version CASCADE, DROP COLUMN IF EXISTS drift_type', tbl);
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE 'Constraints dropping handled via CASCADE or manual cleanup for %', tbl;
+        END;
+    END LOOP;
+
+    -- Handle Entity Template Tables (Add entity_id and drop old columns)
+    FOREACH tbl IN ARRAY entity_template_tables LOOP
+        RAISE NOTICE 'Updating Entity Template: %', tbl;
+        EXECUTE format('ALTER TABLE %s ADD COLUMN IF NOT EXISTS entity_id INTEGER NOT NULL', tbl);
+        EXECUTE format('ALTER TABLE %s DROP COLUMN IF EXISTS space, DROP COLUMN IF EXISTS name, DROP COLUMN IF EXISTS version CASCADE, DROP COLUMN IF EXISTS drift_type', tbl);
+    END LOOP;
+
+END $$;
+
+-- 2.5: Add entity_uid to LLM tables (as requested in the original script)
+ALTER TABLE scouter.llm_drift RENAME COLUMN record_uid TO uid; -- Assuming record_uid was a typo for the table's own unique ID
+
+
+-- =================================================================
+-- STEP 3: SERVICE ENTITIES MIGRATION (For Trace/Span Data)
+-- =================================================================
+
+-- 3.1: Create central service_entities table
 CREATE TABLE IF NOT EXISTS scouter.service_entities (
     id SERIAL PRIMARY KEY,
     service_name TEXT UNIQUE NOT NULL,
@@ -23,9 +125,9 @@ CREATE TABLE IF NOT EXISTS scouter.service_entities (
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
-CREATE INDEX idx_service_entities_name ON scouter.service_entities (service_name);
+CREATE INDEX IF NOT EXISTS idx_service_entities_name ON scouter.service_entities (service_name);
 
--- Helper function to get or create service_id
+-- 3.2: Helper function to get or create service_id
 CREATE OR REPLACE FUNCTION scouter.get_or_create_service_id(p_service_name TEXT)
 RETURNS INTEGER
 LANGUAGE plpgsql
@@ -36,12 +138,12 @@ BEGIN
     IF p_service_name IS NULL THEN
         RETURN NULL;
     END IF;
-    
+
     -- Try to get existing service_id
     SELECT id INTO v_service_id
     FROM scouter.service_entities
     WHERE service_name = p_service_name;
-    
+
     -- If not found, insert and return new id
     IF v_service_id IS NULL THEN
         INSERT INTO scouter.service_entities (service_name)
@@ -50,79 +152,155 @@ BEGIN
         SET updated_at = NOW()
         RETURNING id INTO v_service_id;
     END IF;
-    
+
     RETURN v_service_id;
 END;
 $$;
 
--- =================================================================
--- STEP 3: SEED SERVICE ENTITIES FROM EXISTING TRACES
--- =================================================================
-
+-- 3.3: Seed service entities from existing traces
 INSERT INTO scouter.service_entities (service_name)
 SELECT DISTINCT service_name
 FROM scouter.traces
 WHERE service_name IS NOT NULL
 ON CONFLICT (service_name) DO NOTHING;
 
--- =================================================================
--- STEP 4: ADD service_id COLUMNS TO TRACES AND SPANS
--- =================================================================
-
+-- 3.4: Add service_id column to traces and spans
 ALTER TABLE scouter.traces ADD COLUMN IF NOT EXISTS service_id INTEGER;
 ALTER TABLE scouter.spans ADD COLUMN IF NOT EXISTS service_id INTEGER;
+ALTER TABLE scouter.spans ADD COLUMN IF NOT EXISTS service_name TEXT;
 
--- Backfill traces with service_id
+-- 3.5: Backfill service_id in traces
 UPDATE scouter.traces t
 SET service_id = se.id
 FROM scouter.service_entities se
 WHERE t.service_name = se.service_name
   AND t.service_id IS NULL;
 
--- Backfill spans with service_id and service_name from parent trace
+-- 3.6: Backfill service_id and service_name in spans from parent trace
 UPDATE scouter.spans s
-SET 
+SET
     service_id = t.service_id,
     service_name = t.service_name
 FROM scouter.traces t
 WHERE s.trace_id = t.trace_id
   AND s.service_id IS NULL;
 
--- =================================================================
--- STEP 5: UPDATE TEMPLATE TABLES (for pg_partman)
--- =================================================================
-
+-- 3.7: Update Template Tables (for pg_partman)
 ALTER TABLE scouter.template_scouter_traces ADD COLUMN IF NOT EXISTS service_id INTEGER;
 ALTER TABLE scouter.template_scouter_spans ADD COLUMN IF NOT EXISTS service_id INTEGER;
 
+-- 3.8: Drop the old `entity_id` and `(space, name, version)` columns from traces/spans
+-- NOTE: This also handles the original 'Trace/Span Tables' DDL part of STEP 3
+DO $$
+DECLARE
+    trace_tables_with_old_cols TEXT[] := ARRAY[
+        'scouter.traces',
+        'scouter.spans',
+        'scouter.template_scouter_traces',
+        'scouter.template_scouter_spans'
+    ]::TEXT[];
+    tbl TEXT;
+BEGIN
+    FOREACH tbl IN ARRAY trace_tables_with_old_cols LOOP
+        RAISE NOTICE 'Dropping old entity columns from Trace/Span Table: %', tbl;
+        BEGIN
+            -- Drop entity_id (if it existed from a prior partial migration)
+            EXECUTE format('ALTER TABLE %s DROP COLUMN IF EXISTS entity_id CASCADE', tbl);
+            -- Drop old entity identity columns
+            EXECUTE format('ALTER TABLE %s DROP COLUMN IF EXISTS space, DROP COLUMN IF EXISTS name, DROP COLUMN IF EXISTS version CASCADE', tbl);
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE 'Constraints dropping handled via CASCADE or manual cleanup for %', tbl;
+        END;
+    END LOOP;
+END $$;
+
+
 -- =================================================================
--- STEP 6: CREATE OPTIMIZED INDEXES
+-- STEP 4: CLEANUP OLD CONSTRAINTS & INDEXES
+--         (Consolidated from original STEP 4)
 -- =================================================================
 
--- Drop old indexes
-DROP INDEX IF EXISTS scouter.idx_traces_service_lookup;
-DROP INDEX IF EXISTS scouter.idx_spans_service_lookup;
+-- OBSERVABILITY METRIC
+DROP INDEX IF EXISTS scouter.observability_metric_created_at_space_name_version_idx;
+ALTER TABLE scouter.observability_metric DROP CONSTRAINT IF EXISTS observability_metric_created_at_name_space_version_key;
+ALTER TABLE scouter.observability_metric ADD UNIQUE (created_at, entity_id);
 
--- Create optimized indexes using service_id
-CREATE INDEX idx_traces_service_id_time ON scouter.traces (service_id, created_at DESC) 
-    WHERE service_id IS NOT NULL;
-CREATE INDEX idx_traces_service_id_status ON scouter.traces (service_id, status_code, created_at DESC) 
-    WHERE service_id IS NOT NULL;
+-- LLM DRIFT
+DROP INDEX IF EXISTS scouter.idx_llm_drift_created_at_space_name_version_metric;
+ALTER TABLE scouter.llm_drift DROP CONSTRAINT IF EXISTS llm_drift_created_at_space_name_version_key;
+ALTER TABLE scouter.llm_drift ADD UNIQUE (created_at, entity_id); -- Added missing unique constraint
 
--- Keep service_name index for fallback during transition
-CREATE INDEX idx_traces_service_name_lookup ON scouter.traces (service_name, created_at DESC) 
+-- LLM DRIFT RECORD
+DROP INDEX IF EXISTS scouter.idx_llm_drift_record_created_at_space_name_version;
+DROP INDEX IF EXISTS scouter.idx_llm_drift_record_pagination;
+ALTER TABLE scouter.llm_drift_record DROP CONSTRAINT IF EXISTS llm_drift_record_created_at_name_space_version_key;
+
+-- SPC DRIFT
+DROP INDEX IF EXISTS scouter.idx_spc_drift_created_at_space_name_version_feature;
+ALTER TABLE scouter.spc_drift DROP CONSTRAINT IF EXISTS spc_drift_created_at_name_space_feature_value_version_key;
+ALTER TABLE scouter.spc_drift ADD UNIQUE (created_at, entity_id, feature, value);
+
+-- CUSTOM DRIFT
+DROP INDEX IF EXISTS scouter.idx_custom_drift_created_at_space_name_version_metric;
+ALTER TABLE scouter.custom_drift DROP CONSTRAINT IF EXISTS custom_drift_created_at_name_space_version_key;
+ALTER TABLE scouter.custom_drift ADD UNIQUE (created_at, entity_id);
+
+-- PSI DRIFT
+DROP INDEX IF EXISTS scouter.idx_psi_drift_created_at_space_name_version_feature;
+ALTER TABLE scouter.psi_drift DROP CONSTRAINT IF EXISTS psi_drift_created_at_name_space_version_feature_bin_id_key;
+ALTER TABLE scouter.psi_drift ADD UNIQUE (created_at, entity_id, feature, bin_id);
+
+-- DRIFT ALERT
+DROP INDEX IF EXISTS scouter.idx_drift_alert_created_at_space_name_version;
+ALTER TABLE scouter.drift_alert DROP CONSTRAINT IF EXISTS drift_alert_created_at_name_space_version_key;
+ALTER TABLE scouter.drift_alert ADD UNIQUE (entity_id, created_at);
+
+-- TRACES
+ALTER TABLE scouter.traces DROP CONSTRAINT IF EXISTS traces_created_at_trace_id_space_name_version_key;
+DROP INDEX IF EXISTS scouter.idx_traces_entity_lookup;
+DROP INDEX IF EXISTS scouter.idx_traces_created_at;
+DROP INDEX IF EXISTS scouter.idx_traces_duration_analysis;
+DROP INDEX IF EXISTS scouter.idx_traces_time_covering;
+DROP INDEX IF EXISTS scouter.idx_traces_entity_covering;
+
+-- SPANS
+DROP INDEX IF EXISTS scouter.idx_spans_entity_lookup;
+DROP INDEX IF EXISTS scouter.idx_spans_error_analysis;
+
+
+-- =================================================================
+-- STEP 5: RECREATE INDEXES (Optimized for Entity ID & Service ID)
+-- =================================================================
+
+-- TRACES (now using service_id)
+CREATE INDEX IF NOT EXISTS idx_traces_service_id_time ON scouter.traces (service_id, created_at DESC) 
+    WHERE service_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_traces_service_id_status ON scouter.traces (service_id, status_code, created_at DESC) 
+    WHERE service_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_traces_service_name_fallback ON scouter.traces (service_name, created_at DESC) 
     WHERE service_name IS NOT NULL;
 
--- Span indexes
-CREATE INDEX idx_spans_service_id_time ON scouter.spans (service_id, created_at DESC) 
+-- SPANS (now using service_id)
+CREATE INDEX IF NOT EXISTS idx_spans_service_id_time ON scouter.spans (service_id, created_at DESC) 
     WHERE service_id IS NOT NULL;
-CREATE INDEX idx_spans_service_id_errors ON scouter.spans (service_id, status_code, created_at DESC) 
+CREATE INDEX IF NOT EXISTS idx_spans_service_id_errors ON scouter.spans (service_id, status_code, created_at DESC) 
     WHERE service_id IS NOT NULL AND status_code != 2;
-CREATE INDEX idx_spans_service_name_lookup ON scouter.spans (service_name, created_at DESC) 
+CREATE INDEX IF NOT EXISTS idx_spans_parent_tree ON scouter.spans (parent_span_id, trace_id) 
+    WHERE parent_span_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_spans_service_name_fallback ON scouter.spans (service_name, created_at DESC) 
     WHERE service_name IS NOT NULL;
 
+
+-- DRIFT/METRICS ENTITY LOOKUPS
+-- LLM DRIFT
+CREATE INDEX IF NOT EXISTS idx_llm_drift_lookup ON scouter.llm_drift (created_at, entity_id);
+CREATE INDEX IF NOT EXISTS idx_llm_drift_record_lookup ON scouter.llm_drift_record (entity_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_llm_drift_record_pagination ON scouter.llm_drift_record (entity_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_observability_lookup ON scouter.observability_metric (created_at, entity_id);
+
+
 -- =================================================================
--- STEP 7: RECREATE TRACE_SUMMARY WITHOUT ENTITY_ID
+-- STEP 6: RECREATE TRACE_SUMMARY (Using service_id, no entity-table JOIN)
 -- =================================================================
 
 CREATE MATERIALIZED VIEW scouter.trace_summary AS
@@ -145,6 +323,7 @@ SELECT
     span_stats.avg_span_duration,
     span_stats.max_span_duration
 FROM scouter.traces t
+-- Removed the LEFT JOIN to scouter.entities (e)
 LEFT JOIN scouter.spans root_span ON (
     t.trace_id = root_span.trace_id
     AND t.root_span_id = root_span.span_id
@@ -174,20 +353,22 @@ LEFT JOIN (
 WHERE t.created_at >= NOW() - INTERVAL '7 days';
 
 -- Indexes for trace_summary
-CREATE UNIQUE INDEX idx_trace_summary_unique ON scouter.trace_summary (trace_id, scope);
-CREATE INDEX idx_trace_summary_service_id ON scouter.trace_summary (service_id, created_at DESC) 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_trace_summary_unique ON scouter.trace_summary (trace_id, scope);
+CREATE INDEX IF NOT EXISTS idx_trace_summary_service_id ON scouter.trace_summary (service_id, created_at DESC) 
     WHERE service_id IS NOT NULL;
-CREATE INDEX idx_trace_summary_service_name ON scouter.trace_summary (service_name, created_at DESC) 
+CREATE INDEX IF NOT EXISTS idx_trace_summary_service_name ON scouter.trace_summary (service_name, created_at DESC) 
     WHERE service_name IS NOT NULL;
 
 -- Schedule refresh
 SELECT cron.schedule('refresh-trace-summary', '*/5 * * * *',
     $$REFRESH MATERIALIZED VIEW CONCURRENTLY scouter.trace_summary$$);
 
+
 -- =================================================================
--- STEP 8: RECREATE QUERY FUNCTIONS
+-- STEP 7: RECREATE QUERY FUNCTIONS (Using service_id/service_name)
 -- =================================================================
 
+-- 7.1: get_trace_metrics (Simplified to use p_service_name)
 CREATE OR REPLACE FUNCTION scouter.get_trace_metrics(
     p_service_name TEXT DEFAULT NULL,
     p_start_time TIMESTAMPTZ DEFAULT NOW() - INTERVAL '1 hour',
@@ -206,6 +387,7 @@ RETURNS TABLE (
 LANGUAGE SQL
 STABLE
 AS $$
+    -- Use service_id internally for better performance if possible, but expose service_name
     WITH service_filter AS (
         SELECT id as service_id
         FROM scouter.service_entities
@@ -234,6 +416,8 @@ AS $$
     ORDER BY bucket_start DESC;
 $$;
 
+
+-- 7.2: get_traces_paginated (Simplified, no entity_id)
 CREATE OR REPLACE FUNCTION scouter.get_traces_paginated(
     p_service_name TEXT DEFAULT NULL,
     p_has_errors BOOLEAN DEFAULT NULL,
@@ -319,6 +503,8 @@ AS $$
         CASE WHEN p_direction = 'previous' THEN trace_id END DESC;
 $$;
 
+
+-- 7.3: get_trace_spans (Modified to use service_id filter)
 CREATE OR REPLACE FUNCTION scouter.get_trace_spans(
     p_trace_id TEXT,
     p_service_name TEXT DEFAULT NULL
@@ -347,8 +533,8 @@ RETURNS TABLE (
 LANGUAGE SQL
 STABLE
 AS $$
-   
     WITH service_filter AS (
+        -- Get the service_id from the service_name parameter if provided
         SELECT id as service_id
         FROM scouter.service_entities
         WHERE p_service_name IS NULL OR service_name = p_service_name
@@ -357,75 +543,38 @@ AS $$
     RECURSIVE span_tree AS (
       
         SELECT
-            s.trace_id,
-            s.span_id,
-            s.parent_span_id,
-            s.span_name,
-            s.span_kind,
-            s.start_time,
-            s.end_time,
-            s.duration_ms,
-            s.status_code,
-            s.status_message,
-            s.attributes,
-            s.events,
-            s.links,
+            s.trace_id, s.span_id, s.parent_span_id, s.span_name, s.span_kind, s.start_time, s.end_time, s.duration_ms,
+            s.status_code, s.status_message, s.attributes, s.events, s.links,
             0 as depth,
             ARRAY[s.span_id] as path,
             s.span_id as root_span_id,
-            s.input,
-            s.output
+            s.input, s.output
         FROM scouter.spans s
         WHERE s.trace_id = p_trace_id
           AND s.parent_span_id IS NULL
+          -- Filter root span by service_id only if p_service_name is provided
           AND (p_service_name IS NULL OR s.service_id = (SELECT service_id FROM service_filter))
 
         UNION ALL
 
         SELECT
-            s.trace_id,
-            s.span_id,
-            s.parent_span_id,
-            s.span_name,
-            s.span_kind,
-            s.start_time,
-            s.end_time,
-            s.duration_ms,
-            s.status_code,
-            s.status_message,
-            s.attributes,
-            s.events,
-            s.links,
+            s.trace_id, s.span_id, s.parent_span_id, s.span_name, s.span_kind, s.start_time, s.end_time, s.duration_ms,
+            s.status_code, s.status_message, s.attributes, s.events, s.links,
             st.depth + 1,
             st.path || s.span_id,
             st.root_span_id,
-            s.input,
-            s.output
+            s.input, s.output
         FROM scouter.spans s
         INNER JOIN span_tree st ON s.parent_span_id = st.span_id
         WHERE s.trace_id = p_trace_id
           AND st.depth < 20
+          -- Filter child spans by service_id only if p_service_name is provided
           AND (p_service_name IS NULL OR s.service_id = (SELECT service_id FROM service_filter))
     )
     SELECT
-        st.trace_id,
-        st.span_id,
-        st.parent_span_id,
-        st.span_name,
-        st.span_kind,
-        st.start_time,
-        st.end_time,
-        st.duration_ms,
-        st.status_code,
-        st.status_message,
-        st.attributes,
-        st.events,
-        st.links,
-        st.depth,
-        st.path,
-        st.root_span_id,
-        st.input,
-        st.output,
+        st.trace_id, st.span_id, st.parent_span_id, st.span_name, st.span_kind, st.start_time, st.end_time, st.duration_ms,
+        st.status_code, st.status_message, st.attributes, st.events, st.links,
+        st.depth, st.path, st.root_span_id, st.input, st.output,
         ROW_NUMBER() OVER (ORDER BY path) as span_order
     FROM span_tree st
     ORDER BY path;
