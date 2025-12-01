@@ -8,7 +8,6 @@ pub mod kafka_consumer {
     use rdkafka::message::BorrowedMessage;
     use rdkafka::message::Message;
     use scouter_settings::KafkaSettings;
-    use scouter_sql::sql::cache::EntityCache;
     use scouter_sql::MessageHandler;
     use scouter_types::MessageRecord;
     use sqlx::Pool;

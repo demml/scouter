@@ -178,6 +178,8 @@ pub struct LLMDriftRecord {
     pub processing_ended_at: Option<DateTime<Utc>>,
 
     pub processing_duration: Option<i32>,
+
+    pub entity_uid: String,
 }
 
 #[pymethods]
@@ -203,8 +205,9 @@ impl LLMDriftRecord {
         prompt: Option<Value>,
         context: Value,
         created_at: DateTime<Utc>,
-        uid: String,
         score: Value,
+        uid: String,
+        entity_uid: String,
     ) -> Self {
         Self {
             created_at,
@@ -218,6 +221,7 @@ impl LLMDriftRecord {
             processing_started_at: None,
             processing_ended_at: None,
             processing_duration: None,
+            entity_uid,
         }
     }
 }
@@ -240,8 +244,9 @@ impl BoxedLLMDriftRecord {
 #[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct LLMDriftInternalRecord {
     pub created_at: chrono::DateTime<Utc>,
-    pub entity_id: i32,
-    pub uid: String,
+    pub entity_id: i32,     // foreign key to entity table
+    pub entity_uid: String, // public unique identifier for entity
+    pub uid: String,        // public unique identifier for drift record
     pub prompt: Option<Value>,
     pub context: Value,
     #[cfg_attr(feature = "server", sqlx(try_from = "String"))]
@@ -269,6 +274,7 @@ impl LLMDriftInternalRecord {
             processing_ended_at: None,
             processing_duration: None,
             entity_id,
+            entity_uid: record.entity_uid.clone(),
         }
     }
 
@@ -285,6 +291,7 @@ impl LLMDriftInternalRecord {
             processing_started_at: self.processing_started_at,
             processing_ended_at: self.processing_ended_at,
             processing_duration: self.processing_duration,
+            entity_uid: self.entity_uid.clone(),
         }
     }
 }
@@ -306,13 +313,13 @@ impl BoxedLLMDriftInternalRecord {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct LLMMetricRecord {
     #[pyo3(get)]
-    pub record_uid: String,
+    pub uid: String,
 
     #[pyo3(get)]
     pub created_at: chrono::DateTime<Utc>,
 
     #[pyo3(get)]
-    pub uid: String,
+    pub entity_uid: String,
 
     #[pyo3(get)]
     pub metric: String,
@@ -331,7 +338,8 @@ impl LLMMetricRecord {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct LLMMetricInternalRecord {
-    pub record_uid: String,
+    pub entity_uid: String,
+    pub uid: String,
     pub created_at: chrono::DateTime<Utc>,
     pub entity_id: i32,
     pub metric: String,
@@ -671,7 +679,7 @@ impl ServerRecords {
                 ServerRecord::Psi(inner) => Ok(&inner.uid),
                 ServerRecord::Custom(inner) => Ok(&inner.uid),
                 ServerRecord::Observability(inner) => Ok(&inner.uid),
-                ServerRecord::LLMDrift(inner) => Ok(&inner.record.uid),
+                ServerRecord::LLMDrift(inner) => Ok(&inner.record.entity_uid),
                 ServerRecord::LLMMetric(inner) => Ok(&inner.uid),
             }
         } else {

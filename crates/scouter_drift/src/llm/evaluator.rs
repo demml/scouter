@@ -20,10 +20,14 @@ impl LLMEvaluator {
 
     /// Gets the final task results of the workflow.
     /// # Returns a HashMap where the keys are task IDs and the values are AgentResponse objects.
+    /// # Arguments
+    /// * `workflow` - The workflow to get the final task results from.
+    /// * `profile` - The LLM drift profile.
+    /// * `uid` - The unique identifier for the drift record.
     pub fn get_final_task_results(
         workflow: Arc<RwLock<Workflow>>,
         profile: &LLMDriftProfile,
-        record_uid: &str,
+        uid: &str,
     ) -> Result<LLMEvalResult, DriftError> {
         let workflow = workflow.read().unwrap();
         let task_list = &workflow.task_list;
@@ -88,9 +92,9 @@ impl LLMEvaluator {
 
                 // Create the LLMMetricRecord
                 let record = LLMMetricRecord {
-                    record_uid: record_uid.to_string(),
+                    entity_uid: profile.config.uid.clone(),
+                    uid: uid.to_string(),
                     created_at: chrono::Utc::now(),
-                    uid: profile.config.uid.clone(),
                     metric: task_id.clone(),
                     value,
                 };

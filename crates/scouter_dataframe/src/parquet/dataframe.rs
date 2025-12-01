@@ -207,6 +207,7 @@ mod tests {
                     processing_started_at: None,
                     processing_ended_at: None,
                     processing_duration: None,
+                    entity_uid: "test-entity-uid".to_string(),
                 };
 
                 let boxed_record = BoxedLLMDriftInternalRecord::new(record);
@@ -257,9 +258,10 @@ mod tests {
         for i in 0..3 {
             for j in 0..50 {
                 let record = InternalServerRecord::LLMMetric(LLMMetricInternalRecord {
-                    record_uid: format!("record_uid_{i}_{j}"),
+                    uid: format!("record_uid_{i}_{j}"),
                     created_at: Utc::now() + chrono::Duration::hours(i),
                     entity_id: entity_id.clone(),
+                    entity_uid: "test-entity-uid".to_string(),
                     metric: format!("metric{i}"),
                     value: j as f64,
                 });

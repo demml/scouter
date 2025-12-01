@@ -4,8 +4,8 @@ WITH next_id AS (
     WHERE entity_id = $2
 )
 INSERT INTO scouter.llm_drift_record (
-    id, created_at, entity_id, context, prompt
+    id, uid, created_at, entity_id, entity_uid, context, prompt
 )
-SELECT next_id.id, $1, $2, $3, $4
+SELECT next_id.id, $1, $2, $3, $4, $5, $6
 FROM next_id
 ON CONFLICT DO NOTHING;

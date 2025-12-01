@@ -936,6 +936,7 @@ mod tests {
                 processing_started_at: None,
                 processing_ended_at: None,
                 processing_duration: None,
+                entity_uid: "test".to_string(),
             };
 
             let result = PostgresClient::insert_llm_drift_record(&pool, &record, &ENTITY_ID)
@@ -1007,6 +1008,7 @@ mod tests {
                 processing_started_at: None,
                 processing_ended_at: None,
                 processing_duration: None,
+                entity_uid: "test".to_string(),
             };
 
             let result = PostgresClient::insert_llm_drift_record(&pool, &record, &ENTITY_ID)
@@ -1065,9 +1067,9 @@ mod tests {
             let mut records = Vec::new();
             for j in 0..25 {
                 let record = LLMMetricRecord {
-                    record_uid: format!("uid{i}{j}"),
+                    uid: format!("uid{i}{j}"),
                     created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
-                    uid: UID.to_string(),
+                    entity_uid: UID.to_string(),
                     metric: format!("metric{i}"),
                     value: rand::rng().random_range(0..10) as f64,
                 };

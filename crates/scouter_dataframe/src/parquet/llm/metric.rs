@@ -76,10 +76,11 @@ impl LLMMetricDataFrame {
                 DataType::Timestamp(TimeUnit::Nanosecond, None),
                 false,
             ),
-            Field::new("record_uid", DataType::Utf8, false),
+            Field::new("uid", DataType::Utf8, false),
             Field::new("metric", DataType::Utf8, false),
             Field::new("value", DataType::Float64, false),
             Field::new("entity_id", DataType::Int32, false),
+            Field::new("entity_uid", DataType::Utf8, false),
         ]));
 
         let object_store = ObjectStore::new(storage_settings)?;
@@ -99,9 +100,10 @@ impl LLMMetricDataFrame {
                 .iter()
                 .map(|r| r.created_at.timestamp_nanos_opt().unwrap_or_default()),
         );
-        let record_uid_array =
-            StringArray::from_iter_values(records.iter().map(|r| r.record_uid.as_str()));
+        let uid_array = StringArray::from_iter_values(records.iter().map(|r| r.uid.as_str()));
         let entity_id_array = Int32Array::from_iter_values(records.iter().map(|r| r.entity_id));
+        let entity_uid_array =
+            StringArray::from_iter_values(records.iter().map(|r| r.entity_uid.as_str()));
         let metric_array = StringArray::from_iter_values(records.iter().map(|r| r.metric.as_str()));
 
         let value_array = Float64Array::from_iter_values(records.iter().map(|r| r.value));
@@ -110,10 +112,11 @@ impl LLMMetricDataFrame {
             self.schema.clone(),
             vec![
                 Arc::new(created_at_array),
-                Arc::new(record_uid_array),
+                Arc::new(uid_array),
                 Arc::new(metric_array),
                 Arc::new(value_array),
                 Arc::new(entity_id_array),
+                Arc::new(entity_uid_array),
             ],
         )?;
 

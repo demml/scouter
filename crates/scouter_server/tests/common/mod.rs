@@ -292,18 +292,17 @@ impl TestHelper {
     }
 
     pub fn get_llm_drift_metrics(&self, time_offset: Option<i64>) -> MessageRecord {
+        let entity_uid = "test-entity-uid";
         let mut records: Vec<ServerRecord> = Vec::new();
         let offset = time_offset.unwrap_or(0);
 
         for i in 0..2 {
             for j in 0..25 {
                 let record = LLMMetricRecord {
-                    record_uid: format!("record_uid_{i}_{j}"),
+                    uid: format!("record_uid_{i}_{j}"),
                     created_at: Utc::now() + chrono::Duration::microseconds(j as i64)
                         - chrono::Duration::days(offset),
-                    space: SPACE.to_string(),
-                    name: NAME.to_string(),
-                    version: VERSION.to_string(),
+                    entity_uid: entity_uid.to_string(),
                     metric: format!("metric{i}"),
                     value: rand::rng().random_range(0..3) as f64,
                 };
