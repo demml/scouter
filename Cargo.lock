@@ -5674,7 +5674,6 @@ dependencies = [
  "metrics",
  "metrics-exporter-prometheus",
  "mimalloc",
- "mini-moka",
  "mockito",
  "ndarray",
  "ndarray-rand",

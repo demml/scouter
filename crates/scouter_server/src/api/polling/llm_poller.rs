@@ -2,7 +2,6 @@
 use crate::api::error::ServerError;
 use scouter_drift::llm::LLMPoller;
 use scouter_settings::PollingSettings;
-use scouter_sql::sql::cache::EntityCache;
 use sqlx::{Pool, Postgres};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;

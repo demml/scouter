@@ -1,16 +1,16 @@
 use crate::api::{error::ServerError, task_manager::TaskManager};
+
+use axum::Json;
 use flume::Sender;
-use mini_moka::sync::Cache;
 use scouter_auth::auth::AuthManager;
 use scouter_settings::ScouterServerConfig;
-use scouter_sql::sql::{cache::EntityCache, traits::ProfileSqlLogic};
-use scouter_sql::PostgresClient;
+use scouter_sql::sql::cache::entity_cache;
+use scouter_sql::sql::cache::EntityCache;
 use scouter_types::contracts::ScouterServerError;
 use scouter_types::MessageRecord;
 use sqlx::{Pool, Postgres};
 use std::sync::Arc;
-
-use axum::http::StatusCode;
+use tracing::error;
 
 pub struct AppState {
     pub db_pool: Pool<Postgres>,
@@ -29,22 +29,26 @@ impl AppState {
     }
 
     /// Get profile ID from UID with caching
-    pub async fn get_entity_id_from_uid(&self, uid: &str) -> Result<i32, ServerError> {
-        self.entity_cache.get_entity_id_from_uid(uid).await
+    pub async fn get_entity_id_from_uid(&self, uid: &String) -> Result<i32, ServerError> {
+        Ok(entity_cache().get_entity_id_from_uid(uid).await?)
     }
 
     pub async fn get_entity_id_for_request(
         &self,
-        uid: &str,
+        uid: &String,
     ) -> Result<i32, (ServerError, Json<ScouterServerError>)> {
-        let profile_id = self.get_entity_id_from_uid(uid).await.map_err(|e| {
-            error!("Failed to get profile ID from UID: {:?}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ScouterServerError::new(format!(
-                    "Failed to get profile ID from UID: {e:?}"
-                ))),
-            )
-        })?;
+        match self.get_entity_id_from_uid(uid).await {
+            Ok(profile_id) => Ok(profile_id),
+            Err(e) => {
+                let error_msg = e.to_string();
+                error!("Failed to get entity ID from UID: {:?}", e);
+                Err((
+                    e,
+                    Json(ScouterServerError::new(format!(
+                        "Failed to get entity ID from UID: {error_msg}"
+                    ))),
+                ))
+            }
+        }
     }
 }

@@ -10,7 +10,7 @@ use scouter_settings::{
     DatabaseSettings, KafkaSettings, PollingSettings, RabbitMQSettings, ScouterServerConfig,
 };
 use scouter_sql::sql::traits::UserSqlLogic;
-use scouter_sql::sql::{cache::init_entity_cache, cache::EntityCache, schema::User};
+use scouter_sql::sql::{cache::init_entity_cache, schema::User};
 use scouter_sql::PostgresClient;
 use sqlx::{Pool, Postgres};
 use std::str::FromStr;
@@ -54,8 +54,6 @@ impl ScouterSetupComponents {
         }
 
         let db_pool = Self::setup_database(&config.database_settings).await?;
-        // entity cache for quick entity id lookups
-        let entity_cache = EntityCache::new(db_pool.clone(), 1000);
 
         let mut task_manager = TaskManager::new();
         let tokio_shutdown_rx = task_manager.get_shutdown_receiver();
