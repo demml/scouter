@@ -4,7 +4,7 @@ use crate::utils::setup_logging;
 
 use scouter_sql::sql::traits::SpcSqlLogic;
 use scouter_sql::{sql::traits::EntitySqlLogic, PostgresClient};
-use scouter_types::{ServerRecord, ServerRecords, ServiceInfo, SpcRecord};
+use scouter_types::{ServerRecord, ServerRecords, SpcRecord};
 use std::time::{Duration, Instant};
 use utils::TestHelper;
 
@@ -96,22 +96,11 @@ async fn main() {
 
     let helper = TestHelper::new().await;
 
-    let service_info = ServiceInfo {
-        space: "test".to_string(),
-        name: "test".to_string(),
-        version: "1.0.0".to_string(),
-    };
-
     // create entity in the database before starting consumer
-    let (entity_uid, entity_id) = PostgresClient::create_entity(
-        &helper.db_pool,
-        service_info.space.as_str(),
-        service_info.name.as_str(),
-        service_info.version.as_str(),
-        "spc",
-    )
-    .await
-    .unwrap();
+    let (entity_uid, entity_id) =
+        PostgresClient::create_entity(&helper.db_pool, "test", "test", "1.0.0", "spc")
+            .await
+            .unwrap();
 
     helper.start_background_producer(&entity_uid).await;
 
