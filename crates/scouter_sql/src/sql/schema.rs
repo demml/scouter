@@ -177,7 +177,7 @@ pub struct BinProportion {
 
 #[derive(Debug, Clone, FromRow)]
 pub struct Entity {
-    pub uid: String,
+    pub entity_id: i32,
     pub begin_timestamp: DateTime<Utc>,
     pub end_timestamp: DateTime<Utc>,
 }

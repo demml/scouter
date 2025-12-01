@@ -87,9 +87,7 @@ async fn get_data_to_archive(
 ) -> Result<InternalServerRecords, ServerError> {
     // get the data from the database
     let data = PostgresClient::get_data_to_archive(
-        &entity.space,
-        &entity.name,
-        &entity.version,
+        &entity.entity_id,
         &entity.begin_timestamp,
         &entity.end_timestamp,
         record_type,
@@ -114,9 +112,7 @@ async fn update_entities_to_archived(
 ) -> Result<(), ServerError> {
     // get the data from the database
     PostgresClient::update_data_to_archived(
-        &entity.space,
-        &entity.name,
-        &entity.version,
+        &entity.entity_id,
         &entity.begin_timestamp,
         &entity.end_timestamp,
         record_type,
