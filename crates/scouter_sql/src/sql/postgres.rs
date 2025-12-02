@@ -452,15 +452,9 @@ mod tests {
                 .map(|i| (i.to_string(), i.to_string()))
                 .collect::<BTreeMap<String, String>>();
 
-            let result = PostgresClient::insert_drift_alert(
-                &pool,
-                &entity_id,
-                "test",
-                &alert,
-                &DriftType::Spc,
-            )
-            .await
-            .unwrap();
+            let result = PostgresClient::insert_drift_alert(&pool, &entity_id, "test", &alert)
+                .await
+                .unwrap();
 
             assert_eq!(result.rows_affected(), 1);
         }

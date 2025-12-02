@@ -4,7 +4,7 @@ use scouter_types::psi::DistributionData;
 use scouter_types::BoxedLLMDriftInternalRecord;
 use scouter_types::DriftType;
 use scouter_types::LLMDriftInternalRecord;
-use scouter_types::{alert::Alert, get_utc_datetime, BinnedMetric, BinnedMetricStats, RecordType};
+use scouter_types::{get_utc_datetime, BinnedMetric, BinnedMetricStats, RecordType};
 use semver::{BuildMetadata, Prerelease, Version};
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, Error, FromRow, Row};
@@ -75,28 +75,6 @@ impl<'r> FromRow<'r, PgRow> for BinnedMetricWrapper {
             metric: row.try_get("metric")?,
             created_at: row.try_get("created_at")?,
             stats,
-        }))
-    }
-}
-
-pub struct AlertWrapper(pub Alert);
-
-impl<'r> FromRow<'r, PgRow> for AlertWrapper {
-    fn from_row(row: &'r PgRow) -> Result<Self, Error> {
-        let alert_value: serde_json::Value = row.try_get("alert")?;
-        let alert: BTreeMap<String, String> =
-            serde_json::from_value(alert_value).unwrap_or_default();
-
-        Ok(AlertWrapper(Alert {
-            created_at: row.try_get("created_at")?,
-            name: row.try_get("name")?,
-            space: row.try_get("space")?,
-            version: row.try_get("version")?,
-            alert,
-            entity_name: row.try_get("entity_name")?,
-            id: row.try_get("id")?,
-            drift_type: row.try_get("drift_type")?,
-            active: row.try_get("active")?,
         }))
     }
 }

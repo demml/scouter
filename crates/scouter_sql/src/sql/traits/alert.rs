@@ -1,11 +1,10 @@
 use crate::sql::query::Queries;
-use crate::sql::schema::{AlertWrapper, UpdateAlertResult};
+use crate::sql::schema::UpdateAlertResult;
 
 use scouter_types::contracts::{DriftAlertRequest, UpdateAlertStatus};
 
 use crate::sql::error::SqlError;
 use scouter_types::alert::Alert;
-use scouter_types::DriftType;
 
 use sqlx::{postgres::PgQueryResult, Pool, Postgres};
 use std::collections::BTreeMap;
@@ -29,7 +28,6 @@ pub trait AlertSqlLogic {
         entity_id: &i32,
         entity_name: &str,
         alert: &BTreeMap<String, String>,
-        drift_type: &DriftType,
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertDriftAlert.get_query();
 
@@ -37,7 +35,6 @@ pub trait AlertSqlLogic {
             .bind(entity_id)
             .bind(entity_name)
             .bind(serde_json::to_value(alert).unwrap())
-            .bind(drift_type.to_string())
             .execute(pool)
             .await?;
 
@@ -61,24 +58,18 @@ pub trait AlertSqlLogic {
     ) -> Result<Vec<Alert>, SqlError> {
         let mut query = Queries::GetDriftAlerts.get_query().sql;
 
-        if params.active.unwrap_or(false) {
-            query.push_str(" AND active = true");
-        }
-
-        query.push_str(" ORDER BY created_at DESC");
-
         if let Some(limit) = params.limit {
             query.push_str(&format!(" LIMIT {limit}"));
         }
 
-        let result: Result<Vec<AlertWrapper>, SqlError> = sqlx::query_as(&query)
+        let result: Result<Vec<Alert>, SqlError> = sqlx::query_as(&query)
             .bind(entity_id)
             .bind(params.limit_datetime)
             .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError);
 
-        result.map(|result| result.into_iter().map(|wrapper| wrapper.0).collect())
+        result
     }
 
     /// Update drift alert status in the database
