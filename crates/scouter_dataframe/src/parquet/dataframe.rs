@@ -193,7 +193,7 @@ mod tests {
 
         // create records
         for i in 0..3 {
-            for _ in 0..50 {
+            for j in 0..50 {
                 let record = LLMDriftInternalRecord {
                     created_at: Utc::now() + chrono::Duration::hours(i),
                     entity_id: entity_id.clone(),
@@ -202,7 +202,7 @@ mod tests {
                     score: Value::Null,
                     status: Status::Pending,
                     id: 0,
-                    uid: "test-uid".to_string(),
+                    uid: format!("record_uid_{i}_{j}"),
                     updated_at: None,
                     processing_started_at: None,
                     processing_ended_at: None,
