@@ -1,3 +1,3 @@
 SELECT id
-FROM scouter.entities
+FROM scouter.drift_entities
 WHERE uid = $1;

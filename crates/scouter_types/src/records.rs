@@ -194,7 +194,6 @@ pub struct LLMDriftRecord {
 
     pub processing_duration: Option<i32>,
 
-    // this is used to lookup entity_id from entity table
     pub entity_uid: String,
 }
 
@@ -259,24 +258,23 @@ impl BoxedLLMDriftRecord {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct LLMDriftInternalRecord {
+    pub uid: String, // public unique identifier for drift record
     pub created_at: chrono::DateTime<Utc>,
-    pub entity_id: i32,     // foreign key to entity table
-    pub entity_uid: String, // public unique identifier for entity
-    pub uid: String,        // public unique identifier for drift record
-    pub prompt: Option<Value>,
     pub context: Value,
+    pub prompt: Option<Value>,
     #[cfg_attr(feature = "server", sqlx(try_from = "String"))]
     pub status: Status,
-    pub id: i64,
     pub score: Value,
+    pub id: i64,
     pub updated_at: Option<DateTime<Utc>>,
     pub processing_started_at: Option<DateTime<Utc>>,
     pub processing_ended_at: Option<DateTime<Utc>>,
     pub processing_duration: Option<i32>,
+    pub entity_id: i32, // foreign key to entity table
 }
 
 impl LLMDriftInternalRecord {
-    pub fn from_server_record(record: &LLMDriftRecord, entity_id: i32) -> Self {
+    pub fn from_public_record(record: &LLMDriftRecord, entity_id: i32) -> Self {
         Self {
             created_at: record.created_at,
             prompt: record.prompt.clone(),
@@ -290,7 +288,6 @@ impl LLMDriftInternalRecord {
             processing_ended_at: None,
             processing_duration: None,
             entity_id,
-            entity_uid: record.entity_uid.clone(),
         }
     }
 
@@ -307,7 +304,9 @@ impl LLMDriftInternalRecord {
             processing_started_at: self.processing_started_at,
             processing_ended_at: self.processing_ended_at,
             processing_duration: self.processing_duration,
-            entity_uid: self.entity_uid.clone(),
+
+            // placeholder - entity_uid is only used when inserting records
+            entity_uid: String::new(),
         }
     }
 }

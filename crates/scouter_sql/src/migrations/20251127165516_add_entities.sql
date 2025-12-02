@@ -18,7 +18,7 @@ DROP MATERIALIZED VIEW IF EXISTS scouter.trace_summary CASCADE;
 -- =================================================================
 
 -- 2.1: Create the new central entities table
-CREATE TABLE IF NOT EXISTS scouter.entities (
+CREATE TABLE IF NOT EXISTS scouter.drift_entities (
     id SERIAL PRIMARY KEY,
     uid TEXT UNIQUE DEFAULT gen_random_uuid(),
     space TEXT NOT NULL,
@@ -29,15 +29,15 @@ CREATE TABLE IF NOT EXISTS scouter.entities (
     UNIQUE (space, name, version, drift_type)
 );
 
-CREATE INDEX IF NOT EXISTS idx_entities_lookup ON scouter.entities (space, name, version, drift_type);
+CREATE INDEX IF NOT EXISTS idx_entities_lookup ON scouter.drift_entities (space, name, version, drift_type);
 
 -- 2.2: Seed entities from existing drift_profile data
-INSERT INTO scouter.entities (space, name, version, drift_type)
+INSERT INTO scouter.drift_entities (space, name, version, drift_type)
 SELECT DISTINCT space, name, version, drift_type FROM scouter.drift_profile
 ON CONFLICT (space, name, version, drift_type) DO NOTHING;
 
 -- 2.3: Update entities with existing uids from drift_profile
-UPDATE scouter.entities e
+UPDATE scouter.drift_entities e
 SET uid = dp.uid
 FROM scouter.drift_profile dp
 WHERE e.space = dp.space AND e.name = dp.name AND e.version = dp.version;
@@ -79,8 +79,8 @@ BEGIN
 
         -- 2. Check if table has drift_type column
         SELECT EXISTS (
-            SELECT 1 
-            FROM information_schema.columns 
+            SELECT 1
+            FROM information_schema.columns
             WHERE table_schema = split_part(tbl, '.', 1)
               AND table_name = split_part(tbl, '.', 2)
               AND column_name = 'drift_type'
@@ -97,7 +97,7 @@ BEGIN
         EXECUTE format($q$
             UPDATE %s t
             SET entity_id = e.id
-            FROM scouter.entities e
+            FROM scouter.drift_entities e
             WHERE t.space = e.space
               AND t.name = e.name
               AND t.version = e.version
@@ -111,7 +111,10 @@ BEGIN
 
         -- 6. Drop Old Columns
         BEGIN
-            EXECUTE format('ALTER TABLE %s DROP COLUMN IF EXISTS space, DROP COLUMN IF EXISTS name, DROP COLUMN IF EXISTS version CASCADE, DROP COLUMN IF EXISTS drift_type', tbl);
+            -- skip if scoute.drift_profile table (want to keep space/name for profile purposes)
+            IF tbl != 'scouter.drift_profile' THEN
+                EXECUTE format('ALTER TABLE %s DROP COLUMN IF EXISTS space, DROP COLUMN IF EXISTS name, DROP COLUMN IF EXISTS version CASCADE, DROP COLUMN IF EXISTS drift_type', tbl);
+            END IF;
         EXCEPTION WHEN OTHERS THEN
             RAISE NOTICE 'Constraints dropping handled via CASCADE or manual cleanup for %', tbl;
         END;

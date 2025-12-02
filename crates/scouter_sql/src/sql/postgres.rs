@@ -350,6 +350,12 @@ mod tests {
         sqlx::raw_sql(
             r#"
             DELETE
+            FROM scouter.service_entities;
+
+            DELETE
+            FROM scouter.drift_entities;
+
+            DELETE
             FROM scouter.spc_drift;
 
             DELETE
@@ -572,7 +578,6 @@ mod tests {
 
         let mut spc_profile = SpcDriftProfile::default();
         let profile = DriftProfile::Spc(spc_profile.clone());
-
         let uid = insert_profile_to_db(&pool, &profile, false, false).await;
         assert!(!uid.is_empty());
 
@@ -710,7 +715,10 @@ mod tests {
                 ..Default::default()
             },
         ));
-        let _ = insert_profile_to_db(&pool, profile, false, false).await;
+        let uid = insert_profile_to_db(&pool, profile, false, false).await;
+        let entity_id = PostgresClient::get_entity_id_from_uid(&pool, &uid)
+            .await
+            .unwrap();
 
         for feature in 0..num_features {
             for bin in 0..=num_bins {
@@ -718,7 +726,7 @@ mod tests {
                 for j in 0..=100 {
                     let record = PsiRecord {
                         created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
-                        uid: UID.to_string(),
+                        uid: uid.to_string(),
                         feature: format!("feature{feature}"),
                         bin_id: bin,
                         bin_count: rand::rng().random_range(0..10),
@@ -726,7 +734,7 @@ mod tests {
 
                     records.push(record);
                 }
-                PostgresClient::insert_bin_counts_batch(&pool, &records, &ENTITY_ID)
+                PostgresClient::insert_bin_counts_batch(&pool, &records, &entity_id)
                     .await
                     .unwrap();
             }
@@ -736,7 +744,7 @@ mod tests {
             &pool,
             &timestamp,
             &["feature0".to_string()],
-            &ENTITY_ID,
+            &entity_id,
         )
         .await
         .unwrap();
@@ -762,7 +770,7 @@ mod tests {
             },
             &DatabaseSettings::default().retention_period,
             &ObjectStorageSettings::default(),
-            &ENTITY_ID,
+            &entity_id,
         )
         .await
         .unwrap();
@@ -773,22 +781,31 @@ mod tests {
     #[tokio::test]
     async fn test_postgres_cru_custom_metric() {
         let pool = db_pool().await;
-
         let timestamp = Utc::now();
+
+        let (uid, entity_id) = PostgresClient::create_entity(
+            &pool,
+            SPACE,
+            NAME,
+            VERSION,
+            &DriftType::Custom.to_string(),
+        )
+        .await
+        .unwrap();
 
         for i in 0..2 {
             let mut records = Vec::new();
             for j in 0..25 {
                 let record = CustomMetricRecord {
                     created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
-                    uid: UID.to_string(),
+                    uid: uid.clone(),
                     metric: format!("metric{i}"),
                     value: rand::rng().random_range(0..10) as f64,
                 };
                 records.push(record);
             }
             let result =
-                PostgresClient::insert_custom_metric_values_batch(&pool, &records, &ENTITY_ID)
+                PostgresClient::insert_custom_metric_values_batch(&pool, &records, &entity_id)
                     .await
                     .unwrap();
             assert_eq!(result.rows_affected(), 25);
@@ -797,13 +814,13 @@ mod tests {
         // insert random record to test has statistics funcs handle single record
         let record = CustomMetricRecord {
             created_at: Utc::now(),
-            uid: UID.to_string(),
+            uid: uid.clone(),
             metric: "metric3".to_string(),
             value: rand::rng().random_range(0..10) as f64,
         };
 
         let result =
-            PostgresClient::insert_custom_metric_values_batch(&pool, &[record], &ENTITY_ID)
+            PostgresClient::insert_custom_metric_values_batch(&pool, &[record], &entity_id)
                 .await
                 .unwrap();
         assert_eq!(result.rows_affected(), 1);
@@ -812,7 +829,7 @@ mod tests {
             &pool,
             &timestamp,
             &["metric1".to_string()],
-            &ENTITY_ID,
+            &entity_id,
         )
         .await
         .unwrap();
@@ -822,15 +839,14 @@ mod tests {
         let binned_records = PostgresClient::get_binned_custom_drift_records(
             &pool,
             &DriftRequest {
-                uid: UID.to_string(),
+                uid: uid.clone(),
                 time_interval: TimeInterval::OneHour,
                 max_data_points: 1000,
-
                 ..Default::default()
             },
             &DatabaseSettings::default().retention_period,
             &ObjectStorageSettings::default(),
-            &ENTITY_ID,
+            &entity_id,
         )
         .await
         .unwrap();
@@ -895,6 +911,11 @@ mod tests {
     async fn test_postgres_llm_drift_record_insert_get() {
         let pool = db_pool().await;
 
+        let (uid, entity_id) =
+            PostgresClient::create_entity(&pool, SPACE, NAME, VERSION, &DriftType::LLM.to_string())
+                .await
+                .unwrap();
+
         let input = "This is a test input";
         let output = "This is a test response";
         let prompt = create_score_prompt(None);
@@ -910,23 +931,23 @@ mod tests {
                 context,
                 status: Status::Pending,
                 id: 0, // This will be set by the database
-                uid: "test".to_string(),
+                uid: format!("test_{}", j),
                 updated_at: None,
                 score: Value::Null,
                 processing_started_at: None,
                 processing_ended_at: None,
                 processing_duration: None,
-                entity_uid: "test".to_string(),
+                entity_uid: uid.clone(),
             };
 
-            let result = PostgresClient::insert_llm_drift_record(&pool, &record, &ENTITY_ID)
+            let result = PostgresClient::insert_llm_drift_record(&pool, &record, &entity_id)
                 .await
                 .unwrap();
 
             assert_eq!(result.rows_affected(), 1);
         }
 
-        let features = PostgresClient::get_llm_drift_records(&pool, None, None, &ENTITY_ID)
+        let features = PostgresClient::get_llm_drift_records(&pool, None, None, &entity_id)
             .await
             .unwrap();
         assert_eq!(features.len(), 10);
@@ -955,7 +976,7 @@ mod tests {
 
         // query processed tasks
         let processed_tasks =
-            PostgresClient::get_llm_drift_records(&pool, None, Some(Status::Processed), &ENTITY_ID)
+            PostgresClient::get_llm_drift_records(&pool, None, Some(Status::Processed), &entity_id)
                 .await
                 .unwrap();
 
@@ -966,6 +987,11 @@ mod tests {
     #[tokio::test]
     async fn test_postgres_llm_drift_record_pagination() {
         let pool = db_pool().await;
+
+        let (uid, entity_id) =
+            PostgresClient::create_entity(&pool, SPACE, NAME, VERSION, &DriftType::LLM.to_string())
+                .await
+                .unwrap();
 
         let input = "This is a test input";
         let output = "This is a test response";
@@ -983,15 +1009,15 @@ mod tests {
                 score: Value::Null,
                 status: Status::Pending,
                 id: 0, // This will be set by the database
-                uid: "test".to_string(),
+                uid: format!("test_{}", j),
                 updated_at: None,
                 processing_started_at: None,
                 processing_ended_at: None,
                 processing_duration: None,
-                entity_uid: "test".to_string(),
+                entity_uid: uid.clone(),
             };
 
-            let result = PostgresClient::insert_llm_drift_record(&pool, &record, &ENTITY_ID)
+            let result = PostgresClient::insert_llm_drift_record(&pool, &record, &entity_id)
                 .await
                 .unwrap();
 
@@ -1005,7 +1031,7 @@ mod tests {
         };
 
         let paginated_features =
-            PostgresClient::get_llm_drift_records_pagination(&pool, &ENTITY_ID, None, pagination)
+            PostgresClient::get_llm_drift_records_pagination(&pool, &entity_id, None, pagination)
                 .await
                 .unwrap();
 
@@ -1023,7 +1049,7 @@ mod tests {
         };
 
         let paginated_features =
-            PostgresClient::get_llm_drift_records_pagination(&pool, &ENTITY_ID, None, pagination)
+            PostgresClient::get_llm_drift_records_pagination(&pool, &entity_id, None, pagination)
                 .await
                 .unwrap();
 
@@ -1043,20 +1069,25 @@ mod tests {
 
         let timestamp = Utc::now();
 
+        let (uid, entity_id) =
+            PostgresClient::create_entity(&pool, SPACE, NAME, VERSION, &DriftType::LLM.to_string())
+                .await
+                .unwrap();
+
         for i in 0..2 {
             let mut records = Vec::new();
             for j in 0..25 {
                 let record = LLMMetricRecord {
                     uid: format!("uid{i}{j}"),
                     created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
-                    entity_uid: UID.to_string(),
+                    entity_uid: uid.clone(),
                     metric: format!("metric{i}"),
                     value: rand::rng().random_range(0..10) as f64,
                 };
                 records.push(record);
             }
             let result =
-                PostgresClient::insert_llm_metric_values_batch(&pool, &records, &ENTITY_ID)
+                PostgresClient::insert_llm_metric_values_batch(&pool, &records, &entity_id)
                     .await
                     .unwrap();
             assert_eq!(result.rows_affected(), 25);
@@ -1066,7 +1097,7 @@ mod tests {
             &pool,
             &timestamp,
             &["metric1".to_string()],
-            &ENTITY_ID,
+            &entity_id,
         )
         .await
         .unwrap();
@@ -1075,14 +1106,14 @@ mod tests {
         let binned_records = PostgresClient::get_binned_llm_metric_values(
             &pool,
             &DriftRequest {
-                uid: UID.to_string(),
+                uid: uid.clone(),
                 time_interval: TimeInterval::OneHour,
                 max_data_points: 1000,
                 ..Default::default()
             },
             &DatabaseSettings::default().retention_period,
             &ObjectStorageSettings::default(),
-            &ENTITY_ID,
+            &entity_id,
         )
         .await
         .unwrap();

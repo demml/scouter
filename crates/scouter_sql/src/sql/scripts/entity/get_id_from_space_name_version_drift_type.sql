@@ -1,5 +1,5 @@
 SELECT id
-FROM scouter.entities
+FROM scouter.drift_entities
 WHERE space = $1
     AND name = $2
     AND version = $3;

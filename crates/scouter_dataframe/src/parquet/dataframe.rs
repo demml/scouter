@@ -207,7 +207,6 @@ mod tests {
                     processing_started_at: None,
                     processing_ended_at: None,
                     processing_duration: None,
-                    entity_uid: "test-entity-uid".to_string(),
                 };
 
                 let boxed_record = BoxedLLMDriftInternalRecord::new(record);

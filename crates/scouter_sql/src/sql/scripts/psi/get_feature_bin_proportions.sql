@@ -40,8 +40,7 @@ filtered_feature_total AS (
     (10 * pbc.bin_count)
   FROM feature_total ft
   JOIN profile_bin_counts pbc
-    ON ft.name = pbc.name
-    AND ft.entity_id = pbc.entity_id
+    ON ft.entity_id = pbc.entity_id
   /*
       PSI Minimum Sample Size: 10 * number_of_bins
       Based on Yurdakul (2018) "Statistical Properties of Population Stability Index"

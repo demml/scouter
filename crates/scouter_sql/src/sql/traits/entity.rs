@@ -78,7 +78,7 @@ pub trait EntitySqlLogic {
         drift_type: &str,
     ) -> Result<(String, i32), SqlError> {
         let query = format!(
-            "INSERT INTO entities (space, name, version, drift_type) VALUES ($1, $2, $3, $4) ON CONFLICT (space, name, version, drift_type) DO NOTHING RETURNING id, uid;"
+            "INSERT INTO scouter.drift_entities (space, name, version, drift_type) VALUES ($1, $2, $3, $4) ON CONFLICT (space, name, version, drift_type) DO NOTHING RETURNING id, uid;"
         );
 
         let result = sqlx::query(&query)

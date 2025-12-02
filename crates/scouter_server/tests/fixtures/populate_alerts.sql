@@ -1,4 +1,4 @@
-INSERT INTO scouter.entities (space, name, version, drift_type) VALUES
+INSERT INTO scouter.drift_entities (space, name, version, drift_type) VALUES
 ('repo_1', 'model_1', '1.0.0', 'PSI'),
 ('repo_1', 'model_1', '1.0.0', 'SPC'),
 ('repo_1', 'model_1', '1.0.0', 'CUSTOM')
@@ -26,7 +26,7 @@ FROM (VALUES
     ('2025-01-01 04:00:00'::timestamptz, 'repo_1', 'model_1', '1.0.0', 'CUSTOM', 'feature_1', '{"type": "CUSTOM_ALERT"}', true, now()),
     ('2025-01-01 03:00:00'::timestamptz, 'repo_1', 'model_1', '1.0.0', 'PSI', 'feature_2', '{"type": "PSI_ALERT"}', false, now())
 ) AS v(created_at, space, name, version, drift_type, entity_name, alert, active, updated_at)
-INNER JOIN scouter.entities e
+INNER JOIN scouter.drift_entities e
     ON e.space = v.space
     AND e.name = v.name
     AND e.version = v.version

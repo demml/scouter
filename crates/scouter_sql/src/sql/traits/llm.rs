@@ -94,8 +94,7 @@ pub trait LLMDriftSqlLogic {
         entity_id: &i32,
     ) -> Result<Vec<LLMDriftRecord>, SqlError> {
         let mut query_string = Queries::GetLLMDriftRecords.get_query().sql;
-
-        let mut bind_count = 3;
+        let mut bind_count = 1;
 
         if limit_datetime.is_some() {
             bind_count += 1;
@@ -144,7 +143,7 @@ pub trait LLMDriftSqlLogic {
 
         // Get initial SQL query
         let mut sql = Queries::GetLLMDriftRecords.get_query().sql;
-        let mut bind_count = 3;
+        let mut bind_count = 1;
 
         // If querying any page other than the first, we need to add a cursor condition
         // Everything is filtered by ID desc (most recent), so if last ID is provided, we need to filter for IDs less than that

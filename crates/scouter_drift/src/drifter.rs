@@ -166,7 +166,6 @@ pub mod drift_executor {
                             &task.entity_id,
                             alert.get("entity_name").unwrap_or(&"NA".to_string()),
                             &alert,
-                            &task.drift_type,
                         )
                         .await
                         .map_err(|e| {
