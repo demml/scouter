@@ -1,4 +1,5 @@
 use crate::sql::cache::entity_cache;
+use crate::sql::cache::init_entity_cache;
 use crate::sql::error::SqlError;
 use crate::sql::traits::{
     AlertSqlLogic, ArchiveSqlLogic, CustomMetricSqlLogic, LLMDriftSqlLogic, ObservabilitySqlLogic,
@@ -58,6 +59,9 @@ impl PostgresClient {
                 std::process::exit(1);
             }
         };
+
+        // setup entity cache
+        init_entity_cache(pool.clone(), 1000);
 
         // Run migrations
         if let Err(err) = Self::run_migrations(&pool).await {

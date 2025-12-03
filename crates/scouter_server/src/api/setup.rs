@@ -9,8 +9,8 @@ use scouter_auth::util::generate_recovery_codes_with_hashes;
 use scouter_settings::{
     DatabaseSettings, KafkaSettings, PollingSettings, RabbitMQSettings, ScouterServerConfig,
 };
+use scouter_sql::sql::schema::User;
 use scouter_sql::sql::traits::UserSqlLogic;
-use scouter_sql::sql::{cache::init_entity_cache, schema::User};
 use scouter_sql::PostgresClient;
 use sqlx::{Pool, Postgres};
 use std::str::FromStr;
@@ -259,9 +259,6 @@ impl ScouterSetupComponents {
             .with_context(|| "Failed to create Postgres client")?;
 
         Self::initialize_default_user(&db_pool).await?;
-
-        // setup entity cache
-        init_entity_cache(db_pool.clone(), 1000);
 
         Ok(db_pool)
     }

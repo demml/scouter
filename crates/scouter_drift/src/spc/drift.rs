@@ -79,6 +79,7 @@ pub mod spc_drifter {
             let entity_id = entity_cache()
                 .get_entity_id_from_uid(&self.profile.config.uid)
                 .await?;
+
             let records = PostgresClient::get_spc_drift_records(
                 db_pool,
                 limit_datetime,

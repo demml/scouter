@@ -77,9 +77,10 @@ static INSTANCE: OnceLock<EntityCache> = OnceLock::new();
 
 pub fn init_entity_cache(pool: Pool<Postgres>, max_capacity: u64) {
     let cache = EntityCache::new(pool, max_capacity);
-    INSTANCE
-        .set(cache)
-        .expect("EntityCache has already been initialized");
+    match INSTANCE.set(cache) {
+        Ok(_) => (),
+        Err(_) => (),
+    }
 }
 
 pub fn entity_cache() -> &'static EntityCache {

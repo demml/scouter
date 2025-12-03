@@ -13,7 +13,7 @@ use scouter_types::{
 };
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
 use std::collections::BTreeMap;
-use tracing::{debug, instrument};
+use tracing::{debug, error, instrument};
 
 #[async_trait]
 pub trait SpcSqlLogic {
@@ -72,6 +72,9 @@ pub trait SpcSqlLogic {
             .bind(&entity_id)
             .fetch_all(pool)
             .await
+            .inspect_err(|e| {
+                error!("Error fetching SPC features: {:?}", e);
+            })
             .map(|result| {
                 result
                     .iter()
@@ -105,7 +108,10 @@ pub trait SpcSqlLogic {
             .bind(entity_id)
             .bind(features)
             .fetch_all(pool)
-            .await?;
+            .await
+            .inspect_err(|e| {
+                error!("Error fetching SPC drift records: {:?}", e);
+            })?;
 
         let feature_drift = records
             .into_iter()
