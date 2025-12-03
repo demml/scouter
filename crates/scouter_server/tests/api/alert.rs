@@ -7,20 +7,14 @@ use axum::{
 use http_body_util::BodyExt;
 use scouter_types::alert::Alerts;
 use scouter_types::contracts::{DriftAlertRequest, UpdateAlertStatus};
-use scouter_types::DriftType;
 
 #[tokio::test]
 async fn test_get_drift_alerts() {
     let helper = TestHelper::new(false, false).await.unwrap();
-    helper.insert_alerts().await.unwrap();
-
-    let uid = helper
-        .get_uid_from_args("repo_1", "model_1", "1.0.0", &DriftType::Spc)
-        .await
-        .unwrap();
+    let (_psi_uid, _custom_uid, spc_uid) = helper.insert_alerts().await.unwrap();
 
     let request = DriftAlertRequest {
-        uid: uid,
+        uid: spc_uid,
         limit_datetime: None,
         limit: None,
         active: Some(true),

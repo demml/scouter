@@ -16,6 +16,7 @@ use scouter_drift::spc::SpcMonitor;
 use scouter_server::create_app;
 use scouter_settings::ObjectStorageSettings;
 use scouter_settings::{DatabaseSettings, ScouterServerConfig};
+use scouter_sql::sql::traits::AlertSqlLogic;
 use scouter_sql::sql::traits::EntitySqlLogic;
 use scouter_sql::PostgresClient;
 use scouter_types::spc::SpcDriftConfig;
@@ -32,6 +33,7 @@ use scouter_types::{
 };
 use serde_json::Value;
 use sqlx::{PgPool, Pool, Postgres};
+use std::collections::BTreeMap;
 use std::env;
 use std::sync::Arc;
 use tower::util::ServiceExt;
@@ -339,13 +341,48 @@ impl TestHelper {
             .unwrap()
     }
 
-    pub async fn insert_alerts(&self) -> Result<(), anyhow::Error> {
-        // Run the SQL script to populate the database
-        let script = std::fs::read_to_string("tests/fixtures/populate_alerts.sql").unwrap();
+    pub async fn insert_alerts(&self) -> Result<(String, String, String), anyhow::Error> {
+        let (psi_uid, psi_id) = PostgresClient::create_entity(
+            &self.pool,
+            "repo_1",
+            "model_1",
+            "1.0.0",
+            &DriftType::Psi.to_string(),
+        )
+        .await?;
+        let (custom_uid, custom_id) = PostgresClient::create_entity(
+            &self.pool,
+            "repo_1",
+            "model_1",
+            "1.0.0",
+            &DriftType::Custom.to_string(),
+        )
+        .await?;
+        let (spc_uid, spc_id) = PostgresClient::create_entity(
+            &self.pool,
+            "repo_1",
+            "model_1",
+            "1.0.0",
+            &DriftType::Spc.to_string(),
+        )
+        .await?;
 
-        sqlx::query(&script).execute(&self.pool).await.unwrap();
+        // for each entity, insert an 3 alerts
+        let entities = vec![
+            ("Psi Model Alert", psi_id),
+            ("Custom Model Alert", custom_id),
+            ("SPC Model Alert", spc_id),
+        ];
+        for (entity_name, id) in entities {
+            for _ in 0..3 {
+                let mut alert = BTreeMap::new();
+                alert.insert("alert_name".to_string(), entity_name.to_string());
+                alert.insert("alert_level".to_string(), "high".to_string());
+                PostgresClient::insert_drift_alert(&self.pool, &id, entity_name, &alert).await?;
+            }
+        }
 
-        Ok(())
+        Ok((psi_uid, custom_uid, spc_uid))
     }
 
     pub async fn get_uid_from_args(
