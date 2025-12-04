@@ -360,9 +360,12 @@ impl PyScouterClient {
         set_active: bool,
         deactivate_others: bool,
     ) -> Result<bool, ClientError> {
-        let request = profile
+        let mut request = profile
             .call_method0("create_profile_request")?
             .extract::<ProfileRequest>()?;
+
+        request.active = set_active;
+        request.deactivate_others = deactivate_others;
 
         let profile_response = self.client.insert_profile(&request)?;
 
@@ -373,42 +376,9 @@ impl PyScouterClient {
                 Some(profile_response.space),
                 Some(profile_response.name),
                 Some(profile_response.version),
+                Some(profile_response.uid),
             ),
         )?;
-
-        debug!("Profile inserted successfully");
-        if set_active {
-            let name = profile
-                .getattr("config")?
-                .getattr("name")?
-                .extract::<String>()?;
-
-            let space = profile
-                .getattr("config")?
-                .getattr("space")?
-                .extract::<String>()?;
-
-            let version = profile
-                .getattr("config")?
-                .getattr("version")?
-                .extract::<String>()?;
-
-            let drift_type = profile
-                .getattr("config")?
-                .getattr("drift_type")?
-                .extract::<DriftType>()?;
-
-            let request = ProfileStatusRequest {
-                name,
-                space,
-                version,
-                active: true,
-                drift_type: Some(drift_type),
-                deactivate_others,
-            };
-
-            self.client.update_profile_status(&request)?;
-        }
 
         Ok(true)
     }

@@ -159,8 +159,6 @@ impl FromRow<'_, PgRow> for TraceSpan {
 #[pyclass]
 pub struct TraceFilters {
     #[pyo3(get, set)]
-    pub uid: Option<String>,
-    #[pyo3(get, set)]
     pub service_name: Option<String>,
     #[pyo3(get, set)]
     pub has_errors: Option<bool>,
@@ -185,7 +183,6 @@ pub struct TraceFilters {
 impl TraceFilters {
     #[new]
     #[pyo3(signature = (
-        uid=None,
         service_name=None,
         has_errors=None,
         status_code=None,
@@ -196,7 +193,6 @@ impl TraceFilters {
         cursor_trace_id=None,
     ))]
     pub fn new(
-        uid: Option<String>,
         service_name: Option<String>,
         has_errors: Option<bool>,
         status_code: Option<i32>,
@@ -207,7 +203,6 @@ impl TraceFilters {
         cursor_trace_id: Option<String>,
     ) -> Self {
         TraceFilters {
-            uid,
             service_name,
             has_errors,
             status_code,
@@ -222,11 +217,6 @@ impl TraceFilters {
 }
 
 impl TraceFilters {
-    pub fn with_uid(mut self, uid: impl Into<String>) -> Self {
-        self.uid = Some(uid.into());
-        self
-    }
-
     pub fn with_service(mut self, service: impl Into<String>) -> Self {
         self.service_name = Some(service.into());
         self

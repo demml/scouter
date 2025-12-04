@@ -529,6 +529,7 @@ mod tests {
                 Some("updated".to_string()),
                 Some("updated".to_string()),
                 Some("1.0.0".to_string()),
+                Some(loaded_profile.config.uid.clone()),
                 Some(loaded_profile.config.sample),
                 Some(loaded_profile.config.sample_size),
                 Some(loaded_profile.config.alert_config.clone()),

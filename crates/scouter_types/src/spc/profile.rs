@@ -207,12 +207,13 @@ impl SpcDriftConfig {
     // * `alert_config` - The alerting configuration to use
     //
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (space=None, name=None, version=None, sample=None, sample_size=None, alert_config=None))]
+    #[pyo3(signature = (space=None, name=None, version=None, uid=None, sample=None, sample_size=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
         space: Option<String>,
         name: Option<String>,
         version: Option<String>,
+        uid: Option<String>,
         sample: Option<bool>,
         sample_size: Option<usize>,
         alert_config: Option<SpcAlertConfig>,
@@ -239,6 +240,10 @@ impl SpcDriftConfig {
 
         if alert_config.is_some() {
             self.alert_config = alert_config.ok_or(TypeError::MissingAlertConfigError)?;
+        }
+
+        if uid.is_some() {
+            self.uid = uid.ok_or(TypeError::MissingUidError)?;
         }
 
         Ok(())
@@ -365,18 +370,19 @@ impl SpcDriftProfile {
     // * `alert_config` - The alerting configuration to use
     //
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (space=None, name=None, version=None, sample=None, sample_size=None, alert_config=None))]
+    #[pyo3(signature = (space=None, name=None, version=None, uid=None,sample=None, sample_size=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
         space: Option<String>,
         name: Option<String>,
         version: Option<String>,
+        uid: Option<String>,
         sample: Option<bool>,
         sample_size: Option<usize>,
         alert_config: Option<SpcAlertConfig>,
     ) -> Result<(), ProfileError> {
         self.config
-            .update_config_args(space, name, version, sample, sample_size, alert_config)
+            .update_config_args(space, name, version, uid, sample, sample_size, alert_config)
     }
 
     /// Create a profile request from the profile
@@ -445,7 +451,7 @@ mod tests {
 
         // update
         drift_config
-            .update_config_args(None, Some("test".to_string()), None, None, None, None)
+            .update_config_args(None, Some("test".to_string()), None, None, None, None, None)
             .unwrap();
 
         assert_eq!(drift_config.name, "test");

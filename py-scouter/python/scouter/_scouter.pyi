@@ -81,12 +81,8 @@ class BatchConfig:
 
 def init_tracer(
     service_name: str = "scouter_service",
-    transport_config: Optional[
-        HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig
-    ] = None,
-    exporter: HttpSpanExporter
-    | StdoutSpanExporter
-    | TestSpanExporter = StdoutSpanExporter(),  # noqa: F821
+    transport_config: Optional[HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig] = None,
+    exporter: HttpSpanExporter | StdoutSpanExporter | TestSpanExporter = StdoutSpanExporter(),  # noqa: F821
     batch_config: Optional[BatchConfig] = None,
     profile_space: Optional[str] = None,
     profile_name: Optional[str] = None,
@@ -810,9 +806,7 @@ class FunctionCallingConfig:
     def mode(self) -> Optional[Mode]: ...
     @property
     def allowed_function_names(self) -> Optional[list[str]]: ...
-    def __init__(
-        self, mode: Optional[Mode], allowed_function_names: Optional[list[str]]
-    ) -> None: ...
+    def __init__(self, mode: Optional[Mode], allowed_function_names: Optional[list[str]]) -> None: ...
 
 class LatLng:
     @property
@@ -953,9 +947,7 @@ class PredictResponse:
     def __str__(self): ...
 
 class PredictRequest:
-    def __init__(
-        self, instances: List[dict], parameters: Optional[dict] = None
-    ) -> None:
+    def __init__(self, instances: List[dict], parameters: Optional[dict] = None) -> None:
         """Request to pass to the Vertex Predict API when creating a request
 
         Args:
@@ -1506,9 +1498,7 @@ class DocumentUrl:
         """The format of the document URL."""
 
 class Message:
-    def __init__(
-        self, content: str | ImageUrl | AudioUrl | BinaryContent | DocumentUrl
-    ) -> None:
+    def __init__(self, content: str | ImageUrl | AudioUrl | BinaryContent | DocumentUrl) -> None:
         """Create a Message object.
 
         Args:
@@ -1622,9 +1612,7 @@ class Prompt:
         model: str,
         provider: Provider | str,
         system_instruction: Optional[str | List[str]] = None,
-        model_settings: Optional[
-            ModelSettings | OpenAIChatSettings | GeminiSettings
-        ] = None,
+        model_settings: Optional[ModelSettings | OpenAIChatSettings | GeminiSettings] = None,
         response_format: Optional[Any] = None,
     ) -> None:
         """Prompt for interacting with an LLM API.
@@ -2126,9 +2114,7 @@ class Workflow:
         """
 
     @staticmethod
-    def model_validate_json(
-        json_string: str, output_types: Optional[Dict[str, Any]]
-    ) -> "Workflow":
+    def model_validate_json(json_string: str, output_types: Optional[Dict[str, Any]]) -> "Workflow":
         """Load a workflow from a JSON string.
 
         Args:
@@ -2379,9 +2365,7 @@ class AlertDispatchType:
     def to_string() -> str:
         """Return the string representation of the alert dispatch type"""
 
-DispatchConfigType = (
-    ConsoleDispatchConfig | SlackDispatchConfig | OpsGenieDispatchConfig
-)
+DispatchConfigType = ConsoleDispatchConfig | SlackDispatchConfig | OpsGenieDispatchConfig
 
 class AlertZone:
     Zone1: "AlertZone"
@@ -2725,9 +2709,7 @@ class CustomMetricAlertConfig:
         """Return the alert_condition that were set during metric definition"""
 
     @alert_conditions.setter
-    def alert_conditions(
-        self, alert_conditions: dict[str, CustomMetricAlertCondition]
-    ) -> None:
+    def alert_conditions(self, alert_conditions: dict[str, CustomMetricAlertCondition]) -> None:
         """Update the alert_condition that were set during metric definition"""
 
 class LLMAlertConfig:
@@ -2950,9 +2932,6 @@ class TraceBaggageRecord:
 class TraceFilters:
     """A struct for filtering traces, generated from Rust pyclass."""
 
-    space: Optional[str]
-    name: Optional[str]
-    version: Optional[str]
     service_name: Optional[str]
     has_errors: Optional[bool]
     status_code: Optional[int]
@@ -2964,9 +2943,6 @@ class TraceFilters:
 
     def __init__(
         self,
-        space: Optional[str] = None,
-        name: Optional[str] = None,
-        version: Optional[str] = None,
         service_name: Optional[str] = None,
         has_errors: Optional[bool] = None,
         status_code: Optional[int] = None,
@@ -2979,12 +2955,6 @@ class TraceFilters:
         """Initialize trace filters.
 
         Args:
-            space:
-                Model space filter
-            name:
-                Model name filter
-            version:
-                Model version filter
             service_name:
                 Service name filter
             has_errors:
@@ -3018,11 +2988,8 @@ class TraceListItem:
     """Represents a summary item for a trace in a list view."""
 
     trace_id: str
-    space: str
-    name: str
-    version: str
+    service_name: str
     scope: str
-    service_name: Optional[str]
     root_operation: Optional[str]
     start_time: datetime
     end_time: Optional[datetime]
@@ -3045,7 +3012,7 @@ class TraceSpan:
     start_time: datetime
     end_time: Optional[datetime]
     duration_ms: Optional[int]
-    status_code: str
+    status_code: int
     status_message: Optional[str]
     attributes: List[Attribute]
     events: List[SpanEvent]
@@ -3353,34 +3320,26 @@ class TimeInterval:
 class DriftRequest:
     def __init__(
         self,
-        name: str,
+        uid: str,
         space: str,
-        version: str,
         time_interval: TimeInterval,
         max_data_points: int,
-        drift_type: DriftType,
     ) -> None:
         """Initialize drift request
 
         Args:
-            name:
-                Model name
+            uid:
+                Unique identifier tied to drift profile
             space:
-                Model space
-            version:
-                Model version
+                Space associated with drift profile
             time_interval:
                 Time window for drift request
             max_data_points:
                 Maximum data points to return
-            drift_type:
-                Drift type for request
         """
 
 class ProfileStatusRequest:
-    def __init__(
-        self, name: str, space: str, version: str, drift_type: DriftType, active: bool
-    ) -> None:
+    def __init__(self, name: str, space: str, version: str, drift_type: DriftType, active: bool) -> None:
         """Initialize profile status request
 
         Args:
@@ -3397,9 +3356,7 @@ class ProfileStatusRequest:
         """
 
 class GetProfileRequest:
-    def __init__(
-        self, name: str, space: str, version: str, drift_type: DriftType
-    ) -> None:
+    def __init__(self, name: str, space: str, version: str, drift_type: DriftType) -> None:
         """Initialize get profile request
 
         Args:
@@ -3415,20 +3372,15 @@ class GetProfileRequest:
 
 class Alert:
     created_at: datetime
-    name: str
-    space: str
-    version: str
-    feature: str
-    alert: str
+    entity_name: str
+    alert: Dict[str, str]
     id: int
-    status: str
+    active: bool
 
 class DriftAlertRequest:
     def __init__(
         self,
-        name: str,
-        space: str,
-        version: str,
+        uid: str,
         active: bool = False,
         limit_datetime: Optional[datetime] = None,
         limit: Optional[int] = None,
@@ -3436,12 +3388,8 @@ class DriftAlertRequest:
         """Initialize drift alert request
 
         Args:
-            name:
-                Name
-            space:
-                Space
-            version:
-                Version
+            uid:
+                Unique identifier tied to drift profile
             active:
                 Whether to get active alerts only
             limit_datetime:
@@ -3462,12 +3410,18 @@ class ScouterClient:
                 HTTP configuration for interacting with the server.
         """
 
-    def get_binned_drift(self, drift_request: DriftRequest) -> Any:
+    def get_binned_drift(
+        self,
+        drift_request: DriftRequest,
+        drift_type: DriftType,
+    ) -> Any:
         """Get drift map from server
 
         Args:
             drift_request:
                 DriftRequest object
+            drift_type:
+                Drift type for request
 
         Returns:
             Drift map of type BinnedMetrics | BinnedPsiFeatureMetrics | BinnedSpcFeatureMetrics
@@ -3537,12 +3491,18 @@ class ScouterClient:
             boolean
         """
 
-    def get_trace_spans(self, trace_id: str) -> TraceSpansResponse:
+    def get_trace_spans(
+        self,
+        trace_id: str,
+        service_name: Optional[str] = None,
+    ) -> TraceSpansResponse:
         """Get trace spans
 
         Args:
             trace_id:
                 Trace ID
+            service_name:
+                Service name
 
         Returns:
             TraceSpansResponse
@@ -3714,9 +3674,7 @@ class ServerRecord:
     @property
     def record(
         self,
-    ) -> Union[
-        SpcServerRecord, PsiServerRecord, CustomMetricServerRecord, ObservabilityMetrics
-    ]:
+    ) -> Union[SpcRecord, PsiRecord, CustomMetricRecord, ObservabilityMetrics]:
         """Return the drift server record."""
 
 class ServerRecords:
@@ -3738,24 +3696,19 @@ class ServerRecords:
     def __str__(self) -> str:
         """Return the string representation of the record."""
 
-class SpcServerRecord:
+class SpcRecord:
     def __init__(
         self,
-        space: str,
-        name: str,
-        version: str,
+        uid: str,
         feature: str,
         value: float,
     ):
         """Initialize spc drift server record
 
         Args:
-            space:
-                Model space
-            name:
-                Model name
-            version:
-                Model version
+            uid:
+                Unique identifier for the spc record.
+                Must correspond to an existing entity in Scouter.
             feature:
                 Feature name
             value:
@@ -3767,16 +3720,8 @@ class SpcServerRecord:
         """Return the created at timestamp."""
 
     @property
-    def space(self) -> str:
-        """Return the space."""
-
-    @property
-    def name(self) -> str:
-        """Return the name."""
-
-    @property
-    def version(self) -> str:
-        """Return the version."""
+    def uid(self) -> str:
+        """Return the unique identifier."""
 
     @property
     def feature(self) -> str:
@@ -3795,12 +3740,10 @@ class SpcServerRecord:
     def to_dict(self) -> Dict[str, str]:
         """Return the dictionary representation of the record."""
 
-class PsiServerRecord:
+class PsiRecord:
     def __init__(
         self,
-        space: str,
-        name: str,
-        version: str,
+        uid: str,
         feature: str,
         bin_id: int,
         bin_count: int,
@@ -3808,12 +3751,9 @@ class PsiServerRecord:
         """Initialize spc drift server record
 
         Args:
-            space:
-                Model space
-            name:
-                Model name
-            version:
-                Model version
+            uid:
+                Unique identifier for the psi record.
+                Must correspond to an existing entity in Scouter.
             feature:
                 Feature name
             bin_id:
@@ -3827,16 +3767,8 @@ class PsiServerRecord:
         """Return the created at timestamp."""
 
     @property
-    def space(self) -> str:
-        """Return the space."""
-
-    @property
-    def name(self) -> str:
-        """Return the name."""
-
-    @property
-    def version(self) -> str:
-        """Return the version."""
+    def uid(self) -> str:
+        """Returns the unique identifier."""
 
     @property
     def feature(self) -> str:
@@ -3859,7 +3791,7 @@ class PsiServerRecord:
     def to_dict(self) -> Dict[str, str]:
         """Return the dictionary representation of the record."""
 
-class CustomMetricServerRecord:
+class CustomMetricRecord:
     def __init__(
         self,
         uid: str,
@@ -3883,16 +3815,8 @@ class CustomMetricServerRecord:
         """Return the created at timestamp."""
 
     @property
-    def space(self) -> str:
-        """Return the space."""
-
-    @property
-    def name(self) -> str:
-        """Return the name."""
-
-    @property
-    def version(self) -> str:
-        """Return the version."""
+    def uid(self) -> str:
+        """Returns the unique identifier."""
 
     @property
     def metric(self) -> str:
@@ -4346,16 +4270,12 @@ class ObservabilityMetrics:
         """Return the json representation of the observability metrics"""
 
 class Observer:
-    def __init__(self, space: str, name: str, version: str) -> None:
+    def __init__(self, uid: str) -> None:
         """Initializes an api metric observer
 
         Args:
-            space:
-                Model space
-            name:
-                Model name
-            version:
-                Model version
+            uid:
+                Unique identifier for the observer
         """
 
     def increment(self, route: str, latency: float, status_code: int) -> None:
@@ -4479,6 +4399,14 @@ class SpcDriftConfig:
     @version.setter
     def version(self, version: str) -> None:
         """Set model version"""
+
+    @property
+    def uid(self) -> str:
+        """Unique identifier for the drift config"""
+
+    @uid.setter
+    def uid(self, uid: str) -> None:
+        """Set unique identifier for the drift config"""
 
     @property
     def feature_map(self) -> Optional[FeatureMap]:
@@ -4756,16 +4684,7 @@ class FreedmanDiaconis:
         For more information, please see: https://en.wikipedia.org/wiki/Histogram
         """
 
-EqualWidthMethods = (
-    Manual
-    | SquareRoot
-    | Sturges
-    | Rice
-    | Doane
-    | Scott
-    | TerrellScott
-    | FreedmanDiaconis
-)
+EqualWidthMethods = Manual | SquareRoot | Sturges | Rice | Doane | Scott | TerrellScott | FreedmanDiaconis
 
 class EqualWidthBinning:
     def __init__(self, method: EqualWidthMethods = Doane()):
@@ -4839,9 +4758,7 @@ class PsiDriftConfig:
         alert_config: PsiAlertConfig = PsiAlertConfig(),
         config_path: Optional[Path] = None,
         categorical_features: Optional[list[str]] = None,
-        binning_strategy: QuantileBinning | EqualWidthBinning = QuantileBinning(
-            num_bins=10
-        ),
+        binning_strategy: QuantileBinning | EqualWidthBinning = QuantileBinning(num_bins=10),
     ):
         """Initialize monitor config
 
@@ -4891,6 +4808,14 @@ class PsiDriftConfig:
         """Set model version"""
 
     @property
+    def uid(self) -> str:
+        """Unique identifier for the drift config"""
+
+    @uid.setter
+    def uid(self, uid: str) -> None:
+        """Set unique identifier for the drift config"""
+
+    @property
     def feature_map(self) -> Optional[FeatureMap]:
         """Feature map"""
 
@@ -4911,9 +4836,7 @@ class PsiDriftConfig:
         """binning_strategy"""
 
     @binning_strategy.setter
-    def binning_strategy(
-        self, binning_strategy: QuantileBinning | EqualWidthBinning
-    ) -> None:
+    def binning_strategy(self, binning_strategy: QuantileBinning | EqualWidthBinning) -> None:
         """Set binning_strategy"""
 
     @property
@@ -5190,6 +5113,14 @@ class CustomMetricDriftConfig:
         """Set model version"""
 
     @property
+    def uid(self) -> str:
+        """Unique identifier for the drift config"""
+
+    @uid.setter
+    def uid(self, uid: str) -> None:
+        """Set unique identifier for the drift config"""
+
+    @property
     def drift_type(self) -> DriftType:
         """Drift type"""
 
@@ -5456,24 +5387,16 @@ class LLMDriftMetric:
 
 class LLMMetricRecord:
     @property
-    def record_uid(self) -> str:
-        """Return the record id"""
+    def uid(self) -> str:
+        """Return the record uid"""
+
+    @property
+    def entity_uid(self) -> str:
+        """Returns the entity uid associated with the record"""
 
     @property
     def created_at(self) -> datetime:
         """Return the timestamp when the record was created"""
-
-    @property
-    def space(self) -> str:
-        """Return the space associated with the record"""
-
-    @property
-    def name(self) -> str:
-        """Return the name associated with the record"""
-
-    @property
-    def version(self) -> str:
-        """Return the version associated with the record"""
 
     @property
     def metric(self) -> str:
@@ -5532,6 +5455,14 @@ class LLMDriftConfig:
     @version.setter
     def version(self, version: str) -> None:
         """Set model version"""
+
+    @property
+    def uid(self) -> str:
+        """Unique identifier for the drift config"""
+
+    @uid.setter
+    def uid(self, uid: str) -> None:
+        """Set unique identifier for the drift config"""
 
     @property
     def drift_type(self) -> DriftType:
@@ -5826,9 +5757,7 @@ class Drifter:
     def create_drift_profile(  # type: ignore
         self,
         data: Any,
-        config: Optional[
-            Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]
-        ] = None,
+        config: Optional[Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]] = None,
         data_type: Optional[ScouterDataType] = None,
     ) -> Union[SpcDriftProfile, PsiDriftProfile, CustomDriftProfile]:
         """Create a drift profile from data.
@@ -6371,6 +6300,30 @@ class DataProfiler:
             DataProfile
         """
 
+    class TraceMetricsRequest:
+        """Request to get trace metrics from the Scouter server."""
+
+        def __init__(
+            self,
+            service_name: str,
+            start_time: datetime,
+            end_time: datetime,
+            bucket_interval: str,
+        ):
+            """
+            Initialize a TraceMetricsRequest.
+
+            Args:
+                service_name (str):
+                    The name of the service to query metrics for.
+                start_time (datetime):
+                    The start time for the metrics query.
+                end_time (datetime):
+                    The end time for the metrics query.
+                bucket_interval (str):
+                    Optional interval for aggregating metrics (e.g., "1m", "5m").
+            """
+
 __all__ = [
     # alert
     "AlertZone",
@@ -6547,9 +6500,9 @@ __all__ = [
     # queue
     "ScouterQueue",
     "Queue",
-    "SpcServerRecord",
-    "PsiServerRecord",
-    "CustomMetricServerRecord",
+    "SpcRecord",
+    "PsiRecord",
+    "CustomMetricRecord",
     "ServerRecord",
     "ServerRecords",
     "QueueFeature",
@@ -6587,4 +6540,5 @@ __all__ = [
     "flush_tracer",
     "BatchConfig",
     "shutdown_tracer",
+    "TraceMetricsRequest",
 ]
