@@ -77,11 +77,9 @@ pub trait EntitySqlLogic {
         version: &str,
         drift_type: &str,
     ) -> Result<(String, i32), SqlError> {
-        let query = format!(
-            "INSERT INTO scouter.drift_entities (space, name, version, drift_type) VALUES ($1, $2, $3, $4) ON CONFLICT (space, name, version, drift_type) DO NOTHING RETURNING id, uid;"
-        );
+        let query = "INSERT INTO scouter.drift_entities (space, name, version, drift_type) VALUES ($1, $2, $3, $4) ON CONFLICT (space, name, version, drift_type) DO NOTHING RETURNING id, uid;";
 
-        let result = sqlx::query(&query)
+        let result = sqlx::query(query)
             .bind(space)
             .bind(name)
             .bind(version)
@@ -103,11 +101,9 @@ pub trait EntitySqlLogic {
         version: &str,
         drift_type: &str,
     ) -> Result<String, SqlError> {
-        let query = format!(
-            "SELECT uid FROM entities WHERE space = $1 AND name = $2 AND version = $3 AND drift_type = $4;"
-        );
+        let query = "SELECT uid FROM entities WHERE space = $1 AND name = $2 AND version = $3 AND drift_type = $4;";
 
-        let result = sqlx::query(&query)
+        let result = sqlx::query(query)
             .bind(space)
             .bind(name)
             .bind(version)

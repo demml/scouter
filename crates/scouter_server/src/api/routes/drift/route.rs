@@ -76,7 +76,9 @@ async fn get_binned_psi_feature_metrics(
 ) -> Result<BinnedPsiFeatureMetrics, ServerError> {
     debug!("Querying drift records: {:?}", params);
 
-    let entity_id = entity_cache().get_entity_id_from_uid(&params.uid).await?;
+    let entity_id = entity_cache()
+        .get_entity_id_from_uid(db_pool, &params.uid)
+        .await?;
 
     let value = PostgresClient::get_drift_profile(db_pool, &entity_id)
         .await

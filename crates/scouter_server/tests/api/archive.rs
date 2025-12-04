@@ -1,4 +1,4 @@
-use crate::common::{TestHelper, NAME, SPACE, VERSION};
+use crate::common::{setup_test, TestHelper, NAME, SPACE, VERSION};
 
 use axum::{
     body::Body,
@@ -10,9 +10,11 @@ use scouter_dataframe::parquet::dataframe::ParquetDataFrame;
 use scouter_drift::psi::PsiMonitor;
 use scouter_drift::spc::SpcMonitor;
 use scouter_server::api::archive::archive_old_data;
+use scouter_sql::MessageHandler;
 use scouter_types::contracts::DriftRequest;
 use scouter_types::custom::CustomMetricAlertConfig;
 use scouter_types::llm::{LLMAlertConfig, LLMDriftConfig, LLMDriftMetric, LLMDriftProfile};
+use scouter_types::MessageRecord;
 use scouter_types::{
     custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
     psi::{BinnedPsiFeatureMetrics, PsiAlertConfig, PsiDriftConfig},
@@ -24,12 +26,11 @@ use tokio::time::{sleep, Duration};
 
 #[tokio::test]
 async fn test_data_archive_spc() {
-    let helper = TestHelper::new(false, false).await.unwrap();
+    let helper = setup_test().await;
 
     let (array, features) = helper.get_data();
     let alert_config = SpcAlertConfig::default();
     let config = SpcDriftConfig::new(SPACE, NAME, VERSION, None, None, Some(alert_config), None);
-
     let monitor = SpcMonitor::new();
 
     let mut profile = monitor
@@ -49,22 +50,15 @@ async fn test_data_archive_spc() {
     let short_term_records = helper.get_spc_drift_records(None, &profile.config.uid);
 
     for records in [short_term_records, long_term_records].iter() {
-        let body = serde_json::to_string(records).unwrap();
-        let request = Request::builder()
-            .uri("/scouter/message")
-            .method("POST")
-            .header(header::CONTENT_TYPE, "application/json")
-            .body(Body::from(body))
-            .unwrap();
-
-        let response = helper.send_oneshot(request).await;
-
-        //assert response
-        assert_eq!(response.status(), StatusCode::OK);
+        match records {
+            MessageRecord::ServerRecords(records) => {
+                MessageHandler::insert_server_records(&helper.pool, records)
+                    .await
+                    .unwrap();
+            }
+            _ => panic!("Expected ServerRecords variant"),
+        }
     }
-
-    // Sleep for 5 seconds to allow the http consumer time to process all server records sent above.
-    sleep(Duration::from_secs(5)).await;
 
     let record = archive_old_data(&helper.pool, &helper.config)
         .await
@@ -117,7 +111,7 @@ async fn test_data_archive_spc() {
 
 #[tokio::test]
 async fn test_data_archive_psi() {
-    let helper = TestHelper::new(false, false).await.unwrap();
+    let helper = setup_test().await;
 
     // create profile
     let (array, features) = helper.get_data();
@@ -157,22 +151,15 @@ async fn test_data_archive_psi() {
     let short_term_records = helper.get_psi_drift_records(None, &profile.config.uid);
 
     for records in [short_term_records, long_term_records].iter() {
-        let body = serde_json::to_string(records).unwrap();
-        let request = Request::builder()
-            .uri("/scouter/message")
-            .method("POST")
-            .header(header::CONTENT_TYPE, "application/json")
-            .body(Body::from(body))
-            .unwrap();
-
-        let response = helper.send_oneshot(request).await;
-
-        //assert response
-        assert_eq!(response.status(), StatusCode::OK);
+        match records {
+            MessageRecord::ServerRecords(records) => {
+                MessageHandler::insert_server_records(&helper.pool, records)
+                    .await
+                    .unwrap();
+            }
+            _ => panic!("Expected ServerRecords variant"),
+        }
     }
-
-    // Sleep for 5 second to allow the http consumer time to process all server records sent above.
-    sleep(Duration::from_secs(5)).await;
 
     let record = archive_old_data(&helper.pool, &helper.config)
         .await
@@ -222,7 +209,7 @@ async fn test_data_archive_psi() {
 
 #[tokio::test]
 async fn test_data_archive_custom() {
-    let helper = TestHelper::new(false, false).await.unwrap();
+    let helper = setup_test().await;
 
     let alert_config = CustomMetricAlertConfig::default();
     let config =
@@ -249,22 +236,15 @@ async fn test_data_archive_custom() {
     let short_term_records = helper.get_custom_drift_records(None, &profile.config.uid);
 
     for records in [short_term_records, medium_term_records, long_term_records].iter() {
-        let body = serde_json::to_string(records).unwrap();
-        let request = Request::builder()
-            .uri("/scouter/message")
-            .method("POST")
-            .header(header::CONTENT_TYPE, "application/json")
-            .body(Body::from(body))
-            .unwrap();
-
-        let response = helper.send_oneshot(request).await;
-
-        //assert response
-        assert_eq!(response.status(), StatusCode::OK);
+        match records {
+            MessageRecord::ServerRecords(records) => {
+                MessageHandler::insert_server_records(&helper.pool, records)
+                    .await
+                    .unwrap();
+            }
+            _ => panic!("Expected ServerRecords variant"),
+        }
     }
-
-    // Sleep for 5 seconds to allow the http consumer time to process all server records sent above.
-    sleep(Duration::from_secs(5)).await;
 
     let record = archive_old_data(&helper.pool, &helper.config)
         .await
@@ -319,7 +299,7 @@ fn test_data_archive_llm_drift_record() {
     let mut mock = LLMTestServer::new();
     mock.start_server().unwrap();
 
-    let helper = runtime.block_on(async { TestHelper::new(false, false).await.unwrap() });
+    let helper = runtime.block_on(async { setup_test().await });
 
     let alert_config = LLMAlertConfig::default();
     let config = LLMDriftConfig::new(SPACE, NAME, VERSION, 25, alert_config, None).unwrap();
@@ -376,10 +356,8 @@ fn test_data_archive_llm_drift_record() {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
-    // Sleep for 5 seconds to allow the http consumer time to process all server records sent above.
-    runtime.block_on(async { sleep(Duration::from_secs(5)).await });
-
     let record = runtime.block_on(async {
+        sleep(Duration::from_secs(5)).await;
         archive_old_data(&helper.pool, &helper.config)
             .await
             .unwrap()
@@ -412,7 +390,7 @@ fn test_data_archive_llm_drift_metrics() {
     let mut mock = LLMTestServer::new();
     mock.start_server().unwrap();
 
-    let helper = runtime.block_on(async { TestHelper::new(false, false).await.unwrap() });
+    let helper = runtime.block_on(async { setup_test().await });
 
     let alert_config = LLMAlertConfig::default();
     let config = LLMDriftConfig::new(SPACE, NAME, VERSION, 25, alert_config, None).unwrap();
@@ -472,9 +450,8 @@ fn test_data_archive_llm_drift_metrics() {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
-    // Sleep for 5 seconds to allow the http consumer time to process all server records sent above.
-    runtime.block_on(async { sleep(Duration::from_secs(5)).await });
     let record = runtime.block_on(async {
+        sleep(Duration::from_secs(5)).await;
         archive_old_data(&helper.pool, &helper.config)
             .await
             .unwrap()

@@ -61,7 +61,7 @@ impl PostgresClient {
         };
 
         // setup entity cache
-        init_entity_cache(pool.clone(), 1000);
+        init_entity_cache(1000);
 
         // Run migrations
         if let Err(err) = Self::run_migrations(&pool).await {
@@ -94,10 +94,10 @@ impl MessageHandler {
         pool: &Pool<Postgres>,
         records: &ServerRecords,
     ) -> Result<(), SqlError> {
-        debug!("Inserting server records: {:?}", records.record_type()?);
+        info!("Inserting server records: {:?}", records.record_type()?);
 
         let entity_id = entity_cache()
-            .get_entity_id_from_uid(records.uid()?)
+            .get_entity_id_from_uid(pool, records.uid()?)
             .await?;
 
         match records.record_type()? {
@@ -792,7 +792,7 @@ mod tests {
             SPACE,
             NAME,
             VERSION,
-            &DriftType::Custom.to_string(),
+            DriftType::Custom.to_string(),
         )
         .await
         .unwrap();
@@ -916,7 +916,7 @@ mod tests {
         let pool = db_pool().await;
 
         let (uid, entity_id) =
-            PostgresClient::create_entity(&pool, SPACE, NAME, VERSION, &DriftType::LLM.to_string())
+            PostgresClient::create_entity(&pool, SPACE, NAME, VERSION, DriftType::LLM.to_string())
                 .await
                 .unwrap();
 
@@ -993,7 +993,7 @@ mod tests {
         let pool = db_pool().await;
 
         let (uid, entity_id) =
-            PostgresClient::create_entity(&pool, SPACE, NAME, VERSION, &DriftType::LLM.to_string())
+            PostgresClient::create_entity(&pool, SPACE, NAME, VERSION, DriftType::LLM.to_string())
                 .await
                 .unwrap();
 
@@ -1074,7 +1074,7 @@ mod tests {
         let timestamp = Utc::now();
 
         let (uid, entity_id) =
-            PostgresClient::create_entity(&pool, SPACE, NAME, VERSION, &DriftType::LLM.to_string())
+            PostgresClient::create_entity(&pool, SPACE, NAME, VERSION, DriftType::LLM.to_string())
                 .await
                 .unwrap();
 

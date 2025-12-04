@@ -427,7 +427,7 @@ pub mod drift_executor {
                 "scouter",
                 "model",
                 "0.1.0",
-                &DriftType::Psi.to_string(),
+                DriftType::Psi.to_string(),
             )
             .await
             .unwrap();
@@ -492,7 +492,7 @@ pub mod drift_executor {
                 "scouter",
                 "model",
                 "0.1.0",
-                &DriftType::Psi.to_string(),
+                DriftType::Psi.to_string(),
             )
             .await
             .unwrap();
@@ -537,7 +537,7 @@ pub mod drift_executor {
                 "scouter",
                 "model",
                 "0.1.0",
-                &DriftType::Custom.to_string(),
+                DriftType::Custom.to_string(),
             )
             .await
             .unwrap();

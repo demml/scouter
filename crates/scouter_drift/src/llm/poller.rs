@@ -10,7 +10,7 @@ use sqlx::{Pool, Postgres};
 use std::collections::HashMap;
 use std::time::Duration;
 use tokio::time::sleep;
-use tracing::{debug, error, info, instrument};
+use tracing::{debug, error, instrument};
 
 pub struct LLMPoller {
     db_pool: Pool<Postgres>,
@@ -63,7 +63,7 @@ impl LLMPoller {
             return Ok(false);
         };
 
-        info!("Processing llm drift record for profile: {}", task.uid);
+        debug!("Processing llm drift record for profile: {}", task.uid);
 
         let mut llm_profile = if let Some(profile) =
             PostgresClient::get_drift_profile(&self.db_pool, &task.entity_id).await?
@@ -138,7 +138,10 @@ impl LLMPoller {
                 debug!("Successfully processed drift record");
                 Ok(())
             }
-            Ok(false) => Ok(()),
+            Ok(false) => {
+                sleep(Duration::from_secs(1)).await;
+                Ok(())
+            }
             Err(e) => {
                 error!("Error processing drift record: {:?}", e);
                 Ok(())

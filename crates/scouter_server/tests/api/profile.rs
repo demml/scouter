@@ -1,4 +1,4 @@
-use crate::common::{TestHelper, NAME, SPACE};
+use crate::common::{setup_test, NAME, SPACE};
 
 use axum::{
     body::Body,
@@ -19,7 +19,7 @@ use scouter_types::{custom::CustomMetricAlertConfig, ListedProfile};
 use scouter_types::{DriftType, RegisteredProfileResponse};
 #[tokio::test]
 async fn test_create_spc_profile() {
-    let helper = TestHelper::new(false, false).await.unwrap();
+    let helper = setup_test().await;
 
     let (array, features) = helper.get_data();
     let alert_config = SpcAlertConfig::default();
@@ -30,19 +30,13 @@ async fn test_create_spc_profile() {
         .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
         .unwrap();
 
-    let _uid = helper
-        .register_drift_profile(profile.create_profile_request().unwrap())
-        .await;
-
     // update profile
     profile.config.sample_size = 100;
 
     assert_eq!(profile.config.sample_size, 100);
 
     let request = profile.create_profile_request().unwrap();
-
     let body = serde_json::to_string(&request).unwrap();
-
     let request = Request::builder()
         .uri("/scouter/profile")
         .method("POST")
@@ -103,7 +97,7 @@ async fn test_create_spc_profile() {
 
 #[tokio::test]
 async fn test_profile_versions() {
-    let helper = TestHelper::new(false, false).await.unwrap();
+    let helper = setup_test().await;
     let metrics = CustomMetric::new("mae", 10.0, AlertThreshold::Below, None).unwrap();
     let alert_config = CustomMetricAlertConfig::default();
     let config =

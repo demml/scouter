@@ -29,7 +29,9 @@ impl AppState {
 
     /// Get profile ID from UID with caching
     pub async fn get_entity_id_from_uid(&self, uid: &String) -> Result<i32, ServerError> {
-        Ok(entity_cache().get_entity_id_from_uid(uid).await?)
+        Ok(entity_cache()
+            .get_entity_id_from_uid(&self.db_pool, uid)
+            .await?)
     }
 
     pub async fn get_entity_id_for_request(
@@ -53,21 +55,27 @@ impl AppState {
 
     pub async fn get_entity_id_from_space_name_version_drift_type(
         &self,
-        space: &String,
-        name: &String,
-        version: &String,
+        space: &str,
+        name: &str,
+        version: &str,
         drift_type: &DriftType,
     ) -> Result<i32, ServerError> {
         Ok(entity_cache()
-            .get_entity_id_from_space_name_version_drift_type(space, name, version, drift_type)
+            .get_entity_id_from_space_name_version_drift_type(
+                &self.db_pool,
+                space,
+                name,
+                version,
+                drift_type,
+            )
             .await?)
     }
 
     pub async fn get_entity_id_for_request_from_args(
         &self,
-        space: &String,
-        name: &String,
-        version: &String,
+        space: &str,
+        name: &str,
+        version: &str,
         drift_type: &DriftType,
     ) -> Result<i32, (StatusCode, Json<ScouterServerError>)> {
         match self

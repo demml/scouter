@@ -29,7 +29,7 @@ impl CustomDrifter {
     ) -> Result<HashMap<String, f64>, DriftError> {
         let metrics: Vec<String> = self.profile.metrics.keys().cloned().collect();
         let entity_id = entity_cache()
-            .get_entity_id_from_uid(&self.profile.config.uid)
+            .get_entity_id_from_uid(db_pool, &self.profile.config.uid)
             .await?;
 
         Ok(

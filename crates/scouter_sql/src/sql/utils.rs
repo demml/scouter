@@ -43,7 +43,6 @@ fn custom_record_from_row(row: &PgRow) -> Result<CustomMetricInternalRecord, Sql
 
 fn llm_drift_metric_from_row(row: &PgRow) -> Result<LLMMetricInternalRecord, SqlError> {
     Ok(LLMMetricInternalRecord {
-        entity_uid: row.try_get("entity_uid")?,
         uid: row.try_get("uid")?,
         created_at: row.try_get("created_at")?,
         entity_id: row.try_get("entity_id")?,

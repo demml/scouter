@@ -353,7 +353,6 @@ impl LLMMetricRecord {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct LLMMetricInternalRecord {
-    pub entity_uid: String,
     pub uid: String,
     pub created_at: chrono::DateTime<Utc>,
     pub entity_id: i32,
@@ -695,7 +694,7 @@ impl ServerRecords {
                 ServerRecord::Custom(inner) => Ok(&inner.uid),
                 ServerRecord::Observability(inner) => Ok(&inner.uid),
                 ServerRecord::LLMDrift(inner) => Ok(&inner.record.entity_uid),
-                ServerRecord::LLMMetric(inner) => Ok(&inner.uid),
+                ServerRecord::LLMMetric(inner) => Ok(&inner.entity_uid),
             }
         } else {
             Err(RecordError::EmptyServerRecordsError)

@@ -46,7 +46,7 @@ pub mod psi_drifter {
             db_pool: &Pool<Postgres>,
         ) -> Result<Option<FeatureDistributions>, DriftError> {
             let entity_id = entity_cache()
-                .get_entity_id_from_uid(&self.profile.config.uid)
+                .get_entity_id_from_uid(db_pool, &self.profile.config.uid)
                 .await?;
             let feature_distributions = PostgresClient::get_feature_distributions(
                 db_pool,

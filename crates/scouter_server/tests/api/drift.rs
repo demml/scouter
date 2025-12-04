@@ -1,4 +1,4 @@
-use crate::common::{TestHelper, NAME, SPACE, VERSION};
+use crate::common::{setup_test, TestHelper, NAME, SPACE, VERSION};
 use std::time::Duration;
 
 use axum::{
@@ -6,11 +6,10 @@ use axum::{
     http::{header, Request, StatusCode},
 };
 use potato_head::LLMTestServer;
-use scouter_types::DriftType;
 
 use http_body_util::BodyExt;
 use scouter_drift::psi::PsiMonitor;
-use scouter_types::contracts::{DriftRequest, GetProfileRequest, ProfileStatusRequest};
+use scouter_types::contracts::DriftRequest;
 use scouter_types::custom::{
     CustomDriftProfile, CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig,
 };
@@ -26,80 +25,8 @@ use scouter_types::{
 use tokio::time::sleep;
 
 #[tokio::test]
-async fn test_create_spc_profile() {
-    let helper = TestHelper::new(false, false).await.unwrap();
-    let mut profile = helper.create_drift_profile().await;
-
-    // update profile
-    profile.config.sample_size = 100;
-
-    assert_eq!(profile.config.sample_size, 100);
-
-    let request = profile.create_profile_request().unwrap();
-
-    let body = serde_json::to_string(&request).unwrap();
-
-    let request = Request::builder()
-        .uri("/scouter/profile")
-        .method("POST")
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(body))
-        .unwrap();
-
-    let response = helper.send_oneshot(request).await;
-
-    //assert response
-    assert_eq!(response.status(), StatusCode::OK);
-
-    // get profile
-    let params = GetProfileRequest {
-        name: profile.config.name.clone(),
-        space: profile.config.space.clone(),
-        version: profile.config.version.clone(),
-        drift_type: DriftType::Spc,
-    };
-
-    let query_string = serde_qs::to_string(&params).unwrap();
-
-    let request = Request::builder()
-        .uri(format!("/scouter/profile?{query_string}"))
-        .method("GET")
-        .body(Body::empty())
-        .unwrap();
-
-    let response = helper.send_oneshot(request).await;
-
-    //assert response
-    assert_eq!(response.status(), StatusCode::OK);
-
-    // update profile status
-    let request = ProfileStatusRequest {
-        name: profile.config.name.clone(),
-        space: profile.config.space.clone(),
-        version: profile.config.version.clone(),
-        active: true,
-        drift_type: None,
-        deactivate_others: true,
-    };
-
-    let body = serde_json::to_string(&request).unwrap();
-
-    let request = Request::builder()
-        .uri("/scouter/profile/status")
-        .method("PUT")
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(body))
-        .unwrap();
-
-    let response = helper.send_oneshot(request).await;
-
-    //assert response
-    assert_eq!(response.status(), StatusCode::OK);
-}
-
-#[tokio::test]
 async fn test_spc_server_records() {
-    let helper = TestHelper::new(false, false).await.unwrap();
+    let helper = setup_test().await;
     let profile = helper.create_drift_profile().await;
     let records = helper.get_spc_drift_records(None, &profile.config.uid);
     let body = serde_json::to_string(&records).unwrap();
@@ -150,7 +77,7 @@ async fn test_spc_server_records() {
 
 #[tokio::test]
 async fn test_psi_server_records() {
-    let helper = TestHelper::new(false, false).await.unwrap();
+    let helper = setup_test().await;
 
     let (array, features) = helper.get_data();
     let alert_config = PsiAlertConfig {
@@ -231,7 +158,7 @@ async fn test_psi_server_records() {
 
 #[tokio::test]
 async fn test_custom_server_records() {
-    let helper = TestHelper::new(false, false).await.unwrap();
+    let helper = setup_test().await;
 
     let alert_config = CustomMetricAlertConfig::default();
     let config =
@@ -302,7 +229,7 @@ fn test_llm_server_records() {
     let mut mock = LLMTestServer::new();
     mock.start_server().unwrap();
 
-    let helper = runtime.block_on(async { TestHelper::new(false, false).await.unwrap() });
+    let helper = runtime.block_on(async { setup_test().await });
     let profile = runtime.block_on(async { TestHelper::create_llm_drift_profile().await });
 
     let uid = runtime.block_on(async {

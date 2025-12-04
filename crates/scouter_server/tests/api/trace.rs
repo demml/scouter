@@ -1,4 +1,4 @@
-use crate::common::TestHelper;
+use crate::common::setup_test;
 use axum::{
     body::Body,
     http::{header, Request, StatusCode},
@@ -11,7 +11,7 @@ use scouter_types::{
 
 #[tokio::test]
 async fn test_tracing() {
-    let helper = TestHelper::new(false, false).await.unwrap();
+    let helper = setup_test().await;
     helper.generate_trace_data().await.unwrap();
 
     // get paginated traces

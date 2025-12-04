@@ -42,11 +42,17 @@ pub const SPACE: &str = "space";
 pub const NAME: &str = "name";
 pub const VERSION: &str = "1.0.0";
 
-pub async fn cleanup(pool: &Pool<Postgres>) -> Result<(), anyhow::Error> {
+pub async fn cleanup_tables(pool: &Pool<Postgres>) -> Result<(), anyhow::Error> {
     sqlx::raw_sql(
         r#"
         DELETE
         FROM scouter.spc_drift;
+
+        DELETE
+        FROM scouter.drift_entities;
+
+        DELETE
+        FROM scouter.service_entities;
 
         DELETE
         FROM scouter.observability_metric;
@@ -59,9 +65,6 @@ pub async fn cleanup(pool: &Pool<Postgres>) -> Result<(), anyhow::Error> {
 
         DELETE
         FROM scouter.drift_profile;
-
-        DELETE
-        FROM scouter.user;
 
         DELETE
         FROM scouter.psi_drift;
@@ -116,6 +119,7 @@ impl TestHelper {
         env::set_var("LOG_LEVEL", "inf");
         env::set_var("LOG_JSON", "false");
         env::set_var("POLLING_WORKER_COUNT", "1");
+        env::set_var("MAX_POOL_SIZE", "100");
         env::set_var("DATA_RETENTION_PERIOD", "5");
         std::env::set_var("OPENAI_API_KEY", "test_key");
 
@@ -127,14 +131,12 @@ impl TestHelper {
             std::env::set_var("RABBITMQ_ADDR", "amqp://guest:guest@127.0.0.1:5672/%2f");
         }
 
-        let db_pool = PostgresClient::create_db_pool(&DatabaseSettings::default())
-            .await
-            .context("Failed to create Postgres client")?;
-
-        cleanup(&db_pool).await?;
-
         let (app, app_state) = create_app().await?;
+
         let token = TestHelper::login(&app).await;
+
+        let db_pool = app_state.db_pool.clone();
+        //cleanup(&db_pool).await?;
 
         Ok(Self {
             app,
@@ -347,7 +349,7 @@ impl TestHelper {
             "repo_1",
             "model_1",
             "1.0.0",
-            &DriftType::Psi.to_string(),
+            DriftType::Psi.to_string(),
         )
         .await?;
         let (custom_uid, custom_id) = PostgresClient::create_entity(
@@ -355,7 +357,7 @@ impl TestHelper {
             "repo_1",
             "model_1",
             "1.0.0",
-            &DriftType::Custom.to_string(),
+            DriftType::Custom.to_string(),
         )
         .await?;
         let (spc_uid, spc_id) = PostgresClient::create_entity(
@@ -363,7 +365,7 @@ impl TestHelper {
             "repo_1",
             "model_1",
             "1.0.0",
-            &DriftType::Spc.to_string(),
+            DriftType::Spc.to_string(),
         )
         .await?;
 
@@ -479,4 +481,21 @@ impl TestHelper {
 
         registered_response.uid
     }
+}
+
+/// Call this at the start of every test to get a clean database
+pub async fn setup_test() -> TestHelper {
+    // Get the global TestHelper (initialized only once)
+    let helper = TestHelper::new(false, false)
+        .await
+        .expect("Failed to initialize TestHelper");
+
+    // Clean up the database before this test runs
+    cleanup_tables(&helper.pool)
+        .await
+        .expect("Failed to cleanup database before test");
+
+    TestHelper::cleanup_storage();
+
+    helper
 }

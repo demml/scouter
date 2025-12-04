@@ -149,7 +149,7 @@ pub async fn update_drift_profile(
         }
     };
 
-    let entity_id = data.get_entity_id_for_request(&body.uid()).await?;
+    let entity_id = data.get_entity_id_for_request(body.uid()).await?;
 
     match PostgresClient::update_drift_profile(&data.db_pool, &body, &entity_id).await {
         Ok(_) => Ok(Json(ScouterResponse {

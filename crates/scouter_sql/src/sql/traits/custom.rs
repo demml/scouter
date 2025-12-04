@@ -105,7 +105,7 @@ pub trait CustomMetricSqlLogic {
         let records: Vec<BinnedMetricWrapper> = sqlx::query_as(&query.sql)
             .bind(bin)
             .bind(minutes)
-            .bind(&entity_id)
+            .bind(entity_id)
             .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError)?;
@@ -157,7 +157,7 @@ pub trait CustomMetricSqlLogic {
         let path = format!("{}/custom", params.uid);
         let bin = minutes as f64 / params.max_data_points as f64;
         let archived_df = ParquetDataFrame::new(storage_settings, &RecordType::Custom)?
-            .get_binned_metrics(&path, &bin, &begin, &end, &entity_id)
+            .get_binned_metrics(&path, &bin, &begin, &end, entity_id)
             .await?;
 
         Ok(BinnedMetricsExtractor::dataframe_to_binned_metrics(archived_df).await?)

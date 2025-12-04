@@ -196,7 +196,7 @@ mod tests {
             for j in 0..50 {
                 let record = LLMDriftInternalRecord {
                     created_at: Utc::now() + chrono::Duration::hours(i),
-                    entity_id: entity_id.clone(),
+                    entity_id,
                     prompt: Some(prompt.model_dump_value()),
                     context: serde_json::Value::Object(Map::new()),
                     score: Value::Null,
@@ -259,8 +259,7 @@ mod tests {
                 let record = InternalServerRecord::LLMMetric(LLMMetricInternalRecord {
                     uid: format!("record_uid_{i}_{j}"),
                     created_at: Utc::now() + chrono::Duration::hours(i),
-                    entity_id: entity_id.clone(),
-                    entity_uid: "test-entity-uid".to_string(),
+                    entity_id,
                     metric: format!("metric{i}"),
                     value: j as f64,
                 });
@@ -328,7 +327,7 @@ mod tests {
             for j in 0..50 {
                 let record = InternalServerRecord::Custom(CustomMetricInternalRecord {
                     created_at: Utc::now() + chrono::Duration::hours(i),
-                    entity_id: entity_id.clone(),
+                    entity_id,
                     metric: format!("metric{i}"),
                     value: j as f64,
                 });
@@ -396,7 +395,7 @@ mod tests {
             for j in 0..5 {
                 let record = InternalServerRecord::Psi(PsiInternalRecord {
                     created_at: Utc::now() + chrono::Duration::hours(i),
-                    entity_id: entity_id.clone(),
+                    entity_id,
                     feature: "feature1".to_string(),
                     bin_id: j as usize,
                     bin_count: rand::rng().random_range(0..100),
@@ -410,7 +409,7 @@ mod tests {
             for j in 0..5 {
                 let record = InternalServerRecord::Psi(PsiInternalRecord {
                     created_at: Utc::now() + chrono::Duration::hours(i),
-                    entity_id: entity_id.clone(),
+                    entity_id,
                     feature: "feature2".to_string(),
                     bin_id: j as usize,
                     bin_count: rand::rng().random_range(0..100),
@@ -470,7 +469,7 @@ mod tests {
         for i in 0..5 {
             let record = InternalServerRecord::Spc(SpcInternalRecord {
                 created_at: Utc::now() + chrono::Duration::hours(i),
-                entity_id: entity_id.clone(),
+                entity_id,
                 feature: "feature1".to_string(),
                 value: i as f64,
             });
@@ -481,7 +480,7 @@ mod tests {
         for i in 0..5 {
             let record = InternalServerRecord::Spc(SpcInternalRecord {
                 created_at: Utc::now() + chrono::Duration::hours(i),
-                entity_id: entity_id.clone(),
+                entity_id,
                 feature: "feature2".to_string(),
                 value: i as f64,
             });

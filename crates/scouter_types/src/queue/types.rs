@@ -465,7 +465,7 @@ impl LLMRecord {
         LLMTaskRecord {
             uid: uid.to_string(),
             entity_id: 0,
-            created_at: self.created_at.clone(),
+            created_at: self.created_at,
             context: self.context.clone(),
             score: self.score.clone(),
             prompt: self.prompt.clone(),

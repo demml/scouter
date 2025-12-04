@@ -24,11 +24,11 @@ test.sql:
 
 .PHONY: test.server
 test.server:
-	cargo test -p scouter-server test_get_drift_alerts --all-features -- --nocapture --test-threads=1 --skip test_storage_integration_cloud --skip test_data_archive_llm
+	cargo test -p scouter-server --all-features -- --nocapture --test-threads=1 --skip test_storage_integration_cloud --skip test_data_archive_llm
 
 .PHONY: test.server.archive.llm
 test.server.archive.llm:
-	cargo test -p scouter-server test_data_archive_llm --all-features -- --nocapture --test-threads=1
+	cargo test -p scouter-server test_data_archive_llm_drift --all-features -- --nocapture --test-threads=1
 
 
 .PHONY: test.server.cloud

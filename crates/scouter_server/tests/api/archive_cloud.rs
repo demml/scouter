@@ -1,6 +1,6 @@
 use std::time::Duration;
 // storage integration tests for cloud storage
-use crate::common::{TestHelper, NAME, SPACE, VERSION};
+use crate::common::{setup_test, TestHelper, NAME, SPACE, VERSION};
 
 use axum::{
     body::Body,
@@ -13,14 +13,14 @@ use scouter_server::api::archive::archive_old_data;
 use scouter_types::contracts::DriftRequest;
 use scouter_types::{
     psi::{BinnedPsiFeatureMetrics, PsiAlertConfig, PsiDriftConfig},
-    DriftType, RecordType,
+    RecordType,
 };
 use sqlx::types::chrono::Utc;
 use tokio::time::sleep;
 
 #[tokio::test]
 async fn test_storage_integration_cloud() {
-    let helper = TestHelper::new(false, false).await.unwrap();
+    let helper = setup_test().await;
 
     // create profile
     let (array, features) = helper.get_data();
@@ -86,21 +86,16 @@ async fn test_storage_integration_cloud() {
     assert!(!record.custom);
     //
     let df = ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::Psi).unwrap();
-    let path = format!("{SPACE}/{NAME}/{VERSION}/psi");
+    let path = format!("{}/psi", uid);
 
     let data_path = object_store::path::Path::from(path);
     let files = df.storage_client().list(Some(&data_path)).await.unwrap();
 
     assert!(!files.is_empty());
 
-    let uid = helper
-        .get_uid_from_args(SPACE, NAME, VERSION, &DriftType::Psi)
-        .await
-        .unwrap();
-
     let params = DriftRequest {
         space: SPACE.to_string(),
-        uid: uid,
+        uid: uid.clone(),
         max_data_points: 100,
         begin_custom_datetime: Some(Utc::now() - chrono::Duration::days(15)),
         end_custom_datetime: Some(Utc::now()),

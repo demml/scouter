@@ -14,7 +14,6 @@ use scouter_sql::sql::traits::UserSqlLogic;
 use scouter_sql::PostgresClient;
 use sqlx::{Pool, Postgres};
 use std::str::FromStr;
-use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
 #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
@@ -30,11 +29,11 @@ use scouter_events::consumer::rabbitmq::{
 #[cfg(feature = "redis_events")]
 use scouter_events::consumer::redis::RedisConsumerManager;
 
+use crate::api::task_manager::TaskManager;
 use scouter_events::consumer::http::consumer::HttpConsumerManager;
 use scouter_settings::events::HttpConsumerSettings;
 use scouter_types::MessageRecord;
-
-use crate::api::task_manager::TaskManager;
+use std::sync::Arc;
 
 pub struct ScouterSetupComponents {
     pub server_config: Arc<ScouterServerConfig>,
@@ -122,7 +121,7 @@ impl ScouterSetupComponents {
             server_config: config,
             db_pool,
             task_manager,
-            http_consumer_tx: http_consumer_manager.tx,
+            http_consumer_tx: http_consumer_manager.tx.clone(),
         })
     }
 
@@ -345,7 +344,6 @@ impl ScouterSetupComponents {
     async fn setup_http_consumer_manager(
         settings: &HttpConsumerSettings,
         db_pool: &Pool<Postgres>,
-
         task_manager: &mut TaskManager,
     ) -> AnyhowResult<HttpConsumerManager> {
         let (tx, rx) = flume::bounded(1000);

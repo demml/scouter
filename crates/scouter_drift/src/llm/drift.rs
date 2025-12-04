@@ -25,7 +25,7 @@ impl LLMDrifter {
         db_pool: &Pool<Postgres>,
     ) -> Result<HashMap<String, f64>, DriftError> {
         let entity_id = entity_cache()
-            .get_entity_id_from_uid(&self.profile.config.uid)
+            .get_entity_id_from_uid(db_pool, &self.profile.config.uid)
             .await?;
         let metrics: Vec<String> = self
             .profile

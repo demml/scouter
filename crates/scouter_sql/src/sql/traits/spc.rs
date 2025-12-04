@@ -69,7 +69,7 @@ pub trait SpcSqlLogic {
         let query = Queries::GetSpcFeatures.get_query();
 
         Ok(sqlx::query(&query.sql)
-            .bind(&entity_id)
+            .bind(entity_id)
             .fetch_all(pool)
             .await
             .inspect_err(|e| {

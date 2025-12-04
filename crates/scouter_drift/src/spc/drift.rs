@@ -77,7 +77,7 @@ pub mod spc_drifter {
             features_to_monitor: &[String],
         ) -> Result<SpcDriftArray, DriftError> {
             let entity_id = entity_cache()
-                .get_entity_id_from_uid(&self.profile.config.uid)
+                .get_entity_id_from_uid(db_pool, &self.profile.config.uid)
                 .await?;
 
             let records = PostgresClient::get_spc_drift_records(

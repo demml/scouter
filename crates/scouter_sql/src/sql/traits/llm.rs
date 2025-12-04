@@ -39,7 +39,7 @@ pub trait LLMDriftSqlLogic {
         sqlx::query(&query.sql)
             .bind(&record.uid)
             .bind(record.created_at)
-            .bind(&entity_id)
+            .bind(entity_id)
             .bind(&record.context)
             .bind(Json(&record.prompt))
             .execute(pool)
