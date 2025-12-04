@@ -8,8 +8,8 @@ use chrono::Utc;
 use cron::Schedule;
 use potato_head::create_uuid7;
 use scouter_semver::VersionArgs;
-use scouter_semver::VersionType;
 use scouter_semver::{VersionParser, VersionValidator};
+use scouter_types::VersionRequest;
 use scouter_types::{
     DriftProfile, ListProfilesRequest, ListedProfile, ProfileArgs, ProfileStatusRequest,
 };
@@ -80,13 +80,11 @@ pub trait ProfileSqlLogic {
     async fn get_next_profile_version(
         pool: &Pool<Postgres>,
         args: &ProfileArgs,
-        version_type: VersionType,
-        pre_tag: Option<String>,
-        build_tag: Option<String>,
+        version_request: VersionRequest,
     ) -> Result<Version, SqlError> {
         let mut version_query = Queries::GetProfileVersions.get_query().sql;
 
-        if let Some(version) = &args.version {
+        if let Some(version) = &version_request.version {
             add_version_bounds(&mut version_query, version)?;
         }
         version_query.push_str(" ORDER BY created_at DESC LIMIT 20;");
@@ -106,7 +104,7 @@ pub trait ProfileSqlLogic {
         let versions = VersionValidator::sort_semver_versions(versions, true)?;
 
         if versions.is_empty() {
-            return match &args.version {
+            return match &version_request.version {
                 Some(version_str) => Ok(VersionValidator::clean_version(version_str)?),
                 None => Ok(Version::new(0, 1, 0)),
             };
@@ -116,9 +114,9 @@ pub trait ProfileSqlLogic {
 
         let args = VersionArgs {
             version: base_version,
-            version_type,
-            pre: pre_tag,
-            build: build_tag,
+            version_type: version_request.version_type,
+            pre: version_request.pre_tag,
+            build: version_request.build_tag,
         };
 
         Ok(VersionValidator::bump_version(&args)?)

@@ -62,12 +62,12 @@ pub async fn insert_drift_profile(
     // get versions
     let base_args = body.get_base_args();
 
+    debug!("Base args for profile insertion: {:?}", &base_args);
+
     let version = match PostgresClient::get_next_profile_version(
         &data.db_pool,
         &base_args,
-        request.version_request.version_type,
-        request.version_request.pre_tag,
-        request.version_request.build_tag,
+        request.version_request,
     )
     .await
     {
@@ -82,6 +82,8 @@ pub async fn insert_drift_profile(
             ));
         }
     };
+
+    debug!("Determined profile version: {:?}", &version);
 
     match PostgresClient::insert_drift_profile(
         &data.db_pool,

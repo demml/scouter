@@ -367,6 +367,7 @@ impl PyScouterClient {
         request.active = set_active;
         request.deactivate_others = deactivate_others;
 
+
         let profile_response = self.client.insert_profile(&request)?;
 
         // update config args
