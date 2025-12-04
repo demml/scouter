@@ -129,12 +129,13 @@ impl LLMDriftConfig {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (space=None, name=None, version=None, alert_config=None))]
+    #[pyo3(signature = (space=None, name=None, version=None, uid=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
         space: Option<String>,
         name: Option<String>,
         version: Option<String>,
+        uid: Option<String>,
         alert_config: Option<LLMAlertConfig>,
     ) -> Result<(), TypeError> {
         if name.is_some() {
@@ -151,6 +152,10 @@ impl LLMDriftConfig {
 
         if alert_config.is_some() {
             self.alert_config = alert_config.ok_or(TypeError::MissingAlertConfigError)?;
+        }
+
+        if uid.is_some() {
+            self.uid = uid.ok_or(TypeError::MissingUidError)?;
         }
 
         Ok(())
@@ -413,16 +418,17 @@ impl LLMDriftProfile {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (space=None, name=None, version=None, alert_config=None))]
+    #[pyo3(signature = (space=None, name=None, version=None, uid=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
         space: Option<String>,
         name: Option<String>,
         version: Option<String>,
+        uid: Option<String>,
         alert_config: Option<LLMAlertConfig>,
     ) -> Result<(), TypeError> {
         self.config
-            .update_config_args(space, name, version, alert_config)
+            .update_config_args(space, name, version, uid, alert_config)
     }
 
     /// Create a profile request from the profile
@@ -718,7 +724,13 @@ mod tests {
         };
 
         drift_config
-            .update_config_args(None, Some("test".to_string()), None, Some(new_alert_config))
+            .update_config_args(
+                None,
+                Some("test".to_string()),
+                None,
+                None,
+                Some(new_alert_config),
+            )
             .unwrap();
 
         assert_eq!(drift_config.name, "test");

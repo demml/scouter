@@ -421,15 +421,15 @@ mod tests {
         deactivate_others: bool,
     ) -> String {
         let base_args = profile.get_base_args();
-        let version = PostgresClient::get_next_profile_version(
-            pool,
-            &base_args,
-            VersionType::Minor,
-            None,
-            None,
-        )
-        .await
-        .unwrap();
+        let version_request = VersionRequest {
+            version: None,
+            version_type: VersionType::Minor,
+            pre_tag: None,
+            build_tag: None,
+        };
+        let version = PostgresClient::get_next_profile_version(pool, &base_args, version_request)
+            .await
+            .unwrap();
 
         let result = PostgresClient::insert_drift_profile(
             pool,

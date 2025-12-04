@@ -157,12 +157,13 @@ impl PsiDriftConfig {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (space=None, name=None, version=None, alert_config=None, categorical_features=None, binning_strategy=None))]
+    #[pyo3(signature = (space=None, name=None, version=None, uid=None, alert_config=None, categorical_features=None, binning_strategy=None))]
     pub fn update_config_args(
         &mut self,
         space: Option<String>,
         name: Option<String>,
         version: Option<String>,
+        uid: Option<String>,
         alert_config: Option<PsiAlertConfig>,
         categorical_features: Option<Vec<String>>,
         binning_strategy: Option<&Bound<'_, PyAny>>,
@@ -181,6 +182,10 @@ impl PsiDriftConfig {
 
         if alert_config.is_some() {
             self.alert_config = alert_config.ok_or(TypeError::MissingAlertConfigError)?;
+        }
+
+        if uid.is_some() {
+            self.uid = uid.ok_or(TypeError::MissingUidError)?;
         }
 
         if categorical_features.is_some() {
@@ -494,12 +499,13 @@ impl PsiDriftProfile {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (space=None, name=None, version=None, alert_config=None, categorical_features=None, binning_strategy=None))]
+    #[pyo3(signature = (space=None, name=None, version=None, uid=None,alert_config=None, categorical_features=None, binning_strategy=None))]
     pub fn update_config_args(
         &mut self,
         space: Option<String>,
         name: Option<String>,
         version: Option<String>,
+        uid: Option<String>,
         alert_config: Option<PsiAlertConfig>,
         categorical_features: Option<Vec<String>>,
         binning_strategy: Option<&Bound<'_, PyAny>>,
@@ -508,6 +514,7 @@ impl PsiDriftProfile {
             space,
             name,
             version,
+            uid,
             alert_config,
             categorical_features,
             binning_strategy,

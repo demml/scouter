@@ -362,11 +362,11 @@ impl PyScouterClient {
     ) -> Result<bool, ClientError> {
         let mut request = profile
             .call_method0("create_profile_request")?
-            .extract::<ProfileRequest>()?;
+            .extract::<ProfileRequest>()
+            .inspect_err(|e| error!("Failed to extract profile request: {:?}", e.to_string()))?;
 
         request.active = set_active;
         request.deactivate_others = deactivate_others;
-
 
         let profile_response = self.client.insert_profile(&request)?;
 
