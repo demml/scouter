@@ -64,24 +64,6 @@ impl RabbitMQSetup for TestHelper {
             }
         });
     }
-
-    //async fn start_background_consumer(&self) {
-    //    //let settings = self.config.kafka_settings.as_ref().unwrap();
-    //    //
-    //    //let consumer = create_kafka_consumer(&settings, None).await.unwrap();
-    //    //let msg_handler = MessageHandler::Postgres(self.db_client.clone());
-    //    //
-    //    //(consumer, msg_handler)
-    //    let (_shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(());
-    //    RabbitMQConsumerManager::start_workers(
-    //        &self.config.rabbitmq_settings.as_ref().unwrap().clone(),
-    //        &self.config.database_settings.clone(),
-    //        &self.db_client.pool,
-    //        shutdown_rx,
-    //    )
-    //    .await
-    //    .unwrap();
-    //}
 }
 
 #[tokio::main]
@@ -91,10 +73,15 @@ async fn main() {
 
     let helper = TestHelper::new().await;
 
-    let (entity_uid, entity_id) =
-        PostgresClient::create_entity(&helper.db_pool, "test", "test", "1.0.0", "spc")
-            .await
-            .unwrap();
+    let (entity_uid, entity_id) = PostgresClient::create_entity(
+        &helper.db_pool,
+        "rabbitmq-test",
+        "rabbitmq-test",
+        "1.0.0",
+        "spc",
+    )
+    .await
+    .unwrap();
 
     helper.start_background_producer(&entity_uid).await;
     //helper.start_background_consumer().await;

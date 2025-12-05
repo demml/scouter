@@ -56,7 +56,7 @@ async fn main() {
     let helper = TestHelper::new().await;
 
     let (entity_uid, entity_id) =
-        PostgresClient::create_entity(&helper.db_pool, "test", "test", "1.0.0", "spc")
+        PostgresClient::create_entity(&helper.db_pool, "redis-test", "redis-test", "1.0.0", "spc")
             .await
             .unwrap();
 

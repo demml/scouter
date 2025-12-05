@@ -98,7 +98,7 @@ async fn main() {
 
     // create entity in the database before starting consumer
     let (entity_uid, entity_id) =
-        PostgresClient::create_entity(&helper.db_pool, "test", "test", "1.0.0", "spc")
+        PostgresClient::create_entity(&helper.db_pool, "kafka-test", "kafka-test", "1.0.0", "spc")
             .await
             .unwrap();
 

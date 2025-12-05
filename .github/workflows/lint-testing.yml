@@ -62,8 +62,18 @@ jobs:
         env:
           RUST_BACKTRACE: 1
 
-      - name: Test Events
-        run: make test.events
+      - name: Test Kafka Events
+        run: make test.kafka_events
+        env:
+          RUST_BACKTRACE: 1
+
+      - name: Test RabbitMQ Events
+        run: make test.rabbitmq_events
+        env:
+          RUST_BACKTRACE: 1
+
+      - name: Test Redis Events
+        run: make test.redis_events
         env:
           RUST_BACKTRACE: 1
 

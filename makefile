@@ -71,6 +71,10 @@ test.unit: test.types test.dispatch test.drift test.profile
 test.kafka_events:
 	cargo run --example kafka_integration --all-features -- --nocapture
 
+.PHONY: test.redis_events
+test.redis_events:
+	cargo run --example redis_integration --all-features -- --nocapture
+
 .PHONY: test.rabbitmq_events
 test.rabbitmq_events:
 	cargo run --example rabbitmq_integration --all-features -- --nocapture
