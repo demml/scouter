@@ -12,3 +12,4 @@ FROM scouter.drift_profile
 WHERE 1=1
     AND space = $1
     AND name = $2
+    and drift_type = $3
