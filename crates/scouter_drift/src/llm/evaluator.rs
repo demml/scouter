@@ -3,7 +3,7 @@ use crate::error::DriftError;
 use potato_head::ResponseLogProbs;
 use potato_head::{calculate_weighted_score, Score, StructuredOutput, TaskStatus, Workflow};
 use scouter_types::llm::LLMDriftProfile;
-use scouter_types::{LLMMetricRecord, LLMRecord};
+use scouter_types::{LLMMetricRecord, LLMTaskRecord};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -20,10 +20,14 @@ impl LLMEvaluator {
 
     /// Gets the final task results of the workflow.
     /// # Returns a HashMap where the keys are task IDs and the values are AgentResponse objects.
+    /// # Arguments
+    /// * `workflow` - The workflow to get the final task results from.
+    /// * `profile` - The LLM drift profile.
+    /// * `uid` - The unique identifier for the drift record.
     pub fn get_final_task_results(
         workflow: Arc<RwLock<Workflow>>,
         profile: &LLMDriftProfile,
-        record_uid: &str,
+        uid: &str,
     ) -> Result<LLMEvalResult, DriftError> {
         let workflow = workflow.read().unwrap();
         let task_list = &workflow.task_list;
@@ -88,11 +92,9 @@ impl LLMEvaluator {
 
                 // Create the LLMMetricRecord
                 let record = LLMMetricRecord {
-                    record_uid: record_uid.to_string(),
+                    entity_uid: profile.config.uid.clone(),
+                    uid: uid.to_string(),
                     created_at: chrono::Utc::now(),
-                    space: profile.config.space.clone(),
-                    name: profile.config.name.clone(),
-                    version: profile.config.version.clone(),
                     metric: task_id.clone(),
                     value,
                 };
@@ -108,7 +110,7 @@ impl LLMEvaluator {
 
     #[instrument(skip_all)]
     pub async fn process_drift_record(
-        record: &LLMRecord,
+        record: &LLMTaskRecord,
         profile: &LLMDriftProfile,
     ) -> Result<LLMEvalResult, DriftError> {
         debug!("Processing workflow");

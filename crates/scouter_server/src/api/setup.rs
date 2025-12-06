@@ -14,7 +14,6 @@ use scouter_sql::sql::traits::UserSqlLogic;
 use scouter_sql::PostgresClient;
 use sqlx::{Pool, Postgres};
 use std::str::FromStr;
-use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
 #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
@@ -30,11 +29,11 @@ use scouter_events::consumer::rabbitmq::{
 #[cfg(feature = "redis_events")]
 use scouter_events::consumer::redis::RedisConsumerManager;
 
+use crate::api::task_manager::TaskManager;
 use scouter_events::consumer::http::consumer::HttpConsumerManager;
 use scouter_settings::events::HttpConsumerSettings;
 use scouter_types::MessageRecord;
-
-use crate::api::task_manager::TaskManager;
+use std::sync::Arc;
 
 pub struct ScouterSetupComponents {
     pub server_config: Arc<ScouterServerConfig>,
@@ -122,7 +121,7 @@ impl ScouterSetupComponents {
             server_config: config,
             db_pool,
             task_manager,
-            http_consumer_tx: http_consumer_manager.tx,
+            http_consumer_tx: http_consumer_manager.tx.clone(),
         })
     }
 
@@ -320,6 +319,7 @@ impl ScouterSetupComponents {
             let consumer = create_rabbitmq_consumer(settings).await?;
             let rabbit_db_pool = db_pool.clone();
             let shutdown_rx = task_manager.get_shutdown_receiver();
+
             task_manager.spawn(async move {
                 RabbitMQConsumerManager::start_worker(id, consumer, rabbit_db_pool, shutdown_rx)
                     .await;
@@ -404,6 +404,7 @@ impl ScouterSetupComponents {
     async fn setup_background_llm_drift_workers(
         db_pool: &Pool<Postgres>,
         poll_settings: &PollingSettings,
+
         shutdown_rx: tokio::sync::watch::Receiver<()>,
     ) -> AnyhowResult<()> {
         BackgroundLLMDriftManager::start_workers(db_pool, poll_settings, shutdown_rx).await?;
@@ -427,6 +428,7 @@ impl ScouterSetupComponents {
     pub async fn setup_redis(
         settings: &scouter_settings::RedisSettings,
         db_pool: &Pool<Postgres>,
+
         shutdown_rx: tokio::sync::watch::Receiver<()>,
     ) -> AnyhowResult<()> {
         RedisConsumerManager::start_workers(settings, db_pool, shutdown_rx).await?;

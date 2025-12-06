@@ -81,8 +81,10 @@ impl ScouterTestServer {
     pub fn set_env_vars_for_client(&self, port: u16) -> PyResult<()> {
         #[cfg(feature = "server")]
         {
-            std::env::set_var("SCOUTER_SERVER_URI", format!("http://localhost:{port}"));
-            std::env::set_var("APP_ENV", "dev_client");
+            unsafe {
+                std::env::set_var("SCOUTER_SERVER_URI", format!("http://localhost:{port}"));
+                std::env::set_var("APP_ENV", "dev_client");
+            }
             Ok(())
         }
         #[cfg(not(feature = "server"))]
@@ -99,14 +101,20 @@ impl ScouterTestServer {
             self.cleanup()?;
 
             // set server env vars
-            std::env::set_var("APP_ENV", "dev_server");
+            unsafe {
+                std::env::set_var("APP_ENV", "dev_server");
+            }
 
             if self.rabbit_mq {
-                std::env::set_var("RABBITMQ_ADDR", "amqp://guest:guest@127.0.0.1:5672/%2f");
+                unsafe {
+                    std::env::set_var("RABBITMQ_ADDR", "amqp://guest:guest@127.0.0.1:5672/%2f");
+                }
             }
 
             if self.kafka {
-                std::env::set_var("KAFKA_BROKERS", "localhost:9092");
+                unsafe {
+                    std::env::set_var("KAFKA_BROKERS", "localhost:9092");
+                }
             }
 
             if self.openai {
@@ -140,7 +148,9 @@ impl ScouterTestServer {
 
             debug!("Found available port: {}", port);
 
-            std::env::set_var("SCOUTER_SERVER_PORT", port.to_string());
+            unsafe {
+                std::env::set_var("SCOUTER_SERVER_PORT", port.to_string());
+            }
 
             runtime.spawn(async move {
                 let server_handle = start_server_in_background();
@@ -214,11 +224,13 @@ impl ScouterTestServer {
     }
 
     pub fn remove_env_vars_for_client(&self) -> PyResult<()> {
-        std::env::remove_var("APP_ENV");
-        std::env::remove_var("SCOUTER_SERVER_URI");
-        std::env::remove_var("SCOUTER_SERVER_PORT");
-        std::env::remove_var("KAFKA_BROKERS");
-        std::env::remove_var("RABBITMQ_ADDR");
+        unsafe {
+            std::env::remove_var("APP_ENV");
+            std::env::remove_var("SCOUTER_SERVER_URI");
+            std::env::remove_var("SCOUTER_SERVER_PORT");
+            std::env::remove_var("KAFKA_BROKERS");
+            std::env::remove_var("RABBITMQ_ADDR");
+        }
         Ok(())
     }
 

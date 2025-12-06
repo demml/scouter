@@ -1,4 +1,4 @@
-use scouter_types::contracts::ObservabilityMetricRequest;
+use scouter_types::{contracts::ObservabilityMetricRequest, ScouterServerError};
 
 use axum::{
     extract::{Query, State},
@@ -7,7 +7,6 @@ use axum::{
     Json,
 };
 
-use serde_json::json;
 use std::sync::Arc;
 use tracing::error;
 
@@ -21,9 +20,10 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 pub async fn get_observability_metrics(
     State(data): State<Arc<AppState>>,
     params: Query<ObservabilityMetricRequest>,
-) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<impl IntoResponse, (StatusCode, Json<ScouterServerError>)> {
+    let entity_id = data.get_entity_id_for_request(&params.uid).await?;
     let query_result =
-        PostgresClient::get_binned_observability_metrics(&data.db_pool, &params).await;
+        PostgresClient::get_binned_observability_metrics(&data.db_pool, &params, &entity_id).await;
 
     match query_result {
         Ok(result) => {
@@ -35,11 +35,12 @@ pub async fn get_observability_metrics(
         }
         Err(e) => {
             error!("Failed to query observability_metrics: {:?}", e);
-            let json_response = json!({
-                "status": "error",
-                "message": format!("{:?}", e)
-            });
-            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::new(format!(
+                    "Failed to query observability metrics: {e:?}"
+                ))),
+            ))
         }
     }
 }

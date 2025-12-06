@@ -4,16 +4,21 @@
     "sample": true,
     "sample_size": 100,
     "version": "1.0.0",
+    "uid": "123e4567-e89b-12d3-a456-426614174000",
     "drift_type": "Spc",
     "feature_map": {
-      "features": {}
+        "features": {}
     },
     "alert_config": {
         "rule": {
             "rule": "8 8 8 8 8 8 4 4",
             "zones_to_monitor": []
         },
-        "dispatch_config": {"Slack": {"channel": "test_channel"}},
+        "dispatch_config": {
+            "Slack": {
+                "channel": "test_channel"
+            }
+        },
         "schedule": "0 0 * * *",
         "features_to_monitor": [
             "feature1",

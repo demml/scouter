@@ -8,7 +8,7 @@ use crate::storage::ObjectStore;
 use chrono::{DateTime, Utc};
 use datafusion::prelude::DataFrame;
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::{RecordType, ServerRecords, StorageType};
+use scouter_types::{InternalServerRecords, RecordType, StorageType};
 use tracing::instrument;
 
 pub enum ParquetDataFrame {
@@ -54,7 +54,7 @@ impl ParquetDataFrame {
     pub async fn write_parquet(
         &self,
         rpath: &str,
-        records: ServerRecords,
+        records: InternalServerRecords,
     ) -> Result<(), DataFrameError> {
         let rpath = &self.resolve_path(rpath);
 
@@ -105,28 +105,26 @@ impl ParquetDataFrame {
         bin: &f64,
         start_time: &DateTime<Utc>,
         end_time: &DateTime<Utc>,
-        space: &str,
-        name: &str,
-        version: &str,
+        entity_id: &i32,
     ) -> Result<DataFrame, DataFrameError> {
         let read_path = &self.resolve_path(path);
 
         match self {
             ParquetDataFrame::CustomMetric(df) => {
-                df.get_binned_metrics(read_path, bin, start_time, end_time, space, name, version)
+                df.get_binned_metrics(read_path, bin, start_time, end_time, entity_id)
                     .await
             }
             ParquetDataFrame::Psi(df) => {
-                df.get_binned_metrics(read_path, bin, start_time, end_time, space, name, version)
+                df.get_binned_metrics(read_path, bin, start_time, end_time, entity_id)
                     .await
             }
             ParquetDataFrame::Spc(df) => {
-                df.get_binned_metrics(read_path, bin, start_time, end_time, space, name, version)
+                df.get_binned_metrics(read_path, bin, start_time, end_time, entity_id)
                     .await
             }
 
             ParquetDataFrame::LLMMetric(df) => {
-                df.get_binned_metrics(read_path, bin, start_time, end_time, space, name, version)
+                df.get_binned_metrics(read_path, bin, start_time, end_time, entity_id)
                     .await
             }
             ParquetDataFrame::LLMDrift(_) => Err(DataFrameError::UnsupportedOperation(
@@ -168,9 +166,10 @@ mod tests {
     use rand::Rng;
     use scouter_settings::ObjectStorageSettings;
     use scouter_types::{
-        BoxedLLMDriftServerRecord, CustomMetricServerRecord, LLMDriftServerRecord, LLMMetricRecord,
-        PsiServerRecord, ServerRecord, ServerRecords, SpcServerRecord, Status,
+        BoxedLLMDriftInternalRecord, InternalServerRecord, InternalServerRecords,
+        LLMDriftInternalRecord, PsiInternalRecord, SpcInternalRecord, Status,
     };
+    use scouter_types::{CustomMetricInternalRecord, LLMMetricInternalRecord};
     use serde_json::Map;
     use serde_json::Value;
 
@@ -189,35 +188,33 @@ mod tests {
         let storage_settings = ObjectStorageSettings::default();
         let df = ParquetDataFrame::new(&storage_settings, &RecordType::LLMDrift).unwrap();
         let mut batch = Vec::new();
-
+        let entity_id = rand::rng().random_range(0..100);
         let prompt = create_score_prompt(None);
 
         // create records
         for i in 0..3 {
-            for _ in 0..50 {
-                let record = LLMDriftServerRecord {
+            for j in 0..50 {
+                let record = LLMDriftInternalRecord {
                     created_at: Utc::now() + chrono::Duration::hours(i),
-                    space: "test".to_string(),
-                    name: "test".to_string(),
-                    version: "1.0".to_string(),
+                    entity_id,
                     prompt: Some(prompt.model_dump_value()),
                     context: serde_json::Value::Object(Map::new()),
                     score: Value::Null,
                     status: Status::Pending,
                     id: 0,
-                    uid: "test-uid".to_string(),
+                    uid: format!("record_uid_{i}_{j}"),
                     updated_at: None,
                     processing_started_at: None,
                     processing_ended_at: None,
                     processing_duration: None,
                 };
 
-                let boxed_record = BoxedLLMDriftServerRecord::new(record);
-                batch.push(ServerRecord::LLMDrift(boxed_record));
+                let boxed_record = BoxedLLMDriftInternalRecord::new(record);
+                batch.push(InternalServerRecord::LLMDrift(boxed_record));
             }
         }
 
-        let records = ServerRecords::new(batch);
+        let records = InternalServerRecords::new(batch);
         let rpath = "llm_drift";
         df.write_parquet(rpath, records.clone()).await.unwrap();
 
@@ -254,16 +251,15 @@ mod tests {
         let mut batch = Vec::new();
         let start_utc = Utc::now();
         let end_utc_for_test = start_utc + chrono::Duration::hours(3);
+        let entity_id = rand::rng().random_range(0..100);
 
         // create records
         for i in 0..3 {
             for j in 0..50 {
-                let record = ServerRecord::LLMMetric(LLMMetricRecord {
-                    record_uid: format!("record_uid_{i}_{j}"),
+                let record = InternalServerRecord::LLMMetric(LLMMetricInternalRecord {
+                    uid: format!("record_uid_{i}_{j}"),
                     created_at: Utc::now() + chrono::Duration::hours(i),
-                    name: "test".to_string(),
-                    space: "test".to_string(),
-                    version: "1.0".to_string(),
+                    entity_id,
                     metric: format!("metric{i}"),
                     value: j as f64,
                 });
@@ -272,7 +268,7 @@ mod tests {
             }
         }
 
-        let records = ServerRecords::new(batch);
+        let records = InternalServerRecords::new(batch);
         let rpath = "llm_metric";
         df.write_parquet(rpath, records.clone()).await.unwrap();
 
@@ -288,15 +284,7 @@ mod tests {
         let new_df = ParquetDataFrame::new(&storage_settings, &RecordType::LLMMetric).unwrap();
 
         let read_df = new_df
-            .get_binned_metrics(
-                rpath,
-                &0.01,
-                &start_utc,
-                &end_utc_for_test,
-                "test",
-                "test",
-                "1.0",
-            )
+            .get_binned_metrics(rpath, &0.01, &start_utc, &end_utc_for_test, &entity_id)
             .await
             .unwrap();
 
@@ -333,15 +321,13 @@ mod tests {
         let mut batch = Vec::new();
         let start_utc = Utc::now();
         let end_utc_for_test = start_utc + chrono::Duration::hours(3);
-
+        let entity_id = rand::rng().random_range(0..100);
         // create records
         for i in 0..3 {
             for j in 0..50 {
-                let record = ServerRecord::Custom(CustomMetricServerRecord {
+                let record = InternalServerRecord::Custom(CustomMetricInternalRecord {
                     created_at: Utc::now() + chrono::Duration::hours(i),
-                    name: "test".to_string(),
-                    space: "test".to_string(),
-                    version: "1.0".to_string(),
+                    entity_id,
                     metric: format!("metric{i}"),
                     value: j as f64,
                 });
@@ -350,7 +336,7 @@ mod tests {
             }
         }
 
-        let records = ServerRecords::new(batch);
+        let records = InternalServerRecords::new(batch);
         let rpath = "custom";
         df.write_parquet(rpath, records.clone()).await.unwrap();
 
@@ -366,15 +352,7 @@ mod tests {
         let new_df = ParquetDataFrame::new(&storage_settings, &RecordType::Custom).unwrap();
 
         let read_df = new_df
-            .get_binned_metrics(
-                rpath,
-                &0.01,
-                &start_utc,
-                &end_utc_for_test,
-                "test",
-                "test",
-                "1.0",
-            )
+            .get_binned_metrics(rpath, &0.01, &start_utc, &end_utc_for_test, &entity_id)
             .await
             .unwrap();
 
@@ -412,14 +390,12 @@ mod tests {
         let mut batch = Vec::new();
         let start_utc = Utc::now();
         let end_utc_for_test = start_utc + chrono::Duration::hours(3);
-
+        let entity_id = rand::rng().random_range(0..100);
         for i in 0..3 {
             for j in 0..5 {
-                let record = ServerRecord::Psi(PsiServerRecord {
+                let record = InternalServerRecord::Psi(PsiInternalRecord {
                     created_at: Utc::now() + chrono::Duration::hours(i),
-                    name: "test".to_string(),
-                    space: "test".to_string(),
-                    version: "1.0".to_string(),
+                    entity_id,
                     feature: "feature1".to_string(),
                     bin_id: j as usize,
                     bin_count: rand::rng().random_range(0..100),
@@ -431,11 +407,9 @@ mod tests {
 
         for i in 0..3 {
             for j in 0..5 {
-                let record = ServerRecord::Psi(PsiServerRecord {
+                let record = InternalServerRecord::Psi(PsiInternalRecord {
                     created_at: Utc::now() + chrono::Duration::hours(i),
-                    name: "test".to_string(),
-                    space: "test".to_string(),
-                    version: "1.0".to_string(),
+                    entity_id,
                     feature: "feature2".to_string(),
                     bin_id: j as usize,
                     bin_count: rand::rng().random_range(0..100),
@@ -445,7 +419,7 @@ mod tests {
             }
         }
 
-        let records = ServerRecords::new(batch);
+        let records = InternalServerRecords::new(batch);
         let rpath = "psi";
         df.write_parquet(rpath, records.clone()).await.unwrap();
 
@@ -459,15 +433,7 @@ mod tests {
 
         // attempt to read the file
         let read_df = df
-            .get_binned_metrics(
-                rpath,
-                &0.01,
-                &start_utc,
-                &end_utc_for_test,
-                "test",
-                "test",
-                "1.0",
-            )
+            .get_binned_metrics(rpath, &0.01, &start_utc, &end_utc_for_test, &entity_id)
             .await
             .unwrap();
 
@@ -499,13 +465,11 @@ mod tests {
         let mut batch = Vec::new();
         let start_utc = Utc::now();
         let end_utc_for_test = start_utc + chrono::Duration::hours(3);
-
+        let entity_id = rand::rng().random_range(0..100);
         for i in 0..5 {
-            let record = ServerRecord::Spc(SpcServerRecord {
+            let record = InternalServerRecord::Spc(SpcInternalRecord {
                 created_at: Utc::now() + chrono::Duration::hours(i),
-                name: "test".to_string(),
-                space: "test".to_string(),
-                version: "1.0".to_string(),
+                entity_id,
                 feature: "feature1".to_string(),
                 value: i as f64,
             });
@@ -514,11 +478,9 @@ mod tests {
         }
 
         for i in 0..5 {
-            let record = ServerRecord::Spc(SpcServerRecord {
+            let record = InternalServerRecord::Spc(SpcInternalRecord {
                 created_at: Utc::now() + chrono::Duration::hours(i),
-                name: "test".to_string(),
-                space: "test".to_string(),
-                version: "1.0".to_string(),
+                entity_id,
                 feature: "feature2".to_string(),
                 value: i as f64,
             });
@@ -526,7 +488,7 @@ mod tests {
             batch.push(record);
         }
 
-        let records = ServerRecords::new(batch);
+        let records = InternalServerRecords::new(batch);
         let rpath = "spc";
         df.write_parquet(rpath, records.clone()).await.unwrap();
 
@@ -540,15 +502,7 @@ mod tests {
 
         // attempt to read the file
         let read_df = df
-            .get_binned_metrics(
-                rpath,
-                &0.01,
-                &start_utc,
-                &end_utc_for_test,
-                "test",
-                "test",
-                "1.0",
-            )
+            .get_binned_metrics(rpath, &0.01, &start_utc, &end_utc_for_test, &entity_id)
             .await
             .unwrap();
 

@@ -114,22 +114,22 @@ impl DriftProfile {
     /// # Returns
     ///
     /// * `Result<Self>` - Result of DriftProfile
-    pub fn from_str(drift_type: DriftType, profile: String) -> Result<Self, ProfileError> {
+    pub fn from_str(drift_type: &DriftType, profile: &str) -> Result<Self, ProfileError> {
         match drift_type {
             DriftType::Spc => {
-                let profile = serde_json::from_str(&profile)?;
+                let profile = serde_json::from_str(profile)?;
                 Ok(DriftProfile::Spc(profile))
             }
             DriftType::Psi => {
-                let profile = serde_json::from_str(&profile)?;
+                let profile = serde_json::from_str(profile)?;
                 Ok(DriftProfile::Psi(profile))
             }
             DriftType::Custom => {
-                let profile = serde_json::from_str(&profile)?;
+                let profile = serde_json::from_str(profile)?;
                 Ok(DriftProfile::Custom(profile))
             }
             DriftType::LLM => {
-                let profile = serde_json::from_str(&profile)?;
+                let profile = serde_json::from_str(profile)?;
                 Ok(DriftProfile::LLM(profile))
             }
         }
@@ -302,6 +302,15 @@ impl DriftProfile {
                     profile.config.space, profile.config.name, profile.config.version
                 )
             }
+        }
+    }
+
+    pub fn uid(&self) -> &String {
+        match self {
+            DriftProfile::Spc(profile) => &profile.config.uid,
+            DriftProfile::Psi(profile) => &profile.config.uid,
+            DriftProfile::Custom(profile) => &profile.config.uid,
+            DriftProfile::LLM(profile) => &profile.config.uid,
         }
     }
 }

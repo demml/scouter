@@ -4,7 +4,7 @@ use core::result::Result::Ok;
 use scouter_drift::psi::monitor::PsiMonitor;
 use scouter_types::{
     psi::{Bin, BinType, PsiDriftProfile},
-    Feature, MessageRecord, PsiServerRecord, QueueExt, ServerRecord, ServerRecords,
+    Feature, MessageRecord, PsiRecord, QueueExt, ServerRecord, ServerRecords,
 };
 use std::collections::HashMap;
 use tracing::{debug, error, info, instrument};
@@ -182,10 +182,8 @@ impl PsiFeatureQueue {
             .iter()
             .flat_map(|(feature_name, bin_map)| {
                 bin_map.iter().map(move |(bin_id, count)| {
-                    ServerRecord::Psi(PsiServerRecord::new(
-                        self.drift_profile.config.space.clone(),
-                        self.drift_profile.config.name.clone(),
-                        self.drift_profile.config.version.clone(),
+                    ServerRecord::Psi(PsiRecord::new(
+                        self.drift_profile.config.uid.clone(),
                         feature_name.to_string(),
                         *bin_id,
                         *count,

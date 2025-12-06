@@ -8,9 +8,9 @@ pub mod spc_drifter {
     use ndarray::ArrayView2;
     use scouter_dispatch::AlertDispatcher;
     use scouter_sql::sql::traits::SpcSqlLogic;
-    use scouter_sql::PostgresClient;
-    use scouter_types::contracts::ServiceInfo;
+    use scouter_sql::{sql::cache::entity_cache, PostgresClient};
     use scouter_types::spc::{SpcDriftFeatures, SpcDriftProfile, TaskAlerts};
+    use scouter_types::ProfileBaseArgs;
     use sqlx::{Pool, Postgres};
     use std::collections::BTreeMap;
     use tracing::error;
@@ -51,20 +51,12 @@ pub mod spc_drifter {
     // Defines the SpcDrifter struct
     // This is used to process drift alerts for spc style profiles
     pub struct SpcDrifter {
-        service_info: ServiceInfo,
         profile: SpcDriftProfile,
     }
 
     impl SpcDrifter {
         pub fn new(profile: SpcDriftProfile) -> Self {
-            Self {
-                service_info: ServiceInfo {
-                    name: profile.config.name.clone(),
-                    space: profile.config.space.clone(),
-                    version: profile.config.version.clone(),
-                },
-                profile,
-            }
+            Self { profile }
         }
 
         /// Get drift features for a given drift profile
@@ -84,11 +76,15 @@ pub mod spc_drifter {
             limit_datetime: &DateTime<Utc>,
             features_to_monitor: &[String],
         ) -> Result<SpcDriftArray, DriftError> {
+            let entity_id = entity_cache()
+                .get_entity_id_from_uid(db_pool, &self.profile.config.uid)
+                .await?;
+
             let records = PostgresClient::get_spc_drift_records(
                 db_pool,
-                &self.service_info,
                 limit_datetime,
                 features_to_monitor,
+                &entity_id,
             )
             .await?;
             SpcDriftArray::new(records)
@@ -159,7 +155,10 @@ pub mod spc_drifter {
             let alert_dispatcher = AlertDispatcher::new(&self.profile.config).inspect_err(|e| {
                 error!(
                     "Error creating alert dispatcher for {}/{}/{}: {}",
-                    self.service_info.space, self.service_info.name, self.service_info.version, e
+                    self.profile.space(),
+                    self.profile.name(),
+                    self.profile.version(),
+                    e
                 );
             })?;
 
@@ -170,9 +169,9 @@ pub mod spc_drifter {
                     .inspect_err(|e| {
                         error!(
                             "Error processing alerts for {}/{}/{}: {}",
-                            self.service_info.space,
-                            self.service_info.name,
-                            self.service_info.version,
+                            self.profile.space(),
+                            self.profile.name(),
+                            self.profile.version(),
                             e
                         );
                     })?;
@@ -181,7 +180,9 @@ pub mod spc_drifter {
             } else {
                 info!(
                     "No alerts to process for {}/{}/{}",
-                    self.service_info.space, self.service_info.name, self.service_info.version
+                    self.profile.space(),
+                    self.profile.name(),
+                    self.profile.version(),
                 );
             }
 
@@ -222,10 +223,10 @@ pub mod spc_drifter {
         pub async fn check_for_alerts(
             &self,
             db_client: &Pool<Postgres>,
-            previous_run: DateTime<Utc>,
+            previous_run: &DateTime<Utc>,
         ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
             // Compute drift
-            let (drift_array, keys) = self.compute_drift(&previous_run, db_client).await?;
+            let (drift_array, keys) = self.compute_drift(previous_run, db_client).await?;
 
             // if drift array is empty, return early
             if drift_array.is_empty() {
@@ -239,9 +240,9 @@ pub mod spc_drifter {
                 .inspect_err(|e| {
                     error!(
                         "Error generating alerts for {}/{}/{}: {}",
-                        self.service_info.space,
-                        self.service_info.name,
-                        self.service_info.version,
+                        self.profile.space(),
+                        self.profile.name(),
+                        self.profile.version(),
                         e
                     );
                 })?;

@@ -1,7 +1,7 @@
 use crate::error::{ProfileError, TypeError};
 use crate::llm::alert::LLMAlertConfig;
 use crate::llm::alert::LLMDriftMetric;
-use crate::util::{json_to_pyobject, pyobject_to_json};
+use crate::util::{json_to_pyobject, pyobject_to_json, ConfigExt};
 use crate::ProfileRequest;
 use crate::{scouter_version, LLMMetricRecord};
 use crate::{
@@ -10,8 +10,8 @@ use crate::{
 };
 use core::fmt::Debug;
 use potato_head::prompt::ResponseType;
-use potato_head::Task;
 use potato_head::Workflow;
+use potato_head::{create_uuid7, Task};
 use potato_head::{Agent, Prompt};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -41,11 +41,28 @@ pub struct LLMDriftConfig {
     pub version: String,
 
     #[pyo3(get, set)]
+    pub uid: String,
+
+    #[pyo3(get, set)]
     pub alert_config: LLMAlertConfig,
 
     #[pyo3(get, set)]
     #[serde(default = "default_drift_type")]
     pub drift_type: DriftType,
+}
+
+impl ConfigExt for LLMDriftConfig {
+    fn space(&self) -> &str {
+        &self.space
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn version(&self) -> &str {
+        &self.version
+    }
 }
 
 fn default_drift_type() -> DriftType {
@@ -85,6 +102,7 @@ impl LLMDriftConfig {
             sample_rate,
             space: space.to_string(),
             name: name.to_string(),
+            uid: create_uuid7(),
             version: version.to_string(),
             alert_config,
             drift_type: DriftType::LLM,
@@ -111,12 +129,13 @@ impl LLMDriftConfig {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (space=None, name=None, version=None, alert_config=None))]
+    #[pyo3(signature = (space=None, name=None, version=None, uid=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
         space: Option<String>,
         name: Option<String>,
         version: Option<String>,
+        uid: Option<String>,
         alert_config: Option<LLMAlertConfig>,
     ) -> Result<(), TypeError> {
         if name.is_some() {
@@ -133,6 +152,10 @@ impl LLMDriftConfig {
 
         if alert_config.is_some() {
             self.alert_config = alert_config.ok_or(TypeError::MissingAlertConfigError)?;
+        }
+
+        if uid.is_some() {
+            self.uid = uid.ok_or(TypeError::MissingUidError)?;
         }
 
         Ok(())
@@ -364,6 +387,16 @@ impl LLMDriftProfile {
         Ok(dict.into())
     }
 
+    #[getter]
+    pub fn uid(&self) -> String {
+        self.config.uid.clone()
+    }
+
+    #[setter]
+    pub fn set_uid(&mut self, uid: String) {
+        self.config.uid = uid;
+    }
+
     #[pyo3(signature = (path=None))]
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ProfileError> {
         Ok(PyHelperFuncs::save_to_json(
@@ -395,16 +428,17 @@ impl LLMDriftProfile {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (space=None, name=None, version=None, alert_config=None))]
+    #[pyo3(signature = (space=None, name=None, version=None, uid=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
         space: Option<String>,
         name: Option<String>,
         version: Option<String>,
+        uid: Option<String>,
         alert_config: Option<LLMAlertConfig>,
     ) -> Result<(), TypeError> {
         self.config
-            .update_config_args(space, name, version, alert_config)
+            .update_config_args(space, name, version, uid, alert_config)
     }
 
     /// Create a profile request from the profile
@@ -419,12 +453,12 @@ impl LLMDriftProfile {
             space: self.config.space.clone(),
             profile: self.model_dump_json(),
             drift_type: self.config.drift_type.clone(),
-            version_request: VersionRequest {
+            version_request: Some(VersionRequest {
                 version,
                 version_type: VersionType::Minor,
                 pre_tag: None,
                 build_tag: None,
-            },
+            }),
             active: false,
             deactivate_others: false,
         })
@@ -600,6 +634,11 @@ impl LLMDriftProfile {
 }
 
 impl ProfileBaseArgs for LLMDriftProfile {
+    type Config = LLMDriftConfig;
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
     fn get_base_args(&self) -> ProfileArgs {
         ProfileArgs {
             name: self.config.name.clone(),
@@ -695,7 +734,13 @@ mod tests {
         };
 
         drift_config
-            .update_config_args(None, Some("test".to_string()), None, Some(new_alert_config))
+            .update_config_args(
+                None,
+                Some("test".to_string()),
+                None,
+                None,
+                Some(new_alert_config),
+            )
             .unwrap();
 
         assert_eq!(drift_config.name, "test");

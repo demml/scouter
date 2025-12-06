@@ -18,4 +18,4 @@ SELECT
     input,
     output,
     span_order
-FROM scouter.get_trace_spans($1);
+FROM scouter.get_trace_spans($1, $2);

@@ -2,12 +2,13 @@
 use crate::custom::alert::{CustomMetric, CustomMetricAlertConfig};
 use crate::error::{ProfileError, TypeError};
 use crate::util::{json_to_pyobject, pyobject_to_json, scouter_version};
-use crate::ProfileRequest;
+use crate::{ConfigExt, ProfileRequest};
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
     PyHelperFuncs, VersionRequest, DEFAULT_VERSION, MISSING,
 };
 use core::fmt::Debug;
+use potato_head::create_uuid7;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use scouter_semver::VersionType;
@@ -32,11 +33,28 @@ pub struct CustomMetricDriftConfig {
     pub version: String,
 
     #[pyo3(get, set)]
+    pub uid: String,
+
+    #[pyo3(get, set)]
     pub alert_config: CustomMetricAlertConfig,
 
     #[pyo3(get, set)]
     #[serde(default = "default_drift_type")]
     pub drift_type: DriftType,
+}
+
+impl ConfigExt for CustomMetricDriftConfig {
+    fn space(&self) -> &str {
+        &self.space
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn version(&self) -> &str {
+        &self.version
+    }
 }
 
 fn default_drift_type() -> DriftType {
@@ -77,6 +95,7 @@ impl CustomMetricDriftConfig {
             space: space.to_string(),
             name: name.to_string(),
             version: version.to_string(),
+            uid: create_uuid7(),
             alert_config,
             drift_type: DriftType::Custom,
         })
@@ -102,12 +121,13 @@ impl CustomMetricDriftConfig {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (space=None, name=None, version=None, alert_config=None))]
+    #[pyo3(signature = (space=None, name=None, version=None, uid=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
         space: Option<String>,
         name: Option<String>,
         version: Option<String>,
+        uid: Option<String>,
         alert_config: Option<CustomMetricAlertConfig>,
     ) -> Result<(), TypeError> {
         if name.is_some() {
@@ -124,6 +144,10 @@ impl CustomMetricDriftConfig {
 
         if alert_config.is_some() {
             self.alert_config = alert_config.ok_or(TypeError::MissingAlertConfigError)?;
+        }
+
+        if uid.is_some() {
+            self.uid = uid.ok_or(TypeError::MissingUidError)?;
         }
 
         Ok(())
@@ -219,6 +243,16 @@ impl CustomDriftProfile {
         )?)
     }
 
+    #[getter]
+    pub fn uid(&self) -> String {
+        self.config.uid.clone()
+    }
+
+    #[setter]
+    pub fn set_uid(&mut self, uid: String) {
+        self.config.uid = uid;
+    }
+
     #[staticmethod]
     pub fn model_validate(data: &Bound<'_, PyDict>) -> CustomDriftProfile {
         let json_value = pyobject_to_json(data).unwrap();
@@ -241,16 +275,17 @@ impl CustomDriftProfile {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (space=None, name=None, version=None, alert_config=None))]
+    #[pyo3(signature = (space=None, name=None, version=None, uid=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
         space: Option<String>,
         name: Option<String>,
         version: Option<String>,
+        uid: Option<String>,
         alert_config: Option<CustomMetricAlertConfig>,
     ) -> Result<(), TypeError> {
         self.config
-            .update_config_args(space, name, version, alert_config)
+            .update_config_args(space, name, version, uid, alert_config)
     }
 
     #[getter]
@@ -294,12 +329,12 @@ impl CustomDriftProfile {
             space: self.config.space.clone(),
             profile: self.model_dump_json(),
             drift_type: self.config.drift_type.clone(),
-            version_request: VersionRequest {
+            version_request: Some(VersionRequest {
                 version,
                 version_type: VersionType::Minor,
                 pre_tag: None,
                 build_tag: None,
-            },
+            }),
             active: false,
             deactivate_others: false,
         })
@@ -307,6 +342,12 @@ impl CustomDriftProfile {
 }
 
 impl ProfileBaseArgs for CustomDriftProfile {
+    type Config = CustomMetricDriftConfig;
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+
     fn get_base_args(&self) -> ProfileArgs {
         ProfileArgs {
             name: self.config.name.clone(),
@@ -359,7 +400,13 @@ mod tests {
 
         // update
         drift_config
-            .update_config_args(None, Some("test".to_string()), None, Some(new_alert_config))
+            .update_config_args(
+                None,
+                Some("test".to_string()),
+                None,
+                None,
+                Some(new_alert_config),
+            )
             .unwrap();
 
         assert_eq!(drift_config.name, "test");

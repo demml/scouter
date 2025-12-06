@@ -11,8 +11,8 @@ use chrono::{DateTime, Utc};
 use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
-
-use scouter_types::{LLMDriftServerRecord, ServerRecords, StorageType, ToDriftRecords};
+use scouter_types::ToInternalDriftRecords;
+use scouter_types::{InternalServerRecords, LLMDriftInternalRecord, StorageType};
 use std::sync::Arc;
 
 pub struct LLMDriftDataFrame {
@@ -26,7 +26,10 @@ impl ParquetFrame for LLMDriftDataFrame {
         LLMDriftDataFrame::new(storage_settings)
     }
 
-    async fn get_dataframe(&self, records: ServerRecords) -> Result<DataFrame, DataFrameError> {
+    async fn get_dataframe(
+        &self,
+        records: InternalServerRecords,
+    ) -> Result<DataFrame, DataFrameError> {
         let records = records.to_llm_drift_records()?;
         let batch = self.build_batch(records)?;
 
@@ -54,9 +57,7 @@ impl ParquetFrame for LLMDriftDataFrame {
         _bin: &f64,
         _start_time: &DateTime<Utc>,
         _end_time: &DateTime<Utc>,
-        _space: &str,
-        _name: &str,
-        _version: &str,
+        _entity_id: &i32,
     ) -> String {
         "None".to_string()
     }
@@ -76,9 +77,6 @@ impl LLMDriftDataFrame {
                 false,
             ),
             Field::new("uid", DataType::Utf8, false),
-            Field::new("space", DataType::Utf8, false),
-            Field::new("name", DataType::Utf8, false),
-            Field::new("version", DataType::Utf8, false),
             Field::new("context", DataType::Utf8, false),
             Field::new("prompt", DataType::Utf8, true),
             Field::new("score", DataType::Utf8, true),
@@ -99,6 +97,7 @@ impl LLMDriftDataFrame {
                 true,
             ),
             Field::new("processing_duration", DataType::Int32, true),
+            Field::new("entity_id", DataType::Int32, false),
         ]));
 
         let object_store = ObjectStore::new(storage_settings)?;
@@ -111,7 +110,7 @@ impl LLMDriftDataFrame {
 
     fn build_batch(
         &self,
-        records: Vec<LLMDriftServerRecord>,
+        records: Vec<LLMDriftInternalRecord>,
     ) -> Result<RecordBatch, DataFrameError> {
         let id_array = arrow_array::Int64Array::from_iter_values(records.iter().map(|r| r.id));
         let created_at_array = TimestampNanosecondArray::from_iter_values(
@@ -120,10 +119,7 @@ impl LLMDriftDataFrame {
                 .map(|r| r.created_at.timestamp_nanos_opt().unwrap_or_default()),
         );
         let uid_array = StringArray::from_iter_values(records.iter().map(|r| r.uid.as_str()));
-        let space_array = StringArray::from_iter_values(records.iter().map(|r| r.space.as_str()));
-        let name_array = StringArray::from_iter_values(records.iter().map(|r| r.name.as_str()));
-        let version_array =
-            StringArray::from_iter_values(records.iter().map(|r| r.version.as_str()));
+        let entity_id_array = Int32Array::from_iter_values(records.iter().map(|r| r.entity_id));
 
         let score_array = StringArray::from_iter_values(
             records
@@ -171,9 +167,6 @@ impl LLMDriftDataFrame {
                 Arc::new(id_array),
                 Arc::new(created_at_array),
                 Arc::new(uid_array),
-                Arc::new(space_array),
-                Arc::new(name_array),
-                Arc::new(version_array),
                 Arc::new(context_array),
                 Arc::new(prompt_array),
                 Arc::new(score_array),
@@ -182,6 +175,7 @@ impl LLMDriftDataFrame {
                 Arc::new(processing_started_at_array),
                 Arc::new(processing_ended_at_array),
                 Arc::new(processing_duration_array),
+                Arc::new(entity_id_array),
             ],
         )?;
 

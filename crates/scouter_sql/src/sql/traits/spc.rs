@@ -9,11 +9,11 @@ use scouter_dataframe::parquet::{dataframe_to_spc_drift_features, ParquetDataFra
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::{
     spc::{SpcDriftFeature, SpcDriftFeatures},
-    DriftRequest, RecordType, ServiceInfo, SpcServerRecord,
+    DriftRequest, RecordType, SpcRecord,
 };
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
 use std::collections::BTreeMap;
-use tracing::{debug, instrument};
+use tracing::{debug, error, instrument};
 
 #[async_trait]
 pub trait SpcSqlLogic {
@@ -21,11 +21,13 @@ pub trait SpcSqlLogic {
     /// # Arguments
     /// * `pool` - The database connection pool
     /// * `records` - The SPC drift records to insert
+    /// * `entity_id` - The entity ID associated with the records
     /// # Returns
     /// * A result containing the query result or an error
     async fn insert_spc_drift_records_batch(
         pool: &Pool<Postgres>,
-        records: &[SpcServerRecord],
+        records: &[SpcRecord],
+        entity_id: &i32,
     ) -> Result<PgQueryResult, SqlError> {
         if records.is_empty() {
             return Err(SqlError::EmptyBatchError);
@@ -33,29 +35,20 @@ pub trait SpcSqlLogic {
 
         let query = Queries::InsertSpcDriftRecordBatch.get_query();
 
-        let (created_ats, names, spaces, versions, features, values): (
+        let (created_ats, entity_ids, features, values): (
             Vec<DateTime<Utc>>,
-            Vec<&str>,
-            Vec<&str>,
-            Vec<&str>,
+            Vec<i32>,
             Vec<&str>,
             Vec<f64>,
-        ) = multiunzip(records.iter().map(|r| {
-            (
-                r.created_at,
-                r.name.as_str(),
-                r.space.as_str(),
-                r.version.as_str(),
-                r.feature.as_str(),
-                r.value,
-            )
-        }));
+        ) = multiunzip(
+            records
+                .iter()
+                .map(|r| (r.created_at, entity_id, r.feature.as_str(), r.value)),
+        );
 
         sqlx::query(&query.sql)
             .bind(created_ats)
-            .bind(names)
-            .bind(spaces)
-            .bind(versions)
+            .bind(entity_ids)
             .bind(features)
             .bind(values)
             .execute(pool)
@@ -63,20 +56,25 @@ pub trait SpcSqlLogic {
             .map_err(SqlError::SqlxError)
     }
 
-    // Queries the database for all features under a service
-    // Private method that'll be used to run drift retrieval in parallel
+    // Queries the database for all features under an entity
+    /// # Arguments
+    /// * `pool` - The database connection pool
+    /// * `entity_id` - The entity ID to filter features
+    /// # Returns
+    /// * A vector of feature names
     async fn get_spc_features(
         pool: &Pool<Postgres>,
-        service_info: &ServiceInfo,
+        entity_id: &i32,
     ) -> Result<Vec<String>, SqlError> {
         let query = Queries::GetSpcFeatures.get_query();
 
         Ok(sqlx::query(&query.sql)
-            .bind(&service_info.name)
-            .bind(&service_info.space)
-            .bind(&service_info.version)
+            .bind(entity_id)
             .fetch_all(pool)
             .await
+            .inspect_err(|e| {
+                error!("Error fetching SPC features: {:?}", e);
+            })
             .map(|result| {
                 result
                     .iter()
@@ -88,17 +86,16 @@ pub trait SpcSqlLogic {
     /// Get SPC drift records
     ///
     /// # Arguments
-    ///
-    /// * `service_info` - The service to get drift records for
     /// * `limit_datetime` - The limit datetime to get drift records for
     /// * `features_to_monitor` - The features to monitor
+    /// * `entity_id` - The entity ID to filter records
     async fn get_spc_drift_records(
         pool: &Pool<Postgres>,
-        service_info: &ServiceInfo,
         limit_datetime: &DateTime<Utc>,
         features_to_monitor: &[String],
+        entity_id: &i32,
     ) -> Result<SpcDriftFeatures, SqlError> {
-        let mut features = Self::get_spc_features(pool, service_info).await?;
+        let mut features = Self::get_spc_features(pool, entity_id).await?;
 
         if !features_to_monitor.is_empty() {
             features.retain(|feature| features_to_monitor.contains(feature));
@@ -108,12 +105,13 @@ pub trait SpcSqlLogic {
 
         let records: Vec<SpcFeatureResult> = sqlx::query_as(&query.sql)
             .bind(limit_datetime)
-            .bind(&service_info.name)
-            .bind(&service_info.space)
-            .bind(&service_info.version)
+            .bind(entity_id)
             .bind(features)
             .fetch_all(pool)
-            .await?;
+            .await
+            .inspect_err(|e| {
+                error!("Error fetching SPC drift records: {:?}", e);
+            })?;
 
         let feature_drift = records
             .into_iter()
@@ -137,6 +135,8 @@ pub trait SpcSqlLogic {
     /// # Arguments
     /// * `pool` - The database connection pool
     /// * `params` - The drift request parameters
+    /// * `minutes` - The number of minutes to bin the data
+    /// * `entity_id` - The entity ID to filter records
     ///
     /// # Returns
     /// * SpcDriftFeatures
@@ -144,6 +144,7 @@ pub trait SpcSqlLogic {
         pool: &Pool<Postgres>,
         params: &DriftRequest,
         minutes: i32,
+        entity_id: &i32,
     ) -> Result<SpcDriftFeatures, SqlError> {
         let bin = params.time_interval.to_minutes() as f64 / params.max_data_points as f64;
 
@@ -152,9 +153,7 @@ pub trait SpcSqlLogic {
         let records: Vec<SpcFeatureResult> = sqlx::query_as(&query.sql)
             .bind(bin)
             .bind(minutes)
-            .bind(&params.name)
-            .bind(&params.space)
-            .bind(&params.version)
+            .bind(entity_id)
             .fetch_all(pool)
             .await?;
 
@@ -201,6 +200,7 @@ pub trait SpcSqlLogic {
     /// * `end` - The end time of the time window
     /// * `minutes` - The number of minutes to bin the data
     /// * `storage_settings` - The object storage settings
+    /// * `entity_id` - The entity ID to filter records
     ///
     /// # Returns
     /// * A vector of drift records
@@ -210,20 +210,13 @@ pub trait SpcSqlLogic {
         end: DateTime<Utc>,
         minutes: i32,
         storage_settings: &ObjectStorageSettings,
+        entity_id: &i32,
     ) -> Result<SpcDriftFeatures, SqlError> {
-        let path = format!("{}/{}/{}/spc", params.space, params.name, params.version);
+        let path = format!("{}/spc", params.uid);
         let bin = minutes as f64 / params.max_data_points as f64;
 
         let archived_df = ParquetDataFrame::new(storage_settings, &RecordType::Spc)?
-            .get_binned_metrics(
-                &path,
-                &bin,
-                &begin,
-                &end,
-                &params.space,
-                &params.name,
-                &params.version,
-            )
+            .get_binned_metrics(&path, &bin, &begin, &end, entity_id)
             .await?;
 
         Ok(dataframe_to_spc_drift_features(archived_df).await?)
@@ -248,13 +241,14 @@ pub trait SpcSqlLogic {
         params: &DriftRequest,
         retention_period: &i32,
         storage_settings: &ObjectStorageSettings,
+        entity_id: &i32,
     ) -> Result<SpcDriftFeatures, SqlError> {
         debug!("Getting binned SPC drift records for {:?}", params);
 
         if !params.has_custom_interval() {
             debug!("No custom interval provided, using default");
             let minutes = params.time_interval.to_minutes();
-            return Self::get_records(pool, params, minutes).await;
+            return Self::get_records(pool, params, minutes, entity_id).await;
         }
 
         debug!("Custom interval provided, using custom interval");
@@ -264,7 +258,7 @@ pub trait SpcSqlLogic {
 
         // get data from postgres
         if let Some(minutes) = timestamps.current_minutes {
-            let current_results = Self::get_records(pool, params, minutes).await?;
+            let current_results = Self::get_records(pool, params, minutes, entity_id).await?;
             Self::merge_feature_results(current_results, &mut spc_feature_map)?;
         }
 
@@ -277,6 +271,7 @@ pub trait SpcSqlLogic {
                     archive_end,
                     archived_minutes,
                     storage_settings,
+                    entity_id,
                 )
                 .await?;
 

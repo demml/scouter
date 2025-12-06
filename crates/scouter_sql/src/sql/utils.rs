@@ -2,58 +2,50 @@ use crate::sql::error::SqlError;
 use crate::sql::schema::llm_drift_record_from_row;
 use chrono::{DateTime, Utc};
 use scouter_types::{
-    CustomMetricServerRecord, LLMMetricRecord, PsiServerRecord, RecordType, ServerRecord,
-    ServerRecords, SpcServerRecord,
+    CustomMetricInternalRecord, InternalServerRecord, InternalServerRecords,
+    LLMMetricInternalRecord, PsiInternalRecord, RecordType, SpcInternalRecord,
 };
 
 use sqlx::{postgres::PgRow, Row};
-/// Helper for converting a row to an `SpcServerRecord`.
-fn spc_record_from_row(row: &PgRow) -> Result<SpcServerRecord, SqlError> {
-    Ok(SpcServerRecord {
+/// Helper for converting a row to an `SpcInternalRecord`.
+fn spc_record_from_row(row: &PgRow) -> Result<SpcInternalRecord, SqlError> {
+    Ok(SpcInternalRecord {
         created_at: row.try_get("created_at")?,
-        name: row.try_get("name")?,
-        space: row.try_get("space")?,
-        version: row.try_get("version")?,
+        entity_id: row.try_get("entity_id")?,
         feature: row.try_get("feature")?,
         value: row.try_get("value")?,
     })
 }
 
-/// Helper for converting a row to a `PsiServerRecord`.
-fn psi_record_from_row(row: &PgRow) -> Result<PsiServerRecord, SqlError> {
+/// Helper for converting a row to a `PsiInternalRecord`.
+fn psi_record_from_row(row: &PgRow) -> Result<PsiInternalRecord, SqlError> {
     let bin_id: i32 = row.try_get("bin_id")?;
     let bin_count: i32 = row.try_get("bin_count")?;
 
-    Ok(PsiServerRecord {
+    Ok(PsiInternalRecord {
         created_at: row.try_get("created_at")?,
-        name: row.try_get("name")?,
-        space: row.try_get("space")?,
-        version: row.try_get("version")?,
+        entity_id: row.try_get("entity_id")?,
         feature: row.try_get("feature")?,
         bin_id: bin_id as usize,
         bin_count: bin_count as usize,
     })
 }
 
-/// Helper for converting a row to a `ustomMetricServerRecord`.
-fn custom_record_from_row(row: &PgRow) -> Result<CustomMetricServerRecord, SqlError> {
-    Ok(CustomMetricServerRecord {
+/// Helper for converting a row to a `CustomMetricInternalRecord`.
+fn custom_record_from_row(row: &PgRow) -> Result<CustomMetricInternalRecord, SqlError> {
+    Ok(CustomMetricInternalRecord {
         created_at: row.try_get("created_at")?,
-        name: row.try_get("name")?,
-        space: row.try_get("space")?,
-        version: row.try_get("version")?,
+        entity_id: row.try_get("entity_id")?,
         metric: row.try_get("metric")?,
         value: row.try_get("value")?,
     })
 }
 
-fn llm_drift_metric_from_row(row: &PgRow) -> Result<LLMMetricRecord, SqlError> {
-    Ok(LLMMetricRecord {
-        record_uid: row.try_get("record_uid")?,
+fn llm_drift_metric_from_row(row: &PgRow) -> Result<LLMMetricInternalRecord, SqlError> {
+    Ok(LLMMetricInternalRecord {
+        uid: row.try_get("uid")?,
         created_at: row.try_get("created_at")?,
-        space: row.try_get("space")?,
-        name: row.try_get("name")?,
-        version: row.try_get("version")?,
+        entity_id: row.try_get("entity_id")?,
         metric: row.try_get("metric")?,
         value: row.try_get("value")?,
     })
@@ -66,30 +58,39 @@ fn llm_drift_metric_from_row(row: &PgRow) -> Result<LLMMetricRecord, SqlError> {
 /// * `record_type` - The type of record to convert to.
 ///
 /// # Returns
-/// * `Result<ServerRecords, SqlError>` - A result containing the converted `ServerRecords` or an error.
+/// * `Result<InternalServerRecords, SqlError>` - A result containing the converted `InternalServerRecords` or an error.
 ///
 /// # Errors
 /// * Returns an error if the conversion fails or if the record type is not supported.
 pub fn pg_rows_to_server_records(
     rows: &[PgRow],
     record_type: &RecordType,
-) -> Result<ServerRecords, SqlError> {
+) -> Result<InternalServerRecords, SqlError> {
     // Get correct conversion function base on record type
     // Returns an error if the record type is not supported
     let convert_fn = match record_type {
-        RecordType::Spc => |row| Ok(ServerRecord::Spc(spc_record_from_row(row)?)),
-        RecordType::Psi => |row| Ok(ServerRecord::Psi(psi_record_from_row(row)?)),
-        RecordType::Custom => |row| Ok(ServerRecord::Custom(custom_record_from_row(row)?)),
-        RecordType::LLMDrift => |row| Ok(ServerRecord::LLMDrift(llm_drift_record_from_row(row)?)),
-        RecordType::LLMMetric => |row| Ok(ServerRecord::LLMMetric(llm_drift_metric_from_row(row)?)),
+        RecordType::Spc => |row| Ok(InternalServerRecord::Spc(spc_record_from_row(row)?)),
+        RecordType::Psi => |row| Ok(InternalServerRecord::Psi(psi_record_from_row(row)?)),
+        RecordType::Custom => |row| Ok(InternalServerRecord::Custom(custom_record_from_row(row)?)),
+        RecordType::LLMDrift => |row| {
+            Ok(InternalServerRecord::LLMDrift(llm_drift_record_from_row(
+                row,
+            )?))
+        },
+        RecordType::LLMMetric => |row| {
+            Ok(InternalServerRecord::LLMMetric(llm_drift_metric_from_row(
+                row,
+            )?))
+        },
         _ => return Err(SqlError::InvalidRecordTypeError(record_type.to_string())),
     };
 
     // Pre-allocate vector with exact capacity needed
-    let records: Result<Vec<ServerRecord>, SqlError> = rows.iter().map(convert_fn).collect();
+    let records: Result<Vec<InternalServerRecord>, SqlError> =
+        rows.iter().map(convert_fn).collect();
 
     // Convert the result into ServerRecords
-    records.map(ServerRecords::new)
+    records.map(InternalServerRecords::new)
 }
 
 #[derive(Debug)]

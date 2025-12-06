@@ -158,9 +158,9 @@ mod tests {
             ..Default::default()
         };
         let config = SpcDriftConfig::new(
-            Some("name".to_string()),
-            Some("repo".to_string()),
-            None,
+            "name",
+            "repo",
+            "1.0.0",
             None,
             None,
             Some(alert_config),

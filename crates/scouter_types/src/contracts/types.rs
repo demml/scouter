@@ -52,12 +52,12 @@ impl GetProfileRequest {
 #[pyclass]
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct DriftRequest {
+    // this is the uid for a specific space, name, version, drift_type profile
+    pub uid: String,
+    // This is the space name. Used for permission checks
     pub space: String,
-    pub name: String,
-    pub version: String,
     pub time_interval: TimeInterval,
     pub max_data_points: i32,
-    pub drift_type: DriftType,
     pub begin_custom_datetime: Option<DateTime<Utc>>,
     pub end_custom_datetime: Option<DateTime<Utc>>,
 }
@@ -65,15 +65,13 @@ pub struct DriftRequest {
 #[pymethods]
 impl DriftRequest {
     #[new]
-    #[pyo3(signature = (name, space, version, time_interval, max_data_points, drift_type, begin_datetime=None, end_datetime=None))]
+    #[pyo3(signature = (uid, space, time_interval, max_data_points, begin_datetime=None, end_datetime=None))]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        name: String,
+        uid: String,
         space: String,
-        version: String,
         time_interval: TimeInterval,
         max_data_points: i32,
-        drift_type: DriftType,
         begin_datetime: Option<DateTime<Utc>>,
         end_datetime: Option<DateTime<Utc>>,
     ) -> Result<Self, ContractError> {
@@ -84,12 +82,10 @@ impl DriftRequest {
         };
 
         Ok(DriftRequest {
-            name,
+            uid,
             space,
-            version,
             time_interval,
             max_data_points,
-            drift_type,
             begin_custom_datetime: custom_interval.as_ref().map(|interval| interval.start),
             end_custom_datetime: custom_interval.as_ref().map(|interval| interval.end),
         })
@@ -141,7 +137,7 @@ pub struct ProfileRequest {
     pub space: String,
     pub drift_type: DriftType,
     pub profile: String,
-    pub version_request: VersionRequest,
+    pub version_request: Option<VersionRequest>,
 
     #[serde(default)]
     pub active: bool,
@@ -187,9 +183,7 @@ impl ProfileStatusRequest {
 #[pyclass]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriftAlertRequest {
-    pub name: String,
-    pub space: String,
-    pub version: String,
+    pub uid: String,
     pub limit_datetime: Option<DateTime<Utc>>,
     pub active: Option<bool>,
     pub limit: Option<i32>,
@@ -198,19 +192,15 @@ pub struct DriftAlertRequest {
 #[pymethods]
 impl DriftAlertRequest {
     #[new]
-    #[pyo3(signature = (name, space, version, active=false, limit_datetime=None, limit=None))]
+    #[pyo3(signature = (uid, active=false, limit_datetime=None, limit=None))]
     pub fn new(
-        name: String,
-        space: String,
-        version: String,
+        uid: String,
         active: bool,
         limit_datetime: Option<DateTime<Utc>>,
         limit: Option<i32>,
     ) -> Self {
         DriftAlertRequest {
-            name,
-            space,
-            version,
+            uid,
             limit_datetime,
             active: Some(active),
             limit,
@@ -221,8 +211,7 @@ impl DriftAlertRequest {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ServiceInfo {
     pub space: String,
-    pub name: String,
-    pub version: String,
+    pub uid: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -243,16 +232,14 @@ pub struct DriftTaskInfo {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ObservabilityMetricRequest {
-    pub name: String,
-    pub space: String,
-    pub version: String,
+    pub uid: String,
     pub time_interval: String,
     pub max_data_points: i32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UpdateAlertStatus {
-    pub id: i32,
+    pub id: i32, // this is the unique id for the alert record, not entity_id
     pub active: bool,
     pub space: String,
 }
@@ -483,6 +470,7 @@ pub struct RegisteredProfileResponse {
     pub space: String,
     pub name: String,
     pub version: String,
+    pub uid: String,
     pub status: String,
     pub active: bool,
 }
@@ -595,14 +583,13 @@ pub struct InsertTagsRequest {
 #[pyclass]
 pub struct TraceRequest {
     pub trace_id: String,
+    pub service_name: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass]
 pub struct TraceMetricsRequest {
-    pub space: Option<String>,
-    pub name: Option<String>,
-    pub version: Option<String>,
+    pub service_name: Option<String>,
     pub start_time: DateTime<Utc>,
     pub end_time: DateTime<Utc>,
     pub bucket_interval: String,
@@ -611,19 +598,15 @@ pub struct TraceMetricsRequest {
 #[pymethods]
 impl TraceMetricsRequest {
     #[new]
-    #[pyo3(signature = (start_time, end_time, bucket_interval,space=None, name=None, version=None))]
+    #[pyo3(signature = (start_time, end_time, bucket_interval,service_name=None))]
     pub fn new(
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
         bucket_interval: String,
-        space: Option<String>,
-        name: Option<String>,
-        version: Option<String>,
+        service_name: Option<String>,
     ) -> Self {
         TraceMetricsRequest {
-            space,
-            name,
-            version,
+            service_name,
             start_time,
             end_time,
             bucket_interval,
