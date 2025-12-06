@@ -11,7 +11,7 @@ fn _get_log_level() -> LogLevel {
 
 #[pyfunction]
 fn _log_json() -> bool {
-    env::var("LOG_JSON").unwrap_or_else(|_| "true".to_string()) == "true"
+    env::var("LOG_JSON").unwrap_or_else(|_| "false".to_string()) == "true"
 }
 
 pub fn add_logging_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
