@@ -248,6 +248,11 @@ impl CustomDriftProfile {
         self.config.uid.clone()
     }
 
+    #[setter]
+    pub fn set_uid(&mut self, uid: String) {
+        self.config.uid = uid;
+    }
+
     #[staticmethod]
     pub fn model_validate(data: &Bound<'_, PyDict>) -> CustomDriftProfile {
         let json_value = pyobject_to_json(data).unwrap();

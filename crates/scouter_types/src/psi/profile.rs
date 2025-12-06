@@ -451,6 +451,11 @@ impl PsiDriftProfile {
         self.config.uid.clone()
     }
 
+    #[setter]
+    pub fn set_uid(&mut self, uid: String) {
+        self.config.uid = uid;
+    }
+
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
         PyHelperFuncs::__json__(self)
