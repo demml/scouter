@@ -28,9 +28,7 @@ pub trait TraceSqlLogic {
         // Pre-allocate vectors for each field for batch efficiency
         let mut created_at = Vec::with_capacity(capacity);
         let mut trace_id = Vec::with_capacity(capacity);
-        let mut space = Vec::with_capacity(capacity);
-        let mut name = Vec::with_capacity(capacity);
-        let mut version = Vec::with_capacity(capacity);
+        let mut service_name = Vec::with_capacity(capacity);
         let mut scope = Vec::with_capacity(capacity);
         let mut trace_state = Vec::with_capacity(capacity);
         let mut start_time = Vec::with_capacity(capacity);
@@ -45,9 +43,7 @@ pub trait TraceSqlLogic {
         for r in traces {
             created_at.push(r.created_at);
             trace_id.push(r.trace_id.as_str());
-            space.push(r.space.as_str());
-            name.push(r.name.as_str());
-            version.push(r.version.as_str());
+            service_name.push(r.service_name.as_str());
             scope.push(r.scope.as_str());
             trace_state.push(r.trace_state.as_str());
             start_time.push(r.start_time);
@@ -62,9 +58,7 @@ pub trait TraceSqlLogic {
         let query_result = sqlx::query(&query.sql)
             .bind(created_at)
             .bind(trace_id)
-            .bind(space)
-            .bind(name)
-            .bind(version)
+            .bind(service_name)
             .bind(scope)
             .bind(trace_state)
             .bind(start_time)
@@ -98,9 +92,6 @@ pub trait TraceSqlLogic {
         let mut span_id = Vec::with_capacity(capacity);
         let mut trace_id = Vec::with_capacity(capacity);
         let mut parent_span_id = Vec::with_capacity(capacity);
-        let mut space = Vec::with_capacity(capacity);
-        let mut name = Vec::with_capacity(capacity);
-        let mut version = Vec::with_capacity(capacity);
         let mut scope = Vec::with_capacity(capacity);
         let mut span_name = Vec::with_capacity(capacity);
         let mut span_kind = Vec::with_capacity(capacity);
@@ -115,6 +106,7 @@ pub trait TraceSqlLogic {
         let mut labels = Vec::with_capacity(capacity);
         let mut input = Vec::with_capacity(capacity);
         let mut output = Vec::with_capacity(capacity);
+        let mut service_name = Vec::with_capacity(capacity);
 
         // Single iteration for maximum efficiency
         for span in spans {
@@ -122,9 +114,6 @@ pub trait TraceSqlLogic {
             span_id.push(span.span_id.as_str());
             trace_id.push(span.trace_id.as_str());
             parent_span_id.push(span.parent_span_id.as_deref());
-            space.push(span.space.as_str());
-            name.push(span.name.as_str());
-            version.push(span.version.as_str());
             scope.push(span.scope.as_str());
             span_name.push(span.span_name.as_str());
             span_kind.push(span.span_kind.as_str());
@@ -139,6 +128,7 @@ pub trait TraceSqlLogic {
             labels.push(span.label.as_deref());
             input.push(Json(span.input.clone()));
             output.push(Json(span.output.clone()));
+            service_name.push(span.service_name.as_str());
         }
 
         let query_result = sqlx::query(&query.sql)
@@ -146,9 +136,6 @@ pub trait TraceSqlLogic {
             .bind(span_id)
             .bind(trace_id)
             .bind(parent_span_id)
-            .bind(space)
-            .bind(name)
-            .bind(version)
             .bind(scope)
             .bind(span_name)
             .bind(span_kind)
@@ -163,6 +150,7 @@ pub trait TraceSqlLogic {
             .bind(labels)
             .bind(input)
             .bind(output)
+            .bind(service_name)
             .execute(pool)
             .await?;
 
@@ -241,9 +229,6 @@ pub trait TraceSqlLogic {
         let query = Queries::GetPaginatedTraces.get_query();
 
         let mut items: Vec<TraceListItem> = sqlx::query_as(&query.sql)
-            .bind(filters.space)
-            .bind(filters.name)
-            .bind(filters.version)
             .bind(filters.service_name)
             .bind(filters.has_errors)
             .bind(filters.status_code)
@@ -333,10 +318,12 @@ pub trait TraceSqlLogic {
     async fn get_trace_spans(
         pool: &Pool<Postgres>,
         trace_id: &str,
+        service_name: Option<&str>,
     ) -> Result<Vec<TraceSpan>, SqlError> {
         let query = Queries::GetTraceSpans.get_query();
         let trace_items: Result<Vec<TraceSpan>, SqlError> = sqlx::query_as(&query.sql)
             .bind(trace_id)
+            .bind(service_name)
             .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError);
@@ -352,18 +339,14 @@ pub trait TraceSqlLogic {
     /// * A vector of `TraceSpan` associated with the trace ID
     async fn get_trace_metrics(
         pool: &Pool<Postgres>,
-        space: Option<&str>,
-        name: Option<&str>,
-        version: Option<&str>,
+        service_name: Option<&str>,
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
         bucket_interval_str: &str,
     ) -> Result<Vec<TraceMetricBucket>, SqlError> {
         let query = Queries::GetTraceMetrics.get_query();
         let trace_items: Result<Vec<TraceMetricBucket>, SqlError> = sqlx::query_as(&query.sql)
-            .bind(space)
-            .bind(name)
-            .bind(version)
+            .bind(service_name)
             .bind(start_time)
             .bind(end_time)
             .bind(bucket_interval_str)

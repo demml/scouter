@@ -3,8 +3,6 @@ SELECT metric,
 FROM scouter.llm_drift
 WHERE 1=1
   AND created_at > $1
-  AND space = $2
-  AND name = $3
-  AND version = $4
-  AND metric = ANY($5)
+  AND entity_id = $2
+  AND metric = ANY($3)
 GROUP BY metric

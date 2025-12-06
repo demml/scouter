@@ -1,11 +1,11 @@
 use crate::error::FeatureQueueError;
 use crate::queue::traits::FeatureQueue;
 use core::result::Result::Ok;
-use scouter_types::BoxedLLMDriftServerRecord;
+use scouter_types::BoxedLLMDriftRecord;
 use scouter_types::LLMRecord;
 use scouter_types::QueueExt;
 use scouter_types::{
-    llm::LLMDriftProfile, LLMDriftServerRecord, MessageRecord, ServerRecord, ServerRecords,
+    llm::LLMDriftProfile, LLMDriftRecord, MessageRecord, ServerRecord, ServerRecords,
 };
 use tracing::instrument;
 pub struct LLMRecordQueue {
@@ -49,18 +49,14 @@ impl LLMRecordQueue {
         let records = queue
             .iter()
             .map(|record| {
-                ServerRecord::LLMDrift(BoxedLLMDriftServerRecord::new(
-                    LLMDriftServerRecord::new_rs(
-                        self.drift_profile.config.space.clone(),
-                        self.drift_profile.config.name.clone(),
-                        self.drift_profile.config.version.clone(),
-                        record.prompt.clone(),
-                        record.context.clone(),
-                        record.created_at,
-                        record.uid.clone(),
-                        record.score.clone(),
-                    ),
-                )) // Removed the semicolon here
+                ServerRecord::LLMDrift(BoxedLLMDriftRecord::new(LLMDriftRecord::new_rs(
+                    record.prompt.clone(),
+                    record.context.clone(),
+                    record.created_at,
+                    record.score.clone(),
+                    record.uid.clone(),
+                    self.drift_profile.config.uid.clone(),
+                ))) // Removed the semicolon here
             })
             .collect::<Vec<ServerRecord>>();
 

@@ -1,6 +1,7 @@
 pub mod alert;
 pub mod archive;
 pub mod custom;
+pub mod entity;
 pub mod llm;
 pub mod observability;
 pub mod profile;
@@ -13,6 +14,7 @@ pub mod user;
 pub use alert::AlertSqlLogic;
 pub use archive::ArchiveSqlLogic;
 pub use custom::CustomMetricSqlLogic;
+pub use entity::EntitySqlLogic;
 pub use llm::LLMDriftSqlLogic;
 pub use observability::ObservabilitySqlLogic;
 pub use profile::ProfileSqlLogic;

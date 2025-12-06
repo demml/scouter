@@ -58,6 +58,7 @@ pub mod redis_consumer {
         pub async fn start_workers(
             redis_settings: &RedisSettings,
             db_pool: &Pool<Postgres>,
+
             shutdown_rx: watch::Receiver<()>,
         ) -> Result<Self, EventError> {
             let num_consumers = redis_settings.num_consumers;
@@ -84,6 +85,7 @@ pub mod redis_consumer {
             id: usize,
             consumer: RedisConsumer,
             db_pool: Pool<Postgres>,
+
             mut shutdown: watch::Receiver<()>, // Accept receiver
         ) {
             // Convert PubSub into a stream of messages

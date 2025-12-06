@@ -12,8 +12,7 @@ use datafusion::prelude::SessionContext;
 use datafusion::prelude::*;
 use datafusion::{dataframe::DataFrameWriteOptions, prelude::DataFrame};
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::ServerRecords;
-use scouter_types::StorageType;
+use scouter_types::{InternalServerRecords, StorageType};
 use tracing::instrument;
 
 use std::sync::Arc;
@@ -34,7 +33,7 @@ pub trait ParquetFrame {
     async fn write_parquet(
         &self,
         rpath: &str,
-        records: ServerRecords,
+        records: InternalServerRecords,
     ) -> Result<(), DataFrameError> {
         let df = self.get_dataframe(records).await?;
 
@@ -64,7 +63,10 @@ pub trait ParquetFrame {
         Ok(())
     }
 
-    async fn get_dataframe(&self, records: ServerRecords) -> Result<DataFrame, DataFrameError>;
+    async fn get_dataframe(
+        &self,
+        records: InternalServerRecords,
+    ) -> Result<DataFrame, DataFrameError>;
 
     /// Get the storage root path
     fn storage_root(&self) -> String;
@@ -83,9 +85,7 @@ pub trait ParquetFrame {
         bin: &f64,
         start_time: &DateTime<Utc>,
         end_time: &DateTime<Utc>,
-        space: &str,
-        name: &str,
-        version: &str,
+        entity_id: &i32,
     ) -> String;
 
     /// Load storage files into parquet table for querying
@@ -152,14 +152,11 @@ pub trait ParquetFrame {
         bin: &f64,
         start_time: &DateTime<Utc>,
         end_time: &DateTime<Utc>,
-        space: &str,
-        name: &str,
-        version: &str,
+        entity_id: &i32,
     ) -> Result<DataFrame, DataFrameError> {
         // Register the data at path
         let ctx = self.register_table(path, &self.table_name()).await?;
-        let sql = self.get_binned_sql(bin, start_time, end_time, space, name, version);
-
+        let sql = self.get_binned_sql(bin, start_time, end_time, entity_id);
         let df = ctx.sql(&sql).await?;
 
         Ok(df)

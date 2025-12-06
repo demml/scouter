@@ -57,7 +57,7 @@ CREATE INDEX idx_llm_drift_record_status
 ON scouter.llm_drift_record (status, created_at ASC)
 WHERE status = 'pending';
 
-CREATE INDEX idx_llm_drift_record_pagination 
+CREATE INDEX idx_llm_drift_record_pagination
 ON scouter.llm_drift_record (space, name, version, id DESC);
 
 

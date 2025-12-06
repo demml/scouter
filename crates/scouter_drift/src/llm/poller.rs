@@ -5,12 +5,12 @@ use potato_head::Score;
 use scouter_sql::sql::traits::{LLMDriftSqlLogic, ProfileSqlLogic};
 use scouter_sql::PostgresClient;
 use scouter_types::llm::LLMDriftProfile;
-use scouter_types::{DriftType, GetProfileRequest, LLMRecord, Status};
+use scouter_types::{LLMTaskRecord, Status};
 use sqlx::{Pool, Postgres};
 use std::collections::HashMap;
 use std::time::Duration;
 use tokio::time::sleep;
-use tracing::{debug, error, info, instrument};
+use tracing::{debug, error, instrument};
 
 pub struct LLMPoller {
     db_pool: Pool<Postgres>,
@@ -28,18 +28,22 @@ impl LLMPoller {
     #[instrument(skip_all)]
     pub async fn process_drift_record(
         &mut self,
-        record: &LLMRecord,
+        record: &LLMTaskRecord,
         profile: &LLMDriftProfile,
     ) -> Result<(HashMap<String, Score>, Option<i32>), DriftError> {
         debug!("Processing workflow");
 
         match LLMEvaluator::process_drift_record(record, profile).await {
             Ok((metrics, score_map, workflow_duration)) => {
-                PostgresClient::insert_llm_metric_values_batch(&self.db_pool, &metrics)
-                    .await
-                    .inspect_err(|e| {
-                        error!("Failed to insert LLM metric values: {:?}", e);
-                    })?;
+                PostgresClient::insert_llm_metric_values_batch(
+                    &self.db_pool,
+                    &metrics,
+                    &record.entity_id,
+                )
+                .await
+                .inspect_err(|e| {
+                    error!("Failed to insert LLM metric values: {:?}", e);
+                })?;
 
                 return Ok((score_map, workflow_duration));
             }
@@ -59,21 +63,10 @@ impl LLMPoller {
             return Ok(false);
         };
 
-        info!(
-            "Processing llm drift record for profile: {}/{}/{}",
-            task.space, task.name, task.version
-        );
-
-        // get get/load profile and reset agents
-        let request = GetProfileRequest {
-            space: task.space.clone(),
-            name: task.name.clone(),
-            version: task.version.clone(),
-            drift_type: DriftType::LLM,
-        };
+        debug!("Processing llm drift record for profile: {}", task.uid);
 
         let mut llm_profile = if let Some(profile) =
-            PostgresClient::get_drift_profile(&self.db_pool, &request).await?
+            PostgresClient::get_drift_profile(&self.db_pool, &task.entity_id).await?
         {
             let llm_profile: LLMDriftProfile =
                 serde_json::from_value(profile).inspect_err(|e| {
@@ -81,10 +74,7 @@ impl LLMPoller {
                 })?;
             llm_profile
         } else {
-            error!(
-                "No LLM drift profile found for {}/{}/{}",
-                task.space, task.name, task.version
-            );
+            error!("No LLM drift profile found for {}", task.uid);
             return Ok(false);
         };
         let mut retry_count = 0;
@@ -148,7 +138,10 @@ impl LLMPoller {
                 debug!("Successfully processed drift record");
                 Ok(())
             }
-            Ok(false) => Ok(()),
+            Ok(false) => {
+                sleep(Duration::from_secs(1)).await;
+                Ok(())
+            }
             Err(e) => {
                 error!("Error processing drift record: {:?}", e);
                 Ok(())

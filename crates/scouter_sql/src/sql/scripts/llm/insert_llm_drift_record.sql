@@ -1,11 +1,17 @@
 WITH next_id AS (
     SELECT COALESCE(MAX(id), 0) + 1 AS id
     FROM scouter.llm_drift_record
-    WHERE space = $2 AND name = $3 AND version = $4
+    WHERE entity_id = $3
 )
 INSERT INTO scouter.llm_drift_record (
-    id, created_at, space, name, version, context, prompt
+    id, uid, created_at, entity_id, context, prompt
 )
-SELECT next_id.id, $1, $2, $3, $4, $5, $6
+SELECT
+    next_id.id,
+    $1, -- uid
+    $2, -- created_at
+    $3, -- entity_id
+    $4, -- context
+    $5  -- prompt
 FROM next_id
 ON CONFLICT DO NOTHING;

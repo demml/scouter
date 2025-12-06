@@ -1,24 +1,33 @@
 use crate::sql::error::SqlError;
 use crate::sql::query::Queries;
 use crate::sql::schema::BinnedMetricWrapper;
+use crate::sql::traits::EntitySqlLogic;
 use crate::sql::utils::split_custom_interval;
+use crate::PostgresClient;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use itertools::multiunzip;
 use scouter_dataframe::parquet::BinnedMetricsExtractor;
 use scouter_dataframe::parquet::ParquetDataFrame;
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::contracts::{DriftRequest, ServiceInfo};
-use scouter_types::{BinnedMetrics, CustomMetricServerRecord, RecordType};
+use scouter_types::contracts::DriftRequest;
+use scouter_types::{BinnedMetrics, CustomMetricRecord, RecordType};
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
 use std::collections::HashMap;
 use tracing::{debug, instrument};
 
 #[async_trait]
+impl EntitySqlLogic for PostgresClient {}
+
+#[async_trait]
 pub trait CustomMetricSqlLogic {
+    /// Inserts a batch of custom metric values into the database
+    /// - This is an event route, so we need to get the entity_id from the uid
+    #[instrument(skip_all)]
     async fn insert_custom_metric_values_batch(
         pool: &Pool<Postgres>,
-        records: &[CustomMetricServerRecord],
+        records: &[CustomMetricRecord],
+        entity_id: &i32,
     ) -> Result<PgQueryResult, SqlError> {
         if records.is_empty() {
             return Err(SqlError::EmptyBatchError);
@@ -26,29 +35,20 @@ pub trait CustomMetricSqlLogic {
 
         let query = Queries::InsertCustomMetricValuesBatch.get_query();
 
-        let (created_ats, names, spaces, versions, metrics, values): (
+        let (created_ats, metrics, values, entity_ids): (
             Vec<DateTime<Utc>>,
             Vec<&str>,
-            Vec<&str>,
-            Vec<&str>,
-            Vec<&str>,
             Vec<f64>,
-        ) = multiunzip(records.iter().map(|r| {
-            (
-                r.created_at,
-                r.name.as_str(),
-                r.space.as_str(),
-                r.version.as_str(),
-                r.metric.as_str(),
-                r.value,
-            )
-        }));
+            Vec<&i32>,
+        ) = multiunzip(
+            records
+                .iter()
+                .map(|r| (r.created_at, r.metric.as_str(), r.value, entity_id)),
+        );
 
         sqlx::query(&query.sql)
             .bind(created_ats)
-            .bind(names)
-            .bind(spaces)
-            .bind(versions)
+            .bind(entity_ids)
             .bind(metrics)
             .bind(values)
             .execute(pool)
@@ -58,17 +58,15 @@ pub trait CustomMetricSqlLogic {
 
     async fn get_custom_metric_values(
         pool: &Pool<Postgres>,
-        service_info: &ServiceInfo,
         limit_datetime: &DateTime<Utc>,
         metrics: &[String],
+        entity_id: &i32,
     ) -> Result<HashMap<String, f64>, SqlError> {
         let query = Queries::GetCustomMetricValues.get_query();
 
         let records = sqlx::query(&query.sql)
-            .bind(&service_info.name)
-            .bind(&service_info.space)
-            .bind(&service_info.version)
             .bind(limit_datetime)
+            .bind(entity_id)
             .bind(metrics)
             .fetch_all(pool)
             .await
@@ -100,17 +98,14 @@ pub trait CustomMetricSqlLogic {
         pool: &Pool<Postgres>,
         params: &DriftRequest,
         minutes: i32,
+        entity_id: &i32,
     ) -> Result<BinnedMetrics, SqlError> {
         let bin = params.time_interval.to_minutes() as f64 / params.max_data_points as f64;
-
         let query = Queries::GetBinnedMetricValues.get_query();
-
         let records: Vec<BinnedMetricWrapper> = sqlx::query_as(&query.sql)
             .bind(bin)
             .bind(minutes)
-            .bind(&params.name)
-            .bind(&params.space)
-            .bind(&params.version)
+            .bind(entity_id)
             .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError)?;
@@ -157,19 +152,12 @@ pub trait CustomMetricSqlLogic {
         end: DateTime<Utc>,
         minutes: i32,
         storage_settings: &ObjectStorageSettings,
+        entity_id: &i32,
     ) -> Result<BinnedMetrics, SqlError> {
-        let path = format!("{}/{}/{}/custom", params.space, params.name, params.version);
+        let path = format!("{}/custom", params.uid);
         let bin = minutes as f64 / params.max_data_points as f64;
         let archived_df = ParquetDataFrame::new(storage_settings, &RecordType::Custom)?
-            .get_binned_metrics(
-                &path,
-                &bin,
-                &begin,
-                &end,
-                &params.space,
-                &params.name,
-                &params.version,
-            )
+            .get_binned_metrics(&path, &bin, &begin, &end, entity_id)
             .await?;
 
         Ok(BinnedMetricsExtractor::dataframe_to_binned_metrics(archived_df).await?)
@@ -190,13 +178,14 @@ pub trait CustomMetricSqlLogic {
         params: &DriftRequest,
         retention_period: &i32,
         storage_settings: &ObjectStorageSettings,
+        entity_id: &i32,
     ) -> Result<BinnedMetrics, SqlError> {
         debug!("Getting binned Custom drift records for {:?}", params);
 
         if !params.has_custom_interval() {
             debug!("No custom interval provided, using default");
             let minutes = params.time_interval.to_minutes();
-            return Self::get_records(pool, params, minutes).await;
+            return Self::get_records(pool, params, minutes, entity_id).await;
         }
 
         debug!("Custom interval provided, using custom interval");
@@ -206,7 +195,7 @@ pub trait CustomMetricSqlLogic {
 
         // get data from postgres
         if let Some(minutes) = timestamps.current_minutes {
-            let current_results = Self::get_records(pool, params, minutes).await?;
+            let current_results = Self::get_records(pool, params, minutes, entity_id).await?;
             Self::merge_feature_results(current_results, &mut custom_metric_map)?;
         }
 
@@ -220,6 +209,7 @@ pub trait CustomMetricSqlLogic {
                     archive_end,
                     archived_minutes,
                     storage_settings,
+                    entity_id,
                 )
                 .await?;
                 Self::merge_feature_results(archived_results, &mut custom_metric_map)?;

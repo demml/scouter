@@ -50,3 +50,28 @@ pub struct FeatureBinProportionResult {
     pub bin_proportions: Vec<BTreeMap<usize, f64>>,
     pub overall_proportions: BTreeMap<usize, f64>,
 }
+
+#[cfg(feature = "server")]
+impl<'r> sqlx::FromRow<'r, sqlx::postgres::PgRow> for FeatureBinProportionResult {
+    fn from_row(row: &'r sqlx::postgres::PgRow) -> Result<Self, sqlx::Error> {
+        use sqlx::Row;
+
+        let bin_proportions_json: Vec<serde_json::Value> = row.try_get("bin_proportions")?;
+        let bin_proportions: Vec<BTreeMap<usize, f64>> = bin_proportions_json
+            .into_iter()
+            .map(|json| serde_json::from_value(json).map_err(|e| sqlx::Error::Decode(Box::new(e))))
+            .collect::<Result<Vec<_>, sqlx::Error>>()?;
+
+        let overall_proportions_json: serde_json::Value = row.try_get("overall_proportions")?;
+        let overall_proportions: BTreeMap<usize, f64> =
+            serde_json::from_value(overall_proportions_json)
+                .map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
+
+        Ok(FeatureBinProportionResult {
+            feature: row.try_get("feature")?,
+            created_at: row.try_get("created_at")?,
+            bin_proportions,
+            overall_proportions,
+        })
+    }
+}

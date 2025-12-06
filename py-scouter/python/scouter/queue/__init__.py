@@ -1,30 +1,24 @@
 # mypy: disable-error-code="attr-defined"
 
 from .._scouter import (
-    CustomMetricServerRecord,
+    CustomMetricRecord,
     EntityType,
     Features,
     LLMRecord,
     Metric,
     Metrics,
-    PsiServerRecord,
+    PsiRecord,
     Queue,
 )
 from .._scouter import QueueFeature as Feature
-from .._scouter import (
-    RecordType,
-    ScouterQueue,
-    ServerRecord,
-    ServerRecords,
-    SpcServerRecord,
-)
+from .._scouter import RecordType, ScouterQueue, ServerRecord, ServerRecords, SpcRecord
 
 __all__ = [
     "ScouterQueue",
     "Queue",
-    "SpcServerRecord",
-    "PsiServerRecord",
-    "CustomMetricServerRecord",
+    "SpcRecord",
+    "PsiRecord",
+    "CustomMetricRecord",
     "ServerRecord",
     "ServerRecords",
     "Feature",

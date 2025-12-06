@@ -18,15 +18,9 @@ pub struct TraceListItem {
     #[pyo3(get)]
     pub trace_id: String,
     #[pyo3(get)]
-    pub space: String,
-    #[pyo3(get)]
-    pub name: String,
-    #[pyo3(get)]
-    pub version: String,
+    pub service_name: String,
     #[pyo3(get)]
     pub scope: String,
-    #[pyo3(get)]
-    pub service_name: Option<String>,
     #[pyo3(get)]
     pub root_operation: Option<String>,
     #[pyo3(get)]
@@ -165,12 +159,6 @@ impl FromRow<'_, PgRow> for TraceSpan {
 #[pyclass]
 pub struct TraceFilters {
     #[pyo3(get, set)]
-    pub space: Option<String>,
-    #[pyo3(get, set)]
-    pub name: Option<String>,
-    #[pyo3(get, set)]
-    pub version: Option<String>,
-    #[pyo3(get, set)]
     pub service_name: Option<String>,
     #[pyo3(get, set)]
     pub has_errors: Option<bool>,
@@ -195,9 +183,6 @@ pub struct TraceFilters {
 impl TraceFilters {
     #[new]
     #[pyo3(signature = (
-        space=None,
-        name=None,
-        version=None,
         service_name=None,
         has_errors=None,
         status_code=None,
@@ -208,9 +193,6 @@ impl TraceFilters {
         cursor_trace_id=None,
     ))]
     pub fn new(
-        space: Option<String>,
-        name: Option<String>,
-        version: Option<String>,
         service_name: Option<String>,
         has_errors: Option<bool>,
         status_code: Option<i32>,
@@ -221,9 +203,6 @@ impl TraceFilters {
         cursor_trace_id: Option<String>,
     ) -> Self {
         TraceFilters {
-            space,
-            name,
-            version,
             service_name,
             has_errors,
             status_code,
@@ -238,11 +217,6 @@ impl TraceFilters {
 }
 
 impl TraceFilters {
-    pub fn with_space(mut self, space: impl Into<String>) -> Self {
-        self.space = Some(space.into());
-        self
-    }
-
     pub fn with_service(mut self, service: impl Into<String>) -> Self {
         self.service_name = Some(service.into());
         self

@@ -53,6 +53,9 @@ pub enum TypeError {
     #[error("Missing version argument")]
     MissingVersionError,
 
+    #[error("Missing uid argument")]
+    MissingUidError,
+
     #[error("Missing alert_config argument")]
     MissingAlertConfigError,
 

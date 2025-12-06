@@ -6,12 +6,12 @@ use crate::sql::schema::VersionResult;
 use async_trait::async_trait;
 use chrono::Utc;
 use cron::Schedule;
+use potato_head::create_uuid7;
 use scouter_semver::VersionArgs;
-use scouter_semver::VersionType;
 use scouter_semver::{VersionParser, VersionValidator};
+use scouter_types::VersionRequest;
 use scouter_types::{
-    DriftProfile, DriftTaskInfo, GetProfileRequest, ListProfilesRequest, ListedProfile,
-    ProfileArgs, ProfileStatusRequest,
+    DriftProfile, ListProfilesRequest, ListedProfile, ProfileArgs, ProfileStatusRequest,
 };
 use semver::Version;
 use serde_json::Value;
@@ -68,17 +68,23 @@ pub fn add_version_bounds(builder: &mut String, version: &str) -> Result<(), Sql
 #[async_trait]
 pub trait ProfileSqlLogic {
     /// Get profile versions
+    /// Determines the next version based on existing versions in the database
+    /// # Arguments
+    /// * `args` - The profile arguments containing space, name, and version
+    /// * `version_type` - The type of version bump (major, minor, patch)
+    /// * `pre_tag` - Optional pre-release tag
+    /// * `build_tag` - Optional build metadata
+    /// # Returns
+    /// * `Result<Version, SqlError>` - Result of the query returning
     #[instrument(skip_all)]
     async fn get_next_profile_version(
         pool: &Pool<Postgres>,
         args: &ProfileArgs,
-        version_type: VersionType,
-        pre_tag: Option<String>,
-        build_tag: Option<String>,
+        version_request: VersionRequest,
     ) -> Result<Version, SqlError> {
         let mut version_query = Queries::GetProfileVersions.get_query().sql;
 
-        if let Some(version) = &args.version {
+        if let Some(version) = &version_request.version {
             add_version_bounds(&mut version_query, version)?;
         }
         version_query.push_str(" ORDER BY created_at DESC LIMIT 20;");
@@ -86,6 +92,7 @@ pub trait ProfileSqlLogic {
         let cards: Vec<VersionResult> = sqlx::query_as(&version_query)
             .bind(&args.space)
             .bind(&args.name)
+            .bind(args.drift_type.to_string())
             .fetch_all(pool)
             .await?;
 
@@ -98,7 +105,7 @@ pub trait ProfileSqlLogic {
         let versions = VersionValidator::sort_semver_versions(versions, true)?;
 
         if versions.is_empty() {
-            return match &args.version {
+            return match &version_request.version {
                 Some(version_str) => Ok(VersionValidator::clean_version(version_str)?),
                 None => Ok(Version::new(0, 1, 0)),
             };
@@ -108,9 +115,9 @@ pub trait ProfileSqlLogic {
 
         let args = VersionArgs {
             version: base_version,
-            version_type,
-            pre: pre_tag,
-            build: build_tag,
+            version_type: version_request.version_type,
+            pre: version_request.pre_tag,
+            build: version_request.build_tag,
         };
 
         Ok(VersionValidator::bump_version(&args)?)
@@ -123,7 +130,7 @@ pub trait ProfileSqlLogic {
     ///
     /// # Returns
     ///
-    /// * `Result<PgQueryResult, SqlError>` - Result of the query
+    /// * `Result<String, SqlError>` - Result of the query returning the entity_uid
     #[instrument(skip_all)]
     async fn insert_drift_profile(
         pool: &Pool<Postgres>,
@@ -132,7 +139,7 @@ pub trait ProfileSqlLogic {
         version: &Version,
         active: &bool,
         deactivate_others: &bool,
-    ) -> Result<PgQueryResult, SqlError> {
+    ) -> Result<String, SqlError> {
         let query = Queries::InsertDriftProfile.get_query();
         let current_time = Utc::now();
         let schedule = Schedule::from_str(&base_args.schedule)?;
@@ -151,48 +158,39 @@ pub trait ProfileSqlLogic {
         let build: Option<String> = version.build.to_string().parse().ok();
 
         let result = sqlx::query(&query.sql)
+            // 1. Entity UID (for entity_insert) -> $1
+            .bind(create_uuid7())
+            // 2-3. Entity Identity (for entity_insert & deactivation logic) -> $2, $3
             .bind(&base_args.space)
             .bind(&base_args.name)
+            // 4-8. Version Components (for drift_profile insert) -> $4 to $8
             .bind(major)
             .bind(minor)
             .bind(patch)
             .bind(pre)
             .bind(build)
-            .bind(version.to_string())
+            // 9-11. String/JSON values -> $9 to $11
+            .bind(version.to_string()) // Full Version String
             .bind(&base_args.scouter_version)
-            .bind(drift_profile.to_value())
+            .bind(drift_profile.to_value()) // Profile JSON
+            // 12. Drift Type (for entity_insert & deactivation logic) -> $12
             .bind(base_args.drift_type.to_string())
+            // 13. Active Flag (for deactivation logic & drift_profile insert) -> $13
             .bind(active)
+            // 14. Schedule -> $14
             .bind(&base_args.schedule)
+            // 15. Next Run -> $15
             .bind(next_run)
+            // 16. Current Time (for previous_run/timestamps) -> $16
             .bind(current_time)
-            .execute(pool)
+            // 17. Deactivate Others Flag (for deactivation logic) -> $17
+            .bind(deactivate_others)
+            .fetch_one(pool)
             .await
             .map_err(SqlError::SqlxError)?;
 
-        // Only want to deactivate other profiles if this one is active and deactivate_others is true
-        if *active && *deactivate_others {
-            let query = Queries::DeactivateDriftProfiles.get_query();
-
-            let query_result = sqlx::query(&query.sql)
-                .bind(&base_args.name)
-                .bind(&base_args.space)
-                .bind(&base_args.version)
-                .bind(base_args.drift_type.to_string())
-                .execute(pool)
-                .await
-                .map_err(SqlError::SqlxError);
-
-            match query_result {
-                Ok(_) => Ok(result), // return original result
-                Err(e) => {
-                    error!("Failed to deactivate other drift profiles: {:?}", e);
-                    Err(e)
-                }
-            }
-        } else {
-            Ok(result)
-        }
+        let entity_uid: String = result.get("entity_uid");
+        Ok(entity_uid)
     }
 
     /// Update a drift profile in the database
@@ -207,16 +205,14 @@ pub trait ProfileSqlLogic {
     async fn update_drift_profile(
         pool: &Pool<Postgres>,
         drift_profile: &DriftProfile,
+        entity_id: &i32,
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::UpdateDriftProfile.get_query();
-        let base_args = drift_profile.get_base_args();
 
         sqlx::query(&query.sql)
             .bind(drift_profile.to_value())
-            .bind(base_args.drift_type.to_string())
-            .bind(base_args.name)
-            .bind(base_args.space)
-            .bind(base_args.version)
+            .bind(drift_profile.drift_type().to_string())
+            .bind(entity_id)
             .execute(pool)
             .await
             .map_err(SqlError::SqlxError)
@@ -231,15 +227,12 @@ pub trait ProfileSqlLogic {
     /// # Returns
     async fn get_drift_profile(
         pool: &Pool<Postgres>,
-        request: &GetProfileRequest,
+        entity_id: &i32,
     ) -> Result<Option<Value>, SqlError> {
         let query = Queries::GetDriftProfile.get_query();
 
         let result = sqlx::query(&query.sql)
-            .bind(&request.name)
-            .bind(&request.space)
-            .bind(&request.version)
-            .bind(request.drift_type.to_string())
+            .bind(entity_id)
             .fetch_optional(pool)
             .await
             .map_err(SqlError::SqlxError)?;
@@ -304,7 +297,7 @@ pub trait ProfileSqlLogic {
     #[instrument(skip_all)]
     async fn update_drift_profile_run_dates(
         pool: &Pool<Postgres>,
-        task_info: &DriftTaskInfo,
+        entity_id: &i32,
         schedule: &str,
     ) -> Result<(), SqlError> {
         let query = Queries::UpdateDriftProfileRunDates.get_query();
@@ -320,7 +313,7 @@ pub trait ProfileSqlLogic {
 
         let query_result = sqlx::query(&query.sql)
             .bind(next_run)
-            .bind(&task_info.uid)
+            .bind(entity_id)
             .execute(pool)
             .await
             .map_err(SqlError::SqlxError);

@@ -56,15 +56,19 @@ pub async fn get_trace_spans(
     State(data): State<Arc<AppState>>,
     Query(params): Query<TraceRequest>,
 ) -> Result<Json<TraceSpansResponse>, (StatusCode, Json<ScouterServerError>)> {
-    let spans = PostgresClient::get_trace_spans(&data.db_pool, &params.trace_id)
-        .await
-        .map_err(|e| {
-            error!("Failed to get trace spans: {:?}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ScouterServerError::get_trace_spans_error(e)),
-            )
-        })?;
+    let spans = PostgresClient::get_trace_spans(
+        &data.db_pool,
+        &params.trace_id,
+        params.service_name.as_deref(),
+    )
+    .await
+    .map_err(|e| {
+        error!("Failed to get trace spans: {:?}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ScouterServerError::get_trace_spans_error(e)),
+        )
+    })?;
 
     Ok(Json(TraceSpansResponse { spans }))
 }
@@ -75,9 +79,7 @@ pub async fn get_trace_metrics(
 ) -> Result<Json<TraceMetricsResponse>, (StatusCode, Json<ScouterServerError>)> {
     let metrics = PostgresClient::get_trace_metrics(
         &data.db_pool,
-        body.space.as_deref(),
-        body.name.as_deref(),
-        body.version.as_deref(),
+        body.service_name.as_deref(),
         body.start_time,
         body.end_time,
         &body.bucket_interval,

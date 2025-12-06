@@ -1,5 +1,9 @@
+INSERT INTO scouter.drift_entities (uid, id, space, name, version, drift_type)
+VALUES ('019ae1b4-3003-77c1-8eed-2ec005e85963', 1, 'scouter', 'model', '0.1.0', 'Custom')
+ON CONFLICT (space, name, version, drift_type) DO NOTHING;
+
 -- Insert custom profile into scouter.drift_profile
-INSERT INTO scouter.drift_profile (created_at, updated_at, name, space, version, profile, drift_type, active, schedule, next_run, previous_run)
+INSERT INTO scouter.drift_profile (created_at, updated_at, name, space, version, profile, drift_type, active, schedule, next_run, previous_run, entity_id)
 VALUES
     (
         timezone('utc', now()),
@@ -12,6 +16,7 @@ VALUES
                     "space": "scouter",
                     "name": "model",
                     "version": "0.1.0",
+                    "uid": "019ae1b4-3003-77c1-8eed-2ec005e85963",
                     "sample_size": 25,
                     "sample": true,
                     "alert_config": {
@@ -44,7 +49,8 @@ VALUES
         true,
         '0 0 0 * * *',
         timezone('utc', now() - interval '1 days'),
-        timezone('utc', now() - interval '2 days')
+        timezone('utc', now() - interval '2 days'),
+        1
     );
 
 
@@ -64,9 +70,9 @@ DO $$
                             metric_value := random() + 16.0;
                         END IF;
 
-                        INSERT INTO scouter.custom_drift (created_at, name, space, version, metric, value)
+                        INSERT INTO scouter.custom_drift (created_at, entity_id, metric, value)
                         VALUES
-                            (created_at + (random() * INTERVAL '1 second'), 'model', 'scouter', '0.1.0', metric_names[j], metric_value);
+                            (created_at + (random() * INTERVAL '1 second'), 1, metric_names[j], metric_value);
                     END LOOP;
             END LOOP;
     END $$;

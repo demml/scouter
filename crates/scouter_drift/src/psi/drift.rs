@@ -9,32 +9,25 @@ pub mod psi_drifter {
     use scouter_dispatch::AlertDispatcher;
     use scouter_settings::ObjectStorageSettings;
     use scouter_sql::sql::traits::PsiSqlLogic;
-    use scouter_sql::PostgresClient;
-    use scouter_types::contracts::{DriftRequest, ServiceInfo};
+    use scouter_sql::{sql::cache::entity_cache, PostgresClient};
     use scouter_types::psi::{
         BinnedPsiFeatureMetrics, BinnedPsiMetric, FeatureDistributions, PsiDriftProfile,
         PsiFeatureAlert, PsiFeatureAlerts, PsiFeatureDriftProfile,
     };
+    use scouter_types::{contracts::DriftRequest, ProfileBaseArgs};
+
     use sqlx::{Pool, Postgres};
     use std::collections::{BTreeMap, HashMap};
     use tracing::info;
     use tracing::{debug, error, instrument};
 
     pub struct PsiDrifter {
-        service_info: ServiceInfo,
         profile: PsiDriftProfile,
     }
 
     impl PsiDrifter {
         pub fn new(profile: PsiDriftProfile) -> Self {
-            Self {
-                service_info: ServiceInfo {
-                    name: profile.config.name.clone(),
-                    space: profile.config.space.clone(),
-                    version: profile.config.version.clone(),
-                },
-                profile,
-            }
+            Self { profile }
         }
 
         fn get_monitored_profiles(&self) -> Vec<PsiFeatureDriftProfile> {
@@ -52,24 +45,32 @@ pub mod psi_drifter {
             limit_datetime: &DateTime<Utc>,
             db_pool: &Pool<Postgres>,
         ) -> Result<Option<FeatureDistributions>, DriftError> {
+            let entity_id = entity_cache()
+                .get_entity_id_from_uid(db_pool, &self.profile.config.uid)
+                .await?;
             let feature_distributions = PostgresClient::get_feature_distributions(
                 db_pool,
-                &self.service_info,
                 limit_datetime,
                 &self.profile.config.alert_config.features_to_monitor,
+                &entity_id,
             )
             .await
             .inspect_err(|e| {
                 error!(
                     "Error: Unable to fetch feature bin proportions from DB for {}/{}/{}: {}",
-                    self.service_info.space, self.service_info.name, self.service_info.version, e
+                    self.profile.space(),
+                    self.profile.name(),
+                    self.profile.version(),
+                    e
                 );
             })?;
 
             if feature_distributions.is_empty() {
                 info!(
                     "No enough target samples collected for {}/{}/{}. Skipping alert processing.",
-                    self.service_info.space, self.service_info.name, self.service_info.version,
+                    self.profile.space(),
+                    self.profile.name(),
+                    self.profile.version(),
                 );
                 return Ok(None);
             }
@@ -112,7 +113,10 @@ pub mod psi_drifter {
             let alert_dispatcher = AlertDispatcher::new(&self.profile.config).inspect_err(|e| {
                 error!(
                     "Error creating alert dispatcher for {}/{}/{}: {}",
-                    self.service_info.space, self.service_info.name, self.service_info.version, e
+                    self.profile.space(),
+                    self.profile.name(),
+                    self.profile.version(),
+                    e
                 );
             })?;
 
@@ -121,7 +125,9 @@ pub mod psi_drifter {
             if alerts.is_empty() {
                 info!(
                     "No alerts to process for {}/{}/{}",
-                    self.service_info.space, self.service_info.name, self.service_info.version
+                    self.profile.space(),
+                    self.profile.name(),
+                    self.profile.version(),
                 );
                 return Ok(None);
             }
@@ -134,9 +140,9 @@ pub mod psi_drifter {
                 .inspect_err(|e| {
                     error!(
                         "Error processing alerts for {}/{}/{}: {}",
-                        self.service_info.space,
-                        self.service_info.name,
-                        self.service_info.version,
+                        self.profile.space(),
+                        self.profile.name(),
+                        self.profile.version(),
                         e
                     );
                 })?;
@@ -184,7 +190,7 @@ pub mod psi_drifter {
         pub async fn check_for_alerts(
             &self,
             db_pool: &Pool<Postgres>,
-            previous_run: DateTime<Utc>,
+            previous_run: &DateTime<Utc>,
         ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
             // Check if there are any feature profiles to monitor
             let profiles_to_monitor = self.get_monitored_profiles();
@@ -195,7 +201,7 @@ pub mod psi_drifter {
 
             // Fetch, if any, target feature distributions
             let Some(target_feature_distributions) = self
-                .resolve_target_feature_distributions(&previous_run, db_pool)
+                .resolve_target_feature_distributions(previous_run, db_pool)
                 .await?
             else {
                 return Ok(None);
@@ -212,9 +218,9 @@ pub mod psi_drifter {
                 .inspect_err(|e| {
                     error!(
                         "Error generating alerts for {}/{}/{}: {}",
-                        self.service_info.space,
-                        self.service_info.name,
-                        self.service_info.version,
+                        self.profile.space(),
+                        self.profile.name(),
+                        self.profile.version(),
                         e
                     );
                 })?
@@ -260,23 +266,29 @@ pub mod psi_drifter {
             db_pool: &Pool<Postgres>,
             retention_period: &i32,
             storage_settings: &ObjectStorageSettings,
+            entity_id: &i32,
         ) -> Result<BinnedPsiFeatureMetrics, DriftError> {
             debug!(
                 "Getting binned drift map for {}/{}/{}",
-                self.service_info.space, self.service_info.name, self.service_info.version
+                self.profile.space(),
+                self.profile.name(),
+                self.profile.version(),
             );
             let binned_records = PostgresClient::get_binned_psi_drift_records(
                 db_pool,
                 drift_request,
                 retention_period,
                 storage_settings,
+                entity_id,
             )
             .await?;
 
             if binned_records.is_empty() {
                 info!(
                     "No binned drift records available for {}/{}/{}",
-                    self.service_info.space, self.service_info.name, self.service_info.version
+                    self.profile.space(),
+                    self.profile.name(),
+                    self.profile.version(),
                 );
                 return Ok(BinnedPsiFeatureMetrics::default());
             }

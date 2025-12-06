@@ -1,20 +1,16 @@
-SELECT 
+SELECT
     uid,
-    created_at, 
-    name, 
-    space, 
-    version, 
-    context, 
-    prompt, 
-    status, 
+    created_at,
+    context,
+    prompt,
+    status,
     score,
     id,
     updated_at,
     processing_started_at,
     processing_ended_at,
-    processing_duration
-FROM scouter.llm_drift_record 
+    processing_duration,
+    entity_id
+FROM scouter.llm_drift_record
 WHERE 1=1
-  AND space = $1
-  AND name = $2
-  AND version = $3
+  AND entity_id = $1

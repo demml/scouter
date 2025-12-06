@@ -110,12 +110,7 @@ impl SpanExporter for OtelTestSpanExporter {
 
         let req = ExportTraceServiceRequest { resource_spans };
 
-        let record = TraceServerRecord {
-            request: req,
-            space: "test_space".to_string(),
-            name: "test_name".to_string(),
-            version: "test_version".to_string(),
-        };
+        let record = TraceServerRecord { request: req };
 
         let (traces, spans, baggage) = record
             .to_records()

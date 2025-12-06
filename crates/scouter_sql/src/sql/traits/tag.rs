@@ -10,7 +10,7 @@ use std::result::Result::Ok;
 
 #[async_trait]
 pub trait TagSqlLogic {
-    /// Attempts to insert multiple trace baggage records into the database in a batch.
+    /// Attempts to insert multiple tag records into the database in a batch.
     ///
     /// # Arguments
     /// * `pool` - The database connection pool

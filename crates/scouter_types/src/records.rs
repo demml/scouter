@@ -1,10 +1,12 @@
 use crate::error::RecordError;
 use crate::trace::TraceServerRecord;
+use crate::DriftType;
 use crate::PyHelperFuncs;
 use crate::Status;
 use crate::TagRecord;
 use chrono::DateTime;
 use chrono::Utc;
+use potato_head::create_uuid7;
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
 use serde::{Deserialize, Serialize};
@@ -26,6 +28,19 @@ pub enum RecordType {
     Trace,
 }
 
+impl RecordType {
+    pub fn to_drift_type(&self) -> &str {
+        match self {
+            RecordType::Spc => DriftType::Spc.to_string(),
+            RecordType::Psi => DriftType::Psi.to_string(),
+            RecordType::Custom => DriftType::Custom.to_string(),
+            RecordType::LLMDrift => DriftType::LLM.to_string(),
+            RecordType::LLMMetric => DriftType::LLM.to_string(),
+            _ => "unknown",
+        }
+    }
+}
+
 impl Display for RecordType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -42,18 +57,12 @@ impl Display for RecordType {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct SpcServerRecord {
+pub struct SpcRecord {
     #[pyo3(get)]
     pub created_at: chrono::DateTime<Utc>,
 
     #[pyo3(get)]
-    pub space: String,
-
-    #[pyo3(get)]
-    pub name: String,
-
-    #[pyo3(get)]
-    pub version: String,
+    pub uid: String,
 
     #[pyo3(get)]
     pub feature: String,
@@ -63,14 +72,12 @@ pub struct SpcServerRecord {
 }
 
 #[pymethods]
-impl SpcServerRecord {
+impl SpcRecord {
     #[new]
-    pub fn new(space: String, name: String, version: String, feature: String, value: f64) -> Self {
+    pub fn new(uid: String, feature: String, value: f64) -> Self {
         Self {
             created_at: Utc::now(),
-            name,
-            space,
-            version,
+            uid,
             feature,
             value,
         }
@@ -93,56 +100,43 @@ impl SpcServerRecord {
     pub fn to_dict(&self) -> HashMap<String, String> {
         let mut record = HashMap::new();
         record.insert("created_at".to_string(), self.created_at.to_string());
-        record.insert("name".to_string(), self.name.clone());
-        record.insert("space".to_string(), self.space.clone());
-        record.insert("version".to_string(), self.version.clone());
+        record.insert("uid".to_string(), self.uid.clone());
         record.insert("feature".to_string(), self.feature.clone());
         record.insert("value".to_string(), self.value.to_string());
         record
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SpcInternalRecord {
+    pub created_at: chrono::DateTime<Utc>,
+    pub entity_id: i32,
+    pub feature: String,
+    pub value: f64,
+}
+
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct PsiServerRecord {
+pub struct PsiRecord {
     #[pyo3(get)]
     pub created_at: chrono::DateTime<Utc>,
-
     #[pyo3(get)]
-    pub space: String,
-
-    #[pyo3(get)]
-    pub name: String,
-
-    #[pyo3(get)]
-    pub version: String,
-
+    pub uid: String,
     #[pyo3(get)]
     pub feature: String,
-
     #[pyo3(get)]
     pub bin_id: usize,
-
     #[pyo3(get)]
     pub bin_count: usize,
 }
 
 #[pymethods]
-impl PsiServerRecord {
+impl PsiRecord {
     #[new]
-    pub fn new(
-        space: String,
-        name: String,
-        version: String,
-        feature: String,
-        bin_id: usize,
-        bin_count: usize,
-    ) -> Self {
+    pub fn new(uid: String, feature: String, bin_id: usize, bin_count: usize) -> Self {
         Self {
             created_at: Utc::now(),
-            name,
-            space,
-            version,
+            uid,
             feature,
             bin_id,
             bin_count,
@@ -164,20 +158,23 @@ impl PsiServerRecord {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PsiInternalRecord {
+    pub created_at: chrono::DateTime<Utc>,
+    pub entity_id: i32,
+    pub feature: String,
+    pub bin_id: usize,
+    pub bin_count: usize,
+}
+
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct LLMDriftServerRecord {
+pub struct LLMDriftRecord {
     #[pyo3(get)]
     pub created_at: chrono::DateTime<Utc>,
 
     #[pyo3(get)]
-    pub space: String,
-
-    #[pyo3(get)]
-    pub name: String,
-
-    #[pyo3(get)]
-    pub version: String,
+    pub uid: String,
 
     pub prompt: Option<Value>,
 
@@ -186,8 +183,6 @@ pub struct LLMDriftServerRecord {
     pub status: Status,
 
     pub id: i64,
-
-    pub uid: String,
 
     pub score: Value,
 
@@ -198,10 +193,12 @@ pub struct LLMDriftServerRecord {
     pub processing_ended_at: Option<DateTime<Utc>>,
 
     pub processing_duration: Option<i32>,
+
+    pub entity_uid: String,
 }
 
 #[pymethods]
-impl LLMDriftServerRecord {
+impl LLMDriftRecord {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         PyHelperFuncs::__str__(self)
@@ -217,23 +214,18 @@ impl LLMDriftServerRecord {
     }
 }
 
-impl LLMDriftServerRecord {
+impl LLMDriftRecord {
     #[allow(clippy::too_many_arguments)]
     pub fn new_rs(
-        space: String,
-        name: String,
-        version: String,
         prompt: Option<Value>,
         context: Value,
         created_at: DateTime<Utc>,
-        uid: String,
         score: Value,
+        uid: String,
+        entity_uid: String,
     ) -> Self {
         Self {
             created_at,
-            space,
-            name,
-            version,
             prompt,
             context,
             status: Status::Pending,
@@ -244,18 +236,88 @@ impl LLMDriftServerRecord {
             processing_started_at: None,
             processing_ended_at: None,
             processing_duration: None,
+            entity_uid,
         }
     }
 }
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct BoxedLLMDriftServerRecord {
-    pub record: Box<LLMDriftServerRecord>,
+pub struct BoxedLLMDriftRecord {
+    pub record: Box<LLMDriftRecord>,
 }
 
-impl BoxedLLMDriftServerRecord {
-    pub fn new(record: LLMDriftServerRecord) -> Self {
+impl BoxedLLMDriftRecord {
+    pub fn new(record: LLMDriftRecord) -> Self {
+        Self {
+            record: Box::new(record),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
+pub struct LLMDriftInternalRecord {
+    pub uid: String, // public unique identifier for drift record
+    pub created_at: chrono::DateTime<Utc>,
+    pub context: Value,
+    pub prompt: Option<Value>,
+    #[cfg_attr(feature = "server", sqlx(try_from = "String"))]
+    pub status: Status,
+    pub score: Value,
+    pub id: i64,
+    pub updated_at: Option<DateTime<Utc>>,
+    pub processing_started_at: Option<DateTime<Utc>>,
+    pub processing_ended_at: Option<DateTime<Utc>>,
+    pub processing_duration: Option<i32>,
+    pub entity_id: i32, // foreign key to entity table
+}
+
+impl LLMDriftInternalRecord {
+    pub fn from_public_record(record: &LLMDriftRecord, entity_id: i32) -> Self {
+        Self {
+            created_at: record.created_at,
+            prompt: record.prompt.clone(),
+            context: record.context.clone(),
+            score: record.score.clone(),
+            status: record.status.clone(),
+            id: 0,
+            uid: create_uuid7(),
+            updated_at: None,
+            processing_started_at: None,
+            processing_ended_at: None,
+            processing_duration: None,
+            entity_id,
+        }
+    }
+
+    pub fn to_public_record(&self) -> LLMDriftRecord {
+        LLMDriftRecord {
+            created_at: self.created_at,
+            uid: self.uid.clone(),
+            prompt: self.prompt.clone(),
+            context: self.context.clone(),
+            status: self.status.clone(),
+            id: self.id,
+            score: self.score.clone(),
+            updated_at: self.updated_at,
+            processing_started_at: self.processing_started_at,
+            processing_ended_at: self.processing_ended_at,
+            processing_duration: self.processing_duration,
+
+            // placeholder - entity_uid is only used when inserting records
+            entity_uid: String::new(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct BoxedLLMDriftInternalRecord {
+    pub record: Box<LLMDriftInternalRecord>,
+}
+
+impl BoxedLLMDriftInternalRecord {
+    pub fn new(record: LLMDriftInternalRecord) -> Self {
         Self {
             record: Box::new(record),
         }
@@ -266,19 +328,13 @@ impl BoxedLLMDriftServerRecord {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct LLMMetricRecord {
     #[pyo3(get)]
-    pub record_uid: String,
+    pub uid: String,
 
     #[pyo3(get)]
     pub created_at: chrono::DateTime<Utc>,
 
     #[pyo3(get)]
-    pub space: String,
-
-    #[pyo3(get)]
-    pub name: String,
-
-    #[pyo3(get)]
-    pub version: String,
+    pub entity_uid: String,
 
     #[pyo3(get)]
     pub metric: String,
@@ -295,37 +351,35 @@ impl LLMMetricRecord {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct LLMMetricInternalRecord {
+    pub uid: String,
+    pub created_at: chrono::DateTime<Utc>,
+    pub entity_id: i32,
+    pub metric: String,
+    pub value: f64,
+}
+
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct CustomMetricServerRecord {
+pub struct CustomMetricRecord {
     #[pyo3(get)]
     pub created_at: chrono::DateTime<Utc>,
-
     #[pyo3(get)]
-    pub space: String,
-
-    #[pyo3(get)]
-    pub name: String,
-
-    #[pyo3(get)]
-    pub version: String,
-
+    pub uid: String,
     #[pyo3(get)]
     pub metric: String,
-
     #[pyo3(get)]
     pub value: f64,
 }
 
 #[pymethods]
-impl CustomMetricServerRecord {
+impl CustomMetricRecord {
     #[new]
-    pub fn new(space: String, name: String, version: String, metric: String, value: f64) -> Self {
+    pub fn new(uid: String, metric: String, value: f64) -> Self {
         Self {
             created_at: chrono::Utc::now(),
-            name,
-            space,
-            version,
+            uid,
             metric: metric.to_lowercase(),
             value,
         }
@@ -348,13 +402,20 @@ impl CustomMetricServerRecord {
     pub fn to_dict(&self) -> HashMap<String, String> {
         let mut record = HashMap::new();
         record.insert("created_at".to_string(), self.created_at.to_string());
-        record.insert("name".to_string(), self.name.clone());
-        record.insert("space".to_string(), self.space.clone());
-        record.insert("version".to_string(), self.version.clone());
+        record.insert("uid".to_string(), self.uid.clone());
         record.insert("metric".to_string(), self.metric.clone());
         record.insert("value".to_string(), self.value.to_string());
         record
     }
+}
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CustomMetricInternalRecord {
+    pub created_at: chrono::DateTime<Utc>,
+    pub entity_id: i32,
+    pub metric: String,
+    pub value: f64,
 }
 
 #[pyclass]
@@ -402,13 +463,7 @@ pub struct RouteMetrics {
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct ObservabilityMetrics {
     #[pyo3(get)]
-    pub space: String,
-
-    #[pyo3(get)]
-    pub name: String,
-
-    #[pyo3(get)]
-    pub version: String,
+    pub uid: String,
 
     #[pyo3(get)]
     pub request_count: i64,
@@ -437,14 +492,22 @@ impl ObservabilityMetrics {
     }
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct ObservabilityMetricsInternal {
+    pub entity_id: i32,
+    pub request_count: i64,
+    pub error_count: i64,
+    pub route_metrics: Vec<RouteMetrics>,
+}
+
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ServerRecord {
-    Spc(SpcServerRecord),
-    Psi(PsiServerRecord),
-    Custom(CustomMetricServerRecord),
+    Spc(SpcRecord),
+    Psi(PsiRecord),
+    Custom(CustomMetricRecord),
     Observability(ObservabilityMetrics),
-    LLMDrift(BoxedLLMDriftServerRecord),
+    LLMDrift(BoxedLLMDriftRecord),
     LLMMetric(LLMMetricRecord),
 }
 
@@ -458,15 +521,15 @@ impl ServerRecord {
 
         match record_type {
             RecordType::Spc => {
-                let spc_record = record.extract::<SpcServerRecord>()?;
+                let spc_record = record.extract::<SpcRecord>()?;
                 Ok(ServerRecord::Spc(spc_record))
             }
             RecordType::Psi => {
-                let psi_record = record.extract::<PsiServerRecord>()?;
+                let psi_record = record.extract::<PsiRecord>()?;
                 Ok(ServerRecord::Psi(psi_record))
             }
             RecordType::Custom => {
-                let custom_record = record.extract::<CustomMetricServerRecord>()?;
+                let custom_record = record.extract::<CustomMetricRecord>()?;
                 Ok(ServerRecord::Custom(custom_record))
             }
             RecordType::Observability => {
@@ -474,8 +537,8 @@ impl ServerRecord {
                 Ok(ServerRecord::Observability(observability_record))
             }
             RecordType::LLMDrift => {
-                let llm_drift_record = record.extract::<LLMDriftServerRecord>()?;
-                Ok(ServerRecord::LLMDrift(BoxedLLMDriftServerRecord::new(
+                let llm_drift_record = record.extract::<LLMDriftRecord>()?;
+                Ok(ServerRecord::LLMDrift(BoxedLLMDriftRecord::new(
                     llm_drift_record,
                 )))
             }
@@ -493,17 +556,6 @@ impl ServerRecord {
             ServerRecord::Observability(record) => Ok(record.clone().into_py_any(py)?),
             ServerRecord::LLMDrift(record) => Ok(record.record.clone().into_py_any(py)?),
             ServerRecord::LLMMetric(record) => Ok(record.clone().into_py_any(py)?),
-        }
-    }
-
-    pub fn space(&self) -> String {
-        match self {
-            ServerRecord::Spc(record) => record.space.clone(),
-            ServerRecord::Psi(record) => record.space.clone(),
-            ServerRecord::Custom(record) => record.space.clone(),
-            ServerRecord::Observability(record) => record.space.clone(),
-            ServerRecord::LLMDrift(record) => record.record.space.clone(),
-            ServerRecord::LLMMetric(record) => record.space.clone(),
         }
     }
 
@@ -528,6 +580,27 @@ impl ServerRecord {
             ServerRecord::LLMDrift(_) => RecordType::LLMDrift,
             ServerRecord::LLMMetric(_) => RecordType::LLMMetric,
         }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum InternalServerRecord {
+    Spc(SpcInternalRecord),
+    Psi(PsiInternalRecord),
+    Custom(CustomMetricInternalRecord),
+    LLMDrift(BoxedLLMDriftInternalRecord),
+    LLMMetric(LLMMetricInternalRecord),
+    Observability(ObservabilityMetricsInternal),
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct InternalServerRecords {
+    pub records: Vec<InternalServerRecord>,
+}
+
+impl InternalServerRecords {
+    pub fn new(records: Vec<InternalServerRecord>) -> Self {
+        Self { records }
     }
 }
 
@@ -610,24 +683,37 @@ impl ServerRecords {
 
         Ok(dates)
     }
-    pub fn space(&self) -> String {
-        match self.records.first() {
-            Some(record) => record.space(),
-            None => "__missing__".to_string(),
+
+    /// gets the uid from the first record type found in the records
+    /// This is a helper for consumers that need to get an entity_id associated with the given uid
+    pub fn uid(&self) -> Result<&String, RecordError> {
+        if let Some(first) = self.records.first() {
+            match first {
+                ServerRecord::Spc(inner) => Ok(&inner.uid),
+                ServerRecord::Psi(inner) => Ok(&inner.uid),
+                ServerRecord::Custom(inner) => Ok(&inner.uid),
+                ServerRecord::Observability(inner) => Ok(&inner.uid),
+                ServerRecord::LLMDrift(inner) => Ok(&inner.record.entity_uid),
+                ServerRecord::LLMMetric(inner) => Ok(&inner.entity_uid),
+            }
+        } else {
+            Err(RecordError::EmptyServerRecordsError)
         }
     }
 }
 
+/// Helper trait to convert ServerRecord to their respective internal record types
 pub trait ToDriftRecords {
-    fn to_spc_drift_records(&self) -> Result<Vec<SpcServerRecord>, RecordError>;
+    fn to_spc_drift_records(&self) -> Result<Vec<SpcRecord>, RecordError>;
     fn to_observability_drift_records(&self) -> Result<Vec<ObservabilityMetrics>, RecordError>;
-    fn to_psi_drift_records(&self) -> Result<Vec<PsiServerRecord>, RecordError>;
-    fn to_custom_metric_drift_records(&self) -> Result<Vec<CustomMetricServerRecord>, RecordError>;
-    fn to_llm_drift_records(&self) -> Result<Vec<LLMDriftServerRecord>, RecordError>;
+    fn to_psi_drift_records(&self) -> Result<Vec<PsiRecord>, RecordError>;
+    fn to_custom_metric_drift_records(&self) -> Result<Vec<CustomMetricRecord>, RecordError>;
+    fn to_llm_drift_records(&self) -> Result<Vec<LLMDriftRecord>, RecordError>;
     fn to_llm_metric_records(&self) -> Result<Vec<LLMMetricRecord>, RecordError>;
 }
+
 impl ToDriftRecords for ServerRecords {
-    fn to_spc_drift_records(&self) -> Result<Vec<SpcServerRecord>, RecordError> {
+    fn to_spc_drift_records(&self) -> Result<Vec<SpcRecord>, RecordError> {
         extract_records(self, |record| match record {
             ServerRecord::Spc(inner) => Some(inner.clone()),
             _ => None,
@@ -641,21 +727,21 @@ impl ToDriftRecords for ServerRecords {
         })
     }
 
-    fn to_psi_drift_records(&self) -> Result<Vec<PsiServerRecord>, RecordError> {
+    fn to_psi_drift_records(&self) -> Result<Vec<PsiRecord>, RecordError> {
         extract_records(self, |record| match record {
             ServerRecord::Psi(inner) => Some(inner.clone()),
             _ => None,
         })
     }
 
-    fn to_custom_metric_drift_records(&self) -> Result<Vec<CustomMetricServerRecord>, RecordError> {
+    fn to_custom_metric_drift_records(&self) -> Result<Vec<CustomMetricRecord>, RecordError> {
         extract_records(self, |record| match record {
             ServerRecord::Custom(inner) => Some(inner.clone()),
             _ => None,
         })
     }
 
-    fn to_llm_drift_records(&self) -> Result<Vec<LLMDriftServerRecord>, RecordError> {
+    fn to_llm_drift_records(&self) -> Result<Vec<LLMDriftRecord>, RecordError> {
         extract_records(self, |record| match record {
             ServerRecord::LLMDrift(inner) => Some(*inner.record.clone()),
             _ => None,
@@ -670,7 +756,85 @@ impl ToDriftRecords for ServerRecords {
     }
 }
 
+pub trait ToInternalDriftRecords {
+    fn to_spc_drift_records(&self) -> Result<Vec<SpcInternalRecord>, RecordError>;
+    fn to_observability_drift_records(
+        &self,
+    ) -> Result<Vec<ObservabilityMetricsInternal>, RecordError>;
+    fn to_psi_drift_records(&self) -> Result<Vec<PsiInternalRecord>, RecordError>;
+    fn to_custom_metric_drift_records(
+        &self,
+    ) -> Result<Vec<CustomMetricInternalRecord>, RecordError>;
+    fn to_llm_drift_records(&self) -> Result<Vec<LLMDriftInternalRecord>, RecordError>;
+    fn to_llm_metric_records(&self) -> Result<Vec<LLMMetricInternalRecord>, RecordError>;
+}
+
+impl ToInternalDriftRecords for InternalServerRecords {
+    fn to_spc_drift_records(&self) -> Result<Vec<SpcInternalRecord>, RecordError> {
+        extract_internal_records(self, |record| match record {
+            InternalServerRecord::Spc(inner) => Some(inner.clone()),
+            _ => None,
+        })
+    }
+
+    fn to_observability_drift_records(
+        &self,
+    ) -> Result<Vec<ObservabilityMetricsInternal>, RecordError> {
+        extract_internal_records(self, |record| match record {
+            InternalServerRecord::Observability(inner) => Some(inner.clone()),
+            _ => None,
+        })
+    }
+
+    fn to_psi_drift_records(&self) -> Result<Vec<PsiInternalRecord>, RecordError> {
+        extract_internal_records(self, |record| match record {
+            InternalServerRecord::Psi(inner) => Some(inner.clone()),
+            _ => None,
+        })
+    }
+
+    fn to_custom_metric_drift_records(
+        &self,
+    ) -> Result<Vec<CustomMetricInternalRecord>, RecordError> {
+        extract_internal_records(self, |record| match record {
+            InternalServerRecord::Custom(inner) => Some(inner.clone()),
+            _ => None,
+        })
+    }
+
+    fn to_llm_drift_records(&self) -> Result<Vec<LLMDriftInternalRecord>, RecordError> {
+        extract_internal_records(self, |record| match record {
+            InternalServerRecord::LLMDrift(inner) => Some(*inner.record.clone()),
+            _ => None,
+        })
+    }
+
+    fn to_llm_metric_records(&self) -> Result<Vec<LLMMetricInternalRecord>, RecordError> {
+        extract_internal_records(self, |record| match record {
+            InternalServerRecord::LLMMetric(inner) => Some(inner.clone()),
+            _ => None,
+        })
+    }
+}
+
 // Helper function to extract records of a specific type
+fn extract_internal_records<T>(
+    server_records: &InternalServerRecords,
+    extractor: impl Fn(&InternalServerRecord) -> Option<T>,
+) -> Result<Vec<T>, RecordError> {
+    let mut records = Vec::new();
+
+    for record in &server_records.records {
+        if let Some(extracted) = extractor(record) {
+            records.push(extracted);
+        } else {
+            return Err(RecordError::InvalidDriftTypeError);
+        }
+    }
+
+    Ok(records)
+}
+
 fn extract_records<T>(
     server_records: &ServerRecords,
     extractor: impl Fn(&ServerRecord) -> Option<T>,
@@ -708,14 +872,6 @@ impl MessageRecord {
             MessageRecord::ServerRecords(_) => MessageType::Server,
             MessageRecord::TraceServerRecord(_) => MessageType::Trace,
             MessageRecord::TagServerRecord(_) => MessageType::Tag,
-        }
-    }
-
-    pub fn space(&self) -> String {
-        match self {
-            MessageRecord::ServerRecords(records) => records.space(),
-            MessageRecord::TraceServerRecord(records) => records.space.clone(),
-            _ => "__missing__".to_string(),
         }
     }
 

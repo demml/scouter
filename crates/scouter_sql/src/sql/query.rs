@@ -110,6 +110,11 @@ const GET_TRACE_BAGGAGE: &str = include_str!("scripts/trace/get_trace_baggage.sq
 const INSERT_TAG: &str = include_str!("scripts/tag/insert_tags.sql");
 const GET_TAGS: &str = include_str!("scripts/tag/get_tags.sql");
 
+// entity
+const GET_ENTITY_ID_FROM_UID: &str = include_str!("scripts/entity/get_id_from_uid.sql");
+const GET_ENTITY_ID_FROM_SPACE_NAME_VERSION_DRIFT_TYPE: &str =
+    include_str!("scripts/entity/get_id_from_space_name_version_drift_type.sql");
+
 #[allow(dead_code)]
 pub enum Queries {
     GetSpcFeatures,
@@ -196,6 +201,10 @@ pub enum Queries {
     // tags
     InsertTag,
     GetTags,
+
+    // entity
+    GetEntityIdFromUid,
+    GetEntityIdFromSpaceNameVersionDriftType,
 }
 
 impl Queries {
@@ -283,6 +292,12 @@ impl Queries {
             // tags
             Queries::InsertTag => SqlQuery::new(INSERT_TAG),
             Queries::GetTags => SqlQuery::new(GET_TAGS),
+
+            // entity
+            Queries::GetEntityIdFromUid => SqlQuery::new(GET_ENTITY_ID_FROM_UID),
+            Queries::GetEntityIdFromSpaceNameVersionDriftType => {
+                SqlQuery::new(GET_ENTITY_ID_FROM_SPACE_NAME_VERSION_DRIFT_TYPE)
+            }
         }
     }
 }

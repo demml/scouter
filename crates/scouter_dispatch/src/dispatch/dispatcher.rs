@@ -696,9 +696,9 @@ mod tests {
         };
 
         let config = SpcDriftConfig::new(
-            Some("name".to_string()),
-            Some("space".to_string()),
-            Some("1.0.0".to_string()),
+            "name",
+            "space",
+            "1.0.0",
             None,
             None,
             Some(alert_config),
@@ -728,9 +728,9 @@ mod tests {
         };
 
         let config = SpcDriftConfig::new(
-            Some("name".to_string()),
-            Some("space".to_string()),
-            Some("1.0.0".to_string()),
+            "name",
+            "space",
+            "1.0.0",
             None,
             None,
             Some(alert_config),
@@ -759,9 +759,9 @@ mod tests {
         };
 
         let config = SpcDriftConfig::new(
-            Some("name".to_string()),
-            Some("space".to_string()),
-            Some("1.0.0".to_string()),
+            "name",
+            "space",
+            "1.0.0",
             None,
             None,
             Some(alert_config),

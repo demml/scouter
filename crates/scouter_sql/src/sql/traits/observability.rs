@@ -16,19 +16,18 @@ pub trait ObservabilitySqlLogic {
     // # Arguments
     //
     // * `record` - A drift record to insert into the database
-    // * `table_name` - The name of the table to insert the record into
+    // * `entity_id` - entity associated with observability records
     //
     async fn insert_observability_record(
         pool: &Pool<Postgres>,
         record: &ObservabilityMetrics,
+        entity_id: &i32,
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertObservabilityRecord.get_query();
         let route_metrics = serde_json::to_value(&record.route_metrics)?;
 
         sqlx::query(&query.sql)
-            .bind(&record.space)
-            .bind(&record.name)
-            .bind(&record.version)
+            .bind(entity_id)
             .bind(record.request_count)
             .bind(record.error_count)
             .bind(route_metrics)
@@ -40,6 +39,7 @@ pub trait ObservabilitySqlLogic {
     async fn get_binned_observability_metrics(
         pool: &Pool<Postgres>,
         params: &ObservabilityMetricRequest,
+        entity_id: &i32,
     ) -> Result<Vec<ObservabilityResult>, SqlError> {
         let query = Queries::GetBinnedObservabilityMetrics.get_query();
 
@@ -50,9 +50,7 @@ pub trait ObservabilitySqlLogic {
         sqlx::query_as(&query.sql)
             .bind(bin)
             .bind(time_interval)
-            .bind(&params.name)
-            .bind(&params.space)
-            .bind(&params.version)
+            .bind(entity_id)
             .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError)

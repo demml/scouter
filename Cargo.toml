@@ -37,6 +37,7 @@ scouter-sql = { path = "crates/scouter_sql", version = "0.13.0" }
 scouter-tracing = { path = "crates/scouter_tracing", version = "0.13.0" }
 scouter-types = { path = "crates/scouter_types", version = "0.13.0" }
 scouter-mocks = { path = "crates/scouter_mocks" }
+test-utils = { path = "crates/test_utils" }
 
 anyhow = "1.*"
 axum = { version = "0.*", features = ["macros"] }
@@ -63,6 +64,7 @@ metrics = { version = "0.*", default-features = false }
 metrics-exporter-prometheus = { version = "0.*", default-features = false }
 mimalloc = { version = "*", features = ["secure"] }
 mockito = "1.*"
+mini-moka = "0.*"
 ndarray = { version = "0.16.1", features = ["rayon"] }
 ndarray-rand = "0.15"
 ndarray-stats = "0.*"

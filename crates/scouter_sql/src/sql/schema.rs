@@ -1,20 +1,16 @@
 use crate::sql::error::SqlError;
 use chrono::{DateTime, Utc};
-use potato_head::create_uuid7;
 use scouter_types::psi::DistributionData;
-use scouter_types::BoxedLLMDriftServerRecord;
-use scouter_types::LLMDriftServerRecord;
-use scouter_types::{
-    alert::Alert, get_utc_datetime, psi::FeatureBinProportionResult, BinnedMetric,
-    BinnedMetricStats, RecordType,
-};
-use scouter_types::{EntityType, LLMRecord};
+use scouter_types::BoxedLLMDriftInternalRecord;
+use scouter_types::DriftType;
+use scouter_types::LLMDriftInternalRecord;
+use scouter_types::{get_utc_datetime, BinnedMetric, BinnedMetricStats, RecordType};
 use semver::{BuildMetadata, Prerelease, Version};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use sqlx::{postgres::PgRow, Error, FromRow, Row};
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::str::FromStr;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriftRecord {
@@ -83,35 +79,11 @@ impl<'r> FromRow<'r, PgRow> for BinnedMetricWrapper {
     }
 }
 
-pub struct AlertWrapper(pub Alert);
-
-impl<'r> FromRow<'r, PgRow> for AlertWrapper {
-    fn from_row(row: &'r PgRow) -> Result<Self, Error> {
-        let alert_value: serde_json::Value = row.try_get("alert")?;
-        let alert: BTreeMap<String, String> =
-            serde_json::from_value(alert_value).unwrap_or_default();
-
-        Ok(AlertWrapper(Alert {
-            created_at: row.try_get("created_at")?,
-            name: row.try_get("name")?,
-            space: row.try_get("space")?,
-            version: row.try_get("version")?,
-            alert,
-            entity_name: row.try_get("entity_name")?,
-            id: row.try_get("id")?,
-            drift_type: row.try_get("drift_type")?,
-            active: row.try_get("active")?,
-        }))
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskRequest {
-    pub name: String,
-    pub space: String,
-    pub version: String,
+    pub entity_id: i32,
     pub profile: String,
-    pub drift_type: String,
+    pub drift_type: DriftType,
     pub previous_run: DateTime<Utc>,
     pub schedule: String,
     pub uid: String,
@@ -120,13 +92,12 @@ pub struct TaskRequest {
 impl<'r> FromRow<'r, PgRow> for TaskRequest {
     fn from_row(row: &'r PgRow) -> Result<Self, Error> {
         let profile: serde_json::Value = row.try_get("profile")?;
+        let drift_type: String = row.try_get("drift_type")?;
 
         Ok(TaskRequest {
-            name: row.try_get("name")?,
-            space: row.try_get("space")?,
-            version: row.try_get("version")?,
+            entity_id: row.try_get("entity_id")?,
             profile: profile.to_string(),
-            drift_type: row.try_get("drift_type")?,
+            drift_type: DriftType::from_str(&drift_type).map_err(|e| Error::Decode(e.into()))?,
             previous_run: row.try_get("previous_run")?,
             schedule: row.try_get("schedule")?,
             uid: row.try_get("uid")?,
@@ -182,49 +153,17 @@ pub struct BinProportion {
     pub proportion: f64,
 }
 
-#[derive(Debug)]
-pub struct FeatureBinProportionResultWrapper(pub FeatureBinProportionResult);
-
-impl<'r> FromRow<'r, PgRow> for FeatureBinProportionResultWrapper {
-    fn from_row(row: &'r PgRow) -> Result<Self, Error> {
-        // Extract the bin_proportions as a Vec of tuples
-        let bin_proportions_json: Vec<serde_json::Value> = row.try_get("bin_proportions")?;
-
-        // Convert the Vec of tuples into a Vec of BinProportion structs
-        let bin_proportions: Vec<BTreeMap<usize, f64>> = bin_proportions_json
-            .into_iter()
-            .map(|json| serde_json::from_value(json).unwrap_or_default())
-            .collect();
-
-        let overall_proportions_json: serde_json::Value = row.try_get("overall_proportions")?;
-        let overall_proportions: BTreeMap<usize, f64> =
-            serde_json::from_value(overall_proportions_json).unwrap_or_default();
-
-        Ok(FeatureBinProportionResultWrapper(
-            FeatureBinProportionResult {
-                feature: row.try_get("feature")?,
-                created_at: row.try_get("created_at")?,
-                bin_proportions,
-                overall_proportions,
-            },
-        ))
-    }
-}
 #[derive(Debug, Clone, FromRow)]
 pub struct Entity {
-    pub space: String,
-    pub name: String,
-    pub version: String,
+    pub entity_id: i32,
+    pub entity_uid: String,
     pub begin_timestamp: DateTime<Utc>,
     pub end_timestamp: DateTime<Utc>,
 }
 
 impl Entity {
     pub fn get_write_path(&self, record_type: &RecordType) -> String {
-        format!(
-            "{}/{}/{}/{}",
-            self.space, self.name, self.version, record_type
-        )
+        format!("{}/{}", self.entity_uid, record_type)
     }
 }
 
@@ -326,118 +265,15 @@ pub struct UpdateAlertResult {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
-pub struct LLMDriftServerSQLRecord {
-    pub uid: String,
-
-    pub created_at: chrono::DateTime<Utc>,
-
-    pub space: String,
-
-    pub name: String,
-
-    pub version: String,
-
-    pub prompt: Option<Value>,
-
-    pub context: Value,
-
-    pub score: Value,
-
-    pub status: String,
-
-    pub id: i64,
-
-    pub updated_at: Option<DateTime<Utc>>,
-
-    pub processing_started_at: Option<DateTime<Utc>>,
-
-    pub processing_ended_at: Option<DateTime<Utc>>,
-
-    pub processing_duration: Option<i32>,
-}
-
-impl LLMDriftServerSQLRecord {
-    /// Method use when server receives a record from the client
-    pub fn from_server_record(record: &LLMDriftServerRecord) -> Self {
-        LLMDriftServerSQLRecord {
-            created_at: record.created_at,
-            space: record.space.clone(),
-            name: record.name.clone(),
-            version: record.version.clone(),
-            prompt: record.prompt.clone(),
-            context: record.context.clone(),
-            score: record.score.clone(),
-            status: record.status.to_string(),
-            id: 0,               // This is a placeholder, as the ID will be set by the database
-            uid: create_uuid7(), // This is also a placeholder, as the UID will be set by the database
-            updated_at: None,
-            processing_started_at: None,
-            processing_ended_at: None,
-            processing_duration: None, // This will be set when the record is processed
-        }
-    }
-}
-
-impl From<LLMDriftServerSQLRecord> for LLMDriftServerRecord {
-    fn from(sql_record: LLMDriftServerSQLRecord) -> Self {
-        Self {
-            id: sql_record.id,
-            created_at: sql_record.created_at,
-            space: sql_record.space,
-            name: sql_record.name,
-            version: sql_record.version,
-            context: sql_record.context,
-            score: sql_record.score,
-            prompt: sql_record.prompt,
-            status: sql_record.status.parse().unwrap_or_default(), // Handle parsing appropriately
-            processing_started_at: sql_record.processing_started_at,
-            processing_ended_at: sql_record.processing_ended_at,
-            processing_duration: sql_record.processing_duration,
-            updated_at: sql_record.updated_at,
-            uid: sql_record.uid,
-        }
-    }
-}
-
 /// Converts a `PgRow` to a `BoxedLLMDriftServerRecord`
 /// Conversion is done by first converting the row to an `LLMDriftServerSQLRecord`
 /// and then converting that to an `LLMDriftServerRecord`.
-pub fn llm_drift_record_from_row(row: &PgRow) -> Result<BoxedLLMDriftServerRecord, SqlError> {
-    let sql_record = LLMDriftServerSQLRecord::from_row(row)?;
-    let record = LLMDriftServerRecord::from(sql_record);
+pub fn llm_drift_record_from_row(row: &PgRow) -> Result<BoxedLLMDriftInternalRecord, SqlError> {
+    let record = LLMDriftInternalRecord::from_row(row)?;
 
-    Ok(BoxedLLMDriftServerRecord {
+    Ok(BoxedLLMDriftInternalRecord {
         record: Box::new(record),
     })
-}
-
-pub fn llm_drift_metric_from_row(row: &PgRow) -> Result<BoxedLLMDriftServerRecord, SqlError> {
-    let sql_record = LLMDriftServerSQLRecord::from_row(row)?;
-    let record = LLMDriftServerRecord::from(sql_record);
-
-    Ok(BoxedLLMDriftServerRecord {
-        record: Box::new(record),
-    })
-}
-
-pub struct LLMRecordWrapper(pub LLMRecord);
-
-impl<'r> FromRow<'r, PgRow> for LLMRecordWrapper {
-    fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
-        let llm_record = LLMRecord {
-            uid: row.try_get("uid")?,
-            created_at: row.try_get("created_at")?,
-            space: row.try_get("space")?,
-            name: row.try_get("name")?,
-            version: row.try_get("version")?,
-            context: row.try_get("context")?,
-            prompt: row.try_get("prompt")?,
-            score: row.try_get("score")?,
-            entity_type: EntityType::LLM,
-        };
-        Ok(Self(llm_record))
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]

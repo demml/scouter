@@ -1,35 +1,27 @@
 WITH subquery1 AS (
     SELECT
         date_bin(($1 || ' minutes')::interval, created_at, TIMESTAMP '1970-01-01') as created_at,
-        name,
-        space,
+        entity_id,
         feature,
-        version,
         value
     FROM scouter.spc_drift
-    WHERE 
+    WHERE
         1=1
         AND created_at > CURRENT_TIMESTAMP - (interval '1 minute' * $2)
-        AND space = $4
-        AND name = $3
-        AND version = $5
+        AND entity_id = $3
     ),
 
     subquery2 AS (
     SELECT
         created_at,
-        name,
-        space,
+        entity_id,
         feature,
-        version,
         avg(value) as value
     FROM subquery1
-    GROUP BY 
+    GROUP BY
         created_at,
-        name,
-        space,
-        feature,
-        version
+        entity_id,
+        feature
 )
 
 SELECT
@@ -37,5 +29,5 @@ feature,
 array_agg(created_at ORDER BY created_at DESC) as created_at,
 array_agg(value ORDER BY created_at DESC) as values
 FROM subquery2
-GROUP BY 
+GROUP BY
 feature;

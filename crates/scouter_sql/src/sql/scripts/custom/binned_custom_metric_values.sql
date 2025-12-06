@@ -4,12 +4,10 @@ WITH subquery1 AS (
         metric,
         value
     FROM scouter.custom_drift
-    WHERE 
+    WHERE
         1=1
         AND created_at > CURRENT_TIMESTAMP - (interval '1 minute' * $2)
-        AND space = $4
-        AND name = $3
-        AND version = $5
+        AND entity_id = $3
     ),
 
 subquery2 AS (
@@ -19,7 +17,7 @@ subquery2 AS (
         avg(value) as average,
         stddev(value) as standard_dev
     FROM subquery1
-    GROUP BY 
+    GROUP BY
         created_at,
         metric
 ),
@@ -36,7 +34,7 @@ subquery3 AS (
     FROM subquery2
 )
 
-SELECT 
+SELECT
     metric,
     array_agg(created_at order by created_at desc) as created_at,
     array_agg(stats order by created_at desc) as stats

@@ -7,7 +7,7 @@ from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 from scouter.mock import MockConfig
 
 logger = RustyLogger.get_logger(
-    LoggingConfig(log_level=LogLevel.Info),
+    LoggingConfig(log_level=LogLevel.Debug),
 )
 
 

@@ -28,7 +28,7 @@ test.server:
 
 .PHONY: test.server.archive.llm
 test.server.archive.llm:
-	cargo test -p scouter-server test_data_archive_llm --all-features -- --nocapture --test-threads=1
+	cargo test -p scouter-server test_data_archive_llm_drift --all-features -- --nocapture --test-threads=1
 
 
 .PHONY: test.server.cloud
@@ -37,7 +37,7 @@ test.server.cloud: build.all_backends
 
 .PHONY: test.drift.executor
 test.drift.executor:
-	cargo test -p scouter-drift test_drift_executor_spc --all-features -- --nocapture --test-threads=1
+	cargo test -p scouter-drift test_drift_executor --all-features -- --nocapture --test-threads=1
 
 .PHONY: test.needs_sql
 test.needs_sql: test.sql test.server test.server.archive.llm test.drift.executor
@@ -70,6 +70,10 @@ test.unit: test.types test.dispatch test.drift test.profile
 .PHONY: test.kafka_events
 test.kafka_events:
 	cargo run --example kafka_integration --all-features -- --nocapture
+
+.PHONY: test.redis_events
+test.redis_events:
+	cargo run --example redis_integration --all-features -- --nocapture
 
 .PHONY: test.rabbitmq_events
 test.rabbitmq_events:

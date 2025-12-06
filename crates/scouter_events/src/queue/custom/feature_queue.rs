@@ -4,9 +4,7 @@ use core::result::Result::Ok;
 use scouter_types::MessageRecord;
 use scouter_types::Metric;
 use scouter_types::QueueExt;
-use scouter_types::{
-    custom::CustomDriftProfile, CustomMetricServerRecord, ServerRecord, ServerRecords,
-};
+use scouter_types::{custom::CustomDriftProfile, CustomMetricRecord, ServerRecord, ServerRecords};
 use std::collections::HashMap;
 use tracing::{error, instrument};
 pub struct CustomMetricFeatureQueue {
@@ -69,10 +67,8 @@ impl CustomMetricFeatureQueue {
             .filter(|(_, values)| !values.is_empty())
             .map(|(key, values)| {
                 let avg = values.iter().sum::<f64>() / values.len() as f64;
-                ServerRecord::Custom(CustomMetricServerRecord::new(
-                    self.drift_profile.config.space.clone(),
-                    self.drift_profile.config.name.clone(),
-                    self.drift_profile.config.version.clone(),
+                ServerRecord::Custom(CustomMetricRecord::new(
+                    self.drift_profile.config.uid.clone(),
                     key.clone(),
                     avg,
                 ))

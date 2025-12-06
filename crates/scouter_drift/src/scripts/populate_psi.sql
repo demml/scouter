@@ -1,6 +1,11 @@
 -- Insert psi profile into drift_profile
+INSERT INTO scouter.drift_entities (uid, id, space, name, version, drift_type)
+VALUES ('019ae1b4-3003-77c1-8eed-2ec005e85963', 1, 'scouter', 'model', '0.1.0', 'Psi')
+ON CONFLICT (space, name, version, drift_type) DO NOTHING;
+
+
 INSERT INTO scouter.drift_profile (created_at, updated_at, name, space, version, profile, drift_type, active, schedule,
-                                   next_run, previous_run)
+                                   next_run, previous_run, entity_id)
 VALUES (timezone('utc', NOW()),
         timezone('utc', NOW()),
         'model',
@@ -281,6 +286,7 @@ VALUES (timezone('utc', NOW()),
               "space": "scouter",
               "name": "model",
               "version": "0.1.0",
+              "uid": "019ae1b4-3003-77c1-8eed-2ec005e85963",
               "binning_strategy": {
                  "QuantileBinning": {
                     "num_bins": 10
@@ -315,7 +321,9 @@ VALUES (timezone('utc', NOW()),
         TRUE,
         '0 0 0 * * *',
         timezone('utc', NOW() - INTERVAL '1 days'),
-        timezone('utc', NOW() - INTERVAL '2 days'));
+        timezone('utc', NOW() - INTERVAL '2 days'),
+        1
+        );
 
 
 -- populate psi_drift table with dummy data
@@ -324,9 +332,7 @@ $$
     DECLARE
         created_at_1 timestamp := timezone('utc', CURRENT_TIMESTAMP - INTERVAL '1 days') +
                                   (RANDOM() * INTERVAL '1 minutes') + (RANDOM() * INTERVAL '1 second');
-        name         text      := 'model';
-        space        text      := 'scouter';
-        version      text      := '0.1.0';
+        entity_id    integer      := 1;
         feature      text;
         bin_id       integer;
         bin_count_calc INTEGER;
@@ -344,8 +350,8 @@ $$
                                           THEN bin_count * skew_factor  -- Use base value
                                       ELSE bin_count
                     END;
-                INSERT INTO scouter.psi_drift (created_at, name, space, version, feature, bin_id, bin_count)
-                VALUES (created_at_1, name, space, version, feature, bin_id, bin_count_calc);
+                INSERT INTO scouter.psi_drift (created_at, entity_id, feature, bin_id, bin_count)
+                VALUES (created_at_1, entity_id, feature, bin_id, bin_count_calc);
             END LOOP;
 
         feature := 'feature_2';
@@ -357,8 +363,8 @@ $$
                                           THEN bin_count * skew_factor  -- Use base value
                                       ELSE bin_count
                     END;
-                INSERT INTO scouter.psi_drift (created_at, name, space, version, feature, bin_id, bin_count)
-                VALUES (created_at_1, name, space, version, feature, bin_id, bin_count_calc);
+                INSERT INTO scouter.psi_drift (created_at, entity_id, feature, bin_id, bin_count)
+                VALUES (created_at_1, entity_id, feature, bin_id, bin_count_calc);
             END LOOP;
 
         feature := 'feature_3';
@@ -370,8 +376,8 @@ $$
                                           THEN bin_count * skew_factor  -- Use base value
                                       ELSE bin_count
                     END;
-                INSERT INTO scouter.psi_drift (created_at, name, space, version, feature, bin_id, bin_count)
-                VALUES (created_at_1, name, space, version, feature, bin_id, bin_count_calc);
+                INSERT INTO scouter.psi_drift (created_at, entity_id, feature, bin_id, bin_count)
+                VALUES (created_at_1, entity_id, feature, bin_id, bin_count_calc);
                 -- ...
             END LOOP;
     END
@@ -381,9 +387,7 @@ $$;
 DO
 $$
     DECLARE
-        name         text      := 'model';
-        space        text      := 'scouter';
-        version      text      := '0.1.0';
+        entity_id    integer      := 1;
         feature      text;
         bin_id       integer;
         bin_count_calc INTEGER;
@@ -403,8 +407,8 @@ $$
                                      THEN bin_count * skew_factor
                                  ELSE bin_count
                     END;
-                INSERT INTO scouter.psi_drift (created_at, name, space, version, feature, bin_id, bin_count)
-                VALUES (created_at_2, name, space, version, feature, bin_id, bin_count_calc);
+                INSERT INTO scouter.psi_drift (created_at, entity_id, feature, bin_id, bin_count)
+                VALUES (created_at_2, entity_id, feature, bin_id, bin_count_calc);
                 created_at_2 := created_at_2 + (RANDOM() * INTERVAL '1 second');
             END LOOP;
 
@@ -417,8 +421,8 @@ $$
                                           THEN bin_count * skew_factor
                                       ELSE bin_count
                     END;
-                INSERT INTO scouter.psi_drift (created_at, name, space, version, feature, bin_id, bin_count)
-                VALUES (created_at_2, name, space, version, feature, bin_id, bin_count_calc);
+                INSERT INTO scouter.psi_drift (created_at, entity_id, feature, bin_id, bin_count)
+                VALUES (created_at_2, entity_id, feature, bin_id, bin_count_calc);
                 created_at_2 := created_at_2 + (RANDOM() * INTERVAL '1 second');
             END LOOP;
 
@@ -431,8 +435,8 @@ $$
                                           THEN bin_count * skew_factor
                                       ELSE bin_count
                     END;
-                INSERT INTO scouter.psi_drift (created_at, name, space, version, feature, bin_id, bin_count)
-                VALUES (created_at_2, name, space, version, feature, bin_id, bin_count_calc);
+                INSERT INTO scouter.psi_drift (created_at, entity_id, feature, bin_id, bin_count)
+                VALUES (created_at_2, entity_id, feature, bin_id, bin_count_calc);
                 created_at_2 := created_at_2 + (RANDOM() * INTERVAL '1 second');
             END LOOP;
     END
@@ -441,9 +445,7 @@ $$;
 DO
 $$
     DECLARE
-        name         text      := 'model';
-        space        text      := 'scouter';
-        version      text      := '0.1.0';
+        entity_id    integer      := 1;
         feature      text;
         bin_id       integer;
         bin_count_calc INTEGER;
@@ -463,8 +465,8 @@ $$
                                      THEN bin_count * skew_factor
                                  ELSE bin_count
                     END;
-                INSERT INTO scouter.psi_drift (created_at, name, space, version, feature, bin_id, bin_count)
-                VALUES (created_at_3, name, space, version, feature, bin_id, bin_count_calc);
+                INSERT INTO scouter.psi_drift (created_at, entity_id, feature, bin_id, bin_count)
+                VALUES (created_at_3, entity_id, feature, bin_id, bin_count_calc);
                 created_at_3 := created_at_3 + (RANDOM() * INTERVAL '1 second');
             END LOOP;
 
@@ -477,8 +479,8 @@ $$
                                           THEN bin_count * skew_factor
                                       ELSE bin_count
                     END;
-                INSERT INTO scouter.psi_drift (created_at, name, space, version, feature, bin_id, bin_count)
-                VALUES (created_at_3, name, space, version, feature, bin_id, bin_count_calc);
+                INSERT INTO scouter.psi_drift (created_at, entity_id, feature, bin_id, bin_count)
+                VALUES (created_at_3, entity_id, feature, bin_id, bin_count_calc);
                 created_at_3 := created_at_3 + (RANDOM() * INTERVAL '1 second');
             END LOOP;
 
@@ -491,8 +493,8 @@ $$
                                           THEN bin_count * skew_factor
                                       ELSE bin_count
                     END;
-                INSERT INTO scouter.psi_drift (created_at, name, space, version, feature, bin_id, bin_count)
-                VALUES (created_at_3, name, space, version, feature, bin_id, bin_count_calc);
+                INSERT INTO scouter.psi_drift (created_at, entity_id, feature, bin_id, bin_count)
+                VALUES (created_at_3, entity_id, feature, bin_id, bin_count_calc);
                 created_at_3 := created_at_3 + (RANDOM() * INTERVAL '1 second');
             END LOOP;
     END

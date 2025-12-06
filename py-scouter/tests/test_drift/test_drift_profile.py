@@ -12,7 +12,7 @@ def test_drift_profile_methods(array: np.ndarray):
     assert isinstance(profile_dict, dict)
     assert profile_dict["features"]["feature_0"]["center"] == pytest.approx(1.5, 0.1)
 
-    print(profile_dict)
+    profile_dict.__str__()
 
     new_profile = SpcDriftProfile.model_validate(profile_dict)
 

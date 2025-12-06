@@ -1,42 +1,34 @@
 WITH feature_bin_total AS (
-     SELECT 
+     SELECT
         date_bin(($1 || ' minutes')::interval, created_at, TIMESTAMP '1970-01-01') as created_at,
-        name,
-        space,
-        version,
+        entity_id,
         feature,
         bin_id,
         SUM(bin_count) AS bin_total_count
     FROM scouter.psi_drift
-    WHERE 
+    WHERE
         1=1
         AND created_at > CURRENT_TIMESTAMP - (interval '1 minute' * $2)
-        AND space = $4
-        AND name = $3
-        AND version = $5
-    GROUP BY 1, 2, 3, 4, 5, 6
+        AND entity_id = $3
+    GROUP BY 1, 2, 3, 4
 ),
 
 feature_total AS (
-    SELECT 
+    SELECT
         date_bin(($1 || ' minutes')::interval, created_at, TIMESTAMP '1970-01-01') as created_at,
-        name,
-        space,
-        version,
+        entity_id,
         feature,
         SUM(bin_count) AS feature_total_count
     FROM scouter.psi_drift
-    WHERE 
+    WHERE
         1=1
         AND created_at > CURRENT_TIMESTAMP - (interval '1 minute' * $2)
-        AND space = $4
-        AND name = $3
-        AND version = $5
-    GROUP BY 1, 2, 3, 4, 5
+        AND entity_id = $3
+    GROUP BY 1, 2, 3
 ),
 
 feature_bin_proportions AS (
-    SELECT 
+    SELECT
         b.created_at,
         b.feature,
         f.feature_total_count,
@@ -44,15 +36,13 @@ feature_bin_proportions AS (
         b.bin_total_count::decimal / f.feature_total_count AS proportion
     FROM feature_bin_total b
     JOIN feature_total f
-        ON f.feature = b.feature 
-        AND f.version = b.version 
-        AND f.space = b.space
-        AND f.name = b.name
+        ON f.feature = b.feature
+        AND f.entity_id = b.entity_id
         AND f.created_at = b.created_at
 ),
 
 overall_agg as (
-    SELECT 
+    SELECT
         feature,
         jsonb_object_agg(bin_id, proportion::FLOAT8) as bins
     FROM feature_bin_proportions
@@ -61,7 +51,7 @@ overall_agg as (
 ),
 
 bin_agg as (
-	SELECT 
+	SELECT
 	    feature,
 	    created_at,
 	    jsonb_object_agg(
@@ -70,8 +60,8 @@ bin_agg as (
 	FROM feature_bin_proportions
 	WHERE 1=1
 	    AND feature_total_count > 100
-	GROUP BY 
-		feature, 
+	GROUP BY
+		feature,
 		created_at
 ),
 
@@ -85,7 +75,7 @@ WHERE 1=1
 GROUP BY feature
 )
 
-SELECT 
+SELECT
     feature_agg.feature,
     created_at,
     bin_proportions,

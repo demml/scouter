@@ -47,13 +47,12 @@ def test_spc_monitor_pandas_kafka(
 
     binned_records: BinnedSpcFeatureMetrics = client.get_binned_drift(
         DriftRequest(
-            name=profile.config.name,
+            uid=profile.config.uid,
             space=profile.config.space,
-            version=profile.config.version,
             time_interval=TimeInterval.FifteenMinutes,
             max_data_points=1000,
-            drift_type=DriftType.Spc,
-        )
+        ),
+        DriftType.Spc,
     )
 
     assert len(binned_records.features["feature_0"].values) > 0

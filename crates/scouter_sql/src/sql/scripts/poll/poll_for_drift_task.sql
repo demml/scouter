@@ -1,27 +1,26 @@
 WITH selected_task AS (
-    SELECT 
+    SELECT
         uid,
-        name, 
-        space, 
-        version, 
-        profile, 
-        drift_type, 
-        previous_run, 
+        entity_id,
+        profile,
+        drift_type,
+        previous_run,
         schedule,
         next_run
     FROM scouter.drift_profile
-    WHERE active 
+    WHERE active
         AND next_run < CURRENT_TIMESTAMP
-        AND status = 'pending'  -- Add status column
+        AND status = 'pending'
     ORDER BY next_run ASC
-    LIMIT 1 
+    LIMIT 1
     FOR UPDATE SKIP LOCKED
 )
 
 UPDATE scouter.drift_profile dp
-SET 
+SET
     status = 'processing',
     processing_started_at = CURRENT_TIMESTAMP
 FROM selected_task
-WHERE dp.uid = selected_task.uid
+WHERE dp.entity_id = selected_task.entity_id
+  AND dp.drift_type = selected_task.drift_type
 RETURNING dp.*;

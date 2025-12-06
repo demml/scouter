@@ -1,18 +1,13 @@
 SELECT
-created_at,
-name,
-space,
-version,
-entity_name,
-alert,
-id,
-drift_type,
-active
+    id,
+    entity_id,
+    entity_name,
+    alert,
+    active,
+    created_at,
+    updated_at
 FROM scouter.drift_alert
 WHERE
-    1=1
-    AND ($4 IS NULL OR created_at >= $4)
-    AND space = $3
-    AND name = $2
-    AND version = $1
-    
+    entity_id = $1
+    AND ($2 IS NULL OR created_at >= $2)
+ORDER BY created_at DESC

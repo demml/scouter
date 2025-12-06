@@ -46,7 +46,7 @@ pub async fn insert_drift_profile(
 
     // validate profile is correct
     // this will be used to validate different versions of the drift profile in the future
-    let body = match DriftProfile::from_str(request.drift_type, request.profile) {
+    let body = match DriftProfile::from_str(&request.drift_type, &request.profile) {
         Ok(profile) => profile,
         Err(e) => {
             error!("Failed to parse drift profile: {:?}", e);
@@ -62,26 +62,38 @@ pub async fn insert_drift_profile(
     // get versions
     let base_args = body.get_base_args();
 
-    let version = match PostgresClient::get_next_profile_version(
-        &data.db_pool,
-        &base_args,
-        request.version_request.version_type,
-        request.version_request.pre_tag,
-        request.version_request.build_tag,
-    )
-    .await
-    {
-        Ok(version) => version,
-        Err(e) => {
-            error!("Failed to get next profile version: {:?}", e);
+    debug!("Base args for profile insertion: {:?}", &base_args);
+
+    let version_request = match request.version_request {
+        Some(vr) => vr,
+        None => {
+            error!("Version request is missing");
             return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ScouterServerError::new(format!(
-                    "Failed to get next profile version: {e:?}",
-                ))),
+                StatusCode::BAD_REQUEST,
+                Json(ScouterServerError::new(
+                    "Version request is required".to_string(),
+                )),
             ));
         }
     };
+
+    let version =
+        match PostgresClient::get_next_profile_version(&data.db_pool, &base_args, version_request)
+            .await
+        {
+            Ok(version) => version,
+            Err(e) => {
+                error!("Failed to get next profile version: {:?}", e);
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ScouterServerError::new(format!(
+                        "Failed to get next profile version: {e:?}",
+                    ))),
+                ));
+            }
+        };
+
+    debug!("Determined profile version: {:?}", &version);
 
     match PostgresClient::insert_drift_profile(
         &data.db_pool,
@@ -93,7 +105,8 @@ pub async fn insert_drift_profile(
     )
     .await
     {
-        Ok(_) => Ok(Json(RegisteredProfileResponse {
+        Ok(entity_uid) => Ok(Json(RegisteredProfileResponse {
+            uid: entity_uid,
             space: base_args.space,
             name: base_args.name,
             version: version.to_string(),
@@ -135,7 +148,7 @@ pub async fn update_drift_profile(
     }
     // validate profile is correct
     // this will be used to validate different versions of the drift profile in the future
-    let body = match DriftProfile::from_str(body.drift_type, body.profile) {
+    let body = match DriftProfile::from_str(&body.drift_type, &body.profile) {
         Ok(profile) => profile,
         Err(e) => {
             error!("Failed to parse drift profile: {:?}", e);
@@ -148,7 +161,9 @@ pub async fn update_drift_profile(
         }
     };
 
-    match PostgresClient::update_drift_profile(&data.db_pool, &body).await {
+    let entity_id = data.get_entity_id_for_request(body.uid()).await?;
+
+    match PostgresClient::update_drift_profile(&data.db_pool, &body, &entity_id).await {
         Ok(_) => Ok(Json(ScouterResponse {
             status: "success".to_string(),
             message: "Drift profile updated successfully".to_string(),
@@ -190,8 +205,15 @@ pub async fn get_profile(
     }
 
     debug!("Getting drift profile: {:?}", &params);
-
-    let profile_value = match PostgresClient::get_drift_profile(&data.db_pool, &params).await {
+    let entity_id = data
+        .get_entity_id_for_request_from_args(
+            &params.space,
+            &params.name,
+            &params.version,
+            &params.drift_type,
+        )
+        .await?;
+    let profile_value = match PostgresClient::get_drift_profile(&data.db_pool, &entity_id).await {
         Ok(Some(value)) => value,
         Ok(None) => {
             return Err((

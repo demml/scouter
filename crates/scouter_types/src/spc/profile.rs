@@ -1,7 +1,7 @@
 #![allow(clippy::useless_conversion)]
 use crate::error::{ProfileError, TypeError};
 use crate::spc::alert::SpcAlertConfig;
-use crate::util::{json_to_pyobject, pyobject_to_json, scouter_version};
+use crate::util::{json_to_pyobject, pyobject_to_json, scouter_version, ConfigExt};
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FeatureMap, FileName, ProfileArgs, ProfileBaseArgs,
     ProfileRequest, PyHelperFuncs, MISSING,
@@ -9,6 +9,7 @@ use crate::{
 
 use chrono::{DateTime, Utc};
 use core::fmt::Debug;
+use potato_head::create_uuid7;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
@@ -18,7 +19,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use tracing::debug;
 
 /// Python class for a monitoring profile
 ///
@@ -92,6 +92,9 @@ pub struct SpcDriftConfig {
     pub version: String,
 
     #[pyo3(get, set)]
+    pub uid: String,
+
+    #[pyo3(get, set)]
     pub alert_config: SpcAlertConfig,
 
     #[pyo3(get)]
@@ -103,6 +106,20 @@ pub struct SpcDriftConfig {
     pub drift_type: DriftType,
 }
 
+impl ConfigExt for SpcDriftConfig {
+    fn space(&self) -> &str {
+        &self.space
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn version(&self) -> &str {
+        &self.version
+    }
+}
+
 impl Default for SpcDriftConfig {
     fn default() -> Self {
         Self {
@@ -110,6 +127,7 @@ impl Default for SpcDriftConfig {
             sample: true,
             space: MISSING.to_string(),
             name: MISSING.to_string(),
+            uid: MISSING.to_string(),
             version: DEFAULT_VERSION.to_string(),
             alert_config: SpcAlertConfig::default(),
             feature_map: FeatureMap::default(),
@@ -126,11 +144,11 @@ fn default_drift_type() -> DriftType {
 #[allow(clippy::too_many_arguments)]
 impl SpcDriftConfig {
     #[new]
-    #[pyo3(signature = (space=None, name=None, version=None, sample=None, sample_size=None, alert_config=None, config_path=None))]
+    #[pyo3(signature = (space=MISSING, name=MISSING, version=DEFAULT_VERSION, sample=None, sample_size=None, alert_config=None, config_path=None))]
     pub fn new(
-        space: Option<String>,
-        name: Option<String>,
-        version: Option<String>,
+        space: &str,
+        name: &str,
+        version: &str,
         sample: Option<bool>,
         sample_size: Option<usize>,
         alert_config: Option<SpcAlertConfig>,
@@ -141,24 +159,17 @@ impl SpcDriftConfig {
             return config;
         }
 
-        let name = name.unwrap_or(MISSING.to_string());
-        let space = space.unwrap_or(MISSING.to_string());
-
-        if name == MISSING || space == MISSING {
-            debug!("Name and space were not provided. Defaulting to __missing__");
-        }
-
         let sample = sample.unwrap_or(true);
         let sample_size = sample_size.unwrap_or(25);
-        let version = version.unwrap_or("0.1.0".to_string());
         let alert_config = alert_config.unwrap_or_default();
 
         Ok(Self {
             sample_size,
             sample,
-            name,
-            space,
-            version,
+            name: name.to_string(),
+            space: space.to_string(),
+            version: version.to_string(),
+            uid: create_uuid7(),
             alert_config,
             feature_map: FeatureMap::default(),
             drift_type: DriftType::Spc,
@@ -196,12 +207,13 @@ impl SpcDriftConfig {
     // * `alert_config` - The alerting configuration to use
     //
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (space=None, name=None, version=None, sample=None, sample_size=None, alert_config=None))]
+    #[pyo3(signature = (space=None, name=None, version=None, uid=None, sample=None, sample_size=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
         space: Option<String>,
         name: Option<String>,
         version: Option<String>,
+        uid: Option<String>,
         sample: Option<bool>,
         sample_size: Option<usize>,
         alert_config: Option<SpcAlertConfig>,
@@ -228,6 +240,10 @@ impl SpcDriftConfig {
 
         if alert_config.is_some() {
             self.alert_config = alert_config.ok_or(TypeError::MissingAlertConfigError)?;
+        }
+
+        if uid.is_some() {
+            self.uid = uid.ok_or(TypeError::MissingUidError)?;
         }
 
         Ok(())
@@ -354,18 +370,19 @@ impl SpcDriftProfile {
     // * `alert_config` - The alerting configuration to use
     //
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (space=None, name=None, version=None, sample=None, sample_size=None, alert_config=None))]
+    #[pyo3(signature = (space=None, name=None, version=None, uid=None,sample=None, sample_size=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
         space: Option<String>,
         name: Option<String>,
         version: Option<String>,
+        uid: Option<String>,
         sample: Option<bool>,
         sample_size: Option<usize>,
         alert_config: Option<SpcAlertConfig>,
     ) -> Result<(), ProfileError> {
         self.config
-            .update_config_args(space, name, version, sample, sample_size, alert_config)
+            .update_config_args(space, name, version, uid, sample, sample_size, alert_config)
     }
 
     /// Create a profile request from the profile
@@ -380,19 +397,34 @@ impl SpcDriftProfile {
             space: self.config.space.clone(),
             profile: self.model_dump_json(),
             drift_type: self.config.drift_type.clone(),
-            version_request: VersionRequest {
+            version_request: Some(VersionRequest {
                 version,
                 version_type: VersionType::Minor,
                 pre_tag: None,
                 build_tag: None,
-            },
+            }),
             active: false,
             deactivate_others: false,
         })
     }
+
+    #[getter]
+    pub fn uid(&self) -> String {
+        self.config.uid.clone()
+    }
+
+    #[setter]
+    pub fn set_uid(&mut self, uid: String) {
+        self.config.uid = uid;
+    }
 }
 
 impl ProfileBaseArgs for SpcDriftProfile {
+    type Config = SpcDriftConfig;
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
     /// Get the base arguments for the profile (convenience method on the server)
     fn get_base_args(&self) -> ProfileArgs {
         ProfileArgs {
@@ -419,17 +451,17 @@ mod tests {
     #[test]
     fn test_drift_config() {
         let mut drift_config =
-            SpcDriftConfig::new(None, None, None, None, None, None, None).unwrap();
+            SpcDriftConfig::new(MISSING, MISSING, DEFAULT_VERSION, None, None, None, None).unwrap();
         assert_eq!(drift_config.sample_size, 25);
         assert!(drift_config.sample);
         assert_eq!(drift_config.name, "__missing__");
         assert_eq!(drift_config.space, "__missing__");
-        assert_eq!(drift_config.version, "0.1.0");
+        assert_eq!(drift_config.version, "0.0.0");
         assert_eq!(drift_config.alert_config, SpcAlertConfig::default());
 
         // update
         drift_config
-            .update_config_args(None, Some("test".to_string()), None, None, None, None)
+            .update_config_args(None, Some("test".to_string()), None, None, None, None, None)
             .unwrap();
 
         assert_eq!(drift_config.name, "test");

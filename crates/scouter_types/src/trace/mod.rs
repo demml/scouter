@@ -41,11 +41,7 @@ pub struct TraceRecord {
     #[pyo3(get)]
     pub trace_id: String,
     #[pyo3(get)]
-    pub space: String,
-    #[pyo3(get)]
-    pub name: String,
-    #[pyo3(get)]
-    pub version: String,
+    pub service_name: String,
     #[pyo3(get)]
     pub scope: String,
     #[pyo3(get)]
@@ -149,12 +145,6 @@ pub struct TraceSpanRecord {
     #[pyo3(get)]
     pub parent_span_id: Option<String>,
     #[pyo3(get)]
-    pub space: String,
-    #[pyo3(get)]
-    pub name: String,
-    #[pyo3(get)]
-    pub version: String,
-    #[pyo3(get)]
     pub scope: String,
     #[pyo3(get)]
     pub span_name: String,
@@ -180,6 +170,8 @@ pub struct TraceSpanRecord {
     pub label: Option<String>,
     pub input: Value,
     pub output: Value,
+    #[pyo3(get)]
+    pub service_name: String,
 }
 
 #[pymethods]
@@ -350,9 +342,6 @@ pub trait TraceRecordExt {
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct TraceServerRecord {
-    pub space: String,
-    pub name: String,
-    pub version: String,
     pub request: ExportTraceServiceRequest,
 }
 
@@ -463,19 +452,15 @@ impl TraceServerRecord {
         span: &Span,
         scope_name: &str,
         attributes: &Vec<Attribute>,
-        space: &str,
-        name: &str,
-        version: &str,
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
         duration_ms: i64,
+        service_name: String,
     ) -> Result<TraceRecord, RecordError> {
         Ok(TraceRecord {
             created_at: Self::get_trace_start_time_attribute(attributes, &start_time),
             trace_id: trace_id.to_string(),
-            space: space.to_owned(),
-            name: name.to_owned(),
-            version: version.to_owned(),
+            service_name,
             scope: scope_name.to_string(),
             trace_state: span.trace_state.clone(),
             start_time,
@@ -513,6 +498,22 @@ impl TraceServerRecord {
             "Trace start time attribute not found or invalid, falling back to span start_time"
         );
         *start_time
+    }
+
+    pub fn get_service_name_attribute(attributes: &Vec<Attribute>, default: &str) -> String {
+        for attr in attributes {
+            if attr.key == SERVICE_NAME {
+                if let Value::String(s) = &attr.value {
+                    return s.clone();
+                }
+            }
+        }
+
+        tracing::warn!(
+            "Service name attribute not found, falling back to default: {}",
+            default
+        );
+        default.to_string()
     }
 
     pub fn convert_to_baggage_records(
@@ -573,12 +574,10 @@ impl TraceServerRecord {
         span: &Span,
         attributes: &Vec<Attribute>,
         scope_name: &str,
-        space: &str,
-        name: &str,
-        version: &str,
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
         duration_ms: i64,
+        service_name: String,
     ) -> Result<TraceSpanRecord, RecordError> {
         // get parent span id (can be empty)
         let parent_span_id = if !span.parent_span_id.is_empty() {
@@ -597,9 +596,7 @@ impl TraceServerRecord {
             start_time,
             end_time,
             duration_ms,
-            space: space.to_owned(),
-            name: name.to_owned(),
-            version: version.to_owned(),
+            service_name,
             scope: scope_name.to_string(),
             span_name: span.name.clone(),
             span_kind: Self::span_kind_to_string(span.kind),
@@ -636,10 +633,6 @@ impl TraceServerRecord {
         let mut span_records: Vec<TraceSpanRecord> = Vec::with_capacity(estimated_capacity);
         let mut baggage_records: Vec<TraceBaggageRecord> = Vec::new();
 
-        let space = &self.space;
-        let name = &self.name;
-        let version = &self.version;
-
         for resource_span in resource_spans {
             for scope_span in &resource_span.scope_spans {
                 // Pre-compute scope name and attributes to avoid repeated work
@@ -649,6 +642,7 @@ impl TraceServerRecord {
                     let attributes = Self::attributes_to_json_array(&span.attributes)?;
                     let trace_id = hex::encode(&span.trace_id);
                     let span_id = hex::encode(&span.span_id);
+                    let service_name = Self::get_service_name_attribute(&attributes, "unknown");
 
                     // no need to recalculate for every record type
                     let (start_time, end_time, duration_ms) =
@@ -661,12 +655,10 @@ impl TraceServerRecord {
                         span,
                         scope_name,
                         &attributes,
-                        space,
-                        name,
-                        version,
                         start_time,
                         end_time,
                         duration_ms,
+                        service_name.clone(),
                     )?);
 
                     // SpanRecord for insert
@@ -676,12 +668,10 @@ impl TraceServerRecord {
                         span,
                         &attributes,
                         scope_name,
-                        space,
-                        name,
-                        version,
                         start_time,
                         end_time,
                         duration_ms,
+                        service_name.clone(),
                     )?);
 
                     // BaggageRecords for insert

@@ -542,8 +542,26 @@ pub struct ProfileArgs {
 
 // trait to implement on all profile types
 pub trait ProfileBaseArgs {
+    type Config: ConfigExt;
+
+    fn config(&self) -> &Self::Config;
     fn get_base_args(&self) -> ProfileArgs;
     fn to_value(&self) -> serde_json::Value;
+    fn space(&self) -> &str {
+        self.config().space()
+    }
+    fn name(&self) -> &str {
+        self.config().name()
+    }
+    fn version(&self) -> &str {
+        self.config().version()
+    }
+}
+
+pub trait ConfigExt {
+    fn space(&self) -> &str;
+    fn name(&self) -> &str;
+    fn version(&self) -> &str;
 }
 
 pub trait ValidateAlertConfig {
@@ -658,8 +676,16 @@ impl Status {
     }
 }
 
-impl FromStr for Status {
-    type Err = TypeError;
+impl TryFrom<String> for Status {
+    type Error = String;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        s.parse()
+    }
+}
+
+impl std::str::FromStr for Status {
+    type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
@@ -668,7 +694,7 @@ impl FromStr for Status {
             "processing" => Ok(Status::Processing),
             "processed" => Ok(Status::Processed),
             "failed" => Ok(Status::Failed),
-            _ => Err(TypeError::InvalidStatusError(s.to_string())),
+            _ => Err(format!("Unknown status: {}", s)),
         }
     }
 }

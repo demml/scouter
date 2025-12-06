@@ -57,13 +57,12 @@ def test_psi_monitor_pandas_http(
 
     binned_records: BinnedPsiFeatureMetrics = client.get_binned_drift(
         DriftRequest(
-            name=profile.config.name,
+            uid=profile.config.uid,
             space=profile.config.space,
-            version=profile.config.version,
             time_interval=TimeInterval.FifteenMinutes,
             max_data_points=1000,
-            drift_type=DriftType.Psi,
-        )
+        ),
+        DriftType.Psi,
     )
 
     assert binned_records is not None

@@ -1,10 +1,8 @@
+-- Updated to accept service_name and resolve to service_id internally
 SELECT
     trace_id,
-    space,
-    name,
-    version,
-    scope,
     service_name,
+    scope,
     root_operation,
     start_time,
     end_time,
@@ -16,16 +14,13 @@ SELECT
     error_count,
     created_at
 FROM scouter.get_traces_paginated(
-    $1,  -- p_space
-    $2,  -- p_name
-    $3,  -- p_version
-    $4,  -- p_service_name
-    $5,  -- p_has_errors
-    $6,  -- p_status_code
-    $7,  -- p_start_time
-    $8,  -- p_end_time
-    $9,  -- p_limit
-    $10, -- p_cursor_created_at
-    $11, -- p_cursor_trace_id
-    $12  -- p_direction
+    $1,  -- p_service_name
+    $2,  -- p_has_errors
+    $3,  -- p_status_code
+    $4,  -- p_start_time
+    $5,  -- p_end_time
+    $6,  -- p_limit
+    $7,  -- p_cursor_created_at
+    $8,  -- p_cursor_trace_id
+    $9  -- p_direction
 );

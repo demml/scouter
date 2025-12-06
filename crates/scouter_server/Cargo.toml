@@ -20,6 +20,7 @@ scouter-dispatch = { workspace = true }
 scouter-drift = { workspace = true, features = ["sql"] }
 scouter-observability = { workspace = true }
 scouter-sql = { workspace = true }
+test-utils = { workspace = true }
 
 anyhow = {workspace = true}
 axum = {workspace = true}
