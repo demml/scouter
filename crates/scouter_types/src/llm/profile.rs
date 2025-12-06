@@ -387,6 +387,11 @@ impl LLMDriftProfile {
         Ok(dict.into())
     }
 
+    #[getter]
+    pub fn uid(&self) -> String {
+        self.config.uid.clone()
+    }
+
     #[pyo3(signature = (path=None))]
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ProfileError> {
         Ok(PyHelperFuncs::save_to_json(

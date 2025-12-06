@@ -4454,6 +4454,10 @@ class SpcDriftConfig:
 
 class SpcDriftProfile:
     @property
+    def uid(self) -> str:
+        """Return the unique identifier for the drift profile"""
+
+    @property
     def scouter_version(self) -> str:
         """Return scouter version used to create DriftProfile"""
 
@@ -4880,6 +4884,10 @@ class PsiDriftConfig:
 
 class PsiDriftProfile:
     @property
+    def uid(self) -> str:
+        """Return the unique identifier for the drift profile"""
+
+    @property
     def scouter_version(self) -> str:
         """Return scouter version used to create DriftProfile"""
 
@@ -5238,6 +5246,10 @@ class CustomDriftProfile:
         """
 
     @property
+    def uid(self) -> str:
+        """Return the unique identifier for the drift profile"""
+
+    @property
     def config(self) -> CustomMetricDriftConfig:
         """Return the drift config"""
 
@@ -5559,6 +5571,10 @@ class LLMDriftProfile:
             - Initial workflow tasks must include "input" and/or "response" parameters
             - All metric names must match corresponding workflow task names
         """
+
+    @property
+    def uid(self) -> str:
+        """Return the unique identifier for the drift profile"""
 
     @property
     def config(self) -> LLMDriftConfig:

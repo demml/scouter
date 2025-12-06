@@ -243,6 +243,11 @@ impl CustomDriftProfile {
         )?)
     }
 
+    #[getter]
+    pub fn uid(&self) -> String {
+        self.config.uid.clone()
+    }
+
     #[staticmethod]
     pub fn model_validate(data: &Bound<'_, PyDict>) -> CustomDriftProfile {
         let json_value = pyobject_to_json(data).unwrap();

@@ -407,6 +407,11 @@ impl SpcDriftProfile {
             deactivate_others: false,
         })
     }
+
+    #[getter]
+    pub fn uid(&self) -> String {
+        self.config.uid.clone()
+    }
 }
 
 impl ProfileBaseArgs for SpcDriftProfile {

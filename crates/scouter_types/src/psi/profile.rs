@@ -446,6 +446,11 @@ impl PsiDriftProfile {
         PyHelperFuncs::__str__(self)
     }
 
+    #[getter]
+    pub fn uid(&self) -> String {
+        self.config.uid.clone()
+    }
+
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
         PyHelperFuncs::__json__(self)
