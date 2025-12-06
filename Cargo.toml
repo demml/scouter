@@ -37,6 +37,7 @@ scouter-sql = { path = "crates/scouter_sql", version = "0.13.0" }
 scouter-tracing = { path = "crates/scouter_tracing", version = "0.13.0" }
 scouter-types = { path = "crates/scouter_types", version = "0.13.0" }
 scouter-mocks = { path = "crates/scouter_mocks" }
+test-utils = { path = "crates/test_utils" }
 
 anyhow = "1.*"
 axum = { version = "0.*", features = ["macros"] }
