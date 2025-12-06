@@ -49,6 +49,7 @@ def _test_api_kafka(kafka_scouter_server):
 
     request = DriftRequest(
         uid=profile.uid,
+        space=profile.config.space,
         time_interval=TimeInterval.FiveMinutes,
         max_data_points=1,
     )
@@ -104,6 +105,7 @@ def test_api_http(http_scouter_server):
 
     request = DriftRequest(
         uid=profile.uid,
+        space=profile.config.space,
         time_interval=TimeInterval.FiveMinutes,
         max_data_points=1,
     )

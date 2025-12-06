@@ -480,6 +480,7 @@ impl PyScouterClient {
     /// * `trace_id` - The ID of the trace
     /// # Returns
     /// * A trace spans response object
+    #[pyo3(signature = (trace_id, service_name=None))]
     pub fn get_trace_spans(
         &self,
         trace_id: &str,

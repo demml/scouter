@@ -44,6 +44,7 @@ def test_llm_api_kafka(kafka_scouter_openai_server):
 
     request = DriftRequest(
         uid=profile.uid,
+        space=profile.config.space,
         time_interval=TimeInterval.FiveMinutes,
         max_data_points=1,
     )
