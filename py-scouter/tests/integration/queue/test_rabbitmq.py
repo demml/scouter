@@ -21,7 +21,6 @@ from scouter.client import (
     ScouterClient,
     TimeInterval,
 )
-from scouter.types import DriftType
 
 semver = f"{random.randint(0, 10)}.{random.randint(0, 10)}.{random.randint(0, 100)}"
 
@@ -79,7 +78,6 @@ def test_custom_monitor_pandas_rabbitmq(rabbitmq_scouter_server):
         uid=profile.uid,
         time_interval=TimeInterval.FifteenMinutes,
         max_data_points=1000,
-        drift_type=DriftType.Custom,
     )
 
     binned_records: BinnedMetrics = client.get_binned_drift(request)  # type: ignore

@@ -2,7 +2,7 @@ import time
 
 import numpy as np
 from fastapi.testclient import TestClient
-from scouter.client import BinnedMetrics, DriftRequest, ScouterClient, TimeInterval
+from scouter.client import DriftRequest, ScouterClient, TimeInterval
 from scouter.types import DriftType
 
 from tests.integration.api.conftest import ChatRequest
@@ -43,15 +43,15 @@ def test_llm_api_kafka(kafka_scouter_openai_server):
     time.sleep(10)
 
     request = DriftRequest(
-        name=profile.config.name,
-        space=profile.config.space,
-        version=profile.config.version,
+        uid=profile.uid,
         time_interval=TimeInterval.FiveMinutes,
         max_data_points=1,
-        drift_type=DriftType.LLM,
     )
 
-    metrics: BinnedMetrics = scouter_client.get_binned_drift(request)  # type: ignore
+    metrics = scouter_client.get_binned_drift(
+        request,
+        drift_type=DriftType.LLM,
+    )
 
     assert len(metrics["coherence"].stats) == 1
     assert metrics["coherence"].stats[0].avg > 0
