@@ -137,7 +137,7 @@ pub struct ProfileRequest {
     pub space: String,
     pub drift_type: DriftType,
     pub profile: String,
-    pub version_request: VersionRequest,
+    pub version_request: Option<VersionRequest>,
 
     #[serde(default)]
     pub active: bool,

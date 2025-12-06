@@ -64,24 +64,34 @@ pub async fn insert_drift_profile(
 
     debug!("Base args for profile insertion: {:?}", &base_args);
 
-    let version = match PostgresClient::get_next_profile_version(
-        &data.db_pool,
-        &base_args,
-        request.version_request,
-    )
-    .await
-    {
-        Ok(version) => version,
-        Err(e) => {
-            error!("Failed to get next profile version: {:?}", e);
+    let version_request = match request.version_request {
+        Some(vr) => vr,
+        None => {
+            error!("Version request is missing");
             return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ScouterServerError::new(format!(
-                    "Failed to get next profile version: {e:?}",
-                ))),
+                StatusCode::BAD_REQUEST,
+                Json(ScouterServerError::new(
+                    "Version request is required".to_string(),
+                )),
             ));
         }
     };
+
+    let version =
+        match PostgresClient::get_next_profile_version(&data.db_pool, &base_args, version_request)
+            .await
+        {
+            Ok(version) => version,
+            Err(e) => {
+                error!("Failed to get next profile version: {:?}", e);
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ScouterServerError::new(format!(
+                        "Failed to get next profile version: {e:?}",
+                    ))),
+                ));
+            }
+        };
 
     debug!("Determined profile version: {:?}", &version);
 

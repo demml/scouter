@@ -397,12 +397,12 @@ impl SpcDriftProfile {
             space: self.config.space.clone(),
             profile: self.model_dump_json(),
             drift_type: self.config.drift_type.clone(),
-            version_request: VersionRequest {
+            version_request: Some(VersionRequest {
                 version,
                 version_type: VersionType::Minor,
                 pre_tag: None,
                 build_tag: None,
-            },
+            }),
             active: false,
             deactivate_others: false,
         })
