@@ -92,7 +92,7 @@ pub trait ProfileSqlLogic {
         let cards: Vec<VersionResult> = sqlx::query_as(&version_query)
             .bind(&args.space)
             .bind(&args.name)
-            .bind(&args.drift_type.to_string())
+            .bind(args.drift_type.to_string())
             .fetch_all(pool)
             .await?;
 

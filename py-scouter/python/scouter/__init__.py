@@ -68,6 +68,15 @@ from ._scouter import (
     evaluate_llm,
 )
 
+from ._scouter import LoggingConfig, RustyLogger, _get_log_level, _log_json
+
+RustyLogger.setup_logging(
+    LoggingConfig(
+        log_level=_get_log_level(),
+        use_json=_log_json(),
+    )
+)
+
 __all__ = [
     "alert",
     "client",

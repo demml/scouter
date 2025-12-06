@@ -76,9 +76,7 @@ def test_custom_monitor_pandas_rabbitmq(rabbitmq_scouter_server):
     time.sleep(10)
 
     request = DriftRequest(
-        name=profile.config.name,
-        space=profile.config.space,
-        version=profile.config.version,
+        uid=profile.uid,
         time_interval=TimeInterval.FifteenMinutes,
         max_data_points=1000,
         drift_type=DriftType.Custom,
