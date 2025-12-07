@@ -2,7 +2,7 @@ use crate::error::TraceError;
 use crate::tracer::ActiveSpan;
 use opentelemetry::global::ObjectSafeSpan;
 use opentelemetry::trace::SpanContext;
-use opentelemetry::{trace, KeyValue};
+use opentelemetry::{trace, Context, KeyValue};
 use opentelemetry_otlp::ExportConfig as OtlpExportConfig;
 use pyo3::types::{PyDict, PyModule, PyTuple};
 use pyo3::{prelude::*, IntoPyObjectExt};

@@ -45,6 +45,9 @@ pub enum TraceError {
 
     #[error(transparent)]
     EventError(#[from] scouter_events::error::EventError),
+
+    #[error(transparent)]
+    ParseIntError(#[from] std::num::ParseIntError),
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for TraceError {
