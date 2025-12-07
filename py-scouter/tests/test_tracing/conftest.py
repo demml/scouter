@@ -25,7 +25,7 @@ def span_exporter():
 def tracer(span_exporter):
     """Initialize tracer with test exporter for each test."""
     init_tracer(
-        name="test-service",
+        service_name="test-service",
         transport_config=MockConfig(),
         exporter=span_exporter,
     )

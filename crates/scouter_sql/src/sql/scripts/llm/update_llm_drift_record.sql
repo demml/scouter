@@ -4,5 +4,5 @@ SET status       = $1,
     processing_ended_at = CURRENT_TIMESTAMP,
     updated_at   = CURRENT_TIMESTAMP,
     processing_duration = $3
-WHERE uid= $4
+WHERE uid = $4
   AND status = 'processing'

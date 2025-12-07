@@ -212,9 +212,14 @@ impl ScouterClient {
         Ok(true)
     }
 
-    fn get_trace_spans(&self, trace_id: &str) -> Result<TraceSpansResponse, ClientError> {
+    fn get_trace_spans(
+        &self,
+        trace_id: &str,
+        service_name: Option<&str>,
+    ) -> Result<TraceSpansResponse, ClientError> {
         let trace_request = TraceRequest {
             trace_id: trace_id.to_string(),
+            service_name: service_name.map(|s| s.to_string()),
         };
 
         let query_string = serde_qs::to_string(&trace_request)?;
@@ -268,6 +273,7 @@ impl ScouterClient {
     fn get_trace_baggage(&self, trace_id: &str) -> Result<TraceBaggageResponse, ClientError> {
         let trace_request = TraceRequest {
             trace_id: trace_id.to_string(),
+            service_name: None,
         };
         let query_string = serde_qs::to_string(&trace_request)?;
         let response = self.client.request(
@@ -354,9 +360,13 @@ impl PyScouterClient {
         set_active: bool,
         deactivate_others: bool,
     ) -> Result<bool, ClientError> {
-        let request = profile
+        let mut request = profile
             .call_method0("create_profile_request")?
-            .extract::<ProfileRequest>()?;
+            .extract::<ProfileRequest>()
+            .inspect_err(|e| error!("Failed to extract profile request: {:?}", e.to_string()))?;
+
+        request.active = set_active;
+        request.deactivate_others = deactivate_others;
 
         let profile_response = self.client.insert_profile(&request)?;
 
@@ -367,42 +377,9 @@ impl PyScouterClient {
                 Some(profile_response.space),
                 Some(profile_response.name),
                 Some(profile_response.version),
+                Some(profile_response.uid),
             ),
         )?;
-
-        debug!("Profile inserted successfully");
-        if set_active {
-            let name = profile
-                .getattr("config")?
-                .getattr("name")?
-                .extract::<String>()?;
-
-            let space = profile
-                .getattr("config")?
-                .getattr("space")?
-                .extract::<String>()?;
-
-            let version = profile
-                .getattr("config")?
-                .getattr("version")?
-                .extract::<String>()?;
-
-            let drift_type = profile
-                .getattr("config")?
-                .getattr("drift_type")?
-                .extract::<DriftType>()?;
-
-            let request = ProfileStatusRequest {
-                name,
-                space,
-                version,
-                active: true,
-                drift_type: Some(drift_type),
-                deactivate_others,
-            };
-
-            self.client.update_profile_status(&request)?;
-        }
 
         Ok(true)
     }
@@ -434,8 +411,10 @@ impl PyScouterClient {
         &self,
         py: Python<'py>,
         drift_request: DriftRequest,
+        drift_type: DriftType,
     ) -> Result<Bound<'py, PyAny>, ClientError> {
-        match drift_request.drift_type {
+        // get drift type
+        match drift_type {
             DriftType::Spc => {
                 PyScouterClient::get_spc_binned_drift(py, &self.client.client, drift_request)
             }
@@ -501,8 +480,13 @@ impl PyScouterClient {
     /// * `trace_id` - The ID of the trace
     /// # Returns
     /// * A trace spans response object
-    pub fn get_trace_spans(&self, trace_id: &str) -> Result<TraceSpansResponse, ClientError> {
-        self.client.get_trace_spans(trace_id)
+    #[pyo3(signature = (trace_id, service_name=None))]
+    pub fn get_trace_spans(
+        &self,
+        trace_id: &str,
+        service_name: Option<&str>,
+    ) -> Result<TraceSpansResponse, ClientError> {
+        self.client.get_trace_spans(trace_id, service_name)
     }
 
     /// Get trace metrics for a given trace metrics request

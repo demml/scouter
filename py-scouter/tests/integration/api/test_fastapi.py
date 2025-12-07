@@ -48,15 +48,13 @@ def _test_api_kafka(kafka_scouter_server):
         client.wait_shutdown()
 
     request = DriftRequest(
-        name=profile.config.name,
+        uid=profile.uid,
         space=profile.config.space,
-        version=profile.config.version,
         time_interval=TimeInterval.FiveMinutes,
         max_data_points=1,
-        drift_type=DriftType.Spc,
     )
 
-    drift = scouter_client.get_binned_drift(request)
+    drift = scouter_client.get_binned_drift(request, DriftType.Spc)
 
     assert drift.features.keys() == {
         "feature_0",
@@ -106,15 +104,13 @@ def test_api_http(http_scouter_server):
         client.wait_shutdown()
 
     request = DriftRequest(
-        name=profile.config.name,
+        uid=profile.uid,
         space=profile.config.space,
-        version=profile.config.version,
         time_interval=TimeInterval.FiveMinutes,
         max_data_points=1,
-        drift_type=DriftType.Spc,
     )
 
-    drift = scouter_client.get_binned_drift(request)
+    drift = scouter_client.get_binned_drift(request, DriftType.Spc)
 
     assert drift.features.keys() == {
         "feature_0",

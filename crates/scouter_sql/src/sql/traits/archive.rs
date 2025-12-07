@@ -5,8 +5,7 @@ use crate::sql::utils::pg_rows_to_server_records;
 use chrono::{DateTime, Utc};
 
 use crate::sql::error::SqlError;
-use scouter_types::{RecordType, ServerRecords};
-
+use scouter_types::{InternalServerRecords, RecordType};
 use sqlx::{Pool, Postgres};
 
 use std::result::Result::Ok;
@@ -57,14 +56,12 @@ pub trait ArchiveSqlLogic {
     /// # Errors
     /// * `SqlError` - If the query fails
     async fn get_data_to_archive(
-        space: &str,
-        name: &str,
-        version: &str,
+        entity_id: &i32,
         begin_timestamp: &DateTime<Utc>,
         end_timestamp: &DateTime<Utc>,
         record_type: &RecordType,
         db_pool: &Pool<Postgres>,
-    ) -> Result<ServerRecords, SqlError> {
+    ) -> Result<InternalServerRecords, SqlError> {
         let query = match record_type {
             RecordType::Spc => Queries::GetSpcDataForArchive.get_query(),
             RecordType::Psi => Queries::GetBinCountDataForArchive.get_query(),
@@ -78,9 +75,7 @@ pub trait ArchiveSqlLogic {
         let rows = sqlx::query(&query.sql)
             .bind(begin_timestamp)
             .bind(end_timestamp)
-            .bind(space)
-            .bind(name)
-            .bind(version)
+            .bind(entity_id)
             .fetch_all(db_pool)
             .await
             .map_err(SqlError::SqlxError)?;
@@ -90,9 +85,7 @@ pub trait ArchiveSqlLogic {
     }
 
     async fn update_data_to_archived(
-        space: &str,
-        name: &str,
-        version: &str,
+        entity_id: &i32,
         begin_timestamp: &DateTime<Utc>,
         end_timestamp: &DateTime<Utc>,
         record_type: &RecordType,
@@ -111,9 +104,7 @@ pub trait ArchiveSqlLogic {
         sqlx::query(&query.sql)
             .bind(begin_timestamp)
             .bind(end_timestamp)
-            .bind(space)
-            .bind(name)
-            .bind(version)
+            .bind(entity_id)
             .execute(db_pool)
             .await
             .map_err(SqlError::SqlxError)?;

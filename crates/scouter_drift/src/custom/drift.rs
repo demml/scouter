@@ -2,8 +2,8 @@ use crate::error::DriftError;
 use chrono::{DateTime, Utc};
 use scouter_dispatch::AlertDispatcher;
 use scouter_sql::sql::traits::CustomMetricSqlLogic;
-use scouter_sql::PostgresClient;
-use scouter_types::contracts::ServiceInfo;
+use scouter_sql::{sql::cache::entity_cache, PostgresClient};
+use scouter_types::ProfileBaseArgs;
 use scouter_types::{
     custom::{ComparisonMetricAlert, CustomDriftProfile},
     AlertThreshold,
@@ -14,20 +14,12 @@ use tracing::error;
 use tracing::info;
 
 pub struct CustomDrifter {
-    service_info: ServiceInfo,
     profile: CustomDriftProfile,
 }
 
 impl CustomDrifter {
     pub fn new(profile: CustomDriftProfile) -> Self {
-        Self {
-            service_info: ServiceInfo {
-                name: profile.config.name.clone(),
-                space: profile.config.space.clone(),
-                version: profile.config.version.clone(),
-            },
-            profile,
-        }
+        Self { profile }
     }
 
     pub async fn get_observed_custom_metric_values(
@@ -36,21 +28,24 @@ impl CustomDrifter {
         db_pool: &Pool<Postgres>,
     ) -> Result<HashMap<String, f64>, DriftError> {
         let metrics: Vec<String> = self.profile.metrics.keys().cloned().collect();
+        let entity_id = entity_cache()
+            .get_entity_id_from_uid(db_pool, &self.profile.config.uid)
+            .await?;
 
-        Ok(PostgresClient::get_custom_metric_values(
-            db_pool,
-            &self.service_info,
-            limit_datetime,
-            &metrics,
+        Ok(
+            PostgresClient::get_custom_metric_values(db_pool, limit_datetime, &metrics, &entity_id)
+                .await
+                .inspect_err(|e| {
+                    let msg = format!(
+                        "Error: Unable to obtain custom metric data from DB for {}/{}/{}: {}",
+                        self.profile.space(),
+                        self.profile.name(),
+                        self.profile.version(),
+                        e
+                    );
+                    error!(msg);
+                })?,
         )
-        .await
-        .inspect_err(|e| {
-            let msg = format!(
-                "Error: Unable to obtain custom metric data from DB for {}/{}/{}: {}",
-                self.service_info.space, self.service_info.name, self.service_info.version, e
-            );
-            error!(msg);
-        })?)
     }
 
     pub async fn get_metric_map(
@@ -65,7 +60,9 @@ impl CustomDrifter {
         if metric_map.is_empty() {
             info!(
                 "No custom metric data was found for {}/{}/{}. Skipping alert processing.",
-                self.service_info.space, self.service_info.name, self.service_info.version,
+                self.profile.space(),
+                self.profile.name(),
+                self.profile.version(),
             );
             return Ok(None);
         }
@@ -139,7 +136,9 @@ impl CustomDrifter {
         if metric_alerts.is_empty() {
             info!(
                 "No alerts to process for {}/{}/{}",
-                self.service_info.space, self.service_info.name, self.service_info.version
+                self.profile.space(),
+                self.profile.name(),
+                self.profile.version()
             );
             return Ok(None);
         }
@@ -147,7 +146,10 @@ impl CustomDrifter {
         let alert_dispatcher = AlertDispatcher::new(&self.profile.config).inspect_err(|e| {
             let msg = format!(
                 "Error creating alert dispatcher for {}/{}/{}: {}",
-                self.service_info.space, self.service_info.name, self.service_info.version, e
+                self.profile.space(),
+                self.profile.name(),
+                self.profile.version(),
+                e
             );
             error!(msg);
         })?;
@@ -159,9 +161,9 @@ impl CustomDrifter {
                 .inspect_err(|e| {
                     let msg = format!(
                         "Error processing alerts for {}/{}/{}: {}",
-                        self.service_info.space,
-                        self.service_info.name,
-                        self.service_info.version,
+                        self.profile.space(),
+                        self.profile.name(),
+                        self.profile.version(),
                         e
                     );
                     error!(msg);
@@ -205,18 +207,18 @@ impl CustomDrifter {
     pub async fn check_for_alerts(
         &self,
         db_pool: &Pool<Postgres>,
-        previous_run: DateTime<Utc>,
+        previous_run: &DateTime<Utc>,
     ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
-        let metric_map = self.get_metric_map(&previous_run, db_pool).await?;
+        let metric_map = self.get_metric_map(previous_run, db_pool).await?;
 
         match metric_map {
             Some(metric_map) => {
                 let alerts = self.generate_alerts(&metric_map).await.inspect_err(|e| {
                     let msg = format!(
                         "Error generating alerts for {}/{}/{}: {}",
-                        self.service_info.space,
-                        self.service_info.name,
-                        self.service_info.version,
+                        self.profile.space(),
+                        self.profile.name(),
+                        self.profile.version(),
                         e
                     );
                     error!(msg);

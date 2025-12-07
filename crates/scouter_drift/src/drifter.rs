@@ -7,12 +7,12 @@ pub mod drift_executor {
 
     use scouter_sql::sql::traits::{AlertSqlLogic, ProfileSqlLogic};
     use scouter_sql::{sql::schema::TaskRequest, PostgresClient};
-    use scouter_types::{DriftProfile, DriftTaskInfo, DriftType};
+    use scouter_types::DriftProfile;
     use sqlx::{Pool, Postgres};
     use std::collections::BTreeMap;
     use std::result::Result;
     use std::result::Result::Ok;
-    use std::str::FromStr;
+
     use tracing::{debug, error, info, instrument, span, Instrument, Level};
 
     #[allow(clippy::enum_variant_names)]
@@ -27,7 +27,7 @@ pub mod drift_executor {
         pub async fn check_for_alerts(
             &self,
             db_pool: &Pool<Postgres>,
-            previous_run: DateTime<Utc>,
+            previous_run: &DateTime<Utc>,
         ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
             match self {
                 Drifter::SpcDrifter(drifter) => {
@@ -99,7 +99,7 @@ pub mod drift_executor {
         pub async fn _process_task(
             &mut self,
             profile: DriftProfile,
-            previous_run: DateTime<Utc>,
+            previous_run: &DateTime<Utc>,
         ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
             // match Drifter enum
 
@@ -119,25 +119,17 @@ pub mod drift_executor {
                 return Ok(None);
             };
 
-            let task_info = DriftTaskInfo {
-                space: task.space.clone(),
-                name: task.name.clone(),
-                version: task.version.clone(),
-                uid: task.uid.clone(),
-                drift_type: DriftType::from_str(&task.drift_type).unwrap(),
-            };
-
             info!(
-                "Processing drift task for profile: {}/{}/{} and type {}",
-                task.space, task.name, task.version, task.drift_type
+                "Processing drift task for profile: {} and type {}",
+                task.uid, task.drift_type
             );
 
-            self.process_task(&task, &task_info).await?;
+            self.process_task(&task).await?;
 
             // Update the run dates while still holding the lock
             PostgresClient::update_drift_profile_run_dates(
                 &self.db_pool,
-                &task_info,
+                &task.entity_id,
                 &task.schedule,
             )
             .instrument(span!(Level::INFO, "Update Run Dates"))
@@ -150,24 +142,19 @@ pub mod drift_executor {
         async fn process_task(
             &mut self,
             task: &TaskRequest,
-            task_info: &DriftTaskInfo,
+            //task: &TaskRequest,
+            //task_info: &DriftTaskInfo,
         ) -> Result<(), DriftError> {
-            // get the drift type
-            let drift_type = DriftType::from_str(&task.drift_type).inspect_err(|e| {
-                error!("Error converting drift type: {:?}", e);
-            })?;
-
             // get the drift profile
-            let profile = DriftProfile::from_str(drift_type.clone(), task.profile.clone())
-                .inspect_err(|e| {
+            let profile =
+                DriftProfile::from_str(&task.drift_type, &task.profile).inspect_err(|e| {
                     error!(
                         "Error converting drift profile for type {:?}: {:?}",
-                        drift_type, e
+                        &task.drift_type, e
                     );
                 })?;
 
-            // check for alerts
-            match self._process_task(profile, task.previous_run).await {
+            match self._process_task(profile, &task.previous_run).await {
                 Ok(Some(alerts)) => {
                     info!("Drift task processed successfully with alerts");
 
@@ -175,10 +162,9 @@ pub mod drift_executor {
                     for alert in alerts {
                         PostgresClient::insert_drift_alert(
                             &self.db_pool,
-                            task_info,
+                            &task.entity_id,
                             alert.get("entity_name").unwrap_or(&"NA".to_string()),
                             &alert,
-                            &drift_type,
                         )
                         .await
                         .map_err(|e| {
@@ -225,13 +211,14 @@ pub mod drift_executor {
         use super::*;
         use rusty_logging::logger::{LogLevel, LoggingConfig, RustyLogger};
         use scouter_settings::DatabaseSettings;
+        use scouter_sql::sql::traits::{EntitySqlLogic, SpcSqlLogic};
         use scouter_sql::PostgresClient;
         use scouter_types::spc::SpcFeatureDriftProfile;
         use scouter_types::{
             spc::{SpcAlertConfig, SpcAlertRule, SpcDriftConfig, SpcDriftProfile},
             AlertDispatchConfig, DriftAlertRequest,
         };
-        use scouter_types::{CommonCrons, ProfileArgs};
+        use scouter_types::{DriftType, ProfileArgs, SpcRecord};
         use semver::Version;
         use sqlx::{postgres::Postgres, Pool};
         use std::collections::HashMap;
@@ -241,6 +228,9 @@ pub mod drift_executor {
                 r#"
                 DELETE
                 FROM scouter.spc_drift;
+
+                DELETE
+                FROM scouter.drift_entities;
 
                 DELETE
                 FROM scouter.observability_metric;
@@ -281,15 +271,16 @@ pub mod drift_executor {
 
             let alert_config = SpcAlertConfig {
                 rule: SpcAlertRule::default(),
-                schedule: CommonCrons::EveryDay.cron().to_string(),
+                // every second for test
+                schedule: "* * * * * * *".to_string(),
                 features_to_monitor: vec!["col_1".to_string(), "col_3".to_string()],
                 dispatch_config: AlertDispatchConfig::default(),
             };
 
             let config = SpcDriftConfig::new(
-                Some("statworld".to_string()),
-                Some("test_app".to_string()),
-                Some("0.1.0".to_string()),
+                "statworld",
+                "test_app",
+                "0.1.0",
                 Some(true),
                 Some(25),
                 Some(alert_config),
@@ -340,7 +331,7 @@ pub mod drift_executor {
             };
 
             let version = Version::new(0, 1, 0);
-            PostgresClient::insert_drift_profile(
+            let uid = PostgresClient::insert_drift_profile(
                 &db_pool,
                 &drift_profile,
                 &profile_args,
@@ -350,15 +341,28 @@ pub mod drift_executor {
             )
             .await
             .unwrap();
+            let entity_id = PostgresClient::get_entity_id_from_uid(&db_pool, &uid)
+                .await
+                .unwrap();
 
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
-            let mut populate_path =
-                std::env::current_dir().expect("Failed to get current directory");
-            populate_path.push("src/scripts/populate_spc.sql");
-            let script = std::fs::read_to_string(populate_path).unwrap();
+            let mut records = vec![]; // Placeholder for actual records
+            for i in 0..100 {
+                let record = SpcRecord {
+                    // created at + random data
+                    created_at: Utc::now() + chrono::Duration::seconds(i),
+                    uid: uid.clone(),
+                    feature: "col_1".to_string(),
+                    value: 10.0 + i as f64,
+                };
+                records.push(record);
+            }
 
-            sqlx::raw_sql(&script).execute(&db_pool).await.unwrap();
+            PostgresClient::insert_spc_drift_records_batch(&db_pool, &records, &entity_id)
+                .await
+                .unwrap();
+
             let mut drift_executor = DriftExecutor::new(&db_pool);
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
@@ -366,54 +370,19 @@ pub mod drift_executor {
 
             // get alerts from db
             let request = DriftAlertRequest {
-                space: "statworld".to_string(),
-                name: "test_app".to_string(),
-                version: "0.1.0".to_string(),
                 limit_datetime: None,
                 active: None,
                 limit: None,
+                uid: uid.clone(),
             };
-            let alerts = PostgresClient::get_drift_alerts(&db_pool, &request)
-                .await
-                .unwrap();
-            assert!(!alerts.is_empty());
-        }
 
-        #[tokio::test]
-        async fn test_drift_executor_spc_missing_feature_data() {
-            // this tests the scenario where only 1 of 2 features has data in the db when polling
-            // for tasks. Need to ensure this does not fail and the present feature and data are
-            // still processed
-            let db_pool = PostgresClient::create_db_pool(&DatabaseSettings::default())
-                .await
-                .unwrap();
-            cleanup(&db_pool).await;
-
-            let mut populate_path =
-                std::env::current_dir().expect("Failed to get current directory");
-            populate_path.push("src/scripts/populate_spc_alert.sql");
-
-            let script = std::fs::read_to_string(populate_path).unwrap();
-            sqlx::raw_sql(&script).execute(&db_pool).await.unwrap();
-            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-
-            let mut drift_executor = DriftExecutor::new(&db_pool);
-
-            drift_executor.poll_for_tasks().await.unwrap();
-
-            // get alerts from db
-            let request = DriftAlertRequest {
-                space: "statworld".to_string(),
-                name: "test_app".to_string(),
-                version: "0.1.0".to_string(),
-                limit_datetime: None,
-                active: None,
-                limit: None,
-            };
-            let alerts = PostgresClient::get_drift_alerts(&db_pool, &request)
+            let entity_id = PostgresClient::get_entity_id_from_uid(&db_pool, &uid)
                 .await
                 .unwrap();
 
+            let alerts = PostgresClient::get_drift_alerts(&db_pool, &request, &entity_id)
+                .await
+                .unwrap();
             assert!(!alerts.is_empty());
         }
 
@@ -447,14 +416,23 @@ pub mod drift_executor {
 
             // get alerts from db
             let request = DriftAlertRequest {
-                space: "scouter".to_string(),
-                name: "model".to_string(),
-                version: "0.1.0".to_string(),
+                uid: "019ae1b4-3003-77c1-8eed-2ec005e85963".to_string(),
                 limit_datetime: None,
                 active: None,
                 limit: None,
             };
-            let alerts = PostgresClient::get_drift_alerts(&db_pool, &request)
+
+            let entity_id = PostgresClient::get_entity_id_from_space_name_version_drift_type(
+                &db_pool,
+                "scouter",
+                "model",
+                "0.1.0",
+                DriftType::Psi.to_string(),
+            )
+            .await
+            .unwrap();
+
+            let alerts = PostgresClient::get_drift_alerts(&db_pool, &request, &entity_id)
                 .await
                 .unwrap();
 
@@ -503,14 +481,23 @@ pub mod drift_executor {
 
             // get alerts from db
             let request = DriftAlertRequest {
-                space: "scouter".to_string(),
-                name: "model".to_string(),
-                version: "0.1.0".to_string(),
+                uid: "019ae1b4-3003-77c1-8eed-2ec005e85963".to_string(),
                 limit_datetime: None,
                 active: None,
                 limit: None,
             };
-            let alerts = PostgresClient::get_drift_alerts(&db_pool, &request)
+
+            let entity_id = PostgresClient::get_entity_id_from_space_name_version_drift_type(
+                &db_pool,
+                "scouter",
+                "model",
+                "0.1.0",
+                DriftType::Psi.to_string(),
+            )
+            .await
+            .unwrap();
+
+            let alerts = PostgresClient::get_drift_alerts(&db_pool, &request, &entity_id)
                 .await
                 .unwrap();
 
@@ -539,14 +526,23 @@ pub mod drift_executor {
 
             // get alerts from db
             let request = DriftAlertRequest {
-                space: "scouter".to_string(),
-                name: "model".to_string(),
-                version: "0.1.0".to_string(),
+                uid: "scouter|model|0.1.0|custom".to_string(),
                 limit_datetime: None,
                 active: None,
                 limit: None,
             };
-            let alerts = PostgresClient::get_drift_alerts(&db_pool, &request)
+
+            let entity_id = PostgresClient::get_entity_id_from_space_name_version_drift_type(
+                &db_pool,
+                "scouter",
+                "model",
+                "0.1.0",
+                DriftType::Custom.to_string(),
+            )
+            .await
+            .unwrap();
+
+            let alerts = PostgresClient::get_drift_alerts(&db_pool, &request, &entity_id)
                 .await
                 .unwrap();
 

@@ -4,7 +4,7 @@ use crate::binning::quantile::QuantileBinning;
 use crate::binning::strategy::BinningStrategy;
 use crate::error::{ProfileError, TypeError};
 use crate::psi::alert::PsiAlertConfig;
-use crate::util::{json_to_pyobject, pyobject_to_json, scouter_version};
+use crate::util::{json_to_pyobject, pyobject_to_json, scouter_version, ConfigExt};
 use crate::ProfileRequest;
 use crate::VersionRequest;
 use crate::{
@@ -13,6 +13,7 @@ use crate::{
 };
 use chrono::Utc;
 use core::fmt::Debug;
+use potato_head::create_uuid7;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use scouter_semver::VersionType;
@@ -43,6 +44,9 @@ pub struct PsiDriftConfig {
     #[pyo3(get, set)]
     pub version: String,
 
+    #[pyo3(get)]
+    pub uid: String,
+
     #[pyo3(get, set)]
     pub alert_config: PsiAlertConfig,
 
@@ -58,6 +62,20 @@ pub struct PsiDriftConfig {
     pub categorical_features: Option<Vec<String>>,
 
     pub binning_strategy: BinningStrategy,
+}
+
+impl ConfigExt for PsiDriftConfig {
+    fn space(&self) -> &str {
+        &self.space
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn version(&self) -> &str {
+        &self.version
+    }
 }
 
 fn default_drift_type() -> DriftType {
@@ -102,8 +120,6 @@ impl PsiDriftConfig {
             }
         };
 
-        println!("{binning_strategy:#?}");
-
         if name == MISSING || space == MISSING {
             debug!("Name and space were not provided. Defaulting to __missing__");
         }
@@ -112,6 +128,7 @@ impl PsiDriftConfig {
             name: name.to_string(),
             space: space.to_string(),
             version: version.to_string(),
+            uid: create_uuid7(),
             alert_config,
             categorical_features,
             feature_map: FeatureMap::default(),
@@ -140,12 +157,13 @@ impl PsiDriftConfig {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (space=None, name=None, version=None, alert_config=None, categorical_features=None, binning_strategy=None))]
+    #[pyo3(signature = (space=None, name=None, version=None, uid=None, alert_config=None, categorical_features=None, binning_strategy=None))]
     pub fn update_config_args(
         &mut self,
         space: Option<String>,
         name: Option<String>,
         version: Option<String>,
+        uid: Option<String>,
         alert_config: Option<PsiAlertConfig>,
         categorical_features: Option<Vec<String>>,
         binning_strategy: Option<&Bound<'_, PyAny>>,
@@ -164,6 +182,10 @@ impl PsiDriftConfig {
 
         if alert_config.is_some() {
             self.alert_config = alert_config.ok_or(TypeError::MissingAlertConfigError)?;
+        }
+
+        if uid.is_some() {
+            self.uid = uid.ok_or(TypeError::MissingUidError)?;
         }
 
         if categorical_features.is_some() {
@@ -211,6 +233,7 @@ impl Default for PsiDriftConfig {
             name: "__missing__".to_string(),
             space: "__missing__".to_string(),
             version: DEFAULT_VERSION.to_string(),
+            uid: MISSING.to_string(),
             feature_map: FeatureMap::default(),
             alert_config: PsiAlertConfig::default(),
             drift_type: DriftType::Psi,
@@ -423,6 +446,16 @@ impl PsiDriftProfile {
         PyHelperFuncs::__str__(self)
     }
 
+    #[getter]
+    pub fn uid(&self) -> String {
+        self.config.uid.clone()
+    }
+
+    #[setter]
+    pub fn set_uid(&mut self, uid: String) {
+        self.config.uid = uid;
+    }
+
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
         PyHelperFuncs::__json__(self)
@@ -476,12 +509,13 @@ impl PsiDriftProfile {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (space=None, name=None, version=None, alert_config=None, categorical_features=None, binning_strategy=None))]
+    #[pyo3(signature = (space=None, name=None, version=None, uid=None,alert_config=None, categorical_features=None, binning_strategy=None))]
     pub fn update_config_args(
         &mut self,
         space: Option<String>,
         name: Option<String>,
         version: Option<String>,
+        uid: Option<String>,
         alert_config: Option<PsiAlertConfig>,
         categorical_features: Option<Vec<String>>,
         binning_strategy: Option<&Bound<'_, PyAny>>,
@@ -490,6 +524,7 @@ impl PsiDriftProfile {
             space,
             name,
             version,
+            uid,
             alert_config,
             categorical_features,
             binning_strategy,
@@ -508,12 +543,12 @@ impl PsiDriftProfile {
             space: self.config.space.clone(),
             profile: self.model_dump_json(),
             drift_type: self.config.drift_type.clone(),
-            version_request: VersionRequest {
+            version_request: Some(VersionRequest {
                 version,
                 version_type: VersionType::Minor,
                 pre_tag: None,
                 build_tag: None,
-            },
+            }),
             active: false,
             deactivate_others: false,
         })
@@ -578,6 +613,11 @@ impl PsiDriftMap {
 
 // TODO dry this out
 impl ProfileBaseArgs for PsiDriftProfile {
+    type Config = PsiDriftConfig;
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
     /// Get the base arguments for the profile (convenience method on the server)
     fn get_base_args(&self) -> ProfileArgs {
         ProfileArgs {
@@ -610,5 +650,44 @@ pub struct FeatureDistributions {
 impl FeatureDistributions {
     pub fn is_empty(&self) -> bool {
         self.distributions.is_empty()
+    }
+}
+
+#[derive(Debug)]
+pub struct FeatureDistributionRow {
+    pub feature: String,
+    pub distribution: DistributionData,
+}
+
+#[cfg(feature = "server")]
+impl<'r> sqlx::FromRow<'r, sqlx::postgres::PgRow> for FeatureDistributionRow {
+    fn from_row(row: &'r sqlx::postgres::PgRow) -> Result<Self, sqlx::Error> {
+        use sqlx::Row;
+
+        let feature: String = row.try_get("feature")?;
+        let sample_size: i64 = row.try_get("sample_size")?;
+        let bins_json: serde_json::Value = row.try_get("bins")?;
+        let bins: BTreeMap<usize, f64> =
+            serde_json::from_value(bins_json).map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
+
+        Ok(FeatureDistributionRow {
+            feature,
+            distribution: DistributionData {
+                sample_size: sample_size as u64,
+                bins,
+            },
+        })
+    }
+}
+
+impl FeatureDistributions {
+    /// Convert from a vector of rows into the final structure
+    pub fn from_rows(rows: Vec<FeatureDistributionRow>) -> Self {
+        let distributions = rows
+            .into_iter()
+            .map(|row| (row.feature, row.distribution))
+            .collect();
+
+        FeatureDistributions { distributions }
     }
 }

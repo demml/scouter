@@ -364,25 +364,25 @@ impl Metrics {
     }
 }
 
+#[derive(Clone, Serialize, Debug)]
+#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
+pub struct LLMTaskRecord {
+    pub uid: String,
+    pub entity_id: i32,
+    pub created_at: DateTime<Utc>,
+    pub context: Value,
+    pub score: Value,
+    pub prompt: Option<Value>,
+}
+
 #[pyclass]
 #[derive(Clone, Serialize, Debug)]
 pub struct LLMRecord {
     pub uid: String,
-
-    pub space: String,
-
-    pub name: String,
-
-    pub version: String,
-
     pub created_at: DateTime<Utc>,
-
     pub context: Value,
-
     pub score: Value,
-
     pub prompt: Option<Value>,
-
     #[pyo3(get)]
     pub entity_type: EntityType,
 }
@@ -430,9 +430,6 @@ impl LLMRecord {
         Ok(LLMRecord {
             uid: create_uuid7(),
             created_at: Utc::now(),
-            space: String::new(),
-            name: String::new(),
-            version: String::new(),
             context: context_val,
             score: Value::Null,
             prompt,
@@ -456,15 +453,23 @@ impl LLMRecord {
             entity_type: EntityType::LLM,
             uid: create_uuid7(),
             created_at: Utc::now(),
-            space: String::new(),
-            name: String::new(),
-            version: String::new(),
             score: Value::Null,
         }
     }
 
     pub fn __str__(&self) -> String {
         PyHelperFuncs::__str__(self)
+    }
+
+    pub fn to_task_record(&self, uid: &str) -> LLMTaskRecord {
+        LLMTaskRecord {
+            uid: uid.to_string(),
+            entity_id: 0,
+            created_at: self.created_at,
+            context: self.context.clone(),
+            score: self.score.clone(),
+            prompt: self.prompt.clone(),
+        }
     }
 }
 

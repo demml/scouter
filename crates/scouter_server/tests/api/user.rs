@@ -1,4 +1,4 @@
-use crate::common::TestHelper;
+use crate::common::setup_test;
 use axum::{
     body::Body,
     http::{header, Request, StatusCode},
@@ -10,7 +10,7 @@ use scouter_server::api::routes::user::schema::{
 
 #[tokio::test]
 async fn test_server_user_crud() {
-    let helper = TestHelper::new(false, false).await.unwrap();
+    let helper = setup_test().await;
 
     // 1. Create a new user
     let create_req = CreateUserRequest {

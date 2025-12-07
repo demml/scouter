@@ -61,8 +61,6 @@ fn get_tracer_provider() -> Result<Arc<RwLock<Option<SdkTracerProvider>>>, Trace
     })
 }
 
-const MISSING: &str = "unknown";
-
 #[derive(Clone)]
 struct TraceMetadata {
     start_time: DateTime<Utc>,
@@ -168,18 +166,12 @@ fn get_trace_metadata_store() -> &'static TraceMetadataStore {
 /// * `transport_config` - Optional transport configuration for the Scouter exporter
 /// * `exporter` - Optional span exporter to use instead of the default HTTP exporter
 /// * `batch_config` - Optional batch configuration for span exporting
-/// * `space` - Optional space name for Scouter
-/// * `name` - Optional name for Scouter
-/// * `version` - Optional version for Scouter
 #[pyfunction]
 #[pyo3(signature = (
     service_name="scouter_service".to_string(),
     transport_config=None,
     exporter=None,
     batch_config=None,
-    space=None,
-    name=None,
-    version=None
 ))]
 #[instrument(skip_all)]
 #[allow(clippy::too_many_arguments)]
@@ -189,9 +181,6 @@ pub fn init_tracer(
     transport_config: Option<&Bound<'_, PyAny>>,
     exporter: Option<&Bound<'_, PyAny>>,
     batch_config: Option<Py<BatchConfig>>,
-    space: Option<String>,
-    name: Option<String>,
-    version: Option<String>,
 ) -> Result<(), TraceError> {
     debug!("Initializing tracer");
 
@@ -208,12 +197,7 @@ pub fn init_tracer(
         .map(|bc| bc.extract::<BatchConfig>(py))
         .transpose()?;
 
-    let scouter_export = ScouterSpanExporter::new(
-        space.unwrap_or_else(|| MISSING.to_string()),
-        name.unwrap_or_else(|| MISSING.to_string()),
-        version.unwrap_or_else(|| MISSING.to_string()),
-        transport_config,
-    )?;
+    let scouter_export = ScouterSpanExporter::new(transport_config)?;
 
     let provider_store = get_tracer_provider_store();
 

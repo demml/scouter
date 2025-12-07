@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pandas as pd
 from scouter.client import GetProfileRequest, ScouterClient
-from scouter.drift import Drifter, SpcDriftConfig
+from scouter.drift import Drifter, PsiDriftConfig, SpcDriftConfig
 
 
 def test_profile_download(
@@ -33,6 +33,7 @@ def test_profile_versions(
     http_scouter_server,
     pandas_dataframe: pd.DataFrame,
     drift_config: SpcDriftConfig,
+    psi_drift_config: PsiDriftConfig,
 ):
     scouter = Drifter()
     client = ScouterClient()
@@ -46,3 +47,12 @@ def test_profile_versions(
 
     assert profile.config.version == "0.2.0"
     profile
+
+    # test psi profile with same name, space - should
+    psi_drift_config.name = drift_config.name
+    psi_drift_config.space = drift_config.space
+
+    psi_profile = scouter.create_drift_profile(pandas_dataframe, psi_drift_config)
+    client.register_profile(psi_profile)
+
+    assert psi_profile.config.version == "0.1.0"

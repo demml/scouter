@@ -1,4 +1,4 @@
-use crate::common::TestHelper;
+use crate::common::setup_test;
 
 use axum::{
     body::Body,
@@ -10,13 +10,11 @@ use scouter_types::contracts::{DriftAlertRequest, UpdateAlertStatus};
 
 #[tokio::test]
 async fn test_get_drift_alerts() {
-    let helper = TestHelper::new(false, false).await.unwrap();
-    helper.insert_alerts().await.unwrap();
+    let helper = setup_test().await;
+    let (_psi_uid, _custom_uid, spc_uid) = helper.insert_alerts().await.unwrap();
 
     let request = DriftAlertRequest {
-        space: "repo_1".to_string(),
-        name: "model_1".to_string(),
-        version: "1.0.0".to_string(),
+        uid: spc_uid,
         limit_datetime: None,
         limit: None,
         active: Some(true),

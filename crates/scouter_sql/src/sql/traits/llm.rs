@@ -1,7 +1,6 @@
 use crate::sql::error::SqlError;
 use crate::sql::query::Queries;
-use crate::sql::schema::LLMRecordWrapper;
-use crate::sql::schema::{BinnedMetricWrapper, LLMDriftServerSQLRecord};
+use crate::sql::schema::BinnedMetricWrapper;
 use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -9,12 +8,12 @@ use itertools::multiunzip;
 use scouter_dataframe::parquet::BinnedMetricsExtractor;
 use scouter_dataframe::parquet::ParquetDataFrame;
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::contracts::{DriftRequest, ServiceInfo};
-use scouter_types::LLMRecord;
+use scouter_types::contracts::DriftRequest;
 use scouter_types::{
     llm::{PaginationCursor, PaginationRequest, PaginationResponse},
-    BinnedMetrics, LLMDriftServerRecord, RecordType,
+    BinnedMetrics, LLMDriftRecord, RecordType,
 };
+use scouter_types::{LLMDriftInternalRecord, LLMTaskRecord};
 use scouter_types::{LLMMetricRecord, Status};
 use sqlx::types::Json;
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
@@ -32,15 +31,15 @@ pub trait LLMDriftSqlLogic {
     /// * A result containing the query result or an error
     async fn insert_llm_drift_record(
         pool: &Pool<Postgres>,
-        record: &LLMDriftServerRecord,
+        record: &LLMDriftRecord,
+        entity_id: &i32,
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertLLMDriftRecord.get_query();
 
         sqlx::query(&query.sql)
+            .bind(&record.uid)
             .bind(record.created_at)
-            .bind(&record.space)
-            .bind(&record.name)
-            .bind(&record.version)
+            .bind(entity_id)
             .bind(&record.context)
             .bind(Json(&record.prompt))
             .execute(pool)
@@ -53,6 +52,7 @@ pub trait LLMDriftSqlLogic {
     async fn insert_llm_metric_values_batch(
         pool: &Pool<Postgres>,
         records: &[LLMMetricRecord],
+        entity_id: &i32,
     ) -> Result<PgQueryResult, SqlError> {
         if records.is_empty() {
             return Err(SqlError::EmptyBatchError);
@@ -60,21 +60,17 @@ pub trait LLMDriftSqlLogic {
 
         let query = Queries::InsertLLMMetricValuesBatch.get_query();
 
-        let (created_ats, record_uids, names, spaces, versions, metrics, values): (
+        let (created_ats, record_uids, entity_ids, metrics, values): (
             Vec<DateTime<Utc>>,
             Vec<&str>,
-            Vec<&str>,
-            Vec<&str>,
-            Vec<&str>,
+            Vec<&i32>,
             Vec<&str>,
             Vec<f64>,
         ) = multiunzip(records.iter().map(|r| {
             (
                 r.created_at,
-                r.record_uid.as_str(),
-                r.name.as_str(),
-                r.space.as_str(),
-                r.version.as_str(),
+                r.uid.as_str(),
+                entity_id,
                 r.metric.as_str(),
                 r.value,
             )
@@ -83,9 +79,7 @@ pub trait LLMDriftSqlLogic {
         sqlx::query(&query.sql)
             .bind(created_ats)
             .bind(record_uids)
-            .bind(spaces)
-            .bind(names)
-            .bind(versions)
+            .bind(entity_ids)
             .bind(metrics)
             .bind(values)
             .execute(pool)
@@ -95,13 +89,12 @@ pub trait LLMDriftSqlLogic {
 
     async fn get_llm_drift_records(
         pool: &Pool<Postgres>,
-        service_info: &ServiceInfo,
         limit_datetime: Option<&DateTime<Utc>>,
         status: Option<Status>,
-    ) -> Result<Vec<LLMDriftServerRecord>, SqlError> {
+        entity_id: &i32,
+    ) -> Result<Vec<LLMDriftRecord>, SqlError> {
         let mut query_string = Queries::GetLLMDriftRecords.get_query().sql;
-
-        let mut bind_count = 3;
+        let mut bind_count = 1;
 
         if limit_datetime.is_some() {
             bind_count += 1;
@@ -114,10 +107,7 @@ pub trait LLMDriftSqlLogic {
             query_string.push_str(&format!(" AND status = ${bind_count}"));
         }
 
-        let mut query = sqlx::query_as::<_, LLMDriftServerSQLRecord>(&query_string)
-            .bind(&service_info.space)
-            .bind(&service_info.name)
-            .bind(&service_info.version);
+        let mut query = sqlx::query_as::<_, LLMDriftInternalRecord>(&query_string).bind(entity_id);
 
         if let Some(datetime) = limit_datetime {
             query = query.bind(datetime);
@@ -129,10 +119,7 @@ pub trait LLMDriftSqlLogic {
 
         let records = query.fetch_all(pool).await.map_err(SqlError::SqlxError)?;
 
-        Ok(records
-            .into_iter()
-            .map(LLMDriftServerRecord::from)
-            .collect())
+        Ok(records.into_iter().map(|r| r.to_public_record()).collect())
     }
 
     /// Retrieves a paginated list of LLM drift records from the database
@@ -147,16 +134,16 @@ pub trait LLMDriftSqlLogic {
     #[instrument(skip_all)]
     async fn get_llm_drift_records_pagination(
         pool: &Pool<Postgres>,
-        service_info: &ServiceInfo,
+        entity_id: &i32,
         status: Option<Status>,
         pagination: PaginationRequest,
-    ) -> Result<PaginationResponse<LLMDriftServerRecord>, SqlError> {
+    ) -> Result<PaginationResponse<LLMDriftRecord>, SqlError> {
         let limit = pagination.limit.clamp(1, 100); // Cap at 100, min 1
         let query_limit = limit + 1;
 
         // Get initial SQL query
         let mut sql = Queries::GetLLMDriftRecords.get_query().sql;
-        let mut bind_count = 3;
+        let mut bind_count = 1;
 
         // If querying any page other than the first, we need to add a cursor condition
         // Everything is filtered by ID desc (most recent), so if last ID is provided, we need to filter for IDs less than that
@@ -174,10 +161,7 @@ pub trait LLMDriftSqlLogic {
 
         sql.push_str(&format!(" ORDER BY id DESC LIMIT ${}", bind_count + 1));
 
-        let mut query = sqlx::query_as::<_, LLMDriftServerSQLRecord>(&sql)
-            .bind(&service_info.space)
-            .bind(&service_info.name)
-            .bind(&service_info.version);
+        let mut query = sqlx::query_as::<_, LLMDriftInternalRecord>(&sql).bind(entity_id);
 
         // Bind cursor parameter
         if let Some(cursor) = &pagination.cursor {
@@ -207,10 +191,7 @@ pub trait LLMDriftSqlLogic {
             None
         };
 
-        let items = records
-            .into_iter()
-            .map(LLMDriftServerRecord::from)
-            .collect();
+        let items = records.into_iter().map(|r| r.to_public_record()).collect();
 
         Ok(PaginationResponse {
             items,
@@ -221,17 +202,15 @@ pub trait LLMDriftSqlLogic {
 
     async fn get_llm_metric_values(
         pool: &Pool<Postgres>,
-        service_info: &ServiceInfo,
         limit_datetime: &DateTime<Utc>,
         metrics: &[String],
+        entity_id: &i32,
     ) -> Result<HashMap<String, f64>, SqlError> {
         let query = Queries::GetLLMMetricValues.get_query();
 
         let records = sqlx::query(&query.sql)
             .bind(limit_datetime)
-            .bind(&service_info.space)
-            .bind(&service_info.name)
-            .bind(&service_info.version)
+            .bind(entity_id)
             .bind(metrics)
             .fetch_all(pool)
             .await
@@ -255,6 +234,8 @@ pub trait LLMDriftSqlLogic {
     /// # Arguments
     /// * `pool` - The database connection pool
     /// * `params` - The drift request parameters
+    /// * `minutes` - The number of minutes to bin the data
+    /// * `entity_id` - The entity ID to filter records
     ///
     /// # Returns
     /// * BinnedMetrics
@@ -263,6 +244,7 @@ pub trait LLMDriftSqlLogic {
         pool: &Pool<Postgres>,
         params: &DriftRequest,
         minutes: i32,
+        entity_id: &i32,
     ) -> Result<BinnedMetrics, SqlError> {
         let bin = params.time_interval.to_minutes() as f64 / params.max_data_points as f64;
 
@@ -271,9 +253,7 @@ pub trait LLMDriftSqlLogic {
         let records: Vec<BinnedMetricWrapper> = sqlx::query_as(&query.sql)
             .bind(bin)
             .bind(minutes)
-            .bind(&params.space)
-            .bind(&params.name)
-            .bind(&params.version)
+            .bind(entity_id)
             .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError)?;
@@ -310,6 +290,7 @@ pub trait LLMDriftSqlLogic {
     /// * `end` - The end time of the time window
     /// * `minutes` - The number of minutes to bin the data
     /// * `storage_settings` - The object storage settings
+    /// * `entity_id` - The entity ID to filter records
     ///
     /// # Returns
     /// * A vector of drift records
@@ -320,23 +301,13 @@ pub trait LLMDriftSqlLogic {
         end: DateTime<Utc>,
         minutes: i32,
         storage_settings: &ObjectStorageSettings,
+        entity_id: &i32,
     ) -> Result<BinnedMetrics, SqlError> {
         debug!("Getting archived LLM metrics for params: {:?}", params);
-        let path = format!(
-            "{}/{}/{}/llm_metric",
-            params.space, params.name, params.version
-        );
+        let path = format!("{}/llm_metric", params.uid);
         let bin = minutes as f64 / params.max_data_points as f64;
         let archived_df = ParquetDataFrame::new(storage_settings, &RecordType::LLMMetric)?
-            .get_binned_metrics(
-                &path,
-                &bin,
-                &begin,
-                &end,
-                &params.space,
-                &params.name,
-                &params.version,
-            )
+            .get_binned_metrics(&path, &bin, &begin, &end, entity_id)
             .await
             .inspect_err(|e| {
                 error!("Failed to get archived LLM metrics: {:?}", e);
@@ -360,13 +331,14 @@ pub trait LLMDriftSqlLogic {
         params: &DriftRequest,
         retention_period: &i32,
         storage_settings: &ObjectStorageSettings,
+        entity_id: &i32,
     ) -> Result<BinnedMetrics, SqlError> {
         debug!("Getting binned Custom drift records for {:?}", params);
 
         if !params.has_custom_interval() {
             debug!("No custom interval provided, using default");
             let minutes = params.time_interval.to_minutes();
-            return Self::get_records(pool, params, minutes).await;
+            return Self::get_records(pool, params, minutes, entity_id).await;
         }
 
         debug!("Custom interval provided, using custom interval");
@@ -376,7 +348,7 @@ pub trait LLMDriftSqlLogic {
 
         // get data from postgres
         if let Some(minutes) = timestamps.current_minutes {
-            let current_results = Self::get_records(pool, params, minutes).await?;
+            let current_results = Self::get_records(pool, params, minutes, entity_id).await?;
             Self::merge_feature_results(current_results, &mut custom_metric_map)?;
         }
 
@@ -389,6 +361,7 @@ pub trait LLMDriftSqlLogic {
                     archive_end,
                     archived_minutes,
                     storage_settings,
+                    entity_id,
                 )
                 .await?;
                 Self::merge_feature_results(archived_results, &mut custom_metric_map)?;
@@ -401,20 +374,20 @@ pub trait LLMDriftSqlLogic {
     /// Retrieves the next pending LLM drift task from drift_records.
     async fn get_pending_llm_drift_record(
         pool: &Pool<Postgres>,
-    ) -> Result<Option<LLMRecord>, SqlError> {
+    ) -> Result<Option<LLMTaskRecord>, SqlError> {
         let query = Queries::GetPendingLLMDriftTask.get_query();
-        let result: Option<LLMRecordWrapper> = sqlx::query_as(&query.sql)
+        let result: Option<LLMTaskRecord> = sqlx::query_as(&query.sql)
             .fetch_optional(pool)
             .await
             .map_err(SqlError::SqlxError)?;
 
-        Ok(result.map(|wrapper| wrapper.0))
+        Ok(result)
     }
 
     #[instrument(skip_all)]
     async fn update_llm_drift_record_status(
         pool: &Pool<Postgres>,
-        record: &LLMRecord,
+        record: &LLMTaskRecord,
         status: Status,
         workflow_duration: Option<i32>, // Duration in seconds
     ) -> Result<(), SqlError> {

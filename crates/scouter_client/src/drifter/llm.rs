@@ -31,8 +31,9 @@ impl ClientLLMDrifter {
         record: &LLMRecord,
         profile: &LLMDriftProfile,
     ) -> Result<Vec<LLMMetricRecord>, DriftError> {
+        let task_record = record.to_task_record(&profile.config.uid);
         let (metrics, _score, _workflow_duration) =
-            LLMEvaluator::process_drift_record(record, profile).await?;
+            LLMEvaluator::process_drift_record(&task_record, profile).await?;
         Ok(metrics)
     }
 

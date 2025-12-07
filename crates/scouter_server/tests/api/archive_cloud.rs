@@ -1,6 +1,6 @@
 use std::time::Duration;
 // storage integration tests for cloud storage
-use crate::common::{TestHelper, NAME, SPACE, VERSION};
+use crate::common::{setup_test, TestHelper, NAME, SPACE, VERSION};
 
 use axum::{
     body::Body,
@@ -13,14 +13,14 @@ use scouter_server::api::archive::archive_old_data;
 use scouter_types::contracts::DriftRequest;
 use scouter_types::{
     psi::{BinnedPsiFeatureMetrics, PsiAlertConfig, PsiDriftConfig},
-    DriftType, RecordType,
+    RecordType,
 };
 use sqlx::types::chrono::Utc;
 use tokio::time::sleep;
 
 #[tokio::test]
 async fn test_storage_integration_cloud() {
-    let helper = TestHelper::new(false, false).await.unwrap();
+    let helper = setup_test().await;
 
     // create profile
     let (array, features) = helper.get_data();
@@ -43,31 +43,21 @@ async fn test_storage_integration_cloud() {
 
     let monitor = PsiMonitor::new();
 
-    let profile = monitor
+    let mut profile = monitor
         .create_2d_drift_profile(&features, &array.view(), &config)
         .unwrap();
 
-    let request = profile.create_profile_request().unwrap();
+    let uid = helper
+        .register_drift_profile(profile.create_profile_request().unwrap())
+        .await;
 
-    let body = serde_json::to_string(&request).unwrap();
-
-    let request = Request::builder()
-        .uri("/scouter/profile")
-        .method("POST")
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(body))
-        .unwrap();
-
-    let response = helper.send_oneshot(request).await;
-
-    //assert response
-    assert_eq!(response.status(), StatusCode::OK);
+    profile.config.uid = uid.clone();
 
     // 10 day old records
-    let long_term_records = helper.get_psi_drift_records(Some(10));
+    let long_term_records = helper.get_psi_drift_records(Some(10), &profile.config.uid);
 
     // 0 day old records
-    let short_term_records = helper.get_psi_drift_records(None);
+    let short_term_records = helper.get_psi_drift_records(None, &profile.config.uid);
 
     for records in [short_term_records, long_term_records].iter() {
         let body = serde_json::to_string(records).unwrap();
@@ -96,7 +86,7 @@ async fn test_storage_integration_cloud() {
     assert!(!record.custom);
     //
     let df = ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::Psi).unwrap();
-    let path = format!("{SPACE}/{NAME}/{VERSION}/psi");
+    let path = format!("{}/psi", uid);
 
     let data_path = object_store::path::Path::from(path);
     let files = df.storage_client().list(Some(&data_path)).await.unwrap();
@@ -105,10 +95,8 @@ async fn test_storage_integration_cloud() {
 
     let params = DriftRequest {
         space: SPACE.to_string(),
-        name: NAME.to_string(),
-        version: VERSION.to_string(),
+        uid: uid.clone(),
         max_data_points: 100,
-        drift_type: DriftType::Psi,
         begin_custom_datetime: Some(Utc::now() - chrono::Duration::days(15)),
         end_custom_datetime: Some(Utc::now()),
         ..Default::default()

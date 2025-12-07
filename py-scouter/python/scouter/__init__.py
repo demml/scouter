@@ -38,6 +38,7 @@ from ._scouter import (
     LLMEvalMetric,
     LLMEvalRecord,
     LLMEvalResults,
+    LoggingConfig,
     Manual,
     Metric,
     Metrics,
@@ -53,6 +54,7 @@ from ._scouter import (
     RabbitMQConfig,
     RedisConfig,
     Rice,
+    RustyLogger,
     Scott,
     ScouterClient,
     ScouterQueue,
@@ -65,7 +67,17 @@ from ._scouter import (
     SquareRoot,
     Sturges,
     TerrellScott,
+    _get_log_level,
+    _log_json,
     evaluate_llm,
+)
+
+# Configure Rust logging for Python based on environment variables
+RustyLogger.setup_logging(
+    LoggingConfig(
+        log_level=_get_log_level(),
+        use_json=_log_json(),
+    )
 )
 
 __all__ = [

@@ -2,6 +2,7 @@ import random
 import tempfile
 import time
 from pathlib import Path
+from typing import cast
 
 from scouter import (
     CustomMetric,
@@ -76,15 +77,16 @@ def test_custom_monitor_pandas_rabbitmq(rabbitmq_scouter_server):
     time.sleep(10)
 
     request = DriftRequest(
-        name=profile.config.name,
+        uid=profile.uid,
         space=profile.config.space,
-        version=profile.config.version,
         time_interval=TimeInterval.FifteenMinutes,
         max_data_points=1000,
-        drift_type=DriftType.Custom,
     )
 
-    binned_records: BinnedMetrics = client.get_binned_drift(request)  # type: ignore
+    binned_records = cast(
+        BinnedMetrics,
+        client.get_binned_drift(request, DriftType.Custom),
+    )
 
     assert len(binned_records.metrics["mae"].stats) > 0
 
@@ -103,13 +105,7 @@ def test_custom_monitor_pandas_rabbitmq(rabbitmq_scouter_server):
 
     ## wait for alerts to be created, if not created after 5 attempts, fail the test
     while attempts < 5:
-        alerts = client.get_alerts(
-            DriftAlertRequest(
-                name=profile.config.name,
-                space=profile.config.space,
-                version=profile.config.version,
-            )
-        )
+        alerts = client.get_alerts(DriftAlertRequest(uid=profile.uid))
 
         if len(alerts) > 0:
             break

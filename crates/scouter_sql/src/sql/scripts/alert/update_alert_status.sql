@@ -1,10 +1,11 @@
 UPDATE scouter.drift_alert
-SET 
+SET
     active = $2,
     updated_at = CURRENT_TIMESTAMP
-WHERE 
+WHERE
     id = $1
-RETURNING 
+RETURNING
     id,
+    entity_id,
     active,
     updated_at;
