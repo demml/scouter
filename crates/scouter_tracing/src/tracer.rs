@@ -787,15 +787,14 @@ fn get_tracer(name: String) -> Result<SdkTracer, TraceError> {
 pub fn get_tracing_headers_from_current_span(
     py: Python<'_>,
 ) -> Result<HashMap<String, String>, TraceError> {
-    // 1. Get the current active span PyAny reference (ActiveSpan PyO3 object)
+    // 1. Get the current active span
     let current_span_py = get_current_active_span(py)?;
 
-    // 2. Try to downcast the PyAny to your ActiveSpan struct
     let active_span_ref = current_span_py
         .extract::<PyRef<ActiveSpan>>()
         .map_err(|e| TraceError::DowncastError(format!("Failed to extract ActiveSpan: {}", e)))?;
 
-    // 3. Extract the underlying OpenTelemetry Span Context
+    // 2. Extract the underlying OpenTelemetry Span Context
     let otel_span_context = {
         let inner_guard = active_span_ref
             .inner
@@ -810,9 +809,8 @@ pub fn get_tracing_headers_from_current_span(
 
     let headers: HashMap<String, String> = get_text_map_propagator(|propagator| {
         let mut headers = HashMap::new();
-        // The propagator reference is passed into the closure, and we call the method on it.
         propagator.inject_context(&context_to_propagate, &mut headers);
-        headers // Return the map from the closure
+        headers
     });
 
     Ok(headers)
