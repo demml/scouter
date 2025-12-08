@@ -41,8 +41,8 @@ pub use scouter_types::{
     ScouterServerError, ServerRecord, ServerRecords, SlackDispatchConfig, SpanEvent, SpanLink,
     SpcRecord, SquareRoot, Sturges, TagRecord, TagsResponse, TerrellScott, TimeInterval,
     TraceBaggageRecord, TraceBaggageResponse, TraceMetricsRequest, TraceMetricsResponse,
-    TracePaginationResponse, TraceRecord, TraceSpanRecord, TraceSpansResponse, UpdateAlertResponse,
-    UpdateAlertStatus, VersionRequest,
+    TracePaginationResponse, TraceRecord, TraceRequest, TraceSpanRecord, TraceSpansResponse,
+    UpdateAlertResponse, UpdateAlertStatus, VersionRequest,
 };
 
 pub use crate::http::{PyScouterClient, ScouterClient};
