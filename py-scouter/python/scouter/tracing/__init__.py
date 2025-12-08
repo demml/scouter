@@ -32,6 +32,7 @@ from .._scouter import (
     TraceSpanRecord,
     flush_tracer,
     get_function_type,
+    get_tracing_headers_from_current_span,
     init_tracer,
     shutdown_tracer,
 )
@@ -85,6 +86,7 @@ class Tracer(BaseTracer):
         tags: List[dict[str, str]] = [],
         label: Optional[str] = None,
         parent_context_id: Optional[str] = None,
+        trace_id: Optional[str] = None,
         max_length: int = 1000,
         capture_last_stream_item: bool = False,
         join_stream_items: bool = False,
@@ -107,6 +109,8 @@ class Tracer(BaseTracer):
                 An optional label for the span
             parent_context_id (Optional[str]):
                 Parent context ID for the span
+            trace_id (Optional[str]):
+                Optional trace ID to associate with the span. This is useful for
             max_length (int):
                 Maximum length for input/output capture
             capture_last_stream_item (bool):
@@ -139,6 +143,7 @@ class Tracer(BaseTracer):
                         tags=tags,
                         label=label,
                         parent_context_id=parent_context_id,
+                        trace_id=trace_id,
                         max_length=max_length,
                         func_type=function_type,
                         func_kwargs=kwargs,
@@ -180,6 +185,7 @@ class Tracer(BaseTracer):
                         tags=tags,
                         label=label,
                         parent_context_id=parent_context_id,
+                        trace_id=trace_id,
                         max_length=max_length,
                         func_type=function_type,
                         func_kwargs=kwargs,
@@ -221,6 +227,7 @@ class Tracer(BaseTracer):
                         tags=tags,
                         label=label,
                         parent_context_id=parent_context_id,
+                        trace_id=trace_id,
                         max_length=max_length,
                         func_type=function_type,
                         func_kwargs=kwargs,
@@ -250,6 +257,7 @@ class Tracer(BaseTracer):
                     tags=tags,
                     label=label,
                     parent_context_id=parent_context_id,
+                    trace_id=trace_id,
                     max_length=max_length,
                     func_type=function_type,
                     func_kwargs=kwargs,
@@ -298,4 +306,5 @@ __all__ = [
     "flush_tracer",
     "BatchConfig",
     "shutdown_tracer",
+    "get_tracing_headers_from_current_span",
 ]

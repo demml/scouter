@@ -36,6 +36,14 @@ def get_function_type(func: Callable[..., Any]) -> "FunctionType":
             The function to analyze.
     """
 
+def get_tracing_headers_from_current_span() -> Dict[str, str]:
+    """Get tracing headers from the current active span and global propagator.
+
+    Returns:
+        Dict[str, str]:
+            A dictionary of tracing headers.
+    """
+
 class OtelProtocol:
     """Enumeration of protocols for HTTP exporting."""
 
@@ -121,6 +129,24 @@ def init_tracer(
 
 class ActiveSpan:
     """Represents an active tracing span."""
+
+    @property
+    def trace_id(self) -> str:
+        """Get the trace ID of the current active span.
+
+        Returns:
+            str:
+                The trace ID.
+        """
+
+    @property
+    def span_id(self) -> str:
+        """Get the span ID of the current active span.
+
+        Returns:
+            str:
+                The span ID.
+        """
 
     @property
     def context_id(self) -> str:
@@ -220,6 +246,8 @@ class BaseTracer:
         baggage: Optional[dict[str, str]] = None,
         tags: Optional[dict[str, str]] = None,
         parent_context_id: Optional[str] = None,
+        trace_id: Optional[str] = None,
+        span_id: Optional[str] = None,
     ) -> ActiveSpan:
         """Context manager to start a new span as the current span.
 
@@ -238,6 +266,11 @@ class BaseTracer:
                 Optional tags to set on the span and trace.
             parent_context_id (Optional[str]):
                 Optional parent span context ID.
+            trace_id (Optional[str]):
+                Optional trace ID to associate with the span. This is useful for
+                when linking spans across different services or systems.
+            span_id (Optional[str]):
+                Optional span ID to associate with the span. This will be the parent span ID.
         Returns:
             ActiveSpan:
         """
@@ -253,6 +286,7 @@ class BaseTracer:
         baggage: List[dict[str, str]] = [],
         tags: List[dict[str, str]] = [],
         parent_context_id: Optional[str] = None,
+        trace_id: Optional[str] = None,
         max_length: int = 1000,
         func_type: FunctionType = FunctionType.Sync,
         func_kwargs: Optional[dict[str, Any]] = None,
@@ -278,6 +312,9 @@ class BaseTracer:
                 Optional tags to set on the span.
             parent_context_id (Optional[str]):
                 Optional parent span context ID.
+            trace_id (Optional[str]):
+                Optional trace ID to associate with the span. This is useful for
+                when linking spans across different services or systems.
             max_length (int):
                 The maximum length for string inputs/outputs. Defaults to 1000.
             func_type (FunctionType):

@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 
 import pytest
 import requests
+from fastapi import FastAPI, Request
+from pydantic import BaseModel
 from scouter.mock import ScouterTestServer
 from scouter.tracing import (
     BatchConfig,
@@ -15,18 +17,18 @@ from scouter.tracing import (
 )
 
 
-@pytest.fixture()
-def http_scouter_server():
-    with ScouterTestServer() as server:
-        yield server
-
-
 @pytest.fixture(scope="module")
 def http_span_exporter():
     """Create a fresh http span exporter for each test.
     This should write to the otel collector
     """
     return HttpSpanExporter()
+
+
+@pytest.fixture()
+def http_scouter_server():
+    with ScouterTestServer() as server:
+        yield server
 
 
 @pytest.fixture(scope="module")
@@ -89,3 +91,63 @@ def get_traces_from_jaeger(service_name: str):
     traces = data.get("data", [])
 
     return traces
+
+
+def get_trace_by_id(trace_id: str):
+    """Helper function to get a specific trace from Jaeger by trace ID.
+
+    Args:
+        trace_id: The trace ID to query (hex string format)
+
+    Returns:
+        The trace data dictionary, or None if not found
+    """
+    JAEGER_TRACE_URL = f"http://localhost:16686/api/traces/{trace_id}"
+
+    response = requests.get(JAEGER_TRACE_URL)
+    response.raise_for_status()
+    data = response.json()
+
+    traces = data.get("data", [])
+
+    # Return the first trace (should only be one for a specific trace ID)
+    return traces[0] if traces else None
+
+
+class ServiceARequest(BaseModel):
+    value: float
+    message: str
+
+
+class ServiceAResponse(BaseModel):
+    result: float
+    trace_id: str
+    span_id: str
+
+
+def create_service_a_app() -> FastAPI:
+    """
+    Service A - Initiates the trace and calls Service B
+    """
+    app = FastAPI()
+    tracer = get_tracer("service-a-tracer")
+
+    def service_a_inner_function():
+        with tracer.start_as_current_span("service_a_inner_function") as span:
+            span.set_attribute("service_a.attribute", "value_a")
+
+    @app.post("/calculate", response_model=ServiceAResponse)
+    def calculate(request: Request, payload: ServiceARequest) -> ServiceAResponse:
+        """Main endpoint for Service A"""
+        incoming_headers = request.headers
+        trace_id = incoming_headers.get("trace_id")
+        span_id = incoming_headers.get("span_id")
+
+        with tracer.start_as_current_span("service_a_double", trace_id=trace_id, span_id=span_id):
+            doubled = payload.value * 2
+
+            service_a_inner_function()
+
+            return ServiceAResponse(result=doubled + 10, trace_id=trace_id, span_id=span_id)
+
+    return app

@@ -15,14 +15,16 @@ use crate::utils::{
     get_current_active_span, get_current_context_id, set_current_span, set_function_attributes,
     set_function_type_attribute, ActiveSpanInner, FunctionType, SpanKind,
 };
+
 use chrono::{DateTime, Utc};
 use opentelemetry::baggage::BaggageExt;
 use opentelemetry::trace::Tracer as OTelTracer;
 use opentelemetry::trace::TracerProvider;
 use opentelemetry::{
-    trace::{Span, Status, TraceContextExt},
+    trace::{Span, SpanContext, Status, TraceContextExt, TraceState},
     Context as OtelContext, KeyValue,
 };
+use opentelemetry::{SpanId, TraceFlags, TraceId};
 use opentelemetry_sdk::trace::SdkTracer;
 use opentelemetry_sdk::trace::SdkTracerProvider;
 use opentelemetry_sdk::Resource;
@@ -243,6 +245,16 @@ pub struct ActiveSpan {
 
 #[pymethods]
 impl ActiveSpan {
+    #[getter]
+    fn trace_id(&self) -> Result<String, TraceError> {
+        self.with_inner(|inner| inner.span.span_context().trace_id().to_string())
+    }
+
+    #[getter]
+    fn span_id(&self) -> Result<String, TraceError> {
+        self.with_inner(|inner| inner.span.span_context().span_id().to_string())
+    }
+
     #[getter]
     fn context_id(&self) -> Result<String, TraceError> {
         self.with_inner(|inner| inner.context_id.clone())
@@ -552,7 +564,7 @@ impl BaseTracer {
     /// * `baggage` - Optional baggage items as a dictionary
     /// * `tags` - Optional tags to prefix baggage items with as a dictionary
     /// * `parent_context_id` - Optional parent context ID to link the span to (this is automatically set if not provided)
-    #[pyo3(signature = (name, kind=SpanKind::Internal, attributes=vec![], baggage=vec![], tags=vec![], label=None,  parent_context_id=None))]
+    #[pyo3(signature = (name, kind=SpanKind::Internal, attributes=vec![], baggage=vec![], tags=vec![], label=None,  parent_context_id=None, trace_id=None, span_id=None, remote_sampled=None))]
     #[allow(clippy::too_many_arguments)]
     #[instrument(skip_all)]
     fn start_as_current_span(
@@ -565,15 +577,46 @@ impl BaseTracer {
         tags: Vec<HashMap<String, String>>,
         label: Option<String>,
         parent_context_id: Option<String>,
+        trace_id: Option<String>,
+        span_id: Option<String>,
+        remote_sampled: Option<bool>, // only used if both trace_id and span_id are provided (remote parent case)
     ) -> Result<ActiveSpan, TraceError> {
         // Get parent context if available
         let parent_id = parent_context_id.or_else(|| get_current_context_id(py).ok().flatten());
 
         // Build the base context first
-        let base_ctx = parent_id
-            .and_then(|id| get_context_store().get(&id).ok().flatten())
-            .map(|parent_span_ctx| OtelContext::current().with_remote_span_context(parent_span_ctx))
-            .unwrap_or_else(OtelContext::current);
+        let base_ctx = if let (Some(tid), Some(sid)) = (&trace_id, &span_id) {
+            // Both trace_id and span_id come from upstream service's headers
+            let parsed_trace_id = TraceId::from_hex(tid)?;
+            let parsed_span_id = SpanId::from_hex(sid)?; // This is the PARENT's span_id
+
+            // Create remote context that says:
+            // "My parent is span_id in trace_id, and it's from another service"
+            let remote_span_context = SpanContext::new(
+                parsed_trace_id, // The shared trace ID
+                parsed_span_id,  // The parent span's ID
+                remote_sampled.map_or(TraceFlags::default(), |sampled| {
+                    if sampled {
+                        TraceFlags::SAMPLED
+                    } else {
+                        TraceFlags::NOT_SAMPLED
+                    }
+                }),
+                true, // is_remote = true (parent is from different service)
+                TraceState::default(),
+            );
+
+            OtelContext::current().with_remote_span_context(remote_span_context)
+        } else if let Some(parent_id) = parent_id {
+            // Use local parent (within same Python process)
+            get_context_store()
+                .get(&parent_id)?
+                .map(|parent_ctx| OtelContext::current().with_remote_span_context(parent_ctx))
+                .unwrap_or_else(OtelContext::current)
+        } else {
+            // No parent - this is a root span
+            OtelContext::current()
+        };
 
         // convert baggage items to vec of KeyValue
         let baggage_items = Self::create_baggage_items(&baggage, &tags);
@@ -586,12 +629,19 @@ impl BaseTracer {
 
         // Create span with the final context (this consumes final_ctx)
 
-        let mut span = BoxedSpan::new(
-            self.tracer
-                .span_builder(name.clone())
-                .with_kind(kind.to_otel_span_kind())
-                .start_with_context(&self.tracer, &final_ctx),
-        );
+        let span_builder = self
+            .tracer
+            .span_builder(name.clone())
+            .with_kind(kind.to_otel_span_kind());
+
+        // Conditionally set trace_id if provided
+        //if let Some(trace_id) = trace_id {
+        //    let parsed_trace_id = opentelemetry::trace::TraceId::from_hex(&trace_id)
+        //        .map_err(|e| TraceError::InitializationError(format!("Invalid trace_id: {}", e)))?;
+        //    span_builder = span_builder.with_trace_id(parsed_trace_id);
+        //}
+
+        let mut span = BoxedSpan::new(span_builder.start_with_context(&self.tracer, &final_ctx));
 
         attributes.iter().for_each(|attr_map| {
             attr_map.iter().for_each(|(k, v)| {
@@ -605,6 +655,7 @@ impl BaseTracer {
         }
 
         let context_id = Self::set_context_id(self, &mut span)?;
+
         let inner = Arc::new(RwLock::new(ActiveSpanInner {
             context_id,
             span,
@@ -641,6 +692,9 @@ impl BaseTracer {
         tags=vec![],
         label=None,
         parent_context_id=None,
+        trace_id=None,
+        span_id=None,
+        remote_sampled=None,
         max_length=1000,
         func_type=FunctionType::Sync,
         func_kwargs=None
@@ -658,6 +712,9 @@ impl BaseTracer {
         tags: Vec<HashMap<String, String>>,
         label: Option<String>,
         parent_context_id: Option<String>,
+        trace_id: Option<String>,
+        span_id: Option<String>,
+        remote_sampled: Option<bool>,
         max_length: usize,
         func_type: FunctionType,
         func_kwargs: Option<&Bound<'_, PyDict>>,
@@ -671,6 +728,9 @@ impl BaseTracer {
             tags,
             label,
             parent_context_id,
+            trace_id,
+            span_id,
+            remote_sampled,
         )?;
 
         set_function_attributes(func, &mut span)?;
@@ -779,4 +839,43 @@ fn get_tracer(name: String) -> Result<SdkTracer, TraceError> {
     })?;
 
     Ok(provider.tracer(name))
+}
+
+#[pyfunction]
+pub fn get_tracing_headers_from_current_span(
+    py: Python<'_>,
+) -> Result<HashMap<String, String>, TraceError> {
+    let current_span_py = get_current_active_span(py)?;
+
+    let active_span_ref = current_span_py
+        .extract::<PyRef<ActiveSpan>>()
+        .map_err(|e| TraceError::DowncastError(format!("Failed to extract ActiveSpan: {}", e)))?;
+
+    // Get the stored context that includes both span and baggage
+    let context_to_propagate = {
+        let inner_guard = active_span_ref
+            .inner
+            .read()
+            .map_err(|e| TraceError::PoisonError(e.to_string()))?;
+
+        inner_guard.span.span_context().clone()
+    };
+
+    // Inject into headers
+    // add trace_id and span_id for easier access
+    let mut headers: HashMap<String, String> = HashMap::new();
+    headers.insert(
+        "trace_id".to_string(),
+        context_to_propagate.trace_id().to_string(),
+    );
+    headers.insert(
+        "span_id".to_string(),
+        context_to_propagate.span_id().to_string(),
+    );
+
+    // get is_sampled flag
+    let is_sampled = &context_to_propagate.trace_flags().is_sampled().to_string();
+    headers.insert("is_sampled".to_string(), is_sampled.to_string());
+
+    Ok(headers)
 }
