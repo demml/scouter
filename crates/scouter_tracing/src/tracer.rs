@@ -246,6 +246,16 @@ pub struct ActiveSpan {
 #[pymethods]
 impl ActiveSpan {
     #[getter]
+    fn trace_id(&self) -> Result<String, TraceError> {
+        self.with_inner(|inner| inner.span.span_context().trace_id().to_string())
+    }
+
+    #[getter]
+    fn span_id(&self) -> Result<String, TraceError> {
+        self.with_inner(|inner| inner.span.span_context().span_id().to_string())
+    }
+
+    #[getter]
     fn context_id(&self) -> Result<String, TraceError> {
         self.with_inner(|inner| inner.context_id.clone())
     }
@@ -597,7 +607,7 @@ impl BaseTracer {
             );
 
             OtelContext::current().with_remote_span_context(remote_span_context)
-        } else if let Some(parent_id) = parent_context_id {
+        } else if let Some(parent_id) = parent_id {
             // Use local parent (within same Python process)
             get_context_store()
                 .get(&parent_id)?
@@ -619,17 +629,17 @@ impl BaseTracer {
 
         // Create span with the final context (this consumes final_ctx)
 
-        let mut span_builder = self
+        let span_builder = self
             .tracer
             .span_builder(name.clone())
             .with_kind(kind.to_otel_span_kind());
 
         // Conditionally set trace_id if provided
-        if let Some(trace_id) = trace_id {
-            let parsed_trace_id = opentelemetry::trace::TraceId::from_hex(&trace_id)
-                .map_err(|e| TraceError::InitializationError(format!("Invalid trace_id: {}", e)))?;
-            span_builder = span_builder.with_trace_id(parsed_trace_id);
-        }
+        //if let Some(trace_id) = trace_id {
+        //    let parsed_trace_id = opentelemetry::trace::TraceId::from_hex(&trace_id)
+        //        .map_err(|e| TraceError::InitializationError(format!("Invalid trace_id: {}", e)))?;
+        //    span_builder = span_builder.with_trace_id(parsed_trace_id);
+        //}
 
         let mut span = BoxedSpan::new(span_builder.start_with_context(&self.tracer, &final_ctx));
 
@@ -862,6 +872,10 @@ pub fn get_tracing_headers_from_current_span(
         "span_id".to_string(),
         context_to_propagate.span_id().to_string(),
     );
+
+    // get is_sampled flag
+    let is_sampled = &context_to_propagate.trace_flags().is_sampled().to_string();
+    headers.insert("is_sampled".to_string(), is_sampled.to_string());
 
     Ok(headers)
 }
