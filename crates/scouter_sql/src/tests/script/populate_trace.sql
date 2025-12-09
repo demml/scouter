@@ -111,18 +111,18 @@ BEGIN
         -- Insert trace record
         -- UPDATED: Removed entity_id, Added service_id. Removed drift-specific fields.
         INSERT INTO scouter.traces (
-            trace_id, 
-            service_id, 
+            trace_id,
+            service_id,
             service_name,
-            scope, 
-            trace_state, 
-            start_time, 
-            end_time, 
-            duration_ms, 
-            status_code, 
+            scope,
+            trace_state,
+            start_time,
+            end_time,
+            duration_ms,
+            status_code,
             status_message,
-            root_span_id, 
-            span_count, 
+            root_span_id,
+            span_count,
             created_at
         ) VALUES (
             v_trace_id,
@@ -148,7 +148,7 @@ BEGIN
             ) VALUES (
                 v_current_time + (RANDOM() * INTERVAL '1 second'),
                 'trace',
-                v_trace_id, 
+                v_trace_id,
                 CASE
                     WHEN k = 1 THEN 'trace.tag.env'
                     WHEN k = 2 THEN 'trace.tag.region'
@@ -207,22 +207,22 @@ BEGIN
             -- Insert span
             -- UPDATED: Removed entity_id, Added service_id and service_name
             INSERT INTO scouter.spans (
-                span_id, 
-                trace_id, 
-                parent_span_id, 
-                service_id, 
+                span_id,
+                trace_id,
+                parent_span_id,
+                service_id,
                 service_name,
                 scope,
-                span_name, 
-                span_kind, 
-                start_time, 
-                end_time, 
+                span_name,
+                span_kind,
+                start_time,
+                end_time,
                 duration_ms,
-                status_code, 
-                status_message, 
-                attributes, 
-                events, 
-                links, 
+                status_code,
+                status_message,
+                attributes,
+                events,
+                links,
                 created_at
             ) VALUES (
                 v_span_id,
@@ -290,7 +290,7 @@ BEGIN
                     ) VALUES (
                         v_span_start + (v_tag_offset_ms || ' milliseconds')::INTERVAL,
                         'span',
-                        v_span_id, 
+                        v_span_id,
                         CASE
                             WHEN k = 1 THEN 'span.tag.host'
                             ELSE 'span.tag.db.query'
@@ -339,12 +339,6 @@ BEGIN
     END LOOP;
 
     RAISE NOTICE 'Successfully generated % traces with spans and baggage', v_num_traces;
-
-    -- Refresh materialized view
-    REFRESH MATERIALIZED VIEW scouter.trace_summary;
-
-    RAISE NOTICE 'Refreshed trace_summary materialized view';
-
     -- Display summary statistics (Updated to use service_entities)
     RAISE NOTICE 'Summary Statistics:';
     RAISE NOTICE '- Total service entities: %', (SELECT COUNT(*) FROM scouter.service_entities);

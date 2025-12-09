@@ -389,6 +389,10 @@ impl ActiveSpan {
                         .set_attribute(KeyValue::new("exception.traceback", tb));
                 }
             }
+            // else set status to ok
+            else {
+                inner.span.set_status(Status::Ok);
+            }
 
             inner.span.end();
 

@@ -311,67 +311,82 @@ CREATE INDEX IF NOT EXISTS idx_llm_drift_record_pagination ON scouter.llm_drift_
 CREATE INDEX IF NOT EXISTS idx_observability_lookup ON scouter.observability_metric (created_at, entity_id);
 
 
+
 -- =================================================================
--- STEP 6: RECREATE TRACE_SUMMARY
+-- STEP 6: Create metrics tables
 -- =================================================================
 
-CREATE MATERIALIZED VIEW scouter.trace_summary AS
-SELECT
-    t.trace_id,
-    t.service_id,
-    t.service_name,
-    t.scope,
-    span_stats.start_time,
-    span_stats.end_time,
-    EXTRACT(EPOCH FROM (span_stats.end_time - span_stats.start_time)) * 1000 AS duration_ms,
-    t.status_code,
-    t.status_message,
-    t.span_count,
-    t.created_at,
-    root_span.span_name as root_operation,
-    root_span.span_kind as root_span_kind,
-    CASE WHEN t.status_code != 2 THEN true ELSE false END as has_errors,
-    COALESCE(error_spans.error_count, 0) as error_count,
-    span_stats.avg_span_duration,
-    span_stats.max_span_duration
-FROM scouter.traces t
-LEFT JOIN scouter.spans root_span ON (
-    t.trace_id = root_span.trace_id
-    AND t.root_span_id = root_span.span_id
-    AND root_span.created_at >= NOW() - INTERVAL '7 days'
+CREATE TABLE IF NOT EXISTS scouter.trace_metrics_hourly (
+    bucket_start TIMESTAMPTZ NOT NULL,
+    service_id INTEGER NOT NULL,
+    trace_count BIGINT DEFAULT 0,
+    total_duration_ms BIGINT DEFAULT 0,
+    error_count BIGINT DEFAULT 0,
+    p50_duration_ms FLOAT8,
+    p95_duration_ms FLOAT8,
+    p99_duration_ms FLOAT8,
+    PRIMARY KEY (bucket_start, service_id)
+);
+CREATE INDEX IF NOT EXISTS idx_metrics_service_id ON scouter.trace_metrics_hourly (service_id, bucket_start DESC);
+
+CREATE OR REPLACE FUNCTION scouter.refresh_trace_metrics_hourly(
+    p_interval INTERVAL DEFAULT '5 minutes',
+    p_start_time TIMESTAMPTZ DEFAULT NOW() - INTERVAL '1 hour'
 )
-LEFT JOIN (
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_bucket_start TIMESTAMPTZ;
+BEGIN
+    v_bucket_start := date_trunc('hour', NOW() - p_interval);
+    
+    DELETE FROM scouter.trace_metrics_hourly
+    WHERE bucket_start >= v_bucket_start;
+
+    INSERT INTO scouter.trace_metrics_hourly (
+        bucket_start,
+        service_id,
+        trace_count,
+        total_duration_ms,
+        error_count,
+        p50_duration_ms,
+        p95_duration_ms,
+        p99_duration_ms
+    )
     SELECT
-        trace_id,
-        COUNT(*) as error_count
-    FROM scouter.spans
-    WHERE status_code != 2
-    AND created_at >= NOW() - INTERVAL '7 days'
-    GROUP BY trace_id
-) error_spans ON t.trace_id = error_spans.trace_id
-LEFT JOIN (
-    SELECT
-        trace_id,
-        MIN(start_time) as start_time,
-        MAX(end_time) as end_time,
-        AVG(duration_ms) as avg_span_duration,
-        MAX(duration_ms) as max_span_duration
-    FROM scouter.spans
-    WHERE duration_ms IS NOT NULL
-    AND created_at >= NOW() - INTERVAL '7 days'
-    GROUP BY trace_id
-) span_stats ON t.trace_id = span_stats.trace_id
-WHERE t.created_at >= NOW() - INTERVAL '7 days';
+        date_bin(
+            p_interval,
+            t.start_time,
+            '2000-01-01 00:00:00'::TIMESTAMPTZ
+        ) as bucket_start,
+        t.service_id,
+        COUNT(*),
+        COALESCE(SUM(t.duration_ms), 0),
+        COUNT(*) FILTER (WHERE t.status_code = 2),
+        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY t.duration_ms),
+        PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY t.duration_ms),
+        PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY t.duration_ms)
+    FROM scouter.traces t
+    WHERE
+        t.service_id IS NOT NULL
+        AND t.start_time >= p_start_time
+        AND t.start_time < NOW()
+    GROUP BY 1, 2
+    ON CONFLICT (bucket_start, service_id) DO UPDATE SET
+        trace_count = EXCLUDED.trace_count,
+        total_duration_ms = EXCLUDED.total_duration_ms,
+        error_count = EXCLUDED.error_count,
+        -- FIX: Use the exact column names from the INSERT list for EXCLUDED
+        p50_duration_ms = EXCLUDED.p50_duration_ms,
+        p95_duration_ms = EXCLUDED.p95_duration_ms,
+        p99_duration_ms = EXCLUDED.p99_duration_ms;
+END;
+$$;
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_trace_summary_unique ON scouter.trace_summary (trace_id, scope);
-CREATE INDEX IF NOT EXISTS idx_trace_summary_service_id ON scouter.trace_summary (service_id, created_at DESC) 
-    WHERE service_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_trace_summary_service_name ON scouter.trace_summary (service_name, created_at DESC) 
-    WHERE service_name IS NOT NULL;
-
-SELECT cron.schedule('refresh-trace-summary', '*/5 * * * *',
-    $$REFRESH MATERIALIZED VIEW CONCURRENTLY scouter.trace_summary$$);
-
+-- 3. Schedule the new function to run (e.g., every 5 minutes)
+SELECT cron.schedule('refresh-hourly-trace-metrics', '*/5 * * * *',
+    $$CALL scouter.refresh_trace_metrics_hourly('5 minutes', NOW() - INTERVAL '1 hour')$$);
 
 -- =================================================================
 -- STEP 7: RECREATE QUERY FUNCTIONS
@@ -382,7 +397,7 @@ CREATE OR REPLACE FUNCTION scouter.get_trace_metrics(
     p_service_name TEXT DEFAULT NULL,
     p_start_time TIMESTAMPTZ DEFAULT NOW() - INTERVAL '1 hour',
     p_end_time TIMESTAMPTZ DEFAULT NOW(),
-    p_bucket_interval INTERVAL DEFAULT '5 minutes'
+    p_bucket_interval INTERVAL DEFAULT '5 minutes' -- interval must match the aggregation in the refresh function
 )
 RETURNS TABLE (
     bucket_start TIMESTAMPTZ,
@@ -402,30 +417,24 @@ AS $$
         WHERE p_service_name IS NULL OR service_name = p_service_name
     )
     SELECT
-        date_bin(
-            p_bucket_interval,
-            ts.start_time,
-            '2000-01-01 00:00:00'::TIMESTAMPTZ
-        ) as bucket_start,
-        COUNT(*) as trace_count,
-        AVG(ts.duration_ms) as avg_duration_ms,
-        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ts.duration_ms) as p50_duration_ms,
-        PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY ts.duration_ms) as p95_duration_ms,
-        PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY ts.duration_ms) as p99_duration_ms,
-        (
-            COUNT(*) FILTER (WHERE ts.has_errors = true) * 100.0 / NULLIF(COUNT(*), 0)
-        ) as error_rate
-    FROM scouter.trace_summary ts
+        tm.bucket_start,
+        SUM(tm.trace_count) as trace_count,
+        SUM(tm.total_duration_ms)::FLOAT8 / NULLIF(SUM(tm.trace_count), 0) as avg_duration_ms,
+        AVG(tm.p50_duration_ms) as p50_duration_ms,
+        AVG(tm.p95_duration_ms) as p95_duration_ms,
+        AVG(tm.p99_duration_ms) as p99_duration_ms,
+        SUM(tm.error_count) * 100.0 / NULLIF(SUM(tm.trace_count), 0) as error_rate
+    FROM scouter.trace_metrics_hourly tm
+    INNER JOIN service_filter sf ON tm.service_id = sf.service_id
     WHERE
-        (p_service_name IS NULL OR ts.service_id IN (SELECT service_id FROM service_filter))
-        AND ts.start_time >= p_start_time
-        AND ts.start_time <= p_end_time
-    GROUP BY bucket_start
-    ORDER BY bucket_start DESC;
+        tm.bucket_start >= p_start_time
+        AND tm.bucket_start <= p_end_time
+        AND p_bucket_interval = '5 minutes'::INTERVAL -- Important: enforce same interval for accurate lookup
+    GROUP BY 1
+    ORDER BY 1 DESC
 $$;
 
 
--- 7.2: get_traces_paginated
 CREATE OR REPLACE FUNCTION scouter.get_traces_paginated(
     p_service_name TEXT DEFAULT NULL,
     p_has_errors BOOLEAN DEFAULT NULL,
@@ -460,53 +469,71 @@ AS $$
         FROM scouter.service_entities
         WHERE p_service_name IS NULL OR service_name = p_service_name
     )
-    SELECT * FROM (
-        SELECT
-            ts.trace_id,
-            ts.service_name,
-            ts.scope,
-            ts.root_operation,
-            ts.start_time,
-            ts.end_time,
-            ts.duration_ms,
-            ts.status_code,
-            ts.status_message,
-            ts.span_count,
-            ts.has_errors,
-            ts.error_count,
-            ts.created_at
-        FROM scouter.trace_summary ts
-        WHERE
-            (p_service_name IS NULL OR ts.service_id IN (SELECT service_id FROM service_filter))
-            AND (p_has_errors IS NULL OR ts.has_errors = p_has_errors)
-            AND (p_status_code IS NULL OR ts.status_code = p_status_code)
-            AND ts.start_time >= p_start_time
-            AND ts.start_time <= p_end_time
-            AND (
-                (p_direction = 'next' AND (
-                    p_cursor_created_at IS NULL OR
-                    ts.created_at < p_cursor_created_at OR
-                    (ts.created_at = p_cursor_created_at AND ts.trace_id < p_cursor_trace_id)
-                ))
-                OR
-                (p_direction = 'previous' AND (
-                    p_cursor_created_at IS NULL OR
-                    ts.created_at > p_cursor_created_at OR
-                    (ts.created_at = p_cursor_created_at AND ts.trace_id > p_cursor_trace_id)
-                ))
-            )
-        ORDER BY
-            CASE WHEN p_direction = 'next' THEN ts.created_at END DESC,
-            CASE WHEN p_direction = 'next' THEN ts.trace_id END DESC,
-            CASE WHEN p_direction = 'previous' THEN ts.created_at END ASC,
-            CASE WHEN p_direction = 'previous' THEN ts.trace_id END ASC
-        LIMIT p_limit + 1
-    ) sub
+    SELECT
+        t.trace_id,
+        t.service_name,
+        t.scope,
+        rs.span_name as root_operation,
+        t.start_time,
+        t.end_time,
+        t.duration_ms,
+        t.status_code,
+        t.status_message,
+        t.span_count,
+        CASE WHEN t.status_code = 2 THEN true ELSE false END as has_errors, -- OTel: status_code 2 is ERROR
+        COALESCE(es.error_count, 0) as error_count, -- Re-introduced and calculated via Lateral Join
+        t.created_at
+    FROM scouter.traces t
+    -- 1. LATERAL JOIN for efficient root span lookup (requires index on trace_id, span_id, created_at)
+    LEFT JOIN LATERAL (
+        SELECT s.span_name
+        FROM scouter.spans s
+        WHERE s.trace_id = t.trace_id
+          AND s.span_id = t.root_span_id
+          -- CRITICAL: Includes time filter for partition pruning on scouter.spans
+          AND s.created_at >= p_start_time
+        LIMIT 1
+    ) rs ON true
+    -- 2. LATERAL JOIN for efficient span error count lookup (requires index on trace_id, status_code, created_at)
+    LEFT JOIN LATERAL (
+        SELECT COUNT(*) as error_count
+        FROM scouter.spans s
+        WHERE s.trace_id = t.trace_id
+          AND s.status_code = 2 -- OTel: status_code 2 is ERROR
+          -- CRITICAL: Includes time filter for partition pruning on scouter.spans
+          AND s.created_at >= p_start_time
+    ) es ON true
+    WHERE
+        (p_service_name IS NULL OR t.service_id IN (SELECT service_id FROM service_filter))
+        -- Filter traces on overall error status (OTel Error: status_code = 2)
+        AND (p_has_errors IS NULL
+            OR (p_has_errors = true AND t.status_code = 2)
+            OR (p_has_errors = false AND t.status_code != 2)
+        )
+        AND (p_status_code IS NULL OR t.status_code = p_status_code)
+        AND t.start_time >= p_start_time
+        AND t.start_time <= p_end_time
+        AND (
+            -- Forward pagination: get records LESS than cursor
+            (p_direction = 'next' AND (
+                p_cursor_created_at IS NULL OR
+                t.created_at < p_cursor_created_at OR
+                (t.created_at = p_cursor_created_at AND t.trace_id < p_cursor_trace_id)
+            ))
+            OR
+            -- Backward pagination: get records GREATER than cursor
+            (p_direction = 'previous' AND (
+                p_cursor_created_at IS NULL OR
+                t.created_at > p_cursor_created_at OR
+                (t.created_at = p_cursor_created_at AND t.trace_id > p_cursor_trace_id)
+            ))
+        )
     ORDER BY
-        CASE WHEN p_direction = 'next' THEN created_at END DESC,
-        CASE WHEN p_direction = 'next' THEN trace_id END DESC,
-        CASE WHEN p_direction = 'previous' THEN created_at END DESC,
-        CASE WHEN p_direction = 'previous' THEN trace_id END DESC;
+        CASE WHEN p_direction = 'next' THEN t.created_at END DESC,
+        CASE WHEN p_direction = 'next' THEN t.trace_id END DESC,
+        CASE WHEN p_direction = 'previous' THEN t.created_at END ASC,
+        CASE WHEN p_direction = 'previous' THEN t.trace_id END ASC
+    LIMIT p_limit + 1;
 $$;
 
 

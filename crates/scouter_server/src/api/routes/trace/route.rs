@@ -13,10 +13,10 @@ use scouter_types::{
     contracts::ScouterServerError, sql::TraceFilters, TraceBaggageResponse, TraceMetricsRequest,
     TraceMetricsResponse, TracePaginationResponse, TraceRequest, TraceSpansResponse,
 };
-
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
-use tracing::error;
+use tracing::instrument;
+use tracing::{debug, error};
 
 pub async fn get_trace_baggage(
     State(data): State<Arc<AppState>>,
@@ -35,6 +35,7 @@ pub async fn get_trace_baggage(
     Ok(Json(TraceBaggageResponse { baggage }))
 }
 
+#[instrument(skip_all)]
 pub async fn get_paginated_traces(
     State(data): State<Arc<AppState>>,
     Json(body): Json<TraceFilters>,
@@ -51,7 +52,7 @@ pub async fn get_paginated_traces(
 
     Ok(Json(pagination_response))
 }
-
+#[instrument(skip_all)]
 pub async fn get_trace_spans(
     State(data): State<Arc<AppState>>,
     Query(params): Query<TraceRequest>,
@@ -73,10 +74,12 @@ pub async fn get_trace_spans(
     Ok(Json(TraceSpansResponse { spans }))
 }
 
+#[instrument(skip_all)]
 pub async fn get_trace_metrics(
     State(data): State<Arc<AppState>>,
     Query(body): Query<TraceMetricsRequest>,
 ) -> Result<Json<TraceMetricsResponse>, (StatusCode, Json<ScouterServerError>)> {
+    debug!("Getting trace metrics for request: {:?}", body);
     let metrics = PostgresClient::get_trace_metrics(
         &data.db_pool,
         body.service_name.as_deref(),

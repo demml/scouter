@@ -1126,10 +1126,19 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_postgres_tracing() {
+    async fn test_postgres_tracing_metrics() {
         let pool = db_pool().await;
         let script = std::fs::read_to_string("src/tests/script/populate_trace.sql").unwrap();
         sqlx::query(&script).execute(&pool).await.unwrap();
+        sqlx::query(
+            "SELECT scouter.refresh_trace_metrics_hourly(
+                p_interval := '5 minutes',
+                p_start_time := NOW() - INTERVAL '3 days'
+            )",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
         let mut filters = TraceFilters::default();
 
         let first_batch = PostgresClient::get_traces_paginated(&pool, filters.clone())
@@ -1206,14 +1215,16 @@ mod tests {
 
         assert!(spans.len() == filtered_record.span_count.unwrap() as usize);
 
-        let start_time = filtered_record.created_at - chrono::Duration::hours(24);
+        let start_time = filtered_record.created_at - chrono::Duration::hours(48);
         let end_time = filtered_record.created_at + chrono::Duration::minutes(5);
 
         // make request for trace metrics
         let trace_metrics =
-            PostgresClient::get_trace_metrics(&pool, None, start_time, end_time, "60 minutes")
+            PostgresClient::get_trace_metrics(&pool, None, start_time, end_time, "5 minutes")
                 .await
                 .unwrap();
+
+        println!("Trace metrics data points: {}", trace_metrics.len());
 
         // assert we have data points
         assert!(trace_metrics.len() >= 10);
@@ -1256,12 +1267,6 @@ mod tests {
                 .unwrap();
 
         assert_eq!(result.rows_affected(), 2);
-
-        // refresh materialized view
-        sqlx::query("REFRESH MATERIALIZED VIEW scouter.trace_summary;")
-            .execute(&pool)
-            .await
-            .unwrap();
 
         let inserted_created_at = trace_record.created_at;
         let inserted_trace_id = trace_record.trace_id.clone();
