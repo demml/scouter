@@ -37,8 +37,9 @@ use scouter_settings::http::HttpConfig;
 
 use scouter_types::{
     is_pydantic_basemodel, pydict_to_otel_keyvalue, pyobject_to_otel_value,
-    pyobject_to_tracing_json, BAGGAGE_PREFIX, SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT,
-    SCOUTER_TRACING_LABEL, SCOUTER_TRACING_OUTPUT, SERVICE_NAME, TRACE_START_TIME_KEY,
+    pyobject_to_tracing_json, BAGGAGE_PREFIX, SCOUTER_SCOPE, SCOUTER_SCOPE_DEFAULT,
+    SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL, SCOUTER_TRACING_OUTPUT,
+    TRACE_START_TIME_KEY,
 };
 use std::sync::{Arc, RwLock};
 use std::{collections::HashMap, sync::OnceLock};
@@ -163,12 +164,14 @@ fn get_trace_metadata_store() -> &'static TraceMetadataStore {
 /// If no endpoint is provided, spans will be exported to stdout for debugging purposes.
 /// # Arguments
 /// * `service_name` - Optional service name for the tracer. Defaults to "scouter_service
+/// * `scope` - Optional scope for the tracer. Defaults to "scouter.tracer.{version}"
 /// * `transport_config` - Optional transport configuration for the Scouter exporter
 /// * `exporter` - Optional span exporter to use instead of the default HTTP exporter
 /// * `batch_config` - Optional batch configuration for span exporting
 #[pyfunction]
 #[pyo3(signature = (
     service_name="scouter_service".to_string(),
+    scope=SCOUTER_SCOPE_DEFAULT.to_string(),
     transport_config=None,
     exporter=None,
     batch_config=None,
@@ -178,6 +181,7 @@ fn get_trace_metadata_store() -> &'static TraceMetadataStore {
 pub fn init_tracer(
     py: Python,
     service_name: String,
+    scope: String,
     transport_config: Option<&Bound<'_, PyAny>>,
     exporter: Option<&Bound<'_, PyAny>>,
     batch_config: Option<Py<BatchConfig>>,
@@ -212,7 +216,8 @@ pub fn init_tracer(
     }
 
     let resource = Resource::builder()
-        .with_attributes(vec![KeyValue::new(SERVICE_NAME, service_name.clone())])
+        .with_service_name(service_name.clone())
+        .with_attributes([KeyValue::new(SCOUTER_SCOPE, scope.clone())])
         .build();
 
     let span_exporter = if let Some(exporter) = exporter {

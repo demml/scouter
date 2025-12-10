@@ -32,6 +32,8 @@ pub const SERVICE_NAME: &str = "service.name";
 pub const SCOUTER_TAG_PREFIX: &str = "scouter.tracing.tag";
 pub const BAGGAGE_PREFIX: &str = "baggage";
 pub const TRACE_START_TIME_KEY: &str = "scouter.tracing.start_time";
+pub const SCOUTER_SCOPE: &str = "scouter.scope";
+pub const SCOUTER_SCOPE_DEFAULT: &str = concat!("scouter.tracer.", env!("CARGO_PKG_VERSION"));
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[pyclass]
@@ -500,20 +502,54 @@ impl TraceServerRecord {
         *start_time
     }
 
-    pub fn get_service_name_attribute(attributes: &Vec<Attribute>, default: &str) -> String {
-        for attr in attributes {
-            if attr.key == SERVICE_NAME {
-                if let Value::String(s) = &attr.value {
-                    return s.clone();
-                }
-            }
-        }
+    fn get_scope_from_resource(
+        resource: &Option<opentelemetry_proto::tonic::resource::v1::Resource>,
+        default: &str,
+    ) -> String {
+        resource
+            .as_ref()
+            .and_then(|r| r.attributes.iter().find(|attr| attr.key == SCOUTER_SCOPE))
+            .and_then(|attr| {
+                attr.value.as_ref().and_then(|v| {
+                    if let Some(
+                        opentelemetry_proto::tonic::common::v1::any_value::Value::StringValue(s),
+                    ) = &v.value
+                    {
+                        Some(s.clone())
+                    } else {
+                        None
+                    }
+                })
+            })
+            .unwrap_or_else(|| default.to_string())
+    }
 
-        tracing::warn!(
-            "Service name attribute not found, falling back to default: {}",
-            default
-        );
-        default.to_string()
+    fn get_service_name_from_resource(
+        resource: &Option<opentelemetry_proto::tonic::resource::v1::Resource>,
+        default: &str,
+    ) -> String {
+        resource
+            .as_ref()
+            .and_then(|r| r.attributes.iter().find(|attr| attr.key == SERVICE_NAME))
+            .and_then(|attr| {
+                attr.value.as_ref().and_then(|v| {
+                    if let Some(
+                        opentelemetry_proto::tonic::common::v1::any_value::Value::StringValue(s),
+                    ) = &v.value
+                    {
+                        Some(s.clone())
+                    } else {
+                        None
+                    }
+                })
+            })
+            .unwrap_or_else(|| {
+                tracing::warn!(
+                    "Service name not found in resource attributes, falling back to default: {}",
+                    default
+                );
+                default.to_string()
+            })
     }
 
     pub fn convert_to_baggage_records(
@@ -634,15 +670,16 @@ impl TraceServerRecord {
         let mut baggage_records: Vec<TraceBaggageRecord> = Vec::new();
 
         for resource_span in resource_spans {
-            for scope_span in &resource_span.scope_spans {
-                // Pre-compute scope name and attributes to avoid repeated work
-                let scope_name = &scope_span.scope.as_ref().map_or("", |s| &s.name);
+            let service_name =
+                Self::get_service_name_from_resource(&resource_span.resource, "unknown");
+            let scope = Self::get_scope_from_resource(&resource_span.resource, "unknown");
 
+            for scope_span in &resource_span.scope_spans {
                 for span in &scope_span.spans {
                     let attributes = Self::attributes_to_json_array(&span.attributes)?;
                     let trace_id = hex::encode(&span.trace_id);
                     let span_id = hex::encode(&span.span_id);
-                    let service_name = Self::get_service_name_attribute(&attributes, "unknown");
+                    let service_name = service_name.clone();
 
                     // no need to recalculate for every record type
                     let (start_time, end_time, duration_ms) =
@@ -653,7 +690,7 @@ impl TraceServerRecord {
                         &trace_id,
                         &span_id,
                         span,
-                        scope_name,
+                        &scope,
                         &attributes,
                         start_time,
                         end_time,
@@ -667,18 +704,18 @@ impl TraceServerRecord {
                         &span_id,
                         span,
                         &attributes,
-                        scope_name,
+                        &scope,
                         start_time,
                         end_time,
                         duration_ms,
-                        service_name.clone(),
+                        service_name,
                     )?);
 
                     // BaggageRecords for insert
                     baggage_records.extend(Self::convert_to_baggage_records(
                         &trace_id,
                         &attributes,
-                        scope_name,
+                        &scope,
                     ));
                 }
             }
