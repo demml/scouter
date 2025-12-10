@@ -193,25 +193,6 @@ impl ScouterClient {
         Ok(response)
     }
 
-    fn refresh_trace_summary(&self) -> Result<bool, ClientError> {
-        let response = self.client.request(
-            Routes::RefreshTraceSummary,
-            RequestType::Get,
-            None,
-            None,
-            None,
-        )?;
-        if !response.status().is_success() {
-            error!(
-                "Failed to refresh trace summary. Status: {:?}",
-                response.status()
-            );
-            return Err(ClientError::RefreshTraceSummaryError);
-        }
-
-        Ok(true)
-    }
-
     fn get_trace_spans(
         &self,
         trace_id: &str,
@@ -468,11 +449,6 @@ impl PyScouterClient {
         filters: TraceFilters,
     ) -> Result<TracePaginationResponse, ClientError> {
         self.client.get_paginated_traces(&filters)
-    }
-
-    /// Refresh the trace summary on the scouter server
-    pub fn refresh_trace_summary(&self) -> Result<bool, ClientError> {
-        self.client.refresh_trace_summary()
     }
 
     /// Get trace spans for a given trace ID

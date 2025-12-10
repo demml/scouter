@@ -115,20 +115,26 @@ impl TestHelper {
     pub async fn new(enable_kafka: bool, enable_rabbitmq: bool) -> Result<Self, anyhow::Error> {
         TestHelper::cleanup_storage();
 
-        env::set_var("RUST_LOG", "info");
-        env::set_var("LOG_LEVEL", "inf");
-        env::set_var("LOG_JSON", "false");
-        env::set_var("POLLING_WORKER_COUNT", "1");
-        env::set_var("MAX_POOL_SIZE", "100");
-        env::set_var("DATA_RETENTION_PERIOD", "5");
-        std::env::set_var("OPENAI_API_KEY", "test_key");
+        unsafe {
+            env::set_var("RUST_LOG", "info");
+            env::set_var("LOG_LEVEL", "inf");
+            env::set_var("LOG_JSON", "false");
+            env::set_var("POLLING_WORKER_COUNT", "1");
+            env::set_var("MAX_POOL_SIZE", "100");
+            env::set_var("DATA_RETENTION_PERIOD", "5");
+            std::env::set_var("OPENAI_API_KEY", "test_key");
+        }
 
         if enable_kafka {
-            std::env::set_var("KAFKA_BROKERS", "localhost:9092");
+            unsafe {
+                std::env::set_var("KAFKA_BROKERS", "localhost:9092");
+            }
         }
 
         if enable_rabbitmq {
-            std::env::set_var("RABBITMQ_ADDR", "amqp://guest:guest@127.0.0.1:5672/%2f");
+            unsafe {
+                std::env::set_var("RABBITMQ_ADDR", "amqp://guest:guest@127.0.0.1:5672/%2f");
+            }
         }
 
         let (app, app_state) = create_app().await?;

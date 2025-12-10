@@ -253,7 +253,10 @@ pub trait ProfileSqlLogic {
         sqlx::query_as(&query.sql)
             .fetch_optional(pool)
             .await
-            .map_err(SqlError::SqlxError)
+            .map_err(|e| {
+                error!("Failed to get drift profile task: {:?}", e);
+                SqlError::SqlxError(e)
+            })
     }
 
     async fn list_drift_profiles(

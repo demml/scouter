@@ -99,22 +99,6 @@ pub async fn get_trace_metrics(
     Ok(Json(TraceMetricsResponse { metrics }))
 }
 
-pub async fn get_refresh_trace_summary(
-    State(data): State<Arc<AppState>>,
-) -> Result<StatusCode, (StatusCode, Json<ScouterServerError>)> {
-    PostgresClient::refresh_trace_summary(&data.db_pool)
-        .await
-        .map_err(|e| {
-            error!("Failed to refresh trace summary: {:?}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ScouterServerError::refresh_trace_summary_error(e)),
-            )
-        })?;
-
-    Ok(StatusCode::OK)
-}
-
 pub async fn get_trace_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
     let result = catch_unwind(AssertUnwindSafe(|| {
         Router::new()
@@ -125,10 +109,6 @@ pub async fn get_trace_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
             )
             .route(&format!("{prefix}/trace/spans"), get(get_trace_spans))
             .route(&format!("{prefix}/trace/metrics"), get(get_trace_metrics))
-            .route(
-                &format!("{prefix}/trace/refresh-summary"),
-                get(get_refresh_trace_summary),
-            )
     }));
 
     match result {

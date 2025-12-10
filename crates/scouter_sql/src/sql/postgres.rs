@@ -11,6 +11,7 @@ use sqlx::ConnectOptions;
 use sqlx::{postgres::PgConnectOptions, Pool, Postgres};
 use std::result::Result::Ok;
 use tokio::try_join;
+use tracing::log::LevelFilter;
 use tracing::{debug, error, info, instrument};
 
 #[derive(Debug, Clone)]
@@ -42,8 +43,7 @@ impl PostgresClient {
         let mut opts: PgConnectOptions = database_settings.connection_uri.parse()?;
 
         // Sqlx logs a lot of debug information by default, which can be overwhelming.
-
-        opts = opts.log_statements(tracing::log::LevelFilter::Off);
+        opts = opts.log_statements(LevelFilter::Off);
 
         let pool = match sqlx::postgres::PgPoolOptions::new()
             .max_connections(database_settings.max_connections)

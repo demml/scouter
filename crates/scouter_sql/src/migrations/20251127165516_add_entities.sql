@@ -11,6 +11,7 @@ DROP FUNCTION IF EXISTS scouter.get_trace_spans CASCADE;
 DROP FUNCTION IF EXISTS scouter.get_traces_paginated CASCADE;
 DROP FUNCTION IF EXISTS scouter.get_trace_metrics CASCADE;
 DROP MATERIALIZED VIEW IF EXISTS scouter.trace_summary CASCADE;
+SELECT cron.unschedule('refresh-trace-summary');
 
 
 -- =================================================================
@@ -310,84 +311,6 @@ CREATE INDEX IF NOT EXISTS idx_llm_drift_record_lookup ON scouter.llm_drift_reco
 CREATE INDEX IF NOT EXISTS idx_llm_drift_record_pagination ON scouter.llm_drift_record (entity_id, id DESC);
 CREATE INDEX IF NOT EXISTS idx_observability_lookup ON scouter.observability_metric (created_at, entity_id);
 
-
-
--- =================================================================
--- STEP 6: Create metrics tables
--- =================================================================
-
-CREATE TABLE IF NOT EXISTS scouter.trace_metrics_hourly (
-    bucket_start TIMESTAMPTZ NOT NULL,
-    service_id INTEGER NOT NULL,
-    trace_count BIGINT DEFAULT 0,
-    total_duration_ms BIGINT DEFAULT 0,
-    error_count BIGINT DEFAULT 0,
-    p50_duration_ms FLOAT8,
-    p95_duration_ms FLOAT8,
-    p99_duration_ms FLOAT8,
-    PRIMARY KEY (bucket_start, service_id)
-);
-CREATE INDEX IF NOT EXISTS idx_metrics_service_id ON scouter.trace_metrics_hourly (service_id, bucket_start DESC);
-
-CREATE OR REPLACE FUNCTION scouter.refresh_trace_metrics_hourly(
-    p_interval INTERVAL DEFAULT '5 minutes',
-    p_start_time TIMESTAMPTZ DEFAULT NOW() - INTERVAL '1 hour'
-)
-RETURNS VOID
-LANGUAGE plpgsql
-AS $$
-DECLARE
-    v_bucket_start TIMESTAMPTZ;
-BEGIN
-    v_bucket_start := date_trunc('hour', NOW() - p_interval);
-    
-    DELETE FROM scouter.trace_metrics_hourly
-    WHERE bucket_start >= v_bucket_start;
-
-    INSERT INTO scouter.trace_metrics_hourly (
-        bucket_start,
-        service_id,
-        trace_count,
-        total_duration_ms,
-        error_count,
-        p50_duration_ms,
-        p95_duration_ms,
-        p99_duration_ms
-    )
-    SELECT
-        date_bin(
-            p_interval,
-            t.start_time,
-            '2000-01-01 00:00:00'::TIMESTAMPTZ
-        ) as bucket_start,
-        t.service_id,
-        COUNT(*),
-        COALESCE(SUM(t.duration_ms), 0),
-        COUNT(*) FILTER (WHERE t.status_code = 2),
-        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY t.duration_ms),
-        PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY t.duration_ms),
-        PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY t.duration_ms)
-    FROM scouter.traces t
-    WHERE
-        t.service_id IS NOT NULL
-        AND t.start_time >= p_start_time
-        AND t.start_time < NOW()
-    GROUP BY 1, 2
-    ON CONFLICT (bucket_start, service_id) DO UPDATE SET
-        trace_count = EXCLUDED.trace_count,
-        total_duration_ms = EXCLUDED.total_duration_ms,
-        error_count = EXCLUDED.error_count,
-        -- FIX: Use the exact column names from the INSERT list for EXCLUDED
-        p50_duration_ms = EXCLUDED.p50_duration_ms,
-        p95_duration_ms = EXCLUDED.p95_duration_ms,
-        p99_duration_ms = EXCLUDED.p99_duration_ms;
-END;
-$$;
-
--- 3. Schedule the new function to run (e.g., every 5 minutes)
-SELECT cron.schedule('refresh-hourly-trace-metrics', '*/5 * * * *',
-    $$CALL scouter.refresh_trace_metrics_hourly('5 minutes', NOW() - INTERVAL '1 hour')$$);
-
 -- =================================================================
 -- STEP 7: RECREATE QUERY FUNCTIONS
 -- =================================================================
@@ -397,7 +320,7 @@ CREATE OR REPLACE FUNCTION scouter.get_trace_metrics(
     p_service_name TEXT DEFAULT NULL,
     p_start_time TIMESTAMPTZ DEFAULT NOW() - INTERVAL '1 hour',
     p_end_time TIMESTAMPTZ DEFAULT NOW(),
-    p_bucket_interval INTERVAL DEFAULT '5 minutes' -- interval must match the aggregation in the refresh function
+    p_bucket_interval INTERVAL DEFAULT '5 minutes'
 )
 RETURNS TABLE (
     bucket_start TIMESTAMPTZ,
@@ -417,21 +340,27 @@ AS $$
         WHERE p_service_name IS NULL OR service_name = p_service_name
     )
     SELECT
-        tm.bucket_start,
-        SUM(tm.trace_count) as trace_count,
-        SUM(tm.total_duration_ms)::FLOAT8 / NULLIF(SUM(tm.trace_count), 0) as avg_duration_ms,
-        AVG(tm.p50_duration_ms) as p50_duration_ms,
-        AVG(tm.p95_duration_ms) as p95_duration_ms,
-        AVG(tm.p99_duration_ms) as p99_duration_ms,
-        SUM(tm.error_count) * 100.0 / NULLIF(SUM(tm.trace_count), 0) as error_rate
-    FROM scouter.trace_metrics_hourly tm
-    INNER JOIN service_filter sf ON tm.service_id = sf.service_id
+        date_bin(
+            p_bucket_interval,
+            t.start_time,
+            '2000-01-01 00:00:00'::TIMESTAMPTZ
+        ) as bucket_start,
+        COUNT(*) as trace_count,
+        AVG(t.duration_ms) as avg_duration_ms,
+        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY t.duration_ms) as p50_duration_ms,
+        PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY t.duration_ms) as p95_duration_ms,
+        PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY t.duration_ms) as p99_duration_ms,
+        (
+            COUNT(*) FILTER (WHERE t.status_code = 2) * 100.0 / COUNT(*)
+        ) as error_rate
+    FROM scouter.traces t
     WHERE
-        tm.bucket_start >= p_start_time
-        AND tm.bucket_start <= p_end_time
-        AND p_bucket_interval = '5 minutes'::INTERVAL -- Important: enforce same interval for accurate lookup
-    GROUP BY 1
-    ORDER BY 1 DESC
+        (p_service_name IS NULL OR t.service_id IN (SELECT service_id FROM service_filter))
+        AND t.start_time >= p_start_time
+        AND t.start_time <= p_end_time
+        AND t.duration_ms IS NOT NULL
+    GROUP BY bucket_start
+    ORDER BY bucket_start DESC;
 $$;
 
 
