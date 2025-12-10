@@ -3,6 +3,7 @@ use std::fmt::Display;
 use crate::error::{ContractError, TypeError};
 use crate::llm::PaginationRequest;
 use crate::sql::{TraceListItem, TraceMetricBucket, TraceSpan};
+use crate::Attribute;
 use crate::{CustomInterval, DriftProfile, Status, TagRecord, TraceBaggageRecord};
 use crate::{DriftType, PyHelperFuncs, TimeInterval};
 use chrono::{DateTime, Utc};
@@ -12,7 +13,6 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::collections::BTreeMap;
 use tracing::error;
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ListProfilesRequest {
     pub space: String,
@@ -680,6 +680,8 @@ impl TraceBaggageResponse {
 pub struct TraceSpansResponse {
     #[pyo3(get)]
     pub spans: Vec<TraceSpan>,
+    #[pyo3(get)]
+    pub attributes: Vec<Attribute>,
 }
 
 #[pymethods]

@@ -161,12 +161,13 @@ fn get_trace_metadata_store() -> &'static TraceMetadataStore {
 
 /// Global initialization function for the tracer.
 /// This sets up the tracer provider with the specified service name, endpoint, and sampling ratio.
-/// If no endpoint is provided, spans will be exported to stdout for debugging purposes.
+/// If no endpoint is provided, spans will be exported a NoOp exporter will be used meaning
+/// spans will only be sent to Scouter and not to any OTLP collector.
 /// # Arguments
 /// * `service_name` - Optional service name for the tracer. Defaults to "scouter_service
 /// * `scope` - Optional scope for the tracer. Defaults to "scouter.tracer.{version}"
 /// * `transport_config` - Optional transport configuration for the Scouter exporter
-/// * `exporter` - Optional span exporter to use instead of the default HTTP exporter
+/// * `exporter` - Optional span exporter to use if you want to export spans to an OTLP collector
 /// * `batch_config` - Optional batch configuration for span exporting
 #[pyfunction]
 #[pyo3(signature = (
@@ -201,8 +202,6 @@ pub fn init_tracer(
         .map(|bc| bc.extract::<BatchConfig>(py))
         .transpose()?;
 
-    let scouter_export = ScouterSpanExporter::new(transport_config)?;
-
     let provider_store = get_tracer_provider_store();
 
     let mut store_guard = provider_store
@@ -219,6 +218,8 @@ pub fn init_tracer(
         .with_service_name(service_name.clone())
         .with_attributes([KeyValue::new(SCOUTER_SCOPE, scope.clone())])
         .build();
+
+    let scouter_export = ScouterSpanExporter::new(transport_config, &resource)?;
 
     let span_exporter = if let Some(exporter) = exporter {
         SpanExporterNum::from_pyobject(exporter).expect("failed to convert exporter")
@@ -635,8 +636,6 @@ impl BaseTracer {
         } else {
             base_ctx
         };
-
-        // Create span with the final context (this consumes final_ctx)
 
         let span_builder = self
             .tracer

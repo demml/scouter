@@ -36,7 +36,7 @@ pub trait ArchiveSqlLogic {
             }
         };
 
-        let entities: Vec<Entity> = sqlx::query_as(&query.sql)
+        let entities: Vec<Entity> = sqlx::query_as(query)
             .bind(retention_period)
             .fetch_all(pool)
             .await?;
@@ -72,7 +72,7 @@ pub trait ArchiveSqlLogic {
                 return Err(SqlError::InvalidRecordTypeError(record_type.to_string()));
             }
         };
-        let rows = sqlx::query(&query.sql)
+        let rows = sqlx::query(query)
             .bind(begin_timestamp)
             .bind(end_timestamp)
             .bind(entity_id)
@@ -101,7 +101,7 @@ pub trait ArchiveSqlLogic {
                 return Err(SqlError::InvalidRecordTypeError(record_type.to_string()));
             }
         };
-        sqlx::query(&query.sql)
+        sqlx::query(query)
             .bind(begin_timestamp)
             .bind(end_timestamp)
             .bind(entity_id)

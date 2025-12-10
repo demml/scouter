@@ -72,11 +72,11 @@ noisy_float = "0.*"
 numpy = "0.*"
 num-traits = "0.*"
 object_store = { version = "0.*", features = ["aws", "azure", "gcp" ] }
-opentelemetry = { version = "0.*" }
-opentelemetry-stdout = "0.*"
-opentelemetry_sdk = { version = "0.*", features = ["trace"] }
-opentelemetry-proto = { version = "0.*" }
-opentelemetry-otlp = { version = "0.*", features = ["grpc-tonic"] }
+opentelemetry = { version = "0.31.0" }
+opentelemetry-stdout = "0.31.0"
+opentelemetry_sdk = { version = "0.31.0", features = ["trace"] }
+opentelemetry-proto = { version = "0.31.0" , features = ["trace"] }
+opentelemetry-otlp = { version = "0.31.0", features = ["grpc-tonic", "trace"] }
 parquet = { version = ">=55.*", features = ["arrow"] }
 password-auth = "1.*"
 potato-head = "0.*"

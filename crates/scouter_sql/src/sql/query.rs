@@ -105,6 +105,7 @@ const GET_PAGINATED_TRACES: &str = include_str!("scripts/trace/get_paginated_tra
 const GET_TRACE_SPANS: &str = include_str!("scripts/trace/get_trace_spans.sql");
 const GET_TRACE_METRICS: &str = include_str!("scripts/trace/get_trace_metrics.sql");
 const GET_TRACE_BAGGAGE: &str = include_str!("scripts/trace/get_trace_baggage.sql");
+const GET_TRACE_ATTRIBUTES: &str = include_str!("scripts/trace/get_trace_attributes.sql");
 
 // tags
 const INSERT_TAG: &str = include_str!("scripts/tag/insert_tags.sql");
@@ -197,6 +198,7 @@ pub enum Queries {
     GetTraceSpans,
     GetTraceMetrics,
     GetTraceBaggage,
+    GetTraceAttributes,
 
     // tags
     InsertTag,
@@ -210,106 +212,85 @@ pub enum Queries {
 impl Queries {
     // TODO: shouldn't we just return the string directly? Not sure if that's true for all db operations, I'm
     // just noticing it in the few that im working on. (user related queries)
-    pub fn get_query(&self) -> SqlQuery {
+    pub fn get_query(&self) -> &'static str {
         match self {
             // load sql file from scripts/insert.sql
-            Queries::GetSpcFeatures => SqlQuery::new(GET_SPC_FEATURES),
-            Queries::InsertDriftRecord => SqlQuery::new(INSERT_DRIFT_RECORD),
-            Queries::GetBinnedSpcFeatureValues => SqlQuery::new(GET_BINNED_SPC_FEATURE_VALUES),
-            Queries::GetBinnedPsiFeatureBins => SqlQuery::new(GET_BINNED_PSI_FEATURE_BINS),
-            Queries::GetBinnedMetricValues => SqlQuery::new(GET_BINNED_CUSTOM_METRIC_VALUES),
-            Queries::GetBinnedObservabilityMetrics => {
-                SqlQuery::new(GET_BINNED_OBSERVABILITY_METRICS)
-            }
-            Queries::GetSpcFeatureValues => SqlQuery::new(GET_SPC_FEATURE_VALUES),
-            Queries::InsertDriftProfile => SqlQuery::new(INSERT_DRIFT_PROFILE),
-            Queries::InsertDriftAlert => SqlQuery::new(INSERT_DRIFT_ALERT),
-            Queries::InsertObservabilityRecord => SqlQuery::new(INSERT_OBSERVABILITY_RECORD),
-            Queries::GetDriftAlerts => SqlQuery::new(GET_DRIFT_ALERTS),
-            Queries::GetDriftTask => SqlQuery::new(GET_DRIFT_TASK),
-            Queries::UpdateDriftProfileRunDates => SqlQuery::new(UPDATE_DRIFT_PROFILE_RUN_DATES),
-            Queries::UpdateDriftProfileStatus => SqlQuery::new(UPDATE_DRIFT_PROFILE_STATUS),
-            Queries::UpdateDriftProfile => SqlQuery::new(UPDATE_DRIFT_PROFILE),
-            Queries::DeactivateDriftProfiles => SqlQuery::new(DEACTIVATE_DRIFT_PROFILES),
-            Queries::GetDriftProfile => SqlQuery::new(GET_DRIFT_PROFILE),
-            Queries::GetFeatureBinProportions => SqlQuery::new(GET_FEATURE_BIN_PROPORTIONS),
-            Queries::InsertBinCounts => SqlQuery::new(INSERT_BIN_COUNTS),
-            Queries::GetCustomMetricValues => SqlQuery::new(GET_CUSTOM_METRIC_VALUES),
-            Queries::InsertCustomMetricValues => SqlQuery::new(INSERT_CUSTOM_METRIC_VALUES),
-            Queries::GetBinCountEntities => SqlQuery::new(GET_BIN_COUNT_ENTITIES),
-            Queries::GetCustomEntities => SqlQuery::new(GET_CUSTOM_ENTITIES),
-            Queries::GetSpcEntities => SqlQuery::new(GET_SPC_ENTITIES),
-            Queries::GetBinCountDataForArchive => SqlQuery::new(GET_BIN_COUNT_DATA_FOR_ARCHIVE),
-            Queries::GetCustomDataForArchive => SqlQuery::new(GET_CUSTOM_DATA_FOR_ARCHIVE),
-            Queries::GetSpcDataForArchive => SqlQuery::new(GET_SPC_DATA_FOR_ARCHIVE),
-            Queries::UpdateBinCountEntities => SqlQuery::new(UPDATE_BIN_COUNT_ENTITIES),
-            Queries::UpdateCustomEntities => SqlQuery::new(UPDATE_CUSTOM_ENTITIES),
-            Queries::UpdateSpcEntities => SqlQuery::new(UPDATE_SPC_ENTITIES),
-            Queries::GetProfileVersions => SqlQuery::new(GET_PROFILE_VERSIONS),
-            Queries::ListDriftProfiles => SqlQuery::new(LIST_DRIFT_PROFILES),
-
-            Queries::InsertUser => SqlQuery::new(INSERT_USER),
-            Queries::GetUser => SqlQuery::new(GET_USER),
-            Queries::UpdateUser => SqlQuery::new(UPDATE_USER),
-            Queries::GetUsers => SqlQuery::new(GET_USERS),
-            Queries::LastAdmin => SqlQuery::new(LAST_ADMIN),
-            Queries::DeleteUser => SqlQuery::new(DELETE_USER),
-            Queries::UpdateAlertStatus => SqlQuery::new(UPDATE_ALERT_STATUS),
+            Queries::GetSpcFeatures => GET_SPC_FEATURES,
+            Queries::InsertDriftRecord => INSERT_DRIFT_RECORD,
+            Queries::GetBinnedSpcFeatureValues => GET_BINNED_SPC_FEATURE_VALUES,
+            Queries::GetBinnedPsiFeatureBins => GET_BINNED_PSI_FEATURE_BINS,
+            Queries::GetBinnedMetricValues => GET_BINNED_CUSTOM_METRIC_VALUES,
+            Queries::GetBinnedObservabilityMetrics => GET_BINNED_OBSERVABILITY_METRICS,
+            Queries::GetSpcFeatureValues => GET_SPC_FEATURE_VALUES,
+            Queries::InsertDriftProfile => INSERT_DRIFT_PROFILE,
+            Queries::InsertDriftAlert => INSERT_DRIFT_ALERT,
+            Queries::InsertObservabilityRecord => INSERT_OBSERVABILITY_RECORD,
+            Queries::GetDriftAlerts => GET_DRIFT_ALERTS,
+            Queries::GetDriftTask => GET_DRIFT_TASK,
+            Queries::UpdateDriftProfileRunDates => UPDATE_DRIFT_PROFILE_RUN_DATES,
+            Queries::UpdateDriftProfileStatus => UPDATE_DRIFT_PROFILE_STATUS,
+            Queries::UpdateDriftProfile => UPDATE_DRIFT_PROFILE,
+            Queries::DeactivateDriftProfiles => DEACTIVATE_DRIFT_PROFILES,
+            Queries::GetDriftProfile => GET_DRIFT_PROFILE,
+            Queries::GetFeatureBinProportions => GET_FEATURE_BIN_PROPORTIONS,
+            Queries::InsertBinCounts => INSERT_BIN_COUNTS,
+            Queries::GetCustomMetricValues => GET_CUSTOM_METRIC_VALUES,
+            Queries::InsertCustomMetricValues => INSERT_CUSTOM_METRIC_VALUES,
+            Queries::GetBinCountEntities => GET_BIN_COUNT_ENTITIES,
+            Queries::GetCustomEntities => GET_CUSTOM_ENTITIES,
+            Queries::GetSpcEntities => GET_SPC_ENTITIES,
+            Queries::GetBinCountDataForArchive => GET_BIN_COUNT_DATA_FOR_ARCHIVE,
+            Queries::GetCustomDataForArchive => GET_CUSTOM_DATA_FOR_ARCHIVE,
+            Queries::GetSpcDataForArchive => GET_SPC_DATA_FOR_ARCHIVE,
+            Queries::UpdateBinCountEntities => UPDATE_BIN_COUNT_ENTITIES,
+            Queries::UpdateCustomEntities => UPDATE_CUSTOM_ENTITIES,
+            Queries::UpdateSpcEntities => UPDATE_SPC_ENTITIES,
+            Queries::GetProfileVersions => GET_PROFILE_VERSIONS,
+            Queries::ListDriftProfiles => LIST_DRIFT_PROFILES,
+            Queries::InsertUser => INSERT_USER,
+            Queries::GetUser => GET_USER,
+            Queries::UpdateUser => UPDATE_USER,
+            Queries::GetUsers => GET_USERS,
+            Queries::LastAdmin => LAST_ADMIN,
+            Queries::DeleteUser => DELETE_USER,
+            Queries::UpdateAlertStatus => UPDATE_ALERT_STATUS,
 
             //llm
-            Queries::GetLLMMetricValues => SqlQuery::new(GET_LLM_METRIC_VALUES),
-            Queries::GetBinnedMetrics => SqlQuery::new(GET_BINNED_LLM_METRIC_VALUES),
-            Queries::InsertLLMMetricValuesBatch => SqlQuery::new(INSERT_LLM_METRIC_VALUES_BATCH),
-            Queries::InsertLLMDriftRecord => SqlQuery::new(INSERT_LLM_DRIFT_RECORD),
+            Queries::GetLLMMetricValues => GET_LLM_METRIC_VALUES,
+            Queries::GetBinnedMetrics => GET_BINNED_LLM_METRIC_VALUES,
+            Queries::InsertLLMMetricValuesBatch => INSERT_LLM_METRIC_VALUES_BATCH,
+            Queries::InsertLLMDriftRecord => INSERT_LLM_DRIFT_RECORD,
 
-            Queries::GetLLMDriftRecords => SqlQuery::new(GET_LLM_DRIFT_RECORDS),
-            Queries::GetPendingLLMDriftTask => SqlQuery::new(GET_PENDING_LLM_DRIFT_TASK),
-            Queries::GetLLMDriftRecordEntitiesForArchive => {
-                SqlQuery::new(GET_LLM_DRIFT_RECORD_ENTITIES)
-            }
-            Queries::GetLLMMetricEntitiesForArchive => SqlQuery::new(GET_LLM_METRIC_ENTITIES),
-            Queries::GetLLMDriftRecordDataForArchive => {
-                SqlQuery::new(GET_LLM_DRIFT_RECORD_DATA_FOR_ARCHIVE)
-            }
-            Queries::GetLLMMetricDataForArchive => SqlQuery::new(GET_LLM_METRIC_DATA_FOR_ARCHIVE),
-            Queries::UpdateLLMMetricEntities => SqlQuery::new(UPDATE_LLM_METRIC_ENTITIES),
-            Queries::UpdateLLMDriftEntities => SqlQuery::new(UPDATE_LLM_DRIFT_ENTITIES),
+            Queries::GetLLMDriftRecords => GET_LLM_DRIFT_RECORDS,
+            Queries::GetPendingLLMDriftTask => GET_PENDING_LLM_DRIFT_TASK,
+            Queries::GetLLMDriftRecordEntitiesForArchive => GET_LLM_DRIFT_RECORD_ENTITIES,
+            Queries::GetLLMMetricEntitiesForArchive => GET_LLM_METRIC_ENTITIES,
+            Queries::GetLLMDriftRecordDataForArchive => GET_LLM_DRIFT_RECORD_DATA_FOR_ARCHIVE,
+            Queries::GetLLMMetricDataForArchive => GET_LLM_METRIC_DATA_FOR_ARCHIVE,
+            Queries::UpdateLLMMetricEntities => UPDATE_LLM_METRIC_ENTITIES,
+            Queries::UpdateLLMDriftEntities => UPDATE_LLM_DRIFT_ENTITIES,
 
-            Queries::InsertCustomMetricValuesBatch => {
-                SqlQuery::new(INSERT_CUSTOM_METRIC_VALUES_BATCH)
-            }
-            Queries::InsertSpcDriftRecordBatch => SqlQuery::new(INSERT_SPC_DRIFT_RECORD_BATCH),
-            Queries::InsertBinCountsBatch => SqlQuery::new(INSERT_BIN_COUNTS_BATCH),
-            Queries::UpdateLLMDriftTask => SqlQuery::new(UPDATE_LLM_DRIFT_TASK),
+            Queries::InsertCustomMetricValuesBatch => INSERT_CUSTOM_METRIC_VALUES_BATCH,
+            Queries::InsertSpcDriftRecordBatch => INSERT_SPC_DRIFT_RECORD_BATCH,
+            Queries::InsertBinCountsBatch => INSERT_BIN_COUNTS_BATCH,
+            Queries::UpdateLLMDriftTask => UPDATE_LLM_DRIFT_TASK,
             // trace
-            Queries::UpsertTrace => SqlQuery::new(UPSERT_TRACE),
-            Queries::InsertTraceSpan => SqlQuery::new(INSERT_TRACE_SPAN),
-            Queries::InsertTraceBaggage => SqlQuery::new(INSERT_TRACE_BAGGAGE),
-            Queries::GetPaginatedTraces => SqlQuery::new(GET_PAGINATED_TRACES),
-            Queries::GetTraceSpans => SqlQuery::new(GET_TRACE_SPANS),
-            Queries::GetTraceMetrics => SqlQuery::new(GET_TRACE_METRICS),
-            Queries::GetTraceBaggage => SqlQuery::new(GET_TRACE_BAGGAGE),
+            Queries::UpsertTrace => UPSERT_TRACE,
+            Queries::InsertTraceSpan => INSERT_TRACE_SPAN,
+            Queries::InsertTraceBaggage => INSERT_TRACE_BAGGAGE,
+            Queries::GetPaginatedTraces => GET_PAGINATED_TRACES,
+            Queries::GetTraceSpans => GET_TRACE_SPANS,
+            Queries::GetTraceMetrics => GET_TRACE_METRICS,
+            Queries::GetTraceBaggage => GET_TRACE_BAGGAGE,
+            Queries::GetTraceAttributes => GET_TRACE_ATTRIBUTES,
             // tags
-            Queries::InsertTag => SqlQuery::new(INSERT_TAG),
-            Queries::GetTags => SqlQuery::new(GET_TAGS),
-
+            Queries::InsertTag => INSERT_TAG,
+            Queries::GetTags => GET_TAGS,
             // entity
-            Queries::GetEntityIdFromUid => SqlQuery::new(GET_ENTITY_ID_FROM_UID),
+            Queries::GetEntityIdFromUid => GET_ENTITY_ID_FROM_UID,
             Queries::GetEntityIdFromSpaceNameVersionDriftType => {
-                SqlQuery::new(GET_ENTITY_ID_FROM_SPACE_NAME_VERSION_DRIFT_TYPE)
+                GET_ENTITY_ID_FROM_SPACE_NAME_VERSION_DRIFT_TYPE
             }
-        }
-    }
-}
-
-pub struct SqlQuery {
-    pub sql: String,
-}
-
-impl SqlQuery {
-    fn new(sql: &str) -> Self {
-        Self {
-            sql: sql.to_string(),
         }
     }
 }

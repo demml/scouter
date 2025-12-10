@@ -4,7 +4,9 @@ use crate::sql::query::Queries;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use itertools::multiunzip;
-use scouter_types::sql::{TraceFilters, TraceListItem, TraceMetricBucket, TraceSpan};
+use scouter_types::sql::{
+    TraceAttributes, TraceFilters, TraceListItem, TraceMetricBucket, TraceSpan,
+};
 use scouter_types::{
     TraceBaggageRecord, TraceCursor, TracePaginationResponse, TraceRecord, TraceSpanRecord,
 };
@@ -38,6 +40,7 @@ pub trait TraceSqlLogic {
         let mut status_message = Vec::with_capacity(capacity);
         let mut root_span_id = Vec::with_capacity(capacity);
         let mut span_count = Vec::with_capacity(capacity);
+        let mut process_attributes = Vec::with_capacity(capacity);
 
         // Single-pass extraction for performance
         for r in traces {
@@ -53,9 +56,10 @@ pub trait TraceSqlLogic {
             status_message.push(r.status_message.clone());
             root_span_id.push(r.root_span_id.as_str());
             span_count.push(r.span_count);
+            process_attributes.push(Json(r.process_attributes.clone()));
         }
 
-        let query_result = sqlx::query(&query.sql)
+        let query_result = sqlx::query(query)
             .bind(created_at)
             .bind(trace_id)
             .bind(service_name)
@@ -68,6 +72,7 @@ pub trait TraceSqlLogic {
             .bind(status_message)
             .bind(root_span_id)
             .bind(span_count)
+            .bind(process_attributes)
             .execute(pool)
             .await?;
 
@@ -131,7 +136,7 @@ pub trait TraceSqlLogic {
             service_name.push(span.service_name.as_str());
         }
 
-        let query_result = sqlx::query(&query.sql)
+        let query_result = sqlx::query(query)
             .bind(created_at)
             .bind(span_id)
             .bind(trace_id)
@@ -184,7 +189,7 @@ pub trait TraceSqlLogic {
             )
         }));
 
-        let query_result = sqlx::query(&query.sql)
+        let query_result = sqlx::query(query)
             .bind(created_at)
             .bind(trace_id)
             .bind(scope)
@@ -202,7 +207,7 @@ pub trait TraceSqlLogic {
     ) -> Result<Vec<TraceBaggageRecord>, SqlError> {
         let query = Queries::GetTraceBaggage.get_query();
 
-        let baggage_items: Result<Vec<TraceBaggageRecord>, SqlError> = sqlx::query_as(&query.sql)
+        let baggage_items: Result<Vec<TraceBaggageRecord>, SqlError> = sqlx::query_as(query)
             .bind(trace_id)
             .fetch_all(pool)
             .await
@@ -228,7 +233,7 @@ pub trait TraceSqlLogic {
 
         let query = Queries::GetPaginatedTraces.get_query();
 
-        let mut items: Vec<TraceListItem> = sqlx::query_as(&query.sql)
+        let mut items: Vec<TraceListItem> = sqlx::query_as(query)
             .bind(filters.service_name)
             .bind(filters.has_errors)
             .bind(filters.status_code)
@@ -321,7 +326,7 @@ pub trait TraceSqlLogic {
         service_name: Option<&str>,
     ) -> Result<Vec<TraceSpan>, SqlError> {
         let query = Queries::GetTraceSpans.get_query();
-        let trace_items: Result<Vec<TraceSpan>, SqlError> = sqlx::query_as(&query.sql)
+        let trace_items: Result<Vec<TraceSpan>, SqlError> = sqlx::query_as(query)
             .bind(trace_id)
             .bind(service_name)
             .fetch_all(pool)
@@ -329,6 +334,26 @@ pub trait TraceSqlLogic {
             .map_err(SqlError::SqlxError);
 
         trace_items
+    }
+
+    /// Attempts to retrieve trace spans for a given trace ID.
+    /// # Arguments
+    /// * `pool` - The database connection pool
+    /// * `trace_id` - The trace ID to retrieve spans for
+    /// # Returns
+    /// * A vector of `TraceSpan` associated with the trace ID
+    async fn get_trace_process_attributes(
+        pool: &Pool<Postgres>,
+        trace_id: &str,
+    ) -> Result<TraceAttributes, SqlError> {
+        let query = Queries::GetTraceAttributes.get_query();
+        let attributes: Result<TraceAttributes, SqlError> = sqlx::query_as(query)
+            .bind(trace_id)
+            .fetch_one(pool)
+            .await
+            .map_err(SqlError::SqlxError);
+
+        attributes
     }
 
     /// Attempts to retrieve trace spans for a given trace ID.
@@ -345,7 +370,7 @@ pub trait TraceSqlLogic {
         bucket_interval_str: &str,
     ) -> Result<Vec<TraceMetricBucket>, SqlError> {
         let query = Queries::GetTraceMetrics.get_query();
-        let trace_items: Result<Vec<TraceMetricBucket>, SqlError> = sqlx::query_as(&query.sql)
+        let trace_items: Result<Vec<TraceMetricBucket>, SqlError> = sqlx::query_as(query)
             .bind(service_name)
             .bind(start_time)
             .bind(end_time)

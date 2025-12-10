@@ -8,6 +8,8 @@ use opentelemetry_otlp::ExportConfig as OtlpExportConfig;
 use opentelemetry_otlp::SpanExporter as OtlpSpanExporter;
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_otlp::WithHttpConfig;
+use opentelemetry_sdk::trace::SpanExporter;
+use opentelemetry_sdk::Resource;
 use pyo3::prelude::*;
 use scouter_types::{CompressionType, PyHelperFuncs};
 use serde::Serialize;
@@ -96,7 +98,7 @@ impl SpanExporterBuilder for HttpSpanExporter {
         self.batch_export
     }
 
-    fn build_exporter(&self) -> Result<Self::Exporter, TraceError> {
+    fn build_exporter(&self, resource: &Resource) -> Result<Self::Exporter, TraceError> {
         // Reconstruct the OtlpExportConfig each time
         let timeout = self.timeout.map(Duration::from_secs);
         let export_config = OtlpExportConfig {
@@ -117,6 +119,9 @@ impl SpanExporterBuilder for HttpSpanExporter {
             exporter = exporter.with_compression(compression.to_otel_compression()?);
         }
 
-        Ok(exporter.build()?)
+        let mut exporter = exporter.build()?;
+        exporter.set_resource(resource);
+
+        Ok(exporter)
     }
 }

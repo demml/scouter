@@ -2,6 +2,7 @@ use crate::exporter::TraceError;
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
 use opentelemetry_proto::transform::common::tonic::ResourceAttributesWithSchema;
 use opentelemetry_proto::transform::trace::tonic::group_spans_by_resource_and_scope;
+use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::{
     error::{OTelSdkError, OTelSdkResult},
     trace::{SpanData, SpanExporter},
@@ -12,9 +13,10 @@ use scouter_state::app_state;
 use scouter_types::{MessageRecord, TraceServerRecord};
 use std::fmt;
 use std::sync::Arc;
-use tracing::{debug, error, instrument};
+use tracing::{error, instrument};
 pub struct ScouterSpanExporter {
     producer: Arc<RustScouterProducer>,
+    resource: Resource,
 }
 
 impl fmt::Debug for ScouterSpanExporter {
@@ -24,12 +26,13 @@ impl fmt::Debug for ScouterSpanExporter {
 }
 
 impl ScouterSpanExporter {
-    pub fn new(transport_config: TransportConfig) -> Result<Self, TraceError> {
+    pub fn new(transport_config: TransportConfig, resource: &Resource) -> Result<Self, TraceError> {
         let producer = app_state()
             .handle()
             .block_on(async { RustScouterProducer::new(transport_config).await })?;
         Ok(ScouterSpanExporter {
             producer: Arc::new(producer),
+            resource: resource.clone(),
         })
     }
 }
@@ -38,12 +41,12 @@ impl SpanExporter for ScouterSpanExporter {
     #[instrument(name = "ScouterSpanExporter::export", skip_all)]
     async fn export(&self, batch: Vec<SpanData>) -> OTelSdkResult {
         let producer = self.producer.clone(); // Requires RustScouterProducer: Clone
-
-        debug!("Preparing to export {} spans to Scouter", batch.len());
+        let resource = self.resource.clone();
         let export_future = async move {
-            // Note: No explicit type annotation here
-            let resource_spans =
-                group_spans_by_resource_and_scope(batch, &ResourceAttributesWithSchema::default());
+            let resource_spans = group_spans_by_resource_and_scope(
+                batch,
+                &ResourceAttributesWithSchema::from(&resource),
+            );
             let req = ExportTraceServiceRequest { resource_spans };
 
             // Note: `self` is consumed by the async move block.

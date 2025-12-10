@@ -64,6 +64,8 @@ pub struct TraceRecord {
     pub span_count: i32,
     #[pyo3(get)]
     pub tags: Vec<Tag>,
+    #[pyo3(get)]
+    pub process_attributes: Vec<Attribute>,
 }
 
 #[pymethods]
@@ -102,6 +104,20 @@ impl TraceRecord {
             if !existing_tag_keys.contains(&tag.key) {
                 self.tags.push(tag.clone());
                 existing_tag_keys.insert(tag.key.clone());
+            }
+        }
+
+        // 3. Merge process attributes, avoiding duplicates
+        let mut existing_attr_keys: std::collections::HashSet<String> = self
+            .process_attributes
+            .iter()
+            .map(|a| a.key.clone())
+            .collect();
+
+        for attr in &other.process_attributes {
+            if !existing_attr_keys.contains(&attr.key) {
+                self.process_attributes.push(attr.clone());
+                existing_attr_keys.insert(attr.key.clone());
             }
         }
     }
@@ -458,6 +474,7 @@ impl TraceServerRecord {
         end_time: DateTime<Utc>,
         duration_ms: i64,
         service_name: String,
+        resource_attributes: &Vec<Attribute>, // these will server as the process-level attributes for a given trace
     ) -> Result<TraceRecord, RecordError> {
         Ok(TraceRecord {
             created_at: Self::get_trace_start_time_attribute(attributes, &start_time),
@@ -477,6 +494,7 @@ impl TraceServerRecord {
             root_span_id: span_id.to_string(),
             tags: Self::extract_tags(attributes)?,
             span_count: 1,
+            process_attributes: resource_attributes.clone(),
         })
     }
 
@@ -670,9 +688,12 @@ impl TraceServerRecord {
         let mut baggage_records: Vec<TraceBaggageRecord> = Vec::new();
 
         for resource_span in resource_spans {
+            // process metadata only once per resource span
             let service_name =
                 Self::get_service_name_from_resource(&resource_span.resource, "unknown");
+
             let scope = Self::get_scope_from_resource(&resource_span.resource, "unknown");
+            let resource_attributes = Attribute::from_resources(&resource_span.resource);
 
             for scope_span in &resource_span.scope_spans {
                 for span in &scope_span.spans {
@@ -696,6 +717,7 @@ impl TraceServerRecord {
                         end_time,
                         duration_ms,
                         service_name.clone(),
+                        &resource_attributes,
                     )?);
 
                     // SpanRecord for insert
@@ -756,6 +778,19 @@ impl Attribute {
         Attribute {
             key,
             value: otel_value_to_serde_value(value),
+        }
+    }
+
+    fn from_resources(
+        resource: &Option<opentelemetry_proto::tonic::resource::v1::Resource>,
+    ) -> Vec<Attribute> {
+        match resource {
+            Some(res) => res
+                .attributes
+                .iter()
+                .map(|kv| Attribute::from_otel_value(kv.key.clone(), kv.value.as_ref().unwrap()))
+                .collect(),
+            None => vec![],
         }
     }
 }

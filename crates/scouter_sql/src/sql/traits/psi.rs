@@ -54,7 +54,7 @@ pub trait PsiSqlLogic {
             )
         }));
 
-        sqlx::query(&query.sql)
+        sqlx::query(query)
             .bind(created_ats)
             .bind(entity_ids)
             .bind(features)
@@ -83,7 +83,7 @@ pub trait PsiSqlLogic {
         let bin = minutes as f64 / params.max_data_points as f64;
         let query = Queries::GetBinnedPsiFeatureBins.get_query();
 
-        let binned: Vec<FeatureBinProportionResult> = sqlx::query_as(&query.sql)
+        let binned: Vec<FeatureBinProportionResult> = sqlx::query_as(query)
             .bind(bin)
             .bind(minutes)
             .bind(entity_id)
@@ -217,7 +217,7 @@ pub trait PsiSqlLogic {
     ) -> Result<FeatureDistributions, SqlError> {
         let query = Queries::GetFeatureBinProportions.get_query();
 
-        let rows: Vec<FeatureDistributionRow> = sqlx::query_as(&query.sql)
+        let rows: Vec<FeatureDistributionRow> = sqlx::query_as(query)
             .bind(entity_id)
             .bind(limit_datetime)
             .bind(features_to_monitor)

@@ -46,7 +46,7 @@ pub trait SpcSqlLogic {
                 .map(|r| (r.created_at, entity_id, r.feature.as_str(), r.value)),
         );
 
-        sqlx::query(&query.sql)
+        sqlx::query(query)
             .bind(created_ats)
             .bind(entity_ids)
             .bind(features)
@@ -68,7 +68,7 @@ pub trait SpcSqlLogic {
     ) -> Result<Vec<String>, SqlError> {
         let query = Queries::GetSpcFeatures.get_query();
 
-        Ok(sqlx::query(&query.sql)
+        Ok(sqlx::query(query)
             .bind(entity_id)
             .fetch_all(pool)
             .await
@@ -103,7 +103,7 @@ pub trait SpcSqlLogic {
 
         let query = Queries::GetSpcFeatureValues.get_query();
 
-        let records: Vec<SpcFeatureResult> = sqlx::query_as(&query.sql)
+        let records: Vec<SpcFeatureResult> = sqlx::query_as(query)
             .bind(limit_datetime)
             .bind(entity_id)
             .bind(features)
@@ -150,7 +150,7 @@ pub trait SpcSqlLogic {
 
         let query = Queries::GetBinnedSpcFeatureValues.get_query();
 
-        let records: Vec<SpcFeatureResult> = sqlx::query_as(&query.sql)
+        let records: Vec<SpcFeatureResult> = sqlx::query_as(query)
             .bind(bin)
             .bind(minutes)
             .bind(entity_id)

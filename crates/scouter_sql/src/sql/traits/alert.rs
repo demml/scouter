@@ -31,7 +31,7 @@ pub trait AlertSqlLogic {
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertDriftAlert.get_query();
 
-        let query_result = sqlx::query(&query.sql)
+        let query_result = sqlx::query(query)
             .bind(entity_id)
             .bind(entity_name)
             .bind(serde_json::to_value(alert).unwrap())
@@ -56,7 +56,7 @@ pub trait AlertSqlLogic {
         params: &DriftAlertRequest,
         entity_id: &i32,
     ) -> Result<Vec<Alert>, SqlError> {
-        let mut query = Queries::GetDriftAlerts.get_query().sql;
+        let mut query = Queries::GetDriftAlerts.get_query().to_string();
 
         if let Some(limit) = params.limit {
             query.push_str(&format!(" LIMIT {limit}"));
@@ -84,7 +84,7 @@ pub trait AlertSqlLogic {
     ) -> Result<UpdateAlertResult, SqlError> {
         let query = Queries::UpdateAlertStatus.get_query();
 
-        let result: Result<UpdateAlertResult, SqlError> = sqlx::query_as(&query.sql)
+        let result: Result<UpdateAlertResult, SqlError> = sqlx::query_as(query)
             .bind(params.id)
             .bind(params.active)
             .fetch_one(pool)

@@ -26,7 +26,7 @@ pub trait ObservabilitySqlLogic {
         let query = Queries::InsertObservabilityRecord.get_query();
         let route_metrics = serde_json::to_value(&record.route_metrics)?;
 
-        sqlx::query(&query.sql)
+        sqlx::query(query)
             .bind(entity_id)
             .bind(record.request_count)
             .bind(record.error_count)
@@ -47,7 +47,7 @@ pub trait ObservabilitySqlLogic {
 
         let bin = time_interval as f64 / params.max_data_points as f64;
 
-        sqlx::query_as(&query.sql)
+        sqlx::query_as(query)
             .bind(bin)
             .bind(time_interval)
             .bind(entity_id)

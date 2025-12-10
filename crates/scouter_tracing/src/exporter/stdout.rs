@@ -1,6 +1,8 @@
 use crate::error::TraceError;
 use crate::exporter::traits::SpanExporterBuilder;
 use crate::exporter::ExporterType;
+use opentelemetry_sdk::trace::SpanExporter;
+use opentelemetry_sdk::Resource;
 use opentelemetry_stdout::SpanExporter as OTelStdoutSpanExporter;
 use pyo3::prelude::*;
 use scouter_types::PyHelperFuncs;
@@ -45,7 +47,10 @@ impl SpanExporterBuilder for StdoutSpanExporter {
         self.batch_export
     }
 
-    fn build_exporter(&self) -> Result<Self::Exporter, TraceError> {
-        Ok(OTelStdoutSpanExporter::default())
+    fn build_exporter(&self, resource: &Resource) -> Result<Self::Exporter, TraceError> {
+        // Reconstruct the OtlpExportConfig each time
+        let mut exporter = OTelStdoutSpanExporter::default();
+        exporter.set_resource(resource);
+        Ok(exporter)
     }
 }

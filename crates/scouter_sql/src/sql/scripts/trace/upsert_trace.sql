@@ -12,7 +12,8 @@ INSERT INTO scouter.traces (
     status_code,
     status_message,
     root_span_id,
-    span_count
+    span_count,
+    process_attributes
 )
 SELECT
     created_at,
@@ -27,7 +28,8 @@ SELECT
     status_code,
     status_message,
     root_span_id,
-    span_count
+    span_count,
+    process_attributes
 FROM UNNEST(
     $1::timestamptz[],  -- created_at
     $2::text[],        -- trace_id
@@ -40,7 +42,8 @@ FROM UNNEST(
     $9::integer[],     -- status_code
     $10::text[],       -- status_message
     $11::text[],       -- root_span_id
-    $12::integer[]     -- span_count
+    $12::integer[],     -- span_count
+    $13::jsonb[]       -- process_attributes
 ) AS t(
     created_at,
     trace_id,
@@ -53,7 +56,8 @@ FROM UNNEST(
     status_code,
     status_message,
     root_span_id,
-    span_count
+    span_count,
+    process_attributes
 )
 ON CONFLICT (created_at, trace_id, scope) DO UPDATE SET
     end_time = EXCLUDED.end_time,

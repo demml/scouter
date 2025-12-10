@@ -36,7 +36,7 @@ pub trait LLMDriftSqlLogic {
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertLLMDriftRecord.get_query();
 
-        sqlx::query(&query.sql)
+        sqlx::query(query)
             .bind(&record.uid)
             .bind(record.created_at)
             .bind(entity_id)
@@ -76,7 +76,7 @@ pub trait LLMDriftSqlLogic {
             )
         }));
 
-        sqlx::query(&query.sql)
+        sqlx::query(query)
             .bind(created_ats)
             .bind(record_uids)
             .bind(entity_ids)
@@ -93,7 +93,7 @@ pub trait LLMDriftSqlLogic {
         status: Option<Status>,
         entity_id: &i32,
     ) -> Result<Vec<LLMDriftRecord>, SqlError> {
-        let mut query_string = Queries::GetLLMDriftRecords.get_query().sql;
+        let mut query_string = Queries::GetLLMDriftRecords.get_query().to_string();
         let mut bind_count = 1;
 
         if limit_datetime.is_some() {
@@ -142,7 +142,7 @@ pub trait LLMDriftSqlLogic {
         let query_limit = limit + 1;
 
         // Get initial SQL query
-        let mut sql = Queries::GetLLMDriftRecords.get_query().sql;
+        let mut sql = Queries::GetLLMDriftRecords.get_query().to_string();
         let mut bind_count = 1;
 
         // If querying any page other than the first, we need to add a cursor condition
@@ -208,7 +208,7 @@ pub trait LLMDriftSqlLogic {
     ) -> Result<HashMap<String, f64>, SqlError> {
         let query = Queries::GetLLMMetricValues.get_query();
 
-        let records = sqlx::query(&query.sql)
+        let records = sqlx::query(query)
             .bind(limit_datetime)
             .bind(entity_id)
             .bind(metrics)
@@ -250,7 +250,7 @@ pub trait LLMDriftSqlLogic {
 
         let query = Queries::GetBinnedMetrics.get_query();
 
-        let records: Vec<BinnedMetricWrapper> = sqlx::query_as(&query.sql)
+        let records: Vec<BinnedMetricWrapper> = sqlx::query_as(query)
             .bind(bin)
             .bind(minutes)
             .bind(entity_id)
@@ -376,7 +376,7 @@ pub trait LLMDriftSqlLogic {
         pool: &Pool<Postgres>,
     ) -> Result<Option<LLMTaskRecord>, SqlError> {
         let query = Queries::GetPendingLLMDriftTask.get_query();
-        let result: Option<LLMTaskRecord> = sqlx::query_as(&query.sql)
+        let result: Option<LLMTaskRecord> = sqlx::query_as(query)
             .fetch_optional(pool)
             .await
             .map_err(SqlError::SqlxError)?;
@@ -393,7 +393,7 @@ pub trait LLMDriftSqlLogic {
     ) -> Result<(), SqlError> {
         let query = Queries::UpdateLLMDriftTask.get_query();
 
-        let _query_result = sqlx::query(&query.sql)
+        let _query_result = sqlx::query(query)
             .bind(status.as_str())
             .bind(record.score.clone())
             .bind(workflow_duration)

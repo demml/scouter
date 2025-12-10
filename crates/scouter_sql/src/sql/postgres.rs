@@ -298,6 +298,7 @@ mod tests {
             status_message: "OK".to_string(),
             root_span_id: span_id.clone(),
             tags: vec![],
+            process_attributes: vec![],
         }
     }
 
@@ -1223,8 +1224,6 @@ mod tests {
             PostgresClient::get_trace_metrics(&pool, None, start_time, end_time, "5 minutes")
                 .await
                 .unwrap();
-
-        println!("Trace metrics data points: {}", trace_metrics.len());
 
         // assert we have data points
         assert!(trace_metrics.len() >= 10);

@@ -4,6 +4,7 @@ use crate::exporter::TraceError;
 use opentelemetry_sdk::error::OTelSdkResult;
 use opentelemetry_sdk::trace::SpanData;
 use opentelemetry_sdk::trace::SpanExporter;
+use opentelemetry_sdk::Resource;
 use opentelemetry_stdout::SpanExporter as OTelStdoutSpanExporter;
 #[derive(Debug, Default)]
 pub struct NoopSpanExporter {
@@ -38,8 +39,10 @@ impl SpanExporterBuilder for NoopSpanExporter {
         true
     }
 
-    fn build_exporter(&self) -> Result<Self::Exporter, TraceError> {
+    fn build_exporter(&self, resource: &Resource) -> Result<Self::Exporter, TraceError> {
         // Reconstruct the OtlpExportConfig each time
-        Ok(OTelStdoutSpanExporter::default())
+        let mut exporter = OTelStdoutSpanExporter::default();
+        exporter.set_resource(resource);
+        Ok(exporter)
     }
 }

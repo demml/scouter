@@ -46,7 +46,7 @@ pub trait CustomMetricSqlLogic {
                 .map(|r| (r.created_at, r.metric.as_str(), r.value, entity_id)),
         );
 
-        sqlx::query(&query.sql)
+        sqlx::query(query)
             .bind(created_ats)
             .bind(entity_ids)
             .bind(metrics)
@@ -64,7 +64,7 @@ pub trait CustomMetricSqlLogic {
     ) -> Result<HashMap<String, f64>, SqlError> {
         let query = Queries::GetCustomMetricValues.get_query();
 
-        let records = sqlx::query(&query.sql)
+        let records = sqlx::query(query)
             .bind(limit_datetime)
             .bind(entity_id)
             .bind(metrics)
@@ -102,7 +102,7 @@ pub trait CustomMetricSqlLogic {
     ) -> Result<BinnedMetrics, SqlError> {
         let bin = params.time_interval.to_minutes() as f64 / params.max_data_points as f64;
         let query = Queries::GetBinnedMetricValues.get_query();
-        let records: Vec<BinnedMetricWrapper> = sqlx::query_as(&query.sql)
+        let records: Vec<BinnedMetricWrapper> = sqlx::query_as(query)
             .bind(bin)
             .bind(minutes)
             .bind(entity_id)

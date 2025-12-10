@@ -21,7 +21,10 @@ pub trait SpanExporterBuilder {
     fn batch_export(&self) -> bool;
 
     /// Build the actual span exporter - this is non-consuming
-    fn build_exporter(&self) -> Result<Self::Exporter, TraceError>;
+    /// # Arguments
+    /// * `resource` - The resource to associate with the exporter
+    /// # Returns
+    fn build_exporter(&self, resource: &Resource) -> Result<Self::Exporter, TraceError>;
 
     /// Convert sample ratio to OpenTelemetry sampler
     fn to_sampler(&self) -> Sampler {
@@ -45,7 +48,7 @@ pub trait SpanExporterBuilder {
     where
         Self: Sized,
     {
-        let exporter = self.build_exporter()?;
+        let exporter = self.build_exporter(&resource)?;
 
         // if either the exporter or batch_config indicates batch, use batch
         let use_batch = self.batch_export() || batch_config.is_some();

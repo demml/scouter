@@ -185,6 +185,7 @@ ON CONFLICT (service_name) DO NOTHING;
 
 -- 3.4: Add service_id column to traces and spans
 ALTER TABLE scouter.traces ADD COLUMN IF NOT EXISTS service_id INTEGER;
+ALTER TABLE scouter.traces ADD COLUMN IF NOT EXISTS process_attributes JSONB;
 ALTER TABLE scouter.spans ADD COLUMN IF NOT EXISTS service_id INTEGER;
 ALTER TABLE scouter.spans ADD COLUMN IF NOT EXISTS service_name TEXT;
 

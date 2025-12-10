@@ -414,7 +414,6 @@ impl TestHelper {
 
     pub async fn generate_trace_data(&self) -> Result<(), anyhow::Error> {
         //print current dir
-        println!("Current dir: {:?}", std::env::current_dir().unwrap());
         let script =
             std::fs::read_to_string("../scouter_sql/src/tests/script/populate_trace.sql").unwrap();
         sqlx::query(&script).execute(&self.pool).await.unwrap();

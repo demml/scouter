@@ -25,7 +25,7 @@ pub trait UserSqlLogic {
         let permissions = serde_json::to_value(&user.permissions)?;
         let favorite_spaces = serde_json::to_value(&user.favorite_spaces)?;
 
-        sqlx::query(&query.sql)
+        sqlx::query(query)
             .bind(&user.username)
             .bind(&user.password_hash)
             .bind(&hashed_recovery_codes)
@@ -52,7 +52,7 @@ pub trait UserSqlLogic {
     async fn get_user(pool: &Pool<Postgres>, username: &str) -> Result<Option<User>, SqlError> {
         let query = Queries::GetUser.get_query();
 
-        let user: Option<User> = sqlx::query_as(&query.sql)
+        let user: Option<User> = sqlx::query_as(query)
             .bind(username)
             .fetch_optional(pool)
             .await
@@ -78,7 +78,7 @@ pub trait UserSqlLogic {
         let permissions = serde_json::to_value(&user.permissions)?;
         let favorite_spaces = serde_json::to_value(&user.favorite_spaces)?;
 
-        sqlx::query(&query.sql)
+        sqlx::query(query)
             .bind(user.active)
             .bind(&user.password_hash)
             .bind(&hashed_recovery_codes)
@@ -104,7 +104,7 @@ pub trait UserSqlLogic {
     async fn get_users(pool: &Pool<Postgres>) -> Result<Vec<User>, SqlError> {
         let query = Queries::GetUsers.get_query();
 
-        let users = sqlx::query_as::<_, User>(&query.sql)
+        let users = sqlx::query_as::<_, User>(query)
             .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError)?;
@@ -124,7 +124,7 @@ pub trait UserSqlLogic {
         // Count admins in the system
         let query = Queries::LastAdmin.get_query();
 
-        let admins: Vec<String> = sqlx::query_scalar(&query.sql)
+        let admins: Vec<String> = sqlx::query_scalar(query)
             .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError)?;
@@ -151,7 +151,7 @@ pub trait UserSqlLogic {
     async fn delete_user(pool: &Pool<Postgres>, username: &str) -> Result<(), SqlError> {
         let query = Queries::DeleteUser.get_query();
 
-        sqlx::query(&query.sql)
+        sqlx::query(query)
             .bind(username)
             .execute(pool)
             .await

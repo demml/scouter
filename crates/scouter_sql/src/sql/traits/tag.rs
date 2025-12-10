@@ -37,7 +37,7 @@ pub trait TagSqlLogic {
             )
         }));
 
-        let query_result = sqlx::query(&query.sql)
+        let query_result = sqlx::query(query)
             .bind(created_at)
             .bind(entity_type)
             .bind(entity_id)
@@ -56,7 +56,7 @@ pub trait TagSqlLogic {
     ) -> Result<Vec<TagRecord>, SqlError> {
         let query = Queries::GetTags.get_query();
 
-        let rows = sqlx::query_as::<_, TagRecord>(&query.sql)
+        let rows = sqlx::query_as::<_, TagRecord>(query)
             .bind(entity_type)
             .bind(entity_id)
             .fetch_all(pool)

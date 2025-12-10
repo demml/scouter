@@ -51,7 +51,7 @@ tracing-subscriber = { workspace = true}
 approx = "0.*"
 http-body-util = "0.*"
 ndarray = { workspace = true }
-ndarray-rand = "0.*"
+ndarray-rand = { workspace = true }
 mockito = "1.*"
 object_store = { workspace = true }
 rand = { workspace = true }

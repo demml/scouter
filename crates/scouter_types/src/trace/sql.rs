@@ -155,6 +155,26 @@ impl FromRow<'_, PgRow> for TraceSpan {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[pyclass]
+pub struct TraceAttributes {
+    pub trace_id: String,
+    pub attributes: Vec<Attribute>,
+}
+
+// implement from row to convert sqlx process_attributes jsonb to TraceAttributes
+#[cfg(feature = "server")]
+impl FromRow<'_, PgRow> for TraceAttributes {
+    fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
+        let attributes: Vec<Attribute> =
+            serde_json::from_value(row.try_get("process_attributes")?).unwrap_or_default();
+        Ok(TraceAttributes {
+            trace_id: row.try_get("trace_id")?,
+            attributes,
+        })
+    }
+}
+
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[pyclass]
 pub struct TraceFilters {
