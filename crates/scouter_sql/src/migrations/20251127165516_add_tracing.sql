@@ -235,55 +235,58 @@ AS $$
     ),
     -- Step 1: Aggregate trace-level metadata from spans
     trace_aggregates AS (
-        SELECT
-            s.trace_id,
-            -- Root span determines trace ownership
+    SELECT
+        s.trace_id,
+        COALESCE(
             (SELECT service_name FROM scouter.spans
              WHERE trace_id = s.trace_id
              AND parent_span_id IS NULL
-             LIMIT 1) as service_name,
-            -- Get scope from root span
+             LIMIT 1),
+            MIN(s.service_name)
+        ) as service_name,
+        COALESCE(
             (SELECT scope FROM scouter.spans
              WHERE trace_id = s.trace_id
              AND parent_span_id IS NULL
-             LIMIT 1) as scope,
-            -- Get root operation name
+             LIMIT 1),
+            MIN(s.scope)
+        ) as scope,
+        COALESCE(
             (SELECT span_name FROM scouter.spans
              WHERE trace_id = s.trace_id
              AND parent_span_id IS NULL
-             LIMIT 1) as root_operation,
-            -- Get resource attributes from root span
+             LIMIT 1),
+            'Unknown Operation'
+        ) as root_operation,
+        COALESCE(
             (SELECT resource_attributes FROM scouter.spans
              WHERE trace_id = s.trace_id
              AND parent_span_id IS NULL
-             LIMIT 1) as resource_attributes,
-            -- Trace timing is min/max of all spans
-            MIN(s.start_time) as start_time,
-            MAX(s.end_time) as end_time,
-            EXTRACT(EPOCH FROM (MAX(s.end_time) - MIN(s.start_time))) * 1000 as duration_ms,
-            -- Overall trace status (worst span status)
-            MAX(s.status_code) as status_code,
-            -- Status message from any error span
-            (SELECT status_message FROM scouter.spans
-             WHERE trace_id = s.trace_id
-             AND status_code = 2
-             LIMIT 1) as status_message,
-            -- Statistics
-            COUNT(*) as span_count,
-            COUNT(*) FILTER (WHERE s.status_code = 2) as error_count
-        FROM scouter.spans s
-        WHERE
-            s.start_time >= p_start_time
-            AND s.start_time <= p_end_time
-            -- Service filter applied to root spans only
-            AND (p_service_name IS NULL OR EXISTS (
-                SELECT 1 FROM scouter.spans root
-                WHERE root.trace_id = s.trace_id
-                AND root.parent_span_id IS NULL
-                AND root.service_id IN (SELECT service_id FROM service_filter)
-            ))
-        GROUP BY s.trace_id
-    )
+             LIMIT 1),
+            '[]'::JSONB
+        ) as resource_attributes,
+        MIN(s.start_time) as start_time,
+        MAX(s.end_time) as end_time,
+        EXTRACT(EPOCH FROM (MAX(s.end_time) - MIN(s.start_time))) * 1000 as duration_ms,
+        MAX(s.status_code) as status_code,
+        (SELECT status_message FROM scouter.spans
+         WHERE trace_id = s.trace_id
+         AND status_code = 2
+         LIMIT 1) as status_message,
+        COUNT(*) as span_count,
+        COUNT(*) FILTER (WHERE s.status_code = 2) as error_count
+    FROM scouter.spans s
+    WHERE
+        s.start_time >= p_start_time
+        AND s.start_time <= p_end_time
+        AND (p_service_name IS NULL OR EXISTS (
+            SELECT 1 FROM scouter.spans root
+            WHERE root.trace_id = s.trace_id
+            AND root.parent_span_id IS NULL
+            AND root.service_id IN (SELECT service_id FROM service_filter)
+        ))
+    GROUP BY s.trace_id
+)
     SELECT
         ta.trace_id,
         ta.service_name,
