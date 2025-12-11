@@ -29,7 +29,10 @@ pub trait SpanExporterBuilder {
     /// Convert sample ratio to OpenTelemetry sampler
     fn to_sampler(&self) -> Sampler {
         self.sample_ratio()
-            .map(Sampler::TraceIdRatioBased)
+            .map(|ratio| {
+                debug!("Using TraceIdRatioBased sampler with ratio {}", ratio);
+                Sampler::TraceIdRatioBased(ratio)
+            })
             .unwrap_or(Sampler::AlwaysOn)
     }
 

@@ -67,6 +67,20 @@ def setup_tracer_grpc(grpc_span_exporter):
         shutdown_tracer()
 
 
+@pytest.fixture(scope="module")
+def setup_tracer_grpc_sample(grpc_span_exporter):
+    """Initialize tracer with grpc exporter for each test."""
+    with ScouterTestServer() as server:
+        init_tracer(
+            service_name="tracing-grpc-sample",
+            exporter=GrpcSpanExporter(sample_ratio=0.2),
+            batch_config=BatchConfig(scheduled_delay_ms=200),
+        )
+        yield get_tracer("test-service-grpc"), server
+
+        shutdown_tracer()
+
+
 def get_traces_from_jaeger(service_name: str):
     """Helper function to get traces from jaeger."""
     JAEGER_QUERY_URL = "http://localhost:16686/api/traces"
