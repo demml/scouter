@@ -11,6 +11,18 @@ DROP FUNCTION IF EXISTS scouter.get_trace_spans CASCADE;
 DROP FUNCTION IF EXISTS scouter.get_traces_paginated CASCADE;
 DROP FUNCTION IF EXISTS scouter.get_trace_metrics CASCADE;
 DROP MATERIALIZED VIEW IF EXISTS scouter.trace_summary CASCADE;
+
+
+-- drop trace tables
+DROP TABLE IF EXISTS scouter.traces CASCADE;
+
+DELETE FROM scouter.part_config
+WHERE parent_table = 'scouter.traces';
+
+DELETE FROM scouter.part_config_sub
+WHERE sub_parent = 'scouter.traces';
+
+
 SELECT cron.unschedule('refresh-trace-summary');
 
 
@@ -176,46 +188,24 @@ BEGIN
 END;
 $$;
 
--- 3.3: Seed service entities from existing traces
-INSERT INTO scouter.service_entities (service_name)
-SELECT DISTINCT service_name
-FROM scouter.traces
-WHERE service_name IS NOT NULL
-ON CONFLICT (service_name) DO NOTHING;
+
 
 -- 3.4: Add service_id column to traces and spans
-ALTER TABLE scouter.traces ADD COLUMN IF NOT EXISTS service_id INTEGER;
-ALTER TABLE scouter.traces ADD COLUMN IF NOT EXISTS process_attributes JSONB;
+ALTER TABLE scouter.spans ADD COLUMN IF NOT EXISTS resource_attributes JSONB;
 ALTER TABLE scouter.spans ADD COLUMN IF NOT EXISTS service_id INTEGER;
 ALTER TABLE scouter.spans ADD COLUMN IF NOT EXISTS service_name TEXT;
 
--- 3.5: Backfill service_id in traces
-UPDATE scouter.traces t
-SET service_id = se.id
-FROM scouter.service_entities se
-WHERE t.service_name = se.service_name
-  AND t.service_id IS NULL;
-
--- 3.6: Backfill service_id and service_name in spans from parent trace
-UPDATE scouter.spans s
-SET
-    service_id = t.service_id,
-    service_name = t.service_name
-FROM scouter.traces t
-WHERE s.trace_id = t.trace_id
-  AND s.service_id IS NULL;
+-- Drop template tables if they exist
+DROP TABLE IF EXISTS scouter.template_scouter_traces CASCADE;
 
 -- 3.7: Update Template Tables
-ALTER TABLE scouter.template_scouter_traces ADD COLUMN IF NOT EXISTS service_id INTEGER;
 ALTER TABLE scouter.template_scouter_spans ADD COLUMN IF NOT EXISTS service_id INTEGER;
 
 -- 3.8: Drop old entity columns from traces/spans
 DO $$
 DECLARE
     trace_tables_with_old_cols TEXT[] := ARRAY[
-        'scouter.traces',
         'scouter.spans',
-        'scouter.template_scouter_traces',
         'scouter.template_scouter_spans'
     ]::TEXT[];
     tbl TEXT;
@@ -272,7 +262,6 @@ ALTER TABLE scouter.drift_alert DROP CONSTRAINT IF EXISTS drift_alert_created_at
 ALTER TABLE scouter.drift_alert ADD UNIQUE (entity_id, created_at);
 
 -- TRACES
-ALTER TABLE scouter.traces DROP CONSTRAINT IF EXISTS traces_created_at_trace_id_space_name_version_key;
 DROP INDEX IF EXISTS scouter.idx_traces_entity_lookup;
 DROP INDEX IF EXISTS scouter.idx_traces_created_at;
 DROP INDEX IF EXISTS scouter.idx_traces_duration_analysis;
@@ -288,22 +277,17 @@ DROP INDEX IF EXISTS scouter.idx_spans_error_analysis;
 -- STEP 5: RECREATE INDEXES
 -- =================================================================
 
--- TRACES
-CREATE INDEX IF NOT EXISTS idx_traces_service_id_time ON scouter.traces (service_id, created_at DESC) 
-    WHERE service_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_traces_service_id_status ON scouter.traces (service_id, status_code, created_at DESC) 
-    WHERE service_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_traces_service_name_fallback ON scouter.traces (service_name, created_at DESC) 
-    WHERE service_name IS NOT NULL;
-
 -- SPANS
-CREATE INDEX IF NOT EXISTS idx_spans_service_id_time ON scouter.spans (service_id, created_at DESC) 
+CREATE INDEX idx_spans_trace_lookup ON scouter.spans(trace_id, start_time);
+CREATE INDEX idx_spans_service_time ON scouter.spans(service_id, start_time DESC);
+CREATE INDEX idx_spans_root ON scouter.spans(trace_id) WHERE parent_span_id IS NULL;
+CREATE INDEX IF NOT EXISTS idx_spans_service_id_time ON scouter.spans (service_id, created_at DESC)
     WHERE service_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_spans_service_id_errors ON scouter.spans (service_id, status_code, created_at DESC) 
+CREATE INDEX IF NOT EXISTS idx_spans_service_id_errors ON scouter.spans (service_id, status_code, created_at DESC)
     WHERE service_id IS NOT NULL AND status_code != 2;
-CREATE INDEX IF NOT EXISTS idx_spans_parent_tree ON scouter.spans (parent_span_id, trace_id) 
+CREATE INDEX IF NOT EXISTS idx_spans_parent_tree ON scouter.spans (parent_span_id, trace_id)
     WHERE parent_span_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_spans_service_name_fallback ON scouter.spans (service_name, created_at DESC) 
+CREATE INDEX IF NOT EXISTS idx_spans_service_name_fallback ON scouter.spans (service_name, created_at DESC)
     WHERE service_name IS NOT NULL;
 
 -- DRIFT/METRICS LOOKUPS
@@ -339,29 +323,56 @@ AS $$
         SELECT id as service_id
         FROM scouter.service_entities
         WHERE p_service_name IS NULL OR service_name = p_service_name
+    ),
+    -- Step 1: Reconstruct trace-level timing and status from spans
+    trace_metrics AS (
+        SELECT
+            s.trace_id,
+            -- Trace timing is min/max of all spans
+            MIN(s.start_time) as trace_start_time,
+            MAX(s.end_time) as trace_end_time,
+            -- Calculate total trace duration
+            EXTRACT(EPOCH FROM (MAX(s.end_time) - MIN(s.start_time))) * 1000 as duration_ms,
+            -- Worst status code across all spans (2 = ERROR in OpenTelemetry)
+            MAX(s.status_code) as status_code
+        FROM scouter.spans s
+        WHERE
+            s.start_time >= p_start_time
+            AND s.start_time <= p_end_time
+            -- Filter by root span service if specified
+            AND (p_service_name IS NULL OR EXISTS (
+                SELECT 1 FROM scouter.spans root
+                WHERE root.trace_id = s.trace_id
+                AND root.parent_span_id IS NULL
+                AND root.service_id IN (SELECT service_id FROM service_filter)
+            ))
+        GROUP BY s.trace_id
+    ),
+    -- Step 2: Bucket traces by time interval and calculate metrics
+    bucketed_metrics AS (
+        SELECT
+            date_bin(
+                p_bucket_interval,
+                tm.trace_start_time,
+                '2000-01-01 00:00:00'::TIMESTAMPTZ
+            ) as bucket_start,
+            tm.duration_ms,
+            tm.status_code
+        FROM trace_metrics tm
+        WHERE tm.duration_ms IS NOT NULL
     )
+    -- Step 3: Aggregate metrics per bucket
     SELECT
-        date_bin(
-            p_bucket_interval,
-            t.start_time,
-            '2000-01-01 00:00:00'::TIMESTAMPTZ
-        ) as bucket_start,
+        bm.bucket_start,
         COUNT(*) as trace_count,
-        AVG(t.duration_ms) as avg_duration_ms,
-        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY t.duration_ms) as p50_duration_ms,
-        PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY t.duration_ms) as p95_duration_ms,
-        PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY t.duration_ms) as p99_duration_ms,
-        (
-            COUNT(*) FILTER (WHERE t.status_code = 2) * 100.0 / COUNT(*)
-        ) as error_rate
-    FROM scouter.traces t
-    WHERE
-        (p_service_name IS NULL OR t.service_id IN (SELECT service_id FROM service_filter))
-        AND t.start_time >= p_start_time
-        AND t.start_time <= p_end_time
-        AND t.duration_ms IS NOT NULL
-    GROUP BY bucket_start
-    ORDER BY bucket_start DESC;
+        AVG(bm.duration_ms)::FLOAT8 as avg_duration_ms,
+        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY bm.duration_ms)::FLOAT8 as p50_duration_ms,
+        PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY bm.duration_ms)::FLOAT8 as p95_duration_ms,
+        PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY bm.duration_ms)::FLOAT8 as p99_duration_ms,
+        (COUNT(*) FILTER (WHERE bm.status_code = 2) * 100.0 / NULLIF(COUNT(*), 0))::FLOAT8 as error_rate
+    FROM bucketed_metrics bm
+    GROUP BY bm.bucket_start
+    ORDER BY bm.bucket_start DESC;
 $$;
 
 
@@ -372,7 +383,7 @@ CREATE OR REPLACE FUNCTION scouter.get_traces_paginated(
     p_start_time TIMESTAMPTZ DEFAULT NOW() - INTERVAL '24 hours',
     p_end_time TIMESTAMPTZ DEFAULT NOW(),
     p_limit INTEGER DEFAULT 50,
-    p_cursor_created_at TIMESTAMPTZ DEFAULT NULL,
+    p_cursor_start_time TIMESTAMPTZ DEFAULT NULL,
     p_cursor_trace_id TEXT DEFAULT NULL,
     p_direction TEXT DEFAULT 'next'
 )
@@ -386,10 +397,10 @@ RETURNS TABLE (
     duration_ms BIGINT,
     status_code INTEGER,
     status_message TEXT,
-    span_count INTEGER,
+    span_count BIGINT,
     has_errors BOOLEAN,
     error_count BIGINT,
-    created_at TIMESTAMPTZ
+    resource_attributes JSONB
 )
 LANGUAGE SQL
 STABLE
@@ -398,74 +409,102 @@ AS $$
         SELECT id as service_id
         FROM scouter.service_entities
         WHERE p_service_name IS NULL OR service_name = p_service_name
+    ),
+    -- Step 1: Aggregate trace-level metadata from spans
+    trace_aggregates AS (
+        SELECT
+            s.trace_id,
+            -- Root span determines trace ownership
+            (SELECT service_name FROM scouter.spans
+             WHERE trace_id = s.trace_id
+             AND parent_span_id IS NULL
+             LIMIT 1) as service_name,
+            -- Get scope from root span
+            (SELECT scope FROM scouter.spans
+             WHERE trace_id = s.trace_id
+             AND parent_span_id IS NULL
+             LIMIT 1) as scope,
+            -- Get root operation name
+            (SELECT span_name FROM scouter.spans
+             WHERE trace_id = s.trace_id
+             AND parent_span_id IS NULL
+             LIMIT 1) as root_operation,
+            -- Get resource attributes from root span
+            (SELECT resource_attributes FROM scouter.spans
+             WHERE trace_id = s.trace_id
+             AND parent_span_id IS NULL
+             LIMIT 1) as resource_attributes,
+            -- Trace timing is min/max of all spans
+            MIN(s.start_time) as start_time,
+            MAX(s.end_time) as end_time,
+            EXTRACT(EPOCH FROM (MAX(s.end_time) - MIN(s.start_time))) * 1000 as duration_ms,
+            -- Overall trace status (worst span status)
+            MAX(s.status_code) as status_code,
+            -- Status message from any error span
+            (SELECT status_message FROM scouter.spans
+             WHERE trace_id = s.trace_id
+             AND status_code = 2
+             LIMIT 1) as status_message,
+            -- Statistics
+            COUNT(*) as span_count,
+            COUNT(*) FILTER (WHERE s.status_code = 2) as error_count
+        FROM scouter.spans s
+        WHERE
+            s.start_time >= p_start_time
+            AND s.start_time <= p_end_time
+            -- Service filter applied to root spans only
+            AND (p_service_name IS NULL OR EXISTS (
+                SELECT 1 FROM scouter.spans root
+                WHERE root.trace_id = s.trace_id
+                AND root.parent_span_id IS NULL
+                AND root.service_id IN (SELECT service_id FROM service_filter)
+            ))
+        GROUP BY s.trace_id
     )
     SELECT
-        t.trace_id,
-        t.service_name,
-        t.scope,
-        rs.span_name as root_operation,
-        t.start_time,
-        t.end_time,
-        t.duration_ms,
-        t.status_code,
-        t.status_message,
-        t.span_count,
-        CASE WHEN t.status_code = 2 THEN true ELSE false END as has_errors, -- OTel: status_code 2 is ERROR
-        COALESCE(es.error_count, 0) as error_count, -- Re-introduced and calculated via Lateral Join
-        t.created_at
-    FROM scouter.traces t
-    -- 1. LATERAL JOIN for efficient root span lookup (requires index on trace_id, span_id, created_at)
-    LEFT JOIN LATERAL (
-        SELECT s.span_name
-        FROM scouter.spans s
-        WHERE s.trace_id = t.trace_id
-          AND s.span_id = t.root_span_id
-          -- CRITICAL: Includes time filter for partition pruning on scouter.spans
-          AND s.created_at >= p_start_time
-        LIMIT 1
-    ) rs ON true
-    -- 2. LATERAL JOIN for efficient span error count lookup (requires index on trace_id, status_code, created_at)
-    LEFT JOIN LATERAL (
-        SELECT COUNT(*) as error_count
-        FROM scouter.spans s
-        WHERE s.trace_id = t.trace_id
-          AND s.status_code = 2 -- OTel: status_code 2 is ERROR
-          -- CRITICAL: Includes time filter for partition pruning on scouter.spans
-          AND s.created_at >= p_start_time
-    ) es ON true
+        ta.trace_id,
+        ta.service_name,
+        ta.scope,
+        ta.root_operation,
+        ta.start_time,
+        ta.end_time,
+        ta.duration_ms::BIGINT,
+        ta.status_code,
+        ta.status_message,
+        ta.span_count,
+        (ta.error_count > 0) as has_errors,
+        ta.error_count,
+        ta.resource_attributes
+    FROM trace_aggregates ta
     WHERE
-        (p_service_name IS NULL OR t.service_id IN (SELECT service_id FROM service_filter))
-        -- Filter traces on overall error status (OTel Error: status_code = 2)
-        AND (p_has_errors IS NULL
-            OR (p_has_errors = true AND t.status_code = 2)
-            OR (p_has_errors = false AND t.status_code != 2)
+        -- Error filtering
+        (p_has_errors IS NULL
+            OR (p_has_errors = true AND ta.error_count > 0)
+            OR (p_has_errors = false AND ta.error_count = 0)
         )
-        AND (p_status_code IS NULL OR t.status_code = p_status_code)
-        AND t.start_time >= p_start_time
-        AND t.start_time <= p_end_time
+        -- Status code filtering
+        AND (p_status_code IS NULL OR ta.status_code = p_status_code)
+        -- Cursor-based pagination
         AND (
-            -- Forward pagination: get records LESS than cursor
             (p_direction = 'next' AND (
-                p_cursor_created_at IS NULL OR
-                t.created_at < p_cursor_created_at OR
-                (t.created_at = p_cursor_created_at AND t.trace_id < p_cursor_trace_id)
+                p_cursor_start_time IS NULL OR
+                ta.start_time < p_cursor_start_time OR
+                (ta.start_time = p_cursor_start_time AND ta.trace_id < p_cursor_trace_id)
             ))
             OR
-            -- Backward pagination: get records GREATER than cursor
             (p_direction = 'previous' AND (
-                p_cursor_created_at IS NULL OR
-                t.created_at > p_cursor_created_at OR
-                (t.created_at = p_cursor_created_at AND t.trace_id > p_cursor_trace_id)
+                p_cursor_start_time IS NULL OR
+                ta.start_time > p_cursor_start_time OR
+                (ta.start_time = p_cursor_start_time AND ta.trace_id > p_cursor_trace_id)
             ))
         )
     ORDER BY
-        CASE WHEN p_direction = 'next' THEN t.created_at END DESC,
-        CASE WHEN p_direction = 'next' THEN t.trace_id END DESC,
-        CASE WHEN p_direction = 'previous' THEN t.created_at END ASC,
-        CASE WHEN p_direction = 'previous' THEN t.trace_id END ASC
+        CASE WHEN p_direction = 'next' THEN ta.start_time END DESC,
+        CASE WHEN p_direction = 'next' THEN ta.trace_id END DESC,
+        CASE WHEN p_direction = 'previous' THEN ta.start_time END ASC,
+        CASE WHEN p_direction = 'previous' THEN ta.trace_id END ASC
     LIMIT p_limit + 1;
 $$;
-
 
 -- 7.3: get_trace_spans
 CREATE OR REPLACE FUNCTION scouter.get_trace_spans(

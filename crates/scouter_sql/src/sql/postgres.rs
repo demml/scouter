@@ -184,43 +184,20 @@ impl MessageHandler {
         pool: &Pool<Postgres>,
         records: &TraceServerRecord,
     ) -> Result<(), SqlError> {
-        let (trace_batch, span_batch, baggage_batch) = records.to_records()?;
+        let (span_batch, baggage_batch, tag_records) = records.to_records()?;
 
-        let all_tags: Vec<TagRecord> = trace_batch
-            .iter()
-            .flat_map(|trace| {
-                trace.tags.iter().map(|tag| TagRecord {
-                    created_at: trace.created_at,
-                    entity_type: "trace".to_string(),
-                    entity_id: trace.trace_id.clone(),
-                    key: tag.key.clone(),
-                    value: tag.value.clone(),
-                })
-            })
-            .collect();
-
-        let (trace_result, span_result, baggage_result, tag_result) = try_join!(
-            PostgresClient::upsert_trace_batch(pool, &trace_batch),
+        let (span_result, baggage_result, tag_result) = try_join!(
             PostgresClient::insert_span_batch(pool, &span_batch),
             PostgresClient::insert_trace_baggage_batch(pool, &baggage_batch),
-            async {
-                if !all_tags.is_empty() {
-                    PostgresClient::insert_tag_batch(pool, &all_tags).await
-                } else {
-                    Ok(sqlx::postgres::PgQueryResult::default())
-                }
-            }
+            PostgresClient::insert_tag_batch(pool, &tag_records),
         )?;
 
         debug!(
-            trace_rows = trace_result.rows_affected(),
             span_rows = span_result.rows_affected(),
             baggage_rows = baggage_result.rows_affected(),
-            tag_rows = tag_result.rows_affected(),
-            total_traces = trace_batch.len(),
             total_spans = span_batch.len(),
             total_baggage = baggage_batch.len(),
-            total_tags = all_tags.len(),
+            tag_rows = tag_result.rows_affected(),
             "Successfully inserted trace server records"
         );
         Ok(())
@@ -348,6 +325,7 @@ mod tests {
             label: None,
             input: Value::default(),
             output: Value::default(),
+            resource_attributes: vec![],
         }
     }
 
@@ -392,9 +370,6 @@ mod tests {
 
             DELETE
             FROM scouter.trace_baggage;
-
-            DELETE
-            FROM scouter.traces;
 
             DELETE
             FROM scouter.tags;
@@ -1244,20 +1219,6 @@ mod tests {
 
         // set root span id in trace record
         trace_record.root_span_id = root_span.span_id.clone();
-
-        // this should perform an insert
-        let result = PostgresClient::upsert_trace_batch(&pool, &[trace_record.clone()])
-            .await
-            .unwrap();
-
-        assert_eq!(result.rows_affected(), 1);
-
-        // this should perform an update (mainly just increasing span count)
-        let result = PostgresClient::upsert_trace_batch(&pool, &[trace_record.clone()])
-            .await
-            .unwrap();
-
-        assert_eq!(result.rows_affected(), 1);
 
         // insert spans
         let result =

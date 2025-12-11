@@ -3282,7 +3282,6 @@ class TraceSpansResponse:
     """Response structure containing a list of spans for a trace."""
 
     spans: List[TraceSpan]
-    attributes: List[Attribute]
 
 class TraceBaggageResponse:
     """Response structure containing trace baggage records."""

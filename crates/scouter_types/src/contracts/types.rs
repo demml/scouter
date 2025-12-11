@@ -3,7 +3,6 @@ use std::fmt::Display;
 use crate::error::{ContractError, TypeError};
 use crate::llm::PaginationRequest;
 use crate::sql::{TraceListItem, TraceMetricBucket, TraceSpan};
-use crate::Attribute;
 use crate::{CustomInterval, DriftProfile, Status, TagRecord, TraceBaggageRecord};
 use crate::{DriftType, PyHelperFuncs, TimeInterval};
 use chrono::{DateTime, Utc};
@@ -680,8 +679,6 @@ impl TraceBaggageResponse {
 pub struct TraceSpansResponse {
     #[pyo3(get)]
     pub spans: Vec<TraceSpan>,
-    #[pyo3(get)]
-    pub attributes: Vec<Attribute>,
 }
 
 #[pymethods]

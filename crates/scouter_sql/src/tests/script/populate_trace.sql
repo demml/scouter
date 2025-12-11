@@ -30,9 +30,9 @@ DECLARE
     v_baggage_sequence INTEGER := 0;
     v_tag_offset_ms INTEGER;
 
-    -- Service/Entity tracking
+    -- Service tracking
     v_service_id INTEGER;
-    v_service_map JSONB := '{}'::JSONB; -- Cache service_id by service name
+    v_service_map JSONB := '{}'::JSONB;
 
     -- Trace variables
     v_trace_id TEXT;
@@ -56,30 +56,28 @@ DECLARE
 BEGIN
     RAISE NOTICE 'Starting test data population for % traces over % days', v_num_traces, v_days_back;
 
-    -- 1. Create Service Entities (New Schema Requirement)
+    -- 1. Create Service Entities
     RAISE NOTICE 'Creating service entities for % services', array_length(v_services, 1);
 
     FOR i IN 1..array_length(v_services, 1) LOOP
         v_service_name := v_services[i];
 
-        -- Use the helper function or insert directly into service_entities
         INSERT INTO scouter.service_entities (service_name)
         VALUES (v_service_name)
         ON CONFLICT (service_name) DO UPDATE
             SET updated_at = NOW()
         RETURNING id INTO v_service_id;
 
-        -- Store in map for quick lookup
         v_service_map := jsonb_set(
             v_service_map,
             ARRAY[v_service_name],
             to_jsonb(v_service_id)
         );
 
-        RAISE NOTICE 'Created/found service_id % for service %', v_service_id, v_service_name;
+        RAISE NOTICE 'Created/found service_id % for service "%"', v_service_id, v_service_name;
     END LOOP;
 
-    -- 2. Generate test traces
+    -- 2. Generate test traces (span-based architecture)
     FOR i IN 1..v_num_traces LOOP
         -- Generate unique trace ID
         v_trace_id := 'trace-' || LPAD(i::TEXT, 6, '0') || '-' || EXTRACT(EPOCH FROM NOW())::BIGINT;
@@ -108,40 +106,7 @@ BEGIN
         -- Generate realistic span count (2-15 spans per trace)
         v_span_count := 2 + (RANDOM() * 13)::INTEGER;
 
-        -- Insert trace record
-        -- UPDATED: Removed entity_id, Added service_id. Removed drift-specific fields.
-        INSERT INTO scouter.traces (
-            trace_id,
-            service_id,
-            service_name,
-            scope,
-            trace_state,
-            start_time,
-            end_time,
-            duration_ms,
-            status_code,
-            status_message,
-            root_span_id,
-            span_count,
-            created_at
-        ) VALUES (
-            v_trace_id,
-            v_service_id,
-            v_service_name,
-            'distributed-tracing',
-            'sampled=1',
-            v_current_time,
-            v_current_time + (v_trace_duration || ' milliseconds')::INTERVAL,
-            v_trace_duration,
-            CASE WHEN v_has_error THEN 2 ELSE 1 END,
-            CASE WHEN v_has_error THEN 'Error detected' ELSE NULL END,
-            v_root_span_id,
-            v_span_count,
-            v_current_time
-        );
-
-        -- Generate 2-4 tags for the Trace entity
-        -- Note: tags table uses generic entity_id (text), so trace_id works fine here
+        -- Generate trace-level tags (attached to trace_id as entity)
         FOR k IN 1..(2 + (RANDOM() * 2)::INTEGER) LOOP
             INSERT INTO scouter.tags (
                 created_at, entity_type, entity_id, key, value
@@ -204,8 +169,7 @@ BEGIN
 
             v_span_kind := v_span_kinds[1 + (RANDOM() * (array_length(v_span_kinds, 1) - 1))::INTEGER];
 
-            -- Insert span
-            -- UPDATED: Removed entity_id, Added service_id and service_name
+            -- Insert span (core tracing primitive)
             INSERT INTO scouter.spans (
                 span_id,
                 trace_id,
@@ -223,6 +187,7 @@ BEGIN
                 attributes,
                 events,
                 links,
+                resource_attributes,
                 created_at
             ) VALUES (
                 v_span_id,
@@ -277,6 +242,15 @@ BEGIN
                     )
                 END,
                 '[]'::jsonb,
+                -- Resource attributes (OpenTelemetry resource metadata)
+                jsonb_build_object(
+                    'service.name', v_service_name,
+                    'service.version', '1.0.' || (RANDOM() * 10)::INTEGER,
+                    'deployment.environment', (ARRAY['production', 'staging', 'development'])[1 + (RANDOM() * 2)::INTEGER],
+                    'host.name', 'host-' || (1 + RANDOM() * 20)::INTEGER,
+                    'process.runtime.name', 'python',
+                    'process.runtime.version', '3.11.' || (RANDOM() * 5)::INTEGER
+                ),
                 v_current_time
             );
 
@@ -303,8 +277,8 @@ BEGIN
                 END LOOP;
             END IF;
 
-            -- Generate baggage (30% chance)
-            IF RANDOM() < 0.3 THEN
+            -- Generate baggage (30% chance per trace, not per span)
+            IF j = 1 AND RANDOM() < 0.3 THEN
                 FOR k IN 1..(1 + (RANDOM() * 3)::INTEGER) LOOP
                     v_baggage_sequence := v_baggage_sequence + 1;
                     v_baggage_created_at := v_current_time + (v_baggage_sequence * INTERVAL '200 milliseconds');
@@ -339,15 +313,35 @@ BEGIN
     END LOOP;
 
     RAISE NOTICE 'Successfully generated % traces with spans and baggage', v_num_traces;
-    -- Display summary statistics (Updated to use service_entities)
+    
+    -- Display summary statistics
     RAISE NOTICE 'Summary Statistics:';
     RAISE NOTICE '- Total service entities: %', (SELECT COUNT(*) FROM scouter.service_entities);
-    RAISE NOTICE '- Total traces: %', (SELECT COUNT(*) FROM scouter.traces);
+    RAISE NOTICE '- Total unique traces: %', (SELECT COUNT(DISTINCT trace_id) FROM scouter.spans);
     RAISE NOTICE '- Total spans: %', (SELECT COUNT(*) FROM scouter.spans);
     RAISE NOTICE '- Total baggage entries: %', (SELECT COUNT(*) FROM scouter.trace_baggage);
     RAISE NOTICE '- Total tag entries: %', (SELECT COUNT(*) FROM scouter.tags);
-    RAISE NOTICE '- Traces with errors (status_code = 2): %', (SELECT COUNT(*) FROM scouter.traces WHERE status_code = 2);
-    RAISE NOTICE '- Average spans per trace: %', (SELECT ROUND(AVG(span_count), 2) FROM scouter.traces);
-    RAISE NOTICE '- Average trace duration: % ms', (SELECT ROUND(AVG(duration_ms), 2) FROM scouter.traces);
+    RAISE NOTICE '- Traces with errors: %', (
+        SELECT COUNT(DISTINCT trace_id) 
+        FROM scouter.spans 
+        WHERE status_code = 2
+    );
+    RAISE NOTICE '- Average spans per trace: %', (
+        SELECT ROUND(AVG(span_count), 2)
+        FROM (
+            SELECT COUNT(*) as span_count
+            FROM scouter.spans
+            GROUP BY trace_id
+        ) t
+    );
+    RAISE NOTICE '- Average trace duration: % ms', (
+        SELECT ROUND(AVG(duration_ms), 2)
+        FROM (
+            SELECT EXTRACT(EPOCH FROM (MAX(end_time) - MIN(start_time))) * 1000 as duration_ms
+            FROM scouter.spans
+            WHERE parent_span_id IS NULL
+            GROUP BY trace_id
+        ) t
+    );
 
 END $$;

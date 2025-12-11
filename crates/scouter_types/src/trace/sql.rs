@@ -12,7 +12,6 @@ use serde_json::Value;
 use sqlx::{postgres::PgRow, FromRow, Row};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 #[pyclass]
 pub struct TraceListItem {
     #[pyo3(get)]
@@ -41,7 +40,34 @@ pub struct TraceListItem {
     pub error_count: i64,
     #[pyo3(get)]
     pub created_at: DateTime<Utc>,
+    #[pyo3(get)]
+    pub resource_attributes: Vec<Attribute>,
 }
+
+#[cfg(feature = "server")]
+impl FromRow<'_, PgRow> for TraceListItem {
+    fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
+        let resource_attributes: Vec<Attribute> =
+            serde_json::from_value(row.try_get("resource_attributes")?).unwrap_or_default();
+        Ok(TraceListItem {
+            trace_id: row.try_get("trace_id")?,
+            service_name: row.try_get("service_name")?,
+            scope: row.try_get("scope")?,
+            root_operation: row.try_get("root_operation")?,
+            start_time: row.try_get("start_time")?,
+            end_time: row.try_get("end_time")?,
+            duration_ms: row.try_get("duration_ms")?,
+            status_code: row.try_get("status_code")?,
+            status_message: row.try_get("status_message")?,
+            span_count: row.try_get("span_count")?,
+            has_errors: row.try_get("has_errors")?,
+            error_count: row.try_get("error_count")?,
+            created_at: row.try_get("created_at")?,
+            resource_attributes,
+        })
+    }
+}
+
 #[pymethods]
 impl TraceListItem {
     pub fn __str__(&self) -> String {
@@ -151,26 +177,6 @@ impl FromRow<'_, PgRow> for TraceSpan {
             span_order: row.try_get("span_order")?,
             input,
             output,
-        })
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[pyclass]
-pub struct TraceAttributes {
-    pub trace_id: String,
-    pub attributes: Vec<Attribute>,
-}
-
-// implement from row to convert sqlx process_attributes jsonb to TraceAttributes
-#[cfg(feature = "server")]
-impl FromRow<'_, PgRow> for TraceAttributes {
-    fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
-        let attributes: Vec<Attribute> =
-            serde_json::from_value(row.try_get("process_attributes")?).unwrap_or_default();
-        Ok(TraceAttributes {
-            trace_id: row.try_get("trace_id")?,
-            attributes,
         })
     }
 }

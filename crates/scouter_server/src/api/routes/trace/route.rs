@@ -59,26 +59,13 @@ pub async fn get_trace_spans(
     Query(params): Query<TraceRequest>,
 ) -> Result<Json<TraceSpansResponse>, (StatusCode, Json<ScouterServerError>)> {
     // Execute both queries concurrently
-    let (attributes_result, spans_result) = tokio::join!(
-        PostgresClient::get_trace_process_attributes(&data.db_pool, &params.trace_id),
-        PostgresClient::get_trace_spans(
-            &data.db_pool,
-            &params.trace_id,
-            params.service_name.as_deref(),
-        )
-    );
-
-    // Handle attributes result
-    let attributes = attributes_result.map_err(|e| {
-        error!("Failed to get trace attributes: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ScouterServerError::get_trace_spans_error(e)),
-        )
-    })?;
-
-    // Handle spans result
-    let spans = spans_result.map_err(|e| {
+    let spans = PostgresClient::get_trace_spans(
+        &data.db_pool,
+        &params.trace_id,
+        params.service_name.as_deref(),
+    )
+    .await
+    .map_err(|e| {
         error!("Failed to get trace spans: {:?}", e);
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -86,10 +73,7 @@ pub async fn get_trace_spans(
         )
     })?;
 
-    Ok(Json(TraceSpansResponse {
-        spans,
-        attributes: attributes.attributes,
-    }))
+    Ok(Json(TraceSpansResponse { spans }))
 }
 
 #[instrument(skip_all)]

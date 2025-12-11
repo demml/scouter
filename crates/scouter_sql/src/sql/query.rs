@@ -97,15 +97,12 @@ const GET_USERS: &str = include_str!("scripts/user/get_users.sql");
 const LAST_ADMIN: &str = include_str!("scripts/user/last_admin.sql");
 const DELETE_USER: &str = include_str!("scripts/user/delete_user.sql");
 
-// trace
-const UPSERT_TRACE: &str = include_str!("scripts/trace/upsert_trace.sql");
 const INSERT_TRACE_SPAN: &str = include_str!("scripts/trace/insert_span.sql");
 const INSERT_TRACE_BAGGAGE: &str = include_str!("scripts/trace/insert_baggage.sql");
 const GET_PAGINATED_TRACES: &str = include_str!("scripts/trace/get_paginated_traces.sql");
 const GET_TRACE_SPANS: &str = include_str!("scripts/trace/get_trace_spans.sql");
 const GET_TRACE_METRICS: &str = include_str!("scripts/trace/get_trace_metrics.sql");
 const GET_TRACE_BAGGAGE: &str = include_str!("scripts/trace/get_trace_baggage.sql");
-const GET_TRACE_ATTRIBUTES: &str = include_str!("scripts/trace/get_trace_attributes.sql");
 
 // tags
 const INSERT_TAG: &str = include_str!("scripts/tag/insert_tags.sql");
@@ -191,14 +188,12 @@ pub enum Queries {
     ListDriftProfiles,
 
     //trace
-    UpsertTrace,
     InsertTraceSpan,
     InsertTraceBaggage,
     GetPaginatedTraces,
     GetTraceSpans,
     GetTraceMetrics,
     GetTraceBaggage,
-    GetTraceAttributes,
 
     // tags
     InsertTag,
@@ -275,14 +270,13 @@ impl Queries {
             Queries::InsertBinCountsBatch => INSERT_BIN_COUNTS_BATCH,
             Queries::UpdateLLMDriftTask => UPDATE_LLM_DRIFT_TASK,
             // trace
-            Queries::UpsertTrace => UPSERT_TRACE,
             Queries::InsertTraceSpan => INSERT_TRACE_SPAN,
             Queries::InsertTraceBaggage => INSERT_TRACE_BAGGAGE,
             Queries::GetPaginatedTraces => GET_PAGINATED_TRACES,
             Queries::GetTraceSpans => GET_TRACE_SPANS,
             Queries::GetTraceMetrics => GET_TRACE_METRICS,
             Queries::GetTraceBaggage => GET_TRACE_BAGGAGE,
-            Queries::GetTraceAttributes => GET_TRACE_ATTRIBUTES,
+
             // tags
             Queries::InsertTag => INSERT_TAG,
             Queries::GetTags => GET_TAGS,

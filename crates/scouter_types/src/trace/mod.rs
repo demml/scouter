@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::cmp::{max, min};
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 pub const FUNCTION_TYPE: &str = "function.type";
 pub const FUNCTION_STREAMING: &str = "function.streaming";
@@ -190,6 +191,8 @@ pub struct TraceSpanRecord {
     pub output: Value,
     #[pyo3(get)]
     pub service_name: String,
+    #[pyo3(get)]
+    pub resource_attributes: Vec<Attribute>,
 }
 
 #[pymethods]
@@ -248,9 +251,9 @@ impl TraceBaggageRecord {
 }
 
 pub type TraceRecords = (
-    Vec<TraceRecord>,
     Vec<TraceSpanRecord>,
     Vec<TraceBaggageRecord>,
+    Vec<TagRecord>,
 );
 
 pub trait TraceRecordExt {
@@ -461,64 +464,6 @@ impl TraceServerRecord {
         }
         (input, output)
     }
-    /// Convert to TraceRecord
-    #[allow(clippy::too_many_arguments)]
-    pub fn convert_to_trace_record(
-        &self,
-        trace_id: &str,
-        span_id: &str,
-        span: &Span,
-        scope_name: &str,
-        attributes: &Vec<Attribute>,
-        start_time: DateTime<Utc>,
-        end_time: DateTime<Utc>,
-        duration_ms: i64,
-        service_name: String,
-        resource_attributes: &Vec<Attribute>, // these will server as the process-level attributes for a given trace
-    ) -> Result<TraceRecord, RecordError> {
-        Ok(TraceRecord {
-            created_at: Self::get_trace_start_time_attribute(attributes, &start_time),
-            trace_id: trace_id.to_string(),
-            service_name,
-            scope: scope_name.to_string(),
-            trace_state: span.trace_state.clone(),
-            start_time,
-            end_time,
-            duration_ms,
-            status_code: span.status.as_ref().map(|s| s.code).unwrap_or_else(|| 0),
-            status_message: span
-                .status
-                .as_ref()
-                .map(|s| s.message.clone())
-                .unwrap_or_default(),
-            root_span_id: span_id.to_string(),
-            tags: Self::extract_tags(attributes)?,
-            span_count: 1,
-            process_attributes: resource_attributes.clone(),
-        })
-    }
-
-    /// Filter and extract trace start time attribute from span attributes
-    /// This is a global scouter attribute that indicates the trace start time and is set across all spans
-    pub fn get_trace_start_time_attribute(
-        attributes: &Vec<Attribute>,
-        start_time: &DateTime<Utc>,
-    ) -> DateTime<Utc> {
-        for attr in attributes {
-            if attr.key == TRACE_START_TIME_KEY {
-                if let Value::String(s) = &attr.value {
-                    if let Ok(dt) = s.parse::<chrono::DateTime<chrono::Utc>>() {
-                        return dt;
-                    }
-                }
-            }
-        }
-
-        tracing::warn!(
-            "Trace start time attribute not found or invalid, falling back to span start_time"
-        );
-        *start_time
-    }
 
     fn get_scope_from_resource(
         resource: &Option<opentelemetry_proto::tonic::resource::v1::Resource>,
@@ -568,6 +513,28 @@ impl TraceServerRecord {
                 );
                 default.to_string()
             })
+    }
+
+    /// Filter and extract trace start time attribute from span attributes
+    /// This is a global scouter attribute that indicates the trace start time and is set across all spans
+    pub fn get_trace_start_time_attribute(
+        attributes: &Vec<Attribute>,
+        start_time: &DateTime<Utc>,
+    ) -> DateTime<Utc> {
+        for attr in attributes {
+            if attr.key == TRACE_START_TIME_KEY {
+                if let Value::String(s) = &attr.value {
+                    if let Ok(dt) = s.parse::<chrono::DateTime<chrono::Utc>>() {
+                        return dt;
+                    }
+                }
+            }
+        }
+
+        tracing::warn!(
+            "Trace start time attribute not found or invalid, falling back to span start_time"
+        );
+        *start_time
     }
 
     pub fn convert_to_baggage_records(
@@ -632,6 +599,7 @@ impl TraceServerRecord {
         end_time: DateTime<Utc>,
         duration_ms: i64,
         service_name: String,
+        resource_attributes: &[Attribute],
     ) -> Result<TraceSpanRecord, RecordError> {
         // get parent span id (can be empty)
         let parent_span_id = if !span.parent_span_id.is_empty() {
@@ -666,6 +634,7 @@ impl TraceServerRecord {
             label: None,
             input,
             output,
+            resource_attributes: resource_attributes.to_owned(),
         })
     }
 
@@ -683,9 +652,9 @@ impl TraceServerRecord {
             })
             .sum();
 
-        let mut trace_records: Vec<TraceRecord> = Vec::with_capacity(estimated_capacity);
         let mut span_records: Vec<TraceSpanRecord> = Vec::with_capacity(estimated_capacity);
         let mut baggage_records: Vec<TraceBaggageRecord> = Vec::new();
+        let mut tags: HashSet<TagRecord> = HashSet::new();
 
         for resource_span in resource_spans {
             // process metadata only once per resource span
@@ -702,23 +671,21 @@ impl TraceServerRecord {
                     let span_id = hex::encode(&span.span_id);
                     let service_name = service_name.clone();
 
-                    // no need to recalculate for every record type
                     let (start_time, end_time, duration_ms) =
                         Self::extract_time(span.start_time_unix_nano, span.end_time_unix_nano);
 
-                    // TraceRecord for upsert
-                    trace_records.push(self.convert_to_trace_record(
-                        &trace_id,
-                        &span_id,
-                        span,
-                        &scope,
-                        &attributes,
-                        start_time,
-                        end_time,
-                        duration_ms,
-                        service_name.clone(),
-                        &resource_attributes,
-                    )?);
+                    // consume tags into a set to avoid duplicates across spans
+                    TraceServerRecord::extract_tags(&attributes)?
+                        .iter()
+                        .for_each(|tag| {
+                            tags.insert(TagRecord {
+                                created_at: Utc::now(),
+                                entity_type: "trace".to_string(),
+                                entity_id: trace_id.clone(),
+                                key: tag.key.clone(),
+                                value: tag.value.clone(),
+                            });
+                        });
 
                     // SpanRecord for insert
                     span_records.push(self.convert_to_span_record(
@@ -731,6 +698,7 @@ impl TraceServerRecord {
                         end_time,
                         duration_ms,
                         service_name,
+                        &resource_attributes,
                     )?);
 
                     // BaggageRecords for insert
@@ -743,13 +711,8 @@ impl TraceServerRecord {
             }
         }
 
-        // sort traces by start_time ascending to ensure deterministic merging (we want later spans to update earlier ones)
-        trace_records.sort_by_key(|trace| trace.start_time);
-        let mut trace_records = deduplicate_and_merge_traces(trace_records);
-
-        // shrink trace_records to fit after deduplication
-        trace_records.shrink_to_fit();
-        Ok((trace_records, span_records, baggage_records))
+        let tag_records: Vec<TagRecord> = tags.into_iter().collect();
+        Ok((span_records, baggage_records, tag_records))
     }
 }
 
@@ -853,7 +816,7 @@ impl Tag {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, Hash, PartialEq)]
 #[pyclass]
 #[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct TagRecord {

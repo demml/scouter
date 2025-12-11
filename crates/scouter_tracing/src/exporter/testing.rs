@@ -8,11 +8,12 @@ use opentelemetry_sdk::trace::SpanExporter;
 use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::{error::OTelSdkResult, trace::SpanData};
 use pyo3::prelude::*;
-use scouter_types::{TraceBaggageRecord, TraceRecord, TraceServerRecord, TraceSpanRecord};
+use scouter_types::TagRecord;
+use scouter_types::{TraceBaggageRecord, TraceServerRecord, TraceSpanRecord};
 use std::sync::{Arc, RwLock};
 #[derive(Debug)]
 pub struct TestRecords {
-    pub traces: Vec<TraceRecord>,
+    pub tags: Vec<TagRecord>,
     pub spans: Vec<TraceSpanRecord>,
     pub baggage: Vec<TraceBaggageRecord>,
 }
@@ -31,7 +32,7 @@ impl TestSpanExporter {
     pub fn new(batch_export: bool) -> Self {
         TestSpanExporter {
             records: Arc::new(RwLock::new(TestRecords {
-                traces: Vec::new(),
+                tags: Vec::new(),
                 spans: Vec::new(),
                 baggage: Vec::new(),
             })),
@@ -40,8 +41,8 @@ impl TestSpanExporter {
     }
 
     #[getter]
-    pub fn traces(&self) -> Vec<TraceRecord> {
-        self.records.read().unwrap().traces.clone()
+    pub fn tags(&self) -> Vec<TagRecord> {
+        self.records.read().unwrap().tags.clone()
     }
 
     #[getter]
@@ -56,7 +57,7 @@ impl TestSpanExporter {
 
     pub fn clear(&self) {
         let mut records = self.records.write().unwrap();
-        records.traces.clear();
+        records.tags.clear();
         records.spans.clear();
         records.baggage.clear();
     }
@@ -115,12 +116,12 @@ impl SpanExporter for OtelTestSpanExporter {
 
         let record = TraceServerRecord { request: req };
 
-        let (traces, spans, baggage) = record
+        let (spans, baggage, tags) = record
             .to_records()
             .map_err(|e| opentelemetry_sdk::error::OTelSdkError::InternalFailure(e.to_string()))?;
 
         let mut records = self.records.write().unwrap();
-        records.traces.extend(traces);
+        records.tags.extend(tags);
         records.spans.extend(spans);
         records.baggage.extend(baggage);
 

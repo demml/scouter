@@ -4,81 +4,12 @@ use crate::sql::query::Queries;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use itertools::multiunzip;
-use scouter_types::sql::{
-    TraceAttributes, TraceFilters, TraceListItem, TraceMetricBucket, TraceSpan,
-};
-use scouter_types::{
-    TraceBaggageRecord, TraceCursor, TracePaginationResponse, TraceRecord, TraceSpanRecord,
-};
+use scouter_types::sql::{TraceFilters, TraceListItem, TraceMetricBucket, TraceSpan};
+use scouter_types::{TraceBaggageRecord, TraceCursor, TracePaginationResponse, TraceSpanRecord};
 use sqlx::{postgres::PgQueryResult, types::Json, Pool, Postgres};
 
 #[async_trait]
 pub trait TraceSqlLogic {
-    /// Attempts to upsert multiple trace records into the database in a batch.
-    ///
-    /// # Arguments
-    ///
-    /// * `pool` - The database connection pool
-    /// * `traces` - The trace records to insert
-    async fn upsert_trace_batch(
-        pool: &Pool<Postgres>,
-        traces: &[TraceRecord],
-    ) -> Result<PgQueryResult, SqlError> {
-        let query = Queries::UpsertTrace.get_query();
-        let capacity = traces.len();
-
-        // Pre-allocate vectors for each field for batch efficiency
-        let mut created_at = Vec::with_capacity(capacity);
-        let mut trace_id = Vec::with_capacity(capacity);
-        let mut service_name = Vec::with_capacity(capacity);
-        let mut scope = Vec::with_capacity(capacity);
-        let mut trace_state = Vec::with_capacity(capacity);
-        let mut start_time = Vec::with_capacity(capacity);
-        let mut end_time = Vec::with_capacity(capacity);
-        let mut duration_ms = Vec::with_capacity(capacity);
-        let mut status_code = Vec::with_capacity(capacity);
-        let mut status_message = Vec::with_capacity(capacity);
-        let mut root_span_id = Vec::with_capacity(capacity);
-        let mut span_count = Vec::with_capacity(capacity);
-        let mut process_attributes = Vec::with_capacity(capacity);
-
-        // Single-pass extraction for performance
-        for r in traces {
-            created_at.push(r.created_at);
-            trace_id.push(r.trace_id.as_str());
-            service_name.push(r.service_name.as_str());
-            scope.push(r.scope.as_str());
-            trace_state.push(r.trace_state.as_str());
-            start_time.push(r.start_time);
-            end_time.push(r.end_time);
-            duration_ms.push(r.duration_ms);
-            status_code.push(r.status_code);
-            status_message.push(r.status_message.clone());
-            root_span_id.push(r.root_span_id.as_str());
-            span_count.push(r.span_count);
-            process_attributes.push(Json(r.process_attributes.clone()));
-        }
-
-        let query_result = sqlx::query(query)
-            .bind(created_at)
-            .bind(trace_id)
-            .bind(service_name)
-            .bind(scope)
-            .bind(trace_state)
-            .bind(start_time)
-            .bind(end_time)
-            .bind(duration_ms)
-            .bind(status_code)
-            .bind(status_message)
-            .bind(root_span_id)
-            .bind(span_count)
-            .bind(process_attributes)
-            .execute(pool)
-            .await?;
-
-        Ok(query_result)
-    }
-
     /// Attempts to insert multiple trace span records into the database in a batch.
     ///
     /// # Arguments
@@ -112,6 +43,7 @@ pub trait TraceSqlLogic {
         let mut input = Vec::with_capacity(capacity);
         let mut output = Vec::with_capacity(capacity);
         let mut service_name = Vec::with_capacity(capacity);
+        let mut resource_attributes = Vec::with_capacity(capacity);
 
         // Single iteration for maximum efficiency
         for span in spans {
@@ -134,6 +66,7 @@ pub trait TraceSqlLogic {
             input.push(Json(span.input.clone()));
             output.push(Json(span.output.clone()));
             service_name.push(span.service_name.as_str());
+            resource_attributes.push(Json(span.resource_attributes.clone()));
         }
 
         let query_result = sqlx::query(query)
@@ -156,6 +89,7 @@ pub trait TraceSqlLogic {
             .bind(input)
             .bind(output)
             .bind(service_name)
+            .bind(resource_attributes)
             .execute(pool)
             .await?;
 
@@ -334,26 +268,6 @@ pub trait TraceSqlLogic {
             .map_err(SqlError::SqlxError);
 
         trace_items
-    }
-
-    /// Attempts to retrieve trace spans for a given trace ID.
-    /// # Arguments
-    /// * `pool` - The database connection pool
-    /// * `trace_id` - The trace ID to retrieve spans for
-    /// # Returns
-    /// * A vector of `TraceSpan` associated with the trace ID
-    async fn get_trace_process_attributes(
-        pool: &Pool<Postgres>,
-        trace_id: &str,
-    ) -> Result<TraceAttributes, SqlError> {
-        let query = Queries::GetTraceAttributes.get_query();
-        let attributes: Result<TraceAttributes, SqlError> = sqlx::query_as(query)
-            .bind(trace_id)
-            .fetch_one(pool)
-            .await
-            .map_err(SqlError::SqlxError);
-
-        attributes
     }
 
     /// Attempts to retrieve trace spans for a given trace ID.
