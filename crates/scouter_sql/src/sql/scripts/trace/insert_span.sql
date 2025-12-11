@@ -89,4 +89,4 @@ FROM UNNEST(
     service_name,
     resource_attributes
 )
-ON CONFLICT (created_at, trace_id, span_id) DO NOTHING;
+ON CONFLICT (start_time, trace_id, span_id) DO NOTHING;

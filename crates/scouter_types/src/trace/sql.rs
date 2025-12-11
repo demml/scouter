@@ -33,13 +33,11 @@ pub struct TraceListItem {
     #[pyo3(get)]
     pub status_message: Option<String>,
     #[pyo3(get)]
-    pub span_count: Option<i32>,
+    pub span_count: i64,
     #[pyo3(get)]
     pub has_errors: bool,
     #[pyo3(get)]
     pub error_count: i64,
-    #[pyo3(get)]
-    pub created_at: DateTime<Utc>,
     #[pyo3(get)]
     pub resource_attributes: Vec<Attribute>,
 }
@@ -62,7 +60,6 @@ impl FromRow<'_, PgRow> for TraceListItem {
             span_count: row.try_get("span_count")?,
             has_errors: row.try_get("has_errors")?,
             error_count: row.try_get("error_count")?,
-            created_at: row.try_get("created_at")?,
             resource_attributes,
         })
     }
@@ -197,7 +194,7 @@ pub struct TraceFilters {
     #[pyo3(get, set)]
     pub limit: Option<i32>,
     #[pyo3(get, set)]
-    pub cursor_created_at: Option<DateTime<Utc>>,
+    pub cursor_start_time: Option<DateTime<Utc>>,
     #[pyo3(get, set)]
     pub cursor_trace_id: Option<String>,
     #[pyo3(get, set)]
@@ -215,7 +212,7 @@ impl TraceFilters {
         start_time=None,
         end_time=None,
         limit=None,
-        cursor_created_at=None,
+        cursor_start_time=None,
         cursor_trace_id=None,
     ))]
     pub fn new(
@@ -225,7 +222,7 @@ impl TraceFilters {
         start_time: Option<DateTime<Utc>>,
         end_time: Option<DateTime<Utc>>,
         limit: Option<i32>,
-        cursor_created_at: Option<DateTime<Utc>>,
+        cursor_start_time: Option<DateTime<Utc>>,
         cursor_trace_id: Option<String>,
     ) -> Self {
         TraceFilters {
@@ -235,7 +232,7 @@ impl TraceFilters {
             start_time,
             end_time,
             limit,
-            cursor_created_at,
+            cursor_start_time,
             cursor_trace_id,
             direction: None,
         }
@@ -259,8 +256,8 @@ impl TraceFilters {
         self
     }
 
-    pub fn with_cursor(mut self, created_at: DateTime<Utc>, trace_id: impl Into<String>) -> Self {
-        self.cursor_created_at = Some(created_at);
+    pub fn with_cursor(mut self, started_at: DateTime<Utc>, trace_id: impl Into<String>) -> Self {
+        self.cursor_start_time = Some(started_at);
         self.cursor_trace_id = Some(trace_id.into());
         self
     }
@@ -271,20 +268,20 @@ impl TraceFilters {
     }
 
     pub fn next_page(mut self, cursor: &TraceCursor) -> Self {
-        self.cursor_created_at = Some(cursor.created_at);
+        self.cursor_start_time = Some(cursor.start_time);
         self.cursor_trace_id = Some(cursor.trace_id.clone());
         self.direction = Some("next".to_string());
         self
     }
 
     pub fn first_page(mut self) -> Self {
-        self.cursor_created_at = None;
+        self.cursor_start_time = None;
         self.cursor_trace_id = None;
         self
     }
 
     pub fn previous_page(mut self, cursor: &TraceCursor) -> Self {
-        self.cursor_created_at = Some(cursor.created_at);
+        self.cursor_start_time = Some(cursor.start_time);
         self.cursor_trace_id = Some(cursor.trace_id.clone());
         self.direction = Some("previous".to_string());
         self

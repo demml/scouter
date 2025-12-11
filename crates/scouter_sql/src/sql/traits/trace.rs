@@ -174,7 +174,7 @@ pub trait TraceSqlLogic {
             .bind(filters.start_time.unwrap_or(default_start))
             .bind(filters.end_time.unwrap_or(default_end))
             .bind(limit)
-            .bind(filters.cursor_created_at)
+            .bind(filters.cursor_start_time)
             .bind(filters.cursor_trace_id)
             .bind(direction)
             .fetch_all(pool)
@@ -194,7 +194,7 @@ pub trait TraceSqlLogic {
                 // Forward pagination
                 let next_cursor = if has_more {
                     items.last().map(|last| TraceCursor {
-                        created_at: last.created_at,
+                        start_time: last.start_time,
                         trace_id: last.trace_id.clone(),
                     })
                 } else {
@@ -202,14 +202,14 @@ pub trait TraceSqlLogic {
                 };
 
                 let previous_cursor = items.first().map(|first| TraceCursor {
-                    created_at: first.created_at,
+                    start_time: first.start_time,
                     trace_id: first.trace_id.clone(),
                 });
 
                 (
                     has_more,
                     next_cursor,
-                    filters.cursor_created_at.is_some(),
+                    filters.cursor_start_time.is_some(),
                     previous_cursor,
                 )
             }
@@ -217,7 +217,7 @@ pub trait TraceSqlLogic {
                 // Backward pagination
                 let previous_cursor = if has_more {
                     items.first().map(|first| TraceCursor {
-                        created_at: first.created_at,
+                        start_time: first.start_time,
                         trace_id: first.trace_id.clone(),
                     })
                 } else {
@@ -225,12 +225,12 @@ pub trait TraceSqlLogic {
                 };
 
                 let next_cursor = items.last().map(|last| TraceCursor {
-                    created_at: last.created_at,
+                    start_time: last.start_time,
                     trace_id: last.trace_id.clone(),
                 });
 
                 (
-                    filters.cursor_created_at.is_some(),
+                    filters.cursor_start_time.is_some(),
                     next_cursor,
                     has_more,
                     previous_cursor,

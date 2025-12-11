@@ -384,9 +384,7 @@ mod tests {
         let pool = PostgresClient::create_db_pool(&DatabaseSettings::default())
             .await
             .unwrap();
-
         cleanup(&pool).await;
-
         pool
     }
 
@@ -1106,15 +1104,6 @@ mod tests {
         let pool = db_pool().await;
         let script = std::fs::read_to_string("src/tests/script/populate_trace.sql").unwrap();
         sqlx::query(&script).execute(&pool).await.unwrap();
-        sqlx::query(
-            "SELECT scouter.refresh_trace_metrics_hourly(
-                p_interval := '5 minutes',
-                p_start_time := NOW() - INTERVAL '3 days'
-            )",
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
         let mut filters = TraceFilters::default();
 
         let first_batch = PostgresClient::get_traces_paginated(&pool, filters.clone())
@@ -1145,7 +1134,7 @@ mod tests {
         // assert next_batch first record timestamp is <= first_batch last record timestamp
         let next_first_record = next_batch.items.first().unwrap();
         assert!(
-            next_first_record.created_at <= last_record.created_at,
+            next_first_record.start_time <= last_record.start_time,
             "Next batch first record timestamp is not less than or equal to last record timestamp"
         );
 
@@ -1164,10 +1153,10 @@ mod tests {
         let filtered_record = first_batch
             .items
             .iter()
-            .find(|record| record.span_count > Some(5))
+            .find(|record| record.span_count > 5)
             .unwrap();
 
-        filters.cursor_created_at = None;
+        filters.cursor_start_time = None;
         filters.cursor_trace_id = None;
 
         let records = PostgresClient::get_traces_paginated(&pool, filters.clone())
@@ -1189,10 +1178,10 @@ mod tests {
         .await
         .unwrap();
 
-        assert!(spans.len() == filtered_record.span_count.unwrap() as usize);
+        assert!(spans.len() == filtered_record.span_count as usize);
 
-        let start_time = filtered_record.created_at - chrono::Duration::hours(48);
-        let end_time = filtered_record.created_at + chrono::Duration::minutes(5);
+        let start_time = filtered_record.start_time - chrono::Duration::hours(48);
+        let end_time = filtered_record.start_time + chrono::Duration::minutes(5);
 
         // make request for trace metrics
         let trace_metrics =
@@ -1232,7 +1221,7 @@ mod tests {
         let inserted_trace_id = trace_record.trace_id.clone();
 
         let trace_filter = TraceFilters {
-            cursor_created_at: Some(inserted_created_at + Duration::days(1)),
+            cursor_start_time: Some(inserted_created_at + Duration::days(1)),
             cursor_trace_id: Some(inserted_trace_id),
             start_time: Some(inserted_created_at - Duration::minutes(5)),
             end_time: Some(inserted_created_at + Duration::days(1)),
@@ -1246,7 +1235,7 @@ mod tests {
         assert_eq!(traces.items.len(), 1);
         let retrieved_trace = &traces.items[0];
         // assert span count is 2
-        assert_eq!(retrieved_trace.span_count.unwrap(), 2);
+        assert_eq!(retrieved_trace.span_count, 2);
 
         let baggage = TraceBaggageRecord {
             created_at: Utc::now(),

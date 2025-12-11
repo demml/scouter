@@ -12,7 +12,6 @@ SELECT
     span_count,
     has_errors,
     error_count,
-    created_at,
     resource_attributes
 FROM scouter.get_traces_paginated(
     $1,  -- p_service_name

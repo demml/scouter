@@ -64,17 +64,17 @@ async fn test_tracing() {
 
     let next_first_record = second_batch.items.first().unwrap();
     assert!(
-        next_first_record.created_at <= last_record_cursor.created_at,
+        next_first_record.start_time <= last_record_cursor.start_time,
         "Next batch first record timestamp is not less than or equal to last record timestamp"
     );
 
     let filtered_record = first_batch
         .items
         .iter()
-        .find(|record| record.span_count > Some(5))
+        .find(|record| record.span_count > 5)
         .unwrap();
 
-    filters.cursor_created_at = None;
+    filters.cursor_start_time = None;
     filters.cursor_trace_id = None;
     filters.service_name = Some(filtered_record.service_name.clone());
 
@@ -129,8 +129,8 @@ async fn test_tracing() {
     let response = helper.send_oneshot(request).await;
     assert_eq!(response.status(), StatusCode::OK);
 
-    let start_time = filtered_record.created_at - chrono::Duration::hours(24);
-    let end_time = filtered_record.created_at + chrono::Duration::minutes(5);
+    let start_time = filtered_record.start_time - chrono::Duration::hours(24);
+    let end_time = filtered_record.start_time + chrono::Duration::minutes(5);
 
     // make request for trace metrics
     let metrics_request = TraceMetricsRequest {

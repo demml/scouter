@@ -636,7 +636,7 @@ pub struct TracePaginationResponse {
 #[pyclass]
 pub struct TraceCursor {
     #[pyo3(get)]
-    pub created_at: DateTime<Utc>,
+    pub start_time: DateTime<Utc>,
 
     #[pyo3(get)]
     pub trace_id: String,
@@ -645,9 +645,9 @@ pub struct TraceCursor {
 #[pymethods]
 impl TraceCursor {
     #[new]
-    pub fn new(created_at: DateTime<Utc>, trace_id: String) -> Self {
+    pub fn new(start_time: DateTime<Utc>, trace_id: String) -> Self {
         TraceCursor {
-            created_at,
+            start_time,
             trace_id,
         }
     }
