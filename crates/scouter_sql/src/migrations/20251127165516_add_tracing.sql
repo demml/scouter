@@ -353,6 +353,7 @@ RETURNS TABLE (
     root_span_id TEXT,
     input JSONB,
     output JSONB,
+    service_name TEXT,
     span_order INTEGER
 )
 LANGUAGE SQL
@@ -371,7 +372,9 @@ AS $$
             0 as depth,
             ARRAY[s.span_id] as path,
             s.span_id as root_span_id,
-            s.input, s.output
+            s.input,
+            s.output,
+            s.service_name
         FROM scouter.spans s
         WHERE s.trace_id = p_trace_id
           AND s.parent_span_id IS NULL
@@ -385,7 +388,9 @@ AS $$
             st.depth + 1,
             st.path || s.span_id,
             st.root_span_id,
-            s.input, s.output
+            s.input,
+            s.output,
+            s.service_name
         FROM scouter.spans s
         INNER JOIN span_tree st ON s.parent_span_id = st.span_id
         WHERE s.trace_id = p_trace_id
@@ -395,7 +400,7 @@ AS $$
     SELECT
         st.trace_id, st.span_id, st.parent_span_id, st.span_name, st.span_kind, st.start_time, st.end_time, st.duration_ms,
         st.status_code, st.status_message, st.attributes, st.events, st.links,
-        st.depth, st.path, st.root_span_id, st.input, st.output,
+        st.depth, st.path, st.root_span_id, st.input, st.output, st.service_name,
         ROW_NUMBER() OVER (ORDER BY path) as span_order
     FROM span_tree st
     ORDER BY path;

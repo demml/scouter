@@ -21,7 +21,7 @@ pub struct TraceListItem {
     #[pyo3(get)]
     pub scope: String,
     #[pyo3(get)]
-    pub root_operation: Option<String>,
+    pub root_operation: String,
     #[pyo3(get)]
     pub start_time: DateTime<Utc>,
     #[pyo3(get)]
@@ -108,6 +108,8 @@ pub struct TraceSpan {
     #[pyo3(get)]
     pub root_span_id: String,
     #[pyo3(get)]
+    pub service_name: String,
+    #[pyo3(get)]
     pub span_order: i32,
     pub input: Option<Value>,
     pub output: Option<Value>,
@@ -174,6 +176,7 @@ impl FromRow<'_, PgRow> for TraceSpan {
             span_order: row.try_get("span_order")?,
             input,
             output,
+            service_name: row.try_get("service_name")?,
         })
     }
 }

@@ -17,5 +17,6 @@ SELECT
     root_span_id,
     input,
     output,
+    service_name,
     span_order
 FROM scouter.get_trace_spans($1, $2);
