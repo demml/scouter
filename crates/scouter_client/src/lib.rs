@@ -80,6 +80,7 @@ pub use scouter_evaluate::{
     llm::{async_evaluate_llm, evaluate_llm, workflow_from_eval_metrics},
     types::{EvaluationConfig, LLMEvalRecord, LLMEvalResults, LLMEvalTaskResult},
 };
+pub use scouter_tracing::error::TraceError;
 pub use scouter_tracing::exporter::{
     processor::BatchConfig, GrpcSpanExporter, HttpSpanExporter, StdoutSpanExporter,
     TestSpanExporter,

@@ -895,14 +895,6 @@ fn is_tracer_initialized() -> bool {
         .unwrap_or(false)
 }
 
-fn try_get_current_span(py: Python<'_>) -> Option<Bound<'_, PyAny>> {
-    if !is_tracer_initialized() {
-        return None;
-    }
-
-    get_current_active_span(py).ok()
-}
-
 /// Helper method for setting attributes on the current active span if it exists
 /// Mainly used in Opsml to log attributes from various places without needing to pass around the span object
 /// # Arguments
