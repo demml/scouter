@@ -87,6 +87,6 @@ pub use scouter_tracing::exporter::{
 };
 pub use scouter_tracing::tracer::*;
 pub use scouter_tracing::utils::{
-    get_function_type, ExportConfig, FunctionType, GrpcConfig, OtelHttpConfig, OtelProtocol,
-    SpanKind,
+    get_current_active_span, get_function_type, ExportConfig, FunctionType, GrpcConfig,
+    OtelHttpConfig, OtelProtocol, SpanKind,
 };

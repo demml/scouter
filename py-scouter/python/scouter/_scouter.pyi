@@ -355,6 +355,15 @@ class BaseTracer:
                 Raises an error if no active span exists.
         """
 
+def get_current_active_span(self) -> ActiveSpan:
+    """Get the current active span.
+
+    Returns:
+        ActiveSpan:
+            The current active span.
+            Raises an error if no active span exists.
+    """
+
 class StdoutSpanExporter:
     """Exporter that outputs spans to standard output (stdout)."""
 
