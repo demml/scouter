@@ -319,41 +319,40 @@ pub trait TraceRecordExt {
     /// # Returns
     /// * `Result<Vec<Tag>, RecordError>` - Vector of extracted tags or error
     fn extract_tags(attributes: &[Attribute]) -> Result<Vec<Tag>, RecordError> {
-        let pattern = format!("{}.{}.", BAGGAGE_PREFIX, SCOUTER_TAG_PREFIX);
+        let patterns = [
+            format!("{}.{}.", BAGGAGE_PREFIX, SCOUTER_TAG_PREFIX),
+            format!("{}.", SCOUTER_TAG_PREFIX),
+        ];
 
         let tags: Result<Vec<Tag>, RecordError> = attributes
             .iter()
             .filter_map(|attr| {
-                // Only process attributes that match our pattern
-                attr.key.strip_prefix(&pattern).and_then(|tag_key| {
-                    // Skip empty tag keys for data integrity
-                    if tag_key.is_empty() {
-                        tracing::warn!(
-                            attribute_key = %attr.key,
-                            "Skipping tag with empty key after prefix removal"
-                        );
-                        return None;
-                    }
+                // Find the first matching pattern
+                let tag_key = patterns
+                    .iter()
+                    .find_map(|pattern| attr.key.strip_prefix(pattern))?;
 
-                    let value = match &attr.value {
-                        Value::String(s) => s.clone(),
-                        Value::Number(n) => n.to_string(),
-                        Value::Bool(b) => b.to_string(),
-                        Value::Null => "null".to_string(),
+                if tag_key.is_empty() {
+                    tracing::warn!(
+                        attribute_key = %attr.key,
+                        "Skipping tag with empty key after prefix removal"
+                    );
+                    return None;
+                }
 
-                        // tags should always be string:string
-                        Value::Array(_) | Value::Object(_) => {
-                            // For complex types, use compact JSON representation
-                            serde_json::to_string(&attr.value)
-                                .unwrap_or_else(|_| format!("{:?}", attr.value))
-                        }
-                    };
+                let value = match &attr.value {
+                    Value::String(s) => s.clone(),
+                    Value::Number(n) => n.to_string(),
+                    Value::Bool(b) => b.to_string(),
+                    Value::Null => "null".to_string(),
+                    Value::Array(_) | Value::Object(_) => serde_json::to_string(&attr.value)
+                        .unwrap_or_else(|_| format!("{:?}", attr.value)),
+                };
 
-                    Some(Ok(Tag {
-                        key: tag_key.to_string(),
-                        value,
-                    }))
-                })
+                Some(Ok(Tag {
+                    key: tag_key.to_string(),
+                    value,
+                }))
             })
             .collect();
 
