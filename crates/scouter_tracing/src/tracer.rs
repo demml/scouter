@@ -304,6 +304,17 @@ impl ActiveSpan {
         self.with_inner_mut(|inner| inner.span.set_attribute(KeyValue::new(key, value)))
     }
 
+    /// Set a tag on the span (alias for set_attribute)
+    /// Tags are slightly different in that they are often used for indexing and searching
+    /// On export, tags are exported and stored in a separate table in Scouter for easier
+    /// searching/filtering.
+    pub fn set_tag(&self, key: String, value: Bound<'_, PyAny>) -> Result<(), TraceError> {
+        // backend searches for tags with the prefix scouter.tag.*
+        // this prefix will be stripped before storage
+        let tag_key = format!("{}.{}", SCOUTER_TAG_PREFIX, key);
+        self.set_attribute(tag_key, value)
+    }
+
     /// Add an event to the span
     /// # Arguments
     /// * `name` - The event name

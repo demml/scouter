@@ -169,6 +169,19 @@ class ActiveSpan:
                 The attribute value.
         """
 
+    def set_tag(self, key: str, value: str) -> None:
+        """Set a tag on the active span. Tags are similar to attributes
+        except they are often used for indexing and searching spans/traces.
+        All tags are also set as attributes on the span. Before export, tags are
+        extracted and stored in a separate backend table for efficient querying.
+
+        Args:
+            key (str):
+                The tag key.
+            value (str):
+                The tag value.
+        """
+
     def add_event(self, name: str, attributes: Any) -> None:
         """Add an event to the active span.
 
