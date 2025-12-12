@@ -887,3 +887,41 @@ pub fn get_tracing_headers_from_current_span(
 
     Ok(headers)
 }
+
+fn is_tracer_initialized() -> bool {
+    get_tracer_provider_store()
+        .read()
+        .map(|guard| guard.is_some())
+        .unwrap_or(false)
+}
+
+fn try_get_current_span(py: Python<'_>) -> Option<Bound<'_, PyAny>> {
+    if !is_tracer_initialized() {
+        return None;
+    }
+
+    get_current_active_span(py).ok()
+}
+
+/// Helper method for setting attributes on the current active span if it exists
+/// Mainly used in Opsml to log attributes from various places without needing to pass around the span object
+/// # Arguments
+/// * `py` - The Python GIL token
+/// * `key` - The attribute key
+/// * `value` - The attribute value
+/// Returns true if the attribute was set, false if no active span exists
+pub fn try_set_span_attribute(py: Python<'_>, key: &str, value: &str) -> Result<bool, TraceError> {
+    // Check if tracer is initialized
+    if !is_tracer_initialized() {
+        return Ok(false);
+    }
+
+    // Try to get current span
+    let span = match get_current_active_span(py) {
+        Ok(s) => s,
+        Err(_) => return Ok(false),
+    };
+
+    span.call_method1("set_attribute", (key, value))?;
+    Ok(true)
+}

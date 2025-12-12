@@ -192,7 +192,7 @@ AS $$
         PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY bm.duration_ms)::FLOAT8 as p50_duration_ms,
         PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY bm.duration_ms)::FLOAT8 as p95_duration_ms,
         PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY bm.duration_ms)::FLOAT8 as p99_duration_ms,
-        (COUNT(*) FILTER (WHERE bm.status_code = 2) * 100.0 / NULLIF(COUNT(*), 0))::FLOAT8 as error_rate
+        (COUNT(*) FILTER (WHERE bm.status_code = 2) / NULLIF(COUNT(*), 0)) * 100.0 as error_rate
     FROM bucketed_metrics bm
     GROUP BY bm.bucket_start
     ORDER BY bm.bucket_start DESC;
