@@ -263,17 +263,23 @@ BEGIN
                         created_at, entity_type, entity_id, key, value
                     ) VALUES (
                         v_span_start + (v_tag_offset_ms || ' milliseconds')::INTERVAL,
-                        'span',
-                        v_span_id,
+                        'trace',
+                        v_trace_id,
                         CASE
                             WHEN k = 1 THEN 'span.tag.host'
-                            ELSE 'span.tag.db.query'
+                            WHEN k = 2 THEN 'span.tag.db.query'
+                            ELSE 'span.tag.custom.' || k  -- Make additional keys unique
                         END,
                         CASE
                             WHEN k = 1 THEN 'host-' || (1 + RANDOM() * 5)::INTEGER
-                            ELSE 'SELECT * FROM items WHERE id=' || (1000 + RANDOM() * 9000)::INTEGER
+                            WHEN k = 2 THEN 'SELECT * FROM items WHERE id=' || (1000 + RANDOM() * 9000)::INTEGER
+                            ELSE 'custom-value-' || k
                         END
-                    );
+                    )
+                    ON CONFLICT (entity_type, entity_id, key)
+                    DO UPDATE SET
+                        value = EXCLUDED.value,
+                        updated_at = NOW();
                 END LOOP;
             END IF;
 
@@ -313,7 +319,7 @@ BEGIN
     END LOOP;
 
     RAISE NOTICE 'Successfully generated % traces with spans and baggage', v_num_traces;
-    
+
     -- Display summary statistics
     RAISE NOTICE 'Summary Statistics:';
     RAISE NOTICE '- Total service entities: %', (SELECT COUNT(*) FROM scouter.service_entities);
@@ -322,8 +328,8 @@ BEGIN
     RAISE NOTICE '- Total baggage entries: %', (SELECT COUNT(*) FROM scouter.trace_baggage);
     RAISE NOTICE '- Total tag entries: %', (SELECT COUNT(*) FROM scouter.tags);
     RAISE NOTICE '- Traces with errors: %', (
-        SELECT COUNT(DISTINCT trace_id) 
-        FROM scouter.spans 
+        SELECT COUNT(DISTINCT trace_id)
+        FROM scouter.spans
         WHERE status_code = 2
     );
     RAISE NOTICE '- Average spans per trace: %', (

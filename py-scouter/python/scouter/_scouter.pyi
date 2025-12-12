@@ -2959,7 +2959,6 @@ class RustyLogger:
 class TagRecord:
     """Represents a single tag record associated with an entity."""
 
-    created_at: datetime
     entity_type: str
     entity_id: str
     key: str

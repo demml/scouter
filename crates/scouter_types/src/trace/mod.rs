@@ -678,7 +678,6 @@ impl TraceServerRecord {
                         .iter()
                         .for_each(|tag| {
                             tags.insert(TagRecord {
-                                created_at: Utc::now(),
                                 entity_type: "trace".to_string(),
                                 entity_id: trace_id.clone(),
                                 key: tag.key.clone(),
@@ -819,8 +818,6 @@ impl Tag {
 #[pyclass]
 #[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct TagRecord {
-    #[pyo3(get)]
-    pub created_at: DateTime<Utc>,
     #[pyo3(get)]
     pub entity_type: String,
     #[pyo3(get)]

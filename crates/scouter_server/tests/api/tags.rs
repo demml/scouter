@@ -3,7 +3,6 @@ use axum::{
     body::Body,
     http::{header, Request, StatusCode},
 };
-use chrono::Utc;
 use http_body_util::BodyExt;
 use potato_head::create_uuid7;
 use scouter_types::{InsertTagsRequest, TagRecord, TagsRequest, TagsResponse};
@@ -15,7 +14,6 @@ async fn test_tags() {
     let uid = create_uuid7();
 
     let tag1 = TagRecord {
-        created_at: Utc::now(),
         entity_id: uid.clone(),
         entity_type: "service".to_string(),
         key: "env".to_string(),
@@ -23,7 +21,6 @@ async fn test_tags() {
     };
 
     let tag2 = TagRecord {
-        created_at: Utc::now(),
         entity_id: uid.clone(),
         entity_type: "service".to_string(),
         key: "version".to_string(),

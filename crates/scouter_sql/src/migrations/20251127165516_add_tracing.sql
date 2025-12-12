@@ -14,22 +14,25 @@ CREATE INDEX idx_baggage_trace_scope
 ON scouter.trace_baggage (trace_id, scope, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS scouter.tags (
-    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     entity_type TEXT NOT NULL,
     entity_id TEXT NOT NULL,
     key TEXT NOT NULL,
     value TEXT NOT NULL,
-    PRIMARY KEY (created_at, entity_type, entity_id, key)
-) PARTITION BY RANGE (created_at);
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    PRIMARY KEY (entity_type, entity_id, key)
+);
 
+-- Optimized indexes for common query patterns
+CREATE INDEX idx_tags_key_value ON scouter.tags (key, value);
+CREATE INDEX idx_tags_entity_type ON scouter.tags (entity_type);
+CREATE INDEX idx_tags_updated_at ON scouter.tags (updated_at DESC);
 
 CREATE INDEX idx_tags_entity_lookup
 ON scouter.tags (entity_type, entity_id, created_at DESC);
 
 CREATE INDEX idx_tags_key_lookup
 ON scouter.tags (key, created_at DESC);
-
-CREATE INDEX idx_tags_key_value ON scouter.tags (key, value);
 
 
 CREATE TABLE IF NOT EXISTS scouter.spans (
@@ -100,19 +103,6 @@ SET
     retention = '30 days',
     retention_keep_table = FALSE
 WHERE parent_table = 'scouter.trace_baggage';
-
-SELECT scouter.create_parent(
-    'scouter.tags',
-    'created_at',
-    '7 days'
-);
-
-UPDATE scouter.part_config
-SET
-    premake = 4,
-    retention = '90 days',
-    retention_keep_table = FALSE
-WHERE parent_table = 'scouter.tags';
 
 UPDATE scouter.part_config SET retention_keep_table = FALSE WHERE parent_table = 'scouter.spc_drift';
 UPDATE scouter.part_config SET retention_keep_table = FALSE WHERE parent_table = 'scouter.drift_alert';
@@ -208,7 +198,8 @@ CREATE OR REPLACE FUNCTION scouter.get_traces_paginated(
     p_limit INTEGER DEFAULT 50,
     p_cursor_start_time TIMESTAMPTZ DEFAULT NULL,
     p_cursor_trace_id TEXT DEFAULT NULL,
-    p_direction TEXT DEFAULT 'next'
+    p_direction TEXT DEFAULT 'next',
+    p_trace_ids TEXT[] DEFAULT NULL
 )
 RETURNS TABLE (
     trace_id TEXT,
@@ -279,6 +270,7 @@ AS $$
     WHERE
         s.start_time >= p_start_time
         AND s.start_time <= p_end_time
+        AND (p_trace_ids IS NULL OR s.trace_id = ANY(p_trace_ids))
         AND (p_service_name IS NULL OR EXISTS (
             SELECT 1 FROM scouter.spans root
             WHERE root.trace_id = s.trace_id
@@ -407,4 +399,36 @@ AS $$
         ROW_NUMBER() OVER (ORDER BY path) as span_order
     FROM span_tree st
     ORDER BY path;
+$$;
+
+CREATE OR REPLACE FUNCTION scouter.search_entities_by_tags(
+    p_entity_type TEXT,
+    p_tag_filters JSONB,
+    p_match_all BOOLEAN DEFAULT TRUE
+)
+RETURNS TABLE (
+    entity_id TEXT
+)
+LANGUAGE SQL
+STABLE
+AS $$
+    WITH tag_filters AS (
+        SELECT
+            (filter->>'key')::TEXT as key,
+            (filter->>'value')::TEXT as value
+        FROM jsonb_array_elements(p_tag_filters) as filter
+    ),
+    filter_count AS (
+        SELECT COUNT(*) as total FROM tag_filters
+    )
+    SELECT t.entity_id
+    FROM scouter.tags t
+    INNER JOIN tag_filters tf ON t.key = tf.key AND t.value = tf.value
+    WHERE t.entity_type = p_entity_type
+    GROUP BY t.entity_id
+    HAVING
+        CASE
+            WHEN p_match_all THEN COUNT(DISTINCT t.key) = (SELECT total FROM filter_count)
+            ELSE COUNT(DISTINCT t.key) > 0
+        END;
 $$;

@@ -7,7 +7,7 @@ use itertools::multiunzip;
 use scouter_types::sql::{TraceFilters, TraceListItem, TraceMetricBucket, TraceSpan};
 use scouter_types::{TraceBaggageRecord, TraceCursor, TracePaginationResponse, TraceSpanRecord};
 use sqlx::{postgres::PgQueryResult, types::Json, Pool, Postgres};
-
+use std::collections::HashMap;
 #[async_trait]
 pub trait TraceSqlLogic {
     /// Attempts to insert multiple trace span records into the database in a batch.
@@ -167,7 +167,37 @@ pub trait TraceSqlLogic {
 
         let query = Queries::GetPaginatedTraces.get_query();
 
+        let tag_filters_json = filters.tags.as_ref().and_then(|tags| {
+            if tags.is_empty() {
+                None
+            } else {
+                // Parse "key:value" or "key=value" format into structured JSON
+                let tag_filters: Vec<HashMap<String, String>> = tags
+                    .iter()
+                    .filter_map(|tag| {
+                        let parts: Vec<&str> = tag.splitn(2, [':', '=']).collect();
+                        if parts.len() == 2 {
+                            Some(HashMap::from([
+                                ("key".to_string(), parts[0].trim().to_string()),
+                                ("value".to_string(), parts[1].trim().to_string()),
+                            ]))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                if tag_filters.is_empty() {
+                    None
+                } else {
+                    Some(Json(tag_filters))
+                }
+            }
+        });
+
         let mut items: Vec<TraceListItem> = sqlx::query_as(query)
+            .bind(tag_filters_json) // $1: p_tag_filters (JSONB or NULL)
+            .bind(false)
             .bind(filters.service_name)
             .bind(filters.has_errors)
             .bind(filters.status_code)

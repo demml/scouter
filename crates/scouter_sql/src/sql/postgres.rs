@@ -1191,6 +1191,16 @@ mod tests {
 
         // assert we have data points
         assert!(trace_metrics.len() >= 10);
+
+        // get paginated traces with tags
+        let filters = scouter_types::sql::TraceFilters {
+            tags: Some(vec![("span.tag.host=host-4".to_string())]),
+            ..Default::default()
+        };
+        let tagged_batch = PostgresClient::get_traces_paginated(&pool, filters)
+            .await
+            .unwrap();
+        assert!(!tagged_batch.items.is_empty());
     }
 
     #[tokio::test]
@@ -1266,7 +1276,6 @@ mod tests {
         let uid = create_uuid7();
 
         let tag1 = TagRecord {
-            created_at: Utc::now(),
             entity_id: uid.clone(),
             entity_type: "service".to_string(),
             key: "env".to_string(),
@@ -1274,7 +1283,6 @@ mod tests {
         };
 
         let tag2 = TagRecord {
-            created_at: Utc::now(),
             entity_id: uid.clone(),
             entity_type: "service".to_string(),
             key: "team".to_string(),

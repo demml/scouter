@@ -912,7 +912,6 @@ fn is_tracer_initialized() -> bool {
 /// * `py` - The Python GIL token
 /// * `key` - The attribute key
 /// * `value` - The attribute value
-/// Returns true if the attribute was set, false if no active span exists
 pub fn try_set_span_attribute(py: Python<'_>, key: &str, value: &str) -> Result<bool, TraceError> {
     // Check if tracer is initialized
     if !is_tracer_initialized() {
