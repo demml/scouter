@@ -35,6 +35,8 @@ pub const BAGGAGE_PREFIX: &str = "baggage";
 pub const TRACE_START_TIME_KEY: &str = "scouter.tracing.start_time";
 pub const SCOUTER_SCOPE: &str = "scouter.scope";
 pub const SCOUTER_SCOPE_DEFAULT: &str = concat!("scouter.tracer.", env!("CARGO_PKG_VERSION"));
+pub const SPAN_ERROR: &str = "span.error";
+pub const EXCEPTION_TRACEBACK: &str = "exception.traceback";
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[pyclass]

@@ -37,9 +37,9 @@ use scouter_settings::http::HttpConfig;
 
 use scouter_types::{
     is_pydantic_basemodel, pydict_to_otel_keyvalue, pyobject_to_otel_value,
-    pyobject_to_tracing_json, BAGGAGE_PREFIX, SCOUTER_SCOPE, SCOUTER_SCOPE_DEFAULT,
-    SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL, SCOUTER_TRACING_OUTPUT,
-    TRACE_START_TIME_KEY,
+    pyobject_to_tracing_json, BAGGAGE_PREFIX, EXCEPTION_TRACEBACK, SCOUTER_SCOPE,
+    SCOUTER_SCOPE_DEFAULT, SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL,
+    SCOUTER_TRACING_OUTPUT, SPAN_ERROR, TRACE_START_TIME_KEY,
 };
 use std::sync::{Arc, RwLock};
 use std::{collections::HashMap, sync::OnceLock};
@@ -388,23 +388,20 @@ impl ActiveSpan {
             // Handle exceptions and end span
             if let Some(exc_type) = exc_type {
                 inner.span.set_status(Status::error("Exception occurred"));
-                inner
-                    .span
-                    .set_attribute(KeyValue::new("exception.type", exc_type.to_string()));
+                let mut error_attributes = vec![];
+
+                error_attributes.push(KeyValue::new("exception.type", exc_type.to_string()));
 
                 if let Some(exc_val) = exc_val {
-                    inner
-                        .span
-                        .set_attribute(KeyValue::new("exception.value", exc_val.to_string()));
+                    error_attributes.push(KeyValue::new("exception.value", exc_val.to_string()));
                 }
 
                 if let Some(exc_tb) = exc_tb {
-                    // need to unpack the traceback object to string
                     let tb = format_traceback(py, &exc_tb)?;
-                    inner
-                        .span
-                        .set_attribute(KeyValue::new("exception.traceback", tb));
+                    error_attributes.push(KeyValue::new(EXCEPTION_TRACEBACK, tb));
                 }
+
+                inner.span.add_event(SPAN_ERROR, error_attributes);
             }
             // else set status to ok
             else {
