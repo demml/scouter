@@ -141,11 +141,10 @@ async fn test_tracing() {
         attribute_filters: None,
     };
 
-    let query_string = serde_qs::to_string(&metrics_request).unwrap();
     let request = Request::builder()
-        .uri(format!("/scouter/trace/metrics?{query_string}"))
-        .method("GET")
-        .body(Body::empty())
+        .uri(format!("/scouter/trace/metrics"))
+        .method("POST")
+        .body(Body::from(serde_json::to_string(&metrics_request).unwrap()))
         .unwrap();
 
     // assert we have data points

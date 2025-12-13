@@ -36,7 +36,7 @@ pub async fn get_trace_baggage(
 }
 
 #[instrument(skip_all)]
-pub async fn get_paginated_traces(
+pub async fn paginated_traces(
     State(data): State<Arc<AppState>>,
     Json(body): Json<TraceFilters>,
 ) -> Result<Json<TracePaginationResponse>, (StatusCode, Json<ScouterServerError>)> {
@@ -83,9 +83,9 @@ pub async fn get_trace_spans(
 }
 
 #[instrument(skip_all)]
-pub async fn get_trace_metrics(
+pub async fn trace_metrics(
     State(data): State<Arc<AppState>>,
-    Query(body): Query<TraceMetricsRequest>,
+    Json(body): Json<TraceMetricsRequest>,
 ) -> Result<Json<TraceMetricsResponse>, (StatusCode, Json<ScouterServerError>)> {
     debug!("Getting trace metrics for request: {:?}", body);
     let metrics = PostgresClient::get_trace_metrics(
@@ -112,12 +112,9 @@ pub async fn get_trace_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
     let result = catch_unwind(AssertUnwindSafe(|| {
         Router::new()
             .route(&format!("{prefix}/trace/baggage"), get(get_trace_baggage))
-            .route(
-                &format!("{prefix}/trace/paginated"),
-                post(get_paginated_traces),
-            )
+            .route(&format!("{prefix}/trace/paginated"), post(paginated_traces))
             .route(&format!("{prefix}/trace/spans"), get(get_trace_spans))
-            .route(&format!("{prefix}/trace/metrics"), get(get_trace_metrics))
+            .route(&format!("{prefix}/trace/metrics"), post(trace_metrics))
     }));
 
     match result {
