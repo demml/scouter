@@ -138,6 +138,7 @@ async fn test_tracing() {
         start_time,
         end_time,
         bucket_interval: "60 minutes".to_string(),
+        attribute_filters: None,
     };
 
     let query_string = serde_qs::to_string(&metrics_request).unwrap();

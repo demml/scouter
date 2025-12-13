@@ -243,13 +243,13 @@ BEGIN
                 END,
                 '[]'::jsonb,
                 -- Resource attributes (OpenTelemetry resource metadata)
-                jsonb_build_object(
-                    'service.name', v_service_name,
-                    'service.version', '1.0.' || (RANDOM() * 10)::INTEGER,
-                    'deployment.environment', (ARRAY['production', 'staging', 'development'])[1 + (RANDOM() * 2)::INTEGER],
-                    'host.name', 'host-' || (1 + RANDOM() * 20)::INTEGER,
-                    'process.runtime.name', 'python',
-                    'process.runtime.version', '3.11.' || (RANDOM() * 5)::INTEGER
+                jsonb_build_array(
+                    jsonb_build_object('key', 'service.name', 'value', v_service_name),
+                    jsonb_build_object('key', 'service.version', 'value', '1.0.' || (RANDOM() * 10)::INTEGER),
+                    jsonb_build_object('key', 'deployment.environment', 'value', (ARRAY['production', 'staging', 'development'])[1 + (RANDOM() * 2)::INTEGER]),
+                    jsonb_build_object('key', 'host.name', 'value', 'host-' || (1 + RANDOM() * 20)::INTEGER),
+                    jsonb_build_object('key', 'process.runtime.name', 'value', 'python'),
+                    jsonb_build_object('key', 'process.runtime.version', 'value', '3.11.' || (RANDOM() * 5)::INTEGER)
                 ),
                 v_current_time
             );

@@ -262,6 +262,10 @@ pub trait TraceRecordExt {
     }
 
     fn attributes_to_json_array(attributes: &[KeyValue]) -> Result<Vec<Attribute>, RecordError> {
+        // we specifically strip the tag prefix so we can make attributes searchable
+        // for tags in the UI and DB"
+        let patterns = [format!("{}.", SCOUTER_TAG_PREFIX)];
+
         attributes
             .iter()
             .map(|kv| {
@@ -269,10 +273,15 @@ pub trait TraceRecordExt {
                     Some(v) => otel_value_to_serde_value(v),
                     None => Value::Null,
                 };
-                Ok(Attribute {
-                    key: kv.key.clone(),
-                    value,
-                })
+
+                // Strip tag prefix if present
+                let key = patterns
+                    .iter()
+                    .find_map(|pattern| kv.key.strip_prefix(pattern))
+                    .unwrap_or(&kv.key)
+                    .to_string();
+
+                Ok(Attribute { key, value })
             })
             .collect()
     }

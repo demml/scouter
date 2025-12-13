@@ -8,6 +8,7 @@ use scouter_types::sql::{TraceFilters, TraceListItem, TraceMetricBucket, TraceSp
 use scouter_types::{TraceBaggageRecord, TraceCursor, TracePaginationResponse, TraceSpanRecord};
 use sqlx::{postgres::PgQueryResult, types::Json, Pool, Postgres};
 use std::collections::HashMap;
+use tracing::instrument;
 #[async_trait]
 pub trait TraceSqlLogic {
     /// Attempts to insert multiple trace span records into the database in a batch.
@@ -156,7 +157,8 @@ pub trait TraceSqlLogic {
     /// * `filters` - The filters to apply for retrieving traces
     /// # Returns
     /// * A vector of `TraceListItem` matching the filters
-    async fn get_traces_paginated(
+    #[instrument(skip_all)]
+    async fn get_paginated_traces(
         pool: &Pool<Postgres>,
         filters: TraceFilters,
     ) -> Result<TracePaginationResponse, SqlError> {
@@ -196,8 +198,6 @@ pub trait TraceSqlLogic {
         });
 
         let mut items: Vec<TraceListItem> = sqlx::query_as(query)
-            .bind(tag_filters_json) // $1: p_tag_filters (JSONB or NULL)
-            .bind(false)
             .bind(filters.service_name)
             .bind(filters.has_errors)
             .bind(filters.status_code)
@@ -207,6 +207,9 @@ pub trait TraceSqlLogic {
             .bind(filters.cursor_start_time)
             .bind(filters.cursor_trace_id)
             .bind(direction)
+            .bind(filters.trace_ids)
+            .bind(tag_filters_json)
+            .bind(false) // we dont want to match all attributes for pagination
             .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError)?;
@@ -312,13 +315,44 @@ pub trait TraceSqlLogic {
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
         bucket_interval_str: &str,
+        attribute_filters: Option<Vec<String>>,
     ) -> Result<Vec<TraceMetricBucket>, SqlError> {
+        let tag_filters_json = attribute_filters.as_ref().and_then(|tags| {
+            if tags.is_empty() {
+                None
+            } else {
+                // Parse "key:value" or "key=value" format into structured JSON
+                let tag_filters: Vec<HashMap<String, String>> = tags
+                    .iter()
+                    .filter_map(|tag| {
+                        let parts: Vec<&str> = tag.splitn(2, [':', '=']).collect();
+                        if parts.len() == 2 {
+                            Some(HashMap::from([
+                                ("key".to_string(), parts[0].trim().to_string()),
+                                ("value".to_string(), parts[1].trim().to_string()),
+                            ]))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                if tag_filters.is_empty() {
+                    None
+                } else {
+                    Some(Json(tag_filters))
+                }
+            }
+        });
+
         let query = Queries::GetTraceMetrics.get_query();
         let trace_items: Result<Vec<TraceMetricBucket>, SqlError> = sqlx::query_as(query)
             .bind(service_name)
             .bind(start_time)
             .bind(end_time)
             .bind(bucket_interval_str)
+            .bind(tag_filters_json)
+            .bind(false)
             .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError);

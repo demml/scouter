@@ -1106,7 +1106,7 @@ mod tests {
         sqlx::query(&script).execute(&pool).await.unwrap();
         let mut filters = TraceFilters::default();
 
-        let first_batch = PostgresClient::get_traces_paginated(&pool, filters.clone())
+        let first_batch = PostgresClient::get_paginated_traces(&pool, filters.clone())
             .await
             .unwrap();
 
@@ -1120,7 +1120,7 @@ mod tests {
         let last_record = first_batch.next_cursor.unwrap();
         filters = filters.next_page(&last_record);
 
-        let next_batch = PostgresClient::get_traces_paginated(&pool, filters.clone())
+        let next_batch = PostgresClient::get_paginated_traces(&pool, filters.clone())
             .await
             .unwrap();
 
@@ -1140,7 +1140,7 @@ mod tests {
 
         // test pagination for previous
         filters = filters.previous_page(&next_batch.previous_cursor.unwrap());
-        let previous_batch = PostgresClient::get_traces_paginated(&pool, filters.clone())
+        let previous_batch = PostgresClient::get_paginated_traces(&pool, filters.clone())
             .await
             .unwrap();
         assert_eq!(
@@ -1159,7 +1159,7 @@ mod tests {
         filters.cursor_start_time = None;
         filters.cursor_trace_id = None;
 
-        let records = PostgresClient::get_traces_paginated(&pool, filters.clone())
+        let records = PostgresClient::get_paginated_traces(&pool, filters.clone())
             .await
             .unwrap();
 
@@ -1185,7 +1185,7 @@ mod tests {
 
         // make request for trace metrics
         let trace_metrics =
-            PostgresClient::get_trace_metrics(&pool, None, start_time, end_time, "5 minutes")
+            PostgresClient::get_trace_metrics(&pool, None, start_time, end_time, "5 minutes", None)
                 .await
                 .unwrap();
 
@@ -1197,7 +1197,7 @@ mod tests {
             tags: Some(vec![("span.tag.host=host-4".to_string())]),
             ..Default::default()
         };
-        let tagged_batch = PostgresClient::get_traces_paginated(&pool, filters)
+        let tagged_batch = PostgresClient::get_paginated_traces(&pool, filters)
             .await
             .unwrap();
         assert!(!tagged_batch.items.is_empty());
@@ -1238,7 +1238,7 @@ mod tests {
             ..TraceFilters::default()
         };
 
-        let traces = PostgresClient::get_traces_paginated(&pool, trace_filter)
+        let traces = PostgresClient::get_paginated_traces(&pool, trace_filter)
             .await
             .unwrap();
 
