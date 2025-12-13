@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS scouter.spans (
     archived BOOLEAN DEFAULT FALSE,
     resource_attributes JSONB,
     service_id INTEGER,
-    service_name TEXT
+    service_name TEXT,
     PRIMARY KEY (start_time, trace_id, span_id)
 ) PARTITION BY RANGE (start_time);
 
@@ -117,7 +117,7 @@ UPDATE scouter.part_config SET retention_keep_table = FALSE WHERE parent_table =
 UPDATE scouter.part_config SET retention_keep_table = FALSE WHERE parent_table = 'scouter.llm_drift_record';
 
 
-REATE OR REPLACE FUNCTION scouter.match_span_attributes(
+CREATE OR REPLACE FUNCTION scouter.match_span_attributes(
     span_attributes JSONB,
     attribute_filters JSONB,
     match_all BOOLEAN
@@ -240,7 +240,6 @@ AS $$
     ORDER BY bm.bucket_start DESC;
 $$;
 
--- Updated get_traces_paginated - search any span's attributes
 CREATE OR REPLACE FUNCTION scouter.get_traces_paginated(
     p_service_name TEXT DEFAULT NULL,
     p_has_errors BOOLEAN DEFAULT NULL,
@@ -399,7 +398,7 @@ AS $$
     LIMIT p_limit + 1;
 $$;
 
--- 7.3: get_trace_spans
+
 CREATE OR REPLACE FUNCTION scouter.get_trace_spans(
     p_trace_id TEXT,
     p_service_name TEXT DEFAULT NULL

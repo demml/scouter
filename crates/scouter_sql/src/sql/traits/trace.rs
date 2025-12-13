@@ -169,7 +169,7 @@ pub trait TraceSqlLogic {
 
         let query = Queries::GetPaginatedTraces.get_query();
 
-        let tag_filters_json = filters.tags.as_ref().and_then(|tags| {
+        let tag_filters_json = filters.attribute_filters.as_ref().and_then(|tags| {
             if tags.is_empty() {
                 None
             } else {

@@ -203,7 +203,7 @@ pub struct TraceFilters {
     #[pyo3(get, set)]
     pub direction: Option<String>,
     #[pyo3(get, set)]
-    pub tags: Option<Vec<String>>,
+    pub attribute_filters: Option<Vec<String>>,
     #[pyo3(get, set)]
     pub trace_ids: Option<Vec<String>>,
 }
@@ -221,7 +221,7 @@ impl TraceFilters {
         limit=None,
         cursor_start_time=None,
         cursor_trace_id=None,
-        tags=None,
+        attribute_filters=None,
         trace_ids=None
     ))]
     pub fn new(
@@ -233,7 +233,7 @@ impl TraceFilters {
         limit: Option<i32>,
         cursor_start_time: Option<DateTime<Utc>>,
         cursor_trace_id: Option<String>,
-        tags: Option<Vec<String>>,
+        attribute_filters: Option<Vec<String>>,
         trace_ids: Option<Vec<String>>,
     ) -> Self {
         TraceFilters {
@@ -246,7 +246,7 @@ impl TraceFilters {
             cursor_start_time,
             cursor_trace_id,
             direction: None,
-            tags,
+            attribute_filters,
             trace_ids,
         }
     }

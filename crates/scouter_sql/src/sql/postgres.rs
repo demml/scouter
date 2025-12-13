@@ -1194,7 +1194,7 @@ mod tests {
 
         // get paginated traces with tags
         let filters = scouter_types::sql::TraceFilters {
-            tags: Some(vec![("span.tag.host=host-4".to_string())]),
+            attribute_filters: Some(vec![("component=kafka".to_string())]),
             ..Default::default()
         };
         let tagged_batch = PostgresClient::get_paginated_traces(&pool, filters)

@@ -22,7 +22,7 @@ FROM scouter.get_traces_paginated(
     $6,  -- p_limit
     $7,  -- p_cursor_created_at
     $8,  -- p_cursor_trace_id
-    $9  -- p_direction
+    $9,  -- p_direction
     $10, -- p_trace_ids
     $11, -- p_attribute_filters
     $12  -- p_match_all_attributes
