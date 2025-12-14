@@ -3,7 +3,7 @@ use std::fmt::Display;
 use crate::error::{ContractError, TypeError};
 use crate::llm::PaginationRequest;
 use crate::sql::{TraceListItem, TraceMetricBucket, TraceSpan};
-use crate::{CustomInterval, DriftProfile, Status, TagRecord, TraceBaggageRecord};
+use crate::{CustomInterval, DriftProfile, Status, Tag, TagRecord, TraceBaggageRecord};
 use crate::{DriftType, PyHelperFuncs, TimeInterval};
 use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
@@ -446,6 +446,11 @@ impl ScouterServerError {
         ScouterServerError { error: msg }
     }
 
+    pub fn get_entity_id_by_tags_error<T: Display>(e: T) -> Self {
+        let msg = format!("Failed to get entity IDs by tags: {e}");
+        ScouterServerError { error: msg }
+    }
+
     pub fn refresh_trace_summary_error<T: Display>(e: T) -> Self {
         let msg = format!("Failed to refresh trace summary: {e}");
         ScouterServerError { error: msg }
@@ -571,6 +576,18 @@ impl BinnedMetrics {
 pub struct TagsRequest {
     pub entity_type: String,
     pub entity_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct EntityIdTagsRequest {
+    pub entity_type: String,
+    pub tags: Vec<Tag>,
+    pub match_all: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct EntityIdTagsResponse {
+    pub entity_id: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

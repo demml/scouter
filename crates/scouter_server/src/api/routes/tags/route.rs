@@ -9,10 +9,11 @@ use axum::{
 };
 use scouter_sql::sql::traits::TagSqlLogic;
 use scouter_sql::PostgresClient;
-use scouter_types::TagsRequest;
 use scouter_types::{
-    contracts::ScouterServerError, InsertTagsRequest, ScouterResponse, TagsResponse,
+    contracts::ScouterServerError, EntityIdTagsResponse, InsertTagsRequest, ScouterResponse,
+    TagsResponse,
 };
+use scouter_types::{EntityIdTagsRequest, TagsRequest};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 use tracing::error;
@@ -54,9 +55,38 @@ pub async fn insert_tags(
     }))
 }
 
+pub async fn get_entity_id_from_tags(
+    State(data): State<Arc<AppState>>,
+    Query(params): Query<EntityIdTagsRequest>,
+) -> Result<Json<EntityIdTagsResponse>, (StatusCode, Json<ScouterServerError>)> {
+    let entity_id = PostgresClient::get_entity_id_by_tags(
+        &data.db_pool,
+        &params.entity_type,
+        &params.tags,
+        params.match_all,
+    )
+    .await
+    .map_err(|e| {
+        error!("Failed to get entity IDs by tags: {:?}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ScouterServerError::get_entity_id_by_tags_error(e)),
+        )
+    })?;
+
+    Ok(Json(EntityIdTagsResponse {
+        entity_id: entity_id,
+    }))
+}
+
 pub async fn get_tag_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
     let result = catch_unwind(AssertUnwindSafe(|| {
-        Router::new().route(&format!("{prefix}/tags"), get(get_tags).post(insert_tags))
+        Router::new()
+            .route(&format!("{prefix}/tags"), get(get_tags).post(insert_tags))
+            .route(
+                &format!("{prefix}/tags/entity_id"),
+                get(get_entity_id_from_tags),
+            )
     }));
 
     match result {
