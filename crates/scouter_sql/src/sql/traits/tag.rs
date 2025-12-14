@@ -3,8 +3,8 @@ use crate::sql::query::Queries;
 
 use async_trait::async_trait;
 use itertools::multiunzip;
-use scouter_types::TagRecord;
-use sqlx::{postgres::PgQueryResult, Pool, Postgres};
+use scouter_types::{Tag, TagRecord};
+use sqlx::{postgres::PgQueryResult, types::Json, Pool, Postgres};
 use std::result::Result::Ok;
 
 #[async_trait]
@@ -51,6 +51,24 @@ pub trait TagSqlLogic {
         let rows = sqlx::query_as::<_, TagRecord>(query)
             .bind(entity_type)
             .bind(entity_id)
+            .fetch_all(pool)
+            .await?;
+
+        Ok(rows)
+    }
+
+    async fn get_entity_id_by_tags(
+        pool: &Pool<Postgres>,
+        entity_type: &str,
+        tags: &[Tag],
+        match_all: bool,
+    ) -> Result<Vec<String>, SqlError> {
+        let query = Queries::GetEntityIdByTags.get_query();
+
+        let rows = sqlx::query_scalar::<_, String>(query)
+            .bind(entity_type)
+            .bind(Json(tags))
+            .bind(match_all)
             .fetch_all(pool)
             .await?;
 

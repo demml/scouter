@@ -1300,5 +1300,16 @@ mod tests {
             .unwrap();
 
         assert_eq!(tags.len(), 2);
+
+        let tag_filter = vec![Tag {
+            key: tags.first().unwrap().key.clone(),
+            value: tags.first().unwrap().value.clone(),
+        }];
+
+        let entity_id = PostgresClient::get_entity_id_by_tags(&pool, "service", &tag_filter, false)
+            .await
+            .unwrap();
+
+        assert_eq!(entity_id.first().unwrap(), &uid);
     }
 }

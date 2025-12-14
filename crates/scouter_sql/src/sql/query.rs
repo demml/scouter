@@ -107,6 +107,7 @@ const GET_TRACE_BAGGAGE: &str = include_str!("scripts/trace/get_trace_baggage.sq
 // tags
 const INSERT_TAG: &str = include_str!("scripts/tag/insert_tags.sql");
 const GET_TAGS: &str = include_str!("scripts/tag/get_tags.sql");
+const GET_ENTITY_ID_BY_TAG: &str = include_str!("scripts/tag/get_entity_id_by_tags.sql");
 
 // entity
 const GET_ENTITY_ID_FROM_UID: &str = include_str!("scripts/entity/get_id_from_uid.sql");
@@ -198,6 +199,7 @@ pub enum Queries {
     // tags
     InsertTag,
     GetTags,
+    GetEntityIdByTags,
 
     // entity
     GetEntityIdFromUid,
@@ -280,6 +282,7 @@ impl Queries {
             // tags
             Queries::InsertTag => INSERT_TAG,
             Queries::GetTags => GET_TAGS,
+            Queries::GetEntityIdByTags => GET_ENTITY_ID_BY_TAG,
             // entity
             Queries::GetEntityIdFromUid => GET_ENTITY_ID_FROM_UID,
             Queries::GetEntityIdFromSpaceNameVersionDriftType => {
