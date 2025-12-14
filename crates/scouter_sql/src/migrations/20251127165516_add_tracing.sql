@@ -283,8 +283,7 @@ AS $$
         SELECT DISTINCT trace_id
         FROM scouter.spans
         WHERE
-            start_time >= p_start_time
-            AND start_time <= p_end_time
+            (p_trace_ids IS NOT NULL OR (start_time >= p_start_time AND start_time <= p_end_time))
             AND (p_attribute_filters IS NULL OR
                 scouter.match_span_attributes(
                     attributes,
@@ -343,8 +342,7 @@ AS $$
             COUNT(*) FILTER (WHERE s.status_code = 2) as error_count
         FROM scouter.spans s
         WHERE
-            s.start_time >= p_start_time
-            AND s.start_time <= p_end_time
+            (p_trace_ids IS NOT NULL OR (s.start_time >= p_start_time AND s.start_time <= p_end_time))
             AND (p_trace_ids IS NULL OR s.trace_id = ANY(p_trace_ids))
             AND (p_attribute_filters IS NULL OR s.trace_id IN (SELECT trace_id FROM matching_traces))
             AND (p_service_name IS NULL OR EXISTS (

@@ -84,7 +84,7 @@ pub async fn get_tag_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
         Router::new()
             .route(&format!("{prefix}/tags"), get(get_tags).post(insert_tags))
             .route(
-                &format!("{prefix}/tags/entity_id"),
+                &format!("{prefix}/tags/entity"),
                 get(get_entity_id_from_tags),
             )
     }));
