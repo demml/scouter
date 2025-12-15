@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 use scouter_sql::sql::traits::TagSqlLogic;
@@ -58,16 +58,16 @@ pub async fn insert_tags(
 }
 
 #[instrument(skip_all)]
-pub async fn get_entity_id_from_tags(
+pub async fn entity_id_from_tags(
     State(data): State<Arc<AppState>>,
-    Query(params): Query<EntityIdTagsRequest>,
+    Json(body): Json<EntityIdTagsRequest>,
 ) -> Result<Json<EntityIdTagsResponse>, (StatusCode, Json<ScouterServerError>)> {
-    debug!("Params: {:?}", params);
+    debug!("Params: {:?}", body);
     let entity_id = PostgresClient::get_entity_id_by_tags(
         &data.db_pool,
-        &params.entity_type,
-        &params.tags,
-        params.match_all,
+        &body.entity_type,
+        &body.tags,
+        body.match_all,
     )
     .await
     .map_err(|e| {
@@ -86,10 +86,7 @@ pub async fn get_tag_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
     let result = catch_unwind(AssertUnwindSafe(|| {
         Router::new()
             .route(&format!("{prefix}/tags"), get(get_tags).post(insert_tags))
-            .route(
-                &format!("{prefix}/tags/entity"),
-                get(get_entity_id_from_tags),
-            )
+            .route(&format!("{prefix}/tags/entity"), post(entity_id_from_tags))
     }));
 
     match result {
