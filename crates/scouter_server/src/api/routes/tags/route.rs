@@ -78,9 +78,7 @@ pub async fn get_entity_id_from_tags(
         )
     })?;
 
-    Ok(Json(EntityIdTagsResponse {
-        entity_id: entity_id,
-    }))
+    Ok(Json(EntityIdTagsResponse { entity_id }))
 }
 
 #[instrument(skip_all)]

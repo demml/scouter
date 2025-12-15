@@ -43,6 +43,8 @@ pub const BAGGAGE_PATTERN: &str = "baggage.";
 pub const BAGGAGE_TAG_PATTERN: &str = concat!("baggage", ".", "scouter.tracing.tag", ".");
 pub const TAG_PATTERN: &str = concat!("scouter.tracing.tag", ".");
 
+type SpanAttributes = (Vec<Attribute>, Vec<TraceBaggageRecord>, Vec<TagRecord>);
+
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[pyclass]
 pub struct TraceRecord {
@@ -273,7 +275,7 @@ pub trait TraceRecordExt {
         span_attributes: &[KeyValue],
         scope: &str,
         created_at: DateTime<Utc>,
-    ) -> Result<(Vec<Attribute>, Vec<TraceBaggageRecord>, Vec<TagRecord>), RecordError> {
+    ) -> Result<SpanAttributes, RecordError> {
         let mut cleaned_attributes = Vec::with_capacity(span_attributes.len());
         let mut baggage_records = Vec::new();
         let mut tags = Vec::new();
@@ -286,7 +288,7 @@ pub trait TraceRecordExt {
             let key = &kv.key;
 
             // Check if this is a baggage-prefixed tag
-            if let Some(tag_key) = key.strip_prefix(&BAGGAGE_TAG_PATTERN) {
+            if let Some(tag_key) = key.strip_prefix(BAGGAGE_TAG_PATTERN) {
                 if !tag_key.is_empty() {
                     let value = match &kv.value {
                         Some(v) => Self::otel_value_to_string(v),
