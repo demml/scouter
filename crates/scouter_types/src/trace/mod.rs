@@ -38,6 +38,11 @@ pub const SCOUTER_SCOPE_DEFAULT: &str = concat!("scouter.tracer.", env!("CARGO_P
 pub const SPAN_ERROR: &str = "span.error";
 pub const EXCEPTION_TRACEBACK: &str = "exception.traceback";
 
+// patterns for identifying baggage and tags
+pub const BAGGAGE_PATTERN: &str = "baggage.";
+pub const BAGGAGE_TAG_PATTERN: &str = concat!("baggage", ".", "scouter.tracing.tag", ".");
+pub const TAG_PATTERN: &str = concat!("scouter.tracing.tag", ".");
+
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[pyclass]
 pub struct TraceRecord {
@@ -263,11 +268,148 @@ pub trait TraceRecordExt {
         Ok(serde_json::to_value(attributes).unwrap_or(Value::Array(vec![])))
     }
 
-    fn attributes_to_json_array(attributes: &[KeyValue]) -> Result<Vec<Attribute>, RecordError> {
-        // we specifically strip the tag prefix so we can make attributes searchable
-        // for tags in the UI and DB"
-        let patterns = [format!("{}.", SCOUTER_TAG_PREFIX)];
+    fn process_attributes(
+        trace_id: &str,
+        span_attributes: &[KeyValue],
+        scope: &str,
+        created_at: DateTime<Utc>,
+    ) -> Result<(Vec<Attribute>, Vec<TraceBaggageRecord>, Vec<TagRecord>), RecordError> {
+        let mut cleaned_attributes = Vec::with_capacity(span_attributes.len());
+        let mut baggage_records = Vec::new();
+        let mut tags = Vec::new();
 
+        let trace_id_owned = trace_id.to_string();
+        let scope_owned = scope.to_string();
+        let entity_type = "trace".to_string();
+
+        for kv in span_attributes {
+            let key = &kv.key;
+
+            // Check if this is a baggage-prefixed tag
+            if let Some(tag_key) = key.strip_prefix(&BAGGAGE_TAG_PATTERN) {
+                if !tag_key.is_empty() {
+                    let value = match &kv.value {
+                        Some(v) => Self::otel_value_to_string(v),
+                        None => "null".to_string(),
+                    };
+
+                    // Extract as a tag
+                    tags.push(TagRecord {
+                        entity_type: entity_type.clone(),
+                        entity_id: trace_id_owned.clone(),
+                        key: tag_key.to_string(),
+                        value: value.clone(),
+                    });
+
+                    // Store cleaned attribute with stripped key
+                    cleaned_attributes.push(Attribute {
+                        key: tag_key.to_string(),
+                        value: Value::String(value.clone()),
+                    });
+
+                    // Also extract as baggage since it has baggage prefix
+                    baggage_records.push(TraceBaggageRecord {
+                        created_at,
+                        trace_id: trace_id_owned.clone(),
+                        scope: scope_owned.clone(),
+                        key: format!("{}.{}", SCOUTER_TAG_PREFIX, tag_key),
+                        value,
+                    });
+                } else {
+                    tracing::warn!(
+                        attribute_key = %key,
+                        "Skipping baggage tag with empty key after prefix removal"
+                    );
+                }
+            }
+            // Check for non-baggage tags
+            else if let Some(tag_key) = key.strip_prefix(TAG_PATTERN) {
+                if !tag_key.is_empty() {
+                    let value = match &kv.value {
+                        Some(v) => Self::otel_value_to_string(v),
+                        None => "null".to_string(),
+                    };
+
+                    tags.push(TagRecord {
+                        entity_type: entity_type.clone(),
+                        entity_id: trace_id_owned.clone(),
+                        key: tag_key.to_string(),
+                        value: value.clone(),
+                    });
+
+                    cleaned_attributes.push(Attribute {
+                        key: tag_key.to_string(),
+                        value: Value::String(value),
+                    });
+                } else {
+                    tracing::warn!(
+                        attribute_key = %key,
+                        "Skipping tag with empty key after prefix removal"
+                    );
+                }
+            }
+            // Check for regular baggage (not tags)
+            else if key.starts_with(BAGGAGE_PATTERN) {
+                let clean_key = key
+                    .strip_prefix(BAGGAGE_PATTERN)
+                    .unwrap_or(key)
+                    .trim()
+                    .to_string();
+
+                let value_string = match &kv.value {
+                    Some(v) => Self::otel_value_to_string(v),
+                    None => "null".to_string(),
+                };
+
+                baggage_records.push(TraceBaggageRecord {
+                    created_at,
+                    trace_id: trace_id_owned.clone(),
+                    scope: scope_owned.clone(),
+                    key: clean_key,
+                    value: value_string,
+                });
+            }
+            // Regular attribute
+            else {
+                let value = match &kv.value {
+                    Some(v) => otel_value_to_serde_value(v),
+                    None => Value::Null,
+                };
+
+                cleaned_attributes.push(Attribute {
+                    key: key.clone(),
+                    value,
+                });
+            }
+        }
+
+        Ok((cleaned_attributes, baggage_records, tags))
+    }
+
+    fn otel_value_to_string(value: &AnyValue) -> String {
+        match &value.value {
+            Some(opentelemetry_proto::tonic::common::v1::any_value::Value::StringValue(s)) => {
+                s.clone()
+            }
+            Some(opentelemetry_proto::tonic::common::v1::any_value::Value::IntValue(i)) => {
+                i.to_string()
+            }
+            Some(opentelemetry_proto::tonic::common::v1::any_value::Value::DoubleValue(d)) => {
+                d.to_string()
+            }
+            Some(opentelemetry_proto::tonic::common::v1::any_value::Value::BoolValue(b)) => {
+                b.to_string()
+            }
+            Some(opentelemetry_proto::tonic::common::v1::any_value::Value::ArrayValue(_))
+            | Some(opentelemetry_proto::tonic::common::v1::any_value::Value::KvlistValue(_)) => {
+                let serde_val = otel_value_to_serde_value(value);
+                serde_json::to_string(&serde_val).unwrap_or_else(|_| format!("{:?}", value))
+            }
+            _ => "null".to_string(),
+        }
+    }
+
+    fn attributes_to_json_array(attributes: &[KeyValue]) -> Result<Vec<Attribute>, RecordError> {
         attributes
             .iter()
             .map(|kv| {
@@ -276,14 +418,10 @@ pub trait TraceRecordExt {
                     None => Value::Null,
                 };
 
-                // Strip tag prefix if present
-                let key = patterns
-                    .iter()
-                    .find_map(|pattern| kv.key.strip_prefix(pattern))
-                    .unwrap_or(&kv.key)
-                    .to_string();
-
-                Ok(Attribute { key, value })
+                Ok(Attribute {
+                    key: kv.key.clone(),
+                    value,
+                })
             })
             .collect()
     }
@@ -317,57 +455,6 @@ pub trait TraceRecordExt {
                 })
             })
             .collect()
-    }
-
-    //// Extracts scouter tags from OpenTelemetry span attributes.
-    ///
-    /// Tags are identified by the pattern `baggage.scouter.tracing.tag.<key>` and are
-    /// converted to a simplified Tag structure for easier processing and storage
-    ///
-    /// # Arguments
-    /// * `attributes` - Vector of OpenTelemetry attributes to search through
-    ///
-    /// # Returns
-    /// * `Result<Vec<Tag>, RecordError>` - Vector of extracted tags or error
-    fn extract_tags(attributes: &[Attribute]) -> Result<Vec<Tag>, RecordError> {
-        let patterns = [
-            format!("{}.{}.", BAGGAGE_PREFIX, SCOUTER_TAG_PREFIX),
-            format!("{}.", SCOUTER_TAG_PREFIX),
-        ];
-
-        let tags: Result<Vec<Tag>, RecordError> = attributes
-            .iter()
-            .filter_map(|attr| {
-                // Find the first matching pattern
-                let tag_key = patterns
-                    .iter()
-                    .find_map(|pattern| attr.key.strip_prefix(pattern))?;
-
-                if tag_key.is_empty() {
-                    tracing::warn!(
-                        attribute_key = %attr.key,
-                        "Skipping tag with empty key after prefix removal"
-                    );
-                    return None;
-                }
-
-                let value = match &attr.value {
-                    Value::String(s) => s.clone(),
-                    Value::Number(n) => n.to_string(),
-                    Value::Bool(b) => b.to_string(),
-                    Value::Null => "null".to_string(),
-                    Value::Array(_) | Value::Object(_) => serde_json::to_string(&attr.value)
-                        .unwrap_or_else(|_| format!("{:?}", attr.value)),
-                };
-
-                Some(Ok(Tag {
-                    key: tag_key.to_string(),
-                    value,
-                }))
-            })
-            .collect();
-
-        tags
     }
 }
 
@@ -670,13 +757,12 @@ impl TraceServerRecord {
             // process metadata only once per resource span
             let service_name =
                 Self::get_service_name_from_resource(&resource_span.resource, "unknown");
-
             let scope = Self::get_scope_from_resource(&resource_span.resource, "unknown");
             let resource_attributes = Attribute::from_resources(&resource_span.resource);
 
             for scope_span in &resource_span.scope_spans {
                 for span in &scope_span.spans {
-                    let attributes = Self::attributes_to_json_array(&span.attributes)?;
+                    // base attributes
                     let trace_id = hex::encode(&span.trace_id);
                     let span_id = hex::encode(&span.span_id);
                     let service_name = service_name.clone();
@@ -684,24 +770,19 @@ impl TraceServerRecord {
                     let (start_time, end_time, duration_ms) =
                         Self::extract_time(span.start_time_unix_nano, span.end_time_unix_nano);
 
-                    // consume tags into a set to avoid duplicates across spans
-                    TraceServerRecord::extract_tags(&attributes)?
-                        .iter()
-                        .for_each(|tag| {
-                            tags.insert(TagRecord {
-                                entity_type: "trace".to_string(),
-                                entity_id: trace_id.clone(),
-                                key: tag.key.clone(),
-                                value: tag.value.clone(),
-                            });
-                        });
+                    let (cleaned_attributes, span_baggage, span_tags) =
+                        Self::process_attributes(&trace_id, &span.attributes, &scope, start_time)?;
+
+                    // Add to collections
+                    baggage_records.extend(span_baggage);
+                    tags.extend(span_tags);
 
                     // SpanRecord for insert
                     span_records.push(self.convert_to_span_record(
                         &trace_id,
                         &span_id,
                         span,
-                        &attributes,
+                        &cleaned_attributes,
                         &scope,
                         start_time,
                         end_time,
@@ -709,13 +790,6 @@ impl TraceServerRecord {
                         service_name,
                         &resource_attributes,
                     )?);
-
-                    // BaggageRecords for insert
-                    baggage_records.extend(Self::convert_to_baggage_records(
-                        &trace_id,
-                        &attributes,
-                        &scope,
-                    ));
                 }
             }
         }
