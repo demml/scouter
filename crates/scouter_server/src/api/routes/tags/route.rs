@@ -16,8 +16,9 @@ use scouter_types::{
 use scouter_types::{EntityIdTagsRequest, TagsRequest};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
-use tracing::error;
+use tracing::{debug, error, instrument};
 
+#[instrument(skip_all)]
 pub async fn get_tags(
     State(data): State<Arc<AppState>>,
     Query(params): Query<TagsRequest>,
@@ -35,6 +36,7 @@ pub async fn get_tags(
     Ok(Json(TagsResponse { tags }))
 }
 
+#[instrument(skip_all)]
 pub async fn insert_tags(
     State(data): State<Arc<AppState>>,
     Json(body): Json<InsertTagsRequest>,
@@ -55,10 +57,12 @@ pub async fn insert_tags(
     }))
 }
 
+#[instrument(skip_all)]
 pub async fn get_entity_id_from_tags(
     State(data): State<Arc<AppState>>,
     Query(params): Query<EntityIdTagsRequest>,
 ) -> Result<Json<EntityIdTagsResponse>, (StatusCode, Json<ScouterServerError>)> {
+    debug!("Params: {:?}", params);
     let entity_id = PostgresClient::get_entity_id_by_tags(
         &data.db_pool,
         &params.entity_type,
@@ -79,6 +83,7 @@ pub async fn get_entity_id_from_tags(
     }))
 }
 
+#[instrument(skip_all)]
 pub async fn get_tag_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
     let result = catch_unwind(AssertUnwindSafe(|| {
         Router::new()
