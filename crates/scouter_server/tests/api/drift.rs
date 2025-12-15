@@ -50,7 +50,7 @@ async fn test_spc_server_records() {
     let params = DriftRequest {
         space: SPACE.to_string(),
         uid: profile.config.uid.clone(),
-        time_interval: TimeInterval::FiveMinutes,
+        time_interval: TimeInterval::FifteenMinutes,
         max_data_points: 100,
         ..Default::default()
     };
@@ -129,7 +129,7 @@ async fn test_psi_server_records() {
     let params = DriftRequest {
         space: SPACE.to_string(),
         uid: uid.clone(),
-        time_interval: TimeInterval::FiveMinutes,
+        time_interval: TimeInterval::FifteenMinutes,
         max_data_points: 100,
         ..Default::default()
     };
@@ -195,7 +195,7 @@ async fn test_custom_server_records() {
     let params = DriftRequest {
         space: SPACE.to_string(),
         uid: uid.clone(),
-        time_interval: TimeInterval::FiveMinutes,
+        time_interval: TimeInterval::FifteenMinutes,
         max_data_points: 100,
 
         ..Default::default()
@@ -261,7 +261,7 @@ fn test_llm_server_records() {
     let params = DriftRequest {
         space: SPACE.to_string(),
         uid: uid.clone(),
-        time_interval: TimeInterval::FiveMinutes,
+        time_interval: TimeInterval::FifteenMinutes,
         max_data_points: 100,
         ..Default::default()
     };

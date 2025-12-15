@@ -640,7 +640,7 @@ mod tests {
             &pool,
             &DriftRequest {
                 uid: UID.to_string(),
-                time_interval: TimeInterval::FiveMinutes,
+                time_interval: TimeInterval::FifteenMinutes,
                 max_data_points: 10,
                 ..Default::default()
             },

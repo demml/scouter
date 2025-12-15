@@ -100,47 +100,44 @@ impl CustomInterval {
 #[pyclass(eq)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub enum TimeInterval {
-    FiveMinutes,
     FifteenMinutes,
     ThirtyMinutes,
     OneHour,
     #[default]
-    ThreeHours,
+    FourHours,
     SixHours,
     TwelveHours,
     TwentyFourHours,
-    TwoDays,
-    FiveDays,
+    SevenDays,
+    Custom,
 }
 
 impl TimeInterval {
     pub fn to_minutes(&self) -> i32 {
         match self {
-            TimeInterval::FiveMinutes => 5,
             TimeInterval::FifteenMinutes => 15,
             TimeInterval::ThirtyMinutes => 30,
             TimeInterval::OneHour => 60,
-            TimeInterval::ThreeHours => 180,
+            TimeInterval::FourHours => 240,
             TimeInterval::SixHours => 360,
             TimeInterval::TwelveHours => 720,
             TimeInterval::TwentyFourHours => 1440,
-            TimeInterval::TwoDays => 2880,
-            TimeInterval::FiveDays => 7200,
+            TimeInterval::SevenDays => 10080,
+            TimeInterval::Custom => 0,
         }
     }
 
     pub fn from_string(time_interval: &str) -> TimeInterval {
         match time_interval {
-            "5minute" => TimeInterval::FiveMinutes,
             "15minute" => TimeInterval::FifteenMinutes,
             "30minute" => TimeInterval::ThirtyMinutes,
             "1hour" => TimeInterval::OneHour,
-            "3hour" => TimeInterval::ThreeHours,
+            "4hour" => TimeInterval::FourHours,
             "6hour" => TimeInterval::SixHours,
             "12hour" => TimeInterval::TwelveHours,
             "24hour" => TimeInterval::TwentyFourHours,
-            "2day" => TimeInterval::TwoDays,
-            "5day" => TimeInterval::FiveDays,
+            "7day" => TimeInterval::SevenDays,
+            "custom" => TimeInterval::Custom,
             _ => TimeInterval::SixHours,
         }
     }
@@ -149,16 +146,15 @@ impl TimeInterval {
 impl fmt::Display for TimeInterval {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            TimeInterval::FiveMinutes => write!(f, "5minute"),
             TimeInterval::FifteenMinutes => write!(f, "15minute"),
             TimeInterval::ThirtyMinutes => write!(f, "30minute"),
             TimeInterval::OneHour => write!(f, "1hour"),
-            TimeInterval::ThreeHours => write!(f, "3hour"),
+            TimeInterval::FourHours => write!(f, "4hour"),
             TimeInterval::SixHours => write!(f, "6hour"),
             TimeInterval::TwelveHours => write!(f, "12hour"),
             TimeInterval::TwentyFourHours => write!(f, "24hour"),
-            TimeInterval::TwoDays => write!(f, "2day"),
-            TimeInterval::FiveDays => write!(f, "5day"),
+            TimeInterval::SevenDays => write!(f, "7day"),
+            TimeInterval::Custom => write!(f, "custom"),
         }
     }
 }
