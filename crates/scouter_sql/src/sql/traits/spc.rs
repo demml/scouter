@@ -143,11 +143,12 @@ pub trait SpcSqlLogic {
     async fn get_records(
         pool: &Pool<Postgres>,
         params: &DriftRequest,
-        begin_utc: DateTime<Utc>,
-        end_utc: DateTime<Utc>,
+        begin_dt: DateTime<Utc>,
+        end_dt: DateTime<Utc>,
         entity_id: &i32,
     ) -> Result<SpcDriftFeatures, SqlError> {
-        let bin = params.time_interval.to_minutes() as f64 / params.max_data_points as f64;
+        let minutes = end_dt.signed_duration_since(begin_dt).num_minutes() as f64;
+        let bin = minutes / params.max_data_points as f64;
 
         let query = Queries::GetBinnedSpcFeatureValues.get_query();
 
