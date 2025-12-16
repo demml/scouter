@@ -60,7 +60,7 @@ pub struct DriftRequest {
     pub space: String,
     pub time_interval: TimeInterval,
     pub max_data_points: i32,
-    pub begin_custom_datetime: Option<DateTime<Utc>>,
+    pub start_custom_datetime: Option<DateTime<Utc>>,
     pub end_custom_datetime: Option<DateTime<Utc>>,
 }
 
@@ -88,7 +88,7 @@ impl DriftRequest {
             space,
             time_interval,
             max_data_points,
-            begin_custom_datetime: custom_interval.as_ref().map(|interval| interval.begin),
+            start_custom_datetime: custom_interval.as_ref().map(|interval| interval.begin),
             end_custom_datetime: custom_interval.as_ref().map(|interval| interval.end),
         })
     }
@@ -96,14 +96,14 @@ impl DriftRequest {
 
 impl DriftRequest {
     pub fn has_custom_interval(&self) -> bool {
-        self.begin_custom_datetime.is_some() && self.end_custom_datetime.is_some()
+        self.start_custom_datetime.is_some() && self.end_custom_datetime.is_some()
     }
 
     pub fn to_custom_interval(&self) -> Option<CustomInterval> {
         if self.has_custom_interval() {
             Some(
                 CustomInterval::new(
-                    self.begin_custom_datetime.unwrap(),
+                    self.start_custom_datetime.unwrap(),
                     self.end_custom_datetime.unwrap(),
                 )
                 .unwrap(),
