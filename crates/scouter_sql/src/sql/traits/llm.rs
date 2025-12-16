@@ -137,7 +137,7 @@ pub trait LLMDriftSqlLogic {
         params: &LLMDriftRecordPaginationRequest,
         entity_id: &i32,
     ) -> Result<LLMDriftRecordPaginationResponse, SqlError> {
-        let query = Queries::GetLLMDriftRecords.get_query();
+        let query = Queries::GetPaginatedLLMDriftRecords.get_query();
         let limit = params.limit.unwrap_or(50);
         let direction = params.direction.as_deref().unwrap_or("next");
 

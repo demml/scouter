@@ -45,8 +45,10 @@ const GET_BINNED_LLM_METRIC_VALUES: &str = include_str!("scripts/llm/binned_llm_
 const INSERT_LLM_METRIC_VALUES_BATCH: &str =
     include_str!("scripts/llm/insert_llm_metric_values.sql");
 const INSERT_LLM_DRIFT_RECORD: &str = include_str!("scripts/llm/insert_llm_drift_record.sql");
-
 const GET_LLM_DRIFT_RECORDS: &str = include_str!("scripts/llm/get_llm_drift_records.sql");
+
+const GET_PAGINATED_LLM_DRIFT_RECORDS: &str =
+    include_str!("scripts/llm/get_paginated_llm_drift_records.sql");
 const UPDATE_LLM_DRIFT_TASK: &str = include_str!("scripts/llm/update_llm_drift_record.sql");
 const GET_LLM_DRIFT_RECORD_ENTITIES: &str =
     include_str!("scripts/llm/get_llm_drift_record_entities_for_archive.sql");
@@ -170,6 +172,7 @@ pub enum Queries {
     // llm
     GetLLMMetricValues,
     GetLLMDriftRecords,
+    GetPaginatedLLMDriftRecords,
     GetBinnedMetrics,
     InsertLLMMetricValuesBatch,
     InsertLLMDriftRecord,
@@ -259,6 +262,7 @@ impl Queries {
             Queries::InsertLLMDriftRecord => INSERT_LLM_DRIFT_RECORD,
 
             Queries::GetLLMDriftRecords => GET_LLM_DRIFT_RECORDS,
+            Queries::GetPaginatedLLMDriftRecords => GET_PAGINATED_LLM_DRIFT_RECORDS,
             Queries::GetPendingLLMDriftTask => GET_PENDING_LLM_DRIFT_TASK,
             Queries::GetLLMDriftRecordEntitiesForArchive => GET_LLM_DRIFT_RECORD_ENTITIES,
             Queries::GetLLMMetricEntitiesForArchive => GET_LLM_METRIC_ENTITIES,
