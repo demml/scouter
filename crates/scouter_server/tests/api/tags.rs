@@ -73,11 +73,12 @@ async fn test_tags() {
         match_all: true,
     };
 
-    let query_string = serde_qs::to_string(&entity_id_request).unwrap();
+    let body = serde_json::to_string(&entity_id_request).unwrap();
     let request = Request::builder()
-        .uri(format!("/scouter/tags/entity_id?{query_string}"))
-        .method("GET")
-        .body(Body::empty())
+        .uri(format!("/scouter/tags/entity"))
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body))
         .unwrap();
 
     let response = helper.send_oneshot(request).await;

@@ -82,9 +82,6 @@ pub async fn cleanup_tables(pool: &Pool<Postgres>) -> Result<(), anyhow::Error> 
         FROM scouter.trace_baggage;
 
         DELETE
-        FROM scouter.traces;
-
-        DELETE
         FROM scouter.tags;
         "#,
     )
