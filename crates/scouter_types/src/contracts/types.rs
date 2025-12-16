@@ -1,10 +1,11 @@
 use std::fmt::Display;
 
 use crate::error::{ContractError, TypeError};
-use crate::llm::PaginationRequest;
 use crate::sql::{TraceListItem, TraceMetricBucket, TraceSpan};
 use crate::Alert;
-use crate::{CustomInterval, DriftProfile, Status, Tag, TagRecord, TraceBaggageRecord};
+use crate::{
+    CustomInterval, DriftProfile, LLMDriftRecord, Status, Tag, TagRecord, TraceBaggageRecord,
+};
 use crate::{DriftType, PyHelperFuncs, TimeInterval};
 use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
@@ -217,19 +218,19 @@ impl DriftAlertPaginationRequest {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass]
-pub struct AlertCursor {
+pub struct RecordCursor {
     #[pyo3(get)]
     pub created_at: DateTime<Utc>,
 
     #[pyo3(get)]
-    pub id: i32,
+    pub id: i64,
 }
 
 #[pymethods]
-impl AlertCursor {
+impl RecordCursor {
     #[new]
-    pub fn new(created_at: DateTime<Utc>, id: i32) -> Self {
-        AlertCursor { created_at, id }
+    pub fn new(created_at: DateTime<Utc>, id: i64) -> Self {
+        RecordCursor { created_at, id }
     }
 }
 
@@ -243,13 +244,13 @@ pub struct DriftAlertPaginationResponse {
     pub has_next: bool,
 
     #[pyo3(get)]
-    pub next_cursor: Option<AlertCursor>,
+    pub next_cursor: Option<RecordCursor>,
 
     #[pyo3(get)]
     pub has_previous: bool,
 
     #[pyo3(get)]
-    pub previous_cursor: Option<AlertCursor>,
+    pub previous_cursor: Option<RecordCursor>,
 }
 
 #[pymethods]
@@ -259,7 +260,7 @@ impl DriftAlertPaginationResponse {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ServiceInfo {
     pub space: String,
     pub uid: String,
@@ -536,11 +537,23 @@ pub struct UpdateAlertResponse {
     pub updated: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct LLMDriftRecordPaginationRequest {
     pub service_info: ServiceInfo,
     pub status: Option<Status>,
-    pub pagination: PaginationRequest,
+    pub limit: Option<i32>,
+    pub cursor_created_at: Option<DateTime<Utc>>,
+    pub cursor_id: Option<i64>,
+    pub direction: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct LLMDriftRecordPaginationResponse {
+    pub items: Vec<LLMDriftRecord>,
+    pub has_next: bool,
+    pub next_cursor: Option<RecordCursor>,
+    pub has_previous: bool,
+    pub previous_cursor: Option<RecordCursor>,
 }
 
 #[pyclass]

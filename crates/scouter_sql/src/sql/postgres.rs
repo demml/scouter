@@ -1005,13 +1005,13 @@ mod tests {
         }
 
         // Get paginated records (1st page)
-        let pagination = PaginationRequest {
+        let params = LLMDriftRecordPaginationRequest {
             limit: 5,
-            cursor: None, // Start from the beginning
+            ..Default::default()
         };
 
         let paginated_features =
-            PostgresClient::get_llm_drift_records_pagination(&pool, &entity_id, None, pagination)
+            PostgresClient::get_paginated_llm_drift_records(&pool, &params, &entity_id)
                 .await
                 .unwrap();
 
@@ -1023,13 +1023,15 @@ mod tests {
 
         // Get paginated records (2nd page)
         let next_cursor = paginated_features.next_cursor.unwrap();
-        let pagination = PaginationRequest {
+
+        let params = LLMDriftRecordPaginationRequest {
             limit: 5,
-            cursor: Some(next_cursor),
+            cursor_id: Some(next_cursor.id),
+            ..Default::default()
         };
 
         let paginated_features =
-            PostgresClient::get_llm_drift_records_pagination(&pool, &entity_id, None, pagination)
+            PostgresClient::get_paginated_llm_drift_records(&pool, &params, &entity_id)
                 .await
                 .unwrap();
 

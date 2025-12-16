@@ -6,7 +6,7 @@ use scouter_types::contracts::{
 };
 
 use crate::sql::error::SqlError;
-use scouter_types::{alert::Alert, AlertCursor};
+use scouter_types::{alert::Alert, RecordCursor};
 
 use sqlx::{postgres::PgQueryResult, Pool, Postgres};
 use std::collections::BTreeMap;
@@ -85,17 +85,17 @@ pub trait AlertSqlLogic {
                 items.reverse();
 
                 let previous_cursor = if has_more {
-                    items.first().map(|first| AlertCursor {
+                    items.first().map(|first| RecordCursor {
                         created_at: first.created_at,
-                        id: first.id,
+                        id: first.id as i64,
                     })
                 } else {
                     None
                 };
 
-                let next_cursor = items.last().map(|last| AlertCursor {
+                let next_cursor = items.last().map(|last| RecordCursor {
                     created_at: last.created_at,
-                    id: last.id,
+                    id: last.id as i64,
                 });
 
                 (
@@ -108,17 +108,17 @@ pub trait AlertSqlLogic {
             _ => {
                 // Forward pagination (default)
                 let next_cursor = if has_more {
-                    items.last().map(|last| AlertCursor {
+                    items.last().map(|last| RecordCursor {
                         created_at: last.created_at,
-                        id: last.id,
+                        id: last.id as i64,
                     })
                 } else {
                     None
                 };
 
-                let previous_cursor = items.first().map(|first| AlertCursor {
+                let previous_cursor = items.first().map(|first| RecordCursor {
                     created_at: first.created_at,
-                    id: first.id,
+                    id: first.id as i64,
                 });
 
                 (
