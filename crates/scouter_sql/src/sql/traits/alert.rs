@@ -69,6 +69,8 @@ pub trait AlertSqlLogic {
             .bind(direction) // $4: direction
             .bind(params.cursor_id) // $5: cursor id
             .bind(limit) // $6: limit
+            .bind(params.begin_datetime) // $7: begin_datetime
+            .bind(params.end_datetime) // $8: end_datetime
             .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError)?;

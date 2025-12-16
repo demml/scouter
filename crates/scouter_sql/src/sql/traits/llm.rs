@@ -148,6 +148,8 @@ pub trait LLMDriftSqlLogic {
             .bind(direction)
             .bind(params.cursor_id)
             .bind(limit)
+            .bind(params.begin_datetime)
+            .bind(params.end_datetime)
             .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError)?;
@@ -360,13 +362,13 @@ pub trait LLMDriftSqlLogic {
 
         if !params.has_custom_interval() {
             debug!("No custom interval provided, using default");
-            let (begin_dt, end_dt) = params.time_interval.to_begin_end_times();
+            let (begin_dt, end_dt) = params.time_interval.to_begin_end_times()?;
             return Self::get_records(pool, params, begin_dt, end_dt, entity_id).await;
         }
 
         debug!("Custom interval provided, using custom interval");
         let interval = params.clone().to_custom_interval().unwrap();
-        let timestamps = split_custom_interval(interval.start, interval.end, retention_period)?;
+        let timestamps = split_custom_interval(interval.begin, interval.end, retention_period)?;
         let mut custom_metric_map = BinnedMetrics::default();
 
         // get data from postgres

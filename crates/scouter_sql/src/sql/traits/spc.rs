@@ -154,8 +154,8 @@ pub trait SpcSqlLogic {
 
         let records: Vec<SpcFeatureResult> = sqlx::query_as(query)
             .bind(bin)
-            .bind(begin_utc)
-            .bind(end_utc)
+            .bind(begin_dt)
+            .bind(end_dt)
             .bind(entity_id)
             .fetch_all(pool)
             .await?;
@@ -256,7 +256,7 @@ pub trait SpcSqlLogic {
 
         debug!("Custom interval provided, using custom interval");
         let interval = params.clone().to_custom_interval().unwrap();
-        let timestamps = split_custom_interval(interval.start, interval.end, retention_period)?;
+        let timestamps = split_custom_interval(interval.begin, interval.end, retention_period)?;
         let mut spc_feature_map = SpcDriftFeatures::default();
 
         // get data from postgres

@@ -193,7 +193,7 @@ pub trait CustomMetricSqlLogic {
 
         debug!("Custom interval provided, using custom interval");
         let interval = params.clone().to_custom_interval().unwrap();
-        let timestamps = split_custom_interval(interval.start, interval.end, retention_period)?;
+        let timestamps = split_custom_interval(interval.begin, interval.end, retention_period)?;
         let mut custom_metric_map = BinnedMetrics::default();
 
         // get data from postgres

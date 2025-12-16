@@ -192,7 +192,7 @@ mod tests {
         )
         .unwrap();
         assert!(result.archived_range.is_some());
-        assert!(result.current_minutes.is_none());
+        assert!(result.active_range.is_none());
 
         // Case 2: Query entirely within current range
         let result = split_custom_interval(
@@ -202,7 +202,7 @@ mod tests {
         )
         .unwrap();
         assert!(result.archived_range.is_none());
-        assert!(result.current_minutes.is_some());
+        assert!(result.active_range.is_some());
 
         // Case 3: Query spanning both ranges
         let result = split_custom_interval(
@@ -212,7 +212,7 @@ mod tests {
         )
         .unwrap();
         assert!(result.archived_range.is_some());
-        assert!(result.current_minutes.is_some());
+        assert!(result.active_range.is_some());
 
         // Case 4: Invalid date range
         let result = split_custom_interval(

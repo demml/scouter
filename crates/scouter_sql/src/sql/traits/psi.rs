@@ -82,6 +82,7 @@ pub trait PsiSqlLogic {
         entity_id: &i32,
     ) -> Result<Vec<FeatureBinProportionResult>, SqlError> {
         let minutes = end_dt.signed_duration_since(begin_dt).num_minutes() as f64;
+        let bin = minutes / params.max_data_points as f64;
         let query = Queries::GetBinnedPsiFeatureBins.get_query();
 
         let binned: Vec<FeatureBinProportionResult> = sqlx::query_as(query)
@@ -183,7 +184,7 @@ pub trait PsiSqlLogic {
 
         debug!("Custom interval provided, using custom interval");
         let interval = params.clone().to_custom_interval().unwrap();
-        let timestamps = split_custom_interval(interval.start, interval.end, retention_period)?;
+        let timestamps = split_custom_interval(interval.begin, interval.end, retention_period)?;
         let mut feature_map = BTreeMap::new();
 
         // Get current records if available
