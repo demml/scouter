@@ -14,7 +14,7 @@ SELECT
 FROM scouter.llm_drift_record
 WHERE entity_id = $1
   AND ($2::VARCHAR IS NULL OR status = $2)
-  AND ($7::TIMESTAMPTZ IS NULL OR created_at >= $7)  -- begin_datetime
+  AND ($7::TIMESTAMPTZ IS NULL OR created_at >= $7)  -- start_datetime
   AND ($8::TIMESTAMPTZ IS NULL OR created_at < $8)   -- end_datetime
 
   AND (

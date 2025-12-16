@@ -10,7 +10,7 @@ FROM scouter.drift_alert
 WHERE
     entity_id = $1
     AND ($2::BOOLEAN IS NULL OR active = $2)
-    AND ($7::TIMESTAMPTZ IS NULL OR created_at >= $7)  -- begin_datetime
+    AND ($7::TIMESTAMPTZ IS NULL OR created_at >= $7)  -- start_datetime
     AND ($8::TIMESTAMPTZ IS NULL OR created_at < $8)   -- end_datetime
     AND (
         ($3::TIMESTAMP IS NULL) -- No cursor, get first page

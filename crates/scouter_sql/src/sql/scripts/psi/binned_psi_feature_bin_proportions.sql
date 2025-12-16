@@ -8,7 +8,7 @@ WITH feature_bin_total AS (
     FROM scouter.psi_drift
     WHERE
         1=1
-        AND created_at >= $2  -- begin_datetime
+        AND created_at >= $2  -- start_datetime
         AND created_at < $3   -- end_datetime
         AND entity_id = $4
     GROUP BY 1, 2, 3, 4
@@ -23,7 +23,7 @@ feature_total AS (
     FROM scouter.psi_drift
     WHERE
         1=1
-        AND created_at >= $2  -- begin_datetime
+        AND created_at >= $2  -- start_datetime
         AND created_at < $3   -- end_datetime
         AND entity_id = $4
     GROUP BY 1, 2, 3

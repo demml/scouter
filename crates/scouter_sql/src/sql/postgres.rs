@@ -490,7 +490,7 @@ mod tests {
             cursor_created_at: Some(next_cursor.created_at),
             cursor_id: Some(next_cursor.id as i32),
             direction: Some("next".to_string()),
-            begin_datetime: None,
+            start_datetime: None,
             end_datetime: None,
         };
 
@@ -518,7 +518,7 @@ mod tests {
             cursor_created_at: Some(prev_cursor.created_at),
             cursor_id: Some(prev_cursor.id as i32),
             direction: Some("previous".to_string()),
-            begin_datetime: None,
+            start_datetime: None,
             end_datetime: None,
         };
 

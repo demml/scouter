@@ -6,7 +6,7 @@ WITH subquery1 AS (
     FROM scouter.llm_drift
     WHERE
         1=1
-        AND created_at >= $2  -- begin_datetime
+        AND created_at >= $2  -- start_datetime
         AND created_at < $3   -- end_datetime
         AND entity_id = $4
     ),

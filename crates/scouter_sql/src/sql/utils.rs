@@ -108,7 +108,7 @@ pub struct QueryTimestamps {
 /// Splits a date range into archived and current table queries based on retention period
 ///
 /// # Arguments
-/// * `begin_datetime` - Start of the query range
+/// * `start_datetime` - Start of the query range
 /// * `end_datetime` - End of the query range
 /// * `retention_period` - Number of days to keep data in current table
 ///
@@ -131,11 +131,11 @@ pub struct QueryTimestamps {
 /// // - active_range: Some((30 days ago, yesterday))
 /// ```
 pub fn split_custom_interval(
-    begin_datetime: DateTime<Utc>,
+    start_datetime: DateTime<Utc>,
     end_datetime: DateTime<Utc>,
     retention_period: &i32,
 ) -> Result<QueryTimestamps, SqlError> {
-    if begin_datetime >= end_datetime {
+    if start_datetime >= end_datetime {
         return Err(SqlError::InvalidDateRangeError);
     }
 
@@ -147,26 +147,26 @@ pub fn split_custom_interval(
     };
 
     // Handle data in archived range (before retention date)
-    if begin_datetime < retention_date {
+    if start_datetime < retention_date {
         let archive_end = if end_datetime <= retention_date {
             end_datetime
         } else {
             retention_date
         };
-        timestamps.archived_range = Some((begin_datetime, archive_end));
+        timestamps.archived_range = Some((start_datetime, archive_end));
         timestamps.archived_minutes = Some(
             archive_end
-                .signed_duration_since(begin_datetime)
+                .signed_duration_since(start_datetime)
                 .num_minutes() as i32,
         );
     }
 
     // Handle data in active range (after retention date)
     if end_datetime > retention_date {
-        let active_begin = if begin_datetime < retention_date {
+        let active_begin = if start_datetime < retention_date {
             retention_date
         } else {
-            begin_datetime
+            start_datetime
         };
         timestamps.active_range = Some((active_begin, end_datetime));
     }

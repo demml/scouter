@@ -77,17 +77,17 @@ pub trait PsiSqlLogic {
     async fn get_records(
         pool: &Pool<Postgres>,
         params: &DriftRequest,
-        begin_dt: DateTime<Utc>,
+        start_dt: DateTime<Utc>,
         end_dt: DateTime<Utc>,
         entity_id: &i32,
     ) -> Result<Vec<FeatureBinProportionResult>, SqlError> {
-        let minutes = end_dt.signed_duration_since(begin_dt).num_minutes() as f64;
+        let minutes = end_dt.signed_duration_since(start_dt).num_minutes() as f64;
         let bin = minutes / params.max_data_points as f64;
         let query = Queries::GetBinnedPsiFeatureBins.get_query();
 
         let binned: Vec<FeatureBinProportionResult> = sqlx::query_as(query)
             .bind(bin)
-            .bind(begin_dt)
+            .bind(start_dt)
             .bind(end_dt)
             .bind(entity_id)
             .fetch_all(pool)
@@ -178,8 +178,8 @@ pub trait PsiSqlLogic {
     ) -> Result<Vec<FeatureBinProportionResult>, SqlError> {
         if !params.has_custom_interval() {
             debug!("No custom interval provided, using default");
-            let (begin_dt, end_dt) = params.time_interval.to_begin_end_times()?;
-            return Self::get_records(pool, params, begin_dt, end_dt, entity_id).await;
+            let (start_dt, end_dt) = params.time_interval.to_begin_end_times()?;
+            return Self::get_records(pool, params, start_dt, end_dt, entity_id).await;
         }
 
         debug!("Custom interval provided, using custom interval");
