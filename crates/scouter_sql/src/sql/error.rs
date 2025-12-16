@@ -15,6 +15,9 @@ pub enum SqlError {
     #[error(transparent)]
     RecordError(#[from] RecordError),
 
+    #[error(transparent)]
+    TypeError(#[from] scouter_types::error::TypeError),
+
     #[error("Invalid record type: {0}")]
     InvalidRecordTypeError(String),
 

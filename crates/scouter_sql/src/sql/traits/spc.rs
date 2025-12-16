@@ -143,7 +143,8 @@ pub trait SpcSqlLogic {
     async fn get_records(
         pool: &Pool<Postgres>,
         params: &DriftRequest,
-        minutes: i32,
+        begin_utc: DateTime<Utc>,
+        end_utc: DateTime<Utc>,
         entity_id: &i32,
     ) -> Result<SpcDriftFeatures, SqlError> {
         let bin = params.time_interval.to_minutes() as f64 / params.max_data_points as f64;
@@ -152,7 +153,8 @@ pub trait SpcSqlLogic {
 
         let records: Vec<SpcFeatureResult> = sqlx::query_as(query)
             .bind(bin)
-            .bind(minutes)
+            .bind(begin_utc)
+            .bind(end_utc)
             .bind(entity_id)
             .fetch_all(pool)
             .await?;
@@ -247,8 +249,8 @@ pub trait SpcSqlLogic {
 
         if !params.has_custom_interval() {
             debug!("No custom interval provided, using default");
-            let minutes = params.time_interval.to_minutes();
-            return Self::get_records(pool, params, minutes, entity_id).await;
+            let (begin_utc, end_utc) = params.time_interval.to_begin_end_times()?;
+            return Self::get_records(pool, params, begin_utc, end_utc, entity_id).await;
         }
 
         debug!("Custom interval provided, using custom interval");
@@ -257,8 +259,9 @@ pub trait SpcSqlLogic {
         let mut spc_feature_map = SpcDriftFeatures::default();
 
         // get data from postgres
-        if let Some(minutes) = timestamps.current_minutes {
-            let current_results = Self::get_records(pool, params, minutes, entity_id).await?;
+        if let Some((active_begin, active_end)) = timestamps.active_range {
+            let current_results =
+                Self::get_records(pool, params, active_begin, active_end, entity_id).await?;
             Self::merge_feature_results(current_results, &mut spc_feature_map)?;
         }
 

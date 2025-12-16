@@ -98,10 +98,11 @@ pub struct QueryTimestamps {
     /// Begin and end datetimes for querying archived data
     pub archived_range: Option<(DateTime<Utc>, DateTime<Utc>)>,
 
+    /// Total minutes in the archived range
     pub archived_minutes: Option<i32>,
 
-    /// Minutes from retention date to end_datetime for querying current data
-    pub current_minutes: Option<i32>,
+    /// Begin and end datetimes for querying active/current data
+    pub active_range: Option<(DateTime<Utc>, DateTime<Utc>)>,
 }
 
 /// Splits a date range into archived and current table queries based on retention period
@@ -114,7 +115,8 @@ pub struct QueryTimestamps {
 /// # Returns
 /// * `QueryTimestamps` containing:
 ///   - archived_range: Some((begin, end)) if query needs archived data
-///   - current_minutes: Some(minutes) if query needs current data
+///   - archived_minutes: Some(minutes) total minutes in archived range
+///   - active_range: Some((begin, end)) if query needs current/active data
 ///
 /// # Examples
 /// ```
@@ -125,7 +127,8 @@ pub struct QueryTimestamps {
 /// let result = split_custom_interval(begin, end, &retention)?;
 /// // Will return:
 /// // - archived_range: Some((60 days ago, 30 days ago))
-/// // - current_minutes: Some(41760) // minutes for last 29 days
+/// // - archived_minutes: Some(43200) // minutes for 30 days
+/// // - active_range: Some((30 days ago, yesterday))
 /// ```
 pub fn split_custom_interval(
     begin_datetime: DateTime<Utc>,
@@ -139,8 +142,8 @@ pub fn split_custom_interval(
     let retention_date = Utc::now() - chrono::Duration::days(*retention_period as i64);
     let mut timestamps = QueryTimestamps {
         archived_range: None,
-        current_minutes: None,
         archived_minutes: None,
+        active_range: None,
     };
 
     // Handle data in archived range (before retention date)
@@ -151,24 +154,21 @@ pub fn split_custom_interval(
             retention_date
         };
         timestamps.archived_range = Some((begin_datetime, archive_end));
+        timestamps.archived_minutes = Some(
+            archive_end
+                .signed_duration_since(begin_datetime)
+                .num_minutes() as i32,
+        );
     }
 
-    // Handle data in current range (after retention date)
+    // Handle data in active range (after retention date)
     if end_datetime > retention_date {
-        let current_begin = if begin_datetime < retention_date {
+        let active_begin = if begin_datetime < retention_date {
             retention_date
         } else {
             begin_datetime
         };
-        let minutes = end_datetime
-            .signed_duration_since(current_begin)
-            .num_minutes() as i32;
-        timestamps.current_minutes = Some(minutes);
-    }
-
-    // calculate archived minutes
-    if let Some((begin, end)) = timestamps.archived_range {
-        timestamps.archived_minutes = Some(end.signed_duration_since(begin).num_minutes() as i32);
+        timestamps.active_range = Some((active_begin, end_datetime));
     }
 
     Ok(timestamps)
