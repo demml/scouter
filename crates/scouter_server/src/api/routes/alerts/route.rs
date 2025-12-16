@@ -1,12 +1,7 @@
 use crate::api::state::AppState;
 
 use anyhow::{Context, Result};
-use axum::{
-    extract::{Query, State},
-    http::StatusCode,
-    routing::get,
-    Json, Router,
-};
+use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
 use scouter_sql::sql::traits::AlertSqlLogic;
 use scouter_sql::PostgresClient;
 use scouter_types::contracts::{
@@ -26,9 +21,9 @@ use tracing::error;
 /// # Returns
 ///
 /// * `Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)>` - Result of the request
-pub async fn get_drift_alerts(
+pub async fn drift_alerts(
     State(data): State<Arc<AppState>>,
-    Query(params): Query<DriftAlertPaginationRequest>,
+    Json(params): Json<DriftAlertPaginationRequest>,
 ) -> Result<Json<DriftAlertPaginationResponse>, (StatusCode, Json<ScouterServerError>)> {
     let entity_id = data.get_entity_id_for_request(&params.uid).await?;
 
@@ -77,7 +72,7 @@ pub async fn get_alert_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
     let result = catch_unwind(AssertUnwindSafe(|| {
         Router::new().route(
             &format!("{prefix}/alerts"),
-            get(get_drift_alerts).put(update_alert_status),
+            post(drift_alerts).put(update_alert_status),
         )
     }));
 
