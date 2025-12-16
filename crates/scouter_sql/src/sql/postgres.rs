@@ -490,6 +490,8 @@ mod tests {
             cursor_created_at: Some(next_cursor.created_at),
             cursor_id: Some(next_cursor.id as i32),
             direction: Some("next".to_string()),
+            begin_datetime: None,
+            end_datetime: None,
         };
 
         let page2 = PostgresClient::get_paginated_drift_alerts(&pool, &request, &entity_id)
@@ -516,6 +518,8 @@ mod tests {
             cursor_created_at: Some(prev_cursor.created_at),
             cursor_id: Some(prev_cursor.id as i32),
             direction: Some("previous".to_string()),
+            begin_datetime: None,
+            end_datetime: None,
         };
 
         let page_back = PostgresClient::get_paginated_drift_alerts(&pool, &request, &entity_id)

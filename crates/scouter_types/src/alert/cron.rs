@@ -84,16 +84,16 @@ impl CommonCrons {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct CustomInterval {
-    pub start: DateTime<Utc>,
+    pub begin: DateTime<Utc>,
     pub end: DateTime<Utc>,
 }
 
 impl CustomInterval {
-    pub fn new(start: DateTime<Utc>, end: DateTime<Utc>) -> Result<Self, TypeError> {
-        if start >= end {
+    pub fn new(begin: DateTime<Utc>, end: DateTime<Utc>) -> Result<Self, TypeError> {
+        if begin >= end {
             return Err(TypeError::StartTimeError);
         }
-        Ok(CustomInterval { start, end })
+        Ok(CustomInterval { begin, end })
     }
 }
 
@@ -125,6 +125,25 @@ impl TimeInterval {
             TimeInterval::SevenDays => 10080,
             TimeInterval::Custom => 0,
         }
+    }
+
+    /// Convert interval to a start and end time
+    pub fn to_begin_end_times(&self) -> Result<(DateTime<Utc>, DateTime<Utc>), TypeError> {
+        let end = Utc::now();
+        let start = match self {
+            TimeInterval::FifteenMinutes => end - chrono::Duration::minutes(15),
+            TimeInterval::ThirtyMinutes => end - chrono::Duration::minutes(30),
+            TimeInterval::OneHour => end - chrono::Duration::hours(1),
+            TimeInterval::FourHours => end - chrono::Duration::hours(4),
+            TimeInterval::SixHours => end - chrono::Duration::hours(6),
+            TimeInterval::TwelveHours => end - chrono::Duration::hours(12),
+            TimeInterval::TwentyFourHours => end - chrono::Duration::hours(24),
+            TimeInterval::SevenDays => end - chrono::Duration::days(7),
+            _ => {
+                return Err(TypeError::InvalidTimeIntervalError);
+            }
+        };
+        Ok((start, end))
     }
 
     pub fn from_string(time_interval: &str) -> TimeInterval {

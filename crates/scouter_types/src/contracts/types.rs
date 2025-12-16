@@ -88,7 +88,7 @@ impl DriftRequest {
             space,
             time_interval,
             max_data_points,
-            begin_custom_datetime: custom_interval.as_ref().map(|interval| interval.start),
+            begin_custom_datetime: custom_interval.as_ref().map(|interval| interval.begin),
             end_custom_datetime: custom_interval.as_ref().map(|interval| interval.end),
         })
     }
@@ -191,12 +191,14 @@ pub struct DriftAlertPaginationRequest {
     pub cursor_created_at: Option<DateTime<Utc>>,
     pub cursor_id: Option<i32>,
     pub direction: Option<String>, // "next" or "previous"
+    pub begin_datetime: Option<DateTime<Utc>>,
+    pub end_datetime: Option<DateTime<Utc>>,
 }
 
 #[pymethods]
 impl DriftAlertPaginationRequest {
     #[new]
-    #[pyo3(signature = (uid, active=None, limit=None, cursor_created_at=None, cursor_id=None, direction=None))]
+    #[pyo3(signature = (uid, active=None, limit=None, cursor_created_at=None, cursor_id=None, direction=None, begin_datetime=None, end_datetime=None))]
     pub fn new(
         uid: String,
         active: Option<bool>,
@@ -204,6 +206,8 @@ impl DriftAlertPaginationRequest {
         cursor_created_at: Option<DateTime<Utc>>,
         cursor_id: Option<i32>,
         direction: Option<String>,
+        begin_datetime: Option<DateTime<Utc>>,
+        end_datetime: Option<DateTime<Utc>>,
     ) -> Self {
         DriftAlertPaginationRequest {
             uid,
@@ -212,6 +216,8 @@ impl DriftAlertPaginationRequest {
             cursor_created_at,
             cursor_id,
             direction,
+            begin_datetime,
+            end_datetime,
         }
     }
 }
@@ -545,6 +551,8 @@ pub struct LLMDriftRecordPaginationRequest {
     pub cursor_created_at: Option<DateTime<Utc>>,
     pub cursor_id: Option<i64>,
     pub direction: Option<String>,
+    pub begin_datetime: Option<DateTime<Utc>>,
+    pub end_datetime: Option<DateTime<Utc>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

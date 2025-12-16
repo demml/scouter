@@ -38,6 +38,9 @@ pub enum TypeError {
     #[error("Invalid PSI threshold configuration")]
     InvalidPsiThresholdError,
 
+    #[error("Invalid time interval for converting to start and end times")]
+    InvalidTimeIntervalError,
+
     #[error("Invalid alert dispatch configuration")]
     InvalidDispatchConfigError,
 

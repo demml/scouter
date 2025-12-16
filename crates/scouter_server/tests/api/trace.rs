@@ -144,6 +144,7 @@ async fn test_tracing() {
     let request = Request::builder()
         .uri("/scouter/trace/metrics".to_string())
         .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(serde_json::to_string(&metrics_request).unwrap()))
         .unwrap();
 
