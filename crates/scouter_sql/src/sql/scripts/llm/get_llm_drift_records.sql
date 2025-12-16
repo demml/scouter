@@ -36,4 +36,4 @@ ORDER BY
   CASE
     WHEN $4 != 'previous' THEN id
   END DESC
-LIMIT $6;
+LIMIT $6 + 1;

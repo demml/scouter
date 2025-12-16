@@ -235,7 +235,6 @@ mod tests {
     use rand::Rng;
     use scouter_semver::VersionType;
     use scouter_settings::ObjectStorageSettings;
-    use scouter_types::llm::PaginationRequest;
     use scouter_types::psi::{Bin, BinType, PsiDriftConfig, PsiFeatureDriftProfile};
     use scouter_types::spc::SpcDriftProfile;
     use scouter_types::sql::TraceFilters;
@@ -427,13 +426,12 @@ mod tests {
     #[tokio::test]
     async fn test_postgres_drift_alert() {
         let pool = db_pool().await;
-
-        let timestamp = Utc::now();
         let entity_id = 9999;
 
-        for _ in 0..10 {
+        // Insert 10 alerts with slight delays to ensure different timestamps
+        for i in 0..10 {
             let alert = (0..10)
-                .map(|i| (i.to_string(), i.to_string()))
+                .map(|j| (j.to_string(), format!("alert_{}_value_{}", i, j)))
                 .collect::<BTreeMap<String, String>>();
 
             let result = PostgresClient::insert_drift_alert(&pool, &entity_id, "test", &alert)
@@ -441,48 +439,172 @@ mod tests {
                 .unwrap();
 
             assert_eq!(result.rows_affected(), 1);
+
+            // Small delay to ensure timestamp ordering
+            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
         }
 
-        // get alerts
-        let alert_request = DriftAlertPaginationRequest {
+        // Test 1: Get first page with default limit (50)
+        let request = DriftAlertPaginationRequest {
             uid: UID.to_string(),
             active: Some(true),
-            limit: None,
+            limit: Some(50),
             ..Default::default()
         };
 
-        let alerts = PostgresClient::get_paginated_drift_alerts(&pool, &alert_request, &entity_id)
+        let response = PostgresClient::get_paginated_drift_alerts(&pool, &request, &entity_id)
             .await
             .unwrap();
-        assert!(alerts.items.len() > 5);
 
-        // get alerts limit 1
-        let alert_request = DriftAlertPaginationRequest {
+        assert_eq!(response.items.len(), 10);
+        assert!(!response.has_next); // No more items
+        assert!(!response.has_previous); // First page
+        assert!(response.next_cursor.is_none());
+        assert!(response.previous_cursor.is_some());
+
+        // Test 2: Paginate with limit of 3 - forward direction
+        let request = DriftAlertPaginationRequest {
             uid: UID.to_string(),
             active: Some(true),
-            limit: Some(1),
+            limit: Some(3),
+            direction: Some("next".to_string()),
             ..Default::default()
         };
 
-        let alerts = PostgresClient::get_paginated_drift_alerts(&pool, &alert_request, &entity_id)
+        let page1 = PostgresClient::get_paginated_drift_alerts(&pool, &request, &entity_id)
             .await
             .unwrap();
-        assert_eq!(alerts.items.len(), 1);
 
-        // get alerts limit timestamp
-        let alert_request = DriftAlertPaginationRequest {
+        assert_eq!(page1.items.len(), 3);
+        assert!(page1.has_next);
+        assert!(!page1.has_previous);
+        assert!(page1.next_cursor.is_some());
+        assert!(page1.previous_cursor.is_some());
+
+        // Test 3: Get second page using next cursor
+        let next_cursor = page1.next_cursor.unwrap();
+        let request = DriftAlertPaginationRequest {
             uid: UID.to_string(),
             active: Some(true),
-            limit: None,
-            cursor_created_at: Some(timestamp),
-            cursor_id: None,
-            direction: None,
+            limit: Some(3),
+            cursor_created_at: Some(next_cursor.created_at),
+            cursor_id: Some(next_cursor.id as i32),
+            direction: Some("next".to_string()),
         };
 
-        let alerts = PostgresClient::get_paginated_drift_alerts(&pool, &alert_request, &entity_id)
+        let page2 = PostgresClient::get_paginated_drift_alerts(&pool, &request, &entity_id)
             .await
             .unwrap();
-        assert!(alerts.items.len() > 5);
+
+        assert_eq!(page2.items.len(), 3);
+        assert!(page2.has_next); // More items available
+        assert!(page2.has_previous); // Can go back
+        assert!(page2.next_cursor.is_some());
+        assert!(page2.previous_cursor.is_some());
+
+        // Verify no overlap between pages
+        let page1_ids: std::collections::HashSet<_> = page1.items.iter().map(|a| a.id).collect();
+        let page2_ids: std::collections::HashSet<_> = page2.items.iter().map(|a| a.id).collect();
+        assert!(page1_ids.is_disjoint(&page2_ids));
+
+        // Test 4: Navigate backward using previous cursor
+        let prev_cursor = page2.previous_cursor.unwrap();
+        let request = DriftAlertPaginationRequest {
+            uid: UID.to_string(),
+            active: Some(true),
+            limit: Some(3),
+            cursor_created_at: Some(prev_cursor.created_at),
+            cursor_id: Some(prev_cursor.id as i32),
+            direction: Some("previous".to_string()),
+        };
+
+        let page_back = PostgresClient::get_paginated_drift_alerts(&pool, &request, &entity_id)
+            .await
+            .unwrap();
+
+        assert_eq!(page_back.items.len(), 3);
+        assert!(page_back.has_next); // Can go forward
+                                     // Should return to page1 items
+        assert_eq!(
+            page_back.items.iter().map(|a| a.id).collect::<Vec<_>>(),
+            page1.items.iter().map(|a| a.id).collect::<Vec<_>>()
+        );
+
+        // Test 5: Filter by active status
+        // Deactivate some alerts first
+        let to_deactivate = &page1.items[0];
+        let update_request = UpdateAlertStatus {
+            id: to_deactivate.id,
+            active: false,
+            space: "test_space".to_string(),
+        };
+
+        PostgresClient::update_drift_alert_status(&pool, &update_request)
+            .await
+            .unwrap();
+
+        // Query only active alerts
+        let request = DriftAlertPaginationRequest {
+            uid: UID.to_string(),
+            active: Some(true),
+            limit: Some(50),
+            ..Default::default()
+        };
+
+        let active_alerts = PostgresClient::get_paginated_drift_alerts(&pool, &request, &entity_id)
+            .await
+            .unwrap();
+
+        assert_eq!(active_alerts.items.len(), 9); // 10 - 1 deactivated
+        assert!(active_alerts.items.iter().all(|a| a.active));
+
+        // Query only inactive alerts
+        let request = DriftAlertPaginationRequest {
+            uid: UID.to_string(),
+            active: Some(false),
+            limit: Some(50),
+            ..Default::default()
+        };
+
+        let inactive_alerts =
+            PostgresClient::get_paginated_drift_alerts(&pool, &request, &entity_id)
+                .await
+                .unwrap();
+
+        assert_eq!(inactive_alerts.items.len(), 1);
+        assert!(!inactive_alerts.items[0].active);
+
+        // Test 6: Query all alerts (active and inactive)
+        let request = DriftAlertPaginationRequest {
+            uid: UID.to_string(),
+            active: None, // No filter
+            limit: Some(50),
+            ..Default::default()
+        };
+
+        let all_alerts = PostgresClient::get_paginated_drift_alerts(&pool, &request, &entity_id)
+            .await
+            .unwrap();
+
+        assert_eq!(all_alerts.items.len(), 10);
+
+        // Test 7: Empty result set
+        let request = DriftAlertPaginationRequest {
+            uid: UID.to_string(),
+            active: Some(true),
+            limit: Some(3),
+            ..Default::default()
+        };
+
+        let non_existent = PostgresClient::get_paginated_drift_alerts(&pool, &request, &999999)
+            .await
+            .unwrap();
+
+        assert_eq!(non_existent.items.len(), 0);
+        assert!(!non_existent.has_next);
+        assert!(!non_existent.has_previous);
+        assert!(non_existent.next_cursor.is_none());
+        assert!(non_existent.previous_cursor.is_none());
     }
 
     #[tokio::test]
@@ -977,6 +1099,7 @@ mod tests {
         let output = "This is a test response";
         let prompt = create_score_prompt(None);
 
+        // Insert 10 records with increasing timestamps
         for j in 0..10 {
             let context = serde_json::json!({
                 "input": input,
@@ -1004,45 +1127,115 @@ mod tests {
             assert_eq!(result.rows_affected(), 1);
         }
 
-        // Get paginated records (1st page)
+        // ===== PAGE 1: Get first 5 records (newest) =====
         let params = LLMDriftRecordPaginationRequest {
-            limit: 5,
+            status: None,
+            limit: Some(5),
+            cursor_created_at: None,
+            cursor_id: None,
+            direction: None,
             ..Default::default()
         };
 
-        let paginated_features =
-            PostgresClient::get_paginated_llm_drift_records(&pool, &params, &entity_id)
-                .await
-                .unwrap();
+        let page1 = PostgresClient::get_paginated_llm_drift_records(&pool, &params, &entity_id)
+            .await
+            .unwrap();
 
-        assert_eq!(paginated_features.items.len(), 5);
-        assert!(paginated_features.next_cursor.is_some());
+        assert_eq!(page1.items.len(), 5, "Page 1 should have 5 records");
+        assert!(page1.has_next, "Should have next page");
+        assert!(
+            !page1.has_previous,
+            "Should not have previous page (first page)"
+        );
+        assert!(page1.next_cursor.is_some(), "Should have next cursor");
 
-        // get id of the most recent record in the first page
-        let last_record = paginated_features.items.first().unwrap();
+        // First item should be the NEWEST record (highest ID)
+        let page1_first = page1.items.first().unwrap();
+        let page1_last = page1.items.last().unwrap();
 
-        // Get paginated records (2nd page)
-        let next_cursor = paginated_features.next_cursor.unwrap();
+        assert!(
+            page1_first.created_at >= page1_last.created_at,
+            "Page 1 should be sorted newest first (DESC)"
+        );
+
+        // ===== PAGE 2: Get next 5 records (older) =====
+        let next_cursor = page1.next_cursor.unwrap();
 
         let params = LLMDriftRecordPaginationRequest {
-            limit: 5,
+            status: None,
+            limit: Some(5),
+            cursor_created_at: Some(next_cursor.created_at),
             cursor_id: Some(next_cursor.id),
+            direction: None,
             ..Default::default()
         };
 
-        let paginated_features =
+        let page2 = PostgresClient::get_paginated_llm_drift_records(&pool, &params, &entity_id)
+            .await
+            .unwrap();
+
+        assert_eq!(page2.items.len(), 5, "Page 2 should have 5 records");
+        assert!(!page2.has_next, "Should not have next page (last page)");
+        assert!(page2.has_previous, "Should have previous page");
+        assert!(
+            page2.previous_cursor.is_some(),
+            "Should have previous cursor"
+        );
+
+        let page2_first = page2.items.first().unwrap();
+
+        // Page 2 first item should be OLDER than Page 1 last item
+        assert!(
+            page2_first.created_at < page1_last.created_at
+                || (page2_first.created_at == page1_last.created_at
+                    && page2_first.id < page1_last.id),
+            "Page 2 should start with records older than Page 1 last item"
+        );
+
+        // Verify we got all 10 records across both pages
+        let all_ids: Vec<i64> = page1
+            .items
+            .iter()
+            .chain(page2.items.iter())
+            .map(|r| r.id)
+            .collect();
+
+        assert_eq!(all_ids.len(), 10, "Should have 10 unique records total");
+
+        // All IDs should be unique
+        let unique_ids: std::collections::HashSet<_> = all_ids.iter().collect();
+        assert_eq!(unique_ids.len(), 10, "All IDs should be unique");
+
+        // ===== BACKWARD PAGINATION TEST =====
+        // Go back from page 2 to page 1
+        let previous_cursor = page2.previous_cursor.unwrap();
+
+        let params = LLMDriftRecordPaginationRequest {
+            status: None,
+            limit: Some(5),
+            cursor_created_at: Some(previous_cursor.created_at),
+            cursor_id: Some(previous_cursor.id),
+            direction: Some("previous".to_string()),
+            ..Default::default()
+        };
+
+        let page1_again =
             PostgresClient::get_paginated_llm_drift_records(&pool, &params, &entity_id)
                 .await
                 .unwrap();
 
-        assert_eq!(paginated_features.items.len(), 5);
-        assert!(paginated_features.next_cursor.is_none());
+        assert_eq!(
+            page1_again.items.len(),
+            5,
+            "Going back should return 5 records"
+        );
 
-        // get last record of the second page
-        let first_record = paginated_features.items.last().unwrap();
-
-        let diff = last_record.id - first_record.id + 1; // +1 because IDs are inclusive
-        assert!(diff == 10);
+        // Should get the same records as page 1
+        assert_eq!(
+            page1_again.items.first().unwrap().id,
+            page1_first.id,
+            "Should return to the same first record"
+        );
     }
 
     #[tokio::test]

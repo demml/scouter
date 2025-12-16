@@ -16,10 +16,10 @@ use scouter_sql::sql::{
 };
 use scouter_sql::PostgresClient;
 use scouter_types::{
-    llm::LLMDriftRecordPaginationResponse,
     psi::{BinnedPsiFeatureMetrics, PsiDriftProfile},
     spc::SpcDriftFeatures,
-    BinnedMetrics, LLMDriftRecordPaginationRequest, MessageRecord,
+    BinnedMetrics, LLMDriftRecordPaginationRequest, LLMDriftRecordPaginationResponse,
+    MessageRecord,
 };
 use scouter_types::{DriftRequest, ScouterResponse, ScouterServerError};
 use sqlx::{Pool, Postgres};

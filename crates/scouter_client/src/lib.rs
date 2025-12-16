@@ -18,7 +18,7 @@ pub use scouter_types::{
     eval::LLMEvalMetric,
     llm::{
         LLMAlertConfig, LLMDriftConfig, LLMDriftMap, LLMDriftMetric, LLMDriftProfile,
-        LLMMetricAlertCondition, PaginationCursor, PaginationResponse,
+        LLMMetricAlertCondition,
     },
     psi::{
         Bin, BinnedPsiFeatureMetrics, BinnedPsiMetric, PsiAlertConfig, PsiChiSquareThreshold,

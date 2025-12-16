@@ -106,7 +106,7 @@ pub trait AlertSqlLogic {
                 )
             }
             _ => {
-                // Forward pagination (default)
+                // Forward pagination (default "next")
                 let next_cursor = if has_more {
                     items.last().map(|last| RecordCursor {
                         created_at: last.created_at,
@@ -116,6 +116,7 @@ pub trait AlertSqlLogic {
                     None
                 };
 
+                // Always set previous_cursor to first item (like trace pagination)
                 let previous_cursor = items.first().map(|first| RecordCursor {
                     created_at: first.created_at,
                     id: first.id as i64,
