@@ -106,7 +106,8 @@ pub trait CustomMetricSqlLogic {
         let query = Queries::GetBinnedMetricValues.get_query();
         let records: Vec<BinnedMetricWrapper> = sqlx::query_as(query)
             .bind(bin)
-            .bind(minutes)
+            .bind(begin_dt)
+            .bind(end_dt)
             .bind(entity_id)
             .fetch_all(pool)
             .await
