@@ -3448,26 +3448,43 @@ class Alert:
     id: int
     active: bool
 
-class DriftAlertRequest:
+class DriftAlertPaginationRequest:
     def __init__(
         self,
         uid: str,
         active: bool = False,
-        limit_datetime: Optional[datetime] = None,
         limit: Optional[int] = None,
+        cursor_created_at: Optional[datetime] = None,
+        cursor_id: Optional[int] = None,
+        direction: Optional[Literal["next", "previous"]] = "previous",
     ) -> None:
-        """Initialize drift alert request
+        """Initialize drift alert request. Used for paginated alert retrieval.
 
         Args:
             uid:
                 Unique identifier tied to drift profile
             active:
                 Whether to get active alerts only
-            limit_datetime:
-                Limit datetime for alerts
             limit:
                 Limit for number of alerts to return
+            cursor_created_at:
+                Pagination cursor: created at timestamp
+            cursor_id:
+                Pagination cursor: alert ID
+            direction:
+                Pagination direction: "next" or "previous"
         """
+
+class AlertCursor:
+    created_at: datetime
+    id: int
+
+class DriftAlertPaginationResponse:
+    items: List[Alert]
+    has_next: bool
+    next_cursor: Optional[AlertCursor]
+    has_previous: bool
+    previous_cursor: Optional[AlertCursor]
 
 # Client
 class ScouterClient:
@@ -3526,15 +3543,17 @@ class ScouterClient:
             boolean
         """
 
-    def get_alerts(self, request: DriftAlertRequest) -> List[Alert]:
+    def get_alerts(
+        self, request: DriftAlertPaginationRequest
+    ) -> DriftAlertPaginationResponse:
         """Get alerts
 
         Args:
             request:
-                DriftAlertRequest
+                DriftAlertPaginationRequest
 
         Returns:
-            List[Alert]
+            DriftAlertPaginationResponse
         """
 
     def download_profile(self, request: GetProfileRequest, path: Optional[Path]) -> str:
@@ -6464,7 +6483,8 @@ __all__ = [
     "BinnedSpcFeatureMetrics",
     "ProfileStatusRequest",
     "Alert",
-    "DriftAlertRequest",
+    "DriftAlertPaginationRequest",
+    "DriftAlertPaginationResponse",
     "GetProfileRequest",
     "Attribute",
     "SpanEvent",

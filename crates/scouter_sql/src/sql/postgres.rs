@@ -444,43 +444,45 @@ mod tests {
         }
 
         // get alerts
-        let alert_request = DriftAlertRequest {
+        let alert_request = DriftAlertPaginationRequest {
             uid: UID.to_string(),
             active: Some(true),
             limit: None,
-            limit_datetime: None,
+            ..Default::default()
         };
 
-        let alerts = PostgresClient::get_drift_alerts(&pool, &alert_request, &entity_id)
+        let alerts = PostgresClient::get_paginated_drift_alerts(&pool, &alert_request, &entity_id)
             .await
             .unwrap();
-        assert!(alerts.len() > 5);
+        assert!(alerts.items.len() > 5);
 
         // get alerts limit 1
-        let alert_request = DriftAlertRequest {
+        let alert_request = DriftAlertPaginationRequest {
             uid: UID.to_string(),
             active: Some(true),
             limit: Some(1),
-            limit_datetime: None,
+            ..Default::default()
         };
 
-        let alerts = PostgresClient::get_drift_alerts(&pool, &alert_request, &entity_id)
+        let alerts = PostgresClient::get_paginated_drift_alerts(&pool, &alert_request, &entity_id)
             .await
             .unwrap();
-        assert_eq!(alerts.len(), 1);
+        assert_eq!(alerts.items.len(), 1);
 
         // get alerts limit timestamp
-        let alert_request = DriftAlertRequest {
+        let alert_request = DriftAlertPaginationRequest {
             uid: UID.to_string(),
             active: Some(true),
             limit: None,
-            limit_datetime: Some(timestamp),
+            cursor_created_at: Some(timestamp),
+            cursor_id: None,
+            direction: None,
         };
 
-        let alerts = PostgresClient::get_drift_alerts(&pool, &alert_request, &entity_id)
+        let alerts = PostgresClient::get_paginated_drift_alerts(&pool, &alert_request, &entity_id)
             .await
             .unwrap();
-        assert!(alerts.len() > 5);
+        assert!(alerts.items.len() > 5);
     }
 
     #[tokio::test]

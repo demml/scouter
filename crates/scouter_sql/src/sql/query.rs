@@ -82,7 +82,7 @@ const LIST_DRIFT_PROFILES: &str = include_str!("scripts/profile/list_drift_profi
 
 // alert
 const INSERT_DRIFT_ALERT: &str = include_str!("scripts/alert/insert_drift_alert.sql");
-const GET_DRIFT_ALERTS: &str = include_str!("scripts/alert/get_drift_alerts.sql");
+const GET_PAGINATED_DRIFT_ALERTS: &str = include_str!("scripts/alert/get_drift_alerts.sql");
 const UPDATE_ALERT_STATUS: &str = include_str!("scripts/alert/update_alert_status.sql");
 
 // poll
@@ -122,7 +122,7 @@ pub enum Queries {
     InsertDriftProfile,
     InsertDriftAlert,
     InsertObservabilityRecord,
-    GetDriftAlerts,
+    GetPaginatedDriftAlerts,
     GetBinnedSpcFeatureValues,
     GetBinnedPsiFeatureBins,
     GetBinnedMetricValues,
@@ -222,7 +222,7 @@ impl Queries {
             Queries::InsertDriftProfile => INSERT_DRIFT_PROFILE,
             Queries::InsertDriftAlert => INSERT_DRIFT_ALERT,
             Queries::InsertObservabilityRecord => INSERT_OBSERVABILITY_RECORD,
-            Queries::GetDriftAlerts => GET_DRIFT_ALERTS,
+            Queries::GetPaginatedDriftAlerts => GET_PAGINATED_DRIFT_ALERTS,
             Queries::GetDriftTask => GET_DRIFT_TASK,
             Queries::UpdateDriftProfileRunDates => UPDATE_DRIFT_PROFILE_RUN_DATES,
             Queries::UpdateDriftProfileStatus => UPDATE_DRIFT_PROFILE_STATUS,

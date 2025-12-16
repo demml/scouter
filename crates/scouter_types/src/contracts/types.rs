@@ -3,6 +3,7 @@ use std::fmt::Display;
 use crate::error::{ContractError, TypeError};
 use crate::llm::PaginationRequest;
 use crate::sql::{TraceListItem, TraceMetricBucket, TraceSpan};
+use crate::Alert;
 use crate::{CustomInterval, DriftProfile, Status, Tag, TagRecord, TraceBaggageRecord};
 use crate::{DriftType, PyHelperFuncs, TimeInterval};
 use chrono::{DateTime, Utc};
@@ -12,6 +13,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::collections::BTreeMap;
 use tracing::error;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ListProfilesRequest {
     pub space: String,
@@ -179,31 +181,81 @@ impl ProfileStatusRequest {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[pyclass]
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct DriftAlertRequest {
+pub struct DriftAlertPaginationRequest {
     pub uid: String,
-    pub limit_datetime: Option<DateTime<Utc>>,
     pub active: Option<bool>,
     pub limit: Option<i32>,
+    pub cursor_created_at: Option<DateTime<Utc>>,
+    pub cursor_id: Option<i32>,
+    pub direction: Option<String>, // "next" or "previous"
 }
 
 #[pymethods]
-impl DriftAlertRequest {
+impl DriftAlertPaginationRequest {
     #[new]
-    #[pyo3(signature = (uid, active=false, limit_datetime=None, limit=None))]
+    #[pyo3(signature = (uid, active=None, limit=None, cursor_created_at=None, cursor_id=None, direction=None))]
     pub fn new(
         uid: String,
-        active: bool,
-        limit_datetime: Option<DateTime<Utc>>,
+        active: Option<bool>,
         limit: Option<i32>,
+        cursor_created_at: Option<DateTime<Utc>>,
+        cursor_id: Option<i32>,
+        direction: Option<String>,
     ) -> Self {
-        DriftAlertRequest {
+        DriftAlertPaginationRequest {
             uid,
-            limit_datetime,
-            active: Some(active),
+            active,
             limit,
+            cursor_created_at,
+            cursor_id,
+            direction,
         }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass]
+pub struct AlertCursor {
+    #[pyo3(get)]
+    pub created_at: DateTime<Utc>,
+
+    #[pyo3(get)]
+    pub id: i32,
+}
+
+#[pymethods]
+impl AlertCursor {
+    #[new]
+    pub fn new(created_at: DateTime<Utc>, id: i32) -> Self {
+        AlertCursor { created_at, id }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass]
+pub struct DriftAlertPaginationResponse {
+    #[pyo3(get)]
+    pub items: Vec<Alert>,
+
+    #[pyo3(get)]
+    pub has_next: bool,
+
+    #[pyo3(get)]
+    pub next_cursor: Option<AlertCursor>,
+
+    #[pyo3(get)]
+    pub has_previous: bool,
+
+    #[pyo3(get)]
+    pub previous_cursor: Option<AlertCursor>,
+}
+
+#[pymethods]
+impl DriftAlertPaginationResponse {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
     }
 }
 

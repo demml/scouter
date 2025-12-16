@@ -1,10 +1,12 @@
 use crate::sql::query::Queries;
 use crate::sql::schema::UpdateAlertResult;
 
-use scouter_types::contracts::{DriftAlertRequest, UpdateAlertStatus};
+use scouter_types::contracts::{
+    DriftAlertPaginationRequest, DriftAlertPaginationResponse, UpdateAlertStatus,
+};
 
 use crate::sql::error::SqlError;
-use scouter_types::alert::Alert;
+use scouter_types::{alert::Alert, AlertCursor};
 
 use sqlx::{postgres::PgQueryResult, Pool, Postgres};
 use std::collections::BTreeMap;
@@ -51,25 +53,90 @@ pub trait AlertSqlLogic {
     /// # Returns
     ///
     /// * `Result<Vec<Alert>, SqlError>` - Result of the query
-    async fn get_drift_alerts(
+    async fn get_paginated_drift_alerts(
         pool: &Pool<Postgres>,
-        params: &DriftAlertRequest,
+        params: &DriftAlertPaginationRequest,
         entity_id: &i32,
-    ) -> Result<Vec<Alert>, SqlError> {
-        let mut query = Queries::GetDriftAlerts.get_query().to_string();
+    ) -> Result<DriftAlertPaginationResponse, SqlError> {
+        let query = Queries::GetPaginatedDriftAlerts.get_query();
+        let limit = params.limit.unwrap_or(50);
+        let direction = params.direction.as_deref().unwrap_or("next");
 
-        if let Some(limit) = params.limit {
-            query.push_str(&format!(" LIMIT {limit}"));
-        }
-
-        let result: Result<Vec<Alert>, SqlError> = sqlx::query_as(&query)
-            .bind(entity_id)
-            .bind(params.limit_datetime)
+        let mut items: Vec<Alert> = sqlx::query_as(query)
+            .bind(entity_id) // $1: entity_id
+            .bind(params.active) // $2: active filter
+            .bind(params.cursor_created_at) // $3: cursor created_at
+            .bind(direction) // $4: direction
+            .bind(params.cursor_id) // $5: cursor id
+            .bind(limit) // $6: limit
             .fetch_all(pool)
             .await
-            .map_err(SqlError::SqlxError);
+            .map_err(SqlError::SqlxError)?;
 
-        result
+        let has_more = items.len() > limit as usize;
+
+        if has_more {
+            items.pop();
+        }
+
+        let (has_next, next_cursor, has_previous, previous_cursor) = match direction {
+            "previous" => {
+                // Backward pagination - reverse since we fetched in ASC order
+                items.reverse();
+
+                let previous_cursor = if has_more {
+                    items.first().map(|first| AlertCursor {
+                        created_at: first.created_at,
+                        id: first.id,
+                    })
+                } else {
+                    None
+                };
+
+                let next_cursor = items.last().map(|last| AlertCursor {
+                    created_at: last.created_at,
+                    id: last.id,
+                });
+
+                (
+                    params.cursor_created_at.is_some(), // has_next (we came from somewhere)
+                    next_cursor,
+                    has_more, // has_previous (more items before)
+                    previous_cursor,
+                )
+            }
+            _ => {
+                // Forward pagination (default)
+                let next_cursor = if has_more {
+                    items.last().map(|last| AlertCursor {
+                        created_at: last.created_at,
+                        id: last.id,
+                    })
+                } else {
+                    None
+                };
+
+                let previous_cursor = items.first().map(|first| AlertCursor {
+                    created_at: first.created_at,
+                    id: first.id,
+                });
+
+                (
+                    has_more, // has_next (more items after)
+                    next_cursor,
+                    params.cursor_created_at.is_some(), // has_previous (we came from somewhere)
+                    previous_cursor,
+                )
+            }
+        };
+
+        Ok(DriftAlertPaginationResponse {
+            items,
+            has_next,
+            next_cursor,
+            has_previous,
+            previous_cursor,
+        })
     }
 
     /// Update drift alert status in the database

@@ -216,7 +216,7 @@ pub mod drift_executor {
         use scouter_types::spc::SpcFeatureDriftProfile;
         use scouter_types::{
             spc::{SpcAlertConfig, SpcAlertRule, SpcDriftConfig, SpcDriftProfile},
-            AlertDispatchConfig, DriftAlertRequest,
+            AlertDispatchConfig, DriftAlertPaginationRequest,
         };
         use scouter_types::{DriftType, ProfileArgs, SpcRecord};
         use semver::Version;
@@ -369,21 +369,21 @@ pub mod drift_executor {
             drift_executor.poll_for_tasks().await.unwrap();
 
             // get alerts from db
-            let request = DriftAlertRequest {
-                limit_datetime: None,
+            let request = DriftAlertPaginationRequest {
                 active: None,
                 limit: None,
                 uid: uid.clone(),
+                ..Default::default()
             };
 
             let entity_id = PostgresClient::get_entity_id_from_uid(&db_pool, &uid)
                 .await
                 .unwrap();
 
-            let alerts = PostgresClient::get_drift_alerts(&db_pool, &request, &entity_id)
+            let alerts = PostgresClient::get_paginated_drift_alerts(&db_pool, &request, &entity_id)
                 .await
                 .unwrap();
-            assert!(!alerts.is_empty());
+            assert!(!alerts.items.is_empty());
         }
 
         #[tokio::test]
@@ -415,11 +415,11 @@ pub mod drift_executor {
             drift_executor.poll_for_tasks().await.unwrap();
 
             // get alerts from db
-            let request = DriftAlertRequest {
+            let request = DriftAlertPaginationRequest {
                 uid: "019ae1b4-3003-77c1-8eed-2ec005e85963".to_string(),
-                limit_datetime: None,
                 active: None,
                 limit: None,
+                ..Default::default()
             };
 
             let entity_id = PostgresClient::get_entity_id_from_space_name_version_drift_type(
@@ -432,11 +432,11 @@ pub mod drift_executor {
             .await
             .unwrap();
 
-            let alerts = PostgresClient::get_drift_alerts(&db_pool, &request, &entity_id)
+            let alerts = PostgresClient::get_paginated_drift_alerts(&db_pool, &request, &entity_id)
                 .await
                 .unwrap();
 
-            assert_eq!(alerts.len(), 1);
+            assert_eq!(alerts.items.len(), 1);
         }
 
         /// This test verifies that the PSI drift executor does **not** generate any drift alerts
@@ -480,11 +480,11 @@ pub mod drift_executor {
             drift_executor.poll_for_tasks().await.unwrap();
 
             // get alerts from db
-            let request = DriftAlertRequest {
+            let request = DriftAlertPaginationRequest {
                 uid: "019ae1b4-3003-77c1-8eed-2ec005e85963".to_string(),
-                limit_datetime: None,
                 active: None,
                 limit: None,
+                ..Default::default()
             };
 
             let entity_id = PostgresClient::get_entity_id_from_space_name_version_drift_type(
@@ -497,11 +497,11 @@ pub mod drift_executor {
             .await
             .unwrap();
 
-            let alerts = PostgresClient::get_drift_alerts(&db_pool, &request, &entity_id)
+            let alerts = PostgresClient::get_paginated_drift_alerts(&db_pool, &request, &entity_id)
                 .await
                 .unwrap();
 
-            assert!(alerts.is_empty());
+            assert!(alerts.items.is_empty());
         }
 
         #[tokio::test]
@@ -525,11 +525,9 @@ pub mod drift_executor {
             drift_executor.poll_for_tasks().await.unwrap();
 
             // get alerts from db
-            let request = DriftAlertRequest {
+            let request = DriftAlertPaginationRequest {
                 uid: "scouter|model|0.1.0|custom".to_string(),
-                limit_datetime: None,
-                active: None,
-                limit: None,
+                ..Default::default()
             };
 
             let entity_id = PostgresClient::get_entity_id_from_space_name_version_drift_type(
@@ -542,11 +540,11 @@ pub mod drift_executor {
             .await
             .unwrap();
 
-            let alerts = PostgresClient::get_drift_alerts(&db_pool, &request, &entity_id)
+            let alerts = PostgresClient::get_paginated_drift_alerts(&db_pool, &request, &entity_id)
                 .await
                 .unwrap();
 
-            assert_eq!(alerts.len(), 1);
+            assert_eq!(alerts.items.len(), 1);
         }
     }
 }

@@ -9,9 +9,9 @@ use axum::{
 };
 use scouter_sql::sql::traits::AlertSqlLogic;
 use scouter_sql::PostgresClient;
-use scouter_types::alert::Alerts;
 use scouter_types::contracts::{
-    DriftAlertRequest, ScouterServerError, UpdateAlertResponse, UpdateAlertStatus,
+    DriftAlertPaginationRequest, DriftAlertPaginationResponse, ScouterServerError,
+    UpdateAlertResponse, UpdateAlertStatus,
 };
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
@@ -28,11 +28,11 @@ use tracing::error;
 /// * `Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)>` - Result of the request
 pub async fn get_drift_alerts(
     State(data): State<Arc<AppState>>,
-    Query(params): Query<DriftAlertRequest>,
-) -> Result<Json<Alerts>, (StatusCode, Json<ScouterServerError>)> {
+    Query(params): Query<DriftAlertPaginationRequest>,
+) -> Result<Json<DriftAlertPaginationResponse>, (StatusCode, Json<ScouterServerError>)> {
     let entity_id = data.get_entity_id_for_request(&params.uid).await?;
 
-    let alerts = PostgresClient::get_drift_alerts(&data.db_pool, &params, &entity_id)
+    let alerts = PostgresClient::get_paginated_drift_alerts(&data.db_pool, &params, &entity_id)
         .await
         .map_err(|e| {
             error!("Failed to query drift alerts: {:?}", e);
@@ -42,9 +42,7 @@ pub async fn get_drift_alerts(
             )
         })?;
 
-    Ok(Json(Alerts {
-        alerts: alerts.clone(),
-    }))
+    Ok(Json(alerts))
 }
 
 pub async fn update_alert_status(

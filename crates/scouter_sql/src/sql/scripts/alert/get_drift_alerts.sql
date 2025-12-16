@@ -9,5 +9,30 @@ SELECT
 FROM scouter.drift_alert
 WHERE
     entity_id = $1
-    AND ($2 IS NULL OR created_at >= $2)
-ORDER BY created_at DESC
+    AND ($2::BOOLEAN IS NULL OR active = $2)
+    -- Cursor-based filtering by created_at (primary) and id (tiebreaker)
+    AND (
+        ($3::TIMESTAMP IS NULL) -- No cursor, get first page
+        OR (
+            CASE 
+                WHEN $4 = 'previous' THEN
+                    (created_at, id) > ($3, $5) -- Backward pagination (ASC order)
+                ELSE
+                    (created_at, id) < ($3, $5) -- Forward pagination (DESC order)
+            END
+        )
+    )
+ORDER BY 
+    CASE 
+        WHEN $4 = 'previous' THEN created_at 
+    END ASC,
+    CASE 
+        WHEN $4 = 'previous' THEN id 
+    END ASC,
+    CASE 
+        WHEN $4 != 'previous' OR $4 IS NULL THEN created_at 
+    END DESC,
+    CASE 
+        WHEN $4 != 'previous' OR $4 IS NULL THEN id 
+    END DESC
+LIMIT $6 + 1

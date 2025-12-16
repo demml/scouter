@@ -3,7 +3,8 @@ use crate::error::ClientError;
 use pyo3::{prelude::*, IntoPyObjectExt};
 use scouter_settings::http::HttpConfig;
 use scouter_types::contracts::{
-    DriftAlertRequest, DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest,
+    DriftAlertPaginationRequest, DriftAlertPaginationResponse, DriftRequest, GetProfileRequest,
+    ProfileRequest, ProfileStatusRequest,
 };
 use scouter_types::http::{RequestType, Routes};
 use scouter_types::sql::TraceFilters;
@@ -15,8 +16,8 @@ use scouter_types::{
 
 use crate::http::HttpClient;
 use scouter_types::{
-    alert::Alert, psi::BinnedPsiFeatureMetrics, spc::SpcDriftFeatures, BinnedMetrics, DriftProfile,
-    DriftType, PyHelperFuncs,
+    psi::BinnedPsiFeatureMetrics, spc::SpcDriftFeatures, BinnedMetrics, DriftProfile, DriftType,
+    PyHelperFuncs,
 };
 use std::path::PathBuf;
 use tracing::{debug, error};
@@ -78,7 +79,10 @@ impl ScouterClient {
         }
     }
 
-    pub fn get_alerts(&self, request: &DriftAlertRequest) -> Result<Vec<Alert>, ClientError> {
+    pub fn get_alerts(
+        &self,
+        request: &DriftAlertPaginationRequest,
+    ) -> Result<DriftAlertPaginationResponse, ClientError> {
         debug!("Getting alerts for: {:?}", request);
 
         let query_string = serde_qs::to_string(request)?;
@@ -97,23 +101,8 @@ impl ScouterClient {
         }
 
         // Parse response body
-        let body: serde_json::Value = response.json()?;
-
-        // Extract alerts from response
-        let alerts = body
-            .get("alerts")
-            .map(|alerts| {
-                serde_json::from_value::<Vec<Alert>>(alerts.clone()).inspect_err(|e| {
-                    error!(
-                        "Failed to parse drift alerts {:?}. Error: {:?}",
-                        &request, e
-                    );
-                })
-            })
-            .unwrap_or_else(|| {
-                error!("No alerts found in response");
-                Ok(Vec::new())
-            })?;
+        let body = response.bytes()?;
+        let alerts: DriftAlertPaginationResponse = serde_json::from_slice(&body)?;
 
         Ok(alerts)
     }
@@ -411,7 +400,10 @@ impl PyScouterClient {
         }
     }
 
-    pub fn get_alerts(&self, request: DriftAlertRequest) -> Result<Vec<Alert>, ClientError> {
+    pub fn get_alerts(
+        &self,
+        request: DriftAlertPaginationRequest,
+    ) -> Result<DriftAlertPaginationResponse, ClientError> {
         debug!("Getting alerts for: {:?}", request);
 
         let alerts = self.client.get_alerts(&request)?;

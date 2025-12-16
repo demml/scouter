@@ -6,18 +6,18 @@ use axum::{
 };
 use http_body_util::BodyExt;
 use scouter_types::alert::Alerts;
-use scouter_types::contracts::{DriftAlertRequest, UpdateAlertStatus};
+use scouter_types::contracts::{DriftAlertPaginationRequest, UpdateAlertStatus};
 
 #[tokio::test]
 async fn test_get_drift_alerts() {
     let helper = setup_test().await;
     let (_psi_uid, _custom_uid, spc_uid) = helper.insert_alerts().await.unwrap();
 
-    let request = DriftAlertRequest {
+    let request = DriftAlertPaginationRequest {
         uid: spc_uid,
-        limit_datetime: None,
         limit: None,
         active: Some(true),
+        ..Default::default()
     };
 
     let query_string = serde_qs::to_string(&request).unwrap();
