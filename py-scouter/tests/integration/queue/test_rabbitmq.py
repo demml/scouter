@@ -16,7 +16,7 @@ from scouter import (
 from scouter.alert import AlertThreshold, CustomMetricAlertConfig
 from scouter.client import (
     BinnedMetrics,
-    DriftAlertRequest,
+    DriftAlertPaginationRequest,
     DriftRequest,
     ProfileStatusRequest,
     ScouterClient,
@@ -105,7 +105,7 @@ def test_custom_monitor_pandas_rabbitmq(rabbitmq_scouter_server):
 
     ## wait for alerts to be created, if not created after 5 attempts, fail the test
     while attempts < 5:
-        alerts = client.get_alerts(DriftAlertRequest(uid=profile.uid))
+        alerts = client.get_alerts(DriftAlertPaginationRequest(uid=profile.uid))
 
         if len(alerts) > 0:
             break

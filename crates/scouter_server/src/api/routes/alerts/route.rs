@@ -16,7 +16,7 @@ use tracing::error;
 /// # Arguments
 ///
 /// * `data` - Arc<AppState> - Application state
-/// * `params` - Query<DriftAlertRequest> - Query parameters
+/// * `params` - Query<DriftAlertPaginationRequest> - Query parameters
 ///
 /// # Returns
 ///

@@ -3391,6 +3391,8 @@ class DriftRequest:
         space: str,
         time_interval: TimeInterval,
         max_data_points: int,
+        start_datetime: Optional[datetime] = None,
+        end_datetime: Optional[datetime] = None,
     ) -> None:
         """Initialize drift request
 
@@ -3403,6 +3405,10 @@ class DriftRequest:
                 Time window for drift request
             max_data_points:
                 Maximum data points to return
+            start_datetime:
+                Optional start datetime for drift request
+            end_datetime:
+                Optional end datetime for drift request
         """
 
 class ProfileStatusRequest:
