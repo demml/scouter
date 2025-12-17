@@ -75,7 +75,7 @@ async fn test_tags() {
 
     let body = serde_json::to_string(&entity_id_request).unwrap();
     let request = Request::builder()
-        .uri(format!("/scouter/tags/entity"))
+        .uri("/scouter/tags/entity".to_string())
         .method("POST")
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(body))

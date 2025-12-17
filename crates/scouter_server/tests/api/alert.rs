@@ -21,7 +21,7 @@ async fn test_get_drift_alerts() {
     };
     let body = serde_json::to_string(&request).unwrap();
     let request = Request::builder()
-        .uri(format!("/scouter/alerts"))
+        .uri("/scouter/alerts")
         .method("POST")
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(body))

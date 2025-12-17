@@ -197,6 +197,7 @@ pub struct DriftAlertPaginationRequest {
 
 #[pymethods]
 impl DriftAlertPaginationRequest {
+    #[allow(clippy::too_many_arguments)]
     #[new]
     #[pyo3(signature = (uid, active=None, limit=None, cursor_created_at=None, cursor_id=None, direction=None, start_datetime=None, end_datetime=None))]
     pub fn new(

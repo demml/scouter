@@ -111,6 +111,7 @@ statrs = "0.18.0"
 
 # gRPC/Tonic dependencies
 tonic = { version = "0.*" }
+tonic-middleware = { version = "0.*" } # need for async interceptors
 tonic-prost = { version = "0.*" }
 prost = { version = "0.*" }
 prost-types = { version = "0.*" }
