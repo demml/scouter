@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package scouter.message.v1;
+
+service MessageService {
+  rpc InsertMessage(InsertMessageRequest) returns (InsertMessageResponse);
+}
+
+message InsertMessageRequest {
+  bytes message_record = 1;
+}
+
+message InsertMessageResponse {
+  string status = 1;
+  string message = 2;
+}

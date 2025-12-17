@@ -47,6 +47,14 @@ tower-http = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true}
 
+# gRPC/Tonic dependencies
+tonic = { workspace = true }
+prost = { workspace = true }
+prost-types = { workspace = true }
+
+[build-dependencies]
+tonic-prost-build = "0.*"
+
 [dev-dependencies]
 approx = "0.*"
 http-body-util = "0.*"

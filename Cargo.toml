@@ -108,6 +108,12 @@ tracing-subscriber = {version = "0.*", features = ["json", "time"]}
 url = "2.*"
 statrs = "0.18.0"
 
+# gRPC/Tonic dependencies
+tonic = { version = "0.*" }
+prost = { version = "0.*" }
+prost-types = { version = "0.*" }
+
+
 # RabbitMQ dependencies
 lapin = { version = "2.*" }
 
@@ -120,4 +126,3 @@ opt-level = 3
 [profile.release-no-lto]
 inherits = "release"
 lto = false
-
