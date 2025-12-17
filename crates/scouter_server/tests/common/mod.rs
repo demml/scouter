@@ -16,12 +16,13 @@ use scouter_drift::spc::SpcMonitor;
 use scouter_server::api::grpc::start_grpc_server;
 use scouter_server::api::state::AppState;
 use scouter_server::{create_app_state, create_http_router};
+use scouter_settings::grpc::GrpcConfig;
 use scouter_settings::ObjectStorageSettings;
 use scouter_settings::{DatabaseSettings, ScouterServerConfig};
 use scouter_sql::sql::traits::AlertSqlLogic;
 use scouter_sql::sql::traits::EntitySqlLogic;
 use scouter_sql::PostgresClient;
-use scouter_tonic::MessageServiceClient;
+use scouter_tonic::GrpcClient;
 use scouter_types::spc::SpcDriftConfig;
 use scouter_types::spc::{SpcAlertConfig, SpcDriftProfile};
 use scouter_types::DriftType;
@@ -39,7 +40,7 @@ use sqlx::{PgPool, Pool, Postgres};
 use std::collections::BTreeMap;
 use std::env;
 use std::sync::Arc;
-use tonic::transport::Channel;
+
 use tower::util::ServiceExt;
 use tracing::error;
 
@@ -201,27 +202,8 @@ impl TestHelper {
         })
     }
 
-    pub async fn create_grpc_client(&self) -> MessageServiceClient<Channel> {
-        let addr = "http://127.0.0.1:50051";
-
-        // Connect to the gRPC server
-        MessageServiceClient::connect(addr.to_string())
-            .await
-            .expect("Failed to connect to gRPC server")
-    }
-
-    pub fn create_authenticated_grpc_request<T>(&self, message: T) -> tonic::Request<T> {
-        let mut request = tonic::Request::new(message);
-
-        // Add the JWT token from login as Bearer token
-        request.metadata_mut().insert(
-            scouter_tonic::client::AUTHORIZATION,
-            format!("Bearer {}", self.token.token)
-                .parse()
-                .expect("Failed to parse token"),
-        );
-
-        request
+    pub async fn create_grpc_client(&self) -> GrpcClient {
+        GrpcClient::new(GrpcConfig::default()).await.unwrap()
     }
 
     pub async fn login(app: &Router) -> JwtToken {

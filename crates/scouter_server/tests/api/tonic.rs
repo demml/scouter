@@ -7,7 +7,7 @@ use axum::{
 };
 use http_body_util::BodyExt;
 use scouter_drift::psi::PsiMonitor;
-use scouter_tonic::InsertMessageRequest;
+
 use scouter_types::contracts::DriftRequest;
 use scouter_types::custom::{
     CustomDriftProfile, CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig,
@@ -23,7 +23,7 @@ async fn test_grpc_insert_spc_records() {
     let helper = setup_test().await;
 
     // Create a gRPC client
-    let mut client = helper.create_grpc_client().await;
+    let client = helper.create_grpc_client().await;
 
     // Create a drift profile
     let profile = helper.create_drift_profile().await;
@@ -31,16 +31,10 @@ async fn test_grpc_insert_spc_records() {
     // Generate test records
     let records = helper.get_spc_drift_records(None, &profile.config.uid);
 
-    // Serialize records to JSON
-    let body = serde_json::to_string(&records).unwrap();
-
-    // Create gRPC request
-    let request = helper.create_authenticated_grpc_request(InsertMessageRequest {
-        message_record: body.into_bytes(),
-    });
-
     // Send the request
-    let response = client.insert_message(request).await;
+    let response = client
+        .insert_message(serde_json::to_vec(&records).unwrap())
+        .await;
 
     // Assert the response is successful
     assert!(response.is_ok());
@@ -79,7 +73,7 @@ async fn test_grpc_insert_spc_records() {
 async fn test_grpc_insert_psi_records() {
     let helper = setup_test().await;
 
-    let mut client = helper.create_grpc_client().await;
+    let client = helper.create_grpc_client().await;
 
     // Setup PSI profile
     let (array, features) = helper.get_data();
@@ -111,13 +105,10 @@ async fn test_grpc_insert_psi_records() {
 
     // Generate and send records via gRPC
     let records = helper.get_psi_drift_records(None, &uid);
-    let body = serde_json::to_string(&records).unwrap();
+    let response = client
+        .insert_message(serde_json::to_vec(&records).unwrap())
+        .await;
 
-    let request = helper.create_authenticated_grpc_request(InsertMessageRequest {
-        message_record: body.into_bytes(),
-    });
-
-    let response = client.insert_message(request).await;
     assert!(response.is_ok());
 
     sleep(Duration::from_secs(2)).await;
@@ -152,7 +143,7 @@ async fn test_grpc_insert_psi_records() {
 async fn test_grpc_insert_custom_records() {
     let helper = setup_test().await;
 
-    let mut client = helper.create_grpc_client().await;
+    let client = helper.create_grpc_client().await;
 
     // Setup custom profile
     let alert_config = CustomMetricAlertConfig::default();
@@ -170,13 +161,10 @@ async fn test_grpc_insert_custom_records() {
 
     // Generate and send records via gRPC
     let records = helper.get_custom_drift_records(None, &uid);
-    let body = serde_json::to_string(&records).unwrap();
+    let response = client
+        .insert_message(serde_json::to_vec(&records).unwrap())
+        .await;
 
-    let request = helper.create_authenticated_grpc_request(InsertMessageRequest {
-        message_record: body.into_bytes(),
-    });
-
-    let response = client.insert_message(request).await;
     assert!(response.is_ok());
 
     sleep(Duration::from_secs(2)).await;

@@ -23,10 +23,16 @@ pub struct GrpcClient {
 impl GrpcClient {
     pub async fn new(config: GrpcConfig) -> Result<Self, ClientError> {
         let channel = Channel::from_shared(config.server_uri.clone())
-            .map_err(|e| ClientError::GrpcError(e.to_string()))?
+            .map_err(|e| {
+                error!("Failed to create gRPC channel: {}", e);
+                ClientError::GrpcError(e.to_string())
+            })?
             .connect()
             .await
-            .map_err(|e| ClientError::GrpcError(e.to_string()))?;
+            .map_err(|e| {
+                error!("Failed to connect to gRPC server: {}", e);
+                ClientError::GrpcError(e.to_string())
+            })?;
 
         let message_client = MessageServiceClient::new(channel.clone());
         let auth_client = AuthServiceClient::new(channel);
@@ -41,7 +47,7 @@ impl GrpcClient {
         // Perform initial login via gRPC
         grpc_client.login().await?;
 
-        info!("gRPC client initialized and authenticated");
+        debug!("gRPC client initialized and authenticated");
 
         Ok(grpc_client)
     }
@@ -69,7 +75,7 @@ impl GrpcClient {
         }
 
         self.update_token(login_response.token);
-        info!("Successfully logged in via gRPC");
+        debug!("Successfully logged in via gRPC");
 
         Ok(())
     }
