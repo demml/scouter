@@ -8,11 +8,11 @@ use std::sync::{Arc, RwLock};
 use tonic::metadata::MetadataValue;
 use tonic::transport::Channel;
 use tonic::Request;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 pub const X_REFRESHED_TOKEN: &str = "x-refreshed-token";
 pub const AUTHORIZATION: &str = "authorization";
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GrpcClient {
     message_client: MessageServiceClient<Channel>,
     auth_client: AuthServiceClient<Channel>,
