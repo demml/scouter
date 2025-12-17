@@ -49,6 +49,7 @@ tracing-subscriber = { workspace = true}
 
 # gRPC/Tonic dependencies
 tonic = { workspace = true }
+tonic-prost = { workspace = true }
 prost = { workspace = true }
 prost-types = { workspace = true }
 

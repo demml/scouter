@@ -5903,6 +5903,7 @@ dependencies = [
  "time",
  "tokio",
  "tonic",
+ "tonic-prost",
  "tonic-prost-build",
  "tower",
  "tower-http",

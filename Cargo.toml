@@ -110,6 +110,7 @@ statrs = "0.18.0"
 
 # gRPC/Tonic dependencies
 tonic = { version = "0.*" }
+tonic-prost = { version = "0.*" }
 prost = { version = "0.*" }
 prost-types = { version = "0.*" }
 
