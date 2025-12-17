@@ -28,6 +28,15 @@ pub use generated::scouter::message::v1::{InsertMessageRequest, InsertMessageRes
 #[cfg(feature = "client")]
 pub use generated::scouter::message::v1::message_service_client::MessageServiceClient;
 
+#[cfg(feature = "client")]
+pub mod client;
+
+#[cfg(feature = "client")]
+pub use client::GrpcClient;
+
+#[cfg(feature = "client")]
+pub mod error;
+
 // Re-export server types when feature is enabled
 #[cfg(feature = "server")]
 pub use generated::scouter::message::v1::message_service_server::{

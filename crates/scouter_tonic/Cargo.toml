@@ -12,8 +12,14 @@ license = "MIT"
 description = "Scouter gRPC/Tonic definitions and generated code"
 
 [dependencies]
+reqwest = { workspace = true }
+scouter-http = { workspace = true }
+scouter-settings = { workspace = true }
+tokio = { workspace = true }
 tonic = { workspace = true, default-features = false, features = ["codegen"] }
 tonic-prost = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
 prost = { workspace = true }
 prost-types = { workspace = true }
 

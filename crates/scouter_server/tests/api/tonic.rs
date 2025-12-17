@@ -35,7 +35,7 @@ async fn test_grpc_insert_spc_records() {
     let body = serde_json::to_string(&records).unwrap();
 
     // Create gRPC request
-    let request = tonic::Request::new(InsertMessageRequest {
+    let request = helper.create_authenticated_grpc_request(InsertMessageRequest {
         message_record: body.into_bytes(),
     });
 
@@ -113,7 +113,7 @@ async fn test_grpc_insert_psi_records() {
     let records = helper.get_psi_drift_records(None, &uid);
     let body = serde_json::to_string(&records).unwrap();
 
-    let request = tonic::Request::new(InsertMessageRequest {
+    let request = helper.create_authenticated_grpc_request(InsertMessageRequest {
         message_record: body.into_bytes(),
     });
 
@@ -172,7 +172,7 @@ async fn test_grpc_insert_custom_records() {
     let records = helper.get_custom_drift_records(None, &uid);
     let body = serde_json::to_string(&records).unwrap();
 
-    let request = tonic::Request::new(InsertMessageRequest {
+    let request = helper.create_authenticated_grpc_request(InsertMessageRequest {
         message_record: body.into_bytes(),
     });
 

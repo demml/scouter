@@ -1,6 +1,6 @@
 #![allow(clippy::useless_conversion)]
-use crate::error::ClientError;
 use pyo3::{prelude::*, IntoPyObjectExt};
+use scouter_http::error::ClientError;
 use scouter_settings::http::HttpConfig;
 use scouter_types::contracts::{
     DriftAlertPaginationRequest, DriftAlertPaginationResponse, DriftRequest, GetProfileRequest,
@@ -14,7 +14,7 @@ use scouter_types::{
     TraceSpansResponse,
 };
 
-use crate::http::HttpClient;
+use scouter_http::HttpClient;
 use scouter_types::{
     psi::BinnedPsiFeatureMetrics, spc::SpcDriftFeatures, BinnedMetrics, DriftProfile, DriftType,
     PyHelperFuncs,

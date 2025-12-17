@@ -5648,6 +5648,7 @@ dependencies = [
  "scouter-drift",
  "scouter-evaluate",
  "scouter-events",
+ "scouter-http",
  "scouter-observability",
  "scouter-profile",
  "scouter-settings",
@@ -5790,6 +5791,20 @@ dependencies = [
  "tokio-util",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "scouter-http"
+version = "0.13.0"
+dependencies = [
+ "pyo3",
+ "reqwest",
+ "scouter-settings",
+ "scouter-types",
+ "serde_json",
+ "serde_qs",
+ "thiserror 2.0.17",
+ "tracing",
 ]
 
 [[package]]
@@ -5964,9 +5979,15 @@ version = "0.13.0"
 dependencies = [
  "prost",
  "prost-types",
+ "reqwest",
+ "scouter-http",
+ "scouter-settings",
+ "thiserror 2.0.17",
+ "tokio",
  "tonic",
  "tonic-prost",
  "tonic-prost-build",
+ "tracing",
 ]
 
 [[package]]

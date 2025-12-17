@@ -70,9 +70,9 @@ pub use scouter_profile::{
 };
 
 // exposing errors
-pub use error::ClientError;
 pub use scouter_drift::error::DriftError;
 pub use scouter_events::error::EventError;
+pub use scouter_http::error::ClientError;
 pub use scouter_profile::error::DataProfileError;
 pub use scouter_types::error::{ContractError, ProfileError, RecordError, TypeError, UtilError};
 

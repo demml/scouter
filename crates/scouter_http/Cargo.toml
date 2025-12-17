@@ -1,0 +1,28 @@
+[package]
+name = "scouter-http"
+version = { workspace = true }
+edition = { workspace = true }
+repository = { workspace = true }
+
+authors = [
+  "Steven Forrester <sjforrester32@gmail.com>"
+]
+
+license = "MIT"
+description = "Helper functionality for a common HTTP client"
+
+[dependencies]
+scouter-settings = { workspace = true }
+scouter-types = { workspace = true }
+pyo3 = { workspace = true }
+reqwest = { workspace = true }
+serde_json = { workspace = true }
+serde_qs = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = true

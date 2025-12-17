@@ -1,5 +1,4 @@
-// we redifine HTTPClient here because the scouterClient needs a blocking httpclient, unlike the producer enum
-
+pub mod error;
 use crate::error::ClientError;
 use reqwest::blocking::{Client, Response};
 use reqwest::header::AUTHORIZATION;
@@ -30,7 +29,7 @@ pub fn build_http_client(settings: &HttpConfig) -> Result<Client, ClientError> {
 pub struct HttpClient {
     client: Client,
     base_path: String,
-    auth_token: Arc<RwLock<String>>,
+    pub auth_token: Arc<RwLock<String>>,
 }
 
 impl HttpClient {
@@ -54,7 +53,7 @@ impl HttpClient {
     }
 
     #[instrument(skip_all)]
-    fn refresh_token(&self) -> Result<(), ClientError> {
+    pub fn refresh_token(&self) -> Result<(), ClientError> {
         let url = format!("{}/{}", self.base_path, Routes::AuthLogin.as_str());
         debug!("Getting JWT token from {}", url);
 
@@ -82,7 +81,7 @@ impl HttpClient {
         Ok(())
     }
 
-    fn update_token_from_response(&self, response: &Response) {
+    pub fn update_token_from_response(&self, response: &Response) {
         if let Some(new_token) = response
             .headers()
             .get(AUTHORIZATION)
@@ -100,7 +99,7 @@ impl HttpClient {
         }
     }
 
-    fn get_current_token(&self) -> String {
+    pub fn get_current_token(&self) -> String {
         match self.auth_token.read() {
             Ok(token_guard) => token_guard.clone(),
             Err(e) => {

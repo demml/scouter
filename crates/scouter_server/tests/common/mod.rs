@@ -210,6 +210,20 @@ impl TestHelper {
             .expect("Failed to connect to gRPC server")
     }
 
+    pub fn create_authenticated_grpc_request<T>(&self, message: T) -> tonic::Request<T> {
+        let mut request = tonic::Request::new(message);
+
+        // Add the JWT token from login as Bearer token
+        request.metadata_mut().insert(
+            scouter_tonic::client::AUTHORIZATION,
+            format!("Bearer {}", self.token.token)
+                .parse()
+                .expect("Failed to parse token"),
+        );
+
+        request
+    }
+
     pub async fn login(app: &Router) -> JwtToken {
         let response = app
             .clone()
