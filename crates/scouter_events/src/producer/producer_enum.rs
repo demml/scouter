@@ -18,6 +18,7 @@ use scouter_types::MessageRecord;
 use tracing::debug;
 
 #[derive(Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum ProducerEnum {
     HTTP(HttpProducer),
 
