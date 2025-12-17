@@ -14,12 +14,12 @@ pub struct GrpcProducer {
 }
 
 impl GrpcProducer {
-    pub fn new(config: GrpcConfig) -> Result<Self, EventError> {
-        let client = GrpcClient::new(config)?;
+    pub async fn new(config: GrpcConfig) -> Result<Self, EventError> {
+        let client = GrpcClient::new(config).await?;
         Ok(GrpcProducer { client })
     }
 
-    pub async fn publish(&self, message: MessageRecord) -> Result<(), EventError> {
+    pub async fn publish(&mut self, message: MessageRecord) -> Result<(), EventError> {
         let msg_bytes = serde_json::to_vec(&message)?;
         let response = self.client.insert_message(msg_bytes).await?;
 
