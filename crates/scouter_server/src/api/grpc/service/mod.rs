@@ -1,8 +1,10 @@
 use crate::api::state::AppState;
+use anyhow::Result;
 use scouter_types::MessageRecord;
 use std::sync::Arc;
+use tonic::transport::Server;
 use tonic::{Request, Response, Status};
-use tracing::{debug, error, instrument};
+use tracing::{debug, error, info, instrument};
 
 /// Generated protobuf code
 pub mod proto {
@@ -70,4 +72,24 @@ impl MessageService for MessageGrpcService {
             message: "Message queued for processing".to_string(),
         }))
     }
+}
+
+#[instrument(skip_all)]
+pub async fn start_grpc_server(state: Arc<AppState>) -> Result<()> {
+    let grpc_port = std::env::var("SCOUTER_GRPC_PORT").unwrap_or_else(|_| "50051".to_string());
+
+    let addr = format!("0.0.0.0:{grpc_port}")
+        .parse()
+        .expect("Invalid gRPC address");
+
+    let message_service = MessageGrpcService::new(state).into_server();
+
+    info!("🚀 gRPC server started successfully on {}", addr);
+
+    Server::builder()
+        .add_service(message_service)
+        .serve_with_shutdown(addr, crate::api::shutdown::grpc_shutdown_signal())
+        .await?;
+
+    Ok(())
 }

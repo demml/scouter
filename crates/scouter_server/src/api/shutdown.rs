@@ -1,7 +1,7 @@
 use crate::api::state::AppState;
 use std::sync::Arc;
 use tokio::signal;
-use tracing::{info, instrument};
+use tracing::{info, instrument, warn};
 
 #[instrument(skip_all)]
 pub async fn shutdown_signal(app_state: Arc<AppState>) {
@@ -57,4 +57,35 @@ pub async fn shutdown_metric_signal() {
         _ = ctrl_c => {},
         _ = terminate => {},
     }
+}
+
+/// Graceful shutdown signal handler for gRPC server
+pub(crate) async fn grpc_shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("Failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("Failed to install SIGTERM handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {
+            info!("Received Ctrl+C signal, initiating gRPC graceful shutdown");
+        },
+        _ = terminate => {
+            info!("Received SIGTERM signal, initiating gRPC graceful shutdown");
+        },
+    }
+
+    warn!("gRPC server shutting down gracefully...");
 }
