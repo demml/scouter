@@ -163,27 +163,24 @@ impl GrpcClient {
 
     /// Insert message with automatic token refresh and retry
     pub async fn insert_message(
-        &mut self,
+        &self,
         message_record: Vec<u8>,
     ) -> Result<InsertMessageResponse, ClientError> {
         let request = self.create_authenticated_request(message_record)?;
+        let mut client = self.message_client.clone();
 
-        let response = self
-            .message_client
-            .insert_message(request)
-            .await
-            .map_err(|status| {
-                error!(
-                    "gRPC error (code: {:?}): {}",
-                    status.code(),
-                    status.message()
-                );
-                ClientError::GrpcError(format!(
-                    "gRPC error: {} (code: {:?})",
-                    status.message(),
-                    status.code()
-                ))
-            })?;
+        let response = client.insert_message(request).await.map_err(|status| {
+            error!(
+                "gRPC error (code: {:?}): {}",
+                status.code(),
+                status.message()
+            );
+            ClientError::GrpcError(format!(
+                "gRPC error: {} (code: {:?})",
+                status.message(),
+                status.code()
+            ))
+        })?;
 
         // Check if server refreshed the token
         if let Some(new_token) = response

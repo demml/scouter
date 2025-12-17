@@ -7,19 +7,21 @@ pub use crate::producer::rabbitmq::RabbitMQProducer;
 #[cfg(feature = "redis_events")]
 use crate::producer::redis::RedisProducer;
 
+use crate::error::EventError;
+use crate::producer::grpc::GrpcProducer;
 pub use crate::producer::http::HttpProducer;
 pub use crate::producer::kafka::KafkaConfig;
 pub use crate::producer::mock::{MockConfig, MockProducer};
 pub use crate::producer::rabbitmq::RabbitMQConfig;
 use crate::queue::types::TransportConfig;
-
-use crate::error::EventError;
 use scouter_types::MessageRecord;
 use tracing::debug;
 
 #[derive(Clone)]
 pub enum ProducerEnum {
     HTTP(HttpProducer),
+
+    Grpc(GrpcProducer),
 
     Mock(MockProducer),
 
@@ -36,8 +38,8 @@ pub enum ProducerEnum {
 impl ProducerEnum {
     pub async fn publish(&self, message: MessageRecord) -> Result<(), EventError> {
         match self {
-            // this has mut
             ProducerEnum::HTTP(producer) => producer.publish(message).await,
+            ProducerEnum::Grpc(producer) => producer.publish(message).await,
             ProducerEnum::Mock(producer) => producer.publish(message).await,
             #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
             ProducerEnum::Kafka(producer) => producer.publish(message).await,
@@ -51,6 +53,7 @@ impl ProducerEnum {
     pub async fn flush(&self) -> Result<(), EventError> {
         match self {
             ProducerEnum::HTTP(producer) => producer.flush().await,
+            ProducerEnum::Grpc(producer) => producer.flush().await,
             ProducerEnum::Mock(producer) => producer.flush().await,
             #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
             ProducerEnum::Kafka(producer) => producer.flush(),
@@ -110,6 +113,11 @@ impl RustScouterProducer {
                 debug!("Creating HTTP producer");
                 let producer = HttpProducer::new(config).await?;
                 ProducerEnum::HTTP(producer)
+            }
+            TransportConfig::Grpc(config) => {
+                let producer = GrpcProducer::new(config).await?;
+                debug!("Creating gRPC producer");
+                ProducerEnum::Grpc(producer)
             }
             TransportConfig::Mock(config) => {
                 let producer = MockProducer::new(config).await?;
