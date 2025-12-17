@@ -3463,6 +3463,8 @@ class DriftAlertPaginationRequest:
         cursor_created_at: Optional[datetime] = None,
         cursor_id: Optional[int] = None,
         direction: Optional[Literal["next", "previous"]] = "previous",
+        start_datetime: Optional[datetime] = None,
+        end_datetime: Optional[datetime] = None,
     ) -> None:
         """Initialize drift alert request. Used for paginated alert retrieval.
 
@@ -3479,6 +3481,10 @@ class DriftAlertPaginationRequest:
                 Pagination cursor: alert ID
             direction:
                 Pagination direction: "next" or "previous"
+            start_datetime:
+                Optional start datetime for alert filtering
+            end_datetime:
+                Optional end datetime for alert filtering
         """
 
 class AlertCursor:
