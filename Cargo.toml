@@ -34,6 +34,7 @@ scouter-settings = { path = "crates/scouter_settings", version = "0.13.0" }
 scouter-dataframe = { path = "crates/scouter_dataframe", version = "0.13.0" }
 scouter-state = { path = "crates/scouter_state", version = "0.13.0" }
 scouter-sql = { path = "crates/scouter_sql", version = "0.13.0" }
+scouter-tonic = { path = "crates/scouter_tonic", version = "0.13.0" }
 scouter-tracing = { path = "crates/scouter_tracing", version = "0.13.0" }
 scouter-types = { path = "crates/scouter_types", version = "0.13.0" }
 scouter-mocks = { path = "crates/scouter_mocks" }

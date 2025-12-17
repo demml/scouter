@@ -1,5 +1,4 @@
 pub mod api;
-
 use crate::api::grpc::start_grpc_server;
 use crate::api::setup::ScouterSetupComponents;
 use crate::api::shutdown::shutdown_signal;

@@ -5880,8 +5880,6 @@ dependencies = [
  "object_store",
  "password-auth",
  "potato-head",
- "prost",
- "prost-types",
  "rand 0.9.2",
  "rusty-logging",
  "scouter-auth",
@@ -5892,6 +5890,7 @@ dependencies = [
  "scouter-observability",
  "scouter-settings",
  "scouter-sql",
+ "scouter-tonic",
  "scouter-types",
  "serde",
  "serde_json",
@@ -5903,8 +5902,6 @@ dependencies = [
  "time",
  "tokio",
  "tonic",
- "tonic-prost",
- "tonic-prost-build",
  "tower",
  "tower-http",
  "tracing",
@@ -5958,6 +5955,17 @@ dependencies = [
  "thiserror 2.0.17",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "scouter-tonic"
+version = "0.13.0"
+dependencies = [
+ "prost",
+ "prost-types",
+ "tonic",
+ "tonic-prost",
+ "tonic-prost-build",
 ]
 
 [[package]]

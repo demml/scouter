@@ -20,6 +20,7 @@ scouter-dispatch = { workspace = true }
 scouter-drift = { workspace = true, features = ["sql"] }
 scouter-observability = { workspace = true }
 scouter-sql = { workspace = true }
+scouter-tonic = { workspace = true, features = ["server"] }
 test-utils = { workspace = true }
 
 anyhow = {workspace = true}
@@ -49,12 +50,6 @@ tracing-subscriber = { workspace = true}
 
 # gRPC/Tonic dependencies
 tonic = { workspace = true }
-tonic-prost = { workspace = true }
-prost = { workspace = true }
-prost-types = { workspace = true }
-
-[build-dependencies]
-tonic-prost-build = "0.*"
 
 [dev-dependencies]
 approx = "0.*"
@@ -68,6 +63,7 @@ serde_json = { workspace = true }
 serde_qs = { workspace = true }
 tower = { version = "0.*", features = ["util"] }
 url = { workspace = true }
+scouter-tonic = { workspace = true, features = ["client"] }
 
 [features]
 default = []
