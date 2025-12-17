@@ -7,4 +7,7 @@ pub enum ClientError {
 
     #[error(transparent)]
     HttpError(#[from] scouter_http::error::ClientError),
+
+    #[error("Unauthorized")]
+    Unauthorized,
 }

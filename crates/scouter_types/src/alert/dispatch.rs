@@ -125,6 +125,7 @@ pub enum TransportType {
     Http,
     Redis,
     Mock,
+    Grpc,
 }
 
 #[pyclass(eq)]

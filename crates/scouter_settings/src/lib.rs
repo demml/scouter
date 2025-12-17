@@ -6,6 +6,7 @@ use tracing::warn;
 pub mod auth;
 pub mod database;
 pub mod events;
+pub mod grpc;
 pub mod http;
 pub mod llm;
 pub mod polling;

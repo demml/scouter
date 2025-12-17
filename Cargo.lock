@@ -5780,6 +5780,7 @@ dependencies = [
  "scouter-settings",
  "scouter-sql",
  "scouter-state",
+ "scouter-tonic",
  "scouter-types",
  "serde",
  "serde_json",

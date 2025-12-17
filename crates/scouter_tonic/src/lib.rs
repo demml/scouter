@@ -22,12 +22,16 @@
 //! ```
 
 // Re-export common types (always available)
-pub use generated::scouter::message::v1::{InsertMessageRequest, InsertMessageResponse};
+pub use generated::scouter::grpc::v1::{
+    InsertMessageRequest, InsertMessageResponse, LoginRequest, LoginResponse, RefreshTokenRequest,
+    RefreshTokenResponse, ValidateTokenRequest, ValidateTokenResponse,
+};
 
 // Re-export client types when feature is enabled
 #[cfg(feature = "client")]
-pub use generated::scouter::message::v1::message_service_client::MessageServiceClient;
-
+pub use generated::scouter::grpc::v1::{
+    auth_service_client::AuthServiceClient, message_service_client::MessageServiceClient,
+};
 #[cfg(feature = "client")]
 pub mod client;
 
@@ -39,15 +43,16 @@ pub mod error;
 
 // Re-export server types when feature is enabled
 #[cfg(feature = "server")]
-pub use generated::scouter::message::v1::message_service_server::{
-    MessageService, MessageServiceServer,
+pub use generated::scouter::grpc::v1::{
+    auth_service_server::{AuthService, AuthServiceServer},
+    message_service_server::{MessageService, MessageServiceServer},
 };
 
 mod generated {
     pub mod scouter {
-        pub mod message {
+        pub mod grpc {
             pub mod v1 {
-                include!("generated/scouter.message.v1.rs");
+                include!("generated/scouter.grpc.v1.rs");
             }
         }
     }

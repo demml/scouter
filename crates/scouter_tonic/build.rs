@@ -23,7 +23,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     config
         .out_dir("src/generated")
-        .compile_protos(&["proto/message.v1.proto"], &["proto"])?;
+        .compile_protos(&["proto/grpc.v1.proto"], &["proto"])?;
 
     Ok(())
 }
