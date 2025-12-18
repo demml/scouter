@@ -29,6 +29,7 @@ from .._scouter import (
     TraceRecord,
     TraceSpanRecord,
     flush_tracer,
+    get_current_active_span,
     get_function_type,
     get_tracing_headers_from_current_span,
     init_tracer,
@@ -303,4 +304,5 @@ __all__ = [
     "BatchConfig",
     "shutdown_tracer",
     "get_tracing_headers_from_current_span",
+    "get_current_active_span",
 ]

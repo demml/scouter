@@ -38,6 +38,11 @@ jobs:
         with:
           cmake-version: "3.x"
 
+      - name: Install Protocol Buffers Compiler
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "33.2"
+
       - name: Set up Rust
         run: rustup override set stable && rustup update
 
@@ -80,6 +85,11 @@ jobs:
         uses: jwlawson/actions-setup-cmake@v2
         with:
           cmake-version: "3.x"
+
+      - name: Install Protocol Buffers Compiler
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "33.2"
 
       - name: Set up Rust
         run: rustup override set stable && rustup update
@@ -130,6 +140,11 @@ jobs:
       - name: install rust stable
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install Protocol Buffers Compiler
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "33.2"
+
       - name: cache rust
         uses: Swatinem/rust-cache@v2
         with:
@@ -171,6 +186,11 @@ jobs:
     needs: [rust-lints-test]
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Protocol Buffers Compiler
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "33.2"
 
       - name: install rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -214,6 +234,11 @@ jobs:
 
       - name: install rust stable
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Protocol Buffers Compiler
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "33.2"
 
       - name: cache rust
         uses: Swatinem/rust-cache@v2
@@ -265,10 +290,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install Protocol Buffers Compiler
+        uses: arduino/setup-protoc@v3
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          version: "33.2"
 
       - run: pip install -U twine
 
@@ -299,12 +324,32 @@ jobs:
                 apt update -y && apt-get install -y libssl-dev openssl pkg-config
             fi
 
-            # Install bindgen CLI
-            cargo install --force --locked bindgen-cli
 
-            # Determine architecture and install CMake
+            # Determine architecture
             ARCH=$(uname -m)
             echo "Detected architecture: $ARCH"
+
+            # Install Protocol Buffers Compiler (protoc)
+            PROTOC_VERSION="33.2"
+            if [[ "$ARCH" == "x86_64" ]]; then
+                PROTOC_ARCH="linux-x86_64"
+            elif [[ "$ARCH" == "aarch64" ]]; then
+                PROTOC_ARCH="linux-aarch_64"
+            else
+                echo "Unsupported architecture for protoc: $ARCH"
+                exit 1
+            fi
+
+            echo "Installing protoc ${PROTOC_VERSION} for ${PROTOC_ARCH}"
+            curl -LO "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-${PROTOC_ARCH}.zip"
+            unzip "protoc-${PROTOC_VERSION}-${PROTOC_ARCH}.zip" -d /usr/local
+            rm "protoc-${PROTOC_VERSION}-${PROTOC_ARCH}.zip"
+            chmod +x /usr/local/bin/protoc
+            protoc --version
+
+
+            # Install bindgen CLI
+            cargo install --force --locked bindgen-cli
 
             if [[ "$ARCH" == "x86_64" ]]; then
                 echo "Downloading CMake for x86_64 architecture"
