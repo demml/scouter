@@ -266,25 +266,10 @@ jobs:
 
       - name: Install protoc (Ubuntu)
         if: contains(matrix.os, 'ubuntu') && matrix.container_image == null
-        run: |
-          PROTOC_VERSION="33.2"
-
-          # Detect architecture
-          if [[ "$(uname -m)" == "x86_64" ]]; then
-            PROTOC_ARCH="linux-x86_64"
-          elif [[ "$(uname -m)" == "aarch64" ]]; then
-            PROTOC_ARCH="linux-aarch_64"
-          else
-            echo "Unsupported architecture: $(uname -m)"
-            exit 1
-          fi
-
-          echo "Installing protoc ${PROTOC_VERSION} for ${PROTOC_ARCH}"
-          curl -LO "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-${PROTOC_ARCH}.zip"
-          sudo unzip "protoc-${PROTOC_VERSION}-${PROTOC_ARCH}.zip" -d /usr/local
-          rm "protoc-${PROTOC_VERSION}-${PROTOC_ARCH}.zip"
-          sudo chmod +x /usr/local/bin/protoc
-          protoc --version
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "33.2"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Rust
         run: |
