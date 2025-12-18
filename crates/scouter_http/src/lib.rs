@@ -67,7 +67,7 @@ impl HttpClient {
 
         // Try to parse as JSON
         let token = response.json::<JwtToken>().map_err(|e| {
-            error!("Failed to parse response as JSON: {}", e);
+            error!("Failed to parse response as JSON for http: {}", e);
             ClientError::ParseJwtTokenError(e.to_string())
         })?;
 

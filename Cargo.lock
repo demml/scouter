@@ -5818,6 +5818,7 @@ dependencies = [
  "reqwest",
  "scouter-client",
  "scouter-server",
+ "scouter-tonic",
  "serde_json",
  "thiserror 2.0.17",
  "tokio",
@@ -5918,6 +5919,7 @@ dependencies = [
  "time",
  "tokio",
  "tonic",
+ "tonic-health",
  "tonic-middleware",
  "tower",
  "tower-http",
@@ -5986,6 +5988,7 @@ dependencies = [
  "thiserror 2.0.17",
  "tokio",
  "tonic",
+ "tonic-health",
  "tonic-prost",
  "tonic-prost-build",
  "tracing",
@@ -7078,6 +7081,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "tonic-health"
+version = "0.14.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2a82868bf299e0a1d2e8dce0dc33a46c02d6f045b2c1f1d6cc8dc3d0bf1812ef"
+dependencies = [
+ "prost",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tonic-prost",
 ]
 
 [[package]]

@@ -188,7 +188,6 @@ pub fn init_tracer(
     batch_config: Option<Py<BatchConfig>>,
 ) -> Result<(), TraceError> {
     debug!("Initializing tracer");
-
     let transport_config = match transport_config {
         Some(config) => TransportConfig::from_py_config(config)?,
         None => {

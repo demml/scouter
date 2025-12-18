@@ -8,7 +8,10 @@ use std::sync::{Arc, RwLock};
 use tonic::metadata::MetadataValue;
 use tonic::transport::Channel;
 use tonic::Request;
+use tonic_health::pb::health_client::HealthClient;
+use tonic_health::pb::HealthCheckRequest;
 use tracing::{debug, error, info};
+
 pub const X_REFRESHED_TOKEN: &str = "x-refreshed-token";
 pub const AUTHORIZATION: &str = "authorization";
 
@@ -200,5 +203,32 @@ impl GrpcClient {
         }
 
         Ok(response.into_inner())
+    }
+
+    pub async fn health_check(&self) -> Result<bool, ClientError> {
+        let channel = Channel::from_shared(self.config.server_uri.clone())
+            .map_err(|e| ClientError::GrpcError(format!("Invalid URI: {}", e)))?
+            .connect()
+            .await
+            .map_err(|e| ClientError::GrpcError(format!("Connection failed: {}", e)))?;
+
+        let mut health_client = HealthClient::new(channel);
+
+        // Check health of MessageService
+        let request = HealthCheckRequest {
+            service: "scouter.grpc.v1.MessageService".to_string(),
+        };
+
+        match health_client.check(request).await {
+            Ok(response) => {
+                let status = response.into_inner().status;
+                // Status: 0 = UNKNOWN, 1 = SERVING, 2 = NOT_SERVING
+                Ok(status == 1)
+            }
+            Err(e) => {
+                debug!("Health check failed: {}", e);
+                Ok(false)
+            }
+        }
     }
 }

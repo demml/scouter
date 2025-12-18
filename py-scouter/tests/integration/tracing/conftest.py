@@ -7,6 +7,7 @@ import requests
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from scouter.mock import ScouterTestServer
+from scouter.transport import GrpcConfig
 from scouter.tracing import (
     BatchConfig,
     GrpcSpanExporter,
@@ -59,6 +60,7 @@ def setup_tracer_grpc(grpc_span_exporter):
     with ScouterTestServer() as server:
         init_tracer(
             service_name="tracing-grpc",
+            transport_config=GrpcConfig(),
             exporter=grpc_span_exporter,
             batch_config=BatchConfig(scheduled_delay_ms=200),
         )
@@ -73,6 +75,7 @@ def setup_tracer_grpc_sample(grpc_span_exporter):
     with ScouterTestServer() as server:
         init_tracer(
             service_name="tracing-grpc-sample",
+            transport_config=GrpcConfig(),
             exporter=GrpcSpanExporter(sample_ratio=0.2),
             batch_config=BatchConfig(scheduled_delay_ms=200),
         )
@@ -157,11 +160,15 @@ def create_service_a_app() -> FastAPI:
         trace_id = incoming_headers.get("trace_id")
         span_id = incoming_headers.get("span_id")
 
-        with tracer.start_as_current_span("service_a_double", trace_id=trace_id, span_id=span_id):
+        with tracer.start_as_current_span(
+            "service_a_double", trace_id=trace_id, span_id=span_id
+        ):
             doubled = payload.value * 2
 
             service_a_inner_function()
 
-            return ServiceAResponse(result=doubled + 10, trace_id=trace_id, span_id=span_id)
+            return ServiceAResponse(
+                result=doubled + 10, trace_id=trace_id, span_id=span_id
+            )
 
     return app

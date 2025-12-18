@@ -9,6 +9,7 @@ use scouter_settings::grpc::GrpcConfig;
 use scouter_settings::HttpConfig;
 use scouter_types::TransportType;
 use tracing::error;
+use tracing::instrument;
 
 #[derive(Clone, Debug)]
 pub enum TransportConfig {
@@ -30,6 +31,7 @@ impl TransportConfig {
     ///
     /// # Returns
     /// * `TransportConfig` - TransportConfig object
+    #[instrument(skip_all)]
     pub fn from_py_config(config: &Bound<'_, PyAny>) -> PyResult<Self> {
         let transport_type = config.getattr("transport_type")?;
 

@@ -50,6 +50,7 @@ tracing-subscriber = { workspace = true}
 
 # gRPC/Tonic dependencies
 tonic = { workspace = true }
+tonic-health = { workspace = true }
 tonic-middleware = { workspace = true } # need for async interceptors
 
 [dev-dependencies]

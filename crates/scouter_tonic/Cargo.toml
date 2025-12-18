@@ -17,6 +17,7 @@ scouter-http = { workspace = true }
 scouter-settings = { workspace = true }
 tokio = { workspace = true }
 tonic = { workspace = true, default-features = false, features = ["codegen"] }
+tonic-health = { workspace = true }
 tonic-prost = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
@@ -27,6 +28,7 @@ prost-types = { workspace = true }
 default = []
 client = ["tonic/channel"]
 server = ["tonic/server"]
+all = ["client", "server"]
 
 
 [build-dependencies]
