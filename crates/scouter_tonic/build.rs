@@ -1,3 +1,5 @@
+/// Primary build script for the scouter_tonic crate.
+/// This script configures the tonic_prost_build to generate gRPC client and server code
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut config = tonic_prost_build::configure();
 
