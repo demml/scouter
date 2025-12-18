@@ -295,7 +295,7 @@ jobs:
         with:
           version: "33.2"
 
-      - run: pip install -U twine
+      - run: pip install -U "twine>=6.1.0" "packaging>=24.2"
 
       - name: Set OPENSSL_DIR environment variable
         run: echo "OPENSSL_DIR=/usr" >> $GITHUB_ENV
