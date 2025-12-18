@@ -17,12 +17,10 @@ from .._scouter import (
     ActiveSpan,
     BaseTracer,
     BatchConfig,
-    ExportConfig,
+    OtelExportConfig,
     FunctionType,
-    GrpcConfig,
     GrpcSpanExporter,
     HttpSpanExporter,
-    OtelHttpConfig,
     OtelProtocol,
     SpanKind,
     StdoutSpanExporter,
@@ -132,7 +130,9 @@ class Tracer(BaseTracer):
             if function_type == FunctionType.AsyncGenerator:
 
                 @functools.wraps(func)
-                async def async_generator_wrapper(*args: P.args, **kwargs: P.kwargs) -> Any:
+                async def async_generator_wrapper(
+                    *args: P.args, **kwargs: P.kwargs
+                ) -> Any:
                     async with self._start_decorated_as_current_span(
                         name=span_name,
                         func=func,
@@ -149,7 +149,9 @@ class Tracer(BaseTracer):
                         func_kwargs=kwargs,
                     ) as span:
                         try:
-                            async_gen_func = cast(Callable[P, AsyncGenerator[Any, None]], func)
+                            async_gen_func = cast(
+                                Callable[P, AsyncGenerator[Any, None]], func
+                            )
                             generator = async_gen_func(*args, **kwargs)
 
                             outputs = []
@@ -191,7 +193,9 @@ class Tracer(BaseTracer):
                         func_kwargs=kwargs,
                     ) as span:
                         try:
-                            gen_func = cast(Callable[P, Generator[Any, None, None]], func)
+                            gen_func = cast(
+                                Callable[P, Generator[Any, None, None]], func
+                            )
                             generator = gen_func(*args, **kwargs)
                             results = []
 
@@ -292,10 +296,9 @@ __all__ = [
     "SpanKind",
     "FunctionType",
     "ActiveSpan",
-    "ExportConfig",
+    "OtelExportConfig",
     "GrpcConfig",
     "GrpcSpanExporter",
-    "OtelHttpConfig",
     "HttpSpanExporter",
     "StdoutSpanExporter",
     "OtelProtocol",

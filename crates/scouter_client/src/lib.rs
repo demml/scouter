@@ -6,7 +6,7 @@ pub mod profiler;
 
 pub use drifter::scouter::PyDrifter;
 pub use profiler::scouter::DataProfiler;
-pub use scouter_settings::HttpConfig;
+pub use scouter_settings::{grpc::GrpcConfig, HttpConfig};
 pub use scouter_types::{
     alert::{Alert, Alerts, CompressionType},
     create_feature_map,
@@ -88,6 +88,6 @@ pub use scouter_tracing::exporter::{
 };
 pub use scouter_tracing::tracer::*;
 pub use scouter_tracing::utils::{
-    get_current_active_span, get_function_type, ExportConfig, FunctionType, GrpcConfig,
-    OtelHttpConfig, OtelProtocol, SpanKind,
+    get_current_active_span, get_function_type, FunctionType, OtelExportConfig, OtelProtocol,
+    SpanKind,
 };

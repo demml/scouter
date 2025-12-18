@@ -15,9 +15,6 @@ pub struct GrpcConfig {
     #[pyo3(get, set)]
     pub password: String,
 
-    #[pyo3(get, set)]
-    pub auth_token: String,
-
     #[pyo3(get)]
     pub transport_type: TransportType,
 }
@@ -25,14 +22,16 @@ pub struct GrpcConfig {
 #[pymethods]
 impl GrpcConfig {
     #[new]
-    #[pyo3(signature = (server_uri=None, username=None, password=None, auth_token=None))]
+    #[pyo3(signature = (
+        server_uri=None,
+        username=None,
+        password=None,
+    ))]
     pub fn new(
         server_uri: Option<String>,
         username: Option<String>,
         password: Option<String>,
-        auth_token: Option<String>,
     ) -> Self {
-        // Use dedicated SCOUTER_GRPC_URI env var with sensible fallback
         let server_uri = server_uri.unwrap_or_else(|| {
             std::env::var("SCOUTER_GRPC_URI")
                 .unwrap_or_else(|_| "http://localhost:50051".to_string())
@@ -46,15 +45,10 @@ impl GrpcConfig {
             std::env::var("SCOUTER_PASSWORD").unwrap_or_else(|_| "guest".to_string())
         });
 
-        let auth_token = auth_token.unwrap_or_else(|| {
-            std::env::var("SCOUTER_AUTH_TOKEN").unwrap_or_else(|_| "".to_string())
-        });
-
         GrpcConfig {
             server_uri,
             username,
             password,
-            auth_token,
             transport_type: TransportType::Grpc,
         }
     }
@@ -66,13 +60,6 @@ impl GrpcConfig {
 
 impl Default for GrpcConfig {
     fn default() -> Self {
-        GrpcConfig {
-            server_uri: std::env::var("SCOUTER_GRPC_URI")
-                .unwrap_or_else(|_| "http://localhost:50051".to_string()),
-            username: std::env::var("SCOUTER_USERNAME").unwrap_or_else(|_| "guest".to_string()),
-            password: std::env::var("SCOUTER_PASSWORD").unwrap_or_else(|_| "guest".to_string()),
-            auth_token: std::env::var("SCOUTER_AUTH_TOKEN").unwrap_or_else(|_| "".to_string()),
-            transport_type: TransportType::Grpc,
-        }
+        Self::new(None, None, None)
     }
 }

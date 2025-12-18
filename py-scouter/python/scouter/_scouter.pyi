@@ -91,47 +91,143 @@ def init_tracer(
     service_name: str = "scouter_service",
     scope: str = "scouter.tracer.{version}",
     transport_config: Optional[
-        HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig
+        HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig | GrpcConfig
     ] = None,
-    exporter: Optional[HttpSpanExporter | StdoutSpanExporter | TestSpanExporter] = None,  # noqa: F821
+    exporter: Optional[
+        HttpSpanExporter | GrpcSpanExporter | StdoutSpanExporter | TestSpanExporter
+    ] = None,
     batch_config: Optional[BatchConfig] = None,
 ) -> None:
-    """Initialize the tracer for a service with specific transport and exporter configurations.
+    """
+    Initialize the tracer for a service with dual export capability.
+    ```
+    ╔════════════════════════════════════════════╗
+    ║          DUAL EXPORT ARCHITECTURE          ║
+    ╠════════════════════════════════════════════╣
+    ║                                            ║
+    ║  Your Application                          ║
+    ║       │                                    ║
+    ║       │  init_tracer()                     ║
+    ║       │                                    ║
+    ║       ├──────────────────┬                 ║
+    ║       │                  │                 ║
+    ║       ▼                  ▼                 ║
+    ║  ┌─────────────┐   ┌──────────────┐        ║
+    ║  │  Transport  │   │   Optional   │        ║
+    ║  │   to        │   │     OTEL     │        ║
+    ║  │  Scouter    │   │  Exporter    │        ║
+    ║  │  (Required) │   │              │        ║
+    ║  └──────┬──────┘   └──────┬───────┘        ║
+    ║         │                 │                ║
+    ║         │                 │                ║
+    ║    ┌────▼────┐       ┌────▼────┐           ║
+    ║    │ Scouter │       │  OTEL   │           ║
+    ║    │ Server  │       │Collector│           ║
+    ║    └─────────┘       └─────────┘           ║
+    ║                                            ║
+    ╚════════════════════════════════════════════╝
+    ```
+    Configuration Overview:
+        This function sets up a service tracer with **mandatory** export to Scouter
+        and **optional** export to OpenTelemetry-compatible backends.
 
-    This function configures a service tracer, allowing for the specification of
-    the service name, the transport mechanism for exporting spans, and the chosen
-    span exporter.
+    ```
+    ┌─ REQUIRED: Scouter Export ────────────────────────────────────────────────┐
+    │                                                                           │
+    │  All spans are ALWAYS exported to Scouter via transport_config:           │
+    │    • HttpConfig    → HTTP endpoint (default)                              │
+    │    • GrpcConfig    → gRPC endpoint                                        │
+    │    • KafkaConfig   → Kafka topic                                          │
+    │    • RabbitMQConfig→ RabbitMQ queue                                       │
+    │    • RedisConfig   → Redis stream/channel                                 │
+    │                                                                           │
+    └───────────────────────────────────────────────────────────────────────────┘
+
+    ┌─ OPTIONAL: OTEL Export ───────────────────────────────────────────────────┐
+    │                                                                           │
+    │  Optionally export spans to external OTEL-compatible systems:             │
+    │    • HttpSpanExporter   → OTEL Collector (HTTP)                           │
+    │    • GrpcSpanExporter   → OTEL Collector (gRPC)                           │
+    │    • StdoutSpanExporter → Console output (debugging)                      │
+    │    • TestSpanExporter   → In-memory (testing)                             │
+    │                                                                           │
+    │  If None: Only Scouter export is active (NoOpExporter)                    │
+    │                                                                           │
+    └───────────────────────────────────────────────────────────────────────────┘
+    ```
 
     Args:
         service_name (str):
             The **required** name of the service this tracer is associated with.
             This is typically a logical identifier for the application or component.
-        scope (str):
-            The scope for the tracer. This is typically used to differentiate
-            tracers by version or environment. Defaults to "scouter.tracer.{version}".
-        transport_config (HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig | None):
-            The configuration detailing how spans should be sent out.
-            If **None**, a default `HttpConfig` will be used.
+            Default: "scouter_service"
 
-            The supported configuration types are:
-            * `HttpConfig`: Configuration for exporting via HTTP/gRPC.
-            * `KafkaConfig`: Configuration for exporting to a Kafka topic.
-            * `RabbitMQConfig`: Configuration for exporting to a RabbitMQ queue.
-            * `RedisConfig`: Configuration for exporting to a Redis stream or channel.
-        exporter (HttpSpanExporter | StdoutSpanExporter | TestSpanExporter | None):
-            The span exporter implementation to use.
-            If **None**, a default `NoOpExporter` is used which means spans will only be exported
-            to Scouter and not to any external OTEL-compatible backend.
+        scope (str):
+            The scope for the tracer. Used to differentiate tracers by version
+            or environment.
+            Default: "scouter.tracer.{version}"
+
+        transport_config (HttpConfig | GrpcConfig | KafkaConfig | RabbitMQConfig | RedisConfig | None):
+
+            Configuration for sending spans to Scouter. If None, defaults to HttpConfig.
+
+            Supported transports:
+                • HttpConfig     : Export to Scouter via HTTP
+                • GrpcConfig     : Export to Scouter via gRPC
+                • KafkaConfig    : Export to Scouter via Kafka
+                • RabbitMQConfig : Export to Scouter via RabbitMQ
+                • RedisConfig    : Export to Scouter via Redis
+
+        exporter (HttpSpanExporter | GrpcSpanExporter | StdoutSpanExporter | TestSpanExporter | None):
+
+            Optional secondary exporter for OpenTelemetry-compatible backends.
+            If None, spans are ONLY sent to Scouter (NoOpExporter used internally).
 
             Available exporters:
-            * `HttpSpanExporter`: Sends spans to an HTTP endpoint (e.g., an OpenTelemetry collector).
-            * `StdoutSpanExporter`: Writes spans directly to standard output for debugging.
-            * `TestSpanExporter`: Collects spans in memory, primarily for unit testing.
-        batch_config (BatchConfig | None):
-            Configuration for the batching process. If provided, spans will be queued
-            and exported in batches according to these settings. If `None`, and the
-            exporter supports batching, default batch settings will be applied.
+                • HttpSpanExporter   : Send to OTEL Collector via HTTP
+                • GrpcSpanExporter   : Send to OTEL Collector via gRPC
+                • StdoutSpanExporter : Write to stdout (debugging)
+                • TestSpanExporter   : Collect in-memory (testing)
 
+        batch_config (BatchConfig | None):
+            Configuration for batch span export. If provided, spans are queued
+            and exported in batches. If None and the exporter supports batching,
+            default batch settings apply.
+
+            Batching improves performance for high-throughput applications.
+
+    Examples:
+        Basic setup (Scouter only via HTTP):
+            >>> init_tracer(service_name="my-service")
+
+        Scouter via Kafka + OTEL Collector:
+            >>> init_tracer(
+            ...     service_name="my-service",
+            ...     transport_config=KafkaConfig(brokers="kafka:9092"),
+            ...     exporter=HttpSpanExporter(
+            ...         export_config=OtelExportConfig(
+            ...             endpoint="http://otel-collector:4318"
+            ...         )
+            ...     )
+            ... )
+
+        Scouter via gRPC + stdout debugging:
+            >>> init_tracer(
+            ...     service_name="my-service",
+            ...     transport_config=GrpcConfig(server_uri="grpc://scouter:50051"),
+            ...     exporter=StdoutSpanExporter()
+            ... )
+
+    Notes:
+        • Spans are ALWAYS exported to Scouter via transport_config
+        • OTEL export via exporter is completely optional
+        • Both exports happen in parallel without blocking each other
+        • Use batch_config to optimize performance for high-volume tracing
+
+    See Also:
+        - HttpConfig, GrpcConfig, KafkaConfig, RabbitMQConfig, RedisConfig
+        - HttpSpanExporter, GrpcSpanExporter, StdoutSpanExporter, TestSpanExporter
+        - BatchConfig
     """
 
 class ActiveSpan:
@@ -392,7 +488,7 @@ class StdoutSpanExporter:
 def flush_tracer() -> None:
     """Force flush the tracer's exporter."""
 
-class ExportConfig:
+class OtelExportConfig:
     """Configuration for exporting spans."""
 
     def __init__(
@@ -400,16 +496,22 @@ class ExportConfig:
         endpoint: Optional[str],
         protocol: OtelProtocol = OtelProtocol.HttpBinary,
         timeout: Optional[int] = None,
+        compression: Optional[CompressionType] = None,
+        headers: Optional[dict[str, str]] = None,
     ) -> None:
         """Initialize the ExportConfig.
 
         Args:
             endpoint (Optional[str]):
-                The HTTP endpoint for exporting spans.
+                The endpoint for exporting spans. Can be either an HTTP or gRPC endpoint.
             protocol (Protocol):
                 The protocol to use for exporting spans. Defaults to HttpBinary.
             timeout (Optional[int]):
-                The timeout for HTTP requests in seconds.
+                The timeout for requests in seconds.
+            compression (Optional[CompressionType]):
+                The compression type for requests.
+            headers (Optional[dict[str, str]]):
+                Optional HTTP headers to include in requests.
         """
 
     @property
@@ -422,32 +524,13 @@ class ExportConfig:
 
     @property
     def timeout(self) -> Optional[int]:
-        """Get the timeout for HTTP requests in seconds."""
-
-class OtelHttpConfig:
-    """Configuration for HTTP span exporting."""
-
-    def __init__(
-        self,
-        headers: Optional[dict[str, str]] = None,
-        compression: Optional[CompressionType] = None,
-    ) -> None:
-        """Initialize the HttpConfig.
-
-        Args:
-            headers (Optional[dict[str, str]]):
-                Optional HTTP headers to include in requests.
-            compression (Optional[CompressionType]):
-                Optional compression type for HTTP requests.
-        """
-
-    @property
-    def headers(self) -> Optional[dict[str, str]]:
-        """Get the HTTP headers."""
-
+        """Get the timeout for requests in seconds."""
     @property
     def compression(self) -> Optional[CompressionType]:
-        """Get the compression type."""
+        """Get the compression type used for exporting spans."""
+    @property
+    def headers(self) -> Optional[dict[str, str]]:
+        """Get the HTTP headers used for exporting spans."""
 
 class HttpSpanExporter:
     """Exporter that sends spans to an HTTP endpoint."""
@@ -455,8 +538,7 @@ class HttpSpanExporter:
     def __init__(
         self,
         batch_export: bool = True,
-        export_config: Optional[ExportConfig] = None,
-        http_config: Optional[OtelHttpConfig] = None,
+        export_config: Optional[OtelExportConfig] = None,
         sample_ratio: Optional[float] = None,
     ) -> None:
         """Initialize the HttpSpanExporter.
@@ -464,10 +546,8 @@ class HttpSpanExporter:
         Args:
             batch_export (bool):
                 Whether to use batch exporting. Defaults to True.
-            export_config (Optional[ExportConfig]):
+            export_config (Optional[OtelExportConfig]):
                 Configuration for exporting spans.
-            http_config (Optional[OtelHttpConfig]):
-                Configuration for the HTTP exporter.
             sample_ratio (Optional[float]):
                 The sampling ratio for traces. If None, defaults to always sample.
         """
@@ -500,29 +580,13 @@ class HttpSpanExporter:
     def compression(self) -> Optional[CompressionType]:
         """Get the compression type used for exporting spans."""
 
-class GrpcConfig:
-    """Configuration for gRPC exporting."""
-
-    def __init__(self, compression: Optional[CompressionType] = None) -> None:
-        """Initialize the GrpcConfig.
-
-        Args:
-            compression (Optional[CompressionType]):
-                Optional compression type for gRPC requests.
-        """
-
-    @property
-    def compression(self) -> Optional[CompressionType]:
-        """Get the compression type."""
-
 class GrpcSpanExporter:
     """Exporter that sends spans to a gRPC endpoint."""
 
     def __init__(
         self,
         batch_export: bool = True,
-        export_config: Optional[ExportConfig] = None,
-        grpc_config: Optional[GrpcConfig] = None,
+        export_config: Optional[OtelExportConfig] = None,
         sample_ratio: Optional[float] = None,
     ) -> None:
         """Initialize the GrpcSpanExporter.
@@ -530,10 +594,8 @@ class GrpcSpanExporter:
         Args:
             batch_export (bool):
                 Whether to use batch exporting. Defaults to True.
-            export_config (Optional[ExportConfig]):
+            export_config (Optional[OtelExportConfig]):
                 Configuration for exporting spans.
-            grpc_config (Optional[GrpcConfig]):
-                Configuration for the gRPC exporter.
             sample_ratio (Optional[float]):
                 The sampling ratio for traces. If None, defaults to always sample.
         """
@@ -3096,6 +3158,7 @@ class TransportType:
     RabbitMQ = "TransportType"
     Redis = "TransportType"
     HTTP = "TransportType"
+    Grpc = "TransportType"
 
 class HttpConfig:
     server_uri: str
@@ -3126,6 +3189,35 @@ class HttpConfig:
             auth_token:
                 Authorization token to use for authentication.
 
+        """
+
+    def __str__(self): ...
+
+class GrpcConfig:
+    server_uri: str
+    username: str
+    password: str
+
+    def __init__(
+        self,
+        server_uri: Optional[str] = None,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+    ) -> None:
+        """gRPC configuration to use with the GrpcProducer.
+
+        Args:
+            server_uri:
+                URL of the gRPC server to publish messages to.
+                If not provided, the value of the SCOUTER_GRPC_URI environment variable is used.
+
+            username:
+                Username for basic authentication.
+                If not provided, the value of the SCOUTER_USERNAME environment variable is used.
+
+            password:
+                Password for basic authentication.
+                If not provided, the value of the SCOUTER_PASSWORD environment variable is used.
         """
 
     def __str__(self): ...
@@ -6664,10 +6756,9 @@ __all__ = [
     "SpanKind",
     "FunctionType",
     "ActiveSpan",
-    "ExportConfig",
+    "OtelExportConfig",
     "GrpcConfig",
     "GrpcSpanExporter",
-    "OtelHttpConfig",
     "HttpSpanExporter",
     "StdoutSpanExporter",
     "OtelProtocol",
