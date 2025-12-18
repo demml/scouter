@@ -70,7 +70,7 @@ def setup_tracer_grpc(grpc_span_exporter):
 
 
 @pytest.fixture(scope="module")
-def setup_tracer_grpc_sample(grpc_span_exporter):
+def setup_tracer_grpc_sample():
     """Initialize tracer with grpc exporter for each test."""
     with ScouterTestServer() as server:
         init_tracer(

@@ -4248,41 +4248,150 @@ class ScouterQueue:
             RabbitMQConfig,
             RedisConfig,
             HttpConfig,
+            GrpcConfig,
         ],
     ) -> "ScouterQueue":
-        """Initializes Scouter queue from one or more drift profile paths
+        """Initializes Scouter queue from one or more drift profile paths.
+
+        ```
+        ╔══════════════════════════════════════════════════════════════════════════╗
+        ║                    SCOUTER QUEUE ARCHITECTURE                            ║
+        ╠══════════════════════════════════════════════════════════════════════════╣
+        ║                                                                          ║
+        ║  Python Runtime (Client)                                                 ║
+        ║  ┌────────────────────────────────────────────────────────────────────┐  ║
+        ║  │  ScouterQueue.from_path()                                          │  ║
+        ║  │    • Load drift profiles (SPC, PSI, Custom, LLM)                   │  ║
+        ║  │    • Configure transport (Kafka, RabbitMQ, Redis, HTTP, gRPC)      │  ║
+        ║  └───────────────────────────┬────────────────────────────────────────┘  ║
+        ║                              │                                           ║
+        ║                              ▼                                           ║
+        ║  ┌────────────────────────────────────────────────────────────────────┐  ║
+        ║  │  queue["profile_alias"].insert(Features | Metrics | LLMRecord)     │  ║
+        ║  └───────────────────────────┬────────────────────────────────────────┘  ║
+        ║                              │                                           ║
+        ╚══════════════════════════════╪═══════════════════════════════════════════╝
+                                       │
+                                       │  Language Boundary
+                                       │
+        ╔══════════════════════════════╪═══════════════════════════════════════════╗
+        ║  Rust Runtime (Producer)     ▼                                           ║
+        ║  ┌────────────────────────────────────────────────────────────────────┐  ║
+        ║  │  Queue<T> (per profile)                                            │  ║
+        ║  │    • Buffer records in memory                                      │  ║
+        ║  │    • Validate against drift profile schema                         │  ║
+        ║  │    • Convert to ServerRecord format                                │  ║
+        ║  └───────────────────────────┬────────────────────────────────────────┘  ║
+        ║                              │                                           ║
+        ║                              ▼                                           ║
+        ║  ┌────────────────────────────────────────────────────────────────────┐  ║
+        ║  │  Transport Producer                                                │  ║
+        ║  │    • KafkaProducer    → Kafka brokers                              │  ║
+        ║  │    • RabbitMQProducer → RabbitMQ exchange                          │  ║
+        ║  │    • RedisProducer    → Redis pub/sub                              │  ║
+        ║  │    • HttpProducer     → HTTP endpoint                              │  ║
+        ║  │    • GrpcProducer     → gRPC server                                │  ║
+        ║  └───────────────────────────┬────────────────────────────────────────┘  ║
+        ║                              │                                           ║
+        ╚══════════════════════════════╪═══════════════════════════════════════════╝
+                                       │
+                                       │  Network/Message Bus
+                                       │
+        ╔══════════════════════════════╪═══════════════════════════════════════════╗
+        ║  Scouter Server              ▼                                           ║
+        ║  ┌────────────────────────────────────────────────────────────────────┐  ║
+        ║  │  Consumer (Kafka/RabbitMQ/Redis/HTTP/gRPC)                         │  ║
+        ║  │    • Receive drift records                                         │  ║
+        ║  │    • Deserialize & validate                                        │  ║
+        ║  └───────────────────────────┬────────────────────────────────────────┘  ║
+        ║                              │                                           ║
+        ║                              ▼                                           ║
+        ║  ┌────────────────────────────────────────────────────────────────────┐  ║
+        ║  │  Processing Pipeline                                               │  ║
+        ║  │    • Calculate drift metrics (SPC, PSI)                            │  ║
+        ║  │    • Evaluate alert conditions                                     │  ║
+        ║  │    • Store in PostgreSQL                                           │  ║
+        ║  │    • Dispatch alerts (Slack, OpsGenie, Console)                    │  ║
+        ║  └────────────────────────────────────────────────────────────────────┘  ║
+        ║                                                                          ║
+        ╚══════════════════════════════════════════════════════════════════════════╝
+        ```
+        Flow Summary:
+            1. **Python Runtime**: Initialize queue with drift profiles and transport config
+            2. **Insert Records**: Call queue["alias"].insert() with Features/Metrics/LLMRecord
+            3. **Rust Queue**: Buffer and validate records against profile schema
+            4. **Transport Producer**: Serialize and publish to configured transport
+            5. **Network**: Records travel via Kafka/RabbitMQ/Redis/HTTP/gRPC
+            6. **Scouter Server**: Consumer receives, processes, and stores records
+            7. **Alerting**: Evaluate drift conditions and dispatch alerts if triggered
 
         Args:
             path (Dict[str, Path]):
                 Dictionary of drift profile paths.
-                Each key is a user-defined alias for accessing a queue
-            transport_config (Union[KafkaConfig, RabbitMQConfig, RedisConfig, HttpConfig]):
-                Transport configuration for the queue publisher
-                Can be KafkaConfig, RabbitMQConfig RedisConfig, or HttpConfig
+                Each key is a user-defined alias for accessing a queue.
 
-        Example:
-            ```python
-            queue = ScouterQueue(
-                path={
-                    "spc": Path("spc_profile.json"),
-                    "psi": Path("psi_profile.json"),
-                },
-                transport_config=KafkaConfig(
-                    brokers="localhost:9092",
-                    topic="scouter_topic",
-                ),
-            )
+                Supported profile types:
+                    • SpcDriftProfile    - Statistical Process Control monitoring
+                    • PsiDriftProfile    - Population Stability Index monitoring
+                    • CustomDriftProfile - Custom metric monitoring
+                    • LLMDriftProfile    - LLM evaluation monitoring
 
-            queue["psi"].insert(
-                Features(
-                    features=[
-                        Feature("feature_1", 1),
-                        Feature("feature_2", 2.0),
-                        Feature("feature_3", "value"),
-                    ]
-                )
-            )
-            ```
+            transport_config (Union[KafkaConfig, RabbitMQConfig, RedisConfig, HttpConfig, GrpcConfig]):
+                Transport configuration for the queue publisher.
+
+                Available transports:
+                    • KafkaConfig     - Apache Kafka message bus
+                    • RabbitMQConfig  - RabbitMQ message broker
+                    • RedisConfig     - Redis pub/sub
+                    • HttpConfig      - Direct HTTP to Scouter server
+                    • GrpcConfig      - Direct gRPC to Scouter server
+
+        Returns:
+            ScouterQueue:
+                Configured queue with Rust-based producers for each drift profile.
+
+        Examples:
+            Basic SPC monitoring with Kafka:
+                >>> queue = ScouterQueue.from_path(
+                ...     path={"spc": Path("spc_drift_profile.json")},
+                ...     transport_config=KafkaConfig(
+                ...         brokers="localhost:9092",
+                ...         topic="scouter_monitoring",
+                ...     ),
+                ... )
+                >>> queue["spc"].insert(
+                ...     Features(features=[
+                ...         Feature("feature_1", 1.5),
+                ...         Feature("feature_2", 2.3),
+                ...     ])
+                ... )
+
+            Multi-profile monitoring with HTTP:
+                >>> queue = ScouterQueue.from_path(
+                ...     path={
+                ...         "spc": Path("spc_profile.json"),
+                ...         "psi": Path("psi_profile.json"),
+                ...         "custom": Path("custom_profile.json"),
+                ...     },
+                ...     transport_config=HttpConfig(
+                ...         server_uri="http://scouter-server:8000",
+                ...     ),
+                ... )
+                >>> queue["psi"].insert(Features(...))
+                >>> queue["custom"].insert(Metrics(...))
+
+            LLM monitoring with gRPC:
+                >>> queue = ScouterQueue.from_path(
+                ...     path={"llm_eval": Path("llm_profile.json")},
+                ...     transport_config=GrpcConfig(
+                ...         server_uri="http://scouter-server:50051",
+                ...         username="monitoring_user",
+                ...         password="secure_password",
+                ...     ),
+                ... )
+                >>> queue["llm_eval"].insert(
+                ...     LLMRecord(context={"input": "...", "response": "..."})
+                ... )
         """
 
     def __getitem__(self, key: str) -> Queue:
