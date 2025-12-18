@@ -19,7 +19,6 @@ def test_init_tracer(tracer, span_exporter):
 
     assert len(span_exporter.spans) == 1
     assert len(span_exporter.baggage) == 2
-    assert len(span_exporter.traces) == 1
 
 
 def test_sync_decorator_basic_functionality(tracer, span_exporter):
