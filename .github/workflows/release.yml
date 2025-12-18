@@ -18,12 +18,24 @@ env:
   CARGO_INCREMENTAL: 0
   CARGO_NET_RETRY: 10
   CARGO_TERM_COLOR: always
+  PROTOC_VERSION: "33.2"
 
 jobs:
   build-sdist:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Protocol Buffers Compiler
+        run: |
+          PROTOC_ARCH="linux-x86_64"
+          echo "Installing protoc ${PROTOC_VERSION} for ${PROTOC_ARCH}"
+          curl -LO "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-${PROTOC_ARCH}.zip"
+          sudo unzip "protoc-${PROTOC_VERSION}-${PROTOC_ARCH}.zip" -d /usr/local
+          rm "protoc-${PROTOC_VERSION}-${PROTOC_ARCH}.zip"
+          sudo chmod +x /usr/local/bin/protoc
+          protoc --version
+
       - name: Build sdist
         uses: PyO3/maturin-action@v1
         with:
@@ -95,12 +107,30 @@ jobs:
                 apt update -y && apt-get install -y libssl-dev openssl pkg-config
             fi
 
-            # Install bindgen CLI
-            cargo install --force --locked bindgen-cli
-
             # Determine architecture and install CMake
             ARCH=$(uname -m)
             echo "Detected architecture: $ARCH"
+
+            # Install Protocol Buffers Compiler (protoc)
+            PROTOC_VERSION="33.2"
+            if [[ "$ARCH" == "x86_64" ]]; then
+                PROTOC_ARCH="linux-x86_64"
+            elif [[ "$ARCH" == "aarch64" ]]; then
+                PROTOC_ARCH="linux-aarch_64"
+            else
+                echo "Unsupported architecture for protoc: $ARCH"
+                exit 1
+            fi
+
+            echo "Installing protoc ${PROTOC_VERSION} for ${PROTOC_ARCH}"
+            curl -LO "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-${PROTOC_ARCH}.zip"
+            unzip "protoc-${PROTOC_VERSION}-${PROTOC_ARCH}.zip" -d /usr/local
+            rm "protoc-${PROTOC_VERSION}-${PROTOC_ARCH}.zip"
+            chmod +x /usr/local/bin/protoc
+            protoc --version
+
+            # Install bindgen CLI
+            cargo install --force --locked bindgen-cli
 
             if [[ "$ARCH" == "x86_64" ]]; then
                 echo "Downloading CMake for x86_64 architecture"
@@ -177,6 +207,15 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Install Protocol Buffers Compiler
+        run: |
+          echo "Installing protoc ${PROTOC_VERSION} for macOS universal binary"
+          curl -LO "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-osx-universal_binary.zip"
+          sudo unzip "protoc-${PROTOC_VERSION}-osx-universal_binary.zip" -d /usr/local
+          rm "protoc-${PROTOC_VERSION}-osx-universal_binary.zip"
+          sudo chmod +x /usr/local/bin/protoc
+          protoc --version
+
       - run: pip install -U twine
 
       - name: Build wheel
@@ -221,6 +260,21 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Protocol Buffers Compiler
+        shell: powershell
+        run: |
+          $ProtocVersion = "$env:PROTOC_VERSION"
+          $ProtocArch = "win64"
+          Write-Host "Installing protoc $ProtocVersion for $ProtocArch"
+
+          Invoke-WebRequest -Uri "https://github.com/protocolbuffers/protobuf/releases/download/v$ProtocVersion/protoc-$ProtocVersion-$ProtocArch.zip" -OutFile "protoc.zip"
+          Expand-Archive -Path "protoc.zip" -DestinationPath "C:\protoc"
+          Remove-Item "protoc.zip"
+
+          echo "C:\protoc\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+          & C:\protoc\bin\protoc.exe --version
 
       - run: pip install -U twine
 

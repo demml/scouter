@@ -212,6 +212,16 @@ jobs:
           # Source for this step
           source $HOME/.cargo/env
 
+          # Install Protocol Buffers Compiler
+          PROTOC_VERSION="33.2"
+          PROTOC_ARCH="linux-aarch_64"
+          echo "Installing protoc ${PROTOC_VERSION} for ${PROTOC_ARCH}"
+          curl -LO "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-${PROTOC_ARCH}.zip"
+          unzip "protoc-${PROTOC_VERSION}-${PROTOC_ARCH}.zip" -d /usr/local
+          rm "protoc-${PROTOC_VERSION}-${PROTOC_ARCH}.zip"
+          chmod +x /usr/local/bin/protoc
+          protoc --version
+
           echo "Installing CMake 3.26.4..."
           curl -L https://github.com/Kitware/CMake/releases/download/v3.26.4/cmake-3.26.4-linux-aarch64.sh -o cmake.sh
           chmod +x cmake.sh
@@ -232,6 +242,16 @@ jobs:
           # Source for this step
           source $HOME/.cargo/env
 
+          # Install Protocol Buffers Compiler
+          PROTOC_VERSION="33.2"
+          PROTOC_ARCH="linux-x86_64"
+          echo "Installing protoc ${PROTOC_VERSION} for ${PROTOC_ARCH}"
+          curl -LO "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-${PROTOC_ARCH}.zip"
+          unzip "protoc-${PROTOC_VERSION}-${PROTOC_ARCH}.zip" -d /usr/local
+          rm "protoc-${PROTOC_VERSION}-${PROTOC_ARCH}.zip"
+          chmod +x /usr/local/bin/protoc
+          protoc --version
+
           echo "Installing CMake 3.26.4..."
           curl -L https://github.com/Kitware/CMake/releases/download/v3.26.4/cmake-3.26.4-linux-x86_64.sh -o cmake.sh
           chmod +x cmake.sh
@@ -243,6 +263,28 @@ jobs:
         run: |
           sudo apt-get update -y
           sudo apt-get install -y build-essential
+
+      - name: Install protoc (Ubuntu)
+        if: contains(matrix.os, 'ubuntu') && matrix.container_image == null
+        run: |
+          PROTOC_VERSION="33.2"
+
+          # Detect architecture
+          if [[ "$(uname -m)" == "x86_64" ]]; then
+            PROTOC_ARCH="linux-x86_64"
+          elif [[ "$(uname -m)" == "aarch64" ]]; then
+            PROTOC_ARCH="linux-aarch_64"
+          else
+            echo "Unsupported architecture: $(uname -m)"
+            exit 1
+          fi
+
+          echo "Installing protoc ${PROTOC_VERSION} for ${PROTOC_ARCH}"
+          curl -LO "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-${PROTOC_ARCH}.zip"
+          sudo unzip "protoc-${PROTOC_VERSION}-${PROTOC_ARCH}.zip" -d /usr/local
+          rm "protoc-${PROTOC_VERSION}-${PROTOC_ARCH}.zip"
+          sudo chmod +x /usr/local/bin/protoc
+          protoc --version
 
       - name: Set up Rust
         run: |
