@@ -45,7 +45,7 @@ def test_mock_config(
     assert isinstance(queue.transport_config, MockConfig)
 
 
-def _test_mock_config_kwargs():
+def test_mock_config_kwargs():
     MockConfig(
         kafka_brokers="localhost:9092",
         kafka_topic="test_topic",

@@ -85,13 +85,11 @@ impl ScouterClient {
     ) -> Result<DriftAlertPaginationResponse, ClientError> {
         debug!("Getting alerts for: {:?}", request);
 
-        let query_string = serde_qs::to_string(request)?;
-
         let response = self.client.request(
             Routes::Alerts,
-            RequestType::Get,
+            RequestType::Post,
+            Some(serde_json::to_value(request).unwrap()),
             None,
-            Some(query_string),
             None,
         )?;
 
@@ -217,12 +215,11 @@ impl ScouterClient {
         &self,
         request: TraceMetricsRequest,
     ) -> Result<TraceMetricsResponse, ClientError> {
-        let query_string = serde_qs::to_string(&request)?;
         let response = self.client.request(
             Routes::TraceMetrics,
-            RequestType::Get,
+            RequestType::Post,
+            Some(serde_json::to_value(request).unwrap()),
             None,
-            Some(query_string),
             None,
         )?;
         if !response.status().is_success() {

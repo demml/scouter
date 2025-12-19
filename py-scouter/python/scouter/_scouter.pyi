@@ -3449,16 +3449,15 @@ class TagsResponse:
     tags: List[TagRecord]
 
 class TimeInterval:
-    FiveMinutes: "TimeInterval"
     FifteenMinutes: "TimeInterval"
     ThirtyMinutes: "TimeInterval"
     OneHour: "TimeInterval"
-    ThreeHours: "TimeInterval"
+    FourHours: "TimeInterval"
     SixHours: "TimeInterval"
     TwelveHours: "TimeInterval"
     TwentyFourHours: "TimeInterval"
-    TwoDays: "TimeInterval"
-    FiveDays: "TimeInterval"
+    SevenDays: "TimeInterval"
+    Custom: "TimeInterval"
 
 class DriftRequest:
     def __init__(
@@ -3656,13 +3655,6 @@ class ScouterClient:
                 TraceFilters object
         Returns:
             TracePaginationResponse
-        """
-
-    def refresh_trace_summary(self) -> bool:
-        """Refresh trace summary cache
-
-        Returns:
-            boolean
         """
 
     def get_trace_spans(
