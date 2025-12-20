@@ -1,5 +1,7 @@
 import time
 
+from scouter.client import ScouterClient
+
 from .conftest import get_traces_from_jaeger  # type: ignore
 
 
@@ -20,12 +22,18 @@ def test_tracer_grpc(setup_tracer_grpc):
         time.sleep(0.05)
 
     for _ in range(10):
-        with tracer.start_as_current_span("main_span"):
+        with tracer.start_as_current_span("main_span") as span:
+            trace_id = span.trace_id
             task_one()
             task_two()
 
     traces = get_traces_from_jaeger("tracing-grpc")
     assert len(traces) > 0
+
+    scouter_client = ScouterClient()
+    trace_spans = scouter_client.get_trace_spans(trace_id)
+
+    assert len(trace_spans.spans) > 0
 
 
 def test_tracer_grpc_sampling(setup_tracer_grpc_sample):

@@ -26,6 +26,7 @@ scouter-dispatch = { path = "crates/scouter_dispatch", version = "0.13.0" }
 scouter-drift = { path = "crates/scouter_drift", version = "0.13.0", default-features = false }
 scouter-evaluate = { path = "crates/scouter_evaluate", version = "0.13.0" }
 scouter-events = { path = "crates/scouter_events", version = "0.13.0", default-features = false }
+scouter-http = { path = "crates/scouter_http", version = "0.13.0" }
 scouter-observability = { path = "crates/scouter_observability", version = "0.13.0" }
 scouter-profile = { path = "crates/scouter_profile", version = "0.13.0" }
 scouter-server = { path = "crates/scouter_server", version = "0.13.0" }
@@ -34,6 +35,7 @@ scouter-settings = { path = "crates/scouter_settings", version = "0.13.0" }
 scouter-dataframe = { path = "crates/scouter_dataframe", version = "0.13.0" }
 scouter-state = { path = "crates/scouter_state", version = "0.13.0" }
 scouter-sql = { path = "crates/scouter_sql", version = "0.13.0" }
+scouter-tonic = { path = "crates/scouter_tonic", version = "0.13.0" }
 scouter-tracing = { path = "crates/scouter_tracing", version = "0.13.0" }
 scouter-types = { path = "crates/scouter_types", version = "0.13.0" }
 scouter-mocks = { path = "crates/scouter_mocks" }
@@ -108,6 +110,15 @@ tracing-subscriber = {version = "0.*", features = ["json", "time"]}
 url = "2.*"
 statrs = "0.18.0"
 
+# gRPC/Tonic dependencies
+tonic = { version = "0.*" }
+tonic-health = { version = "0.*" }
+tonic-middleware = { version = "0.*" } # need for async interceptors
+tonic-prost = { version = "0.*" }
+prost = { version = "0.*" }
+prost-types = { version = "0.*" }
+
+
 # RabbitMQ dependencies
 lapin = { version = "2.*" }
 
@@ -120,4 +131,3 @@ opt-level = 3
 [profile.release-no-lto]
 inherits = "release"
 lto = false
-

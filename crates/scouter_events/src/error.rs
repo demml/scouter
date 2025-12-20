@@ -181,6 +181,9 @@ pub enum EventError {
 
     #[error("Poison error occurred")]
     PoisonError(String),
+
+    #[error(transparent)]
+    GrpcClientError(#[from] scouter_tonic::error::ClientError),
 }
 
 #[derive(Error, Debug)]

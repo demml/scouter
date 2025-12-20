@@ -13,12 +13,16 @@ use ndarray_rand::RandomExt;
 use potato_head::{create_score_prompt, create_uuid7};
 use rand::Rng;
 use scouter_drift::spc::SpcMonitor;
-use scouter_server::create_app;
+use scouter_server::api::grpc::start_grpc_server;
+use scouter_server::api::state::AppState;
+use scouter_server::{create_app_state, create_http_router};
+use scouter_settings::grpc::GrpcConfig;
 use scouter_settings::ObjectStorageSettings;
 use scouter_settings::{DatabaseSettings, ScouterServerConfig};
 use scouter_sql::sql::traits::AlertSqlLogic;
 use scouter_sql::sql::traits::EntitySqlLogic;
 use scouter_sql::PostgresClient;
+use scouter_tonic::GrpcClient;
 use scouter_types::spc::SpcDriftConfig;
 use scouter_types::spc::{SpcAlertConfig, SpcDriftProfile};
 use scouter_types::DriftType;
@@ -36,7 +40,9 @@ use sqlx::{PgPool, Pool, Postgres};
 use std::collections::BTreeMap;
 use std::env;
 use std::sync::Arc;
+
 use tower::util::ServiceExt;
+use tracing::error;
 
 pub const SPACE: &str = "space";
 pub const NAME: &str = "name";
@@ -93,13 +99,52 @@ pub async fn cleanup_tables(pool: &Pool<Postgres>) -> Result<(), anyhow::Error> 
 }
 
 pub struct TestHelper {
-    app: Router,
+    router: Router,
     token: JwtToken,
+    grpc_handle: tokio::task::JoinHandle<()>,
+    grpc_shutdown_tx: Option<tokio::sync::oneshot::Sender<()>>,
     pub pool: PgPool,
     pub config: Arc<ScouterServerConfig>,
 }
 
 impl TestHelper {
+    pub async fn start_grpc_test_server(
+        state: Arc<AppState>,
+        shutdown_rx: tokio::sync::oneshot::Receiver<()>,
+    ) -> tokio::task::JoinHandle<()> {
+        tokio::spawn(async move {
+            tokio::select! {
+                result = start_grpc_server(state) => {
+                    if let Err(e) = result {
+                        error!("gRPC test server error: {}", e);
+                    }
+                }
+                _ = shutdown_rx => {
+                    tracing::info!("gRPC test server received shutdown signal");
+                }
+            }
+        })
+    }
+
+    /// Gracefully shutdown the gRPC server
+    pub async fn shutdown_grpc_server(&mut self) {
+        if let Some(tx) = self.grpc_shutdown_tx.take() {
+            let _ = tx.send(()); // Signal shutdown
+
+            // Wait for graceful shutdown with timeout
+            let timeout = tokio::time::sleep(tokio::time::Duration::from_secs(5));
+            tokio::select! {
+                _ = &mut self.grpc_handle => {
+                    tracing::info!("gRPC server shutdown gracefully");
+                }
+                _ = timeout => {
+                    self.grpc_handle.abort();
+                    tracing::warn!("gRPC server shutdown timed out, aborted");
+                }
+            }
+        }
+    }
+
     pub fn cleanup_storage() {
         let storage_settings = ObjectStorageSettings::default();
         let current_dir = std::env::current_dir().unwrap();
@@ -134,19 +179,31 @@ impl TestHelper {
             }
         }
 
-        let (app, app_state) = create_app().await?;
+        let app_state = create_app_state().await?;
+        let router = create_http_router(app_state.clone()).await?;
+        let (grpc_shutdown_tx, grpc_shutdown_rx) = tokio::sync::oneshot::channel();
+        let grpc_handle =
+            TestHelper::start_grpc_test_server(app_state.clone(), grpc_shutdown_rx).await;
 
-        let token = TestHelper::login(&app).await;
+        let token = TestHelper::login(&router).await;
 
         let db_pool = app_state.db_pool.clone();
         //cleanup(&db_pool).await?;
 
+        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+
         Ok(Self {
-            app,
+            router,
+            grpc_handle,
+            grpc_shutdown_tx: Some(grpc_shutdown_tx),
             token,
             pool: db_pool,
             config: app_state.config.clone(),
         })
+    }
+
+    pub async fn create_grpc_client(&self) -> GrpcClient {
+        GrpcClient::new(GrpcConfig::default()).await.unwrap()
     }
 
     pub async fn login(app: &Router) -> JwtToken {
@@ -181,7 +238,7 @@ impl TestHelper {
     }
 
     pub async fn send_oneshot(&self, request: Request<Body>) -> Response<Body> {
-        self.app
+        self.router
             .clone()
             .oneshot(self.with_auth_header(request))
             .await
@@ -485,9 +542,18 @@ impl TestHelper {
     }
 }
 
+impl Drop for TestHelper {
+    fn drop(&mut self) {
+        // Abort the gRPC server if it's still running
+        self.grpc_handle.abort();
+    }
+}
+
 /// Call this at the start of every test to get a clean database
 pub async fn setup_test() -> TestHelper {
     // Get the global TestHelper (initialized only once)
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
     let helper = TestHelper::new(false, false)
         .await
         .expect("Failed to initialize TestHelper");

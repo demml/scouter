@@ -38,7 +38,7 @@ class ScouterQueue:
     @staticmethod
     def from_path(
         path: Dict[str, Path],
-        transport_config: Union[KafkaConfig, RabbitMQConfig, HttpConfig],
+        transport_config: Union[KafkaConfig, RabbitMQConfig, HttpConfig, GrpcConfig],
     )
 ```
 
@@ -85,7 +85,7 @@ pub trait BackgroundTask: Send + Sync + 'static {
 ```
 
 
-(4) **QueueBus**: Everything discussed so far has focused on the Rust background tasks that run independent of the python runtime. So how do we bridge the gap and get events to rust from python. For every `DriftProfile`, a `QueueBus` is created that exposes an `insert` method to the user. This method will accept any of the allowed data types for monitoring (`Features`, `Metrics`, `LLMRecord`). The data types are extracted and published as an `Event` enum to the event channel, which is then read by the event receiver (`tokio::sync:mpsc`) embedded within the rust `event_handler`. This publishing happends asynchronously, which allows the user on the python side to continue accepting api requests without impacting latency. On the rust side, the event receiver will then process the event and add it to the background queue.
+(4) **QueueBus**: Everything discussed so far has focused on the Rust background tasks that run independent of the python runtime. So how do we bridge the gap and get events to rust from python. For every `DriftProfile`, a `QueueBus` is created that exposes an `insert` method to the user. This method will accept any of the allowed data types for monitoring (`Features`, `Metrics`, `LLMRecord`). The data types are extracted and published as an `Event` enum to the event channel, which is then read by the event receiver (`tokio::sync:mpsc`) embedded within the rust `event_handler`. This publishing happens asynchronously, which allows the user on the python side to continue accepting api requests without impacting latency. On the rust side, the event receiver will then process the event and add it to the background queue.
 
 ```rust
 #[pyclass(name = "Queue")]
@@ -313,6 +313,6 @@ queue["alias"].insert(
 
 ---
 
-*Version: 1.0*
-*Last Updated: 2025-08-25*
+*Version: 1.1*
+*Last Updated: 2025-12-18*
 *Component Owner: Steven Forrester*

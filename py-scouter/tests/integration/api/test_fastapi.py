@@ -19,12 +19,15 @@ from .conftest import (
 )
 
 
-def _test_api_kafka(kafka_scouter_server):
+def test_api_kafka(kafka_scouter_server):
     # create the client
     scouter_client = ScouterClient()
 
     # create the drift profile
-    profile = create_and_register_drift_profile(client=scouter_client, name="kafka_test")
+    profile = create_and_register_drift_profile(
+        client=scouter_client,
+        name="kafka_test",
+    )
     drift_path = profile.save_to_json()
 
     # Create FastAPI app
@@ -50,7 +53,7 @@ def _test_api_kafka(kafka_scouter_server):
     request = DriftRequest(
         uid=profile.uid,
         space=profile.config.space,
-        time_interval=TimeInterval.FiveMinutes,
+        time_interval=TimeInterval.FifteenMinutes,
         max_data_points=1,
     )
 
@@ -106,7 +109,7 @@ def test_api_http(http_scouter_server):
     request = DriftRequest(
         uid=profile.uid,
         space=profile.config.space,
-        time_interval=TimeInterval.FiveMinutes,
+        time_interval=TimeInterval.FifteenMinutes,
         max_data_points=1,
     )
 
@@ -119,13 +122,8 @@ def test_api_http(http_scouter_server):
         "feature_3",
     }
 
-    # assert len(drift.features["feature_0"].values) == 1
-
     # delete the drift_path
     drift_path.unlink()
-
-    # refresh trace summary
-    scouter_client.refresh_trace_summary()
 
     # get traces
     traces = scouter_client.get_paginated_traces(

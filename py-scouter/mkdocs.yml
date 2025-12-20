@@ -80,6 +80,7 @@ nav:
       - Overview: "docs/specs/Readme.md"
       - Archive: "docs/specs/ts-component-data-archive.md"
       - Queue: "docs/specs/ts-component-scouter-queue.md"
+      - gRPC: "docs/specs/ts-component-scouter-grpc.md"
   - API Documentation:
       - API: "docs/api/stubs.md"
 

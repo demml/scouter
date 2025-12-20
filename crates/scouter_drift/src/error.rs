@@ -105,6 +105,9 @@ pub enum DriftError {
 
     #[error("Failed to process LLM drift record: {0}")]
     LLMEvaluatorError(String),
+
+    #[error("{0}")]
+    InvalidDataConfiguration(String),
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for DriftError {

@@ -1,5 +1,6 @@
 pub mod archive;
 pub mod error;
+pub mod grpc;
 pub mod middleware;
 pub mod polling;
 pub mod router;

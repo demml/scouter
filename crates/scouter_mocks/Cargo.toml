@@ -8,6 +8,7 @@ pyo3 = { workspace = true }
 mockito = { workspace = true, optional = true }
 potato-head = { workspace = true , features = ["mock"] }
 reqwest = { workspace = true, optional = true }
+scouter-tonic = { workspace = true, optional = true, features = ["all"] }
 scouter-client = { workspace = true }
 scouter-server = { workspace = true , optional = true, features = ["kafka", "rabbitmq", "redis_events"] }
 serde_json = { workspace = true, optional = true }
@@ -23,6 +24,7 @@ server = [
     "mockito",
     "serde_json",
     "scouter-server",
+    "scouter-tonic/all",
 ]
 
 [profile.release]

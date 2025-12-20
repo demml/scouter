@@ -41,25 +41,19 @@ use scouter_types::{
     SCOUTER_SCOPE_DEFAULT, SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL,
     SCOUTER_TRACING_OUTPUT, SPAN_ERROR, TRACE_START_TIME_KEY,
 };
-use std::sync::{Arc, RwLock};
-use std::{collections::HashMap, sync::OnceLock};
+use std::collections::HashMap;
+use std::sync::{Arc, OnceLock, RwLock};
 use tracing::{debug, info, instrument};
 
 /// Global static instance of the tracer provider.
-static TRACER_PROVIDER_STORE: OnceLock<Arc<RwLock<Option<SdkTracerProvider>>>> = OnceLock::new();
-
-// Add trace metadata store
+static TRACER_PROVIDER_STORE: RwLock<Option<Arc<SdkTracerProvider>>> = RwLock::new(None);
 static TRACE_METADATA_STORE: OnceLock<TraceMetadataStore> = OnceLock::new();
 
-fn get_tracer_provider_store() -> &'static Arc<RwLock<Option<SdkTracerProvider>>> {
-    TRACER_PROVIDER_STORE.get_or_init(|| Arc::new(RwLock::new(None)))
-}
-
-fn get_tracer_provider() -> Result<Arc<RwLock<Option<SdkTracerProvider>>>, TraceError> {
-    TRACER_PROVIDER_STORE.get().cloned().ok_or_else(|| {
-        // This should only happen if the store itself hasn't been initialized by get_tracer_provider_store
-        TraceError::InitializationError("Tracer provider store not initialized".to_string())
-    })
+fn get_tracer_provider() -> Result<Option<Arc<SdkTracerProvider>>, TraceError> {
+    TRACER_PROVIDER_STORE
+        .read()
+        .map(|guard| guard.clone())
+        .map_err(|e| TraceError::PoisonError(e.to_string()))
 }
 
 #[derive(Clone)]
@@ -188,7 +182,6 @@ pub fn init_tracer(
     batch_config: Option<Py<BatchConfig>>,
 ) -> Result<(), TraceError> {
     debug!("Initializing tracer");
-
     let transport_config = match transport_config {
         Some(config) => TransportConfig::from_py_config(config)?,
         None => {
@@ -202,9 +195,7 @@ pub fn init_tracer(
         .map(|bc| bc.extract::<BatchConfig>(py))
         .transpose()?;
 
-    let provider_store = get_tracer_provider_store();
-
-    let mut store_guard = provider_store
+    let mut store_guard = TRACER_PROVIDER_STORE
         .write()
         .map_err(|e| TraceError::PoisonError(e.to_string()))?;
 
@@ -231,7 +222,7 @@ pub fn init_tracer(
         .build_provider(resource, scouter_export, batch_config)
         .expect("failed to build tracer provider");
 
-    *store_guard = Some(provider);
+    *store_guard = Some(Arc::new(provider));
 
     Ok(())
 }
@@ -805,19 +796,13 @@ impl BaseTracer {
 /// Helper function to force flush the tracer provider
 #[pyfunction]
 pub fn flush_tracer() -> Result<(), TraceError> {
-    let store = get_tracer_provider_store();
-
-    let provider_guard = store
-        .read()
-        .map_err(|e| TraceError::PoisonError(e.to_string()))?;
-
-    let provider = provider_guard.as_ref().ok_or_else(|| {
+    let provider_arc = get_tracer_provider()?.ok_or_else(|| {
         TraceError::InitializationError(
             "Tracer provider not initialized or already shut down".to_string(),
         )
     })?;
-    provider.force_flush()?;
 
+    provider_arc.force_flush()?;
     Ok(())
 }
 
@@ -825,36 +810,35 @@ pub fn flush_tracer() -> Result<(), TraceError> {
 pub fn shutdown_tracer() -> Result<(), TraceError> {
     info!("Shutting down tracer");
 
-    let store_arc = get_tracer_provider()?;
-    let mut store_guard = store_arc
-        .write()
-        .map_err(|e| TraceError::PoisonError(e.to_string()))?;
+    let provider_arc = {
+        let mut store_guard = TRACER_PROVIDER_STORE
+            .write()
+            .map_err(|e| TraceError::PoisonError(e.to_string()))?;
 
-    if let Some(provider) = store_guard.take() {
-        provider.shutdown()?;
+        store_guard.take()
+    };
+
+    if let Some(provider) = provider_arc {
+        match Arc::try_unwrap(provider) {
+            Ok(provider) => provider.shutdown()?,
+            Err(arc) => arc.shutdown()?,
+        }
     } else {
         tracing::warn!("Tracer provider was already shut down or never initialized.");
     }
 
     get_trace_metadata_store().clear_all()?;
-
     Ok(())
 }
 
 fn get_tracer(name: String) -> Result<SdkTracer, TraceError> {
-    let store = get_tracer_provider_store();
-
-    let provider_guard = store
-        .read()
-        .map_err(|e| TraceError::PoisonError(e.to_string()))?;
-
-    let provider = provider_guard.as_ref().ok_or_else(|| {
+    let provider_arc = get_tracer_provider()?.ok_or_else(|| {
         TraceError::InitializationError(
             "Tracer provider not initialized or already shut down".to_string(),
         )
     })?;
 
-    Ok(provider.tracer(name))
+    Ok(provider_arc.tracer(name))
 }
 
 #[pyfunction]
@@ -897,7 +881,7 @@ pub fn get_tracing_headers_from_current_span(
 }
 
 fn is_tracer_initialized() -> bool {
-    get_tracer_provider_store()
+    TRACER_PROVIDER_STORE
         .read()
         .map(|guard| guard.is_some())
         .unwrap_or(false)

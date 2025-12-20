@@ -120,34 +120,32 @@ impl DataProfiler {
         string_features: Vec<String>,
         string_array: Option<Vec<Vec<String>>>,
     ) -> Result<DataProfile, DataProfileError> {
-        if !string_features.is_empty() && string_array.is_some() && numeric_array.is_none() {
-            let profile = self.string_profiler.process_string_array::<f32>(
-                string_array.unwrap(),
-                string_features,
-                compute_correlations,
-            )?;
-            Ok(profile)
-        } else if string_array.is_none() && numeric_array.is_some() && !numeric_features.is_empty()
-        {
-            let profile = self.num_profiler.process_num_array(
-                compute_correlations,
-                &numeric_array.unwrap().as_array(),
-                numeric_features,
-                bin_size,
-            )?;
+        match (string_array, numeric_array) {
+            (Some(string_arr), None) if !string_features.is_empty() => self
+                .string_profiler
+                .process_string_array::<f32>(string_arr, string_features, compute_correlations),
 
-            Ok(profile)
-        } else {
-            let profile = self.process_string_and_num_array(
+            (None, Some(numeric_arr)) if !numeric_features.is_empty() => {
+                self.num_profiler.process_num_array(
+                    compute_correlations,
+                    &numeric_arr.as_array(),
+                    numeric_features,
+                    bin_size,
+                )
+            }
+
+            (Some(string_arr), Some(numeric_arr)) => self.process_string_and_num_array(
                 compute_correlations,
-                numeric_array.unwrap().as_array(),
-                string_array.unwrap(),
+                numeric_arr.as_array(),
+                string_arr,
                 numeric_features,
                 string_features,
                 bin_size,
-            )?;
+            ),
 
-            Ok(profile)
+            _ => Err(DataProfileError::InvalidDataConfiguration(
+                "Invalid combination of string and numeric data".to_string(),
+            )),
         }
     }
 
@@ -160,35 +158,35 @@ impl DataProfiler {
         string_features: Vec<String>,
         string_array: Option<Vec<Vec<String>>>,
     ) -> Result<DataProfile, DataProfileError> {
-        if !string_features.is_empty() && string_array.is_some() && numeric_array.is_none() {
-            let profile = self.string_profiler.process_string_array::<f32>(
-                string_array.unwrap(),
-                string_features,
-                compute_correlations,
-            )?;
-            Ok(profile)
-        } else if string_array.is_none() && numeric_array.is_some() && !numeric_features.is_empty()
-        {
-            let profile = self.num_profiler.process_num_array(
-                compute_correlations,
-                &numeric_array.unwrap().as_array(),
-                numeric_features,
-                bin_size,
-            )?;
+        match (string_array, numeric_array) {
+            (Some(string_arr), None) if !string_features.is_empty() => self
+                .string_profiler
+                .process_string_array::<f32>(string_arr, string_features, compute_correlations),
 
-            Ok(profile)
-        } else {
-            debug!("Processing both string and numeric arrays");
-            let profile = self.process_string_and_num_array(
-                compute_correlations,
-                numeric_array.unwrap().as_array(),
-                string_array.unwrap(),
-                numeric_features,
-                string_features,
-                bin_size,
-            )?;
+            (None, Some(numeric_arr)) if !numeric_features.is_empty() => {
+                self.num_profiler.process_num_array(
+                    compute_correlations,
+                    &numeric_arr.as_array(),
+                    numeric_features,
+                    bin_size,
+                )
+            }
 
-            Ok(profile)
+            (Some(string_arr), Some(numeric_arr)) => {
+                debug!("Processing both string and numeric arrays");
+                self.process_string_and_num_array(
+                    compute_correlations,
+                    numeric_arr.as_array(),
+                    string_arr,
+                    numeric_features,
+                    string_features,
+                    bin_size,
+                )
+            }
+
+            _ => Err(DataProfileError::InvalidDataConfiguration(
+                "Invalid combination of string and numeric data".to_string(),
+            )),
         }
     }
 
