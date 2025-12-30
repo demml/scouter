@@ -871,13 +871,11 @@ dependencies = [
 
 [[package]]
 name = "baked-potato"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "350591dc71505332d67ac611c50eca9bd2ceefcf4e7853c45814e7e2832b9178"
+version = "0.10.0"
+source = "git+https://github.com/demml/potatohead.git?branch=main#1e5ceb46f35f50bf7ebe24b6126fd34ea448738e"
 dependencies = [
  "mockito",
  "potato-agent",
- "potato-prompt",
  "potato-provider",
  "potato-type",
  "potato-util",
@@ -4547,15 +4545,14 @@ dependencies = [
 
 [[package]]
 name = "potato-agent"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9112c6ca08c1e996741809f8ec68bc540523d2ab5f01be154c93e60bff005cfb"
+version = "0.10.0"
+source = "git+https://github.com/demml/potatohead.git?branch=main#1e5ceb46f35f50bf7ebe24b6126fd34ea448738e"
 dependencies = [
  "base64",
  "gcloud-auth",
  "http",
- "potato-prompt",
  "potato-provider",
+ "potato-state",
  "potato-type",
  "potato-util",
  "pyo3",
@@ -4570,13 +4567,11 @@ dependencies = [
 
 [[package]]
 name = "potato-head"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7337e2f832213676f93a96d1dd4e86702b23f354b0711079f987decc95a7dcc8"
+version = "0.10.0"
+source = "git+https://github.com/demml/potatohead.git?branch=main#1e5ceb46f35f50bf7ebe24b6126fd34ea448738e"
 dependencies = [
  "baked-potato",
  "potato-agent",
- "potato-prompt",
  "potato-provider",
  "potato-type",
  "potato-util",
@@ -4584,33 +4579,23 @@ dependencies = [
 ]
 
 [[package]]
-name = "potato-prompt"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "310d632e8c64ef0c7c234589504ca6975999d276fbed4187e909220181a6bcbd"
+name = "potato-macro"
+version = "0.10.0"
+source = "git+https://github.com/demml/potatohead.git?branch=main#1e5ceb46f35f50bf7ebe24b6126fd34ea448738e"
 dependencies = [
- "mime_guess",
- "potato-type",
- "potato-util",
- "pyo3",
- "regex",
- "schemars",
- "serde",
- "serde_json",
  "thiserror 2.0.17",
- "tracing",
 ]
 
 [[package]]
 name = "potato-provider"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f5a9626ea5df025ffe05d905de6878c9febc4039d982c26df29bd2428fdc27fd"
+version = "0.10.0"
+source = "git+https://github.com/demml/potatohead.git?branch=main#1e5ceb46f35f50bf7ebe24b6126fd34ea448738e"
 dependencies = [
  "base64",
  "gcloud-auth",
  "http",
- "potato-prompt",
+ "potato-macro",
+ "potato-state",
  "potato-type",
  "potato-util",
  "pyo3",
@@ -4624,13 +4609,24 @@ dependencies = [
 ]
 
 [[package]]
-name = "potato-type"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f785fdcdbc840be1c86e0a560b26c17b87434f534f84a25e068a2cad5d6aa153"
+name = "potato-state"
+version = "0.10.0"
+source = "git+https://github.com/demml/potatohead.git?branch=main#1e5ceb46f35f50bf7ebe24b6126fd34ea448738e"
 dependencies = [
+ "thiserror 2.0.17",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "potato-type"
+version = "0.10.0"
+source = "git+https://github.com/demml/potatohead.git?branch=main#1e5ceb46f35f50bf7ebe24b6126fd34ea448738e"
+dependencies = [
+ "potato-macro",
  "potato-util",
  "pyo3",
+ "regex",
  "schemars",
  "serde",
  "serde_json",
@@ -4640,9 +4636,8 @@ dependencies = [
 
 [[package]]
 name = "potato-util"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08bdd23e3c0c1c1cf6bdf17b57ec0eb873d1d109520290980e876bbfe2d653d0"
+version = "0.10.0"
+source = "git+https://github.com/demml/potatohead.git?branch=main#1e5ceb46f35f50bf7ebe24b6126fd34ea448738e"
 dependencies = [
  "colored_json",
  "pyo3",
@@ -4656,14 +4651,13 @@ dependencies = [
 
 [[package]]
 name = "potato-workflow"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "99ea6a68ea8a0506bac1e16a70f098f9afe7d7ca6fedd62187d4aef7857c2597"
+version = "0.10.0"
+source = "git+https://github.com/demml/potatohead.git?branch=main#1e5ceb46f35f50bf7ebe24b6126fd34ea448738e"
 dependencies = [
  "chrono",
  "potato-agent",
- "potato-prompt",
  "potato-provider",
+ "potato-state",
  "potato-type",
  "potato-util",
  "pyo3",

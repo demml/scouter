@@ -373,9 +373,7 @@ impl LLMDriftProfile {
     }
 
     pub fn model_dump(&self, py: Python) -> Result<Py<PyDict>, ProfileError> {
-        let json_str = serde_json::to_string(&self)?;
-
-        let json_value: Value = serde_json::from_str(&json_str)?;
+        let json_value = serde_json::to_value(self)?;
 
         // Create a new Python dictionary
         let dict = PyDict::new(py);
