@@ -232,9 +232,7 @@ PromptMessage: TypeAlias = Union[
     List[Union[str, "ChatMessage", "MessageParam", "GeminiContent"]],
 ]
 
-TMessage = TypeVar("TMessage", "ChatMessage", "MessageParam", "GeminiContent")
-
-class Prompt(Generic[TMessage]):
+class Prompt:
     """Prompt for interacting with an LLM API.
 
     The Prompt class handles message parsing, provider-specific formatting, and
@@ -243,7 +241,7 @@ class Prompt(Generic[TMessage]):
 
     def __init__(
         self,
-        messages: TMessage | List[TMessage],
+        messages: PromptMessage,
         model: str,
         provider: Provider | str,
         system_instructions: Optional[PromptMessage] = None,
@@ -323,13 +321,13 @@ class Prompt(Generic[TMessage]):
         """
 
     @property
-    def all_messages(self) -> List[TMessage]:
+    def all_messages(self) -> List["ChatMessage" | "MessageParam" | "GeminiContent"]:
         """All messages in the prompt, including system instructions, user messages, tools, etc.
         This is helpful for accessing the complete set of messages in the prompt.
         """
 
     @property
-    def messages(self) -> List[TMessage]:
+    def messages(self) -> List["ChatMessage" | "MessageParam" | "GeminiContent"]:
         """The user message(s) in the prompt.
 
         Returns a list of provider-specific message objects that were parsed
@@ -337,7 +335,7 @@ class Prompt(Generic[TMessage]):
         """
 
     @property
-    def message(self) -> TMessage:
+    def message(self) -> "ChatMessage" | "MessageParam" | "GeminiContent":
         """The last user message in the prompt.
 
         Returns a list of provider-specific message objects that were parsed
@@ -393,7 +391,9 @@ class Prompt(Generic[TMessage]):
         """
 
     @property
-    def system_instructions(self) -> List[Any]:
+    def system_instructions(
+        self,
+    ) -> List["ChatMessage" | "GeminiContent" | "MessageParam"]:
         """The system instruction message(s) in the prompt.
 
         Returns a list of provider-specific message objects for system instructions.
@@ -749,8 +749,8 @@ class AgentResponse:
     def structured_output(self) -> Any:
         """Returns the structured output of the agent response if supported."""
 
-    def response_text(self) -> Optional[str]:
-        """The response text from the agent if available, otherwise None."""
+    def response_text(self) -> str:
+        """The response text from the agent if available, otherwise an empty string."""
 
 class Task:
     def __init__(
@@ -2512,6 +2512,12 @@ class ChatMessage:
 
         Raises:
             TypeError: If content format is invalid
+        """
+
+    def text(self) -> str:
+        """Get the text content of the first part, if available. Returns
+        an empty string if the first part is not text.
+        This is meant for convenience when working with simple text messages.
         """
 
     @property
@@ -5288,6 +5294,12 @@ class GeminiContent:
                 Content from typing import Any, Dict, List, Optional, Union from the message
             role (Optional[str]):
                 Role of the message sender (e.g., "user", "model", "function")
+        """
+
+    def text(self) -> str:
+        """Get the text content of the first part, if available. Returns
+        an empty string if the first part is not text.
+        This is meant for convenience when working with simple text messages.
         """
 
     @property
@@ -8608,6 +8620,12 @@ class MessageParam:
                 Message content (string, content block or list of content blocks)
             role (str):
                 Message role ("user" or "assistant")
+        """
+
+    def text(self) -> str:
+        """Get the text content of the first part, if available. Returns
+        an empty string if the first part is not text.
+        This is meant for convenience when working with simple text messages.
         """
 
     @property

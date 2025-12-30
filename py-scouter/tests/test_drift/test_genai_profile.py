@@ -17,11 +17,11 @@ class TaskOutput(BaseModel):
 def test_genai_drift_profile_from_metrics():
     with LLMTestServer():
         prompt = Prompt(
-            message="${input} + ${response}?",
-            system_instruction="You are a helpful assistant.",
+            messages="${input} + ${response}?",
+            system_instructions="You are a helpful assistant.",
             model="gpt-4o",
             provider="openai",
-            response_format=Score,
+            output_type=Score,
         )
 
         metric1 = GenAIDriftMetric(
@@ -46,18 +46,18 @@ def test_genai_drift_profile_from_metrics():
 def test_genai_drift_profile_from_workflow():
     with LLMTestServer():
         start_prompt = Prompt(
-            message="${input} + ${response}?",
-            system_instruction="You are a helpful assistant.",
+            messages="${input} + ${response}?",
+            system_instructions="You are a helpful assistant.",
             model="gpt-4o",
             provider="openai",
         )
 
         end_prompt = Prompt(
-            message="Foo bar",
-            system_instruction="You are a helpful assistant.",
+            messages="Foo bar",
+            system_instructions="You are a helpful assistant.",
             model="gpt-4o",
             provider="openai",
-            response_format=Score,
+            output_type=Score,
         )
 
         open_agent = Agent("openai")
@@ -108,11 +108,11 @@ def test_genai_drift_profile_from_workflow():
 def test_genai_drift_profile_from_metrics_fail():
     with LLMTestServer():
         prompt = Prompt(
-            message="foo bar",
-            system_instruction="You are a helpful assistant.",
+            messages="foo bar",
+            system_instructions="You are a helpful assistant.",
             model="gpt-4o",
             provider="openai",
-            response_format=Score,
+            output_type=Score,
         )
 
         metric1 = GenAIDriftMetric(
@@ -145,18 +145,18 @@ def test_genai_drift_profile_from_metrics_fail():
 def test_genai_drift_profile_from_workflow_fail():
     with LLMTestServer():
         start_prompt = Prompt(
-            message="Foo bar",
-            system_instruction="You are a helpful assistant.",
+            messages="Foo bar",
+            system_instructions="You are a helpful assistant.",
             model="gpt-4o",
             provider="openai",
         )
 
         end_prompt = Prompt(
-            message="Foo bar",
-            system_instruction="You are a helpful assistant.",
+            messages="Foo bar",
+            system_instructions="You are a helpful assistant.",
             model="gpt-4o",
             provider="openai",
-            response_format=Score,
+            output_type=Score,
         )
 
         open_agent = Agent("openai")
@@ -196,20 +196,20 @@ def test_genai_drift_profile_workflow_run_context():
     with LLMTestServer():
         # this should bind the input and response context and return TaskOutput
         start_prompt = Prompt(
-            message="${input} + ${response}?",
-            system_instruction="You are a helpful assistant.",
+            messages="${input} + ${response}?",
+            system_instructions="You are a helpful assistant.",
             model="gpt-4o",
             provider="openai",
-            response_format=TaskOutput,
+            output_type=TaskOutput,
         )
 
         # this should bind the task_output context and return Score
         end_prompt = Prompt(
-            message="${task_output}",
-            system_instruction="You are a helpful assistant.",
+            messages="${task_output}",
+            system_instructions="You are a helpful assistant.",
             model="gpt-4o",
             provider="openai",
-            response_format=Score,
+            output_type=Score,
         )
 
         open_agent = Agent("openai")
@@ -240,22 +240,22 @@ def test_genai_drift_profile_workflow_run_context():
         )
 
         assert (
-            result.tasks.get("start_task").prompt.message[0].unwrap()
+            result.tasks.get("start_task").prompt.messages[0].content[0].text
             == '"What is the capital of France?" + "The capital of France is Paris."?'
         )
 
-        assert result.tasks.get("relevance").prompt.message[1].unwrap() == '"foo bar"'
+        assert result.tasks.get("relevance").prompt.messages[0].content[0].text == '"foo bar"'
 
 
 def test_genai_drifter():
     with LLMTestServer():
         # this should bind the input and response context and return TaskOutput
         eval_prompt = Prompt(
-            message="${input} + ${response}?",
-            system_instruction="You are a helpful assistant. Output a score between 1 and 5",
+            messages="${input} + ${response}?",
+            system_instructions="You are a helpful assistant. Output a score between 1 and 5",
             model="gpt-4o",
             provider="openai",
-            response_format=Score,
+            output_type=Score,
         )
 
         profile = GenAIDriftProfile(

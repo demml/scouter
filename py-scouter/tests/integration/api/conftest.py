@@ -253,7 +253,7 @@ def create_kafka_genai_app(profile_path: Path) -> FastAPI:
         queue.insert(
             GenAIRecord(
                 context={
-                    "input": bound_prompt.messages[0].unwrap(),
+                    "input": bound_prompt.messages[0].text(),
                     "response": response.response_text(),
                 },
             )

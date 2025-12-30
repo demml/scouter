@@ -28,15 +28,14 @@ pub fn process_workflow_result(
     // iterate of each task and extract score
     for task in tasks.values() {
         if let (TaskStatus::Completed, Some(result)) = (&task.status, &task.result) {
-            if let Some(content) = result.response_text() {
-                match Score::model_validate_json_str(&content) {
-                    Ok(score) => {
-                        metrics.insert(task.id.clone(), score);
-                    }
-                    Err(e) => {
-                        error!("Failed to validate score for task {}: {:?}", task.id, e);
-                        // Continue processing other tasks instead of failing completely
-                    }
+            match Score::model_validate_json_str(&result.response_text()) {
+                // response text is either valid json or an empty string
+                Ok(score) => {
+                    metrics.insert(task.id.clone(), score);
+                }
+                Err(e) => {
+                    error!("Failed to validate score for task {}: {:?}", task.id, e);
+                    // Continue processing other tasks instead of failing completely
                 }
             }
         }

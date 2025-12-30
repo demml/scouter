@@ -63,13 +63,11 @@ impl GenAIEvaluator {
 
                 let task_id = task_guard.id.clone();
 
-                // Content should be returned as a json string
-                let content = match result.response_text() {
-                    Some(c) => c,
-                    None => {
-                        warn!("Task result content is empty for task ID: {}", task_id);
-                        continue;
-                    }
+                let content = result.response_text();
+
+                if content.is_empty() {
+                    warn!("Task result content is empty for task ID: {}", task_id);
+                    continue;
                 };
 
                 // Validate the content as a Score object

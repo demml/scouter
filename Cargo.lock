@@ -792,7 +792,7 @@ dependencies = [
 [[package]]
 name = "baked-potato"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#db0ec44e552bfc2580ce6d15f689bc67991acdb7"
+source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#06d72a452bf07a0bd568b56eb4a20ba38ce6812b"
 dependencies = [
  "mockito",
  "potato-agent",
@@ -4473,7 +4473,7 @@ dependencies = [
 [[package]]
 name = "potato-agent"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#db0ec44e552bfc2580ce6d15f689bc67991acdb7"
+source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#06d72a452bf07a0bd568b56eb4a20ba38ce6812b"
 dependencies = [
  "base64",
  "gcloud-auth",
@@ -4495,7 +4495,7 @@ dependencies = [
 [[package]]
 name = "potato-head"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#db0ec44e552bfc2580ce6d15f689bc67991acdb7"
+source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#06d72a452bf07a0bd568b56eb4a20ba38ce6812b"
 dependencies = [
  "baked-potato",
  "potato-agent",
@@ -4508,7 +4508,7 @@ dependencies = [
 [[package]]
 name = "potato-macro"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#db0ec44e552bfc2580ce6d15f689bc67991acdb7"
+source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#06d72a452bf07a0bd568b56eb4a20ba38ce6812b"
 dependencies = [
  "thiserror 2.0.17",
 ]
@@ -4516,7 +4516,7 @@ dependencies = [
 [[package]]
 name = "potato-provider"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#db0ec44e552bfc2580ce6d15f689bc67991acdb7"
+source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#06d72a452bf07a0bd568b56eb4a20ba38ce6812b"
 dependencies = [
  "base64",
  "gcloud-auth",
@@ -4538,7 +4538,7 @@ dependencies = [
 [[package]]
 name = "potato-state"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#db0ec44e552bfc2580ce6d15f689bc67991acdb7"
+source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#06d72a452bf07a0bd568b56eb4a20ba38ce6812b"
 dependencies = [
  "thiserror 2.0.17",
  "tokio",
@@ -4548,7 +4548,7 @@ dependencies = [
 [[package]]
 name = "potato-type"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#db0ec44e552bfc2580ce6d15f689bc67991acdb7"
+source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#06d72a452bf07a0bd568b56eb4a20ba38ce6812b"
 dependencies = [
  "potato-macro",
  "potato-util",
@@ -4564,7 +4564,7 @@ dependencies = [
 [[package]]
 name = "potato-util"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#db0ec44e552bfc2580ce6d15f689bc67991acdb7"
+source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#06d72a452bf07a0bd568b56eb4a20ba38ce6812b"
 dependencies = [
  "colored_json",
  "pyo3",
@@ -4579,7 +4579,7 @@ dependencies = [
 [[package]]
 name = "potato-workflow"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#db0ec44e552bfc2580ce6d15f689bc67991acdb7"
+source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#06d72a452bf07a0bd568b56eb4a20ba38ce6812b"
 dependencies = [
  "chrono",
  "potato-agent",
@@ -6698,9 +6698,9 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "syn"
-version = "2.0.111"
+version = "2.0.112"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "390cc9a294ab71bdb1aa2e99d13be9c753cd2d7bd6560c77118597410c4d2e87"
+checksum = "21f182278bf2d2bcb3c88b1b08a37df029d71ce3d3ae26168e3c653b213b99d4"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -8073,9 +8073,9 @@ checksum = "40990edd51aae2c2b6907af74ffb635029d5788228222c4bb811e9351c0caad3"
 
 [[package]]
 name = "zmij"
-version = "1.0.3"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9747e91771f56fd7893e1164abd78febd14a670ceec257caad15e051de35f06"
+checksum = "77cc0158b0d3103d58e9e82bdbe9cf9289d80dbcf4e686ff16730eb9e5814d1a"
 
 [[package]]
 name = "zstd"
