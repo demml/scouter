@@ -1,4 +1,5 @@
 use pyo3::exceptions::PyRuntimeError;
+use pyo3::pyclass::PyClassGuardError;
 use pyo3::PyErr;
 use thiserror::Error;
 
@@ -148,8 +149,8 @@ pub enum TypeError {
     CompressionTypeNotSupported(String),
 }
 
-impl<'a> From<pyo3::DowncastError<'a, 'a>> for TypeError {
-    fn from(err: pyo3::DowncastError) -> Self {
+impl<'a, 'py> From<pyo3::CastError<'a, 'py>> for TypeError {
+    fn from(err: pyo3::CastError<'a, 'py>) -> Self {
         TypeError::DowncastError(err.to_string())
     }
 }
@@ -163,6 +164,12 @@ impl From<TypeError> for PyErr {
 
 impl From<PyErr> for TypeError {
     fn from(err: PyErr) -> TypeError {
+        TypeError::PyError(err.to_string())
+    }
+}
+
+impl<'a, 'py> From<PyClassGuardError<'a, 'py>> for TypeError {
+    fn from(err: PyClassGuardError<'a, 'py>) -> Self {
         TypeError::PyError(err.to_string())
     }
 }
