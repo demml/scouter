@@ -5,8 +5,7 @@ use crate::{
     ValidateAlertConfig,
 };
 use core::fmt::Debug;
-use potato_head::prompt::ResponseType;
-use potato_head::Prompt;
+use potato_head::prompt_types::{Prompt, ResponseType};
 use pyo3::prelude::*;
 use pyo3::types::PyString;
 use serde::{Deserialize, Serialize};

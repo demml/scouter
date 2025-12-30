@@ -4,8 +4,8 @@ use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use core::fmt::Debug;
-use potato_head::prompt::ResponseType;
-use potato_head::Prompt;
+
+use potato_head::prompt_types::{Prompt, ResponseType};
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
