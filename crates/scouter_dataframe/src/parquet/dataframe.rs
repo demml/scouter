@@ -162,7 +162,7 @@ mod tests {
     use crate::parquet::utils::BinnedMetricsExtractor;
     use chrono::Utc;
     use object_store::path::Path;
-    use potato_head::create_score_prompt;
+    use potato_head::baked_potato::create_score_prompt;
     use rand::Rng;
     use scouter_settings::ObjectStorageSettings;
     use scouter_types::{

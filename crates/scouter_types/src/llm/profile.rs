@@ -9,10 +9,10 @@ use crate::{
     PyHelperFuncs, VersionRequest, DEFAULT_VERSION, MISSING,
 };
 use core::fmt::Debug;
-use potato_head::prompt::ResponseType;
+use potato_head::prompt_types::{Prompt, ResponseType};
+use potato_head::Agent;
 use potato_head::Workflow;
 use potato_head::{create_uuid7, Task};
-use potato_head::{Agent, Prompt};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use scouter_semver::VersionType;
@@ -490,12 +490,10 @@ impl LLMDriftProfile {
                 .as_ref()
                 .ok_or_else(|| ProfileError::MissingPromptError(metric.name.clone()))?;
 
-            let provider = prompt.model_settings.provider();
-
-            let agent = match agents.entry(provider) {
+            let agent = match agents.entry(&prompt.provider) {
                 Entry::Occupied(entry) => entry.into_mut(),
                 Entry::Vacant(entry) => {
-                    let agent = Agent::from_model_settings(&prompt.model_settings).await?;
+                    let agent = Agent::new(prompt.provider.clone(), None).await?;
                     workflow.add_agent(&agent);
                     entry.insert(agent)
                 }
@@ -681,27 +679,8 @@ mod tests {
     use super::*;
     use crate::AlertThreshold;
     use crate::{AlertDispatchConfig, OpsGenieDispatchConfig, SlackDispatchConfig};
-    use potato_head::create_score_prompt;
-    use potato_head::prompt::ResponseType;
+    use potato_head::mock::{create_parameterized_prompt, create_score_prompt, LLMTestServer};
     use potato_head::Provider;
-
-    use potato_head::{LLMTestServer, Message, PromptContent};
-
-    pub fn create_parameterized_prompt() -> Prompt {
-        let user_content =
-            PromptContent::Str("What is ${input} + ${response} + ${context}?".to_string());
-        let system_content = PromptContent::Str("You are a helpful assistant.".to_string());
-        Prompt::new_rs(
-            vec![Message::new_rs(user_content)],
-            "gpt-4o",
-            Provider::OpenAI,
-            vec![Message::new_rs(system_content)],
-            None,
-            None,
-            ResponseType::Null,
-        )
-        .unwrap()
-    }
 
     #[test]
     fn test_llm_drift_config() {

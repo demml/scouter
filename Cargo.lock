@@ -895,7 +895,7 @@ dependencies = [
 [[package]]
 name = "baked-potato"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=main#1e5ceb46f35f50bf7ebe24b6126fd34ea448738e"
+source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#025161a6de8ef40951437b110be5f2a695f37545"
 dependencies = [
  "mockito",
  "potato-agent",
@@ -4628,7 +4628,7 @@ dependencies = [
 [[package]]
 name = "potato-agent"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=main#1e5ceb46f35f50bf7ebe24b6126fd34ea448738e"
+source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#025161a6de8ef40951437b110be5f2a695f37545"
 dependencies = [
  "base64",
  "gcloud-auth",
@@ -4650,7 +4650,7 @@ dependencies = [
 [[package]]
 name = "potato-head"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=main#1e5ceb46f35f50bf7ebe24b6126fd34ea448738e"
+source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#025161a6de8ef40951437b110be5f2a695f37545"
 dependencies = [
  "baked-potato",
  "potato-agent",
@@ -4663,7 +4663,7 @@ dependencies = [
 [[package]]
 name = "potato-macro"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=main#1e5ceb46f35f50bf7ebe24b6126fd34ea448738e"
+source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#025161a6de8ef40951437b110be5f2a695f37545"
 dependencies = [
  "thiserror 2.0.17",
 ]
@@ -4671,7 +4671,7 @@ dependencies = [
 [[package]]
 name = "potato-provider"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=main#1e5ceb46f35f50bf7ebe24b6126fd34ea448738e"
+source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#025161a6de8ef40951437b110be5f2a695f37545"
 dependencies = [
  "base64",
  "gcloud-auth",
@@ -4693,7 +4693,7 @@ dependencies = [
 [[package]]
 name = "potato-state"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=main#1e5ceb46f35f50bf7ebe24b6126fd34ea448738e"
+source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#025161a6de8ef40951437b110be5f2a695f37545"
 dependencies = [
  "thiserror 2.0.17",
  "tokio",
@@ -4703,7 +4703,7 @@ dependencies = [
 [[package]]
 name = "potato-type"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=main#1e5ceb46f35f50bf7ebe24b6126fd34ea448738e"
+source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#025161a6de8ef40951437b110be5f2a695f37545"
 dependencies = [
  "potato-macro",
  "potato-util",
@@ -4719,7 +4719,7 @@ dependencies = [
 [[package]]
 name = "potato-util"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=main#1e5ceb46f35f50bf7ebe24b6126fd34ea448738e"
+source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#025161a6de8ef40951437b110be5f2a695f37545"
 dependencies = [
  "colored_json",
  "pyo3",
@@ -4734,7 +4734,7 @@ dependencies = [
 [[package]]
 name = "potato-workflow"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=main#1e5ceb46f35f50bf7ebe24b6126fd34ea448738e"
+source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#025161a6de8ef40951437b110be5f2a695f37545"
 dependencies = [
  "chrono",
  "potato-agent",

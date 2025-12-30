@@ -260,7 +260,7 @@ impl DispatchAlertDescription for PromptComparisonMetricAlert {
 #[cfg(feature = "mock")]
 mod tests {
     use super::*;
-    use potato_head::create_score_prompt;
+    use potato_head::mock::create_score_prompt;
 
     #[test]
     fn test_alert_config() {

@@ -324,3 +324,9 @@ impl From<PyErr> for ProfileError {
         ProfileError::PyError(err.to_string())
     }
 }
+
+impl<'a, 'py> From<PyClassGuardError<'a, 'py>> for ProfileError {
+    fn from(err: PyClassGuardError<'a, 'py>) -> Self {
+        ProfileError::PyError(err.to_string())
+    }
+}

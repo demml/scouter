@@ -5,7 +5,7 @@ use crate::PyHelperFuncs;
 use chrono::DateTime;
 use chrono::Utc;
 use potato_head::create_uuid7;
-use potato_head::Prompt;
+use potato_head::prompt_types::Prompt;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyFloat, PyInt, PyList, PyString};
 use pyo3::IntoPyObjectExt;
@@ -224,26 +224,26 @@ impl Features {
     /// * `Features` - A new Features instance containing the extracted features.
     pub fn new(features: Bound<'_, PyAny>) -> Result<Self, TypeError> {
         let features = if features.is_instance_of::<PyList>() {
-            features
-                .downcast::<PyList>()
-                .unwrap()
-                .iter()
-                .map(|item| item.extract::<Feature>().unwrap())
-                .collect()
+            let feature_list = features.cast::<PyList>()?;
+            let mut result = Vec::with_capacity(feature_list.len());
+            for item in feature_list.iter() {
+                result.push(item.extract::<Feature>()?);
+            }
+            result
         } else if features.is_instance_of::<PyDict>() {
-            features
-                .downcast::<PyDict>()
-                .unwrap()
-                .iter()
-                .map(|(key, value)| {
-                    Feature::new(&key.extract::<String>().unwrap(), value.clone()).unwrap()
-                })
-                .collect()
+            let dict = features.cast::<PyDict>()?;
+            let mut result = Vec::with_capacity(dict.len());
+            for (key, value) in dict.iter() {
+                let name = key.extract::<String>()?;
+                result.push(Feature::new(&name, value)?);
+            }
+            result
         } else {
-            Err(TypeError::UnsupportedFeaturesTypeError(
+            return Err(TypeError::UnsupportedFeaturesTypeError(
                 features.get_type().name()?.to_string(),
-            ))?
+            ));
         };
+
         Ok(Features {
             features,
             entity_type: EntityType::Feature,
@@ -330,24 +330,26 @@ impl Metrics {
     #[new]
     pub fn new(metrics: Bound<'_, PyAny>) -> Result<Self, TypeError> {
         let metrics = if metrics.is_instance_of::<PyList>() {
-            metrics
-                .downcast::<PyList>()
-                .unwrap()
-                .iter()
-                .map(|item| item.extract::<Metric>().unwrap())
-                .collect()
+            let list = metrics.cast::<PyList>()?;
+            let mut result = Vec::with_capacity(list.len());
+            for item in list.iter() {
+                result.push(item.extract::<Metric>()?);
+            }
+            result
         } else if metrics.is_instance_of::<PyDict>() {
-            metrics
-                .downcast::<PyDict>()
-                .unwrap()
-                .iter()
-                .map(|(key, value)| Metric::new(key.extract().unwrap(), value))
-                .collect()
+            let dict = metrics.cast::<PyDict>()?;
+            let mut result = Vec::with_capacity(dict.len());
+            for (key, value) in dict.iter() {
+                let name = key.extract::<String>()?;
+                result.push(Metric::new(name, value));
+            }
+            result
         } else {
-            Err(TypeError::UnsupportedMetricsTypeError(
+            return Err(TypeError::UnsupportedMetricsTypeError(
                 metrics.get_type().name()?.to_string(),
-            ))?
+            ));
         };
+
         Ok(Metrics {
             metrics,
             entity_type: EntityType::Metric,
