@@ -1,7 +1,6 @@
 # mypy: disable-error-code="attr-defined"
 # pylint: disable=no-name-in-module
 
-from . import anthropic, google, logging, mock, openai
 from .._scouter import Agent  # PyAgent
 from .._scouter import AgentResponse  # PyAgentResponse
 from .._scouter import Embedder  # PyEmbedder
@@ -21,6 +20,7 @@ from .._scouter import (  # Prompt interface types; Workflow types; Agent types;
     WorkflowResult,
     WorkflowTask,
 )
+from . import anthropic, google, logging, mock, openai
 
 __all__ = [
     # Submodules

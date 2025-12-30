@@ -72,10 +72,10 @@ def create_coherence_evaluation_prompt() -> Prompt:
     ).strip()
 
     return Prompt(
-        message=message,
+        messages=message,
         model="gpt-4o",
         provider="openai",
-        response_format=Score,
+        output_type=Score,
     )
 
 
@@ -219,10 +219,10 @@ def create_kafka_llm_app(profile_path: Path) -> FastAPI:
         )
 
         app.state.prompt = Prompt(
-            message="Answer the following question and provide a response with a score and reason: ${question}",
+            messages="Answer the following question and provide a response with a score and reason: ${question}",
             model="gpt-4o",
             provider="openai",
-            response_format=Score,
+            output_type=Score,
         )
 
         app.state.queue = ScouterQueue.from_path(
@@ -253,8 +253,8 @@ def create_kafka_llm_app(profile_path: Path) -> FastAPI:
         queue.insert(
             LLMRecord(
                 context={
-                    "input": bound_prompt.message[0].unwrap(),
-                    "response": response.result,
+                    "input": bound_prompt.messages[0].unwrap(),
+                    "response": response.response_text(),
                 },
             )
         )

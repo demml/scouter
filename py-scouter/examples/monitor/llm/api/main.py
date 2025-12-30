@@ -43,14 +43,14 @@ async def predict(request: Request, payload: Question) -> Answer:
     agent: Agent = request.app.state.prompt_state.agent
 
     # Execute reformulated prompt with the user input
-    reformulated_query: str = agent.execute_prompt(
+    reformulated_query = agent.execute_prompt(
         reformulated_prompt.bind(user_input=payload.question),
-    ).result
+    ).response_text()
 
     # Execute response prompt with the reformulated question
-    response: str = agent.execute_prompt(
+    response = agent.execute_prompt(
         response_prompt.bind(reformulated_query=reformulated_query),
-    ).result
+    ).response_text()
 
     queue.insert(
         LLMRecord(
@@ -61,4 +61,5 @@ async def predict(request: Request, payload: Question) -> Answer:
             },
         )
     )
+    assert response is not None
     return Answer(message=response)

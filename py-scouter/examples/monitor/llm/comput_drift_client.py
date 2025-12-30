@@ -100,7 +100,7 @@ if __name__ == "__main__":
 
     profile = create_llm_drift_profile()
     record = LLMRecord(
-        context={"user_query": user_query, "response": response.result},
+        context={"user_query": user_query, "response": response.response_text()},
     )
 
     drifter = Drifter()

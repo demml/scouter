@@ -1,4 +1,4 @@
-# pylint: disable=dangerous-default-value,redefined-builtin,missing-param-doc
+# pylint: disable=dangerous-default-value,redefined-builtin,missing-param-doc,invalid-name
 # python/scouter/_scouter.pyi
 import datetime
 from pathlib import Path
@@ -7,10 +7,10 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Generic,
     List,
     Literal,
     Optional,
-    Generic,
     ParamSpec,
     Protocol,
     TypeAlias,
@@ -247,9 +247,7 @@ class Prompt(Generic[TMessage]):
         model: str,
         provider: Provider | str,
         system_instructions: Optional[PromptMessage] = None,
-        model_settings: Optional[
-            ModelSettings | OpenAIChatSettings | GeminiSettings | AnthropicSettings
-        ] = None,
+        model_settings: Optional[ModelSettings | OpenAIChatSettings | GeminiSettings | AnthropicSettings] = None,
         output_type: Optional[Any] = None,
     ) -> None:
         """Initialize a Prompt object.
@@ -751,6 +749,9 @@ class AgentResponse:
     def structured_output(self) -> Any:
         """Returns the structured output of the agent response if supported."""
 
+    def response_text(self) -> Optional[str]:
+        """The response text from the agent if available, otherwise None."""
+
 class Task:
     def __init__(
         self,
@@ -778,12 +779,6 @@ class Task:
     def add_dependency(self, task_id: str) -> None:
         """Add a dependency to the task."""
 
-    def set_status(self, status: TaskStatus) -> None:
-        """Set the status of the task."""
-
-    def set_result(self, result: Any) -> None:
-        """Set the result of the task."""
-
     @property
     def prompt(self) -> Prompt:
         """The prompt to use for the task."""
@@ -791,10 +786,6 @@ class Task:
     @property
     def dependencies(self) -> List[str]:
         """The dependencies of the task."""
-
-    @property
-    def result(self) -> Optional[Any]:
-        """The result of the task if it has been executed, otherwise None."""
 
     @property
     def id(self) -> str:
@@ -2530,9 +2521,7 @@ class ChatMessage:
     @property
     def content(
         self,
-    ) -> List[
-        Union[TextContentPart, ImageContentPart, InputAudioContentPart, FileContentPart]
-    ]:
+    ) -> List[Union[TextContentPart, ImageContentPart, InputAudioContentPart, FileContentPart]]:
         """The message content parts."""
 
     @property
@@ -9534,12 +9523,8 @@ class BatchConfig:
 def init_tracer(
     service_name: str = "scouter_service",
     scope: str = "scouter.tracer.{version}",
-    transport_config: Optional[
-        HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig | GrpcConfig
-    ] = None,
-    exporter: Optional[
-        HttpSpanExporter | GrpcSpanExporter | StdoutSpanExporter | TestSpanExporter
-    ] = None,
+    transport_config: Optional[HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig | GrpcConfig] = None,
+    exporter: Optional[HttpSpanExporter | GrpcSpanExporter | StdoutSpanExporter | TestSpanExporter] = None,
     batch_config: Optional[BatchConfig] = None,
 ) -> None:
     """
@@ -10238,9 +10223,7 @@ class AlertDispatchType:
     def to_string() -> str:
         """Return the string representation of the alert dispatch type"""
 
-DispatchConfigType = (
-    ConsoleDispatchConfig | SlackDispatchConfig | OpsGenieDispatchConfig
-)
+DispatchConfigType = ConsoleDispatchConfig | SlackDispatchConfig | OpsGenieDispatchConfig
 
 class AlertZone:
     Zone1: "AlertZone"
@@ -10584,9 +10567,7 @@ class CustomMetricAlertConfig:
         """Return the alert_condition that were set during metric definition"""
 
     @alert_conditions.setter
-    def alert_conditions(
-        self, alert_conditions: dict[str, CustomMetricAlertCondition]
-    ) -> None:
+    def alert_conditions(self, alert_conditions: dict[str, CustomMetricAlertCondition]) -> None:
         """Update the alert_condition that were set during metric definition"""
 
 class LLMAlertConfig:
@@ -11250,9 +11231,7 @@ class DriftRequest:
         """
 
 class ProfileStatusRequest:
-    def __init__(
-        self, name: str, space: str, version: str, drift_type: DriftType, active: bool
-    ) -> None:
+    def __init__(self, name: str, space: str, version: str, drift_type: DriftType, active: bool) -> None:
         """Initialize profile status request
 
         Args:
@@ -11269,9 +11248,7 @@ class ProfileStatusRequest:
         """
 
 class GetProfileRequest:
-    def __init__(
-        self, name: str, space: str, version: str, drift_type: DriftType
-    ) -> None:
+    def __init__(self, name: str, space: str, version: str, drift_type: DriftType) -> None:
         """Initialize get profile request
 
         Args:
@@ -11365,9 +11342,7 @@ class ScouterClient:
             Drift map of type BinnedMetrics | BinnedPsiFeatureMetrics | BinnedSpcFeatureMetrics
         """
 
-    def register_profile(
-        self, profile: Any, set_active: bool = False, deactivate_others: bool = False
-    ) -> bool:
+    def register_profile(self, profile: Any, set_active: bool = False, deactivate_others: bool = False) -> bool:
         """Registers a drift profile with the server
 
         Args:
@@ -11393,9 +11368,7 @@ class ScouterClient:
             boolean
         """
 
-    def get_alerts(
-        self, request: DriftAlertPaginationRequest
-    ) -> DriftAlertPaginationResponse:
+    def get_alerts(self, request: DriftAlertPaginationRequest) -> DriftAlertPaginationResponse:
         """Get alerts
 
         Args:
@@ -12734,16 +12707,7 @@ class FreedmanDiaconis:
         For more information, please see: https://en.wikipedia.org/wiki/Histogram
         """
 
-EqualWidthMethods = (
-    Manual
-    | SquareRoot
-    | Sturges
-    | Rice
-    | Doane
-    | Scott
-    | TerrellScott
-    | FreedmanDiaconis
-)
+EqualWidthMethods = Manual | SquareRoot | Sturges | Rice | Doane | Scott | TerrellScott | FreedmanDiaconis
 
 class EqualWidthBinning:
     def __init__(self, method: EqualWidthMethods = Doane()):
@@ -12817,9 +12781,7 @@ class PsiDriftConfig:
         alert_config: PsiAlertConfig = PsiAlertConfig(),
         config_path: Optional[Path] = None,
         categorical_features: Optional[list[str]] = None,
-        binning_strategy: QuantileBinning | EqualWidthBinning = QuantileBinning(
-            num_bins=10
-        ),
+        binning_strategy: QuantileBinning | EqualWidthBinning = QuantileBinning(num_bins=10),
     ):
         """Initialize monitor config
 
@@ -12897,9 +12859,7 @@ class PsiDriftConfig:
         """binning_strategy"""
 
     @binning_strategy.setter
-    def binning_strategy(
-        self, binning_strategy: QuantileBinning | EqualWidthBinning
-    ) -> None:
+    def binning_strategy(self, binning_strategy: QuantileBinning | EqualWidthBinning) -> None:
         """Set binning_strategy"""
 
     @property
@@ -13832,9 +13792,7 @@ class Drifter:
     def create_drift_profile(  # type: ignore
         self,
         data: Any,
-        config: Optional[
-            Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]
-        ] = None,
+        config: Optional[Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]] = None,
         data_type: Optional[ScouterDataType] = None,
     ) -> Union[SpcDriftProfile, PsiDriftProfile, CustomDriftProfile]:
         """Create a drift profile from data.
