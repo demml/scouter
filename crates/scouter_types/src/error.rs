@@ -91,7 +91,7 @@ pub enum TypeError {
     PyError(String),
 
     #[error(
-        "Invalid prompt response type. Expect Score as the output type for the LLMDriftMetric prompt"
+        "Invalid prompt response type. Expect Score as the output type for the GenAIDriftMetric prompt"
     )]
     InvalidResponseType,
 
@@ -124,7 +124,7 @@ pub enum TypeError {
     #[error("Unsupported status. Status must be one of: All, Pending or Processed. Received: {0}")]
     InvalidStatusError(String),
 
-    #[error("Failed to supply either input or response for the llm record")]
+    #[error("Failed to supply either input or response for the genai record")]
     MissingInputOrResponse,
 
     #[error("Invalid context type. Context must be a PyDict or a Pydantic BaseModel")]
@@ -213,7 +213,7 @@ pub enum RecordError {
     #[error("{0}")]
     PyError(String),
 
-    #[error("Failed to supply either input or response for the llm record")]
+    #[error("Failed to supply either input or response for the genai record")]
     MissingInputOrResponse,
 }
 
@@ -304,7 +304,7 @@ pub enum ProfileError {
     NoTasksFoundError(String),
 
     #[error(
-        "Invalid prompt response type. Expected Score as the output type for the LLMDriftMetric prompt. Id: {0}"
+        "Invalid prompt response type. Expected Score as the output type for the GenAIDriftMetric prompt. Id: {0}"
     )]
     InvalidResponseType(String),
 

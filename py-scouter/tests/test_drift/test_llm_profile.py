@@ -4,17 +4,17 @@ from tempfile import TemporaryDirectory
 import pytest
 from pydantic import BaseModel
 from scouter.alert import AlertThreshold
-from scouter.drift import Drifter, LLMDriftConfig, LLMDriftMetric, LLMDriftProfile
+from scouter.drift import Drifter, GenAIDriftConfig, GenAIDriftMetric, GenAIDriftProfile
 from scouter.genai import Agent, Prompt, Score, Task, Workflow
 from scouter.mock import LLMTestServer
-from scouter.queue import LLMRecord
+from scouter.queue import GenAIRecord
 
 
 class TaskOutput(BaseModel):
     task_output: str
 
 
-def test_llm_drift_profile_from_metrics():
+def test_genai_drift_profile_from_metrics():
     with LLMTestServer():
         prompt = Prompt(
             message="${input} + ${response}?",
@@ -24,26 +24,26 @@ def test_llm_drift_profile_from_metrics():
             response_format=Score,
         )
 
-        metric1 = LLMDriftMetric(
+        metric1 = GenAIDriftMetric(
             name="test_metric",
             prompt=prompt,
             value=5.0,
             alert_threshold=AlertThreshold.Below,
         )
-        metric2 = LLMDriftMetric(
+        metric2 = GenAIDriftMetric(
             name="test_metric_2",
             prompt=prompt,
             value=10.0,
             alert_threshold=AlertThreshold.Above,
         )
 
-        _profile = LLMDriftProfile(
-            config=LLMDriftConfig(),
+        _profile = GenAIDriftProfile(
+            config=GenAIDriftConfig(),
             metrics=[metric1, metric2],
         )
 
 
-def test_llm_drift_profile_from_workflow():
+def test_genai_drift_profile_from_workflow():
     with LLMTestServer():
         start_prompt = Prompt(
             message="${input} + ${response}?",
@@ -79,14 +79,14 @@ def test_llm_drift_profile_from_workflow():
             ]
         )
 
-        metric = LLMDriftMetric(
+        metric = GenAIDriftMetric(
             name="relevance",
             value=5.0,
             alert_threshold=AlertThreshold.Below,
         )
 
-        profile = LLMDriftProfile(
-            config=LLMDriftConfig(),
+        profile = GenAIDriftProfile(
+            config=GenAIDriftConfig(),
             workflow=workflow,
             metrics=[metric],
         )
@@ -102,10 +102,10 @@ def test_llm_drift_profile_from_workflow():
             assert (Path(temp_dir) / "profile.json").exists()
 
             with open(path, "r") as f:
-                LLMDriftProfile.model_validate_json(f.read())
+                GenAIDriftProfile.model_validate_json(f.read())
 
 
-def test_llm_drift_profile_from_metrics_fail():
+def test_genai_drift_profile_from_metrics_fail():
     with LLMTestServer():
         prompt = Prompt(
             message="foo bar",
@@ -115,13 +115,13 @@ def test_llm_drift_profile_from_metrics_fail():
             response_format=Score,
         )
 
-        metric1 = LLMDriftMetric(
+        metric1 = GenAIDriftMetric(
             name="test_metric",
             prompt=prompt,
             value=5.0,
             alert_threshold=AlertThreshold.Below,
         )
-        metric2 = LLMDriftMetric(
+        metric2 = GenAIDriftMetric(
             name="test_metric_2",
             value=10.0,
             alert_threshold=AlertThreshold.Above,
@@ -129,20 +129,20 @@ def test_llm_drift_profile_from_metrics_fail():
 
         # Drift profile with no required parameters should raise an error
         with pytest.raises(RuntimeError, match="LLM Metric requires at least one bound parameter"):
-            _profile = LLMDriftProfile(
-                config=LLMDriftConfig(),
+            _profile = GenAIDriftProfile(
+                config=GenAIDriftConfig(),
                 metrics=[metric1],
             )
 
         # Drift profile with metric without prompt should raise an error
         with pytest.raises(RuntimeError, match="Missing prompt in LLM Metric"):
-            _profile = LLMDriftProfile(
-                config=LLMDriftConfig(),
+            _profile = GenAIDriftProfile(
+                config=GenAIDriftConfig(),
                 metrics=[metric2],
             )
 
 
-def test_llm_drift_profile_from_workflow_fail():
+def test_genai_drift_profile_from_workflow_fail():
     with LLMTestServer():
         start_prompt = Prompt(
             message="Foo bar",
@@ -178,21 +178,21 @@ def test_llm_drift_profile_from_workflow_fail():
             ]
         )
 
-        metric = LLMDriftMetric(
+        metric = GenAIDriftMetric(
             name="relevance",
             value=5.0,
             alert_threshold=AlertThreshold.Below,
         )
 
         with pytest.raises(RuntimeError, match="LLM Metric requires at least one bound parameter"):
-            _profile = LLMDriftProfile(
-                config=LLMDriftConfig(),
+            _profile = GenAIDriftProfile(
+                config=GenAIDriftConfig(),
                 workflow=workflow,
                 metrics=[metric],
             )
 
 
-def test_llm_drift_profile_workflow_run_context():
+def test_genai_drift_profile_workflow_run_context():
     with LLMTestServer():
         # this should bind the input and response context and return TaskOutput
         start_prompt = Prompt(
@@ -247,7 +247,7 @@ def test_llm_drift_profile_workflow_run_context():
         assert result.tasks.get("relevance").prompt.message[1].unwrap() == '"foo bar"'
 
 
-def test_llm_drifter():
+def test_genai_drifter():
     with LLMTestServer():
         # this should bind the input and response context and return TaskOutput
         eval_prompt = Prompt(
@@ -258,10 +258,10 @@ def test_llm_drifter():
             response_format=Score,
         )
 
-        profile = LLMDriftProfile(
-            config=LLMDriftConfig(),
+        profile = GenAIDriftProfile(
+            config=GenAIDriftConfig(),
             metrics=[
-                LLMDriftMetric(
+                GenAIDriftMetric(
                     name="relevance",
                     prompt=eval_prompt,
                     value=5.0,
@@ -270,7 +270,7 @@ def test_llm_drifter():
             ],
         )
 
-        record = LLMRecord(
+        record = GenAIRecord(
             context={
                 "input": "What is the capital of France?",
                 "response": "The capital of France is Paris.",

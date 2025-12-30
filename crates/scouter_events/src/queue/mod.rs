@@ -1,6 +1,6 @@
 pub mod bus;
 pub mod custom;
-pub mod llm;
+pub mod genai;
 pub mod psi;
 pub mod py_queue;
 pub mod spc;

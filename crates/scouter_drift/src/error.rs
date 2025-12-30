@@ -100,11 +100,11 @@ pub enum DriftError {
     #[error("Invalid content type. Expected a json string or value")]
     InvalidContentTypeError,
 
-    #[error("Failed to setup tokio runtime for computing LLM drift: {0}")]
+    #[error("Failed to setup tokio runtime for computing GenAI drift: {0}")]
     SetupTokioRuntimeError(#[source] io::Error),
 
-    #[error("Failed to process LLM drift record: {0}")]
-    LLMEvaluatorError(String),
+    #[error("Failed to process GenAI drift record: {0}")]
+    GenAIEvaluatorError(String),
 
     #[error("{0}")]
     InvalidDataConfiguration(String),

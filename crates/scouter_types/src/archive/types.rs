@@ -15,6 +15,6 @@ pub struct ArchiveRecord {
     pub custom: bool,
     pub psi: bool,
     pub spc: bool,
-    pub llm_drift: bool,
-    pub llm_metric: bool,
+    pub genai_drift: bool,
+    pub genai_metric: bool,
 }

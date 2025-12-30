@@ -394,9 +394,11 @@ impl PyScouterClient {
             DriftType::Custom => {
                 PyScouterClient::get_custom_binned_drift(py, &self.client.client, drift_request)
             }
-            DriftType::LLM => {
-                PyScouterClient::get_llm_metric_binned_drift(py, &self.client.client, drift_request)
-            }
+            DriftType::GenAI => PyScouterClient::get_genai_metric_binned_drift(
+                py,
+                &self.client.client,
+                drift_request,
+            ),
         }
     }
 
@@ -581,7 +583,7 @@ impl PyScouterClient {
         Ok(results.into_bound_py_any(py).unwrap())
     }
 
-    fn get_llm_metric_binned_drift<'py>(
+    fn get_genai_metric_binned_drift<'py>(
         py: Python<'py>,
         client: &HttpClient,
         drift_request: DriftRequest,
@@ -589,7 +591,7 @@ impl PyScouterClient {
         let query_string = serde_qs::to_string(&drift_request)?;
 
         let response = client.request(
-            Routes::LLMDrift,
+            Routes::GenAIDrift,
             RequestType::Get,
             None,
             Some(query_string),

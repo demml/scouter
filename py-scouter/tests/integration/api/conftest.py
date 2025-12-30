@@ -8,19 +8,19 @@ import pandas as pd
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from scouter import HttpConfig, KafkaConfig, Queue, ScouterQueue
-from scouter.alert import AlertThreshold, LLMAlertConfig, SpcAlertConfig
+from scouter.alert import AlertThreshold, GenAIAlertConfig, SpcAlertConfig
 from scouter.client import ScouterClient
 from scouter.drift import (
     Drifter,
-    LLMDriftConfig,
-    LLMDriftMetric,
-    LLMDriftProfile,
+    GenAIDriftConfig,
+    GenAIDriftMetric,
+    GenAIDriftProfile,
     SpcDriftConfig,
     SpcDriftProfile,
 )
 from scouter.genai import Agent, Prompt, Provider, Score
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
-from scouter.queue import LLMRecord
+from scouter.queue import GenAIRecord
 from scouter.tracing import (
     BatchConfig,
     TestSpanExporter,
@@ -118,21 +118,21 @@ def create_and_register_drift_profile(
     return profile
 
 
-def create_and_register_llm_drift_profile(
+def create_and_register_genai_drift_profile(
     client: ScouterClient,
     name: str,
-) -> LLMDriftProfile:
+) -> GenAIDriftProfile:
     # create drift config (usually associated with a model name, space name, version)
-    config = LLMDriftConfig(
+    config = GenAIDriftConfig(
         space="scouter",
         name=name,
         version="0.1.0",
         sample_rate=1,
-        alert_config=LLMAlertConfig(),
+        alert_config=GenAIAlertConfig(),
     )
 
     metrics = [
-        LLMDriftMetric(
+        GenAIDriftMetric(
             name="coherence",
             value=5,
             alert_threshold=AlertThreshold.Below,
@@ -145,7 +145,7 @@ def create_and_register_llm_drift_profile(
     drifter = Drifter()
 
     # create drift profile
-    profile = drifter.create_llm_drift_profile(config=config, metrics=metrics)
+    profile = drifter.create_genai_drift_profile(config=config, metrics=metrics)
     client.register_profile(profile, True)
 
     return profile
@@ -206,7 +206,7 @@ def create_kafka_app(profile_path: Path) -> FastAPI:
     return app
 
 
-def create_kafka_llm_app(profile_path: Path) -> FastAPI:
+def create_kafka_genai_app(profile_path: Path) -> FastAPI:
     config = KafkaConfig()
 
     @asynccontextmanager
@@ -226,7 +226,7 @@ def create_kafka_llm_app(profile_path: Path) -> FastAPI:
         )
 
         app.state.queue = ScouterQueue.from_path(
-            path={"llm": profile_path},
+            path={"genai": profile_path},
             transport_config=config,
         )
         yield
@@ -240,18 +240,18 @@ def create_kafka_llm_app(profile_path: Path) -> FastAPI:
 
     @app.post("/chat", response_model=TestResponse)
     async def chat(request: Request, payload: ChatRequest) -> TestResponse:
-        queue: Queue = request.app.state.queue["llm"]
+        queue: Queue = request.app.state.queue["genai"]
 
         agent: Agent = request.app.state.agent
         prompt: Prompt = request.app.state.prompt
 
-        # Create an LLMRecord from the payload
+        # Create an GenAIRecord from the payload
         bound_prompt = prompt.bind(question=payload.question)
 
         response = agent.execute_prompt(prompt=bound_prompt)
 
         queue.insert(
-            LLMRecord(
+            GenAIRecord(
                 context={
                     "input": bound_prompt.messages[0].unwrap(),
                     "response": response.response_text(),

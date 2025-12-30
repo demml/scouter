@@ -1,0 +1,267 @@
+{
+  "config": {
+    "sample_rate": 1,
+    "space": "scouter",
+    "name": "genai_metrics",
+    "version": "0.0.1",
+    "alert_config": {
+      "dispatch_config": {
+        "Console": {
+          "enabled": true
+        }
+      },
+      "schedule": "0 0 0 * * *",
+      "alert_conditions": {
+        "relevance": {
+          "alert_threshold": "Below",
+          "alert_threshold_value": 2.0
+        },
+        "reformulation": {
+          "alert_threshold": "Above",
+          "alert_threshold_value": 2.0
+        }
+      }
+    },
+    "drift_type": "LLM"
+  },
+  "metrics": [
+    {
+      "name": "relevance",
+      "value": 5.0,
+      "prompt": {
+        "message": [
+          {
+            "content": {
+              "Str": "You are an expert evaluator of LLM responses. Given the original user query and the LLM's response, your task is to assess how relevant the response is to the query. Consider the following criteria:\n- Does the response directly address the user's question or request?\n- Is the information provided accurate and appropriate for the query?\n- Are any parts of the response off-topic or unrelated?\n- Is the response complete and does it avoid unnecessary information?\n\nProvide your evaluation as a JSON object with the following attributes:\n- score: An integer from 1 (irrelevant) to 5 (highly relevant) indicating the overall relevance of the response.\n- reason: A brief explanation for your score.\n\nFormat your response as:\n{\n  \"score\": <integer 1-5>,\n  \"reason\": \"<your explanation>\"\n}\n\nOriginal Query:\n${reformulated_query}\n\nLLM Response:\n${relevance_response}\n\nEvaluation:"
+            },
+            "role": "user",
+            "variables": [
+              "reformulated_query",
+              "relevance_response"
+            ]
+          }
+        ],
+        "system_instruction": [],
+        "model_settings": {
+          "model": "gemini-2.5-flash-lite-preview-06-17",
+          "provider": "gemini"
+        },
+        "version": "0.2.3",
+        "response_json_schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "reason": {
+              "type": "string"
+            },
+            "score": {
+              "format": "int64",
+              "maximum": 5,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "score",
+            "reason"
+          ],
+          "title": "Score",
+          "type": "object"
+        },
+        "parameters": [
+          "relevance_response",
+          "reformulated_query"
+        ],
+        "response_type": "Score"
+      },
+      "alert_condition": {
+        "alert_threshold": "Below",
+        "alert_threshold_value": 2.0
+      }
+    },
+    {
+      "name": "reformulation",
+      "value": 5.0,
+      "prompt": {
+        "message": [
+          {
+            "content": {
+              "Str": "You are an expert evaluator of search query reformulations. Given the original user query and its reformulated version, your task is to assess how well the reformulation improves the query. Consider the following criteria:\n- Does the reformulation make the query more explicit and comprehensive?\n- Are relevant synonyms, related concepts, or specific features added?\n- Is the original intent preserved without changing the meaning?\n- Is the reformulation clear and unambiguous?\n\nProvide your evaluation as a JSON object with the following attributes:\n- score: An integer from 1 (poor) to 5 (excellent) indicating the overall quality of the reformulation.\n- reason: A brief explanation for your score.\n\nFormat your response as:\n{\n  \"score\": <integer 1-5>,\n  \"reason\": \"<your explanation>\"\n}\n\nOriginal Query:\n${user_input}\n\nReformulated Query:\n${reformulated_query}\n\nEvaluation:"
+            },
+            "role": "user",
+            "variables": [
+              "reformulated_query",
+              "user_input"
+            ]
+          }
+        ],
+        "system_instruction": [],
+        "model_settings": {
+          "model": "gemini-2.5-flash-lite-preview-06-17",
+          "provider": "gemini"
+        },
+        "version": "0.2.3",
+        "response_json_schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "reason": {
+              "type": "string"
+            },
+            "score": {
+              "format": "int64",
+              "maximum": 5,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "score",
+            "reason"
+          ],
+          "title": "Score",
+          "type": "object"
+        },
+        "parameters": [
+          "user_input",
+          "reformulated_query"
+        ],
+        "response_type": "Score"
+      },
+      "alert_condition": {
+        "alert_threshold": "Above",
+        "alert_threshold_value": 2.0
+      }
+    }
+  ],
+  "scouter_version": "0.7.0",
+  "workflow": {
+    "id": "0198412b-ce52-76d1-b0ce-a1033ba2b7fc",
+    "name": "genai_drift_workflow",
+    "task_list": {
+      "tasks": {
+        "relevance": {
+          "id": "relevance",
+          "prompt": {
+            "message": [
+              {
+                "content": {
+                  "Str": "You are an expert evaluator of LLM responses. Given the original user query and the LLM's response, your task is to assess how relevant the response is to the query. Consider the following criteria:\n- Does the response directly address the user's question or request?\n- Is the information provided accurate and appropriate for the query?\n- Are any parts of the response off-topic or unrelated?\n- Is the response complete and does it avoid unnecessary information?\n\nProvide your evaluation as a JSON object with the following attributes:\n- score: An integer from 1 (irrelevant) to 5 (highly relevant) indicating the overall relevance of the response.\n- reason: A brief explanation for your score.\n\nFormat your response as:\n{\n  \"score\": <integer 1-5>,\n  \"reason\": \"<your explanation>\"\n}\n\nOriginal Query:\n${reformulated_query}\n\nLLM Response:\n${relevance_response}\n\nEvaluation:"
+                },
+                "role": "user",
+                "variables": [
+                  "reformulated_query",
+                  "relevance_response"
+                ]
+              }
+            ],
+            "system_instruction": [],
+            "model_settings": {
+              "model": "gemini-2.5-flash-lite-preview-06-17",
+              "provider": "gemini"
+            },
+            "version": "0.2.3",
+            "response_json_schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "additionalProperties": false,
+              "properties": {
+                "reason": {
+                  "type": "string"
+                },
+                "score": {
+                  "format": "int64",
+                  "maximum": 5,
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "score",
+                "reason"
+              ],
+              "title": "Score",
+              "type": "object"
+            },
+            "parameters": [
+              "relevance_response",
+              "reformulated_query"
+            ],
+            "response_type": "Score"
+          },
+          "dependencies": [],
+          "status": "Pending",
+          "agent_id": "0198412b-cee7-7a92-b767-33f16f0f60dc",
+          "result": null,
+          "max_retries": 3,
+          "retry_count": 0
+        },
+        "reformulation": {
+          "id": "reformulation",
+          "prompt": {
+            "message": [
+              {
+                "content": {
+                  "Str": "You are an expert evaluator of search query reformulations. Given the original user query and its reformulated version, your task is to assess how well the reformulation improves the query. Consider the following criteria:\n- Does the reformulation make the query more explicit and comprehensive?\n- Are relevant synonyms, related concepts, or specific features added?\n- Is the original intent preserved without changing the meaning?\n- Is the reformulation clear and unambiguous?\n\nProvide your evaluation as a JSON object with the following attributes:\n- score: An integer from 1 (poor) to 5 (excellent) indicating the overall quality of the reformulation.\n- reason: A brief explanation for your score.\n\nFormat your response as:\n{\n  \"score\": <integer 1-5>,\n  \"reason\": \"<your explanation>\"\n}\n\nOriginal Query:\n${user_input}\n\nReformulated Query:\n${reformulated_query}\n\nEvaluation:"
+                },
+                "role": "user",
+                "variables": [
+                  "reformulated_query",
+                  "user_input"
+                ]
+              }
+            ],
+            "system_instruction": [],
+            "model_settings": {
+              "model": "gemini-2.5-flash-lite-preview-06-17",
+              "provider": "gemini"
+            },
+            "version": "0.2.3",
+            "response_json_schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "additionalProperties": false,
+              "properties": {
+                "reason": {
+                  "type": "string"
+                },
+                "score": {
+                  "format": "int64",
+                  "maximum": 5,
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "score",
+                "reason"
+              ],
+              "title": "Score",
+              "type": "object"
+            },
+            "parameters": [
+              "user_input",
+              "reformulated_query"
+            ],
+            "response_type": "Score"
+          },
+          "dependencies": [],
+          "status": "Pending",
+          "agent_id": "0198412b-cee7-7a92-b767-33f16f0f60dc",
+          "result": null,
+          "max_retries": 3,
+          "retry_count": 0
+        }
+      },
+      "execution_order": [
+        "relevance",
+        "reformulation"
+      ]
+    },
+    "agents": {
+      "0198412b-cee7-7a92-b767-33f16f0f60dc": {
+        "id": "0198412b-cee7-7a92-b767-33f16f0f60dc",
+        "provider": "Gemini",
+        "system_instruction": []
+      }
+    }
+  }
+}

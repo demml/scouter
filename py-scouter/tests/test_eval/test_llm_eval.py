@@ -2,35 +2,35 @@ import pandas as pd
 import polars as pl
 from scouter.evaluate import (  # type: ignore
     EvaluationConfig,
-    LLMEvalMetric,
-    LLMEvalRecord,
-    LLMEvalResults,
-    evaluate_llm,
+    GenAIEvalMetric,
+    GenAIEvalRecord,
+    GenAIEvalResults,
+    evaluate_genai,
 )
 from scouter.genai import Embedder, Provider  # type: ignore
 from scouter.genai.openai import OpenAIEmbeddingConfig  # type: ignore
 from scouter.mock import LLMTestServer
 
 
-def test_llm_eval_no_embedding(reformulation_evaluation_prompt, relevancy_evaluation_prompt) -> None:
+def test_genai_eval_no_embedding(reformulation_evaluation_prompt, relevancy_evaluation_prompt) -> None:
     with LLMTestServer():
         records = []
         for i in range(10):
-            record = LLMEvalRecord(
+            record = GenAIEvalRecord(
                 context={"user_query": "my query", "response": "my response"},
                 id=f"test_id_{i}",
             )
             records.append(record)
 
-        reformulation_metric = LLMEvalMetric(
+        reformulation_metric = GenAIEvalMetric(
             name="reformulation",
             prompt=reformulation_evaluation_prompt,
         )
-        relevancy_metric = LLMEvalMetric(
+        relevancy_metric = GenAIEvalMetric(
             name="relevancy",
             prompt=relevancy_evaluation_prompt,
         )
-        results = evaluate_llm(
+        results = evaluate_genai(
             records=records,
             metrics=[reformulation_metric, relevancy_metric],
         )
@@ -49,7 +49,7 @@ def test_llm_eval_no_embedding(reformulation_evaluation_prompt, relevancy_evalua
         assert isinstance(result_polars_df, pl.DataFrame)
 
 
-def test_llm_eval_embedding(reformulation_evaluation_prompt, relevancy_evaluation_prompt) -> None:
+def test_genai_eval_embedding(reformulation_evaluation_prompt, relevancy_evaluation_prompt) -> None:
     with LLMTestServer():
         records = []
 
@@ -61,21 +61,21 @@ def test_llm_eval_embedding(reformulation_evaluation_prompt, relevancy_evaluatio
             ),
         )
         for i in range(100):
-            record = LLMEvalRecord(
+            record = GenAIEvalRecord(
                 context={"user_query": "my query", "response": "my response"},
                 id=f"test_id_{i}",
             )
             records.append(record)
 
-        reformulation_metric = LLMEvalMetric(
+        reformulation_metric = GenAIEvalMetric(
             name="reformulation",
             prompt=reformulation_evaluation_prompt,
         )
-        relevancy_metric = LLMEvalMetric(
+        relevancy_metric = GenAIEvalMetric(
             name="relevancy",
             prompt=relevancy_evaluation_prompt,
         )
-        results = evaluate_llm(
+        results = evaluate_genai(
             records=records,
             metrics=[reformulation_metric, relevancy_metric],
             config=EvaluationConfig(
@@ -106,7 +106,7 @@ def test_llm_eval_embedding(reformulation_evaluation_prompt, relevancy_evaluatio
         assert isinstance(json_str, str)
 
         validated_results = results.model_validate_json(json_str)
-        assert isinstance(validated_results, LLMEvalResults)
+        assert isinstance(validated_results, GenAIEvalResults)
 
         histograms = results.histograms
         assert histograms is not None

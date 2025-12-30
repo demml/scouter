@@ -10570,7 +10570,7 @@ class CustomMetricAlertConfig:
     def alert_conditions(self, alert_conditions: dict[str, CustomMetricAlertCondition]) -> None:
         """Update the alert_condition that were set during metric definition"""
 
-class LLMAlertConfig:
+class GenAIAlertConfig:
     def __init__(
         self,
         dispatch_config: Optional[SlackDispatchConfig | OpsGenieDispatchConfig] = None,
@@ -10603,16 +10603,16 @@ class LLMAlertConfig:
         """Set the schedule"""
 
     @property
-    def alert_conditions(self) -> Optional[Dict[str, LLMMetricAlertCondition]]:
+    def alert_conditions(self) -> Optional[Dict[str, GenAIMetricAlertCondition]]:
         """Return the alert conditions"""
 
-class LLMMetricAlertCondition:
+class GenAIMetricAlertCondition:
     def __init__(
         self,
         alert_threshold: AlertThreshold,
         alert_threshold_value: Optional[float],
     ):
-        """Initialize a LLMMetricAlertCondition instance.
+        """Initialize a GenAIMetricAlertCondition instance.
         Args:
             alert_threshold (AlertThreshold):
                 The condition that determines when an alert should be triggered.
@@ -10621,11 +10621,11 @@ class LLMMetricAlertCondition:
                 A numerical boundary used in conjunction with the alert_threshold.
                 This can be None for certain types of comparisons that don't require a fixed boundary.
         Example:
-            alert_threshold = LLMMetricAlertCondition(AlertCondition.BELOW, 2.0)
+            alert_threshold = GenAIMetricAlertCondition(AlertCondition.BELOW, 2.0)
         """
 
     def __str__(self) -> str:
-        """Return the string representation of LLMMetricAlertCondition."""
+        """Return the string representation of GenAIMetricAlertCondition."""
 
 class LogLevel:
     Debug: "LogLevel"
@@ -11924,13 +11924,13 @@ class Metrics:
 class Queue:
     """Individual queue associated with a drift profile"""
 
-    def insert(self, entity: Union[Features, Metrics, LLMRecord]) -> None:
+    def insert(self, entity: Union[Features, Metrics, GenAIRecord]) -> None:
         """Insert a record into the queue
 
         Args:
             entity:
                 Entity to insert into the queue.
-                Can be an instance for Features, Metrics, or LLMRecord.
+                Can be an instance for Features, Metrics, or GenAIRecord.
 
         Example:
             ```python
@@ -11979,7 +11979,7 @@ class ScouterQueue:
         ║                              │                                           ║
         ║                              ▼                                           ║
         ║  ┌────────────────────────────────────────────────────────────────────┐  ║
-        ║  │  queue["profile_alias"].insert(Features | Metrics | LLMRecord)     │  ║
+        ║  │  queue["profile_alias"].insert(Features | Metrics | GenAIRecord)     │  ║
         ║  └───────────────────────────┬────────────────────────────────────────┘  ║
         ║                              │                                           ║
         ╚══════════════════════════════╪═══════════════════════════════════════════╝
@@ -12030,7 +12030,7 @@ class ScouterQueue:
         ```
         Flow Summary:
             1. **Python Runtime**: Initialize queue with drift profiles and transport config
-            2. **Insert Records**: Call queue["alias"].insert() with Features/Metrics/LLMRecord
+            2. **Insert Records**: Call queue["alias"].insert() with Features/Metrics/GenAIRecord
             3. **Rust Queue**: Buffer and validate records against profile schema
             4. **Transport Producer**: Serialize and publish to configured transport
             5. **Network**: Records travel via Kafka/RabbitMQ/Redis/HTTP/gRPC
@@ -12046,7 +12046,7 @@ class ScouterQueue:
                     • SpcDriftProfile    - Statistical Process Control monitoring
                     • PsiDriftProfile    - Population Stability Index monitoring
                     • CustomDriftProfile - Custom metric monitoring
-                    • LLMDriftProfile    - LLM evaluation monitoring
+                    • GenAIDriftProfile    - LLM evaluation monitoring
 
             transport_config (Union[KafkaConfig, RabbitMQConfig, RedisConfig, HttpConfig, GrpcConfig]):
                 Transport configuration for the queue publisher.
@@ -12094,15 +12094,15 @@ class ScouterQueue:
 
             LLM monitoring with gRPC:
                 >>> queue = ScouterQueue.from_path(
-                ...     path={"llm_eval": Path("llm_profile.json")},
+                ...     path={"genai_eval": Path("genai_profile.json")},
                 ...     transport_config=GrpcConfig(
                 ...         server_uri="http://scouter-server:50051",
                 ...         username="monitoring_user",
                 ...         password="secure_password",
                 ...     ),
                 ... )
-                >>> queue["llm_eval"].insert(
-                ...     LLMRecord(context={"input": "...", "response": "..."})
+                >>> queue["genai_eval"].insert(
+                ...     GenAIRecord(context={"input": "...", "response": "..."})
                 ... )
         """
 
@@ -12136,13 +12136,13 @@ class BaseModel(Protocol):
     def __str__(self) -> str:
         """String representation of the model"""
 
-class LLMRecord:
+class GenAIRecord:
     """LLM record containing context tied to a Large Language Model interaction
     that is used to evaluate drift in LLM responses.
 
 
     Examples:
-        >>> record = LLMRecord(
+        >>> record = GenAIRecord(
         ...     context={
         ...         "input": "What is the capital of France?",
         ...         "response": "Paris is the capital of France."
@@ -12156,14 +12156,14 @@ class LLMRecord:
     """Optional prompt configuration associated with this record."""
 
     entity_type: EntityType
-    """Type of entity, always EntityType.LLM for LLMRecord instances."""
+    """Type of entity, always EntityType.LLM for GenAIRecord instances."""
 
     def __init__(
         self,
         context: Context,
         prompt: Optional[Prompt | SerializedType] = None,
     ) -> None:
-        """Creates a new LLM record to associate with an `LLMDriftProfile`.
+        """Creates a new LLM record to associate with an `GenAIDriftProfile`.
         The record is sent to the `Scouter` server via the `ScouterQueue` and is
         then used to inject context into the evaluation prompts.
 
@@ -13085,9 +13085,9 @@ class PsiDriftMap:
 
         """
 
-class LLMDriftMap:
+class GenAIDriftMap:
     @property
-    def records(self) -> List[LLMMetricRecord]:
+    def records(self) -> List[GenAIMetricRecord]:
         """Return the list of LLM records."""
 
     def __str__(self): ...
@@ -13364,7 +13364,7 @@ class CustomDriftProfile:
             None
         """
 
-class LLMDriftMetric:
+class GenAIDriftMetric:
     """Metric for monitoring LLM performance."""
 
     def __init__(
@@ -13392,7 +13392,7 @@ class LLMDriftMetric:
                 determine if an alert should be triggered.
             prompt (Optional[Prompt]):
                 Optional prompt associated with the metric. This can be used to provide context or
-                additional information about the metric being monitored. If creating an LLM drift profile
+                additional information about the metric being monitored. If creating an GenAI drift profile
                 from a pre-defined workflow, this can be none.
         """
 
@@ -13416,7 +13416,7 @@ class LLMDriftMetric:
     def alert_threshold_value(self) -> Optional[float]:
         """Return the alert_threshold_value"""
 
-class LLMMetricRecord:
+class GenAIMetricRecord:
     @property
     def uid(self) -> str:
         """Return the record uid"""
@@ -13440,14 +13440,14 @@ class LLMMetricRecord:
     def __str__(self) -> str:
         """Return the string representation of the record"""
 
-class LLMDriftConfig:
+class GenAIDriftConfig:
     def __init__(
         self,
         space: str = "__missing__",
         name: str = "__missing__",
         version: str = "0.1.0",
         sample_rate: int = 5,
-        alert_config: LLMAlertConfig = LLMAlertConfig(),
+        alert_config: GenAIAlertConfig = GenAIAlertConfig(),
     ):
         """Initialize drift config
         Args:
@@ -13458,7 +13458,7 @@ class LLMDriftConfig:
             version:
                 Version to associate with the config. Defaults to 0.1.0
             sample_rate:
-                Sample rate for LLM drift detection. Defaults to 5.
+                Sample rate for GenAI drift detection. Defaults to 5.
             alert_config:
                 Custom metric alert configuration
         """
@@ -13500,15 +13500,15 @@ class LLMDriftConfig:
         """Drift type"""
 
     @property
-    def alert_config(self) -> LLMAlertConfig:
+    def alert_config(self) -> GenAIAlertConfig:
         """get alert_config"""
 
     @alert_config.setter
-    def alert_config(self, alert_config: LLMAlertConfig) -> None:
+    def alert_config(self, alert_config: GenAIAlertConfig) -> None:
         """Set alert_config"""
 
     @staticmethod
-    def load_from_json_file(path: Path) -> "LLMDriftConfig":
+    def load_from_json_file(path: Path) -> "GenAIDriftConfig":
         """Load config from json file
         Args:
             path:
@@ -13526,7 +13526,7 @@ class LLMDriftConfig:
         space: Optional[str] = None,
         name: Optional[str] = None,
         version: Optional[str] = None,
-        alert_config: Optional[LLMAlertConfig] = None,
+        alert_config: Optional[GenAIAlertConfig] = None,
     ) -> None:
         """Inplace operation that updates config args
         Args:
@@ -13540,14 +13540,14 @@ class LLMDriftConfig:
                 LLM alert configuration
         """
 
-class LLMDriftProfile:
+class GenAIDriftProfile:
     def __init__(
         self,
-        config: LLMDriftConfig,
-        metrics: list[LLMDriftMetric],
+        config: GenAIDriftConfig,
+        metrics: list[GenAIDriftMetric],
         workflow: Optional[Workflow] = None,
     ):
-        """Initialize a LLMDriftProfile for LLM evaluation and drift detection.
+        """Initialize a GenAIDriftProfile for LLM evaluation and drift detection.
 
         LLM evaluations are run asynchronously on the scouter server.
 
@@ -13558,14 +13558,14 @@ class LLMDriftProfile:
                - A list of metrics to evaluate workflow output must be provided
                - Metric names must correspond to the final task names in the workflow
 
-        Baseline metrics and thresholds will be extracted from the LLMDriftMetric objects.
+        Baseline metrics and thresholds will be extracted from the GenAIDriftMetric objects.
 
         Args:
-            config (LLMDriftConfig):
-                The configuration for the LLM drift profile containing space, name,
+            config (GenAIDriftConfig):
+                The configuration for the GenAI drift profile containing space, name,
                 version, and alert settings.
-            metrics (list[LLMDriftMetric]):
-                A list of LLMDriftMetric objects representing the metrics to be monitored.
+            metrics (list[GenAIDriftMetric]):
+                A list of GenAIDriftMetric objects representing the metrics to be monitored.
                 Each metric defines evaluation criteria and alert thresholds.
             workflow (Optional[Workflow]):
                 Optional custom workflow for advanced evaluation scenarios. If provided,
@@ -13573,7 +13573,7 @@ class LLMDriftProfile:
                 type configuration.
 
         Returns:
-            LLMDriftProfile: Configured profile ready for LLM drift monitoring.
+            GenAIDriftProfile: Configured profile ready for GenAI drift monitoring.
 
         Raises:
             ProfileError: If workflow validation fails, metrics are empty when no
@@ -13582,18 +13582,18 @@ class LLMDriftProfile:
         Examples:
             Basic usage with metrics only:
 
-            >>> config = LLMDriftConfig("my_space", "my_model", "1.0")
+            >>> config = GenAIDriftConfig("my_space", "my_model", "1.0")
             >>> metrics = [
-            ...     LLMDriftMetric("accuracy", 0.95, AlertThreshold.Above, 0.1, prompt),
-            ...     LLMDriftMetric("relevance", 0.85, AlertThreshold.Below, 0.2, prompt2)
+            ...     GenAIDriftMetric("accuracy", 0.95, AlertThreshold.Above, 0.1, prompt),
+            ...     GenAIDriftMetric("relevance", 0.85, AlertThreshold.Below, 0.2, prompt2)
             ... ]
-            >>> profile = LLMDriftProfile(config, metrics)
+            >>> profile = GenAIDriftProfile(config, metrics)
 
             Advanced usage with custom workflow:
 
             >>> workflow = create_custom_workflow()  # Your custom workflow
-            >>> metrics = [LLMDriftMetric("final_task", 0.9, AlertThreshold.Above)]
-            >>> profile = LLMDriftProfile(config, metrics, workflow)
+            >>> metrics = [GenAIDriftMetric("final_task", 0.9, AlertThreshold.Above)]
+            >>> profile = GenAIDriftProfile(config, metrics, workflow)
 
         Note:
             - When using custom workflows, ensure final tasks have Score response types
@@ -13606,11 +13606,11 @@ class LLMDriftProfile:
         """Return the unique identifier for the drift profile"""
 
     @property
-    def config(self) -> LLMDriftConfig:
+    def config(self) -> GenAIDriftConfig:
         """Return the drift config"""
 
     @property
-    def metrics(self) -> List[LLMDriftMetric]:
+    def metrics(self) -> List[GenAIDriftMetric]:
         """Return LLM metrics and their corresponding values"""
 
     @property
@@ -13618,7 +13618,7 @@ class LLMDriftProfile:
         """Return scouter version used to create DriftProfile"""
 
     def __str__(self) -> str:
-        """String representation of LLMDriftProfile"""
+        """String representation of GenAIDriftProfile"""
 
     def model_dump_json(self) -> str:
         """Return json representation of drift profile"""
@@ -13637,7 +13637,7 @@ class LLMDriftProfile:
         """
 
     @staticmethod
-    def model_validate(data: Dict[str, Any]) -> "LLMDriftProfile":
+    def model_validate(data: Dict[str, Any]) -> "GenAIDriftProfile":
         """Load drift profile from dictionary
 
         Args:
@@ -13646,7 +13646,7 @@ class LLMDriftProfile:
         """
 
     @staticmethod
-    def model_validate_json(json_string: str) -> "LLMDriftProfile":
+    def model_validate_json(json_string: str) -> "GenAIDriftProfile":
         """Load drift profile from json
 
         Args:
@@ -13655,14 +13655,14 @@ class LLMDriftProfile:
         """
 
     @staticmethod
-    def from_file(path: Path) -> "LLMDriftProfile":
+    def from_file(path: Path) -> "GenAIDriftProfile":
         """Load drift profile from file
 
         Args:
             path: Path to the json file
 
         Returns:
-            LLMDriftProfile
+            GenAIDriftProfile
         """
 
     def update_config_args(
@@ -13671,7 +13671,7 @@ class LLMDriftProfile:
         name: Optional[str] = None,
         version: Optional[str] = None,
         sample_size: Optional[int] = None,
-        alert_config: Optional[LLMAlertConfig] = None,
+        alert_config: Optional[GenAIAlertConfig] = None,
     ) -> None:
         """Inplace operation that updates config args
 
@@ -13814,13 +13814,13 @@ class Drifter:
             SpcDriftProfile, PsiDriftProfile or CustomDriftProfile
         """
 
-    def create_llm_drift_profile(
+    def create_genai_drift_profile(
         self,
-        config: LLMDriftConfig,
-        metrics: List[LLMDriftMetric],
+        config: GenAIDriftConfig,
+        metrics: List[GenAIDriftMetric],
         workflow: Optional[Workflow] = None,
-    ) -> LLMDriftProfile:
-        """Initialize a LLMDriftProfile for LLM evaluation and drift detection.
+    ) -> GenAIDriftProfile:
+        """Initialize a GenAIDriftProfile for LLM evaluation and drift detection.
 
         LLM evaluations are run asynchronously on the scouter server.
 
@@ -13831,14 +13831,14 @@ class Drifter:
                - A list of metrics to evaluate workflow output must be provided
                - Metric names must correspond to the final task names in the workflow
 
-        Baseline metrics and thresholds will be extracted from the LLMDriftMetric objects.
+        Baseline metrics and thresholds will be extracted from the GenAIDriftMetric objects.
 
         Args:
-            config (LLMDriftConfig):
-                The configuration for the LLM drift profile containing space, name,
+            config (GenAIDriftConfig):
+                The configuration for the GenAI drift profile containing space, name,
                 version, and alert settings.
-            metrics (list[LLMDriftMetric]):
-                A list of LLMDriftMetric objects representing the metrics to be monitored.
+            metrics (list[GenAIDriftMetric]):
+                A list of GenAIDriftMetric objects representing the metrics to be monitored.
                 Each metric defines evaluation criteria and alert thresholds.
             workflow (Optional[Workflow]):
                 Optional custom workflow for advanced evaluation scenarios. If provided,
@@ -13846,7 +13846,7 @@ class Drifter:
                 type configuration.
 
         Returns:
-            LLMDriftProfile: Configured profile ready for LLM drift monitoring.
+            GenAIDriftProfile: Configured profile ready for GenAI drift monitoring.
 
         Raises:
             ProfileError: If workflow validation fails, metrics are empty when no
@@ -13855,18 +13855,18 @@ class Drifter:
         Examples:
             Basic usage with metrics only:
 
-            >>> config = LLMDriftConfig("my_space", "my_model", "1.0")
+            >>> config = GenAIDriftConfig("my_space", "my_model", "1.0")
             >>> metrics = [
-            ...     LLMDriftMetric("accuracy", 0.95, AlertThreshold.Above, 0.1, prompt),
-            ...     LLMDriftMetric("relevance", 0.85, AlertThreshold.Below, 0.2, prompt2)
+            ...     GenAIDriftMetric("accuracy", 0.95, AlertThreshold.Above, 0.1, prompt),
+            ...     GenAIDriftMetric("relevance", 0.85, AlertThreshold.Below, 0.2, prompt2)
             ... ]
-            >>> profile = Drifter().create_llm_drift_profile(config, metrics)
+            >>> profile = Drifter().create_genai_drift_profile(config, metrics)
 
             Advanced usage with custom workflow:
 
             >>> workflow = create_custom_workflow()  # Your custom workflow
-            >>> metrics = [LLMDriftMetric("final_task", 0.9, AlertThreshold.Above)]
-            >>> profile = Drifter().create_llm_drift_profile(config, metrics, workflow)
+            >>> metrics = [GenAIDriftMetric("final_task", 0.9, AlertThreshold.Above)]
+            >>> profile = Drifter().create_genai_drift_profile(config, metrics, workflow)
 
         Note:
             - When using custom workflows, ensure final tasks have Score response types
@@ -13921,10 +13921,10 @@ class Drifter:
     @overload
     def compute_drift(
         self,
-        data: Union[LLMRecord, List[LLMRecord]],
-        drift_profile: LLMDriftProfile,
+        data: Union[GenAIRecord, List[GenAIRecord]],
+        drift_profile: GenAIDriftProfile,
         data_type: Optional[ScouterDataType] = None,
-    ) -> LLMDriftMap:
+    ) -> GenAIDriftMap:
         """Create a drift map from data.
 
         Args:
@@ -13936,15 +13936,15 @@ class Drifter:
                 Optional data type. Inferred from data if not provided.
 
         Returns:
-            LLMDriftMap
+            GenAIDriftMap
         """
 
     def compute_drift(  # type: ignore
         self,
         data: Any,
-        drift_profile: Union[SpcDriftProfile, PsiDriftProfile, LLMDriftProfile],
+        drift_profile: Union[SpcDriftProfile, PsiDriftProfile, GenAIDriftProfile],
         data_type: Optional[ScouterDataType] = None,
-    ) -> Union[SpcDriftMap, PsiDriftMap, LLMDriftMap]:
+    ) -> Union[SpcDriftMap, PsiDriftMap, GenAIDriftMap]:
         """Create a drift map from data.
 
         Args:
@@ -13957,10 +13957,10 @@ class Drifter:
                 Optional data type. Inferred from data if not provided.
 
         Returns:
-            SpcDriftMap, PsiDriftMap or LLMDriftMap
+            SpcDriftMap, PsiDriftMap or GenAIDriftMap
         """
 
-class LLMEvalTaskResult:
+class GenAIEvalTaskResult:
     """Eval Result for a specific evaluation"""
 
     @property
@@ -13975,14 +13975,14 @@ class LLMEvalTaskResult:
     def embedding(self) -> Dict[str, List[float]]:
         """Get embeddings of embedding targets"""
 
-class LLMEvalResults:
+class GenAIEvalResults:
     """Defines the results of an LLM eval metric"""
 
-    def __getitem__(self, key: str) -> LLMEvalTaskResult:
+    def __getitem__(self, key: str) -> GenAIEvalTaskResult:
         """Get the task results for a specific record ID. A RuntimeError will be raised if the record ID does not exist."""
 
     def __str__(self):
-        """String representation of the LLMEvalResults"""
+        """String representation of the GenAIEvalResults"""
 
     def to_dataframe(self, polars: bool = False) -> Any:
         """
@@ -14001,12 +14001,12 @@ class LLMEvalResults:
         """Dump the results as a JSON string"""
 
     @staticmethod
-    def model_validate_json(json_string: str) -> "LLMEvalResults":
-        """Validate and create an LLMEvalResults instance from a JSON string
+    def model_validate_json(json_string: str) -> "GenAIEvalResults":
+        """Validate and create an GenAIEvalResults instance from a JSON string
 
         Args:
             json_string (str):
-                JSON string to validate and create the LLMEvalResults instance from.
+                JSON string to validate and create the GenAIEvalResults instance from.
         """
 
     @property
@@ -14017,13 +14017,13 @@ class LLMEvalResults:
     def histograms(self) -> Optional[Dict[str, Histogram]]:
         """Get histograms for all calculated features (metrics, embeddings, similarities)"""
 
-class LLMEvalMetric:
+class GenAIEvalMetric:
     """Defines an LLM eval metric to use when evaluating LLMs"""
 
     def __init__(self, name: str, prompt: Prompt):
         """
-        Initialize an LLMEvalMetric to use for evaluating LLMs. This is
-        most commonly used in conjunction with `evaluate_llm` where LLM inputs
+        Initialize an GenAIEvalMetric to use for evaluating LLMs. This is
+        most commonly used in conjunction with `evaluate_genai` where LLM inputs
         and responses can be evaluated against a variety of user-defined metrics.
 
         Args:
@@ -14036,16 +14036,16 @@ class LLMEvalMetric:
 
     def __str__(self) -> str:
         """
-        String representation of the LLMEvalMetric
+        String representation of the GenAIEvalMetric
         """
 
-class LLMEvalRecord:
+class GenAIEvalRecord:
     """LLM record containing context tied to a Large Language Model interaction
     that is used to evaluate LLM responses.
 
 
     Examples:
-        >>> record = LLMEvalRecord(
+        >>> record = GenAIEvalRecord(
                 id="123",
                 context={
                     "input": "What is the capital of France?",
@@ -14061,7 +14061,7 @@ class LLMEvalRecord:
         context: Context,
         id: Optional[str] = None,
     ) -> None:
-        """Creates a new LLM record to associate with an `LLMDriftProfile`.
+        """Creates a new LLM record to associate with an `GenAIDriftProfile`.
         The record is sent to the `Scouter` server via the `ScouterQueue` and is
         then used to inject context into the evaluation prompts.
 
@@ -14089,24 +14089,24 @@ class LLMEvalRecord:
             The context data as a Python object (deserialized from JSON).
         """
 
-def evaluate_llm(
-    records: List[LLMEvalRecord],
-    metrics: List[LLMEvalMetric],
+def evaluate_genai(
+    records: List[GenAIEvalRecord],
+    metrics: List[GenAIEvalMetric],
     config: Optional[EvaluationConfig] = None,
-) -> LLMEvalResults:
+) -> GenAIEvalResults:
     """
     Evaluate LLM responses using the provided evaluation metrics.
 
     Args:
-        records (List[LLMEvalRecord]):
+        records (List[GenAIEvalRecord]):
             List of LLM evaluation records to evaluate.
-        metrics (List[LLMEvalMetric]):
-            List of LLMEvalMetric instances to use for evaluation.
+        metrics (List[GenAIEvalMetric]):
+            List of GenAIEvalMetric instances to use for evaluation.
         config (Optional[EvaluationConfig]):
             Optional EvaluationConfig instance to configure evaluation options.
 
     Returns:
-        LLMEvalResults
+        GenAIEvalResults
     """
 
 class EvaluationConfig:
@@ -14378,8 +14378,8 @@ __all__ = [
     "PsiNormalThreshold",
     "PsiChiSquareThreshold",
     "PsiFixedThreshold",
-    "LLMMetricAlertCondition",
-    "LLMAlertConfig",
+    "GenAIMetricAlertCondition",
+    "GenAIAlertConfig",
     # client
     "TimeInterval",
     "DriftRequest",
@@ -14424,9 +14424,9 @@ __all__ = [
     "CustomMetricDriftConfig",
     "CustomMetric",
     "CustomDriftProfile",
-    "LLMDriftMetric",
-    "LLMDriftConfig",
-    "LLMDriftProfile",
+    "GenAIDriftMetric",
+    "GenAIDriftConfig",
+    "GenAIDriftProfile",
     "Drifter",
     "QuantileBinning",
     "EqualWidthBinning",
@@ -14439,11 +14439,11 @@ __all__ = [
     "TerrellScott",
     "FreedmanDiaconis",
     # evaluate
-    "LLMEvalTaskResult",
-    "LLMEvalMetric",
-    "LLMEvalResults",
-    "LLMEvalRecord",
-    "evaluate_llm",
+    "GenAIEvalTaskResult",
+    "GenAIEvalMetric",
+    "GenAIEvalResults",
+    "GenAIEvalRecord",
+    "evaluate_genai",
     "EvaluationConfig",
     # genai
     #######_______________________ main _________________________######
@@ -14746,7 +14746,7 @@ __all__ = [
     "Metric",
     "Metrics",
     "EntityType",
-    "LLMRecord",
+    "GenAIRecord",
     # transport
     "HttpConfig",
     "KafkaConfig",

@@ -29,11 +29,11 @@ use scouter_types::DriftType;
 use scouter_types::JwtToken;
 use scouter_types::RegisteredProfileResponse;
 use scouter_types::{
-    llm::{LLMAlertConfig, LLMDriftConfig, LLMDriftMetric, LLMDriftProfile},
-    AlertThreshold, CustomMetricRecord, LLMMetricRecord, MessageRecord, PsiRecord,
+    genai::{GenAIAlertConfig, GenAIDriftConfig, GenAIDriftMetric, GenAIDriftProfile},
+    AlertThreshold, CustomMetricRecord, GenAIMetricRecord, MessageRecord, PsiRecord,
 };
 use scouter_types::{
-    BoxedLLMDriftRecord, LLMDriftRecord, ServerRecord, ServerRecords, SpcRecord, Status,
+    BoxedGenAIDriftRecord, GenAIDriftRecord, ServerRecord, ServerRecords, SpcRecord, Status,
 };
 use serde_json::Value;
 use sqlx::{PgPool, Pool, Postgres};
@@ -76,10 +76,10 @@ pub async fn cleanup_tables(pool: &Pool<Postgres>) -> Result<(), anyhow::Error> 
         FROM scouter.psi_drift;
 
         DELETE
-        FROM scouter.llm_drift_record;
+        FROM scouter.genai_event_record;
 
         DELETE
-        FROM scouter.llm_drift;
+        FROM scouter.genai_drift;
 
         DELETE
         FROM scouter.spans;
@@ -319,7 +319,7 @@ impl TestHelper {
         MessageRecord::ServerRecords(ServerRecords::new(records))
     }
 
-    pub fn get_llm_drift_records(&self, time_offset: Option<i64>, uid: &str) -> MessageRecord {
+    pub fn get_genai_event_records(&self, time_offset: Option<i64>, uid: &str) -> MessageRecord {
         let mut records: Vec<ServerRecord> = Vec::new();
         let offset = time_offset.unwrap_or(0);
         let prompt = create_score_prompt(None);
@@ -330,7 +330,7 @@ impl TestHelper {
                     "input": format!("input{i}"),
                     "response": format!("output{i}"),
                 });
-                let record = LLMDriftRecord {
+                let record = GenAIDriftRecord {
                     created_at: Utc::now() - chrono::Duration::days(offset),
                     entity_uid: uid.to_string(),
                     prompt: Some(prompt.model_dump_value()),
@@ -345,21 +345,21 @@ impl TestHelper {
                     processing_duration: None,
                 };
 
-                let boxed_record = BoxedLLMDriftRecord::new(record);
-                records.push(ServerRecord::LLMDrift(boxed_record));
+                let boxed_record = BoxedGenAIDriftRecord::new(record);
+                records.push(ServerRecord::GenAIDrift(boxed_record));
             }
         }
 
         MessageRecord::ServerRecords(ServerRecords::new(records))
     }
 
-    pub fn get_llm_drift_metrics(&self, time_offset: Option<i64>, uid: &str) -> MessageRecord {
+    pub fn get_genai_drift_metrics(&self, time_offset: Option<i64>, uid: &str) -> MessageRecord {
         let mut records: Vec<ServerRecord> = Vec::new();
         let offset = time_offset.unwrap_or(0);
 
         for i in 0..2 {
             for j in 0..25 {
-                let record = LLMMetricRecord {
+                let record = GenAIMetricRecord {
                     uid: format!("record_uid_{i}_{j}"),
                     created_at: Utc::now() + chrono::Duration::microseconds(j as i64)
                         - chrono::Duration::days(offset),
@@ -367,20 +367,20 @@ impl TestHelper {
                     metric: format!("metric{i}"),
                     value: rand::rng().random_range(0..3) as f64,
                 };
-                records.push(ServerRecord::LLMMetric(record));
+                records.push(ServerRecord::GenAIMetric(record));
             }
         }
 
         MessageRecord::ServerRecords(ServerRecords::new(records))
     }
 
-    pub async fn create_llm_drift_profile() -> LLMDriftProfile {
-        let alert_config = LLMAlertConfig::default();
-        let config = LLMDriftConfig::new(SPACE, NAME, VERSION, 25, alert_config, None).unwrap();
+    pub async fn create_genai_drift_profile() -> GenAIDriftProfile {
+        let alert_config = GenAIAlertConfig::default();
+        let config = GenAIDriftConfig::new(SPACE, NAME, VERSION, 25, alert_config, None).unwrap();
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
 
         let _alert_threshold = AlertThreshold::Above;
-        let metric1 = LLMDriftMetric::new(
+        let metric1 = GenAIDriftMetric::new(
             "metric1",
             5.0,
             AlertThreshold::Above,
@@ -389,7 +389,7 @@ impl TestHelper {
         )
         .unwrap();
 
-        let metric2 = LLMDriftMetric::new(
+        let metric2 = GenAIDriftMetric::new(
             "metric2",
             3.0,
             AlertThreshold::Below,
@@ -397,8 +397,8 @@ impl TestHelper {
             Some(prompt.clone()),
         )
         .unwrap();
-        let llm_metrics = vec![metric1, metric2];
-        LLMDriftProfile::from_metrics(config, llm_metrics)
+        let genai_metrics = vec![metric1, metric2];
+        GenAIDriftProfile::from_metrics(config, genai_metrics)
             .await
             .unwrap()
     }

@@ -35,7 +35,7 @@ pub enum FileName {
     CustomDriftProfile,
     DriftProfile,
     DataProfile,
-    LLMDriftProfile,
+    GenAIDriftProfile,
 }
 
 impl FileName {
@@ -48,7 +48,7 @@ impl FileName {
             FileName::CustomDriftProfile => "custom_drift_profile.json",
             FileName::DataProfile => "data_profile.json",
             FileName::DriftProfile => "drift_profile.json",
-            FileName::LLMDriftProfile => "llm_drift_profile.json",
+            FileName::GenAIDriftProfile => "genai_drift_profile.json",
         }
     }
 }
@@ -587,7 +587,7 @@ pub enum DataType {
     Numpy,
     Arrow,
     Unknown,
-    LLM,
+    GenAI,
 }
 
 impl Display for DataType {
@@ -598,7 +598,7 @@ impl Display for DataType {
             DataType::Numpy => write!(f, "numpy"),
             DataType::Arrow => write!(f, "arrow"),
             DataType::Unknown => write!(f, "unknown"),
-            DataType::LLM => write!(f, "llm"),
+            DataType::GenAI => write!(f, "genai"),
         }
     }
 }
@@ -610,7 +610,7 @@ impl DataType {
             "polars.dataframe.frame.DataFrame" => Ok(DataType::Polars),
             "numpy.ndarray" => Ok(DataType::Numpy),
             "pyarrow.lib.Table" => Ok(DataType::Arrow),
-            "scouter_drift.llm.LLMRecord" => Ok(DataType::LLM),
+            "scouter_drift.genai.GenAIRecord" => Ok(DataType::GenAI),
             _ => Err(TypeError::InvalidDataType),
         }
     }

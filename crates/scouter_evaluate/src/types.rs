@@ -40,8 +40,8 @@ pub fn array_to_dict<'py>(
 /// Enhanced results collection that captures both successes and failures
 #[derive(Debug, Serialize, Deserialize)]
 #[pyclass]
-pub struct LLMEvalResults {
-    pub results: HashMap<String, LLMEvalTaskResult>,
+pub struct GenAIEvalResults {
+    pub results: HashMap<String, GenAIEvalTaskResult>,
 
     #[pyo3(get)]
     pub errored_tasks: Vec<String>,
@@ -56,9 +56,9 @@ pub struct LLMEvalResults {
 }
 
 #[pymethods]
-impl LLMEvalResults {
+impl GenAIEvalResults {
     /// Get tasks for a specific record ID
-    pub fn __getitem__(&self, key: &str) -> Result<LLMEvalTaskResult, EvaluationError> {
+    pub fn __getitem__(&self, key: &str) -> Result<GenAIEvalTaskResult, EvaluationError> {
         match self.results.get(key) {
             Some(value) => Ok(value.clone()),
             None => Err(EvaluationError::MissingKeyError(key.to_string())),
@@ -75,7 +75,7 @@ impl LLMEvalResults {
     }
 
     #[staticmethod]
-    pub fn model_validate_json(json_string: String) -> Result<LLMEvalResults, EvaluationError> {
+    pub fn model_validate_json(json_string: String) -> Result<GenAIEvalResults, EvaluationError> {
         // deserialize the string to a struct
         Ok(serde_json::from_str(&json_string)?)
     }
@@ -121,7 +121,7 @@ impl LLMEvalResults {
     }
 }
 
-impl LLMEvalResults {
+impl GenAIEvalResults {
     /// Finalize the results by performing post-processing steps which includes:
     /// - Post-processing embeddings (if any)
     /// - Building the array dataset (if not already built)
@@ -219,7 +219,7 @@ impl ArrayDataset {
     /// Build feature names from the results keys
     /// This is used when constructing a dataframe from the results and when writing records
     /// to the server
-    fn build_feature_names(results: &LLMEvalResults) -> Result<Vec<String>, EvaluationError> {
+    fn build_feature_names(results: &GenAIEvalResults) -> Result<Vec<String>, EvaluationError> {
         let first_task = results
             .results
             .values()
@@ -236,7 +236,7 @@ impl ArrayDataset {
         Ok(names)
     }
 
-    fn from_results(results: &LLMEvalResults) -> Result<Self, EvaluationError> {
+    fn from_results(results: &GenAIEvalResults) -> Result<Self, EvaluationError> {
         if results.results.is_empty() {
             return Ok(Self::new());
         }
@@ -282,7 +282,7 @@ impl ArrayDataset {
     }
 }
 
-impl LLMEvalResults {
+impl GenAIEvalResults {
     pub fn new() -> Self {
         Self {
             results: HashMap::new(),
@@ -294,7 +294,7 @@ impl LLMEvalResults {
     }
 }
 
-impl Default for LLMEvalResults {
+impl Default for GenAIEvalResults {
     fn default() -> Self {
         Self::new()
     }
@@ -303,7 +303,7 @@ impl Default for LLMEvalResults {
 /// Struct for collecting results from LLM evaluation tasks.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[pyclass]
-pub struct LLMEvalTaskResult {
+pub struct GenAIEvalTaskResult {
     #[pyo3(get)]
     pub id: String,
 
@@ -322,13 +322,13 @@ pub struct LLMEvalTaskResult {
 }
 
 #[pymethods]
-impl LLMEvalTaskResult {
+impl GenAIEvalTaskResult {
     pub fn __str__(&self) -> String {
         PyHelperFuncs::__str__(self)
     }
 }
 
-impl LLMEvalTaskResult {
+impl GenAIEvalTaskResult {
     pub fn new(
         id: String,
         metrics: BTreeMap<String, Score>,
@@ -346,20 +346,20 @@ impl LLMEvalTaskResult {
 
 #[pyclass]
 #[derive(Clone, Debug)]
-pub struct LLMEvalRecord {
+pub struct GenAIEvalRecord {
     pub id: String,
     pub context: Value,
 }
 
 #[pymethods]
-impl LLMEvalRecord {
+impl GenAIEvalRecord {
     #[new]
     #[pyo3(signature = (
         context,
         id=None
     ))]
 
-    /// Creates a new LLMRecord instance.
+    /// Creates a new GenAIRecord instance.
     /// The context is either a python dictionary or a pydantic basemodel.
     pub fn new(
         py: Python<'_>,
@@ -381,7 +381,7 @@ impl LLMEvalRecord {
 
         let id = id.unwrap_or_else(create_uuid7);
 
-        Ok(LLMEvalRecord {
+        Ok(GenAIEvalRecord {
             id,
             context: context_val,
         })

@@ -1,6 +1,6 @@
 pub mod custom;
 pub mod error;
-pub mod llm;
+pub mod genai;
 pub mod psi;
 pub mod spc;
 pub mod utils;
@@ -14,6 +14,6 @@ pub mod drifter;
 pub use drifter::drift_executor::DriftExecutor;
 
 #[cfg(feature = "sql")]
-pub use llm::LLMPoller;
+pub use genai::GenAIPoller;
 
-pub use llm::evaluator::LLMEvaluator;
+pub use genai::evaluator::GenAIEvaluator;

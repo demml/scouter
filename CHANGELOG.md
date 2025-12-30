@@ -42,7 +42,7 @@ All notable changes to this project will be documented in this file.
 - Test getting drift metric values
 - Testing archive logic
 - Testing llm drift worker
-- Testing LLMRecord
+- Testing GenAIRecord
 - Tests
 - Testing out arcs
 

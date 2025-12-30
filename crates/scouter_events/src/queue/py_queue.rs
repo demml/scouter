@@ -3,7 +3,7 @@ use crate::error::{EventError, PyEventError};
 use crate::queue::bus::Task;
 use crate::queue::bus::{Event, QueueBus, TaskState};
 use crate::queue::custom::CustomQueue;
-use crate::queue::llm::LLMQueue;
+use crate::queue::genai::GenAIQueue;
 use crate::queue::psi::PsiQueue;
 use crate::queue::spc::SpcQueue;
 use crate::queue::traits::queue::wait_for_background_task;
@@ -12,7 +12,7 @@ use crate::queue::traits::queue::QueueMethods;
 use crate::queue::types::TransportConfig;
 use pyo3::prelude::*;
 use scouter_state::app_state;
-use scouter_types::{DriftProfile, LLMRecord, QueueItem};
+use scouter_types::{DriftProfile, GenAIRecord, QueueItem};
 use scouter_types::{Features, Metrics};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -44,7 +44,7 @@ pub enum QueueNum {
     Spc(SpcQueue),
     Psi(PsiQueue),
     Custom(CustomQueue),
-    LLM(LLMQueue),
+    LLM(GenAIQueue),
 }
 // need to add queue running lock to each and return it to the queue bus
 impl QueueNum {
@@ -70,8 +70,8 @@ impl QueueNum {
                         .await?;
                 Ok(QueueNum::Custom(queue))
             }
-            DriftProfile::LLM(llm_profile) => {
-                let queue = LLMQueue::new(llm_profile, transport_config).await?;
+            DriftProfile::GenAI(genai_profile) => {
+                let queue = GenAIQueue::new(genai_profile, transport_config).await?;
                 Ok(QueueNum::LLM(queue))
             }
         }
@@ -90,7 +90,7 @@ impl QueueNum {
         match entity {
             QueueItem::Features(features) => self.insert_features(features).await,
             QueueItem::Metrics(metrics) => self.insert_metrics(metrics).await,
-            QueueItem::LLM(llm_record) => self.insert_llm_record(*llm_record).await,
+            QueueItem::LLM(genai_record) => self.insert_genai_record(*genai_record).await,
         }
     }
 
@@ -124,16 +124,19 @@ impl QueueNum {
     /// Insert LLM record into the queue. Currently only applies to LLM queues
     ///
     /// # Arguments
-    /// * `llm_record` - The LLM record to insert into the queue
+    /// * `genai_record` - The LLM record to insert into the queue
     ///
-    pub async fn insert_llm_record(&mut self, llm_record: LLMRecord) -> Result<(), EventError> {
+    pub async fn insert_genai_record(
+        &mut self,
+        genai_record: GenAIRecord,
+    ) -> Result<(), EventError> {
         match self {
             QueueNum::LLM(queue) => {
                 if !queue.should_insert() {
                     debug!("Skipping LLM record insertion due to sampling rate");
                     return Ok(());
                 }
-                queue.insert(llm_record).await
+                queue.insert(genai_record).await
             }
             _ => Err(EventError::QueueNotSupportedLLMError),
         }

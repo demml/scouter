@@ -2,10 +2,10 @@
 ### You would typically let the server handle this, but this is to demonstrate the functionality.
 
 from scouter.alert import AlertThreshold
-from scouter.drift import Drifter, LLMDriftConfig, LLMDriftMetric, LLMDriftProfile
+from scouter.drift import Drifter, GenAIDriftConfig, GenAIDriftMetric, GenAIDriftProfile
 from scouter.genai import Agent, Prompt, Provider, Score
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
-from scouter.queue import LLMRecord
+from scouter.queue import GenAIRecord
 
 RustyLogger.setup_logging(LoggingConfig(log_level=LogLevel.Debug))
 
@@ -71,13 +71,13 @@ def create_query_reformulation_prompt():
     )
 
 
-def create_llm_drift_profile() -> LLMDriftProfile:
-    """Helper function to create a LLM drift profile for query reformulation tasks."""
+def create_genai_drift_profile() -> GenAIDriftProfile:
+    """Helper function to create a GenAI drift profile for query reformulation tasks."""
     eval_prompt = create_reformulation_evaluation_prompt()
-    profile = LLMDriftProfile(
-        config=LLMDriftConfig(),
+    profile = GenAIDriftProfile(
+        config=GenAIDriftConfig(),
         metrics=[
-            LLMDriftMetric(
+            GenAIDriftMetric(
                 name="reformulation_quality",
                 prompt=eval_prompt,
                 value=3.0,
@@ -98,8 +98,8 @@ if __name__ == "__main__":
     user_query = "How do I find good post-hardcore bands?"
     response = agent.execute_prompt(prompt=prompt.bind(user_query=user_query))
 
-    profile = create_llm_drift_profile()
-    record = LLMRecord(
+    profile = create_genai_drift_profile()
+    record = GenAIRecord(
         context={"user_query": user_query, "response": response.response_text()},
     )
 
