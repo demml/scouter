@@ -1,8 +1,8 @@
 use pyo3::exceptions::PyRuntimeError;
+use pyo3::pyclass::PyClassGuardError;
 use pyo3::PyErr;
 use thiserror::Error;
 use tracing::error;
-
 #[derive(Error, Debug)]
 pub enum EvaluationError {
     #[error("Invalid response type. Expected Score")]
@@ -15,7 +15,7 @@ pub enum EvaluationError {
     PyErr(#[from] pyo3::PyErr),
 
     #[error("{0}")]
-    DowncastError(String),
+    Error(String),
 
     #[error(transparent)]
     JoinError(#[from] tokio::task::JoinError),
@@ -56,8 +56,8 @@ impl From<EvaluationError> for PyErr {
     }
 }
 
-impl<'a> From<pyo3::DowncastError<'a, 'a>> for EvaluationError {
-    fn from(err: pyo3::DowncastError) -> Self {
-        EvaluationError::DowncastError(err.to_string())
+impl<'a, 'py> From<PyClassGuardError<'a, 'py>> for EvaluationError {
+    fn from(err: PyClassGuardError<'a, 'py>) -> Self {
+        EvaluationError::Error(err.to_string())
     }
 }

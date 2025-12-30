@@ -191,9 +191,11 @@ pub fn init_tracer(
         }
     };
 
-    let batch_config = batch_config
-        .map(|bc| bc.extract::<BatchConfig>(py))
-        .transpose()?;
+    let batch_config = if let Some(bc) = batch_config {
+        Some(bc.extract::<BatchConfig>(py)?)
+    } else {
+        None
+    };
 
     let mut store_guard = TRACER_PROVIDER_STORE
         .write()
@@ -320,12 +322,12 @@ impl ActiveSpan {
             if is_pydantic_basemodel(py, &attrs)? {
                 let dumped = attrs.call_method0("model_dump")?;
                 let dict = dumped
-                    .downcast::<PyDict>()
+                    .cast::<PyDict>()
                     .map_err(|e| TraceError::DowncastError(e.to_string()))?;
                 pydict_to_otel_keyvalue(dict)?
             } else if attrs.is_instance_of::<PyDict>() {
                 let dict = attrs
-                    .downcast::<PyDict>()
+                    .cast::<PyDict>()
                     .map_err(|e| TraceError::DowncastError(e.to_string()))?;
                 pydict_to_otel_keyvalue(dict)?
             } else {

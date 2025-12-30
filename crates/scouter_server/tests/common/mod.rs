@@ -10,7 +10,7 @@ use http_body_util::BodyExt;
 use ndarray::Array;
 use ndarray_rand::rand_distr::Uniform;
 use ndarray_rand::RandomExt;
-use potato_head::{create_score_prompt, create_uuid7};
+use potato_head::{create_uuid7, mock::create_score_prompt};
 use rand::Rng;
 use scouter_drift::spc::SpcMonitor;
 use scouter_server::api::grpc::start_grpc_server;
@@ -246,7 +246,7 @@ impl TestHelper {
     }
 
     pub fn get_data(&self) -> (Array<f64, ndarray::Dim<[usize; 2]>>, Vec<String>) {
-        let array = Array::random((1030, 3), Uniform::new(0., 10.));
+        let array = Array::random((1030, 3), Uniform::new(0., 10.).unwrap());
 
         let features = vec![
             "feature_1".to_string(),

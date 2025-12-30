@@ -5,7 +5,7 @@ use axum::{
     body::Body,
     http::{header, Request, StatusCode},
 };
-use potato_head::LLMTestServer;
+use potato_head::mock::LLMTestServer;
 
 use http_body_util::BodyExt;
 use scouter_drift::psi::PsiMonitor;

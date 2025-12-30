@@ -86,7 +86,7 @@ impl FeatureQueue for LLMRecordQueue {
 mod tests {
 
     use super::*;
-    use potato_head::create_score_prompt;
+    use potato_head::mock::create_score_prompt;
     use scouter_types::llm::{LLMAlertConfig, LLMDriftConfig, LLMDriftMetric, LLMDriftProfile};
     use scouter_types::AlertThreshold;
 

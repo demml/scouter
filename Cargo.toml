@@ -45,15 +45,15 @@ anyhow = "1.*"
 axum = { version = "0.*", features = ["macros"] }
 axum-extra = { version =  ">=0.10, <1.0", features = ["cookie"] }
 approx = "0.5.1"
-arrow = { version = "55.2.0" }
-arrow-array = { version = "55.2.0" }
+arrow = { version = "57.*" }
+arrow-array = { version = "57.*" }
 async-trait = ">=0.1"
 base64 = ">=0.22"
 chrono ={ version = "0.*", features = ["serde"] }
 colored_json = "5.*"
 cron = "0.*"
 crossbeam-queue = "0.*"
-datafusion = { version = "49.*", features = ["parquet"] }
+datafusion = { version = "51.*", features = ["parquet"] }
 futures-util = { version = "0.*" }
 flume = "0.11.*"
 futures = "0.*"
@@ -75,7 +75,7 @@ ndarray-stats = "0.*"
 noisy_float = "0.*"
 numpy = "0.*"
 num-traits = "0.*"
-object_store = { version = "0.*", features = ["aws", "azure", "gcp" ] }
+object_store = { version = "0.12.4", features = ["aws", "azure", "gcp" ] }
 opentelemetry = { version = "0.31.0" }
 opentelemetry-stdout = "0.31.0"
 opentelemetry_sdk = { version = "0.31.0", features = ["trace"] }

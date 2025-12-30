@@ -2,9 +2,9 @@ use crate::error::EvaluationError;
 use crate::types::{EvaluationConfig, LLMEvalRecord, LLMEvalResults, LLMEvalTaskResult};
 use itertools::iproduct;
 use num_traits::FromPrimitive;
+use potato_head::StructuredOutput;
 use potato_head::{
-    Embedder, EmbeddingInput, PyEmbedder, Score, StructuredOutput, TaskStatus, Workflow,
-    WorkflowError,
+    prompt_types::Score, Embedder, EmbeddingInput, PyEmbedder, TaskStatus, Workflow, WorkflowError,
 };
 use pyo3::prelude::*;
 use rayon::prelude::*;
@@ -28,7 +28,7 @@ pub fn process_workflow_result(
     // iterate of each task and extract score
     for task in tasks.values() {
         if let (TaskStatus::Completed, Some(result)) = (&task.status, &task.result) {
-            if let Some(content) = result.content() {
+            if let Some(content) = result.response_text() {
                 match Score::model_validate_json_str(&content) {
                     Ok(score) => {
                         metrics.insert(task.id.clone(), score);

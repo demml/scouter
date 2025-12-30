@@ -241,7 +241,7 @@ impl LLMDrifter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use potato_head::{create_score_prompt, LLMTestServer};
+    use potato_head::mock::{create_score_prompt, LLMTestServer};
     use scouter_types::llm::{LLMAlertConfig, LLMDriftConfig, LLMDriftMetric, LLMDriftProfile};
 
     async fn get_test_drifter() -> LLMDrifter {

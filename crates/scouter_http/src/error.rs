@@ -1,7 +1,7 @@
 use pyo3::exceptions::PyRuntimeError;
+use pyo3::pyclass::PyClassGuardError;
 use pyo3::PyErr;
 use thiserror::Error;
-
 #[derive(Error, Debug)]
 pub enum ClientError {
     #[error(transparent)]
@@ -77,6 +77,12 @@ impl From<ClientError> for PyErr {
 
 impl From<PyErr> for ClientError {
     fn from(err: PyErr) -> ClientError {
+        ClientError::PyError(err.to_string())
+    }
+}
+
+impl<'a, 'py> From<PyClassGuardError<'a, 'py>> for ClientError {
+    fn from(err: PyClassGuardError<'a, 'py>) -> Self {
         ClientError::PyError(err.to_string())
     }
 }

@@ -1,7 +1,8 @@
 // Module for polling LLM drift records that are "pending" and need to be processed
 use crate::error::DriftError;
-use potato_head::ResponseLogProbs;
-use potato_head::{calculate_weighted_score, Score, StructuredOutput, TaskStatus, Workflow};
+use potato_head::prompt_types::Score;
+use potato_head::{calculate_weighted_score, StructuredOutput, TaskStatus, Workflow};
+
 use scouter_types::llm::LLMDriftProfile;
 use scouter_types::{LLMMetricRecord, LLMTaskRecord};
 use std::collections::HashMap;
@@ -63,7 +64,7 @@ impl LLMEvaluator {
                 let task_id = task_guard.id.clone();
 
                 // Content should be returned as a json string
-                let content = match result.content() {
+                let content = match result.response_text() {
                     Some(c) => c,
                     None => {
                         warn!("Task result content is empty for task ID: {}", task_id);
@@ -77,7 +78,7 @@ impl LLMEvaluator {
                 })?;
 
                 // Check for log_probs in the result
-                let log_probs: Vec<ResponseLogProbs> = result.log_probs();
+                let log_probs = result.log_probs();
 
                 // Calculate weighted score if log_probs is not empty
                 // Default to score if no log_probs are present or if calculation returns None

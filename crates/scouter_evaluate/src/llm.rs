@@ -63,12 +63,10 @@ pub async fn workflow_from_eval_metrics(
     // Create agents. We don't want to duplicate, so we check if the agent already exists.
     // if it doesn't, we create it.
     for metric in &eval_metrics {
-        let provider = metric.prompt.model_settings.provider();
-
-        let agent = match agents.entry(provider) {
+        let agent = match agents.entry(metric.prompt.provider.clone()) {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
-                let agent = Agent::from_model_settings(&metric.prompt.model_settings)
+                let agent = Agent::new(metric.prompt.provider.clone(), None)
                     .await
                     .map_err(|e| WorkflowError::Error(format!("Failed to create agent: {}", e)))?;
                 workflow.add_agent(&agent);

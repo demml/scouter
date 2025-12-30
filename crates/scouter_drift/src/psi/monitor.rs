@@ -377,7 +377,7 @@ mod tests {
     fn test_check_features_all_exist() {
         let psi_monitor = PsiMonitor::default();
 
-        let array = Array::random((1030, 3), Uniform::new(0., 10.));
+        let array = Array::random((1030, 3), Uniform::new(0., 10.).unwrap());
 
         let features = vec![
             "feature_1".to_string(),
@@ -514,7 +514,7 @@ mod tests {
     #[test]
     fn test_create_2d_drift_profile() {
         // create 2d array
-        let array = Array::random((1030, 3), Uniform::new(0., 10.));
+        let array = Array::random((1030, 3), Uniform::new(0., 10.).unwrap());
 
         // cast array to f32
         let array = array.mapv(|x| x as f32);
@@ -536,7 +536,7 @@ mod tests {
     #[test]
     fn test_compute_drift() {
         // create 2d array
-        let array = Array::random((1030, 3), Uniform::new(0., 10.));
+        let array = Array::random((1030, 3), Uniform::new(0., 10.).unwrap());
 
         // cast array to f32
         let array = array.mapv(|x| x as f32);
@@ -566,7 +566,8 @@ mod tests {
             .for_each(|value| assert!(*value == 0.0));
 
         // create new array that has drifted values
-        let mut new_array = Array::random((1030, 3), Uniform::new(0., 10.)).mapv(|x| x as f32);
+        let mut new_array =
+            Array::random((1030, 3), Uniform::new(0., 10.).unwrap()).mapv(|x| x as f32);
         new_array.slice_mut(s![.., 0]).mapv_inplace(|x| x + 0.01);
 
         let new_drift_map = monitor

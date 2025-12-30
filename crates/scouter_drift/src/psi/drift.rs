@@ -363,7 +363,7 @@ pub mod psi_drifter {
                 ..Default::default()
             };
 
-            let array = Array::random((1030, 3), Uniform::new(1.0, 100.0));
+            let array = Array::random((1030, 3), Uniform::new(1.0, 100.0).unwrap());
 
             let features = vec![
                 "feature_1".to_string(),

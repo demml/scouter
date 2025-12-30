@@ -298,15 +298,18 @@ impl PyScouterClient {
     #[new]
     #[pyo3(signature = (config=None))]
     pub fn new(config: Option<&Bound<'_, PyAny>>) -> Result<Self, ClientError> {
-        let config = config.map_or(Ok(HttpConfig::default()), |unwrapped| {
-            if unwrapped.is_instance_of::<HttpConfig>() {
-                unwrapped.extract::<HttpConfig>()
+        let config = if let Some(cfg) = config {
+            if cfg.is_instance_of::<HttpConfig>() {
+                let extracted = cfg.extract::<HttpConfig>()?;
+                Some(extracted)
             } else {
-                Err(ClientError::InvalidConfigTypeError.into())
+                return Err(ClientError::InvalidConfigTypeError);
             }
-        })?;
+        } else {
+            Some(HttpConfig::default())
+        };
 
-        let client = ScouterClient::new(Some(config.clone()))?;
+        let client = ScouterClient::new(config)?;
 
         Ok(PyScouterClient { client })
     }

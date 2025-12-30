@@ -21,7 +21,7 @@ where
     };
 
     let array = array
-        .downcast_into::<PyArray2<F>>()
+        .cast_into::<PyArray2<F>>()
         .map_err(|e| DataError::DowncastError(e.to_string()))?;
 
     Ok(array.readonly())

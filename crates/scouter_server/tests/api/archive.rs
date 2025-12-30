@@ -5,7 +5,7 @@ use axum::{
     http::{header, Request, StatusCode},
 };
 use http_body_util::BodyExt;
-use potato_head::{create_score_prompt, LLMTestServer};
+use potato_head::mock::{create_score_prompt, LLMTestServer};
 use scouter_dataframe::parquet::dataframe::ParquetDataFrame;
 use scouter_drift::psi::PsiMonitor;
 use scouter_drift::spc::SpcMonitor;

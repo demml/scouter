@@ -1,12 +1,12 @@
 use futures::io;
 use potato_head::error::WorkflowError;
 use pyo3::exceptions::PyRuntimeError;
+use pyo3::pyclass::PyClassGuardError;
 use pyo3::PyErr;
 use scouter_dispatch::error::DispatchError;
 #[cfg(feature = "sql")]
 use scouter_sql::sql::error::SqlError;
 use thiserror::Error;
-
 #[derive(Error, Debug)]
 pub enum DriftError {
     #[error("Failed to compute mean")]
@@ -110,12 +110,6 @@ pub enum DriftError {
     InvalidDataConfiguration(String),
 }
 
-impl<'a> From<pyo3::DowncastError<'a, 'a>> for DriftError {
-    fn from(err: pyo3::DowncastError) -> Self {
-        DriftError::DowncastError(err.to_string())
-    }
-}
-
 impl From<DriftError> for PyErr {
     fn from(err: DriftError) -> PyErr {
         let msg = err.to_string();
@@ -125,6 +119,12 @@ impl From<DriftError> for PyErr {
 
 impl From<PyErr> for DriftError {
     fn from(err: PyErr) -> DriftError {
+        DriftError::RunTimeError(err.to_string())
+    }
+}
+
+impl<'a, 'py> From<PyClassGuardError<'a, 'py>> for DriftError {
+    fn from(err: PyClassGuardError<'a, 'py>) -> Self {
         DriftError::RunTimeError(err.to_string())
     }
 }

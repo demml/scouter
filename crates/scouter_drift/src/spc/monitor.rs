@@ -488,7 +488,7 @@ mod tests {
     #[test]
     fn test_create_2d_drift_profile_f32() {
         // create 2d array
-        let array = Array::random((1030, 3), Uniform::new(0., 10.));
+        let array = Array::random((1030, 3), Uniform::new(0., 10.).unwrap());
 
         // cast array to f32
         let array = array.mapv(|x| x as f32);
@@ -544,7 +544,7 @@ mod tests {
     #[test]
     fn test_create_2d_drift_profile_f64() {
         // create 2d array
-        let array = Array::random((1030, 3), Uniform::new(0., 10.));
+        let array = Array::random((1030, 3), Uniform::new(0., 10.).unwrap());
 
         let features = vec![
             "feature_1".to_string(),
@@ -590,7 +590,7 @@ mod tests {
     #[test]
     fn test_drift_detect_process() {
         // create 2d array
-        let array = Array::random((1030, 3), Uniform::new(0., 10.));
+        let array = Array::random((1030, 3), Uniform::new(0., 10.).unwrap());
 
         let features = vec![
             "feature_1".to_string(),
@@ -636,7 +636,7 @@ mod tests {
     #[test]
     fn test_sample_data() {
         // create 2d array
-        let array = Array::random((1030, 3), Uniform::new(0., 10.));
+        let array = Array::random((1030, 3), Uniform::new(0., 10.).unwrap());
 
         let features = vec![
             "feature_1".to_string(),
@@ -675,7 +675,7 @@ mod tests {
 
     #[test]
     fn test_calculate_drift_from_sample() {
-        let array = Array::random((1030, 3), Uniform::new(0., 10.));
+        let array = Array::random((1030, 3), Uniform::new(0., 10.).unwrap());
 
         let features = vec![
             "feature_1".to_string(),

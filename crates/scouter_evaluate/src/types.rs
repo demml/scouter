@@ -1,7 +1,7 @@
 use crate::error::EvaluationError;
 use crate::util::{parse_embedder, post_process};
 use ndarray::Array2;
-use potato_head::{create_uuid7, Embedder, PyHelperFuncs, Score};
+use potato_head::{create_uuid7, prompt_types::Score, Embedder, PyHelperFuncs};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use pyo3::IntoPyObjectExt;

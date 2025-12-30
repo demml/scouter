@@ -231,7 +231,7 @@ mod tests {
     use crate::sql::schema::User;
     use crate::sql::traits::EntitySqlLogic;
     use chrono::{Duration, Utc};
-    use potato_head::{create_score_prompt, create_uuid7};
+    use potato_head::{create_uuid7, mock::create_score_prompt};
     use rand::Rng;
     use scouter_semver::VersionType;
     use scouter_settings::ObjectStorageSettings;

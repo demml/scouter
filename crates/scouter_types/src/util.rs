@@ -196,7 +196,7 @@ pub fn json_to_pyobject_value(py: Python, value: &Value) -> PyResult<Py<PyAny>> 
 
 pub fn pyobject_to_json(obj: &Bound<'_, PyAny>) -> Result<Value, TypeError> {
     if obj.is_instance_of::<PyDict>() {
-        let dict = obj.downcast::<PyDict>()?;
+        let dict = obj.cast::<PyDict>()?;
         let mut map = serde_json::Map::new();
         for (key, value) in dict.iter() {
             let key_str = key.extract::<String>()?;
@@ -205,7 +205,7 @@ pub fn pyobject_to_json(obj: &Bound<'_, PyAny>) -> Result<Value, TypeError> {
         }
         Ok(Value::Object(map))
     } else if obj.is_instance_of::<PyList>() {
-        let list = obj.downcast::<PyList>()?;
+        let list = obj.cast::<PyList>()?;
         let mut vec = Vec::new();
         for item in list.iter() {
             vec.push(pyobject_to_json(&item)?);
@@ -244,7 +244,7 @@ pub fn pyobject_to_tracing_json(
         return pyobject_to_tracing_json(&dict, max_length);
     }
     if obj.is_instance_of::<PyDict>() {
-        let dict = obj.downcast::<PyDict>()?;
+        let dict = obj.cast::<PyDict>()?;
         let mut map = serde_json::Map::new();
         for (key, value) in dict.iter() {
             let key = pyobject_to_tracing_json(&key, max_length)?;
@@ -260,7 +260,7 @@ pub fn pyobject_to_tracing_json(
         }
         Ok(Value::Object(map))
     } else if obj.is_instance_of::<PyList>() {
-        let list = obj.downcast::<PyList>()?;
+        let list = obj.cast::<PyList>()?;
         let mut vec = Vec::new();
         for item in list.iter() {
             vec.push(pyobject_to_tracing_json(&item, max_length)?);
@@ -297,6 +297,7 @@ pub fn pyobject_to_tracing_json(
     }
 }
 
+/// Helper function to convert a Python object to an OpenTelemetry Value
 pub fn pyobject_to_otel_value(obj: &Bound<'_, PyAny>) -> Result<OTelValue, TypeError> {
     if obj.is_instance_of::<PyBool>() {
         let b = obj.extract::<bool>()?;
@@ -311,7 +312,7 @@ pub fn pyobject_to_otel_value(obj: &Bound<'_, PyAny>) -> Result<OTelValue, TypeE
         let s = obj.extract::<String>()?;
         Ok(OTelValue::String(opentelemetry::StringValue::from(s)))
     } else if obj.is_instance_of::<PyList>() {
-        let list = obj.downcast::<PyList>()?;
+        let list = obj.cast::<PyList>()?;
         pylist_to_otel_array(list)
     } else if obj.is_none() {
         // Convert None to string "null" since OTEL doesn't have null
@@ -339,7 +340,7 @@ fn flatten_nested_dict(
         };
 
         if value.is_instance_of::<PyDict>() {
-            let nested_dict = value.downcast::<PyDict>()?;
+            let nested_dict = value.cast::<PyDict>()?;
             result.extend(flatten_nested_dict(nested_dict, Some(full_key))?);
         } else {
             let otel_value = pyobject_to_otel_value(&value)?;

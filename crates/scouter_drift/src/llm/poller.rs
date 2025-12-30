@@ -1,7 +1,7 @@
 // Module for polling LLM drift records that are "pending" and need to be processed
 use crate::error::DriftError;
 use crate::llm::evaluator::LLMEvaluator;
-use potato_head::Score;
+use potato_head::prompt_types::Score;
 use scouter_sql::sql::traits::{LLMDriftSqlLogic, ProfileSqlLogic};
 use scouter_sql::PostgresClient;
 use scouter_types::llm::LLMDriftProfile;
