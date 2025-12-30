@@ -230,6 +230,12 @@ impl From<PyErr> for RecordError {
     }
 }
 
+impl<'a, 'py> From<PyClassGuardError<'a, 'py>> for RecordError {
+    fn from(err: PyClassGuardError<'a, 'py>) -> Self {
+        RecordError::PyError(err.to_string())
+    }
+}
+
 #[derive(Error, Debug)]
 pub enum ProfileError {
     #[error(transparent)]
