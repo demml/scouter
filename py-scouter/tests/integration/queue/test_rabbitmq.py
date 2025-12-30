@@ -16,9 +16,8 @@ from scouter import (
 from scouter.alert import AlertThreshold, CustomMetricAlertConfig
 from scouter.client import (
     BinnedMetrics,
-    DriftAlertRequest,
+    DriftAlertPaginationRequest,
     DriftRequest,
-    ProfileStatusRequest,
     ScouterClient,
     TimeInterval,
 )
@@ -56,7 +55,7 @@ def test_custom_monitor_pandas_rabbitmq(rabbitmq_scouter_server):
     )
 
     profile = scouter.create_drift_profile(data=metrics, config=drift_config)
-    client.register_profile(profile)
+    client.register_profile(profile, set_active=True, deactivate_others=True)
 
     with tempfile.TemporaryDirectory() as temp_dir:
         path = Path(temp_dir) / "profile.json"
@@ -87,17 +86,7 @@ def test_custom_monitor_pandas_rabbitmq(rabbitmq_scouter_server):
         BinnedMetrics,
         client.get_binned_drift(request, DriftType.Custom),
     )
-
     assert len(binned_records.metrics["mae"].stats) > 0
-
-    client.update_profile_status(
-        ProfileStatusRequest(
-            name=profile.config.name,
-            space=profile.config.space,
-            version=profile.config.version,
-            active=True,
-        )
-    )
 
     # wait for alerts to process
     # wait for 5 because background drift task runs every 10 seconds
@@ -105,9 +94,9 @@ def test_custom_monitor_pandas_rabbitmq(rabbitmq_scouter_server):
 
     ## wait for alerts to be created, if not created after 5 attempts, fail the test
     while attempts < 5:
-        alerts = client.get_alerts(DriftAlertRequest(uid=profile.uid))
+        alerts = client.get_alerts(DriftAlertPaginationRequest(uid=profile.uid))
 
-        if len(alerts) > 0:
+        if len(alerts.items) > 0:
             break
 
         time.sleep(5)

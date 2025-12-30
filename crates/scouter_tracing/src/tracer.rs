@@ -37,28 +37,23 @@ use scouter_settings::http::HttpConfig;
 
 use scouter_types::{
     is_pydantic_basemodel, pydict_to_otel_keyvalue, pyobject_to_otel_value,
-    pyobject_to_tracing_json, BAGGAGE_PREFIX, SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT,
-    SCOUTER_TRACING_LABEL, SCOUTER_TRACING_OUTPUT, SERVICE_NAME, TRACE_START_TIME_KEY,
+    pyobject_to_tracing_json, BAGGAGE_PREFIX, EXCEPTION_TRACEBACK, SCOUTER_SCOPE,
+    SCOUTER_SCOPE_DEFAULT, SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL,
+    SCOUTER_TRACING_OUTPUT, SPAN_ERROR, TRACE_START_TIME_KEY,
 };
-use std::sync::{Arc, RwLock};
-use std::{collections::HashMap, sync::OnceLock};
+use std::collections::HashMap;
+use std::sync::{Arc, OnceLock, RwLock};
 use tracing::{debug, info, instrument};
 
 /// Global static instance of the tracer provider.
-static TRACER_PROVIDER_STORE: OnceLock<Arc<RwLock<Option<SdkTracerProvider>>>> = OnceLock::new();
-
-// Add trace metadata store
+static TRACER_PROVIDER_STORE: RwLock<Option<Arc<SdkTracerProvider>>> = RwLock::new(None);
 static TRACE_METADATA_STORE: OnceLock<TraceMetadataStore> = OnceLock::new();
 
-fn get_tracer_provider_store() -> &'static Arc<RwLock<Option<SdkTracerProvider>>> {
-    TRACER_PROVIDER_STORE.get_or_init(|| Arc::new(RwLock::new(None)))
-}
-
-fn get_tracer_provider() -> Result<Arc<RwLock<Option<SdkTracerProvider>>>, TraceError> {
-    TRACER_PROVIDER_STORE.get().cloned().ok_or_else(|| {
-        // This should only happen if the store itself hasn't been initialized by get_tracer_provider_store
-        TraceError::InitializationError("Tracer provider store not initialized".to_string())
-    })
+fn get_tracer_provider() -> Result<Option<Arc<SdkTracerProvider>>, TraceError> {
+    TRACER_PROVIDER_STORE
+        .read()
+        .map(|guard| guard.clone())
+        .map_err(|e| TraceError::PoisonError(e.to_string()))
 }
 
 #[derive(Clone)]
@@ -160,15 +155,18 @@ fn get_trace_metadata_store() -> &'static TraceMetadataStore {
 
 /// Global initialization function for the tracer.
 /// This sets up the tracer provider with the specified service name, endpoint, and sampling ratio.
-/// If no endpoint is provided, spans will be exported to stdout for debugging purposes.
+/// If no endpoint is provided, spans will be exported a NoOp exporter will be used meaning
+/// spans will only be sent to Scouter and not to any OTLP collector.
 /// # Arguments
 /// * `service_name` - Optional service name for the tracer. Defaults to "scouter_service
+/// * `scope` - Optional scope for the tracer. Defaults to "scouter.tracer.{version}"
 /// * `transport_config` - Optional transport configuration for the Scouter exporter
-/// * `exporter` - Optional span exporter to use instead of the default HTTP exporter
+/// * `exporter` - Optional span exporter to use if you want to export spans to an OTLP collector
 /// * `batch_config` - Optional batch configuration for span exporting
 #[pyfunction]
 #[pyo3(signature = (
     service_name="scouter_service".to_string(),
+    scope=SCOUTER_SCOPE_DEFAULT.to_string(),
     transport_config=None,
     exporter=None,
     batch_config=None,
@@ -178,12 +176,12 @@ fn get_trace_metadata_store() -> &'static TraceMetadataStore {
 pub fn init_tracer(
     py: Python,
     service_name: String,
+    scope: String,
     transport_config: Option<&Bound<'_, PyAny>>,
     exporter: Option<&Bound<'_, PyAny>>,
     batch_config: Option<Py<BatchConfig>>,
 ) -> Result<(), TraceError> {
     debug!("Initializing tracer");
-
     let transport_config = match transport_config {
         Some(config) => TransportConfig::from_py_config(config)?,
         None => {
@@ -197,11 +195,7 @@ pub fn init_tracer(
         .map(|bc| bc.extract::<BatchConfig>(py))
         .transpose()?;
 
-    let scouter_export = ScouterSpanExporter::new(transport_config)?;
-
-    let provider_store = get_tracer_provider_store();
-
-    let mut store_guard = provider_store
+    let mut store_guard = TRACER_PROVIDER_STORE
         .write()
         .map_err(|e| TraceError::PoisonError(e.to_string()))?;
 
@@ -212,8 +206,11 @@ pub fn init_tracer(
     }
 
     let resource = Resource::builder()
-        .with_attributes(vec![KeyValue::new(SERVICE_NAME, service_name.clone())])
+        .with_service_name(service_name.clone())
+        .with_attributes([KeyValue::new(SCOUTER_SCOPE, scope.clone())])
         .build();
+
+    let scouter_export = ScouterSpanExporter::new(transport_config, &resource)?;
 
     let span_exporter = if let Some(exporter) = exporter {
         SpanExporterNum::from_pyobject(exporter).expect("failed to convert exporter")
@@ -225,7 +222,7 @@ pub fn init_tracer(
         .build_provider(resource, scouter_export, batch_config)
         .expect("failed to build tracer provider");
 
-    *store_guard = Some(provider);
+    *store_guard = Some(Arc::new(provider));
 
     Ok(())
 }
@@ -296,6 +293,17 @@ impl ActiveSpan {
     pub fn set_attribute(&self, key: String, value: Bound<'_, PyAny>) -> Result<(), TraceError> {
         let value = pyobject_to_otel_value(&value)?;
         self.with_inner_mut(|inner| inner.span.set_attribute(KeyValue::new(key, value)))
+    }
+
+    /// Set a tag on the span (alias for set_attribute)
+    /// Tags are slightly different in that they are often used for indexing and searching
+    /// On export, tags are exported and stored in a separate table in Scouter for easier
+    /// searching/filtering.
+    pub fn set_tag(&self, key: String, value: Bound<'_, PyAny>) -> Result<(), TraceError> {
+        // backend searches for tags with the prefix scouter.tag.*
+        // this prefix will be stripped before storage
+        let tag_key = format!("{}.{}", SCOUTER_TAG_PREFIX, key);
+        self.set_attribute(tag_key, value)
     }
 
     /// Add an event to the span
@@ -371,23 +379,24 @@ impl ActiveSpan {
             // Handle exceptions and end span
             if let Some(exc_type) = exc_type {
                 inner.span.set_status(Status::error("Exception occurred"));
-                inner
-                    .span
-                    .set_attribute(KeyValue::new("exception.type", exc_type.to_string()));
+                let mut error_attributes = vec![];
+
+                error_attributes.push(KeyValue::new("exception.type", exc_type.to_string()));
 
                 if let Some(exc_val) = exc_val {
-                    inner
-                        .span
-                        .set_attribute(KeyValue::new("exception.value", exc_val.to_string()));
+                    error_attributes.push(KeyValue::new("exception.value", exc_val.to_string()));
                 }
 
                 if let Some(exc_tb) = exc_tb {
-                    // need to unpack the traceback object to string
                     let tb = format_traceback(py, &exc_tb)?;
-                    inner
-                        .span
-                        .set_attribute(KeyValue::new("exception.traceback", tb));
+                    error_attributes.push(KeyValue::new(EXCEPTION_TRACEBACK, tb));
                 }
+
+                inner.span.add_event(SPAN_ERROR, error_attributes);
+            }
+            // else set status to ok
+            else {
+                inner.span.set_status(Status::Ok);
             }
 
             inner.span.end();
@@ -627,8 +636,6 @@ impl BaseTracer {
             base_ctx
         };
 
-        // Create span with the final context (this consumes final_ctx)
-
         let span_builder = self
             .tracer
             .span_builder(name.clone())
@@ -789,19 +796,13 @@ impl BaseTracer {
 /// Helper function to force flush the tracer provider
 #[pyfunction]
 pub fn flush_tracer() -> Result<(), TraceError> {
-    let store = get_tracer_provider_store();
-
-    let provider_guard = store
-        .read()
-        .map_err(|e| TraceError::PoisonError(e.to_string()))?;
-
-    let provider = provider_guard.as_ref().ok_or_else(|| {
+    let provider_arc = get_tracer_provider()?.ok_or_else(|| {
         TraceError::InitializationError(
             "Tracer provider not initialized or already shut down".to_string(),
         )
     })?;
-    provider.force_flush()?;
 
+    provider_arc.force_flush()?;
     Ok(())
 }
 
@@ -809,36 +810,35 @@ pub fn flush_tracer() -> Result<(), TraceError> {
 pub fn shutdown_tracer() -> Result<(), TraceError> {
     info!("Shutting down tracer");
 
-    let store_arc = get_tracer_provider()?;
-    let mut store_guard = store_arc
-        .write()
-        .map_err(|e| TraceError::PoisonError(e.to_string()))?;
+    let provider_arc = {
+        let mut store_guard = TRACER_PROVIDER_STORE
+            .write()
+            .map_err(|e| TraceError::PoisonError(e.to_string()))?;
 
-    if let Some(provider) = store_guard.take() {
-        provider.shutdown()?;
+        store_guard.take()
+    };
+
+    if let Some(provider) = provider_arc {
+        match Arc::try_unwrap(provider) {
+            Ok(provider) => provider.shutdown()?,
+            Err(arc) => arc.shutdown()?,
+        }
     } else {
         tracing::warn!("Tracer provider was already shut down or never initialized.");
     }
 
     get_trace_metadata_store().clear_all()?;
-
     Ok(())
 }
 
 fn get_tracer(name: String) -> Result<SdkTracer, TraceError> {
-    let store = get_tracer_provider_store();
-
-    let provider_guard = store
-        .read()
-        .map_err(|e| TraceError::PoisonError(e.to_string()))?;
-
-    let provider = provider_guard.as_ref().ok_or_else(|| {
+    let provider_arc = get_tracer_provider()?.ok_or_else(|| {
         TraceError::InitializationError(
             "Tracer provider not initialized or already shut down".to_string(),
         )
     })?;
 
-    Ok(provider.tracer(name))
+    Ok(provider_arc.tracer(name))
 }
 
 #[pyfunction]
@@ -878,4 +878,33 @@ pub fn get_tracing_headers_from_current_span(
     headers.insert("is_sampled".to_string(), is_sampled.to_string());
 
     Ok(headers)
+}
+
+fn is_tracer_initialized() -> bool {
+    TRACER_PROVIDER_STORE
+        .read()
+        .map(|guard| guard.is_some())
+        .unwrap_or(false)
+}
+
+/// Helper method for setting attributes on the current active span if it exists
+/// Mainly used in Opsml to log attributes from various places without needing to pass around the span object
+/// # Arguments
+/// * `py` - The Python GIL token
+/// * `key` - The attribute key
+/// * `value` - The attribute value
+pub fn try_set_span_attribute(py: Python<'_>, key: &str, value: &str) -> Result<bool, TraceError> {
+    // Check if tracer is initialized
+    if !is_tracer_initialized() {
+        return Ok(false);
+    }
+
+    // Try to get current span
+    let span = match get_current_active_span(py) {
+        Ok(s) => s,
+        Err(_) => return Ok(false),
+    };
+
+    span.call_method1("set_attribute", (key, value))?;
+    Ok(true)
 }

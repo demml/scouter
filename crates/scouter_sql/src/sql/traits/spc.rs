@@ -46,7 +46,7 @@ pub trait SpcSqlLogic {
                 .map(|r| (r.created_at, entity_id, r.feature.as_str(), r.value)),
         );
 
-        sqlx::query(&query.sql)
+        sqlx::query(query)
             .bind(created_ats)
             .bind(entity_ids)
             .bind(features)
@@ -68,7 +68,7 @@ pub trait SpcSqlLogic {
     ) -> Result<Vec<String>, SqlError> {
         let query = Queries::GetSpcFeatures.get_query();
 
-        Ok(sqlx::query(&query.sql)
+        Ok(sqlx::query(query)
             .bind(entity_id)
             .fetch_all(pool)
             .await
@@ -103,7 +103,7 @@ pub trait SpcSqlLogic {
 
         let query = Queries::GetSpcFeatureValues.get_query();
 
-        let records: Vec<SpcFeatureResult> = sqlx::query_as(&query.sql)
+        let records: Vec<SpcFeatureResult> = sqlx::query_as(query)
             .bind(limit_datetime)
             .bind(entity_id)
             .bind(features)
@@ -143,16 +143,19 @@ pub trait SpcSqlLogic {
     async fn get_records(
         pool: &Pool<Postgres>,
         params: &DriftRequest,
-        minutes: i32,
+        start_dt: DateTime<Utc>,
+        end_dt: DateTime<Utc>,
         entity_id: &i32,
     ) -> Result<SpcDriftFeatures, SqlError> {
-        let bin = params.time_interval.to_minutes() as f64 / params.max_data_points as f64;
+        let minutes = end_dt.signed_duration_since(start_dt).num_minutes() as f64;
+        let bin = minutes / params.max_data_points as f64;
 
         let query = Queries::GetBinnedSpcFeatureValues.get_query();
 
-        let records: Vec<SpcFeatureResult> = sqlx::query_as(&query.sql)
+        let records: Vec<SpcFeatureResult> = sqlx::query_as(query)
             .bind(bin)
-            .bind(minutes)
+            .bind(start_dt)
+            .bind(end_dt)
             .bind(entity_id)
             .fetch_all(pool)
             .await?;
@@ -247,18 +250,19 @@ pub trait SpcSqlLogic {
 
         if !params.has_custom_interval() {
             debug!("No custom interval provided, using default");
-            let minutes = params.time_interval.to_minutes();
-            return Self::get_records(pool, params, minutes, entity_id).await;
+            let (begin_utc, end_utc) = params.time_interval.to_begin_end_times()?;
+            return Self::get_records(pool, params, begin_utc, end_utc, entity_id).await;
         }
 
         debug!("Custom interval provided, using custom interval");
         let interval = params.clone().to_custom_interval().unwrap();
-        let timestamps = split_custom_interval(interval.start, interval.end, retention_period)?;
+        let timestamps = split_custom_interval(interval.begin, interval.end, retention_period)?;
         let mut spc_feature_map = SpcDriftFeatures::default();
 
         // get data from postgres
-        if let Some(minutes) = timestamps.current_minutes {
-            let current_results = Self::get_records(pool, params, minutes, entity_id).await?;
+        if let Some((active_begin, active_end)) = timestamps.active_range {
+            let current_results =
+                Self::get_records(pool, params, active_begin, active_end, entity_id).await?;
             Self::merge_feature_results(current_results, &mut spc_feature_map)?;
         }
 

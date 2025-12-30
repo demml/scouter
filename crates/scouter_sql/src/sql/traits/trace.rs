@@ -5,75 +5,12 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use itertools::multiunzip;
 use scouter_types::sql::{TraceFilters, TraceListItem, TraceMetricBucket, TraceSpan};
-use scouter_types::{
-    TraceBaggageRecord, TraceCursor, TracePaginationResponse, TraceRecord, TraceSpanRecord,
-};
+use scouter_types::{TraceBaggageRecord, TraceCursor, TracePaginationResponse, TraceSpanRecord};
 use sqlx::{postgres::PgQueryResult, types::Json, Pool, Postgres};
-
+use std::collections::HashMap;
+use tracing::instrument;
 #[async_trait]
 pub trait TraceSqlLogic {
-    /// Attempts to upsert multiple trace records into the database in a batch.
-    ///
-    /// # Arguments
-    ///
-    /// * `pool` - The database connection pool
-    /// * `traces` - The trace records to insert
-    async fn upsert_trace_batch(
-        pool: &Pool<Postgres>,
-        traces: &[TraceRecord],
-    ) -> Result<PgQueryResult, SqlError> {
-        let query = Queries::UpsertTrace.get_query();
-        let capacity = traces.len();
-
-        // Pre-allocate vectors for each field for batch efficiency
-        let mut created_at = Vec::with_capacity(capacity);
-        let mut trace_id = Vec::with_capacity(capacity);
-        let mut service_name = Vec::with_capacity(capacity);
-        let mut scope = Vec::with_capacity(capacity);
-        let mut trace_state = Vec::with_capacity(capacity);
-        let mut start_time = Vec::with_capacity(capacity);
-        let mut end_time = Vec::with_capacity(capacity);
-        let mut duration_ms = Vec::with_capacity(capacity);
-        let mut status_code = Vec::with_capacity(capacity);
-        let mut status_message = Vec::with_capacity(capacity);
-        let mut root_span_id = Vec::with_capacity(capacity);
-        let mut span_count = Vec::with_capacity(capacity);
-
-        // Single-pass extraction for performance
-        for r in traces {
-            created_at.push(r.created_at);
-            trace_id.push(r.trace_id.as_str());
-            service_name.push(r.service_name.as_str());
-            scope.push(r.scope.as_str());
-            trace_state.push(r.trace_state.as_str());
-            start_time.push(r.start_time);
-            end_time.push(r.end_time);
-            duration_ms.push(r.duration_ms);
-            status_code.push(r.status_code);
-            status_message.push(r.status_message.clone());
-            root_span_id.push(r.root_span_id.as_str());
-            span_count.push(r.span_count);
-        }
-
-        let query_result = sqlx::query(&query.sql)
-            .bind(created_at)
-            .bind(trace_id)
-            .bind(service_name)
-            .bind(scope)
-            .bind(trace_state)
-            .bind(start_time)
-            .bind(end_time)
-            .bind(duration_ms)
-            .bind(status_code)
-            .bind(status_message)
-            .bind(root_span_id)
-            .bind(span_count)
-            .execute(pool)
-            .await?;
-
-        Ok(query_result)
-    }
-
     /// Attempts to insert multiple trace span records into the database in a batch.
     ///
     /// # Arguments
@@ -107,6 +44,7 @@ pub trait TraceSqlLogic {
         let mut input = Vec::with_capacity(capacity);
         let mut output = Vec::with_capacity(capacity);
         let mut service_name = Vec::with_capacity(capacity);
+        let mut resource_attributes = Vec::with_capacity(capacity);
 
         // Single iteration for maximum efficiency
         for span in spans {
@@ -129,9 +67,10 @@ pub trait TraceSqlLogic {
             input.push(Json(span.input.clone()));
             output.push(Json(span.output.clone()));
             service_name.push(span.service_name.as_str());
+            resource_attributes.push(Json(span.resource_attributes.clone()));
         }
 
-        let query_result = sqlx::query(&query.sql)
+        let query_result = sqlx::query(query)
             .bind(created_at)
             .bind(span_id)
             .bind(trace_id)
@@ -151,6 +90,7 @@ pub trait TraceSqlLogic {
             .bind(input)
             .bind(output)
             .bind(service_name)
+            .bind(resource_attributes)
             .execute(pool)
             .await?;
 
@@ -184,7 +124,7 @@ pub trait TraceSqlLogic {
             )
         }));
 
-        let query_result = sqlx::query(&query.sql)
+        let query_result = sqlx::query(query)
             .bind(created_at)
             .bind(trace_id)
             .bind(scope)
@@ -202,7 +142,7 @@ pub trait TraceSqlLogic {
     ) -> Result<Vec<TraceBaggageRecord>, SqlError> {
         let query = Queries::GetTraceBaggage.get_query();
 
-        let baggage_items: Result<Vec<TraceBaggageRecord>, SqlError> = sqlx::query_as(&query.sql)
+        let baggage_items: Result<Vec<TraceBaggageRecord>, SqlError> = sqlx::query_as(query)
             .bind(trace_id)
             .fetch_all(pool)
             .await
@@ -217,7 +157,8 @@ pub trait TraceSqlLogic {
     /// * `filters` - The filters to apply for retrieving traces
     /// # Returns
     /// * A vector of `TraceListItem` matching the filters
-    async fn get_traces_paginated(
+    #[instrument(skip_all)]
+    async fn get_paginated_traces(
         pool: &Pool<Postgres>,
         filters: TraceFilters,
     ) -> Result<TracePaginationResponse, SqlError> {
@@ -228,16 +169,47 @@ pub trait TraceSqlLogic {
 
         let query = Queries::GetPaginatedTraces.get_query();
 
-        let mut items: Vec<TraceListItem> = sqlx::query_as(&query.sql)
+        let tag_filters_json = filters.attribute_filters.as_ref().and_then(|tags| {
+            if tags.is_empty() {
+                None
+            } else {
+                // Parse "key:value" or "key=value" format into structured JSON
+                let tag_filters: Vec<HashMap<String, String>> = tags
+                    .iter()
+                    .filter_map(|tag| {
+                        let parts: Vec<&str> = tag.splitn(2, [':', '=']).collect();
+                        if parts.len() == 2 {
+                            Some(HashMap::from([
+                                ("key".to_string(), parts[0].trim().to_string()),
+                                ("value".to_string(), parts[1].trim().to_string()),
+                            ]))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                if tag_filters.is_empty() {
+                    None
+                } else {
+                    Some(Json(tag_filters))
+                }
+            }
+        });
+
+        let mut items: Vec<TraceListItem> = sqlx::query_as(query)
             .bind(filters.service_name)
             .bind(filters.has_errors)
             .bind(filters.status_code)
             .bind(filters.start_time.unwrap_or(default_start))
             .bind(filters.end_time.unwrap_or(default_end))
             .bind(limit)
-            .bind(filters.cursor_created_at)
+            .bind(filters.cursor_start_time)
             .bind(filters.cursor_trace_id)
             .bind(direction)
+            .bind(filters.trace_ids)
+            .bind(tag_filters_json)
+            .bind(false) // we dont want to match all attributes for pagination
             .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError)?;
@@ -255,7 +227,7 @@ pub trait TraceSqlLogic {
                 // Forward pagination
                 let next_cursor = if has_more {
                     items.last().map(|last| TraceCursor {
-                        created_at: last.created_at,
+                        start_time: last.start_time,
                         trace_id: last.trace_id.clone(),
                     })
                 } else {
@@ -263,14 +235,14 @@ pub trait TraceSqlLogic {
                 };
 
                 let previous_cursor = items.first().map(|first| TraceCursor {
-                    created_at: first.created_at,
+                    start_time: first.start_time,
                     trace_id: first.trace_id.clone(),
                 });
 
                 (
                     has_more,
                     next_cursor,
-                    filters.cursor_created_at.is_some(),
+                    filters.cursor_start_time.is_some(),
                     previous_cursor,
                 )
             }
@@ -278,7 +250,7 @@ pub trait TraceSqlLogic {
                 // Backward pagination
                 let previous_cursor = if has_more {
                     items.first().map(|first| TraceCursor {
-                        created_at: first.created_at,
+                        start_time: first.start_time,
                         trace_id: first.trace_id.clone(),
                     })
                 } else {
@@ -286,12 +258,12 @@ pub trait TraceSqlLogic {
                 };
 
                 let next_cursor = items.last().map(|last| TraceCursor {
-                    created_at: last.created_at,
+                    start_time: last.start_time,
                     trace_id: last.trace_id.clone(),
                 });
 
                 (
-                    filters.cursor_created_at.is_some(),
+                    filters.cursor_start_time.is_some(),
                     next_cursor,
                     has_more,
                     previous_cursor,
@@ -321,7 +293,7 @@ pub trait TraceSqlLogic {
         service_name: Option<&str>,
     ) -> Result<Vec<TraceSpan>, SqlError> {
         let query = Queries::GetTraceSpans.get_query();
-        let trace_items: Result<Vec<TraceSpan>, SqlError> = sqlx::query_as(&query.sql)
+        let trace_items: Result<Vec<TraceSpan>, SqlError> = sqlx::query_as(query)
             .bind(trace_id)
             .bind(service_name)
             .fetch_all(pool)
@@ -343,13 +315,44 @@ pub trait TraceSqlLogic {
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
         bucket_interval_str: &str,
+        attribute_filters: Option<Vec<String>>,
     ) -> Result<Vec<TraceMetricBucket>, SqlError> {
+        let tag_filters_json = attribute_filters.as_ref().and_then(|tags| {
+            if tags.is_empty() {
+                None
+            } else {
+                // Parse "key:value" or "key=value" format into structured JSON
+                let tag_filters: Vec<HashMap<String, String>> = tags
+                    .iter()
+                    .filter_map(|tag| {
+                        let parts: Vec<&str> = tag.splitn(2, [':', '=']).collect();
+                        if parts.len() == 2 {
+                            Some(HashMap::from([
+                                ("key".to_string(), parts[0].trim().to_string()),
+                                ("value".to_string(), parts[1].trim().to_string()),
+                            ]))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                if tag_filters.is_empty() {
+                    None
+                } else {
+                    Some(Json(tag_filters))
+                }
+            }
+        });
+
         let query = Queries::GetTraceMetrics.get_query();
-        let trace_items: Result<Vec<TraceMetricBucket>, SqlError> = sqlx::query_as(&query.sql)
+        let trace_items: Result<Vec<TraceMetricBucket>, SqlError> = sqlx::query_as(query)
             .bind(service_name)
             .bind(start_time)
             .bind(end_time)
             .bind(bucket_interval_str)
+            .bind(tag_filters_json)
+            .bind(false)
             .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError);

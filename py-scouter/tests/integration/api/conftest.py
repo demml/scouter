@@ -24,7 +24,6 @@ from scouter.queue import LLMRecord
 from scouter.tracing import (
     BatchConfig,
     TestSpanExporter,
-    flush_tracer,
     get_tracer,
     init_tracer,
     shutdown_tracer,
@@ -173,12 +172,15 @@ class ChatRequest(BaseModel):
 
 def create_kafka_app(profile_path: Path) -> FastAPI:
     config = KafkaConfig()
+    init_tracer(
+        service_name="test-service",
+        exporter=TestSpanExporter(),
+    )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         logger.info("Starting up FastAPI app")
 
-        init_tracer(service_name="test-service", exporter=TestSpanExporter())
         app.state.queue = ScouterQueue.from_path(
             path={"spc": profile_path},
             transport_config=config,
@@ -189,10 +191,10 @@ def create_kafka_app(profile_path: Path) -> FastAPI:
         # Shutdown the queue
         app.state.queue.shutdown()
         app.state.queue = None
-        flush_tracer()
+        shutdown_tracer()
 
     app = FastAPI(lifespan=lifespan)
-    tracer = get_tracer("test-tracer")
+    tracer = get_tracer("test-service")
 
     @app.post("/predict", response_model=TestResponse)
     @tracer.span("predict")
@@ -268,7 +270,7 @@ def create_http_app(profile_path: Path) -> FastAPI:
         exporter=TestSpanExporter(batch_export=True),
         batch_config=BatchConfig(scheduled_delay_ms=200),
     )
-    tracer = get_tracer("test-tracer")
+    tracer = get_tracer("test-service")
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):

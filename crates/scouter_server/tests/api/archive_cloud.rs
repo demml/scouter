@@ -97,7 +97,7 @@ async fn test_storage_integration_cloud() {
         space: SPACE.to_string(),
         uid: uid.clone(),
         max_data_points: 100,
-        begin_custom_datetime: Some(Utc::now() - chrono::Duration::days(15)),
+        start_custom_datetime: Some(Utc::now() - chrono::Duration::days(15)),
         end_custom_datetime: Some(Utc::now()),
         ..Default::default()
     };

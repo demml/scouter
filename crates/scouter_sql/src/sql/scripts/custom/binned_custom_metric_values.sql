@@ -6,8 +6,9 @@ WITH subquery1 AS (
     FROM scouter.custom_drift
     WHERE
         1=1
-        AND created_at > CURRENT_TIMESTAMP - (interval '1 minute' * $2)
-        AND entity_id = $3
+        AND created_at >= $2  -- start_datetime
+        AND created_at < $3   -- end_datetime
+        AND entity_id = $4
     ),
 
 subquery2 AS (

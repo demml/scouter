@@ -84,7 +84,7 @@ async fn test_data_archive_spc() {
             space: SPACE.to_string(),
             uid: profile.config.uid.clone(),
             max_data_points: 100,
-            begin_custom_datetime: Some(Utc::now() - chrono::Duration::days(15)),
+            start_custom_datetime: Some(Utc::now() - chrono::Duration::days(15)),
             end_custom_datetime: Some(Utc::now()),
             ..Default::default()
         };
@@ -187,7 +187,7 @@ async fn test_data_archive_psi() {
             space: SPACE.to_string(),
             uid: profile.config.uid.clone(),
             max_data_points: 100,
-            begin_custom_datetime: Some(Utc::now() - chrono::Duration::days(15)),
+            start_custom_datetime: Some(Utc::now() - chrono::Duration::days(15)),
             end_custom_datetime: Some(Utc::now()),
             ..Default::default()
         };
@@ -275,7 +275,7 @@ async fn test_data_archive_custom() {
             space: SPACE.to_string(),
             uid: profile.config.uid.clone(),
             max_data_points: 100,
-            begin_custom_datetime: Some(Utc::now() - chrono::Duration::days(15)),
+            start_custom_datetime: Some(Utc::now() - chrono::Duration::days(15)),
             end_custom_datetime: Some(Utc::now()),
             ..Default::default()
         };
@@ -488,7 +488,7 @@ fn test_data_archive_llm_drift_metrics() {
         space: SPACE.to_string(),
         uid: profile.config.uid.clone(),
         max_data_points: 100,
-        begin_custom_datetime: Some(Utc::now() - chrono::Duration::days(30)),
+        start_custom_datetime: Some(Utc::now() - chrono::Duration::days(30)),
         end_custom_datetime: Some(Utc::now()),
         ..Default::default()
     };

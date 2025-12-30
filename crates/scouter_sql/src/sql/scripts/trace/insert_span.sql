@@ -21,7 +21,8 @@ INSERT INTO scouter.spans (
     input,
     output,
     service_name,
-    service_id  -- <--- Target Column
+    service_id,
+    resource_attributes
 )
 SELECT
     created_at,
@@ -43,7 +44,8 @@ SELECT
     input,
     output,
     service_name,
-    scouter.get_or_create_service_id(service_name) as service_id
+    scouter.get_or_create_service_id(service_name) as service_id,
+    resource_attributes
 FROM UNNEST(
     $1::timestamptz[],  -- created_at
     $2::text[],        -- span_id
@@ -63,7 +65,8 @@ FROM UNNEST(
     $16::text[],       -- label
     $17::jsonb[],      -- input
     $18::jsonb[],      -- output
-    $19::text[]        -- service_name
+    $19::text[],       -- service_name
+    $20::jsonb[]      -- resource_attributes
 ) AS s(
     created_at,
     span_id,
@@ -83,6 +86,7 @@ FROM UNNEST(
     label,
     input,
     output,
-    service_name
+    service_name,
+    resource_attributes
 )
-ON CONFLICT (created_at, trace_id, span_id) DO NOTHING;
+ON CONFLICT (start_time, trace_id, span_id) DO NOTHING;

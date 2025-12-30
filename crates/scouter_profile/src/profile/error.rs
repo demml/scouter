@@ -51,6 +51,9 @@ pub enum DataProfileError {
 
     #[error(transparent)]
     QuantileError(#[from] ndarray_stats::errors::QuantileError),
+
+    #[error("{0}")]
+    InvalidDataConfiguration(String),
 }
 
 impl From<DataProfileError> for PyErr {

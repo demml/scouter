@@ -5,9 +5,11 @@ use crate::producer::rabbitmq::RabbitMQConfig;
 use crate::producer::redis::RedisConfig;
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
+use scouter_settings::grpc::GrpcConfig;
 use scouter_settings::HttpConfig;
 use scouter_types::TransportType;
 use tracing::error;
+use tracing::instrument;
 
 #[derive(Clone, Debug)]
 pub enum TransportConfig {
@@ -16,6 +18,7 @@ pub enum TransportConfig {
     Http(HttpConfig),
     Redis(RedisConfig),
     Mock(MockConfig),
+    Grpc(GrpcConfig),
 }
 
 impl TransportConfig {
@@ -28,6 +31,7 @@ impl TransportConfig {
     ///
     /// # Returns
     /// * `TransportConfig` - TransportConfig object
+    #[instrument(skip_all)]
     pub fn from_py_config(config: &Bound<'_, PyAny>) -> PyResult<Self> {
         let transport_type = config.getattr("transport_type")?;
 
@@ -53,6 +57,10 @@ impl TransportConfig {
                 let redis_config = config.extract::<RedisConfig>()?;
                 Ok(TransportConfig::Redis(redis_config))
             }
+            TransportType::Grpc => {
+                let grpc_config = config.extract::<GrpcConfig>()?;
+                Ok(TransportConfig::Grpc(grpc_config))
+            }
             TransportType::Mock => {
                 let mock_config = config.extract::<MockConfig>()?;
                 Ok(TransportConfig::Mock(mock_config))
@@ -68,6 +76,7 @@ impl TransportConfig {
             TransportConfig::Http(config) => config.clone().into_bound_py_any(py),
             TransportConfig::Redis(config) => config.clone().into_bound_py_any(py),
             TransportConfig::Mock(config) => config.clone().into_bound_py_any(py),
+            TransportConfig::Grpc(config) => config.clone().into_bound_py_any(py),
         };
 
         match transport {

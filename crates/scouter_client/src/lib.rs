@@ -6,7 +6,7 @@ pub mod profiler;
 
 pub use drifter::scouter::PyDrifter;
 pub use profiler::scouter::DataProfiler;
-pub use scouter_settings::HttpConfig;
+pub use scouter_settings::{grpc::GrpcConfig, HttpConfig};
 pub use scouter_types::{
     alert::{Alert, Alerts, CompressionType},
     create_feature_map,
@@ -18,7 +18,7 @@ pub use scouter_types::{
     eval::LLMEvalMetric,
     llm::{
         LLMAlertConfig, LLMDriftConfig, LLMDriftMap, LLMDriftMetric, LLMDriftProfile,
-        LLMMetricAlertCondition, PaginationCursor, PaginationResponse,
+        LLMMetricAlertCondition,
     },
     psi::{
         Bin, BinnedPsiFeatureMetrics, BinnedPsiMetric, PsiAlertConfig, PsiChiSquareThreshold,
@@ -32,17 +32,18 @@ pub use scouter_types::{
     },
     sql::{TraceFilters, TraceListItem, TraceMetricBucket, TraceSpan},
     AlertDispatchType, AlertThreshold, Attribute, BinnedMetric, BinnedMetricStats, BinnedMetrics,
-    ConsoleDispatchConfig, CustomMetricRecord, DataType, Doane, DriftAlertRequest, DriftProfile,
-    DriftRequest, DriftType, EntityType, EqualWidthBinning, Feature, FeatureMap, Features,
+    ConsoleDispatchConfig, CustomMetricRecord, DataType, Doane, DriftAlertPaginationRequest,
+    DriftAlertPaginationResponse, DriftProfile, DriftRequest, DriftType, EntityIdTagsRequest,
+    EntityIdTagsResponse, EntityType, EqualWidthBinning, Feature, FeatureMap, Features,
     FreedmanDiaconis, GetProfileRequest, LLMDriftRecord, LLMDriftRecordPaginationRequest,
-    LLMMetricRecord, LLMRecord, LatencyMetrics, Manual, Metric, Metrics, ObservabilityMetrics,
-    OpsGenieDispatchConfig, ProfileRequest, ProfileStatusRequest, PsiRecord, QuantileBinning,
-    RecordType, RegisteredProfileResponse, Rice, RouteMetrics, Scott, ScouterResponse,
-    ScouterServerError, ServerRecord, ServerRecords, SlackDispatchConfig, SpanEvent, SpanLink,
-    SpcRecord, SquareRoot, Sturges, TagRecord, TagsResponse, TerrellScott, TimeInterval,
-    TraceBaggageRecord, TraceBaggageResponse, TraceMetricsRequest, TraceMetricsResponse,
-    TracePaginationResponse, TraceRecord, TraceSpanRecord, TraceSpansResponse, UpdateAlertResponse,
-    UpdateAlertStatus, VersionRequest,
+    LLMDriftRecordPaginationResponse, LLMMetricRecord, LLMRecord, LatencyMetrics, Manual, Metric,
+    Metrics, ObservabilityMetrics, OpsGenieDispatchConfig, ProfileRequest, ProfileStatusRequest,
+    PsiRecord, QuantileBinning, RecordType, RegisteredProfileResponse, Rice, RouteMetrics, Scott,
+    ScouterResponse, ScouterServerError, ServerRecord, ServerRecords, SlackDispatchConfig,
+    SpanEvent, SpanLink, SpcRecord, SquareRoot, Sturges, TagRecord, TagsResponse, TerrellScott,
+    TimeInterval, TraceBaggageRecord, TraceBaggageResponse, TraceMetricsRequest,
+    TraceMetricsResponse, TracePaginationResponse, TraceRecord, TraceRequest, TraceSpanRecord,
+    TraceSpansResponse, UpdateAlertResponse, UpdateAlertStatus, VersionRequest, SCOUTER_TAG_PREFIX,
 };
 
 pub use crate::http::{PyScouterClient, ScouterClient};
@@ -69,9 +70,9 @@ pub use scouter_profile::{
 };
 
 // exposing errors
-pub use error::ClientError;
 pub use scouter_drift::error::DriftError;
 pub use scouter_events::error::EventError;
+pub use scouter_http::error::ClientError;
 pub use scouter_profile::error::DataProfileError;
 pub use scouter_types::error::{ContractError, ProfileError, RecordError, TypeError, UtilError};
 
@@ -80,12 +81,13 @@ pub use scouter_evaluate::{
     llm::{async_evaluate_llm, evaluate_llm, workflow_from_eval_metrics},
     types::{EvaluationConfig, LLMEvalRecord, LLMEvalResults, LLMEvalTaskResult},
 };
+pub use scouter_tracing::error::TraceError;
 pub use scouter_tracing::exporter::{
     processor::BatchConfig, GrpcSpanExporter, HttpSpanExporter, StdoutSpanExporter,
     TestSpanExporter,
 };
 pub use scouter_tracing::tracer::*;
 pub use scouter_tracing::utils::{
-    get_function_type, ExportConfig, FunctionType, GrpcConfig, OtelHttpConfig, OtelProtocol,
+    get_current_active_span, get_function_type, FunctionType, OtelExportConfig, OtelProtocol,
     SpanKind,
 };

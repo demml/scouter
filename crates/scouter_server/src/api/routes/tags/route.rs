@@ -4,19 +4,21 @@ use anyhow::{Context, Result};
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 use scouter_sql::sql::traits::TagSqlLogic;
 use scouter_sql::PostgresClient;
-use scouter_types::TagsRequest;
 use scouter_types::{
-    contracts::ScouterServerError, InsertTagsRequest, ScouterResponse, TagsResponse,
+    contracts::ScouterServerError, EntityIdTagsResponse, InsertTagsRequest, ScouterResponse,
+    TagsResponse,
 };
+use scouter_types::{EntityIdTagsRequest, TagsRequest};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
-use tracing::error;
+use tracing::{debug, error, instrument};
 
+#[instrument(skip_all)]
 pub async fn get_tags(
     State(data): State<Arc<AppState>>,
     Query(params): Query<TagsRequest>,
@@ -34,6 +36,7 @@ pub async fn get_tags(
     Ok(Json(TagsResponse { tags }))
 }
 
+#[instrument(skip_all)]
 pub async fn insert_tags(
     State(data): State<Arc<AppState>>,
     Json(body): Json<InsertTagsRequest>,
@@ -54,9 +57,36 @@ pub async fn insert_tags(
     }))
 }
 
+#[instrument(skip_all)]
+pub async fn entity_id_from_tags(
+    State(data): State<Arc<AppState>>,
+    Json(body): Json<EntityIdTagsRequest>,
+) -> Result<Json<EntityIdTagsResponse>, (StatusCode, Json<ScouterServerError>)> {
+    debug!("Params: {:?}", body);
+    let entity_id = PostgresClient::get_entity_id_by_tags(
+        &data.db_pool,
+        &body.entity_type,
+        &body.tags,
+        body.match_all,
+    )
+    .await
+    .map_err(|e| {
+        error!("Failed to get entity IDs by tags: {:?}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ScouterServerError::get_entity_id_by_tags_error(e)),
+        )
+    })?;
+
+    Ok(Json(EntityIdTagsResponse { entity_id }))
+}
+
+#[instrument(skip_all)]
 pub async fn get_tag_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
     let result = catch_unwind(AssertUnwindSafe(|| {
-        Router::new().route(&format!("{prefix}/tags"), get(get_tags).post(insert_tags))
+        Router::new()
+            .route(&format!("{prefix}/tags"), get(get_tags).post(insert_tags))
+            .route(&format!("{prefix}/tags/entity"), post(entity_id_from_tags))
     }));
 
     match result {

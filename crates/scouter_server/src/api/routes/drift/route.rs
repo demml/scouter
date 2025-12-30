@@ -16,10 +16,10 @@ use scouter_sql::sql::{
 };
 use scouter_sql::PostgresClient;
 use scouter_types::{
-    llm::PaginationResponse,
     psi::{BinnedPsiFeatureMetrics, PsiDriftProfile},
     spc::SpcDriftFeatures,
-    BinnedMetrics, LLMDriftRecord, LLMDriftRecordPaginationRequest, MessageRecord,
+    BinnedMetrics, LLMDriftRecordPaginationRequest, LLMDriftRecordPaginationResponse,
+    MessageRecord,
 };
 use scouter_types::{DriftRequest, ScouterResponse, ScouterServerError};
 use sqlx::{Pool, Postgres};
@@ -188,7 +188,7 @@ pub async fn get_llm_drift_records(
     State(data): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
     Json(params): Json<LLMDriftRecordPaginationRequest>,
-) -> Result<Json<PaginationResponse<LLMDriftRecord>>, (StatusCode, Json<ScouterServerError>)> {
+) -> Result<Json<LLMDriftRecordPaginationResponse>, (StatusCode, Json<ScouterServerError>)> {
     // validate time window
 
     if !perms.has_read_permission(&params.service_info.space) {
@@ -202,13 +202,8 @@ pub async fn get_llm_drift_records(
         .get_entity_id_for_request(&params.service_info.uid)
         .await?;
 
-    let metrics = PostgresClient::get_llm_drift_records_pagination(
-        &data.db_pool,
-        &entity_id,
-        params.status,
-        params.pagination,
-    )
-    .await;
+    let metrics =
+        PostgresClient::get_paginated_llm_drift_records(&data.db_pool, &params, &entity_id).await;
 
     match metrics {
         Ok(metrics) => Ok(Json(metrics)),

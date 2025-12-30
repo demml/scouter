@@ -89,42 +89,141 @@ class BatchConfig:
 
 def init_tracer(
     service_name: str = "scouter_service",
-    transport_config: Optional[HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig] = None,
-    exporter: HttpSpanExporter | StdoutSpanExporter | TestSpanExporter = StdoutSpanExporter(),  # noqa: F821
+    scope: str = "scouter.tracer.{version}",
+    transport_config: Optional[HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig | GrpcConfig] = None,
+    exporter: Optional[HttpSpanExporter | GrpcSpanExporter | StdoutSpanExporter | TestSpanExporter] = None,
     batch_config: Optional[BatchConfig] = None,
 ) -> None:
-    """Initialize the tracer for a service with specific transport and exporter configurations.
+    """
+    Initialize the tracer for a service with dual export capability.
+    ```
+    ╔════════════════════════════════════════════╗
+    ║          DUAL EXPORT ARCHITECTURE          ║
+    ╠════════════════════════════════════════════╣
+    ║                                            ║
+    ║  Your Application                          ║
+    ║       │                                    ║
+    ║       │  init_tracer()                     ║
+    ║       │                                    ║
+    ║       ├──────────────────┬                 ║
+    ║       │                  │                 ║
+    ║       ▼                  ▼                 ║
+    ║  ┌─────────────┐   ┌──────────────┐        ║
+    ║  │  Transport  │   │   Optional   │        ║
+    ║  │   to        │   │     OTEL     │        ║
+    ║  │  Scouter    │   │  Exporter    │        ║
+    ║  │  (Required) │   │              │        ║
+    ║  └──────┬──────┘   └──────┬───────┘        ║
+    ║         │                 │                ║
+    ║         │                 │                ║
+    ║    ┌────▼────┐       ┌────▼────┐           ║
+    ║    │ Scouter │       │  OTEL   │           ║
+    ║    │ Server  │       │Collector│           ║
+    ║    └─────────┘       └─────────┘           ║
+    ║                                            ║
+    ╚════════════════════════════════════════════╝
+    ```
+    Configuration Overview:
+        This function sets up a service tracer with **mandatory** export to Scouter
+        and **optional** export to OpenTelemetry-compatible backends.
 
-    This function configures a service tracer, allowing for the specification of
-    the service name, the transport mechanism for exporting spans, and the chosen
-    span exporter.
+    ```
+    ┌─ REQUIRED: Scouter Export ────────────────────────────────────────────────┐
+    │                                                                           │
+    │  All spans are ALWAYS exported to Scouter via transport_config:           │
+    │    • HttpConfig    → HTTP endpoint (default)                              │
+    │    • GrpcConfig    → gRPC endpoint                                        │
+    │    • KafkaConfig   → Kafka topic                                          │
+    │    • RabbitMQConfig→ RabbitMQ queue                                       │
+    │    • RedisConfig   → Redis stream/channel                                 │
+    │                                                                           │
+    └───────────────────────────────────────────────────────────────────────────┘
+
+    ┌─ OPTIONAL: OTEL Export ───────────────────────────────────────────────────┐
+    │                                                                           │
+    │  Optionally export spans to external OTEL-compatible systems:             │
+    │    • HttpSpanExporter   → OTEL Collector (HTTP)                           │
+    │    • GrpcSpanExporter   → OTEL Collector (gRPC)                           │
+    │    • StdoutSpanExporter → Console output (debugging)                      │
+    │    • TestSpanExporter   → In-memory (testing)                             │
+    │                                                                           │
+    │  If None: Only Scouter export is active (NoOpExporter)                    │
+    │                                                                           │
+    └───────────────────────────────────────────────────────────────────────────┘
+    ```
 
     Args:
         service_name (str):
             The **required** name of the service this tracer is associated with.
             This is typically a logical identifier for the application or component.
-        transport_config (HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig | None):
-            The configuration detailing how spans should be sent out.
-            If **None**, a default `HttpConfig` will be used.
+            Default: "scouter_service"
 
-            The supported configuration types are:
-            * `HttpConfig`: Configuration for exporting via HTTP/gRPC.
-            * `KafkaConfig`: Configuration for exporting to a Kafka topic.
-            * `RabbitMQConfig`: Configuration for exporting to a RabbitMQ queue.
-            * `RedisConfig`: Configuration for exporting to a Redis stream or channel.
-        exporter (HttpSpanExporter | StdoutSpanExporter | TestSpanExporter | None):
-            The span exporter implementation to use.
-            If **None**, a default `StdoutSpanExporter` is used.
+        scope (str):
+            The scope for the tracer. Used to differentiate tracers by version
+            or environment.
+            Default: "scouter.tracer.{version}"
+
+        transport_config (HttpConfig | GrpcConfig | KafkaConfig | RabbitMQConfig | RedisConfig | None):
+
+            Configuration for sending spans to Scouter. If None, defaults to HttpConfig.
+
+            Supported transports:
+                • HttpConfig     : Export to Scouter via HTTP
+                • GrpcConfig     : Export to Scouter via gRPC
+                • KafkaConfig    : Export to Scouter via Kafka
+                • RabbitMQConfig : Export to Scouter via RabbitMQ
+                • RedisConfig    : Export to Scouter via Redis
+
+        exporter (HttpSpanExporter | GrpcSpanExporter | StdoutSpanExporter | TestSpanExporter | None):
+
+            Optional secondary exporter for OpenTelemetry-compatible backends.
+            If None, spans are ONLY sent to Scouter (NoOpExporter used internally).
 
             Available exporters:
-            * `HttpSpanExporter`: Sends spans to an HTTP endpoint (e.g., an OpenTelemetry collector).
-            * `StdoutSpanExporter`: Writes spans directly to standard output for debugging.
-            * `TestSpanExporter`: Collects spans in memory, primarily for unit testing.
-        batch_config (BatchConfig | None):
-            Configuration for the batching process. If provided, spans will be queued
-            and exported in batches according to these settings. If `None`, and the
-            exporter supports batching, default batch settings will be applied.
+                • HttpSpanExporter   : Send to OTEL Collector via HTTP
+                • GrpcSpanExporter   : Send to OTEL Collector via gRPC
+                • StdoutSpanExporter : Write to stdout (debugging)
+                • TestSpanExporter   : Collect in-memory (testing)
 
+        batch_config (BatchConfig | None):
+            Configuration for batch span export. If provided, spans are queued
+            and exported in batches. If None and the exporter supports batching,
+            default batch settings apply.
+
+            Batching improves performance for high-throughput applications.
+
+    Examples:
+        Basic setup (Scouter only via HTTP):
+            >>> init_tracer(service_name="my-service")
+
+        Scouter via Kafka + OTEL Collector:
+            >>> init_tracer(
+            ...     service_name="my-service",
+            ...     transport_config=KafkaConfig(brokers="kafka:9092"),
+            ...     exporter=HttpSpanExporter(
+            ...         export_config=OtelExportConfig(
+            ...             endpoint="http://otel-collector:4318"
+            ...         )
+            ...     )
+            ... )
+
+        Scouter via gRPC + stdout debugging:
+            >>> init_tracer(
+            ...     service_name="my-service",
+            ...     transport_config=GrpcConfig(server_uri="grpc://scouter:50051"),
+            ...     exporter=StdoutSpanExporter()
+            ... )
+
+    Notes:
+        • Spans are ALWAYS exported to Scouter via transport_config
+        • OTEL export via exporter is completely optional
+        • Both exports happen in parallel without blocking each other
+        • Use batch_config to optimize performance for high-volume tracing
+
+    See Also:
+        - HttpConfig, GrpcConfig, KafkaConfig, RabbitMQConfig, RedisConfig
+        - HttpSpanExporter, GrpcSpanExporter, StdoutSpanExporter, TestSpanExporter
+        - BatchConfig
     """
 
 class ActiveSpan:
@@ -160,6 +259,19 @@ class ActiveSpan:
                 The attribute key.
             value (SerializedType):
                 The attribute value.
+        """
+
+    def set_tag(self, key: str, value: str) -> None:
+        """Set a tag on the active span. Tags are similar to attributes
+        except they are often used for indexing and searching spans/traces.
+        All tags are also set as attributes on the span. Before export, tags are
+        extracted and stored in a separate backend table for efficient querying.
+
+        Args:
+            key (str):
+                The tag key.
+            value (str):
+                The tag value.
         """
 
     def add_event(self, name: str, attributes: Any) -> None:
@@ -335,6 +447,15 @@ class BaseTracer:
                 Raises an error if no active span exists.
         """
 
+def get_current_active_span(self) -> ActiveSpan:
+    """Get the current active span.
+
+    Returns:
+        ActiveSpan:
+            The current active span.
+            Raises an error if no active span exists.
+    """
+
 class StdoutSpanExporter:
     """Exporter that outputs spans to standard output (stdout)."""
 
@@ -363,7 +484,7 @@ class StdoutSpanExporter:
 def flush_tracer() -> None:
     """Force flush the tracer's exporter."""
 
-class ExportConfig:
+class OtelExportConfig:
     """Configuration for exporting spans."""
 
     def __init__(
@@ -371,16 +492,22 @@ class ExportConfig:
         endpoint: Optional[str],
         protocol: OtelProtocol = OtelProtocol.HttpBinary,
         timeout: Optional[int] = None,
+        compression: Optional[CompressionType] = None,
+        headers: Optional[dict[str, str]] = None,
     ) -> None:
         """Initialize the ExportConfig.
 
         Args:
             endpoint (Optional[str]):
-                The HTTP endpoint for exporting spans.
+                The endpoint for exporting spans. Can be either an HTTP or gRPC endpoint.
             protocol (Protocol):
                 The protocol to use for exporting spans. Defaults to HttpBinary.
             timeout (Optional[int]):
-                The timeout for HTTP requests in seconds.
+                The timeout for requests in seconds.
+            compression (Optional[CompressionType]):
+                The compression type for requests.
+            headers (Optional[dict[str, str]]):
+                Optional HTTP headers to include in requests.
         """
 
     @property
@@ -393,32 +520,15 @@ class ExportConfig:
 
     @property
     def timeout(self) -> Optional[int]:
-        """Get the timeout for HTTP requests in seconds."""
-
-class OtelHttpConfig:
-    """Configuration for HTTP span exporting."""
-
-    def __init__(
-        self,
-        headers: Optional[dict[str, str]] = None,
-        compression: Optional[CompressionType] = None,
-    ) -> None:
-        """Initialize the HttpConfig.
-
-        Args:
-            headers (Optional[dict[str, str]]):
-                Optional HTTP headers to include in requests.
-            compression (Optional[CompressionType]):
-                Optional compression type for HTTP requests.
-        """
-
-    @property
-    def headers(self) -> Optional[dict[str, str]]:
-        """Get the HTTP headers."""
+        """Get the timeout for requests in seconds."""
 
     @property
     def compression(self) -> Optional[CompressionType]:
-        """Get the compression type."""
+        """Get the compression type used for exporting spans."""
+
+    @property
+    def headers(self) -> Optional[dict[str, str]]:
+        """Get the HTTP headers used for exporting spans."""
 
 class HttpSpanExporter:
     """Exporter that sends spans to an HTTP endpoint."""
@@ -426,8 +536,7 @@ class HttpSpanExporter:
     def __init__(
         self,
         batch_export: bool = True,
-        export_config: Optional[ExportConfig] = None,
-        http_config: Optional[OtelHttpConfig] = None,
+        export_config: Optional[OtelExportConfig] = None,
         sample_ratio: Optional[float] = None,
     ) -> None:
         """Initialize the HttpSpanExporter.
@@ -435,10 +544,8 @@ class HttpSpanExporter:
         Args:
             batch_export (bool):
                 Whether to use batch exporting. Defaults to True.
-            export_config (Optional[ExportConfig]):
+            export_config (Optional[OtelExportConfig]):
                 Configuration for exporting spans.
-            http_config (Optional[OtelHttpConfig]):
-                Configuration for the HTTP exporter.
             sample_ratio (Optional[float]):
                 The sampling ratio for traces. If None, defaults to always sample.
         """
@@ -471,29 +578,13 @@ class HttpSpanExporter:
     def compression(self) -> Optional[CompressionType]:
         """Get the compression type used for exporting spans."""
 
-class GrpcConfig:
-    """Configuration for gRPC exporting."""
-
-    def __init__(self, compression: Optional[CompressionType] = None) -> None:
-        """Initialize the GrpcConfig.
-
-        Args:
-            compression (Optional[CompressionType]):
-                Optional compression type for gRPC requests.
-        """
-
-    @property
-    def compression(self) -> Optional[CompressionType]:
-        """Get the compression type."""
-
 class GrpcSpanExporter:
     """Exporter that sends spans to a gRPC endpoint."""
 
     def __init__(
         self,
         batch_export: bool = True,
-        export_config: Optional[ExportConfig] = None,
-        grpc_config: Optional[GrpcConfig] = None,
+        export_config: Optional[OtelExportConfig] = None,
         sample_ratio: Optional[float] = None,
     ) -> None:
         """Initialize the GrpcSpanExporter.
@@ -501,10 +592,8 @@ class GrpcSpanExporter:
         Args:
             batch_export (bool):
                 Whether to use batch exporting. Defaults to True.
-            export_config (Optional[ExportConfig]):
+            export_config (Optional[OtelExportConfig]):
                 Configuration for exporting spans.
-            grpc_config (Optional[GrpcConfig]):
-                Configuration for the gRPC exporter.
             sample_ratio (Optional[float]):
                 The sampling ratio for traces. If None, defaults to always sample.
         """
@@ -2916,7 +3005,6 @@ class RustyLogger:
 class TagRecord:
     """Represents a single tag record associated with an entity."""
 
-    created_at: datetime
     entity_type: str
     entity_id: str
     key: str
@@ -2926,7 +3014,7 @@ class Attribute:
     """Represents a key-value attribute associated with a span."""
 
     key: str
-    value: str
+    value: Any
 
 class SpanEvent:
     """Represents an event within a span."""
@@ -3054,6 +3142,7 @@ class TransportType:
     RabbitMQ = "TransportType"
     Redis = "TransportType"
     HTTP = "TransportType"
+    Grpc = "TransportType"
 
 class HttpConfig:
     server_uri: str
@@ -3084,6 +3173,35 @@ class HttpConfig:
             auth_token:
                 Authorization token to use for authentication.
 
+        """
+
+    def __str__(self): ...
+
+class GrpcConfig:
+    server_uri: str
+    username: str
+    password: str
+
+    def __init__(
+        self,
+        server_uri: Optional[str] = None,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+    ) -> None:
+        """gRPC configuration to use with the GrpcProducer.
+
+        Args:
+            server_uri:
+                URL of the gRPC server to publish messages to.
+                If not provided, the value of the SCOUTER_GRPC_URI environment variable is used.
+
+            username:
+                Username for basic authentication.
+                If not provided, the value of the SCOUTER_USERNAME environment variable is used.
+
+            password:
+                Password for basic authentication.
+                If not provided, the value of the SCOUTER_PASSWORD environment variable is used.
         """
 
     def __str__(self): ...
@@ -3331,16 +3449,15 @@ class TagsResponse:
     tags: List[TagRecord]
 
 class TimeInterval:
-    FiveMinutes: "TimeInterval"
     FifteenMinutes: "TimeInterval"
     ThirtyMinutes: "TimeInterval"
     OneHour: "TimeInterval"
-    ThreeHours: "TimeInterval"
+    FourHours: "TimeInterval"
     SixHours: "TimeInterval"
     TwelveHours: "TimeInterval"
     TwentyFourHours: "TimeInterval"
-    TwoDays: "TimeInterval"
-    FiveDays: "TimeInterval"
+    SevenDays: "TimeInterval"
+    Custom: "TimeInterval"
 
 class DriftRequest:
     def __init__(
@@ -3349,6 +3466,8 @@ class DriftRequest:
         space: str,
         time_interval: TimeInterval,
         max_data_points: int,
+        start_datetime: Optional[datetime] = None,
+        end_datetime: Optional[datetime] = None,
     ) -> None:
         """Initialize drift request
 
@@ -3361,6 +3480,10 @@ class DriftRequest:
                 Time window for drift request
             max_data_points:
                 Maximum data points to return
+            start_datetime:
+                Optional start datetime for drift request
+            end_datetime:
+                Optional end datetime for drift request
         """
 
 class ProfileStatusRequest:
@@ -3402,26 +3525,49 @@ class Alert:
     id: int
     active: bool
 
-class DriftAlertRequest:
+class DriftAlertPaginationRequest:
     def __init__(
         self,
         uid: str,
         active: bool = False,
-        limit_datetime: Optional[datetime] = None,
         limit: Optional[int] = None,
+        cursor_created_at: Optional[datetime] = None,
+        cursor_id: Optional[int] = None,
+        direction: Optional[Literal["next", "previous"]] = "previous",
+        start_datetime: Optional[datetime] = None,
+        end_datetime: Optional[datetime] = None,
     ) -> None:
-        """Initialize drift alert request
+        """Initialize drift alert request. Used for paginated alert retrieval.
 
         Args:
             uid:
                 Unique identifier tied to drift profile
             active:
                 Whether to get active alerts only
-            limit_datetime:
-                Limit datetime for alerts
             limit:
                 Limit for number of alerts to return
+            cursor_created_at:
+                Pagination cursor: created at timestamp
+            cursor_id:
+                Pagination cursor: alert ID
+            direction:
+                Pagination direction: "next" or "previous"
+            start_datetime:
+                Optional start datetime for alert filtering
+            end_datetime:
+                Optional end datetime for alert filtering
         """
+
+class AlertCursor:
+    created_at: datetime
+    id: int
+
+class DriftAlertPaginationResponse:
+    items: List[Alert]
+    has_next: bool
+    next_cursor: Optional[AlertCursor]
+    has_previous: bool
+    previous_cursor: Optional[AlertCursor]
 
 # Client
 class ScouterClient:
@@ -3478,15 +3624,15 @@ class ScouterClient:
             boolean
         """
 
-    def get_alerts(self, request: DriftAlertRequest) -> List[Alert]:
+    def get_alerts(self, request: DriftAlertPaginationRequest) -> DriftAlertPaginationResponse:
         """Get alerts
 
         Args:
             request:
-                DriftAlertRequest
+                DriftAlertPaginationRequest
 
         Returns:
-            List[Alert]
+            DriftAlertPaginationResponse
         """
 
     def download_profile(self, request: GetProfileRequest, path: Optional[Path]) -> str:
@@ -3509,13 +3655,6 @@ class ScouterClient:
                 TraceFilters object
         Returns:
             TracePaginationResponse
-        """
-
-    def refresh_trace_summary(self) -> bool:
-        """Refresh trace summary cache
-
-        Returns:
-            boolean
         """
 
     def get_trace_spans(
@@ -4077,41 +4216,150 @@ class ScouterQueue:
             RabbitMQConfig,
             RedisConfig,
             HttpConfig,
+            GrpcConfig,
         ],
     ) -> "ScouterQueue":
-        """Initializes Scouter queue from one or more drift profile paths
+        """Initializes Scouter queue from one or more drift profile paths.
+
+        ```
+        ╔══════════════════════════════════════════════════════════════════════════╗
+        ║                    SCOUTER QUEUE ARCHITECTURE                            ║
+        ╠══════════════════════════════════════════════════════════════════════════╣
+        ║                                                                          ║
+        ║  Python Runtime (Client)                                                 ║
+        ║  ┌────────────────────────────────────────────────────────────────────┐  ║
+        ║  │  ScouterQueue.from_path()                                          │  ║
+        ║  │    • Load drift profiles (SPC, PSI, Custom, LLM)                   │  ║
+        ║  │    • Configure transport (Kafka, RabbitMQ, Redis, HTTP, gRPC)      │  ║
+        ║  └───────────────────────────┬────────────────────────────────────────┘  ║
+        ║                              │                                           ║
+        ║                              ▼                                           ║
+        ║  ┌────────────────────────────────────────────────────────────────────┐  ║
+        ║  │  queue["profile_alias"].insert(Features | Metrics | LLMRecord)     │  ║
+        ║  └───────────────────────────┬────────────────────────────────────────┘  ║
+        ║                              │                                           ║
+        ╚══════════════════════════════╪═══════════════════════════════════════════╝
+                                       │
+                                       │  Language Boundary
+                                       │
+        ╔══════════════════════════════╪═══════════════════════════════════════════╗
+        ║  Rust Runtime (Producer)     ▼                                           ║
+        ║  ┌────────────────────────────────────────────────────────────────────┐  ║
+        ║  │  Queue<T> (per profile)                                            │  ║
+        ║  │    • Buffer records in memory                                      │  ║
+        ║  │    • Validate against drift profile schema                         │  ║
+        ║  │    • Convert to ServerRecord format                                │  ║
+        ║  └───────────────────────────┬────────────────────────────────────────┘  ║
+        ║                              │                                           ║
+        ║                              ▼                                           ║
+        ║  ┌────────────────────────────────────────────────────────────────────┐  ║
+        ║  │  Transport Producer                                                │  ║
+        ║  │    • KafkaProducer    → Kafka brokers                              │  ║
+        ║  │    • RabbitMQProducer → RabbitMQ exchange                          │  ║
+        ║  │    • RedisProducer    → Redis pub/sub                              │  ║
+        ║  │    • HttpProducer     → HTTP endpoint                              │  ║
+        ║  │    • GrpcProducer     → gRPC server                                │  ║
+        ║  └───────────────────────────┬────────────────────────────────────────┘  ║
+        ║                              │                                           ║
+        ╚══════════════════════════════╪═══════════════════════════════════════════╝
+                                       │
+                                       │  Network/Message Bus
+                                       │
+        ╔══════════════════════════════╪═══════════════════════════════════════════╗
+        ║  Scouter Server              ▼                                           ║
+        ║  ┌────────────────────────────────────────────────────────────────────┐  ║
+        ║  │  Consumer (Kafka/RabbitMQ/Redis/HTTP/gRPC)                         │  ║
+        ║  │    • Receive drift records                                         │  ║
+        ║  │    • Deserialize & validate                                        │  ║
+        ║  └───────────────────────────┬────────────────────────────────────────┘  ║
+        ║                              │                                           ║
+        ║                              ▼                                           ║
+        ║  ┌────────────────────────────────────────────────────────────────────┐  ║
+        ║  │  Processing Pipeline                                               │  ║
+        ║  │    • Calculate drift metrics (SPC, PSI)                            │  ║
+        ║  │    • Evaluate alert conditions                                     │  ║
+        ║  │    • Store in PostgreSQL                                           │  ║
+        ║  │    • Dispatch alerts (Slack, OpsGenie, Console)                    │  ║
+        ║  └────────────────────────────────────────────────────────────────────┘  ║
+        ║                                                                          ║
+        ╚══════════════════════════════════════════════════════════════════════════╝
+        ```
+        Flow Summary:
+            1. **Python Runtime**: Initialize queue with drift profiles and transport config
+            2. **Insert Records**: Call queue["alias"].insert() with Features/Metrics/LLMRecord
+            3. **Rust Queue**: Buffer and validate records against profile schema
+            4. **Transport Producer**: Serialize and publish to configured transport
+            5. **Network**: Records travel via Kafka/RabbitMQ/Redis/HTTP/gRPC
+            6. **Scouter Server**: Consumer receives, processes, and stores records
+            7. **Alerting**: Evaluate drift conditions and dispatch alerts if triggered
 
         Args:
             path (Dict[str, Path]):
                 Dictionary of drift profile paths.
-                Each key is a user-defined alias for accessing a queue
-            transport_config (Union[KafkaConfig, RabbitMQConfig, RedisConfig, HttpConfig]):
-                Transport configuration for the queue publisher
-                Can be KafkaConfig, RabbitMQConfig RedisConfig, or HttpConfig
+                Each key is a user-defined alias for accessing a queue.
 
-        Example:
-            ```python
-            queue = ScouterQueue(
-                path={
-                    "spc": Path("spc_profile.json"),
-                    "psi": Path("psi_profile.json"),
-                },
-                transport_config=KafkaConfig(
-                    brokers="localhost:9092",
-                    topic="scouter_topic",
-                ),
-            )
+                Supported profile types:
+                    • SpcDriftProfile    - Statistical Process Control monitoring
+                    • PsiDriftProfile    - Population Stability Index monitoring
+                    • CustomDriftProfile - Custom metric monitoring
+                    • LLMDriftProfile    - LLM evaluation monitoring
 
-            queue["psi"].insert(
-                Features(
-                    features=[
-                        Feature("feature_1", 1),
-                        Feature("feature_2", 2.0),
-                        Feature("feature_3", "value"),
-                    ]
-                )
-            )
-            ```
+            transport_config (Union[KafkaConfig, RabbitMQConfig, RedisConfig, HttpConfig, GrpcConfig]):
+                Transport configuration for the queue publisher.
+
+                Available transports:
+                    • KafkaConfig     - Apache Kafka message bus
+                    • RabbitMQConfig  - RabbitMQ message broker
+                    • RedisConfig     - Redis pub/sub
+                    • HttpConfig      - Direct HTTP to Scouter server
+                    • GrpcConfig      - Direct gRPC to Scouter server
+
+        Returns:
+            ScouterQueue:
+                Configured queue with Rust-based producers for each drift profile.
+
+        Examples:
+            Basic SPC monitoring with Kafka:
+                >>> queue = ScouterQueue.from_path(
+                ...     path={"spc": Path("spc_drift_profile.json")},
+                ...     transport_config=KafkaConfig(
+                ...         brokers="localhost:9092",
+                ...         topic="scouter_monitoring",
+                ...     ),
+                ... )
+                >>> queue["spc"].insert(
+                ...     Features(features=[
+                ...         Feature("feature_1", 1.5),
+                ...         Feature("feature_2", 2.3),
+                ...     ])
+                ... )
+
+            Multi-profile monitoring with HTTP:
+                >>> queue = ScouterQueue.from_path(
+                ...     path={
+                ...         "spc": Path("spc_profile.json"),
+                ...         "psi": Path("psi_profile.json"),
+                ...         "custom": Path("custom_profile.json"),
+                ...     },
+                ...     transport_config=HttpConfig(
+                ...         server_uri="http://scouter-server:8000",
+                ...     ),
+                ... )
+                >>> queue["psi"].insert(Features(...))
+                >>> queue["custom"].insert(Metrics(...))
+
+            LLM monitoring with gRPC:
+                >>> queue = ScouterQueue.from_path(
+                ...     path={"llm_eval": Path("llm_profile.json")},
+                ...     transport_config=GrpcConfig(
+                ...         server_uri="http://scouter-server:50051",
+                ...         username="monitoring_user",
+                ...         password="secure_password",
+                ...     ),
+                ... )
+                >>> queue["llm_eval"].insert(
+                ...     LLMRecord(context={"input": "...", "response": "..."})
+                ... )
         """
 
     def __getitem__(self, key: str) -> Queue:
@@ -6401,7 +6649,8 @@ __all__ = [
     "BinnedSpcFeatureMetrics",
     "ProfileStatusRequest",
     "Alert",
-    "DriftAlertRequest",
+    "DriftAlertPaginationRequest",
+    "DriftAlertPaginationResponse",
     "GetProfileRequest",
     "Attribute",
     "SpanEvent",
@@ -6569,10 +6818,9 @@ __all__ = [
     "SpanKind",
     "FunctionType",
     "ActiveSpan",
-    "ExportConfig",
+    "OtelExportConfig",
     "GrpcConfig",
     "GrpcSpanExporter",
-    "OtelHttpConfig",
     "HttpSpanExporter",
     "StdoutSpanExporter",
     "OtelProtocol",

@@ -1,0 +1,40 @@
+[package]
+name = "scouter-tonic"
+version = { workspace = true }
+edition = { workspace = true }
+repository = { workspace = true }
+
+authors = [
+  "Steven Forrester <sjforrester32@gmail.com>"
+]
+
+license = "MIT"
+description = "Scouter gRPC/Tonic definitions and generated code"
+
+[dependencies]
+reqwest = { workspace = true }
+scouter-http = { workspace = true }
+scouter-settings = { workspace = true }
+tokio = { workspace = true }
+tonic = { workspace = true, default-features = false, features = ["codegen"] }
+tonic-health = { workspace = true }
+tonic-prost = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+prost = { workspace = true }
+prost-types = { workspace = true }
+
+[features]
+default = []
+client = ["tonic/channel"]
+server = ["tonic/server"]
+all = ["client", "server"]
+
+
+[build-dependencies]
+tonic-prost-build = "0.*"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = true

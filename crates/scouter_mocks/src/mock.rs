@@ -8,6 +8,8 @@ use tracing::instrument;
 #[cfg(feature = "server")]
 use scouter_server::{start_server_in_background, stop_server};
 #[cfg(feature = "server")]
+use scouter_tonic::GrpcClient;
+#[cfg(feature = "server")]
 use std::net::TcpListener as StdTcpListener;
 #[cfg(feature = "server")]
 use std::sync::Arc;
@@ -78,11 +80,15 @@ impl ScouterTestServer {
         }
     }
 
-    pub fn set_env_vars_for_client(&self, port: u16) -> PyResult<()> {
+    pub fn set_env_vars_for_client(&self, http_port: u16, grpc_port: u16) -> PyResult<()> {
         #[cfg(feature = "server")]
         {
             unsafe {
-                std::env::set_var("SCOUTER_SERVER_URI", format!("http://localhost:{port}"));
+                std::env::set_var(
+                    "SCOUTER_SERVER_URI",
+                    format!("http://localhost:{http_port}"),
+                );
+                std::env::set_var("SCOUTER_GRPC_URI", format!("http://localhost:{grpc_port}"));
                 std::env::set_var("APP_ENV", "dev_client");
             }
             Ok(())
@@ -137,19 +143,19 @@ impl ScouterTestServer {
             let handle = self.handle.clone();
             let runtime = self.runtime.clone();
 
-            let port = match (3000..3010)
+            let http_port = (3000..3010)
                 .find(|port| StdTcpListener::bind(("127.0.0.1", *port)).is_ok())
-            {
-                Some(p) => p,
-                None => {
-                    return Err(TestServerError::PortError.into());
-                }
-            };
+                .ok_or(TestServerError::PortError)?;
 
-            debug!("Found available port: {}", port);
+            let grpc_port = (50051..50061)
+                .find(|port| StdTcpListener::bind(("127.0.0.1", *port)).is_ok())
+                .ok_or(TestServerError::PortError)?;
+
+            debug!("Found ports - HTTP: {}, gRPC: {}", http_port, grpc_port);
 
             unsafe {
-                std::env::set_var("SCOUTER_SERVER_PORT", port.to_string());
+                std::env::set_var("SCOUTER_SERVER_PORT", http_port.to_string());
+                std::env::set_var("SCOUTER_GRPC_PORT", grpc_port.to_string());
             }
 
             runtime.spawn(async move {
@@ -158,32 +164,59 @@ impl ScouterTestServer {
             });
 
             let client = reqwest::blocking::Client::new();
+            let runtime_clone = self.runtime.clone();
             let mut attempts = 0;
-            let max_attempts = 30;
+            let max_attempts = 50; // Increased timeout
 
             while attempts < max_attempts {
                 println!(
-                    "Checking if Scouter Server is running at http://localhost:{port}/scouter/healthcheck",
-
+                    "🔍 Checking servers (attempt {}/{}): HTTP:{}, gRPC:{}",
+                    attempts + 1,
+                    max_attempts,
+                    http_port,
+                    grpc_port
                 );
-                let res = client
-                    .get(format!("http://localhost:{port}/scouter/healthcheck"))
-                    .send();
-                if let Ok(response) = res {
-                    if response.status() == 200 {
-                        self.set_env_vars_for_client(port)?;
-                        println!("Scouter Server started successfully");
-                        return Ok(());
+
+                // Check HTTP health
+                let http_ready = client
+                    .get(format!("http://localhost:{http_port}/scouter/healthcheck"))
+                    .timeout(Duration::from_secs(2))
+                    .send()
+                    .map(|r| r.status().is_success())
+                    .unwrap_or(false);
+
+                // Check gRPC health using standard health service
+                let grpc_ready = runtime_clone.block_on(async {
+                    let config = scouter_client::GrpcConfig::new(
+                        Some(format!("http://127.0.0.1:{grpc_port}")),
+                        Some("guest".to_string()),
+                        Some("guest".to_string()),
+                    );
+
+                    // Use the health check method
+                    match GrpcClient::new(config).await {
+                        Ok(client) => client.health_check().await.unwrap_or(false),
+                        Err(_) => false,
                     }
-                } else {
-                    let resp_msg = res.unwrap_err().to_string();
-                    println!("Scouter Server not yet ready: {resp_msg}");
+                });
+
+                if http_ready && grpc_ready {
+                    self.set_env_vars_for_client(http_port, grpc_port)?;
+                    println!(
+                        "✅ Both servers ready! HTTP:{}, gRPC:{}",
+                        http_port, grpc_port
+                    );
+                    return Ok(());
                 }
 
-                attempts += 1;
-                sleep(Duration::from_millis(100 + (attempts * 10)));
+                println!(
+                    "  ⏳ HTTP: {}, gRPC: {}",
+                    if http_ready { "✓" } else { "✗" },
+                    if grpc_ready { "✓" } else { "✗" }
+                );
 
-                // set env vars for SCOUTER_TRACKING_URI
+                attempts += 1;
+                sleep(Duration::from_millis(100 + (attempts * 20)));
             }
 
             Err(TestServerError::StartServerError.into())

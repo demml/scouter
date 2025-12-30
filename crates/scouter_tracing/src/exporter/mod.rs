@@ -90,6 +90,7 @@ impl SpanExporterNum {
 
 impl Default for SpanExporterNum {
     fn default() -> Self {
-        SpanExporterNum::Stdout(StdoutSpanExporter::default())
+        // set to Noop exporter by default
+        SpanExporterNum::Noop(NoopSpanExporter::new())
     }
 }

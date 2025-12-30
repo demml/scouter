@@ -14,7 +14,7 @@ pub trait EntitySqlLogic {
     async fn get_entity_id_from_uid(pool: &Pool<Postgres>, uid: &str) -> Result<i32, SqlError> {
         let query = Queries::GetEntityIdFromUid.get_query();
 
-        let result = sqlx::query(&query.sql)
+        let result = sqlx::query(query)
             .bind(uid)
             .fetch_one(pool)
             .await
@@ -31,7 +31,7 @@ pub trait EntitySqlLogic {
     ) -> Result<Option<i32>, SqlError> {
         let query = Queries::GetEntityIdFromUid.get_query();
 
-        sqlx::query(&query.sql)
+        sqlx::query(query)
             .bind(uid)
             .fetch_optional(pool)
             .await
@@ -48,7 +48,7 @@ pub trait EntitySqlLogic {
     ) -> Result<i32, SqlError> {
         let query = Queries::GetEntityIdFromSpaceNameVersionDriftType.get_query();
 
-        let result = sqlx::query(&query.sql)
+        let result = sqlx::query(query)
             .bind(space)
             .bind(name)
             .bind(version)

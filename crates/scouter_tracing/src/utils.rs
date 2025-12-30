@@ -301,7 +301,8 @@ pub(crate) fn get_current_context_id(py: Python<'_>) -> PyResult<Option<String>>
 
 /// Get the current active span from the context variable.
 /// Returns TraceError::NoActiveSpan if no active span is set.
-pub(crate) fn get_current_active_span(py: Python<'_>) -> Result<Bound<'_, PyAny>, TraceError> {
+#[pyfunction]
+pub fn get_current_active_span(py: Python<'_>) -> Result<Bound<'_, PyAny>, TraceError> {
     match get_context_var(py)?.bind(py).call_method0("get") {
         Ok(val) => {
             if val.is_none() {
@@ -373,29 +374,41 @@ impl OtelProtocol {
 
 #[derive(Debug)]
 #[pyclass]
-pub struct ExportConfig {
+pub struct OtelExportConfig {
     #[pyo3(get)]
     pub endpoint: Option<String>,
     #[pyo3(get)]
     pub protocol: OtelProtocol,
     #[pyo3(get)]
     pub timeout: Option<u64>,
+    #[pyo3(get)]
+    pub compression: Option<CompressionType>,
+    #[pyo3(get)]
+    pub headers: Option<HashMap<String, String>>,
 }
 
 #[pymethods]
-impl ExportConfig {
+impl OtelExportConfig {
     #[new]
-    #[pyo3(signature = (protocol=OtelProtocol::HttpBinary,endpoint=None,  timeout=None))]
-    pub fn new(protocol: OtelProtocol, endpoint: Option<String>, timeout: Option<u64>) -> Self {
-        ExportConfig {
+    #[pyo3(signature = (protocol=OtelProtocol::HttpBinary, endpoint=None, timeout=None, compression=None, headers=None))]
+    pub fn new(
+        protocol: OtelProtocol,
+        endpoint: Option<String>,
+        timeout: Option<u64>,
+        compression: Option<CompressionType>,
+        headers: Option<HashMap<String, String>>,
+    ) -> Self {
+        OtelExportConfig {
             endpoint,
             protocol,
             timeout,
+            compression,
+            headers,
         }
     }
 }
 
-impl ExportConfig {
+impl OtelExportConfig {
     pub fn to_otel_config(&self) -> OtlpExportConfig {
         let timeout = self.timeout.map(Duration::from_secs);
         OtlpExportConfig {
@@ -403,44 +416,6 @@ impl ExportConfig {
             protocol: self.protocol.to_otel_protocol(),
             timeout,
         }
-    }
-}
-
-#[derive(Debug)]
-#[pyclass]
-pub struct OtelHttpConfig {
-    #[pyo3(get)]
-    pub headers: Option<HashMap<String, String>>,
-    #[pyo3(get)]
-    pub compression: Option<CompressionType>,
-}
-
-#[pymethods]
-impl OtelHttpConfig {
-    #[new]
-    pub fn new(
-        headers: Option<HashMap<String, String>>,
-        compression: Option<CompressionType>,
-    ) -> Self {
-        OtelHttpConfig {
-            headers,
-            compression,
-        }
-    }
-}
-
-#[derive(Debug)]
-#[pyclass]
-pub struct GrpcConfig {
-    #[pyo3(get)]
-    pub compression: Option<CompressionType>,
-}
-
-#[pymethods]
-impl GrpcConfig {
-    #[new]
-    pub fn new(compression: Option<CompressionType>) -> Self {
-        GrpcConfig { compression }
     }
 }
 

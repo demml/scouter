@@ -9,18 +9,15 @@ use potato_head::LLMTestServer;
 
 use http_body_util::BodyExt;
 use scouter_drift::psi::PsiMonitor;
-use scouter_types::contracts::DriftRequest;
 use scouter_types::custom::{
     CustomDriftProfile, CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig,
 };
-use scouter_types::llm::PaginationRequest;
-use scouter_types::llm::PaginationResponse;
 use scouter_types::psi::BinnedPsiFeatureMetrics;
 use scouter_types::psi::{PsiAlertConfig, PsiDriftConfig};
 use scouter_types::spc::SpcDriftFeatures;
+use scouter_types::{contracts::DriftRequest, LLMDriftRecordPaginationResponse};
 use scouter_types::{
-    AlertThreshold, BinnedMetrics, LLMDriftRecord, LLMDriftRecordPaginationRequest, ServiceInfo,
-    TimeInterval,
+    AlertThreshold, BinnedMetrics, LLMDriftRecordPaginationRequest, ServiceInfo, TimeInterval,
 };
 use tokio::time::sleep;
 
@@ -50,7 +47,7 @@ async fn test_spc_server_records() {
     let params = DriftRequest {
         space: SPACE.to_string(),
         uid: profile.config.uid.clone(),
-        time_interval: TimeInterval::FiveMinutes,
+        time_interval: TimeInterval::FifteenMinutes,
         max_data_points: 100,
         ..Default::default()
     };
@@ -129,7 +126,7 @@ async fn test_psi_server_records() {
     let params = DriftRequest {
         space: SPACE.to_string(),
         uid: uid.clone(),
-        time_interval: TimeInterval::FiveMinutes,
+        time_interval: TimeInterval::FifteenMinutes,
         max_data_points: 100,
         ..Default::default()
     };
@@ -195,7 +192,7 @@ async fn test_custom_server_records() {
     let params = DriftRequest {
         space: SPACE.to_string(),
         uid: uid.clone(),
-        time_interval: TimeInterval::FiveMinutes,
+        time_interval: TimeInterval::FifteenMinutes,
         max_data_points: 100,
 
         ..Default::default()
@@ -261,7 +258,7 @@ fn test_llm_server_records() {
     let params = DriftRequest {
         space: SPACE.to_string(),
         uid: uid.clone(),
-        time_interval: TimeInterval::FiveMinutes,
+        time_interval: TimeInterval::FifteenMinutes,
         max_data_points: 100,
         ..Default::default()
     };
@@ -294,10 +291,8 @@ fn test_llm_server_records() {
             uid: uid.clone(),
         },
         status: None,
-        pagination: PaginationRequest {
-            limit: 10,
-            cursor: None,
-        },
+        limit: Some(10),
+        ..Default::default()
     };
 
     let body = serde_json::to_string(&request).unwrap();
@@ -311,9 +306,9 @@ fn test_llm_server_records() {
     let response = runtime.block_on(async { helper.send_oneshot(request).await });
     let val = runtime.block_on(async { response.into_body().collect().await.unwrap().to_bytes() });
 
-    let records: PaginationResponse<LLMDriftRecord> = serde_json::from_slice(&val).unwrap();
+    let records: LLMDriftRecordPaginationResponse = serde_json::from_slice(&val).unwrap();
     assert!(!records.items.is_empty());
-    assert!(records.has_more);
+    assert!(records.has_next);
 
     mock.stop_server().unwrap();
     TestHelper::cleanup_storage();

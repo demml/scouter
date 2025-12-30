@@ -10,8 +10,8 @@ use scouter_dataframe::parquet::ParquetDataFrame;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::contracts::DriftRequest;
 use scouter_types::{
-    llm::{PaginationCursor, PaginationRequest, PaginationResponse},
-    BinnedMetrics, LLMDriftRecord, RecordType,
+    BinnedMetrics, LLMDriftRecord, LLMDriftRecordPaginationRequest,
+    LLMDriftRecordPaginationResponse, RecordCursor, RecordType,
 };
 use scouter_types::{LLMDriftInternalRecord, LLMTaskRecord};
 use scouter_types::{LLMMetricRecord, Status};
@@ -36,7 +36,7 @@ pub trait LLMDriftSqlLogic {
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertLLMDriftRecord.get_query();
 
-        sqlx::query(&query.sql)
+        sqlx::query(query)
             .bind(&record.uid)
             .bind(record.created_at)
             .bind(entity_id)
@@ -76,7 +76,7 @@ pub trait LLMDriftSqlLogic {
             )
         }));
 
-        sqlx::query(&query.sql)
+        sqlx::query(query)
             .bind(created_ats)
             .bind(record_uids)
             .bind(entity_ids)
@@ -93,7 +93,7 @@ pub trait LLMDriftSqlLogic {
         status: Option<Status>,
         entity_id: &i32,
     ) -> Result<Vec<LLMDriftRecord>, SqlError> {
-        let mut query_string = Queries::GetLLMDriftRecords.get_query().sql;
+        let mut query_string = Queries::GetLLMDriftRecords.get_query().to_string();
         let mut bind_count = 1;
 
         if limit_datetime.is_some() {
@@ -122,81 +122,102 @@ pub trait LLMDriftSqlLogic {
         Ok(records.into_iter().map(|r| r.to_public_record()).collect())
     }
 
-    /// Retrieves a paginated list of LLM drift records from the database
-    /// for a given service.
+    /// Retrieves a paginated list of LLM drift records with bidirectional cursor support
+    ///
     /// # Arguments
     /// * `pool` - The database connection pool
-    /// * `service_info` - The service information to filter records by
-    /// * `status` - Optional status filter for the records
-    /// * `pagination` - The pagination request containing limit and cursor
+    /// * `params` - The pagination request containing limit, cursor, and direction
+    /// * `entity_id` - The entity ID to filter records
+    ///
     /// # Returns
-    /// * A result containing a pagination response with LLM drift records or an error
+    /// * Result with paginated response containing LLM drift records
     #[instrument(skip_all)]
-    async fn get_llm_drift_records_pagination(
+    async fn get_paginated_llm_drift_records(
         pool: &Pool<Postgres>,
+        params: &LLMDriftRecordPaginationRequest,
         entity_id: &i32,
-        status: Option<Status>,
-        pagination: PaginationRequest,
-    ) -> Result<PaginationResponse<LLMDriftRecord>, SqlError> {
-        let limit = pagination.limit.clamp(1, 100); // Cap at 100, min 1
-        let query_limit = limit + 1;
+    ) -> Result<LLMDriftRecordPaginationResponse, SqlError> {
+        let query = Queries::GetPaginatedLLMDriftRecords.get_query();
+        let limit = params.limit.unwrap_or(50);
+        let direction = params.direction.as_deref().unwrap_or("next");
 
-        // Get initial SQL query
-        let mut sql = Queries::GetLLMDriftRecords.get_query().sql;
-        let mut bind_count = 1;
+        let mut items: Vec<LLMDriftInternalRecord> = sqlx::query_as(query)
+            .bind(entity_id)
+            .bind(params.status.as_ref().and_then(|s| s.as_str()))
+            .bind(params.cursor_created_at)
+            .bind(direction)
+            .bind(params.cursor_id)
+            .bind(limit)
+            .bind(params.start_datetime)
+            .bind(params.end_datetime)
+            .fetch_all(pool)
+            .await
+            .map_err(SqlError::SqlxError)?;
 
-        // If querying any page other than the first, we need to add a cursor condition
-        // Everything is filtered by ID desc (most recent), so if last ID is provided, we need to filter for IDs less than that
-        if pagination.cursor.is_some() {
-            bind_count += 1;
-            sql.push_str(&format!(" AND id < ${bind_count}"));
-        }
+        let has_more = items.len() > limit as usize;
 
-        // Optional status filter
-        let status_value = status.as_ref().and_then(|s| s.as_str());
-        if status_value.is_some() {
-            bind_count += 1;
-            sql.push_str(&format!(" AND status = ${bind_count}"));
-        }
-
-        sql.push_str(&format!(" ORDER BY id DESC LIMIT ${}", bind_count + 1));
-
-        let mut query = sqlx::query_as::<_, LLMDriftInternalRecord>(&sql).bind(entity_id);
-
-        // Bind cursor parameter
-        if let Some(cursor) = &pagination.cursor {
-            query = query.bind(cursor.id);
-        }
-
-        // Bind status if provided
-        if let Some(status) = status_value {
-            query = query.bind(status);
-        }
-
-        // Bind limit
-        query = query.bind(query_limit);
-
-        let mut records = query.fetch_all(pool).await.map_err(SqlError::SqlxError)?;
-
-        // Check if there are more records
-        let has_more = records.len() > limit as usize;
         if has_more {
-            records.pop(); // Remove the extra record
+            items.pop();
         }
 
-        let next_cursor = if has_more && !records.is_empty() {
-            let last_record = records.last().unwrap();
-            Some(PaginationCursor { id: last_record.id })
-        } else {
-            None
+        let (has_next, next_cursor, has_previous, previous_cursor) = match direction {
+            "previous" => {
+                items.reverse();
+
+                let previous_cursor = if has_more {
+                    items.first().map(|first| RecordCursor {
+                        created_at: first.created_at,
+                        id: first.id,
+                    })
+                } else {
+                    None
+                };
+
+                let next_cursor = items.last().map(|last| RecordCursor {
+                    created_at: last.created_at,
+                    id: last.id,
+                });
+
+                (
+                    params.cursor_created_at.is_some(),
+                    next_cursor,
+                    has_more,
+                    previous_cursor,
+                )
+            }
+            _ => {
+                // Forward pagination (default)
+                let next_cursor = if has_more {
+                    items.last().map(|last| RecordCursor {
+                        created_at: last.created_at,
+                        id: last.id,
+                    })
+                } else {
+                    None
+                };
+
+                let previous_cursor = items.first().map(|first| RecordCursor {
+                    created_at: first.created_at,
+                    id: first.id,
+                });
+
+                (
+                    has_more,
+                    next_cursor,
+                    params.cursor_created_at.is_some(),
+                    previous_cursor,
+                )
+            }
         };
 
-        let items = records.into_iter().map(|r| r.to_public_record()).collect();
+        let public_items = items.into_iter().map(|r| r.to_public_record()).collect();
 
-        Ok(PaginationResponse {
-            items,
+        Ok(LLMDriftRecordPaginationResponse {
+            items: public_items,
+            has_next,
             next_cursor,
-            has_more,
+            has_previous,
+            previous_cursor,
         })
     }
 
@@ -208,7 +229,7 @@ pub trait LLMDriftSqlLogic {
     ) -> Result<HashMap<String, f64>, SqlError> {
         let query = Queries::GetLLMMetricValues.get_query();
 
-        let records = sqlx::query(&query.sql)
+        let records = sqlx::query(query)
             .bind(limit_datetime)
             .bind(entity_id)
             .bind(metrics)
@@ -234,7 +255,8 @@ pub trait LLMDriftSqlLogic {
     /// # Arguments
     /// * `pool` - The database connection pool
     /// * `params` - The drift request parameters
-    /// * `minutes` - The number of minutes to bin the data
+    /// * `start_dt` - The start time of the time window
+    /// * `end_dt` - The end time of the time window
     /// * `entity_id` - The entity ID to filter records
     ///
     /// # Returns
@@ -243,16 +265,19 @@ pub trait LLMDriftSqlLogic {
     async fn get_records(
         pool: &Pool<Postgres>,
         params: &DriftRequest,
-        minutes: i32,
+        start_dt: DateTime<Utc>,
+        end_dt: DateTime<Utc>,
         entity_id: &i32,
     ) -> Result<BinnedMetrics, SqlError> {
-        let bin = params.time_interval.to_minutes() as f64 / params.max_data_points as f64;
+        let minutes = end_dt.signed_duration_since(start_dt).num_minutes() as f64;
+        let bin = minutes / params.max_data_points as f64;
 
         let query = Queries::GetBinnedMetrics.get_query();
 
-        let records: Vec<BinnedMetricWrapper> = sqlx::query_as(&query.sql)
+        let records: Vec<BinnedMetricWrapper> = sqlx::query_as(query)
             .bind(bin)
-            .bind(minutes)
+            .bind(start_dt)
+            .bind(end_dt)
             .bind(entity_id)
             .fetch_all(pool)
             .await
@@ -337,18 +362,19 @@ pub trait LLMDriftSqlLogic {
 
         if !params.has_custom_interval() {
             debug!("No custom interval provided, using default");
-            let minutes = params.time_interval.to_minutes();
-            return Self::get_records(pool, params, minutes, entity_id).await;
+            let (start_dt, end_dt) = params.time_interval.to_begin_end_times()?;
+            return Self::get_records(pool, params, start_dt, end_dt, entity_id).await;
         }
 
         debug!("Custom interval provided, using custom interval");
         let interval = params.clone().to_custom_interval().unwrap();
-        let timestamps = split_custom_interval(interval.start, interval.end, retention_period)?;
+        let timestamps = split_custom_interval(interval.begin, interval.end, retention_period)?;
         let mut custom_metric_map = BinnedMetrics::default();
 
         // get data from postgres
-        if let Some(minutes) = timestamps.current_minutes {
-            let current_results = Self::get_records(pool, params, minutes, entity_id).await?;
+        if let Some((active_begin, active_end)) = timestamps.active_range {
+            let current_results =
+                Self::get_records(pool, params, active_begin, active_end, entity_id).await?;
             Self::merge_feature_results(current_results, &mut custom_metric_map)?;
         }
 
@@ -376,7 +402,7 @@ pub trait LLMDriftSqlLogic {
         pool: &Pool<Postgres>,
     ) -> Result<Option<LLMTaskRecord>, SqlError> {
         let query = Queries::GetPendingLLMDriftTask.get_query();
-        let result: Option<LLMTaskRecord> = sqlx::query_as(&query.sql)
+        let result: Option<LLMTaskRecord> = sqlx::query_as(query)
             .fetch_optional(pool)
             .await
             .map_err(SqlError::SqlxError)?;
@@ -393,7 +419,7 @@ pub trait LLMDriftSqlLogic {
     ) -> Result<(), SqlError> {
         let query = Queries::UpdateLLMDriftTask.get_query();
 
-        let _query_result = sqlx::query(&query.sql)
+        let _query_result = sqlx::query(query)
             .bind(status.as_str())
             .bind(record.score.clone())
             .bind(workflow_duration)

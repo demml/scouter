@@ -46,7 +46,7 @@ pub trait CustomMetricSqlLogic {
                 .map(|r| (r.created_at, r.metric.as_str(), r.value, entity_id)),
         );
 
-        sqlx::query(&query.sql)
+        sqlx::query(query)
             .bind(created_ats)
             .bind(entity_ids)
             .bind(metrics)
@@ -64,7 +64,7 @@ pub trait CustomMetricSqlLogic {
     ) -> Result<HashMap<String, f64>, SqlError> {
         let query = Queries::GetCustomMetricValues.get_query();
 
-        let records = sqlx::query(&query.sql)
+        let records = sqlx::query(query)
             .bind(limit_datetime)
             .bind(entity_id)
             .bind(metrics)
@@ -97,14 +97,17 @@ pub trait CustomMetricSqlLogic {
     async fn get_records(
         pool: &Pool<Postgres>,
         params: &DriftRequest,
-        minutes: i32,
+        start_dt: DateTime<Utc>,
+        end_dt: DateTime<Utc>,
         entity_id: &i32,
     ) -> Result<BinnedMetrics, SqlError> {
-        let bin = params.time_interval.to_minutes() as f64 / params.max_data_points as f64;
+        let minutes = end_dt.signed_duration_since(start_dt).num_minutes() as f64;
+        let bin = minutes / params.max_data_points as f64;
         let query = Queries::GetBinnedMetricValues.get_query();
-        let records: Vec<BinnedMetricWrapper> = sqlx::query_as(&query.sql)
+        let records: Vec<BinnedMetricWrapper> = sqlx::query_as(query)
             .bind(bin)
-            .bind(minutes)
+            .bind(start_dt)
+            .bind(end_dt)
             .bind(entity_id)
             .fetch_all(pool)
             .await
@@ -184,18 +187,19 @@ pub trait CustomMetricSqlLogic {
 
         if !params.has_custom_interval() {
             debug!("No custom interval provided, using default");
-            let minutes = params.time_interval.to_minutes();
-            return Self::get_records(pool, params, minutes, entity_id).await;
+            let (start_dt, end_dt) = params.time_interval.to_begin_end_times()?;
+            return Self::get_records(pool, params, start_dt, end_dt, entity_id).await;
         }
 
         debug!("Custom interval provided, using custom interval");
         let interval = params.clone().to_custom_interval().unwrap();
-        let timestamps = split_custom_interval(interval.start, interval.end, retention_period)?;
+        let timestamps = split_custom_interval(interval.begin, interval.end, retention_period)?;
         let mut custom_metric_map = BinnedMetrics::default();
 
         // get data from postgres
-        if let Some(minutes) = timestamps.current_minutes {
-            let current_results = Self::get_records(pool, params, minutes, entity_id).await?;
+        if let Some((active_begin, active_end)) = timestamps.active_range {
+            let current_results =
+                Self::get_records(pool, params, active_begin, active_end, entity_id).await?;
             Self::merge_feature_results(current_results, &mut custom_metric_map)?;
         }
 

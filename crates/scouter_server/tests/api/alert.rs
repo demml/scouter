@@ -5,27 +5,26 @@ use axum::{
     http::{header, Request, StatusCode},
 };
 use http_body_util::BodyExt;
-use scouter_types::alert::Alerts;
-use scouter_types::contracts::{DriftAlertRequest, UpdateAlertStatus};
+use scouter_types::contracts::{DriftAlertPaginationRequest, UpdateAlertStatus};
+use scouter_types::DriftAlertPaginationResponse;
 
 #[tokio::test]
 async fn test_get_drift_alerts() {
     let helper = setup_test().await;
     let (_psi_uid, _custom_uid, spc_uid) = helper.insert_alerts().await.unwrap();
 
-    let request = DriftAlertRequest {
+    let request = DriftAlertPaginationRequest {
         uid: spc_uid,
-        limit_datetime: None,
         limit: None,
         active: Some(true),
+        ..Default::default()
     };
-
-    let query_string = serde_qs::to_string(&request).unwrap();
-
+    let body = serde_json::to_string(&request).unwrap();
     let request = Request::builder()
-        .uri(format!("/scouter/alerts?{query_string}"))
-        .method("GET")
-        .body(Body::empty())
+        .uri("/scouter/alerts")
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body))
         .unwrap();
 
     let response = helper.send_oneshot(request).await;
@@ -35,13 +34,13 @@ async fn test_get_drift_alerts() {
 
     let body = response.into_body().collect().await.unwrap().to_bytes();
 
-    let results: Alerts = serde_json::from_slice(&body).unwrap();
+    let results: DriftAlertPaginationResponse = serde_json::from_slice(&body).unwrap();
 
-    assert!(results.alerts.len() > 1);
+    assert!(results.items.len() > 1);
 
     // update alert status
     let request = UpdateAlertStatus {
-        id: results.alerts[0].id,
+        id: results.items[0].id,
         active: false,
         space: "repo_1".to_string(),
     };

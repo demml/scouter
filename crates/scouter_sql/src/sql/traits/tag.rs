@@ -2,10 +2,9 @@ use crate::sql::error::SqlError;
 use crate::sql::query::Queries;
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
 use itertools::multiunzip;
-use scouter_types::TagRecord;
-use sqlx::{postgres::PgQueryResult, Pool, Postgres};
+use scouter_types::{Tag, TagRecord};
+use sqlx::{postgres::PgQueryResult, types::Json, Pool, Postgres};
 use std::result::Result::Ok;
 
 #[async_trait]
@@ -21,24 +20,17 @@ pub trait TagSqlLogic {
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertTag.get_query();
 
-        let (created_at, entity_type, entity_id, key, value): (
-            Vec<DateTime<Utc>>,
-            Vec<&str>,
-            Vec<&str>,
-            Vec<&str>,
-            Vec<&str>,
-        ) = multiunzip(tags.iter().map(|b| {
-            (
-                b.created_at,
-                b.entity_type.as_str(),
-                b.entity_id.as_str(),
-                b.key.as_str(),
-                b.value.as_str(),
-            )
-        }));
+        let (entity_type, entity_id, key, value): (Vec<&str>, Vec<&str>, Vec<&str>, Vec<&str>) =
+            multiunzip(tags.iter().map(|b| {
+                (
+                    b.entity_type.as_str(),
+                    b.entity_id.as_str(),
+                    b.key.as_str(),
+                    b.value.as_str(),
+                )
+            }));
 
-        let query_result = sqlx::query(&query.sql)
-            .bind(created_at)
+        let query_result = sqlx::query(query)
             .bind(entity_type)
             .bind(entity_id)
             .bind(key)
@@ -56,9 +48,27 @@ pub trait TagSqlLogic {
     ) -> Result<Vec<TagRecord>, SqlError> {
         let query = Queries::GetTags.get_query();
 
-        let rows = sqlx::query_as::<_, TagRecord>(&query.sql)
+        let rows = sqlx::query_as::<_, TagRecord>(query)
             .bind(entity_type)
             .bind(entity_id)
+            .fetch_all(pool)
+            .await?;
+
+        Ok(rows)
+    }
+
+    async fn get_entity_id_by_tags(
+        pool: &Pool<Postgres>,
+        entity_type: &str,
+        tags: &[Tag],
+        match_all: bool,
+    ) -> Result<Vec<String>, SqlError> {
+        let query = Queries::GetEntityIdByTags.get_query();
+
+        let rows = sqlx::query_scalar::<_, String>(query)
+            .bind(entity_type)
+            .bind(Json(tags))
+            .bind(match_all)
             .fetch_all(pool)
             .await?;
 

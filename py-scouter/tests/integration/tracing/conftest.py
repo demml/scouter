@@ -15,6 +15,7 @@ from scouter.tracing import (
     init_tracer,
     shutdown_tracer,
 )
+from scouter.transport import GrpcConfig
 
 
 @pytest.fixture(scope="module")
@@ -59,7 +60,23 @@ def setup_tracer_grpc(grpc_span_exporter):
     with ScouterTestServer() as server:
         init_tracer(
             service_name="tracing-grpc",
+            transport_config=GrpcConfig(),
             exporter=grpc_span_exporter,
+            batch_config=BatchConfig(scheduled_delay_ms=200),
+        )
+        yield get_tracer("test-service-grpc"), server
+
+        shutdown_tracer()
+
+
+@pytest.fixture(scope="module")
+def setup_tracer_grpc_sample():
+    """Initialize tracer with grpc exporter for each test."""
+    with ScouterTestServer() as server:
+        init_tracer(
+            service_name="tracing-grpc-sample",
+            transport_config=GrpcConfig(),
+            exporter=GrpcSpanExporter(sample_ratio=0.2),
             batch_config=BatchConfig(scheduled_delay_ms=200),
         )
         yield get_tracer("test-service-grpc"), server

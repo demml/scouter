@@ -177,64 +177,68 @@ impl PsiDrifter {
         let mut features = num_features.clone();
         features.extend(string_features.clone());
 
-        if let Some(string_array) = string_array {
-            if dtype == "float64" {
-                let string_array = self.convert_strings_to_numpy_f64(
-                    string_features,
-                    string_array,
-                    drift_profile.clone(),
-                )?;
-
-                if num_array.is_some() {
-                    let array = convert_array_type::<f64>(num_array.unwrap(), &dtype)?;
+        match (string_array, num_array) {
+            (Some(string_arr), Some(num_arr)) => {
+                if dtype == "float64" {
+                    let string_array = self.convert_strings_to_numpy_f64(
+                        string_features,
+                        string_arr,
+                        drift_profile.clone(),
+                    )?;
+                    let num_array = convert_array_type::<f64>(num_arr, &dtype)?;
                     let concatenated =
-                        concatenate(Axis(1), &[array.as_array(), string_array.view()])?;
-                    Ok(self.monitor.compute_drift(
-                        &features,
-                        &concatenated.view(),
-                        &drift_profile,
-                    )?)
+                        concatenate(Axis(1), &[num_array.as_array(), string_array.view()])?;
+                    self.monitor
+                        .compute_drift(&features, &concatenated.view(), &drift_profile)
                 } else {
-                    Ok(self.monitor.compute_drift(
-                        &features,
-                        &string_array.view(),
-                        &drift_profile,
-                    )?)
-                }
-            } else {
-                let string_array = self.convert_strings_to_numpy_f32(
-                    string_features,
-                    string_array,
-                    drift_profile.clone(),
-                )?;
-
-                if num_array.is_some() {
-                    let array = convert_array_type::<f32>(num_array.unwrap(), &dtype)?;
+                    let string_array = self.convert_strings_to_numpy_f32(
+                        string_features,
+                        string_arr,
+                        drift_profile.clone(),
+                    )?;
+                    let num_array = convert_array_type::<f32>(num_arr, &dtype)?;
                     let concatenated =
-                        concatenate(Axis(1), &[array.as_array(), string_array.view()])?;
-                    Ok(self.monitor.compute_drift(
-                        &features,
-                        &concatenated.view(),
-                        &drift_profile,
-                    )?)
-                } else {
-                    Ok(self.monitor.compute_drift(
-                        &features,
-                        &string_array.view(),
-                        &drift_profile,
-                    )?)
+                        concatenate(Axis(1), &[num_array.as_array(), string_array.view()])?;
+                    self.monitor
+                        .compute_drift(&features, &concatenated.view(), &drift_profile)
                 }
             }
-        } else if dtype == "float64" {
-            let array = convert_array_type::<f64>(num_array.unwrap(), &dtype)?;
-            Ok(self
-                .monitor
-                .compute_drift(&num_features, &array.as_array(), &drift_profile)?)
-        } else {
-            let array = convert_array_type::<f32>(num_array.unwrap(), &dtype)?;
-            Ok(self
-                .monitor
-                .compute_drift(&num_features, &array.as_array(), &drift_profile)?)
+
+            (Some(string_arr), None) => {
+                if dtype == "float64" {
+                    let string_array = self.convert_strings_to_numpy_f64(
+                        string_features,
+                        string_arr,
+                        drift_profile.clone(),
+                    )?;
+                    self.monitor
+                        .compute_drift(&features, &string_array.view(), &drift_profile)
+                } else {
+                    let string_array = self.convert_strings_to_numpy_f32(
+                        string_features,
+                        string_arr,
+                        drift_profile.clone(),
+                    )?;
+                    self.monitor
+                        .compute_drift(&features, &string_array.view(), &drift_profile)
+                }
+            }
+
+            (None, Some(num_arr)) => {
+                if dtype == "float64" {
+                    let array = convert_array_type::<f64>(num_arr, &dtype)?;
+                    self.monitor
+                        .compute_drift(&num_features, &array.as_array(), &drift_profile)
+                } else {
+                    let array = convert_array_type::<f32>(num_arr, &dtype)?;
+                    self.monitor
+                        .compute_drift(&num_features, &array.as_array(), &drift_profile)
+                }
+            }
+
+            (None, None) => Err(DriftError::InvalidDataConfiguration(
+                "No data provided for drift computation".to_string(),
+            )),
         }
     }
 }

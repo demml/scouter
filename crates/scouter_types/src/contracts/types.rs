@@ -1,9 +1,11 @@
 use std::fmt::Display;
 
 use crate::error::{ContractError, TypeError};
-use crate::llm::PaginationRequest;
 use crate::sql::{TraceListItem, TraceMetricBucket, TraceSpan};
-use crate::{CustomInterval, DriftProfile, Status, TagRecord, TraceBaggageRecord};
+use crate::Alert;
+use crate::{
+    CustomInterval, DriftProfile, LLMDriftRecord, Status, Tag, TagRecord, TraceBaggageRecord,
+};
 use crate::{DriftType, PyHelperFuncs, TimeInterval};
 use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
@@ -58,25 +60,25 @@ pub struct DriftRequest {
     pub space: String,
     pub time_interval: TimeInterval,
     pub max_data_points: i32,
-    pub begin_custom_datetime: Option<DateTime<Utc>>,
+    pub start_custom_datetime: Option<DateTime<Utc>>,
     pub end_custom_datetime: Option<DateTime<Utc>>,
 }
 
 #[pymethods]
 impl DriftRequest {
     #[new]
-    #[pyo3(signature = (uid, space, time_interval, max_data_points, begin_datetime=None, end_datetime=None))]
+    #[pyo3(signature = (uid, space, time_interval, max_data_points, start_datetime=None, end_datetime=None))]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         uid: String,
         space: String,
         time_interval: TimeInterval,
         max_data_points: i32,
-        begin_datetime: Option<DateTime<Utc>>,
+        start_datetime: Option<DateTime<Utc>>,
         end_datetime: Option<DateTime<Utc>>,
     ) -> Result<Self, ContractError> {
         // validate time interval
-        let custom_interval = match (begin_datetime, end_datetime) {
+        let custom_interval = match (start_datetime, end_datetime) {
             (Some(begin), Some(end)) => Some(CustomInterval::new(begin, end)?),
             _ => None,
         };
@@ -86,7 +88,7 @@ impl DriftRequest {
             space,
             time_interval,
             max_data_points,
-            begin_custom_datetime: custom_interval.as_ref().map(|interval| interval.start),
+            start_custom_datetime: custom_interval.as_ref().map(|interval| interval.begin),
             end_custom_datetime: custom_interval.as_ref().map(|interval| interval.end),
         })
     }
@@ -94,14 +96,14 @@ impl DriftRequest {
 
 impl DriftRequest {
     pub fn has_custom_interval(&self) -> bool {
-        self.begin_custom_datetime.is_some() && self.end_custom_datetime.is_some()
+        self.start_custom_datetime.is_some() && self.end_custom_datetime.is_some()
     }
 
     pub fn to_custom_interval(&self) -> Option<CustomInterval> {
         if self.has_custom_interval() {
             Some(
                 CustomInterval::new(
-                    self.begin_custom_datetime.unwrap(),
+                    self.start_custom_datetime.unwrap(),
                     self.end_custom_datetime.unwrap(),
                 )
                 .unwrap(),
@@ -180,35 +182,92 @@ impl ProfileStatusRequest {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[pyclass]
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct DriftAlertRequest {
+pub struct DriftAlertPaginationRequest {
     pub uid: String,
-    pub limit_datetime: Option<DateTime<Utc>>,
     pub active: Option<bool>,
     pub limit: Option<i32>,
+    pub cursor_created_at: Option<DateTime<Utc>>,
+    pub cursor_id: Option<i32>,
+    pub direction: Option<String>, // "next" or "previous"
+    pub start_datetime: Option<DateTime<Utc>>,
+    pub end_datetime: Option<DateTime<Utc>>,
 }
 
 #[pymethods]
-impl DriftAlertRequest {
+impl DriftAlertPaginationRequest {
+    #[allow(clippy::too_many_arguments)]
     #[new]
-    #[pyo3(signature = (uid, active=false, limit_datetime=None, limit=None))]
+    #[pyo3(signature = (uid, active=None, limit=None, cursor_created_at=None, cursor_id=None, direction=None, start_datetime=None, end_datetime=None))]
     pub fn new(
         uid: String,
-        active: bool,
-        limit_datetime: Option<DateTime<Utc>>,
+        active: Option<bool>,
         limit: Option<i32>,
+        cursor_created_at: Option<DateTime<Utc>>,
+        cursor_id: Option<i32>,
+        direction: Option<String>,
+        start_datetime: Option<DateTime<Utc>>,
+        end_datetime: Option<DateTime<Utc>>,
     ) -> Self {
-        DriftAlertRequest {
+        DriftAlertPaginationRequest {
             uid,
-            limit_datetime,
-            active: Some(active),
+            active,
             limit,
+            cursor_created_at,
+            cursor_id,
+            direction,
+            start_datetime,
+            end_datetime,
         }
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass]
+pub struct RecordCursor {
+    #[pyo3(get)]
+    pub created_at: DateTime<Utc>,
+
+    #[pyo3(get)]
+    pub id: i64,
+}
+
+#[pymethods]
+impl RecordCursor {
+    #[new]
+    pub fn new(created_at: DateTime<Utc>, id: i64) -> Self {
+        RecordCursor { created_at, id }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass]
+pub struct DriftAlertPaginationResponse {
+    #[pyo3(get)]
+    pub items: Vec<Alert>,
+
+    #[pyo3(get)]
+    pub has_next: bool,
+
+    #[pyo3(get)]
+    pub next_cursor: Option<RecordCursor>,
+
+    #[pyo3(get)]
+    pub has_previous: bool,
+
+    #[pyo3(get)]
+    pub previous_cursor: Option<RecordCursor>,
+}
+
+#[pymethods]
+impl DriftAlertPaginationResponse {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ServiceInfo {
     pub space: String,
     pub uid: String,
@@ -447,6 +506,11 @@ impl ScouterServerError {
         ScouterServerError { error: msg }
     }
 
+    pub fn get_entity_id_by_tags_error<T: Display>(e: T) -> Self {
+        let msg = format!("Failed to get entity IDs by tags: {e}");
+        ScouterServerError { error: msg }
+    }
+
     pub fn refresh_trace_summary_error<T: Display>(e: T) -> Self {
         let msg = format!("Failed to refresh trace summary: {e}");
         ScouterServerError { error: msg }
@@ -480,11 +544,25 @@ pub struct UpdateAlertResponse {
     pub updated: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct LLMDriftRecordPaginationRequest {
     pub service_info: ServiceInfo,
     pub status: Option<Status>,
-    pub pagination: PaginationRequest,
+    pub limit: Option<i32>,
+    pub cursor_created_at: Option<DateTime<Utc>>,
+    pub cursor_id: Option<i64>,
+    pub direction: Option<String>,
+    pub start_datetime: Option<DateTime<Utc>>,
+    pub end_datetime: Option<DateTime<Utc>>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct LLMDriftRecordPaginationResponse {
+    pub items: Vec<LLMDriftRecord>,
+    pub has_next: bool,
+    pub next_cursor: Option<RecordCursor>,
+    pub has_previous: bool,
+    pub previous_cursor: Option<RecordCursor>,
 }
 
 #[pyclass]
@@ -575,6 +653,18 @@ pub struct TagsRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct EntityIdTagsRequest {
+    pub entity_type: String,
+    pub tags: Vec<Tag>,
+    pub match_all: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct EntityIdTagsResponse {
+    pub entity_id: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct InsertTagsRequest {
     pub tags: Vec<TagRecord>,
 }
@@ -593,23 +683,26 @@ pub struct TraceMetricsRequest {
     pub start_time: DateTime<Utc>,
     pub end_time: DateTime<Utc>,
     pub bucket_interval: String,
+    pub attribute_filters: Option<Vec<String>>,
 }
 
 #[pymethods]
 impl TraceMetricsRequest {
     #[new]
-    #[pyo3(signature = (start_time, end_time, bucket_interval,service_name=None))]
+    #[pyo3(signature = (start_time, end_time, bucket_interval,service_name=None, attribute_filters=None))]
     pub fn new(
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
         bucket_interval: String,
         service_name: Option<String>,
+        attribute_filters: Option<Vec<String>>,
     ) -> Self {
         TraceMetricsRequest {
             service_name,
             start_time,
             end_time,
             bucket_interval,
+            attribute_filters,
         }
     }
 }
@@ -637,7 +730,7 @@ pub struct TracePaginationResponse {
 #[pyclass]
 pub struct TraceCursor {
     #[pyo3(get)]
-    pub created_at: DateTime<Utc>,
+    pub start_time: DateTime<Utc>,
 
     #[pyo3(get)]
     pub trace_id: String,
@@ -646,9 +739,9 @@ pub struct TraceCursor {
 #[pymethods]
 impl TraceCursor {
     #[new]
-    pub fn new(created_at: DateTime<Utc>, trace_id: String) -> Self {
+    pub fn new(start_time: DateTime<Utc>, trace_id: String) -> Self {
         TraceCursor {
-            created_at,
+            start_time,
             trace_id,
         }
     }

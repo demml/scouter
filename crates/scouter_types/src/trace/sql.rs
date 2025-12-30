@@ -12,7 +12,6 @@ use serde_json::Value;
 use sqlx::{postgres::PgRow, FromRow, Row};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 #[pyclass]
 pub struct TraceListItem {
     #[pyo3(get)]
@@ -22,7 +21,7 @@ pub struct TraceListItem {
     #[pyo3(get)]
     pub scope: String,
     #[pyo3(get)]
-    pub root_operation: Option<String>,
+    pub root_operation: String,
     #[pyo3(get)]
     pub start_time: DateTime<Utc>,
     #[pyo3(get)]
@@ -34,14 +33,38 @@ pub struct TraceListItem {
     #[pyo3(get)]
     pub status_message: Option<String>,
     #[pyo3(get)]
-    pub span_count: Option<i32>,
+    pub span_count: i64,
     #[pyo3(get)]
     pub has_errors: bool,
     #[pyo3(get)]
     pub error_count: i64,
     #[pyo3(get)]
-    pub created_at: DateTime<Utc>,
+    pub resource_attributes: Vec<Attribute>,
 }
+
+#[cfg(feature = "server")]
+impl FromRow<'_, PgRow> for TraceListItem {
+    fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
+        let resource_attributes: Vec<Attribute> =
+            serde_json::from_value(row.try_get("resource_attributes")?).unwrap_or_default();
+        Ok(TraceListItem {
+            trace_id: row.try_get("trace_id")?,
+            service_name: row.try_get("service_name")?,
+            scope: row.try_get("scope")?,
+            root_operation: row.try_get("root_operation")?,
+            start_time: row.try_get("start_time")?,
+            end_time: row.try_get("end_time")?,
+            duration_ms: row.try_get("duration_ms")?,
+            status_code: row.try_get("status_code")?,
+            status_message: row.try_get("status_message")?,
+            span_count: row.try_get("span_count")?,
+            has_errors: row.try_get("has_errors")?,
+            error_count: row.try_get("error_count")?,
+            resource_attributes,
+        })
+    }
+}
+
 #[pymethods]
 impl TraceListItem {
     pub fn __str__(&self) -> String {
@@ -84,6 +107,8 @@ pub struct TraceSpan {
     pub path: Vec<String>,
     #[pyo3(get)]
     pub root_span_id: String,
+    #[pyo3(get)]
+    pub service_name: String,
     #[pyo3(get)]
     pub span_order: i32,
     pub input: Option<Value>,
@@ -151,6 +176,7 @@ impl FromRow<'_, PgRow> for TraceSpan {
             span_order: row.try_get("span_order")?,
             input,
             output,
+            service_name: row.try_get("service_name")?,
         })
     }
 }
@@ -171,11 +197,15 @@ pub struct TraceFilters {
     #[pyo3(get, set)]
     pub limit: Option<i32>,
     #[pyo3(get, set)]
-    pub cursor_created_at: Option<DateTime<Utc>>,
+    pub cursor_start_time: Option<DateTime<Utc>>,
     #[pyo3(get, set)]
     pub cursor_trace_id: Option<String>,
     #[pyo3(get, set)]
     pub direction: Option<String>,
+    #[pyo3(get, set)]
+    pub attribute_filters: Option<Vec<String>>,
+    #[pyo3(get, set)]
+    pub trace_ids: Option<Vec<String>>,
 }
 
 #[pymethods]
@@ -189,8 +219,10 @@ impl TraceFilters {
         start_time=None,
         end_time=None,
         limit=None,
-        cursor_created_at=None,
+        cursor_start_time=None,
         cursor_trace_id=None,
+        attribute_filters=None,
+        trace_ids=None
     ))]
     pub fn new(
         service_name: Option<String>,
@@ -199,8 +231,10 @@ impl TraceFilters {
         start_time: Option<DateTime<Utc>>,
         end_time: Option<DateTime<Utc>>,
         limit: Option<i32>,
-        cursor_created_at: Option<DateTime<Utc>>,
+        cursor_start_time: Option<DateTime<Utc>>,
         cursor_trace_id: Option<String>,
+        attribute_filters: Option<Vec<String>>,
+        trace_ids: Option<Vec<String>>,
     ) -> Self {
         TraceFilters {
             service_name,
@@ -209,9 +243,11 @@ impl TraceFilters {
             start_time,
             end_time,
             limit,
-            cursor_created_at,
+            cursor_start_time,
             cursor_trace_id,
             direction: None,
+            attribute_filters,
+            trace_ids,
         }
     }
 }
@@ -233,8 +269,8 @@ impl TraceFilters {
         self
     }
 
-    pub fn with_cursor(mut self, created_at: DateTime<Utc>, trace_id: impl Into<String>) -> Self {
-        self.cursor_created_at = Some(created_at);
+    pub fn with_cursor(mut self, started_at: DateTime<Utc>, trace_id: impl Into<String>) -> Self {
+        self.cursor_start_time = Some(started_at);
         self.cursor_trace_id = Some(trace_id.into());
         self
     }
@@ -245,20 +281,20 @@ impl TraceFilters {
     }
 
     pub fn next_page(mut self, cursor: &TraceCursor) -> Self {
-        self.cursor_created_at = Some(cursor.created_at);
+        self.cursor_start_time = Some(cursor.start_time);
         self.cursor_trace_id = Some(cursor.trace_id.clone());
         self.direction = Some("next".to_string());
         self
     }
 
     pub fn first_page(mut self) -> Self {
-        self.cursor_created_at = None;
+        self.cursor_start_time = None;
         self.cursor_trace_id = None;
         self
     }
 
     pub fn previous_page(mut self, cursor: &TraceCursor) -> Self {
-        self.cursor_created_at = Some(cursor.created_at);
+        self.cursor_start_time = Some(cursor.start_time);
         self.cursor_trace_id = Some(cursor.trace_id.clone());
         self.direction = Some("previous".to_string());
         self

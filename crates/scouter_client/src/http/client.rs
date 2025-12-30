@@ -1,9 +1,10 @@
 #![allow(clippy::useless_conversion)]
-use crate::error::ClientError;
 use pyo3::{prelude::*, IntoPyObjectExt};
+use scouter_http::error::ClientError;
 use scouter_settings::http::HttpConfig;
 use scouter_types::contracts::{
-    DriftAlertRequest, DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest,
+    DriftAlertPaginationRequest, DriftAlertPaginationResponse, DriftRequest, GetProfileRequest,
+    ProfileRequest, ProfileStatusRequest,
 };
 use scouter_types::http::{RequestType, Routes};
 use scouter_types::sql::TraceFilters;
@@ -13,10 +14,10 @@ use scouter_types::{
     TraceSpansResponse,
 };
 
-use crate::http::HttpClient;
+use scouter_http::HttpClient;
 use scouter_types::{
-    alert::Alert, psi::BinnedPsiFeatureMetrics, spc::SpcDriftFeatures, BinnedMetrics, DriftProfile,
-    DriftType, PyHelperFuncs,
+    psi::BinnedPsiFeatureMetrics, spc::SpcDriftFeatures, BinnedMetrics, DriftProfile, DriftType,
+    PyHelperFuncs,
 };
 use std::path::PathBuf;
 use tracing::{debug, error};
@@ -78,16 +79,17 @@ impl ScouterClient {
         }
     }
 
-    pub fn get_alerts(&self, request: &DriftAlertRequest) -> Result<Vec<Alert>, ClientError> {
+    pub fn get_alerts(
+        &self,
+        request: &DriftAlertPaginationRequest,
+    ) -> Result<DriftAlertPaginationResponse, ClientError> {
         debug!("Getting alerts for: {:?}", request);
-
-        let query_string = serde_qs::to_string(request)?;
 
         let response = self.client.request(
             Routes::Alerts,
-            RequestType::Get,
+            RequestType::Post,
+            Some(serde_json::to_value(request).unwrap()),
             None,
-            Some(query_string),
             None,
         )?;
 
@@ -97,23 +99,8 @@ impl ScouterClient {
         }
 
         // Parse response body
-        let body: serde_json::Value = response.json()?;
-
-        // Extract alerts from response
-        let alerts = body
-            .get("alerts")
-            .map(|alerts| {
-                serde_json::from_value::<Vec<Alert>>(alerts.clone()).inspect_err(|e| {
-                    error!(
-                        "Failed to parse drift alerts {:?}. Error: {:?}",
-                        &request, e
-                    );
-                })
-            })
-            .unwrap_or_else(|| {
-                error!("No alerts found in response");
-                Ok(Vec::new())
-            })?;
+        let body = response.bytes()?;
+        let alerts: DriftAlertPaginationResponse = serde_json::from_slice(&body)?;
 
         Ok(alerts)
     }
@@ -193,25 +180,6 @@ impl ScouterClient {
         Ok(response)
     }
 
-    fn refresh_trace_summary(&self) -> Result<bool, ClientError> {
-        let response = self.client.request(
-            Routes::RefreshTraceSummary,
-            RequestType::Get,
-            None,
-            None,
-            None,
-        )?;
-        if !response.status().is_success() {
-            error!(
-                "Failed to refresh trace summary. Status: {:?}",
-                response.status()
-            );
-            return Err(ClientError::RefreshTraceSummaryError);
-        }
-
-        Ok(true)
-    }
-
     fn get_trace_spans(
         &self,
         trace_id: &str,
@@ -247,12 +215,11 @@ impl ScouterClient {
         &self,
         request: TraceMetricsRequest,
     ) -> Result<TraceMetricsResponse, ClientError> {
-        let query_string = serde_qs::to_string(&request)?;
         let response = self.client.request(
             Routes::TraceMetrics,
-            RequestType::Get,
+            RequestType::Post,
+            Some(serde_json::to_value(request).unwrap()),
             None,
-            Some(query_string),
             None,
         )?;
         if !response.status().is_success() {
@@ -430,7 +397,10 @@ impl PyScouterClient {
         }
     }
 
-    pub fn get_alerts(&self, request: DriftAlertRequest) -> Result<Vec<Alert>, ClientError> {
+    pub fn get_alerts(
+        &self,
+        request: DriftAlertPaginationRequest,
+    ) -> Result<DriftAlertPaginationResponse, ClientError> {
         debug!("Getting alerts for: {:?}", request);
 
         let alerts = self.client.get_alerts(&request)?;
@@ -468,11 +438,6 @@ impl PyScouterClient {
         filters: TraceFilters,
     ) -> Result<TracePaginationResponse, ClientError> {
         self.client.get_paginated_traces(&filters)
-    }
-
-    /// Refresh the trace summary on the scouter server
-    pub fn refresh_trace_summary(&self) -> Result<bool, ClientError> {
-        self.client.refresh_trace_summary()
     }
 
     /// Get trace spans for a given trace ID

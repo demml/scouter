@@ -5,5 +5,6 @@ pub mod drift;
 pub mod health;
 pub mod profile;
 pub mod tags;
+pub mod tonic;
 pub mod trace;
 pub mod user;

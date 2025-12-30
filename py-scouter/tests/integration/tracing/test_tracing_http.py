@@ -1,6 +1,7 @@
 import time
 
 from fastapi.testclient import TestClient
+from scouter.client import ScouterClient
 from scouter.tracing import get_tracing_headers_from_current_span
 
 from .conftest import (  # type: ignore
@@ -89,4 +90,11 @@ def test_distributed_trace_propagation(setup_tracer_http):
     # Fetch the trace from Jaeger and verify spans
     time.sleep(2)  # Wait for trace to be exported
     trace_data = get_trace_by_id(trace_id)
+
     assert trace_data is not None
+
+    # fetch trace spans from scouter
+    scouter_client = ScouterClient()
+    trace_spans = scouter_client.get_trace_spans(trace_id)
+
+    assert len(trace_spans.attributes) > 0

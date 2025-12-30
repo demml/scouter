@@ -11,6 +11,7 @@ use sqlx::ConnectOptions;
 use sqlx::{postgres::PgConnectOptions, Pool, Postgres};
 use std::result::Result::Ok;
 use tokio::try_join;
+use tracing::log::LevelFilter;
 use tracing::{debug, error, info, instrument};
 
 #[derive(Debug, Clone)]
@@ -42,8 +43,7 @@ impl PostgresClient {
         let mut opts: PgConnectOptions = database_settings.connection_uri.parse()?;
 
         // Sqlx logs a lot of debug information by default, which can be overwhelming.
-
-        opts = opts.log_statements(tracing::log::LevelFilter::Off);
+        opts = opts.log_statements(LevelFilter::Off);
 
         let pool = match sqlx::postgres::PgPoolOptions::new()
             .max_connections(database_settings.max_connections)
@@ -184,43 +184,20 @@ impl MessageHandler {
         pool: &Pool<Postgres>,
         records: &TraceServerRecord,
     ) -> Result<(), SqlError> {
-        let (trace_batch, span_batch, baggage_batch) = records.to_records()?;
+        let (span_batch, baggage_batch, tag_records) = records.to_records()?;
 
-        let all_tags: Vec<TagRecord> = trace_batch
-            .iter()
-            .flat_map(|trace| {
-                trace.tags.iter().map(|tag| TagRecord {
-                    created_at: trace.created_at,
-                    entity_type: "trace".to_string(),
-                    entity_id: trace.trace_id.clone(),
-                    key: tag.key.clone(),
-                    value: tag.value.clone(),
-                })
-            })
-            .collect();
-
-        let (trace_result, span_result, baggage_result, tag_result) = try_join!(
-            PostgresClient::upsert_trace_batch(pool, &trace_batch),
+        let (span_result, baggage_result, tag_result) = try_join!(
             PostgresClient::insert_span_batch(pool, &span_batch),
             PostgresClient::insert_trace_baggage_batch(pool, &baggage_batch),
-            async {
-                if !all_tags.is_empty() {
-                    PostgresClient::insert_tag_batch(pool, &all_tags).await
-                } else {
-                    Ok(sqlx::postgres::PgQueryResult::default())
-                }
-            }
+            PostgresClient::insert_tag_batch(pool, &tag_records),
         )?;
 
         debug!(
-            trace_rows = trace_result.rows_affected(),
             span_rows = span_result.rows_affected(),
             baggage_rows = baggage_result.rows_affected(),
-            tag_rows = tag_result.rows_affected(),
-            total_traces = trace_batch.len(),
             total_spans = span_batch.len(),
             total_baggage = baggage_batch.len(),
-            total_tags = all_tags.len(),
+            tag_rows = tag_result.rows_affected(),
             "Successfully inserted trace server records"
         );
         Ok(())
@@ -258,7 +235,6 @@ mod tests {
     use rand::Rng;
     use scouter_semver::VersionType;
     use scouter_settings::ObjectStorageSettings;
-    use scouter_types::llm::PaginationRequest;
     use scouter_types::psi::{Bin, BinType, PsiDriftConfig, PsiFeatureDriftProfile};
     use scouter_types::spc::SpcDriftProfile;
     use scouter_types::sql::TraceFilters;
@@ -298,6 +274,7 @@ mod tests {
             status_message: "OK".to_string(),
             root_span_id: span_id.clone(),
             tags: vec![],
+            process_attributes: vec![],
         }
     }
 
@@ -347,6 +324,7 @@ mod tests {
             label: None,
             input: Value::default(),
             output: Value::default(),
+            resource_attributes: vec![],
         }
     }
 
@@ -393,9 +371,6 @@ mod tests {
             FROM scouter.trace_baggage;
 
             DELETE
-            FROM scouter.traces;
-
-            DELETE
             FROM scouter.tags;
             "#,
         )
@@ -408,9 +383,7 @@ mod tests {
         let pool = PostgresClient::create_db_pool(&DatabaseSettings::default())
             .await
             .unwrap();
-
         cleanup(&pool).await;
-
         pool
     }
 
@@ -453,13 +426,12 @@ mod tests {
     #[tokio::test]
     async fn test_postgres_drift_alert() {
         let pool = db_pool().await;
-
-        let timestamp = Utc::now();
         let entity_id = 9999;
 
-        for _ in 0..10 {
+        // Insert 10 alerts with slight delays to ensure different timestamps
+        for i in 0..10 {
             let alert = (0..10)
-                .map(|i| (i.to_string(), i.to_string()))
+                .map(|j| (j.to_string(), format!("alert_{}_value_{}", i, j)))
                 .collect::<BTreeMap<String, String>>();
 
             let result = PostgresClient::insert_drift_alert(&pool, &entity_id, "test", &alert)
@@ -467,46 +439,176 @@ mod tests {
                 .unwrap();
 
             assert_eq!(result.rows_affected(), 1);
+
+            // Small delay to ensure timestamp ordering
+            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
         }
 
-        // get alerts
-        let alert_request = DriftAlertRequest {
+        // Test 1: Get first page with default limit (50)
+        let request = DriftAlertPaginationRequest {
             uid: UID.to_string(),
             active: Some(true),
-            limit: None,
-            limit_datetime: None,
+            limit: Some(50),
+            ..Default::default()
         };
 
-        let alerts = PostgresClient::get_drift_alerts(&pool, &alert_request, &entity_id)
+        let response = PostgresClient::get_paginated_drift_alerts(&pool, &request, &entity_id)
             .await
             .unwrap();
-        assert!(alerts.len() > 5);
 
-        // get alerts limit 1
-        let alert_request = DriftAlertRequest {
+        assert_eq!(response.items.len(), 10);
+        assert!(!response.has_next); // No more items
+        assert!(!response.has_previous); // First page
+        assert!(response.next_cursor.is_none());
+        assert!(response.previous_cursor.is_some());
+
+        // Test 2: Paginate with limit of 3 - forward direction
+        let request = DriftAlertPaginationRequest {
             uid: UID.to_string(),
             active: Some(true),
-            limit: Some(1),
-            limit_datetime: None,
+            limit: Some(3),
+            direction: Some("next".to_string()),
+            ..Default::default()
         };
 
-        let alerts = PostgresClient::get_drift_alerts(&pool, &alert_request, &entity_id)
+        let page1 = PostgresClient::get_paginated_drift_alerts(&pool, &request, &entity_id)
             .await
             .unwrap();
-        assert_eq!(alerts.len(), 1);
 
-        // get alerts limit timestamp
-        let alert_request = DriftAlertRequest {
+        assert_eq!(page1.items.len(), 3);
+        assert!(page1.has_next);
+        assert!(!page1.has_previous);
+        assert!(page1.next_cursor.is_some());
+        assert!(page1.previous_cursor.is_some());
+
+        // Test 3: Get second page using next cursor
+        let next_cursor = page1.next_cursor.unwrap();
+        let request = DriftAlertPaginationRequest {
             uid: UID.to_string(),
             active: Some(true),
-            limit: None,
-            limit_datetime: Some(timestamp),
+            limit: Some(3),
+            cursor_created_at: Some(next_cursor.created_at),
+            cursor_id: Some(next_cursor.id as i32),
+            direction: Some("next".to_string()),
+            start_datetime: None,
+            end_datetime: None,
         };
 
-        let alerts = PostgresClient::get_drift_alerts(&pool, &alert_request, &entity_id)
+        let page2 = PostgresClient::get_paginated_drift_alerts(&pool, &request, &entity_id)
             .await
             .unwrap();
-        assert!(alerts.len() > 5);
+
+        assert_eq!(page2.items.len(), 3);
+        assert!(page2.has_next); // More items available
+        assert!(page2.has_previous); // Can go back
+        assert!(page2.next_cursor.is_some());
+        assert!(page2.previous_cursor.is_some());
+
+        // Verify no overlap between pages
+        let page1_ids: std::collections::HashSet<_> = page1.items.iter().map(|a| a.id).collect();
+        let page2_ids: std::collections::HashSet<_> = page2.items.iter().map(|a| a.id).collect();
+        assert!(page1_ids.is_disjoint(&page2_ids));
+
+        // Test 4: Navigate backward using previous cursor
+        let prev_cursor = page2.previous_cursor.unwrap();
+        let request = DriftAlertPaginationRequest {
+            uid: UID.to_string(),
+            active: Some(true),
+            limit: Some(3),
+            cursor_created_at: Some(prev_cursor.created_at),
+            cursor_id: Some(prev_cursor.id as i32),
+            direction: Some("previous".to_string()),
+            start_datetime: None,
+            end_datetime: None,
+        };
+
+        let page_back = PostgresClient::get_paginated_drift_alerts(&pool, &request, &entity_id)
+            .await
+            .unwrap();
+
+        assert_eq!(page_back.items.len(), 3);
+        assert!(page_back.has_next); // Can go forward
+                                     // Should return to page1 items
+        assert_eq!(
+            page_back.items.iter().map(|a| a.id).collect::<Vec<_>>(),
+            page1.items.iter().map(|a| a.id).collect::<Vec<_>>()
+        );
+
+        // Test 5: Filter by active status
+        // Deactivate some alerts first
+        let to_deactivate = &page1.items[0];
+        let update_request = UpdateAlertStatus {
+            id: to_deactivate.id,
+            active: false,
+            space: "test_space".to_string(),
+        };
+
+        PostgresClient::update_drift_alert_status(&pool, &update_request)
+            .await
+            .unwrap();
+
+        // Query only active alerts
+        let request = DriftAlertPaginationRequest {
+            uid: UID.to_string(),
+            active: Some(true),
+            limit: Some(50),
+            ..Default::default()
+        };
+
+        let active_alerts = PostgresClient::get_paginated_drift_alerts(&pool, &request, &entity_id)
+            .await
+            .unwrap();
+
+        assert_eq!(active_alerts.items.len(), 9); // 10 - 1 deactivated
+        assert!(active_alerts.items.iter().all(|a| a.active));
+
+        // Query only inactive alerts
+        let request = DriftAlertPaginationRequest {
+            uid: UID.to_string(),
+            active: Some(false),
+            limit: Some(50),
+            ..Default::default()
+        };
+
+        let inactive_alerts =
+            PostgresClient::get_paginated_drift_alerts(&pool, &request, &entity_id)
+                .await
+                .unwrap();
+
+        assert_eq!(inactive_alerts.items.len(), 1);
+        assert!(!inactive_alerts.items[0].active);
+
+        // Test 6: Query all alerts (active and inactive)
+        let request = DriftAlertPaginationRequest {
+            uid: UID.to_string(),
+            active: None, // No filter
+            limit: Some(50),
+            ..Default::default()
+        };
+
+        let all_alerts = PostgresClient::get_paginated_drift_alerts(&pool, &request, &entity_id)
+            .await
+            .unwrap();
+
+        assert_eq!(all_alerts.items.len(), 10);
+
+        // Test 7: Empty result set
+        let request = DriftAlertPaginationRequest {
+            uid: UID.to_string(),
+            active: Some(true),
+            limit: Some(3),
+            ..Default::default()
+        };
+
+        let non_existent = PostgresClient::get_paginated_drift_alerts(&pool, &request, &999999)
+            .await
+            .unwrap();
+
+        assert_eq!(non_existent.items.len(), 0);
+        assert!(!non_existent.has_next);
+        assert!(!non_existent.has_previous);
+        assert!(non_existent.next_cursor.is_none());
+        assert!(non_existent.previous_cursor.is_none());
     }
 
     #[tokio::test]
@@ -666,7 +768,7 @@ mod tests {
             &pool,
             &DriftRequest {
                 uid: UID.to_string(),
-                time_interval: TimeInterval::FiveMinutes,
+                time_interval: TimeInterval::FifteenMinutes,
                 max_data_points: 10,
                 ..Default::default()
             },
@@ -1001,6 +1103,7 @@ mod tests {
         let output = "This is a test response";
         let prompt = create_score_prompt(None);
 
+        // Insert 10 records with increasing timestamps
         for j in 0..10 {
             let context = serde_json::json!({
                 "input": input,
@@ -1028,43 +1131,115 @@ mod tests {
             assert_eq!(result.rows_affected(), 1);
         }
 
-        // Get paginated records (1st page)
-        let pagination = PaginationRequest {
-            limit: 5,
-            cursor: None, // Start from the beginning
+        // ===== PAGE 1: Get first 5 records (newest) =====
+        let params = LLMDriftRecordPaginationRequest {
+            status: None,
+            limit: Some(5),
+            cursor_created_at: None,
+            cursor_id: None,
+            direction: None,
+            ..Default::default()
         };
 
-        let paginated_features =
-            PostgresClient::get_llm_drift_records_pagination(&pool, &entity_id, None, pagination)
+        let page1 = PostgresClient::get_paginated_llm_drift_records(&pool, &params, &entity_id)
+            .await
+            .unwrap();
+
+        assert_eq!(page1.items.len(), 5, "Page 1 should have 5 records");
+        assert!(page1.has_next, "Should have next page");
+        assert!(
+            !page1.has_previous,
+            "Should not have previous page (first page)"
+        );
+        assert!(page1.next_cursor.is_some(), "Should have next cursor");
+
+        // First item should be the NEWEST record (highest ID)
+        let page1_first = page1.items.first().unwrap();
+        let page1_last = page1.items.last().unwrap();
+
+        assert!(
+            page1_first.created_at >= page1_last.created_at,
+            "Page 1 should be sorted newest first (DESC)"
+        );
+
+        // ===== PAGE 2: Get next 5 records (older) =====
+        let next_cursor = page1.next_cursor.unwrap();
+
+        let params = LLMDriftRecordPaginationRequest {
+            status: None,
+            limit: Some(5),
+            cursor_created_at: Some(next_cursor.created_at),
+            cursor_id: Some(next_cursor.id),
+            direction: None,
+            ..Default::default()
+        };
+
+        let page2 = PostgresClient::get_paginated_llm_drift_records(&pool, &params, &entity_id)
+            .await
+            .unwrap();
+
+        assert_eq!(page2.items.len(), 5, "Page 2 should have 5 records");
+        assert!(!page2.has_next, "Should not have next page (last page)");
+        assert!(page2.has_previous, "Should have previous page");
+        assert!(
+            page2.previous_cursor.is_some(),
+            "Should have previous cursor"
+        );
+
+        let page2_first = page2.items.first().unwrap();
+
+        // Page 2 first item should be OLDER than Page 1 last item
+        assert!(
+            page2_first.created_at < page1_last.created_at
+                || (page2_first.created_at == page1_last.created_at
+                    && page2_first.id < page1_last.id),
+            "Page 2 should start with records older than Page 1 last item"
+        );
+
+        // Verify we got all 10 records across both pages
+        let all_ids: Vec<i64> = page1
+            .items
+            .iter()
+            .chain(page2.items.iter())
+            .map(|r| r.id)
+            .collect();
+
+        assert_eq!(all_ids.len(), 10, "Should have 10 unique records total");
+
+        // All IDs should be unique
+        let unique_ids: std::collections::HashSet<_> = all_ids.iter().collect();
+        assert_eq!(unique_ids.len(), 10, "All IDs should be unique");
+
+        // ===== BACKWARD PAGINATION TEST =====
+        // Go back from page 2 to page 1
+        let previous_cursor = page2.previous_cursor.unwrap();
+
+        let params = LLMDriftRecordPaginationRequest {
+            status: None,
+            limit: Some(5),
+            cursor_created_at: Some(previous_cursor.created_at),
+            cursor_id: Some(previous_cursor.id),
+            direction: Some("previous".to_string()),
+            ..Default::default()
+        };
+
+        let page1_again =
+            PostgresClient::get_paginated_llm_drift_records(&pool, &params, &entity_id)
                 .await
                 .unwrap();
 
-        assert_eq!(paginated_features.items.len(), 5);
-        assert!(paginated_features.next_cursor.is_some());
+        assert_eq!(
+            page1_again.items.len(),
+            5,
+            "Going back should return 5 records"
+        );
 
-        // get id of the most recent record in the first page
-        let last_record = paginated_features.items.first().unwrap();
-
-        // Get paginated records (2nd page)
-        let next_cursor = paginated_features.next_cursor.unwrap();
-        let pagination = PaginationRequest {
-            limit: 5,
-            cursor: Some(next_cursor),
-        };
-
-        let paginated_features =
-            PostgresClient::get_llm_drift_records_pagination(&pool, &entity_id, None, pagination)
-                .await
-                .unwrap();
-
-        assert_eq!(paginated_features.items.len(), 5);
-        assert!(paginated_features.next_cursor.is_none());
-
-        // get last record of the second page
-        let first_record = paginated_features.items.last().unwrap();
-
-        let diff = last_record.id - first_record.id + 1; // +1 because IDs are inclusive
-        assert!(diff == 10);
+        // Should get the same records as page 1
+        assert_eq!(
+            page1_again.items.first().unwrap().id,
+            page1_first.id,
+            "Should return to the same first record"
+        );
     }
 
     #[tokio::test]
@@ -1126,13 +1301,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_postgres_tracing() {
+    async fn test_postgres_tracing_metrics() {
         let pool = db_pool().await;
         let script = std::fs::read_to_string("src/tests/script/populate_trace.sql").unwrap();
         sqlx::query(&script).execute(&pool).await.unwrap();
         let mut filters = TraceFilters::default();
 
-        let first_batch = PostgresClient::get_traces_paginated(&pool, filters.clone())
+        let first_batch = PostgresClient::get_paginated_traces(&pool, filters.clone())
             .await
             .unwrap();
 
@@ -1146,7 +1321,7 @@ mod tests {
         let last_record = first_batch.next_cursor.unwrap();
         filters = filters.next_page(&last_record);
 
-        let next_batch = PostgresClient::get_traces_paginated(&pool, filters.clone())
+        let next_batch = PostgresClient::get_paginated_traces(&pool, filters.clone())
             .await
             .unwrap();
 
@@ -1160,13 +1335,13 @@ mod tests {
         // assert next_batch first record timestamp is <= first_batch last record timestamp
         let next_first_record = next_batch.items.first().unwrap();
         assert!(
-            next_first_record.created_at <= last_record.created_at,
+            next_first_record.start_time <= last_record.start_time,
             "Next batch first record timestamp is not less than or equal to last record timestamp"
         );
 
         // test pagination for previous
         filters = filters.previous_page(&next_batch.previous_cursor.unwrap());
-        let previous_batch = PostgresClient::get_traces_paginated(&pool, filters.clone())
+        let previous_batch = PostgresClient::get_paginated_traces(&pool, filters.clone())
             .await
             .unwrap();
         assert_eq!(
@@ -1179,13 +1354,13 @@ mod tests {
         let filtered_record = first_batch
             .items
             .iter()
-            .find(|record| record.span_count > Some(5))
+            .find(|record| record.span_count > 5)
             .unwrap();
 
-        filters.cursor_created_at = None;
+        filters.cursor_start_time = None;
         filters.cursor_trace_id = None;
 
-        let records = PostgresClient::get_traces_paginated(&pool, filters.clone())
+        let records = PostgresClient::get_paginated_traces(&pool, filters.clone())
             .await
             .unwrap();
 
@@ -1204,19 +1379,29 @@ mod tests {
         .await
         .unwrap();
 
-        assert!(spans.len() == filtered_record.span_count.unwrap() as usize);
+        assert!(spans.len() == filtered_record.span_count as usize);
 
-        let start_time = filtered_record.created_at - chrono::Duration::hours(24);
-        let end_time = filtered_record.created_at + chrono::Duration::minutes(5);
+        let start_time = filtered_record.start_time - chrono::Duration::hours(48);
+        let end_time = filtered_record.start_time + chrono::Duration::minutes(5);
 
         // make request for trace metrics
         let trace_metrics =
-            PostgresClient::get_trace_metrics(&pool, None, start_time, end_time, "60 minutes")
+            PostgresClient::get_trace_metrics(&pool, None, start_time, end_time, "5 minutes", None)
                 .await
                 .unwrap();
 
         // assert we have data points
         assert!(trace_metrics.len() >= 10);
+
+        // get paginated traces with tags
+        let filters = scouter_types::sql::TraceFilters {
+            attribute_filters: Some(vec![("component=kafka".to_string())]),
+            ..Default::default()
+        };
+        let tagged_batch = PostgresClient::get_paginated_traces(&pool, filters)
+            .await
+            .unwrap();
+        assert!(!tagged_batch.items.is_empty());
     }
 
     #[tokio::test]
@@ -1235,20 +1420,6 @@ mod tests {
         // set root span id in trace record
         trace_record.root_span_id = root_span.span_id.clone();
 
-        // this should perform an insert
-        let result = PostgresClient::upsert_trace_batch(&pool, &[trace_record.clone()])
-            .await
-            .unwrap();
-
-        assert_eq!(result.rows_affected(), 1);
-
-        // this should perform an update (mainly just increasing span count)
-        let result = PostgresClient::upsert_trace_batch(&pool, &[trace_record.clone()])
-            .await
-            .unwrap();
-
-        assert_eq!(result.rows_affected(), 1);
-
         // insert spans
         let result =
             PostgresClient::insert_span_batch(&pool, &[root_span.clone(), child_span.clone()])
@@ -1257,31 +1428,25 @@ mod tests {
 
         assert_eq!(result.rows_affected(), 2);
 
-        // refresh materialized view
-        sqlx::query("REFRESH MATERIALIZED VIEW scouter.trace_summary;")
-            .execute(&pool)
-            .await
-            .unwrap();
-
         let inserted_created_at = trace_record.created_at;
         let inserted_trace_id = trace_record.trace_id.clone();
 
         let trace_filter = TraceFilters {
-            cursor_created_at: Some(inserted_created_at + Duration::days(1)),
+            cursor_start_time: Some(inserted_created_at + Duration::days(1)),
             cursor_trace_id: Some(inserted_trace_id),
             start_time: Some(inserted_created_at - Duration::minutes(5)),
             end_time: Some(inserted_created_at + Duration::days(1)),
             ..TraceFilters::default()
         };
 
-        let traces = PostgresClient::get_traces_paginated(&pool, trace_filter)
+        let traces = PostgresClient::get_paginated_traces(&pool, trace_filter)
             .await
             .unwrap();
 
         assert_eq!(traces.items.len(), 1);
         let retrieved_trace = &traces.items[0];
         // assert span count is 2
-        assert_eq!(retrieved_trace.span_count.unwrap(), 2);
+        assert_eq!(retrieved_trace.span_count, 2);
 
         let baggage = TraceBaggageRecord {
             created_at: Utc::now(),
@@ -1312,7 +1477,6 @@ mod tests {
         let uid = create_uuid7();
 
         let tag1 = TagRecord {
-            created_at: Utc::now(),
             entity_id: uid.clone(),
             entity_type: "service".to_string(),
             key: "env".to_string(),
@@ -1320,7 +1484,6 @@ mod tests {
         };
 
         let tag2 = TagRecord {
-            created_at: Utc::now(),
             entity_id: uid.clone(),
             entity_type: "service".to_string(),
             key: "team".to_string(),
@@ -1338,5 +1501,16 @@ mod tests {
             .unwrap();
 
         assert_eq!(tags.len(), 2);
+
+        let tag_filter = vec![Tag {
+            key: tags.first().unwrap().key.clone(),
+            value: tags.first().unwrap().value.clone(),
+        }];
+
+        let entity_id = PostgresClient::get_entity_id_by_tags(&pool, "service", &tag_filter, false)
+            .await
+            .unwrap();
+
+        assert_eq!(entity_id.first().unwrap(), &uid);
     }
 }

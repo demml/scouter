@@ -82,7 +82,7 @@ pub trait ProfileSqlLogic {
         args: &ProfileArgs,
         version_request: VersionRequest,
     ) -> Result<Version, SqlError> {
-        let mut version_query = Queries::GetProfileVersions.get_query().sql;
+        let mut version_query = Queries::GetProfileVersions.get_query().to_string();
 
         if let Some(version) = &version_request.version {
             add_version_bounds(&mut version_query, version)?;
@@ -157,7 +157,7 @@ pub trait ProfileSqlLogic {
         let pre: Option<String> = version.pre.to_string().parse().ok();
         let build: Option<String> = version.build.to_string().parse().ok();
 
-        let result = sqlx::query(&query.sql)
+        let result = sqlx::query(query)
             // 1. Entity UID (for entity_insert) -> $1
             .bind(create_uuid7())
             // 2-3. Entity Identity (for entity_insert & deactivation logic) -> $2, $3
@@ -209,7 +209,7 @@ pub trait ProfileSqlLogic {
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::UpdateDriftProfile.get_query();
 
-        sqlx::query(&query.sql)
+        sqlx::query(query)
             .bind(drift_profile.to_value())
             .bind(drift_profile.drift_type().to_string())
             .bind(entity_id)
@@ -231,7 +231,7 @@ pub trait ProfileSqlLogic {
     ) -> Result<Option<Value>, SqlError> {
         let query = Queries::GetDriftProfile.get_query();
 
-        let result = sqlx::query(&query.sql)
+        let result = sqlx::query(query)
             .bind(entity_id)
             .fetch_optional(pool)
             .await
@@ -250,19 +250,22 @@ pub trait ProfileSqlLogic {
         pool: &Pool<Postgres>,
     ) -> Result<Option<TaskRequest>, SqlError> {
         let query = Queries::GetDriftTask.get_query();
-        sqlx::query_as(&query.sql)
+        sqlx::query_as(query)
             .fetch_optional(pool)
             .await
-            .map_err(SqlError::SqlxError)
+            .map_err(|e| {
+                error!("Failed to get drift profile task: {:?}", e);
+                SqlError::SqlxError(e)
+            })
     }
 
     async fn list_drift_profiles(
         pool: &Pool<Postgres>,
         args: &ListProfilesRequest,
     ) -> Result<Vec<ListedProfile>, SqlError> {
-        let profile_query = Queries::ListDriftProfiles.get_query().sql;
+        let profile_query = Queries::ListDriftProfiles.get_query();
 
-        let records: Vec<(bool, Value)> = sqlx::query_as(&profile_query)
+        let records: Vec<(bool, Value)> = sqlx::query_as(profile_query)
             .bind(&args.space)
             .bind(&args.name)
             .bind(&args.version)
@@ -311,7 +314,7 @@ pub trait ProfileSqlLogic {
             }
         };
 
-        let query_result = sqlx::query(&query.sql)
+        let query_result = sqlx::query(query)
             .bind(next_run)
             .bind(entity_id)
             .execute(pool)
@@ -331,7 +334,7 @@ pub trait ProfileSqlLogic {
         let query = Queries::UpdateDriftProfileStatus.get_query();
 
         // convert drift_type to string or None
-        let query_result = sqlx::query(&query.sql)
+        let query_result = sqlx::query(query)
             .bind(params.active)
             .bind(&params.name)
             .bind(&params.space)
@@ -346,7 +349,7 @@ pub trait ProfileSqlLogic {
                 if params.deactivate_others {
                     let query = Queries::DeactivateDriftProfiles.get_query();
 
-                    let query_result = sqlx::query(&query.sql)
+                    let query_result = sqlx::query(query)
                         .bind(&params.name)
                         .bind(&params.space)
                         .bind(&params.version)
