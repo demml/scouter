@@ -270,6 +270,41 @@ impl LLMJudgeTask {
     }
 }
 
+impl LLMJudgeTask {
+    /// Creates a new LLMJudgeTask with Rust types
+    /// # Arguments
+    /// * `id: The id of the judge task
+    /// * `prompt`: The prompt object to be used for evaluation
+    /// * `expected_value`: The expected value for the judgement
+    /// * `field_path`: Optional field path to extract from the context for evaluation
+    /// * `operator`: The comparison operator to use
+    /// * `depends_on`: Optional list of task IDs this task depends on
+    /// * `max_retries`: Optional maximum number of retries for this task (defaults to
+    /// 3 if not provided)
+    /// # Returns
+    /// A new LLMJudgeTask object
+    pub fn new_rs(
+        id: &str,
+        prompt: Prompt,
+        expected_value: Value,
+        field_path: Option<String>,
+        operator: ComparisonOperator,
+        depends_on: Option<Vec<String>>,
+        max_retries: Option<u32>,
+    ) -> Self {
+        Self {
+            id: id.to_lowercase(),
+            prompt,
+            expected_value,
+            operator,
+            task_type: EvaluationTaskType::LLMJudge,
+            depends_on: depends_on.unwrap_or_default(),
+            max_retries: max_retries.or(Some(3)),
+            field_path,
+        }
+    }
+}
+
 impl TaskAccessor for LLMJudgeTask {
     fn field_path(&self) -> Option<&str> {
         self.field_path.as_deref()

@@ -27,7 +27,6 @@ pub enum TaskRef<'a> {
 }
 
 impl<'a> TaskRef<'a> {
-    /// Access the underlying task through the TaskAccessor trait
     #[inline]
     pub fn as_task(&self) -> &dyn TaskAccessor {
         match self {
@@ -41,7 +40,7 @@ impl<'a> TaskRef<'a> {
 /// Provides unified access to assertions and LLM judge tasks
 pub trait ProfileExt {
     fn id(&self) -> &str;
-    fn get_task_by_id(&self, id: &str) -> Option<TaskRef>;
+    fn get_task_by_id<'a>(&'a self, id: &str) -> Option<TaskRef<'a>>;
     fn get_assertion_by_id(&self, id: &str) -> Option<&AssertionTask>;
     fn get_llm_judge_by_id(&self, id: &str) -> Option<&LLMJudgeTask>;
 

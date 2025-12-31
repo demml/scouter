@@ -24,7 +24,7 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tracing::{debug, error, field, instrument};
+use tracing::instrument;
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -587,7 +587,7 @@ impl ProfileExt for GenAIEvalProfile {
         &self.config.uid
     }
 
-    fn get_task_by_id(&self, id: &str) -> Option<TaskRef> {
+    fn get_task_by_id<'a>(&'a self, id: &str) -> Option<TaskRef<'a>> {
         self.get_assertion_by_id(id)
             .map(TaskRef::Assertion)
             .or_else(|| self.get_llm_judge_by_id(id).map(TaskRef::LLMJudge))
@@ -657,10 +657,9 @@ impl GenAIDriftMap {
 mod tests {
 
     use super::*;
-    use crate::AlertThreshold;
+    use crate::genai::ComparisonOperator;
     use crate::{AlertDispatchConfig, OpsGenieDispatchConfig, SlackDispatchConfig};
-    use potato_head::mock::{create_parameterized_prompt, create_score_prompt, LLMTestServer};
-    use potato_head::Provider;
+    use potato_head::mock::create_score_prompt;
 
     #[test]
     fn test_genai_drift_config() {
@@ -713,110 +712,27 @@ mod tests {
 
     #[test]
     fn test_genai_drift_profile_metric() {
-        let runtime = tokio::runtime::Runtime::new().unwrap();
-        let mut mock = LLMTestServer::new();
-        mock.start_server().unwrap();
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
 
-        let metric1 = GenAIDriftMetric::new(
+        let task1 = LLMJudgeTask::new_rs(
             "metric1",
-            5.0,
-            AlertThreshold::Above,
+            prompt.clone(),
+            Value::Number(4.into()),
             None,
-            Some(prompt.clone()),
-        )
-        .unwrap();
-        let metric2 = GenAIDriftMetric::new(
+            ComparisonOperator::GreaterThanOrEqual,
+            None,
+            None,
+        );
+
+        let task2 = LLMJudgeTask::new_rs(
             "metric2",
-            3.0,
-            AlertThreshold::Below,
-            Some(1.0),
-            Some(prompt.clone()),
-        )
-        .unwrap();
-
-        let genai_metrics = vec![metric1, metric2];
-
-        let alert_config = GenAIAlertConfig {
-            schedule: "0 0 * * * *".to_string(),
-            dispatch_config: AlertDispatchConfig::OpsGenie(OpsGenieDispatchConfig {
-                team: "test-team".to_string(),
-                priority: "P5".to_string(),
-            }),
-            ..Default::default()
-        };
-
-        let drift_config =
-            GenAIDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
-
-        let profile = runtime
-            .block_on(async { GenAIEvalProfile::from_metrics(drift_config, genai_metrics).await })
-            .unwrap();
-        let _: Value =
-            serde_json::from_str(&profile.model_dump_json()).expect("Failed to parse actual JSON");
-
-        assert_eq!(profile.metrics.len(), 2);
-        assert_eq!(profile.scouter_version, env!("CARGO_PKG_VERSION"));
-
-        mock.stop_server().unwrap();
-    }
-
-    #[test]
-    fn test_genai_drift_profile_workflow() {
-        let mut mock = LLMTestServer::new();
-        mock.start_server().unwrap();
-        let runtime = tokio::runtime::Runtime::new().unwrap();
-
-        let mut workflow = Workflow::new("My eval Workflow");
-
-        let initial_prompt = create_parameterized_prompt();
-        let final_prompt1 = create_score_prompt(None);
-        let final_prompt2 = create_score_prompt(None);
-
-        let agent1 = runtime
-            .block_on(async { Agent::new(Provider::OpenAI, None).await })
-            .unwrap();
-
-        workflow.add_agent(&agent1);
-
-        // First task with parameters
-        workflow
-            .add_task(Task::new(
-                &agent1.id,
-                initial_prompt.clone(),
-                "task1",
-                None,
-                None,
-            ))
-            .unwrap();
-
-        // Final tasks that depend on the first task
-        workflow
-            .add_task(Task::new(
-                &agent1.id,
-                final_prompt1.clone(),
-                "task2",
-                Some(vec!["task1".to_string()]),
-                None,
-            ))
-            .unwrap();
-
-        workflow
-            .add_task(Task::new(
-                &agent1.id,
-                final_prompt2.clone(),
-                "task3",
-                Some(vec!["task1".to_string()]),
-                None,
-            ))
-            .unwrap();
-
-        let metric1 =
-            GenAIDriftMetric::new("task2", 3.0, AlertThreshold::Below, Some(1.0), None).unwrap();
-        let metric2 =
-            GenAIDriftMetric::new("task3", 4.0, AlertThreshold::Above, Some(2.0), None).unwrap();
-
-        let genai_metrics = vec![metric1, metric2];
+            prompt.clone(),
+            Value::Number(2.into()),
+            None,
+            ComparisonOperator::LessThanOrEqual,
+            None,
+            None,
+        );
 
         let alert_config = GenAIAlertConfig {
             schedule: "0 0 * * * *".to_string(),
@@ -830,24 +746,12 @@ mod tests {
         let drift_config =
             GenAIDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
 
-        let profile =
-            GenAIEvalProfile::from_workflow(drift_config, workflow, genai_metrics).unwrap();
+        let profile = GenAIEvalProfile::new(drift_config, None, Some(vec![task1, task2])).unwrap();
 
         let _: Value =
             serde_json::from_str(&profile.model_dump_json()).expect("Failed to parse actual JSON");
 
-        assert_eq!(profile.metrics.len(), 2);
+        assert_eq!(profile.llm_judge_tasks.len(), 2);
         assert_eq!(profile.scouter_version, env!("CARGO_PKG_VERSION"));
-
-        let plan = profile.workflow.execution_plan().unwrap();
-
-        // plan should have 2 steps
-        assert_eq!(plan.len(), 2);
-        // first step should have 1 task
-        assert_eq!(plan.get(&1).unwrap().len(), 1);
-        // last step should have 2 tasks
-        assert_eq!(plan.get(&(plan.len() as i32)).unwrap().len(), 2);
-
-        mock.stop_server().unwrap();
     }
 }

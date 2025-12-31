@@ -5,11 +5,9 @@ use crate::{
     ValidateAlertConfig,
 };
 use core::fmt::Debug;
-use potato_head::prompt_types::{Prompt, ResponseType};
 use pyo3::prelude::*;
 use pyo3::types::PyString;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -18,15 +16,14 @@ pub struct GenAIEvalAlertCondition {
     pub alert_threshold: AlertThreshold,
 
     #[pyo3(get, set)]
-    pub alert_threshold_value: Option<f64>,
+    pub alert_threshold_value: f64,
 }
 
 #[pymethods]
-#[allow(clippy::too_many_arguments)]
 impl GenAIEvalAlertCondition {
     #[new]
-    #[pyo3(signature = (alert_threshold, alert_threshold_value=None))]
-    pub fn new(alert_threshold: AlertThreshold, alert_threshold_value: Option<f64>) -> Self {
+    #[pyo3(signature = (alert_threshold, alert_threshold_value))]
+    pub fn new(alert_threshold: AlertThreshold, alert_threshold_value: f64) -> Self {
         Self {
             alert_threshold,
             alert_threshold_value,
@@ -190,7 +187,6 @@ impl DispatchAlertDescription for PromptComparisonMetricAlert {
 #[cfg(feature = "mock")]
 mod tests {
     use super::*;
-    use potato_head::mock::create_score_prompt;
 
     #[test]
     fn test_alert_config() {
@@ -200,49 +196,12 @@ mod tests {
             priority: "P5".to_string(),
         });
         let schedule = "0 0 * * * *".to_string();
-        let mut alert_config = GenAIAlertConfig {
+        let alert_condition = GenAIEvalAlertCondition::new(AlertThreshold::Above, 5.0);
+        let alert_config = GenAIAlertConfig {
             dispatch_config,
             schedule,
-            ..Default::default()
+            alert_condition: Some(alert_condition.clone()),
         };
         assert_eq!(alert_config.dispatch_type(), AlertDispatchType::OpsGenie);
-
-        let prompt = create_score_prompt(Some(vec!["input".to_string()]));
-
-        let genai_metrics = vec![
-            GenAIDriftMetric::new(
-                "mae",
-                12.4,
-                AlertThreshold::Above,
-                Some(2.3),
-                Some(prompt.clone()),
-            )
-            .unwrap(),
-            GenAIDriftMetric::new(
-                "accuracy",
-                0.85,
-                AlertThreshold::Below,
-                None,
-                Some(prompt.clone()),
-            )
-            .unwrap(),
-        ];
-
-        alert_config.set_alert_conditions(&genai_metrics);
-
-        if let Some(alert_conditions) = alert_config.alert_conditions.as_ref() {
-            assert_eq!(
-                alert_conditions["mae"].alert_threshold,
-                AlertThreshold::Above
-            );
-            assert_eq!(alert_conditions["mae"].alert_threshold_value, Some(2.3));
-            assert_eq!(
-                alert_conditions["accuracy"].alert_threshold,
-                AlertThreshold::Below
-            );
-            assert_eq!(alert_conditions["accuracy"].alert_threshold_value, None);
-        } else {
-            panic!("alert_conditions should not be None");
-        }
     }
 }
