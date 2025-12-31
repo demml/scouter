@@ -117,6 +117,15 @@ pub enum DriftError {
 
     #[error("Failed to acquire write lock on workflow")]
     WriteLockAcquireError,
+
+    #[error("Task execution error: {0}")]
+    TaskExecutionError(String),
+
+    #[error(transparent)]
+    EvaluationError(#[from] scouter_evaluate::error::EvaluationError),
+
+    #[error("Task not found: {0}")]
+    TaskNotFound(String),
 }
 
 impl From<DriftError> for PyErr {

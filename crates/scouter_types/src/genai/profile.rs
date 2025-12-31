@@ -1,6 +1,7 @@
 use crate::error::{ProfileError, TypeError};
 use crate::genai::alert::GenAIAlertConfig;
 use crate::genai::eval::{AssertionTask, LLMJudgeTask};
+use crate::genai::traits::{ProfileExt, TaskAccessor, TaskRef};
 use crate::util::{json_to_pyobject, pyobject_to_json, ConfigExt};
 use crate::ProfileRequest;
 use crate::{scouter_version, GenAIMetricRecord};
@@ -578,13 +579,33 @@ impl GenAIEvalProfile {
 
         Ok(workflow)
     }
+}
 
-    pub fn get_assertion_by_id(&self, id: &str) -> Option<&AssertionTask> {
-        self.assertions.iter().find(|a| a.id == id)
+impl ProfileExt for GenAIEvalProfile {
+    #[inline]
+    fn id(&self) -> &str {
+        &self.config.uid
     }
 
-    pub fn get_llm_judge_by_id(&self, id: &str) -> Option<&LLMJudgeTask> {
-        self.llm_judge_tasks.iter().find(|a| a.id == id)
+    fn get_task_by_id(&self, id: &str) -> Option<TaskRef> {
+        self.get_assertion_by_id(id)
+            .map(TaskRef::Assertion)
+            .or_else(|| self.get_llm_judge_by_id(id).map(TaskRef::LLMJudge))
+    }
+
+    #[inline]
+    fn get_assertion_by_id(&self, id: &str) -> Option<&AssertionTask> {
+        self.assertions.iter().find(|t| t.id() == id)
+    }
+
+    #[inline]
+    fn get_llm_judge_by_id(&self, id: &str) -> Option<&LLMJudgeTask> {
+        self.llm_judge_tasks.iter().find(|t| t.id() == id)
+    }
+
+    #[inline]
+    fn has_llm_tasks(&self) -> bool {
+        !self.llm_judge_tasks.is_empty()
     }
 }
 

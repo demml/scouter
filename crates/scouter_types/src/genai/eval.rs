@@ -1,4 +1,5 @@
 use crate::error::TypeError;
+use crate::genai::traits::TaskAccessor;
 use crate::PyHelperFuncs;
 use core::fmt::Debug;
 use potato_head::prompt_types::{Prompt, ResponseType};
@@ -112,6 +113,28 @@ impl AssertionTask {
     pub fn get_expected_value<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TypeError> {
         let py_value = pythonize(py, &self.expected_value)?;
         Ok(py_value)
+    }
+}
+
+impl TaskAccessor for AssertionTask {
+    fn field_path(&self) -> Option<&str> {
+        self.field_path.as_deref()
+    }
+
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn operator(&self) -> &ComparisonOperator {
+        &self.operator
+    }
+
+    fn expected_value(&self) -> &Value {
+        &self.expected_value
+    }
+
+    fn depends_on(&self) -> &[String] {
+        &self.depends_on
     }
 }
 
@@ -244,6 +267,27 @@ impl LLMJudgeTask {
     pub fn get_expected_value<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TypeError> {
         let py_value = pythonize(py, &self.expected_value)?;
         Ok(py_value)
+    }
+}
+
+impl TaskAccessor for LLMJudgeTask {
+    fn field_path(&self) -> Option<&str> {
+        self.field_path.as_deref()
+    }
+
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn operator(&self) -> &ComparisonOperator {
+        &self.operator
+    }
+
+    fn expected_value(&self) -> &Value {
+        &self.expected_value
+    }
+    fn depends_on(&self) -> &[String] {
+        &self.depends_on
     }
 }
 
@@ -422,18 +466,8 @@ impl EvaluationContext {
         }
     }
 
-    /// Build context for a specific task that may or may not have dependencies
-    /// If dependencies exist, merge their results
-    /// If no dependencies, return base context
-    /// Base context is not included if dependencies exist
-    pub fn build_task_context(&self, depends_on: &Vec<String>) -> Result<Value, TypeError> {
-        if depends_on.is_empty() {
-            // No dependencies: use original base context
-            return Ok(self.context.clone());
-        } else {
-            // Has dependencies: use only dependent task outputs
-            return Ok(self.build_dependency_context(depends_on)?);
-        }
+    pub fn build_merged_context(&self, depends_on: &[String]) -> Result<Value, TypeError> {
+        self.build_dependency_context(depends_on)
     }
 
     /// Build context from dependent task results
@@ -444,8 +478,7 @@ impl EvaluationContext {
     /// * `task`: The assertion task for which to build the dependency context
     /// # Returns
     /// A serde_json::Value representing the merged dependency context
-    fn build_dependency_context(&self, depends_on: &Vec<String>) -> Result<Value, TypeError> {
-        // If single dependency and no field path, return that dependency's output directly
+    fn build_dependency_context(&self, depends_on: &[String]) -> Result<Value, TypeError> {
         if depends_on.len() == 1 {
             let dep_id = &depends_on[0];
             return self
@@ -455,15 +488,12 @@ impl EvaluationContext {
                 .ok_or_else(|| TypeError::MissingDependency(dep_id.clone()));
         }
 
-        // Multiple dependencies: create object with each dependency's output
-        let mut context_map = serde_json::Map::new();
-
+        let mut context_map = serde_json::Map::with_capacity(depends_on.len());
         for dep_id in depends_on {
             let dep_value = self
                 .task_results
                 .get(dep_id)
                 .ok_or_else(|| TypeError::MissingDependency(dep_id.clone()))?;
-
             context_map.insert(dep_id.clone(), dep_value.clone());
         }
 

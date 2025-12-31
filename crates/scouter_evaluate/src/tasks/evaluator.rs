@@ -1,9 +1,8 @@
-use crate::{error::EvaluationError, tasks::traits::AssertionAccessor};
+use crate::error::EvaluationError;
 use regex::Regex;
 use scouter_types::genai::ValueExt;
-use scouter_types::genai::{AssertionResult, ComparisonOperator};
+use scouter_types::genai::{traits::TaskAccessor, AssertionResult, ComparisonOperator};
 use serde_json::Value;
-use std::borrow::Cow;
 use std::sync::OnceLock;
 
 const REGEX_FIELD_PARSE_PATTERN: &str = r"[a-zA-Z_][a-zA-Z0-9_]*|\[[0-9]+\]";
@@ -20,7 +19,10 @@ impl FieldEvaluator {
     /// * `field_path` - The dot/bracket notation path to the desired field
     /// # Returns
     /// The extracted JSON value or an EvaluationError if the path is invalid
-    pub fn extract_field_value(json: &Value, field_path: &str) -> Result<Value, EvaluationError> {
+    pub fn extract_field_value<'a>(
+        json: &'a Value,
+        field_path: &str,
+    ) -> Result<&'a Value, EvaluationError> {
         let path_segments = Self::parse_field_path(field_path)?;
         let mut current_value = json;
 
@@ -35,7 +37,7 @@ impl FieldEvaluator {
             };
         }
 
-        Ok(current_value.clone())
+        Ok(current_value)
     }
 
     /// Parses a field path string into segments for navigation
@@ -91,14 +93,14 @@ impl AssertionEvaluator {
     /// * `assertion` - The assertion to evaluate
     /// # Returns
     /// An AssertionResult indicating whether the assertion passed or failed
-    pub fn evaluate_assertion<T: AssertionAccessor>(
+    pub fn evaluate_assertion<T: TaskAccessor>(
         json_value: &Value,
         assertion: &T,
     ) -> Result<AssertionResult, EvaluationError> {
-        let actual_value: Cow<Value> = if let Some(field_path) = assertion.field_path() {
-            Cow::Owned(FieldEvaluator::extract_field_value(json_value, field_path)?)
+        let actual_value: &Value = if let Some(field_path) = assertion.field_path() {
+            FieldEvaluator::extract_field_value(json_value, field_path)?
         } else {
-            Cow::Borrowed(json_value) // Zero-copy when no field_path!
+            json_value
         };
 
         // Transform for comparison (now uses Cow - only clones when necessary)
@@ -111,12 +113,9 @@ impl AssertionEvaluator {
 
         // AssertionResult creation - necessary clones for owned storage
         Ok(AssertionResult {
-            id: assertion.id().clone(),
+            id: assertion.id().to_string(),
             passed,
-            field_path: assertion
-                .field_path()
-                .as_ref()
-                .and_then(|fp| Some(fp.clone())),
+            field_path: assertion.field_path().map(|s| s.to_string()),
             expected: expected.clone(),
             actual: (*actual_value).clone(),
             message: if passed {
@@ -126,7 +125,7 @@ impl AssertionEvaluator {
                     "✗ Assertion '{}' failed: expected {}, got {}",
                     assertion.id(),
                     serde_json::to_string(expected).unwrap_or_default(),
-                    serde_json::to_string(&*comparable_actual).unwrap_or_default()
+                    serde_json::to_string(&comparable_actual).unwrap_or_default()
                 )
             },
         })
@@ -140,10 +139,10 @@ impl AssertionEvaluator {
     /// * `operator` - The comparison operator
     /// # Returns
     /// The transformed value or an EvaluationError if transformation fails
-    fn transform_for_comparison<'a>(
-        value: &'a Cow<'a, Value>,
+    fn transform_for_comparison(
+        value: &Value,
         operator: &ComparisonOperator,
-    ) -> Result<Cow<'a, Value>, EvaluationError> {
+    ) -> Result<Value, EvaluationError> {
         match operator {
             ComparisonOperator::HasLength
             | ComparisonOperator::LessThan
@@ -151,14 +150,14 @@ impl AssertionEvaluator {
             | ComparisonOperator::GreaterThan
             | ComparisonOperator::GreaterThanOrEqual => {
                 if let Some(len) = value.to_length() {
-                    Ok(Cow::Owned(Value::Number(len.into())))
+                    Ok(Value::Number(len.into()))
                 } else if value.is_number() {
-                    Ok(Cow::Borrowed(value))
+                    Ok(value.clone()) // Must clone to return owned
                 } else {
                     Err(EvaluationError::CannotGetLength(format!("{:?}", value)))
                 }
             }
-            _ => Ok(Cow::Borrowed(value)),
+            _ => Ok(value.clone()), // Must clone to return owned
         }
     }
 
@@ -420,44 +419,44 @@ mod tests {
     fn test_extract_simple_field() {
         let json = get_test_json();
         let result = FieldEvaluator::extract_field_value(&json, "status").unwrap();
-        assert_eq!(result, json!("in_progress"));
+        assert_eq!(*result, json!("in_progress"));
     }
 
     #[test]
     fn test_extract_array_field() {
         let json = get_test_json();
         let result = FieldEvaluator::extract_field_value(&json, "tasks").unwrap();
-        assert_eq!(result, json!(["task1", "task2", "task3"]));
+        assert_eq!(*result, json!(["task1", "task2", "task3"]));
     }
 
     #[test]
     fn test_extract_array_element() {
         let json = get_test_json();
         let result = FieldEvaluator::extract_field_value(&json, "tasks[0]").unwrap();
-        assert_eq!(result, json!("task1"));
+        assert_eq!(*result, json!("task1"));
 
         let result = FieldEvaluator::extract_field_value(&json, "tasks[2]").unwrap();
-        assert_eq!(result, json!("task3"));
+        assert_eq!(*result, json!("task3"));
     }
 
     #[test]
     fn test_extract_nested_field() {
         let json = get_test_json();
         let result = FieldEvaluator::extract_field_value(&json, "metadata.created_by").unwrap();
-        assert_eq!(result, json!("user_123"));
+        assert_eq!(*result, json!("user_123"));
 
         let result = FieldEvaluator::extract_field_value(&json, "metadata.priority").unwrap();
-        assert_eq!(result, json!("high"));
+        assert_eq!(*result, json!("high"));
     }
 
     #[test]
     fn test_extract_nested_array_element() {
         let json = get_test_json();
         let result = FieldEvaluator::extract_field_value(&json, "metadata.tags[0]").unwrap();
-        assert_eq!(result, json!("urgent"));
+        assert_eq!(*result, json!("urgent"));
 
         let result = FieldEvaluator::extract_field_value(&json, "metadata.tags[1]").unwrap();
-        assert_eq!(result, json!("backend"));
+        assert_eq!(*result, json!("backend"));
     }
 
     #[test]
@@ -465,31 +464,31 @@ mod tests {
         let json = get_test_json();
         let result =
             FieldEvaluator::extract_field_value(&json, "metadata.nested.deep.value").unwrap();
-        assert_eq!(result, json!("found_it"));
+        assert_eq!(*result, json!("found_it"));
     }
 
     #[test]
     fn test_extract_numeric_field() {
         let json = get_test_json();
         let result = FieldEvaluator::extract_field_value(&json, "counts.total").unwrap();
-        assert_eq!(result, json!(42));
+        assert_eq!(*result, json!(42));
 
         let result = FieldEvaluator::extract_field_value(&json, "counts.completed").unwrap();
-        assert_eq!(result, json!(15));
+        assert_eq!(*result, json!(15));
     }
 
     #[test]
     fn test_extract_empty_array() {
         let json = get_test_json();
         let result = FieldEvaluator::extract_field_value(&json, "empty_array").unwrap();
-        assert_eq!(result, json!([]));
+        assert_eq!(*result, json!([]));
     }
 
     #[test]
     fn test_extract_single_item_array() {
         let json = get_test_json();
         let result = FieldEvaluator::extract_field_value(&json, "single_item[0]").unwrap();
-        assert_eq!(result, json!("only_one"));
+        assert_eq!(*result, json!("only_one"));
     }
 
     #[test]
@@ -546,10 +545,10 @@ mod tests {
         });
 
         let result = FieldEvaluator::extract_field_value(&json, "users[0].name").unwrap();
-        assert_eq!(result, json!("Alice"));
+        assert_eq!(*result, json!("Alice"));
 
         let result = FieldEvaluator::extract_field_value(&json, "users[1].age").unwrap();
-        assert_eq!(result, json!(25));
+        assert_eq!(*result, json!(25));
     }
 
     #[test]
@@ -567,11 +566,11 @@ mod tests {
 
         // Test extracting individual task items
         let first_task = FieldEvaluator::extract_field_value(&json, "tasks[0]").unwrap();
-        assert_eq!(first_task, json!("setup_database"));
+        assert_eq!(*first_task, json!("setup_database"));
 
         // Test extracting status
         let status = FieldEvaluator::extract_field_value(&json, "status").unwrap();
-        assert_eq!(status, json!("in_progress"));
+        assert_eq!(*status, json!("in_progress"));
     }
 
     #[test]
@@ -600,20 +599,19 @@ mod tests {
 
         // Test nested object extraction
         let sentiment = FieldEvaluator::extract_field_value(&json, "analysis.sentiment").unwrap();
-        assert_eq!(sentiment, json!("positive"));
+        assert_eq!(*sentiment, json!("positive"));
 
         // Test array of objects
         let first_action =
             FieldEvaluator::extract_field_value(&json, "recommendations[0].action").unwrap();
-        assert_eq!(first_action, json!("increase_investment"));
+        assert_eq!(*first_action, json!("increase_investment"));
 
         // Test numeric extraction
         let confidence = FieldEvaluator::extract_field_value(&json, "analysis.confidence").unwrap();
-        assert_eq!(confidence, json!(0.85));
-
+        assert_eq!(*confidence, json!(0.85));
         // Test array element extraction
         let first_keyword =
             FieldEvaluator::extract_field_value(&json, "analysis.keywords[0]").unwrap();
-        assert_eq!(first_keyword, json!("innovation"));
+        assert_eq!(*first_keyword, json!("innovation"));
     }
 }

@@ -5707,6 +5707,7 @@ dependencies = [
  "rayon",
  "rusty-logging",
  "scouter-dispatch",
+ "scouter-evaluate",
  "scouter-settings",
  "scouter-sql",
  "scouter-types",
