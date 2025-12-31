@@ -76,7 +76,7 @@ pub enum TypeError {
     RootMustBeObject,
 
     #[error("Unsupported type: {0}")]
-    UnsupportedTypeError(String),
+    UnsupportedType(String),
 
     #[error("Failed to downcast Python object: {0}")]
     DowncastError(String),

@@ -11,7 +11,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
-
 pub fn array_to_dict<'py>(
     py: Python<'py>,
     array: &ArrayDataset,

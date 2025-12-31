@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use tracing::{debug, error, instrument, warn};
 
-pub type LLMEvalResult = (Vec<GenAIMetricRecord>, HashMap<String, Score>, Option<i32>); // Vec<GenAIMetricRecord>, ScoreMap, WorkflowDuration
+pub type GenAIEvalResult = (Vec<GenAIMetricRecord>, HashMap<String, Score>, Option<i32>); // Vec<GenAIMetricRecord>, ScoreMap, WorkflowDuration
 
 pub struct GenAIEvaluator {}
 
@@ -29,7 +29,7 @@ impl GenAIEvaluator {
         workflow: Arc<RwLock<Workflow>>,
         profile: &GenAIDriftProfile,
         uid: &str,
-    ) -> Result<LLMEvalResult, DriftError> {
+    ) -> Result<GenAIEvalResult, DriftError> {
         let workflow = workflow.read().unwrap();
         let task_list = &workflow.task_list;
         let execution_plan = workflow.execution_plan()?;
@@ -111,7 +111,7 @@ impl GenAIEvaluator {
     pub async fn process_drift_record(
         record: &GenAITaskRecord,
         profile: &GenAIDriftProfile,
-    ) -> Result<LLMEvalResult, DriftError> {
+    ) -> Result<GenAIEvalResult, DriftError> {
         debug!("Processing workflow");
 
         let workflow_result = profile.workflow.run(Some(record.context.clone())).await?;

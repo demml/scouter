@@ -8,7 +8,7 @@ use crate::util::{
 use potato_head::{Agent, Provider, Task, Workflow, WorkflowError};
 use pyo3::prelude::*;
 use scouter_state::app_state;
-use scouter_types::eval::GenAIEvalMetric;
+use scouter_types::genai::GenAIEvalMetric;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::sync::Arc;

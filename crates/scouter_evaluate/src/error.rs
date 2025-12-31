@@ -11,14 +11,14 @@ pub enum EvaluationError {
     #[error(transparent)]
     WorkflowError(#[from] potato_head::WorkflowError),
 
-    #[error(transparent)]
-    PyErr(#[from] pyo3::PyErr),
-
     #[error("{0}")]
-    Error(String),
+    DowncastError(String),
 
     #[error(transparent)]
     JoinError(#[from] tokio::task::JoinError),
+
+    #[error(transparent)]
+    RegexError(#[from] regex::Error),
 
     #[error("Missing key: {0}")]
     MissingKeyError(String),
@@ -46,6 +46,60 @@ pub enum EvaluationError {
 
     #[error(transparent)]
     SerdeError(#[from] serde_json::Error),
+
+    #[error("Field '{0}' not found")]
+    FieldNotFound(String),
+
+    #[error("Index {0} not found")]
+    IndexNotFound(usize),
+
+    #[error("Invalid array index: {0}")]
+    InvalidArrayIndex(String),
+
+    #[error("Empty field path provided")]
+    EmptyFieldPath,
+
+    #[error("{0}")]
+    PyError(String),
+
+    #[error("Cannot compare non-numeric values")]
+    CannotCompareNonNumericValues,
+
+    #[error("Contains operation requires string or list")]
+    InvalidContainsOperation,
+
+    #[error("StartsWith operation requires strings")]
+    InvalidStartsWithOperation,
+
+    #[error("EndsWith operation requires strings")]
+    InvalidEndsWithOperation,
+
+    #[error("Regex match requires strings")]
+    InvalidRegexOperation,
+
+    #[error("Invalid number format")]
+    InvalidNumberFormat,
+
+    #[error("Cannot convert object to AssertionValue")]
+    CannotConvertObjectToAssertionValue,
+
+    #[error("Cannot get length of object")]
+    CannotGetLengthOfObject,
+
+    #[error("Expected value for length must be an integer")]
+    ExpectedLengthMustBeInteger,
+
+    #[error("Invalid assertion value type")]
+    InvalidAssertionValueType,
+
+    #[error("Invalid task type for evaluation")]
+    InvalidTaskType,
+}
+
+impl<'a, 'py> From<pyo3::CastError<'a, 'py>> for EvaluationError {
+    fn from(err: pyo3::CastError) -> Self {
+        EvaluationError::DowncastError(err.to_string())
+    }
 }
 
 impl From<EvaluationError> for PyErr {
@@ -56,8 +110,14 @@ impl From<EvaluationError> for PyErr {
     }
 }
 
+impl From<PyErr> for EvaluationError {
+    fn from(err: PyErr) -> EvaluationError {
+        EvaluationError::PyError(err.to_string())
+    }
+}
+
 impl<'a, 'py> From<PyClassGuardError<'a, 'py>> for EvaluationError {
     fn from(err: PyClassGuardError<'a, 'py>) -> Self {
-        EvaluationError::Error(err.to_string())
+        EvaluationError::PyError(err.to_string())
     }
 }
