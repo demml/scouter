@@ -191,7 +191,7 @@ metric = GenAIDriftMetric( # (3)
     alert_threshold=AlertThreshold.Below,
 )
 
-profile = GenAIDriftProfile(
+profile = GenAIEvalProfile(
     config=GenAIDriftConfig(),
     workflow=workflow,
     metrics=[metric],
@@ -205,7 +205,7 @@ profile = GenAIDriftProfile(
 
 ### 4. Create the GenAI Drift Profile
 
-Use the `GenAIDriftProfile` class to create a drift profile by combining your config, metrics, and (optionally) workflow.
+Use the `GenAIEvalProfile` class to create a drift profile by combining your config, metrics, and (optionally) workflow.
 
 **Arguments:**
 
@@ -218,9 +218,9 @@ Use the `GenAIDriftProfile` class to create a drift profile by combining your co
 
 **Example (metrics only):**
 ```python
-from scouter.genai import GenAIDriftProfile
+from scouter.genai import GenAIEvalProfile
 
-profile = GenAIDriftProfile(
+profile = GenAIEvalProfile(
     config=config,
     metrics=[metric]
 )

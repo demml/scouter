@@ -31,7 +31,7 @@ pub fn add_drift_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // GenAI Drift
     m.add_class::<GenAIDriftConfig>()?;
-    m.add_class::<GenAIDriftProfile>()?;
+    m.add_class::<GenAIEvalProfile>()?;
     m.add_class::<GenAIDriftMetric>()?;
     m.add_class::<GenAIDriftMap>()?;
     m.add_class::<GenAIMetricRecord>()?;

@@ -1,12 +1,9 @@
-use crate::error::EvaluationError;
-use crate::tasks::assertion::FieldAssertionTask;
-use pyo3::prelude::*;
+use crate::{error::EvaluationError, tasks::traits::AssertionAccessor};
 use regex::Regex;
-use scouter_types::genai::{
-    assertion_value_from_py, AssertionResult, AssertionValue, ComparisonOperator,
-    EvaluationTaskType,
-};
+use scouter_types::genai::ValueExt;
+use scouter_types::genai::{AssertionResult, ComparisonOperator};
 use serde_json::Value;
+use std::borrow::Cow;
 use std::sync::OnceLock;
 
 const REGEX_FIELD_PARSE_PATTERN: &str = r"[a-zA-Z_][a-zA-Z0-9_]*|\[[0-9]+\]";
@@ -17,6 +14,12 @@ pub struct FieldEvaluator;
 /// Utility for extracting field values from JSON-like structures
 /// Supports: "field", "field.subfield", "field[0]", "field[0].subfield"
 impl FieldEvaluator {
+    /// Extracts the value at the specified field path from the given JSON value
+    /// # Arguments
+    /// * `json` - The JSON value to extract from
+    /// * `field_path` - The dot/bracket notation path to the desired field
+    /// # Returns
+    /// The extracted JSON value or an EvaluationError if the path is invalid
     pub fn extract_field_value(json: &Value, field_path: &str) -> Result<Value, EvaluationError> {
         let path_segments = Self::parse_field_path(field_path)?;
         let mut current_value = json;
@@ -35,6 +38,11 @@ impl FieldEvaluator {
         Ok(current_value.clone())
     }
 
+    /// Parses a field path string into segments for navigation
+    /// # Arguments
+    /// * `path` - The field path string
+    /// # Returns
+    /// A vector of PathSegment enums representing the parsed path
     fn parse_field_path(path: &str) -> Result<Vec<PathSegment>, EvaluationError> {
         let regex = PATH_REGEX.get_or_init(|| {
             Regex::new(REGEX_FIELD_PARSE_PATTERN)
@@ -73,62 +81,97 @@ enum PathSegment {
     Index(usize),
 }
 
-#[pyclass]
 #[derive(Debug, Clone)]
 pub struct AssertionEvaluator;
 
 impl AssertionEvaluator {
-    /// Evaluates a single assertion against the provided JSON value
+    /// Main function for evaluating an assertion
     /// # Arguments
-    /// * `json_value`: The JSON value to evaluate against
-    /// * `assertion`: The FieldAssertionTask to evaluate
-    /// Returns an AssertionResult indicating pass/fail and details
-    /// # Errors
-    /// Returns EvaluationError if field extraction or comparison fails
-    pub fn evaluate_assertion(
+    /// * `json_value` - The JSON value to evaluate against
+    /// * `assertion` - The assertion to evaluate
+    /// # Returns
+    /// An AssertionResult indicating whether the assertion passed or failed
+    pub fn evaluate_assertion<T: AssertionAccessor>(
         json_value: &Value,
-        assertion: &FieldAssertionTask,
+        assertion: &T,
     ) -> Result<AssertionResult, EvaluationError> {
-        // Extract the actual value from the JSON
-        let actual_value = FieldEvaluator::extract_field_value(json_value, &assertion.field_path)?;
+        let actual_value: Cow<Value> = if let Some(field_path) = assertion.field_path() {
+            Cow::Owned(FieldEvaluator::extract_field_value(json_value, field_path)?)
+        } else {
+            Cow::Borrowed(json_value) // Zero-copy when no field_path!
+        };
 
-        // Convert to comparable format
-        let actual_comparable = Self::value_to_assertion_value(&actual_value, &assertion.operator)?;
+        // Transform for comparison (now uses Cow - only clones when necessary)
+        let comparable_actual =
+            Self::transform_for_comparison(&actual_value, assertion.operator())?;
+        let expected = assertion.expected_value();
 
-        // Perform the comparison
-        let passed = Self::compare_values(
-            &actual_comparable,
-            &assertion.operator,
-            &assertion.expected_value,
-        )?;
+        // Comparison works with references - no clone
+        let passed = Self::compare_values(&comparable_actual, assertion.operator(), expected)?;
 
-        // Create result
+        // AssertionResult creation - necessary clones for owned storage
         Ok(AssertionResult {
+            id: assertion.id().clone(),
             passed,
-            field_path: assertion.field_path.clone(),
-            expected: format!("{:?}", assertion.expected_value),
-            actual: format!("{:?}", actual_comparable),
+            field_path: assertion
+                .field_path()
+                .as_ref()
+                .and_then(|fp| Some(fp.clone())),
+            expected: expected.clone(),
+            actual: (*actual_value).clone(),
             message: if passed {
-                format!("✓ Field '{}' assertion passed", assertion.field_path)
+                format!("✓ Assertion '{}' passed", assertion.id())
             } else {
                 format!(
-                    "✗ Field '{}' assertion failed: expected {:?}, got {:?}",
-                    assertion.field_path, assertion.expected_value, actual_comparable
+                    "✗ Assertion '{}' failed: expected {}, got {}",
+                    assertion.id(),
+                    serde_json::to_string(expected).unwrap_or_default(),
+                    serde_json::to_string(&*comparable_actual).unwrap_or_default()
                 )
             },
         })
     }
 
-    fn compare_values(
-        actual: &AssertionValue,
+    /// Transforms a value based on the comparison operator
+    /// This is mainly used to convert array, string and map types that have
+    /// length to their length for length-based comparisons
+    /// # Arguments
+    /// * `value` - The value to transform
+    /// * `operator` - The comparison operator
+    /// # Returns
+    /// The transformed value or an EvaluationError if transformation fails
+    fn transform_for_comparison<'a>(
+        value: &'a Cow<'a, Value>,
         operator: &ComparisonOperator,
-        expected: &AssertionValue,
+    ) -> Result<Cow<'a, Value>, EvaluationError> {
+        match operator {
+            ComparisonOperator::HasLength
+            | ComparisonOperator::LessThan
+            | ComparisonOperator::LessThanOrEqual
+            | ComparisonOperator::GreaterThan
+            | ComparisonOperator::GreaterThanOrEqual => {
+                if let Some(len) = value.to_length() {
+                    Ok(Cow::Owned(Value::Number(len.into())))
+                } else if value.is_number() {
+                    Ok(Cow::Borrowed(value))
+                } else {
+                    Err(EvaluationError::CannotGetLength(format!("{:?}", value)))
+                }
+            }
+            _ => Ok(Cow::Borrowed(value)),
+        }
+    }
+
+    // All comparison methods work with &Value - no clones needed
+    fn compare_values(
+        actual: &Value,
+        operator: &ComparisonOperator,
+        expected: &Value,
     ) -> Result<bool, EvaluationError> {
         match operator {
-            // actual has already been converted to length
-            ComparisonOperator::HasLength => Ok(actual == expected),
             ComparisonOperator::Equal => Ok(actual == expected),
             ComparisonOperator::NotEqual => Ok(actual != expected),
+
             ComparisonOperator::GreaterThan => {
                 Self::compare_numeric(actual, expected, |a, b| a > b)
             }
@@ -139,6 +182,8 @@ impl AssertionEvaluator {
             ComparisonOperator::LessThanOrEqual => {
                 Self::compare_numeric(actual, expected, |a, b| a <= b)
             }
+            ComparisonOperator::HasLength => Self::compare_numeric(actual, expected, |a, b| a == b),
+
             ComparisonOperator::Contains => Self::check_contains(actual, expected),
             ComparisonOperator::NotContains => Ok(!Self::check_contains(actual, expected)?),
             ComparisonOperator::StartsWith => Self::check_starts_with(actual, expected),
@@ -147,152 +192,62 @@ impl AssertionEvaluator {
         }
     }
 
+    // Comparison helpers - all work with references
     fn compare_numeric<F>(
-        actual: &AssertionValue,
-        expected: &AssertionValue,
+        actual: &Value,
+        expected: &Value,
         comparator: F,
     ) -> Result<bool, EvaluationError>
     where
         F: Fn(f64, f64) -> bool,
     {
-        let actual_num = Self::to_numeric(actual)?;
-        let expected_num = Self::to_numeric(expected)?;
+        let actual_num = actual
+            .as_numeric()
+            .ok_or(EvaluationError::CannotCompareNonNumericValues)?;
+        let expected_num = expected
+            .as_numeric()
+            .ok_or(EvaluationError::CannotCompareNonNumericValues)?;
+
         Ok(comparator(actual_num, expected_num))
     }
 
-    fn to_numeric(value: &AssertionValue) -> Result<f64, EvaluationError> {
-        match value {
-            AssertionValue::Number(n) => Ok(*n),
-            AssertionValue::Integer(i) => Ok(*i as f64),
-            _ => Err(EvaluationError::CannotCompareNonNumericValues),
-        }
-    }
-
-    fn check_contains(
-        actual: &AssertionValue,
-        expected: &AssertionValue,
-    ) -> Result<bool, EvaluationError> {
+    fn check_contains(actual: &Value, expected: &Value) -> Result<bool, EvaluationError> {
         match (actual, expected) {
-            (AssertionValue::String(s), AssertionValue::String(substr)) => Ok(s.contains(substr)),
-            (AssertionValue::List(list), expected_item) => Ok(list.contains(expected_item)),
+            (Value::String(s), Value::String(substr)) => Ok(s.contains(substr)),
+            (Value::Array(arr), expected_item) => Ok(arr.contains(expected_item)),
             _ => Err(EvaluationError::InvalidContainsOperation),
         }
     }
 
-    fn check_starts_with(
-        actual: &AssertionValue,
-        expected: &AssertionValue,
-    ) -> Result<bool, EvaluationError> {
+    fn check_starts_with(actual: &Value, expected: &Value) -> Result<bool, EvaluationError> {
         match (actual, expected) {
-            (AssertionValue::String(s), AssertionValue::String(prefix)) => {
-                Ok(s.starts_with(prefix))
-            }
+            (Value::String(s), Value::String(prefix)) => Ok(s.starts_with(prefix)),
             _ => Err(EvaluationError::InvalidStartsWithOperation),
         }
     }
 
-    fn check_ends_with(
-        actual: &AssertionValue,
-        expected: &AssertionValue,
-    ) -> Result<bool, EvaluationError> {
+    fn check_ends_with(actual: &Value, expected: &Value) -> Result<bool, EvaluationError> {
         match (actual, expected) {
-            (AssertionValue::String(s), AssertionValue::String(suffix)) => Ok(s.ends_with(suffix)),
+            (Value::String(s), Value::String(suffix)) => Ok(s.ends_with(suffix)),
             _ => Err(EvaluationError::InvalidEndsWithOperation),
         }
     }
 
-    fn check_regex_match(
-        actual: &AssertionValue,
-        expected: &AssertionValue,
-    ) -> Result<bool, EvaluationError> {
+    fn check_regex_match(actual: &Value, expected: &Value) -> Result<bool, EvaluationError> {
         match (actual, expected) {
-            (AssertionValue::String(s), AssertionValue::String(pattern)) => {
+            (Value::String(s), Value::String(pattern)) => {
                 let regex = Regex::new(pattern)?;
                 Ok(regex.is_match(s))
             }
             _ => Err(EvaluationError::InvalidRegexOperation),
         }
     }
-
-    fn value_to_assertion_value(
-        value: &Value,
-        comparator: &ComparisonOperator,
-    ) -> Result<AssertionValue, EvaluationError> {
-        match value {
-            Value::String(s) => Ok(AssertionValue::String(s.clone())),
-            Value::Number(n) => {
-                if let Some(i) = n.as_i64() {
-                    Ok(AssertionValue::Integer(i))
-                } else if let Some(f) = n.as_f64() {
-                    Ok(AssertionValue::Number(f))
-                } else {
-                    Err(EvaluationError::InvalidNumberFormat)
-                }
-            }
-            Value::Bool(b) => Ok(AssertionValue::Boolean(*b)),
-            Value::Array(arr) => match comparator {
-                // need to account for comparisons that checks length
-                ComparisonOperator::HasLength
-                | ComparisonOperator::LessThan
-                | ComparisonOperator::LessThanOrEqual
-                | ComparisonOperator::GreaterThan
-                | ComparisonOperator::GreaterThanOrEqual => {
-                    Ok(AssertionValue::Integer(arr.len() as i64))
-                }
-                _ => {
-                    let converted: Result<Vec<_>, _> = arr
-                        .iter()
-                        .map(|v| Self::value_to_assertion_value(v, comparator))
-                        .collect();
-                    Ok(AssertionValue::List(converted?))
-                }
-            },
-            Value::Null => Ok(AssertionValue::Null()),
-            Value::Object(_) => Err(EvaluationError::CannotConvertObjectToAssertionValue),
-        }
-    }
 }
-
-#[pyclass]
-#[derive(Debug)]
-pub struct Field {
-    pub field_path: String,
-}
-
-#[pymethods]
-impl Field {
-    #[new]
-    pub fn new(field_path: String) -> Self {
-        Self { field_path }
-    }
-
-    /// General assertion method for creating a field-specific assertion
-    /// # Arguments
-    /// * `comparison`: The comparison operator to use
-    /// * `value`: The expected value for the assertion
-    /// * `description`: Optional description for the assertion
-    /// Returns a FieldAssertionTask object
-    /// # Errors
-    /// Returns EvaluationError if the expected value cannot be converted
-    pub fn assert(
-        &self,
-        comparison: ComparisonOperator,
-        value: &Bound<'_, PyAny>,
-        description: Option<String>,
-    ) -> Result<FieldAssertionTask, EvaluationError> {
-        Ok(FieldAssertionTask {
-            field_path: self.field_path.clone(),
-            operator: comparison,
-            expected_value: assertion_value_from_py(value)?,
-            description,
-            task_type: EvaluationTaskType::FieldAssertion,
-        })
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use scouter_types::genai::AssertionTask;
+    use scouter_types::genai::EvaluationTaskType;
     use serde_json::json;
 
     // Test data matching your StructuredTaskOutput example
@@ -319,63 +274,75 @@ mod tests {
         })
     }
 
-    fn priority_assertion() -> FieldAssertionTask {
-        FieldAssertionTask {
-            field_path: "metadata.priority".to_string(),
+    fn priority_assertion() -> AssertionTask {
+        AssertionTask {
+            id: "priority_check".to_string(),
+            field_path: Some("metadata.priority".to_string()),
             operator: ComparisonOperator::Equal,
-            expected_value: AssertionValue::String("high".to_string()),
+            expected_value: Value::String("high".to_string()),
             description: Some("Check if priority is high".to_string()),
-            task_type: EvaluationTaskType::FieldAssertion,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
         }
     }
 
-    fn match_assertion() -> FieldAssertionTask {
-        FieldAssertionTask {
-            field_path: "status".to_string(),
+    fn match_assertion() -> AssertionTask {
+        AssertionTask {
+            id: "status_match".to_string(),
+            field_path: Some("status".to_string()),
             operator: ComparisonOperator::Matches,
-            expected_value: AssertionValue::String(r"^in_.*$".to_string()),
+            expected_value: Value::String(r"^in_.*$".to_string()),
             description: Some("Status should start with 'in_'".to_string()),
-            task_type: EvaluationTaskType::FieldAssertion,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
         }
     }
 
-    fn length_assertion() -> FieldAssertionTask {
-        FieldAssertionTask {
-            field_path: "tasks".to_string(),
+    fn length_assertion() -> AssertionTask {
+        AssertionTask {
+            id: "tasks_length".to_string(),
+            field_path: Some("tasks".to_string()),
             operator: ComparisonOperator::HasLength,
-            expected_value: AssertionValue::Integer(3),
+            expected_value: Value::Number(3.into()),
             description: Some("There should be 3 tasks".to_string()),
-            task_type: EvaluationTaskType::FieldAssertion,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
         }
     }
 
-    fn length_assertion_greater() -> FieldAssertionTask {
-        FieldAssertionTask {
-            field_path: "tasks".to_string(),
+    fn length_assertion_greater() -> AssertionTask {
+        AssertionTask {
+            id: "tasks_length_gte".to_string(),
+            field_path: Some("tasks".to_string()),
             operator: ComparisonOperator::GreaterThanOrEqual,
-            expected_value: AssertionValue::Integer(2),
+            expected_value: Value::Number(2.into()),
             description: Some("There should be more than 2 tasks".to_string()),
-            task_type: EvaluationTaskType::FieldAssertion,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
         }
     }
 
-    fn length_assertion_less() -> FieldAssertionTask {
-        FieldAssertionTask {
-            field_path: "tasks".to_string(),
+    fn length_assertion_less() -> AssertionTask {
+        AssertionTask {
+            id: "tasks_length_lte".to_string(),
+            field_path: Some("tasks".to_string()),
             operator: ComparisonOperator::LessThanOrEqual,
-            expected_value: AssertionValue::Integer(5),
+            expected_value: Value::Number(5.into()),
             description: Some("There should be less than 5 tasks".to_string()),
-            task_type: EvaluationTaskType::FieldAssertion,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
         }
     }
 
-    fn contains_assertion() -> FieldAssertionTask {
-        FieldAssertionTask {
-            field_path: "metadata.tags".to_string(),
+    fn contains_assertion() -> AssertionTask {
+        AssertionTask {
+            id: "tags_contains".to_string(),
+            field_path: Some("metadata.tags".to_string()),
             operator: ComparisonOperator::Contains,
-            expected_value: AssertionValue::String("backend".to_string()),
+            expected_value: Value::String("backend".to_string()),
             description: Some("Tags should contain 'backend'".to_string()),
-            task_type: EvaluationTaskType::FieldAssertion,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
         }
     }
 

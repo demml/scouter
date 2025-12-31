@@ -5,16 +5,16 @@ use scouter_types::BoxedGenAIDriftRecord;
 use scouter_types::GenAIRecord;
 use scouter_types::QueueExt;
 use scouter_types::{
-    genai::GenAIDriftProfile, GenAIDriftRecord, MessageRecord, ServerRecord, ServerRecords,
+    genai::GenAIEvalProfile, GenAIDriftRecord, MessageRecord, ServerRecord, ServerRecords,
 };
 use tracing::instrument;
 pub struct GenAIRecordQueue {
-    drift_profile: GenAIDriftProfile,
+    drift_profile: GenAIEvalProfile,
     empty_queue: Vec<GenAIRecord>,
 }
 
 impl GenAIRecordQueue {
-    pub fn new(drift_profile: GenAIDriftProfile) -> Self {
+    pub fn new(drift_profile: GenAIEvalProfile) -> Self {
         GenAIRecordQueue {
             drift_profile,
             empty_queue: Vec::new(),
@@ -88,11 +88,11 @@ mod tests {
     use super::*;
     use potato_head::mock::create_score_prompt;
     use scouter_types::genai::{
-        GenAIAlertConfig, GenAIDriftConfig, GenAIDriftMetric, GenAIDriftProfile,
+        GenAIAlertConfig, GenAIDriftConfig, GenAIDriftMetric, GenAIEvalProfile,
     };
     use scouter_types::AlertThreshold;
 
-    async fn get_test_drift_profile() -> GenAIDriftProfile {
+    async fn get_test_drift_profile() -> GenAIEvalProfile {
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
         let metric1 = GenAIDriftMetric::new(
             "coherence",
@@ -116,7 +116,7 @@ mod tests {
         let drift_config =
             GenAIDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
 
-        GenAIDriftProfile::from_metrics(drift_config, vec![metric1, metric2])
+        GenAIEvalProfile::from_metrics(drift_config, vec![metric1, metric2])
             .await
             .unwrap()
     }

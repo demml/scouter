@@ -10,7 +10,7 @@ use opentelemetry::Value as OTelValue;
 use opentelemetry_proto::tonic::common::v1::{any_value::Value as AnyValueVariant, AnyValue};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
+use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyInt, PyList, PyString, PyTuple};
 use pyo3::IntoPyObjectExt;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -35,7 +35,7 @@ pub enum FileName {
     CustomDriftProfile,
     DriftProfile,
     DataProfile,
-    GenAIDriftProfile,
+    GenAIEvalProfile,
 }
 
 impl FileName {
@@ -48,7 +48,7 @@ impl FileName {
             FileName::CustomDriftProfile => "custom_drift_profile.json",
             FileName::DataProfile => "data_profile.json",
             FileName::DriftProfile => "drift_profile.json",
-            FileName::GenAIDriftProfile => "genai_drift_profile.json",
+            FileName::GenAIEvalProfile => "genai_drift_profile.json",
         }
     }
 }
@@ -211,6 +211,17 @@ pub fn pyobject_to_json(obj: &Bound<'_, PyAny>) -> Result<Value, TypeError> {
             vec.push(pyobject_to_json(&item)?);
         }
         Ok(Value::Array(vec))
+    } else if obj.is_instance_of::<PyTuple>() {
+        let tuple = obj.cast::<PyTuple>()?;
+        let mut vec = Vec::new();
+        for item in tuple.iter() {
+            vec.push(pyobject_to_json(&item)?);
+        }
+        Ok(Value::Array(vec))
+    } else if obj.is_instance_of::<PyBytes>() {
+        let bytes = obj.cast::<PyBytes>()?;
+        let b64_string = BASE64_STANDARD.encode(bytes.as_bytes());
+        Ok(Value::String(b64_string))
     } else if obj.is_instance_of::<PyString>() {
         let s = obj.extract::<String>()?;
         Ok(Value::String(s))
@@ -266,6 +277,17 @@ pub fn pyobject_to_tracing_json(
             vec.push(pyobject_to_tracing_json(&item, max_length)?);
         }
         Ok(Value::Array(vec))
+    } else if obj.is_instance_of::<PyTuple>() {
+        let tuple = obj.cast::<PyTuple>()?;
+        let mut vec = Vec::new();
+        for item in tuple.iter() {
+            vec.push(pyobject_to_tracing_json(&item, max_length)?);
+        }
+        Ok(Value::Array(vec))
+    } else if obj.is_instance_of::<PyBytes>() {
+        let bytes = obj.cast::<PyBytes>()?;
+        let b64_string = BASE64_STANDARD.encode(bytes.as_bytes());
+        Ok(Value::String(b64_string))
     } else if obj.is_instance_of::<PyString>() {
         let s = obj.extract::<String>()?;
         let truncated = if s.len() > *max_length {

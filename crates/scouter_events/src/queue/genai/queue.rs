@@ -7,7 +7,7 @@ use crate::queue::types::TransportConfig;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use crossbeam_queue::ArrayQueue;
-use scouter_types::genai::GenAIDriftProfile;
+use scouter_types::genai::GenAIEvalProfile;
 use scouter_types::GenAIRecord;
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -37,7 +37,7 @@ pub struct GenAIQueue {
 
 impl GenAIQueue {
     pub async fn new(
-        drift_profile: GenAIDriftProfile,
+        drift_profile: GenAIEvalProfile,
         config: TransportConfig,
     ) -> Result<Self, EventError> {
         let sample_rate = drift_profile.config.sample_rate;

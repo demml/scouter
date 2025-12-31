@@ -12,7 +12,7 @@ use scouter_types::spc::SpcDriftProfile;
 use scouter_types::GenAIRecord;
 use scouter_types::{
     custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
-    genai::{GenAIDriftConfig, GenAIDriftProfile},
+    genai::{GenAIDriftConfig, GenAIEvalProfile},
     psi::{PsiDriftConfig, PsiDriftMap, PsiDriftProfile},
     spc::SpcDriftConfig,
     DataType, DriftProfile, DriftType,
@@ -279,7 +279,7 @@ impl PyDrifter {
         metrics: Vec<GenAIDriftMetric>,
         workflow: Option<Bound<'py, PyAny>>,
     ) -> Result<Bound<'py, PyAny>, DriftError> {
-        let profile = GenAIDriftProfile::new(config, metrics, workflow)?;
+        let profile = GenAIEvalProfile::new(config, metrics, workflow)?;
         Ok(profile.into_bound_py_any(py)?)
     }
 
@@ -310,7 +310,7 @@ impl PyDrifter {
                 DriftProfile::Custom(profile)
             }
             DriftType::GenAI => {
-                let profile = drift_profile.extract::<GenAIDriftProfile>()?;
+                let profile = drift_profile.extract::<GenAIEvalProfile>()?;
                 DriftProfile::GenAI(profile)
             }
         };
@@ -360,7 +360,7 @@ impl PyDrifter {
         workflow: Option<Bound<'py, PyAny>>,
         runtime: Arc<tokio::runtime::Runtime>,
     ) -> Result<Bound<'py, PyAny>, DriftError> {
-        let profile = GenAIDriftProfile::new_with_runtime(config, metrics, workflow, runtime)?;
+        let profile = GenAIEvalProfile::new_with_runtime(config, metrics, workflow, runtime)?;
         Ok(profile.into_bound_py_any(py)?)
     }
 }

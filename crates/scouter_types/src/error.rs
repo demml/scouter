@@ -90,9 +90,7 @@ pub enum TypeError {
     #[error("{0}")]
     PyError(String),
 
-    #[error(
-        "Invalid prompt response type. Expect Score as the output type for the GenAIDriftMetric prompt"
-    )]
+    #[error("Invalid prompt response type. Expected json schema as the output type")]
     InvalidResponseType,
 
     #[error(
@@ -147,6 +145,12 @@ pub enum TypeError {
 
     #[error("Compression type not supported: {0}")]
     CompressionTypeNotSupported(String),
+
+    #[error("Missing dependency: {0}")]
+    MissingDependency(String),
+
+    #[error(transparent)]
+    PythonizeError(#[from] pythonize::PythonizeError),
 }
 
 impl<'a, 'py> From<pyo3::CastError<'a, 'py>> for TypeError {
@@ -289,8 +293,8 @@ pub enum ProfileError {
     #[error("Invalid metric name found: {0}")]
     InvalidMetricNameError(String),
 
-    #[error("No metrics provided for workflow validation")]
-    EmptyMetricsList,
+    #[error("No AssertionTasks or LLMJudgeTasks found in the workflow")]
+    EmptyTaskList,
 
     #[error("LLM Metric requires at least one bound parameter")]
     NeedAtLeastOneBoundParameterError(String),
@@ -316,6 +320,12 @@ pub enum ProfileError {
 
     #[error(transparent)]
     PotatoTypeError(#[from] potato_head::TypeError),
+
+    #[error("Invalid task type. Expected either AssertionTask or LLMJudgeTask: {0}")]
+    InvalidTaskType(String),
+
+    #[error("Detected circular dependency in evaluation tasks")]
+    CircularDependency,
 }
 
 impl From<ProfileError> for PyErr {
@@ -333,6 +343,12 @@ impl From<PyErr> for ProfileError {
 
 impl<'a, 'py> From<PyClassGuardError<'a, 'py>> for ProfileError {
     fn from(err: PyClassGuardError<'a, 'py>) -> Self {
+        ProfileError::PyError(err.to_string())
+    }
+}
+
+impl<'a, 'py> From<pyo3::CastError<'a, 'py>> for ProfileError {
+    fn from(err: pyo3::CastError) -> Self {
         ProfileError::PyError(err.to_string())
     }
 }

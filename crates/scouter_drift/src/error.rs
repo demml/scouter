@@ -108,6 +108,15 @@ pub enum DriftError {
 
     #[error("{0}")]
     InvalidDataConfiguration(String),
+
+    #[error("Workflow is missing for GenAI drift evaluation")]
+    MissingWorkflow,
+
+    #[error("Failed to acquire read lock on workflow")]
+    ReadLockAcquireError,
+
+    #[error("Failed to acquire write lock on workflow")]
+    WriteLockAcquireError,
 }
 
 impl From<DriftError> for PyErr {

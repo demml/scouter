@@ -94,6 +94,9 @@ pub enum EvaluationError {
 
     #[error("Invalid task type for evaluation")]
     InvalidTaskType,
+
+    #[error("Cannot get length: {0}")]
+    CannotGetLength(String),
 }
 
 impl<'a, 'py> From<pyo3::CastError<'a, 'py>> for EvaluationError {

@@ -8,7 +8,6 @@ use crate::util::{
 use potato_head::{Agent, Provider, Task, Workflow, WorkflowError};
 use pyo3::prelude::*;
 use scouter_state::app_state;
-use scouter_types::genai::GenAIEvalMetric;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -50,67 +49,36 @@ pub async fn async_evaluate_genai(
     Ok(results)
 }
 
-/// Builds a workflow from a list of GenAIEvalMetric objects
-pub async fn workflow_from_eval_metrics(
-    eval_metrics: Vec<GenAIEvalMetric>,
-    name: &str,
-) -> Result<Workflow, EvaluationError> {
-    // Build a workflow from metrics
-    let mut workflow = Workflow::new(name);
-    let mut agents: HashMap<Provider, Agent> = HashMap::new();
-    let mut metric_names = Vec::new();
-
-    // Create agents. We don't want to duplicate, so we check if the agent already exists.
-    // if it doesn't, we create it.
-    for metric in &eval_metrics {
-        let agent = match agents.entry(metric.prompt.provider.clone()) {
-            Entry::Occupied(entry) => entry.into_mut(),
-            Entry::Vacant(entry) => {
-                let agent = Agent::new(metric.prompt.provider.clone(), None)
-                    .await
-                    .map_err(|e| WorkflowError::Error(format!("Failed to create agent: {}", e)))?;
-                workflow.add_agent(&agent);
-                entry.insert(agent)
-            }
-        };
-
-        let task = Task::new(&agent.id, metric.prompt.clone(), &metric.name, None, None);
-        workflow.add_task(task)?;
-        metric_names.push(metric.name.clone());
-    }
-
-    Ok(workflow)
-}
-
-#[pyfunction]
-/// Function for evaluating LLM response and generating metrics.
-/// The primary use case for evaluate_genai is to take a list of data samples, which often contain inputs and outputs
-/// from LLM systems and evaluate them against user-defined metrics in a LLM as a judge pipeline. The user is expected provide
-/// a list of dict objects and a list of LLMEval metrics. These eval metrics will be used to create a workflow, which is then
-/// executed in an async context. All eval scores are extracted and returned to the user.
-/// # Arguments
-/// * `py`: The Python interpreter instance.
-/// * `data`: A list of data samples to evaluate.
-/// * `metrics`: A list of evaluation metrics to use.
-#[pyo3(signature = (records, metrics, config=None))]
-pub fn evaluate_genai(
-    records: Vec<GenAIEvalRecord>,
-    metrics: Vec<GenAIEvalMetric>,
-    config: Option<EvaluationConfig>,
-) -> Result<GenAIEvalResults, EvaluationError> {
-    let config = Arc::new(config.unwrap_or_default());
-
-    // Create runtime and execute evaluation pipeline
-    let mut results = app_state().handle().block_on(async {
-        let workflow = workflow_from_eval_metrics(metrics, "LLM Evaluation").await?;
-        async_evaluate_genai(workflow, records, &config).await
-    })?;
-
-    // Only run post-processing if needed
-    // Post processing includes calculating embedding means, similarities, clustering, and histograms
-    if config.needs_post_processing() {
-        results.finalize(&config)?;
-    }
-
-    Ok(results)
-}
+//#[pyfunction]
+///// Function for evaluating LLM response and generating metrics.
+///// The primary use case for evaluate_genai is to take a list of data samples, which often contain inputs and outputs
+///// from LLM systems and evaluate them against user-defined metrics in a LLM as a judge pipeline. The user is expected provide
+///// a list of dict objects and a list of LLMEval metrics. These eval metrics will be used to create a workflow, which is then
+///// executed in an async context. All eval scores are extracted and returned to the user.
+///// # Arguments
+///// * `py`: The Python interpreter instance.
+///// * `data`: A list of data samples to evaluate.
+///// * `metrics`: A list of evaluation metrics to use.
+//#[pyo3(signature = (records, metrics, config=None))]
+//pub fn evaluate_genai(
+//    records: Vec<GenAIEvalRecord>,
+//    metrics: Vec<GenAIEvalMetric>,
+//    config: Option<EvaluationConfig>,
+//) -> Result<GenAIEvalResults, EvaluationError> {
+//    let config = Arc::new(config.unwrap_or_default());
+//
+//    // Create runtime and execute evaluation pipeline
+//    let mut results = app_state().handle().block_on(async {
+//        let workflow = workflow_from_eval_metrics(metrics, "LLM Evaluation").await?;
+//        async_evaluate_genai(workflow, records, &config).await
+//    })?;
+//
+//    // Only run post-processing if needed
+//    // Post processing includes calculating embedding means, similarities, clustering, and histograms
+//    if config.needs_post_processing() {
+//        results.finalize(&config)?;
+//    }
+//
+//    Ok(results)
+//}
+//

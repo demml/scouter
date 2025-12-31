@@ -1,75 +1,37 @@
 use crate::error::EvaluationError;
-use core::fmt::Debug;
-use potato_head::prompt_types::{Prompt, ResponseType};
-use pyo3::prelude::*;
-use scouter_types::error::TypeError;
-use scouter_types::genai::EvaluationTaskType;
-use scouter_types::genai::{assertion_value_from_py, AssertionValue, ComparisonOperator};
-use scouter_types::PyHelperFuncs;
-use serde::{Deserialize, Serialize};
+use crate::tasks::evaluator::AssertionEvaluator;
+use crate::tasks::traits::AssertionAccessor;
+use crate::tasks::traits::EvaluationTask;
+use scouter_types::genai::AssertionResult;
+use scouter_types::genai::EvaluationContext;
+use scouter_types::genai::LLMJudgeTask;
 
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct LLMJudgeTask {
-    #[pyo3(get, set)]
-    pub name: String,
-
-    #[pyo3(get)]
-    pub prompt: Prompt,
-
-    #[pyo3(get)]
-    pub expected_value: AssertionValue,
-
-    #[pyo3(get)]
-    pub operator: ComparisonOperator,
-
-    pub task_type: EvaluationTaskType,
-}
-
-#[pymethods]
-impl LLMJudgeTask {
-    /// Creates a new LLMJudgeTask
-    /// # Examples
-    /// ```python
-    /// task = LLMJudgeTask(
-    ///     name="Sentiment Analysis Judge",
-    ///     prompt=prompt_object,
-    ///     expected_value="Positive",
-    ///     operator=ComparisonOperator.EQUALS
-    /// )
-    /// # Arguments
-    /// * `name`: The name of the judge task
-    /// * `prompt`: The prompt object to be used for evaluation
-    /// * `expected_value`: The expected value for the judgement
-    /// * `operator`: The comparison operator to use
-    /// # Returns
-    /// A new LLMJudgeTask object
-    #[new]
-    #[pyo3(signature = (name, prompt, expected_value, operator))]
-    pub fn new(
-        name: &str,
-        prompt: Prompt,
-        expected_value: &Bound<'_, PyAny>,
-        operator: ComparisonOperator,
-    ) -> Result<Self, EvaluationError> {
-        let expected_value = assertion_value_from_py(expected_value)?;
-
-        // Prompt must have a response type of Score
-        if prompt.response_type != ResponseType::Score {
-            return Err(TypeError::InvalidResponseType.into());
-        }
-
-        Ok(Self {
-            name: name.to_lowercase(),
-            prompt,
-            expected_value,
-            operator,
-            task_type: EvaluationTaskType::LLMJudge,
-        })
+impl AssertionAccessor for LLMJudgeTask {
+    fn field_path(&self) -> &Option<String> {
+        &self.field_path
     }
 
-    pub fn __str__(&self) -> String {
-        // serialize the struct to a string
-        PyHelperFuncs::__str__(self)
+    fn id(&self) -> &String {
+        &self.id
+    }
+
+    fn operator(&self) -> &scouter_types::genai::ComparisonOperator {
+        &self.operator
+    }
+
+    fn expected_value(&self) -> &scouter_types::genai::AssertionValue {
+        &self.expected_value
+    }
+    fn depends_on(&self) -> &Vec<String> {
+        &self.depends_on
+    }
+}
+
+impl EvaluationTask for LLMJudgeTask {
+    fn execute(&self, context: &EvaluationContext) -> Result<AssertionResult, EvaluationError> {
+        let context = context.build_task_context(self.depends_on())?;
+        let result = AssertionEvaluator::evaluate_assertion(&context, self)?;
+
+        Ok(result)
     }
 }

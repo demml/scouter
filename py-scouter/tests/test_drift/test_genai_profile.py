@@ -4,7 +4,7 @@ from tempfile import TemporaryDirectory
 import pytest
 from pydantic import BaseModel
 from scouter.alert import AlertThreshold
-from scouter.drift import Drifter, GenAIDriftConfig, GenAIDriftMetric, GenAIDriftProfile
+from scouter.drift import Drifter, GenAIDriftConfig, GenAIDriftMetric, GenAIEvalProfile
 from scouter.genai import Agent, Prompt, Score, Task, Workflow
 from scouter.mock import LLMTestServer
 from scouter.queue import GenAIRecord
@@ -37,7 +37,7 @@ def test_genai_drift_profile_from_metrics():
             alert_threshold=AlertThreshold.Above,
         )
 
-        _profile = GenAIDriftProfile(
+        _profile = GenAIEvalProfile(
             config=GenAIDriftConfig(),
             metrics=[metric1, metric2],
         )
@@ -85,7 +85,7 @@ def test_genai_drift_profile_from_workflow():
             alert_threshold=AlertThreshold.Below,
         )
 
-        profile = GenAIDriftProfile(
+        profile = GenAIEvalProfile(
             config=GenAIDriftConfig(),
             workflow=workflow,
             metrics=[metric],
@@ -102,7 +102,7 @@ def test_genai_drift_profile_from_workflow():
             assert (Path(temp_dir) / "profile.json").exists()
 
             with open(path, "r") as f:
-                GenAIDriftProfile.model_validate_json(f.read())
+                GenAIEvalProfile.model_validate_json(f.read())
 
 
 def test_genai_drift_profile_from_metrics_fail():
@@ -128,15 +128,17 @@ def test_genai_drift_profile_from_metrics_fail():
         )
 
         # Drift profile with no required parameters should raise an error
-        with pytest.raises(RuntimeError, match="LLM Metric requires at least one bound parameter"):
-            _profile = GenAIDriftProfile(
+        with pytest.raises(
+            RuntimeError, match="LLM Metric requires at least one bound parameter"
+        ):
+            _profile = GenAIEvalProfile(
                 config=GenAIDriftConfig(),
                 metrics=[metric1],
             )
 
         # Drift profile with metric without prompt should raise an error
         with pytest.raises(RuntimeError, match="Missing prompt in LLM Metric"):
-            _profile = GenAIDriftProfile(
+            _profile = GenAIEvalProfile(
                 config=GenAIDriftConfig(),
                 metrics=[metric2],
             )
@@ -184,8 +186,10 @@ def test_genai_drift_profile_from_workflow_fail():
             alert_threshold=AlertThreshold.Below,
         )
 
-        with pytest.raises(RuntimeError, match="LLM Metric requires at least one bound parameter"):
-            _profile = GenAIDriftProfile(
+        with pytest.raises(
+            RuntimeError, match="LLM Metric requires at least one bound parameter"
+        ):
+            _profile = GenAIEvalProfile(
                 config=GenAIDriftConfig(),
                 workflow=workflow,
                 metrics=[metric],
@@ -244,7 +248,10 @@ def test_genai_drift_profile_workflow_run_context():
             == '"What is the capital of France?" + "The capital of France is Paris."?'
         )
 
-        assert result.tasks.get("relevance").prompt.messages[0].content[0].text == '"foo bar"'
+        assert (
+            result.tasks.get("relevance").prompt.messages[0].content[0].text
+            == '"foo bar"'
+        )
 
 
 def test_genai_drifter():
@@ -258,7 +265,7 @@ def test_genai_drifter():
             output_type=Score,
         )
 
-        profile = GenAIDriftProfile(
+        profile = GenAIEvalProfile(
             config=GenAIDriftConfig(),
             metrics=[
                 GenAIDriftMetric(

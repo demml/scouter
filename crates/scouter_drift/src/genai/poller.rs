@@ -4,7 +4,7 @@ use crate::genai::evaluator::GenAIEvaluator;
 use potato_head::prompt_types::Score;
 use scouter_sql::sql::traits::{GenAIDriftSqlLogic, ProfileSqlLogic};
 use scouter_sql::PostgresClient;
-use scouter_types::genai::GenAIDriftProfile;
+use scouter_types::genai::GenAIEvalProfile;
 use scouter_types::{GenAITaskRecord, Status};
 use sqlx::{Pool, Postgres};
 use std::collections::HashMap;
@@ -29,7 +29,7 @@ impl GenAIPoller {
     pub async fn process_drift_record(
         &mut self,
         record: &GenAITaskRecord,
-        profile: &GenAIDriftProfile,
+        profile: &GenAIEvalProfile,
     ) -> Result<(HashMap<String, Score>, Option<i32>), DriftError> {
         debug!("Processing workflow");
 
@@ -68,7 +68,7 @@ impl GenAIPoller {
         let mut genai_profile = if let Some(profile) =
             PostgresClient::get_drift_profile(&self.db_pool, &task.entity_id).await?
         {
-            let genai_profile: GenAIDriftProfile =
+            let genai_profile: GenAIEvalProfile =
                 serde_json::from_value(profile).inspect_err(|e| {
                     error!("Failed to deserialize GenAI drift profile: {:?}", e);
                 })?;

@@ -13,68 +13,7 @@ use std::collections::HashMap;
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct GenAIDriftMetric {
-    #[pyo3(get, set)]
-    pub name: String,
-
-    #[pyo3(get, set)]
-    pub value: f64,
-
-    #[pyo3(get)]
-    pub prompt: Option<Prompt>,
-
-    #[pyo3(get, set)]
-    pub alert_condition: GenAIMetricAlertCondition,
-}
-
-#[pymethods]
-impl GenAIDriftMetric {
-    #[new]
-    #[pyo3(signature = (name, value, alert_threshold, alert_threshold_value=None, prompt=None))]
-    pub fn new(
-        name: &str,
-        value: f64,
-        alert_threshold: AlertThreshold,
-        alert_threshold_value: Option<f64>,
-        prompt: Option<Prompt>,
-    ) -> Result<Self, TypeError> {
-        // assert that the prompt is a scoring prompt
-        if let Some(ref prompt) = prompt {
-            if prompt.response_type != ResponseType::Score {
-                return Err(TypeError::InvalidResponseType);
-            }
-        }
-
-        let prompt_condition =
-            GenAIMetricAlertCondition::new(alert_threshold, alert_threshold_value);
-
-        Ok(Self {
-            name: name.to_lowercase(),
-            value,
-            prompt,
-            alert_condition: prompt_condition,
-        })
-    }
-
-    pub fn __str__(&self) -> String {
-        // serialize the struct to a string
-        PyHelperFuncs::__str__(self)
-    }
-
-    #[getter]
-    pub fn alert_threshold(&self) -> AlertThreshold {
-        self.alert_condition.alert_threshold.clone()
-    }
-
-    #[getter]
-    pub fn alert_threshold_value(&self) -> Option<f64> {
-        self.alert_condition.alert_threshold_value
-    }
-}
-
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct GenAIMetricAlertCondition {
+pub struct GenAIEvalAlertCondition {
     #[pyo3(get, set)]
     pub alert_threshold: AlertThreshold,
 
@@ -84,7 +23,7 @@ pub struct GenAIMetricAlertCondition {
 
 #[pymethods]
 #[allow(clippy::too_many_arguments)]
-impl GenAIMetricAlertCondition {
+impl GenAIEvalAlertCondition {
     #[new]
     #[pyo3(signature = (alert_threshold, alert_threshold_value=None))]
     pub fn new(alert_threshold: AlertThreshold, alert_threshold_value: Option<f64>) -> Self {
@@ -109,18 +48,7 @@ pub struct GenAIAlertConfig {
     pub schedule: String,
 
     #[pyo3(get, set)]
-    pub alert_conditions: Option<HashMap<String, GenAIMetricAlertCondition>>,
-}
-
-impl GenAIAlertConfig {
-    pub fn set_alert_conditions(&mut self, metrics: &[GenAIDriftMetric]) {
-        self.alert_conditions = Some(
-            metrics
-                .iter()
-                .map(|m| (m.name.clone(), m.alert_condition.clone()))
-                .collect(),
-        );
-    }
+    pub alert_condition: Option<GenAIEvalAlertCondition>,
 }
 
 impl ValidateAlertConfig for GenAIAlertConfig {}
@@ -128,10 +56,11 @@ impl ValidateAlertConfig for GenAIAlertConfig {}
 #[pymethods]
 impl GenAIAlertConfig {
     #[new]
-    #[pyo3(signature = (schedule=None, dispatch_config=None))]
+    #[pyo3(signature = (schedule=None, dispatch_config=None, alert_condition=None))]
     pub fn new(
         schedule: Option<&Bound<'_, PyAny>>,
         dispatch_config: Option<&Bound<'_, PyAny>>,
+        alert_condition: Option<GenAIEvalAlertCondition>,
     ) -> Result<Self, TypeError> {
         let alert_dispatch_config = match dispatch_config {
             None => AlertDispatchConfig::default(),
@@ -164,7 +93,7 @@ impl GenAIAlertConfig {
         Ok(Self {
             schedule,
             dispatch_config: alert_dispatch_config,
-            alert_conditions: None,
+            alert_condition,
         })
     }
 
@@ -184,7 +113,7 @@ impl Default for GenAIAlertConfig {
         Self {
             dispatch_config: AlertDispatchConfig::default(),
             schedule: CommonCrons::EveryDay.cron(),
-            alert_conditions: None,
+            alert_condition: None,
         }
     }
 }

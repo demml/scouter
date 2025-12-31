@@ -29,7 +29,7 @@ use scouter_types::DriftType;
 use scouter_types::JwtToken;
 use scouter_types::RegisteredProfileResponse;
 use scouter_types::{
-    genai::{GenAIAlertConfig, GenAIDriftConfig, GenAIDriftMetric, GenAIDriftProfile},
+    genai::{GenAIAlertConfig, GenAIDriftConfig, GenAIDriftMetric, GenAIEvalProfile},
     AlertThreshold, CustomMetricRecord, GenAIMetricRecord, MessageRecord, PsiRecord,
 };
 use scouter_types::{
@@ -374,7 +374,7 @@ impl TestHelper {
         MessageRecord::ServerRecords(ServerRecords::new(records))
     }
 
-    pub async fn create_genai_drift_profile() -> GenAIDriftProfile {
+    pub async fn create_genai_drift_profile() -> GenAIEvalProfile {
         let alert_config = GenAIAlertConfig::default();
         let config = GenAIDriftConfig::new(SPACE, NAME, VERSION, 25, alert_config, None).unwrap();
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
@@ -398,7 +398,7 @@ impl TestHelper {
         )
         .unwrap();
         let genai_metrics = vec![metric1, metric2];
-        GenAIDriftProfile::from_metrics(config, genai_metrics)
+        GenAIEvalProfile::from_metrics(config, genai_metrics)
             .await
             .unwrap()
     }

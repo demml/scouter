@@ -245,7 +245,9 @@ class Prompt:
         model: str,
         provider: Provider | str,
         system_instructions: Optional[PromptMessage] = None,
-        model_settings: Optional[ModelSettings | OpenAIChatSettings | GeminiSettings | AnthropicSettings] = None,
+        model_settings: Optional[
+            ModelSettings | OpenAIChatSettings | GeminiSettings | AnthropicSettings
+        ] = None,
         output_type: Optional[Any] = None,
     ) -> None:
         """Initialize a Prompt object.
@@ -2527,7 +2529,9 @@ class ChatMessage:
     @property
     def content(
         self,
-    ) -> List[Union[TextContentPart, ImageContentPart, InputAudioContentPart, FileContentPart]]:
+    ) -> List[
+        Union[TextContentPart, ImageContentPart, InputAudioContentPart, FileContentPart]
+    ]:
         """The message content parts."""
 
     @property
@@ -9541,8 +9545,12 @@ class BatchConfig:
 def init_tracer(
     service_name: str = "scouter_service",
     scope: str = "scouter.tracer.{version}",
-    transport_config: Optional[HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig | GrpcConfig] = None,
-    exporter: Optional[HttpSpanExporter | GrpcSpanExporter | StdoutSpanExporter | TestSpanExporter] = None,
+    transport_config: Optional[
+        HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig | GrpcConfig
+    ] = None,
+    exporter: Optional[
+        HttpSpanExporter | GrpcSpanExporter | StdoutSpanExporter | TestSpanExporter
+    ] = None,
     batch_config: Optional[BatchConfig] = None,
 ) -> None:
     """
@@ -10241,7 +10249,9 @@ class AlertDispatchType:
     def to_string() -> str:
         """Return the string representation of the alert dispatch type"""
 
-DispatchConfigType = ConsoleDispatchConfig | SlackDispatchConfig | OpsGenieDispatchConfig
+DispatchConfigType = (
+    ConsoleDispatchConfig | SlackDispatchConfig | OpsGenieDispatchConfig
+)
 
 class AlertZone:
     Zone1: "AlertZone"
@@ -10585,7 +10595,9 @@ class CustomMetricAlertConfig:
         """Return the alert_condition that were set during metric definition"""
 
     @alert_conditions.setter
-    def alert_conditions(self, alert_conditions: dict[str, CustomMetricAlertCondition]) -> None:
+    def alert_conditions(
+        self, alert_conditions: dict[str, CustomMetricAlertCondition]
+    ) -> None:
         """Update the alert_condition that were set during metric definition"""
 
 class GenAIAlertConfig:
@@ -11249,7 +11261,9 @@ class DriftRequest:
         """
 
 class ProfileStatusRequest:
-    def __init__(self, name: str, space: str, version: str, drift_type: DriftType, active: bool) -> None:
+    def __init__(
+        self, name: str, space: str, version: str, drift_type: DriftType, active: bool
+    ) -> None:
         """Initialize profile status request
 
         Args:
@@ -11266,7 +11280,9 @@ class ProfileStatusRequest:
         """
 
 class GetProfileRequest:
-    def __init__(self, name: str, space: str, version: str, drift_type: DriftType) -> None:
+    def __init__(
+        self, name: str, space: str, version: str, drift_type: DriftType
+    ) -> None:
         """Initialize get profile request
 
         Args:
@@ -11360,7 +11376,9 @@ class ScouterClient:
             Drift map of type BinnedMetrics | BinnedPsiFeatureMetrics | BinnedSpcFeatureMetrics
         """
 
-    def register_profile(self, profile: Any, set_active: bool = False, deactivate_others: bool = False) -> bool:
+    def register_profile(
+        self, profile: Any, set_active: bool = False, deactivate_others: bool = False
+    ) -> bool:
         """Registers a drift profile with the server
 
         Args:
@@ -11386,7 +11404,9 @@ class ScouterClient:
             boolean
         """
 
-    def get_alerts(self, request: DriftAlertPaginationRequest) -> DriftAlertPaginationResponse:
+    def get_alerts(
+        self, request: DriftAlertPaginationRequest
+    ) -> DriftAlertPaginationResponse:
         """Get alerts
 
         Args:
@@ -12064,7 +12084,7 @@ class ScouterQueue:
                     • SpcDriftProfile    - Statistical Process Control monitoring
                     • PsiDriftProfile    - Population Stability Index monitoring
                     • CustomDriftProfile - Custom metric monitoring
-                    • GenAIDriftProfile    - LLM evaluation monitoring
+                    • GenAIEvalProfile    - LLM evaluation monitoring
 
             transport_config (Union[KafkaConfig, RabbitMQConfig, RedisConfig, HttpConfig, GrpcConfig]):
                 Transport configuration for the queue publisher.
@@ -12181,7 +12201,7 @@ class GenAIRecord:
         context: Context,
         prompt: Optional[Prompt | SerializedType] = None,
     ) -> None:
-        """Creates a new LLM record to associate with an `GenAIDriftProfile`.
+        """Creates a new LLM record to associate with an `GenAIEvalProfile`.
         The record is sent to the `Scouter` server via the `ScouterQueue` and is
         then used to inject context into the evaluation prompts.
 
@@ -12725,7 +12745,16 @@ class FreedmanDiaconis:
         For more information, please see: https://en.wikipedia.org/wiki/Histogram
         """
 
-EqualWidthMethods = Manual | SquareRoot | Sturges | Rice | Doane | Scott | TerrellScott | FreedmanDiaconis
+EqualWidthMethods = (
+    Manual
+    | SquareRoot
+    | Sturges
+    | Rice
+    | Doane
+    | Scott
+    | TerrellScott
+    | FreedmanDiaconis
+)
 
 class EqualWidthBinning:
     def __init__(self, method: EqualWidthMethods = Doane()):
@@ -12799,7 +12828,9 @@ class PsiDriftConfig:
         alert_config: PsiAlertConfig = PsiAlertConfig(),
         config_path: Optional[Path] = None,
         categorical_features: Optional[list[str]] = None,
-        binning_strategy: QuantileBinning | EqualWidthBinning = QuantileBinning(num_bins=10),
+        binning_strategy: QuantileBinning | EqualWidthBinning = QuantileBinning(
+            num_bins=10
+        ),
     ):
         """Initialize monitor config
 
@@ -12877,7 +12908,9 @@ class PsiDriftConfig:
         """binning_strategy"""
 
     @binning_strategy.setter
-    def binning_strategy(self, binning_strategy: QuantileBinning | EqualWidthBinning) -> None:
+    def binning_strategy(
+        self, binning_strategy: QuantileBinning | EqualWidthBinning
+    ) -> None:
         """Set binning_strategy"""
 
     @property
@@ -13558,14 +13591,14 @@ class GenAIDriftConfig:
                 LLM alert configuration
         """
 
-class GenAIDriftProfile:
+class GenAIEvalProfile:
     def __init__(
         self,
         config: GenAIDriftConfig,
         metrics: list[GenAIDriftMetric],
         workflow: Optional[Workflow] = None,
     ):
-        """Initialize a GenAIDriftProfile for LLM evaluation and drift detection.
+        """Initialize a GenAIEvalProfile for LLM evaluation and drift detection.
 
         LLM evaluations are run asynchronously on the scouter server.
 
@@ -13591,7 +13624,7 @@ class GenAIDriftProfile:
                 type configuration.
 
         Returns:
-            GenAIDriftProfile: Configured profile ready for GenAI drift monitoring.
+            GenAIEvalProfile: Configured profile ready for GenAI drift monitoring.
 
         Raises:
             ProfileError: If workflow validation fails, metrics are empty when no
@@ -13605,13 +13638,13 @@ class GenAIDriftProfile:
             ...     GenAIDriftMetric("accuracy", 0.95, AlertThreshold.Above, 0.1, prompt),
             ...     GenAIDriftMetric("relevance", 0.85, AlertThreshold.Below, 0.2, prompt2)
             ... ]
-            >>> profile = GenAIDriftProfile(config, metrics)
+            >>> profile = GenAIEvalProfile(config, metrics)
 
             Advanced usage with custom workflow:
 
             >>> workflow = create_custom_workflow()  # Your custom workflow
             >>> metrics = [GenAIDriftMetric("final_task", 0.9, AlertThreshold.Above)]
-            >>> profile = GenAIDriftProfile(config, metrics, workflow)
+            >>> profile = GenAIEvalProfile(config, metrics, workflow)
 
         Note:
             - When using custom workflows, ensure final tasks have Score response types
@@ -13636,7 +13669,7 @@ class GenAIDriftProfile:
         """Return scouter version used to create DriftProfile"""
 
     def __str__(self) -> str:
-        """String representation of GenAIDriftProfile"""
+        """String representation of GenAIEvalProfile"""
 
     def model_dump_json(self) -> str:
         """Return json representation of drift profile"""
@@ -13655,7 +13688,7 @@ class GenAIDriftProfile:
         """
 
     @staticmethod
-    def model_validate(data: Dict[str, Any]) -> "GenAIDriftProfile":
+    def model_validate(data: Dict[str, Any]) -> "GenAIEvalProfile":
         """Load drift profile from dictionary
 
         Args:
@@ -13664,7 +13697,7 @@ class GenAIDriftProfile:
         """
 
     @staticmethod
-    def model_validate_json(json_string: str) -> "GenAIDriftProfile":
+    def model_validate_json(json_string: str) -> "GenAIEvalProfile":
         """Load drift profile from json
 
         Args:
@@ -13673,14 +13706,14 @@ class GenAIDriftProfile:
         """
 
     @staticmethod
-    def from_file(path: Path) -> "GenAIDriftProfile":
+    def from_file(path: Path) -> "GenAIEvalProfile":
         """Load drift profile from file
 
         Args:
             path: Path to the json file
 
         Returns:
-            GenAIDriftProfile
+            GenAIEvalProfile
         """
 
     def update_config_args(
@@ -13810,7 +13843,9 @@ class Drifter:
     def create_drift_profile(  # type: ignore
         self,
         data: Any,
-        config: Optional[Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]] = None,
+        config: Optional[
+            Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]
+        ] = None,
         data_type: Optional[ScouterDataType] = None,
     ) -> Union[SpcDriftProfile, PsiDriftProfile, CustomDriftProfile]:
         """Create a drift profile from data.
@@ -13837,8 +13872,8 @@ class Drifter:
         config: GenAIDriftConfig,
         metrics: List[GenAIDriftMetric],
         workflow: Optional[Workflow] = None,
-    ) -> GenAIDriftProfile:
-        """Initialize a GenAIDriftProfile for LLM evaluation and drift detection.
+    ) -> GenAIEvalProfile:
+        """Initialize a GenAIEvalProfile for LLM evaluation and drift detection.
 
         LLM evaluations are run asynchronously on the scouter server.
 
@@ -13864,7 +13899,7 @@ class Drifter:
                 type configuration.
 
         Returns:
-            GenAIDriftProfile: Configured profile ready for GenAI drift monitoring.
+            GenAIEvalProfile: Configured profile ready for GenAI drift monitoring.
 
         Raises:
             ProfileError: If workflow validation fails, metrics are empty when no
@@ -13940,7 +13975,7 @@ class Drifter:
     def compute_drift(
         self,
         data: Union[GenAIRecord, List[GenAIRecord]],
-        drift_profile: GenAIDriftProfile,
+        drift_profile: GenAIEvalProfile,
         data_type: Optional[ScouterDataType] = None,
     ) -> GenAIDriftMap:
         """Create a drift map from data.
@@ -13960,7 +13995,7 @@ class Drifter:
     def compute_drift(  # type: ignore
         self,
         data: Any,
-        drift_profile: Union[SpcDriftProfile, PsiDriftProfile, GenAIDriftProfile],
+        drift_profile: Union[SpcDriftProfile, PsiDriftProfile, GenAIEvalProfile],
         data_type: Optional[ScouterDataType] = None,
     ) -> Union[SpcDriftMap, PsiDriftMap, GenAIDriftMap]:
         """Create a drift map from data.
@@ -14079,7 +14114,7 @@ class GenAIEvalRecord:
         context: Context,
         id: Optional[str] = None,
     ) -> None:
-        """Creates a new LLM record to associate with an `GenAIDriftProfile`.
+        """Creates a new LLM record to associate with an `GenAIEvalProfile`.
         The record is sent to the `Scouter` server via the `ScouterQueue` and is
         then used to inject context into the evaluation prompts.
 
@@ -14444,7 +14479,7 @@ __all__ = [
     "CustomDriftProfile",
     "GenAIDriftMetric",
     "GenAIDriftConfig",
-    "GenAIDriftProfile",
+    "GenAIEvalProfile",
     "Drifter",
     "QuantileBinning",
     "EqualWidthBinning",

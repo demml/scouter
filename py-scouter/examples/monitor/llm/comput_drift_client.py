@@ -2,7 +2,7 @@
 ### You would typically let the server handle this, but this is to demonstrate the functionality.
 
 from scouter.alert import AlertThreshold
-from scouter.drift import Drifter, GenAIDriftConfig, GenAIDriftMetric, GenAIDriftProfile
+from scouter.drift import Drifter, GenAIDriftConfig, GenAIDriftMetric, GenAIEvalProfile
 from scouter.genai import Agent, Prompt, Provider, Score
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 from scouter.queue import GenAIRecord
@@ -71,10 +71,10 @@ def create_query_reformulation_prompt():
     )
 
 
-def create_genai_drift_profile() -> GenAIDriftProfile:
+def create_genai_drift_profile() -> GenAIEvalProfile:
     """Helper function to create a GenAI drift profile for query reformulation tasks."""
     eval_prompt = create_reformulation_evaluation_prompt()
-    profile = GenAIDriftProfile(
+    profile = GenAIEvalProfile(
         config=GenAIDriftConfig(),
         metrics=[
             GenAIDriftMetric(

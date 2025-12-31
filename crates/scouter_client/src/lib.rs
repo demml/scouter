@@ -16,8 +16,8 @@ pub use scouter_types::{
         CustomMetricDriftConfig,
     },
     genai::{
-        GenAIAlertConfig, GenAIDriftConfig, GenAIDriftMap, GenAIDriftMetric, GenAIDriftProfile,
-        GenAIEvalMetric, GenAIMetricAlertCondition,
+        GenAIAlertConfig, GenAIDriftConfig, GenAIDriftMap, GenAIDriftMetric, GenAIEvalMetric,
+        GenAIEvalProfile, GenAIMetricAlertCondition,
     },
     psi::{
         Bin, BinnedPsiFeatureMetrics, BinnedPsiMetric, PsiAlertConfig, PsiChiSquareThreshold,

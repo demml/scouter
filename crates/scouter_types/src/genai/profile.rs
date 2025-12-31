@@ -1,6 +1,6 @@
 use crate::error::{ProfileError, TypeError};
 use crate::genai::alert::GenAIAlertConfig;
-use crate::genai::alert::GenAIDriftMetric;
+use crate::genai::eval::{AssertionTask, LLMJudgeTask};
 use crate::util::{json_to_pyobject, pyobject_to_json, ConfigExt};
 use crate::ProfileRequest;
 use crate::{scouter_version, GenAIMetricRecord};
@@ -23,7 +23,7 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tracing::{debug, error, instrument};
+use tracing::{debug, error, field, instrument};
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -245,7 +245,7 @@ fn validate_first_tasks(
 fn validate_last_tasks(
     workflow: &Workflow,
     execution_order: &HashMap<i32, std::collections::HashSet<String>>,
-    metrics: &[GenAIDriftMetric],
+    tasks: &[LLMJudgeTask],
 ) -> Result<(), ProfileError> {
     let last_step = execution_order.len() as i32;
     let last_tasks = execution_order
@@ -253,8 +253,8 @@ fn validate_last_tasks(
         .ok_or_else(|| ProfileError::NoTasksFoundError("No final tasks found".to_string()))?;
 
     for task_id in last_tasks {
-        // assert task_id exists in metrics (all output tasks must have a corresponding metric)
-        if !metrics.iter().any(|m| m.name == *task_id) {
+        // assert task_id exists in tasks (all output tasks must have a corresponding task)
+        if !tasks.iter().any(|m| m.id == *task_id) {
             return Err(ProfileError::MetricNotFoundForOutputTask(task_id.clone()));
         }
 
@@ -273,7 +273,7 @@ fn validate_last_tasks(
 ///
 /// Ensures that:
 /// - First tasks have required prompt parameters
-/// - Last tasks have Score response type
+/// - Last tasks have a response type e
 ///
 /// # Arguments
 /// * `workflow` - The workflow to validate
@@ -286,7 +286,7 @@ fn validate_last_tasks(
 /// Returns various ProfileError types based on validation failures.
 fn validate_workflow(
     workflow: &Workflow,
-    metrics: &[GenAIDriftMetric],
+    llm_judge_tasks: &[LLMJudgeTask],
 ) -> Result<(), ProfileError> {
     let execution_order = workflow.execution_plan()?;
 
@@ -294,75 +294,74 @@ fn validate_workflow(
     validate_first_tasks(workflow, &execution_order)?;
 
     // Validate last tasks have correct response type
-    validate_last_tasks(workflow, &execution_order, metrics)?;
+    validate_last_tasks(workflow, &execution_order, llm_judge_tasks)?;
 
     Ok(())
 }
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct GenAIDriftProfile {
+pub struct GenAIEvalProfile {
     #[pyo3(get)]
     pub config: GenAIDriftConfig,
 
     #[pyo3(get)]
-    pub metrics: Vec<GenAIDriftMetric>,
+    pub assertions: Vec<AssertionTask>,
+
+    #[pyo3(get)]
+    pub llm_judge_tasks: Vec<LLMJudgeTask>,
 
     #[pyo3(get)]
     pub scouter_version: String,
 
-    pub workflow: Workflow,
-
-    #[pyo3(get)]
-    pub metric_names: Vec<String>,
+    pub workflow: Option<Workflow>,
 }
+
 #[pymethods]
-impl GenAIDriftProfile {
+impl GenAIEvalProfile {
     #[new]
-    #[pyo3(signature = (config, metrics, workflow=None))]
-    /// Create a new GenAIDriftProfile
-    /// LLM evaluations are run asynchronously on the scouter server.
-    ///
-    /// # Logic flow:
-    ///  1. If a user provides only a list of metrics, a workflow will be created from the metrics using `from_metrics` method.
-    ///  2. If a user provides a workflow, It will be parsed and validated using `from_workflow` method.
-    ///     - The user must also provide a list of metrics that will be used to evaluate the output of the workflow.
-    ///     - The metric names must correspond to the final task names in the workflow
-    /// In addition, baseline metrics and threshold will be extracted from the GenAIDriftMetric.
+    #[pyo3(signature = (config, assertions=None, llm_judge_tasks=None))]
+    /// Create a new GenAIEvalProfile
+    /// GenAI evaluations are run asynchronously on the scouter server.
     /// # Arguments
     /// * `config` - GenAIDriftConfig - The configuration for the GenAI drift profile
-    /// * `metrics` - Option<Bound<'_, PyList>> - Optional list of metrics that will be used to evaluate the LLM
-    /// * `workflow` - Option<Bound<'_, PyAny>> - Optional workflow to use for the GenAI drift profile
-    ///
+    /// * `assertions` - Option<Vec<AssertionTask>> - Optional list of assertion tasks
+    /// * `llm_judge_tasks` - Option<Vec<LLMJudgeTask>> - Optional list of LLM judge tasks
     /// # Returns
-    /// * `Result<Self, ProfileError>` - The GenAIDriftProfile
-    ///
+    /// * `Result<Self, ProfileError>` - The GenAIEvalProfile
     /// # Errors
     /// * `ProfileError::MissingWorkflowError` - If the workflow is
     #[instrument(skip_all)]
     pub fn new(
         config: GenAIDriftConfig,
-        metrics: Vec<GenAIDriftMetric>,
-        workflow: Option<Bound<'_, PyAny>>,
+        assertions: Option<Vec<AssertionTask>>,
+        llm_judge_tasks: Option<Vec<LLMJudgeTask>>,
     ) -> Result<Self, ProfileError> {
-        match workflow {
-            Some(py_workflow) => {
-                // Extract and validate workflow from Python object
-                let workflow = Self::extract_workflow(&py_workflow).map_err(|e| {
-                    error!("Failed to extract workflow: {}", e);
-                    e
-                })?;
-                validate_workflow(&workflow, &metrics)?;
-                Self::from_workflow(config, workflow, metrics)
-            }
-            None => {
-                // Ensure metrics are provided when no workflow specified
-                if metrics.is_empty() {
-                    return Err(ProfileError::EmptyMetricsList);
-                }
-                app_state().block_on(async { Self::from_metrics(config, metrics).await })
-            }
+        let assertions = assertions.unwrap_or_default();
+        let llm_judge_tasks = llm_judge_tasks.unwrap_or_default();
+
+        if assertions.is_empty() && llm_judge_tasks.is_empty() {
+            return Err(ProfileError::EmptyTaskList);
         }
+
+        let workflow = if !llm_judge_tasks.is_empty() {
+            let workflow = app_state()
+                .block_on(async { Self::build_workflow_from_judges(&llm_judge_tasks).await })?;
+
+            // Validate the workflow
+            validate_workflow(&workflow, &llm_judge_tasks)?;
+            Some(workflow)
+        } else {
+            None
+        };
+
+        Ok(Self {
+            config,
+            assertions,
+            llm_judge_tasks,
+            scouter_version: scouter_version(),
+            workflow,
+        })
     }
 
     pub fn __str__(&self) -> String {
@@ -403,12 +402,12 @@ impl GenAIDriftProfile {
         Ok(PyHelperFuncs::save_to_json(
             self,
             path,
-            FileName::GenAIDriftProfile.to_str(),
+            FileName::GenAIEvalProfile.to_str(),
         )?)
     }
 
     #[staticmethod]
-    pub fn model_validate(data: &Bound<'_, PyDict>) -> GenAIDriftProfile {
+    pub fn model_validate(data: &Bound<'_, PyDict>) -> GenAIEvalProfile {
         let json_value = pyobject_to_json(data).unwrap();
 
         let string = serde_json::to_string(&json_value).unwrap();
@@ -416,13 +415,13 @@ impl GenAIDriftProfile {
     }
 
     #[staticmethod]
-    pub fn model_validate_json(json_string: String) -> GenAIDriftProfile {
+    pub fn model_validate_json(json_string: String) -> GenAIEvalProfile {
         // deserialize the string to a struct
         serde_json::from_str(&json_string).expect("Failed to load prompt drift profile")
     }
 
     #[staticmethod]
-    pub fn from_file(path: PathBuf) -> Result<GenAIDriftProfile, ProfileError> {
+    pub fn from_file(path: PathBuf) -> Result<GenAIEvalProfile, ProfileError> {
         let file = std::fs::read_to_string(&path)?;
 
         Ok(serde_json::from_str(&file)?)
@@ -464,175 +463,132 @@ impl GenAIDriftProfile {
             deactivate_others: false,
         })
     }
+
+    pub fn has_llm_tasks(&self) -> bool {
+        !self.llm_judge_tasks.is_empty()
+    }
+
+    /// Check if this profile has assertions
+    pub fn has_assertions(&self) -> bool {
+        !self.assertions.is_empty()
+    }
+
+    /// Get execution order for all tasks (assertions + LLM judges)
+    pub fn get_execution_plan(&self) -> Result<Vec<Vec<String>>, ProfileError> {
+        let mut graph: HashMap<String, Vec<String>> = HashMap::new();
+        let mut in_degree: HashMap<String, usize> = HashMap::new();
+
+        // Add assertions
+        for task in &self.assertions {
+            graph.insert(task.id.clone(), task.depends_on.clone());
+            in_degree.entry(task.id.clone()).or_insert(0);
+
+            for dep in &task.depends_on {
+                *in_degree.entry(dep.clone()).or_insert(0) += 1;
+            }
+        }
+
+        // Add LLM judges
+        for task in &self.llm_judge_tasks {
+            graph.insert(task.id.clone(), task.depends_on.clone());
+            in_degree.entry(task.id.clone()).or_insert(0);
+
+            for dep in &task.depends_on {
+                *in_degree.entry(dep.clone()).or_insert(0) += 1;
+            }
+        }
+
+        // Topological sort for execution order
+        let mut result = Vec::new();
+        let mut current_level: Vec<String> = in_degree
+            .iter()
+            .filter(|(_, &degree)| degree == 0)
+            .map(|(id, _)| id.clone())
+            .collect();
+
+        while !current_level.is_empty() {
+            result.push(current_level.clone());
+
+            let mut next_level = Vec::new();
+            for task_id in &current_level {
+                if let Some(deps) = graph.get(task_id) {
+                    for dep in deps {
+                        if let Some(degree) = in_degree.get_mut(dep) {
+                            *degree -= 1;
+                            if *degree == 0 {
+                                next_level.push(dep.clone());
+                            }
+                        }
+                    }
+                }
+            }
+
+            current_level = next_level;
+        }
+
+        // Validate that all tasks were included (detect cycles)
+        let total_tasks = self.assertions.len() + self.llm_judge_tasks.len();
+        let processed_tasks: usize = result.iter().map(|level| level.len()).sum();
+
+        if processed_tasks != total_tasks {
+            return Err(ProfileError::CircularDependency);
+        }
+
+        Ok(result)
+    }
 }
 
-impl GenAIDriftProfile {
-    /// Creates an GenAIDriftProfile from a configuration and a list of metrics.
-    ///
+impl GenAIEvalProfile {
+    /// Build workflow from LLM judge tasks
     /// # Arguments
-    /// * `config` - GenAIDriftConfig - The configuration for the LLM
-    /// * `metrics` - Vec<GenAIDriftMetric> - The metrics that will be used to evaluate the LLM
-    /// * `scouter_version` - Option<String> - The version of scouter that the profile is created with.
+    /// * `judges` - Slice of LLMJudgeTask
     /// # Returns
-    /// * `Result<Self, ProfileError>` - The GenAIDriftProfile
-    pub async fn from_metrics(
-        mut config: GenAIDriftConfig,
-        metrics: Vec<GenAIDriftMetric>,
-    ) -> Result<Self, ProfileError> {
-        // Build a workflow from metrics
-        let mut workflow = Workflow::new("genai_drift_workflow");
+    /// * `Result<Workflow, ProfileError>` - The constructed workflow
+    async fn build_workflow_from_judges(judges: &[LLMJudgeTask]) -> Result<Workflow, ProfileError> {
+        let mut workflow = Workflow::new("genai_evaluation_workflow");
         let mut agents = HashMap::new();
-        let mut metric_names = Vec::new();
 
-        // Create agents. We don't want to duplicate, so we check if the agent already exists.
-        // if it doesn't, we create it.
-        for metric in &metrics {
-            // get prompt (if providing a list of metrics, prompt must be present)
-            let prompt = metric
-                .prompt
-                .as_ref()
-                .ok_or_else(|| ProfileError::MissingPromptError(metric.name.clone()))?;
-
-            let agent = match agents.entry(&prompt.provider) {
+        for judge in judges {
+            // Get or create agent for this provider
+            let agent = match agents.entry(&judge.prompt.provider) {
                 Entry::Occupied(entry) => entry.into_mut(),
                 Entry::Vacant(entry) => {
-                    let agent = Agent::new(prompt.provider.clone(), None).await?;
+                    let agent = Agent::new(judge.prompt.provider.clone(), None).await?;
                     workflow.add_agent(&agent);
                     entry.insert(agent)
                 }
             };
 
-            let task = Task::new(&agent.id, prompt.clone(), &metric.name, None, None);
-            validate_prompt_parameters(prompt, &metric.name)?;
+            let dependencies = if judge.depends_on.is_empty() {
+                None
+            } else {
+                Some(judge.depends_on.clone())
+            };
+
+            let task = Task::new(
+                &agent.id,
+                judge.prompt.clone(),
+                &judge.id,
+                dependencies,
+                None,
+            );
+
             workflow.add_task(task)?;
-            metric_names.push(metric.name.clone());
         }
 
-        config.alert_config.set_alert_conditions(&metrics);
-
-        Ok(Self {
-            config,
-            metrics,
-            scouter_version: scouter_version(),
-            workflow,
-            metric_names,
-        })
+        Ok(workflow)
     }
 
-    /// Creates an GenAIDriftProfile from a workflow and a list of metrics.
-    /// This is useful when the workflow is already defined and you want to create a profile from it.
-    /// This is also for more advanced use cases where the workflow may need to execute many dependent tasks.
-    /// Because of this, there are a few requirements:
-    /// 1. All beginning tasks in the the workflow must have "input" and/or "output" parameters defined.
-    /// 2. All ending tasks in the workflow must have a response type of "Score".
-    /// 3. The user must also supply a list of metrics that will be used to evaluate the output of the workflow.
-    ///    - The metric names must correspond to the final task names in the workflow.
-    ///
-    /// # Arguments
-    /// * `config` - GenAIDriftConfig - The configuration for the LLM
-    /// * `workflow` - Workflow - The workflow that will be used to evaluate the L
-    /// * `metrics` - Vec<GenAIDriftMetric> - The metrics that will be used to evaluate the LLM
-    /// * `scouter_version` - Option<String> - The version of scouter that the profile is created with.
-    ///
-    /// # Returns
-    /// * `Result<Self, ProfileError>` - The GenAIDriftProfile
-    pub fn from_workflow(
-        mut config: GenAIDriftConfig,
-        workflow: Workflow,
-        metrics: Vec<GenAIDriftMetric>,
-    ) -> Result<Self, ProfileError> {
-        validate_workflow(&workflow, &metrics)?;
-
-        config.alert_config.set_alert_conditions(&metrics);
-
-        let metric_names = metrics.iter().map(|m| m.name.clone()).collect();
-
-        Ok(Self {
-            config,
-            metrics,
-            scouter_version: scouter_version(),
-            workflow,
-            metric_names,
-        })
+    pub fn get_assertion_by_id(&self, id: &str) -> Option<&AssertionTask> {
+        self.assertions.iter().find(|a| a.id == id)
     }
 
-    /// Extracts a Workflow from a Python object.
-    ///
-    /// # Arguments
-    /// * `py_workflow` - Python object that should implement `__workflow__()` method
-    ///
-    /// # Returns
-    /// * `Result<Workflow, ProfileError>` - Extracted workflow
-    ///
-    /// # Errors
-    /// * `ProfileError::InvalidWorkflowType` - If object doesn't implement required interface
-    #[instrument(skip_all)]
-    fn extract_workflow(py_workflow: &Bound<'_, PyAny>) -> Result<Workflow, ProfileError> {
-        debug!("Extracting workflow from Python object");
-
-        if !py_workflow.hasattr("__workflow__")? {
-            error!("Invalid workflow type provided. Expected object with __workflow__ method.");
-            return Err(ProfileError::InvalidWorkflowType);
-        }
-
-        let workflow_string = py_workflow
-            .getattr("__workflow__")
-            .map_err(|e| {
-                error!("Failed to call __workflow__ property: {}", e);
-                ProfileError::InvalidWorkflowType
-            })?
-            .extract::<String>()
-            .inspect_err(|e| {
-                error!(
-                    "Failed to extract workflow string from Python object: {}",
-                    e
-                );
-            })?;
-
-        serde_json::from_str(&workflow_string).map_err(|e| {
-            error!("Failed to deserialize workflow: {}", e);
-            ProfileError::InvalidWorkflowType
-        })
-    }
-
-    pub fn get_metric_value(&self, metric_name: &str) -> Result<f64, ProfileError> {
-        self.metrics
-            .iter()
-            .find(|m| m.name == metric_name)
-            .map(|m| m.value)
-            .ok_or_else(|| ProfileError::MetricNotFound(metric_name.to_string()))
-    }
-
-    /// Same as py new method, but allows for passing a runtime for async operations.
-    /// This is used in Opsml, so that the Opsml global runtime can be used.
-    pub fn new_with_runtime(
-        config: GenAIDriftConfig,
-        metrics: Vec<GenAIDriftMetric>,
-        workflow: Option<Bound<'_, PyAny>>,
-        runtime: Arc<tokio::runtime::Runtime>,
-    ) -> Result<Self, ProfileError> {
-        match workflow {
-            Some(py_workflow) => {
-                // Extract and validate workflow from Python object
-                let workflow = Self::extract_workflow(&py_workflow).map_err(|e| {
-                    error!("Failed to extract workflow: {}", e);
-                    e
-                })?;
-                validate_workflow(&workflow, &metrics)?;
-                Self::from_workflow(config, workflow, metrics)
-            }
-            None => {
-                // Ensure metrics are provided when no workflow specified
-                if metrics.is_empty() {
-                    return Err(ProfileError::EmptyMetricsList);
-                }
-                runtime.block_on(async { Self::from_metrics(config, metrics).await })
-            }
-        }
+    pub fn get_llm_judge_by_id(&self, id: &str) -> Option<&LLMJudgeTask> {
+        self.llm_judge_tasks.iter().find(|a| a.id == id)
     }
 }
 
-impl ProfileBaseArgs for GenAIDriftProfile {
+impl ProfileBaseArgs for GenAIEvalProfile {
     type Config = GenAIDriftConfig;
 
     fn config(&self) -> &Self::Config {
@@ -773,7 +729,7 @@ mod tests {
             GenAIDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
 
         let profile = runtime
-            .block_on(async { GenAIDriftProfile::from_metrics(drift_config, genai_metrics).await })
+            .block_on(async { GenAIEvalProfile::from_metrics(drift_config, genai_metrics).await })
             .unwrap();
         let _: Value =
             serde_json::from_str(&profile.model_dump_json()).expect("Failed to parse actual JSON");
@@ -854,7 +810,7 @@ mod tests {
             GenAIDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
 
         let profile =
-            GenAIDriftProfile::from_workflow(drift_config, workflow, genai_metrics).unwrap();
+            GenAIEvalProfile::from_workflow(drift_config, workflow, genai_metrics).unwrap();
 
         let _: Value =
             serde_json::from_str(&profile.model_dump_json()).expect("Failed to parse actual JSON");

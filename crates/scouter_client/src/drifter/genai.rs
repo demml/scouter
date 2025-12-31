@@ -1,7 +1,7 @@
 use pyo3::prelude::*;
 use scouter_drift::{error::DriftError, GenAIEvaluator};
 use scouter_state::app_state;
-use scouter_types::genai::{GenAIDriftConfig, GenAIDriftMetric, GenAIDriftProfile};
+use scouter_types::genai::{GenAIDriftConfig, GenAIDriftMetric, GenAIEvalProfile};
 use scouter_types::{GenAIMetricRecord, GenAIRecord};
 /// Using "ClientGenAIDrifter" to avoid confusion with the server-side GenAIDrifter
 pub struct ClientGenAIDrifter {}
@@ -22,14 +22,14 @@ impl ClientGenAIDrifter {
         config: GenAIDriftConfig,
         metrics: Vec<GenAIDriftMetric>,
         workflow: Option<Bound<'_, PyAny>>,
-    ) -> Result<GenAIDriftProfile, DriftError> {
-        let profile = GenAIDriftProfile::new(config, metrics, workflow)?;
+    ) -> Result<GenAIEvalProfile, DriftError> {
+        let profile = GenAIEvalProfile::new(config, metrics, workflow)?;
         Ok(profile)
     }
 
     pub async fn compute_drift_single(
         record: &GenAIRecord,
-        profile: &GenAIDriftProfile,
+        profile: &GenAIEvalProfile,
     ) -> Result<Vec<GenAIMetricRecord>, DriftError> {
         let task_record = record.to_task_record(&profile.config.uid);
         let (metrics, _score, _workflow_duration) =
@@ -40,7 +40,7 @@ impl ClientGenAIDrifter {
     pub fn compute_drift(
         &mut self,
         data: Vec<GenAIRecord>,
-        profile: &GenAIDriftProfile,
+        profile: &GenAIEvalProfile,
     ) -> Result<Vec<GenAIMetricRecord>, DriftError> {
         let results = app_state().handle().block_on(async move {
             let mut results = Vec::new();

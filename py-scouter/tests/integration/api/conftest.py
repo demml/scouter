@@ -14,7 +14,7 @@ from scouter.drift import (
     Drifter,
     GenAIDriftConfig,
     GenAIDriftMetric,
-    GenAIDriftProfile,
+    GenAIEvalProfile,
     SpcDriftConfig,
     SpcDriftProfile,
 )
@@ -121,7 +121,7 @@ def create_and_register_drift_profile(
 def create_and_register_genai_drift_profile(
     client: ScouterClient,
     name: str,
-) -> GenAIDriftProfile:
+) -> GenAIEvalProfile:
     # create drift config (usually associated with a model name, space name, version)
     config = GenAIDriftConfig(
         space="scouter",

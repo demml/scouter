@@ -86,6 +86,7 @@ password-auth = "1.*"
 potato-head = { git = "https://github.com/demml/potatohead.git", branch = "updates/scouter" }
 pyo3 = { version = "0.*", features = ["abi3-py310", "chrono", "anyhow", "extension-module"] }
 pyo3-async-runtimes = { version = "0.*", features = ["tokio-runtime"] }
+pythonize = "0.*"
 rand = "0.9.*"
 rayon = "1.*"
 redis = { version = "0.*", features = ["tokio-comp"] }

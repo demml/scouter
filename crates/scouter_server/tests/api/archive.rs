@@ -14,7 +14,7 @@ use scouter_sql::MessageHandler;
 use scouter_types::contracts::DriftRequest;
 use scouter_types::custom::CustomMetricAlertConfig;
 use scouter_types::genai::{
-    GenAIAlertConfig, GenAIDriftConfig, GenAIDriftMetric, GenAIDriftProfile,
+    GenAIAlertConfig, GenAIDriftConfig, GenAIDriftMetric, GenAIEvalProfile,
 };
 use scouter_types::MessageRecord;
 use scouter_types::{
@@ -335,7 +335,7 @@ fn test_data_archive_genai_event_record() {
     .unwrap();
     let genai_metrics = vec![metric1, metric2];
     let mut profile = runtime
-        .block_on(async { GenAIDriftProfile::from_metrics(config, genai_metrics).await })
+        .block_on(async { GenAIEvalProfile::from_metrics(config, genai_metrics).await })
         .unwrap();
 
     let uid = runtime.block_on(async {
@@ -427,7 +427,7 @@ fn test_data_archive_genai_drift_metrics() {
     .unwrap();
     let genai_metrics = vec![metric1, metric2];
     let mut profile = runtime
-        .block_on(async { GenAIDriftProfile::from_metrics(config, genai_metrics).await })
+        .block_on(async { GenAIEvalProfile::from_metrics(config, genai_metrics).await })
         .unwrap();
 
     let uid = runtime.block_on(async {

@@ -2,7 +2,7 @@ from pathlib import Path
 
 from scouter.alert import AlertThreshold
 from scouter.client import ScouterClient
-from scouter.drift import GenAIDriftConfig, GenAIDriftMetric, GenAIDriftProfile
+from scouter.drift import GenAIDriftConfig, GenAIDriftMetric, GenAIEvalProfile
 from scouter.genai import Prompt, Score
 
 
@@ -99,7 +99,7 @@ reformulation = GenAIDriftMetric(
     alert_threshold=AlertThreshold.Above,
 )
 
-profile = GenAIDriftProfile(
+profile = GenAIEvalProfile(
     config=GenAIDriftConfig(
         space="scouter",
         name="genai_metrics",
