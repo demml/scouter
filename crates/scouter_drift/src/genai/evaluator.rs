@@ -3,6 +3,7 @@ use crate::error::DriftError;
 use potato_head::prompt_types::Score;
 use potato_head::{TaskStatus, Workflow};
 use scouter_evaluate::tasks::traits::EvaluationTask;
+use scouter_types::genai::eval;
 use scouter_types::genai::{
     traits::{ProfileExt, TaskAccessor, TaskRef},
     AssertionResult, EvaluationContext, GenAIEvalProfile,
@@ -50,9 +51,21 @@ impl GenAIEvaluator {
     #[instrument(skip_all)]
     pub async fn process_drift_record(
         record: &GenAITaskRecord,
-        profile: Arc<GenAIEvalProfile>,
+        profile: &Arc<GenAIEvalProfile>,
     ) -> Result<AssertionResults, DriftError> {
-        let mut eval_context = Arc::new(RwLock::new(EvaluationContext {
+        let results = Self::execute_tasks(record, profile).await?;
+
+        // convert to MetricRecords
+        Ok(results)
+    }
+
+    /// Execute all tasks defined in the profile for the given record
+    #[instrument(skip_all)]
+    pub async fn execute_tasks(
+        record: &GenAITaskRecord,
+        profile: &Arc<GenAIEvalProfile>,
+    ) -> Result<AssertionResults, DriftError> {
+        let eval_context = Arc::new(RwLock::new(EvaluationContext {
             context: record.context.clone(),
             task_results: HashMap::new(),
         }));
@@ -67,20 +80,26 @@ impl GenAIEvaluator {
                 .as_ref()
                 .ok_or(DriftError::MissingWorkflow)?;
 
-            let context = record.context.clone();
             let workflow_clone = workflow.clone();
+            let eval_context_clone = eval_context.clone();
+
+            // This will become an arc later within the workflow
+            let cloned_ctx = record.context.clone();
 
             Some(tokio::spawn(async move {
-                let result = workflow_clone.run(Some(context)).await?;
-                let task_list = result
+                let result = workflow_clone.run(Some(cloned_ctx)).await?;
+
+                let read_result = result
                     .read()
                     .map_err(|_| DriftError::ReadLockAcquireError)?;
+                let task_list = &read_result.task_list;
                 let workflow_results: HashMap<String, Value> = task_list.get_task_responses()?;
 
                 // Populate task_results in context
-                let mut context_guard = eval_context
+                let mut context_guard = eval_context_clone
                     .write()
                     .map_err(|_| DriftError::WriteLockAcquireError)?;
+
                 for (task_id, response) in workflow_results {
                     context_guard.task_results.insert(task_id, response);
                 }
@@ -116,7 +135,7 @@ impl GenAIEvaluator {
 
     async fn execute_level_concurrent(
         task_ids: &[String],
-        profile: Arc<GenAIEvalProfile>,
+        profile: &Arc<GenAIEvalProfile>,
         context: &Arc<RwLock<EvaluationContext>>,
     ) -> Result<Vec<AssertionResult>, DriftError> {
         let mut join_set = JoinSet::new();

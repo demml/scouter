@@ -1,4 +1,5 @@
 use crate::error::RecordError;
+use crate::genai::{ComparisonOperator, EvaluationTaskType};
 use crate::trace::TraceServerRecord;
 use crate::DriftType;
 use crate::PyHelperFuncs;
@@ -9,6 +10,7 @@ use chrono::Utc;
 use potato_head::create_uuid7;
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
+use pythonize::pythonize;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -325,29 +327,128 @@ impl BoxedGenAIDriftInternalRecord {
 }
 
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct GenAIMetricRecord {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GenAIEvalWorkflowRecord {
     #[pyo3(get)]
-    pub uid: String,
+    pub record_uid: String,
 
     #[pyo3(get)]
-    pub created_at: chrono::DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
 
     #[pyo3(get)]
     pub entity_uid: String,
 
     #[pyo3(get)]
-    pub metric: String,
+    pub total_tasks: i32,
 
     #[pyo3(get)]
-    pub value: f64,
+    pub passed_tasks: i32,
+
+    #[pyo3(get)]
+    pub failed_tasks: i32,
+
+    #[pyo3(get)]
+    pub pass_rate: f64,
+
+    #[pyo3(get)]
+    pub duration_ms: i64,
 }
 
 #[pymethods]
-impl GenAIMetricRecord {
+impl GenAIEvalWorkflowRecord {
+    #[new]
+    #[pyo3(signature = (record_uid, entity_uid, total_tasks, passed_tasks, failed_tasks, duration_ms))]
+    pub fn new(
+        record_uid: String,
+        entity_uid: String,
+        total_tasks: i32,
+        passed_tasks: i32,
+        failed_tasks: i32,
+        duration_ms: i64,
+    ) -> Self {
+        let pass_rate = if total_tasks > 0 {
+            passed_tasks as f64 / total_tasks as f64
+        } else {
+            0.0
+        };
+
+        Self {
+            record_uid,
+            created_at: Utc::now(),
+            entity_uid,
+            total_tasks,
+            passed_tasks,
+            failed_tasks,
+            pass_rate,
+            duration_ms,
+        }
+    }
+
     pub fn __str__(&self) -> String {
-        // serialize the struct to a string
         PyHelperFuncs::__str__(self)
+    }
+
+    pub fn model_dump_json(&self) -> String {
+        PyHelperFuncs::__json__(self)
+    }
+}
+
+// Detailed result for an individual evaluation task within a workflow
+#[pyclass]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GenAIEvalTaskResultRecord {
+    #[pyo3(get)]
+    pub record_uid: String,
+
+    #[pyo3(get)]
+    pub created_at: DateTime<Utc>,
+
+    #[pyo3(get)]
+    pub task_id: String,
+
+    #[pyo3(get)]
+    pub task_type: EvaluationTaskType,
+
+    #[pyo3(get)]
+    pub passed: bool,
+
+    #[pyo3(get)]
+    pub value: f64,
+
+    #[pyo3(get)]
+    pub field_path: Option<String>,
+
+    #[pyo3(get)]
+    pub operator: ComparisonOperator,
+
+    pub expected: Value,
+
+    pub actual: Value,
+
+    #[pyo3(get)]
+    pub message: Option<String>,
+}
+
+#[pymethods]
+impl GenAIEvalTaskResultRecord {
+    #[getter]
+    pub fn get_expected<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, RecordError> {
+        let py_value = pythonize(py, &self.expected)?;
+        Ok(py_value)
+    }
+
+    #[getter]
+    pub fn get_actual<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, RecordError> {
+        let py_value = pythonize(py, &self.actual)?;
+        Ok(py_value)
+    }
+
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+
+    pub fn model_dump_json(&self) -> String {
+        PyHelperFuncs::__json__(self)
     }
 }
 

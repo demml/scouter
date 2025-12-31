@@ -151,6 +151,9 @@ pub enum TypeError {
 
     #[error(transparent)]
     PythonizeError(#[from] pythonize::PythonizeError),
+
+    #[error("Expected a Python dict")]
+    ExpectedPyDict,
 }
 
 impl<'a, 'py> From<pyo3::CastError<'a, 'py>> for TypeError {
@@ -219,6 +222,9 @@ pub enum RecordError {
 
     #[error("Failed to supply either input or response for the genai record")]
     MissingInputOrResponse,
+
+    #[error(transparent)]
+    PythonizeError(#[from] pythonize::PythonizeError),
 }
 
 impl From<RecordError> for PyErr {

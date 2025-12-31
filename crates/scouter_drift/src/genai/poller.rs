@@ -2,16 +2,17 @@
 use crate::error::DriftError;
 use crate::genai::evaluator::GenAIEvaluator;
 use potato_head::prompt_types::Score;
+use potato_head::workflow;
 use scouter_sql::sql::traits::{GenAIDriftSqlLogic, ProfileSqlLogic};
 use scouter_sql::PostgresClient;
 use scouter_types::genai::GenAIEvalProfile;
 use scouter_types::{GenAITaskRecord, Status};
 use sqlx::{Pool, Postgres};
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 use tracing::{debug, error, instrument};
-
 pub struct GenAIPoller {
     db_pool: Pool<Postgres>,
     max_retries: usize,
@@ -29,7 +30,7 @@ impl GenAIPoller {
     pub async fn process_drift_record(
         &mut self,
         record: &GenAITaskRecord,
-        profile: &GenAIEvalProfile,
+        profile: &Arc<GenAIEvalProfile>,
     ) -> Result<(HashMap<String, Score>, Option<i32>), DriftError> {
         debug!("Processing workflow");
 
@@ -79,16 +80,15 @@ impl GenAIPoller {
         };
         let mut retry_count = 0;
 
-        genai_profile
-            .workflow
-            .reset_agents()
-            .await
-            .inspect_err(|e| {
+        if let Some(workflow) = &mut genai_profile.workflow {
+            workflow.reset_agents().await.inspect_err(|e| {
                 error!("Failed to reset agents: {:?}", e);
             })?;
+        }
+        let arc_profile = Arc::new(genai_profile);
 
         loop {
-            match self.process_drift_record(&task, &genai_profile).await {
+            match self.process_drift_record(&task, &arc_profile).await {
                 Ok((result, workflow_duration)) => {
                     task.score = serde_json::to_value(result).inspect_err(|e| {
                         error!("Failed to serialize score map: {:?}", e);

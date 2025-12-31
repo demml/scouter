@@ -792,7 +792,7 @@ dependencies = [
 [[package]]
 name = "baked-potato"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#819e8fc360c3b17cee63dd903d03c1a8914b05b8"
+source = "git+https://github.com/demml/potatohead.git?branch=pythonize#25e28e4cd2cabdecf658f8455661c78fd8f3ab59"
 dependencies = [
  "mockito",
  "potato-agent",
@@ -4473,7 +4473,7 @@ dependencies = [
 [[package]]
 name = "potato-agent"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#819e8fc360c3b17cee63dd903d03c1a8914b05b8"
+source = "git+https://github.com/demml/potatohead.git?branch=pythonize#25e28e4cd2cabdecf658f8455661c78fd8f3ab59"
 dependencies = [
  "base64",
  "gcloud-auth",
@@ -4495,7 +4495,7 @@ dependencies = [
 [[package]]
 name = "potato-head"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#819e8fc360c3b17cee63dd903d03c1a8914b05b8"
+source = "git+https://github.com/demml/potatohead.git?branch=pythonize#25e28e4cd2cabdecf658f8455661c78fd8f3ab59"
 dependencies = [
  "baked-potato",
  "potato-agent",
@@ -4508,7 +4508,7 @@ dependencies = [
 [[package]]
 name = "potato-macro"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#819e8fc360c3b17cee63dd903d03c1a8914b05b8"
+source = "git+https://github.com/demml/potatohead.git?branch=pythonize#25e28e4cd2cabdecf658f8455661c78fd8f3ab59"
 dependencies = [
  "thiserror 2.0.17",
 ]
@@ -4516,7 +4516,7 @@ dependencies = [
 [[package]]
 name = "potato-provider"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#819e8fc360c3b17cee63dd903d03c1a8914b05b8"
+source = "git+https://github.com/demml/potatohead.git?branch=pythonize#25e28e4cd2cabdecf658f8455661c78fd8f3ab59"
 dependencies = [
  "base64",
  "gcloud-auth",
@@ -4538,7 +4538,7 @@ dependencies = [
 [[package]]
 name = "potato-state"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#819e8fc360c3b17cee63dd903d03c1a8914b05b8"
+source = "git+https://github.com/demml/potatohead.git?branch=pythonize#25e28e4cd2cabdecf658f8455661c78fd8f3ab59"
 dependencies = [
  "thiserror 2.0.17",
  "tokio",
@@ -4548,11 +4548,12 @@ dependencies = [
 [[package]]
 name = "potato-type"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#819e8fc360c3b17cee63dd903d03c1a8914b05b8"
+source = "git+https://github.com/demml/potatohead.git?branch=pythonize#25e28e4cd2cabdecf658f8455661c78fd8f3ab59"
 dependencies = [
  "potato-macro",
  "potato-util",
  "pyo3",
+ "pythonize",
  "regex",
  "schemars",
  "serde",
@@ -4564,10 +4565,11 @@ dependencies = [
 [[package]]
 name = "potato-util"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#819e8fc360c3b17cee63dd903d03c1a8914b05b8"
+source = "git+https://github.com/demml/potatohead.git?branch=pythonize#25e28e4cd2cabdecf658f8455661c78fd8f3ab59"
 dependencies = [
  "colored_json",
  "pyo3",
+ "pythonize",
  "serde",
  "serde_json",
  "thiserror 2.0.17",
@@ -4579,7 +4581,7 @@ dependencies = [
 [[package]]
 name = "potato-workflow"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=updates%2Fscouter#819e8fc360c3b17cee63dd903d03c1a8914b05b8"
+source = "git+https://github.com/demml/potatohead.git?branch=pythonize#25e28e4cd2cabdecf658f8455661c78fd8f3ab59"
 dependencies = [
  "chrono",
  "potato-agent",
@@ -4588,6 +4590,7 @@ dependencies = [
  "potato-type",
  "potato-util",
  "pyo3",
+ "pythonize",
  "serde",
  "serde_json",
  "thiserror 2.0.17",
@@ -8086,9 +8089,9 @@ checksum = "40990edd51aae2c2b6907af74ffb635029d5788228222c4bb811e9351c0caad3"
 
 [[package]]
 name = "zmij"
-version = "1.0.5"
+version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3280a1b827474fcd5dbef4b35a674deb52ba5c312363aef9135317df179d81b"
+checksum = "aac060176f7020d62c3bcc1cdbcec619d54f48b07ad1963a3f80ce7a0c17755f"
 
 [[package]]
 name = "zstd"
