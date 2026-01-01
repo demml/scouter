@@ -335,13 +335,12 @@ impl BoxedGenAIDriftInternalRecord {
 #[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct GenAIEvalWorkflowRecord {
     #[pyo3(get)]
-    pub record_uid: String,
-
-    #[pyo3(get)]
     pub created_at: DateTime<Utc>,
 
     #[pyo3(get)]
-    pub entity_uid: String,
+    pub record_uid: String,
+
+    pub entity_id: i32,
 
     #[pyo3(get)]
     pub total_tasks: i32,
@@ -373,11 +372,11 @@ impl GenAIEvalWorkflowRecord {
 impl GenAIEvalWorkflowRecord {
     pub fn new(
         record_uid: String,
-        entity_uid: String,
         total_tasks: i32,
         passed_tasks: i32,
         failed_tasks: i32,
         duration_ms: i64,
+        entity_id: i32,
     ) -> Self {
         let pass_rate = if total_tasks > 0 {
             passed_tasks as f64 / total_tasks as f64
@@ -388,12 +387,12 @@ impl GenAIEvalWorkflowRecord {
         Self {
             record_uid,
             created_at: Utc::now(),
-            entity_uid,
             total_tasks,
             passed_tasks,
             failed_tasks,
             pass_rate,
             duration_ms,
+            entity_id,
         }
     }
 }
@@ -403,10 +402,13 @@ impl GenAIEvalWorkflowRecord {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GenAIEvalTaskResultRecord {
     #[pyo3(get)]
-    pub record_uid: String,
+    pub created_at: DateTime<Utc>,
 
     #[pyo3(get)]
-    pub created_at: DateTime<Utc>,
+    pub record_uid: String,
+
+    // this is not exposed to python
+    pub entity_id: i32,
 
     #[pyo3(get)]
     pub task_id: String,
@@ -469,6 +471,7 @@ impl GenAIEvalTaskResultRecord {
         expected: Value,
         actual: Value,
         message: String,
+        entity_id: i32,
     ) -> Self {
         Self {
             record_uid,
@@ -482,6 +485,7 @@ impl GenAIEvalTaskResultRecord {
             expected,
             actual,
             message,
+            entity_id,
         }
     }
 }
@@ -511,6 +515,7 @@ impl FromRow<'_, PgRow> for GenAIEvalTaskResultRecord {
             expected,
             actual,
             message: row.try_get("message")?,
+            entity_id: row.try_get("entity_id")?,
         })
     }
 }
