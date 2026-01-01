@@ -1,6 +1,7 @@
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::pyclass::PyClassGuardError;
 use pyo3::PyErr;
+use pythonize::PythonizeError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -227,7 +228,13 @@ pub enum RecordError {
     MissingInputOrResponse,
 
     #[error(transparent)]
-    PythonizeError(#[from] pythonize::PythonizeError),
+    PotatoUtilError(#[from] potato_head::UtilError),
+}
+
+impl From<pythonize::PythonizeError> for RecordError {
+    fn from(err: PythonizeError) -> Self {
+        RecordError::PyError(err.to_string())
+    }
 }
 
 impl From<RecordError> for PyErr {

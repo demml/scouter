@@ -41,16 +41,6 @@ fn custom_record_from_row(row: &PgRow) -> Result<CustomMetricInternalRecord, Sql
     })
 }
 
-fn genai_drift_metric_from_row(row: &PgRow) -> Result<GenAIMetricInternalRecord, SqlError> {
-    Ok(GenAIMetricInternalRecord {
-        uid: row.try_get("uid")?,
-        created_at: row.try_get("created_at")?,
-        entity_id: row.try_get("entity_id")?,
-        metric: row.try_get("metric")?,
-        value: row.try_get("value")?,
-    })
-}
-
 /// Converts a slice of `PgRow` to a `ServerRecords` based on the provided `RecordType`.
 ///
 /// # Arguments

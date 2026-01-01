@@ -40,26 +40,40 @@ const GET_CUSTOM_DATA_FOR_ARCHIVE: &str =
 const UPDATE_CUSTOM_ENTITIES: &str = include_str!("scripts/custom/update_data_to_archived.sql");
 
 // genai
-const GET_GENAI_METRIC_VALUES: &str = include_str!("scripts/genai/get_genai_metric_values.sql");
-const GET_BINNED_GENAI_METRIC_VALUES: &str =
-    include_str!("scripts/genai/binned_genai_metric_values.sql");
-const INSERT_GENAI_METRIC_VALUES_BATCH: &str =
-    include_str!("scripts/genai/insert_genai_metric_values.sql");
+// genai insert
+const INSERT_GENAI_TASK_RESULTS_BATCH: &str =
+    include_str!("scripts/genai/insert_genai_task_results.sql");
+const INSERT_GENAI_WORKFLOW_RESULT: &str =
+    include_str!("scripts/genai/insert_genai_workflow_result.sql");
 const INSERT_GENAI_DRIFT_RECORD: &str = include_str!("scripts/genai/insert_genai_event_record.sql");
+
+// genai query
 const GET_GENAI_DRIFT_RECORDS: &str = include_str!("scripts/genai/get_genai_event_records.sql");
+const GET_GENAI_TASK_VALUES: &str = include_str!("scripts/genai/get_genai_task_values.sql");
+const GET_GENAI_WORKFLOW_VALUES: &str = include_str!("scripts/genai/get_genai_workflow_values.sql");
+const GET_BINNED_GENAI_METRIC_VALUES: &str =
+    include_str!("scripts/genai/binned_genai_workflow_values.sql");
+
+// genai paginated query
 const GET_PAGINATED_GENAI_DRIFT_RECORDS: &str =
     include_str!("scripts/genai/get_paginated_genai_event_records.sql");
 const UPDATE_GENAI_DRIFT_TASK: &str = include_str!("scripts/genai/update_genai_event_record.sql");
-const GET_GENAI_DRIFT_RECORD_ENTITIES: &str =
-    include_str!("scripts/genai/get_genai_event_record_entities_for_archive.sql");
-const GET_GENAI_METRIC_ENTITIES: &str =
-    include_str!("scripts/genai/get_genai_metric_entities_for_archive.sql");
+
+// Archive data
+const GET_GENAI_TASK_DATA_FOR_ARCHIVE: &str =
+    include_str!("scripts/genai/get_genai_task_data_for_archive.sql");
 const GET_GENAI_DRIFT_RECORD_DATA_FOR_ARCHIVE: &str =
     include_str!("scripts/genai/get_genai_event_record_data_for_archive.sql");
-const GET_GENAI_METRIC_DATA_FOR_ARCHIVE: &str =
-    include_str!("scripts/genai/get_genai_metric_data_for_archive.sql");
-const UPDATE_GENAI_METRIC_ENTITIES: &str =
-    include_str!("scripts/genai/update_genai_drift_metric_to_archived.sql");
+const GET_GENAI_WORKFLOW_DATA_FOR_ARCHIVE: &str =
+    include_str!("scripts/genai/get_genai_workflow_data_for_archive.sql");
+const GET_GENAI_DRIFT_RECORD_ENTITIES: &str =
+    include_str!("scripts/genai/get_genai_event_record_entities_for_archive.sql");
+
+// genai update entities
+const UPDATE_GENAI_TASK_ENTITIES: &str =
+    include_str!("scripts/genai/update_genai_task_to_archived.sql");
+const UPDATE_GENAI_WORKFLOW_ENTITIES: &str =
+    include_str!("scripts/genai/update_genai_workflow_to_archived.sql");
 const UPDATE_GENAI_DRIFT_ENTITIES: &str =
     include_str!("scripts/genai/update_genai_event_record_to_archived.sql");
 
@@ -176,6 +190,7 @@ pub enum Queries {
     GetPaginatedGenAIDriftRecords,
     GetBinnedMetrics,
     InsertGenAITaskResultsBatch,
+    InsertGenAIWorkflowResult,
     InsertGenAIDriftRecord,
     GetPendingGenAIDriftTask,
     UpdateGenAIDriftTask,

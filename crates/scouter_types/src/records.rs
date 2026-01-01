@@ -7,7 +7,7 @@ use crate::Status;
 use crate::TagRecord;
 use chrono::DateTime;
 use chrono::Utc;
-use potato_head::create_uuid7;
+use potato_head::{create_uuid7, PyHelperFuncs};
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
 use pythonize::pythonize;
@@ -30,7 +30,8 @@ pub enum RecordType {
     Observability,
     Custom,
     GenAIEvent,
-    GenAIMetric,
+    GenAITask,
+    GenAIWorkflow,
     Trace,
 }
 
@@ -41,7 +42,8 @@ impl RecordType {
             RecordType::Psi => DriftType::Psi.to_string(),
             RecordType::Custom => DriftType::Custom.to_string(),
             RecordType::GenAIEvent => DriftType::GenAI.to_string(),
-            RecordType::GenAIMetric => DriftType::GenAI.to_string(),
+            RecordType::GenAITask => DriftType::GenAI.to_string(),
+            RecordType::GenAIWorkflow => DriftType::GenAI.to_string(),
             _ => "unknown",
         }
     }
@@ -55,7 +57,8 @@ impl Display for RecordType {
             RecordType::Observability => write!(f, "observability"),
             RecordType::Custom => write!(f, "custom"),
             RecordType::GenAIEvent => write!(f, "genai_event"),
-            RecordType::GenAIMetric => write!(f, "genai_metric"),
+            RecordType::GenAITask => write!(f, "genai_task"),
+            RecordType::GenAIWorkflow => write!(f, "genai_workflow"),
             RecordType::Trace => write!(f, "trace"),
         }
     }
@@ -669,6 +672,7 @@ pub struct ObservabilityMetricsInternal {
     pub route_metrics: Vec<RouteMetrics>,
 }
 
+//todo: Add trait to reduce boilerplate
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ServerRecord {
@@ -677,7 +681,8 @@ pub enum ServerRecord {
     Custom(CustomMetricRecord),
     Observability(ObservabilityMetrics),
     GenAIDrift(BoxedGenAIDriftRecord),
-    GenAIMetric(GenAIMetricRecord),
+    GenAITaskRecord(GenAIEvalTaskResultRecord),
+    GenAIWorkflowRecord(GenAIEvalWorkflowRecord),
 }
 
 #[pymethods]
@@ -717,14 +722,21 @@ impl ServerRecord {
     }
 
     #[getter]
-    pub fn record(&self, py: Python) -> Result<Py<PyAny>, RecordError> {
+    pub fn record<'py>(&self, py: Python) -> Result<Bound<'py, PyAny>, RecordError> {
         match self {
-            ServerRecord::Spc(record) => Ok(record.clone().into_py_any(py)?),
-            ServerRecord::Psi(record) => Ok(record.clone().into_py_any(py)?),
-            ServerRecord::Custom(record) => Ok(record.clone().into_py_any(py)?),
-            ServerRecord::Observability(record) => Ok(record.clone().into_py_any(py)?),
-            ServerRecord::GenAIDrift(record) => Ok(record.record.clone().into_py_any(py)?),
-            ServerRecord::GenAIMetric(record) => Ok(record.clone().into_py_any(py)?),
+            ServerRecord::Spc(record) => Ok(PyHelperFuncs::to_bound_py_object(py, record)?),
+            ServerRecord::Psi(record) => Ok(PyHelperFuncs::to_bound_py_object(py, record)?),
+            ServerRecord::Custom(record) => Ok(PyHelperFuncs::to_bound_py_object(py, record)?),
+            ServerRecord::Observability(record) => {
+                Ok(PyHelperFuncs::to_bound_py_object(py, record)?)
+            }
+            ServerRecord::GenAIDrift(record) => Ok(PyHelperFuncs::to_bound_py_object(py, record)?),
+            ServerRecord::GenAITaskRecord(record) => {
+                Ok(PyHelperFuncs::to_bound_py_object(py, record)?)
+            }
+            ServerRecord::GenAIWorkflowRecord(record) => {
+                Ok(PyHelperFuncs::to_bound_py_object(py, record)?)
+            }
         }
     }
 
