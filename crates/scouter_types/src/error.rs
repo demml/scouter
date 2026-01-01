@@ -143,6 +143,9 @@ pub enum TypeError {
     #[error("Invalid compressions type")]
     InvalidCompressionTypeError,
 
+    #[error("Invalid evaluation task type: {0}")]
+    InvalidEvalType(String),
+
     #[error("Compression type not supported: {0}")]
     CompressionTypeNotSupported(String),
 

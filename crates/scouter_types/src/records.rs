@@ -16,6 +16,10 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Display;
+use std::str::FromStr;
+
+#[cfg(feature = "server")]
+use sqlx::{postgres::PgRow, FromRow, Row};
 
 #[pyclass(eq)]
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
@@ -328,6 +332,7 @@ impl BoxedGenAIDriftInternalRecord {
 
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct GenAIEvalWorkflowRecord {
     #[pyo3(get)]
     pub record_uid: String,
@@ -356,8 +361,16 @@ pub struct GenAIEvalWorkflowRecord {
 
 #[pymethods]
 impl GenAIEvalWorkflowRecord {
-    #[new]
-    #[pyo3(signature = (record_uid, entity_uid, total_tasks, passed_tasks, failed_tasks, duration_ms))]
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+
+    pub fn model_dump_json(&self) -> String {
+        PyHelperFuncs::__json__(self)
+    }
+}
+
+impl GenAIEvalWorkflowRecord {
     pub fn new(
         record_uid: String,
         entity_uid: String,
@@ -382,14 +395,6 @@ impl GenAIEvalWorkflowRecord {
             pass_rate,
             duration_ms,
         }
-    }
-
-    pub fn __str__(&self) -> String {
-        PyHelperFuncs::__str__(self)
-    }
-
-    pub fn model_dump_json(&self) -> String {
-        PyHelperFuncs::__json__(self)
     }
 }
 
@@ -426,7 +431,7 @@ pub struct GenAIEvalTaskResultRecord {
     pub actual: Value,
 
     #[pyo3(get)]
-    pub message: Option<String>,
+    pub message: String,
 }
 
 #[pymethods]
@@ -449,6 +454,64 @@ impl GenAIEvalTaskResultRecord {
 
     pub fn model_dump_json(&self) -> String {
         PyHelperFuncs::__json__(self)
+    }
+}
+
+impl GenAIEvalTaskResultRecord {
+    pub fn new(
+        record_uid: String,
+        task_id: String,
+        task_type: EvaluationTaskType,
+        passed: bool,
+        value: f64,
+        field_path: Option<String>,
+        operator: ComparisonOperator,
+        expected: Value,
+        actual: Value,
+        message: String,
+    ) -> Self {
+        Self {
+            record_uid,
+            created_at: Utc::now(),
+            task_id,
+            task_type,
+            passed,
+            value,
+            field_path,
+            operator,
+            expected,
+            actual,
+            message,
+        }
+    }
+}
+
+#[cfg(feature = "server")]
+impl FromRow<'_, PgRow> for GenAIEvalTaskResultRecord {
+    fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
+        let expected: Value =
+            serde_json::from_value(row.try_get("expected")?).unwrap_or(Value::Null);
+        let actual: Value = serde_json::from_value(row.try_get("actual")?).unwrap_or(Value::Null);
+        let task_type: EvaluationTaskType =
+            EvaluationTaskType::from_str(&row.try_get::<String, &str>("task_type")?)
+                .unwrap_or(EvaluationTaskType::Assertion);
+        let comparison_operator: ComparisonOperator =
+            ComparisonOperator::from_str(&row.try_get::<String, &str>("operator")?)
+                .unwrap_or(ComparisonOperator::Equal);
+
+        Ok(GenAIEvalTaskResultRecord {
+            record_uid: row.try_get("record_uid")?,
+            created_at: row.try_get("created_at")?,
+            task_id: row.try_get("task_id")?,
+            task_type: task_type,
+            passed: row.try_get("passed")?,
+            value: row.try_get("value")?,
+            field_path: row.try_get("field_path")?,
+            operator: comparison_operator,
+            expected,
+            actual,
+            message: row.try_get("message")?,
+        })
     }
 }
 

@@ -9,6 +9,8 @@ use pythonize::{depythonize, pythonize};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
+use std::fmt::Display;
+use std::str::FromStr;
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AssertionTask {
@@ -343,6 +345,48 @@ pub enum ComparisonOperator {
     HasLength,
 }
 
+impl Display for ComparisonOperator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let operator_str = match self {
+            ComparisonOperator::Equal => "Equal",
+            ComparisonOperator::NotEqual => "NotEqual",
+            ComparisonOperator::GreaterThan => "GreaterThan",
+            ComparisonOperator::GreaterThanOrEqual => "GreaterThanOrEqual",
+            ComparisonOperator::LessThan => "LessThan",
+            ComparisonOperator::LessThanOrEqual => "LessThanOrEqual",
+            ComparisonOperator::Contains => "Contains",
+            ComparisonOperator::NotContains => "NotContains",
+            ComparisonOperator::StartsWith => "StartsWith",
+            ComparisonOperator::EndsWith => "EndsWith",
+            ComparisonOperator::Matches => "Matches",
+            ComparisonOperator::HasLength => "HasLength",
+        };
+        write!(f, "{}", operator_str)
+    }
+}
+
+impl FromStr for ComparisonOperator {
+    type Err = TypeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Equal" => Ok(ComparisonOperator::Equal),
+            "NotEqual" => Ok(ComparisonOperator::NotEqual),
+            "GreaterThan" => Ok(ComparisonOperator::GreaterThan),
+            "GreaterThanOrEqual" => Ok(ComparisonOperator::GreaterThanOrEqual),
+            "LessThan" => Ok(ComparisonOperator::LessThan),
+            "LessThanOrEqual" => Ok(ComparisonOperator::LessThanOrEqual),
+            "Contains" => Ok(ComparisonOperator::Contains),
+            "NotContains" => Ok(ComparisonOperator::NotContains),
+            "StartsWith" => Ok(ComparisonOperator::StartsWith),
+            "EndsWith" => Ok(ComparisonOperator::EndsWith),
+            "Matches" => Ok(ComparisonOperator::Matches),
+            "HasLength" => Ok(ComparisonOperator::HasLength),
+            _ => Err(TypeError::InvalidCompressionTypeError),
+        }
+    }
+}
+
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum AssertionValue {
@@ -431,6 +475,30 @@ pub enum EvaluationTaskType {
     Assertion,
     LLMJudge,
     HumanValidation,
+}
+
+impl Display for EvaluationTaskType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let task_type_str = match self {
+            EvaluationTaskType::Assertion => "Assertion",
+            EvaluationTaskType::LLMJudge => "LLMJudge",
+            EvaluationTaskType::HumanValidation => "HumanValidation",
+        };
+        write!(f, "{}", task_type_str)
+    }
+}
+
+impl FromStr for EvaluationTaskType {
+    type Err = TypeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Assertion" => Ok(EvaluationTaskType::Assertion),
+            "LLMJudge" => Ok(EvaluationTaskType::LLMJudge),
+            "HumanValidation" => Ok(EvaluationTaskType::HumanValidation),
+            _ => Err(TypeError::InvalidEvalType(s.to_string())),
+        }
+    }
 }
 
 #[pyclass]
