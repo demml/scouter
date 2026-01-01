@@ -175,7 +175,7 @@ pub enum Queries {
     GetGenAIDriftRecords,
     GetPaginatedGenAIDriftRecords,
     GetBinnedMetrics,
-    InsertGenAIMetricValuesBatch,
+    InsertGenAITaskResultsBatch,
     InsertGenAIDriftRecord,
     GetPendingGenAIDriftTask,
     UpdateGenAIDriftTask,

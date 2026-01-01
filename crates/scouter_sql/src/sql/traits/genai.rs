@@ -9,6 +9,7 @@ use scouter_dataframe::parquet::BinnedMetricsExtractor;
 use scouter_dataframe::parquet::ParquetDataFrame;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::contracts::DriftRequest;
+use scouter_types::GenAIEvalTaskResultRecord;
 use scouter_types::{
     BinnedMetrics, GenAIDriftRecord, GenAIDriftRecordPaginationRequest,
     GenAIDriftRecordPaginationResponse, RecordCursor, RecordType,
@@ -42,6 +43,46 @@ pub trait GenAIDriftSqlLogic {
             .bind(entity_id)
             .bind(&record.context)
             .bind(Json(&record.prompt))
+            .execute(pool)
+            .await
+            .map_err(SqlError::SqlxError)
+    }
+
+    /// Inserts a batch of GenAI task results
+    /// This is the output from processing/evaluating the GenAI drift records.
+    async fn insert_genai_task_results_batch(
+        pool: &Pool<Postgres>,
+        records: &[GenAIEvalTaskResultRecord],
+        entity_id: &i32,
+    ) -> Result<PgQueryResult, SqlError> {
+        if records.is_empty() {
+            return Err(SqlError::EmptyBatchError);
+        }
+
+        let query = Queries::InsertGenAIMetricValuesBatch.get_query();
+
+        let (created_ats, record_uids, entity_ids, metrics, values): (
+            Vec<DateTime<Utc>>,
+            Vec<&str>,
+            Vec<&i32>,
+            Vec<&str>,
+            Vec<f64>,
+        ) = multiunzip(records.iter().map(|r| {
+            (
+                r.created_at,
+                r.uid.as_str(),
+                entity_id,
+                r.metric.as_str(),
+                r.value,
+            )
+        }));
+
+        sqlx::query(query)
+            .bind(created_ats)
+            .bind(record_uids)
+            .bind(entity_ids)
+            .bind(metrics)
+            .bind(values)
             .execute(pool)
             .await
             .map_err(SqlError::SqlxError)

@@ -1,4 +1,4 @@
-UPDATE scouter.genai_drift
+UPDATE scouter.genai_eval_task_result
 SET
     archived = true,
     updated_at = CURRENT_TIMESTAMP
