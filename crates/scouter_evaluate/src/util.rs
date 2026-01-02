@@ -1,10 +1,10 @@
 use crate::error::EvaluationError;
-use crate::types::{EvaluationConfig, LLMEvalRecord, LLMEvalResults, LLMEvalTaskResult};
+use crate::types::{EvaluationConfig, GenAIEvalRecord, GenAIEvalResults, GenAIEvalTaskResult};
 use itertools::iproduct;
 use num_traits::FromPrimitive;
+use potato_head::StructuredOutput;
 use potato_head::{
-    Embedder, EmbeddingInput, PyEmbedder, Score, StructuredOutput, TaskStatus, Workflow,
-    WorkflowError,
+    prompt_types::Score, Embedder, EmbeddingInput, PyEmbedder, TaskStatus, Workflow, WorkflowError,
 };
 use pyo3::prelude::*;
 use rayon::prelude::*;
@@ -28,15 +28,14 @@ pub fn process_workflow_result(
     // iterate of each task and extract score
     for task in tasks.values() {
         if let (TaskStatus::Completed, Some(result)) = (&task.status, &task.result) {
-            if let Some(content) = result.content() {
-                match Score::model_validate_json_str(&content) {
-                    Ok(score) => {
-                        metrics.insert(task.id.clone(), score);
-                    }
-                    Err(e) => {
-                        error!("Failed to validate score for task {}: {:?}", task.id, e);
-                        // Continue processing other tasks instead of failing completely
-                    }
+            match Score::model_validate_json_str(&result.response_text()) {
+                // response text is either valid json or an empty string
+                Ok(score) => {
+                    metrics.insert(task.id.clone(), score);
+                }
+                Err(e) => {
+                    error!("Failed to validate score for task {}: {:?}", task.id, e);
+                    // Continue processing other tasks instead of failing completely
                 }
             }
         }
@@ -50,13 +49,13 @@ pub fn process_workflow_result(
 /// If there is an error during workflow execution, it will log the error and return None for that record
 /// # Arguments
 /// * `workflow` - The workflow to execute for each record.
-/// * `records` - The list of LLMEvalRecords to process.
+/// * `records` - The list of GenAIEvalRecords to process.
 /// # Returns
-/// A JoinSet containing tuples of record ID and optional LLMEvalTaskResult.
+/// A JoinSet containing tuples of record ID and optional GenAIEvalTaskResult.
 pub async fn spawn_evaluation_tasks_without_embeddings(
     workflow: Workflow,
-    records: Vec<LLMEvalRecord>,
-) -> JoinSet<(String, Option<LLMEvalTaskResult>)> {
+    records: Vec<GenAIEvalRecord>,
+) -> JoinSet<(String, Option<GenAIEvalTaskResult>)> {
     let mut join_set = JoinSet::new();
 
     for record in records {
@@ -71,7 +70,11 @@ pub async fn spawn_evaluation_tasks_without_embeddings(
                     match process_workflow_result(workflow_result) {
                         Ok(metrics) => (
                             record_id.clone(),
-                            Some(LLMEvalTaskResult::new(record_id, metrics, BTreeMap::new())),
+                            Some(GenAIEvalTaskResult::new(
+                                record_id,
+                                metrics,
+                                BTreeMap::new(),
+                            )),
                         ),
                         Err(error) => {
                             error!(
@@ -99,17 +102,17 @@ pub async fn spawn_evaluation_tasks_without_embeddings(
 /// Spawn tasks to run evaluation workflows with embedding calculations
 /// # Arguments
 /// * `workflow` - The workflow to execute for each record.
-/// * `records` - The list of LLMEvalRecords to process.
+/// * `records` - The list of GenAIEvalRecords to process.
 /// * `embedder` - The Embedder instance to use for generating embeddings.
 /// * `embedding_targets` - The list of keys in the record's context to generate embeddings.
 /// # Returns
-/// A JoinSet containing LLMEvalTaskResults for each record.
+/// A JoinSet containing GenAIEvalTaskResults for each record.
 pub async fn spawn_evaluation_tasks_with_embeddings(
     workflow: Workflow,
-    records: Vec<LLMEvalRecord>,
+    records: Vec<GenAIEvalRecord>,
     embedder: Arc<Embedder>,
     config: &Arc<EvaluationConfig>,
-) -> JoinSet<(String, Option<LLMEvalTaskResult>)> {
+) -> JoinSet<(String, Option<GenAIEvalTaskResult>)> {
     let mut join_set = JoinSet::new();
 
     for record in records {
@@ -136,7 +139,7 @@ pub async fn spawn_evaluation_tasks_with_embeddings(
                     match process_workflow_result(workflow_result) {
                         Ok(metrics) => (
                             record_id.clone(),
-                            Some(LLMEvalTaskResult::new(record_id, metrics, embeddings)),
+                            Some(GenAIEvalTaskResult::new(record_id, metrics, embeddings)),
                         ),
                         Err(error) => {
                             error!(
@@ -161,14 +164,14 @@ pub async fn spawn_evaluation_tasks_with_embeddings(
     join_set
 }
 
-/// Helper for extracting embeddings for a single record. Used in the llm evaulation workflow.
+/// Helper for extracting embeddings for a single record. Used in the genai evaulation workflow.
 /// # Arguments
-/// * `record` - The LLMEvalRecord to extract embeddings from.
+/// * `record` - The GenAIEvalRecord to extract embeddings from.
 /// * `embedder` - The Embedder instance to use for generating embeddings.
 /// * `embedding_targets` - The list of keys in the record's context to generate embeddings for.
 /// # Returns
 pub async fn generate_embeddings_for_record(
-    record: &LLMEvalRecord,
+    record: &GenAIEvalRecord,
     embedder: &Arc<Embedder>,
     embedding_targets: &[String],
 ) -> BTreeMap<String, Vec<f32>> {
@@ -212,9 +215,9 @@ pub async fn generate_embeddings_for_record(
 
 /// Enhanced result collection with proper error handling
 pub async fn collect_evaluation_results(
-    mut join_set: JoinSet<(String, Option<LLMEvalTaskResult>)>,
-) -> Result<LLMEvalResults, EvaluationError> {
-    let mut eval_results = LLMEvalResults::new();
+    mut join_set: JoinSet<(String, Option<GenAIEvalTaskResult>)>,
+) -> Result<GenAIEvalResults, EvaluationError> {
+    let mut eval_results = GenAIEvalResults::new();
 
     while let Some(join_result) = join_set.join_next().await {
         match join_result {
@@ -305,7 +308,7 @@ pub fn compute_similarity(
     }
 }
 
-pub fn post_process(results: &mut LLMEvalResults, config: &Arc<EvaluationConfig>) {
+pub fn post_process(results: &mut GenAIEvalResults, config: &Arc<EvaluationConfig>) {
     // compute means for each embedding target
     results.results.par_iter_mut().for_each(|(_, task_result)| {
         for (target, values) in task_result.embedding.iter() {

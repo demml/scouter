@@ -58,7 +58,7 @@ GROUP BY metric;"#,
     )
 }
 
-pub fn get_binned_llm_metric_values_query(
+pub fn get_binned_genai_metric_values_query(
     bin: &f64,
     start_time: &DateTime<Utc>,
     end_time: &DateTime<Utc>,
@@ -70,7 +70,7 @@ pub fn get_binned_llm_metric_values_query(
         date_bin(INTERVAL '{} minute', created_at, TIMESTAMP '1970-01-01') as created_at,
         metric,
         value
-    FROM binned_llm_metric
+    FROM binned_genai_metric
     WHERE
         1=1
         AND created_at between TIMESTAMP '{}' AND TIMESTAMP '{}'

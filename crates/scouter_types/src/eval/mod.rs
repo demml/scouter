@@ -4,12 +4,12 @@ use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use core::fmt::Debug;
-use potato_head::prompt::ResponseType;
-use potato_head::Prompt;
+
+use potato_head::prompt_types::{Prompt, ResponseType};
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct LLMEvalMetric {
+pub struct GenAIEvalMetric {
     #[pyo3(get, set)]
     pub name: String,
 
@@ -18,7 +18,7 @@ pub struct LLMEvalMetric {
 }
 
 #[pymethods]
-impl LLMEvalMetric {
+impl GenAIEvalMetric {
     #[new]
     #[pyo3(signature = (name, prompt))]
     pub fn new(name: &str, prompt: Prompt) -> Result<Self, TypeError> {

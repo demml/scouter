@@ -1,2 +1,2 @@
 pub mod drift_poller;
-pub mod llm_poller;
+pub mod genai_poller;

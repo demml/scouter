@@ -4,7 +4,7 @@ from .._scouter import (
     CustomMetricRecord,
     EntityType,
     Features,
-    LLMRecord,
+    GenAIRecord,
     Metric,
     Metrics,
     PsiRecord,
@@ -27,5 +27,5 @@ __all__ = [
     "Metric",
     "Metrics",
     "EntityType",
-    "LLMRecord",
+    "GenAIRecord",
 ]

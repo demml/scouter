@@ -2,18 +2,18 @@
 
 from .._scouter import (
     EvaluationConfig,
-    LLMEvalMetric,
-    LLMEvalRecord,
-    LLMEvalResults,
-    LLMEvalTaskResult,
-    evaluate_llm,
+    GenAIEvalMetric,
+    GenAIEvalRecord,
+    GenAIEvalResults,
+    GenAIEvalTaskResult,
+    evaluate_genai,
 )
 
 __all__ = [
-    "LLMEvalTaskResult",
-    "LLMEvalMetric",
-    "LLMEvalResults",
-    "LLMEvalRecord",
-    "evaluate_llm",
+    "GenAIEvalTaskResult",
+    "GenAIEvalMetric",
+    "GenAIEvalResults",
+    "GenAIEvalRecord",
+    "evaluate_genai",
     "EvaluationConfig",
 ]

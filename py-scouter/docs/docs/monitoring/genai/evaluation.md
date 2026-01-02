@@ -4,7 +4,7 @@ In addition to real-time or online monitoring of LLMs, Scouter provides you with
 
 ## Getting Started
 
-To run and LLM evaluation, you will first need to obtain your evaluation data and construct a list of `LLMEvalRecord` instances. Each `LLMEvalRecord` represents a single evaluation instance, containing the metadata you wish to evaluate. Note, we have left this intentionally flexible so that you can evaluate any type of metadata you wish.
+To run and LLM evaluation, you will first need to obtain your evaluation data and construct a list of `GenAIEvalRecord` instances. Each `GenAIEvalRecord` represents a single evaluation instance, containing the metadata you wish to evaluate. Note, we have left this intentionally flexible so that you can evaluate any type of metadata you wish.
 
 ### Example: Evaluating a Prompt for Query Reformulation
 
@@ -65,15 +65,15 @@ subgraph A["Question Answer Agent"]
 end
 ```
 
-#### Step 2: Create an `LLMEvalMetric` to Evaluate the Prompt
+#### Step 2: Create an `GenAIEvalMetric` to Evaluate the Prompt
 
-Now say you want to (1) evaluate how well the prompt reformulates user queries into better-structured queries and (2) how relevant the provided answer is to the user input. In this scenario, imagine you already have a dataset of user queries, their reformulated queries and the returned answers (this could be from an experiment you ran in production). Now, to evaluate the prompts and Agent, you would create a list of `LLMEvalRecords` containing the `user_query`, `reformulated_query` and `answer` context as well as an `LLMEvalMetric` that defines how you want to evaluate the prompt using an `LLM as a judge` workflow.
+Now say you want to (1) evaluate how well the prompt reformulates user queries into better-structured queries and (2) how relevant the provided answer is to the user input. In this scenario, imagine you already have a dataset of user queries, their reformulated queries and the returned answers (this could be from an experiment you ran in production). Now, to evaluate the prompts and Agent, you would create a list of `GenAIEvalRecords` containing the `user_query`, `reformulated_query` and `answer` context as well as an `GenAIEvalMetric` that defines how you want to evaluate the prompt using an `LLM as a judge` workflow.
 
-Note: The `LLMEvalMetric` differs from the `LLMDriftMetric` in that the `LLMDriftMetric` is used when setting up real-time LLM monitoring and requires more configuration and setup. For offline evaluations, the `LLMEvalMetric` is simpler to use and requires less configuration. It requires only a name and eval prompt.
+Note: The `GenAIEvalMetric` differs from the `GenAIDriftMetric` in that the `GenAIDriftMetric` is used when setting up real-time LLM monitoring and requires more configuration and setup. For offline evaluations, the `GenAIEvalMetric` is simpler to use and requires less configuration. It requires only a name and eval prompt.
 
 ```python
-from scouter.llm import Prompt, Score
-from scouter.evaluate import LLMEvalMetric, LLMEvalRecord, evaluate_llm
+from scouter.genai import Prompt, Score
+from scouter.evaluate import GenAIEvalMetric, GenAIEvalRecord, evaluate_genai
 
 reformulation_eval_prompt = Prompt(
     message=(
@@ -132,17 +132,17 @@ asnwer_eval_prompt = Prompt(
 )
 
 eval_metrics = [
-    LLMEvalMetric(
+    GenAIEvalMetric(
         name="reformulation_quality",
         prompt=reformulation_eval_prompt,
     ),
-    LLMEvalMetric(
+    GenAIEvalMetric(
         name="answer_relevance",
         prompt=answer_eval_prompt,
     )
 ]
 
-flight_record = LLMEvalRecord(
+flight_record = GenAIEvalRecord(
     context={
         "user_query": "cheap flights to Europe next month",
         "reformulated_query": "affordable airfare to Europe next month",
@@ -151,7 +151,7 @@ flight_record = LLMEvalRecord(
     id="record_1",
 )
 
-technical_record = LLMEvalRecord(
+technical_record = GenAIEvalRecord(
     context={
         "user_query": "why won't my laptop turn on",
         "reformulated_query": "laptop computer won't boot power issues troubleshooting steps hardware failure battery power supply diagnostic repair",
@@ -160,7 +160,7 @@ technical_record = LLMEvalRecord(
     id="record_2",
 )
 
-cooking_record = LLMEvalRecord(
+cooking_record = GenAIEvalRecord(
     context={
         "user_query": "easy dinner recipes with chicken",
         "reformulated_query": "simple quick chicken dinner recipes healthy family-friendly weeknight meals",
@@ -171,23 +171,23 @@ cooking_record = LLMEvalRecord(
 
 records = [flight_record, technical_record, cooking_record]
 
-results = evaluate_llm(
+results = evaluate_genai(
     records=records,
     metrics=eval_metrics,
 )
 ```
 
-1. `${user_query}` is a bound parameter that will be populated from the `LLMEvalRecord` context
-2. `${reformulated_query}` is a bound parameter that will be populated from the `LLMEvalRecord` context
-3. `LLMEvalMetrics` currently require all prompts to return a `Score` object. This is critical as the score object allows us to extract a numerical score for evaluation.
+1. `${user_query}` is a bound parameter that will be populated from the `GenAIEvalRecord` context
+2. `${reformulated_query}` is a bound parameter that will be populated from the `GenAIEvalRecord` context
+3. `GenAIEvalMetrics` currently require all prompts to return a `Score` object. This is critical as the score object allows us to extract a numerical score for evaluation.
 
 ##### Eval Metric Flow
 
-As you can see from the above example, the overall flow for evaluating an LLM using `LLMEvalMetric` is as follows:
+As you can see from the above example, the overall flow for evaluating an LLM using `GenAIEvalMetric` is as follows:
 
-1. Define the evaluation metrics using `LLMEvalMetric`, providing the necessary prompts for each metric.
-2. Create `LLMEvalRecord` instances for each record you want to evaluate, populating the context with the relevant information that will be injected into the prompts.
-3. Call the `evaluate_llm` function with the records and metrics to obtain the evaluation results.
+1. Define the evaluation metrics using `GenAIEvalMetric`, providing the necessary prompts for each metric.
+2. Create `GenAIEvalRecord` instances for each record you want to evaluate, populating the context with the relevant information that will be injected into the prompts.
+3. Call the `evaluate_genai` function with the records and metrics to obtain the evaluation results.
 
 <h1 align="center">
   <br>
@@ -201,7 +201,7 @@ By default, the above `evaulate_llm` function will execute without any additiona
 
 EvaluationConfig allows you to customize the evaluation process in several ways:
 
-- Specify which fields from the `LLMEvalRecord` context should be embedded. These embedding will be used to calculate means and similarity scores.
+- Specify which fields from the `GenAIEvalRecord` context should be embedded. These embedding will be used to calculate means and similarity scores.
 - Indicate whether you want to compute similarity scores between the embedded fields.
 - Enable clustering to identify patterns in the evaluation results.
 - Enable histogram computations to generate histograms for all numerical fields.
@@ -210,8 +210,8 @@ EvaluationConfig allows you to customize the evaluation process in several ways:
 
 ```python
 from scouter.evaluate import EvaluationConfig
-from scouter.llm.openai import OpenAIEmbeddingConfig
-from scouter.llm import Embedder, Provider
+from scouter.genai.openai import OpenAIEmbeddingConfig
+from scouter.genai import Embedder, Provider
 
 #(previous code)...
 
@@ -223,7 +223,7 @@ embedder = Embedder( #(1)
     ),
 )
 
-results = evaluate_llm(
+results = evaluate_genai(
     records=records,
     metrics=eval_metrics,
     config=EvaluationConfig( #(2)
@@ -237,20 +237,20 @@ results = evaluate_llm(
 ```
 
 1. Create an `Embedder` instance to generate embeddings for the evaluation records. This is useful for similarity computations and clustering. Here, we are using OpenAI's embedding model.
-2. Pass an `EvaluationConfig` instance to the `evaluate_llm` function to customize the evaluation process.
-3. Specify which fields from the `LLMEvalRecord` context should be embedded. In this case, we are embedding both the `user_query` and `answer`. These embedding will be used to calculate means and similarity scores.
+2. Pass an `EvaluationConfig` instance to the `evaluate_genai` function to customize the evaluation process.
+3. Specify which fields from the `GenAIEvalRecord` context should be embedded. In this case, we are embedding both the `user_query` and `answer`. These embedding will be used to calculate means and similarity scores.
 4. Indicate that we want to compute similarity scores between the embedded fields.
 5. If clustering is enabled, Scouter will execute a dbscan with all numerical values (scores, similarity scores, embeddings etc.) to identify clusters of similar records. This can help identify patterns in the evaluation results
 6. Enable histogram computations to generate histograms for all numerical fields
 
 #### Step 4: Analyzing the Results
 
-The results object (`LLMEvalResults`) returned from the `evaluate_llm` function contains a wealth of information about the evaluation. You can access individual record results, overall metrics, and any errors that occurred during the evaluation process.
+The results object (`GenAIEvalResults`) returned from the `evaluate_genai` function contains a wealth of information about the evaluation. You can access individual record results, overall metrics, and any errors that occurred during the evaluation process.
 
 ```python
 
 # Assess individual record results
-results = evaluate_llm(...)
+results = evaluate_genai(...)
 
 
 record1_metrics = results["record_1"].metric
@@ -273,4 +273,4 @@ for field, histogram in histograms.items():
     print(f"Histogram for {field}: {histogram}")
 ```
 
-Please refer to the [LLMEvalResults documentation](/scouter/docs/api/scouter/#scouter._scouter.LLMEvalResults) for more details on how to work with the results object.
+Please refer to the [GenAIEvalResults documentation](/scouter/docs/api/scouter/#scouter._scouter.GenAIEvalResults) for more details on how to work with the results object.

@@ -1,9 +1,7 @@
 use crate::sql::error::SqlError;
 use chrono::{DateTime, Utc};
 use scouter_types::psi::DistributionData;
-use scouter_types::BoxedLLMDriftInternalRecord;
 use scouter_types::DriftType;
-use scouter_types::LLMDriftInternalRecord;
 use scouter_types::{get_utc_datetime, BinnedMetric, BinnedMetricStats, RecordType};
 use semver::{BuildMetadata, Prerelease, Version};
 use serde::{Deserialize, Serialize};
@@ -266,12 +264,12 @@ pub struct UpdateAlertResult {
 }
 
 /// Converts a `PgRow` to a `BoxedLLMDriftServerRecord`
-/// Conversion is done by first converting the row to an `LLMDriftServerSQLRecord`
-/// and then converting that to an `LLMDriftServerRecord`.
-pub fn llm_drift_record_from_row(row: &PgRow) -> Result<BoxedLLMDriftInternalRecord, SqlError> {
-    let record = LLMDriftInternalRecord::from_row(row)?;
+/// Conversion is done by first converting the row to an `GenAIDriftInternalRecord`
+/// and then converting that to an `BoxedGenAIDriftInternalRecord`.
+pub fn genai_event_record_from_row(row: &PgRow) -> Result<BoxedGenAIDriftInternalRecord, SqlError> {
+    let record = GenAIDriftInternalRecord::from_row(row)?;
 
-    Ok(BoxedLLMDriftInternalRecord {
+    Ok(BoxedGenAIDriftInternalRecord {
         record: Box::new(record),
     })
 }

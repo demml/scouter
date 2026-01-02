@@ -1,5 +1,5 @@
 // add test logic
-use potato_head::LLMTestServer;
+use potato_head::mock::LLMTestServer;
 use pyo3::prelude::*;
 use std::path::PathBuf;
 use thiserror::Error;

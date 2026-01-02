@@ -466,9 +466,9 @@ mod tests {
     #[test]
     fn test_profile_creation_f64() {
         // create 2d array
-        let array1 = Array::random((1000, 1), Uniform::new(0., 1.));
-        let array2 = Array::random((1000, 1), Uniform::new(1., 2.));
-        let array3 = Array::random((1000, 1), Uniform::new(2., 3.));
+        let array1 = Array::random((1000, 1), Uniform::new(0., 1.).unwrap());
+        let array2 = Array::random((1000, 1), Uniform::new(1., 2.).unwrap());
+        let array3 = Array::random((1000, 1), Uniform::new(2., 3.).unwrap());
 
         let array = concatenate![Axis(1), array1, array2, array3];
         let features = vec![
@@ -533,9 +533,9 @@ mod tests {
     #[test]
     fn test_profile_creation_f32() {
         // create 2d array
-        let array1 = Array::random((1000, 1), Uniform::new(0., 1.));
-        let array2 = Array::random((1000, 1), Uniform::new(1., 2.));
-        let array3 = Array::random((1000, 1), Uniform::new(2., 3.));
+        let array1 = Array::random((1000, 1), Uniform::new(0., 1.).unwrap());
+        let array2 = Array::random((1000, 1), Uniform::new(1., 2.).unwrap());
+        let array3 = Array::random((1000, 1), Uniform::new(2., 3.).unwrap());
 
         let array = concatenate![Axis(1), array1, array2, array3];
         let features = vec![

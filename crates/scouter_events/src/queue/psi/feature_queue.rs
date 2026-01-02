@@ -219,7 +219,7 @@ mod tests {
 
     use super::*;
     use ndarray::{Array, Axis};
-    use ndarray_rand::rand::distributions::Bernoulli;
+    use ndarray_rand::rand_distr::Bernoulli;
     use ndarray_rand::rand_distr::Uniform;
     use ndarray_rand::RandomExt;
     use scouter_drift::utils::CategoricalFeatureHelpers;
@@ -232,7 +232,7 @@ mod tests {
     fn test_feature_queue_insert_numeric() {
         let min = 1.0;
         let max = 87.0;
-        let mut array = Array::random((1030, 3), Uniform::new(min, max));
+        let mut array = Array::random((1030, 3), Uniform::new(min, max).unwrap());
 
         // Ensure that each column has at least one `1.0` and one `87.0`
         for col in 0..3 {
@@ -299,7 +299,7 @@ mod tests {
         let numeric_cat_column =
             Array::random((100, 1), Bernoulli::new(0.5).unwrap())
                 .mapv(|x| if x { 1.0 } else { 0.0 });
-        let uniform_column = Array::random((100, 1), Uniform::new(0.0, 20.0));
+        let uniform_column = Array::random((100, 1), Uniform::new(0.0, 20.0).unwrap());
         let array = ndarray::concatenate![Axis(1), numeric_cat_column, uniform_column];
 
         let features = vec!["feature_1".to_string(), "feature_2".to_string()];
@@ -495,7 +495,7 @@ mod tests {
 
     #[test]
     fn test_feature_queue_create_drift_records() {
-        let array = Array::random((1030, 3), Uniform::new(1.0, 100.0));
+        let array = Array::random((1030, 3), Uniform::new(1.0, 100.0).unwrap());
         let features = vec![
             "feature_1".to_string(),
             "feature_2".to_string(),
@@ -543,7 +543,7 @@ mod tests {
     fn test_feature_queue_insert_numeric_non_finite() {
         let min = 1.0;
         let max = 87.0;
-        let mut array = Array::random((1030, 3), Uniform::new(min, max));
+        let mut array = Array::random((1030, 3), Uniform::new(min, max).unwrap());
 
         // Ensure that each column has at least one `1.0` and one `87.0`
         for col in 0..3 {

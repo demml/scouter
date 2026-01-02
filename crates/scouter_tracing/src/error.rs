@@ -1,7 +1,7 @@
 use pyo3::exceptions::PyRuntimeError;
+use pyo3::pyclass::PyClassGuardError;
 use pyo3::PyErr;
 use thiserror::Error;
-
 #[derive(Error, Debug)]
 pub enum TraceError {
     #[error("{0}")]
@@ -50,12 +50,6 @@ pub enum TraceError {
     ParseIntError(#[from] std::num::ParseIntError),
 }
 
-impl<'a> From<pyo3::DowncastError<'a, 'a>> for TraceError {
-    fn from(err: pyo3::DowncastError) -> Self {
-        TraceError::DowncastError(err.to_string())
-    }
-}
-
 impl From<TraceError> for PyErr {
     fn from(err: TraceError) -> PyErr {
         let msg = err.to_string();
@@ -65,6 +59,12 @@ impl From<TraceError> for PyErr {
 
 impl From<PyErr> for TraceError {
     fn from(err: PyErr) -> TraceError {
+        TraceError::PyError(err.to_string())
+    }
+}
+
+impl<'a, 'py> From<PyClassGuardError<'a, 'py>> for TraceError {
+    fn from(err: PyClassGuardError<'a, 'py>) -> Self {
         TraceError::PyError(err.to_string())
     }
 }

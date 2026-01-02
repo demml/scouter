@@ -1,4 +1,4 @@
-use potato_head::LLMTestServer;
+use potato_head::mock::LLMTestServer;
 use pyo3::prelude::*;
 use scouter_client::MockConfig;
 use scouter_mocks::ScouterTestServer;

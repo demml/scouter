@@ -1,4 +1,4 @@
 pub mod error;
-pub mod llm;
+pub mod genai;
 pub mod types;
 pub mod util;

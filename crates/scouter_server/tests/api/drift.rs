@@ -5,7 +5,7 @@ use axum::{
     body::Body,
     http::{header, Request, StatusCode},
 };
-use potato_head::LLMTestServer;
+use potato_head::mock::LLMTestServer;
 
 use http_body_util::BodyExt;
 use scouter_drift::psi::PsiMonitor;
@@ -15,9 +15,9 @@ use scouter_types::custom::{
 use scouter_types::psi::BinnedPsiFeatureMetrics;
 use scouter_types::psi::{PsiAlertConfig, PsiDriftConfig};
 use scouter_types::spc::SpcDriftFeatures;
-use scouter_types::{contracts::DriftRequest, LLMDriftRecordPaginationResponse};
+use scouter_types::{contracts::DriftRequest, GenAIDriftRecordPaginationResponse};
 use scouter_types::{
-    AlertThreshold, BinnedMetrics, LLMDriftRecordPaginationRequest, ServiceInfo, TimeInterval,
+    AlertThreshold, BinnedMetrics, GenAIDriftRecordPaginationRequest, ServiceInfo, TimeInterval,
 };
 use tokio::time::sleep;
 
@@ -221,13 +221,13 @@ async fn test_custom_server_records() {
 }
 
 #[test]
-fn test_llm_server_records() {
+fn test_genai_server_records() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let mut mock = LLMTestServer::new();
     mock.start_server().unwrap();
 
     let helper = runtime.block_on(async { setup_test().await });
-    let profile = runtime.block_on(async { TestHelper::create_llm_drift_profile().await });
+    let profile = runtime.block_on(async { TestHelper::create_genai_drift_profile().await });
 
     let uid = runtime.block_on(async {
         helper
@@ -235,8 +235,8 @@ fn test_llm_server_records() {
             .await
     });
 
-    // populate the server with LLM drift records
-    let records = helper.get_llm_drift_records(None, &uid);
+    // populate the server with GenAI drift records
+    let records = helper.get_genai_event_records(None, &uid);
 
     let body = serde_json::to_string(&records).unwrap();
     //
@@ -266,7 +266,7 @@ fn test_llm_server_records() {
     let query_string = serde_qs::to_string(&params).unwrap();
 
     let request = Request::builder()
-        .uri(format!("/scouter/drift/llm?{query_string}"))
+        .uri(format!("/scouter/drift/genai?{query_string}"))
         .method("GET")
         .body(Body::empty())
         .unwrap();
@@ -285,7 +285,7 @@ fn test_llm_server_records() {
     assert!(!results.metrics.is_empty());
 
     // get drift records by page
-    let request = LLMDriftRecordPaginationRequest {
+    let request = GenAIDriftRecordPaginationRequest {
         service_info: ServiceInfo {
             space: SPACE.to_string(),
             uid: uid.clone(),
@@ -298,7 +298,7 @@ fn test_llm_server_records() {
     let body = serde_json::to_string(&request).unwrap();
 
     let request = Request::builder()
-        .uri("/scouter/drift/llm/records")
+        .uri("/scouter/drift/genai/records")
         .method("POST")
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(body))
@@ -306,7 +306,7 @@ fn test_llm_server_records() {
     let response = runtime.block_on(async { helper.send_oneshot(request).await });
     let val = runtime.block_on(async { response.into_body().collect().await.unwrap().to_bytes() });
 
-    let records: LLMDriftRecordPaginationResponse = serde_json::from_slice(&val).unwrap();
+    let records: GenAIDriftRecordPaginationResponse = serde_json::from_slice(&val).unwrap();
     assert!(!records.items.is_empty());
     assert!(records.has_next);
 

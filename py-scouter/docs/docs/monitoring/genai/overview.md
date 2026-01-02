@@ -1,22 +1,22 @@
-## Creating LLM Drift Profiles
+## Creating GenAI Drift Profiles
 
-LLM Drift Profiles in Scouter provide a robust and flexible way to monitor the performance and stability of Large Language Models (LLMs) over time. By defining custom metrics, prompts, and workflows, you can detect drift and set up alerting tailored to your use case.
+GenAI Drift Profiles in Scouter provide a robust and flexible way to monitor the performance and stability of Large Language Models (LLMs) over time. By defining custom metrics, prompts, and workflows, you can detect drift and set up alerting tailored to your use case.
 
-## What is an LLM Drift Profile?
+## What is an GenAI Drift Profile?
 
-An **LLM Drift Profile** encapsulates:
+An **GenAI Drift Profile** encapsulates:
 
-- The configuration for drift monitoring (LLMDriftConfig)
-- The metrics to evaluate (LLMDriftMetric)
+- The configuration for drift monitoring (GenAIDriftConfig)
+- The metrics to evaluate (GenAIDriftMetric)
 - Optionally, a custom workflow (Workflow) for advanced scenarios
 
 This profile can be used to monitor LLMs for changes in output quality, relevance, or any other custom metric you define.
 
-## Steps to Create an LLM Drift Profile
+## Steps to Create an GenAI Drift Profile
 
 ### 1. Define LLM Metrics
 
-The `LLMDriftMetric` class represents a single metric for LLM drift detection.
+The `GenAIDriftMetric` class represents a single metric for GenAI drift detection.
 
 **Arguments:**
 
@@ -30,8 +30,8 @@ The `LLMDriftMetric` class represents a single metric for LLM drift detection.
 
 **Example:**
 ```python
-from scouter.llm import AlertThreshold, Prompt, Score
-from scouter.drift import LLMDriftMetric
+from scouter.genai import AlertThreshold, Prompt, Score
+from scouter.drift import GenAIDriftMetric
 
 reformulation_prompt = (
     "You are an expert evaluator of search query reformulations. "
@@ -56,7 +56,7 @@ reformulation_prompt = (
     "Evaluation:"
 )
 
-metric = LLMDriftMetric(
+metric = GenAIDriftMetric(
     name="reformulation",
     value=5.0,
     alert_threshold=AlertThreshold.Below,
@@ -84,9 +84,9 @@ When defining prompts for LLM metrics, ensure they include the following:
       - `score`: An integer value (typically 1–5) representing the evaluation result.
       - `reason`: A brief explanation for the score.
 
-### 2. Create an LLM Drift Config
+### 2. Create an GenAI Drift Config
 
-The `LLMDriftConfig` class defines the configuration for drift monitoring.
+The `GenAIDriftConfig` class defines the configuration for drift monitoring.
 
 **Arguments:**
 
@@ -96,13 +96,13 @@ The `LLMDriftConfig` class defines the configuration for drift monitoring.
 | `name`         | `str`            | No       | Model name (default: `"__missing__"`)         |
 | `version`      | `str`            | No       | Model version (default: `"0.1.0"`)            |
 | `sample_rate`  | `int`            | No       | Sample rate for drift detection (default: 5 (1 out of 5))  |
-| `alert_config` | `LLMAlertConfig` | No       | Alert configuration                           |
+| `alert_config` | `GenAIAlertConfig` | No       | Alert configuration                           |
 
 **Example:**
 ```python
-from scouter.llm import LLMDriftConfig
+from scouter.genai import GenAIDriftConfig
 
-config = LLMDriftConfig(
+config = GenAIDriftConfig(
     space="my_space",
     name="my_model",
     version="1.0.0",
@@ -122,8 +122,8 @@ For advanced scenarios, you can provide a custom `Workflow` to evaluate complex 
 
 **Example:**
 ```python
-from scouter.llm import Workflow, Task, Score, Agent, Prompt
-from scouter.drift import LLMDriftConfig, LLMDriftMetric
+from scouter.genai import Workflow, Task, Score, Agent, Prompt
+from scouter.drift import GenAIDriftConfig, GenAIDriftMetric
 
 # Relevance prompt
 relevance_prompt = Prompt(
@@ -185,14 +185,14 @@ workflow.add_tasks( # (2)
     ]
 )
 
-metric = LLMDriftMetric( # (3)
+metric = GenAIDriftMetric( # (3)
     name="final_evaluation",
     value=1,
     alert_threshold=AlertThreshold.Below,
 )
 
-profile = LLMDriftProfile(
-    config=LLMDriftConfig(),
+profile = GenAIDriftProfile(
+    config=GenAIDriftConfig(),
     workflow=workflow,
     metrics=[metric],
 )
@@ -203,24 +203,24 @@ profile = LLMDriftProfile(
 3. The metric name must match the final task name in the workflow. The `value` is the baseline score for this metric, and the `alert_threshold` defines when an alert should be triggered based on the metric's value.
 
 
-### 4. Create the LLM Drift Profile
+### 4. Create the GenAI Drift Profile
 
-Use the `LLMDriftProfile` class to create a drift profile by combining your config, metrics, and (optionally) workflow.
+Use the `GenAIDriftProfile` class to create a drift profile by combining your config, metrics, and (optionally) workflow.
 
 **Arguments:**
 
 | Argument    | Type                | Required | Description                                         |
 |-------------|---------------------|----------|-----------------------------------------------------|
-| `config`    | `LLMDriftConfig`    | Yes      | Drift configuration                                 |
-| `metrics`   | `List[LLMDriftMetric]`   | Yes      | List of metrics to monitor                          |
+| `config`    | `GenAIDriftConfig`    | Yes      | Drift configuration                                 |
+| `metrics`   | `List[GenAIDriftMetric]`   | Yes      | List of metrics to monitor                          |
 | `workflow`  | `Workflow`, optional| No       | Custom workflow for advanced evaluation (optional)  |
 
 
 **Example (metrics only):**
 ```python
-from scouter.llm import LLMDriftProfile
+from scouter.genai import GenAIDriftProfile
 
-profile = LLMDriftProfile(
+profile = GenAIDriftProfile(
     config=config,
     metrics=[metric]
 )
@@ -228,7 +228,7 @@ profile = LLMDriftProfile(
 
 ## Prompt Requirements (noted above)
 
-When creating prompts for LLM Drift Profiles and workflows, the following requirements must be met:
+When creating prompts for GenAI Drift Profiles and workflows, the following requirements must be met:
 
 - **Input Parameters:**
 
@@ -253,13 +253,13 @@ When creating prompts for LLM Drift Profiles and workflows, the following requir
 }
 ```
 
-## Inserting LLM Drift Data
+## Inserting GenAI Drift Data
 
-For a general detailed guide on the `ScouterQueue`, and how to insert data for real-time monitoring in your service, please refer to the [Inference documentation](/scouter/docs/monitoring/inference/). While the general insertion logic is similar for all drift types, there are a few specific considerations for LLM drift profiles.
+For a general detailed guide on the `ScouterQueue`, and how to insert data for real-time monitoring in your service, please refer to the [Inference documentation](/scouter/docs/monitoring/inference/). While the general insertion logic is similar for all drift types, there are a few specific considerations for GenAI drift profiles.
 
-### LLM Drift Data Insertion
+### GenAI Drift Data Insertion
 
-To insert data for LLM drift profiles, you first create an `LLMRecord`, which takes the following parameters:
+To insert data for GenAI drift profiles, you first create an `GenAIRecord`, which takes the following parameters:
 
 | Argument    | Type                | Required | Description                                         |
 |-------------|---------------------|----------|-----------------------------------------------------|
@@ -268,14 +268,14 @@ To insert data for LLM drift profiles, you first create an `LLMRecord`, which ta
 
 **Example:**
 ```python
-from scouter.queue import LLMRecord
+from scouter.queue import GenAIRecord
 
-record = LLMRecord(
+record = GenAIRecord(
     context={"input": "How do I find live music in my area?"}
 )
 
 # insert into the ScouterQueue
-queue["my_llm_service"].insert(record)
+queue["my_genai_service"].insert(record)
 ```
 
 ### How are the metrics calculated?
@@ -283,19 +283,19 @@ queue["my_llm_service"].insert(record)
 Scouter is designed to evaluate LLM metrics asynchronously on the server, ensuring your application's performance is not impacted. Here’s how the process works:
 
 1. **Record Ingestion:**
-   When you insert an `LLMRecord`, it is sent to the Scouter server.
+   When you insert an `GenAIRecord`, it is sent to the Scouter server.
 
 2. **Profile Retrieval:**
    Upon receiving the record, the server retrieves the associated drift profile, which specifies the metrics and workflow to execute.
 
 3. **Prompt Injection & Workflow Execution:**
-   The server injects the `context` from the `LLMRecord` into the prompts defined in the workflow. It then runs the workflow according to your configuration.
+   The server injects the `context` from the `GenAIRecord` into the prompts defined in the workflow. It then runs the workflow according to your configuration.
 
 4. **Metric Extraction:**
-   After executing the workflow, the server extracts the `Score` object from the relevant tasks as defined by your `LLMDriftMetric`s.
+   After executing the workflow, the server extracts the `Score` object from the relevant tasks as defined by your `GenAIDriftMetric`s.
 
 5. **Result Storage & Alerting:**
-   The results are stored in the llm metric table. The system then periodically polls these results based on your alerting schedule. If a score falls below the defined threshold, Scouter triggers an alert and sends it to your configured alerting channel.
+   The results are stored in the genai metric table. The system then periodically polls these results based on your alerting schedule. If a score falls below the defined threshold, Scouter triggers an alert and sends it to your configured alerting channel.
 
 This asynchronous evaluation ensures that metric calculation is robust and does not interfere with your service’s real-time performance.
 
@@ -303,7 +303,7 @@ This asynchronous evaluation ensures that metric calculation is robust and does 
 
 <h1 align="center">
   <br>
-  <img src="../../../images/llm-monitoring-arch.png"  width="700"alt="llm monitoring"/>
+  <img src="../../../images/genai-monitoring-arch.png"  width="700"alt="genai monitoring"/>
   <br>
 </h1>
 ## What Scouter Doesn't Do for LLMs
@@ -312,4 +312,4 @@ Scouter is meant to be a generic monitoring system for LLM services, meaning we 
 
 ## Examples
 
-Check out the examples directory for more detailed examples of creating and using LLM Drift Profiles in Scouter.
+Check out the examples directory for more detailed examples of creating and using GenAI Drift Profiles in Scouter.

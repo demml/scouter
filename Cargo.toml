@@ -45,15 +45,15 @@ anyhow = "1.*"
 axum = { version = "0.*", features = ["macros"] }
 axum-extra = { version =  ">=0.10, <1.0", features = ["cookie"] }
 approx = "0.5.1"
-arrow = { version = "55.2.0" }
-arrow-array = { version = "55.2.0" }
+arrow = { version = "57.*" }
+arrow-array = { version = "57.*" }
 async-trait = ">=0.1"
 base64 = ">=0.22"
 chrono ={ version = "0.*", features = ["serde"] }
 colored_json = "5.*"
 cron = "0.*"
 crossbeam-queue = "0.*"
-datafusion = { version = "49.*", features = ["parquet"] }
+datafusion = { version = "51.*", features = ["parquet"] }
 futures-util = { version = "0.*" }
 flume = "0.11.*"
 futures = "0.*"
@@ -67,13 +67,15 @@ metrics-exporter-prometheus = { version = "0.*", default-features = false }
 mimalloc = { version = "*", features = ["secure"] }
 mockito = "1.*"
 mini-moka = "0.*"
-ndarray = { version = "0.16.1", features = ["rayon"] }
-ndarray-rand = "0.15"
+#ndarray = { version = "0.16.1", features = ["rayon"] }
+#ndarray-rand = "0.15"
+ndarray = { version = "0.*", features = ["rayon"] }
+ndarray-rand = "0.*"
 ndarray-stats = "0.*"
 noisy_float = "0.*"
 numpy = "0.*"
 num-traits = "0.*"
-object_store = { version = "0.*", features = ["aws", "azure", "gcp" ] }
+object_store = { version = "0.12.4", features = ["aws", "azure", "gcp" ] }
 opentelemetry = { version = "0.31.0" }
 opentelemetry-stdout = "0.31.0"
 opentelemetry_sdk = { version = "0.31.0", features = ["trace"] }
@@ -81,12 +83,13 @@ opentelemetry-proto = { version = "0.31.0" , features = ["trace"] }
 opentelemetry-otlp = { version = "0.31.0", features = ["grpc-tonic", "trace"] }
 parquet = { version = ">=55.*", features = ["arrow"] }
 password-auth = "1.*"
-potato-head = "0.*"
-pyo3 = { version = "0.26", features = ["abi3-py310", "chrono", "anyhow", "extension-module"] }
+potato-head = { git = "https://github.com/demml/potatohead.git", branch = "updates/scouter" }
+pyo3 = { version = "0.*", features = ["abi3-py310", "chrono", "anyhow", "extension-module"] }
 pyo3-async-runtimes = { version = "0.*", features = ["tokio-runtime"] }
 rand = "0.9.*"
 rayon = "1.*"
 redis = { version = "0.*", features = ["tokio-comp"] }
+regex = "1.*"
 reqwest = { version = "0.12.*", features = ["json", "multipart", "rustls-tls", "rustls-tls-native-roots", "blocking" ], default-features = false }
 rusty-logging="0.*"
 semver = "1.*"

@@ -5,7 +5,7 @@ use crate::PyHelperFuncs;
 use chrono::DateTime;
 use chrono::Utc;
 use potato_head::create_uuid7;
-use potato_head::Prompt;
+use potato_head::prompt_types::Prompt;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyFloat, PyInt, PyList, PyString};
 use pyo3::IntoPyObjectExt;
@@ -224,26 +224,26 @@ impl Features {
     /// * `Features` - A new Features instance containing the extracted features.
     pub fn new(features: Bound<'_, PyAny>) -> Result<Self, TypeError> {
         let features = if features.is_instance_of::<PyList>() {
-            features
-                .downcast::<PyList>()
-                .unwrap()
-                .iter()
-                .map(|item| item.extract::<Feature>().unwrap())
-                .collect()
+            let feature_list = features.cast::<PyList>()?;
+            let mut result = Vec::with_capacity(feature_list.len());
+            for item in feature_list.iter() {
+                result.push(item.extract::<Feature>()?);
+            }
+            result
         } else if features.is_instance_of::<PyDict>() {
-            features
-                .downcast::<PyDict>()
-                .unwrap()
-                .iter()
-                .map(|(key, value)| {
-                    Feature::new(&key.extract::<String>().unwrap(), value.clone()).unwrap()
-                })
-                .collect()
+            let dict = features.cast::<PyDict>()?;
+            let mut result = Vec::with_capacity(dict.len());
+            for (key, value) in dict.iter() {
+                let name = key.extract::<String>()?;
+                result.push(Feature::new(&name, value)?);
+            }
+            result
         } else {
-            Err(TypeError::UnsupportedFeaturesTypeError(
+            return Err(TypeError::UnsupportedFeaturesTypeError(
                 features.get_type().name()?.to_string(),
-            ))?
+            ));
         };
+
         Ok(Features {
             features,
             entity_type: EntityType::Feature,
@@ -330,24 +330,26 @@ impl Metrics {
     #[new]
     pub fn new(metrics: Bound<'_, PyAny>) -> Result<Self, TypeError> {
         let metrics = if metrics.is_instance_of::<PyList>() {
-            metrics
-                .downcast::<PyList>()
-                .unwrap()
-                .iter()
-                .map(|item| item.extract::<Metric>().unwrap())
-                .collect()
+            let list = metrics.cast::<PyList>()?;
+            let mut result = Vec::with_capacity(list.len());
+            for item in list.iter() {
+                result.push(item.extract::<Metric>()?);
+            }
+            result
         } else if metrics.is_instance_of::<PyDict>() {
-            metrics
-                .downcast::<PyDict>()
-                .unwrap()
-                .iter()
-                .map(|(key, value)| Metric::new(key.extract().unwrap(), value))
-                .collect()
+            let dict = metrics.cast::<PyDict>()?;
+            let mut result = Vec::with_capacity(dict.len());
+            for (key, value) in dict.iter() {
+                let name = key.extract::<String>()?;
+                result.push(Metric::new(name, value));
+            }
+            result
         } else {
-            Err(TypeError::UnsupportedMetricsTypeError(
+            return Err(TypeError::UnsupportedMetricsTypeError(
                 metrics.get_type().name()?.to_string(),
-            ))?
+            ));
         };
+
         Ok(Metrics {
             metrics,
             entity_type: EntityType::Metric,
@@ -366,7 +368,7 @@ impl Metrics {
 
 #[derive(Clone, Serialize, Debug)]
 #[cfg_attr(feature = "server", derive(sqlx::FromRow))]
-pub struct LLMTaskRecord {
+pub struct GenAITaskRecord {
     pub uid: String,
     pub entity_id: i32,
     pub created_at: DateTime<Utc>,
@@ -377,7 +379,7 @@ pub struct LLMTaskRecord {
 
 #[pyclass]
 #[derive(Clone, Serialize, Debug)]
-pub struct LLMRecord {
+pub struct GenAIRecord {
     pub uid: String,
     pub created_at: DateTime<Utc>,
     pub context: Value,
@@ -388,14 +390,14 @@ pub struct LLMRecord {
 }
 
 #[pymethods]
-impl LLMRecord {
+impl GenAIRecord {
     #[new]
     #[pyo3(signature = (
         context,
         prompt=None,
     ))]
 
-    /// Creates a new LLMRecord instance.
+    /// Creates a new GenAIRecord instance.
     /// The context is either a python dictionary or a pydantic basemodel.
     pub fn new(
         py: Python<'_>,
@@ -427,7 +429,7 @@ impl LLMRecord {
             None => None,
         };
 
-        Ok(LLMRecord {
+        Ok(GenAIRecord {
             uid: create_uuid7(),
             created_at: Utc::now(),
             context: context_val,
@@ -445,9 +447,9 @@ impl LLMRecord {
     }
 }
 
-impl LLMRecord {
+impl GenAIRecord {
     pub fn new_rs(context: Option<Value>, prompt: Option<Value>) -> Self {
-        LLMRecord {
+        GenAIRecord {
             context: context.unwrap_or(Value::Object(serde_json::Map::new())),
             prompt,
             entity_type: EntityType::LLM,
@@ -461,8 +463,8 @@ impl LLMRecord {
         PyHelperFuncs::__str__(self)
     }
 
-    pub fn to_task_record(&self, uid: &str) -> LLMTaskRecord {
-        LLMTaskRecord {
+    pub fn to_task_record(&self, uid: &str) -> GenAITaskRecord {
+        GenAITaskRecord {
             uid: uid.to_string(),
             entity_id: 0,
             created_at: self.created_at,
@@ -477,7 +479,7 @@ impl LLMRecord {
 pub enum QueueItem {
     Features(Features),
     Metrics(Metrics),
-    LLM(Box<LLMRecord>),
+    LLM(Box<GenAIRecord>),
 }
 
 impl QueueItem {
@@ -496,8 +498,8 @@ impl QueueItem {
             }
             EntityType::LLM => {
                 // LLM is not supported in this context
-                let llm = entity.extract::<LLMRecord>()?;
-                Ok(QueueItem::LLM(Box::new(llm)))
+                let genai = entity.extract::<GenAIRecord>()?;
+                Ok(QueueItem::LLM(Box::new(genai)))
             }
         }
     }
@@ -506,7 +508,7 @@ impl QueueItem {
 pub trait QueueExt: Send + Sync {
     fn metrics(&self) -> &Vec<Metric>;
     fn features(&self) -> &Vec<Feature>;
-    fn llm_records(&self) -> Vec<&LLMRecord>;
+    fn genai_records(&self) -> Vec<&GenAIRecord>;
 }
 
 impl QueueExt for Features {
@@ -521,7 +523,7 @@ impl QueueExt for Features {
         &self.features
     }
 
-    fn llm_records(&self) -> Vec<&LLMRecord> {
+    fn genai_records(&self) -> Vec<&GenAIRecord> {
         // this is not a real implementation, just a placeholder
         // to satisfy the trait bound
         vec![]
@@ -540,14 +542,14 @@ impl QueueExt for Metrics {
         &EMPTY
     }
 
-    fn llm_records(&self) -> Vec<&LLMRecord> {
+    fn genai_records(&self) -> Vec<&GenAIRecord> {
         // this is not a real implementation, just a placeholder
         // to satisfy the trait bound
         vec![]
     }
 }
 
-impl QueueExt for LLMRecord {
+impl QueueExt for GenAIRecord {
     fn metrics(&self) -> &Vec<Metric> {
         // this is not a real implementation, just a placeholder
         // to satisfy the trait bound
@@ -562,7 +564,7 @@ impl QueueExt for LLMRecord {
         &EMPTY
     }
 
-    fn llm_records(&self) -> Vec<&LLMRecord> {
+    fn genai_records(&self) -> Vec<&GenAIRecord> {
         vec![self]
     }
 }

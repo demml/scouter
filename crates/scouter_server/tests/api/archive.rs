@@ -5,7 +5,7 @@ use axum::{
     http::{header, Request, StatusCode},
 };
 use http_body_util::BodyExt;
-use potato_head::{create_score_prompt, LLMTestServer};
+use potato_head::mock::{create_score_prompt, LLMTestServer};
 use scouter_dataframe::parquet::dataframe::ParquetDataFrame;
 use scouter_drift::psi::PsiMonitor;
 use scouter_drift::spc::SpcMonitor;
@@ -13,7 +13,9 @@ use scouter_server::api::archive::archive_old_data;
 use scouter_sql::MessageHandler;
 use scouter_types::contracts::DriftRequest;
 use scouter_types::custom::CustomMetricAlertConfig;
-use scouter_types::llm::{LLMAlertConfig, LLMDriftConfig, LLMDriftMetric, LLMDriftProfile};
+use scouter_types::genai::{
+    GenAIAlertConfig, GenAIDriftConfig, GenAIDriftMetric, GenAIDriftProfile,
+};
 use scouter_types::MessageRecord;
 use scouter_types::{
     custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
@@ -303,19 +305,19 @@ async fn test_data_archive_custom() {
 }
 
 #[test]
-fn test_data_archive_llm_drift_record() {
+fn test_data_archive_genai_event_record() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let mut mock = LLMTestServer::new();
     mock.start_server().unwrap();
 
     let helper = runtime.block_on(async { setup_test().await });
 
-    let alert_config = LLMAlertConfig::default();
-    let config = LLMDriftConfig::new(SPACE, NAME, VERSION, 25, alert_config, None).unwrap();
+    let alert_config = GenAIAlertConfig::default();
+    let config = GenAIDriftConfig::new(SPACE, NAME, VERSION, 25, alert_config, None).unwrap();
     let prompt = create_score_prompt(Some(vec!["input".to_string()]));
 
     let _alert_threshold = AlertThreshold::Above;
-    let metric1 = LLMDriftMetric::new(
+    let metric1 = GenAIDriftMetric::new(
         "metric1",
         5.0,
         AlertThreshold::Above,
@@ -323,7 +325,7 @@ fn test_data_archive_llm_drift_record() {
         Some(prompt.clone()),
     )
     .unwrap();
-    let metric2 = LLMDriftMetric::new(
+    let metric2 = GenAIDriftMetric::new(
         "metric2",
         3.0,
         AlertThreshold::Below,
@@ -331,9 +333,9 @@ fn test_data_archive_llm_drift_record() {
         Some(prompt.clone()),
     )
     .unwrap();
-    let llm_metrics = vec![metric1, metric2];
+    let genai_metrics = vec![metric1, metric2];
     let mut profile = runtime
-        .block_on(async { LLMDriftProfile::from_metrics(config, llm_metrics).await })
+        .block_on(async { GenAIDriftProfile::from_metrics(config, genai_metrics).await })
         .unwrap();
 
     let uid = runtime.block_on(async {
@@ -345,10 +347,10 @@ fn test_data_archive_llm_drift_record() {
     profile.config.uid = uid.clone();
 
     // 10 day old records
-    let long_term_records = helper.get_llm_drift_records(Some(10), &profile.config.uid);
+    let long_term_records = helper.get_genai_event_records(Some(10), &profile.config.uid);
 
     // 0 day old records
-    let short_term_records = helper.get_llm_drift_records(None, &profile.config.uid);
+    let short_term_records = helper.get_genai_event_records(None, &profile.config.uid);
 
     for records in [short_term_records, long_term_records].iter() {
         let body = serde_json::to_string(records).unwrap();
@@ -375,11 +377,12 @@ fn test_data_archive_llm_drift_record() {
     assert!(!record.spc);
     assert!(!record.psi);
     assert!(!record.custom);
-    assert!(!record.llm_metric);
-    assert!(record.llm_drift);
+    assert!(!record.genai_metric);
+    assert!(record.genai_drift);
 
-    let df = ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::LLMDrift).unwrap();
-    let path = format!("{}/llm_drift", profile.config.uid);
+    let df =
+        ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::GenAIEvent).unwrap();
+    let path = format!("{}/genai_drift", profile.config.uid);
 
     let canonical_path = format!("{}/{}", df.storage_root(), path);
     let data_path = object_store::path::Path::from(canonical_path);
@@ -394,19 +397,19 @@ fn test_data_archive_llm_drift_record() {
 }
 
 #[test]
-fn test_data_archive_llm_drift_metrics() {
+fn test_data_archive_genai_drift_metrics() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let mut mock = LLMTestServer::new();
     mock.start_server().unwrap();
 
     let helper = runtime.block_on(async { setup_test().await });
 
-    let alert_config = LLMAlertConfig::default();
-    let config = LLMDriftConfig::new(SPACE, NAME, VERSION, 25, alert_config, None).unwrap();
+    let alert_config = GenAIAlertConfig::default();
+    let config = GenAIDriftConfig::new(SPACE, NAME, VERSION, 25, alert_config, None).unwrap();
     let prompt = create_score_prompt(Some(vec!["input".to_string()]));
 
     let _alert_threshold = AlertThreshold::Above;
-    let metric1 = LLMDriftMetric::new(
+    let metric1 = GenAIDriftMetric::new(
         "metric1",
         5.0,
         AlertThreshold::Above,
@@ -414,7 +417,7 @@ fn test_data_archive_llm_drift_metrics() {
         Some(prompt.clone()),
     )
     .unwrap();
-    let metric2 = LLMDriftMetric::new(
+    let metric2 = GenAIDriftMetric::new(
         "metric2",
         3.0,
         AlertThreshold::Below,
@@ -422,9 +425,9 @@ fn test_data_archive_llm_drift_metrics() {
         Some(prompt.clone()),
     )
     .unwrap();
-    let llm_metrics = vec![metric1, metric2];
+    let genai_metrics = vec![metric1, metric2];
     let mut profile = runtime
-        .block_on(async { LLMDriftProfile::from_metrics(config, llm_metrics).await })
+        .block_on(async { GenAIDriftProfile::from_metrics(config, genai_metrics).await })
         .unwrap();
 
     let uid = runtime.block_on(async {
@@ -436,13 +439,13 @@ fn test_data_archive_llm_drift_metrics() {
     profile.config.uid = uid.clone();
 
     // 20 day old records
-    let long_term_records = helper.get_llm_drift_metrics(Some(20), &profile.config.uid);
+    let long_term_records = helper.get_genai_drift_metrics(Some(20), &profile.config.uid);
 
     // 10 day old records
-    let mid_term_records = helper.get_llm_drift_metrics(Some(10), &profile.config.uid);
+    let mid_term_records = helper.get_genai_drift_metrics(Some(10), &profile.config.uid);
 
     // 0 day old records
-    let short_term_records = helper.get_llm_drift_metrics(None, &profile.config.uid);
+    let short_term_records = helper.get_genai_drift_metrics(None, &profile.config.uid);
 
     for records in [short_term_records, long_term_records, mid_term_records].iter() {
         let body = serde_json::to_string(records).unwrap();
@@ -469,12 +472,12 @@ fn test_data_archive_llm_drift_metrics() {
     assert!(!record.spc);
     assert!(!record.psi);
     assert!(!record.custom);
-    assert!(record.llm_metric);
-    assert!(!record.llm_drift);
+    assert!(record.genai_metric);
+    assert!(!record.genai_drift);
 
     let df =
-        ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::LLMMetric).unwrap();
-    let path = format!("{}/llm_metric", profile.config.uid);
+        ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::GenAIMetric).unwrap();
+    let path = format!("{}/genai_metric", profile.config.uid);
 
     let canonical_path = format!("{}/{}", df.storage_root(), path);
     let data_path = object_store::path::Path::from(canonical_path);
@@ -496,7 +499,7 @@ fn test_data_archive_llm_drift_metrics() {
     let query_string = serde_qs::to_string(&params).unwrap();
 
     let request = Request::builder()
-        .uri(format!("/scouter/drift/llm?{query_string}"))
+        .uri(format!("/scouter/drift/genai?{query_string}"))
         .method("GET")
         .body(Body::empty())
         .unwrap();

@@ -39,29 +39,29 @@ const GET_CUSTOM_DATA_FOR_ARCHIVE: &str =
     include_str!("scripts/custom/get_custom_metric_data_for_archive.sql");
 const UPDATE_CUSTOM_ENTITIES: &str = include_str!("scripts/custom/update_data_to_archived.sql");
 
-// llm
-const GET_LLM_METRIC_VALUES: &str = include_str!("scripts/llm/get_llm_metric_values.sql");
-const GET_BINNED_LLM_METRIC_VALUES: &str = include_str!("scripts/llm/binned_llm_metric_values.sql");
-const INSERT_LLM_METRIC_VALUES_BATCH: &str =
-    include_str!("scripts/llm/insert_llm_metric_values.sql");
-const INSERT_LLM_DRIFT_RECORD: &str = include_str!("scripts/llm/insert_llm_drift_record.sql");
-const GET_LLM_DRIFT_RECORDS: &str = include_str!("scripts/llm/get_llm_drift_records.sql");
-
-const GET_PAGINATED_LLM_DRIFT_RECORDS: &str =
-    include_str!("scripts/llm/get_paginated_llm_drift_records.sql");
-const UPDATE_LLM_DRIFT_TASK: &str = include_str!("scripts/llm/update_llm_drift_record.sql");
-const GET_LLM_DRIFT_RECORD_ENTITIES: &str =
-    include_str!("scripts/llm/get_llm_drift_record_entities_for_archive.sql");
-const GET_LLM_METRIC_ENTITIES: &str =
-    include_str!("scripts/llm/get_llm_metric_entities_for_archive.sql");
-const GET_LLM_DRIFT_RECORD_DATA_FOR_ARCHIVE: &str =
-    include_str!("scripts/llm/get_llm_drift_record_data_for_archive.sql");
-const GET_LLM_METRIC_DATA_FOR_ARCHIVE: &str =
-    include_str!("scripts/llm/get_llm_metric_data_for_archive.sql");
-const UPDATE_LLM_METRIC_ENTITIES: &str =
-    include_str!("scripts/llm/update_llm_drift_metric_to_archived.sql");
-const UPDATE_LLM_DRIFT_ENTITIES: &str =
-    include_str!("scripts/llm/update_llm_drift_record_to_archived.sql");
+// genai
+const GET_GENAI_METRIC_VALUES: &str = include_str!("scripts/genai/get_genai_metric_values.sql");
+const GET_BINNED_GENAI_METRIC_VALUES: &str =
+    include_str!("scripts/genai/binned_genai_metric_values.sql");
+const INSERT_GENAI_METRIC_VALUES_BATCH: &str =
+    include_str!("scripts/genai/insert_genai_metric_values.sql");
+const INSERT_GENAI_DRIFT_RECORD: &str = include_str!("scripts/genai/insert_genai_event_record.sql");
+const GET_GENAI_DRIFT_RECORDS: &str = include_str!("scripts/genai/get_genai_event_records.sql");
+const GET_PAGINATED_GENAI_DRIFT_RECORDS: &str =
+    include_str!("scripts/genai/get_paginated_genai_event_records.sql");
+const UPDATE_GENAI_DRIFT_TASK: &str = include_str!("scripts/genai/update_genai_event_record.sql");
+const GET_GENAI_DRIFT_RECORD_ENTITIES: &str =
+    include_str!("scripts/genai/get_genai_event_record_entities_for_archive.sql");
+const GET_GENAI_METRIC_ENTITIES: &str =
+    include_str!("scripts/genai/get_genai_metric_entities_for_archive.sql");
+const GET_GENAI_DRIFT_RECORD_DATA_FOR_ARCHIVE: &str =
+    include_str!("scripts/genai/get_genai_event_record_data_for_archive.sql");
+const GET_GENAI_METRIC_DATA_FOR_ARCHIVE: &str =
+    include_str!("scripts/genai/get_genai_metric_data_for_archive.sql");
+const UPDATE_GENAI_METRIC_ENTITIES: &str =
+    include_str!("scripts/genai/update_genai_drift_metric_to_archived.sql");
+const UPDATE_GENAI_DRIFT_ENTITIES: &str =
+    include_str!("scripts/genai/update_genai_event_record_to_archived.sql");
 
 // observability (experimental)
 const GET_BINNED_OBSERVABILITY_METRICS: &str =
@@ -89,7 +89,8 @@ const UPDATE_ALERT_STATUS: &str = include_str!("scripts/alert/update_alert_statu
 
 // poll
 const GET_DRIFT_TASK: &str = include_str!("scripts/poll/poll_for_drift_task.sql");
-const GET_PENDING_LLM_DRIFT_TASK: &str = include_str!("scripts/poll/poll_for_llm_drift_task.sql");
+const GET_PENDING_GENAI_DRIFT_TASK: &str =
+    include_str!("scripts/poll/poll_for_genai_drift_task.sql");
 
 // auth
 const INSERT_USER: &str = include_str!("scripts/user/insert_user.sql");
@@ -169,23 +170,23 @@ pub enum Queries {
     DeleteUser,
     UpdateAlertStatus,
 
-    // llm
-    GetLLMMetricValues,
-    GetLLMDriftRecords,
-    GetPaginatedLLMDriftRecords,
+    // genai
+    GetGenAIMetricValues,
+    GetGenAIDriftRecords,
+    GetPaginatedGenAIDriftRecords,
     GetBinnedMetrics,
-    InsertLLMMetricValuesBatch,
-    InsertLLMDriftRecord,
-    GetPendingLLMDriftTask,
-    UpdateLLMDriftTask,
+    InsertGenAIMetricValuesBatch,
+    InsertGenAIDriftRecord,
+    GetPendingGenAIDriftTask,
+    UpdateGenAIDriftTask,
 
-    GetLLMDriftRecordEntitiesForArchive,
-    GetLLMMetricEntitiesForArchive,
-    GetLLMDriftRecordDataForArchive,
-    GetLLMMetricDataForArchive,
+    GetGenAIDriftRecordEntitiesForArchive,
+    GetGenAIMetricEntitiesForArchive,
+    GetGenAIDriftRecordDataForArchive,
+    GetGenAIMetricDataForArchive,
 
-    UpdateLLMMetricEntities,
-    UpdateLLMDriftEntities,
+    UpdateGenAIMetricEntities,
+    UpdateGenAIDriftEntities,
 
     // profile
     GetProfileVersions,
@@ -255,26 +256,26 @@ impl Queries {
             Queries::DeleteUser => DELETE_USER,
             Queries::UpdateAlertStatus => UPDATE_ALERT_STATUS,
 
-            //llm
-            Queries::GetLLMMetricValues => GET_LLM_METRIC_VALUES,
-            Queries::GetBinnedMetrics => GET_BINNED_LLM_METRIC_VALUES,
-            Queries::InsertLLMMetricValuesBatch => INSERT_LLM_METRIC_VALUES_BATCH,
-            Queries::InsertLLMDriftRecord => INSERT_LLM_DRIFT_RECORD,
+            //genai
+            Queries::GetGenAIMetricValues => GET_GENAI_METRIC_VALUES,
+            Queries::GetBinnedMetrics => GET_BINNED_GENAI_METRIC_VALUES,
+            Queries::InsertGenAIMetricValuesBatch => INSERT_GENAI_METRIC_VALUES_BATCH,
+            Queries::InsertGenAIDriftRecord => INSERT_GENAI_DRIFT_RECORD,
 
-            Queries::GetLLMDriftRecords => GET_LLM_DRIFT_RECORDS,
-            Queries::GetPaginatedLLMDriftRecords => GET_PAGINATED_LLM_DRIFT_RECORDS,
-            Queries::GetPendingLLMDriftTask => GET_PENDING_LLM_DRIFT_TASK,
-            Queries::GetLLMDriftRecordEntitiesForArchive => GET_LLM_DRIFT_RECORD_ENTITIES,
-            Queries::GetLLMMetricEntitiesForArchive => GET_LLM_METRIC_ENTITIES,
-            Queries::GetLLMDriftRecordDataForArchive => GET_LLM_DRIFT_RECORD_DATA_FOR_ARCHIVE,
-            Queries::GetLLMMetricDataForArchive => GET_LLM_METRIC_DATA_FOR_ARCHIVE,
-            Queries::UpdateLLMMetricEntities => UPDATE_LLM_METRIC_ENTITIES,
-            Queries::UpdateLLMDriftEntities => UPDATE_LLM_DRIFT_ENTITIES,
+            Queries::GetGenAIDriftRecords => GET_GENAI_DRIFT_RECORDS,
+            Queries::GetPaginatedGenAIDriftRecords => GET_PAGINATED_GENAI_DRIFT_RECORDS,
+            Queries::GetPendingGenAIDriftTask => GET_PENDING_GENAI_DRIFT_TASK,
+            Queries::GetGenAIDriftRecordEntitiesForArchive => GET_GENAI_DRIFT_RECORD_ENTITIES,
+            Queries::GetGenAIMetricEntitiesForArchive => GET_GENAI_METRIC_ENTITIES,
+            Queries::GetGenAIDriftRecordDataForArchive => GET_GENAI_DRIFT_RECORD_DATA_FOR_ARCHIVE,
+            Queries::GetGenAIMetricDataForArchive => GET_GENAI_METRIC_DATA_FOR_ARCHIVE,
+            Queries::UpdateGenAIMetricEntities => UPDATE_GENAI_METRIC_ENTITIES,
+            Queries::UpdateGenAIDriftEntities => UPDATE_GENAI_DRIFT_ENTITIES,
 
             Queries::InsertCustomMetricValuesBatch => INSERT_CUSTOM_METRIC_VALUES_BATCH,
             Queries::InsertSpcDriftRecordBatch => INSERT_SPC_DRIFT_RECORD_BATCH,
             Queries::InsertBinCountsBatch => INSERT_BIN_COUNTS_BATCH,
-            Queries::UpdateLLMDriftTask => UPDATE_LLM_DRIFT_TASK,
+            Queries::UpdateGenAIDriftTask => UPDATE_GENAI_DRIFT_TASK,
             // trace
             Queries::InsertTraceSpan => INSERT_TRACE_SPAN,
             Queries::InsertTraceBaggage => INSERT_TRACE_BAGGAGE,

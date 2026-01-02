@@ -15,10 +15,10 @@ pub use scouter_types::{
         CustomDriftProfile, CustomMetric, CustomMetricAlertCondition, CustomMetricAlertConfig,
         CustomMetricDriftConfig,
     },
-    eval::LLMEvalMetric,
-    llm::{
-        LLMAlertConfig, LLMDriftConfig, LLMDriftMap, LLMDriftMetric, LLMDriftProfile,
-        LLMMetricAlertCondition,
+    eval::GenAIEvalMetric,
+    genai::{
+        GenAIAlertConfig, GenAIDriftConfig, GenAIDriftMap, GenAIDriftMetric, GenAIDriftProfile,
+        GenAIMetricAlertCondition,
     },
     psi::{
         Bin, BinnedPsiFeatureMetrics, BinnedPsiMetric, PsiAlertConfig, PsiChiSquareThreshold,
@@ -35,15 +35,16 @@ pub use scouter_types::{
     ConsoleDispatchConfig, CustomMetricRecord, DataType, Doane, DriftAlertPaginationRequest,
     DriftAlertPaginationResponse, DriftProfile, DriftRequest, DriftType, EntityIdTagsRequest,
     EntityIdTagsResponse, EntityType, EqualWidthBinning, Feature, FeatureMap, Features,
-    FreedmanDiaconis, GetProfileRequest, LLMDriftRecord, LLMDriftRecordPaginationRequest,
-    LLMDriftRecordPaginationResponse, LLMMetricRecord, LLMRecord, LatencyMetrics, Manual, Metric,
-    Metrics, ObservabilityMetrics, OpsGenieDispatchConfig, ProfileRequest, ProfileStatusRequest,
-    PsiRecord, QuantileBinning, RecordType, RegisteredProfileResponse, Rice, RouteMetrics, Scott,
-    ScouterResponse, ScouterServerError, ServerRecord, ServerRecords, SlackDispatchConfig,
-    SpanEvent, SpanLink, SpcRecord, SquareRoot, Sturges, TagRecord, TagsResponse, TerrellScott,
-    TimeInterval, TraceBaggageRecord, TraceBaggageResponse, TraceMetricsRequest,
-    TraceMetricsResponse, TracePaginationResponse, TraceRecord, TraceRequest, TraceSpanRecord,
-    TraceSpansResponse, UpdateAlertResponse, UpdateAlertStatus, VersionRequest, SCOUTER_TAG_PREFIX,
+    FreedmanDiaconis, GenAIDriftRecord, GenAIDriftRecordPaginationRequest,
+    GenAIDriftRecordPaginationResponse, GenAIMetricRecord, GenAIRecord, GetProfileRequest,
+    LatencyMetrics, Manual, Metric, Metrics, ObservabilityMetrics, OpsGenieDispatchConfig,
+    ProfileRequest, ProfileStatusRequest, PsiRecord, QuantileBinning, RecordType,
+    RegisteredProfileResponse, Rice, RouteMetrics, Scott, ScouterResponse, ScouterServerError,
+    ServerRecord, ServerRecords, SlackDispatchConfig, SpanEvent, SpanLink, SpcRecord, SquareRoot,
+    Sturges, TagRecord, TagsResponse, TerrellScott, TimeInterval, TraceBaggageRecord,
+    TraceBaggageResponse, TraceMetricsRequest, TraceMetricsResponse, TracePaginationResponse,
+    TraceRecord, TraceRequest, TraceSpanRecord, TraceSpansResponse, UpdateAlertResponse,
+    UpdateAlertStatus, VersionRequest, SCOUTER_TAG_PREFIX,
 };
 
 pub use crate::http::{PyScouterClient, ScouterClient};
@@ -59,7 +60,7 @@ pub use scouter_events::producer::{
 };
 pub use scouter_events::queue::bus::TaskState;
 pub use scouter_events::queue::{
-    custom::CustomMetricFeatureQueue, llm::LLMRecordQueue, psi::PsiFeatureQueue,
+    custom::CustomMetricFeatureQueue, genai::GenAIRecordQueue, psi::PsiFeatureQueue,
     spc::SpcFeatureQueue, QueueBus, ScouterQueue,
 };
 
@@ -78,8 +79,8 @@ pub use scouter_types::error::{ContractError, ProfileError, RecordError, TypeErr
 
 pub use scouter_evaluate::{
     error::EvaluationError,
-    llm::{async_evaluate_llm, evaluate_llm, workflow_from_eval_metrics},
-    types::{EvaluationConfig, LLMEvalRecord, LLMEvalResults, LLMEvalTaskResult},
+    genai::{async_evaluate_genai, evaluate_genai, workflow_from_eval_metrics},
+    types::{EvaluationConfig, GenAIEvalRecord, GenAIEvalResults, GenAIEvalTaskResult},
 };
 pub use scouter_tracing::error::TraceError;
 pub use scouter_tracing::exporter::{
