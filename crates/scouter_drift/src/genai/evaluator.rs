@@ -96,6 +96,7 @@ impl GenAIEvaluator {
                     created_at: chrono::Utc::now(),
                     metric: task_id.clone(),
                     value,
+                    entity_id: None,
                 };
 
                 // Add the score to the score map

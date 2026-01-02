@@ -401,7 +401,7 @@ mod tests {
                 let record = ServerRecord::Psi(PsiRecord {
                     created_at: Utc::now() + chrono::Duration::hours(i),
                     feature: "feature1".to_string(),
-                    bin_id: j as usize,
+                    bin_id: j,
                     bin_count: rand::rng().random_range(0..100),
                     entity_id: Some(entity_id),
                     uid: format!("entity_uid_{entity_id}"),
@@ -416,7 +416,7 @@ mod tests {
                 let record = ServerRecord::Psi(PsiRecord {
                     created_at: Utc::now() + chrono::Duration::hours(i),
                     feature: "feature2".to_string(),
-                    bin_id: j as usize,
+                    bin_id: j,
                     bin_count: rand::rng().random_range(0..100),
                     entity_id: Some(entity_id),
                     uid: format!("entity_uid_{entity_id}"),
