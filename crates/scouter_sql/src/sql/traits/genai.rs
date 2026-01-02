@@ -148,7 +148,7 @@ pub trait GenAIDriftSqlLogic {
         let limit = params.limit.unwrap_or(50);
         let direction = params.direction.as_deref().unwrap_or("next");
 
-        let mut items: Vec<GenAIDriftInternalRecord> = sqlx::query_as(query)
+        let mut items: Vec<GenAIDriftRecord> = sqlx::query_as(query)
             .bind(entity_id)
             .bind(params.status.as_ref().and_then(|s| s.as_str()))
             .bind(params.cursor_created_at)
@@ -217,7 +217,13 @@ pub trait GenAIDriftSqlLogic {
             }
         };
 
-        let public_items = items.into_iter().map(|r| r.to_public_record()).collect();
+        let public_items = items
+            .into_iter()
+            .map(|mut r| {
+                r.mask_sensitive_data();
+                r
+            })
+            .collect();
 
         Ok(GenAIDriftRecordPaginationResponse {
             items: public_items,

@@ -1,5 +1,5 @@
-use crate::sql::query::Queries;
 use crate::sql::schema::Entity;
+use crate::sql::{query::Queries, utils::parse_pg_rows};
 use chrono::{DateTime, Utc};
 
 use crate::sql::error::SqlError;
@@ -79,7 +79,7 @@ pub trait ArchiveSqlLogic {
             .map_err(SqlError::SqlxError)?;
 
         // need to convert the rows to server records (storage dataframe expects this)
-        pg_rows_to_server_records(&rows, record_type)
+        parse_pg_rows(&rows, record_type)
     }
 
     async fn update_data_to_archived(
