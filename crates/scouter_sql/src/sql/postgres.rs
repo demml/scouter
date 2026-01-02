@@ -145,7 +145,7 @@ impl MessageHandler {
             RecordType::LLMDrift => {
                 debug!("LLM Drift record count: {:?}", records.len());
                 let records = records.to_llm_drift_records()?;
-                for record in records.iter() {
+                for record in records {
                     let _ = PostgresClient::insert_llm_drift_record(pool, record, &entity_id)
                         .await
                         .map_err(|e| {
@@ -629,10 +629,13 @@ mod tests {
             value: 2.0,
         };
 
-        let result =
-            PostgresClient::insert_spc_drift_records_batch(&pool, &[record1, record2], &ENTITY_ID)
-                .await
-                .unwrap();
+        let result = PostgresClient::insert_spc_drift_records_batch(
+            &pool,
+            &[&record1, &record2],
+            &ENTITY_ID,
+        )
+        .await
+        .unwrap();
 
         assert_eq!(result.rows_affected(), 2);
     }
@@ -658,7 +661,7 @@ mod tests {
         };
 
         let result =
-            PostgresClient::insert_bin_counts_batch(&pool, &[record1, record2], &ENTITY_ID)
+            PostgresClient::insert_bin_counts_batch(&pool, &[&record1, &record2], &ENTITY_ID)
                 .await
                 .unwrap();
 
@@ -745,10 +748,13 @@ mod tests {
                 records.push(record);
             }
 
-            let result =
-                PostgresClient::insert_spc_drift_records_batch(&pool, &records, &ENTITY_ID)
-                    .await
-                    .unwrap();
+            let result = PostgresClient::insert_spc_drift_records_batch(
+                &pool,
+                &records.iter().collect::<Vec<&SpcRecord>>(),
+                &ENTITY_ID,
+            )
+            .await
+            .unwrap();
             assert_eq!(result.rows_affected(), records.len() as u64);
         }
 
@@ -840,9 +846,13 @@ mod tests {
 
                     records.push(record);
                 }
-                PostgresClient::insert_bin_counts_batch(&pool, &records, &entity_id)
-                    .await
-                    .unwrap();
+                PostgresClient::insert_bin_counts_batch(
+                    &pool,
+                    &records.iter().collect::<Vec<&PsiRecord>>(),
+                    &entity_id,
+                )
+                .await
+                .unwrap();
             }
         }
 
@@ -910,10 +920,13 @@ mod tests {
                 };
                 records.push(record);
             }
-            let result =
-                PostgresClient::insert_custom_metric_values_batch(&pool, &records, &entity_id)
-                    .await
-                    .unwrap();
+            let result = PostgresClient::insert_custom_metric_values_batch(
+                &pool,
+                &records.iter().collect::<Vec<&CustomMetricRecord>>(),
+                &entity_id,
+            )
+            .await
+            .unwrap();
             assert_eq!(result.rows_affected(), 25);
         }
 
@@ -926,7 +939,7 @@ mod tests {
         };
 
         let result =
-            PostgresClient::insert_custom_metric_values_batch(&pool, &[record], &entity_id)
+            PostgresClient::insert_custom_metric_values_batch(&pool, &[&record], &entity_id)
                 .await
                 .unwrap();
         assert_eq!(result.rows_affected(), 1);
@@ -1046,7 +1059,9 @@ mod tests {
                 entity_uid: uid.clone(),
             };
 
-            let result = PostgresClient::insert_llm_drift_record(&pool, &record, &entity_id)
+            let boxed = BoxedLLMDriftRecord::new(record);
+
+            let result = PostgresClient::insert_llm_drift_record(&pool, &boxed, &entity_id)
                 .await
                 .unwrap();
 
@@ -1124,7 +1139,9 @@ mod tests {
                 entity_uid: uid.clone(),
             };
 
-            let result = PostgresClient::insert_llm_drift_record(&pool, &record, &entity_id)
+            let boxed = BoxedLLMDriftRecord::new(record);
+
+            let result = PostgresClient::insert_llm_drift_record(&pool, &boxed, &entity_id)
                 .await
                 .unwrap();
 
@@ -1265,10 +1282,13 @@ mod tests {
                 };
                 records.push(record);
             }
-            let result =
-                PostgresClient::insert_llm_metric_values_batch(&pool, &records, &entity_id)
-                    .await
-                    .unwrap();
+            let result = PostgresClient::insert_llm_metric_values_batch(
+                &pool,
+                &records.iter().collect::<Vec<&LLMMetricRecord>>(),
+                &entity_id,
+            )
+            .await
+            .unwrap();
             assert_eq!(result.rows_affected(), 25);
         }
 

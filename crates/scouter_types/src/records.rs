@@ -704,53 +704,53 @@ impl ServerRecords {
 
 /// Helper trait to convert ServerRecord to their respective internal record types
 pub trait ToDriftRecords {
-    fn to_spc_drift_records(&self) -> Result<Vec<SpcRecord>, RecordError>;
-    fn to_observability_drift_records(&self) -> Result<Vec<ObservabilityMetrics>, RecordError>;
-    fn to_psi_drift_records(&self) -> Result<Vec<PsiRecord>, RecordError>;
-    fn to_custom_metric_drift_records(&self) -> Result<Vec<CustomMetricRecord>, RecordError>;
-    fn to_llm_drift_records(&self) -> Result<Vec<LLMDriftRecord>, RecordError>;
-    fn to_llm_metric_records(&self) -> Result<Vec<LLMMetricRecord>, RecordError>;
+    fn to_spc_drift_records(&self) -> Result<Vec<&SpcRecord>, RecordError>;
+    fn to_observability_drift_records(&self) -> Result<Vec<&ObservabilityMetrics>, RecordError>;
+    fn to_psi_drift_records(&self) -> Result<Vec<&PsiRecord>, RecordError>;
+    fn to_custom_metric_drift_records(&self) -> Result<Vec<&CustomMetricRecord>, RecordError>;
+    fn to_llm_drift_records(&self) -> Result<Vec<&BoxedLLMDriftRecord>, RecordError>;
+    fn to_llm_metric_records(&self) -> Result<Vec<&LLMMetricRecord>, RecordError>;
 }
 
 impl ToDriftRecords for ServerRecords {
-    fn to_spc_drift_records(&self) -> Result<Vec<SpcRecord>, RecordError> {
+    fn to_spc_drift_records(&self) -> Result<Vec<&SpcRecord>, RecordError> {
         extract_records(self, |record| match record {
-            ServerRecord::Spc(inner) => Some(inner.clone()),
+            ServerRecord::Spc(inner) => Some(inner),
             _ => None,
         })
     }
 
-    fn to_observability_drift_records(&self) -> Result<Vec<ObservabilityMetrics>, RecordError> {
+    fn to_observability_drift_records(&self) -> Result<Vec<&ObservabilityMetrics>, RecordError> {
         extract_records(self, |record| match record {
-            ServerRecord::Observability(inner) => Some(inner.clone()),
+            ServerRecord::Observability(inner) => Some(inner),
             _ => None,
         })
     }
 
-    fn to_psi_drift_records(&self) -> Result<Vec<PsiRecord>, RecordError> {
+    fn to_psi_drift_records(&self) -> Result<Vec<&PsiRecord>, RecordError> {
         extract_records(self, |record| match record {
-            ServerRecord::Psi(inner) => Some(inner.clone()),
+            ServerRecord::Psi(inner) => Some(inner),
             _ => None,
         })
     }
 
-    fn to_custom_metric_drift_records(&self) -> Result<Vec<CustomMetricRecord>, RecordError> {
+    fn to_custom_metric_drift_records(&self) -> Result<Vec<&CustomMetricRecord>, RecordError> {
         extract_records(self, |record| match record {
-            ServerRecord::Custom(inner) => Some(inner.clone()),
+            ServerRecord::Custom(inner) => Some(inner),
             _ => None,
         })
     }
 
-    fn to_llm_drift_records(&self) -> Result<Vec<LLMDriftRecord>, RecordError> {
+    fn to_llm_drift_records(&self) -> Result<Vec<&BoxedLLMDriftRecord>, RecordError> {
         extract_records(self, |record| match record {
-            ServerRecord::LLMDrift(inner) => Some(*inner.record.clone()),
+            ServerRecord::LLMDrift(inner) => Some(inner),
             _ => None,
         })
     }
 
-    fn to_llm_metric_records(&self) -> Result<Vec<LLMMetricRecord>, RecordError> {
+    fn to_llm_metric_records(&self) -> Result<Vec<&LLMMetricRecord>, RecordError> {
         extract_records(self, |record| match record {
-            ServerRecord::LLMMetric(inner) => Some(inner.clone()),
+            ServerRecord::LLMMetric(inner) => Some(inner),
             _ => None,
         })
     }
@@ -837,8 +837,8 @@ fn extract_internal_records<T>(
 
 fn extract_records<T>(
     server_records: &ServerRecords,
-    extractor: impl Fn(&ServerRecord) -> Option<T>,
-) -> Result<Vec<T>, RecordError> {
+    extractor: impl Fn(&ServerRecord) -> Option<&T>,
+) -> Result<Vec<&T>, RecordError> {
     let mut records = Vec::new();
 
     for record in &server_records.records {

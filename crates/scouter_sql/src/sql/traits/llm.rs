@@ -9,6 +9,7 @@ use scouter_dataframe::parquet::BinnedMetricsExtractor;
 use scouter_dataframe::parquet::ParquetDataFrame;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::contracts::DriftRequest;
+use scouter_types::BoxedLLMDriftRecord;
 use scouter_types::{
     BinnedMetrics, LLMDriftRecord, LLMDriftRecordPaginationRequest,
     LLMDriftRecordPaginationResponse, RecordCursor, RecordType,
@@ -31,17 +32,17 @@ pub trait LLMDriftSqlLogic {
     /// * A result containing the query result or an error
     async fn insert_llm_drift_record(
         pool: &Pool<Postgres>,
-        record: &LLMDriftRecord,
+        record: &BoxedLLMDriftRecord,
         entity_id: &i32,
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertLLMDriftRecord.get_query();
 
         sqlx::query(query)
-            .bind(&record.uid)
-            .bind(record.created_at)
+            .bind(&record.record.uid)
+            .bind(record.record.created_at)
             .bind(entity_id)
-            .bind(&record.context)
-            .bind(Json(&record.prompt))
+            .bind(&record.record.context)
+            .bind(Json(&record.record.prompt))
             .execute(pool)
             .await
             .map_err(SqlError::SqlxError)
@@ -51,7 +52,7 @@ pub trait LLMDriftSqlLogic {
     /// This is the output from processing/evaluating the LLM drift records.
     async fn insert_llm_metric_values_batch(
         pool: &Pool<Postgres>,
-        records: &[LLMMetricRecord],
+        records: &[&LLMMetricRecord],
         entity_id: &i32,
     ) -> Result<PgQueryResult, SqlError> {
         if records.is_empty() {

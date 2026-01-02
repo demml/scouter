@@ -5,13 +5,13 @@ use potato_head::Score;
 use scouter_sql::sql::traits::{LLMDriftSqlLogic, ProfileSqlLogic};
 use scouter_sql::PostgresClient;
 use scouter_types::llm::LLMDriftProfile;
+use scouter_types::LLMMetricRecord;
 use scouter_types::{LLMTaskRecord, Status};
 use sqlx::{Pool, Postgres};
 use std::collections::HashMap;
 use std::time::Duration;
 use tokio::time::sleep;
 use tracing::{debug, error, instrument};
-
 pub struct LLMPoller {
     db_pool: Pool<Postgres>,
     max_retries: usize,
@@ -37,7 +37,7 @@ impl LLMPoller {
             Ok((metrics, score_map, workflow_duration)) => {
                 PostgresClient::insert_llm_metric_values_batch(
                     &self.db_pool,
-                    &metrics,
+                    &metrics.iter().collect::<Vec<&LLMMetricRecord>>(), // this is going to removed in future refactor
                     &record.entity_id,
                 )
                 .await
