@@ -6,11 +6,11 @@ use crate::storage::ObjectStore;
 use arrow::array::AsArray;
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow_array::array::{
-    ListArray, StringArray, StructArray, TimestampNanosecondArray, UInt64Array,
+    Int32Array, ListArray, StringArray, StructArray, TimestampNanosecondArray,
 };
-use arrow_array::types::{Float32Type, UInt64Type};
+use arrow_array::types::{Float32Type, Int32Type};
+use arrow_array::Array;
 use arrow_array::RecordBatch;
-use arrow_array::{Array, Int32Array};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use datafusion::dataframe::DataFrame;
@@ -81,8 +81,8 @@ impl PsiDataFrame {
             ),
             Field::new("entity_id", DataType::Int32, false),
             Field::new("feature", DataType::Utf8, false),
-            Field::new("bin_id", DataType::UInt64, false),
-            Field::new("bin_count", DataType::UInt64, false),
+            Field::new("bin_id", DataType::Int32, false),
+            Field::new("bin_count", DataType::Int32, false),
         ]));
 
         let object_store = ObjectStore::new(storage_settings)?;
@@ -106,9 +106,8 @@ impl PsiDataFrame {
         let feature_array =
             StringArray::from_iter_values(records.iter().map(|r| r.feature.as_str()));
 
-        let bin_id_array = UInt64Array::from_iter_values(records.iter().map(|r| r.bin_id as u64));
-        let bin_count_array =
-            UInt64Array::from_iter_values(records.iter().map(|r| r.bin_count as u64));
+        let bin_id_array = Int32Array::from_iter_values(records.iter().map(|r| r.bin_id));
+        let bin_count_array = Int32Array::from_iter_values(records.iter().map(|r| r.bin_count));
 
         let batch = RecordBatch::try_new(
             self.schema.clone(),
@@ -154,11 +153,11 @@ fn get_bin_fields(structs: &StructArray) -> Result<(&ListArray, &ListArray), Dat
 }
 
 /// Convert the bin id array to a Vec<usize>
-fn get_bin_ids(array: &dyn Array) -> Result<Vec<usize>, DataFrameError> {
+fn get_bin_ids(array: &dyn Array) -> Result<Vec<i32>, DataFrameError> {
     Ok(array
-        .as_primitive::<UInt64Type>()
+        .as_primitive::<Int32Type>()
         .iter()
-        .filter_map(|id| id.map(|i| i as usize))
+        .filter_map(|b| b)
         .collect())
 }
 
@@ -177,7 +176,7 @@ fn create_bin_map(
     bin_ids: &ListArray,
     proportions: &ListArray,
     index: usize,
-) -> Result<BTreeMap<usize, f64>, DataFrameError> {
+) -> Result<BTreeMap<i32, f64>, DataFrameError> {
     let bin_ids = get_bin_ids(&bin_ids.value(index))?;
     let proportions = get_proportions(&proportions.value(index))?;
 
@@ -185,9 +184,7 @@ fn create_bin_map(
 }
 
 /// Extract bin proportions from a return record batch
-fn extract_bin_proportions(
-    batch: &RecordBatch,
-) -> Result<Vec<BTreeMap<usize, f64>>, DataFrameError> {
+fn extract_bin_proportions(batch: &RecordBatch) -> Result<Vec<BTreeMap<i32, f64>>, DataFrameError> {
     let bin_structs = get_bin_proportions_struct(batch)?.value(0);
     let bin_structs = bin_structs
         .as_any()
@@ -236,9 +233,7 @@ fn get_overall_fields(
     Ok((overall_bin_ids, overall_proportions))
 }
 
-fn extract_overall_proportions(
-    batch: &RecordBatch,
-) -> Result<BTreeMap<usize, f64>, DataFrameError> {
+fn extract_overall_proportions(batch: &RecordBatch) -> Result<BTreeMap<i32, f64>, DataFrameError> {
     let overall_struct = get_overall_proportions_struct(batch)?;
     let (bin_ids, proportions) = get_overall_fields(overall_struct)?;
 

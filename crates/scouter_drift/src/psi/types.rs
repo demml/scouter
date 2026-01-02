@@ -11,7 +11,7 @@ pub struct FeatureBinProportionPairs {
 
 impl FeatureBinProportionPairs {
     pub fn from_observed_bin_proportions(
-        observed_bin_proportions: &BTreeMap<usize, f64>,
+        observed_bin_proportions: &BTreeMap<i32, f64>,
         profile: &PsiFeatureDriftProfile,
     ) -> Result<Self, DriftError> {
         let (bins, pairs): (Vec<String>, Vec<(f64, f64)>) = profile

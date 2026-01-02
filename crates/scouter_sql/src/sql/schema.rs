@@ -45,7 +45,7 @@ impl<'r> FromRow<'r, PgRow> for FeatureDistributionWrapper {
         let feature: String = row.try_get("feature")?;
         let sample_size: i64 = row.try_get("sample_size")?;
         let bins_json: serde_json::Value = row.try_get("bins")?;
-        let bins: BTreeMap<usize, f64> =
+        let bins: BTreeMap<i32, f64> =
             serde_json::from_value(bins_json).map_err(|e| Error::Decode(e.into()))?;
 
         Ok(FeatureDistributionWrapper(
