@@ -159,7 +159,6 @@ impl PsiRecord {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct GenAIDriftRecord {
     #[pyo3(get)]
     pub created_at: chrono::DateTime<Utc>,
@@ -171,7 +170,6 @@ pub struct GenAIDriftRecord {
 
     pub context: Value,
 
-    #[cfg_attr(feature = "server", sqlx(try_from = "String"))]
     pub status: Status,
 
     pub id: i64,
@@ -189,6 +187,40 @@ pub struct GenAIDriftRecord {
     pub entity_uid: String,
 
     pub entity_id: Option<i32>,
+}
+
+#[cfg(feature = "server")]
+impl<'r> sqlx::FromRow<'r, sqlx::postgres::PgRow> for GenAIDriftRecord {
+    fn from_row(row: &'r sqlx::postgres::PgRow) -> Result<Self, sqlx::Error> {
+        use sqlx::Row;
+
+        let status_val: String = row.try_get("status")?;
+        let status = Status::try_from(status_val).map_err(|e| {
+            sqlx::Error::Decode(Box::new(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                e,
+            )))
+        })?;
+
+        // entity_uid is not a column in the genai_drift_records table, so we set to NA
+        let entity_uid = "NA".to_string();
+
+        Ok(GenAIDriftRecord {
+            created_at: row.try_get("created_at")?,
+            uid: row.try_get("uid")?,
+            prompt: row.try_get("prompt")?,
+            context: row.try_get("context")?,
+            status,
+            id: row.try_get("id")?,
+            score: row.try_get("score")?,
+            updated_at: row.try_get("updated_at")?,
+            processing_started_at: row.try_get("processing_started_at")?,
+            processing_ended_at: row.try_get("processing_ended_at")?,
+            processing_duration: row.try_get("processing_duration")?,
+            entity_uid,
+            entity_id: row.try_get("entity_id")?,
+        })
+    }
 }
 
 #[pymethods]

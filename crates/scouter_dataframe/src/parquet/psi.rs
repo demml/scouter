@@ -154,11 +154,7 @@ fn get_bin_fields(structs: &StructArray) -> Result<(&ListArray, &ListArray), Dat
 
 /// Convert the bin id array to a Vec<usize>
 fn get_bin_ids(array: &dyn Array) -> Result<Vec<i32>, DataFrameError> {
-    Ok(array
-        .as_primitive::<Int32Type>()
-        .iter()
-        .filter_map(|b| b)
-        .collect())
+    Ok(array.as_primitive::<Int32Type>().iter().flatten().collect())
 }
 
 /// Convert the proportion array to a Vec<f64>
