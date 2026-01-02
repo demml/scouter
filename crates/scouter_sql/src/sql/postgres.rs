@@ -620,6 +620,7 @@ mod tests {
             uid: UID.to_string(),
             feature: "test".to_string(),
             value: 1.0,
+            entity_id: None,
         };
 
         let record2 = SpcRecord {
@@ -627,6 +628,7 @@ mod tests {
             uid: UID.to_string(),
             feature: "test2".to_string(),
             value: 2.0,
+            entity_id: None,
         };
 
         let result = PostgresClient::insert_spc_drift_records_batch(
@@ -650,6 +652,7 @@ mod tests {
             feature: "test".to_string(),
             bin_id: 1,
             bin_count: 1,
+            entity_id: None,
         };
 
         let record2 = PsiRecord {
@@ -658,6 +661,7 @@ mod tests {
             feature: "test2".to_string(),
             bin_id: 2,
             bin_count: 2,
+            entity_id: None,
         };
 
         let result =
@@ -743,6 +747,7 @@ mod tests {
                     uid: UID.to_string(),
                     feature: format!("test{j}"),
                     value: j as f64,
+                    entity_id: None,
                 };
 
                 records.push(record);
@@ -842,6 +847,7 @@ mod tests {
                         feature: format!("feature{feature}"),
                         bin_id: bin,
                         bin_count: rand::rng().random_range(0..10),
+                        entity_id: None,
                     };
 
                     records.push(record);
@@ -917,6 +923,7 @@ mod tests {
                     uid: uid.clone(),
                     metric: format!("metric{i}"),
                     value: rand::rng().random_range(0..10) as f64,
+                    entity_id: None,
                 };
                 records.push(record);
             }
@@ -936,6 +943,7 @@ mod tests {
             uid: uid.clone(),
             metric: "metric3".to_string(),
             value: rand::rng().random_range(0..10) as f64,
+            entity_id: None,
         };
 
         let result =
@@ -1057,6 +1065,7 @@ mod tests {
                 processing_ended_at: None,
                 processing_duration: None,
                 entity_uid: uid.clone(),
+                entity_id: None,
             };
 
             let boxed = BoxedLLMDriftRecord::new(record);
@@ -1137,6 +1146,7 @@ mod tests {
                 processing_ended_at: None,
                 processing_duration: None,
                 entity_uid: uid.clone(),
+                entity_id: None,
             };
 
             let boxed = BoxedLLMDriftRecord::new(record);
@@ -1279,6 +1289,7 @@ mod tests {
                     entity_uid: uid.clone(),
                     metric: format!("metric{i}"),
                     value: rand::rng().random_range(0..10) as f64,
+                    entity_id: None,
                 };
                 records.push(record);
             }
