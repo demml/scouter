@@ -42,15 +42,15 @@ pub trait PsiSqlLogic {
             Vec<DateTime<Utc>>,
             Vec<i32>,
             Vec<&str>,
-            Vec<i64>,
-            Vec<i64>,
+            Vec<i32>,
+            Vec<i32>,
         ) = multiunzip(records.iter().map(|r| {
             (
                 r.created_at,
                 entity_id,
                 r.feature.as_str(),
-                r.bin_id as i64,
-                r.bin_count as i64,
+                r.bin_id,
+                r.bin_count,
             )
         }));
 
