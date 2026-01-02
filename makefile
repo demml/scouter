@@ -24,7 +24,7 @@ test.sql:
 
 .PHONY: test.server
 test.server:
-	cargo test -p scouter-server  test_data_archive --all-features -- --nocapture --test-threads=1 --skip test_storage_integration_cloud --skip test_data_archive_genai
+	cargo test -p scouter-server --all-features -- --nocapture --test-threads=1 --skip test_storage_integration_cloud --skip test_data_archive_genai
 
 .PHONY: test.server.archive.genai
 test.server.archive.genai:
