@@ -837,35 +837,35 @@ pub trait ToDriftRecords {
 
 impl ToDriftRecords for ServerRecords {
     fn to_spc_drift_records(&self) -> Result<Vec<&SpcRecord>, RecordError> {
-        extract_records(&self.records, |record| match record {
+        extract_records(self, |record| match record {
             ServerRecord::Spc(inner) => Some(inner),
             _ => None,
         })
     }
 
     fn to_observability_drift_records(&self) -> Result<Vec<&ObservabilityMetrics>, RecordError> {
-        extract_records(&self.records, |record| match record {
+        extract_records(self, |record| match record {
             ServerRecord::Observability(inner) => Some(inner),
             _ => None,
         })
     }
 
     fn to_psi_drift_records(&self) -> Result<Vec<&PsiRecord>, RecordError> {
-        extract_records(&self.records, |record| match record {
+        extract_records(self, |record| match record {
             ServerRecord::Psi(inner) => Some(inner),
             _ => None,
         })
     }
 
     fn to_custom_metric_drift_records(&self) -> Result<Vec<&CustomMetricRecord>, RecordError> {
-        extract_records(&self.records, |record| match record {
+        extract_records(self, |record| match record {
             ServerRecord::Custom(inner) => Some(inner),
             _ => None,
         })
     }
 
     fn to_genai_event_records(&self) -> Result<Vec<&GenAIDriftRecord>, RecordError> {
-        extract_records(&self.records, |record| match record {
+        extract_records(self, |record| match record {
             ServerRecord::GenAIDrift(inner) => Some(inner.record.as_ref()),
             _ => None,
         })
