@@ -268,6 +268,7 @@ impl TestHelper {
                     uid: uid.to_string(),
                     feature: format!("feature_{j}"),
                     value: j as f64,
+                    entity_id: None,
                 };
 
                 records.push(ServerRecord::Spc(record));
@@ -291,6 +292,7 @@ impl TestHelper {
                         feature: format!("feature_{feature}"),
                         bin_id: decile,
                         bin_count: rand::rng().random_range(0..10),
+                        entity_id: None,
                     };
 
                     records.push(ServerRecord::Psi(record));
@@ -310,6 +312,7 @@ impl TestHelper {
                     uid: uid.to_string(),
                     metric: format!("metric_{i}"),
                     value: rand::rng().random_range(0..10) as f64,
+                    entity_id: None,
                 };
 
                 records.push(ServerRecord::Custom(record));
@@ -343,6 +346,7 @@ impl TestHelper {
                     processing_ended_at: None,
                     score: Value::Null,
                     processing_duration: None,
+                    entity_id: None,
                 };
 
                 let boxed_record = BoxedGenAIDriftRecord::new(record);
@@ -366,6 +370,7 @@ impl TestHelper {
                     entity_uid: uid.to_string(),
                     metric: format!("metric{i}"),
                     value: rand::rng().random_range(0..3) as f64,
+                    entity_id: None,
                 };
                 records.push(ServerRecord::GenAIMetric(record));
             }

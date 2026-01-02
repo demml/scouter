@@ -45,6 +45,7 @@ impl KafkaSetup for TestHelper {
                         feature: "feature".to_string(),
                         value: i as f64,
                         uid: entity_uid.clone(),
+                        entity_id: None,
                     });
                     records.push(record);
                 }

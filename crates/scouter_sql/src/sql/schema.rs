@@ -1,9 +1,7 @@
 use crate::sql::error::SqlError;
 use chrono::{DateTime, Utc};
 use scouter_types::psi::DistributionData;
-use scouter_types::BoxedGenAIDriftInternalRecord;
 use scouter_types::DriftType;
-use scouter_types::GenAIDriftInternalRecord;
 use scouter_types::{get_utc_datetime, BinnedMetric, BinnedMetricStats, RecordType};
 use semver::{BuildMetadata, Prerelease, Version};
 use serde::{Deserialize, Serialize};
@@ -47,7 +45,7 @@ impl<'r> FromRow<'r, PgRow> for FeatureDistributionWrapper {
         let feature: String = row.try_get("feature")?;
         let sample_size: i64 = row.try_get("sample_size")?;
         let bins_json: serde_json::Value = row.try_get("bins")?;
-        let bins: BTreeMap<usize, f64> =
+        let bins: BTreeMap<i32, f64> =
             serde_json::from_value(bins_json).map_err(|e| Error::Decode(e.into()))?;
 
         Ok(FeatureDistributionWrapper(
@@ -263,17 +261,6 @@ pub struct UpdateAlertResult {
     pub id: i32,
     pub active: bool,
     pub updated_at: DateTime<Utc>,
-}
-
-/// Converts a `PgRow` to a `BoxedLLMDriftServerRecord`
-/// Conversion is done by first converting the row to an `GenAIDriftInternalRecord`
-/// and then converting that to an `BoxedGenAIDriftInternalRecord`.
-pub fn genai_event_record_from_row(row: &PgRow) -> Result<BoxedGenAIDriftInternalRecord, SqlError> {
-    let record = GenAIDriftInternalRecord::from_row(row)?;
-
-    Ok(BoxedGenAIDriftInternalRecord {
-        record: Box::new(record),
-    })
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]

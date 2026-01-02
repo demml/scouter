@@ -357,13 +357,18 @@ pub mod drift_executor {
                     uid: uid.clone(),
                     feature: "col_1".to_string(),
                     value: 10.0 + i as f64,
+                    entity_id: None,
                 };
                 records.push(record);
             }
 
-            PostgresClient::insert_spc_drift_records_batch(&db_pool, &records, &entity_id)
-                .await
-                .unwrap();
+            PostgresClient::insert_spc_drift_records_batch(
+                &db_pool,
+                &records.iter().collect::<Vec<&SpcRecord>>(),
+                &entity_id,
+            )
+            .await
+            .unwrap();
 
             let mut drift_executor = DriftExecutor::new(&db_pool);
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;

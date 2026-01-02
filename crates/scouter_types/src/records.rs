@@ -6,9 +6,9 @@ use crate::Status;
 use crate::TagRecord;
 use chrono::DateTime;
 use chrono::Utc;
-use potato_head::create_uuid7;
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
+use scouter_macro::impl_mask_entity_id;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -57,11 +57,13 @@ impl Display for RecordType {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct SpcRecord {
     #[pyo3(get)]
     pub created_at: chrono::DateTime<Utc>,
 
     #[pyo3(get)]
+    #[cfg_attr(feature = "server", sqlx(skip))]
     pub uid: String,
 
     #[pyo3(get)]
@@ -69,6 +71,8 @@ pub struct SpcRecord {
 
     #[pyo3(get)]
     pub value: f64,
+
+    pub entity_id: Option<i32>,
 }
 
 #[pymethods]
@@ -80,6 +84,7 @@ impl SpcRecord {
             uid,
             feature,
             value,
+            entity_id: None,
         }
     }
 
@@ -107,39 +112,35 @@ impl SpcRecord {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct SpcInternalRecord {
-    pub created_at: chrono::DateTime<Utc>,
-    pub entity_id: i32,
-    pub feature: String,
-    pub value: f64,
-}
-
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct PsiRecord {
     #[pyo3(get)]
     pub created_at: chrono::DateTime<Utc>,
     #[pyo3(get)]
+    #[cfg_attr(feature = "server", sqlx(skip))]
     pub uid: String,
     #[pyo3(get)]
     pub feature: String,
     #[pyo3(get)]
-    pub bin_id: usize,
+    pub bin_id: i32,
     #[pyo3(get)]
-    pub bin_count: usize,
+    pub bin_count: i32,
+    pub entity_id: Option<i32>,
 }
 
 #[pymethods]
 impl PsiRecord {
     #[new]
-    pub fn new(uid: String, feature: String, bin_id: usize, bin_count: usize) -> Self {
+    pub fn new(uid: String, feature: String, bin_id: i32, bin_count: i32) -> Self {
         Self {
             created_at: Utc::now(),
             uid,
             feature,
             bin_id,
             bin_count,
+            entity_id: None,
         }
     }
 
@@ -158,17 +159,9 @@ impl PsiRecord {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct PsiInternalRecord {
-    pub created_at: chrono::DateTime<Utc>,
-    pub entity_id: i32,
-    pub feature: String,
-    pub bin_id: usize,
-    pub bin_count: usize,
-}
-
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct GenAIDriftRecord {
     #[pyo3(get)]
     pub created_at: chrono::DateTime<Utc>,
@@ -180,6 +173,7 @@ pub struct GenAIDriftRecord {
 
     pub context: Value,
 
+    #[cfg_attr(feature = "server", sqlx(try_from = "String"))]
     pub status: Status,
 
     pub id: i64,
@@ -194,7 +188,10 @@ pub struct GenAIDriftRecord {
 
     pub processing_duration: Option<i32>,
 
+    #[cfg_attr(feature = "server", sqlx(skip))]
     pub entity_uid: String,
+
+    pub entity_id: Option<i32>,
 }
 
 #[pymethods]
@@ -237,7 +234,14 @@ impl GenAIDriftRecord {
             processing_ended_at: None,
             processing_duration: None,
             entity_uid,
+            entity_id: None,
         }
+    }
+
+    // helper for masking sensitive data from the record when
+    // return to the user. Currently, only removes entity_id
+    pub fn mask_sensitive_data(&mut self) {
+        self.entity_id = None;
     }
 }
 
@@ -255,77 +259,9 @@ impl BoxedGenAIDriftRecord {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
-pub struct GenAIDriftInternalRecord {
-    pub uid: String, // public unique identifier for drift record
-    pub created_at: chrono::DateTime<Utc>,
-    pub context: Value,
-    pub prompt: Option<Value>,
-    #[cfg_attr(feature = "server", sqlx(try_from = "String"))]
-    pub status: Status,
-    pub score: Value,
-    pub id: i64,
-    pub updated_at: Option<DateTime<Utc>>,
-    pub processing_started_at: Option<DateTime<Utc>>,
-    pub processing_ended_at: Option<DateTime<Utc>>,
-    pub processing_duration: Option<i32>,
-    pub entity_id: i32, // foreign key to entity table
-}
-
-impl GenAIDriftInternalRecord {
-    pub fn from_public_record(record: &GenAIDriftRecord, entity_id: i32) -> Self {
-        Self {
-            created_at: record.created_at,
-            prompt: record.prompt.clone(),
-            context: record.context.clone(),
-            score: record.score.clone(),
-            status: record.status.clone(),
-            id: 0,
-            uid: create_uuid7(),
-            updated_at: None,
-            processing_started_at: None,
-            processing_ended_at: None,
-            processing_duration: None,
-            entity_id,
-        }
-    }
-
-    pub fn to_public_record(&self) -> GenAIDriftRecord {
-        GenAIDriftRecord {
-            created_at: self.created_at,
-            uid: self.uid.clone(),
-            prompt: self.prompt.clone(),
-            context: self.context.clone(),
-            status: self.status.clone(),
-            id: self.id,
-            score: self.score.clone(),
-            updated_at: self.updated_at,
-            processing_started_at: self.processing_started_at,
-            processing_ended_at: self.processing_ended_at,
-            processing_duration: self.processing_duration,
-
-            // placeholder - entity_uid is only used when inserting records
-            entity_uid: String::new(),
-        }
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct BoxedGenAIDriftInternalRecord {
-    pub record: Box<GenAIDriftInternalRecord>,
-}
-
-impl BoxedGenAIDriftInternalRecord {
-    pub fn new(record: GenAIDriftInternalRecord) -> Self {
-        Self {
-            record: Box::new(record),
-        }
-    }
-}
-
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct GenAIMetricRecord {
     #[pyo3(get)]
     pub uid: String,
@@ -334,6 +270,7 @@ pub struct GenAIMetricRecord {
     pub created_at: chrono::DateTime<Utc>,
 
     #[pyo3(get)]
+    #[cfg_attr(feature = "server", sqlx(skip))]
     pub entity_uid: String,
 
     #[pyo3(get)]
@@ -341,6 +278,8 @@ pub struct GenAIMetricRecord {
 
     #[pyo3(get)]
     pub value: f64,
+
+    pub entity_id: Option<i32>,
 }
 
 #[pymethods]
@@ -351,26 +290,22 @@ impl GenAIMetricRecord {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct GenAIMetricInternalRecord {
-    pub uid: String,
-    pub created_at: chrono::DateTime<Utc>,
-    pub entity_id: i32,
-    pub metric: String,
-    pub value: f64,
-}
-
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct CustomMetricRecord {
     #[pyo3(get)]
     pub created_at: chrono::DateTime<Utc>,
     #[pyo3(get)]
+    // skip this row when decoding pgrow
+    #[cfg_attr(feature = "server", sqlx(skip))]
     pub uid: String,
     #[pyo3(get)]
     pub metric: String,
     #[pyo3(get)]
     pub value: f64,
+
+    pub entity_id: Option<i32>,
 }
 
 #[pymethods]
@@ -382,6 +317,7 @@ impl CustomMetricRecord {
             uid,
             metric: metric.to_lowercase(),
             value,
+            entity_id: None,
         }
     }
 
@@ -407,15 +343,6 @@ impl CustomMetricRecord {
         record.insert("value".to_string(), self.value.to_string());
         record
     }
-}
-
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct CustomMetricInternalRecord {
-    pub created_at: chrono::DateTime<Utc>,
-    pub entity_id: i32,
-    pub metric: String,
-    pub value: f64,
 }
 
 #[pyclass]
@@ -461,6 +388,7 @@ pub struct RouteMetrics {
 
 #[pyclass]
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct ObservabilityMetrics {
     #[pyo3(get)]
     pub uid: String,
@@ -473,6 +401,8 @@ pub struct ObservabilityMetrics {
 
     #[pyo3(get)]
     pub route_metrics: Vec<RouteMetrics>,
+
+    pub entity_id: Option<i32>,
 }
 
 #[pymethods]
@@ -490,14 +420,6 @@ impl ObservabilityMetrics {
     pub fn get_record_type(&self) -> RecordType {
         RecordType::Observability
     }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
-pub struct ObservabilityMetricsInternal {
-    pub entity_id: i32,
-    pub request_count: i64,
-    pub error_count: i64,
-    pub route_metrics: Vec<RouteMetrics>,
 }
 
 #[pyclass]
@@ -580,27 +502,6 @@ impl ServerRecord {
             ServerRecord::GenAIDrift(_) => RecordType::GenAIEvent,
             ServerRecord::GenAIMetric(_) => RecordType::GenAIMetric,
         }
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum InternalServerRecord {
-    Spc(SpcInternalRecord),
-    Psi(PsiInternalRecord),
-    Custom(CustomMetricInternalRecord),
-    GenAIDrift(BoxedGenAIDriftInternalRecord),
-    GenAIMetric(GenAIMetricInternalRecord),
-    Observability(ObservabilityMetricsInternal),
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct InternalServerRecords {
-    pub records: Vec<InternalServerRecord>,
-}
-
-impl InternalServerRecords {
-    pub fn new(records: Vec<InternalServerRecord>) -> Self {
-        Self { records }
     }
 }
 
@@ -702,143 +603,99 @@ impl ServerRecords {
     }
 }
 
+/// Trait to convert a deserialized record into a ServerRecord variant
+pub trait IntoServerRecord {
+    fn into_server_record(self) -> ServerRecord;
+}
+
+impl IntoServerRecord for SpcRecord {
+    fn into_server_record(self) -> ServerRecord {
+        ServerRecord::Spc(self)
+    }
+}
+
+impl IntoServerRecord for PsiRecord {
+    fn into_server_record(self) -> ServerRecord {
+        ServerRecord::Psi(self)
+    }
+}
+
+impl IntoServerRecord for CustomMetricRecord {
+    fn into_server_record(self) -> ServerRecord {
+        ServerRecord::Custom(self)
+    }
+}
+
+impl IntoServerRecord for GenAIDriftRecord {
+    fn into_server_record(self) -> ServerRecord {
+        ServerRecord::GenAIDrift(BoxedGenAIDriftRecord::new(self))
+    }
+}
+
+impl IntoServerRecord for GenAIMetricRecord {
+    fn into_server_record(self) -> ServerRecord {
+        ServerRecord::GenAIMetric(self)
+    }
+}
+
 /// Helper trait to convert ServerRecord to their respective internal record types
 pub trait ToDriftRecords {
-    fn to_spc_drift_records(&self) -> Result<Vec<SpcRecord>, RecordError>;
-    fn to_observability_drift_records(&self) -> Result<Vec<ObservabilityMetrics>, RecordError>;
-    fn to_psi_drift_records(&self) -> Result<Vec<PsiRecord>, RecordError>;
-    fn to_custom_metric_drift_records(&self) -> Result<Vec<CustomMetricRecord>, RecordError>;
-    fn to_genai_event_records(&self) -> Result<Vec<GenAIDriftRecord>, RecordError>;
-    fn to_genai_metric_records(&self) -> Result<Vec<GenAIMetricRecord>, RecordError>;
+    fn to_spc_drift_records(&self) -> Result<Vec<&SpcRecord>, RecordError>;
+    fn to_observability_drift_records(&self) -> Result<Vec<&ObservabilityMetrics>, RecordError>;
+    fn to_psi_drift_records(&self) -> Result<Vec<&PsiRecord>, RecordError>;
+    fn to_custom_metric_drift_records(&self) -> Result<Vec<&CustomMetricRecord>, RecordError>;
+    fn to_genai_event_records(&self) -> Result<Vec<&BoxedGenAIDriftRecord>, RecordError>;
+    fn to_genai_metric_records(&self) -> Result<Vec<&GenAIMetricRecord>, RecordError>;
 }
 
 impl ToDriftRecords for ServerRecords {
-    fn to_spc_drift_records(&self) -> Result<Vec<SpcRecord>, RecordError> {
+    fn to_spc_drift_records(&self) -> Result<Vec<&SpcRecord>, RecordError> {
         extract_records(self, |record| match record {
-            ServerRecord::Spc(inner) => Some(inner.clone()),
+            ServerRecord::Spc(inner) => Some(inner),
             _ => None,
         })
     }
 
-    fn to_observability_drift_records(&self) -> Result<Vec<ObservabilityMetrics>, RecordError> {
+    fn to_observability_drift_records(&self) -> Result<Vec<&ObservabilityMetrics>, RecordError> {
         extract_records(self, |record| match record {
-            ServerRecord::Observability(inner) => Some(inner.clone()),
+            ServerRecord::Observability(inner) => Some(inner),
             _ => None,
         })
     }
 
-    fn to_psi_drift_records(&self) -> Result<Vec<PsiRecord>, RecordError> {
+    fn to_psi_drift_records(&self) -> Result<Vec<&PsiRecord>, RecordError> {
         extract_records(self, |record| match record {
-            ServerRecord::Psi(inner) => Some(inner.clone()),
+            ServerRecord::Psi(inner) => Some(inner),
             _ => None,
         })
     }
 
-    fn to_custom_metric_drift_records(&self) -> Result<Vec<CustomMetricRecord>, RecordError> {
+    fn to_custom_metric_drift_records(&self) -> Result<Vec<&CustomMetricRecord>, RecordError> {
         extract_records(self, |record| match record {
-            ServerRecord::Custom(inner) => Some(inner.clone()),
+            ServerRecord::Custom(inner) => Some(inner),
             _ => None,
         })
     }
 
-    fn to_genai_event_records(&self) -> Result<Vec<GenAIDriftRecord>, RecordError> {
+    fn to_genai_event_records(&self) -> Result<Vec<&BoxedGenAIDriftRecord>, RecordError> {
         extract_records(self, |record| match record {
-            ServerRecord::GenAIDrift(inner) => Some(*inner.record.clone()),
+            ServerRecord::GenAIDrift(inner) => Some(inner),
             _ => None,
         })
     }
 
-    fn to_genai_metric_records(&self) -> Result<Vec<GenAIMetricRecord>, RecordError> {
+    fn to_genai_metric_records(&self) -> Result<Vec<&GenAIMetricRecord>, RecordError> {
         extract_records(self, |record| match record {
-            ServerRecord::GenAIMetric(inner) => Some(inner.clone()),
+            ServerRecord::GenAIMetric(inner) => Some(inner),
             _ => None,
         })
     }
-}
-
-pub trait ToInternalDriftRecords {
-    fn to_spc_drift_records(&self) -> Result<Vec<SpcInternalRecord>, RecordError>;
-    fn to_observability_drift_records(
-        &self,
-    ) -> Result<Vec<ObservabilityMetricsInternal>, RecordError>;
-    fn to_psi_drift_records(&self) -> Result<Vec<PsiInternalRecord>, RecordError>;
-    fn to_custom_metric_drift_records(
-        &self,
-    ) -> Result<Vec<CustomMetricInternalRecord>, RecordError>;
-    fn to_genai_event_records(&self) -> Result<Vec<GenAIDriftInternalRecord>, RecordError>;
-    fn to_genai_metric_records(&self) -> Result<Vec<GenAIMetricInternalRecord>, RecordError>;
-}
-
-impl ToInternalDriftRecords for InternalServerRecords {
-    fn to_spc_drift_records(&self) -> Result<Vec<SpcInternalRecord>, RecordError> {
-        extract_internal_records(self, |record| match record {
-            InternalServerRecord::Spc(inner) => Some(inner.clone()),
-            _ => None,
-        })
-    }
-
-    fn to_observability_drift_records(
-        &self,
-    ) -> Result<Vec<ObservabilityMetricsInternal>, RecordError> {
-        extract_internal_records(self, |record| match record {
-            InternalServerRecord::Observability(inner) => Some(inner.clone()),
-            _ => None,
-        })
-    }
-
-    fn to_psi_drift_records(&self) -> Result<Vec<PsiInternalRecord>, RecordError> {
-        extract_internal_records(self, |record| match record {
-            InternalServerRecord::Psi(inner) => Some(inner.clone()),
-            _ => None,
-        })
-    }
-
-    fn to_custom_metric_drift_records(
-        &self,
-    ) -> Result<Vec<CustomMetricInternalRecord>, RecordError> {
-        extract_internal_records(self, |record| match record {
-            InternalServerRecord::Custom(inner) => Some(inner.clone()),
-            _ => None,
-        })
-    }
-
-    fn to_genai_event_records(&self) -> Result<Vec<GenAIDriftInternalRecord>, RecordError> {
-        extract_internal_records(self, |record| match record {
-            InternalServerRecord::GenAIDrift(inner) => Some(*inner.record.clone()),
-            _ => None,
-        })
-    }
-
-    fn to_genai_metric_records(&self) -> Result<Vec<GenAIMetricInternalRecord>, RecordError> {
-        extract_internal_records(self, |record| match record {
-            InternalServerRecord::GenAIMetric(inner) => Some(inner.clone()),
-            _ => None,
-        })
-    }
-}
-
-// Helper function to extract records of a specific type
-fn extract_internal_records<T>(
-    server_records: &InternalServerRecords,
-    extractor: impl Fn(&InternalServerRecord) -> Option<T>,
-) -> Result<Vec<T>, RecordError> {
-    let mut records = Vec::new();
-
-    for record in &server_records.records {
-        if let Some(extracted) = extractor(record) {
-            records.push(extracted);
-        } else {
-            return Err(RecordError::InvalidDriftTypeError);
-        }
-    }
-
-    Ok(records)
 }
 
 fn extract_records<T>(
     server_records: &ServerRecords,
-    extractor: impl Fn(&ServerRecord) -> Option<T>,
-) -> Result<Vec<T>, RecordError> {
+    extractor: impl Fn(&ServerRecord) -> Option<&T>,
+) -> Result<Vec<&T>, RecordError> {
     let mut records = Vec::new();
 
     for record in &server_records.records {
@@ -909,3 +766,12 @@ impl MessageRecord {
         }
     }
 }
+
+impl_mask_entity_id!(
+    crate::ScouterRecordExt =>
+    GenAIDriftRecord,
+    SpcRecord,
+    PsiRecord,
+    CustomMetricRecord,
+    GenAIMetricRecord,
+);

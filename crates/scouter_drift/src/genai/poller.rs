@@ -5,13 +5,13 @@ use potato_head::prompt_types::Score;
 use scouter_sql::sql::traits::{GenAIDriftSqlLogic, ProfileSqlLogic};
 use scouter_sql::PostgresClient;
 use scouter_types::genai::GenAIDriftProfile;
+use scouter_types::GenAIMetricRecord;
 use scouter_types::{GenAITaskRecord, Status};
 use sqlx::{Pool, Postgres};
 use std::collections::HashMap;
 use std::time::Duration;
 use tokio::time::sleep;
 use tracing::{debug, error, instrument};
-
 pub struct GenAIPoller {
     db_pool: Pool<Postgres>,
     max_retries: usize,
@@ -37,7 +37,7 @@ impl GenAIPoller {
             Ok((metrics, score_map, workflow_duration)) => {
                 PostgresClient::insert_genai_metric_values_batch(
                     &self.db_pool,
-                    &metrics,
+                    &metrics.iter().collect::<Vec<&GenAIMetricRecord>>(), // this is going to removed in future refactor
                     &record.entity_id,
                 )
                 .await

@@ -9,11 +9,12 @@ use scouter_dataframe::parquet::BinnedMetricsExtractor;
 use scouter_dataframe::parquet::ParquetDataFrame;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::contracts::DriftRequest;
+use scouter_types::BoxedGenAIDriftRecord;
+use scouter_types::GenAITaskRecord;
 use scouter_types::{
     BinnedMetrics, GenAIDriftRecord, GenAIDriftRecordPaginationRequest,
     GenAIDriftRecordPaginationResponse, RecordCursor, RecordType,
 };
-use scouter_types::{GenAIDriftInternalRecord, GenAITaskRecord};
 use scouter_types::{GenAIMetricRecord, Status};
 use sqlx::types::Json;
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
@@ -31,17 +32,17 @@ pub trait GenAIDriftSqlLogic {
     /// * A result containing the query result or an error
     async fn insert_genai_event_record(
         pool: &Pool<Postgres>,
-        record: &GenAIDriftRecord,
+        record: &BoxedGenAIDriftRecord,
         entity_id: &i32,
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertGenAIDriftRecord.get_query();
 
         sqlx::query(query)
-            .bind(&record.uid)
-            .bind(record.created_at)
+            .bind(&record.record.uid)
+            .bind(record.record.created_at)
             .bind(entity_id)
-            .bind(&record.context)
-            .bind(Json(&record.prompt))
+            .bind(&record.record.context)
+            .bind(Json(&record.record.prompt))
             .execute(pool)
             .await
             .map_err(SqlError::SqlxError)
@@ -51,7 +52,7 @@ pub trait GenAIDriftSqlLogic {
     /// This is the output from processing/evaluating the GenAI drift records.
     async fn insert_genai_metric_values_batch(
         pool: &Pool<Postgres>,
-        records: &[GenAIMetricRecord],
+        records: &[&GenAIMetricRecord],
         entity_id: &i32,
     ) -> Result<PgQueryResult, SqlError> {
         if records.is_empty() {
@@ -107,8 +108,7 @@ pub trait GenAIDriftSqlLogic {
             query_string.push_str(&format!(" AND status = ${bind_count}"));
         }
 
-        let mut query =
-            sqlx::query_as::<_, GenAIDriftInternalRecord>(&query_string).bind(entity_id);
+        let mut query = sqlx::query_as::<_, GenAIDriftRecord>(&query_string).bind(entity_id);
 
         if let Some(datetime) = limit_datetime {
             query = query.bind(datetime);
@@ -120,7 +120,13 @@ pub trait GenAIDriftSqlLogic {
 
         let records = query.fetch_all(pool).await.map_err(SqlError::SqlxError)?;
 
-        Ok(records.into_iter().map(|r| r.to_public_record()).collect())
+        Ok(records
+            .into_iter()
+            .map(|mut r| {
+                r.mask_sensitive_data();
+                r
+            })
+            .collect())
     }
 
     /// Retrieves a paginated list of GenAI drift records with bidirectional cursor support
@@ -142,7 +148,7 @@ pub trait GenAIDriftSqlLogic {
         let limit = params.limit.unwrap_or(50);
         let direction = params.direction.as_deref().unwrap_or("next");
 
-        let mut items: Vec<GenAIDriftInternalRecord> = sqlx::query_as(query)
+        let mut items: Vec<GenAIDriftRecord> = sqlx::query_as(query)
             .bind(entity_id)
             .bind(params.status.as_ref().and_then(|s| s.as_str()))
             .bind(params.cursor_created_at)
@@ -211,7 +217,13 @@ pub trait GenAIDriftSqlLogic {
             }
         };
 
-        let public_items = items.into_iter().map(|r| r.to_public_record()).collect();
+        let public_items = items
+            .into_iter()
+            .map(|mut r| {
+                r.mask_sensitive_data();
+                r
+            })
+            .collect();
 
         Ok(GenAIDriftRecordPaginationResponse {
             items: public_items,

@@ -5784,6 +5784,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "scouter-macro"
+version = "0.13.0"
+dependencies = [
+ "thiserror 2.0.17",
+]
+
+[[package]]
 name = "scouter-mocks"
 version = "0.13.0"
 dependencies = [
@@ -6014,6 +6021,7 @@ dependencies = [
  "pyo3",
  "rand 0.9.2",
  "rayon",
+ "scouter-macro",
  "scouter-semver",
  "scouter-state",
  "serde",

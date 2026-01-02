@@ -11,9 +11,7 @@ use chrono::{DateTime, Utc};
 use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::{
-    GenAIMetricInternalRecord, InternalServerRecords, StorageType, ToInternalDriftRecords,
-};
+use scouter_types::{GenAIMetricRecord, ServerRecords, StorageType, ToDriftRecords};
 use std::sync::Arc;
 
 pub struct GenAIMetricDataFrame {
@@ -27,10 +25,7 @@ impl ParquetFrame for GenAIMetricDataFrame {
         GenAIMetricDataFrame::new(storage_settings)
     }
 
-    async fn get_dataframe(
-        &self,
-        records: InternalServerRecords,
-    ) -> Result<DataFrame, DataFrameError> {
+    async fn get_dataframe(&self, records: ServerRecords) -> Result<DataFrame, DataFrameError> {
         let records = records.to_genai_metric_records()?;
         let batch = self.build_batch(records)?;
 
@@ -90,17 +85,15 @@ impl GenAIMetricDataFrame {
         })
     }
 
-    fn build_batch(
-        &self,
-        records: Vec<GenAIMetricInternalRecord>,
-    ) -> Result<RecordBatch, DataFrameError> {
+    fn build_batch(&self, records: Vec<&GenAIMetricRecord>) -> Result<RecordBatch, DataFrameError> {
         let created_at_array = TimestampNanosecondArray::from_iter_values(
             records
                 .iter()
                 .map(|r| r.created_at.timestamp_nanos_opt().unwrap_or_default()),
         );
         let uid_array = StringArray::from_iter_values(records.iter().map(|r| r.uid.as_str()));
-        let entity_id_array = Int32Array::from_iter_values(records.iter().map(|r| r.entity_id));
+        let entity_id_array =
+            Int32Array::from_iter_values(records.iter().map(|r| r.entity_id.unwrap()));
         let metric_array = StringArray::from_iter_values(records.iter().map(|r| r.metric.as_str()));
 
         let value_array = Float64Array::from_iter_values(records.iter().map(|r| r.value));

@@ -259,7 +259,7 @@ impl DispatchDriftConfig for PsiDriftConfig {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Bin {
     #[pyo3(get)]
-    pub id: usize,
+    pub id: i32,
 
     #[pyo3(get)]
     pub lower_limit: Option<f64>,
@@ -639,7 +639,7 @@ impl ProfileBaseArgs for PsiDriftProfile {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DistributionData {
     pub sample_size: u64,
-    pub bins: BTreeMap<usize, f64>,
+    pub bins: BTreeMap<i32, f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -667,7 +667,7 @@ impl<'r> sqlx::FromRow<'r, sqlx::postgres::PgRow> for FeatureDistributionRow {
         let feature: String = row.try_get("feature")?;
         let sample_size: i64 = row.try_get("sample_size")?;
         let bins_json: serde_json::Value = row.try_get("bins")?;
-        let bins: BTreeMap<usize, f64> =
+        let bins: BTreeMap<i32, f64> =
             serde_json::from_value(bins_json).map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
 
         Ok(FeatureDistributionRow {
