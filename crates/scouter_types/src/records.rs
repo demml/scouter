@@ -270,6 +270,7 @@ pub struct GenAIMetricRecord {
     pub created_at: chrono::DateTime<Utc>,
 
     #[pyo3(get)]
+    #[cfg_attr(feature = "server", sqlx(skip))]
     pub entity_uid: String,
 
     #[pyo3(get)]
