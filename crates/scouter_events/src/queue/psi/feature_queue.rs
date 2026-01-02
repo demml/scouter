@@ -9,19 +9,18 @@ use scouter_types::{
 use std::collections::HashMap;
 use tracing::{debug, error, info, instrument};
 
+type BinQueue = HashMap<i32, i32>;
+type QueueMap = HashMap<String, BinQueue>;
 pub struct PsiFeatureQueue {
     pub drift_profile: PsiDriftProfile,
-    pub empty_queue: HashMap<String, HashMap<usize, usize>>,
+    pub empty_queue: QueueMap,
     pub monitor: PsiMonitor,
     pub feature_names: Vec<String>,
 }
 
 impl PsiFeatureQueue {
     #[instrument(skip_all)]
-    fn find_numeric_bin_given_scaler(
-        value: f64,
-        bins: &[Bin],
-    ) -> Result<&usize, FeatureQueueError> {
+    fn find_numeric_bin_given_scaler(value: f64, bins: &[Bin]) -> Result<&i32, FeatureQueueError> {
         let bin = bins
             .iter()
             .find(|bin| value > bin.lower_limit.unwrap() && value <= bin.upper_limit.unwrap())
@@ -38,7 +37,7 @@ impl PsiFeatureQueue {
 
     #[instrument(skip_all)]
     fn process_numeric_queue(
-        queue: &mut HashMap<usize, usize>,
+        queue: &mut BinCounts,
         value: f64,
         bins: &[Bin],
     ) -> Result<(), FeatureQueueError> {
@@ -57,8 +56,8 @@ impl PsiFeatureQueue {
 
     #[instrument(skip_all)]
     fn process_categorical_queue(
-        queue: &mut HashMap<usize, usize>,
-        value: &usize,
+        queue: &mut BinQueue,
+        value: &i32,
     ) -> Result<(), FeatureQueueError> {
         let count = queue
             .get_mut(value)
@@ -77,12 +76,12 @@ impl PsiFeatureQueue {
             .features_to_monitor
             .clone();
 
-        let empty_queue: HashMap<String, HashMap<usize, usize>> = drift_profile
+        let empty_queue: QueueMap = drift_profile
             .features
             .iter()
             .filter(|(feature_name, _)| features_to_monitor.contains(feature_name))
             .map(|(feature_name, feature_drift_profile)| {
-                let inner_map: HashMap<usize, usize> = feature_drift_profile
+                let inner_map: BinQueue = feature_drift_profile
                     .bins
                     .iter()
                     .map(|bin| (bin.id, 0))
@@ -105,7 +104,7 @@ impl PsiFeatureQueue {
     pub fn insert(
         &self,
         features: &[Feature],
-        queue: &mut HashMap<String, HashMap<usize, usize>>,
+        queue: &mut QueueMap,
     ) -> Result<(), FeatureQueueError> {
         let feat_map = &self.drift_profile.config.feature_map;
         for feature in features.iter() {
@@ -147,7 +146,7 @@ impl PsiFeatureQueue {
                         Self::process_numeric_queue(queue, value, bins)?
                     }
                     BinType::Category => {
-                        let value = feature.to_usize(feat_map).map_err(|e| {
+                        let value = feature.to_i32(feat_map).map_err(|e| {
                             error!("Error converting feature to usize: {:?}", e);
                             FeatureQueueError::InvalidValueError(
                                 feature.name().to_string(),
@@ -166,7 +165,7 @@ impl PsiFeatureQueue {
     #[instrument(skip_all)]
     pub fn create_drift_records(
         &self,
-        queue: HashMap<String, HashMap<usize, usize>>,
+        queue: QueueMap,
     ) -> Result<ServerRecords, FeatureQueueError> {
         // filter out any feature thats not in features_to_monitor
         // Keep feature if any value in the bin map is greater than 0

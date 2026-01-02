@@ -259,7 +259,7 @@ impl DispatchDriftConfig for PsiDriftConfig {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Bin {
     #[pyo3(get)]
-    pub id: usize,
+    pub id: i32,
 
     #[pyo3(get)]
     pub lower_limit: Option<f64>,

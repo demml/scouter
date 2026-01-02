@@ -73,7 +73,13 @@ impl StringFeature {
 }
 
 impl StringFeature {
-    pub fn to_float(&self, feature_map: &FeatureMap) -> Result<f64, TypeError> {
+    /// Generic conversion function that maps string feature values to numeric types
+    /// via the feature map lookup. Falls back to "missing" key if the specific value
+    /// is not found in the map.
+    fn to_numeric<T>(&self, feature_map: &FeatureMap) -> Result<T, TypeError>
+    where
+        T: From<i32>,
+    {
         feature_map
             .features
             .get(&self.name)
@@ -82,11 +88,19 @@ impl StringFeature {
                     .get(&self.value)
                     .or_else(|| feat_map.get("missing"))
             })
-            .map(|&val| val as f64)
+            .copied()
+            .map(T::from)
             .ok_or(TypeError::MissingStringValueError)
     }
-}
 
+    pub fn to_float(&self, feature_map: &FeatureMap) -> Result<f64, TypeError> {
+        self.to_numeric::<i32>(feature_map).map(|v| v as f64)
+    }
+
+    pub fn to_i32(&self, feature_map: &FeatureMap) -> Result<i32, TypeError> {
+        self.to_numeric::<i32>(feature_map)
+    }
+}
 #[pyclass(name = "QueueFeature")]
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum Feature {
@@ -185,6 +199,14 @@ impl Feature {
             Feature::String(f) => Ok(f.to_float(feature_map)? as usize),
         }
     }
+
+    pub fn to_i32(&self, feature_map: &FeatureMap) -> Result<i32, TypeError> {
+        match self {
+            Feature::Int(f) => Ok(f.value as i32),
+            Feature::Float(f) => Ok(f.value as i32),
+            Feature::String(f) => Ok(f.to_i32(feature_map)?),
+        }
+    }
 }
 
 impl Display for Feature {
@@ -265,7 +287,7 @@ impl Features {
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct FeatureMap {
     #[pyo3(get)]
-    pub features: HashMap<String, HashMap<String, usize>>,
+    pub features: HashMap<String, HashMap<String, i32>>,
 }
 
 #[pymethods]
