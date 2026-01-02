@@ -12,9 +12,7 @@ use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
 
-use scouter_types::{
-    CustomMetricInternalRecord, InternalServerRecords, StorageType, ToInternalDriftRecords,
-};
+use scouter_types::{CustomMetricRecord, ServerRecords, StorageType, ToDriftRecords};
 use std::sync::Arc;
 
 pub struct CustomMetricDataFrame {
@@ -28,10 +26,7 @@ impl ParquetFrame for CustomMetricDataFrame {
         CustomMetricDataFrame::new(storage_settings)
     }
 
-    async fn get_dataframe(
-        &self,
-        records: InternalServerRecords,
-    ) -> Result<DataFrame, DataFrameError> {
+    async fn get_dataframe(&self, records: ServerRecords) -> Result<DataFrame, DataFrameError> {
         let records = records.to_custom_metric_drift_records()?;
         let batch = self.build_batch(records)?;
 
@@ -92,14 +87,15 @@ impl CustomMetricDataFrame {
 
     fn build_batch(
         &self,
-        records: Vec<CustomMetricInternalRecord>,
+        records: Vec<&CustomMetricRecord>,
     ) -> Result<RecordBatch, DataFrameError> {
         let created_at_array = TimestampNanosecondArray::from_iter_values(
             records
                 .iter()
                 .map(|r| r.created_at.timestamp_nanos_opt().unwrap_or_default()),
         );
-        let entity_id_array = Int32Array::from_iter_values(records.iter().map(|r| r.entity_id));
+        let entity_id_array =
+            Int32Array::from_iter_values(records.iter().map(|r| r.entity_id.unwrap()));
         let metric_array = StringArray::from_iter_values(records.iter().map(|r| r.metric.as_str()));
         let value_array = Float64Array::from_iter_values(records.iter().map(|r| r.value));
         let batch = RecordBatch::try_new(

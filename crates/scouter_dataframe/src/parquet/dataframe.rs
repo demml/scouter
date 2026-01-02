@@ -8,7 +8,7 @@ use crate::storage::ObjectStore;
 use chrono::{DateTime, Utc};
 use datafusion::prelude::DataFrame;
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::{InternalServerRecords, RecordType, StorageType};
+use scouter_types::{RecordType, ServerRecords, StorageType};
 use tracing::instrument;
 
 pub enum ParquetDataFrame {
@@ -54,7 +54,7 @@ impl ParquetDataFrame {
     pub async fn write_parquet(
         &self,
         rpath: &str,
-        records: InternalServerRecords,
+        records: ServerRecords,
     ) -> Result<(), DataFrameError> {
         let rpath = &self.resolve_path(rpath);
 
@@ -166,10 +166,10 @@ mod tests {
     use rand::Rng;
     use scouter_settings::ObjectStorageSettings;
     use scouter_types::{
-        BoxedLLMDriftInternalRecord, InternalServerRecord, InternalServerRecords,
-        LLMDriftInternalRecord, PsiInternalRecord, SpcInternalRecord, Status,
+        BoxedLLMDriftRecord, LLMDriftRecord, PsiRecord, ServerRecord, ServerRecords, SpcRecord,
+        Status,
     };
-    use scouter_types::{CustomMetricInternalRecord, LLMMetricInternalRecord};
+    use scouter_types::{CustomMetricRecord, LLMMetricRecord};
     use serde_json::Map;
     use serde_json::Value;
 
@@ -194,9 +194,9 @@ mod tests {
         // create records
         for i in 0..3 {
             for j in 0..50 {
-                let record = LLMDriftInternalRecord {
+                let record = LLMDriftRecord {
                     created_at: Utc::now() + chrono::Duration::hours(i),
-                    entity_id,
+                    entity_id: Some(entity_id),
                     prompt: Some(prompt.model_dump_value()),
                     context: serde_json::Value::Object(Map::new()),
                     score: Value::Null,
@@ -207,14 +207,15 @@ mod tests {
                     processing_started_at: None,
                     processing_ended_at: None,
                     processing_duration: None,
+                    entity_uid: format!("entity_uid_{entity_id}"),
                 };
 
-                let boxed_record = BoxedLLMDriftInternalRecord::new(record);
-                batch.push(InternalServerRecord::LLMDrift(boxed_record));
+                let boxed_record = BoxedLLMDriftRecord::new(record);
+                batch.push(ServerRecord::LLMDrift(boxed_record));
             }
         }
 
-        let records = InternalServerRecords::new(batch);
+        let records = ServerRecords::new(batch);
         let rpath = "llm_drift";
         df.write_parquet(rpath, records.clone()).await.unwrap();
 
@@ -256,19 +257,20 @@ mod tests {
         // create records
         for i in 0..3 {
             for j in 0..50 {
-                let record = InternalServerRecord::LLMMetric(LLMMetricInternalRecord {
+                let record = ServerRecord::LLMMetric(LLMMetricRecord {
                     uid: format!("record_uid_{i}_{j}"),
                     created_at: Utc::now() + chrono::Duration::hours(i),
-                    entity_id,
                     metric: format!("metric{i}"),
                     value: j as f64,
+                    entity_id: Some(entity_id),
+                    entity_uid: format!("entity_uid_{entity_id}"),
                 });
 
                 batch.push(record);
             }
         }
 
-        let records = InternalServerRecords::new(batch);
+        let records = ServerRecords::new(batch);
         let rpath = "llm_metric";
         df.write_parquet(rpath, records.clone()).await.unwrap();
 
@@ -325,18 +327,19 @@ mod tests {
         // create records
         for i in 0..3 {
             for j in 0..50 {
-                let record = InternalServerRecord::Custom(CustomMetricInternalRecord {
+                let record = ServerRecord::Custom(CustomMetricRecord {
                     created_at: Utc::now() + chrono::Duration::hours(i),
-                    entity_id,
                     metric: format!("metric{i}"),
                     value: j as f64,
+                    entity_id: Some(entity_id),
+                    uid: format!("entity_uid_{entity_id}"),
                 });
 
                 batch.push(record);
             }
         }
 
-        let records = InternalServerRecords::new(batch);
+        let records = ServerRecords::new(batch);
         let rpath = "custom";
         df.write_parquet(rpath, records.clone()).await.unwrap();
 
@@ -393,12 +396,13 @@ mod tests {
         let entity_id = rand::rng().random_range(0..100);
         for i in 0..3 {
             for j in 0..5 {
-                let record = InternalServerRecord::Psi(PsiInternalRecord {
+                let record = ServerRecord::Psi(PsiRecord {
                     created_at: Utc::now() + chrono::Duration::hours(i),
-                    entity_id,
                     feature: "feature1".to_string(),
                     bin_id: j as usize,
                     bin_count: rand::rng().random_range(0..100),
+                    entity_id: Some(entity_id),
+                    uid: format!("entity_uid_{entity_id}"),
                 });
 
                 batch.push(record);
@@ -407,19 +411,20 @@ mod tests {
 
         for i in 0..3 {
             for j in 0..5 {
-                let record = InternalServerRecord::Psi(PsiInternalRecord {
+                let record = ServerRecord::Psi(PsiRecord {
                     created_at: Utc::now() + chrono::Duration::hours(i),
-                    entity_id,
                     feature: "feature2".to_string(),
                     bin_id: j as usize,
                     bin_count: rand::rng().random_range(0..100),
+                    entity_id: Some(entity_id),
+                    uid: format!("entity_uid_{entity_id}"),
                 });
 
                 batch.push(record);
             }
         }
 
-        let records = InternalServerRecords::new(batch);
+        let records = ServerRecords::new(batch);
         let rpath = "psi";
         df.write_parquet(rpath, records.clone()).await.unwrap();
 
@@ -467,28 +472,30 @@ mod tests {
         let end_utc_for_test = start_utc + chrono::Duration::hours(3);
         let entity_id = rand::rng().random_range(0..100);
         for i in 0..5 {
-            let record = InternalServerRecord::Spc(SpcInternalRecord {
+            let record = ServerRecord::Spc(SpcRecord {
                 created_at: Utc::now() + chrono::Duration::hours(i),
-                entity_id,
                 feature: "feature1".to_string(),
                 value: i as f64,
+                entity_id: Some(entity_id),
+                uid: format!("entity_uid_{entity_id}"),
             });
 
             batch.push(record);
         }
 
         for i in 0..5 {
-            let record = InternalServerRecord::Spc(SpcInternalRecord {
+            let record = ServerRecord::Spc(SpcRecord {
                 created_at: Utc::now() + chrono::Duration::hours(i),
-                entity_id,
                 feature: "feature2".to_string(),
                 value: i as f64,
+                entity_id: Some(entity_id),
+                uid: format!("entity_uid_{entity_id}"),
             });
 
             batch.push(record);
         }
 
-        let records = InternalServerRecords::new(batch);
+        let records = ServerRecords::new(batch);
         let rpath = "spc";
         df.write_parquet(rpath, records.clone()).await.unwrap();
 

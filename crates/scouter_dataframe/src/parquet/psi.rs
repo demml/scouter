@@ -17,8 +17,7 @@ use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::{
-    psi::FeatureBinProportionResult, InternalServerRecords, PsiInternalRecord, StorageType,
-    ToInternalDriftRecords,
+    psi::FeatureBinProportionResult, PsiRecord, ServerRecords, StorageType, ToDriftRecords,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -35,10 +34,7 @@ impl ParquetFrame for PsiDataFrame {
         PsiDataFrame::new(storage_settings)
     }
 
-    async fn get_dataframe(
-        &self,
-        records: InternalServerRecords,
-    ) -> Result<DataFrame, DataFrameError> {
+    async fn get_dataframe(&self, records: ServerRecords) -> Result<DataFrame, DataFrameError> {
         let records = records.to_psi_drift_records()?;
         let batch = self.build_batch(records)?;
 
@@ -98,14 +94,15 @@ impl PsiDataFrame {
     }
 
     /// Create and arrow RecordBatch from the given records
-    fn build_batch(&self, records: Vec<PsiInternalRecord>) -> Result<RecordBatch, DataFrameError> {
+    fn build_batch(&self, records: Vec<&PsiRecord>) -> Result<RecordBatch, DataFrameError> {
         let created_at_array = TimestampNanosecondArray::from_iter_values(
             records
                 .iter()
                 .map(|r| r.created_at.timestamp_nanos_opt().unwrap_or_default()),
         );
 
-        let entity_id_array = Int32Array::from_iter_values(records.iter().map(|r| r.entity_id));
+        let entity_id_array =
+            Int32Array::from_iter_values(records.iter().map(|r| r.entity_id.unwrap()));
         let feature_array =
             StringArray::from_iter_values(records.iter().map(|r| r.feature.as_str()));
 
