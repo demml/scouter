@@ -11,8 +11,8 @@ use chrono::{DateTime, Utc};
 use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::ToInternalDriftRecords;
-use scouter_types::{InternalServerRecords, LLMDriftInternalRecord, StorageType};
+use scouter_types::ToDriftRecords;
+use scouter_types::{BoxedLLMDriftRecord, ServerRecords, StorageType};
 use std::sync::Arc;
 
 pub struct LLMDriftDataFrame {
@@ -26,10 +26,7 @@ impl ParquetFrame for LLMDriftDataFrame {
         LLMDriftDataFrame::new(storage_settings)
     }
 
-    async fn get_dataframe(
-        &self,
-        records: InternalServerRecords,
-    ) -> Result<DataFrame, DataFrameError> {
+    async fn get_dataframe(&self, records: ServerRecords) -> Result<DataFrame, DataFrameError> {
         let records = records.to_llm_drift_records()?;
         let batch = self.build_batch(records)?;
 
@@ -110,56 +107,61 @@ impl LLMDriftDataFrame {
 
     fn build_batch(
         &self,
-        records: Vec<LLMDriftInternalRecord>,
+        records: Vec<&BoxedLLMDriftRecord>,
     ) -> Result<RecordBatch, DataFrameError> {
-        let id_array = arrow_array::Int64Array::from_iter_values(records.iter().map(|r| r.id));
-        let created_at_array = TimestampNanosecondArray::from_iter_values(
-            records
-                .iter()
-                .map(|r| r.created_at.timestamp_nanos_opt().unwrap_or_default()),
-        );
-        let uid_array = StringArray::from_iter_values(records.iter().map(|r| r.uid.as_str()));
-        let entity_id_array = Int32Array::from_iter_values(records.iter().map(|r| r.entity_id));
+        let id_array =
+            arrow_array::Int64Array::from_iter_values(records.iter().map(|r| r.record.id));
+        let created_at_array =
+            TimestampNanosecondArray::from_iter_values(records.iter().map(|r| {
+                r.record
+                    .created_at
+                    .timestamp_nanos_opt()
+                    .unwrap_or_default()
+            }));
+        let uid_array =
+            StringArray::from_iter_values(records.iter().map(|r| r.record.uid.as_str()));
+        let entity_id_array =
+            Int32Array::from_iter_values(records.iter().map(|r| r.record.entity_id.unwrap()));
 
-        let score_array = StringArray::from_iter_values(
-            records
-                .iter()
-                .map(|r| serde_json::to_string(&r.score).unwrap_or_else(|_| "{}".to_string())),
-        );
-        let context_array = StringArray::from_iter_values(
-            records
-                .iter()
-                .map(|r| serde_json::to_string(&r.context).unwrap_or_else(|_| "{}".to_string())),
-        );
+        let score_array =
+            StringArray::from_iter_values(records.iter().map(|r| {
+                serde_json::to_string(&r.record.score).unwrap_or_else(|_| "{}".to_string())
+            }));
+        let context_array = StringArray::from_iter_values(records.iter().map(|r| {
+            serde_json::to_string(&r.record.context).unwrap_or_else(|_| "{}".to_string())
+        }));
 
         let prompt_array = StringArray::from_iter(records.iter().map(|r| {
-            r.prompt
+            r.record
+                .prompt
                 .as_ref()
                 .map(|p| serde_json::to_string(p).unwrap_or_else(|_| "{}".to_string()))
         }));
         let updated_at_array = TimestampNanosecondArray::from_iter(
             records
                 .iter()
-                .map(|r| r.updated_at.and_then(|dt| dt.timestamp_nanos_opt())),
+                .map(|r| r.record.updated_at.and_then(|dt| dt.timestamp_nanos_opt())),
         );
         let status_array =
-            StringArray::from_iter_values(records.iter().map(|r| r.status.to_string()));
+            StringArray::from_iter_values(records.iter().map(|r| r.record.status.to_string()));
 
         let processing_started_at_array =
             TimestampNanosecondArray::from_iter(records.iter().map(|r| {
-                r.processing_started_at
+                r.record
+                    .processing_started_at
                     .and_then(|dt| dt.timestamp_nanos_opt())
             }));
 
         let processing_ended_at_array =
             TimestampNanosecondArray::from_iter(records.iter().map(|r| {
-                r.processing_ended_at
+                r.record
+                    .processing_ended_at
                     .and_then(|dt| dt.timestamp_nanos_opt())
             }));
 
         // Calculate processing duration in seconds
         let processing_duration_array =
-            Int32Array::from_iter(records.iter().map(|r| r.processing_duration));
+            Int32Array::from_iter(records.iter().map(|r| r.record.processing_duration));
 
         let batch = RecordBatch::try_new(
             self.schema.clone(),

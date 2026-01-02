@@ -355,6 +355,7 @@ pub mod drift_executor {
                     uid: uid.clone(),
                     feature: "col_1".to_string(),
                     value: 10.0 + i as f64,
+                    entity_id: None,
                 };
                 records.push(record);
             }
