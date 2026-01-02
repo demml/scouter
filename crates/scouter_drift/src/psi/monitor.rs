@@ -25,7 +25,7 @@ impl PsiMonitor {
         array: &ArrayView<F, Ix1>,
         lower_threshold: &f64,
         upper_threshold: &f64,
-    ) -> usize
+    ) -> i32
     where
         F: Float + FromPrimitive,
         F: Into<f64>,
@@ -33,7 +33,7 @@ impl PsiMonitor {
         array
             .iter()
             .filter(|&&value| value.into() > *lower_threshold && value.into() <= *upper_threshold)
-            .count()
+            .count() as i32
     }
 
     fn create_categorical_bins<F>(&self, column_vector: &ArrayView<F, Ix1>) -> Vec<Bin>
@@ -42,10 +42,10 @@ impl PsiMonitor {
         F: Into<f64>,
     {
         let vector_len = column_vector.len() as f64;
-        let mut counts: HashMap<usize, usize> = HashMap::new();
+        let mut counts: HashMap<i32, i32> = HashMap::new();
 
         for &value in column_vector.iter() {
-            let key = Into::<f64>::into(value) as usize;
+            let key = value.into() as i32;
             *counts.entry(key).or_insert(0) += 1;
         }
 
@@ -89,7 +89,7 @@ impl PsiMonitor {
                 };
                 let bin_count = self.compute_bin_count(column_vector, &lower.into(), &upper.into());
                 Bin {
-                    id: decile + 1,
+                    id: (decile + 1) as i32,
                     lower_limit: Some(lower.into()),
                     upper_limit: Some(upper.into()),
                     proportion: (bin_count as f64) / (column_vector.len() as f64),

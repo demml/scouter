@@ -474,7 +474,7 @@ pub mod psi_drifter {
             let mut distributions = BTreeMap::new();
             let mut bins = BTreeMap::new();
             for i in 0..bin_count {
-                bins.insert(i as usize, (sample_size / bin_count) as f64);
+                bins.insert(i as i32, (sample_size / bin_count) as f64);
             }
 
             distributions.insert(
@@ -528,7 +528,7 @@ pub mod psi_drifter {
             let mut distributions = BTreeMap::new();
             let mut bins = BTreeMap::new();
             for i in 0..bin_count {
-                bins.insert(i as usize, (sample_size / bin_count) as f64);
+                bins.insert(i as i32, (sample_size / bin_count) as f64);
             }
 
             distributions.insert(
@@ -582,7 +582,7 @@ pub mod psi_drifter {
             let mut distributions = BTreeMap::new();
             let mut bins = BTreeMap::new();
             for i in 0..bin_count {
-                bins.insert(i as usize, (sample_size / bin_count) as f64);
+                bins.insert(i as i32, (sample_size / bin_count) as f64);
             }
 
             distributions.insert(
@@ -638,7 +638,7 @@ pub mod psi_drifter {
             let mut distributions = BTreeMap::new();
             let mut bins = BTreeMap::new();
             for i in 0..bin_count {
-                bins.insert(i as usize, (sample_size / bin_count) as f64);
+                bins.insert(i as i32, (sample_size / bin_count) as f64);
             }
 
             distributions.insert(

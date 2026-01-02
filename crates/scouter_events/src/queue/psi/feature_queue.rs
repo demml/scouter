@@ -37,7 +37,7 @@ impl PsiFeatureQueue {
 
     #[instrument(skip_all)]
     fn process_numeric_queue(
-        queue: &mut BinCounts,
+        queue: &mut BinQueue,
         value: f64,
         bins: &[Bin],
     ) -> Result<(), FeatureQueueError> {
