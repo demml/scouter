@@ -453,7 +453,11 @@ mod tests {
         }
 
         let bins = fd.num_bins(&arr.view());
-        assert!(bins > 3 && bins < 30);
+        assert!(
+            bins > 3 && bins < 30,
+            "Expected bins between 3 and 30, got {}",
+            bins
+        );
     }
 
     #[test]

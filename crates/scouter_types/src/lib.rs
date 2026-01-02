@@ -11,6 +11,7 @@ pub mod queue;
 pub mod records;
 pub mod spc;
 pub mod trace;
+pub mod traits;
 pub mod util;
 
 pub mod binning;
@@ -24,4 +25,5 @@ pub use http::*;
 pub use queue::types::*;
 pub use records::*;
 pub use trace::*;
+pub use traits::ScouterRecordExt;
 pub use util::*;

@@ -9,8 +9,11 @@ use chrono::DateTime;
 use chrono::Utc;
 use potato_head::{create_uuid7, PyHelperFuncs};
 use pyo3::prelude::*;
+use pyo3::prelude::*;
+use pyo3::IntoPyObjectExt;
 use pyo3::IntoPyObjectExt;
 use pythonize::pythonize;
+use scouter_macro::impl_mask_entity_id;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -66,11 +69,13 @@ impl Display for RecordType {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct SpcRecord {
     #[pyo3(get)]
     pub created_at: chrono::DateTime<Utc>,
 
     #[pyo3(get)]
+    #[cfg_attr(feature = "server", sqlx(skip))]
     pub uid: String,
 
     #[pyo3(get)]
@@ -78,6 +83,8 @@ pub struct SpcRecord {
 
     #[pyo3(get)]
     pub value: f64,
+
+    pub entity_id: Option<i32>,
 }
 
 #[pymethods]
@@ -89,6 +96,7 @@ impl SpcRecord {
             uid,
             feature,
             value,
+            entity_id: None,
         }
     }
 
@@ -118,31 +126,33 @@ impl SpcRecord {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct PsiRecord {
     #[pyo3(get)]
     pub created_at: chrono::DateTime<Utc>,
     #[pyo3(get)]
+    #[cfg_attr(feature = "server", sqlx(skip))]
     pub uid: String,
     #[pyo3(get)]
     pub feature: String,
     #[pyo3(get)]
-    pub bin_id: usize,
+    pub bin_id: i32,
     #[pyo3(get)]
-    pub bin_count: usize,
-    pub entity_id: i32,
+    pub bin_count: i32,
+    pub entity_id: Option<i32>,
 }
 
 #[pymethods]
 impl PsiRecord {
     #[new]
-    pub fn new(uid: String, feature: String, bin_id: usize, bin_count: usize) -> Self {
+    pub fn new(uid: String, feature: String, bin_id: i32, bin_count: i32) -> Self {
         Self {
             created_at: Utc::now(),
             uid,
             feature,
             bin_id,
             bin_count,
-            entity_id: 0,
+            entity_id: None,
         }
     }
 
@@ -190,9 +200,10 @@ pub struct GenAIDriftRecord {
 
     pub processing_duration: Option<i32>,
 
+    #[cfg_attr(feature = "server", sqlx(skip))]
     pub entity_uid: String,
 
-    pub entity_id: i32,
+    pub entity_id: Option<i32>,
 }
 
 #[pymethods]
@@ -235,8 +246,14 @@ impl GenAIDriftRecord {
             processing_ended_at: None,
             processing_duration: None,
             entity_uid,
-            entity_id: 0, // This is a placeholder, as the entity_id will be set when inserting into the database
+            entity_id: None,
         }
+    }
+
+    // helper for masking sensitive data from the record when
+    // return to the user. Currently, only removes entity_id
+    pub fn mask_sensitive_data(&mut self) {
+        self.entity_id = None;
     }
 }
 
@@ -446,17 +463,20 @@ impl FromRow<'_, PgRow> for GenAIEvalTaskResultRecord {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct CustomMetricRecord {
     #[pyo3(get)]
     pub created_at: chrono::DateTime<Utc>,
     #[pyo3(get)]
+    // skip this row when decoding pgrow
+    #[cfg_attr(feature = "server", sqlx(skip))]
     pub uid: String,
     #[pyo3(get)]
     pub metric: String,
     #[pyo3(get)]
     pub value: f64,
 
-    pub entity_id: i32,
+    pub entity_id: Option<i32>,
 }
 
 #[pymethods]
@@ -468,7 +488,7 @@ impl CustomMetricRecord {
             uid,
             metric: metric.to_lowercase(),
             value,
-            entity_id: 0,
+            entity_id: None,
         }
     }
 
@@ -539,6 +559,7 @@ pub struct RouteMetrics {
 
 #[pyclass]
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct ObservabilityMetrics {
     #[pyo3(get)]
     pub uid: String,
@@ -552,7 +573,7 @@ pub struct ObservabilityMetrics {
     #[pyo3(get)]
     pub route_metrics: Vec<RouteMetrics>,
 
-    pub entity_id: i32,
+    pub entity_id: Option<i32>,
 }
 
 #[pymethods]
@@ -572,7 +593,6 @@ impl ObservabilityMetrics {
     }
 }
 
-//todo: Add trait to reduce boilerplate
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ServerRecord {
@@ -764,6 +784,41 @@ impl ServerRecords {
     }
 }
 
+/// Trait to convert a deserialized record into a ServerRecord variant
+pub trait IntoServerRecord {
+    fn into_server_record(self) -> ServerRecord;
+}
+
+impl IntoServerRecord for SpcRecord {
+    fn into_server_record(self) -> ServerRecord {
+        ServerRecord::Spc(self)
+    }
+}
+
+impl IntoServerRecord for PsiRecord {
+    fn into_server_record(self) -> ServerRecord {
+        ServerRecord::Psi(self)
+    }
+}
+
+impl IntoServerRecord for CustomMetricRecord {
+    fn into_server_record(self) -> ServerRecord {
+        ServerRecord::Custom(self)
+    }
+}
+
+impl IntoServerRecord for GenAIDriftRecord {
+    fn into_server_record(self) -> ServerRecord {
+        ServerRecord::GenAIDrift(BoxedGenAIDriftRecord::new(self))
+    }
+}
+
+impl IntoServerRecord for GenAIMetricRecord {
+    fn into_server_record(self) -> ServerRecord {
+        ServerRecord::GenAIMetric(self)
+    }
+}
+
 /// Helper trait to convert ServerRecord to their respective internal record types
 pub trait ToDriftRecords {
     fn to_spc_drift_records(&self) -> Result<Vec<&SpcRecord>, RecordError>;
@@ -826,24 +881,21 @@ impl ToDriftRecords for ServerRecords {
     }
 }
 
-/// Generic helper function to extract borrowed references from ServerRecords
-///
-/// Returns a Vec of references to records of type T, or an error if any record
-/// doesn't match the expected type.
-fn extract_records<'a, T>(
-    records: &'a [ServerRecord],
-    extractor: impl Fn(&'a ServerRecord) -> Option<&'a T>,
-) -> Result<Vec<&'a T>, RecordError> {
-    let mut extracted = Vec::with_capacity(records.len());
+fn extract_records<T>(
+    server_records: &ServerRecords,
+    extractor: impl Fn(&ServerRecord) -> Option<&T>,
+) -> Result<Vec<&T>, RecordError> {
+    let mut records = Vec::new();
 
-    for record in records {
-        match extractor(record) {
-            Some(inner) => extracted.push(inner),
-            None => return Err(RecordError::InvalidDriftTypeError),
+    for record in &server_records.records {
+        if let Some(extracted) = extractor(record) {
+            records.push(extracted);
+        } else {
+            return Err(RecordError::InvalidDriftTypeError);
         }
     }
 
-    Ok(extracted)
+    Ok(records)
 }
 
 pub enum MessageType {
@@ -903,3 +955,12 @@ impl MessageRecord {
         }
     }
 }
+
+impl_mask_entity_id!(
+    crate::ScouterRecordExt =>
+    GenAIDriftRecord,
+    SpcRecord,
+    PsiRecord,
+    CustomMetricRecord,
+    GenAIMetricRecord,
+);

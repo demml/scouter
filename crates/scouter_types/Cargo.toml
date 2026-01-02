@@ -12,6 +12,7 @@ license = "MIT"
 description = "Client and server contract for scouter"
 
 [dependencies]
+scouter-macro = { workspace = true }
 scouter-semver = { workspace = true }
 scouter-state = { workspace = true }
 base64 = { workspace = true }

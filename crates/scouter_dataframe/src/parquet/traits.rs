@@ -12,7 +12,7 @@ use datafusion::prelude::SessionContext;
 use datafusion::prelude::*;
 use datafusion::{dataframe::DataFrameWriteOptions, prelude::DataFrame};
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::{InternalServerRecords, StorageType};
+use scouter_types::{ServerRecords, StorageType};
 use tracing::instrument;
 
 use std::sync::Arc;
@@ -33,7 +33,7 @@ pub trait ParquetFrame {
     async fn write_parquet(
         &self,
         rpath: &str,
-        records: InternalServerRecords,
+        records: ServerRecords,
     ) -> Result<(), DataFrameError> {
         let df = self.get_dataframe(records).await?;
 
@@ -63,10 +63,7 @@ pub trait ParquetFrame {
         Ok(())
     }
 
-    async fn get_dataframe(
-        &self,
-        records: InternalServerRecords,
-    ) -> Result<DataFrame, DataFrameError>;
+    async fn get_dataframe(&self, records: ServerRecords) -> Result<DataFrame, DataFrameError>;
 
     /// Get the storage root path
     fn storage_root(&self) -> String;

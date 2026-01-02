@@ -29,7 +29,7 @@ pub trait PsiSqlLogic {
     /// * A result containing the query result or an error
     async fn insert_bin_counts_batch(
         pool: &Pool<Postgres>,
-        records: &[PsiRecord],
+        records: &[&PsiRecord],
         entity_id: &i32,
     ) -> Result<PgQueryResult, SqlError> {
         if records.is_empty() {
@@ -42,15 +42,15 @@ pub trait PsiSqlLogic {
             Vec<DateTime<Utc>>,
             Vec<i32>,
             Vec<&str>,
-            Vec<i64>,
-            Vec<i64>,
+            Vec<i32>,
+            Vec<i32>,
         ) = multiunzip(records.iter().map(|r| {
             (
                 r.created_at,
                 entity_id,
                 r.feature.as_str(),
-                r.bin_id as i64,
-                r.bin_count as i64,
+                r.bin_id,
+                r.bin_count,
             )
         }));
 

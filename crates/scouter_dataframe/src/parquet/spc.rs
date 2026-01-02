@@ -13,8 +13,8 @@ use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::spc::{SpcDriftFeature, SpcDriftFeatures};
-use scouter_types::{InternalServerRecords, SpcInternalRecord};
-use scouter_types::{StorageType, ToInternalDriftRecords};
+use scouter_types::{ServerRecords, SpcRecord};
+use scouter_types::{StorageType, ToDriftRecords};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -29,10 +29,7 @@ impl ParquetFrame for SpcDataFrame {
         SpcDataFrame::new(storage_settings)
     }
 
-    async fn get_dataframe(
-        &self,
-        records: InternalServerRecords,
-    ) -> Result<DataFrame, DataFrameError> {
+    async fn get_dataframe(&self, records: ServerRecords) -> Result<DataFrame, DataFrameError> {
         let records = records.to_spc_drift_records()?;
         let batch = self.build_batch(records)?;
 
@@ -90,16 +87,13 @@ impl SpcDataFrame {
         })
     }
 
-    pub fn build_batch(
-        &self,
-        records: Vec<SpcInternalRecord>,
-    ) -> Result<RecordBatch, DataFrameError> {
+    pub fn build_batch(&self, records: Vec<&SpcRecord>) -> Result<RecordBatch, DataFrameError> {
         let created_at = TimestampNanosecondArray::from_iter_values(
             records
                 .iter()
                 .map(|r| r.created_at.timestamp_nanos_opt().unwrap_or_default()),
         );
-        let entity_id = Int32Array::from_iter_values(records.iter().map(|r| r.entity_id));
+        let entity_id = Int32Array::from_iter_values(records.iter().map(|r| r.entity_id.unwrap()));
         let feature = StringArray::from_iter_values(records.iter().map(|r| r.feature.as_str()));
         let value = Float64Array::from_iter_values(records.iter().map(|r| r.value));
 

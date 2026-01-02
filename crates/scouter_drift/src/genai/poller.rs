@@ -38,7 +38,7 @@ impl GenAIPoller {
             Ok((metrics, score_map, workflow_duration)) => {
                 PostgresClient::insert_genai_metric_values_batch(
                     &self.db_pool,
-                    &metrics,
+                    &metrics.iter().collect::<Vec<&GenAIMetricRecord>>(), // this is going to removed in future refactor
                     &record.entity_id,
                 )
                 .await

@@ -1,86 +1,50 @@
 use crate::sql::error::SqlError;
-use crate::sql::schema::genai_event_record_from_row;
 use chrono::{DateTime, Utc};
+use sqlx::postgres::PgRow;
+
 use scouter_types::{
-    CustomMetricInternalRecord, GenAIMetricInternalRecord, InternalServerRecord,
-    InternalServerRecords, PsiInternalRecord, RecordType, SpcInternalRecord,
+    CustomMetricRecord, GenAIDriftRecord, GenAIMetricRecord, IntoServerRecord, PsiRecord,
+    RecordType, ServerRecords, SpcRecord,
 };
-
-use sqlx::{postgres::PgRow, Row};
-/// Helper for converting a row to an `SpcInternalRecord`.
-fn spc_record_from_row(row: &PgRow) -> Result<SpcInternalRecord, SqlError> {
-    Ok(SpcInternalRecord {
-        created_at: row.try_get("created_at")?,
-        entity_id: row.try_get("entity_id")?,
-        feature: row.try_get("feature")?,
-        value: row.try_get("value")?,
-    })
-}
-
-/// Helper for converting a row to a `PsiInternalRecord`.
-fn psi_record_from_row(row: &PgRow) -> Result<PsiInternalRecord, SqlError> {
-    let bin_id: i32 = row.try_get("bin_id")?;
-    let bin_count: i32 = row.try_get("bin_count")?;
-
-    Ok(PsiInternalRecord {
-        created_at: row.try_get("created_at")?,
-        entity_id: row.try_get("entity_id")?,
-        feature: row.try_get("feature")?,
-        bin_id: bin_id as usize,
-        bin_count: bin_count as usize,
-    })
-}
-
-/// Helper for converting a row to a `CustomMetricInternalRecord`.
-fn custom_record_from_row(row: &PgRow) -> Result<CustomMetricInternalRecord, SqlError> {
-    Ok(CustomMetricInternalRecord {
-        created_at: row.try_get("created_at")?,
-        entity_id: row.try_get("entity_id")?,
-        metric: row.try_get("metric")?,
-        value: row.try_get("value")?,
-    })
-}
-
-/// Converts a slice of `PgRow` to a `ServerRecords` based on the provided `RecordType`.
-///
-/// # Arguments
-/// * `rows` - A slice of `PgRow` to be converted.
-/// * `record_type` - The type of record to convert to.
-///
-/// # Returns
-/// * `Result<InternalServerRecords, SqlError>` - A result containing the converted `InternalServerRecords` or an error.
-///
-/// # Errors
-/// * Returns an error if the conversion fails or if the record type is not supported.
-pub fn pg_rows_to_server_records(
+/// Generic function to deserialize PgRows into ServerRecords
+pub fn pg_rows_to_server_records<T>(
     rows: &[PgRow],
+    _record_type: &RecordType,
+) -> Result<ServerRecords, SqlError>
+where
+    T: for<'r> sqlx::FromRow<'r, PgRow> + IntoServerRecord + Send + Unpin,
+{
+    let mut records = Vec::with_capacity(rows.len());
+
+    for row in rows {
+        let record: T = sqlx::FromRow::from_row(row)?;
+        records.push(record.into_server_record());
+    }
+
+    Ok(ServerRecords::new(records))
+}
+
+/// Parses Postgres rows into ServerRecords based on RecordType
+pub fn parse_pg_rows(
+    rows: &[sqlx::postgres::PgRow],
     record_type: &RecordType,
-) -> Result<InternalServerRecords, SqlError> {
-    // Get correct conversion function base on record type
-    // Returns an error if the record type is not supported
-    let convert_fn = match record_type {
-        RecordType::Spc => |row| Ok(InternalServerRecord::Spc(spc_record_from_row(row)?)),
-        RecordType::Psi => |row| Ok(InternalServerRecord::Psi(psi_record_from_row(row)?)),
-        RecordType::Custom => |row| Ok(InternalServerRecord::Custom(custom_record_from_row(row)?)),
-        RecordType::GenAIEvent => |row| {
-            Ok(InternalServerRecord::GenAIDrift(
-                genai_event_record_from_row(row)?,
-            ))
-        },
-        RecordType::GenAIMetric => |row| {
-            Ok(InternalServerRecord::GenAIMetric(
-                genai_drift_metric_from_row(row)?,
-            ))
-        },
-        _ => return Err(SqlError::InvalidRecordTypeError(record_type.to_string())),
-    };
-
-    // Pre-allocate vector with exact capacity needed
-    let records: Result<Vec<InternalServerRecord>, SqlError> =
-        rows.iter().map(convert_fn).collect();
-
-    // Convert the result into ServerRecords
-    records.map(InternalServerRecords::new)
+) -> Result<ServerRecords, SqlError> {
+    match record_type {
+        RecordType::Spc => pg_rows_to_server_records::<SpcRecord>(rows, record_type),
+        RecordType::Psi => {
+            crate::sql::utils::pg_rows_to_server_records::<PsiRecord>(rows, record_type)
+        }
+        RecordType::Custom => {
+            crate::sql::utils::pg_rows_to_server_records::<CustomMetricRecord>(rows, record_type)
+        }
+        RecordType::GenAIEvent => {
+            crate::sql::utils::pg_rows_to_server_records::<GenAIDriftRecord>(rows, record_type)
+        }
+        RecordType::GenAIMetric => {
+            crate::sql::utils::pg_rows_to_server_records::<GenAIMetricRecord>(rows, record_type)
+        }
+        _ => Err(SqlError::InvalidRecordTypeError(record_type.to_string())),
+    }
 }
 
 #[derive(Debug)]
