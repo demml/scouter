@@ -2,13 +2,15 @@ use crate::error::{ProfileError, TypeError};
 use crate::genai::alert::GenAIAlertConfig;
 use crate::genai::eval::{AssertionTask, LLMJudgeTask};
 use crate::genai::traits::{ProfileExt, TaskAccessor, TaskRef};
+use crate::genai::EvalTaskResult;
 use crate::util::{json_to_pyobject, pyobject_to_json, ConfigExt};
 use crate::ProfileRequest;
-use crate::{scouter_version, GenAIMetricRecord};
+use crate::{scouter_version, GenAIEvalWorkflowRecord};
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
     PyHelperFuncs, VersionRequest, DEFAULT_VERSION, MISSING,
 };
+use chrono::{DateTime, Utc};
 use core::fmt::Debug;
 use potato_head::prompt_types::{Prompt, ResponseType};
 use potato_head::Agent;
@@ -633,16 +635,53 @@ impl ProfileBaseArgs for GenAIEvalProfile {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct GenAIDriftMap {
+pub struct GenAIEvalSet {
     #[pyo3(get)]
-    pub records: Vec<GenAIMetricRecord>,
+    pub records: Vec<EvalTaskResult>,
+    inner: GenAIEvalWorkflowRecord,
+}
+
+impl GenAIEvalSet {
+    pub fn new(records: Vec<EvalTaskResult>, inner: GenAIEvalWorkflowRecord) -> Self {
+        Self { records, inner }
+    }
 }
 
 #[pymethods]
-impl GenAIDriftMap {
-    #[new]
-    pub fn new(records: Vec<GenAIMetricRecord>) -> Self {
-        Self { records }
+impl GenAIEvalSet {
+    #[getter]
+    pub fn get_created_at(&self) -> DateTime<Utc> {
+        self.inner.created_at
+    }
+
+    #[getter]
+    pub fn get_record_uid(&self) -> String {
+        self.inner.record_uid.clone()
+    }
+
+    #[getter]
+    pub fn get_total_tasks(&self) -> i32 {
+        self.inner.total_tasks
+    }
+
+    #[getter]
+    pub fn get_passed_tasks(&self) -> i32 {
+        self.inner.passed_tasks
+    }
+
+    #[getter]
+    pub fn get_failed_tasks(&self) -> i32 {
+        self.inner.failed_tasks
+    }
+
+    #[getter]
+    pub fn get_pass_rate(&self) -> f64 {
+        self.inner.pass_rate
+    }
+
+    #[getter]
+    pub fn get_duration_ms(&self) -> i64 {
+        self.inner.duration_ms
     }
 
     pub fn __str__(&self) -> String {

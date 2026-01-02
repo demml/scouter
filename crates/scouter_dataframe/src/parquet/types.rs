@@ -4,8 +4,9 @@ pub enum BinnedTableName {
     CustomMetric,
     Psi,
     Spc,
-    GenAIMetric,
-    GenAIDrift,
+    GenAITask,
+    GenAIWorkflow,
+    GenAIEvent,
 }
 
 impl Display for BinnedTableName {
@@ -14,8 +15,9 @@ impl Display for BinnedTableName {
             BinnedTableName::CustomMetric => write!(f, "binned_custom_metric"),
             BinnedTableName::Psi => write!(f, "binned_psi"),
             BinnedTableName::Spc => write!(f, "binned_spc"),
-            BinnedTableName::GenAIMetric => write!(f, "binned_genai_metric"),
-            BinnedTableName::GenAIDrift => write!(f, "binned_genai_drift"),
+            BinnedTableName::GenAITask => write!(f, "binned_genai_task"),
+            BinnedTableName::GenAIWorkflow => write!(f, "binned_genai_workflow"),
+            BinnedTableName::GenAIEvent => write!(f, "binned_genai_event"),
         }
     }
 }

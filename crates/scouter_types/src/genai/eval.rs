@@ -347,21 +347,7 @@ pub enum ComparisonOperator {
 
 impl Display for ComparisonOperator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let operator_str = match self {
-            ComparisonOperator::Equal => "Equal",
-            ComparisonOperator::NotEqual => "NotEqual",
-            ComparisonOperator::GreaterThan => "GreaterThan",
-            ComparisonOperator::GreaterThanOrEqual => "GreaterThanOrEqual",
-            ComparisonOperator::LessThan => "LessThan",
-            ComparisonOperator::LessThanOrEqual => "LessThanOrEqual",
-            ComparisonOperator::Contains => "Contains",
-            ComparisonOperator::NotContains => "NotContains",
-            ComparisonOperator::StartsWith => "StartsWith",
-            ComparisonOperator::EndsWith => "EndsWith",
-            ComparisonOperator::Matches => "Matches",
-            ComparisonOperator::HasLength => "HasLength",
-        };
-        write!(f, "{}", operator_str)
+        write!(f, "{}", self.as_str())
     }
 }
 
@@ -383,6 +369,25 @@ impl FromStr for ComparisonOperator {
             "Matches" => Ok(ComparisonOperator::Matches),
             "HasLength" => Ok(ComparisonOperator::HasLength),
             _ => Err(TypeError::InvalidCompressionTypeError),
+        }
+    }
+}
+
+impl ComparisonOperator {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ComparisonOperator::Equal => "Equal",
+            ComparisonOperator::NotEqual => "NotEqual",
+            ComparisonOperator::GreaterThan => "GreaterThan",
+            ComparisonOperator::GreaterThanOrEqual => "GreaterThanOrEqual",
+            ComparisonOperator::LessThan => "LessThan",
+            ComparisonOperator::LessThanOrEqual => "LessThanOrEqual",
+            ComparisonOperator::Contains => "Contains",
+            ComparisonOperator::NotContains => "NotContains",
+            ComparisonOperator::StartsWith => "StartsWith",
+            ComparisonOperator::EndsWith => "EndsWith",
+            ComparisonOperator::Matches => "Matches",
+            ComparisonOperator::HasLength => "HasLength",
         }
     }
 }
@@ -497,6 +502,16 @@ impl FromStr for EvaluationTaskType {
             "LLMJudge" => Ok(EvaluationTaskType::LLMJudge),
             "HumanValidation" => Ok(EvaluationTaskType::HumanValidation),
             _ => Err(TypeError::InvalidEvalType(s.to_string())),
+        }
+    }
+}
+
+impl EvaluationTaskType {
+    pub fn as_str(&self) -> &str {
+        match self {
+            EvaluationTaskType::Assertion => "Assertion",
+            EvaluationTaskType::LLMJudge => "LLMJudge",
+            EvaluationTaskType::HumanValidation => "HumanValidation",
         }
     }
 }

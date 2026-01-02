@@ -1058,7 +1058,7 @@ mod tests {
                 "input": input,
                 "response": output,
             });
-            let record = GenAIDriftRecord {
+            let record = GenAIEventRecord {
                 created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
                 prompt: Some(prompt.model_dump_value()),
                 context,
@@ -1148,7 +1148,7 @@ mod tests {
                 "input": input,
                 "response": output,
             });
-            let record = GenAIDriftRecord {
+            let record = GenAIEventRecord {
                 created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
                 prompt: Some(prompt.model_dump_value()),
                 context,

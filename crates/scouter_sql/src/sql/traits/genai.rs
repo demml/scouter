@@ -10,6 +10,7 @@ use scouter_dataframe::parquet::ParquetDataFrame;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::contracts::DriftRequest;
 use scouter_types::GenAIEvalTaskResultRecord;
+use scouter_types::GenAIEvalWorkflowRecord;
 use scouter_types::{
     BinnedMetrics, GenAIDriftRecord, GenAIDriftRecordPaginationRequest,
     GenAIDriftRecordPaginationResponse, RecordCursor, RecordType,
@@ -34,7 +35,7 @@ pub trait GenAIDriftSqlLogic {
         record: &BoxedGenAIDriftRecord,
         entity_id: &i32,
     ) -> Result<PgQueryResult, SqlError> {
-        let query = Queries::InsertGenAIDriftRecord.get_query();
+        let query = Queries::InsertGenAIEventRecord.get_query();
 
         sqlx::query(query)
             .bind(&record.record.uid)
@@ -87,41 +88,90 @@ pub trait GenAIDriftSqlLogic {
             .map_err(SqlError::SqlxError)
     }
 
-    /// Inserts a batch of GenAI metric values into the database.
-    /// This is the output from processing/evaluating the GenAI drift records.
-    async fn insert_genai_metric_values_batch(
+    /// Insert a single eval workflow record
+    /// # Arguments
+    /// * `pool` - The database connection pool
+    /// * `record` - The GenAI eval workflow record to insert
+    /// * `entity_id` - The entity ID associated with the record
+    /// # Returns
+    async fn insert_genai_eval_workflow_record(
         pool: &Pool<Postgres>,
-        records: &[&GenAIMetricRecord],
+        record: &GenAIEvalWorkflowRecord,
         entity_id: &i32,
     ) -> Result<PgQueryResult, SqlError> {
+        let query = Queries::InsertGenAIWorkflowResult.get_query();
+
+        sqlx::query(query)
+            .bind(&record.created_at)
+            .bind(record.record_uid.as_str())
+            .bind(entity_id)
+            .bind(&record.total_tasks)
+            .bind(&record.passed_tasks)
+            .bind(&record.failed_tasks)
+            .bind(&record.pass_rate)
+            .bind(&record.duration_seconds)
+            .execute(pool)
+            .await
+            .map_err(SqlError::SqlxError)
+    }
+
+    /// Inserts a batch of GenAI metric values into the database.
+    /// This is the output from processing/evaluating the GenAI drift records.
+    pub async fn insert_eval_task_results_batch(
+        pool: &Pool<Postgres>,
+        records: &[GenAIEvalTaskResultRecord], // Passed by slice for better ergonomics
+        entity_id: i32,
+    ) -> Result<sqlx::postgres::PgQueryResult, SqlError> {
         if records.is_empty() {
             return Err(SqlError::EmptyBatchError);
         }
 
-        let query = Queries::InsertGenAIMetricValuesBatch.get_query();
+        let n = records.len();
 
-        let (created_ats, record_uids, entity_ids, metrics, values): (
-            Vec<DateTime<Utc>>,
-            Vec<&str>,
-            Vec<&i32>,
-            Vec<&str>,
-            Vec<f64>,
-        ) = multiunzip(records.iter().map(|r| {
-            (
-                r.created_at,
-                r.uid.as_str(),
-                entity_id,
-                r.metric.as_str(),
-                r.value,
-            )
-        }));
+        // Pre-allocate vectors to avoid reallocations
+        let mut created_ats = Vec::with_capacity(n);
+        let mut record_uids = Vec::with_capacity(n);
+        let mut entity_ids = Vec::with_capacity(n);
+        let mut task_ids = Vec::with_capacity(n);
+        let mut task_types = Vec::with_capacity(n);
+        let mut passed_flags = Vec::with_capacity(n);
+        let mut values = Vec::with_capacity(n);
+        let mut field_paths = Vec::with_capacity(n);
+        let mut operators = Vec::with_capacity(n);
+        let mut expected_jsons = Vec::with_capacity(n);
+        let mut actual_jsons = Vec::with_capacity(n);
+        let mut messages = Vec::with_capacity(n);
+
+        for r in records {
+            created_ats.push(r.created_at);
+            record_uids.push(&r.record_uid);
+            entity_ids.push(entity_id);
+            task_ids.push(&r.task_id);
+            task_types.push(r.task_type.as_str());
+            passed_flags.push(r.passed);
+            values.push(r.value);
+            field_paths.push(r.field_path.as_deref());
+            operators.push(r.operator.as_str());
+            expected_jsons.push(Json(&r.expected));
+            actual_jsons.push(Json(&r.actual));
+            messages.push(&r.message);
+        }
+
+        let query = Queries::InsertGenAITaskResultsBatch.get_query();
 
         sqlx::query(query)
-            .bind(created_ats)
-            .bind(record_uids)
-            .bind(entity_ids)
-            .bind(metrics)
-            .bind(values)
+            .bind(&created_ats)
+            .bind(&record_uids)
+            .bind(&entity_ids)
+            .bind(&task_ids)
+            .bind(&task_types)
+            .bind(&passed_flags)
+            .bind(&values)
+            .bind(&field_paths)
+            .bind(&operators)
+            .bind(&expected_jsons)
+            .bind(&actual_jsons)
+            .bind(&messages)
             .execute(pool)
             .await
             .map_err(SqlError::SqlxError)

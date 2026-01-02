@@ -12,7 +12,7 @@ use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::ToDriftRecords;
-use scouter_types::{BoxedGenAIDriftRecord, ServerRecords, StorageType};
+use scouter_types::{BoxedGenAIEventRecord, ServerRecords, StorageType};
 use std::sync::Arc;
 
 pub struct GenAIEventDataFrame {
@@ -60,7 +60,7 @@ impl ParquetFrame for GenAIEventDataFrame {
     }
 
     fn table_name(&self) -> String {
-        BinnedTableName::GenAIDrift.to_string()
+        BinnedTableName::GenAIEvent.to_string()
     }
 }
 
@@ -107,7 +107,7 @@ impl GenAIEventDataFrame {
 
     fn build_batch(
         &self,
-        records: Vec<&BoxedGenAIDriftRecord>,
+        records: Vec<&BoxedGenAIEventRecord>,
     ) -> Result<RecordBatch, DataFrameError> {
         let id_array =
             arrow_array::Int64Array::from_iter_values(records.iter().map(|r| r.record.id));

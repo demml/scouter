@@ -4,7 +4,7 @@ use crate::error::{ContractError, TypeError};
 use crate::sql::{TraceListItem, TraceMetricBucket, TraceSpan};
 use crate::Alert;
 use crate::{
-    CustomInterval, DriftProfile, GenAIDriftRecord, Status, Tag, TagRecord, TraceBaggageRecord,
+    CustomInterval, DriftProfile, GenAIEventRecord, Status, Tag, TagRecord, TraceBaggageRecord,
 };
 use crate::{DriftType, PyHelperFuncs, TimeInterval};
 use chrono::{DateTime, Utc};
@@ -545,7 +545,7 @@ pub struct UpdateAlertResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct GenAIDriftRecordPaginationRequest {
+pub struct GenAIEventRecordPaginationRequest {
     pub service_info: ServiceInfo,
     pub status: Option<Status>,
     pub limit: Option<i32>,
@@ -557,8 +557,8 @@ pub struct GenAIDriftRecordPaginationRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct GenAIDriftRecordPaginationResponse {
-    pub items: Vec<GenAIDriftRecord>,
+pub struct GenAIEventRecordPaginationResponse {
+    pub items: Vec<GenAIEventRecord>,
     pub has_next: bool,
     pub next_cursor: Option<RecordCursor>,
     pub has_previous: bool,

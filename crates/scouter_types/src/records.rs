@@ -2,16 +2,13 @@ use crate::error::RecordError;
 use crate::genai::{ComparisonOperator, EvaluationTaskType};
 use crate::trace::TraceServerRecord;
 use crate::DriftType;
-use crate::PyHelperFuncs;
+
 use crate::Status;
 use crate::TagRecord;
 use chrono::DateTime;
 use chrono::Utc;
-use potato_head::{create_uuid7, PyHelperFuncs};
+use potato_head::PyHelperFuncs;
 use pyo3::prelude::*;
-use pyo3::prelude::*;
-use pyo3::IntoPyObjectExt;
-use pyo3::IntoPyObjectExt;
 use pythonize::pythonize;
 use scouter_macro::impl_mask_entity_id;
 use serde::{Deserialize, Serialize};
@@ -174,7 +171,7 @@ impl PsiRecord {
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[cfg_attr(feature = "server", derive(sqlx::FromRow))]
-pub struct GenAIDriftRecord {
+pub struct GenAIEventRecord {
     #[pyo3(get)]
     pub created_at: chrono::DateTime<Utc>,
 
@@ -207,7 +204,7 @@ pub struct GenAIDriftRecord {
 }
 
 #[pymethods]
-impl GenAIDriftRecord {
+impl GenAIEventRecord {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         PyHelperFuncs::__str__(self)
@@ -223,7 +220,7 @@ impl GenAIDriftRecord {
     }
 }
 
-impl GenAIDriftRecord {
+impl GenAIEventRecord {
     #[allow(clippy::too_many_arguments)]
     pub fn new_rs(
         prompt: Option<Value>,
@@ -259,12 +256,12 @@ impl GenAIDriftRecord {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct BoxedGenAIDriftRecord {
-    pub record: Box<GenAIDriftRecord>,
+pub struct BoxedGenAIEventRecord {
+    pub record: Box<GenAIEventRecord>,
 }
 
-impl BoxedGenAIDriftRecord {
-    pub fn new(record: GenAIDriftRecord) -> Self {
+impl BoxedGenAIEventRecord {
+    pub fn new(record: GenAIEventRecord) -> Self {
         Self {
             record: Box::new(record),
         }
@@ -600,7 +597,7 @@ pub enum ServerRecord {
     Psi(PsiRecord),
     Custom(CustomMetricRecord),
     Observability(ObservabilityMetrics),
-    GenAIDrift(BoxedGenAIDriftRecord),
+    GenAIEvent(BoxedGenAIEventRecord),
     GenAITaskRecord(GenAIEvalTaskResultRecord),
     GenAIWorkflowRecord(GenAIEvalWorkflowRecord),
 }
@@ -631,8 +628,8 @@ impl ServerRecord {
                 Ok(ServerRecord::Observability(observability_record))
             }
             RecordType::GenAIEvent => {
-                let genai_event_record = record.extract::<GenAIDriftRecord>()?;
-                Ok(ServerRecord::GenAIDrift(BoxedGenAIDriftRecord::new(
+                let genai_event_record = record.extract::<GenAIEventRecord>()?;
+                Ok(ServerRecord::GenAIEvent(BoxedGenAIEventRecord::new(
                     genai_event_record,
                 )))
             }
@@ -650,7 +647,7 @@ impl ServerRecord {
             ServerRecord::Observability(record) => {
                 Ok(PyHelperFuncs::to_bound_py_object(py, record)?)
             }
-            ServerRecord::GenAIDrift(record) => Ok(PyHelperFuncs::to_bound_py_object(py, record)?),
+            ServerRecord::GenAIEvent(record) => Ok(PyHelperFuncs::to_bound_py_object(py, record)?),
             ServerRecord::GenAITaskRecord(record) => {
                 Ok(PyHelperFuncs::to_bound_py_object(py, record)?)
             }
@@ -667,7 +664,7 @@ impl ServerRecord {
             ServerRecord::Psi(record) => record.__str__(),
             ServerRecord::Custom(record) => record.__str__(),
             ServerRecord::Observability(record) => record.__str__(),
-            ServerRecord::GenAIDrift(record) => record.record.__str__(),
+            ServerRecord::GenAIEvent(record) => record.record.__str__(),
             ServerRecord::GenAITaskRecord(record) => record.__str__(),
             ServerRecord::GenAIWorkflowRecord(record) => record.__str__(),
         }
@@ -679,7 +676,7 @@ impl ServerRecord {
             ServerRecord::Psi(_) => RecordType::Psi,
             ServerRecord::Custom(_) => RecordType::Custom,
             ServerRecord::Observability(_) => RecordType::Observability,
-            ServerRecord::GenAIDrift(_) => RecordType::GenAIEvent,
+            ServerRecord::GenAIEvent(_) => RecordType::GenAIEvent,
             ServerRecord::GenAITaskRecord(_) => RecordType::GenAITask,
             ServerRecord::GenAIWorkflowRecord(_) => RecordType::GenAIWorkflow,
         }
@@ -775,7 +772,7 @@ impl ServerRecords {
                 ServerRecord::Psi(inner) => Ok(&inner.uid),
                 ServerRecord::Custom(inner) => Ok(&inner.uid),
                 ServerRecord::Observability(inner) => Ok(&inner.uid),
-                ServerRecord::GenAIDrift(inner) => Ok(&inner.record.entity_uid),
+                ServerRecord::GenAIEvent(inner) => Ok(&inner.record.entity_uid),
                 _ => Err(RecordError::InvalidDriftTypeError),
             }
         } else {
@@ -807,9 +804,9 @@ impl IntoServerRecord for CustomMetricRecord {
     }
 }
 
-impl IntoServerRecord for GenAIDriftRecord {
+impl IntoServerRecord for GenAIEventRecord {
     fn into_server_record(self) -> ServerRecord {
-        ServerRecord::GenAIDrift(BoxedGenAIDriftRecord::new(self))
+        ServerRecord::GenAIEvent(BoxedGenAIEventRecord::new(self))
     }
 }
 
@@ -830,7 +827,7 @@ pub trait ToDriftRecords {
     fn to_observability_drift_records(&self) -> Result<Vec<&ObservabilityMetrics>, RecordError>;
     fn to_psi_drift_records(&self) -> Result<Vec<&PsiRecord>, RecordError>;
     fn to_custom_metric_drift_records(&self) -> Result<Vec<&CustomMetricRecord>, RecordError>;
-    fn to_genai_event_records(&self) -> Result<Vec<&GenAIDriftRecord>, RecordError>;
+    fn to_genai_event_records(&self) -> Result<Vec<&BoxedGenAIEventRecord>, RecordError>;
     fn to_genai_workflow_records(&self) -> Result<Vec<&GenAIEvalWorkflowRecord>, RecordError>;
     fn to_genai_task_records(&self) -> Result<Vec<&GenAIEvalTaskResultRecord>, RecordError>;
 }
@@ -864,22 +861,22 @@ impl ToDriftRecords for ServerRecords {
         })
     }
 
-    fn to_genai_event_records(&self) -> Result<Vec<&GenAIDriftRecord>, RecordError> {
+    fn to_genai_event_records(&self) -> Result<Vec<&BoxedGenAIEventRecord>, RecordError> {
         extract_records(self, |record| match record {
-            ServerRecord::GenAIDrift(inner) => Some(inner.record.as_ref()),
+            ServerRecord::GenAIEvent(inner) => Some(inner),
             _ => None,
         })
     }
 
     fn to_genai_workflow_records(&self) -> Result<Vec<&GenAIEvalWorkflowRecord>, RecordError> {
-        extract_records(&self.records, |record| match record {
+        extract_records(self, |record| match record {
             ServerRecord::GenAIWorkflowRecord(inner) => Some(inner),
             _ => None,
         })
     }
 
     fn to_genai_task_records(&self) -> Result<Vec<&GenAIEvalTaskResultRecord>, RecordError> {
-        extract_records(&self.records, |record| match record {
+        extract_records(self, |record| match record {
             ServerRecord::GenAITaskRecord(inner) => Some(inner),
             _ => None,
         })
@@ -963,7 +960,7 @@ impl MessageRecord {
 
 impl_mask_entity_id!(
     crate::ScouterRecordExt =>
-    GenAIDriftRecord,
+    GenAIEventRecord,
     SpcRecord,
     PsiRecord,
     CustomMetricRecord,

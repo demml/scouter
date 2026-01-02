@@ -35,10 +35,10 @@ impl GenAIPoller {
         debug!("Processing workflow");
 
         match GenAIEvaluator::process_drift_record(record, profile).await {
-            Ok((metrics, score_map, workflow_duration)) => {
+            Ok(assertion_results) => {
                 PostgresClient::insert_genai_metric_values_batch(
                     &self.db_pool,
-                    &metrics.iter().collect::<Vec<&GenAIMetricRecord>>(), // this is going to removed in future refactor
+                    &assertion_results, // this is going to removed in future refactor
                     &record.entity_id,
                 )
                 .await

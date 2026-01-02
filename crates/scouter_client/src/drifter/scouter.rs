@@ -7,7 +7,7 @@ use pyo3::types::PyList;
 use pyo3::IntoPyObjectExt;
 use scouter_drift::error::DriftError;
 use scouter_drift::spc::SpcDriftMap;
-use scouter_types::genai::{GenAIDriftMap, GenAIDriftMetric};
+use scouter_types::genai::{AssertionTask, GenAIDriftMap, GenAIDriftMetric, LLMJudgeTask};
 use scouter_types::spc::SpcDriftProfile;
 use scouter_types::GenAIRecord;
 use scouter_types::{
@@ -271,15 +271,15 @@ impl PyDrifter {
 
     // Specific method for creating GenAI drift profiles
     // This is to avoid confusion with the other drifters
-    #[pyo3(signature = (config, metrics, workflow=None))]
+    #[pyo3(signature = (config, assertions=None, llm_judge_tasks=None))]
     pub fn create_genai_drift_profile<'py>(
         &mut self,
         py: Python<'py>,
         config: GenAIDriftConfig,
-        metrics: Vec<GenAIDriftMetric>,
-        workflow: Option<Bound<'py, PyAny>>,
+        assertions: Option<Vec<AssertionTask>>,
+        llm_judge_tasks: Option<Vec<LLMJudgeTask>>,
     ) -> Result<Bound<'py, PyAny>, DriftError> {
-        let profile = GenAIEvalProfile::new(config, metrics, workflow)?;
+        let profile = GenAIEvalProfile::new(config, assertions, llm_judge_tasks)?;
         Ok(profile.into_bound_py_any(py)?)
     }
 

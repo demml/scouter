@@ -58,7 +58,7 @@ GROUP BY metric;"#,
     )
 }
 
-pub fn get_binned_genai_metric_values_query(
+pub fn get_binned_genai_task_values_query(
     bin: &f64,
     start_time: &DateTime<Utc>,
     end_time: &DateTime<Utc>,
@@ -68,9 +68,9 @@ pub fn get_binned_genai_metric_values_query(
         r#"WITH subquery1 AS (
     SELECT
         date_bin(INTERVAL '{} minute', created_at, TIMESTAMP '1970-01-01') as created_at,
-        metric,
+        task_id as metric,
         value
-    FROM binned_genai_metric
+    FROM binned_genai_task
     WHERE
         1=1
         AND created_at between TIMESTAMP '{}' AND TIMESTAMP '{}'
@@ -103,6 +103,59 @@ subquery3 AS (
 
 SELECT
     metric,
+    array_agg(created_at) as created_at,
+    array_agg(stats) as stats
+FROM subquery3
+GROUP BY metric;"#,
+        bin,
+        start_time.to_rfc3339(),
+        end_time.to_rfc3339(),
+        entity_id
+    )
+}
+
+pub fn get_binned_genai_workflow_values_query(
+    bin: &f64,
+    start_time: &DateTime<Utc>,
+    end_time: &DateTime<Utc>,
+    entity_id: &i32,
+) -> String {
+    format!(
+        r#"WITH subquery1 AS (
+    SELECT
+        date_bin(INTERVAL '{} minute', created_at, TIMESTAMP '1970-01-01') as created_at,
+        value
+    FROM binned_genai_workflow
+    WHERE
+        1=1
+        AND created_at between TIMESTAMP '{}' AND TIMESTAMP '{}'
+        AND entity_id = {}
+    ),
+
+subquery2 AS (
+    SELECT
+        created_at,
+        avg(value) as average,
+        stddev(value) as standard_dev
+    FROM subquery1
+    GROUP BY
+        created_at,
+        metric
+),
+
+subquery3 AS (
+    SELECT
+        created_at,
+        struct(
+            average as avg,
+            average - COALESCE(standard_dev, 0) as lower_bound,
+            average + COALESCE(standard_dev, 0) as upper_bound
+        ) as stats
+    FROM subquery2
+)
+
+SELECT
+    'workflow_metric' as metric,
     array_agg(created_at) as created_at,
     array_agg(stats) as stats
 FROM subquery3

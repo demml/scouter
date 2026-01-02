@@ -45,7 +45,7 @@ const INSERT_GENAI_TASK_RESULTS_BATCH: &str =
     include_str!("scripts/genai/insert_genai_task_results.sql");
 const INSERT_GENAI_WORKFLOW_RESULT: &str =
     include_str!("scripts/genai/insert_genai_workflow_result.sql");
-const INSERT_GENAI_DRIFT_RECORD: &str = include_str!("scripts/genai/insert_genai_event_record.sql");
+const INSERT_GENAI_EVENT_RECORD: &str = include_str!("scripts/genai/insert_genai_event_record.sql");
 
 // genai query
 const GET_GENAI_DRIFT_RECORDS: &str = include_str!("scripts/genai/get_genai_event_records.sql");
@@ -184,24 +184,31 @@ pub enum Queries {
     DeleteUser,
     UpdateAlertStatus,
 
-    // genai
-    GetGenAIMetricValues,
-    GetGenAIDriftRecords,
-    GetPaginatedGenAIDriftRecords,
-    GetBinnedMetrics,
+    // genai -binned
+    GetGenAIWorkflowBinnedMetrics,
+
+    // genai - query
+    GetGenAIEventRecords,
+    GetPendingGenAIEventTask,
+    GetPaginatedGenAIEventRecords,
+
+    // genai - insert
     InsertGenAITaskResultsBatch,
     InsertGenAIWorkflowResult,
-    InsertGenAIDriftRecord,
-    GetPendingGenAIDriftTask,
-    UpdateGenAIDriftTask,
+    InsertGenAIEventRecord,
 
-    GetGenAIDriftRecordEntitiesForArchive,
-    GetGenAIMetricEntitiesForArchive,
-    GetGenAIDriftRecordDataForArchive,
-    GetGenAIMetricDataForArchive,
+    // genai - update
+    UpdateGenAIEventTask,
 
-    UpdateGenAIMetricEntities,
-    UpdateGenAIDriftEntities,
+    // Genai - archive
+    GetGenAIEventRecordEntitiesForArchive,
+    GetGenAIEventRecordDataForArchive,
+    GetGenAITaskResultDataForArchive,
+    GetGenAIWorkflowResultDataForArchive,
+
+    UpdateGenAIEventEntities,
+    UpdateGenAITaskEntities,
+    UpdateGenAIWorkflowEntities,
 
     // profile
     GetProfileVersions,
@@ -274,17 +281,16 @@ impl Queries {
             //genai
             Queries::GetGenAIMetricValues => GET_GENAI_METRIC_VALUES,
             Queries::GetBinnedMetrics => GET_BINNED_GENAI_METRIC_VALUES,
-            Queries::InsertGenAIMetricValuesBatch => INSERT_GENAI_METRIC_VALUES_BATCH,
-            Queries::InsertGenAIDriftRecord => INSERT_GENAI_DRIFT_RECORD,
+            Queries::InsertGenAITaskResultsBatch => INSERT_GENAI_TASK_RESULTS_BATCH,
+            Queries::InsertGenAIWorkflowResult => INSERT_GENAI_WORKFLOW_RESULT,
+            Queries::InsertGenAIEventRecord => INSERT_GENAI_EVENT_RECORD,
 
             Queries::GetGenAIDriftRecords => GET_GENAI_DRIFT_RECORDS,
             Queries::GetPaginatedGenAIDriftRecords => GET_PAGINATED_GENAI_DRIFT_RECORDS,
             Queries::GetPendingGenAIDriftTask => GET_PENDING_GENAI_DRIFT_TASK,
             Queries::GetGenAIDriftRecordEntitiesForArchive => GET_GENAI_DRIFT_RECORD_ENTITIES,
-            Queries::GetGenAIMetricEntitiesForArchive => GET_GENAI_METRIC_ENTITIES,
             Queries::GetGenAIDriftRecordDataForArchive => GET_GENAI_DRIFT_RECORD_DATA_FOR_ARCHIVE,
             Queries::GetGenAIMetricDataForArchive => GET_GENAI_METRIC_DATA_FOR_ARCHIVE,
-            Queries::UpdateGenAIMetricEntities => UPDATE_GENAI_METRIC_ENTITIES,
             Queries::UpdateGenAIDriftEntities => UPDATE_GENAI_DRIFT_ENTITIES,
 
             Queries::InsertCustomMetricValuesBatch => INSERT_CUSTOM_METRIC_VALUES_BATCH,

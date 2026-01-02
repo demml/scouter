@@ -333,7 +333,7 @@ impl TestHelper {
                     "input": format!("input{i}"),
                     "response": format!("output{i}"),
                 });
-                let record = GenAIDriftRecord {
+                let record = GenAIEventRecord {
                     created_at: Utc::now() - chrono::Duration::days(offset),
                     entity_uid: uid.to_string(),
                     prompt: Some(prompt.model_dump_value()),

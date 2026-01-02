@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use pyo3::prelude::*;
 use scouter_drift::{error::DriftError, GenAIEvaluator};
 use scouter_state::app_state;
@@ -20,21 +22,22 @@ impl ClientGenAIDrifter {
     pub fn create_drift_profile(
         &mut self,
         config: GenAIDriftConfig,
-        metrics: Vec<GenAIDriftMetric>,
-        workflow: Option<Bound<'_, PyAny>>,
+        assertions: Option<Vec<AssertionTask>>,
+        llm_judge_tasks: Option<Vec<LLMJudgeTask>>,
     ) -> Result<GenAIEvalProfile, DriftError> {
-        let profile = GenAIEvalProfile::new(config, metrics, workflow)?;
+        let profile = GenAIEvalProfile::new(config, assertions, llm_judge_tasks)?;
         Ok(profile)
     }
 
     pub async fn compute_drift_single(
         record: &GenAIRecord,
         profile: &GenAIEvalProfile,
-    ) -> Result<Vec<GenAIMetricRecord>, DriftError> {
+    ) -> Result<(), DriftError> {
         let task_record = record.to_task_record(&profile.config.uid);
-        let (metrics, _score, _workflow_duration) =
-            GenAIEvaluator::process_drift_record(&task_record, profile).await?;
-        Ok(metrics)
+        let profile = Arc::new(profile.clone());
+        let assertion_results =
+            GenAIEvaluator::process_drift_record(&task_record, &profile).await?;
+        Ok(())
     }
 
     pub fn compute_drift(

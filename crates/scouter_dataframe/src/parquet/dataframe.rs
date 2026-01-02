@@ -1,6 +1,6 @@
 use crate::error::DataFrameError;
 use crate::parquet::custom::CustomMetricDataFrame;
-use crate::parquet::genai::{GenAIEventDataFrame, GenAIMetricDataFrame};
+use crate::parquet::genai::{GenAIEventDataFrame, GenAITaskDataFrame, GenAIWorkflowDataFrame};
 use crate::parquet::psi::PsiDataFrame;
 use crate::parquet::spc::SpcDataFrame;
 use crate::parquet::traits::ParquetFrame;
@@ -15,7 +15,8 @@ pub enum ParquetDataFrame {
     CustomMetric(CustomMetricDataFrame),
     Psi(PsiDataFrame),
     Spc(SpcDataFrame),
-    GenAIMetric(GenAIMetricDataFrame),
+    GenAITask(GenAITaskDataFrame),
+    GenAIWorkflow(GenAIWorkflowDataFrame),
     GenAIEvent(GenAIEventDataFrame),
 }
 
@@ -30,8 +31,11 @@ impl ParquetDataFrame {
             )?)),
             RecordType::Psi => Ok(ParquetDataFrame::Psi(PsiDataFrame::new(storage_settings)?)),
             RecordType::Spc => Ok(ParquetDataFrame::Spc(SpcDataFrame::new(storage_settings)?)),
-            RecordType::GenAIMetric => Ok(ParquetDataFrame::GenAIMetric(
-                GenAIMetricDataFrame::new(storage_settings)?,
+            RecordType::GenAITask => Ok(ParquetDataFrame::GenAITask(GenAITaskDataFrame::new(
+                storage_settings,
+            )?)),
+            RecordType::GenAIWorkflow => Ok(ParquetDataFrame::GenAIWorkflow(
+                GenAIWorkflowDataFrame::new(storage_settings)?,
             )),
             RecordType::GenAIEvent => Ok(ParquetDataFrame::GenAIEvent(GenAIEventDataFrame::new(
                 storage_settings,
@@ -62,7 +66,8 @@ impl ParquetDataFrame {
             ParquetDataFrame::CustomMetric(df) => df.write_parquet(rpath, records).await,
             ParquetDataFrame::Psi(df) => df.write_parquet(rpath, records).await,
             ParquetDataFrame::Spc(df) => df.write_parquet(rpath, records).await,
-            ParquetDataFrame::GenAIMetric(df) => df.write_parquet(rpath, records).await,
+            ParquetDataFrame::GenAITask(df) => df.write_parquet(rpath, records).await,
+            ParquetDataFrame::GenAIWorkflow(df) => df.write_parquet(rpath, records).await,
             ParquetDataFrame::GenAIEvent(df) => df.write_parquet(rpath, records).await,
         }
     }
@@ -72,7 +77,8 @@ impl ParquetDataFrame {
             ParquetDataFrame::CustomMetric(df) => df.storage_root(),
             ParquetDataFrame::Psi(df) => df.storage_root(),
             ParquetDataFrame::Spc(df) => df.storage_root(),
-            ParquetDataFrame::GenAIMetric(df) => df.storage_root(),
+            ParquetDataFrame::GenAITask(df) => df.storage_root(),
+            ParquetDataFrame::GenAIWorkflow(df) => df.storage_root(),
             ParquetDataFrame::GenAIEvent(df) => df.storage_root(),
         }
     }
@@ -83,7 +89,8 @@ impl ParquetDataFrame {
             ParquetDataFrame::CustomMetric(df) => df.object_store.clone(),
             ParquetDataFrame::Psi(df) => df.object_store.clone(),
             ParquetDataFrame::Spc(df) => df.object_store.clone(),
-            ParquetDataFrame::GenAIMetric(df) => df.object_store.clone(),
+            ParquetDataFrame::GenAITask(df) => df.object_store.clone(),
+            ParquetDataFrame::GenAIWorkflow(df) => df.object_store.clone(),
             ParquetDataFrame::GenAIEvent(df) => df.object_store.clone(),
         }
     }
@@ -123,7 +130,11 @@ impl ParquetDataFrame {
                     .await
             }
 
-            ParquetDataFrame::GenAIMetric(df) => {
+            ParquetDataFrame::GenAITask(df) => {
+                df.get_binned_metrics(read_path, bin, start_time, end_time, entity_id)
+                    .await
+            }
+            ParquetDataFrame::GenAIWorkflow(df) => {
                 df.get_binned_metrics(read_path, bin, start_time, end_time, entity_id)
                     .await
             }
@@ -141,7 +152,10 @@ impl ParquetDataFrame {
             }
             ParquetDataFrame::Psi(df) => df.object_store.storage_settings.storage_type.clone(),
             ParquetDataFrame::Spc(df) => df.object_store.storage_settings.storage_type.clone(),
-            ParquetDataFrame::GenAIMetric(df) => {
+            ParquetDataFrame::GenAITask(df) => {
+                df.object_store.storage_settings.storage_type.clone()
+            }
+            ParquetDataFrame::GenAIWorkflow(df) => {
                 df.object_store.storage_settings.storage_type.clone()
             }
             ParquetDataFrame::GenAIEvent(df) => {
@@ -161,6 +175,7 @@ mod tests {
     use super::*;
     use crate::parquet::psi::dataframe_to_psi_drift_features;
     use crate::parquet::spc::dataframe_to_spc_drift_features;
+    use crate::parquet::types::BinnedTableName;
     use crate::parquet::utils::BinnedMetricsExtractor;
     use chrono::Utc;
     use object_store::path::Path;
@@ -168,10 +183,10 @@ mod tests {
     use rand::Rng;
     use scouter_settings::ObjectStorageSettings;
     use scouter_types::{
-        BoxedGenAIDriftRecord, GenAIDriftRecord, PsiRecord, ServerRecord, ServerRecords, SpcRecord,
+        BoxedGenAIEventRecord, GenAIEventRecord, PsiRecord, ServerRecord, ServerRecords, SpcRecord,
         Status,
     };
-    use scouter_types::{CustomMetricRecord, GenAIMetricRecord};
+    use scouter_types::{CustomMetricRecord, GenAIEvalTaskResultRecord, GenAIEvalWorkflowRecord};
     use serde_json::Map;
     use serde_json::Value;
 
@@ -196,7 +211,7 @@ mod tests {
         // create records
         for i in 0..3 {
             for j in 0..50 {
-                let record = GenAIDriftRecord {
+                let record = GenAIEventRecord {
                     created_at: Utc::now() + chrono::Duration::hours(i),
                     entity_id: Some(entity_id),
                     prompt: Some(prompt.model_dump_value()),
@@ -212,14 +227,14 @@ mod tests {
                     entity_uid: format!("entity_uid_{entity_id}"),
                 };
 
-                let boxed_record = BoxedGenAIDriftRecord::new(record);
-                batch.push(ServerRecord::GenAIDrift(boxed_record));
+                let boxed_record = BoxedGenAIEventRecord::new(record);
+                batch.push(ServerRecord::GenAIEvent(boxed_record));
             }
         }
 
         let records = ServerRecords::new(batch);
-        let rpath = "genai_drift";
-        df.write_parquet(rpath, records.clone()).await.unwrap();
+        let rpath = BinnedTableName::GenAIEvent.to_string();
+        df.write_parquet(&rpath, records.clone()).await.unwrap();
 
         // get canonical path
         let canonical_path = df.storage_root();
@@ -247,10 +262,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_write_genai_drift_metric_dataframe_local() {
+    async fn test_write_genai_task_dataframe_local() {
         cleanup();
         let storage_settings = ObjectStorageSettings::default();
-        let df = ParquetDataFrame::new(&storage_settings, &RecordType::GenAIMetric).unwrap();
+        let df = ParquetDataFrame::new(&storage_settings, &RecordType::GenAITask).unwrap();
         let mut batch = Vec::new();
         let start_utc = Utc::now();
         let end_utc_for_test = start_utc + chrono::Duration::hours(3);
@@ -259,13 +274,19 @@ mod tests {
         // create records
         for i in 0..3 {
             for j in 0..50 {
-                let record = ServerRecord::GenAIMetric(GenAIMetricRecord {
-                    uid: format!("record_uid_{i}_{j}"),
+                let record = ServerRecord::GenAITaskRecord(GenAIEvalTaskResultRecord {
+                    record_uid: format!("record_uid_{i}_{j}"),
                     created_at: Utc::now() + chrono::Duration::hours(i),
-                    metric: format!("metric{i}"),
+                    entity_id: entity_id,
+                    task_id: format!("task{i}"),
+                    task_type: scouter_types::genai::EvaluationTaskType::Assertion,
+                    passed: true,
                     value: j as f64,
-                    entity_id: Some(entity_id),
-                    entity_uid: format!("entity_uid_{entity_id}"),
+                    field_path: Some(format!("field.path.{i}")),
+                    operator: scouter_types::genai::ComparisonOperator::Contains,
+                    expected: Value::Null,
+                    actual: Value::Null,
+                    message: "All good".to_string(),
                 });
 
                 batch.push(record);
@@ -273,8 +294,8 @@ mod tests {
         }
 
         let records = ServerRecords::new(batch);
-        let rpath = "genai_metric";
-        df.write_parquet(rpath, records.clone()).await.unwrap();
+        let rpath = BinnedTableName::GenAITask.to_string();
+        df.write_parquet(&rpath, records.clone()).await.unwrap();
 
         // get canonical path
         let canonical_path = df.storage_root();
@@ -285,10 +306,83 @@ mod tests {
         assert_eq!(files.len(), 3);
 
         // attempt to read the file
-        let new_df = ParquetDataFrame::new(&storage_settings, &RecordType::GenAIMetric).unwrap();
+        let new_df = ParquetDataFrame::new(&storage_settings, &RecordType::GenAITask).unwrap();
 
         let read_df = new_df
-            .get_binned_metrics(rpath, &0.01, &start_utc, &end_utc_for_test, &entity_id)
+            .get_binned_metrics(&rpath, &0.01, &start_utc, &end_utc_for_test, &entity_id)
+            .await
+            .unwrap();
+
+        //read_df.show().await.unwrap();
+
+        let binned_metrics = BinnedMetricsExtractor::dataframe_to_binned_metrics(read_df)
+            .await
+            .unwrap();
+
+        assert_eq!(binned_metrics.metrics.len(), 3);
+
+        //// delete the file
+        for file in files.iter() {
+            let path = Path::from(file.to_string());
+            df.storage_client()
+                .delete(&path)
+                .await
+                .expect("Failed to delete file");
+        }
+        //
+        //// Check if the file is deleted
+        let files = df.storage_client().list(Some(&data_path)).await.unwrap();
+        assert_eq!(files.len(), 0);
+
+        // cleanup
+        cleanup();
+    }
+
+    #[tokio::test]
+    async fn test_write_genai_workflow_dataframe_local() {
+        cleanup();
+        let storage_settings = ObjectStorageSettings::default();
+        let df = ParquetDataFrame::new(&storage_settings, &RecordType::GenAITask).unwrap();
+        let mut batch = Vec::new();
+        let start_utc = Utc::now();
+        let end_utc_for_test = start_utc + chrono::Duration::hours(3);
+        let entity_id = rand::rng().random_range(0..100);
+
+        // create records
+        for i in 0..3 {
+            for j in 0..50 {
+                let record = ServerRecord::GenAIWorkflowRecord(GenAIEvalWorkflowRecord {
+                    record_uid: format!("record_uid_{i}_{j}"),
+                    created_at: Utc::now() + chrono::Duration::hours(i),
+                    entity_id: entity_id,
+                    total_tasks: 10,
+                    passed_tasks: 8,
+                    failed_tasks: 2,
+                    pass_rate: 0.8,
+                    duration_ms: 1500,
+                });
+
+                batch.push(record);
+            }
+        }
+
+        let records = ServerRecords::new(batch);
+        let rpath = BinnedTableName::GenAIWorkflow.to_string();
+        df.write_parquet(&rpath, records.clone()).await.unwrap();
+
+        // get canonical path
+        let canonical_path = df.storage_root();
+        let data_path = object_store::path::Path::from(canonical_path);
+
+        // Check if the file exists
+        let files = df.storage_client().list(Some(&data_path)).await.unwrap();
+        assert_eq!(files.len(), 3);
+
+        // attempt to read the file
+        let new_df = ParquetDataFrame::new(&storage_settings, &RecordType::GenAIWorkflow).unwrap();
+
+        let read_df = new_df
+            .get_binned_metrics(&rpath, &0.01, &start_utc, &end_utc_for_test, &entity_id)
             .await
             .unwrap();
 
