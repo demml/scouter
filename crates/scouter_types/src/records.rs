@@ -8,6 +8,7 @@ use chrono::DateTime;
 use chrono::Utc;
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
+use scouter_macro::impl_mask_entity_id;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -232,6 +233,12 @@ impl GenAIDriftRecord {
             entity_uid,
             entity_id: None,
         }
+    }
+
+    // helper for masking sensitive data from the record when
+    // return to the user. Currently, only removes entity_id
+    pub fn mask_sensitive_data(&mut self) {
+        self.entity_id = None;
     }
 }
 
@@ -753,3 +760,12 @@ impl MessageRecord {
         }
     }
 }
+
+impl_mask_entity_id!(
+    crate::ScouterRecordExt =>
+    GenAIDriftRecord,
+    SpcRecord,
+    PsiRecord,
+    CustomMetricRecord,
+    GenAIMetricRecord,
+);

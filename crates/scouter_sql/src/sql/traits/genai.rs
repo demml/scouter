@@ -9,12 +9,12 @@ use scouter_dataframe::parquet::BinnedMetricsExtractor;
 use scouter_dataframe::parquet::ParquetDataFrame;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::contracts::DriftRequest;
-use scouter_types::BoxedLLMDriftRecord;
+use scouter_types::BoxedGenAIDriftRecord;
+use scouter_types::GenAITaskRecord;
 use scouter_types::{
     BinnedMetrics, GenAIDriftRecord, GenAIDriftRecordPaginationRequest,
     GenAIDriftRecordPaginationResponse, RecordCursor, RecordType,
 };
-use scouter_types::{GenAIDriftInternalRecord, GenAITaskRecord};
 use scouter_types::{GenAIMetricRecord, Status};
 use sqlx::types::Json;
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
@@ -108,8 +108,7 @@ pub trait GenAIDriftSqlLogic {
             query_string.push_str(&format!(" AND status = ${bind_count}"));
         }
 
-        let mut query =
-            sqlx::query_as::<_, GenAIDriftInternalRecord>(&query_string).bind(entity_id);
+        let mut query = sqlx::query_as::<_, GenAIDriftRecord>(&query_string).bind(entity_id);
 
         if let Some(datetime) = limit_datetime {
             query = query.bind(datetime);
@@ -121,7 +120,13 @@ pub trait GenAIDriftSqlLogic {
 
         let records = query.fetch_all(pool).await.map_err(SqlError::SqlxError)?;
 
-        Ok(records.into_iter().map(|r| r.to_public_record()).collect())
+        Ok(records
+            .into_iter()
+            .map(|mut r| {
+                r.mask_sensitive_data();
+                r
+            })
+            .collect())
     }
 
     /// Retrieves a paginated list of GenAI drift records with bidirectional cursor support

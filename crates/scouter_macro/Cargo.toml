@@ -1,0 +1,12 @@
+[package]
+name = "scouter-macro"
+version = { workspace = true }
+edition = { workspace = true }
+repository = { workspace = true }
+
+[lib]
+proc-macro = false
+
+
+[dependencies]
+thiserror = { workspace = true }

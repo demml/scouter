@@ -846,8 +846,8 @@ mod tests {
                         created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
                         uid: uid.to_string(),
                         feature: format!("feature{feature}"),
-                        bin_id: bin,
-                        bin_count: rand::rng().random_range(0..10),
+                        bin_id: bin as i32,
+                        bin_count: rand::rng().random_range(0..10) as i32,
                         entity_id: None,
                     };
 

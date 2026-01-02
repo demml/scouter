@@ -263,17 +263,6 @@ pub struct UpdateAlertResult {
     pub updated_at: DateTime<Utc>,
 }
 
-/// Converts a `PgRow` to a `BoxedLLMDriftServerRecord`
-/// Conversion is done by first converting the row to an `GenAIDriftInternalRecord`
-/// and then converting that to an `BoxedGenAIDriftInternalRecord`.
-pub fn genai_event_record_from_row(row: &PgRow) -> Result<BoxedGenAIDriftInternalRecord, SqlError> {
-    let record = GenAIDriftInternalRecord::from_row(row)?;
-
-    Ok(BoxedGenAIDriftInternalRecord {
-        record: Box::new(record),
-    })
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct VersionResult {
     pub created_at: DateTime<Utc>,
