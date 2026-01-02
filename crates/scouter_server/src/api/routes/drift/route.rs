@@ -12,13 +12,13 @@ use scouter_drift::psi::PsiDrifter;
 use scouter_settings::ScouterServerConfig;
 use scouter_sql::sql::{
     cache::entity_cache,
-    traits::{CustomMetricSqlLogic, LLMDriftSqlLogic, ProfileSqlLogic, SpcSqlLogic},
+    traits::{CustomMetricSqlLogic, GenAIDriftSqlLogic, ProfileSqlLogic, SpcSqlLogic},
 };
 use scouter_sql::PostgresClient;
 use scouter_types::{
     psi::{BinnedPsiFeatureMetrics, PsiDriftProfile},
     spc::SpcDriftFeatures,
-    BinnedMetrics, LLMDriftRecordPaginationRequest, LLMDriftRecordPaginationResponse,
+    BinnedMetrics, GenAIDriftRecordPaginationRequest, GenAIDriftRecordPaginationResponse,
     MessageRecord,
 };
 use scouter_types::{DriftRequest, ScouterResponse, ScouterServerError};
@@ -182,13 +182,13 @@ pub async fn get_custom_drift(
     }
 }
 
-/// This route is used to get the latest LLM drift records by page
+/// This route is used to get the latest GenAI drift records by page
 #[instrument(skip_all)]
-pub async fn get_llm_drift_records(
+pub async fn get_genai_event_records(
     State(data): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
-    Json(params): Json<LLMDriftRecordPaginationRequest>,
-) -> Result<Json<LLMDriftRecordPaginationResponse>, (StatusCode, Json<ScouterServerError>)> {
+    Json(params): Json<GenAIDriftRecordPaginationRequest>,
+) -> Result<Json<GenAIDriftRecordPaginationResponse>, (StatusCode, Json<ScouterServerError>)> {
     // validate time window
 
     if !perms.has_read_permission(&params.service_info.space) {
@@ -203,7 +203,7 @@ pub async fn get_llm_drift_records(
         .await?;
 
     let metrics =
-        PostgresClient::get_paginated_llm_drift_records(&data.db_pool, &params, &entity_id).await;
+        PostgresClient::get_paginated_genai_event_records(&data.db_pool, &params, &entity_id).await;
 
     match metrics {
         Ok(metrics) => Ok(Json(metrics)),
@@ -219,7 +219,7 @@ pub async fn get_llm_drift_records(
 }
 
 #[instrument(skip_all)]
-pub async fn get_llm_drift_metrics(
+pub async fn get_genai_drift_metrics(
     State(data): State<Arc<AppState>>,
     Query(params): Query<DriftRequest>,
     Extension(perms): Extension<UserPermissions>,
@@ -235,7 +235,7 @@ pub async fn get_llm_drift_metrics(
 
     let entity_id = data.get_entity_id_for_request(&params.uid).await?;
 
-    let metrics = PostgresClient::get_binned_llm_metric_values(
+    let metrics = PostgresClient::get_binned_genai_metric_values(
         &data.db_pool,
         &params,
         &data.config.database_settings.retention_period,
@@ -283,10 +283,13 @@ pub async fn get_drift_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
             .route(&format!("{prefix}/drift/spc"), get(get_spc_drift))
             .route(&format!("{prefix}/drift/custom"), get(get_custom_drift))
             .route(&format!("{prefix}/drift/psi"), get(get_psi_drift))
-            .route(&format!("{prefix}/drift/llm"), get(get_llm_drift_metrics))
             .route(
-                &format!("{prefix}/drift/llm/records"),
-                post(get_llm_drift_records),
+                &format!("{prefix}/drift/genai"),
+                get(get_genai_drift_metrics),
+            )
+            .route(
+                &format!("{prefix}/drift/genai/records"),
+                post(get_genai_event_records),
             )
     }));
 

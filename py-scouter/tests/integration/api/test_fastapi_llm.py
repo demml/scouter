@@ -7,23 +7,23 @@ from scouter.types import DriftType
 
 from tests.integration.api.conftest import ChatRequest
 
-from .conftest import create_and_register_llm_drift_profile, create_kafka_llm_app
+from .conftest import create_and_register_genai_drift_profile, create_kafka_genai_app
 
 
-def test_llm_api_kafka(kafka_scouter_openai_server):
+def test_genai_api_kafka(kafka_scouter_openai_server):
     random_number = np.random.randint(0, 10)
 
     # create the client
     scouter_client = ScouterClient()
 
     # create the drift profile
-    profile = create_and_register_llm_drift_profile(
+    profile = create_and_register_genai_drift_profile(
         client=scouter_client,
-        name=f"kafka_llm_test_{random_number}",
+        name=f"kafka_genai_test_{random_number}",
     )
     drift_path = profile.save_to_json()
 
-    app = create_kafka_llm_app(drift_path)
+    app = create_kafka_genai_app(drift_path)
     # Configure the TestClient
     with TestClient(app) as client:
         time.sleep(5)

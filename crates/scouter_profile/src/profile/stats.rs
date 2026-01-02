@@ -43,11 +43,11 @@ mod tests {
 
     use super::*;
     use ndarray::stack;
-    use ndarray_rand::rand::thread_rng;
+    use ndarray_rand::rand::rng;
     use ndarray_rand::rand_distr::{Distribution, Normal};
 
     fn generate_correlated_arrays(size: usize, correlation: f64) -> (Array1<f64>, Array1<f64>) {
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let normal = Normal::new(0.0, 1.0).unwrap();
 
         let x: Array1<f64> = Array1::from_iter((0..size).map(|_| normal.sample(&mut rng)));

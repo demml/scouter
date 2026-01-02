@@ -144,7 +144,7 @@ mod tests {
 
     #[test]
     fn test_feature_queue_new() {
-        let array = Array::random((1030, 3), Uniform::new(0., 10.));
+        let array = Array::random((1030, 3), Uniform::new(0., 10.).unwrap());
 
         let features = vec![
             "feature_1".to_string(),

@@ -1,6 +1,6 @@
 use crate::api::archive::DataArchiver;
 use crate::api::polling::drift_poller::BackgroundDriftManager;
-use crate::api::polling::llm_poller::BackgroundLLMDriftManager;
+use crate::api::polling::genai_poller::BackgroundGenAIDriftManager;
 use anyhow::{Context, Result as AnyhowResult};
 use flume::Sender;
 use password_auth::generate_hash;
@@ -97,9 +97,9 @@ impl ScouterSetupComponents {
             .await?;
         }
 
-        // If LLM is enabled, set up the LLM drift workers
-        if config.llm_enabled() {
-            Self::setup_background_llm_drift_workers(
+        // If GenAI is enabled, set up the GenAI drift workers
+        if config.genai_enabled() {
+            Self::setup_background_genai_drift_workers(
                 &db_pool,
                 &config.polling_settings,
                 tokio_shutdown_rx.clone(),
@@ -388,9 +388,9 @@ impl ScouterSetupComponents {
         Ok(())
     }
 
-    /// Helper to setup the background LLM drift worker
+    /// Helper to setup the background GenAI drift worker
     /// This worker will continually run and check if there are any drift records to process
-    /// and will run the LLM drift evaluation jobs
+    /// and will run the GenAI drift evaluation jobs
     ///
     /// Arguments:
     /// * `db_client` - The database client to use for the worker
@@ -401,14 +401,14 @@ impl ScouterSetupComponents {
     /// Returns:
     /// * `AnyhowResult<()>` - The result of the setup
     #[instrument(skip_all)]
-    async fn setup_background_llm_drift_workers(
+    async fn setup_background_genai_drift_workers(
         db_pool: &Pool<Postgres>,
         poll_settings: &PollingSettings,
 
         shutdown_rx: tokio::sync::watch::Receiver<()>,
     ) -> AnyhowResult<()> {
-        BackgroundLLMDriftManager::start_workers(db_pool, poll_settings, shutdown_rx).await?;
-        info!("✅ Started background llm workers");
+        BackgroundGenAIDriftManager::start_workers(db_pool, poll_settings, shutdown_rx).await?;
+        info!("✅ Started background genai workers");
 
         Ok(())
     }

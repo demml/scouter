@@ -4,8 +4,8 @@ pub enum BinnedTableName {
     CustomMetric,
     Psi,
     Spc,
-    LLMMetric,
-    LLMDrift,
+    GenAIMetric,
+    GenAIDrift,
 }
 
 impl Display for BinnedTableName {
@@ -14,8 +14,8 @@ impl Display for BinnedTableName {
             BinnedTableName::CustomMetric => write!(f, "binned_custom_metric"),
             BinnedTableName::Psi => write!(f, "binned_psi"),
             BinnedTableName::Spc => write!(f, "binned_spc"),
-            BinnedTableName::LLMMetric => write!(f, "binned_llm_metric"),
-            BinnedTableName::LLMDrift => write!(f, "binned_llm_drift"),
+            BinnedTableName::GenAIMetric => write!(f, "binned_genai_metric"),
+            BinnedTableName::GenAIDrift => write!(f, "binned_genai_drift"),
         }
     }
 }

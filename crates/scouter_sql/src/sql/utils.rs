@@ -1,9 +1,9 @@
 use crate::sql::error::SqlError;
-use crate::sql::schema::llm_drift_record_from_row;
+use crate::sql::schema::genai_event_record_from_row;
 use chrono::{DateTime, Utc};
 use scouter_types::{
-    CustomMetricInternalRecord, InternalServerRecord, InternalServerRecords,
-    LLMMetricInternalRecord, PsiInternalRecord, RecordType, SpcInternalRecord,
+    CustomMetricInternalRecord, GenAIMetricInternalRecord, InternalServerRecord,
+    InternalServerRecords, PsiInternalRecord, RecordType, SpcInternalRecord,
 };
 
 use sqlx::{postgres::PgRow, Row};
@@ -41,8 +41,8 @@ fn custom_record_from_row(row: &PgRow) -> Result<CustomMetricInternalRecord, Sql
     })
 }
 
-fn llm_drift_metric_from_row(row: &PgRow) -> Result<LLMMetricInternalRecord, SqlError> {
-    Ok(LLMMetricInternalRecord {
+fn genai_drift_metric_from_row(row: &PgRow) -> Result<GenAIMetricInternalRecord, SqlError> {
+    Ok(GenAIMetricInternalRecord {
         uid: row.try_get("uid")?,
         created_at: row.try_get("created_at")?,
         entity_id: row.try_get("entity_id")?,
@@ -72,15 +72,15 @@ pub fn pg_rows_to_server_records(
         RecordType::Spc => |row| Ok(InternalServerRecord::Spc(spc_record_from_row(row)?)),
         RecordType::Psi => |row| Ok(InternalServerRecord::Psi(psi_record_from_row(row)?)),
         RecordType::Custom => |row| Ok(InternalServerRecord::Custom(custom_record_from_row(row)?)),
-        RecordType::LLMDrift => |row| {
-            Ok(InternalServerRecord::LLMDrift(llm_drift_record_from_row(
-                row,
-            )?))
+        RecordType::GenAIEvent => |row| {
+            Ok(InternalServerRecord::GenAIDrift(
+                genai_event_record_from_row(row)?,
+            ))
         },
-        RecordType::LLMMetric => |row| {
-            Ok(InternalServerRecord::LLMMetric(llm_drift_metric_from_row(
-                row,
-            )?))
+        RecordType::GenAIMetric => |row| {
+            Ok(InternalServerRecord::GenAIMetric(
+                genai_drift_metric_from_row(row)?,
+            ))
         },
         _ => return Err(SqlError::InvalidRecordTypeError(record_type.to_string())),
     };

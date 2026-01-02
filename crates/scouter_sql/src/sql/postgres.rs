@@ -2,8 +2,9 @@ use crate::sql::cache::entity_cache;
 use crate::sql::cache::init_entity_cache;
 use crate::sql::error::SqlError;
 use crate::sql::traits::{
-    AlertSqlLogic, ArchiveSqlLogic, CustomMetricSqlLogic, LLMDriftSqlLogic, ObservabilitySqlLogic,
-    ProfileSqlLogic, PsiSqlLogic, SpcSqlLogic, TagSqlLogic, TraceSqlLogic, UserSqlLogic,
+    AlertSqlLogic, ArchiveSqlLogic, CustomMetricSqlLogic, GenAIDriftSqlLogic,
+    ObservabilitySqlLogic, ProfileSqlLogic, PsiSqlLogic, SpcSqlLogic, TagSqlLogic, TraceSqlLogic,
+    UserSqlLogic,
 };
 use scouter_settings::DatabaseSettings;
 use scouter_types::{RecordType, ServerRecords, TagRecord, ToDriftRecords, TraceServerRecord};
@@ -21,7 +22,7 @@ pub struct PostgresClient {}
 impl SpcSqlLogic for PostgresClient {}
 impl CustomMetricSqlLogic for PostgresClient {}
 impl PsiSqlLogic for PostgresClient {}
-impl LLMDriftSqlLogic for PostgresClient {}
+impl GenAIDriftSqlLogic for PostgresClient {}
 impl UserSqlLogic for PostgresClient {}
 impl ProfileSqlLogic for PostgresClient {}
 impl ObservabilitySqlLogic for PostgresClient {}
@@ -142,24 +143,24 @@ impl MessageHandler {
                 }
             }
 
-            RecordType::LLMDrift => {
-                debug!("LLM Drift record count: {:?}", records.len());
-                let records = records.to_llm_drift_records()?;
+            RecordType::GenAIEvent => {
+                debug!("GenAI Drift record count: {:?}", records.len());
+                let records = records.to_genai_event_records()?;
                 for record in records.iter() {
-                    let _ = PostgresClient::insert_llm_drift_record(pool, record, &entity_id)
+                    let _ = PostgresClient::insert_genai_event_record(pool, record, &entity_id)
                         .await
                         .map_err(|e| {
-                            error!("Failed to insert LLM drift record: {:?}", e);
+                            error!("Failed to insert GenAI drift record: {:?}", e);
                         });
                 }
             }
 
-            RecordType::LLMMetric => {
+            RecordType::GenAIMetric => {
                 debug!("LLM Metric record count: {:?}", records.len());
-                let llm_metric_records = records.to_llm_metric_records()?;
+                let genai_metric_records = records.to_genai_metric_records()?;
 
-                for chunk in llm_metric_records.chunks(Self::DEFAULT_BATCH_SIZE) {
-                    PostgresClient::insert_llm_metric_values_batch(pool, chunk, &entity_id)
+                for chunk in genai_metric_records.chunks(Self::DEFAULT_BATCH_SIZE) {
+                    PostgresClient::insert_genai_metric_values_batch(pool, chunk, &entity_id)
                         .await
                         .map_err(|e| {
                             error!("Failed to insert LLM metric records batch: {:?}", e);
@@ -231,7 +232,7 @@ mod tests {
     use crate::sql::schema::User;
     use crate::sql::traits::EntitySqlLogic;
     use chrono::{Duration, Utc};
-    use potato_head::{create_score_prompt, create_uuid7};
+    use potato_head::{create_uuid7, mock::create_score_prompt};
     use rand::Rng;
     use scouter_semver::VersionType;
     use scouter_settings::ObjectStorageSettings;
@@ -359,10 +360,10 @@ mod tests {
             FROM scouter.user;
 
             DELETE
-            FROM scouter.llm_drift_record;
+            FROM scouter.genai_event_record;
 
             DELETE
-            FROM scouter.llm_drift;
+            FROM scouter.genai_drift;
 
             DELETE
             FROM scouter.spans;
@@ -1014,13 +1015,18 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_postgres_llm_drift_record_insert_get() {
+    async fn test_postgres_genai_event_record_insert_get() {
         let pool = db_pool().await;
 
-        let (uid, entity_id) =
-            PostgresClient::create_entity(&pool, SPACE, NAME, VERSION, DriftType::LLM.to_string())
-                .await
-                .unwrap();
+        let (uid, entity_id) = PostgresClient::create_entity(
+            &pool,
+            SPACE,
+            NAME,
+            VERSION,
+            DriftType::GenAI.to_string(),
+        )
+        .await
+        .unwrap();
 
         let input = "This is a test input";
         let output = "This is a test response";
@@ -1031,7 +1037,7 @@ mod tests {
                 "input": input,
                 "response": output,
             });
-            let record = LLMDriftRecord {
+            let record = GenAIDriftRecord {
                 created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
                 prompt: Some(prompt.model_dump_value()),
                 context,
@@ -1046,20 +1052,20 @@ mod tests {
                 entity_uid: uid.clone(),
             };
 
-            let result = PostgresClient::insert_llm_drift_record(&pool, &record, &entity_id)
+            let result = PostgresClient::insert_genai_event_record(&pool, &record, &entity_id)
                 .await
                 .unwrap();
 
             assert_eq!(result.rows_affected(), 1);
         }
 
-        let features = PostgresClient::get_llm_drift_records(&pool, None, None, &entity_id)
+        let features = PostgresClient::get_genai_event_records(&pool, None, None, &entity_id)
             .await
             .unwrap();
         assert_eq!(features.len(), 10);
 
         // get pending task
-        let pending_tasks = PostgresClient::get_pending_llm_drift_record(&pool)
+        let pending_tasks = PostgresClient::get_pending_genai_event_record(&pool)
             .await
             .unwrap();
 
@@ -1071,7 +1077,7 @@ mod tests {
         assert_eq!(*task_input, "This is a test input".to_string());
 
         // update pending task
-        PostgresClient::update_llm_drift_record_status(
+        PostgresClient::update_genai_event_record_status(
             &pool,
             &pending_tasks.unwrap(),
             Status::Processed,
@@ -1081,23 +1087,32 @@ mod tests {
         .unwrap();
 
         // query processed tasks
-        let processed_tasks =
-            PostgresClient::get_llm_drift_records(&pool, None, Some(Status::Processed), &entity_id)
-                .await
-                .unwrap();
+        let processed_tasks = PostgresClient::get_genai_event_records(
+            &pool,
+            None,
+            Some(Status::Processed),
+            &entity_id,
+        )
+        .await
+        .unwrap();
 
         // assert not empty
         assert_eq!(processed_tasks.len(), 1);
     }
 
     #[tokio::test]
-    async fn test_postgres_llm_drift_record_pagination() {
+    async fn test_postgres_genai_event_record_pagination() {
         let pool = db_pool().await;
 
-        let (uid, entity_id) =
-            PostgresClient::create_entity(&pool, SPACE, NAME, VERSION, DriftType::LLM.to_string())
-                .await
-                .unwrap();
+        let (uid, entity_id) = PostgresClient::create_entity(
+            &pool,
+            SPACE,
+            NAME,
+            VERSION,
+            DriftType::GenAI.to_string(),
+        )
+        .await
+        .unwrap();
 
         let input = "This is a test input";
         let output = "This is a test response";
@@ -1109,7 +1124,7 @@ mod tests {
                 "input": input,
                 "response": output,
             });
-            let record = LLMDriftRecord {
+            let record = GenAIDriftRecord {
                 created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
                 prompt: Some(prompt.model_dump_value()),
                 context,
@@ -1124,7 +1139,7 @@ mod tests {
                 entity_uid: uid.clone(),
             };
 
-            let result = PostgresClient::insert_llm_drift_record(&pool, &record, &entity_id)
+            let result = PostgresClient::insert_genai_event_record(&pool, &record, &entity_id)
                 .await
                 .unwrap();
 
@@ -1132,7 +1147,7 @@ mod tests {
         }
 
         // ===== PAGE 1: Get first 5 records (newest) =====
-        let params = LLMDriftRecordPaginationRequest {
+        let params = GenAIDriftRecordPaginationRequest {
             status: None,
             limit: Some(5),
             cursor_created_at: None,
@@ -1141,7 +1156,7 @@ mod tests {
             ..Default::default()
         };
 
-        let page1 = PostgresClient::get_paginated_llm_drift_records(&pool, &params, &entity_id)
+        let page1 = PostgresClient::get_paginated_genai_event_records(&pool, &params, &entity_id)
             .await
             .unwrap();
 
@@ -1165,7 +1180,7 @@ mod tests {
         // ===== PAGE 2: Get next 5 records (older) =====
         let next_cursor = page1.next_cursor.unwrap();
 
-        let params = LLMDriftRecordPaginationRequest {
+        let params = GenAIDriftRecordPaginationRequest {
             status: None,
             limit: Some(5),
             cursor_created_at: Some(next_cursor.created_at),
@@ -1174,7 +1189,7 @@ mod tests {
             ..Default::default()
         };
 
-        let page2 = PostgresClient::get_paginated_llm_drift_records(&pool, &params, &entity_id)
+        let page2 = PostgresClient::get_paginated_genai_event_records(&pool, &params, &entity_id)
             .await
             .unwrap();
 
@@ -1214,7 +1229,7 @@ mod tests {
         // Go back from page 2 to page 1
         let previous_cursor = page2.previous_cursor.unwrap();
 
-        let params = LLMDriftRecordPaginationRequest {
+        let params = GenAIDriftRecordPaginationRequest {
             status: None,
             limit: Some(5),
             cursor_created_at: Some(previous_cursor.created_at),
@@ -1224,7 +1239,7 @@ mod tests {
         };
 
         let page1_again =
-            PostgresClient::get_paginated_llm_drift_records(&pool, &params, &entity_id)
+            PostgresClient::get_paginated_genai_event_records(&pool, &params, &entity_id)
                 .await
                 .unwrap();
 
@@ -1243,20 +1258,25 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_postgres_llm_metrics_insert_get() {
+    async fn test_postgres_genai_metrics_insert_get() {
         let pool = db_pool().await;
 
         let timestamp = Utc::now();
 
-        let (uid, entity_id) =
-            PostgresClient::create_entity(&pool, SPACE, NAME, VERSION, DriftType::LLM.to_string())
-                .await
-                .unwrap();
+        let (uid, entity_id) = PostgresClient::create_entity(
+            &pool,
+            SPACE,
+            NAME,
+            VERSION,
+            DriftType::GenAI.to_string(),
+        )
+        .await
+        .unwrap();
 
         for i in 0..2 {
             let mut records = Vec::new();
             for j in 0..25 {
-                let record = LLMMetricRecord {
+                let record = GenAIMetricRecord {
                     uid: format!("uid{i}{j}"),
                     created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
                     entity_uid: uid.clone(),
@@ -1266,13 +1286,13 @@ mod tests {
                 records.push(record);
             }
             let result =
-                PostgresClient::insert_llm_metric_values_batch(&pool, &records, &entity_id)
+                PostgresClient::insert_genai_metric_values_batch(&pool, &records, &entity_id)
                     .await
                     .unwrap();
             assert_eq!(result.rows_affected(), 25);
         }
 
-        let metrics = PostgresClient::get_llm_metric_values(
+        let metrics = PostgresClient::get_genai_metric_values(
             &pool,
             &timestamp,
             &["metric1".to_string()],
@@ -1282,7 +1302,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(metrics.len(), 1);
-        let binned_records = PostgresClient::get_binned_llm_metric_values(
+        let binned_records = PostgresClient::get_binned_genai_metric_values(
             &pool,
             &DriftRequest {
                 uid: uid.clone(),

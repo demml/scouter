@@ -1,4 +1,5 @@
 use pyo3::exceptions::PyRuntimeError;
+use pyo3::pyclass::PyClassGuardError;
 use pyo3::PyErr;
 use thiserror::Error;
 
@@ -90,7 +91,7 @@ pub enum TypeError {
     PyError(String),
 
     #[error(
-        "Invalid prompt response type. Expect Score as the output type for the LLMDriftMetric prompt"
+        "Invalid prompt response type. Expect Score as the output type for the GenAIDriftMetric prompt"
     )]
     InvalidResponseType,
 
@@ -123,7 +124,7 @@ pub enum TypeError {
     #[error("Unsupported status. Status must be one of: All, Pending or Processed. Received: {0}")]
     InvalidStatusError(String),
 
-    #[error("Failed to supply either input or response for the llm record")]
+    #[error("Failed to supply either input or response for the genai record")]
     MissingInputOrResponse,
 
     #[error("Invalid context type. Context must be a PyDict or a Pydantic BaseModel")]
@@ -148,8 +149,8 @@ pub enum TypeError {
     CompressionTypeNotSupported(String),
 }
 
-impl<'a> From<pyo3::DowncastError<'a, 'a>> for TypeError {
-    fn from(err: pyo3::DowncastError) -> Self {
+impl<'a, 'py> From<pyo3::CastError<'a, 'py>> for TypeError {
+    fn from(err: pyo3::CastError<'a, 'py>) -> Self {
         TypeError::DowncastError(err.to_string())
     }
 }
@@ -163,6 +164,12 @@ impl From<TypeError> for PyErr {
 
 impl From<PyErr> for TypeError {
     fn from(err: PyErr) -> TypeError {
+        TypeError::PyError(err.to_string())
+    }
+}
+
+impl<'a, 'py> From<PyClassGuardError<'a, 'py>> for TypeError {
+    fn from(err: PyClassGuardError<'a, 'py>) -> Self {
         TypeError::PyError(err.to_string())
     }
 }
@@ -206,7 +213,7 @@ pub enum RecordError {
     #[error("{0}")]
     PyError(String),
 
-    #[error("Failed to supply either input or response for the llm record")]
+    #[error("Failed to supply either input or response for the genai record")]
     MissingInputOrResponse,
 }
 
@@ -219,6 +226,12 @@ impl From<RecordError> for PyErr {
 
 impl From<PyErr> for RecordError {
     fn from(err: PyErr) -> RecordError {
+        RecordError::PyError(err.to_string())
+    }
+}
+
+impl<'a, 'py> From<PyClassGuardError<'a, 'py>> for RecordError {
+    fn from(err: PyClassGuardError<'a, 'py>) -> Self {
         RecordError::PyError(err.to_string())
     }
 }
@@ -291,7 +304,7 @@ pub enum ProfileError {
     NoTasksFoundError(String),
 
     #[error(
-        "Invalid prompt response type. Expected Score as the output type for the LLMDriftMetric prompt. Id: {0}"
+        "Invalid prompt response type. Expected Score as the output type for the GenAIDriftMetric prompt. Id: {0}"
     )]
     InvalidResponseType(String),
 
@@ -314,6 +327,12 @@ impl From<ProfileError> for PyErr {
 
 impl From<PyErr> for ProfileError {
     fn from(err: PyErr) -> ProfileError {
+        ProfileError::PyError(err.to_string())
+    }
+}
+
+impl<'a, 'py> From<PyClassGuardError<'a, 'py>> for ProfileError {
+    fn from(err: PyClassGuardError<'a, 'py>) -> Self {
         ProfileError::PyError(err.to_string())
     }
 }

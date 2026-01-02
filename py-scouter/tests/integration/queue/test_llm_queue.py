@@ -2,7 +2,7 @@ import re
 
 import pytest
 from pydantic import BaseModel
-from scouter.queue import LLMRecord
+from scouter.queue import GenAIRecord
 
 
 class Context(BaseModel):
@@ -10,11 +10,11 @@ class Context(BaseModel):
     response: str
 
 
-def test_llm_record():
+def test_genai_record():
     """
-    Test the LLMRecord class.
+    Test the GenAIRecord class.
     """
-    record = LLMRecord(
+    record = GenAIRecord(
         context={
             "input": "What is the capital of France?",
             "response": "Paris is the capital of France.",
@@ -35,7 +35,7 @@ def test_llm_record():
         ],
     }
 
-    record = LLMRecord(
+    record = GenAIRecord(
         context={
             "role": "system",
             "content": system_prompt,
@@ -45,11 +45,11 @@ def test_llm_record():
     # Test error - provide no input or response
     with pytest.raises(
         TypeError,
-        match=re.escape("LLMRecord.__new__() missing 1 required positional argument: 'context'"),
+        match=re.escape("GenAIRecord.__new__() missing 1 required positional argument: 'context'"),
     ):
-        LLMRecord()
+        GenAIRecord()
 
-    record = LLMRecord(
+    record = GenAIRecord(
         context={"foo": "bar", "value": 1},
         prompt=system_prompt,
     )
@@ -59,7 +59,7 @@ def test_llm_record():
         input="What is the capital of France?",
         response="Paris is the capital of France.",
     )
-    record = LLMRecord(
+    record = GenAIRecord(
         context=context,
         prompt=system_prompt,
     )
@@ -72,4 +72,4 @@ def test_llm_record():
         RuntimeError,
         match=re.escape("Invalid context type. Context must be a PyDict or a Pydantic BaseModel"),
     ):
-        LLMRecord(context="This is a string, not a dict or pydantic model")
+        GenAIRecord(context="This is a string, not a dict or pydantic model")

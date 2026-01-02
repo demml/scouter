@@ -85,7 +85,7 @@ pub trait BackgroundTask: Send + Sync + 'static {
 ```
 
 
-(4) **QueueBus**: Everything discussed so far has focused on the Rust background tasks that run independent of the python runtime. So how do we bridge the gap and get events to rust from python. For every `DriftProfile`, a `QueueBus` is created that exposes an `insert` method to the user. This method will accept any of the allowed data types for monitoring (`Features`, `Metrics`, `LLMRecord`). The data types are extracted and published as an `Event` enum to the event channel, which is then read by the event receiver (`tokio::sync:mpsc`) embedded within the rust `event_handler`. This publishing happens asynchronously, which allows the user on the python side to continue accepting api requests without impacting latency. On the rust side, the event receiver will then process the event and add it to the background queue.
+(4) **QueueBus**: Everything discussed so far has focused on the Rust background tasks that run independent of the python runtime. So how do we bridge the gap and get events to rust from python. For every `DriftProfile`, a `QueueBus` is created that exposes an `insert` method to the user. This method will accept any of the allowed data types for monitoring (`Features`, `Metrics`, `GenAIRecord`). The data types are extracted and published as an `Event` enum to the event channel, which is then read by the event receiver (`tokio::sync:mpsc`) embedded within the rust `event_handler`. This publishing happens asynchronously, which allows the user on the python side to continue accepting api requests without impacting latency. On the rust side, the event receiver will then process the event and add it to the background queue.
 
 ```rust
 #[pyclass(name = "Queue")]
@@ -101,7 +101,7 @@ pub struct QueueBus {
 (5) **Error Handling**: Errors are logged and not returned to the user. This is to ensure that the spawned tasks do not block the main thread and can continue to process events. As a user, it's important to monitor these logs.
 
 
-(6) **Queue Insert**: After the `ScouterQueue` is created, the user can insert events into the queue by accessing the queue directly through its alias and calling the `insert` method. The insert method expects either a `Features` object, a `Metrics` object (for custom metrics) or an `LLMRecord` object (for llm as a judge workflows). Note - Scouter also provides a `FeatureMixin` class that can be used to convert a python object into a `Features` object. This is useful for converting a Pydantic BaseModel into a `Features` object. The `FeatureMixin` class is not required, but it is recommended for ease of use.
+(6) **Queue Insert**: After the `ScouterQueue` is created, the user can insert events into the queue by accessing the queue directly through its alias and calling the `insert` method. The insert method expects either a `Features` object, a `Metrics` object (for custom metrics) or an `GenAIRecord` object (for genai as a judge workflows). Note - Scouter also provides a `FeatureMixin` class that can be used to convert a python object into a `Features` object. This is useful for converting a Pydantic BaseModel into a `Features` object. The `FeatureMixin` class is not required, but it is recommended for ease of use.
 
 ```rust
 #[pyclass]
@@ -193,7 +193,7 @@ pub struct Metrics {
 
 #[pyclass]
 #[derive(Clone, Serialize, Debug)]
-pub struct LLMRecord {
+pub struct GenAIRecord {
     pub uid: String,
 
     pub space: String,
@@ -215,14 +215,14 @@ pub struct LLMRecord {
 }
 
 #[pymethods]
-impl LLMRecord {
+impl GenAIRecord {
     #[new]
     #[pyo3(signature = (
         context,
         prompt=None,
     ))]
 
-    /// Creates a new LLMRecord instance.
+    /// Creates a new GenAIRecord instance.
     /// The context is either a python dictionary or a pydantic basemodel.
     pub fn new(
         py: Python<'_>,
@@ -254,7 +254,7 @@ impl LLMRecord {
             None => None,
         };
 
-        Ok(LLMRecord {
+        Ok(GenAIRecord {
             uid: create_uuid7(),
             created_at: Utc::now(),
             space: String::new(),
@@ -299,10 +299,10 @@ queue["alias"].insert(
     )
 )
 
-# or for LLMRecords
+# or for GenAIRecords
 
 queue["alias"].insert(
-    LLMRecord(
+    GenAIRecord(
         context={
             "input": bound_prompt.message[0].unwrap(),
             "response": response.result,

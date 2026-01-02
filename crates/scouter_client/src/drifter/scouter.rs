@@ -1,18 +1,18 @@
 use crate::data_utils::DataConverterEnum;
 use crate::drifter::{
-    custom::CustomDrifter, llm::ClientLLMDrifter, psi::PsiDrifter, spc::SpcDrifter,
+    custom::CustomDrifter, genai::ClientGenAIDrifter, psi::PsiDrifter, spc::SpcDrifter,
 };
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 use pyo3::IntoPyObjectExt;
 use scouter_drift::error::DriftError;
 use scouter_drift::spc::SpcDriftMap;
-use scouter_types::llm::{LLMDriftMap, LLMDriftMetric};
+use scouter_types::genai::{GenAIDriftMap, GenAIDriftMetric};
 use scouter_types::spc::SpcDriftProfile;
-use scouter_types::LLMRecord;
+use scouter_types::GenAIRecord;
 use scouter_types::{
     custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
-    llm::{LLMDriftConfig, LLMDriftProfile},
+    genai::{GenAIDriftConfig, GenAIDriftProfile},
     psi::{PsiDriftConfig, PsiDriftMap, PsiDriftProfile},
     spc::SpcDriftConfig,
     DataType, DriftProfile, DriftType,
@@ -24,13 +24,13 @@ use std::sync::RwLock;
 pub enum DriftMap {
     Spc(SpcDriftMap),
     Psi(PsiDriftMap),
-    LLM(LLMDriftMap),
+    GenAI(GenAIDriftMap),
 }
 
 pub enum DriftConfig {
     Spc(Arc<RwLock<SpcDriftConfig>>),
     Psi(Arc<RwLock<PsiDriftConfig>>),
-    LLM(LLMDriftConfig),
+    GenAI(GenAIDriftConfig),
     Custom(CustomMetricDriftConfig),
 }
 
@@ -56,9 +56,9 @@ impl DriftConfig {
         }
     }
 
-    pub fn llm_config(&self) -> Result<LLMDriftConfig, DriftError> {
+    pub fn genai_config(&self) -> Result<GenAIDriftConfig, DriftError> {
         match self {
-            DriftConfig::LLM(cfg) => Ok(cfg.clone()),
+            DriftConfig::GenAI(cfg) => Ok(cfg.clone()),
             _ => Err(DriftError::InvalidConfigError),
         }
     }
@@ -68,7 +68,7 @@ pub enum Drifter {
     Spc(SpcDrifter),
     Psi(PsiDrifter),
     Custom(CustomDrifter),
-    LLM(ClientLLMDrifter),
+    GenAI(ClientGenAIDrifter),
 }
 
 impl Debug for Drifter {
@@ -77,7 +77,7 @@ impl Debug for Drifter {
             Drifter::Spc(_) => write!(f, "SpcDrifter"),
             Drifter::Psi(_) => write!(f, "PsiDrifter"),
             Drifter::Custom(_) => write!(f, "CustomDrifter"),
-            Drifter::LLM(_) => write!(f, "LLMDrifter"),
+            Drifter::GenAI(_) => write!(f, "GenAIDrifter"),
         }
     }
 }
@@ -88,7 +88,7 @@ impl Drifter {
             DriftType::Spc => Ok(Drifter::Spc(SpcDrifter::new())),
             DriftType::Psi => Ok(Drifter::Psi(PsiDrifter::new())),
             DriftType::Custom => Ok(Drifter::Custom(CustomDrifter::new())),
-            DriftType::LLM => Ok(Drifter::LLM(ClientLLMDrifter::new())),
+            DriftType::GenAI => Ok(Drifter::GenAI(ClientGenAIDrifter::new())),
         }
     }
 
@@ -126,17 +126,17 @@ impl Drifter {
                 let profile = drifter.create_drift_profile(config.custom_config()?, data)?;
                 Ok(DriftProfile::Custom(profile))
             }
-            Drifter::LLM(drifter) => {
-                // LLM drift profiles are created separately, so we will handle this in the create_llm_drift_profile method
+            Drifter::GenAI(drifter) => {
+                // GenAI drift profiles are created separately, so we will handle this in the create_genai_drift_profile method
                 let metrics = if data.is_instance_of::<PyList>() {
-                    data.extract::<Vec<LLMDriftMetric>>()?
+                    data.extract::<Vec<GenAIDriftMetric>>()?
                 } else {
-                    let metric = data.extract::<LLMDriftMetric>()?;
+                    let metric = data.extract::<GenAIDriftMetric>()?;
                     vec![metric]
                 };
                 let profile =
-                    drifter.create_drift_profile(config.llm_config()?, metrics, workflow)?;
-                Ok(DriftProfile::LLM(profile))
+                    drifter.create_drift_profile(config.genai_config()?, metrics, workflow)?;
+                Ok(DriftProfile::GenAI(profile))
             }
         }
     }
@@ -166,17 +166,17 @@ impl Drifter {
                 Err(DriftError::NotImplemented)
             }
 
-            Drifter::LLM(drifter) => {
-                // extract data to be Vec<LLMRecord>
+            Drifter::GenAI(drifter) => {
+                // extract data to be Vec<GenAIRecord>
                 let data = if data.is_instance_of::<PyList>() {
-                    data.extract::<Vec<LLMRecord>>()?
+                    data.extract::<Vec<GenAIRecord>>()?
                 } else {
-                    let metric = data.extract::<LLMRecord>()?;
+                    let metric = data.extract::<GenAIRecord>()?;
                     vec![metric]
                 };
-                let records = drifter.compute_drift(data, profile.get_llm_profile()?)?;
+                let records = drifter.compute_drift(data, profile.get_genai_profile()?)?;
 
-                Ok(DriftMap::LLM(LLMDriftMap { records }))
+                Ok(DriftMap::GenAI(GenAIDriftMap { records }))
             }
         }
     }
@@ -196,12 +196,12 @@ impl PyDrifter {
     /// This method is used to create a drift profile based on the data and config provided
     /// It will automatically infer the data type if not provided
     /// If the config is not provided, it will create a default config based on the drift type
-    /// The data can be a numpy array, pandas dataframe, or pyarrow table, Vec<CustomMetric>, or Vec<LLMDriftMetric>
+    /// The data can be a numpy array, pandas dataframe, or pyarrow table, Vec<CustomMetric>, or Vec<GenAIDriftMetric>
     /// ## Arguments:
-    /// - `data`: The data to create the drift profile from. This can be a numpy array, pandas dataframe, pyarrow table, Vec<CustomMetric>, or Vec<LLMDriftMetric>.
+    /// - `data`: The data to create the drift profile from. This can be a numpy array, pandas dataframe, pyarrow table, Vec<CustomMetric>, or Vec<GenAIDriftMetric>.
     /// - `config`: The configuration for the drift profile. This is optional and if not provided, a default configuration will be created based on the drift type.
     /// - `data_type`: The type of the data. This is optional and if not provided, it will be inferred from the data class name.
-    /// - `workflow`: An optional workflow to be used with the drift profile. This is only applicable for LLM drift profiles.
+    /// - `workflow`: An optional workflow to be used with the drift profile. This is only applicable for GenAI drift profiles.
     #[pyo3(signature = (data, config=None, data_type=None, workflow=None))]
     pub fn create_drift_profile<'py>(
         &self,
@@ -228,9 +228,9 @@ impl PyDrifter {
                     let config = obj.extract::<CustomMetricDriftConfig>()?;
                     DriftConfig::Custom(config)
                 }
-                DriftType::LLM => {
-                    let config = obj.extract::<LLMDriftConfig>()?;
-                    DriftConfig::LLM(config)
+                DriftType::GenAI => {
+                    let config = obj.extract::<GenAIDriftConfig>()?;
+                    DriftConfig::GenAI(config)
                 }
             };
             (drift_config, drift_type)
@@ -265,21 +265,21 @@ impl PyDrifter {
             DriftProfile::Spc(profile) => Ok(profile.into_bound_py_any(py)?),
             DriftProfile::Psi(profile) => Ok(profile.into_bound_py_any(py)?),
             DriftProfile::Custom(profile) => Ok(profile.into_bound_py_any(py)?),
-            DriftProfile::LLM(profile) => Ok(profile.into_bound_py_any(py)?),
+            DriftProfile::GenAI(profile) => Ok(profile.into_bound_py_any(py)?),
         }
     }
 
-    // Specific method for creating LLM drift profiles
+    // Specific method for creating GenAI drift profiles
     // This is to avoid confusion with the other drifters
     #[pyo3(signature = (config, metrics, workflow=None))]
-    pub fn create_llm_drift_profile<'py>(
+    pub fn create_genai_drift_profile<'py>(
         &mut self,
         py: Python<'py>,
-        config: LLMDriftConfig,
-        metrics: Vec<LLMDriftMetric>,
+        config: GenAIDriftConfig,
+        metrics: Vec<GenAIDriftMetric>,
         workflow: Option<Bound<'py, PyAny>>,
     ) -> Result<Bound<'py, PyAny>, DriftError> {
-        let profile = LLMDriftProfile::new(config, metrics, workflow)?;
+        let profile = GenAIDriftProfile::new(config, metrics, workflow)?;
         Ok(profile.into_bound_py_any(py)?)
     }
 
@@ -309,9 +309,9 @@ impl PyDrifter {
                 let profile = drift_profile.extract::<CustomDriftProfile>()?;
                 DriftProfile::Custom(profile)
             }
-            DriftType::LLM => {
-                let profile = drift_profile.extract::<LLMDriftProfile>()?;
-                DriftProfile::LLM(profile)
+            DriftType::GenAI => {
+                let profile = drift_profile.extract::<GenAIDriftProfile>()?;
+                DriftProfile::GenAI(profile)
             }
         };
 
@@ -322,9 +322,9 @@ impl PyDrifter {
         let data_type = match data_type {
             Some(data_type) => data_type,
             None => {
-                if drift_type == DriftType::LLM {
-                    // For LLM, we will handle it separately in the create_llm_drift_profile method
-                    &DataType::LLM
+                if drift_type == DriftType::GenAI {
+                    // For GenAI, we will handle it separately in the create_genai_drift_profile method
+                    &DataType::GenAI
                 } else {
                     let class = data.getattr("__class__")?;
                     let module = class.getattr("__module__")?.str()?.to_string();
@@ -344,23 +344,23 @@ impl PyDrifter {
         match drift_map {
             DriftMap::Spc(map) => Ok(map.into_bound_py_any(py)?),
             DriftMap::Psi(map) => Ok(map.into_bound_py_any(py)?),
-            DriftMap::LLM(map) => Ok(map.into_bound_py_any(py)?),
+            DriftMap::GenAI(map) => Ok(map.into_bound_py_any(py)?),
         }
     }
 }
 
 impl PyDrifter {
-    /// Reproduction of `create_llm_drift_profile` but allows for passing a runtime
+    /// Reproduction of `create_genai_drift_profile` but allows for passing a runtime
     /// This is used in opsml to allow passing the Opsml runtime
-    pub fn create_llm_drift_profile_with_runtime<'py>(
+    pub fn create_genai_drift_profile_with_runtime<'py>(
         &mut self,
         py: Python<'py>,
-        config: LLMDriftConfig,
-        metrics: Vec<LLMDriftMetric>,
+        config: GenAIDriftConfig,
+        metrics: Vec<GenAIDriftMetric>,
         workflow: Option<Bound<'py, PyAny>>,
         runtime: Arc<tokio::runtime::Runtime>,
     ) -> Result<Bound<'py, PyAny>, DriftError> {
-        let profile = LLMDriftProfile::new_with_runtime(config, metrics, workflow, runtime)?;
+        let profile = GenAIDriftProfile::new_with_runtime(config, metrics, workflow, runtime)?;
         Ok(profile.into_bound_py_any(py)?)
     }
 }

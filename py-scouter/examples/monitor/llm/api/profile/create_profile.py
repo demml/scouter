@@ -2,7 +2,7 @@ from pathlib import Path
 
 from scouter.alert import AlertThreshold
 from scouter.client import ScouterClient
-from scouter.drift import LLMDriftConfig, LLMDriftMetric, LLMDriftProfile
+from scouter.drift import GenAIDriftConfig, GenAIDriftMetric, GenAIDriftProfile
 from scouter.genai import Prompt, Score
 
 
@@ -17,7 +17,7 @@ def create_reformulation_evaluation_prompt():
         >>> prompt = create_reformulation_evaluation_prompt()
     """
     return Prompt(
-        message=(
+        messages=(
             "You are an expert evaluator of search query reformulations. "
             "Given the original user query and its reformulated version, your task is to assess how well the reformulation improves the query. "
             "Consider the following criteria:\n"
@@ -41,7 +41,7 @@ def create_reformulation_evaluation_prompt():
         ),
         model="gemini-2.5-flash-lite-preview-06-17",
         provider="gemini",
-        response_format=Score,
+        output_type=Score,
     )
 
 
@@ -56,7 +56,7 @@ def create_relevance_evaluation_prompt() -> Prompt:
         >>> prompt = create_relevance_evaluation_prompt()
     """
     return Prompt(
-        message=(
+        messages=(
             "You are an expert evaluator of LLM responses. "
             "Given the original user query and the LLM's response, your task is to assess how relevant the response is to the query. "
             "Consider the following criteria:\n"
@@ -80,18 +80,18 @@ def create_relevance_evaluation_prompt() -> Prompt:
         ),
         model="gemini-2.5-flash-lite-preview-06-17",
         provider="gemini",
-        response_format=Score,
+        output_type=Score,
     )
 
 
-relevance = LLMDriftMetric(
+relevance = GenAIDriftMetric(
     name="relevance",
     prompt=create_relevance_evaluation_prompt(),
     value=5.0,
     alert_threshold_value=2.0,
     alert_threshold=AlertThreshold.Below,
 )
-reformulation = LLMDriftMetric(
+reformulation = GenAIDriftMetric(
     name="reformulation",
     prompt=create_reformulation_evaluation_prompt(),
     value=5.0,
@@ -99,10 +99,10 @@ reformulation = LLMDriftMetric(
     alert_threshold=AlertThreshold.Above,
 )
 
-profile = LLMDriftProfile(
-    config=LLMDriftConfig(
+profile = GenAIDriftProfile(
+    config=GenAIDriftConfig(
         space="scouter",
-        name="llm_metrics",
+        name="genai_metrics",
         version="0.0.1",
         sample_rate=1,
     ),
@@ -111,9 +111,9 @@ profile = LLMDriftProfile(
 
 
 if __name__ == "__main__":
-    # Create a LLM drift profile and register it with the Scouter client
+    # Create a GenAI drift profile and register it with the Scouter client
     # This assumes that the Scouter client is running and configured correctly
     client = ScouterClient()
     client.register_profile(profile=profile, set_active=True)
 
-    profile.save_to_json(Path("api/assets/llm_drift_profile.json"))
+    profile.save_to_json(Path("api/assets/genai_drift_profile.json"))

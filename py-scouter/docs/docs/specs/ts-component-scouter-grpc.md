@@ -87,7 +87,7 @@ The client module encapsulates gRPC client functionality, providing a high-level
 The gRPC server is implemented within the scouter_server crate, and runs alongside the existing HTTP server (Axum) with a default port of 50051. It listens for incoming gRPC requests, authenticates clients with an Interceptor middleware, and processes data submissions.
 
 ### 4. Python Integration
-Grpc is typically used when (1) exporting spans to Scouter server for tracing, or (2) sending monitoring data (features, metrics, llm records) to the Scouter server. To facilitate this, we have exposed one main classes to the Python layer via PyO3:
+Grpc is typically used when (1) exporting spans to Scouter server for tracing, or (2) sending monitoring data (features, metrics, genai records) to the Scouter server. To facilitate this, we have exposed one main classes to the Python layer via PyO3:
 
 **GrpcConfig**: Configuration class for setting up gRPC transport to the Scouter server. This class allows users to specify server address, username and password. These are also pulled from the environment variables `SCOUTER_GRPC_URI`, `SCOUTER_USERNAME`, and `SCOUTER_PASSWORD` if not provided directly.
 
