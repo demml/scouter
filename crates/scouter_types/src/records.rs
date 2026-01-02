@@ -776,7 +776,7 @@ impl ServerRecords {
                 ServerRecord::Custom(inner) => Ok(&inner.uid),
                 ServerRecord::Observability(inner) => Ok(&inner.uid),
                 ServerRecord::GenAIDrift(inner) => Ok(&inner.record.entity_uid),
-                ServerRecord::GenAIMetric(inner) => Ok(&inner.entity_uid),
+                _ => Err(RecordError::InvalidDriftTypeError),
             }
         } else {
             Err(RecordError::EmptyServerRecordsError)
@@ -813,9 +813,14 @@ impl IntoServerRecord for GenAIDriftRecord {
     }
 }
 
-impl IntoServerRecord for GenAIMetricRecord {
+impl IntoServerRecord for GenAIEvalWorkflowRecord {
     fn into_server_record(self) -> ServerRecord {
-        ServerRecord::GenAIMetric(self)
+        ServerRecord::GenAIWorkflowRecord(self)
+    }
+}
+impl IntoServerRecord for GenAIEvalTaskResultRecord {
+    fn into_server_record(self) -> ServerRecord {
+        ServerRecord::GenAITaskRecord(self)
     }
 }
 
@@ -962,5 +967,4 @@ impl_mask_entity_id!(
     SpcRecord,
     PsiRecord,
     CustomMetricRecord,
-    GenAIMetricRecord,
 );
