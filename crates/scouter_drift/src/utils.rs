@@ -39,12 +39,12 @@ pub trait CategoricalFeatureHelpers {
                     .collect::<Vec<_>>();
                 let mut map = HashMap::new();
                 for (j, item) in unique.iter().enumerate() {
-                    map.insert(item.to_string(), j);
+                    map.insert(item.to_string(), j as i32);
 
                     // check if j is last index
                     if j == unique.len() - 1 {
                         // insert missing value
-                        map.insert("missing".to_string(), j + 1);
+                        map.insert("missing".to_string(), j as i32 + 1);
                     }
                 }
 
