@@ -69,6 +69,8 @@ pub struct SpcRecord {
 
     #[pyo3(get)]
     pub value: f64,
+
+    pub entity_id: Option<i32>,
 }
 
 #[pymethods]
@@ -80,6 +82,7 @@ impl SpcRecord {
             uid,
             feature,
             value,
+            entity_id: None,
         }
     }
 
@@ -107,14 +110,6 @@ impl SpcRecord {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct SpcInternalRecord {
-    pub created_at: chrono::DateTime<Utc>,
-    pub entity_id: i32,
-    pub feature: String,
-    pub value: f64,
-}
-
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PsiRecord {
@@ -128,6 +123,7 @@ pub struct PsiRecord {
     pub bin_id: usize,
     #[pyo3(get)]
     pub bin_count: usize,
+    pub entity_id: Option<i32>,
 }
 
 #[pymethods]
@@ -140,6 +136,7 @@ impl PsiRecord {
             feature,
             bin_id,
             bin_count,
+            entity_id: None,
         }
     }
 
@@ -158,17 +155,9 @@ impl PsiRecord {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct PsiInternalRecord {
-    pub created_at: chrono::DateTime<Utc>,
-    pub entity_id: i32,
-    pub feature: String,
-    pub bin_id: usize,
-    pub bin_count: usize,
-}
-
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct LLMDriftRecord {
     #[pyo3(get)]
     pub created_at: chrono::DateTime<Utc>,
@@ -180,6 +169,7 @@ pub struct LLMDriftRecord {
 
     pub context: Value,
 
+    #[cfg_attr(feature = "server", sqlx(try_from = "String"))]
     pub status: Status,
 
     pub id: i64,
@@ -195,6 +185,8 @@ pub struct LLMDriftRecord {
     pub processing_duration: Option<i32>,
 
     pub entity_uid: String,
+
+    pub entity_id: Option<i32>,
 }
 
 #[pymethods]
@@ -237,6 +229,7 @@ impl LLMDriftRecord {
             processing_ended_at: None,
             processing_duration: None,
             entity_uid,
+            entity_id: None,
         }
     }
 }
@@ -251,62 +244,6 @@ impl BoxedLLMDriftRecord {
     pub fn new(record: LLMDriftRecord) -> Self {
         Self {
             record: Box::new(record),
-        }
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
-pub struct LLMDriftInternalRecord {
-    pub uid: String, // public unique identifier for drift record
-    pub created_at: chrono::DateTime<Utc>,
-    pub context: Value,
-    pub prompt: Option<Value>,
-    #[cfg_attr(feature = "server", sqlx(try_from = "String"))]
-    pub status: Status,
-    pub score: Value,
-    pub id: i64,
-    pub updated_at: Option<DateTime<Utc>>,
-    pub processing_started_at: Option<DateTime<Utc>>,
-    pub processing_ended_at: Option<DateTime<Utc>>,
-    pub processing_duration: Option<i32>,
-    pub entity_id: i32, // foreign key to entity table
-}
-
-impl LLMDriftInternalRecord {
-    pub fn from_public_record(record: &LLMDriftRecord, entity_id: i32) -> Self {
-        Self {
-            created_at: record.created_at,
-            prompt: record.prompt.clone(),
-            context: record.context.clone(),
-            score: record.score.clone(),
-            status: record.status.clone(),
-            id: 0,
-            uid: create_uuid7(),
-            updated_at: None,
-            processing_started_at: None,
-            processing_ended_at: None,
-            processing_duration: None,
-            entity_id,
-        }
-    }
-
-    pub fn to_public_record(&self) -> LLMDriftRecord {
-        LLMDriftRecord {
-            created_at: self.created_at,
-            uid: self.uid.clone(),
-            prompt: self.prompt.clone(),
-            context: self.context.clone(),
-            status: self.status.clone(),
-            id: self.id,
-            score: self.score.clone(),
-            updated_at: self.updated_at,
-            processing_started_at: self.processing_started_at,
-            processing_ended_at: self.processing_ended_at,
-            processing_duration: self.processing_duration,
-
-            // placeholder - entity_uid is only used when inserting records
-            entity_uid: String::new(),
         }
     }
 }
@@ -341,6 +278,8 @@ pub struct LLMMetricRecord {
 
     #[pyo3(get)]
     pub value: f64,
+
+    pub entity_id: Option<i32>,
 }
 
 #[pymethods]
@@ -349,15 +288,6 @@ impl LLMMetricRecord {
         // serialize the struct to a string
         PyHelperFuncs::__str__(self)
     }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct LLMMetricInternalRecord {
-    pub uid: String,
-    pub created_at: chrono::DateTime<Utc>,
-    pub entity_id: i32,
-    pub metric: String,
-    pub value: f64,
 }
 
 #[pyclass]
@@ -371,6 +301,8 @@ pub struct CustomMetricRecord {
     pub metric: String,
     #[pyo3(get)]
     pub value: f64,
+
+    pub entity_id: Option<i32>,
 }
 
 #[pymethods]
@@ -382,6 +314,7 @@ impl CustomMetricRecord {
             uid,
             metric: metric.to_lowercase(),
             value,
+            entity_id: None,
         }
     }
 
@@ -407,15 +340,6 @@ impl CustomMetricRecord {
         record.insert("value".to_string(), self.value.to_string());
         record
     }
-}
-
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct CustomMetricInternalRecord {
-    pub created_at: chrono::DateTime<Utc>,
-    pub entity_id: i32,
-    pub metric: String,
-    pub value: f64,
 }
 
 #[pyclass]
@@ -473,6 +397,8 @@ pub struct ObservabilityMetrics {
 
     #[pyo3(get)]
     pub route_metrics: Vec<RouteMetrics>,
+
+    pub entity_id: Option<i32>,
 }
 
 #[pymethods]
@@ -490,14 +416,6 @@ impl ObservabilityMetrics {
     pub fn get_record_type(&self) -> RecordType {
         RecordType::Observability
     }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
-pub struct ObservabilityMetricsInternal {
-    pub entity_id: i32,
-    pub request_count: i64,
-    pub error_count: i64,
-    pub route_metrics: Vec<RouteMetrics>,
 }
 
 #[pyclass]
