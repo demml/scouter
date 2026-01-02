@@ -3,8 +3,8 @@ use chrono::{DateTime, Utc};
 use sqlx::postgres::PgRow;
 
 use scouter_types::{
-    CustomMetricRecord, GenAIDriftRecord, GenAIMetricRecord, IntoServerRecord, PsiRecord,
-    RecordType, ServerRecords, SpcRecord,
+    CustomMetricRecord, GenAIEvalTaskResultRecord, GenAIEvalWorkflowRecord, GenAIEventRecord,
+    IntoServerRecord, PsiRecord, RecordType, ServerRecords, SpcRecord,
 };
 /// Generic function to deserialize PgRows into ServerRecords
 pub fn pg_rows_to_server_records<T>(
@@ -38,11 +38,14 @@ pub fn parse_pg_rows(
             crate::sql::utils::pg_rows_to_server_records::<CustomMetricRecord>(rows, record_type)
         }
         RecordType::GenAIEvent => {
-            crate::sql::utils::pg_rows_to_server_records::<GenAIDriftRecord>(rows, record_type)
+            crate::sql::utils::pg_rows_to_server_records::<GenAIEventRecord>(rows, record_type)
         }
-        RecordType::GenAIMetric => {
-            crate::sql::utils::pg_rows_to_server_records::<GenAIMetricRecord>(rows, record_type)
-        }
+        RecordType::GenAITask => crate::sql::utils::pg_rows_to_server_records::<
+            GenAIEvalTaskResultRecord,
+        >(rows, record_type),
+        RecordType::GenAIWorkflow => crate::sql::utils::pg_rows_to_server_records::<
+            GenAIEvalWorkflowRecord,
+        >(rows, record_type),
         _ => Err(SqlError::InvalidRecordTypeError(record_type.to_string())),
     }
 }

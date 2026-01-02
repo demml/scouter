@@ -13,19 +13,16 @@ WITH subquery1 AS (
 subquery2 AS (
     SELECT
         created_at,
-        metric,
         avg(value) as average,
         stddev(value) as standard_dev
     FROM subquery1
     GROUP BY
-        created_at,
-        metric
+        created_at
 ),
 
 subquery3 AS (
     SELECT
         created_at,
-        metric,
         jsonb_build_object(
             'avg', average,
             'lower_bound', average - coalesce(standard_dev,0),
@@ -35,7 +32,7 @@ subquery3 AS (
 )
 
 SELECT
-    metric,
+    'workflow_metric' AS metric,
     array_agg(created_at order by created_at desc) as created_at,
     array_agg(stats order by created_at desc) as stats
 FROM subquery3

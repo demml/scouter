@@ -1,0 +1,42 @@
+WITH subquery1 AS (
+    SELECT
+        date_bin(($1 || ' minutes')::interval, created_at, TIMESTAMP '1970-01-01') as created_at,
+        pass_rate as value,
+    FROM scouter.genai_eval_task_result
+    WHERE
+        1=1
+        AND created_at >= $2  -- start_datetime
+        AND created_at < $3   -- end_datetime
+        AND entity_id = $4
+    ),
+
+subquery2 AS (
+    SELECT
+        created_at,
+        task_id,
+        avg(value) as average,
+        stddev(value) as standard_dev
+    FROM subquery1
+    GROUP BY
+        created_at,
+        task_id
+),
+
+subquery3 AS (
+    SELECT
+        created_at,
+        task_id AS metric,
+        jsonb_build_object(
+            'avg', average,
+            'lower_bound', average - coalesce(standard_dev,0),
+            'upper_bound', average + coalesce(standard_dev,0)
+        ) as stats
+    FROM subquery2
+)
+
+SELECT
+    metric,
+    array_agg(created_at order by created_at desc) as created_at,
+    array_agg(stats order by created_at desc) as stats
+FROM subquery3
+GROUP BY metric;
