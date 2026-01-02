@@ -1,7 +1,5 @@
 use crate::sql::query::Queries;
 use crate::sql::schema::Entity;
-
-use crate::sql::utils::pg_rows_to_server_records;
 use chrono::{DateTime, Utc};
 
 use crate::sql::error::SqlError;

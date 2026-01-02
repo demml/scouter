@@ -1,5 +1,51 @@
 use crate::sql::error::SqlError;
 use chrono::{DateTime, Utc};
+use sqlx::postgres::PgRow;
+
+use scouter_types::{
+    CustomMetricRecord, GenAIDriftRecord, GenAIMetricRecord, IntoServerRecord, PsiRecord,
+    RecordType, ServerRecords, SpcRecord,
+};
+/// Generic function to deserialize PgRows into ServerRecords
+pub fn pg_rows_to_server_records<T>(
+    rows: &[PgRow],
+    _record_type: &RecordType,
+) -> Result<ServerRecords, SqlError>
+where
+    T: for<'r> sqlx::FromRow<'r, PgRow> + IntoServerRecord + Send + Unpin,
+{
+    let mut records = Vec::with_capacity(rows.len());
+
+    for row in rows {
+        let record: T = sqlx::FromRow::from_row(row)?;
+        records.push(record.into_server_record());
+    }
+
+    Ok(ServerRecords::new(records))
+}
+
+/// Parses Postgres rows into ServerRecords based on RecordType
+pub fn parse_pg_rows(
+    rows: &[sqlx::postgres::PgRow],
+    record_type: &RecordType,
+) -> Result<ServerRecords, SqlError> {
+    match record_type {
+        RecordType::Spc => pg_rows_to_server_records::<SpcRecord>(rows, record_type),
+        RecordType::Psi => {
+            crate::sql::utils::pg_rows_to_server_records::<PsiRecord>(rows, record_type)
+        }
+        RecordType::Custom => {
+            crate::sql::utils::pg_rows_to_server_records::<CustomMetricRecord>(rows, record_type)
+        }
+        RecordType::GenAIEvent => {
+            crate::sql::utils::pg_rows_to_server_records::<GenAIDriftRecord>(rows, record_type)
+        }
+        RecordType::GenAIMetric => {
+            crate::sql::utils::pg_rows_to_server_records::<GenAIMetricRecord>(rows, record_type)
+        }
+        _ => Err(SqlError::InvalidRecordTypeError(record_type.to_string())),
+    }
+}
 
 #[derive(Debug)]
 pub struct QueryTimestamps {

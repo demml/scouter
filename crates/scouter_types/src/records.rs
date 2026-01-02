@@ -6,7 +6,6 @@ use crate::Status;
 use crate::TagRecord;
 use chrono::DateTime;
 use chrono::Utc;
-use potato_head::create_uuid7;
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
 use serde::{Deserialize, Serialize};
@@ -57,6 +56,7 @@ impl Display for RecordType {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct SpcRecord {
     #[pyo3(get)]
     pub created_at: chrono::DateTime<Utc>,
@@ -112,6 +112,7 @@ impl SpcRecord {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct PsiRecord {
     #[pyo3(get)]
     pub created_at: chrono::DateTime<Utc>,
@@ -120,16 +121,16 @@ pub struct PsiRecord {
     #[pyo3(get)]
     pub feature: String,
     #[pyo3(get)]
-    pub bin_id: usize,
+    pub bin_id: i32,
     #[pyo3(get)]
-    pub bin_count: usize,
+    pub bin_count: i32,
     pub entity_id: Option<i32>,
 }
 
 #[pymethods]
 impl PsiRecord {
     #[new]
-    pub fn new(uid: String, feature: String, bin_id: usize, bin_count: usize) -> Self {
+    pub fn new(uid: String, feature: String, bin_id: i32, bin_count: i32) -> Self {
         Self {
             created_at: Utc::now(),
             uid,
@@ -250,6 +251,7 @@ impl BoxedGenAIDriftRecord {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct GenAIMetricRecord {
     #[pyo3(get)]
     pub uid: String,
@@ -279,6 +281,7 @@ impl GenAIMetricRecord {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct CustomMetricRecord {
     #[pyo3(get)]
     pub created_at: chrono::DateTime<Utc>,
@@ -372,6 +375,7 @@ pub struct RouteMetrics {
 
 #[pyclass]
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct ObservabilityMetrics {
     #[pyo3(get)]
     pub uid: String,
@@ -583,6 +587,41 @@ impl ServerRecords {
         } else {
             Err(RecordError::EmptyServerRecordsError)
         }
+    }
+}
+
+/// Trait to convert a deserialized record into a ServerRecord variant
+pub trait IntoServerRecord {
+    fn into_server_record(self) -> ServerRecord;
+}
+
+impl IntoServerRecord for SpcRecord {
+    fn into_server_record(self) -> ServerRecord {
+        ServerRecord::Spc(self)
+    }
+}
+
+impl IntoServerRecord for PsiRecord {
+    fn into_server_record(self) -> ServerRecord {
+        ServerRecord::Psi(self)
+    }
+}
+
+impl IntoServerRecord for CustomMetricRecord {
+    fn into_server_record(self) -> ServerRecord {
+        ServerRecord::Custom(self)
+    }
+}
+
+impl IntoServerRecord for GenAIDriftRecord {
+    fn into_server_record(self) -> ServerRecord {
+        ServerRecord::GenAIDrift(BoxedGenAIDriftRecord::new(self))
+    }
+}
+
+impl IntoServerRecord for GenAIMetricRecord {
+    fn into_server_record(self) -> ServerRecord {
+        ServerRecord::GenAIMetric(self)
     }
 }
 
