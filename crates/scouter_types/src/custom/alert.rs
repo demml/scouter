@@ -182,15 +182,15 @@ impl Default for CustomMetricAlertConfig {
     }
 }
 
-pub struct ComparisonMetricAlert {
-    pub metric_name: String,
-    pub training_metric_value: f64,
-    pub observed_metric_value: f64,
+pub struct ComparisonMetricAlert<'a> {
+    pub metric_name: &'a str,
+    pub training_metric_value: &'a f64,
+    pub observed_metric_value: &'a f64,
     pub alert_threshold_value: Option<f64>,
-    pub alert_threshold: AlertThreshold,
+    pub alert_threshold: &'a AlertThreshold,
 }
 
-impl ComparisonMetricAlert {
+impl<'a> ComparisonMetricAlert<'a> {
     fn alert_description_header(&self) -> String {
         let below_threshold = |boundary: Option<f64>| match boundary {
             Some(b) => format!(
@@ -233,7 +233,7 @@ impl ComparisonMetricAlert {
     }
 }
 
-impl DispatchAlertDescription for ComparisonMetricAlert {
+impl<'a> DispatchAlertDescription for ComparisonMetricAlert<'a> {
     // TODO make pretty per dispatch type
     fn create_alert_description(&self, _dispatch_type: AlertDispatchType) -> String {
         let mut alert_description = String::new();
@@ -295,11 +295,11 @@ mod tests {
     #[test]
     fn test_create_alert_description() {
         let alert_above_threshold = ComparisonMetricAlert {
-            metric_name: "mse".to_string(),
-            training_metric_value: 12.5,
-            observed_metric_value: 14.0,
+            metric_name: &"mse".to_string(),
+            training_metric_value: &12.5,
+            observed_metric_value: &14.0,
             alert_threshold_value: Some(1.0),
-            alert_threshold: AlertThreshold::Above,
+            alert_threshold: &AlertThreshold::Above,
         };
 
         let description =

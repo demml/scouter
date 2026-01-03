@@ -1,5 +1,4 @@
 SELECT 
-'workflow_metric' AS metric,
 AVG(pass_rate) AS value
 FROM scouter.genai_eval_workflow
 WHERE 1=1

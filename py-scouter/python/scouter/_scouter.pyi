@@ -10633,29 +10633,44 @@ class GenAIAlertConfig:
         """Set the schedule"""
 
     @property
-    def alert_conditions(self) -> Optional[Dict[str, GenAIMetricAlertCondition]]:
+    def alert_conditions(self) -> Optional[Dict[str, GenAIEvalAlertCondition]]:
         """Return the alert conditions"""
 
-class GenAIMetricAlertCondition:
+class GenAIEvalAlertCondition:
     def __init__(
         self,
+        baseline_value: float,
         alert_threshold: AlertThreshold,
-        alert_threshold_value: Optional[float],
+        delta: Optional[float],
     ):
-        """Initialize a GenAIMetricAlertCondition instance.
+        """Initialize a GenAIEvalAlertCondition instance.
         Args:
+            baseline_value (float):
+                The baseline value to compare against for alerting.
             alert_threshold (AlertThreshold):
                 The condition that determines when an alert should be triggered.
                 Must be one of the AlertThreshold enum members like Below, Above, or Outside.
-            alert_threshold_value (Optional[float], optional):
-                A numerical boundary used in conjunction with the alert_threshold.
-                This can be None for certain types of comparisons that don't require a fixed boundary.
+            delta (Optional[float], optional):
+                Optional delta value that modifies the baseline to create the alert boundary.
+                The interpretation depends on alert_threshold:
+                - Above: alert if value > (baseline + delta)
+                - Below: alert if value < (baseline - delta)
+                - Outside: alert if value is outside [baseline - delta, baseline + delta]
         Example:
-            alert_threshold = GenAIMetricAlertCondition(AlertCondition.BELOW, 2.0)
+            alert_threshold = GenAIEvalAlertCondition(AlertCondition.BELOW, 2.0)
         """
 
     def __str__(self) -> str:
-        """Return the string representation of GenAIMetricAlertCondition."""
+        """Return the string representation of GenAIEvalAlertCondition."""
+
+    def upper_bound(self) -> float:
+        """Calculate and return the upper bound for alerting based on baseline and delta."""
+
+    def lower_bound(self) -> float:
+        """Calculate and return the lower bound for alerting based on baseline and delta."""
+
+    def should_alert(self, value: float) -> bool:
+        """Determine if an alert should be triggered based on the provided value."""
 
 class LogLevel:
     Debug: "LogLevel"
@@ -14431,7 +14446,7 @@ __all__ = [
     "PsiNormalThreshold",
     "PsiChiSquareThreshold",
     "PsiFixedThreshold",
-    "GenAIMetricAlertCondition",
+    "GenAIEvalAlertCondition",
     "GenAIAlertConfig",
     # client
     "TimeInterval",

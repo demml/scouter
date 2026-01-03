@@ -1,7 +1,7 @@
 use crate::error::DriftError;
 use chrono::{DateTime, Utc};
 use scouter_dispatch::AlertDispatcher;
-use scouter_sql::sql::traits::GenAIDriftSqlLogic;
+use scouter_sql::sql::traits::{alert, GenAIDriftSqlLogic};
 use scouter_sql::{sql::cache::entity_cache, PostgresClient};
 use scouter_types::ProfileBaseArgs;
 use scouter_types::{custom::ComparisonMetricAlert, genai::GenAIEvalProfile, AlertThreshold};
@@ -19,23 +19,17 @@ impl GenAIDrifter {
         Self { profile }
     }
 
-    pub async fn get_observed_genai_metric_values(
+    pub async fn get_workflow_value(
         &self,
         limit_datetime: &DateTime<Utc>,
         db_pool: &Pool<Postgres>,
-    ) -> Result<HashMap<String, f64>, DriftError> {
+    ) -> Result<Option<f64>, DriftError> {
         let entity_id = entity_cache()
             .get_entity_id_from_uid(db_pool, &self.profile.config.uid)
             .await?;
-        let metrics: Vec<String> = self
-            .profile
-            .metrics
-            .iter()
-            .map(|metric| metric.name.clone())
-            .collect();
 
         Ok(
-            PostgresClient::get_genai_metric_values(db_pool, limit_datetime, &metrics, &entity_id)
+            PostgresClient::get_genai_workflow_value(db_pool, limit_datetime, &entity_id)
                 .await
                 .inspect_err(|e| {
                     let msg = format!(
@@ -54,12 +48,10 @@ impl GenAIDrifter {
         &self,
         limit_datetime: &DateTime<Utc>,
         db_pool: &Pool<Postgres>,
-    ) -> Result<Option<HashMap<String, f64>>, DriftError> {
-        let metric_map = self
-            .get_observed_genai_metric_values(limit_datetime, db_pool)
-            .await?;
+    ) -> Result<Option<f64>, DriftError> {
+        let value = self.get_workflow_value(limit_datetime, db_pool).await?;
 
-        if metric_map.is_empty() {
+        if value.is_none() {
             info!(
                 "No genai metric data was found for {}/{}/{}. Skipping alert processing.",
                 self.profile.config.space, self.profile.config.name, self.profile.config.version,
@@ -67,7 +59,7 @@ impl GenAIDrifter {
             return Ok(None);
         }
 
-        Ok(Some(metric_map))
+        Ok(value)
     }
 
     fn is_out_of_bounds(
@@ -101,26 +93,62 @@ impl GenAIDrifter {
 
     pub async fn generate_alerts(
         &self,
-        metric_map: &HashMap<String, f64>,
+        value: Option<f64>,
     ) -> Result<Option<Vec<ComparisonMetricAlert>>, DriftError> {
+        let alert_condition = &self.profile.config.alert_config.alert_condition;
+
+        // check if alert condition is configured
+        if let Some(_) = alert_condition {
+            info!(
+                "No alert condition configured for {}/{}/{}. Skipping alert processing.",
+                self.profile.config.space, self.profile.config.name, self.profile.config.version
+            );
+            return Ok(None);
+        }
+
+        // check if we have a value to compare against
+        if let Some(value) = value {
+            info!(
+                "No metric data found for {}/{}/{}. Skipping alert processing.",
+                self.profile.config.space, self.profile.config.name, self.profile.config.version
+            );
+            return Ok(None);
+        }
+
+        let observed_value = value.unwrap();
+        let alert_condition = alert_condition.as_ref().unwrap();
+
+        let should_alert = alert_condition.should_alert(observed_value);
+
+        if !should_alert {
+            info!(
+                "No alerts to process for {}/{}/{}",
+                self.profile.config.space, self.profile.config.name, self.profile.config.version
+            );
+            return Ok(None);
+        }
+
+        if should_alert {
+            let comparison_alert = ComparisonMetricAlert {
+                metric_name: "genai_eval".to_string(),
+                training_metric_value: self.profile.config.training_value,
+                observed_metric_value,
+                alert_threshold_value: alert_condition.alert_threshold_value,
+                alert_threshold: alert_condition.alert_threshold.clone(),
+            };
+        }
+
+        // get
         let metric_alerts: Vec<ComparisonMetricAlert> = metric_map
             .iter()
             .filter_map(|(name, observed_value)| {
-                let training_value = self
-                    .profile
-                    .get_metric_value(name)
-                    .inspect_err(|e| {
-                        let msg = format!("Error getting training value for metric {name}: {e}");
-                        error!(msg);
-                    })
-                    .ok()?;
                 let alert_condition = &self
                     .profile
                     .config
                     .alert_config
-                    .alert_conditions
+                    .alert_condition
                     .as_ref()
-                    .unwrap()[name];
+                    .unwrap();
                 if Self::is_out_of_bounds(
                     training_value,
                     *observed_value,

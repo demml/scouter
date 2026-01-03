@@ -4,9 +4,6 @@ use crate::sql::schema::BinnedMetricWrapper;
 use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use core::error;
-use itertools::multiunzip;
-use scouter_dataframe::parquet::types::BinnedTableName;
 use scouter_dataframe::parquet::BinnedMetricsExtractor;
 use scouter_dataframe::parquet::ParquetDataFrame;
 use scouter_settings::ObjectStorageSettings;
@@ -17,9 +14,8 @@ use scouter_types::GenAIEvalWorkflowRecord;
 use scouter_types::GenAIEventRecord;
 use scouter_types::Status;
 use scouter_types::{
-    BinnedMetrics, GenAIEvalTaskResultRecord, GenAIEvalWorkflowRecord,
-    GenAIEventRecordPaginationRequest, GenAIEventRecordPaginationResponse, RecordCursor,
-    RecordType,
+    BinnedMetrics, GenAIEventRecordPaginationRequest, GenAIEventRecordPaginationResponse,
+    RecordCursor, RecordType,
 };
 use sqlx::types::Json;
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
@@ -85,7 +81,7 @@ pub trait GenAIDriftSqlLogic {
     async fn insert_eval_task_results_batch(
         pool: &Pool<Postgres>,
         records: &[GenAIEvalTaskResultRecord], // Passed by slice for better ergonomics
-        entity_id: i32,
+        entity_id: &i32,
     ) -> Result<sqlx::postgres::PgQueryResult, SqlError> {
         if records.is_empty() {
             return Err(SqlError::EmptyBatchError);
@@ -333,32 +329,23 @@ pub trait GenAIDriftSqlLogic {
     /// # Returns
     /// * A hashmap of metric names to their corresponding values
     #[instrument(skip_all)]
-    async fn get_genai_workflow_values(
+    async fn get_genai_workflow_value(
         pool: &Pool<Postgres>,
         limit_datetime: &DateTime<Utc>,
         entity_id: &i32,
-    ) -> Result<HashMap<String, f64>, SqlError> {
+    ) -> Result<Option<f64>, SqlError> {
         let query = Queries::GetGenAIWorkflowValues.get_query();
 
         let records = sqlx::query(query)
             .bind(limit_datetime)
             .bind(entity_id)
-            .fetch_all(pool)
+            .fetch_optional(pool)
             .await
             .inspect_err(|e| {
                 error!("Error fetching GenAI workflow values: {:?}", e);
             })?;
 
-        let metric_map = records
-            .into_iter()
-            .map(|row| {
-                let metric = row.get("metric");
-                let value = row.get("value");
-                (metric, value)
-            })
-            .collect();
-
-        Ok(metric_map)
+        Ok(records.and_then(|r| r.try_get("value").ok()))
     }
 
     // Queries the database for GenAI workflow drift records based on a time window
@@ -638,9 +625,9 @@ pub trait GenAIDriftSqlLogic {
     /// Retrieves the next pending GenAI drift task from drift_records.
     async fn get_pending_genai_event_record(
         pool: &Pool<Postgres>,
-    ) -> Result<Option<GenAITaskRecord>, SqlError> {
-        let query = Queries::GetPendingGenAIDriftTask.get_query();
-        let result: Option<GenAITaskRecord> = sqlx::query_as(query)
+    ) -> Result<Option<GenAIEventRecord>, SqlError> {
+        let query = Queries::GetPendingGenAIEventTask.get_query();
+        let result: Option<GenAIEventRecord> = sqlx::query_as(query)
             .fetch_optional(pool)
             .await
             .map_err(SqlError::SqlxError)?;
@@ -651,12 +638,11 @@ pub trait GenAIDriftSqlLogic {
     #[instrument(skip_all)]
     async fn update_genai_event_record_status(
         pool: &Pool<Postgres>,
-        record: &GenAITaskRecord,
+        record: &GenAIEventRecord,
         status: Status,
         workflow_duration: Option<i32>, // Duration in seconds
     ) -> Result<(), SqlError> {
-        let query = Queries::UpdateGenAIDriftTask.get_query();
-
+        let query = Queries::UpdateGenAIEventTask.get_query();
         let _query_result = sqlx::query(query)
             .bind(status.as_str())
             .bind(record.score.clone())

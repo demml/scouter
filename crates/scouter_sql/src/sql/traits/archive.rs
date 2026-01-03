@@ -97,8 +97,9 @@ pub trait ArchiveSqlLogic {
             RecordType::Spc => Queries::UpdateSpcEntities.get_query(),
             RecordType::Psi => Queries::UpdateBinCountEntities.get_query(),
             RecordType::Custom => Queries::UpdateCustomEntities.get_query(),
-            RecordType::GenAIEvent => Queries::UpdateGenAIDriftEntities.get_query(),
-            RecordType::GenAIMetric => Queries::UpdateGenAIMetricEntities.get_query(),
+            RecordType::GenAIEvent => Queries::UpdateGenAIEventEntities.get_query(),
+            RecordType::GenAITask => Queries::UpdateGenAITaskEntities.get_query(),
+            RecordType::GenAIWorkflow => Queries::UpdateGenAIWorkflowEntities.get_query(),
             _ => {
                 return Err(SqlError::InvalidRecordTypeError(record_type.to_string()));
             }
