@@ -1,7 +1,10 @@
 use crate::error::FeatureQueueError;
 use crate::queue::traits::FeatureQueue;
 use core::result::Result::Ok;
+use futures::SinkExt;
 use scouter_types::BoxedGenAIDriftRecord;
+use scouter_types::BoxedGenAIEventRecord;
+use scouter_types::GenAIEventRecord;
 use scouter_types::GenAIRecord;
 use scouter_types::QueueExt;
 use scouter_types::{
@@ -10,15 +13,11 @@ use scouter_types::{
 use tracing::instrument;
 pub struct GenAIRecordQueue {
     drift_profile: GenAIEvalProfile,
-    empty_queue: Vec<GenAIRecord>,
 }
 
 impl GenAIRecordQueue {
     pub fn new(drift_profile: GenAIEvalProfile) -> Self {
-        GenAIRecordQueue {
-            drift_profile,
-            empty_queue: Vec::new(),
-        }
+        GenAIRecordQueue { drift_profile }
     }
 
     /// Insert genai records into the queue
@@ -42,19 +41,21 @@ impl GenAIRecordQueue {
         Ok(())
     }
 
-    fn create_drift_records(
+    fn create_drift_records<T: QueueExt>(
         &self,
-        queue: Vec<GenAIRecord>,
-    ) -> Result<ServerRecords, FeatureQueueError> {
+        queue: Vec<T>,
+    ) -> Result<ServerRecords, FeatureQueueError>
+    where
+        T: AsRef<GenAIRecord>,
+    {
         let records = queue
             .iter()
             .map(|record| {
-                ServerRecord::GenAIDrift(BoxedGenAIDriftRecord::new(GenAIDriftRecord::new_rs(
-                    record.prompt.clone(),
-                    record.context.clone(),
-                    record.created_at,
-                    record.score.clone(),
-                    record.uid.clone(),
+                let genai_record = record.as_ref();
+                ServerRecord::GenAIEvent(BoxedGenAIEventRecord::new(GenAIEventRecord::new_rs(
+                    genai_record.context,
+                    genai_record.created_at,
+                    genai_record.uid,
                     self.drift_profile.config.uid.clone(),
                 ))) // Removed the semicolon here
             })
@@ -69,15 +70,8 @@ impl FeatureQueue for GenAIRecordQueue {
         &self,
         batch: Vec<T>,
     ) -> Result<MessageRecord, FeatureQueueError> {
-        // clones the empty map (so we don't need to recreate it on each call)
-        let mut queue = self.empty_queue.clone();
-
-        for elem in batch {
-            self.insert(elem.genai_records(), &mut queue)?;
-        }
-
         Ok(MessageRecord::ServerRecords(
-            self.create_drift_records(queue)?,
+            self.create_drift_records(batch)?,
         ))
     }
 }
@@ -136,7 +130,7 @@ mod tests {
             new_map.insert("input".into(), serde_json::Value::String("test".into()));
             let context = serde_json::Value::Object(new_map);
 
-            let record = GenAIRecord::new_rs(Some(context), None);
+            let record = GenAIRecord::new_rs(Some(context));
             record_batch.push(record);
         }
 

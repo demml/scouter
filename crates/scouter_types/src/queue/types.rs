@@ -1,7 +1,7 @@
 use crate::error::TypeError;
-use crate::json_to_pyobject_value;
 use crate::util::{is_pydantic_basemodel, pyobject_to_json};
 use crate::PyHelperFuncs;
+use crate::{json_to_pyobject_value, GenAIEventRecord};
 use chrono::DateTime;
 use chrono::Utc;
 use potato_head::create_uuid7;
@@ -9,6 +9,7 @@ use potato_head::prompt_types::Prompt;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyFloat, PyInt, PyList, PyString};
 use pyo3::IntoPyObjectExt;
+use pythonize::depythonize;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -21,7 +22,7 @@ use std::fmt::Formatter;
 pub enum EntityType {
     Feature,
     Metric,
-    LLM,
+    GenAI,
 }
 
 #[pyclass]
@@ -388,25 +389,12 @@ impl Metrics {
     }
 }
 
-#[derive(Clone, Serialize, Debug)]
-#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
-pub struct GenAITaskRecord {
-    pub uid: String,
-    pub entity_id: i32,
-    pub created_at: DateTime<Utc>,
-    pub context: Value,
-    pub score: Value,
-    pub prompt: Option<Value>,
-}
-
 #[pyclass]
 #[derive(Clone, Serialize, Debug)]
 pub struct GenAIRecord {
     pub uid: String,
     pub created_at: DateTime<Utc>,
     pub context: Value,
-    pub score: Value,
-    pub prompt: Option<Value>,
     #[pyo3(get)]
     pub entity_type: EntityType,
 }
@@ -414,18 +402,11 @@ pub struct GenAIRecord {
 #[pymethods]
 impl GenAIRecord {
     #[new]
-    #[pyo3(signature = (
-        context,
-        prompt=None,
-    ))]
+    #[pyo3(signature = (context))]
 
     /// Creates a new GenAIRecord instance.
     /// The context is either a python dictionary or a pydantic basemodel.
-    pub fn new(
-        py: Python<'_>,
-        context: Bound<'_, PyAny>,
-        prompt: Option<Bound<'_, PyAny>>,
-    ) -> Result<Self, TypeError> {
+    pub fn new(py: Python<'_>, context: Bound<'_, PyAny>) -> Result<Self, TypeError> {
         // check if context is a PyDict or PyObject(Pydantic model)
         let context_val = if context.is_instance_of::<PyDict>() {
             pyobject_to_json(&context)?
@@ -434,30 +415,16 @@ impl GenAIRecord {
             let model = context.call_method0("model_dump")?;
 
             // Serialize the dictionary to JSON
-            pyobject_to_json(&model)?
+            depythonize(model)?
         } else {
             Err(TypeError::MustBeDictOrBaseModel)?
-        };
-
-        let prompt: Option<Value> = match prompt {
-            Some(p) => {
-                if p.is_instance_of::<Prompt>() {
-                    let prompt = p.extract::<Prompt>()?;
-                    Some(serde_json::to_value(prompt)?)
-                } else {
-                    Some(pyobject_to_json(&p)?)
-                }
-            }
-            None => None,
         };
 
         Ok(GenAIRecord {
             uid: create_uuid7(),
             created_at: Utc::now(),
             context: context_val,
-            score: Value::Null,
-            prompt,
-            entity_type: EntityType::LLM,
+            entity_type: EntityType::GenAI,
         })
     }
 
@@ -470,14 +437,12 @@ impl GenAIRecord {
 }
 
 impl GenAIRecord {
-    pub fn new_rs(context: Option<Value>, prompt: Option<Value>) -> Self {
+    pub fn new_rs(context: Option<Value>) -> Self {
         GenAIRecord {
             context: context.unwrap_or(Value::Object(serde_json::Map::new())),
-            prompt,
-            entity_type: EntityType::LLM,
+            entity_type: EntityType::GenAI,
             uid: create_uuid7(),
             created_at: Utc::now(),
-            score: Value::Null,
         }
     }
 
@@ -485,14 +450,12 @@ impl GenAIRecord {
         PyHelperFuncs::__str__(self)
     }
 
-    pub fn to_task_record(&self, uid: &str) -> GenAITaskRecord {
-        GenAITaskRecord {
+    pub fn to_event_record(&self, uid: &str) -> GenAIEventRecord {
+        GenAIEventRecord {
             uid: uid.to_string(),
-            entity_id: 0,
+            entity_id: None,
             created_at: self.created_at,
             context: self.context.clone(),
-            score: self.score.clone(),
-            prompt: self.prompt.clone(),
         }
     }
 }
@@ -518,7 +481,7 @@ impl QueueItem {
                 let metrics = entity.extract::<Metrics>()?;
                 Ok(QueueItem::Metrics(metrics))
             }
-            EntityType::LLM => {
+            EntityType::GenAI => {
                 // LLM is not supported in this context
                 let genai = entity.extract::<GenAIRecord>()?;
                 Ok(QueueItem::LLM(Box::new(genai)))

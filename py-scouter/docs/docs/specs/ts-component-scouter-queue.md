@@ -263,7 +263,7 @@ impl GenAIRecord {
             context: context_val,
             score: Value::Null,
             prompt,
-            entity_type: EntityType::LLM,
+            entity_type: EntityType::GenAI,
         })
     }
 }

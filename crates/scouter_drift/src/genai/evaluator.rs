@@ -1,11 +1,9 @@
 // Module for polling GenAI drift records that are "pending" and need to be processed
 use crate::error::DriftError;
-
-use potato_head::prompt_types::Score;
 use scouter_evaluate::tasks::traits::EvaluateTaskMut;
 use scouter_types::genai::GenAIEvalSet;
 use scouter_types::genai::{traits::ProfileExt, EvaluationContext, GenAIEvalProfile};
-use scouter_types::{GenAIEvalTaskResultRecord, GenAITaskRecord};
+use scouter_types::GenAITaskRecord;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -29,7 +27,7 @@ impl GenAIEvaluator {
     /// 4. For each field assertion, execute and collect results
     /// 5. Return all metric records and scores
     #[instrument(skip_all)]
-    pub async fn process_drift_record(
+    pub async fn process_event_record(
         record: &GenAITaskRecord,
         profile: Arc<Mutex<GenAIEvalProfile>>,
     ) -> Result<GenAIEvalSet, DriftError> {

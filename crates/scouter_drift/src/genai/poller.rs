@@ -27,7 +27,7 @@ impl GenAIPoller {
     }
 
     #[instrument(skip_all)]
-    pub async fn process_drift_record(
+    pub async fn process_event_record(
         &mut self,
         record: &GenAITaskRecord,
         profile: &GenAIEvalProfile,
@@ -36,7 +36,7 @@ impl GenAIPoller {
 
         // create arc mutex for profile
         let profile = Arc::new(tokio::sync::Mutex::new(profile.clone()));
-        match GenAIEvaluator::process_drift_record(record, profile).await {
+        match GenAIEvaluator::process_event_record(record, profile).await {
             Ok(result_set) => {
                 // insert task results first
                 PostgresClient::insert_eval_task_results_batch(
@@ -109,7 +109,7 @@ impl GenAIPoller {
         }
 
         loop {
-            match self.process_drift_record(&task, &genai_profile).await {
+            match self.process_event_record(&task, &genai_profile).await {
                 Ok(result_set) => {
                     PostgresClient::update_genai_event_record_status(
                         &self.db_pool,

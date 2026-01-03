@@ -36,7 +36,7 @@ impl ClientGenAIDrifter {
         let task_record = record.to_task_record(&profile.config.uid);
         let profile = Arc::new(profile.clone());
         let assertion_results =
-            GenAIEvaluator::process_drift_record(&task_record, &profile).await?;
+            GenAIEvaluator::process_event_record(&task_record, &profile).await?;
         Ok(())
     }
 
