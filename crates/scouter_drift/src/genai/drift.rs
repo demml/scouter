@@ -130,11 +130,11 @@ impl GenAIDrifter {
 
         if should_alert {
             let comparison_alert = ComparisonMetricAlert {
-                metric_name: "genai_eval".to_string(),
-                training_metric_value: self.profile.config.training_value,
-                observed_metric_value,
-                alert_threshold_value: alert_condition.alert_threshold_value,
-                alert_threshold: alert_condition.alert_threshold.clone(),
+                metric_name: &"genai_workflow_metric".to_string(),
+                training_metric_value: &alert_condition.baseline_value,
+                observed_metric_value: &observed_value,
+                alert_threshold_value: alert_condition.delta,
+                alert_threshold: &alert_condition.alert_threshold,
             };
         }
 

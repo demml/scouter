@@ -186,7 +186,7 @@ pub struct ComparisonMetricAlert<'a> {
     pub metric_name: &'a str,
     pub training_metric_value: &'a f64,
     pub observed_metric_value: &'a f64,
-    pub alert_threshold_value: Option<f64>,
+    pub alert_threshold_value: &'a Option<f64>,
     pub alert_threshold: &'a AlertThreshold,
 }
 
@@ -226,9 +226,9 @@ impl<'a> ComparisonMetricAlert<'a> {
         };
 
         match self.alert_threshold {
-            AlertThreshold::Below => below_threshold(self.alert_threshold_value),
-            AlertThreshold::Above => above_threshold(self.alert_threshold_value),
-            AlertThreshold::Outside => outside_threshold(self.alert_threshold_value),
+            AlertThreshold::Below => below_threshold(*self.alert_threshold_value),
+            AlertThreshold::Above => above_threshold(*self.alert_threshold_value),
+            AlertThreshold::Outside => outside_threshold(*self.alert_threshold_value),
         }
     }
 }
@@ -298,7 +298,7 @@ mod tests {
             metric_name: &"mse".to_string(),
             training_metric_value: &12.5,
             observed_metric_value: &14.0,
-            alert_threshold_value: Some(1.0),
+            alert_threshold_value: &Some(1.0),
             alert_threshold: &AlertThreshold::Above,
         };
 
@@ -311,11 +311,11 @@ mod tests {
         assert!(description.contains("Current Metric Value: 14"));
 
         let alert_below_threshold = ComparisonMetricAlert {
-            metric_name: "accuracy".to_string(),
-            training_metric_value: 0.9,
-            observed_metric_value: 0.7,
-            alert_threshold_value: None,
-            alert_threshold: AlertThreshold::Below,
+            metric_name: &"accuracy".to_string(),
+            training_metric_value: &0.9,
+            observed_metric_value: &0.7,
+            alert_threshold_value: &None,
+            alert_threshold: &AlertThreshold::Below,
         };
 
         let description =
@@ -327,11 +327,11 @@ mod tests {
         assert!(description.contains("Current Metric Value: 0.7"));
 
         let alert_outside_threshold = ComparisonMetricAlert {
-            metric_name: "mae".to_string(),
-            training_metric_value: 12.5,
-            observed_metric_value: 22.0,
-            alert_threshold_value: Some(2.0),
-            alert_threshold: AlertThreshold::Outside,
+            metric_name: &"mae".to_string(),
+            training_metric_value: &12.5,
+            observed_metric_value: &22.0,
+            alert_threshold_value: &Some(2.0),
+            alert_threshold: &AlertThreshold::Outside,
         };
 
         let description =
