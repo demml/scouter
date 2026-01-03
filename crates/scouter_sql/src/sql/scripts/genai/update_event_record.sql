@@ -1,8 +1,7 @@
 UPDATE scouter.genai_event_record
 SET status       = $1,
-    score        = $2,
     processing_ended_at = CURRENT_TIMESTAMP,
     updated_at   = CURRENT_TIMESTAMP,
-    processing_duration = $3
-WHERE uid = $4
+    processing_duration = $2
+WHERE uid = $3
   AND status = 'processing'

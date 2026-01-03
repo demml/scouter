@@ -1,4 +1,5 @@
 use crate::error::EvaluationError;
+use crate::tasks::assertion;
 use regex::Regex;
 use scouter_types::genai::ValueExt;
 use scouter_types::genai::{traits::TaskAccessor, AssertionResult, ComparisonOperator};
@@ -103,32 +104,25 @@ impl AssertionEvaluator {
             json_value
         };
 
-        // Transform for comparison (now uses Cow - only clones when necessary)
         let comparable_actual =
             Self::transform_for_comparison(&actual_value, assertion.operator())?;
         let expected = assertion.expected_value();
 
-        // Comparison works with references - no clone
         let passed = Self::compare_values(&comparable_actual, assertion.operator(), expected)?;
+        let messages = if passed {
+            format!("✓ Assertion '{}' passed", assertion.id())
+        } else {
+            format!(
+                "✗ Assertion '{}' failed: expected {}, got {}",
+                assertion.id(),
+                serde_json::to_string(expected).unwrap_or_default(),
+                serde_json::to_string(&comparable_actual).unwrap_or_default()
+            )
+        };
 
-        // AssertionResult creation - necessary clones for owned storage
-        Ok(AssertionResult {
-            id: assertion.id().to_string(),
-            passed,
-            field_path: assertion.field_path().map(|s| s.to_string()),
-            expected: expected.clone(),
-            actual: (*actual_value).clone(),
-            message: if passed {
-                format!("✓ Assertion '{}' passed", assertion.id())
-            } else {
-                format!(
-                    "✗ Assertion '{}' failed: expected {}, got {}",
-                    assertion.id(),
-                    serde_json::to_string(expected).unwrap_or_default(),
-                    serde_json::to_string(&comparable_actual).unwrap_or_default()
-                )
-            },
-        })
+        let assertion_result = AssertionResult::new(passed, (*actual_value).clone(), messages);
+
+        Ok(assertion_result)
     }
 
     /// Transforms a value based on the comparison operator
@@ -157,11 +151,10 @@ impl AssertionEvaluator {
                     Err(EvaluationError::CannotGetLength(format!("{:?}", value)))
                 }
             }
-            _ => Ok(value.clone()), // Must clone to return owned
+            _ => Ok(value.clone()),
         }
     }
 
-    // All comparison methods work with &Value - no clones needed
     fn compare_values(
         actual: &Value,
         operator: &ComparisonOperator,
@@ -282,6 +275,7 @@ mod tests {
             description: Some("Check if priority is high".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            result: None,
         }
     }
 
@@ -294,6 +288,7 @@ mod tests {
             description: Some("Status should start with 'in_'".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            result: None,
         }
     }
 
@@ -306,6 +301,7 @@ mod tests {
             description: Some("There should be 3 tasks".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            result: None,
         }
     }
 
@@ -318,6 +314,7 @@ mod tests {
             description: Some("There should be more than 2 tasks".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            result: None,
         }
     }
 
@@ -330,6 +327,7 @@ mod tests {
             description: Some("There should be less than 5 tasks".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            result: None,
         }
     }
 
@@ -342,6 +340,7 @@ mod tests {
             description: Some("Tags should contain 'backend'".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            result: None,
         }
     }
 

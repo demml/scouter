@@ -640,12 +640,11 @@ pub trait GenAIDriftSqlLogic {
         pool: &Pool<Postgres>,
         record: &GenAIEventRecord,
         status: Status,
-        workflow_duration: Option<i32>, // Duration in seconds
+        workflow_duration: i64, // Duration in seconds
     ) -> Result<(), SqlError> {
         let query = Queries::UpdateGenAIEventTask.get_query();
         let _query_result = sqlx::query(query)
             .bind(status.as_str())
-            .bind(record.score.clone())
             .bind(workflow_duration)
             .bind(&record.uid)
             .execute(pool)

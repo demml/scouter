@@ -11,6 +11,31 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::str::FromStr;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AssertionResult {
+    pub passed: bool,
+    pub actual: Value,
+    pub message: String,
+}
+
+impl AssertionResult {
+    pub fn new(passed: bool, actual: Value, message: String) -> Self {
+        Self {
+            passed,
+            actual,
+            message,
+        }
+    }
+    pub fn to_metric_value(&self) -> f64 {
+        if self.passed {
+            1.0
+        } else {
+            0.0
+        }
+    }
+}
+
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AssertionTask {
@@ -32,6 +57,9 @@ pub struct AssertionTask {
     pub depends_on: Vec<String>,
 
     pub task_type: EvaluationTaskType,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<AssertionResult>,
 }
 
 #[pymethods]
@@ -108,6 +136,7 @@ impl AssertionTask {
             description,
             task_type: EvaluationTaskType::Assertion,
             depends_on: depends_on.unwrap_or_default(),
+            result: None,
         })
     }
 
@@ -131,12 +160,20 @@ impl TaskAccessor for AssertionTask {
         &self.operator
     }
 
+    fn task_type(&self) -> &EvaluationTaskType {
+        &self.task_type
+    }
+
     fn expected_value(&self) -> &Value {
         &self.expected_value
     }
 
     fn depends_on(&self) -> &[String] {
         &self.depends_on
+    }
+
+    fn add_result(&mut self, result: AssertionResult) {
+        self.result = Some(result);
     }
 }
 
@@ -205,6 +242,9 @@ pub struct LLMJudgeTask {
 
     #[pyo3(get, set)]
     pub max_retries: Option<u32>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<AssertionResult>,
 }
 
 #[pymethods]
@@ -257,6 +297,7 @@ impl LLMJudgeTask {
             depends_on: depends_on.unwrap_or_default(),
             max_retries: max_retries.or(Some(3)),
             field_path,
+            result: None,
         })
     }
 
@@ -303,6 +344,7 @@ impl LLMJudgeTask {
             depends_on: depends_on.unwrap_or_default(),
             max_retries: max_retries.or(Some(3)),
             field_path,
+            result: None,
         }
     }
 }
@@ -315,6 +357,9 @@ impl TaskAccessor for LLMJudgeTask {
     fn id(&self) -> &str {
         &self.id
     }
+    fn task_type(&self) -> &EvaluationTaskType {
+        &self.task_type
+    }
 
     fn operator(&self) -> &ComparisonOperator {
         &self.operator
@@ -325,6 +370,9 @@ impl TaskAccessor for LLMJudgeTask {
     }
     fn depends_on(&self) -> &[String] {
         &self.depends_on
+    }
+    fn add_result(&mut self, result: AssertionResult) {
+        self.result = Some(result);
     }
 }
 
@@ -516,57 +564,6 @@ impl EvaluationTaskType {
     }
 }
 
-#[pyclass]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AssertionResult {
-    #[pyo3(get)]
-    pub id: String,
-
-    #[pyo3(get)]
-    pub passed: bool,
-
-    #[pyo3(get)]
-    pub field_path: Option<String>,
-
-    pub expected: Value,
-
-    pub actual: Value,
-
-    #[pyo3(get)]
-    pub message: String,
-}
-
-#[pymethods]
-impl AssertionResult {
-    pub fn __str__(&self) -> String {
-        // serialize the struct to a string
-        PyHelperFuncs::__str__(self)
-    }
-
-    #[getter]
-    pub fn get_expected<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TypeError> {
-        let py_value = pythonize(py, &self.expected)?;
-        Ok(py_value)
-    }
-
-    #[getter]
-    pub fn get_actual<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TypeError> {
-        let py_value = pythonize(py, &self.actual)?;
-        Ok(py_value)
-    }
-}
-
-impl AssertionResult {
-    /// Convert to a metric value (1.0 for pass, 0.0 for fail)
-    pub fn to_metric_value(&self) -> f64 {
-        if self.passed {
-            1.0
-        } else {
-            0.0
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct EvaluationContext {
     /// Raw JSON output from LLM
@@ -617,32 +614,4 @@ impl EvaluationContext {
 
         Ok(Value::Object(context_map))
     }
-}
-
-#[pyclass]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EvalTaskResult {
-    #[pyo3(get)]
-    pub task_id: String,
-
-    #[pyo3(get)]
-    pub task_type: EvaluationTaskType,
-
-    #[pyo3(get)]
-    pub passed: bool,
-
-    #[pyo3(get)]
-    pub value: f64,
-
-    #[pyo3(get)]
-    pub field_path: Option<String>,
-
-    #[pyo3(get)]
-    pub expected: String,
-
-    #[pyo3(get)]
-    pub actual: String,
-
-    #[pyo3(get)]
-    pub message: Option<String>,
 }

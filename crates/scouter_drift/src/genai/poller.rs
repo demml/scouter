@@ -5,7 +5,7 @@ use potato_head::prompt_types::Score;
 use potato_head::workflow;
 use scouter_sql::sql::traits::{GenAIDriftSqlLogic, ProfileSqlLogic};
 use scouter_sql::PostgresClient;
-use scouter_types::genai::GenAIEvalProfile;
+use scouter_types::genai::{GenAIEvalProfile, GenAIEvalSet};
 use scouter_types::{GenAITaskRecord, Status};
 use sqlx::{Pool, Postgres};
 use std::collections::HashMap;
@@ -30,23 +30,37 @@ impl GenAIPoller {
     pub async fn process_drift_record(
         &mut self,
         record: &GenAITaskRecord,
-        profile: &Arc<GenAIEvalProfile>,
-    ) -> Result<(HashMap<String, Score>, Option<i32>), DriftError> {
+        profile: &GenAIEvalProfile,
+    ) -> Result<GenAIEvalSet, DriftError> {
         debug!("Processing workflow");
 
+        // create arc mutex for profile
+        let profile = Arc::new(tokio::sync::Mutex::new(profile.clone()));
         match GenAIEvaluator::process_drift_record(record, profile).await {
-            Ok(assertion_results) => {
-                PostgresClient::insert_genai_metric_values_batch(
+            Ok(result_set) => {
+                // insert task results first
+                PostgresClient::insert_eval_task_results_batch(
                     &self.db_pool,
-                    &assertion_results, // this is going to removed in future refactor
+                    &result_set.records,
                     &record.entity_id,
                 )
                 .await
                 .inspect_err(|e| {
-                    error!("Failed to insert LLM metric values: {:?}", e);
+                    error!("Failed to insert LLM task results: {:?}", e);
                 })?;
 
-                return Ok((score_map, workflow_duration));
+                // insert workflow record
+                PostgresClient::insert_genai_eval_workflow_record(
+                    &self.db_pool,
+                    &result_set.inner,
+                    &record.entity_id,
+                )
+                .await
+                .inspect_err(|e| {
+                    error!("Failed to insert GenAI workflow record: {:?}", e);
+                })?;
+
+                return Ok(result_set);
             }
             Err(e) => {
                 error!("Failed to process drift record: {:?}", e);
@@ -64,10 +78,18 @@ impl GenAIPoller {
             return Ok(false);
         };
 
+        // extract entity id from task option
+        let entity_id = if let Some(entity_id) = task.entity_id {
+            entity_id
+        } else {
+            error!("No entity_id found for GenAI task: {}", task.uid);
+            return Ok(false);
+        };
+
         debug!("Processing genai drift record for profile: {}", task.uid);
 
         let mut genai_profile = if let Some(profile) =
-            PostgresClient::get_drift_profile(&self.db_pool, &task.entity_id).await?
+            PostgresClient::get_drift_profile(&self.db_pool, &entity_id).await?
         {
             let genai_profile: GenAIEvalProfile =
                 serde_json::from_value(profile).inspect_err(|e| {
@@ -85,20 +107,15 @@ impl GenAIPoller {
                 error!("Failed to reset agents: {:?}", e);
             })?;
         }
-        let arc_profile = Arc::new(genai_profile);
 
         loop {
-            match self.process_drift_record(&task, &arc_profile).await {
-                Ok((result, workflow_duration)) => {
-                    task.score = serde_json::to_value(result).inspect_err(|e| {
-                        error!("Failed to serialize score map: {:?}", e);
-                    })?;
-
+            match self.process_drift_record(&task, &genai_profile).await {
+                Ok(result_set) => {
                     PostgresClient::update_genai_event_record_status(
                         &self.db_pool,
                         &task,
                         Status::Processed,
-                        workflow_duration,
+                        &result_set.inner.duration_ms,
                     )
                     .await?;
                     break;

@@ -1,8 +1,7 @@
 use crate::tasks::evaluator::AssertionEvaluator;
 use crate::{error::EvaluationError, tasks::traits::EvaluationTask};
-use scouter_types::genai::{
-    traits::TaskAccessor, AssertionResult, AssertionTask, EvaluationContext,
-};
+use scouter_types::genai::AssertionResult;
+use scouter_types::genai::{traits::TaskAccessor, AssertionTask, EvaluationContext};
 use serde_json::Value;
 
 impl EvaluationTask for AssertionTask {
@@ -12,8 +11,6 @@ impl EvaluationTask for AssertionTask {
         } else {
             &context.build_merged_context(self.depends_on())?
         };
-        let result = AssertionEvaluator::evaluate_assertion(task_context, self)?;
-
-        Ok(result)
+        AssertionEvaluator::evaluate_assertion(task_context, self)
     }
 }

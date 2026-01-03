@@ -1,15 +1,14 @@
 use crate::error::{ProfileError, TypeError};
 use crate::genai::alert::GenAIAlertConfig;
 use crate::genai::eval::{AssertionTask, LLMJudgeTask};
-use crate::genai::traits::{ProfileExt, TaskAccessor, TaskRef};
-use crate::genai::EvalTaskResult;
+use crate::genai::traits::{ProfileExt, TaskAccessor, TaskRefMut};
 use crate::util::{json_to_pyobject, pyobject_to_json, ConfigExt};
-use crate::ProfileRequest;
-use crate::{scouter_version, GenAIEvalWorkflowRecord};
+use crate::{scouter_version, GenAIEvalTaskResultRecord, GenAIEvalWorkflowRecord};
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
     PyHelperFuncs, VersionRequest, DEFAULT_VERSION, MISSING,
 };
+use crate::{GenAITaskRecord, ProfileRequest};
 use chrono::{DateTime, Utc};
 use core::fmt::Debug;
 use potato_head::prompt_types::{Prompt, ResponseType};
@@ -581,6 +580,81 @@ impl GenAIEvalProfile {
 
         Ok(workflow)
     }
+
+    pub fn build_eval_set_from_tasks(
+        &self,
+        record: &GenAITaskRecord,
+        duration_ms: i64,
+    ) -> GenAIEvalSet {
+        let mut passed_count = 0;
+        let mut failed_count = 0;
+        let mut records = Vec::new();
+
+        for assertion in &self.assertions {
+            if let Some(result) = &assertion.result {
+                if result.passed {
+                    passed_count += 1;
+                } else {
+                    failed_count += 1;
+                }
+                records.push(GenAIEvalTaskResultRecord {
+                    created_at: Utc::now(),
+                    record_uid: record.uid.clone(),
+                    entity_id: record.entity_id.clone(),
+                    task_id: assertion.id.clone(),
+                    task_type: assertion.task_type.clone(),
+                    passed: result.passed,
+                    value: result.to_metric_value(),
+                    field_path: assertion.field_path.clone(),
+                    expected: assertion.expected_value.clone(),
+                    actual: result.actual.clone(),
+                    message: result.message.clone(),
+                    operator: assertion.operator.clone(),
+                });
+            }
+        }
+
+        for judge in &self.llm_judge_tasks {
+            if let Some(result) = &judge.result {
+                if result.passed {
+                    passed_count += 1;
+                } else {
+                    failed_count += 1;
+                }
+                records.push(GenAIEvalTaskResultRecord {
+                    created_at: Utc::now(),
+                    record_uid: record.uid.clone(),
+                    entity_id: record.entity_id.clone(),
+                    task_id: judge.id.clone(),
+                    task_type: judge.task_type.clone(),
+                    passed: result.passed,
+                    value: result.to_metric_value(),
+                    field_path: judge.field_path.clone(),
+                    expected: judge.expected_value.clone(),
+                    actual: result.actual.clone(),
+                    message: result.message.clone(),
+                    operator: judge.operator.clone(),
+                });
+            }
+        }
+
+        let workflow_record = GenAIEvalWorkflowRecord {
+            created_at: Utc::now(),
+            entity_id: record.entity_id.clone(),
+            record_uid: record.uid.clone(),
+            total_tasks: (passed_count + failed_count) as i32,
+            passed_tasks: passed_count as i32,
+            failed_tasks: failed_count as i32,
+            pass_rate: if passed_count + failed_count == 0 {
+                0.0
+            } else {
+                (passed_count as f64) / ((passed_count + failed_count) as f64)
+            },
+            duration_ms: duration_ms,
+        };
+
+        GenAIEvalSet::new(records, workflow_record)
+    }
 }
 
 impl ProfileExt for GenAIEvalProfile {
@@ -589,12 +663,17 @@ impl ProfileExt for GenAIEvalProfile {
         &self.config.uid
     }
 
-    fn get_task_by_id<'a>(&'a self, id: &str) -> Option<TaskRef<'a>> {
-        self.get_assertion_by_id(id)
-            .map(TaskRef::Assertion)
-            .or_else(|| self.get_llm_judge_by_id(id).map(TaskRef::LLMJudge))
-    }
+    fn get_task_by_id_mut(&'_ mut self, id: &str) -> Option<TaskRefMut<'_>> {
+        if let Some(assertion) = self.assertions.iter_mut().find(|t| t.id() == id) {
+            return Some(TaskRefMut::Assertion(assertion));
+        }
 
+        if let Some(judge) = self.llm_judge_tasks.iter_mut().find(|t| t.id() == id) {
+            return Some(TaskRefMut::LLMJudge(judge));
+        }
+
+        None
+    }
     #[inline]
     fn get_assertion_by_id(&self, id: &str) -> Option<&AssertionTask> {
         self.assertions.iter().find(|t| t.id() == id)
@@ -637,12 +716,12 @@ impl ProfileBaseArgs for GenAIEvalProfile {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GenAIEvalSet {
     #[pyo3(get)]
-    pub records: Vec<EvalTaskResult>,
-    inner: GenAIEvalWorkflowRecord,
+    pub records: Vec<GenAIEvalTaskResultRecord>,
+    pub inner: GenAIEvalWorkflowRecord,
 }
 
 impl GenAIEvalSet {
-    pub fn new(records: Vec<EvalTaskResult>, inner: GenAIEvalWorkflowRecord) -> Self {
+    pub fn new(records: Vec<GenAIEvalTaskResultRecord>, inner: GenAIEvalWorkflowRecord) -> Self {
         Self { records, inner }
     }
 }

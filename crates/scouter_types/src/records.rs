@@ -293,7 +293,7 @@ pub struct GenAIEvalWorkflowRecord {
     pub pass_rate: f64,
 
     #[pyo3(get)]
-    pub duration_ms: i64,
+    pub duration_ms: i32,
 }
 
 #[pymethods]

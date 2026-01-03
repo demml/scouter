@@ -14,8 +14,6 @@ impl EvaluationTask for LLMJudgeTask {
         } else {
             &context.build_merged_context(self.depends_on())?
         };
-        let result = AssertionEvaluator::evaluate_assertion(task_context, self)?;
-
-        Ok(result)
+        AssertionEvaluator::evaluate_assertion(task_context, self)
     }
 }

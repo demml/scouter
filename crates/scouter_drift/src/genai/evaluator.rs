@@ -1,38 +1,18 @@
 // Module for polling GenAI drift records that are "pending" and need to be processed
 use crate::error::DriftError;
+
 use potato_head::prompt_types::Score;
-use potato_head::{TaskStatus, Workflow};
-use scouter_evaluate::tasks::traits::EvaluationTask;
-use scouter_types::genai::eval;
-use scouter_types::genai::{
-    traits::{ProfileExt, TaskAccessor, TaskRef},
-    AssertionResult, EvaluationContext, GenAIEvalProfile,
-};
-use scouter_types::{GenAIMetricRecord, GenAITaskRecord};
+use scouter_evaluate::tasks::traits::EvaluateTaskMut;
+use scouter_types::genai::GenAIEvalSet;
+use scouter_types::genai::{traits::ProfileExt, EvaluationContext, GenAIEvalProfile};
+use scouter_types::{GenAIEvalTaskResultRecord, GenAITaskRecord};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;
+use tokio::sync::Mutex;
 use tokio::task::JoinSet;
 use tracing::{debug, error, instrument, warn};
-pub type GenAIEvalResult = (Vec<GenAIMetricRecord>, HashMap<String, Score>, Option<i32>); // Vec<GenAIMetricRecord>, ScoreMap, WorkflowDuration
-
-struct AssertionResults {
-    pub results: Vec<AssertionResult>,
-}
-
-impl AssertionResults {
-    fn new() -> Self {
-        AssertionResults {
-            results: Vec::new(),
-        }
-    }
-
-    // consumes and allows adding multiple results at once
-    fn add_results(&mut self, results: Vec<AssertionResult>) {
-        self.results.extend(results);
-    }
-}
 
 pub struct GenAIEvaluator {}
 
@@ -51,9 +31,9 @@ impl GenAIEvaluator {
     #[instrument(skip_all)]
     pub async fn process_drift_record(
         record: &GenAITaskRecord,
-        profile: &Arc<GenAIEvalProfile>,
-    ) -> Result<AssertionResults, DriftError> {
-        let results = Self::execute_tasks(record, profile).await?;
+        profile: Arc<Mutex<GenAIEvalProfile>>,
+    ) -> Result<GenAIEvalSet, DriftError> {
+        let results = Self::execute_tasks(record, &profile).await?;
 
         // convert to MetricRecords
         Ok(results)
@@ -63,24 +43,25 @@ impl GenAIEvaluator {
     #[instrument(skip_all)]
     pub async fn execute_tasks(
         record: &GenAITaskRecord,
-        profile: &Arc<GenAIEvalProfile>,
-    ) -> Result<AssertionResults, DriftError> {
+        profile: &Arc<Mutex<GenAIEvalProfile>>,
+    ) -> Result<GenAIEvalSet, DriftError> {
+        let begin = chrono::Utc::now();
         let eval_context = Arc::new(RwLock::new(EvaluationContext {
             context: record.context.clone(),
             task_results: HashMap::new(),
         }));
 
-        let mut assertions_results = AssertionResults::new();
-
-        let execution_plan = profile.get_execution_plan()?;
-
-        let workflow_handle = if profile.has_llm_tasks() {
-            let workflow = profile
-                .workflow
-                .as_ref()
-                .ok_or(DriftError::MissingWorkflow)?;
-
-            let workflow_clone = workflow.clone();
+        let execution_plan = profile.lock().await.get_execution_plan()?;
+        let has_llm_tasks = profile.lock().await.has_llm_tasks();
+        let workflow_handle = if has_llm_tasks {
+            let workflow_clone = {
+                let guard = profile.lock().await;
+                guard
+                    .workflow
+                    .as_ref()
+                    .ok_or(DriftError::MissingWorkflow)?
+                    .clone()
+            };
             let eval_context_clone = eval_context.clone();
 
             // This will become an arc later within the workflow
@@ -125,19 +106,24 @@ impl GenAIEvaluator {
         // Execute tasks level by level (respecting dependencies)
         for (level_idx, level) in execution_plan.iter().enumerate() {
             debug!("Executing level {} with {} tasks", level_idx, level.len());
-            let level_results =
-                Self::execute_level_concurrent(level, profile, &eval_context).await?;
-            assertions_results.add_results(level_results);
+            Self::execute_level_concurrent(level, profile, &eval_context).await?;
         }
+        let end = chrono::Utc::now();
+        let duration_ms = (end - begin).num_milliseconds();
 
-        Ok(assertions_results)
+        let eval_set = profile
+            .lock()
+            .await
+            .build_eval_set_from_tasks(record, duration_ms);
+
+        Ok(eval_set)
     }
 
     async fn execute_level_concurrent(
         task_ids: &[String],
-        profile: &Arc<GenAIEvalProfile>,
+        profile: &Arc<Mutex<GenAIEvalProfile>>,
         context: &Arc<RwLock<EvaluationContext>>,
-    ) -> Result<Vec<AssertionResult>, DriftError> {
+    ) -> Result<(), DriftError> {
         let mut join_set = JoinSet::new();
 
         for task_id in task_ids {
@@ -150,44 +136,46 @@ impl GenAIEvaluator {
                 .spawn(async move { Self::execute_single_task(&task_id, profile, context).await });
         }
 
-        // Collect results
-        let mut results = Vec::new();
         while let Some(result) = join_set.join_next().await {
             match result {
-                Ok(Ok(Some(assertion_result))) => results.push(assertion_result),
-                Ok(Ok(None)) => continue, // LLM task, handled by workflow
+                Ok(Ok(())) => {
+                    continue;
+                }
                 Ok(Err(e)) => {
-                    error!("Task execution failed: {:?}", e);
+                    error!("Error executing task: {:?}", e);
                     return Err(e);
                 }
                 Err(e) => {
-                    error!("Task join failed: {:?}", e);
-                    return Err(DriftError::TaskExecutionError(e.to_string()));
+                    error!("Join error: {:?}", e);
+                    return Err(DriftError::GenAIEvaluatorError(format!(
+                        "Join error: {}",
+                        e.to_string()
+                    )));
                 }
             }
         }
 
-        Ok(results)
+        Ok(())
     }
 
+    /// Executes a single task by ID, updating the profile and context as needed
+    /// Results are appended to Task struct internally
+    /// This allows us to keep track of results without copying/cloning internal state
     #[instrument(skip_all)]
     async fn execute_single_task(
         task_id: &str,
-        profile: Arc<GenAIEvalProfile>,
+        profile: Arc<Mutex<GenAIEvalProfile>>,
         context: Arc<RwLock<EvaluationContext>>,
-    ) -> Result<Option<AssertionResult>, DriftError> {
-        if let Some(task) = profile.get_task_by_id(task_id) {
+    ) -> Result<(), DriftError> {
+        if let Some(mut task) = profile.lock().await.get_task_by_id_mut(task_id) {
             debug!("Executing assertion: {}", task_id);
 
             let context = context
                 .read()
                 .map_err(|_| DriftError::ReadLockAcquireError)?;
 
-            let result = match task {
-                TaskRef::Assertion(assertion) => assertion.execute(&context)?,
-                TaskRef::LLMJudge(judge) => judge.execute(&context)?,
-            };
-            return Ok(Some(result));
+            // this will execute the task and update its internal result state
+            return Ok(task.evaluate_task_mut(&context)?);
         }
 
         warn!("Task not found: {}", task_id);

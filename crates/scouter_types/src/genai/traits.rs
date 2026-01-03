@@ -1,7 +1,8 @@
-use crate::genai::{AssertionTask, ComparisonOperator, LLMJudgeTask};
+use crate::genai::{
+    AssertionResult, AssertionTask, ComparisonOperator, EvaluationTaskType, LLMJudgeTask,
+};
 use serde_json::Value;
 use std::fmt::Debug;
-/// Base trait for all evaluation tasks
 
 pub trait TaskAccessor {
     /// Returns optional field path - avoids `&Option<String>` pattern
@@ -9,6 +10,8 @@ pub trait TaskAccessor {
 
     /// Returns assertion ID as string slice
     fn id(&self) -> &str;
+
+    fn task_type(&self) -> &EvaluationTaskType;
 
     /// Returns reference to comparison operator
     fn operator(&self) -> &ComparisonOperator;
@@ -18,20 +21,21 @@ pub trait TaskAccessor {
 
     /// Returns slice of dependency IDs - more efficient than `&Vec<String>`
     fn depends_on(&self) -> &[String];
+
+    fn add_result(&mut self, result: AssertionResult);
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum TaskRef<'a> {
-    Assertion(&'a AssertionTask),
-    LLMJudge(&'a LLMJudgeTask),
+#[derive(Debug)]
+pub enum TaskRefMut<'a> {
+    Assertion(&'a mut AssertionTask),
+    LLMJudge(&'a mut LLMJudgeTask),
 }
 
-impl<'a> TaskRef<'a> {
-    #[inline]
-    pub fn as_task(&self) -> &dyn TaskAccessor {
+impl<'a> TaskRefMut<'a> {
+    pub fn add_result(&mut self, result: AssertionResult) {
         match self {
-            TaskRef::Assertion(t) => *t,
-            TaskRef::LLMJudge(t) => *t,
+            TaskRefMut::Assertion(t) => t.add_result(result),
+            TaskRefMut::LLMJudge(t) => t.add_result(result),
         }
     }
 }
@@ -40,7 +44,7 @@ impl<'a> TaskRef<'a> {
 /// Provides unified access to assertions and LLM judge tasks
 pub trait ProfileExt {
     fn id(&self) -> &str;
-    fn get_task_by_id<'a>(&'a self, id: &str) -> Option<TaskRef<'a>>;
+    fn get_task_by_id_mut(&'_ mut self, id: &str) -> Option<TaskRefMut<'_>>;
     fn get_assertion_by_id(&self, id: &str) -> Option<&AssertionTask>;
     fn get_llm_judge_by_id(&self, id: &str) -> Option<&LLMJudgeTask>;
 

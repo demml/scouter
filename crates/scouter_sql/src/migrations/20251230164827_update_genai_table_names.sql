@@ -1,166 +1,78 @@
-BEGIN;
 
 -- ============================================================================
--- STEP 1: Rename Main Tables
+-- STEP 1: Drop Existing Tables and Partitions
 -- ============================================================================
 
--- Rename llm_drift_record to genai_event_record
-ALTER TABLE scouter.llm_drift_record
-RENAME TO genai_event_record;
+-- Drop llm_drift_record and all its partitions
+DROP TABLE IF EXISTS scouter.llm_drift_record CASCADE;
 
--- Rename llm_drift to genai_drift
-ALTER TABLE scouter.llm_drift
-RENAME TO genai_drift;
+-- Drop llm_drift and all its partitions
+DROP TABLE IF EXISTS scouter.llm_drift CASCADE;
 
 -- ============================================================================
--- STEP 2: Update pg_partman Configuration
+-- STEP 2: Clean up pg_partman Configuration
 -- ============================================================================
 
-UPDATE scouter.part_config
-SET parent_table = 'scouter.genai_event_record'
-WHERE parent_table = 'scouter.llm_drift_record';
-
-UPDATE scouter.part_config
-SET parent_table = 'scouter.genai_drift'
-WHERE parent_table = 'scouter.llm_drift';
+-- Remove pg_partman configurations for dropped tables
+DELETE FROM scouter.part_config
+WHERE parent_table IN ('scouter.llm_drift_record', 'scouter.llm_drift');
 
 -- ============================================================================
--- STEP 3: Update Cron Jobs
+-- STEP 3: Clean up Cron Jobs
 -- ============================================================================
 
-UPDATE cron.job
-SET command = REPLACE(
-    REPLACE(command, 'llm_drift_record', 'genai_event_record'),
-    'llm_drift', 'genai_drift'
-)
+-- Remove any cron jobs related to the old tables
+DELETE FROM cron.job
 WHERE command LIKE '%llm_drift%';
 
 -- ============================================================================
--- STEP 4: Rename Child Partitions
+-- STEP 4: Drop Template Tables (if they exist)
 -- ============================================================================
 
-DO $$
-DECLARE
-    partition_rec RECORD;
-    new_partition_name TEXT;
-BEGIN
-    -- Rename llm_drift_record partitions to genai_event_record
-    FOR partition_rec IN
-        SELECT tablename
-        FROM pg_tables
-        WHERE schemaname = 'scouter'
-          AND tablename LIKE 'llm_drift_record_p%'
-    LOOP
-        new_partition_name := REPLACE(partition_rec.tablename, 'llm_drift_record', 'genai_event_record');
-        EXECUTE format('ALTER TABLE scouter.%I RENAME TO %I',
-            partition_rec.tablename,
-            new_partition_name
-        );
-        RAISE NOTICE 'Renamed partition: % -> %', partition_rec.tablename, new_partition_name;
-    END LOOP;
-
-    -- Rename llm_drift partitions to genai_drift
-    FOR partition_rec IN
-        SELECT tablename
-        FROM pg_tables
-        WHERE schemaname = 'scouter'
-          AND tablename LIKE 'llm_drift_p%'
-          AND tablename NOT LIKE 'llm_drift_record%'  -- Exclude already renamed
-    LOOP
-        new_partition_name := REPLACE(partition_rec.tablename, 'llm_drift', 'genai_drift');
-        EXECUTE format('ALTER TABLE scouter.%I RENAME TO %I',
-            partition_rec.tablename,
-            new_partition_name
-        );
-        RAISE NOTICE 'Renamed partition: % -> %', partition_rec.tablename, new_partition_name;
-    END LOOP;
-END $$;
+DROP TABLE IF EXISTS scouter.template_scouter_llm_drift_record CASCADE;
+DROP TABLE IF EXISTS scouter.template_scouter_llm_drift CASCADE;
 
 -- ============================================================================
--- STEP 5: Rename Template Tables (pg_partman templates)
+-- STEP 5: Create New genai_event_record Table
 -- ============================================================================
 
-ALTER TABLE IF EXISTS scouter.template_scouter_llm_drift_record
-RENAME TO template_scouter_genai_event_record;
-
-ALTER TABLE IF EXISTS scouter.template_scouter_llm_drift
-RENAME TO template_scouter_genai_drift;
+CREATE TABLE IF NOT EXISTS scouter.genai_event_record (
+    id BIGINT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    uid TEXT DEFAULT gen_random_uuid(),
+    entity_id INTEGER NOT NULL,
+    context JSONB,
+    prompt JSONB,
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending', -- pending, processing, completed, failed
+    processing_started_at TIMESTAMPTZ,
+    processing_ended_at TIMESTAMPTZ,
+    processing_duration INTEGER,
+    archived BOOLEAN DEFAULT false,
+    PRIMARY KEY (uid, created_at),
+    UNIQUE (created_at, name, space, version)
+)
+PARTITION BY RANGE (created_at);
 
 -- ============================================================================
--- STEP 6: Update part_config Template Table References
+-- STEP 6: Create Indexes
+-- ============================================================================
+CREATE INDEX IF NOT EXISTS idx_genai_event_record_lookup ON scouter.genai_event_record (entity_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_genai_event_record_pagination ON scouter.genai_event_record (entity_id, id DESC);;
+
+
+-- ============================================================================
+-- STEP 7: Setup pg_partman Configuration
 -- ============================================================================
 
+-- Register table with pg_partman for automatic partition management
+SELECT scouter.create_parent(
+    'scouter.genai_event_record',
+    'created_at',
+    '1 day'
+);
+
+-- Set retention policy to automatically drop old partitions after 60 days
 UPDATE scouter.part_config
-SET template_table = 'scouter.template_scouter_genai_event_record'
-WHERE template_table = 'scouter.template_scouter_llm_drift_record';
-
-UPDATE scouter.part_config
-SET template_table = 'scouter.template_scouter_genai_drift'
-WHERE template_table = 'scouter.template_scouter_llm_drift';
-
--- ============================================================================
--- STEP 7: Rename Indexes
--- ============================================================================
-
--- Rename llm_drift indexes to genai_drift
-ALTER INDEX IF EXISTS scouter.idx_llm_drift_lookup
-RENAME TO idx_genai_drift_lookup;
-
-ALTER INDEX IF EXISTS scouter.llm_drift_created_at_entity_id_key
-RENAME TO genai_drift_created_at_entity_id_key;
-
--- Rename llm_drift_record indexes to genai_event_record
-ALTER INDEX IF EXISTS scouter.idx_llm_drift_record_lookup
-RENAME TO idx_genai_event_record_lookup;
-
-ALTER INDEX IF EXISTS scouter.idx_llm_drift_record_pagination
-RENAME TO idx_genai_event_record_pagination;
-
-ALTER INDEX IF EXISTS scouter.idx_llm_drift_record_status
-RENAME TO idx_genai_event_record_status;
-
--- ============================================================================
--- STEP 8: Update drift_entities Array Reference
--- ============================================================================
-
--- Update the entity_tables array in the entities migration if needed
-DO $$
-DECLARE
-    migration_content TEXT;
-BEGIN
-    -- This is informational only - you'll need to update your entities migration manually
-    RAISE NOTICE 'Remember to update entity_tables array in 20251105200007_entities.sql';
-    RAISE NOTICE 'Change: scouter.llm_drift -> scouter.genai_drift';
-    RAISE NOTICE 'Change: scouter.llm_drift_record -> scouter.genai_event_record';
-END $$;
-
--- ============================================================================
--- STEP 9: Verification
--- ============================================================================
-
-SELECT 'Part config after rename:' as info;
-SELECT parent_table, partition_type, retention, template_table
-FROM scouter.part_config
-WHERE parent_table LIKE 'scouter.genai%';
-
-SELECT 'Partitions after rename:' as info;
-SELECT schemaname, tablename
-FROM pg_tables
-WHERE schemaname = 'scouter'
-  AND (tablename LIKE 'genai_%' OR tablename LIKE '%genai%')
-ORDER BY tablename;
-
-SELECT 'Template tables after rename:' as info;
-SELECT tablename
-FROM pg_tables
-WHERE schemaname = 'scouter'
-  AND tablename LIKE 'template_scouter_genai%';
-
-SELECT 'Indexes after rename:' as info;
-SELECT indexname, tablename
-FROM pg_indexes
-WHERE schemaname = 'scouter'
-  AND (indexname LIKE '%genai%' OR tablename LIKE '%genai%')
-ORDER BY tablename, indexname;
-
-COMMIT;
+SET retention = '60 days'
+WHERE parent_table = 'scouter.genai_event_record';
