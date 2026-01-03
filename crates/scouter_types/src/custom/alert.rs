@@ -19,7 +19,7 @@ pub struct CustomMetric {
     pub name: String,
 
     #[pyo3(get, set)]
-    pub value: f64,
+    pub baseline_value: f64,
 
     #[pyo3(get, set)]
     pub alert_condition: CustomMetricAlertCondition,
@@ -28,19 +28,19 @@ pub struct CustomMetric {
 #[pymethods]
 impl CustomMetric {
     #[new]
-    #[pyo3(signature = (name, value, alert_threshold, alert_threshold_value=None))]
+    #[pyo3(signature = (name, baseline_value, alert_threshold, delta=None))]
     pub fn new(
         name: &str,
-        value: f64,
+        baseline_value: f64,
         alert_threshold: AlertThreshold,
-        alert_threshold_value: Option<f64>,
+        delta: Option<f64>,
     ) -> Result<Self, TypeError> {
         let custom_condition =
-            CustomMetricAlertCondition::new(alert_threshold, alert_threshold_value);
+            CustomMetricAlertCondition::new(baseline_value, alert_threshold, delta);
 
         Ok(Self {
             name: name.to_lowercase(),
-            value,
+            baseline_value,
             alert_condition: custom_condition,
         })
     }
@@ -48,16 +48,6 @@ impl CustomMetric {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         PyHelperFuncs::__str__(self)
-    }
-
-    #[getter]
-    pub fn alert_threshold(&self) -> AlertThreshold {
-        self.alert_condition.alert_threshold.clone()
-    }
-
-    #[getter]
-    pub fn alert_threshold_value(&self) -> Option<f64> {
-        self.alert_condition.alert_threshold_value
     }
 
     #[getter]
@@ -69,27 +59,66 @@ impl CustomMetric {
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct CustomMetricAlertCondition {
+    /// The reference value to compare against
+    #[pyo3(get, set)]
+    pub baseline_value: f64,
+
     #[pyo3(get, set)]
     pub alert_threshold: AlertThreshold,
 
+    /// Optional delta value that modifies the baseline to create the alert boundary.
+    /// The interpretation depends on alert_threshold:
+    /// - Above: alert if value > (baseline + delta)
+    /// - Below: alert if value < (baseline - delta)
+    /// - Outside: alert if value is outside [baseline - delta, baseline + delta]
     #[pyo3(get, set)]
-    pub alert_threshold_value: Option<f64>,
+    pub delta: Option<f64>,
 }
 
 #[pymethods]
 #[allow(clippy::too_many_arguments)]
 impl CustomMetricAlertCondition {
     #[new]
-    #[pyo3(signature = (alert_threshold, alert_threshold_value=None))]
-    pub fn new(alert_threshold: AlertThreshold, alert_threshold_value: Option<f64>) -> Self {
+    #[pyo3(signature = (baseline_value, alert_threshold, delta=None))]
+    pub fn new(baseline_value: f64, alert_threshold: AlertThreshold, delta: Option<f64>) -> Self {
         Self {
+            baseline_value,
             alert_threshold,
-            alert_threshold_value,
+            delta,
+        }
+    }
+
+    /// Returns the upper bound for the alert condition
+    pub fn upper_bound(&self) -> f64 {
+        match self.delta {
+            Some(d) => self.baseline_value + d,
+            None => self.baseline_value,
+        }
+    }
+
+    /// Returns the lower bound for the alert condition
+    pub fn lower_bound(&self) -> f64 {
+        match self.delta {
+            Some(d) => self.baseline_value - d,
+            None => self.baseline_value,
+        }
+    }
+
+    /// Checks if a value should trigger an alert
+    pub fn should_alert(&self, value: f64) -> bool {
+        match (&self.alert_threshold, self.delta) {
+            (AlertThreshold::Above, Some(d)) => value > (self.baseline_value + d),
+            (AlertThreshold::Above, None) => value > self.baseline_value,
+            (AlertThreshold::Below, Some(d)) => value < (self.baseline_value - d),
+            (AlertThreshold::Below, None) => value < self.baseline_value,
+            (AlertThreshold::Outside, Some(d)) => {
+                value < (self.baseline_value - d) || value > (self.baseline_value + d)
+            }
+            (AlertThreshold::Outside, None) => value != self.baseline_value,
         }
     }
 
     pub fn __str__(&self) -> String {
-        // serialize the struct to a string
         PyHelperFuncs::__str__(self)
     }
 }
@@ -303,12 +332,12 @@ mod tests {
                 alert_conditions["mae"].alert_threshold,
                 AlertThreshold::Above
             );
-            assert_eq!(alert_conditions["mae"].alert_threshold_value, Some(2.3));
+            assert_eq!(alert_conditions["mae"].delta, Some(2.3));
             assert_eq!(
                 alert_conditions["accuracy"].alert_threshold,
                 AlertThreshold::Below
             );
-            assert_eq!(alert_conditions["accuracy"].alert_threshold_value, None);
+            assert_eq!(alert_conditions["accuracy"].delta, None);
         } else {
             panic!("alert_conditions should not be None");
         }

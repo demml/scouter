@@ -10527,36 +10527,35 @@ class AlertThreshold:
 class CustomMetricAlertCondition:
     def __init__(
         self,
+        baseline_value: float,
         alert_threshold: AlertThreshold,
-        alert_threshold_value: Optional[float],
+        delta: Optional[float],
     ):
         """Initialize a CustomMetricAlertCondition instance.
         Args:
-            alert_threshold (AlertThreshold): The condition that determines when an alert
-                should be triggered. This could be comparisons like 'greater than',
-                'less than', 'equal to', etc.
-            alert_threshold_value (Optional[float], optional): A numerical boundary used in
-                conjunction with the alert_threshold. This can be None for certain
-                types of comparisons that don't require a fixed boundary.
+            baseline_value (float):
+                The baseline value to compare against for alerting.
+            alert_threshold (AlertThreshold):
+                The condition that determines when an alert should be triggered.
+                Must be one of the AlertThreshold enum members like Below, Above, or Outside.
+            delta (Optional[float], optional):
+                Optional delta value that modifies the baseline to create the alert boundary.
+                The interpretation depends on alert_threshold:
+                - Above: alert if value > (baseline + delta)
+                - Below: alert if value < (baseline - delta)
+                - Outside: alert if value is outside [baseline - delta, baseline + delta]
         Example:
             alert_threshold = CustomMetricAlertCondition(AlertCondition.BELOW, 2.0)
         """
 
-    @property
-    def alert_threshold(self) -> AlertThreshold:
-        """Return the alert_threshold"""
+    def upper_bound(self) -> float:
+        """Calculate and return the upper bound for alerting based on baseline and delta."""
 
-    @alert_threshold.setter
-    def alert_threshold(self, alert_threshold: AlertThreshold) -> None:
-        """Set the alert_threshold"""
+    def lower_bound(self) -> float:
+        """Calculate and return the lower bound for alerting based on baseline and delta."""
 
-    @property
-    def alert_threshold_value(self) -> float:
-        """Return the alert_threshold_value"""
-
-    @alert_threshold_value.setter
-    def alert_threshold_value(self, alert_threshold_value: float) -> None:
-        """Set the alert_threshold_value"""
+    def should_alert(self, value: float) -> bool:
+        """Determine if an alert should be triggered based on the provided value."""
 
 class CustomMetricAlertConfig:
     def __init__(
@@ -13262,9 +13261,9 @@ class CustomMetric:
     def __init__(
         self,
         name: str,
-        value: float,
+        baseline_value: float,
         alert_threshold: AlertThreshold,
-        alert_threshold_value: Optional[float] = None,
+        delta: Optional[float] = None,
     ):
         """
         Initialize a custom metric for alerting.
@@ -13273,13 +13272,14 @@ class CustomMetric:
         an alert condition to a single metric value.
 
         Args:
-            name (str): The name of the metric being monitored. This should be a
-                descriptive identifier for the metric.
-            value (float): The current value of the metric.
+            name (str):
+                The name of the metric being monitored. This should be a descriptive identifier for the metric.
+            baseline_value (float):
+                The baseline value of the metric.
             alert_threshold (AlertThreshold):
                 The condition used to determine when an alert should be triggered.
-            alert_threshold_value (Optional[float]):
-                The threshold or boundary value used in conjunction with the alert_threshold.
+            delta (Optional[float]):
+                The delta value used in conjunction with the alert_threshold.
                 If supplied, this value will be added or subtracted from the provided metric value to
                 determine if an alert should be triggered.
 
@@ -13294,12 +13294,12 @@ class CustomMetric:
         """Set the metric name"""
 
     @property
-    def value(self) -> float:
-        """Return the metric value"""
+    def baseline_value(self) -> float:
+        """Return the baseline value"""
 
-    @value.setter
-    def value(self, value: float) -> None:
-        """Set the metric value"""
+    @baseline_value.setter
+    def baseline_value(self, value: float) -> None:
+        """Set the baseline value"""
 
     @property
     def alert_condition(self) -> CustomMetricAlertCondition:
@@ -13308,14 +13308,6 @@ class CustomMetric:
     @alert_condition.setter
     def alert_condition(self, alert_condition: CustomMetricAlertCondition) -> None:
         """Set the alert_condition"""
-
-    @property
-    def alert_threshold(self) -> AlertThreshold:
-        """Return the alert_threshold"""
-
-    @property
-    def alert_threshold_value(self) -> Optional[float]:
-        """Return the alert_threshold_value"""
 
     def __str__(self) -> str:
         """Return the string representation of the config."""

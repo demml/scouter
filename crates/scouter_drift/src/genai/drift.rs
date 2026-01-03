@@ -148,7 +148,7 @@ mod tests {
     use scouter_types::genai::{
         GenAIAlertConfig, GenAIDriftConfig, GenAIEvalProfile, LLMJudgeTask,
     };
-    use scouter_types::{AlertDispatchConfig, ConsoleDispatchConfig};
+    use scouter_types::{AlertDispatchConfig, AlertThreshold, ConsoleDispatchConfig};
     use serde_json::Value;
 
     async fn get_test_drifter() -> GenAIDrifter {
