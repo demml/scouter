@@ -179,7 +179,6 @@ mod tests {
     use crate::parquet::utils::BinnedMetricsExtractor;
     use chrono::Utc;
     use object_store::path::Path;
-    use potato_head::mock::create_score_prompt;
     use rand::Rng;
     use scouter_settings::ObjectStorageSettings;
     use scouter_types::{
@@ -206,7 +205,6 @@ mod tests {
         let df = ParquetDataFrame::new(&storage_settings, &RecordType::GenAIEvent).unwrap();
         let mut batch = Vec::new();
         let entity_id = rand::rng().random_range(0..100);
-        let prompt = create_score_prompt(None);
 
         // create records
         for i in 0..3 {

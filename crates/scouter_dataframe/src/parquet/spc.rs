@@ -93,7 +93,7 @@ impl SpcDataFrame {
                 .iter()
                 .map(|r| r.created_at.timestamp_nanos_opt().unwrap_or_default()),
         );
-        let entity_id = Int32Array::from_iter_values(records.iter().map(|r| r.entity_id.unwrap()));
+        let entity_id = Int32Array::from_iter_values(records.iter().map(|r| r.entity_id));
         let feature = StringArray::from_iter_values(records.iter().map(|r| r.feature.as_str()));
         let value = Float64Array::from_iter_values(records.iter().map(|r| r.value));
 

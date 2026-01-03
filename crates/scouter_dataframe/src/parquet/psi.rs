@@ -101,8 +101,7 @@ impl PsiDataFrame {
                 .map(|r| r.created_at.timestamp_nanos_opt().unwrap_or_default()),
         );
 
-        let entity_id_array =
-            Int32Array::from_iter_values(records.iter().map(|r| r.entity_id.unwrap()));
+        let entity_id_array = Int32Array::from_iter_values(records.iter().map(|r| r.entity_id));
         let feature_array =
             StringArray::from_iter_values(records.iter().map(|r| r.feature.as_str()));
 
