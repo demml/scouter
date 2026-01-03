@@ -1,4 +1,5 @@
 pub mod kafka_consumer {
+    use crate::consumer::utils::process_message_record;
     use crate::error::EventError;
     use metrics::counter;
     use rdkafka::config::ClientConfig;
@@ -8,7 +9,6 @@ pub mod kafka_consumer {
     use rdkafka::message::BorrowedMessage;
     use rdkafka::message::Message;
     use scouter_settings::KafkaSettings;
-    use scouter_sql::MessageHandler;
     use scouter_types::MessageRecord;
     use sqlx::Pool;
     use sqlx::Postgres;
@@ -18,7 +18,6 @@ pub mod kafka_consumer {
     use tokio::task::JoinHandle;
     use tracing::instrument;
     use tracing::{error, info};
-
     const MAX_MESSAGE_SIZE: usize = 10 * 1024 * 1024; // 10MB
 
     pub struct KafkaConsumerManager {
@@ -47,32 +46,12 @@ pub mod kafka_consumer {
                                     continue;
                                 }
 
-                                if let Ok(Some(record)) = process_message(&msg).await {
-                                    let result = match record {
-                                        MessageRecord::ServerRecords(records) => {
-                                            MessageHandler::insert_server_records(&db_pool, &records).await
+                                if let Ok(Some(records)) = process_message(&msg).await {
+                                    if process_message_record(id, records, &db_pool).await {
+                                        if let Err(e) = consumer.commit_message(&msg, CommitMode::Async) {
+                                            error!("Worker {}: Failed to commit message: {:?}", id, e);
                                         }
-                                        MessageRecord::TraceServerRecord(trace_record) => {
-                                            MessageHandler::insert_trace_server_record(&db_pool, &trace_record).await
 
-                                        }
-                                        MessageRecord::TagServerRecord(tag_record) => {
-                                            MessageHandler::insert_tag_record(&db_pool, &tag_record).await
-                                        }
-                                    };
-
-                                    if let Err(e) = result {
-                                        error!("Worker {}: Error handling message: {}", id, e);
-                                        counter!("db_insert_errors").increment(1);
-                                    } else {
-                                        counter!("messages_processed").increment(1);
-                                        consumer
-                                            .commit_message(&msg, CommitMode::Async)
-                                            .map_err(|e| {
-                                                error!("Worker {}: Failed to commit message: {}", id, e);
-                                                counter!("consumer_errors").increment(1);
-                                            })
-                                            .unwrap_or(());
                                     }
                                 }
                             }

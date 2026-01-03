@@ -1,6 +1,6 @@
 #[cfg(all(feature = "rabbitmq", feature = "sql"))]
 pub mod rabbitmq_consumer {
-    use crate::error::EventError;
+    use crate::{consumer::utils::process_message_record, error::EventError};
     use futures::StreamExt;
     use lapin::{
         message::Delivery, options::*, types::FieldTable, Connection, ConnectionProperties,
@@ -8,7 +8,6 @@ pub mod rabbitmq_consumer {
     };
     use metrics::counter;
     use scouter_settings::RabbitMQSettings;
-    use scouter_sql::MessageHandler;
     use scouter_types::MessageRecord;
     use sqlx::{Pool, Postgres};
     use tokio::sync::watch;
@@ -68,36 +67,10 @@ pub mod rabbitmq_consumer {
         // Process messages. If processing fails, log the error, record metrics, and continue
         match process_message(&msg.data).await {
             Ok(Some(records)) => {
-                let result = match &records {
-                    MessageRecord::ServerRecords(server_records) => {
-                        MessageHandler::insert_server_records(db_pool, server_records).await
-                    }
-                    MessageRecord::TraceServerRecord(trace_record) => {
-                        MessageHandler::insert_trace_server_record(db_pool, trace_record).await
-                    }
-                    MessageRecord::TagServerRecord(tag_record) => {
-                        MessageHandler::insert_tag_record(db_pool, tag_record).await
-                    }
-                };
-
-                if let Err(e) = result {
-                    error!("Worker {}: Failed to insert record: {:?}", id, e);
-                    counter!("db_insert_errors").increment(1);
-                } else {
-                    match &records {
-                        MessageRecord::ServerRecords(server_records) => {
-                            counter!("records_inserted").increment(server_records.len() as u64);
-                        }
-                        MessageRecord::TraceServerRecord(_) | MessageRecord::TagServerRecord(_) => {
-                            counter!("records_inserted").increment(1);
-                        }
-                    }
-                    counter!("messages_processed").increment(1);
-
-                    // Acknowledge the message. If acknowledgment fails, log the error
+                if process_message_record(id, records, db_pool).await {
                     if let Err(e) = msg.ack(BasicAckOptions::default()).await {
-                        error!("Worker {}: Failed to acknowledge message: {:?}", id, e);
-                        counter!("consumer_errors").increment(1);
+                        error!("Worker {}: Failed to ack message: {:?}", id, e);
+                        counter!("message_ack_errors").increment(1);
                     }
                 }
             }

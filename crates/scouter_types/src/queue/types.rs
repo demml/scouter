@@ -450,6 +450,12 @@ impl GenAIRecord {
     }
 }
 
+impl Default for GenAIRecord {
+    fn default() -> Self {
+        GenAIRecord::new_rs(None)
+    }
+}
+
 #[derive(Debug)]
 pub enum QueueItem {
     Features(Features),
@@ -483,7 +489,7 @@ impl QueueItem {
 pub trait QueueExt: Send + Sync {
     fn metrics(&self) -> &Vec<Metric>;
     fn features(&self) -> &Vec<Feature>;
-    fn genai_records(&self) -> Vec<&GenAIRecord>;
+    fn into_genai_record(self) -> Option<GenAIRecord>;
 }
 
 impl QueueExt for Features {
@@ -498,10 +504,10 @@ impl QueueExt for Features {
         &self.features
     }
 
-    fn genai_records(&self) -> Vec<&GenAIRecord> {
+    fn into_genai_record(self) -> Option<GenAIRecord> {
         // this is not a real implementation, just a placeholder
         // to satisfy the trait bound
-        vec![]
+        None
     }
 }
 
@@ -517,10 +523,10 @@ impl QueueExt for Metrics {
         &EMPTY
     }
 
-    fn genai_records(&self) -> Vec<&GenAIRecord> {
+    fn into_genai_record(self) -> Option<GenAIRecord> {
         // this is not a real implementation, just a placeholder
         // to satisfy the trait bound
-        vec![]
+        None
     }
 }
 
@@ -539,7 +545,7 @@ impl QueueExt for GenAIRecord {
         &EMPTY
     }
 
-    fn genai_records(&self) -> Vec<&GenAIRecord> {
-        vec![self]
+    fn into_genai_record(self) -> Option<GenAIRecord> {
+        Some(self)
     }
 }
