@@ -348,19 +348,3 @@ impl PyDrifter {
         }
     }
 }
-
-impl PyDrifter {
-    /// Reproduction of `create_genai_drift_profile` but allows for passing a runtime
-    /// This is used in opsml to allow passing the Opsml runtime
-    pub fn create_genai_drift_profile_with_runtime<'py>(
-        &mut self,
-        py: Python<'py>,
-        config: GenAIDriftConfig,
-        metrics: Vec<GenAIDriftMetric>,
-        workflow: Option<Bound<'py, PyAny>>,
-        runtime: Arc<tokio::runtime::Runtime>,
-    ) -> Result<Bound<'py, PyAny>, DriftError> {
-        let profile = GenAIEvalProfile::new_with_runtime(config, metrics, workflow, runtime)?;
-        Ok(profile.into_bound_py_any(py)?)
-    }
-}

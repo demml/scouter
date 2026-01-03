@@ -610,6 +610,8 @@ impl GenAIEvalProfile {
                     actual: result.actual.clone(),
                     message: result.message.clone(),
                     operator: assertion.operator.clone(),
+                    // Not applicable for assertions ( we already have entity_id)
+                    entity_uid: String::new(),
                 });
             }
         }
@@ -634,6 +636,7 @@ impl GenAIEvalProfile {
                     actual: result.actual.clone(),
                     message: result.message.clone(),
                     operator: judge.operator.clone(),
+                    entity_uid: String::new(), // Not applicable for assertions
                 });
             }
         }
@@ -651,6 +654,7 @@ impl GenAIEvalProfile {
                 (passed_count as f64) / ((passed_count + failed_count) as f64)
             },
             duration_ms: duration_ms as i32,
+            entity_uid: String::new(), // Not applicable for assertions
         };
 
         GenAIEvalSet::new(records, workflow_record)

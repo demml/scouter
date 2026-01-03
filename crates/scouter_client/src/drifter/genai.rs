@@ -3,8 +3,8 @@ use std::sync::Arc;
 use pyo3::prelude::*;
 use scouter_drift::{error::DriftError, GenAIEvaluator};
 use scouter_state::app_state;
-use scouter_types::genai::{GenAIDriftConfig, GenAIDriftMetric, GenAIEvalProfile};
-use scouter_types::{GenAIMetricRecord, GenAIRecord};
+use scouter_types::genai::{AssertionTask, GenAIDriftConfig, GenAIEvalProfile, LLMJudgeTask};
+use scouter_types::GenAIRecord;
 /// Using "ClientGenAIDrifter" to avoid confusion with the server-side GenAIDrifter
 pub struct ClientGenAIDrifter {}
 

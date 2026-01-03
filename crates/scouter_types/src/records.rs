@@ -286,6 +286,9 @@ pub struct GenAIEvalWorkflowRecord {
 
     #[pyo3(get)]
     pub duration_ms: i32,
+
+    #[cfg_attr(feature = "server", sqlx(skip))]
+    pub entity_uid: String,
 }
 
 #[pymethods]
@@ -307,6 +310,7 @@ impl GenAIEvalWorkflowRecord {
         failed_tasks: i32,
         duration_ms: i32,
         entity_id: i32,
+        entity_uid: String,
     ) -> Self {
         let pass_rate = if total_tasks > 0 {
             passed_tasks as f64 / total_tasks as f64
@@ -323,6 +327,7 @@ impl GenAIEvalWorkflowRecord {
             pass_rate,
             duration_ms,
             entity_id,
+            entity_uid,
         }
     }
 }
@@ -364,6 +369,8 @@ pub struct GenAIEvalTaskResultRecord {
 
     #[pyo3(get)]
     pub message: String,
+
+    pub entity_uid: String,
 }
 
 #[pymethods]
@@ -402,6 +409,7 @@ impl GenAIEvalTaskResultRecord {
         actual: Value,
         message: String,
         entity_id: i32,
+        entity_uid: String,
     ) -> Self {
         Self {
             record_uid,
@@ -416,6 +424,7 @@ impl GenAIEvalTaskResultRecord {
             actual,
             message,
             entity_id,
+            entity_uid,
         }
     }
 }
@@ -446,6 +455,10 @@ impl FromRow<'_, PgRow> for GenAIEvalTaskResultRecord {
             actual,
             message: row.try_get("message")?,
             entity_id: row.try_get("entity_id")?,
+
+            // empty here, not needed for server operations
+            // entity_uid is only used when creating new records
+            entity_uid: String::new(),
         })
     }
 }
@@ -765,7 +778,8 @@ impl ServerRecords {
                 ServerRecord::Custom(inner) => Ok(&inner.uid),
                 ServerRecord::Observability(inner) => Ok(&inner.uid),
                 ServerRecord::GenAIEvent(inner) => Ok(&inner.record.entity_uid),
-                _ => Err(RecordError::InvalidDriftTypeError),
+                ServerRecord::GenAITaskRecord(inner) => Ok(&inner.entity_uid),
+                ServerRecord::GenAIWorkflowRecord(inner) => Ok(&inner.entity_uid),
             }
         } else {
             Err(RecordError::EmptyServerRecordsError)

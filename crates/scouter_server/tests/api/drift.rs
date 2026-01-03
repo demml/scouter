@@ -15,9 +15,9 @@ use scouter_types::custom::{
 use scouter_types::psi::BinnedPsiFeatureMetrics;
 use scouter_types::psi::{PsiAlertConfig, PsiDriftConfig};
 use scouter_types::spc::SpcDriftFeatures;
-use scouter_types::{contracts::DriftRequest, GenAIDriftRecordPaginationResponse};
+use scouter_types::{contracts::DriftRequest, GenAIEventRecordPaginationResponse};
 use scouter_types::{
-    AlertThreshold, BinnedMetrics, GenAIDriftRecordPaginationRequest, ServiceInfo, TimeInterval,
+    AlertThreshold, BinnedMetrics, GenAIEventRecordPaginationRequest, ServiceInfo, TimeInterval,
 };
 use tokio::time::sleep;
 
@@ -263,29 +263,40 @@ fn test_genai_server_records() {
         ..Default::default()
     };
 
+    // Test getting binned task metrics
     let query_string = serde_qs::to_string(&params).unwrap();
-
     let request = Request::builder()
-        .uri(format!("/scouter/drift/genai?{query_string}"))
+        .uri(format!("/scouter/drift/genai/task?{query_string}"))
         .method("GET")
         .body(Body::empty())
         .unwrap();
 
     let response = runtime.block_on(async { helper.send_oneshot(request).await });
-
     //assert response
     assert_eq!(response.status(), StatusCode::OK);
-
     // collect body into serde Value
-
     let val = runtime.block_on(async { response.into_body().collect().await.unwrap().to_bytes() });
-
     let results: BinnedMetrics = serde_json::from_slice(&val).unwrap();
+    assert!(!results.metrics.is_empty());
 
+    // Test getting binned workflow metric
+    let query_string = serde_qs::to_string(&params).unwrap();
+    let request = Request::builder()
+        .uri(format!("/scouter/drift/genai/workflow?{query_string}"))
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+
+    let response = runtime.block_on(async { helper.send_oneshot(request).await });
+    //assert response
+    assert_eq!(response.status(), StatusCode::OK);
+    // collect body into serde Value
+    let val = runtime.block_on(async { response.into_body().collect().await.unwrap().to_bytes() });
+    let results: BinnedMetrics = serde_json::from_slice(&val).unwrap();
     assert!(!results.metrics.is_empty());
 
     // get drift records by page
-    let request = GenAIDriftRecordPaginationRequest {
+    let request = GenAIEventRecordPaginationRequest {
         service_info: ServiceInfo {
             space: SPACE.to_string(),
             uid: uid.clone(),
@@ -306,7 +317,7 @@ fn test_genai_server_records() {
     let response = runtime.block_on(async { helper.send_oneshot(request).await });
     let val = runtime.block_on(async { response.into_body().collect().await.unwrap().to_bytes() });
 
-    let records: GenAIDriftRecordPaginationResponse = serde_json::from_slice(&val).unwrap();
+    let records: GenAIEventRecordPaginationResponse = serde_json::from_slice(&val).unwrap();
     assert!(!records.items.is_empty());
     assert!(records.has_next);
 

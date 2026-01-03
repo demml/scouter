@@ -33,7 +33,7 @@ SET retention = '90 days'
 WHERE parent_table = 'scouter.genai_eval_workflow';
 
 
-CREATE TABLE IF NOT EXISTS scouter.genai_eval_task_result (
+CREATE TABLE IF NOT EXISTS scouter.genai_eval_task (
     created_at TIMESTAMPTZ NOT NULL,
     record_uid TEXT NOT NULL,
     entity_id INTEGER NOT NULL,

@@ -29,11 +29,14 @@ use scouter_types::DriftType;
 use scouter_types::JwtToken;
 use scouter_types::RegisteredProfileResponse;
 use scouter_types::{
-    genai::{GenAIAlertConfig, GenAIDriftConfig, GenAIDriftMetric, GenAIEvalProfile},
-    AlertThreshold, CustomMetricRecord, GenAIMetricRecord, MessageRecord, PsiRecord,
+    genai::{
+        ComparisonOperator, GenAIAlertConfig, GenAIDriftConfig, GenAIEvalProfile, LLMJudgeTask,
+    },
+    CustomMetricRecord, GenAIEvalTaskResultRecord, GenAIEvalWorkflowRecord, MessageRecord,
+    PsiRecord,
 };
 use scouter_types::{
-    BoxedGenAIDriftRecord, GenAIDriftRecord, ServerRecord, ServerRecords, SpcRecord, Status,
+    BoxedGenAIEventRecord, GenAIEventRecord, ServerRecord, ServerRecords, SpcRecord, Status,
 };
 use serde_json::Value;
 use sqlx::{PgPool, Pool, Postgres};
@@ -47,6 +50,7 @@ use tracing::error;
 pub const SPACE: &str = "space";
 pub const NAME: &str = "name";
 pub const VERSION: &str = "1.0.0";
+pub const ENTITY_ID_PLACEHOLDER: i32 = 0;
 
 pub async fn cleanup_tables(pool: &Pool<Postgres>) -> Result<(), anyhow::Error> {
     sqlx::raw_sql(
@@ -79,7 +83,10 @@ pub async fn cleanup_tables(pool: &Pool<Postgres>) -> Result<(), anyhow::Error> 
         FROM scouter.genai_event_record;
 
         DELETE
-        FROM scouter.genai_drift;
+        FROM scouter.genai_eval_workflow;
+
+        DELETE
+        FROM scouter.genai_eval_task;
 
         DELETE
         FROM scouter.spans;
@@ -268,7 +275,7 @@ impl TestHelper {
                     uid: uid.to_string(),
                     feature: format!("feature_{j}"),
                     value: j as f64,
-                    entity_id: None,
+                    entity_id: ENTITY_ID_PLACEHOLDER,
                 };
 
                 records.push(ServerRecord::Spc(record));
@@ -292,7 +299,7 @@ impl TestHelper {
                         feature: format!("feature_{feature}"),
                         bin_id: decile,
                         bin_count: rand::rng().random_range(0..10),
-                        entity_id: None,
+                        entity_id: ENTITY_ID_PLACEHOLDER,
                     };
 
                     records.push(ServerRecord::Psi(record));
@@ -312,7 +319,7 @@ impl TestHelper {
                     uid: uid.to_string(),
                     metric: format!("metric_{i}"),
                     value: rand::rng().random_range(0..10) as f64,
-                    entity_id: None,
+                    entity_id: ENTITY_ID_PLACEHOLDER,
                 };
 
                 records.push(ServerRecord::Custom(record));
@@ -325,7 +332,6 @@ impl TestHelper {
     pub fn get_genai_event_records(&self, time_offset: Option<i64>, uid: &str) -> MessageRecord {
         let mut records: Vec<ServerRecord> = Vec::new();
         let offset = time_offset.unwrap_or(0);
-        let prompt = create_score_prompt(None);
 
         for i in 0..3 {
             for _ in 0..5 {
@@ -336,7 +342,6 @@ impl TestHelper {
                 let record = GenAIEventRecord {
                     created_at: Utc::now() - chrono::Duration::days(offset),
                     entity_uid: uid.to_string(),
-                    prompt: Some(prompt.model_dump_value()),
                     context,
                     status: Status::Pending,
                     id: 0,
@@ -344,35 +349,66 @@ impl TestHelper {
                     updated_at: None,
                     processing_started_at: None,
                     processing_ended_at: None,
-                    score: Value::Null,
                     processing_duration: None,
-                    entity_id: None,
+                    entity_id: ENTITY_ID_PLACEHOLDER,
                 };
 
-                let boxed_record = BoxedGenAIDriftRecord::new(record);
-                records.push(ServerRecord::GenAIDrift(boxed_record));
+                let boxed_record = BoxedGenAIEventRecord::new(record);
+                records.push(ServerRecord::GenAIEvent(boxed_record));
             }
         }
 
         MessageRecord::ServerRecords(ServerRecords::new(records))
     }
 
-    pub fn get_genai_drift_metrics(&self, time_offset: Option<i64>, uid: &str) -> MessageRecord {
+    pub fn get_genai_task_results(&self, time_offset: Option<i64>, uid: &str) -> MessageRecord {
         let mut records: Vec<ServerRecord> = Vec::new();
         let offset = time_offset.unwrap_or(0);
 
         for i in 0..2 {
             for j in 0..25 {
-                let record = GenAIMetricRecord {
-                    uid: format!("record_uid_{i}_{j}"),
+                let record = GenAIEvalTaskResultRecord {
+                    record_uid: format!("record_uid_{i}_{j}"),
                     created_at: Utc::now() + chrono::Duration::microseconds(j as i64)
                         - chrono::Duration::days(offset),
+                    entity_id: ENTITY_ID_PLACEHOLDER,
+                    task_id: format!("task{i}"),
+                    task_type: scouter_types::genai::EvaluationTaskType::Assertion,
+                    passed: true,
+                    value: j as f64,
+                    field_path: Some(format!("field.path.{i}")),
+                    operator: scouter_types::genai::ComparisonOperator::Contains,
+                    expected: Value::Null,
+                    actual: Value::Null,
+                    message: "All good".to_string(),
                     entity_uid: uid.to_string(),
-                    metric: format!("metric{i}"),
-                    value: rand::rng().random_range(0..3) as f64,
-                    entity_id: None,
                 };
-                records.push(ServerRecord::GenAIMetric(record));
+                records.push(ServerRecord::GenAITaskRecord(record));
+            }
+        }
+
+        MessageRecord::ServerRecords(ServerRecords::new(records))
+    }
+
+    pub fn get_genai_workflow_results(&self, time_offset: Option<i64>, uid: &str) -> MessageRecord {
+        let mut records: Vec<ServerRecord> = Vec::new();
+        let offset = time_offset.unwrap_or(0);
+
+        for i in 0..2 {
+            for j in 0..25 {
+                let record = GenAIEvalWorkflowRecord {
+                    record_uid: format!("record_uid_{i}_{j}"),
+                    created_at: Utc::now() + chrono::Duration::microseconds(j as i64)
+                        - chrono::Duration::days(offset),
+                    entity_id: ENTITY_ID_PLACEHOLDER,
+                    total_tasks: 10,
+                    passed_tasks: 8,
+                    failed_tasks: 2,
+                    pass_rate: 0.8,
+                    duration_ms: 1500,
+                    entity_uid: uid.clone().to_string(),
+                };
+                records.push(ServerRecord::GenAIWorkflowRecord(record));
             }
         }
 
@@ -380,32 +416,34 @@ impl TestHelper {
     }
 
     pub async fn create_genai_drift_profile() -> GenAIEvalProfile {
-        let alert_config = GenAIAlertConfig::default();
-        let config = GenAIDriftConfig::new(SPACE, NAME, VERSION, 25, alert_config, None).unwrap();
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
 
-        let _alert_threshold = AlertThreshold::Above;
-        let metric1 = GenAIDriftMetric::new(
+        let task1 = LLMJudgeTask::new_rs(
             "metric1",
-            5.0,
-            AlertThreshold::Above,
+            prompt.clone(),
+            Value::Number(4.into()),
             None,
-            Some(prompt.clone()),
-        )
-        .unwrap();
+            ComparisonOperator::GreaterThanOrEqual,
+            None,
+            None,
+        );
 
-        let metric2 = GenAIDriftMetric::new(
+        let task2 = LLMJudgeTask::new_rs(
             "metric2",
-            3.0,
-            AlertThreshold::Below,
-            Some(0.5),
-            Some(prompt.clone()),
-        )
-        .unwrap();
-        let genai_metrics = vec![metric1, metric2];
-        GenAIEvalProfile::from_metrics(config, genai_metrics)
-            .await
-            .unwrap()
+            prompt.clone(),
+            Value::Number(2.into()),
+            None,
+            ComparisonOperator::LessThanOrEqual,
+            None,
+            None,
+        );
+
+        let alert_config = GenAIAlertConfig::default();
+
+        let drift_config =
+            GenAIDriftConfig::new(SPACE, NAME, VERSION, 25, alert_config, None).unwrap();
+
+        GenAIEvalProfile::new(drift_config, None, Some(vec![task1, task2])).unwrap()
     }
 
     pub async fn insert_alerts(&self) -> Result<(String, String, String), anyhow::Error> {
