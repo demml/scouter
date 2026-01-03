@@ -42,7 +42,6 @@ CREATE TABLE IF NOT EXISTS scouter.genai_event_record (
     uid TEXT DEFAULT gen_random_uuid(),
     entity_id INTEGER NOT NULL,
     context JSONB,
-    prompt JSONB,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending', -- pending, processing, completed, failed
     processing_started_at TIMESTAMPTZ,

@@ -4,14 +4,13 @@ WITH next_id AS (
     WHERE entity_id = $3
 )
 INSERT INTO scouter.genai_event_record (
-    id, uid, created_at, entity_id, context, prompt
+    id, uid, created_at, entity_id, context
 )
 SELECT
     next_id.id,
     $1, -- uid
     $2, -- created_at
     $3, -- entity_id
-    $4, -- context
-    $5  -- prompt
+    $4  -- context
 FROM next_id
 ON CONFLICT DO NOTHING;

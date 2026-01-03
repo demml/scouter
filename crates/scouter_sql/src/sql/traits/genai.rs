@@ -42,8 +42,7 @@ pub trait GenAIDriftSqlLogic {
             .bind(&record.record.uid)
             .bind(record.record.created_at)
             .bind(entity_id)
-            .bind(&record.record.context)
-            .bind(Json(&record.record.prompt))
+            .bind(Json(&record.record.context))
             .execute(pool)
             .await
             .map_err(SqlError::SqlxError)

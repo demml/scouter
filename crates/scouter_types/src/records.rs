@@ -313,7 +313,7 @@ impl GenAIEvalWorkflowRecord {
         total_tasks: i32,
         passed_tasks: i32,
         failed_tasks: i32,
-        duration_ms: i64,
+        duration_ms: i32,
         entity_id: i32,
     ) -> Self {
         let pass_rate = if total_tasks > 0 {

@@ -650,7 +650,7 @@ impl GenAIEvalProfile {
             } else {
                 (passed_count as f64) / ((passed_count + failed_count) as f64)
             },
-            duration_ms: duration_ms,
+            duration_ms: duration_ms as i32,
         };
 
         GenAIEvalSet::new(records, workflow_record)
@@ -759,7 +759,7 @@ impl GenAIEvalSet {
     }
 
     #[getter]
-    pub fn get_duration_ms(&self) -> i64 {
+    pub fn get_duration_ms(&self) -> i32 {
         self.inner.duration_ms
     }
 

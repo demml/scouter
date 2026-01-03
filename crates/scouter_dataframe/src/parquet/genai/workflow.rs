@@ -124,7 +124,7 @@ impl GenAIWorkflowDataFrame {
 
         // 8. duration_ms
         let duration_ms_array =
-            arrow_array::Int64Array::from_iter_values(records.iter().map(|r| r.duration_ms));
+            arrow_array::Int32Array::from_iter_values(records.iter().map(|r| r.duration_ms));
 
         let batch = RecordBatch::try_new(
             self.schema.clone(),
