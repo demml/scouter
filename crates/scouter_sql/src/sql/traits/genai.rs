@@ -639,7 +639,7 @@ pub trait GenAIDriftSqlLogic {
         pool: &Pool<Postgres>,
         record: &GenAIEventRecord,
         status: Status,
-        workflow_duration: i64, // Duration in seconds
+        workflow_duration: i32,
     ) -> Result<(), SqlError> {
         let query = Queries::UpdateGenAIEventTask.get_query();
         let _query_result = sqlx::query(query)

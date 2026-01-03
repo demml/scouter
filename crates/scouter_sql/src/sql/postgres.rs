@@ -1091,7 +1091,7 @@ mod tests {
             &pool,
             &pending_tasks.unwrap(),
             Status::Processed,
-            Some(1),
+            1 as i32,
         )
         .await
         .unwrap();

@@ -178,16 +178,12 @@ pub struct GenAIEventRecord {
     #[pyo3(get)]
     pub uid: String,
 
-    pub prompt: Option<Value>,
-
     pub context: Value,
 
     #[cfg_attr(feature = "server", sqlx(try_from = "String"))]
     pub status: Status,
 
     pub id: i64,
-
-    pub score: Value,
 
     pub updated_at: Option<DateTime<Utc>>,
 
@@ -223,21 +219,17 @@ impl GenAIEventRecord {
 impl GenAIEventRecord {
     #[allow(clippy::too_many_arguments)]
     pub fn new_rs(
-        prompt: Option<Value>,
         context: Value,
         created_at: DateTime<Utc>,
-        score: Value,
         uid: String,
         entity_uid: String,
     ) -> Self {
         Self {
             created_at,
-            prompt,
             context,
             status: Status::Pending,
             id: 0, // This is a placeholder, as the ID will be set by the database
             uid,
-            score,
             updated_at: None,
             processing_started_at: None,
             processing_ended_at: None,
