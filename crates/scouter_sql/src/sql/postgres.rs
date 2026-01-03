@@ -1037,7 +1037,6 @@ mod tests {
 
         let input = "This is a test input";
         let output = "This is a test response";
-        let prompt = create_score_prompt(None);
 
         for j in 0..10 {
             let context = serde_json::json!({
@@ -1046,13 +1045,11 @@ mod tests {
             });
             let record = GenAIEventRecord {
                 created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
-                prompt: Some(prompt.model_dump_value()),
                 context,
                 status: Status::Pending,
                 id: 0, // This will be set by the database
                 uid: format!("test_{}", j),
                 updated_at: None,
-                score: Value::Null,
                 processing_started_at: None,
                 processing_ended_at: None,
                 processing_duration: None,
@@ -1126,7 +1123,6 @@ mod tests {
 
         let input = "This is a test input";
         let output = "This is a test response";
-        let prompt = create_score_prompt(None);
 
         // Insert 10 records with increasing timestamps
         for j in 0..10 {
@@ -1136,9 +1132,7 @@ mod tests {
             });
             let record = GenAIEventRecord {
                 created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
-                prompt: Some(prompt.model_dump_value()),
                 context,
-                score: Value::Null,
                 status: Status::Pending,
                 id: 0, // This will be set by the database
                 uid: format!("test_{}", j),
