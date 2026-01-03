@@ -7,6 +7,7 @@ use crate::{
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyString;
+use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -184,15 +185,15 @@ impl Default for CustomMetricAlertConfig {
 
 pub struct ComparisonMetricAlert<'a> {
     pub metric_name: &'a str,
-    pub training_metric_value: &'a f64,
-    pub observed_metric_value: &'a f64,
-    pub alert_threshold_value: &'a Option<f64>,
+    pub baseline_metric: &'a f64,
+    pub observed_metric: &'a f64,
+    pub delta: &'a Option<f64>,
     pub alert_threshold: &'a AlertThreshold,
 }
 
 impl<'a> ComparisonMetricAlert<'a> {
     fn alert_description_header(&self) -> String {
-        let below_threshold = |boundary: Option<f64>| match boundary {
+        let below_threshold = |delta: Option<f64>| match delta {
             Some(b) => format!(
                 "The observed {} metric value has dropped below the threshold (initial value - {})",
                 self.metric_name, b
@@ -203,7 +204,7 @@ impl<'a> ComparisonMetricAlert<'a> {
             ),
         };
 
-        let above_threshold = |boundary: Option<f64>| match boundary {
+        let above_threshold = |delta: Option<f64>| match delta {
             Some(b) => format!(
                 "The {} metric value has increased beyond the threshold (initial value + {})",
                 self.metric_name, b
@@ -214,7 +215,7 @@ impl<'a> ComparisonMetricAlert<'a> {
             ),
         };
 
-        let outside_threshold = |boundary: Option<f64>| match boundary {
+        let outside_threshold = |delta: Option<f64>| match delta {
             Some(b) => format!(
                 "The {} metric value has fallen outside the threshold (initial value ± {})",
                 self.metric_name, b,
@@ -226,10 +227,31 @@ impl<'a> ComparisonMetricAlert<'a> {
         };
 
         match self.alert_threshold {
-            AlertThreshold::Below => below_threshold(*self.alert_threshold_value),
-            AlertThreshold::Above => above_threshold(*self.alert_threshold_value),
-            AlertThreshold::Outside => outside_threshold(*self.alert_threshold_value),
+            AlertThreshold::Below => below_threshold(*self.delta),
+            AlertThreshold::Above => above_threshold(*self.delta),
+            AlertThreshold::Outside => outside_threshold(*self.delta),
         }
+    }
+
+    /// Helpers to convert alert to map
+    pub fn organize_to_map(&self) -> BTreeMap<String, String> {
+        let mut alert_map = BTreeMap::new();
+
+        let baseline_metric = self.baseline_metric.to_string();
+        let observed_metric = self.observed_metric.to_string();
+        let name = self.metric_name.to_string();
+        let delta = match self.delta {
+            Some(d) => d.to_string(),
+            None => "None".to_string(),
+        };
+        let threshold = self.alert_threshold.to_string();
+
+        alert_map.insert("entity_name".to_string(), name);
+        alert_map.insert("baseline_metric_value".to_string(), baseline_metric);
+        alert_map.insert("observed_metric_value".to_string(), observed_metric);
+        alert_map.insert("delta".to_string(), delta);
+        alert_map.insert("alert_threshold".to_string(), threshold);
+        alert_map
     }
 }
 
@@ -240,8 +262,8 @@ impl<'a> DispatchAlertDescription for ComparisonMetricAlert<'a> {
         let header = format!("{}\n", self.alert_description_header());
         alert_description.push_str(&header);
 
-        let current_metric = format!("Current Metric Value: {}\n", self.observed_metric_value);
-        let historical_metric = format!("Initial Metric Value: {}\n", self.training_metric_value);
+        let current_metric = format!("Current Metric Value: {}\n", self.observed_metric);
+        let historical_metric = format!("Initial Metric Value: {}\n", self.baseline_metric);
 
         alert_description.push_str(&historical_metric);
         alert_description.push_str(&current_metric);
@@ -296,9 +318,9 @@ mod tests {
     fn test_create_alert_description() {
         let alert_above_threshold = ComparisonMetricAlert {
             metric_name: &"mse".to_string(),
-            training_metric_value: &12.5,
-            observed_metric_value: &14.0,
-            alert_threshold_value: &Some(1.0),
+            baseline_metric: &12.5,
+            observed_metric: &14.0,
+            delta: &Some(1.0),
             alert_threshold: &AlertThreshold::Above,
         };
 
@@ -312,9 +334,9 @@ mod tests {
 
         let alert_below_threshold = ComparisonMetricAlert {
             metric_name: &"accuracy".to_string(),
-            training_metric_value: &0.9,
-            observed_metric_value: &0.7,
-            alert_threshold_value: &None,
+            baseline_metric: &0.9,
+            observed_metric: &0.7,
+            delta: &None,
             alert_threshold: &AlertThreshold::Below,
         };
 
@@ -328,9 +350,9 @@ mod tests {
 
         let alert_outside_threshold = ComparisonMetricAlert {
             metric_name: &"mae".to_string(),
-            training_metric_value: &12.5,
-            observed_metric_value: &22.0,
-            alert_threshold_value: &Some(2.0),
+            baseline_metric: &12.5,
+            observed_metric: &22.0,
+            delta: &Some(2.0),
             alert_threshold: &AlertThreshold::Outside,
         };
 

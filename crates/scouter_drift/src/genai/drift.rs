@@ -1,12 +1,12 @@
 use crate::error::DriftError;
 use chrono::{DateTime, Utc};
 use scouter_dispatch::AlertDispatcher;
-use scouter_sql::sql::traits::{alert, GenAIDriftSqlLogic};
+use scouter_sql::sql::traits::GenAIDriftSqlLogic;
 use scouter_sql::{sql::cache::entity_cache, PostgresClient};
 use scouter_types::ProfileBaseArgs;
-use scouter_types::{custom::ComparisonMetricAlert, genai::GenAIEvalProfile, AlertThreshold};
+use scouter_types::{custom::ComparisonMetricAlert, genai::GenAIEvalProfile};
 use sqlx::{Pool, Postgres};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use tracing::error;
 use tracing::info;
 
@@ -19,6 +19,17 @@ impl GenAIDrifter {
         Self { profile }
     }
 
+    /// Helper method to format profile identifier for logging
+    fn profile_id(&self) -> String {
+        format!(
+            "{}/{}/{}",
+            self.profile.space(),
+            self.profile.name(),
+            self.profile.version()
+        )
+    }
+
+    /// Fetches workflow value from database for the given time limit
     pub async fn get_workflow_value(
         &self,
         limit_datetime: &DateTime<Utc>,
@@ -28,23 +39,20 @@ impl GenAIDrifter {
             .get_entity_id_from_uid(db_pool, &self.profile.config.uid)
             .await?;
 
-        Ok(
-            PostgresClient::get_genai_workflow_value(db_pool, limit_datetime, &entity_id)
-                .await
-                .inspect_err(|e| {
-                    let msg = format!(
-                        "Error: Unable to obtain genai metric data from DB for {}/{}/{}: {}",
-                        self.profile.space(),
-                        self.profile.name(),
-                        self.profile.version(),
-                        e
-                    );
-                    error!(msg);
-                })?,
-        )
+        PostgresClient::get_genai_workflow_value(db_pool, limit_datetime, &entity_id)
+            .await
+            .inspect_err(|e| {
+                error!(
+                    "Unable to obtain genai metric data from DB for {}: {}",
+                    self.profile_id(),
+                    e
+                );
+            })
+            .map_err(Into::into)
     }
 
-    pub async fn get_metric_map(
+    /// Retrieves metric value and logs if not found
+    pub async fn get_metric_value(
         &self,
         limit_datetime: &DateTime<Utc>,
         db_pool: &Pool<Postgres>,
@@ -53,216 +61,82 @@ impl GenAIDrifter {
 
         if value.is_none() {
             info!(
-                "No genai metric data was found for {}/{}/{}. Skipping alert processing.",
-                self.profile.config.space, self.profile.config.name, self.profile.config.version,
+                "No genai metric data found for {}. Skipping alert processing.",
+                self.profile_id()
             );
-            return Ok(None);
         }
 
         Ok(value)
     }
 
-    fn is_out_of_bounds(
-        training_value: f64,
-        observed_value: f64,
-        alert_condition: &AlertThreshold,
-        alert_boundary: Option<f64>,
-    ) -> bool {
-        if observed_value == training_value {
-            return false;
-        }
-
-        let below_threshold = |boundary: Option<f64>| match boundary {
-            Some(b) => observed_value < training_value - b,
-            None => observed_value < training_value,
-        };
-
-        let above_threshold = |boundary: Option<f64>| match boundary {
-            Some(b) => observed_value > training_value + b,
-            None => observed_value > training_value,
-        };
-
-        match alert_condition {
-            AlertThreshold::Below => below_threshold(alert_boundary),
-            AlertThreshold::Above => above_threshold(alert_boundary),
-            AlertThreshold::Outside => {
-                below_threshold(alert_boundary) || above_threshold(alert_boundary)
-            } // Handled by early equality check
-        }
-    }
-
+    /// Generates alerts if conditions are met and dispatches them
     pub async fn generate_alerts(
         &self,
-        value: Option<f64>,
-    ) -> Result<Option<Vec<ComparisonMetricAlert>>, DriftError> {
-        let alert_condition = &self.profile.config.alert_config.alert_condition;
-
-        // check if alert condition is configured
-        if let Some(_) = alert_condition {
+        observed_value: f64,
+    ) -> Result<Option<BTreeMap<String, String>>, DriftError> {
+        // Early return if no alert condition configured
+        let Some(alert_condition) = &self.profile.config.alert_config.alert_condition else {
             info!(
-                "No alert condition configured for {}/{}/{}. Skipping alert processing.",
-                self.profile.config.space, self.profile.config.name, self.profile.config.version
+                "No alert condition configured for {}. Skipping alert processing.",
+                self.profile_id()
+            );
+            return Ok(None);
+        };
+
+        // Check if alert should be triggered
+        if !alert_condition.should_alert(observed_value) {
+            info!(
+                "No alerts to process for {} (observed: {}, baseline: {})",
+                self.profile_id(),
+                observed_value,
+                alert_condition.baseline_value
             );
             return Ok(None);
         }
 
-        // check if we have a value to compare against
-        if let Some(value) = value {
-            info!(
-                "No metric data found for {}/{}/{}. Skipping alert processing.",
-                self.profile.config.space, self.profile.config.name, self.profile.config.version
-            );
-            return Ok(None);
-        }
+        // Build comparison alert with owned data
+        let metric_name = "genai_workflow_metric".to_string();
+        let comparison_alert = ComparisonMetricAlert {
+            metric_name: &metric_name,
+            baseline_metric: &alert_condition.baseline_value,
+            observed_metric: &observed_value,
+            delta: &alert_condition.delta,
+            alert_threshold: &alert_condition.alert_threshold,
+        };
 
-        let observed_value = value.unwrap();
-        let alert_condition = alert_condition.as_ref().unwrap();
-
-        let should_alert = alert_condition.should_alert(observed_value);
-
-        if !should_alert {
-            info!(
-                "No alerts to process for {}/{}/{}",
-                self.profile.config.space, self.profile.config.name, self.profile.config.version
-            );
-            return Ok(None);
-        }
-
-        if should_alert {
-            let comparison_alert = ComparisonMetricAlert {
-                metric_name: &"genai_workflow_metric".to_string(),
-                training_metric_value: &alert_condition.baseline_value,
-                observed_metric_value: &observed_value,
-                alert_threshold_value: alert_condition.delta,
-                alert_threshold: &alert_condition.alert_threshold,
-            };
-        }
-
-        // get
-        let metric_alerts: Vec<ComparisonMetricAlert> = metric_map
-            .iter()
-            .filter_map(|(name, observed_value)| {
-                let alert_condition = &self
-                    .profile
-                    .config
-                    .alert_config
-                    .alert_condition
-                    .as_ref()
-                    .unwrap();
-                if Self::is_out_of_bounds(
-                    training_value,
-                    *observed_value,
-                    &alert_condition.alert_threshold,
-                    alert_condition.alert_threshold_value,
-                ) {
-                    Some(ComparisonMetricAlert {
-                        metric_name: name.clone(),
-                        training_metric_value: training_value,
-                        observed_metric_value: *observed_value,
-                        alert_threshold_value: alert_condition.alert_threshold_value,
-                        alert_threshold: alert_condition.alert_threshold.clone(),
-                    })
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        if metric_alerts.is_empty() {
-            info!(
-                "No alerts to process for {}/{}/{}",
-                self.profile.config.space, self.profile.config.name, self.profile.config.version
-            );
-            return Ok(None);
-        }
-
+        // Dispatch alert
         let alert_dispatcher = AlertDispatcher::new(&self.profile.config).inspect_err(|e| {
-            let msg = format!(
-                "Error creating alert dispatcher for {}/{}/{}: {}",
-                self.profile.space(),
-                self.profile.name(),
-                self.profile.version(),
+            error!(
+                "Error creating alert dispatcher for {}: {}",
+                self.profile_id(),
                 e
             );
-            error!(msg);
         })?;
 
-        for alert in &metric_alerts {
-            alert_dispatcher
-                .process_alerts(alert)
-                .await
-                .inspect_err(|e| {
-                    let msg = format!(
-                        "Error processing alerts for {}/{}/{}: {}",
-                        self.profile.space(),
-                        self.profile.name(),
-                        self.profile.version(),
-                        e
-                    );
-                    error!(msg);
-                })?;
-        }
+        alert_dispatcher
+            .process_alerts(&comparison_alert)
+            .await
+            .inspect_err(|e| {
+                error!("Error processing alerts for {}: {}", self.profile_id(), e);
+            })?;
 
-        Ok(Some(metric_alerts))
+        // Convert to owned map before returning
+        Ok(Some(comparison_alert.organize_to_map()))
     }
 
-    fn organize_alerts(mut alerts: Vec<ComparisonMetricAlert>) -> Vec<BTreeMap<String, String>> {
-        let mut alert_vec = Vec::new();
-        alerts.iter_mut().for_each(|alert| {
-            let mut alert_map = BTreeMap::new();
-            alert_map.insert("entity_name".to_string(), alert.metric_name.clone());
-            alert_map.insert(
-                "training_metric_value".to_string(),
-                alert.training_metric_value.to_string(),
-            );
-            alert_map.insert(
-                "observed_metric_value".to_string(),
-                alert.observed_metric_value.to_string(),
-            );
-            let alert_threshold_value_str = match alert.alert_threshold_value {
-                Some(value) => value.to_string(),
-                None => "None".to_string(),
-            };
-            alert_map.insert(
-                "alert_threshold_value".to_string(),
-                alert_threshold_value_str,
-            );
-            alert_map.insert(
-                "alert_threshold".to_string(),
-                alert.alert_threshold.to_string(),
-            );
-            alert_vec.push(alert_map);
-        });
-
-        alert_vec
-    }
-
+    /// Checks for alerts based on metric value since previous run
     pub async fn check_for_alerts(
         &self,
         db_pool: &Pool<Postgres>,
         previous_run: &DateTime<Utc>,
-    ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
-        let metric_map = self.get_metric_map(previous_run, db_pool).await?;
+    ) -> Result<Option<BTreeMap<String, String>>, DriftError> {
+        let Some(metric_value) = self.get_metric_value(previous_run, db_pool).await? else {
+            return Ok(None);
+        };
 
-        match metric_map {
-            Some(metric_map) => {
-                let alerts = self.generate_alerts(&metric_map).await.inspect_err(|e| {
-                    let msg = format!(
-                        "Error generating alerts for {}/{}/{}: {}",
-                        self.profile.space(),
-                        self.profile.name(),
-                        self.profile.version(),
-                        e
-                    );
-                    error!(msg);
-                })?;
-                match alerts {
-                    Some(alerts) => Ok(Some(Self::organize_alerts(alerts))),
-                    None => Ok(None),
-                }
-            }
-            None => Ok(None),
-        }
+        self.generate_alerts(metric_value).await.inspect_err(|e| {
+            error!("Error generating alerts for {}: {}", self.profile_id(), e);
+        })
     }
 }
 
@@ -270,105 +144,112 @@ impl GenAIDrifter {
 mod tests {
     use super::*;
     use potato_head::mock::{create_score_prompt, LLMTestServer};
+    use scouter_types::genai::{ComparisonOperator, GenAIEvalAlertCondition};
     use scouter_types::genai::{
-        GenAIAlertConfig, GenAIDriftConfig, GenAIDriftMetric, GenAIEvalProfile,
+        GenAIAlertConfig, GenAIDriftConfig, GenAIEvalProfile, LLMJudgeTask,
     };
+    use scouter_types::{AlertDispatchConfig, ConsoleDispatchConfig};
+    use serde_json::Value;
 
     async fn get_test_drifter() -> GenAIDrifter {
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
-        let metric1 = GenAIDriftMetric::new(
-            "coherence",
-            5.0,
-            AlertThreshold::Below,
-            Some(0.5),
-            Some(prompt.clone()),
-        )
-        .unwrap();
 
-        let metric2 = GenAIDriftMetric::new(
-            "relevancy",
-            5.0,
-            AlertThreshold::Below,
+        let task1 = LLMJudgeTask::new_rs(
+            "metric1",
+            prompt.clone(),
+            Value::Number(4.into()),
             None,
-            Some(prompt.clone()),
-        )
-        .unwrap();
+            ComparisonOperator::GreaterThanOrEqual,
+            None,
+            None,
+        );
 
-        let alert_config = GenAIAlertConfig::default();
+        let task2 = LLMJudgeTask::new_rs(
+            "metric2",
+            prompt.clone(),
+            Value::Number(2.into()),
+            None,
+            ComparisonOperator::LessThanOrEqual,
+            None,
+            None,
+        );
+
+        let alert_condition = GenAIEvalAlertCondition {
+            baseline_value: 5.0,
+            alert_threshold: AlertThreshold::Below,
+            delta: Some(1.0),
+        };
+        let alert_config = GenAIAlertConfig {
+            schedule: "0 0 * * * *".to_string(),
+            dispatch_config: AlertDispatchConfig::Console(ConsoleDispatchConfig { enabled: true }),
+            alert_condition: Some(alert_condition),
+        };
+
         let drift_config =
             GenAIDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
 
-        let profile = GenAIEvalProfile::from_metrics(drift_config, vec![metric1, metric2])
-            .await
-            .unwrap();
+        let profile = GenAIEvalProfile::new(drift_config, None, Some(vec![task1, task2])).unwrap();
 
         GenAIDrifter::new(profile)
     }
 
     #[test]
-    fn test_is_out_of_bounds() {
-        // relevancy training value obtained during initial model training.
-        let relevancy_training_value = 5.0;
-
-        // observed relevancy metric value captured somewhere after the initial training run.
-        let relevancy_observed_value = 4.0;
-
-        // we want relevancy to be as small as possible, so we want to see if the metric has increased.
-        let relevancy_alert_condition = AlertThreshold::Below;
-
-        // we do not want to alert if the relevancy values have decreased by more than 0.5
-        // if the metric observed has increased beyond (relevancy_training_value - 0.5)
-        let relevancy_alert_boundary = Some(0.5);
-
-        let relevancy_is_out_of_bounds = GenAIDrifter::is_out_of_bounds(
-            relevancy_training_value,
-            relevancy_observed_value,
-            &relevancy_alert_condition,
-            relevancy_alert_boundary,
-        );
-        assert!(relevancy_is_out_of_bounds);
-
-        // test observed metric has decreased beyond threshold.
-
-        // coherence training value obtained during initial model training.
-        let coherence_training_value = 0.76;
-
-        // observed coherence metric value captured somewhere after the initial training run.
-        let coherence_observed_value = 0.67;
-
-        // we want to alert if coherence has decreased.
-        let coherence_alert_condition = AlertThreshold::Below;
-
-        // we will not be specifying a boundary here as we want to alert if coherence has decreased by any amount
-        let coherence_alert_boundary = None;
-
-        let coherence_is_out_of_bounds = GenAIDrifter::is_out_of_bounds(
-            coherence_training_value,
-            coherence_observed_value,
-            &coherence_alert_condition,
-            coherence_alert_boundary,
-        );
-        assert!(coherence_is_out_of_bounds);
-    }
-
-    #[test]
-    fn test_generate_genai_alerts() {
+    fn test_generate_alerts_triggers_when_threshold_exceeded() {
         let mut mock = LLMTestServer::new();
         mock.start_server().unwrap();
         let runtime = tokio::runtime::Runtime::new().unwrap();
 
-        let mut metric_map = HashMap::new();
-        // mse had an initial value of 12.02 when the profile was generated
-        metric_map.insert("coherence".to_string(), 4.0);
-        // accuracy had an initial 0.75 when the profile was generated
-        metric_map.insert("relevancy".to_string(), 4.5);
+        let alerts = runtime.block_on(async {
+            let drifter = get_test_drifter().await;
+
+            // Workflow metric value that should trigger an alert
+            // (below baseline of 5.0 with delta of 1.0)
+            let observed_value = 3.0;
+
+            drifter
+                .generate_alerts(observed_value)
+                .await
+                .expect("Should generate alerts successfully")
+        });
+
+        assert!(
+            alerts.is_some(),
+            "Should generate alerts for out-of-bounds value"
+        );
+
+        let alert_map = alerts.unwrap();
+        assert!(alert_map.contains_key("metric_name"));
+        assert_eq!(
+            alert_map.get("metric_name").unwrap(),
+            "genai_workflow_metric"
+        );
+
+        mock.stop_server().unwrap();
+    }
+
+    #[test]
+    fn test_generate_alerts_no_trigger_within_threshold() {
+        let mut mock = LLMTestServer::new();
+        mock.start_server().unwrap();
+        let runtime = tokio::runtime::Runtime::new().unwrap();
 
         let alerts = runtime.block_on(async {
             let drifter = get_test_drifter().await;
-            drifter.generate_alerts(&metric_map).await.unwrap().unwrap()
+
+            // Workflow metric value within acceptable range
+            let observed_value = 5.0;
+
+            drifter
+                .generate_alerts(observed_value)
+                .await
+                .expect("Should handle no-alert case successfully")
         });
 
-        assert_eq!(alerts.len(), 2);
+        assert!(
+            alerts.is_none(),
+            "Should not generate alerts for value within threshold"
+        );
+
         mock.stop_server().unwrap();
     }
 }
