@@ -33,16 +33,16 @@ pub trait GenAIDriftSqlLogic {
     /// * A result containing the query result or an error
     async fn insert_genai_event_record(
         pool: &Pool<Postgres>,
-        record: &BoxedGenAIEventRecord,
+        record: BoxedGenAIEventRecord,
         entity_id: &i32,
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertGenAIEventRecord.get_query();
 
         sqlx::query(query)
-            .bind(&record.record.uid)
+            .bind(record.record.uid)
             .bind(record.record.created_at)
             .bind(entity_id)
-            .bind(Json(&record.record.context))
+            .bind(Json(record.record.context))
             .execute(pool)
             .await
             .map_err(SqlError::SqlxError)

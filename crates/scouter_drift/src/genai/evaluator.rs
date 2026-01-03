@@ -3,7 +3,7 @@ use crate::error::DriftError;
 use scouter_evaluate::tasks::traits::EvaluateTaskMut;
 use scouter_types::genai::GenAIEvalSet;
 use scouter_types::genai::{traits::ProfileExt, EvaluationContext, GenAIEvalProfile};
-use scouter_types::GenAITaskRecord;
+use scouter_types::GenAIEventRecord;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -28,7 +28,7 @@ impl GenAIEvaluator {
     /// 5. Return all metric records and scores
     #[instrument(skip_all)]
     pub async fn process_event_record(
-        record: &GenAITaskRecord,
+        record: &GenAIEventRecord,
         profile: Arc<Mutex<GenAIEvalProfile>>,
     ) -> Result<GenAIEvalSet, DriftError> {
         let results = Self::execute_tasks(record, &profile).await?;
@@ -40,7 +40,7 @@ impl GenAIEvaluator {
     /// Execute all tasks defined in the profile for the given record
     #[instrument(skip_all)]
     pub async fn execute_tasks(
-        record: &GenAITaskRecord,
+        record: &GenAIEventRecord,
         profile: &Arc<Mutex<GenAIEvalProfile>>,
     ) -> Result<GenAIEvalSet, DriftError> {
         let begin = chrono::Utc::now();

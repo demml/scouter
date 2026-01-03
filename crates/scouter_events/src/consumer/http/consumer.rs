@@ -28,7 +28,7 @@ impl HttpConsumerManager {
                 result = consumer.recv_async() => {
                     match result {
                         Ok(records) => {
-                            let result = match &records {
+                            let result = match records {
 
                                 MessageRecord::ServerRecords(records) => {
                                     MessageHandler::insert_server_records(&db_pool, records).await

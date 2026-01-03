@@ -92,7 +92,7 @@ impl GenAIWorkflowDataFrame {
 
     fn build_batch(
         &self,
-        records: Vec<&GenAIEvalWorkflowRecord>,
+        records: Vec<GenAIEvalWorkflowRecord>,
     ) -> Result<RecordBatch, DataFrameError> {
         // 1. created_at
         let created_at_array = TimestampNanosecondArray::from_iter_values(

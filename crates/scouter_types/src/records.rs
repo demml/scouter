@@ -815,81 +815,82 @@ impl IntoServerRecord for GenAIEvalTaskResultRecord {
 
 /// Helper trait to convert ServerRecord to their respective internal record types
 pub trait ToDriftRecords {
-    fn to_spc_drift_records(&self) -> Result<Vec<&SpcRecord>, RecordError>;
-    fn to_observability_drift_records(&self) -> Result<Vec<&ObservabilityMetrics>, RecordError>;
-    fn to_psi_drift_records(&self) -> Result<Vec<&PsiRecord>, RecordError>;
-    fn to_custom_metric_drift_records(&self) -> Result<Vec<&CustomMetricRecord>, RecordError>;
-    fn to_genai_event_records(&self) -> Result<Vec<&BoxedGenAIEventRecord>, RecordError>;
-    fn to_genai_workflow_records(&self) -> Result<Vec<&GenAIEvalWorkflowRecord>, RecordError>;
-    fn to_genai_task_records(&self) -> Result<Vec<&GenAIEvalTaskResultRecord>, RecordError>;
+    fn to_spc_drift_records(self) -> Result<Vec<SpcRecord>, RecordError>;
+    fn to_observability_drift_records(self) -> Result<Vec<ObservabilityMetrics>, RecordError>;
+    fn to_psi_drift_records(self) -> Result<Vec<PsiRecord>, RecordError>;
+    fn to_custom_metric_drift_records(self) -> Result<Vec<CustomMetricRecord>, RecordError>;
+    fn to_genai_event_records(self) -> Result<Vec<BoxedGenAIEventRecord>, RecordError>;
+    fn to_genai_workflow_records(self) -> Result<Vec<GenAIEvalWorkflowRecord>, RecordError>;
+    fn to_genai_task_records(self) -> Result<Vec<GenAIEvalTaskResultRecord>, RecordError>;
 }
 
 impl ToDriftRecords for ServerRecords {
-    fn to_spc_drift_records(&self) -> Result<Vec<&SpcRecord>, RecordError> {
-        extract_records(self, |record| match record {
+    fn to_spc_drift_records(self) -> Result<Vec<SpcRecord>, RecordError> {
+        extract_owned_records(self.records, |record| match record {
             ServerRecord::Spc(inner) => Some(inner),
             _ => None,
         })
     }
 
-    fn to_observability_drift_records(&self) -> Result<Vec<&ObservabilityMetrics>, RecordError> {
-        extract_records(self, |record| match record {
+    fn to_observability_drift_records(self) -> Result<Vec<ObservabilityMetrics>, RecordError> {
+        extract_owned_records(self.records, |record| match record {
             ServerRecord::Observability(inner) => Some(inner),
             _ => None,
         })
     }
 
-    fn to_psi_drift_records(&self) -> Result<Vec<&PsiRecord>, RecordError> {
-        extract_records(self, |record| match record {
+    fn to_psi_drift_records(self) -> Result<Vec<PsiRecord>, RecordError> {
+        extract_owned_records(self.records, |record| match record {
             ServerRecord::Psi(inner) => Some(inner),
             _ => None,
         })
     }
 
-    fn to_custom_metric_drift_records(&self) -> Result<Vec<&CustomMetricRecord>, RecordError> {
-        extract_records(self, |record| match record {
+    fn to_custom_metric_drift_records(self) -> Result<Vec<CustomMetricRecord>, RecordError> {
+        extract_owned_records(self.records, |record| match record {
             ServerRecord::Custom(inner) => Some(inner),
             _ => None,
         })
     }
 
-    fn to_genai_event_records(&self) -> Result<Vec<&BoxedGenAIEventRecord>, RecordError> {
-        extract_records(self, |record| match record {
+    fn to_genai_event_records(self) -> Result<Vec<BoxedGenAIEventRecord>, RecordError> {
+        extract_owned_records(self.records, |record| match record {
             ServerRecord::GenAIEvent(inner) => Some(inner),
             _ => None,
         })
     }
 
-    fn to_genai_workflow_records(&self) -> Result<Vec<&GenAIEvalWorkflowRecord>, RecordError> {
-        extract_records(self, |record| match record {
+    fn to_genai_workflow_records(self) -> Result<Vec<GenAIEvalWorkflowRecord>, RecordError> {
+        extract_owned_records(self.records, |record| match record {
             ServerRecord::GenAIWorkflowRecord(inner) => Some(inner),
             _ => None,
         })
     }
 
-    fn to_genai_task_records(&self) -> Result<Vec<&GenAIEvalTaskResultRecord>, RecordError> {
-        extract_records(self, |record| match record {
+    fn to_genai_task_records(self) -> Result<Vec<GenAIEvalTaskResultRecord>, RecordError> {
+        extract_owned_records(self.records, |record| match record {
             ServerRecord::GenAITaskRecord(inner) => Some(inner),
             _ => None,
         })
     }
 }
 
-fn extract_records<T>(
-    server_records: &ServerRecords,
-    extractor: impl Fn(&ServerRecord) -> Option<&T>,
-) -> Result<Vec<&T>, RecordError> {
-    let mut records = Vec::new();
+// Replace extract_records with this consuming version
+fn extract_owned_records<T>(
+    records: Vec<ServerRecord>,
+    extractor: impl Fn(ServerRecord) -> Option<T>,
+) -> Result<Vec<T>, RecordError> {
+    let mut extracted = Vec::with_capacity(records.len());
 
-    for record in &server_records.records {
-        if let Some(extracted) = extractor(record) {
-            records.push(extracted);
+    for record in records {
+        if let Some(value) = extractor(record) {
+            extracted.push(value);
         } else {
             return Err(RecordError::InvalidDriftTypeError);
         }
     }
 
-    Ok(records)
+    Ok(extracted)
 }
 
 pub enum MessageType {

@@ -73,7 +73,7 @@ impl GenAIDrifter {
     pub async fn generate_alerts(
         &self,
         observed_value: f64,
-    ) -> Result<Option<BTreeMap<String, String>>, DriftError> {
+    ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
         // Early return if no alert condition configured
         let Some(alert_condition) = &self.profile.config.alert_config.alert_condition else {
             info!(
@@ -121,7 +121,7 @@ impl GenAIDrifter {
             })?;
 
         // Convert to owned map before returning
-        Ok(Some(comparison_alert.organize_to_map()))
+        Ok(Some(vec![comparison_alert.organize_to_map()]))
     }
 
     /// Checks for alerts based on metric value since previous run
@@ -129,7 +129,7 @@ impl GenAIDrifter {
         &self,
         db_pool: &Pool<Postgres>,
         previous_run: &DateTime<Utc>,
-    ) -> Result<Option<BTreeMap<String, String>>, DriftError> {
+    ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
         let Some(metric_value) = self.get_metric_value(previous_run, db_pool).await? else {
             return Ok(None);
         };
@@ -217,7 +217,7 @@ mod tests {
             "Should generate alerts for out-of-bounds value"
         );
 
-        let alert_map = alerts.unwrap();
+        let alert_map = &alerts.unwrap()[0];
         assert!(alert_map.contains_key("metric_name"));
         assert_eq!(
             alert_map.get("metric_name").unwrap(),

@@ -1,14 +1,11 @@
 // Module for polling GenAI drift records that are "pending" and need to be processed
 use crate::error::DriftError;
 use crate::genai::evaluator::GenAIEvaluator;
-use potato_head::prompt_types::Score;
-use potato_head::workflow;
 use scouter_sql::sql::traits::{GenAIDriftSqlLogic, ProfileSqlLogic};
 use scouter_sql::PostgresClient;
 use scouter_types::genai::{GenAIEvalProfile, GenAIEvalSet};
-use scouter_types::{GenAIEventRecord, GenAITaskRecord, Status};
+use scouter_types::{GenAIEventRecord, Status};
 use sqlx::{Pool, Postgres};
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -74,22 +71,14 @@ impl GenAIPoller {
         // Get task from the database (query uses skip lock to pull task and update to processing)
         let task = PostgresClient::get_pending_genai_event_record(&self.db_pool).await?;
 
-        let Some(mut task) = task else {
-            return Ok(false);
-        };
-
-        // extract entity id from task option
-        let entity_id = if let Some(entity_id) = task.entity_id {
-            entity_id
-        } else {
-            error!("No entity_id found for GenAI task: {}", task.uid);
+        let Some(task) = task else {
             return Ok(false);
         };
 
         debug!("Processing genai drift record for profile: {}", task.uid);
 
         let mut genai_profile = if let Some(profile) =
-            PostgresClient::get_drift_profile(&self.db_pool, &entity_id).await?
+            PostgresClient::get_drift_profile(&self.db_pool, &task.entity_id).await?
         {
             let genai_profile: GenAIEvalProfile =
                 serde_json::from_value(profile).inspect_err(|e| {
@@ -134,7 +123,7 @@ impl GenAIPoller {
                             &self.db_pool,
                             &task,
                             Status::Failed,
-                            None,
+                            &0,
                         )
                         .await?;
                         return Err(DriftError::GenAIEvaluatorError(e.to_string()));

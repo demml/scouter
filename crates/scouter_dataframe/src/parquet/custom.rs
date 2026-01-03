@@ -85,10 +85,7 @@ impl CustomMetricDataFrame {
         })
     }
 
-    fn build_batch(
-        &self,
-        records: Vec<&CustomMetricRecord>,
-    ) -> Result<RecordBatch, DataFrameError> {
+    fn build_batch(&self, records: Vec<CustomMetricRecord>) -> Result<RecordBatch, DataFrameError> {
         let created_at_array = TimestampNanosecondArray::from_iter_values(
             records
                 .iter()

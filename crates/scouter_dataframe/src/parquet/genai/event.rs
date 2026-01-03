@@ -105,7 +105,7 @@ impl GenAIEventDataFrame {
 
     fn build_batch(
         &self,
-        records: Vec<&BoxedGenAIEventRecord>,
+        records: Vec<BoxedGenAIEventRecord>,
     ) -> Result<RecordBatch, DataFrameError> {
         let id_array =
             arrow_array::Int64Array::from_iter_values(records.iter().map(|r| r.record.id));

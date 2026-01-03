@@ -93,7 +93,7 @@ impl MessageHandler {
     #[instrument(skip_all)]
     pub async fn insert_server_records(
         pool: &Pool<Postgres>,
-        records: &ServerRecords,
+        records: ServerRecords,
     ) -> Result<(), SqlError> {
         info!("Inserting server records: {:?}", records.record_type()?);
 
@@ -169,7 +169,7 @@ impl MessageHandler {
 
     pub async fn insert_trace_server_record(
         pool: &Pool<Postgres>,
-        records: &TraceServerRecord,
+        records: TraceServerRecord,
     ) -> Result<(), SqlError> {
         let (span_batch, baggage_batch, tag_records) = records.to_records()?;
 
@@ -192,9 +192,9 @@ impl MessageHandler {
 
     pub async fn insert_tag_record(
         pool: &Pool<Postgres>,
-        record: &TagRecord,
+        record: TagRecord,
     ) -> Result<(), SqlError> {
-        let result = PostgresClient::insert_tag_batch(pool, std::slice::from_ref(record)).await?;
+        let result = PostgresClient::insert_tag_batch(pool, std::slice::from_ref(&record)).await?;
 
         debug!(
             rows_affected = result.rows_affected(),
@@ -607,7 +607,7 @@ mod tests {
             uid: UID.to_string(),
             feature: "test".to_string(),
             value: 1.0,
-            entity_id: None,
+            entity_id: 0,
         };
 
         let record2 = SpcRecord {
@@ -615,16 +615,13 @@ mod tests {
             uid: UID.to_string(),
             feature: "test2".to_string(),
             value: 2.0,
-            entity_id: None,
+            entity_id: 0,
         };
 
-        let result = PostgresClient::insert_spc_drift_records_batch(
-            &pool,
-            &[&record1, &record2],
-            &ENTITY_ID,
-        )
-        .await
-        .unwrap();
+        let result =
+            PostgresClient::insert_spc_drift_records_batch(&pool, &[record1, record2], &ENTITY_ID)
+                .await
+                .unwrap();
 
         assert_eq!(result.rows_affected(), 2);
     }
@@ -639,7 +636,7 @@ mod tests {
             feature: "test".to_string(),
             bin_id: 1,
             bin_count: 1,
-            entity_id: None,
+            entity_id: ENTITY_ID,
         };
 
         let record2 = PsiRecord {
@@ -648,11 +645,11 @@ mod tests {
             feature: "test2".to_string(),
             bin_id: 2,
             bin_count: 2,
-            entity_id: None,
+            entity_id: ENTITY_ID,
         };
 
         let result =
-            PostgresClient::insert_bin_counts_batch(&pool, &[&record1, &record2], &ENTITY_ID)
+            PostgresClient::insert_bin_counts_batch(&pool, &[record1, record2], &ENTITY_ID)
                 .await
                 .unwrap();
 
@@ -734,19 +731,16 @@ mod tests {
                     uid: UID.to_string(),
                     feature: format!("test{j}"),
                     value: j as f64,
-                    entity_id: None,
+                    entity_id: ENTITY_ID,
                 };
 
                 records.push(record);
             }
 
-            let result = PostgresClient::insert_spc_drift_records_batch(
-                &pool,
-                &records.iter().collect::<Vec<&SpcRecord>>(),
-                &ENTITY_ID,
-            )
-            .await
-            .unwrap();
+            let result =
+                PostgresClient::insert_spc_drift_records_batch(&pool, &records, &ENTITY_ID)
+                    .await
+                    .unwrap();
             assert_eq!(result.rows_affected(), records.len() as u64);
         }
 
@@ -834,18 +828,14 @@ mod tests {
                         feature: format!("feature{feature}"),
                         bin_id: bin,
                         bin_count: rand::rng().random_range(0..10) as i32,
-                        entity_id: None,
+                        entity_id: ENTITY_ID,
                     };
 
                     records.push(record);
                 }
-                PostgresClient::insert_bin_counts_batch(
-                    &pool,
-                    &records.iter().collect::<Vec<&PsiRecord>>(),
-                    &entity_id,
-                )
-                .await
-                .unwrap();
+                PostgresClient::insert_bin_counts_batch(&pool, &records, &entity_id)
+                    .await
+                    .unwrap();
             }
         }
 
@@ -910,17 +900,14 @@ mod tests {
                     uid: uid.clone(),
                     metric: format!("metric{i}"),
                     value: rand::rng().random_range(0..10) as f64,
-                    entity_id: None,
+                    entity_id: ENTITY_ID,
                 };
                 records.push(record);
             }
-            let result = PostgresClient::insert_custom_metric_values_batch(
-                &pool,
-                &records.iter().collect::<Vec<&CustomMetricRecord>>(),
-                &entity_id,
-            )
-            .await
-            .unwrap();
+            let result =
+                PostgresClient::insert_custom_metric_values_batch(&pool, &records, &entity_id)
+                    .await
+                    .unwrap();
             assert_eq!(result.rows_affected(), 25);
         }
 
@@ -930,11 +917,11 @@ mod tests {
             uid: uid.clone(),
             metric: "metric3".to_string(),
             value: rand::rng().random_range(0..10) as f64,
-            entity_id: None,
+            entity_id: ENTITY_ID,
         };
 
         let result =
-            PostgresClient::insert_custom_metric_values_batch(&pool, &[&record], &entity_id)
+            PostgresClient::insert_custom_metric_values_batch(&pool, &[record], &entity_id)
                 .await
                 .unwrap();
         assert_eq!(result.rows_affected(), 1);
@@ -1054,12 +1041,12 @@ mod tests {
                 processing_ended_at: None,
                 processing_duration: None,
                 entity_uid: uid.clone(),
-                entity_id: None,
+                entity_id,
             };
 
             let boxed = BoxedGenAIEventRecord::new(record);
 
-            let result = PostgresClient::insert_genai_event_record(&pool, &boxed, &entity_id)
+            let result = PostgresClient::insert_genai_event_record(&pool, boxed, &entity_id)
                 .await
                 .unwrap();
 
@@ -1088,7 +1075,7 @@ mod tests {
             &pool,
             &pending_tasks.unwrap(),
             Status::Processed,
-            1 as i32,
+            &(1 as i32),
         )
         .await
         .unwrap();
@@ -1141,12 +1128,12 @@ mod tests {
                 processing_ended_at: None,
                 processing_duration: None,
                 entity_uid: uid.clone(),
-                entity_id: None,
+                entity_id: ENTITY_ID,
             };
 
             let boxed = BoxedGenAIEventRecord::new(record);
 
-            let result = PostgresClient::insert_genai_event_record(&pool, &boxed, &entity_id)
+            let result = PostgresClient::insert_genai_event_record(&pool, boxed, &entity_id)
                 .await
                 .unwrap();
 

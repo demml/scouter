@@ -94,7 +94,7 @@ impl PsiDataFrame {
     }
 
     /// Create and arrow RecordBatch from the given records
-    fn build_batch(&self, records: Vec<&PsiRecord>) -> Result<RecordBatch, DataFrameError> {
+    fn build_batch(&self, records: Vec<PsiRecord>) -> Result<RecordBatch, DataFrameError> {
         let created_at_array = TimestampNanosecondArray::from_iter_values(
             records
                 .iter()

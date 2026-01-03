@@ -101,7 +101,7 @@ impl GenAITaskDataFrame {
     /// * DataFrameError if there is an issue creating the RecordBatch
     fn build_batch(
         &self,
-        records: Vec<&GenAIEvalTaskResultRecord>,
+        records: Vec<GenAIEvalTaskResultRecord>,
     ) -> Result<RecordBatch, DataFrameError> {
         // 1. created_at: TimestampNanosecond
         let created_at_array = TimestampNanosecondArray::from_iter_values(

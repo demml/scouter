@@ -87,7 +87,7 @@ impl SpcDataFrame {
         })
     }
 
-    pub fn build_batch(&self, records: Vec<&SpcRecord>) -> Result<RecordBatch, DataFrameError> {
+    pub fn build_batch(&self, records: Vec<SpcRecord>) -> Result<RecordBatch, DataFrameError> {
         let created_at = TimestampNanosecondArray::from_iter_values(
             records
                 .iter()
