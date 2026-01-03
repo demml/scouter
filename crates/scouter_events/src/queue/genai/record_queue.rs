@@ -57,7 +57,7 @@ impl GenAIRecordQueue {
                     genai_record.created_at,
                     genai_record.uid,
                     self.drift_profile.config.uid.clone(),
-                ))) // Removed the semicolon here
+                )))
             })
             .collect::<Vec<ServerRecord>>();
 

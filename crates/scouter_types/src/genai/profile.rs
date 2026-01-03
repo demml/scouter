@@ -8,7 +8,7 @@ use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
     PyHelperFuncs, VersionRequest, DEFAULT_VERSION, MISSING,
 };
-use crate::{GenAITaskRecord, ProfileRequest};
+use crate::{GenAIEventRecord, ProfileRequest};
 use chrono::{DateTime, Utc};
 use core::fmt::Debug;
 use potato_head::prompt_types::{Prompt, ResponseType};
@@ -583,7 +583,7 @@ impl GenAIEvalProfile {
 
     pub fn build_eval_set_from_tasks(
         &self,
-        record: &GenAITaskRecord,
+        record: &GenAIEventRecord,
         duration_ms: i64,
     ) -> GenAIEvalSet {
         let mut passed_count = 0;

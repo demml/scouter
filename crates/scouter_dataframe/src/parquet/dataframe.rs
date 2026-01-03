@@ -213,10 +213,8 @@ mod tests {
             for j in 0..50 {
                 let record = GenAIEventRecord {
                     created_at: Utc::now() + chrono::Duration::hours(i),
-                    entity_id: Some(entity_id),
-                    prompt: Some(prompt.model_dump_value()),
+                    entity_id,
                     context: serde_json::Value::Object(Map::new()),
-                    score: Value::Null,
                     status: Status::Pending,
                     id: 0,
                     uid: format!("record_uid_{i}_{j}"),
@@ -427,7 +425,7 @@ mod tests {
                     created_at: Utc::now() + chrono::Duration::hours(i),
                     metric: format!("metric{i}"),
                     value: j as f64,
-                    entity_id: Some(entity_id),
+                    entity_id,
                     uid: format!("entity_uid_{entity_id}"),
                 });
 
@@ -497,7 +495,7 @@ mod tests {
                     feature: "feature1".to_string(),
                     bin_id: j,
                     bin_count: rand::rng().random_range(0..100),
-                    entity_id: Some(entity_id),
+                    entity_id,
                     uid: format!("entity_uid_{entity_id}"),
                 });
 
@@ -512,7 +510,7 @@ mod tests {
                     feature: "feature2".to_string(),
                     bin_id: j,
                     bin_count: rand::rng().random_range(0..100),
-                    entity_id: Some(entity_id),
+                    entity_id,
                     uid: format!("entity_uid_{entity_id}"),
                 });
 
@@ -572,7 +570,7 @@ mod tests {
                 created_at: Utc::now() + chrono::Duration::hours(i),
                 feature: "feature1".to_string(),
                 value: i as f64,
-                entity_id: Some(entity_id),
+                entity_id,
                 uid: format!("entity_uid_{entity_id}"),
             });
 
@@ -584,7 +582,7 @@ mod tests {
                 created_at: Utc::now() + chrono::Duration::hours(i),
                 feature: "feature2".to_string(),
                 value: i as f64,
-                entity_id: Some(entity_id),
+                entity_id,
                 uid: format!("entity_uid_{entity_id}"),
             });
 

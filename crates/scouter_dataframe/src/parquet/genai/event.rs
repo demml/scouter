@@ -119,7 +119,7 @@ impl GenAIEventDataFrame {
         let uid_array =
             StringArray::from_iter_values(records.iter().map(|r| r.record.uid.as_str()));
         let entity_id_array =
-            Int32Array::from_iter_values(records.iter().map(|r| r.record.entity_id.unwrap()));
+            Int32Array::from_iter_values(records.iter().map(|r| r.record.entity_id));
         let context_array = StringArray::from_iter_values(records.iter().map(|r| {
             serde_json::to_string(&r.record.context).unwrap_or_else(|_| "{}".to_string())
         }));

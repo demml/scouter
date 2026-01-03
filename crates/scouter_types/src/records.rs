@@ -81,7 +81,7 @@ pub struct SpcRecord {
     #[pyo3(get)]
     pub value: f64,
 
-    pub entity_id: Option<i32>,
+    pub entity_id: i32,
 }
 
 #[pymethods]
@@ -93,7 +93,7 @@ impl SpcRecord {
             uid,
             feature,
             value,
-            entity_id: None,
+            entity_id: 0,
         }
     }
 
@@ -136,7 +136,7 @@ pub struct PsiRecord {
     pub bin_id: i32,
     #[pyo3(get)]
     pub bin_count: i32,
-    pub entity_id: Option<i32>,
+    pub entity_id: i32,
 }
 
 #[pymethods]
@@ -149,7 +149,7 @@ impl PsiRecord {
             feature,
             bin_id,
             bin_count,
-            entity_id: None,
+            entity_id: 0,
         }
     }
 
@@ -196,7 +196,7 @@ pub struct GenAIEventRecord {
     #[cfg_attr(feature = "server", sqlx(skip))]
     pub entity_uid: String,
 
-    pub entity_id: Option<i32>,
+    pub entity_id: i32,
 }
 
 #[pymethods]
@@ -235,14 +235,14 @@ impl GenAIEventRecord {
             processing_ended_at: None,
             processing_duration: None,
             entity_uid,
-            entity_id: None,
+            entity_id: 0, // This is a placeholder, to be set when inserting into DB
         }
     }
 
     // helper for masking sensitive data from the record when
     // return to the user. Currently, only removes entity_id
     pub fn mask_sensitive_data(&mut self) {
-        self.entity_id = None;
+        self.entity_id = -1;
     }
 }
 
@@ -465,7 +465,7 @@ pub struct CustomMetricRecord {
     #[pyo3(get)]
     pub value: f64,
 
-    pub entity_id: Option<i32>,
+    pub entity_id: i32,
 }
 
 #[pymethods]
@@ -477,7 +477,7 @@ impl CustomMetricRecord {
             uid,
             metric: metric.to_lowercase(),
             value,
-            entity_id: None,
+            entity_id: 0,
         }
     }
 
@@ -562,7 +562,7 @@ pub struct ObservabilityMetrics {
     #[pyo3(get)]
     pub route_metrics: Vec<RouteMetrics>,
 
-    pub entity_id: Option<i32>,
+    pub entity_id: i32,
 }
 
 #[pymethods]

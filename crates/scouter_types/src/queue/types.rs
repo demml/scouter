@@ -1,11 +1,10 @@
 use crate::error::TypeError;
+use crate::json_to_pyobject_value;
 use crate::util::{is_pydantic_basemodel, pyobject_to_json};
 use crate::PyHelperFuncs;
-use crate::{json_to_pyobject_value, GenAIEventRecord};
 use chrono::DateTime;
 use chrono::Utc;
 use potato_head::create_uuid7;
-use potato_head::prompt_types::Prompt;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyFloat, PyInt, PyList, PyString};
 use pyo3::IntoPyObjectExt;
@@ -415,7 +414,7 @@ impl GenAIRecord {
             let model = context.call_method0("model_dump")?;
 
             // Serialize the dictionary to JSON
-            depythonize(model)?
+            depythonize(&model)?
         } else {
             Err(TypeError::MustBeDictOrBaseModel)?
         };
@@ -448,15 +447,6 @@ impl GenAIRecord {
 
     pub fn __str__(&self) -> String {
         PyHelperFuncs::__str__(self)
-    }
-
-    pub fn to_event_record(&self, uid: &str) -> GenAIEventRecord {
-        GenAIEventRecord {
-            uid: uid.to_string(),
-            entity_id: None,
-            created_at: self.created_at,
-            context: self.context.clone(),
-        }
     }
 }
 

@@ -6,7 +6,7 @@ use potato_head::workflow;
 use scouter_sql::sql::traits::{GenAIDriftSqlLogic, ProfileSqlLogic};
 use scouter_sql::PostgresClient;
 use scouter_types::genai::{GenAIEvalProfile, GenAIEvalSet};
-use scouter_types::{GenAITaskRecord, Status};
+use scouter_types::{GenAIEventRecord, GenAITaskRecord, Status};
 use sqlx::{Pool, Postgres};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -29,7 +29,7 @@ impl GenAIPoller {
     #[instrument(skip_all)]
     pub async fn process_event_record(
         &mut self,
-        record: &GenAITaskRecord,
+        record: &GenAIEventRecord,
         profile: &GenAIEvalProfile,
     ) -> Result<GenAIEvalSet, DriftError> {
         debug!("Processing workflow");

@@ -203,7 +203,7 @@ impl Observer {
             request_count: self.request_count,
             error_count: self.error_count,
             route_metrics,
-            entity_id: None,
+            entity_id: 0,
         });
 
         Ok(Some(ServerRecords {
