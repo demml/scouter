@@ -75,8 +75,6 @@ impl GenAIEventDataFrame {
             ),
             Field::new("uid", DataType::Utf8, false),
             Field::new("context", DataType::Utf8, false),
-            Field::new("prompt", DataType::Utf8, true),
-            Field::new("score", DataType::Utf8, true),
             Field::new(
                 "updated_at",
                 DataType::Timestamp(TimeUnit::Nanosecond, None),
@@ -122,20 +120,8 @@ impl GenAIEventDataFrame {
             StringArray::from_iter_values(records.iter().map(|r| r.record.uid.as_str()));
         let entity_id_array =
             Int32Array::from_iter_values(records.iter().map(|r| r.record.entity_id.unwrap()));
-
-        let score_array =
-            StringArray::from_iter_values(records.iter().map(|r| {
-                serde_json::to_string(&r.record.score).unwrap_or_else(|_| "{}".to_string())
-            }));
         let context_array = StringArray::from_iter_values(records.iter().map(|r| {
             serde_json::to_string(&r.record.context).unwrap_or_else(|_| "{}".to_string())
-        }));
-
-        let prompt_array = StringArray::from_iter(records.iter().map(|r| {
-            r.record
-                .prompt
-                .as_ref()
-                .map(|p| serde_json::to_string(p).unwrap_or_else(|_| "{}".to_string()))
         }));
         let updated_at_array = TimestampNanosecondArray::from_iter(
             records
@@ -170,8 +156,6 @@ impl GenAIEventDataFrame {
                 Arc::new(created_at_array),
                 Arc::new(uid_array),
                 Arc::new(context_array),
-                Arc::new(prompt_array),
-                Arc::new(score_array),
                 Arc::new(updated_at_array),
                 Arc::new(status_array),
                 Arc::new(processing_started_at_array),
