@@ -283,6 +283,7 @@ mod tests {
                     expected: Value::Null,
                     actual: Value::Null,
                     message: "All good".to_string(),
+                    entity_uid: format!("entity_uid_{entity_id}"),
                 });
 
                 batch.push(record);
@@ -356,6 +357,7 @@ mod tests {
                     failed_tasks: 2,
                     pass_rate: 0.8,
                     duration_ms: 1500,
+                    entity_uid: format!("entity_uid_{entity_id}"),
                 });
 
                 batch.push(record);

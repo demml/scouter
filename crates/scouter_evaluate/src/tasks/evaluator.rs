@@ -1,5 +1,4 @@
 use crate::error::EvaluationError;
-use crate::tasks::assertion;
 use regex::Regex;
 use scouter_types::genai::ValueExt;
 use scouter_types::genai::{traits::TaskAccessor, AssertionResult, ComparisonOperator};

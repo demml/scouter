@@ -5,11 +5,7 @@ use crate::util::{
     collect_evaluation_results, spawn_evaluation_tasks_with_embeddings,
     spawn_evaluation_tasks_without_embeddings,
 };
-use potato_head::{Agent, Provider, Task, Workflow, WorkflowError};
-use pyo3::prelude::*;
-use scouter_state::app_state;
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
+use potato_head::Workflow;
 use std::sync::Arc;
 use tokio::task::JoinSet;
 use tracing::{debug, instrument};

@@ -362,13 +362,9 @@ pub mod drift_executor {
                 records.push(record);
             }
 
-            PostgresClient::insert_spc_drift_records_batch(
-                &db_pool,
-                &records.iter().collect::<Vec<&SpcRecord>>(),
-                &entity_id,
-            )
-            .await
-            .unwrap();
+            PostgresClient::insert_spc_drift_records_batch(&db_pool, &records, &entity_id)
+                .await
+                .unwrap();
 
             let mut drift_executor = DriftExecutor::new(&db_pool);
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;

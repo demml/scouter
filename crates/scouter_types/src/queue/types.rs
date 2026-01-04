@@ -1,7 +1,7 @@
 use crate::error::TypeError;
-use crate::json_to_pyobject_value;
 use crate::util::{is_pydantic_basemodel, pyobject_to_json};
 use crate::PyHelperFuncs;
+use crate::{json_to_pyobject_value, GenAIEventRecord};
 use chrono::DateTime;
 use chrono::Utc;
 use potato_head::create_uuid7;
@@ -447,6 +447,15 @@ impl GenAIRecord {
 
     pub fn __str__(&self) -> String {
         PyHelperFuncs::__str__(self)
+    }
+
+    pub fn to_genai_event_record(self, drift_profile_uid: &str) -> GenAIEventRecord {
+        GenAIEventRecord::new_rs(
+            self.context,
+            self.created_at,
+            self.uid,
+            drift_profile_uid.to_string(),
+        )
     }
 }
 
