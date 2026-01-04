@@ -1,7 +1,7 @@
 use crate::error::{ProfileError, TypeError};
 use crate::genai::alert::GenAIAlertConfig;
 use crate::genai::eval::{AssertionTask, LLMJudgeTask};
-use crate::genai::traits::{ProfileExt, TaskAccessor, TaskRefMut};
+use crate::genai::traits::{ProfileExt, TaskAccessor, TaskRef};
 use crate::util::{json_to_pyobject, pyobject_to_json, ConfigExt};
 use crate::{scouter_version, GenAIEvalTaskResultRecord, GenAIEvalWorkflowRecord};
 use crate::{
@@ -11,14 +11,13 @@ use crate::{
 use crate::{GenAIEventRecord, ProfileRequest};
 use chrono::{DateTime, Utc};
 use core::fmt::Debug;
-use potato_head::prompt_types::{Prompt, ResponseType};
+use potato_head::prompt_types::Prompt;
 use potato_head::Agent;
 use potato_head::Workflow;
 use potato_head::{create_uuid7, Task};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use scouter_semver::VersionType;
-use scouter_state::app_state;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::hash_map::Entry;
@@ -191,116 +190,6 @@ fn validate_prompt_parameters(prompt: &Prompt, id: &str) -> Result<(), ProfileEr
     Ok(())
 }
 
-/// Validates that a prompt has the correct response type for scoring.
-///
-/// LLM evaluation prompts must return scores for drift detection.
-///
-/// # Arguments
-/// * `prompt` - The prompt to validate
-/// * `id` - Identifier for error reporting
-///
-/// # Returns
-/// * `Ok(())` if validation passes
-/// * `Err(ProfileError::InvalidResponseType)` if response type is not Score
-fn validate_prompt_response_type(prompt: &Prompt, id: &str) -> Result<(), ProfileError> {
-    if prompt.response_type != ResponseType::Score {
-        return Err(ProfileError::InvalidResponseType(id.to_string()));
-    }
-
-    Ok(())
-}
-
-/// Helper function to safely retrieve a task from the workflow.
-fn get_workflow_task<'a>(
-    workflow: &'a Workflow,
-    task_id: &'a str,
-) -> Result<&'a Arc<std::sync::RwLock<potato_head::Task>>, ProfileError> {
-    workflow
-        .task_list
-        .tasks
-        .get(task_id)
-        .ok_or_else(|| ProfileError::NoTasksFoundError(format!("Task '{task_id}' not found")))
-}
-
-/// Helper function to validate first tasks in workflow execution.
-fn validate_first_tasks(
-    workflow: &Workflow,
-    execution_order: &HashMap<i32, std::collections::HashSet<String>>,
-) -> Result<(), ProfileError> {
-    let first_tasks = execution_order
-        .get(&1)
-        .ok_or_else(|| ProfileError::NoTasksFoundError("No initial tasks found".to_string()))?;
-
-    for task_id in first_tasks {
-        let task = get_workflow_task(workflow, task_id)?;
-        let task_guard = task
-            .read()
-            .map_err(|_| ProfileError::NoTasksFoundError("Failed to read task".to_string()))?;
-
-        validate_prompt_parameters(&task_guard.prompt, &task_guard.id)?;
-    }
-
-    Ok(())
-}
-
-/// Helper function to validate last tasks in workflow execution.
-fn validate_last_tasks(
-    workflow: &Workflow,
-    execution_order: &HashMap<i32, std::collections::HashSet<String>>,
-    tasks: &[LLMJudgeTask],
-) -> Result<(), ProfileError> {
-    let last_step = execution_order.len() as i32;
-    let last_tasks = execution_order
-        .get(&last_step)
-        .ok_or_else(|| ProfileError::NoTasksFoundError("No final tasks found".to_string()))?;
-
-    for task_id in last_tasks {
-        // assert task_id exists in tasks (all output tasks must have a corresponding task)
-        if !tasks.iter().any(|m| m.id == *task_id) {
-            return Err(ProfileError::MetricNotFoundForOutputTask(task_id.clone()));
-        }
-
-        let task = get_workflow_task(workflow, task_id)?;
-        let task_guard = task
-            .read()
-            .map_err(|_| ProfileError::NoTasksFoundError("Failed to read task".to_string()))?;
-
-        validate_prompt_response_type(&task_guard.prompt, &task_guard.id)?;
-    }
-
-    Ok(())
-}
-
-/// Validates workflow execution parameters and response types.
-///
-/// Ensures that:
-/// - First tasks have required prompt parameters
-/// - Last tasks have a response type e
-///
-/// # Arguments
-/// * `workflow` - The workflow to validate
-///
-/// # Returns
-/// * `Ok(())` if validation passes
-/// * `Err(ProfileError)` if validation fails
-///
-/// # Errors
-/// Returns various ProfileError types based on validation failures.
-fn validate_workflow(
-    workflow: &Workflow,
-    llm_judge_tasks: &[LLMJudgeTask],
-) -> Result<(), ProfileError> {
-    let execution_order = workflow.execution_plan()?;
-
-    // Validate first tasks have required parameters
-    validate_first_tasks(workflow, &execution_order)?;
-
-    // Validate last tasks have correct response type
-    validate_last_tasks(workflow, &execution_order, llm_judge_tasks)?;
-
-    Ok(())
-}
-
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct GenAIEvalProfile {
@@ -346,23 +235,17 @@ impl GenAIEvalProfile {
             return Err(ProfileError::EmptyTaskList);
         }
 
-        let workflow = if !llm_judge_tasks.is_empty() {
-            let workflow = app_state()
-                .block_on(async { Self::build_workflow_from_judges(&llm_judge_tasks).await })?;
-
-            // Validate the workflow
-            validate_workflow(&workflow, &llm_judge_tasks)?;
-            Some(workflow)
-        } else {
-            None
-        };
+        // Validate LLM judge prompts individually
+        for judge in &llm_judge_tasks {
+            validate_prompt_parameters(&judge.prompt, &judge.id)?;
+        }
 
         Ok(Self {
             config,
             assertion_tasks,
             llm_judge_tasks,
             scouter_version: scouter_version(),
-            workflow,
+            workflow: None, // No static workflow anymore
         })
     }
 
@@ -546,12 +429,14 @@ impl GenAIEvalProfile {
     /// * `judges` - Slice of LLMJudgeTask
     /// # Returns
     /// * `Result<Workflow, ProfileError>` - The constructed workflow
-    async fn build_workflow_from_judges(judges: &[LLMJudgeTask]) -> Result<Workflow, ProfileError> {
-        let mut workflow = Workflow::new("genai_evaluation_workflow");
+    /// Build workflow from a subset of LLM judges (for a specific level)
+    pub async fn build_workflow_from_judges(
+        judges: &[LLMJudgeTask],
+    ) -> Result<Workflow, ProfileError> {
+        let mut workflow = Workflow::new(&format!("genai_eval_level_{}", create_uuid7()));
         let mut agents = HashMap::new();
 
         for judge in judges {
-            // Get or create agent for this provider
             let agent = match agents.entry(&judge.prompt.provider) {
                 Entry::Occupied(entry) => entry.into_mut(),
                 Entry::Vacant(entry) => {
@@ -561,17 +446,13 @@ impl GenAIEvalProfile {
                 }
             };
 
-            let dependencies = if judge.depends_on.is_empty() {
-                None
-            } else {
-                Some(judge.depends_on.clone())
-            };
-
+            // For level-based workflows, dependencies within the level don't matter
+            // since they're already handled by execution_plan
             let task = Task::new(
                 &agent.id,
                 judge.prompt.clone(),
                 &judge.id,
-                dependencies,
+                None, // No internal dependencies - handled by level ordering
                 None,
             );
 
@@ -667,17 +548,18 @@ impl ProfileExt for GenAIEvalProfile {
         &self.config.uid
     }
 
-    fn get_task_by_id_mut(&'_ mut self, id: &str) -> Option<TaskRefMut<'_>> {
-        if let Some(assertion) = self.assertion_tasks.iter_mut().find(|t| t.id() == id) {
-            return Some(TaskRefMut::Assertion(assertion));
+    fn get_task_by_id(&self, id: &str) -> Option<&dyn TaskAccessor> {
+        if let Some(assertion) = self.assertion_tasks.iter().find(|t| t.id() == id) {
+            return Some(assertion);
         }
 
-        if let Some(judge) = self.llm_judge_tasks.iter_mut().find(|t| t.id() == id) {
-            return Some(TaskRefMut::LLMJudge(judge));
+        if let Some(judge) = self.llm_judge_tasks.iter().find(|t| t.id() == id) {
+            return Some(judge);
         }
 
         None
     }
+
     #[inline]
     fn get_assertion_by_id(&self, id: &str) -> Option<&AssertionTask> {
         self.assertion_tasks.iter().find(|t| t.id() == id)

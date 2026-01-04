@@ -26,16 +26,16 @@ pub trait TaskAccessor {
 }
 
 #[derive(Debug)]
-pub enum TaskRefMut<'a> {
+pub enum TaskRef<'a> {
     Assertion(&'a mut AssertionTask),
     LLMJudge(&'a mut LLMJudgeTask),
 }
 
-impl<'a> TaskRefMut<'a> {
-    pub fn add_result(&mut self, result: AssertionResult) {
+impl<'a> TaskRef<'a> {
+    pub fn depends_on(&self) -> &[String] {
         match self {
-            TaskRefMut::Assertion(t) => t.add_result(result),
-            TaskRefMut::LLMJudge(t) => t.add_result(result),
+            TaskRef::Assertion(t) => t.depends_on(),
+            TaskRef::LLMJudge(t) => t.depends_on(),
         }
     }
 }
@@ -44,9 +44,8 @@ impl<'a> TaskRefMut<'a> {
 /// Provides unified access to assertions and LLM judge tasks
 pub trait ProfileExt {
     fn id(&self) -> &str;
-    fn get_task_by_id_mut(&'_ mut self, id: &str) -> Option<TaskRefMut<'_>>;
     fn get_assertion_by_id(&self, id: &str) -> Option<&AssertionTask>;
     fn get_llm_judge_by_id(&self, id: &str) -> Option<&LLMJudgeTask>;
-
+    fn get_task_by_id(&self, id: &str) -> Option<&dyn TaskAccessor>;
     fn has_llm_tasks(&self) -> bool;
 }

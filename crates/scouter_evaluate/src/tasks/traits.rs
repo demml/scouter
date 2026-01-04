@@ -1,6 +1,6 @@
 use crate::error::EvaluationError;
-use scouter_types::genai::traits::TaskAccessor;
-use scouter_types::genai::{traits::TaskRefMut, AssertionResult, EvaluationContext};
+
+use scouter_types::genai::{traits::TaskRef, AssertionResult, EvaluationContext};
 use std::fmt::Debug;
 
 pub trait EvaluationTask: Debug + Send + Sync {
@@ -14,21 +14,21 @@ pub trait EvaluationTask: Debug + Send + Sync {
 
 /// Helper for mutably evaluation tasks for different task types
 pub trait EvaluateTaskMut {
-    fn evaluate_task_mut(&mut self, context: &EvaluationContext) -> Result<(), EvaluationError>;
+    fn evaluate_task(
+        &self,
+        context: &EvaluationContext,
+    ) -> Result<AssertionResult, EvaluationError>;
 }
 
-impl EvaluateTaskMut for TaskRefMut<'_> {
-    fn evaluate_task_mut(&mut self, context: &EvaluationContext) -> Result<(), EvaluationError> {
-        match self {
-            TaskRefMut::Assertion(assertion) => {
-                let result = assertion.execute(context)?;
-                assertion.add_result(result);
-            }
-            TaskRefMut::LLMJudge(judge) => {
-                let result = judge.execute(context)?;
-                judge.add_result(result);
-            }
+impl EvaluateTaskMut for TaskRef<'_> {
+    fn evaluate_task(
+        &self,
+        context: &EvaluationContext,
+    ) -> Result<AssertionResult, EvaluationError> {
+        let result = match self {
+            TaskRef::Assertion(assertion) => assertion.execute(context)?,
+            TaskRef::LLMJudge(judge) => judge.execute(context)?,
         };
-        Ok(())
+        Ok(result)
     }
 }
