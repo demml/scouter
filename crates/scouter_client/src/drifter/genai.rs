@@ -24,10 +24,10 @@ impl ClientGenAIDrifter {
     pub fn create_drift_profile(
         &mut self,
         config: GenAIDriftConfig,
-        assertions: Option<Vec<AssertionTask>>,
+        assertions_tasks: Option<Vec<AssertionTask>>,
         llm_judge_tasks: Option<Vec<LLMJudgeTask>>,
     ) -> Result<GenAIEvalProfile, DriftError> {
-        let profile = GenAIEvalProfile::new(config, assertions, llm_judge_tasks)?;
+        let profile = GenAIEvalProfile::new(config, assertions_tasks, llm_judge_tasks)?;
         Ok(profile)
     }
 

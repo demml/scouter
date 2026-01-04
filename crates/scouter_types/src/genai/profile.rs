@@ -308,7 +308,7 @@ pub struct GenAIEvalProfile {
     pub config: GenAIDriftConfig,
 
     #[pyo3(get)]
-    pub assertions: Vec<AssertionTask>,
+    pub assertion_tasks: Vec<AssertionTask>,
 
     #[pyo3(get)]
     pub llm_judge_tasks: Vec<LLMJudgeTask>,
@@ -322,12 +322,12 @@ pub struct GenAIEvalProfile {
 #[pymethods]
 impl GenAIEvalProfile {
     #[new]
-    #[pyo3(signature = (config, assertions=None, llm_judge_tasks=None))]
+    #[pyo3(signature = (config, assertion_tasks=None, llm_judge_tasks=None))]
     /// Create a new GenAIEvalProfile
     /// GenAI evaluations are run asynchronously on the scouter server.
     /// # Arguments
     /// * `config` - GenAIDriftConfig - The configuration for the GenAI drift profile
-    /// * `assertions` - Option<Vec<AssertionTask>> - Optional list of assertion tasks
+    /// * `assertion_tasks` - Option<Vec<AssertionTask>> - Optional list of assertion tasks
     /// * `llm_judge_tasks` - Option<Vec<LLMJudgeTask>> - Optional list of LLM judge tasks
     /// # Returns
     /// * `Result<Self, ProfileError>` - The GenAIEvalProfile
@@ -336,13 +336,13 @@ impl GenAIEvalProfile {
     #[instrument(skip_all)]
     pub fn new(
         config: GenAIDriftConfig,
-        assertions: Option<Vec<AssertionTask>>,
+        assertion_tasks: Option<Vec<AssertionTask>>,
         llm_judge_tasks: Option<Vec<LLMJudgeTask>>,
     ) -> Result<Self, ProfileError> {
-        let assertions = assertions.unwrap_or_default();
+        let assertion_tasks = assertion_tasks.unwrap_or_default();
         let llm_judge_tasks = llm_judge_tasks.unwrap_or_default();
 
-        if assertions.is_empty() && llm_judge_tasks.is_empty() {
+        if assertion_tasks.is_empty() && llm_judge_tasks.is_empty() {
             return Err(ProfileError::EmptyTaskList);
         }
 
@@ -359,7 +359,7 @@ impl GenAIEvalProfile {
 
         Ok(Self {
             config,
-            assertions,
+            assertion_tasks,
             llm_judge_tasks,
             scouter_version: scouter_version(),
             workflow,
@@ -472,7 +472,7 @@ impl GenAIEvalProfile {
 
     /// Check if this profile has assertions
     pub fn has_assertions(&self) -> bool {
-        !self.assertions.is_empty()
+        !self.assertion_tasks.is_empty()
     }
 
     /// Get execution order for all tasks (assertions + LLM judges)
@@ -481,7 +481,7 @@ impl GenAIEvalProfile {
         let mut in_degree: HashMap<String, usize> = HashMap::new();
 
         // Add assertions
-        for task in &self.assertions {
+        for task in &self.assertion_tasks {
             graph.insert(task.id.clone(), task.depends_on.clone());
             in_degree.entry(task.id.clone()).or_insert(0);
 
@@ -529,7 +529,7 @@ impl GenAIEvalProfile {
         }
 
         // Validate that all tasks were included (detect cycles)
-        let total_tasks = self.assertions.len() + self.llm_judge_tasks.len();
+        let total_tasks = self.assertion_tasks.len() + self.llm_judge_tasks.len();
         let processed_tasks: usize = result.iter().map(|level| level.len()).sum();
 
         if processed_tasks != total_tasks {
@@ -590,7 +590,7 @@ impl GenAIEvalProfile {
         let mut failed_count = 0;
         let mut records = Vec::new();
 
-        for assertion in &self.assertions {
+        for assertion in &self.assertion_tasks {
             if let Some(result) = &assertion.result {
                 if result.passed {
                     passed_count += 1;
@@ -668,7 +668,7 @@ impl ProfileExt for GenAIEvalProfile {
     }
 
     fn get_task_by_id_mut(&'_ mut self, id: &str) -> Option<TaskRefMut<'_>> {
-        if let Some(assertion) = self.assertions.iter_mut().find(|t| t.id() == id) {
+        if let Some(assertion) = self.assertion_tasks.iter_mut().find(|t| t.id() == id) {
             return Some(TaskRefMut::Assertion(assertion));
         }
 
@@ -680,7 +680,7 @@ impl ProfileExt for GenAIEvalProfile {
     }
     #[inline]
     fn get_assertion_by_id(&self, id: &str) -> Option<&AssertionTask> {
-        self.assertions.iter().find(|t| t.id() == id)
+        self.assertion_tasks.iter().find(|t| t.id() == id)
     }
 
     #[inline]

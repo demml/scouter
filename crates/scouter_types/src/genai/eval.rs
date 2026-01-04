@@ -379,7 +379,7 @@ impl TaskAccessor for LLMJudgeTask {
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ComparisonOperator {
-    Equal,
+    Equals,
     NotEqual,
     GreaterThan,
     GreaterThanOrEqual,
@@ -404,7 +404,7 @@ impl FromStr for ComparisonOperator {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "Equal" => Ok(ComparisonOperator::Equal),
+            "Equals" => Ok(ComparisonOperator::Equals),
             "NotEqual" => Ok(ComparisonOperator::NotEqual),
             "GreaterThan" => Ok(ComparisonOperator::GreaterThan),
             "GreaterThanOrEqual" => Ok(ComparisonOperator::GreaterThanOrEqual),
@@ -424,7 +424,7 @@ impl FromStr for ComparisonOperator {
 impl ComparisonOperator {
     pub fn as_str(&self) -> &str {
         match self {
-            ComparisonOperator::Equal => "Equal",
+            ComparisonOperator::Equals => "Equals",
             ComparisonOperator::NotEqual => "NotEqual",
             ComparisonOperator::GreaterThan => "GreaterThan",
             ComparisonOperator::GreaterThanOrEqual => "GreaterThanOrEqual",

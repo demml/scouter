@@ -160,7 +160,7 @@ impl AssertionEvaluator {
         expected: &Value,
     ) -> Result<bool, EvaluationError> {
         match operator {
-            ComparisonOperator::Equal => Ok(actual == expected),
+            ComparisonOperator::Equals => Ok(actual == expected),
             ComparisonOperator::NotEqual => Ok(actual != expected),
 
             ComparisonOperator::GreaterThan => {
@@ -269,7 +269,7 @@ mod tests {
         AssertionTask {
             id: "priority_check".to_string(),
             field_path: Some("metadata.priority".to_string()),
-            operator: ComparisonOperator::Equal,
+            operator: ComparisonOperator::Equals,
             expected_value: Value::String("high".to_string()),
             description: Some("Check if priority is high".to_string()),
             task_type: EvaluationTaskType::Assertion,

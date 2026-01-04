@@ -460,7 +460,7 @@ impl FromRow<'_, PgRow> for GenAIEvalTaskResultRecord {
                 .unwrap_or(EvaluationTaskType::Assertion);
         let comparison_operator: ComparisonOperator =
             ComparisonOperator::from_str(&row.try_get::<String, &str>("operator")?)
-                .unwrap_or(ComparisonOperator::Equal);
+                .unwrap_or(ComparisonOperator::Equals);
 
         Ok(GenAIEvalTaskResultRecord {
             record_uid: row.try_get("record_uid")?,

@@ -98,7 +98,6 @@ impl Drifter {
         data: &Bound<'py, PyAny>,
         data_type: &DataType,
         config: DriftConfig,
-        workflow: Option<Bound<'py, PyAny>>,
     ) -> Result<DriftProfile, DriftError> {
         match self {
             // Before creating the profile, we first need to do a rough split of the data into string and numeric data types before
@@ -201,15 +200,13 @@ impl PyDrifter {
     /// - `data`: The data to create the drift profile from. This can be a numpy array, pandas dataframe, pyarrow table, Vec<CustomMetric>, or Vec<GenAIDriftMetric>.
     /// - `config`: The configuration for the drift profile. This is optional and if not provided, a default configuration will be created based on the drift type.
     /// - `data_type`: The type of the data. This is optional and if not provided, it will be inferred from the data class name.
-    /// - `workflow`: An optional workflow to be used with the drift profile. This is only applicable for GenAI drift profiles.
-    #[pyo3(signature = (data, config=None, data_type=None, workflow=None))]
+    #[pyo3(signature = (data, config=None, data_type=None))]
     pub fn create_drift_profile<'py>(
         &self,
         py: Python<'py>,
         data: &Bound<'py, PyAny>,
         config: Option<&Bound<'py, PyAny>>,
         data_type: Option<&DataType>,
-        workflow: Option<Bound<'py, PyAny>>,
     ) -> Result<Bound<'py, PyAny>, DriftError> {
         // if config is None, then we need to create a default config
 
@@ -271,15 +268,15 @@ impl PyDrifter {
 
     // Specific method for creating GenAI drift profiles
     // This is to avoid confusion with the other drifters
-    #[pyo3(signature = (config, assertions=None, llm_judge_tasks=None))]
+    #[pyo3(signature = (config, assertion_tasks=None, llm_judge_tasks=None))]
     pub fn create_genai_drift_profile<'py>(
         &mut self,
         py: Python<'py>,
         config: GenAIDriftConfig,
-        assertions: Option<Vec<AssertionTask>>,
+        assertion_tasks: Option<Vec<AssertionTask>>,
         llm_judge_tasks: Option<Vec<LLMJudgeTask>>,
     ) -> Result<Bound<'py, PyAny>, DriftError> {
-        let profile = GenAIEvalProfile::new(config, assertions, llm_judge_tasks)?;
+        let profile = GenAIEvalProfile::new(config, assertion_tasks, llm_judge_tasks)?;
         Ok(profile.into_bound_py_any(py)?)
     }
 

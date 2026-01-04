@@ -13598,129 +13598,933 @@ class GenAIDriftConfig:
                 LLM alert configuration
         """
 
+class EvaluationTaskType:
+    """Types of evaluation tasks for LLM assessments."""
+
+    Assertion: "EvaluationTaskType"
+    """Assertion-based evaluation task."""
+    LLMJudge: "EvaluationTaskType"
+    """LLM judge-based evaluation task."""
+    HumanValidation: "EvaluationTaskType"
+    """Human validation evaluation task."""
+
+class ComparisonOperator:
+    """Comparison operators for assertion-based evaluations.
+
+    Defines the available comparison operators that can be used to evaluate
+    assertions against expected values in LLM evaluation workflows.
+
+    Examples:
+        >>> operator = ComparisonOperator.GreaterThan
+        >>> operator = ComparisonOperator.Equal
+    """
+
+    Equal: "ComparisonOperator"
+    """Equality comparison (==)"""
+
+    NotEqual: "ComparisonOperator"
+    """Inequality comparison (!=)"""
+
+    GreaterThan: "ComparisonOperator"
+    """Greater than comparison (>)"""
+
+    GreaterThanOrEqual: "ComparisonOperator"
+    """Greater than or equal comparison (>=)"""
+
+    LessThan: "ComparisonOperator"
+    """Less than comparison (<)"""
+
+    LessThanOrEqual: "ComparisonOperator"
+    """Less than or equal comparison (<=)"""
+
+    Contains: "ComparisonOperator"
+    """Contains substring or element (in)"""
+
+    NotContains: "ComparisonOperator"
+    """Does not contain substring or element (not in)"""
+
+    StartsWith: "ComparisonOperator"
+    """Starts with substring"""
+
+    EndsWith: "ComparisonOperator"
+    """Ends with substring"""
+
+    Matches: "ComparisonOperator"
+    """Matches regular expression pattern"""
+
+    HasLength: "ComparisonOperator"
+    """Has specified length"""
+
+class AssertionTask:
+    """Assertion-based evaluation task for LLM monitoring.
+
+    Defines a rule-based assertion that evaluates values extracted from LLM
+    context/responses against expected conditions without requiring additional LLM calls.
+    Assertions are efficient, deterministic evaluations ideal for validating
+    structured outputs, checking thresholds, or verifying data constraints.
+
+    Assertions can operate on:
+        - Nested fields via dot-notation paths (e.g., "response.user.age")
+        - Top-level context values when field_path is None
+        - String, numeric, boolean, or collection values
+
+    Common Use Cases:
+        - Validate response structure ("response.status" == "success")
+        - Check numeric thresholds ("response.confidence" >= 0.8)
+        - Verify required fields exist ("response.user.id" is not None)
+        - Validate string patterns ("response.language" contains "en")
+
+    Examples:
+        Basic numeric comparison:
+
+        >>> # Context at runtime: {"response": {"user": {"age": 25}}}
+        >>> task = AssertionTask(
+        ...     id="check_user_age",
+        ...     field_path="response.user.age",
+        ...     operator=ComparisonOperator.GreaterThan,
+        ...     expected_value=18,
+        ...     description="Verify user is an adult"
+        ... )
+
+        Checking top-level fields:
+
+        >>> # Context at runtime: {"user": {"age": 25}}
+        >>> task = AssertionTask(
+        ...     id="check_age",
+        ...     field_path="user.age",
+        ...     operator=ComparisonOperator.GreaterThanOrEqual,
+        ...     expected_value=21,
+        ...     description="Check minimum age requirement"
+        ... )
+
+        Operating on entire context (no nested path):
+
+        >>> # Context at runtime: 25
+        >>> task = AssertionTask(
+        ...     id="age_threshold",
+        ...     field_path=None,
+        ...     operator=ComparisonOperator.GreaterThan,
+        ...     expected_value=18,
+        ...     description="Validate age value"
+        ... )
+
+        String validation:
+
+        >>> # Context: {"response": {"status": "completed"}}
+        >>> task = AssertionTask(
+        ...     id="status_check",
+        ...     field_path="response.status",
+        ...     operator=ComparisonOperator.Equals,
+        ...     expected_value="completed",
+        ...     description="Verify completion status"
+        ... )
+
+        Collection membership:
+
+        >>> # Context: {"response": {"tags": ["valid", "processed"]}}
+        >>> task = AssertionTask(
+        ...     id="tag_validation",
+        ...     field_path="response.tags",
+        ...     operator=ComparisonOperator.Contains,
+        ...     expected_value="valid",
+        ...     description="Check for required tag"
+        ... )
+
+        With dependencies:
+
+        >>> task = AssertionTask(
+        ...     id="confidence_check",
+        ...     field_path="response.confidence",
+        ...     operator=ComparisonOperator.GreaterThan,
+        ...     expected_value=0.9,
+        ...     description="High confidence validation",
+        ...     depends_on=["status_check"]
+        ... )
+
+    Note:
+        - Field paths use dot-notation for nested access
+        - Field paths are case-sensitive
+        - When field_path is None, the entire context is used as the value
+        - Type mismatches between actual and expected values will fail the assertion
+        - Dependencies are executed before this task
+    """
+    def __init__(
+        self,
+        id: str,
+        expected_value: Any,
+        operator: ComparisonOperator,
+        field_path: Optional[str] = None,
+        description: Optional[str] = None,
+        depends_on: Optional[List[str]] = None,
+    ):
+        """Initialize an assertion task for rule-based evaluation.
+
+        Args:
+            id:
+                Unique identifier for the task. Will be converted to lowercase.
+                Used to reference this task in dependencies and results.
+            expected_value:
+                The expected value to compare against. Can be any JSON-serializable
+                type: str, int, float, bool, list, dict, or None.
+            operator:
+                Comparison operator to use for the assertion. Must be a
+                ComparisonOperator enum value.
+            field_path:
+                Optional dot-notation path to extract value from context
+                (e.g., "response.user.age"). If None, the entire context
+                is used as the comparison value.
+            description:
+                Optional human-readable description of what this assertion validates.
+                Useful for understanding evaluation results.
+            depends_on:
+                Optional list of task IDs that must complete successfully before
+                this task executes. Empty list if not provided.
+
+        Raises:
+            TypeError: If expected_value is not JSON-serializable or if operator
+                is not a valid ComparisonOperator.
+        """
+
+    @property
+    def id(self) -> str:
+        """Unique task identifier (lowercase)."""
+
+    @id.setter
+    def id(self, id: str) -> None:
+        """Set task identifier (will be converted to lowercase)."""
+
+    @property
+    def field_path(self) -> Optional[str]:
+        """Dot-notation path to field in context, or None for entire context."""
+
+    @field_path.setter
+    def field_path(self, field_path: Optional[str]) -> None:
+        """Set field path for value extraction."""
+
+    @property
+    def operator(self) -> ComparisonOperator:
+        """Comparison operator for the assertion."""
+
+    @operator.setter
+    def operator(self, operator: ComparisonOperator) -> None:
+        """Set comparison operator."""
+
+    @property
+    def expected_value(self) -> Any:
+        """Expected value for comparison.
+
+        Returns:
+            The expected value as a Python object (deserialized from internal
+            JSON representation).
+        """
+
+    @property
+    def description(self) -> Optional[str]:
+        """Human-readable description of the assertion."""
+
+    @description.setter
+    def description(self, description: Optional[str]) -> None:
+        """Set assertion description."""
+
+    @property
+    def depends_on(self) -> List[str]:
+        """List of task IDs this task depends on."""
+
+    @depends_on.setter
+    def depends_on(self, depends_on: List[str]) -> None:
+        """Set task dependencies."""
+
+    def __str__(self) -> str:
+        """Return string representation of the assertion task."""
+
+class LLMJudgeTask:
+    """LLM-powered evaluation task for complex assessments.
+
+    Uses an additional LLM call to evaluate responses based on sophisticated
+    criteria that require reasoning, context understanding, or subjective judgment.
+    LLM judges are ideal for evaluations that cannot be captured by deterministic
+    rules, such as semantic similarity, quality assessment, or nuanced criteria.
+
+    Unlike AssertionTask which provides efficient, deterministic rule-based evaluation,
+    LLMJudgeTask leverages an LLM's reasoning capabilities for:
+        - Semantic similarity and relevance assessment
+        - Quality, coherence, and fluency evaluation
+        - Factual accuracy and hallucination detection
+        - Tone, sentiment, and style analysis
+        - Custom evaluation criteria requiring judgment
+        - Complex reasoning over multiple context elements
+
+    The LLM judge executes a prompt that receives context (either raw or from
+    dependencies) and returns a response that is then compared against the expected
+    value using the specified operator.
+
+    Common Use Cases:
+        - Evaluate semantic similarity between generated and reference answers
+        - Assess response quality on subjective criteria (helpfulness, clarity)
+        - Detect factual inconsistencies or hallucinations
+        - Score tone appropriateness for different audiences
+        - Judge whether responses meet complex, nuanced requirements
+
+    Examples:
+        Basic relevance check using LLM judge:
+
+        >>> # Define a prompt that evaluates relevance
+        >>> relevance_prompt = Prompt(
+        ...     system_instruction="Evaluate if the response is relevant to the query",
+        ...     message="Given the query '{{query}}' and response '{{response}}', rate the relevance from 0 to 10 as an integer.",
+        ...     model="gpt-4",
+        ...     provider= Provider.OpenAI,
+        ...     output_type=Score # returns a structured output with schema {"score": float, "reason": str}
+        ... )
+
+        >>> # Context at runtime: {"query": "What is AI?", "response": "AI is..."}
+        >>> task = LLMJudgeTask(
+        ...     id="relevance_judge",
+        ...     prompt=relevance_prompt,
+        ...     expected_value=8,
+        ...     field_path="score",
+        ...     operator=ComparisonOperator.GreaterThanOrEqual,
+        ...     description="Ensure response relevance score >= 8"
+        ... )
+
+        Factuality check with structured output:
+
+        >>> # Prompt returns a Pydantic model with factuality assessment
+        >>> from pydantic import BaseModel
+        >>> class FactCheckResult(BaseModel):
+        ...     is_factual: bool
+        ...     confidence: float
+
+        >>> fact_check_prompt = Prompt(
+        ...     system_instruction="Verify factual claims in the response",
+        ...     message="Assess the factual accuracy of the response: '{{response}}'. Provide a JSON with fields 'is_factual' (bool) and 'confidence' (float).",
+        ...     model="gpt-4",
+        ...     provider= Provider.OpenAI,
+        ...     output_type=FactCheckResult
+        ... )
+
+        >>> # Context: {"response": "Paris is the capital of France"}
+        >>> task = LLMJudgeTask(
+        ...     id="fact_checker",
+        ...     prompt=fact_check_prompt,
+        ...     expected_value={"is_factual": True, "confidence": 0.95},
+        ...     field_path="response",
+        ...     operator=ComparisonOperator.Contains
+        ... )
+
+        Quality assessment with dependencies:
+
+        >>> # This judge depends on previous relevance check
+        >>> quality_prompt = Prompt(
+        ...     system_instruction="Assess the overall quality of the response",
+        ...     message="Given the response '{{response}}', rate its quality from 0 to 5",
+        ...     model="gemini-3.0-flash",
+        ...     provider= Provider.Google,
+        ...     output_type=Score
+        ... )
+
+        >>> task = LLMJudgeTask(
+        ...     id="quality_judge",
+        ...     prompt=quality_prompt,
+        ...     expected_value=0.7,
+        ...     field_path=None,
+        ...     operator=ComparisonOperator.GreaterThan,
+        ...     depends_on=["relevance_judge"],
+        ...     description="Evaluate overall quality after relevance check"
+        ... )
+    Note:
+        - LLM judge tasks incur additional latency and cost vs assertions
+        - Scouter does not auto-inject any additional prompts or context apart from what is defined
+          in the Prompt object
+        - For tasks that contain dependencies, upstream results are passed as context to downstream tasks.
+        - Use dependencies to chain evaluations and pass results between tasks
+        - max_retries helps handle transient LLM failures (defaults to 3)
+        - Field paths work the same as AssertionTask (dot-notation for nested access)
+        - Consider cost/latency tradeoffs when designing judge evaluations
+    """
+
+    def __init__(
+        self,
+        id: str,
+        prompt: Prompt,
+        expected_value: Any,
+        field_path: Optional[str],
+        operator: ComparisonOperator,
+        depends_on: Optional[List[str]] = None,
+        max_retries: Optional[int] = None,
+    ):
+        """Initialize an LLM judge task for advanced evaluation.
+
+        Creates an evaluation task that uses an LLM to assess responses based on
+        sophisticated criteria requiring reasoning or subjective judgment. The LLM
+        receives context (raw or from dependencies) and returns a response that
+        is compared against the expected value.
+
+        Args:
+            id (str):
+                Unique identifier for the task. Will be converted to lowercase.
+                Used to reference this task in dependencies and results.
+            prompt (Prompt):
+                Prompt configuration defining the LLM evaluation task.
+            expected_value (Any):
+                The expected value to compare against the LLM's response. Type depends
+                on prompt response type. Can be any JSON-serializable type: str, int,
+                float, bool, list, dict, or None.
+            field_path (Optional[str]):
+                Optional dot-notation path to extract value from context before passing
+                to the LLM prompt (e.g., "response.text"), the entire response will be
+                evaluated.
+            operator (ComparisonOperator):
+                Comparison operator to apply between LLM response and expected_value
+            depends_on (Optional[List[str]]):
+                Optional list of task IDs that must complete successfully before this
+                task executes. Results from dependencies are passed to the LLM prompt
+                as additional context parameters. Empty list if not provided.
+            max_retries (Optional[int]):
+                Optional maximum number of retry attempts if the LLM call fails
+                (network errors, rate limits, etc.). Defaults to 3 if not provided.
+                Set to 0 to disable retries.
+        """
+
+    @property
+    def id(self) -> str:
+        """Unique task identifier (lowercase)."""
+
+    @id.setter
+    def id(self, id: str) -> None:
+        """Set task identifier (will be converted to lowercase)."""
+
+    @property
+    def prompt(self) -> Prompt:
+        """Prompt configuration for the LLM evaluation task.
+
+        Defines the LLM model, evaluation instructions, and response format.
+        The prompt must have response_type of Score or Pydantic.
+        """
+
+    @property
+    def field_path(self) -> Optional[str]:
+        """Dot-notation path to extract value from context before LLM evaluation.
+
+        If specified, extracts nested value from context (e.g., "response.text")
+        and passes it to the LLM prompt. If None, the entire context or
+        dependency results are passed.
+        """
+
+    @property
+    def operator(self) -> ComparisonOperator:
+        """Comparison operator for evaluating LLM response against expected value.
+
+        For Score responses: use numeric operators (GreaterThan, Equals, etc.)
+        For Pydantic responses: use structural operators (Contains, Equals, etc.)
+        """
+
+    @property
+    def expected_value(self) -> Any:
+        """Expected value to compare against LLM response.
+
+        Returns:
+            The expected value as a Python object (deserialized from internal
+            JSON representation).
+        """
+
+    @property
+    def depends_on(self) -> List[str]:
+        """List of task IDs this task depends on.
+
+        Dependency results are passed to the LLM prompt as additional context
+        parameters, enabling chained evaluations.
+        """
+
+    @depends_on.setter
+    def depends_on(self, depends_on: List[str]) -> None:
+        """Set task dependencies."""
+
+    @property
+    def max_retries(self) -> Optional[int]:
+        """Maximum number of retry attempts for LLM call failures.
+
+        Handles transient failures like network errors or rate limits.
+        Defaults to 3 if not specified during initialization.
+        """
+
+    @max_retries.setter
+    def max_retries(self, max_retries: Optional[int]) -> None:
+        """Set maximum retry attempts."""
+
+    def __str__(self) -> str:
+        """Return string representation of the LLM judge task."""
+
 class GenAIEvalProfile:
+    """Profile for LLM evaluation and drift detection.
+
+    GenAIEvalProfile combines assertion tasks and LLM judge tasks into a unified
+    evaluation framework for monitoring LLM performance. Evaluations run asynchronously
+    on the Scouter server, enabling scalable drift detection without blocking your
+    application.
+
+    Architecture:
+        The profile automatically orchestrates two types of evaluation tasks:
+
+        1. **Assertion Tasks**: Fast, deterministic rule-based validations
+           - Execute locally without additional LLM calls
+           - Ideal for structural validation, threshold checks, pattern matching
+           - Zero latency overhead, minimal cost
+
+        2. **LLM Judge Tasks**: Advanced reasoning-based evaluations
+           - Leverage additional LLM calls for complex assessments
+           - Automatically compiled into an internal Workflow for execution
+           - Support dependencies to chain evaluations and pass results
+           - Ideal for semantic similarity, quality assessment, factuality checks
+
+    Task Execution Order:
+        Tasks are executed based on their dependency graph using topological sort:
+
+        ```
+        ╔══════════════════════════════════════════════════════════════╗
+        ║              TASK EXECUTION ARCHITECTURE                     ║
+        ╠══════════════════════════════════════════════════════════════╣
+        ║                                                              ║
+        ║  Level 0: Independent Tasks (no dependencies)                ║
+        ║  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          ║
+        ║  │ Assertion A │  │ Assertion B │  │ LLM Judge X │          ║
+        ║  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘          ║
+        ║         │                │                │                  ║
+        ║         └────────┬───────┴────────┬───────┘                  ║
+        ║                  │                │                          ║
+        ║  Level 1: Tasks depending on Level 0                         ║
+        ║         ┌────────▼────────┐  ┌────▼────────┐                ║
+        ║         │  LLM Judge Y    │  │Assertion C  │                ║
+        ║         │ (depends: A, X) │  │(depends: B) │                ║
+        ║         └────────┬────────┘  └────┬────────┘                ║
+        ║                  │                │                          ║
+        ║  Level 2: Final aggregation tasks                            ║
+        ║                  └────────┬───────┘                          ║
+        ║                  ┌────────▼────────┐                         ║
+        ║                  │  LLM Judge Z    │                         ║
+        ║                  │ (depends: Y, C) │                         ║
+        ║                  └─────────────────┘                         ║
+        ║                                                              ║
+        ╚══════════════════════════════════════════════════════════════╝
+        ```
+
+    Workflow Generation:
+        When LLM judge tasks are present, the profile automatically:
+        1. Builds an internal Workflow from LLMJudgeTask configurations
+        2. Validates task dependencies form a valid DAG (no cycles)
+        3. Ensures Prompt configurations are compatible with execution
+        4. Optimizes execution order for parallel processing where possible
+
+    Common Use Cases:
+        - Multi-stage LLM evaluation (relevance → quality → toxicity)
+        - Hybrid assertion + LLM judge pipelines (fast checks, then deep analysis)
+        - Dependent evaluations (use upstream results in downstream prompts)
+        - Cost-optimized monitoring (assertions for 90%, LLM judges for 10%)
+
+    Examples:
+        Pure assertion-based monitoring (no LLM calls):
+
+        >>> config = GenAIDriftConfig(
+        ...     space="production",
+        ...     name="chatbot",
+        ...     version="1.0",
+        ...     sample_rate=10
+        ... )
+        >>>
+        >>> tasks = [
+        ...     AssertionTask(
+        ...         id="response_length",
+        ...         field_path="response",
+        ...         operator=ComparisonOperator.HasLength,
+        ...         expected_value={"min": 10, "max": 500},
+        ...         description="Ensure response is reasonable length"
+        ...     ),
+        ...     AssertionTask(
+        ...         id="confidence_threshold",
+        ...         field_path="metadata.confidence",
+        ...         operator=ComparisonOperator.GreaterThanOrEqual,
+        ...         expected_value=0.7,
+        ...         description="Require minimum confidence"
+        ...     )
+        ... ]
+        >>>
+        >>> profile = GenAIEvalProfile(
+        ...     config=config,
+        ...     assertion_tasks=tasks
+        ... )
+
+        LLM judge-based semantic monitoring:
+
+        >>> relevance_prompt = Prompt(
+        ...     system_instructions="Evaluate response relevance to query",
+        ...     messages="Query: {{input}}\\nResponse: {{response}}\\nRate 0-10:",
+        ...     model="gpt-4o-mini",
+        ...     provider=Provider.OpenAI,
+        ...     output_type=Score
+        ... )
+        >>>
+        >>> judge_tasks = [
+        ...     LLMJudgeTask(
+        ...         id="relevance_judge",
+        ...         prompt=relevance_prompt,
+        ...         expected_value=7,
+        ...         field_path="score",
+        ...         operator=ComparisonOperator.GreaterThanOrEqual,
+        ...         description="Ensure relevance score >= 7"
+        ...     )
+        ... ]
+        >>>
+        >>> profile = GenAIEvalProfile(
+        ...     config=config,
+        ...     llm_judge_tasks=judge_tasks
+        ... )
+
+        Hybrid monitoring with dependencies:
+
+        >>> # Fast assertion checks first
+        >>> assertion_tasks = [
+        ...     AssertionTask(
+        ...         id="not_empty",
+        ...         field_path="response",
+        ...         operator=ComparisonOperator.HasLength,
+        ...         expected_value={"min": 1},
+        ...         description="Response must not be empty"
+        ...     )
+        ... ]
+        >>>
+        >>> # Deep LLM analysis only if assertions pass
+        >>> quality_prompt = Prompt(
+        ...     system_instructions="Assess response quality",
+        ...     messages="{{response}}",
+        ...     model="claude-3-5-sonnet-20241022",
+        ...     provider=Provider.Anthropic,
+        ...     output_type=Score
+        ... )
+        >>>
+        >>> judge_tasks = [
+        ...     LLMJudgeTask(
+        ...         id="quality_judge",
+        ...         prompt=quality_prompt,
+        ...         expected_value=8,
+        ...         field_path="score",
+        ...         operator=ComparisonOperator.GreaterThanOrEqual,
+        ...         depends_on=["not_empty"],  # Only run if assertion passes
+        ...         description="Quality assessment after validation"
+        ...     )
+        ... ]
+        >>>
+        >>> profile = GenAIEvalProfile(
+        ...     config=config,
+        ...     assertion_tasks=assertion_tasks,
+        ...     llm_judge_tasks=judge_tasks
+        ... )
+
+        Multi-stage dependent LLM judges:
+
+        >>> # Stage 1: Relevance check
+        >>> relevance_task = LLMJudgeTask(
+        ...     id="relevance",
+        ...     prompt=relevance_prompt,
+        ...     expected_value=7,
+        ...     field_path="score",
+        ...     operator=ComparisonOperator.GreaterThanOrEqual
+        ... )
+        >>>
+        >>> # Stage 2: Toxicity check (only if relevant)
+        >>> toxicity_prompt = Prompt(...)
+        >>> toxicity_task = LLMJudgeTask(
+        ...     id="toxicity",
+        ...     prompt=toxicity_prompt,
+        ...     expected_value=0.2,
+        ...     field_path="score",
+        ...     operator=ComparisonOperator.LessThan,
+        ...     depends_on=["relevance"]  # Chain evaluations
+        ... )
+        >>>
+        >>> # Stage 3: Final quality (only if relevant and non-toxic)
+        >>> quality_task = LLMJudgeTask(
+        ...     id="quality",
+        ...     prompt=quality_prompt,
+        ...     expected_value=8,
+        ...     field_path="score",
+        ...     operator=ComparisonOperator.GreaterThanOrEqual,
+        ...     depends_on=["relevance", "toxicity"]  # Multiple deps
+        ... )
+        >>>
+        >>> profile = GenAIEvalProfile(
+        ...     config=config,
+        ...     llm_judge_tasks=[relevance_task, toxicity_task, quality_task]
+        ... )
+
+    Note:
+        - At least one task (assertion or LLM judge) is required
+        - LLM judge tasks are automatically compiled into an internal Workflow
+        - Task dependencies must form a valid DAG (no circular dependencies)
+        - Execution order is optimized via topological sort
+        - Independent tasks at the same level can execute in parallel
+        - Failed tasks halt execution of dependent downstream tasks
+    """
+
     def __init__(
         self,
         config: GenAIDriftConfig,
-        metrics: list[GenAIDriftMetric],
-        workflow: Optional[Workflow] = None,
+        assertion_tasks: Optional[List[AssertionTask]] = None,
+        llm_judge_tasks: Optional[List[LLMJudgeTask]] = None,
     ):
         """Initialize a GenAIEvalProfile for LLM evaluation and drift detection.
 
-        LLM evaluations are run asynchronously on the scouter server.
-
-        Logic flow:
-            1. If only metrics are provided, a workflow will be created automatically
-               from the metrics. In this case a prompt is required for each metric.
-            2. If a workflow is provided, it will be parsed and validated for compatibility:
-               - A list of metrics to evaluate workflow output must be provided
-               - Metric names must correspond to the final task names in the workflow
-
-        Baseline metrics and thresholds will be extracted from the GenAIDriftMetric objects.
+        Creates a profile that combines assertion tasks and LLM judge tasks into
+        a unified evaluation framework. LLM judge tasks are automatically compiled
+        into an internal Workflow for execution on the Scouter server.
 
         Args:
             config (GenAIDriftConfig):
-                The configuration for the GenAI drift profile containing space, name,
-                version, and alert settings.
-            metrics (list[GenAIDriftMetric]):
-                A list of GenAIDriftMetric objects representing the metrics to be monitored.
-                Each metric defines evaluation criteria and alert thresholds.
-            workflow (Optional[Workflow]):
-                Optional custom workflow for advanced evaluation scenarios. If provided,
-                the workflow will be validated to ensure proper parameter and response
-                type configuration.
+                Configuration for the GenAI drift profile containing space, name,
+                version, sample rate, and alert settings.
+            assertion_tasks (Optional[List[AssertionTask]]):
+                Optional list of assertion tasks for fast, deterministic validation.
+                Assertions execute without additional LLM calls and are ideal for
+                structural checks, threshold validation, and pattern matching.
+                Default: None (empty list)
+            llm_judge_tasks (Optional[List[LLMJudgeTask]]):
+                Optional list of LLM judge tasks for advanced reasoning-based evaluation.
+                When provided, automatically compiled into an internal Workflow.
+                Support dependencies to chain evaluations and pass results between tasks.
+                Default: None (empty list)
 
         Returns:
             GenAIEvalProfile: Configured profile ready for GenAI drift monitoring.
 
         Raises:
-            ProfileError: If workflow validation fails, metrics are empty when no
-                workflow is provided, or if workflow tasks don't match metric names.
+            ProfileError: If validation fails due to:
+                - Empty task lists (both assertion_tasks and llm_judge_tasks are None/empty)
+                - Circular dependencies in task dependency graph
+                - Invalid task configurations (malformed prompts, missing fields, etc.)
 
         Examples:
-            Basic usage with metrics only:
+            Assertion-only profile:
 
-            >>> config = GenAIDriftConfig("my_space", "my_model", "1.0")
-            >>> metrics = [
-            ...     GenAIDriftMetric("accuracy", 0.95, AlertThreshold.Above, 0.1, prompt),
-            ...     GenAIDriftMetric("relevance", 0.85, AlertThreshold.Below, 0.2, prompt2)
+            >>> config = GenAIDriftConfig(space="prod", name="bot", version="1.0")
+            >>> assertions = [
+            ...     AssertionTask(id="length_check", ...),
+            ...     AssertionTask(id="confidence_check", ...)
             ... ]
-            >>> profile = GenAIEvalProfile(config, metrics)
+            >>> profile = GenAIEvalProfile(config, assertion_tasks=assertions)
 
-            Advanced usage with custom workflow:
+            LLM judge-only profile:
 
-            >>> workflow = create_custom_workflow()  # Your custom workflow
-            >>> metrics = [GenAIDriftMetric("final_task", 0.9, AlertThreshold.Above)]
-            >>> profile = GenAIEvalProfile(config, metrics, workflow)
+            >>> judges = [
+            ...     LLMJudgeTask(id="relevance", prompt=..., ...),
+            ...     LLMJudgeTask(id="quality", prompt=..., depends_on=["relevance"])
+            ... ]
+            >>> profile = GenAIEvalProfile(config, llm_judge_tasks=judges)
 
-        Note:
-            - When using custom workflows, ensure final tasks have Score response types
-            - Initial workflow tasks must include "input" and/or "response" parameters
-            - All metric names must match corresponding workflow task names
+            Hybrid profile:
+
+            >>> profile = GenAIEvalProfile(
+            ...     config=config,
+            ...     assertion_tasks=assertions,
+            ...     llm_judge_tasks=judges
+            ... )
         """
 
     @property
     def uid(self) -> str:
-        """Return the unique identifier for the drift profile"""
+        """Unique identifier for the drift profile.
+
+        Derived from the config's space, name, and version. Used for tracking
+        and querying evaluation results.
+        """
+
+    @uid.setter
+    def uid(self, uid: str) -> None:
+        """Set unique identifier for the drift profile."""
 
     @property
     def config(self) -> GenAIDriftConfig:
-        """Return the drift config"""
+        """Configuration for the drift profile.
+
+        Contains space, name, version, sample rate, and alert settings.
+        """
 
     @property
-    def metrics(self) -> List[GenAIDriftMetric]:
-        """Return LLM metrics and their corresponding values"""
+    def assertion_tasks(self) -> List[AssertionTask]:
+        """List of assertion tasks for deterministic validation.
+
+        Assertions execute without additional LLM calls, providing fast,
+        cost-effective validation of structural properties, thresholds,
+        and patterns.
+        """
+
+    @property
+    def llm_judge_tasks(self) -> List[LLMJudgeTask]:
+        """List of LLM judge tasks for reasoning-based evaluation.
+
+        LLM judges use additional LLM calls to assess complex criteria
+        like semantic similarity, quality, and factuality. Automatically
+        compiled into an internal Workflow for execution.
+        """
 
     @property
     def scouter_version(self) -> str:
-        """Return scouter version used to create DriftProfile"""
+        """Scouter version used to create this profile.
 
-    def __str__(self) -> str:
-        """String representation of GenAIEvalProfile"""
+        Used for compatibility tracking and migration support.
+        """
 
-    def model_dump_json(self) -> str:
-        """Return json representation of drift profile"""
-
-    def model_dump(self) -> Dict[str, Any]:
-        """Return dictionary representation of drift profile"""
-
-    def save_to_json(self, path: Optional[Path] = None) -> Path:
-        """Save drift profile to json file
-
-        Args:
-            path: Optional path to save the json file. If not provided, a default path will be used.
+    def has_llm_tasks(self) -> bool:
+        """Check if profile contains LLM judge tasks.
 
         Returns:
-            Path to the saved json file.
+            bool: True if llm_judge_tasks is non-empty, False otherwise.
+
+        Example:
+            >>> if profile.has_llm_tasks():
+            ...     print("Profile uses LLM judges (additional cost/latency)")
+        """
+
+    def has_assertions(self) -> bool:
+        """Check if profile contains assertion tasks.
+
+        Returns:
+            bool: True if assertion_tasks is non-empty, False otherwise.
+
+        Example:
+            >>> if profile.has_assertions():
+            ...     print("Profile includes fast assertion checks")
+        """
+
+    def get_execution_plan(self) -> List[List[str]]:
+        """Get the execution plan for all tasks.
+
+        Returns task IDs grouped by execution level based on dependency graph.
+        Tasks at the same level can execute in parallel. Each subsequent level
+        depends on completion of all previous levels.
+
+        Uses topological sort to determine optimal execution order while
+        respecting task dependencies.
+
+        Returns:
+            List[List[str]]: Nested list where each inner list contains task IDs
+                for that execution level. Level 0 contains tasks with no dependencies,
+                Level 1 contains tasks depending only on Level 0, etc.
+
+        Raises:
+            ProfileError: If circular dependencies are detected in the task graph.
+
+        Example:
+            >>> plan = profile.get_execution_plan()
+            >>> print(f"Level 0 (parallel): {plan[0]}")
+            >>> print(f"Level 1 (after L0): {plan[1]}")
+            >>> print(f"Total levels: {len(plan)}")
+
+            Output:
+            Level 0 (parallel): ['assertion_a', 'assertion_b', 'judge_x']
+            Level 1 (after L0): ['judge_y', 'assertion_c']
+            Total levels: 2
+        """
+
+    def __str__(self) -> str:
+        """String representation of GenAIEvalProfile.
+
+        Returns:
+            str: Human-readable string showing config and task counts.
+        """
+
+    def model_dump_json(self) -> str:
+        """Serialize profile to JSON string.
+
+        Returns:
+            str: JSON string representation of the profile including config,
+                tasks, workflow (if present), and metadata.
+
+        Example:
+            >>> json_str = profile.model_dump_json()
+            >>> # Save to file, send to API, etc.
+        """
+
+    def model_dump(self) -> Dict[str, Any]:
+        """Serialize profile to dictionary.
+
+        Returns:
+            Dict[str, Any]: Dictionary representation of the profile.
+
+        Example:
+            >>> data = profile.model_dump()
+            >>> print(data["config"]["space"])
+            >>> print(f"Task count: {len(data['assertion_tasks'])}")
+        """
+
+    def save_to_json(self, path: Optional[Path] = None) -> Path:
+        """Save profile to JSON file.
+
+        Args:
+            path (Optional[Path]):
+                Optional path to save the profile. If None, saves to
+                "genai_eval_profile.json" in the current directory.
+
+        Returns:
+            Path: Path where the profile was saved.
+
+        Example:
+            >>> path = profile.save_to_json(Path("my_profile.json"))
+            >>> print(f"Saved to: {path}")
         """
 
     @staticmethod
     def model_validate(data: Dict[str, Any]) -> "GenAIEvalProfile":
-        """Load drift profile from dictionary
+        """Load profile from dictionary.
 
         Args:
-            data:
-                DriftProfile dictionary
+            data (Dict[str, Any]):
+                Dictionary representation of the profile.
+
+        Returns:
+            GenAIEvalProfile: Reconstructed profile instance.
+
+        Raises:
+            ProfileError: If dictionary structure is invalid or missing required fields.
+
+        Example:
+            >>> data = {"config": {...}, "assertion_tasks": [...]}
+            >>> profile = GenAIEvalProfile.model_validate(data)
         """
 
     @staticmethod
     def model_validate_json(json_string: str) -> "GenAIEvalProfile":
-        """Load drift profile from json
+        """Load profile from JSON string.
 
         Args:
-            json_string:
-                JSON string representation of the drift profile
+            json_string (str):
+                JSON string representation of the profile.
+
+        Returns:
+            GenAIEvalProfile: Reconstructed profile instance.
+
+        Raises:
+            ProfileError: If JSON is malformed or invalid.
+
+        Example:
+            >>> json_str = '{"config": {...}, "assertion_tasks": [...]}'
+            >>> profile = GenAIEvalProfile.model_validate_json(json_str)
         """
 
     @staticmethod
     def from_file(path: Path) -> "GenAIEvalProfile":
-        """Load drift profile from file
+        """Load profile from JSON file.
 
         Args:
-            path: Path to the json file
+            path (Path):
+                Path to the JSON file containing the profile.
 
         Returns:
-            GenAIEvalProfile
+            GenAIEvalProfile: Loaded profile instance.
+
+        Raises:
+            ProfileError: If file doesn't exist, is malformed, or invalid.
+
+        Example:
+            >>> profile = GenAIEvalProfile.from_file(Path("my_profile.json"))
         """
 
     def update_config_args(
@@ -13728,22 +14532,32 @@ class GenAIEvalProfile:
         space: Optional[str] = None,
         name: Optional[str] = None,
         version: Optional[str] = None,
-        sample_size: Optional[int] = None,
+        uid: Optional[str] = None,
         alert_config: Optional[GenAIAlertConfig] = None,
     ) -> None:
-        """Inplace operation that updates config args
+        """Update profile configuration in-place.
+
+        Modifies the profile's config without recreating the entire profile.
+        Useful for adjusting space/name/version after initial creation or
+        updating alert settings.
 
         Args:
-            name:
-                Model name
-            space:
-                Model space
-            version:
-                Model version
-            sample_size:
-                Sample size
-            alert_config:
-                Alert configuration
+            space (Optional[str]):
+                New model space. If None, keeps existing value.
+            name (Optional[str]):
+                New model name. If None, keeps existing value.
+            version (Optional[str]):
+                New model version. If None, keeps existing value.
+            uid (Optional[str]):
+                New unique identifier. If None, keeps existing value.
+            alert_config (Optional[GenAIAlertConfig]):
+                New alert configuration. If None, keeps existing value.
+
+        Example:
+            >>> profile.update_config_args(
+            ...     space="production",
+            ...     alert_config=GenAIAlertConfig(schedule="0 */6 * * *")
+            ... )
         """
 
 class Drifter:
@@ -13877,19 +14691,22 @@ class Drifter:
     def create_genai_drift_profile(
         self,
         config: GenAIDriftConfig,
-        metrics: List[GenAIDriftMetric],
-        workflow: Optional[Workflow] = None,
+        assertion_tasks: Optional[List[AssertionTask]] = None,
+        llm_judge_tasks: Optional[List[LLMJudgeTask]] = None,
     ) -> GenAIEvalProfile:
         """Initialize a GenAIEvalProfile for LLM evaluation and drift detection.
 
         LLM evaluations are run asynchronously on the scouter server.
 
-        Logic flow:
-            1. If only metrics are provided, a workflow will be created automatically
-               from the metrics. In this case a prompt is required for each metric.
-            2. If a workflow is provided, it will be parsed and validated for compatibility:
-               - A list of metrics to evaluate workflow output must be provided
-               - Metric names must correspond to the final task names in the workflow
+        Overview:
+            GenAI evaluations are defined using assertion tasks and LLM judge tasks.
+            Assertion tasks evaluate specific metrics based on model responses, and do not require
+            the use of an LLM judge or extra call. It is recommended to use assertion tasks whenever possible
+            to reduce cost and latency. LLM judge tasks leverage an additional LLM call to evaluate
+            model responses based on more complex criteria. Together, these tasks provide a flexible framework
+            for monitoring LLM performance and detecting drift over time.
+
+
 
         Baseline metrics and thresholds will be extracted from the GenAIDriftMetric objects.
 
