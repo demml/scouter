@@ -19,13 +19,12 @@ use scouter_server::{create_app_state, create_http_router};
 use scouter_settings::grpc::GrpcConfig;
 use scouter_settings::ObjectStorageSettings;
 use scouter_settings::{DatabaseSettings, ScouterServerConfig};
-use scouter_sql::sql::traits::AlertSqlLogic;
 use scouter_sql::sql::traits::EntitySqlLogic;
+use scouter_sql::sql::traits::{AlertSqlLogic, GenAIDriftSqlLogic};
 use scouter_sql::PostgresClient;
 use scouter_tonic::GrpcClient;
 use scouter_types::spc::SpcDriftConfig;
 use scouter_types::spc::{SpcAlertConfig, SpcDriftProfile};
-use scouter_types::DriftType;
 use scouter_types::JwtToken;
 use scouter_types::RegisteredProfileResponse;
 use scouter_types::{
@@ -38,11 +37,13 @@ use scouter_types::{
 use scouter_types::{
     BoxedGenAIEventRecord, GenAIEventRecord, ServerRecord, ServerRecords, SpcRecord, Status,
 };
+use scouter_types::{DriftType, RecordType};
 use serde_json::Value;
 use sqlx::{PgPool, Pool, Postgres};
 use std::collections::BTreeMap;
 use std::env;
 use std::sync::Arc;
+use tokio::runtime;
 
 use tower::util::ServiceExt;
 use tracing::error;
@@ -329,7 +330,7 @@ impl TestHelper {
         MessageRecord::ServerRecords(ServerRecords::new(records))
     }
 
-    pub fn get_genai_event_records(&self, time_offset: Option<i64>, uid: &str) -> MessageRecord {
+    pub fn get_genai_event_records(time_offset: Option<i64>, uid: &str) -> MessageRecord {
         let mut records: Vec<ServerRecord> = Vec::new();
         let offset = time_offset.unwrap_or(0);
 
@@ -361,7 +362,7 @@ impl TestHelper {
         MessageRecord::ServerRecords(ServerRecords::new(records))
     }
 
-    pub fn get_genai_task_results(&self, time_offset: Option<i64>, uid: &str) -> MessageRecord {
+    pub fn get_genai_task_results(time_offset: Option<i64>, uid: &str) -> MessageRecord {
         let mut records: Vec<ServerRecord> = Vec::new();
         let offset = time_offset.unwrap_or(0);
 
@@ -390,7 +391,7 @@ impl TestHelper {
         MessageRecord::ServerRecords(ServerRecords::new(records))
     }
 
-    pub fn get_genai_workflow_results(&self, time_offset: Option<i64>, uid: &str) -> MessageRecord {
+    pub fn get_genai_workflow_results(time_offset: Option<i64>, uid: &str) -> MessageRecord {
         let mut records: Vec<ServerRecord> = Vec::new();
         let offset = time_offset.unwrap_or(0);
 
@@ -406,7 +407,7 @@ impl TestHelper {
                     failed_tasks: 2,
                     pass_rate: 0.8,
                     duration_ms: 1500,
-                    entity_uid: uid.clone().to_string(),
+                    entity_uid: uid.to_string(),
                 };
                 records.push(ServerRecord::GenAIWorkflowRecord(record));
             }
@@ -415,7 +416,7 @@ impl TestHelper {
         MessageRecord::ServerRecords(ServerRecords::new(records))
     }
 
-    pub async fn create_genai_drift_profile() -> GenAIEvalProfile {
+    pub fn create_genai_drift_profile() -> GenAIEvalProfile {
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
 
         let task1 = LLMJudgeTask::new_rs(
@@ -582,6 +583,39 @@ impl TestHelper {
         };
 
         registered_response.uid
+    }
+
+    pub fn populate_genai_records(
+        &self,
+        uid: &str,
+        runtime: &runtime::Runtime,
+        time_offset: Option<i64>,
+        record_type: RecordType,
+    ) {
+        let body = match record_type {
+            RecordType::GenAITask => {
+                let records = TestHelper::get_genai_task_results(time_offset, &uid);
+                serde_json::to_string(&records).unwrap()
+            }
+            RecordType::GenAIWorkflow => {
+                let records = TestHelper::get_genai_workflow_results(time_offset, &uid);
+                serde_json::to_string(&records).unwrap()
+            }
+            RecordType::GenAIEvent => {
+                let records = TestHelper::get_genai_event_records(time_offset, &uid);
+                serde_json::to_string(&records).unwrap()
+            }
+            _ => panic!("Unsupported record type for GenAI task population"),
+        };
+
+        let request = Request::builder()
+            .uri("/scouter/message")
+            .method("POST")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(body))
+            .unwrap();
+        let response = runtime.block_on(async { self.send_oneshot(request).await });
+        assert_eq!(response.status(), StatusCode::OK);
     }
 }
 

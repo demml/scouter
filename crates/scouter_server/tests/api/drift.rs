@@ -17,7 +17,8 @@ use scouter_types::psi::{PsiAlertConfig, PsiDriftConfig};
 use scouter_types::spc::SpcDriftFeatures;
 use scouter_types::{contracts::DriftRequest, GenAIEventRecordPaginationResponse};
 use scouter_types::{
-    AlertThreshold, BinnedMetrics, GenAIEventRecordPaginationRequest, ServiceInfo, TimeInterval,
+    AlertThreshold, BinnedMetrics, GenAIEventRecordPaginationRequest, RecordType, ServiceInfo,
+    TimeInterval,
 };
 use tokio::time::sleep;
 
@@ -227,7 +228,7 @@ fn test_genai_server_records() {
     mock.start_server().unwrap();
 
     let helper = runtime.block_on(async { setup_test().await });
-    let profile = runtime.block_on(async { TestHelper::create_genai_drift_profile().await });
+    let profile = TestHelper::create_genai_drift_profile();
 
     let uid = runtime.block_on(async {
         helper
@@ -235,21 +236,14 @@ fn test_genai_server_records() {
             .await
     });
 
-    // populate the server with GenAI drift records
-    let records = helper.get_genai_event_records(None, &uid);
-
-    let body = serde_json::to_string(&records).unwrap();
-    //
-    let request = Request::builder()
-        .uri("/scouter/message")
-        .method("POST")
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(body))
-        .unwrap();
-
-    let response = runtime.block_on(async { helper.send_oneshot(request).await });
-
-    assert_eq!(response.status(), StatusCode::OK);
+    // populate the server with GenAI tasks and workflow records
+    helper.populate_genai_records(&profile.config.uid, &runtime, None, RecordType::GenAITask);
+    helper.populate_genai_records(
+        &profile.config.uid,
+        &runtime,
+        None,
+        RecordType::GenAIWorkflow,
+    );
     //
     //// Sleep for 2 seconds to allow the http consumer time to process all server records sent above.
     runtime.block_on(async { sleep(Duration::from_secs(5)).await });
@@ -309,7 +303,7 @@ fn test_genai_server_records() {
     let body = serde_json::to_string(&request).unwrap();
 
     let request = Request::builder()
-        .uri("/scouter/drift/genai/records")
+        .uri("/scouter/drift/genai/event")
         .method("POST")
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(body))

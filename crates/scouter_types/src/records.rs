@@ -51,15 +51,35 @@ impl RecordType {
 
 impl Display for RecordType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl RecordType {
+    pub fn from_str(record_type: &str) -> Result<Self, RecordError> {
+        match record_type.to_lowercase().as_str() {
+            "spc" => Ok(RecordType::Spc),
+            "psi" => Ok(RecordType::Psi),
+            "observability" => Ok(RecordType::Observability),
+            "custom" => Ok(RecordType::Custom),
+            "genai_event" => Ok(RecordType::GenAIEvent),
+            "genai_task" => Ok(RecordType::GenAITask),
+            "genai_workflow" => Ok(RecordType::GenAIWorkflow),
+            "trace" => Ok(RecordType::Trace),
+            _ => Err(RecordError::InvalidDriftTypeError),
+        }
+    }
+
+    pub fn as_str(&self) -> &str {
         match self {
-            RecordType::Spc => write!(f, "spc"),
-            RecordType::Psi => write!(f, "psi"),
-            RecordType::Observability => write!(f, "observability"),
-            RecordType::Custom => write!(f, "custom"),
-            RecordType::GenAIEvent => write!(f, "genai_event"),
-            RecordType::GenAITask => write!(f, "genai_task"),
-            RecordType::GenAIWorkflow => write!(f, "genai_workflow"),
-            RecordType::Trace => write!(f, "trace"),
+            RecordType::Spc => "spc",
+            RecordType::Psi => "psi",
+            RecordType::Observability => "observability",
+            RecordType::Custom => "custom",
+            RecordType::GenAIEvent => "genai_event",
+            RecordType::GenAITask => "genai_task",
+            RecordType::GenAIWorkflow => "genai_workflow",
+            RecordType::Trace => "trace",
         }
     }
 }
