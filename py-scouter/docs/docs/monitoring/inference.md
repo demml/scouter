@@ -96,17 +96,17 @@ request.to_features()
 In the above logic, we access the queue via the `request.app.state` and the corresponding alias ("psi"). We then call the insert method with the features we want to send to the Scouter server. This is a simple exchange of data, as the ScouterQueue will pass the features through a channel to a background worker that is running independently on a separate thread. In our benchmarks, inserting data is extremely fast (<1us), so you can expect minimal overhead in your API response time. However, if you want to move the insertion logic to a background task, you can use the `BackgroundTasks` from FastAPI to do so.
 
 ### What Queues Expect
-As you can see in the above example, the `ScouterQueue` expects either a `Features` object, a `Metrics` object or an `GenAIRecord` object. Both of these objects are designed to be flexible and can be created in a variety of ways.
+As you can see in the above example, the `ScouterQueue` expects either a `Features` object, a `Metrics` object or an `GenAIEvalRecord` object. Both of these objects are designed to be flexible and can be created in a variety of ways.
 
-### When to use `Features` vs `Metrics` vs `GenAIRecord`?
+### When to use `Features` vs `Metrics` vs `GenAIEvalRecord`?
 
 | `type`  | `Description` | `Associated Profiles` |
 |---------|----------------|-----------------------|
 | `Features` | Used for PSI and SPC monitoring, where you are monitoring 'features' | `PsiDriftProfile`, `SpcDriftProfile` |
 | `Metrics` | Used for custom metrics that you want to monitor | `CustomMetricProfile` |
-| `GenAIRecord` | Used for LLM monitoring, where you are monitoring the performance of LLM services | `GenAIEvalProfile` |
+| `GenAIEvalRecord` | Used for LLM monitoring, where you are monitoring the performance of LLM services | `GenAIEvalProfile` |
 
-### How to create `Features`, `Metrics` and `GenAIRecord` objects?
+### How to create `Features`, `Metrics` and `GenAIEvalRecord` objects?
 
 #### Features
 
@@ -201,8 +201,8 @@ Metrics(my_metrics.model_dump())
 ```
 
 
-#### GenAIRecord
-The `GenAIRecord` object is used to send LLM records to the Scouter server for monitoring. It contains the input, response, and context of the LLM service. You can create an `GenAIRecord` object by passing the input, response, and context as parameters.
+#### GenAIEvalRecord
+The `GenAIEvalRecord` object is used to send LLM records to the Scouter server for monitoring. It contains the input, response, and context of the LLM service. You can create an `GenAIEvalRecord` object by passing the input, response, and context as parameters.
 
 **Note**
 
@@ -210,14 +210,14 @@ The `GenAIRecord` object is used to send LLM records to the Scouter server for m
 
 ```python
 
-record = GenAIRecord(
+record = GenAIEvalRecord(
     input="What is the capital of France?",
     response="Paris is the capital of France.",
     context={"foo": "bar"}
 )
 ```
 
-GenAIRecord Arguments
+GenAIEvalRecord Arguments
 
 | `Argument` | `Type` | `Description` |
 |------------|--------|----------------|

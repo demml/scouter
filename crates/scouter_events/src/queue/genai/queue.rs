@@ -1,6 +1,6 @@
 use crate::error::EventError;
 use crate::producer::RustScouterProducer;
-use crate::queue::genai::record_queue::GenAIRecordQueue;
+use crate::queue::genai::record_queue::GenAIEvalRecordQueue;
 use crate::queue::traits::BackgroundTask;
 use crate::queue::traits::QueueMethods;
 use crate::queue::types::TransportConfig;
@@ -28,7 +28,7 @@ use tracing::debug;
 /// - `sample`: A boolean indicating whether to sample metrics.
 pub struct GenAIQueue {
     queue: Arc<ArrayQueue<GenAIEvalRecord>>,
-    record_queue: Arc<GenAIRecordQueue>,
+    record_queue: Arc<GenAIEvalRecordQueue>,
     producer: RustScouterProducer,
     last_publish: Arc<RwLock<DateTime<Utc>>>,
     capacity: usize,
@@ -48,7 +48,7 @@ impl GenAIQueue {
         debug!("Creating GenAI Drift Queue");
         // ArrayQueue size is based on sample rate
         let queue = Arc::new(ArrayQueue::new(sample_rate * 2));
-        let record_queue = Arc::new(GenAIRecordQueue::new());
+        let record_queue = Arc::new(GenAIEvalRecordQueue::new());
         let last_publish = Arc::new(RwLock::new(Utc::now()));
 
         let producer = RustScouterProducer::new(config).await?;
@@ -77,14 +77,14 @@ impl GenAIQueue {
 
 impl BackgroundTask for GenAIQueue {
     type DataItem = GenAIEvalRecord;
-    type Processor = GenAIRecordQueue;
+    type Processor = GenAIEvalRecordQueue;
 }
 
 #[async_trait]
 /// Implementing primary methods
 impl QueueMethods for GenAIQueue {
     type ItemType = GenAIEvalRecord;
-    type FeatureQueue = GenAIRecordQueue;
+    type FeatureQueue = GenAIEvalRecordQueue;
 
     fn capacity(&self) -> usize {
         self.capacity

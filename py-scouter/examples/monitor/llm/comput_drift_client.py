@@ -5,7 +5,7 @@ from scouter.alert import AlertThreshold
 from scouter.drift import Drifter, GenAIDriftConfig, GenAIDriftMetric, GenAIEvalProfile
 from scouter.genai import Agent, Prompt, Provider, Score
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
-from scouter.queue import GenAIRecord
+from scouter.queue import GenAIEvalRecord
 
 RustyLogger.setup_logging(LoggingConfig(log_level=LogLevel.Debug))
 
@@ -99,7 +99,7 @@ if __name__ == "__main__":
     response = agent.execute_prompt(prompt=prompt.bind(user_query=user_query))
 
     profile = create_genai_drift_profile()
-    record = GenAIRecord(
+    record = GenAIEvalRecord(
         context={"user_query": user_query, "response": response.response_text()},
     )
 

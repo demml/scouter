@@ -11976,13 +11976,13 @@ class Metrics:
 class Queue:
     """Individual queue associated with a drift profile"""
 
-    def insert(self, entity: Union[Features, Metrics, GenAIRecord]) -> None:
+    def insert(self, entity: Union[Features, Metrics, GenAIEvalRecord]) -> None:
         """Insert a record into the queue
 
         Args:
             entity:
                 Entity to insert into the queue.
-                Can be an instance for Features, Metrics, or GenAIRecord.
+                Can be an instance for Features, Metrics, or GenAIEvalRecord.
 
         Example:
             ```python
@@ -12031,7 +12031,7 @@ class ScouterQueue:
         ║                              │                                           ║
         ║                              ▼                                           ║
         ║  ┌────────────────────────────────────────────────────────────────────┐  ║
-        ║  │  queue["profile_alias"].insert(Features | Metrics | GenAIRecord)     │  ║
+        ║  │  queue["profile_alias"].insert(Features | Metrics | GenAIEvalRecord)     │  ║
         ║  └───────────────────────────┬────────────────────────────────────────┘  ║
         ║                              │                                           ║
         ╚══════════════════════════════╪═══════════════════════════════════════════╝
@@ -12082,7 +12082,7 @@ class ScouterQueue:
         ```
         Flow Summary:
             1. **Python Runtime**: Initialize queue with drift profiles and transport config
-            2. **Insert Records**: Call queue["alias"].insert() with Features/Metrics/GenAIRecord
+            2. **Insert Records**: Call queue["alias"].insert() with Features/Metrics/GenAIEvalRecord
             3. **Rust Queue**: Buffer and validate records against profile schema
             4. **Transport Producer**: Serialize and publish to configured transport
             5. **Network**: Records travel via Kafka/RabbitMQ/Redis/HTTP/gRPC
@@ -12154,7 +12154,7 @@ class ScouterQueue:
                 ...     ),
                 ... )
                 >>> queue["genai_eval"].insert(
-                ...     GenAIRecord(context={"input": "...", "response": "..."})
+                ...     GenAIEvalRecord(context={"input": "...", "response": "..."})
                 ... )
         """
 
@@ -12188,13 +12188,13 @@ class BaseModel(Protocol):
     def __str__(self) -> str:
         """String representation of the model"""
 
-class GenAIRecord:
+class GenAIEvalRecord:
     """LLM record containing context tied to a Large Language Model interaction
     that is used to evaluate drift in LLM responses.
 
 
     Examples:
-        >>> record = GenAIRecord(
+        >>> record = GenAIEvalRecord(
         ...     context={
         ...         "input": "What is the capital of France?",
         ...         "response": "Paris is the capital of France."
@@ -12208,7 +12208,7 @@ class GenAIRecord:
     """Optional prompt configuration associated with this record."""
 
     entity_type: EntityType
-    """Type of entity, always EntityType.LLM for GenAIRecord instances."""
+    """Type of entity, always EntityType.LLM for GenAIEvalRecord instances."""
 
     def __init__(
         self,
@@ -14798,7 +14798,7 @@ class Drifter:
     @overload
     def compute_drift(
         self,
-        data: Union[GenAIRecord, List[GenAIRecord]],
+        data: Union[GenAIEvalRecord, List[GenAIEvalRecord]],
         drift_profile: GenAIEvalProfile,
         data_type: Optional[ScouterDataType] = None,
     ) -> GenAIDriftMap:
@@ -15623,7 +15623,7 @@ __all__ = [
     "Metric",
     "Metrics",
     "EntityType",
-    "GenAIRecord",
+    "GenAIEvalRecord",
     # transport
     "HttpConfig",
     "KafkaConfig",

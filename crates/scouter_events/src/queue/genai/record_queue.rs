@@ -5,20 +5,20 @@ use scouter_types::BoxedGenAIEvalRecord;
 use scouter_types::QueueExt;
 use scouter_types::{MessageRecord, ServerRecord, ServerRecords};
 
-pub struct GenAIRecordQueue {}
+pub struct GenAIEvalRecordQueue {}
 
-impl GenAIRecordQueue {
+impl GenAIEvalRecordQueue {
     pub fn new() -> Self {
-        GenAIRecordQueue {}
+        GenAIEvalRecordQueue {}
     }
 }
 
-impl FeatureQueue for GenAIRecordQueue {
+impl FeatureQueue for GenAIEvalRecordQueue {
     fn create_drift_records_from_batch<T: QueueExt>(
         &self,
         batch: Vec<T>,
     ) -> Result<MessageRecord, FeatureQueueError> {
-        // Convert T to GenAIRecord using QueueExt::into_genai_record
+        // Convert T to GenAIEvalRecord using QueueExt::into_genai_record
         let genai_records: Vec<ServerRecord> = batch
             .into_iter()
             .filter_map(|item| {
@@ -41,7 +41,7 @@ mod tests {
 
     #[test]
     fn test_feature_queue_genai_insert_record() {
-        let feature_queue = GenAIRecordQueue::new();
+        let feature_queue = GenAIEvalRecordQueue::new();
 
         let mut record_batch = Vec::new();
         for _ in 0..1 {

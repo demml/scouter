@@ -33,9 +33,9 @@ pub use scouter_types::{
     ConsoleDispatchConfig, CustomMetricRecord, DataType, Doane, DriftAlertPaginationRequest,
     DriftAlertPaginationResponse, DriftProfile, DriftRequest, DriftType, EntityIdTagsRequest,
     EntityIdTagsResponse, EntityType, EqualWidthBinning, Feature, FeatureMap, Features,
-    FreedmanDiaconis, GenAIEvalRecord, GenAIEvalRecordPaginationRequest,
+    FreedmanDiaconis, GenAIEvalRecord, GenAIEvalRecord, GenAIEvalRecordPaginationRequest,
     GenAIEvalRecordPaginationResponse, GenAIEvalTaskResultRecord, GenAIEvalWorkflowRecord,
-    GenAIRecord, GetProfileRequest, LatencyMetrics, Manual, Metric, Metrics, ObservabilityMetrics,
+    GetProfileRequest, LatencyMetrics, Manual, Metric, Metrics, ObservabilityMetrics,
     OpsGenieDispatchConfig, ProfileRequest, ProfileStatusRequest, PsiRecord, QuantileBinning,
     RecordType, RegisteredProfileResponse, Rice, RouteMetrics, Scott, ScouterResponse,
     ScouterServerError, ServerRecord, ServerRecords, SlackDispatchConfig, SpanEvent, SpanLink,
@@ -58,7 +58,7 @@ pub use scouter_events::producer::{
 };
 pub use scouter_events::queue::bus::TaskState;
 pub use scouter_events::queue::{
-    custom::CustomMetricFeatureQueue, genai::GenAIRecordQueue, psi::PsiFeatureQueue,
+    custom::CustomMetricFeatureQueue, genai::GenAIEvalRecordQueue, psi::PsiFeatureQueue,
     spc::SpcFeatureQueue, QueueBus, ScouterQueue,
 };
 

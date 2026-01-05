@@ -217,7 +217,7 @@ impl GenAIEvalRecord {
     #[new]
     #[pyo3(signature = (context, record_id = None))]
 
-    /// Creates a new GenAIRecord instance.
+    /// Creates a new GenAIEvalRecord instance.
     /// The context is either a python dictionary or a pydantic basemodel.
     pub fn new(
         py: Python<'_>,

@@ -1,5 +1,4 @@
 use crate::data_utils::DataConverterEnum;
-use crate::drifter::genai::extract_assertion_tasks_from_pylist;
 use crate::drifter::{
     custom::CustomDrifter, genai::ClientGenAIDrifter, psi::PsiDrifter, spc::SpcDrifter,
 };
@@ -15,7 +14,7 @@ use scouter_types::{
     genai::{GenAIDriftConfig, GenAIEvalProfile},
     psi::{PsiDriftConfig, PsiDriftMap, PsiDriftProfile},
     spc::SpcDriftConfig,
-    DataType, DriftProfile, DriftType, GenAIRecord,
+    DataType, DriftProfile, DriftType, GenAIEvalRecord,
 };
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -175,14 +174,16 @@ impl Drifter {
             }
 
             Drifter::GenAI(drifter) => {
-                // extract data to be Vec<GenAIRecord>
+                // extract data to be Vec<GenAIEvalRecord>
                 if !data.is_instance_of::<PyList>() {
                     // convert to pylist
                     let type_ = data.get_type().name()?;
-                    return Err(DriftError::ExpectedListOfGenAIRecords(type_.to_string()));
+                    return Err(DriftError::ExpectedListOfGenAIEvalRecords(
+                        type_.to_string(),
+                    ));
                 };
 
-                let records = data.extract::<Vec<GenAIRecord>>()?;
+                let records = data.extract::<Vec<GenAIEvalRecord>>()?;
                 let records = drifter.compute_drift(records, profile.get_genai_profile()?)?;
 
                 Ok(DriftMap::GenAI(GenAIEvalResultSet { records }))

@@ -121,8 +121,8 @@ pub enum DriftError {
     #[error("Expected a list of AssertionTask or LLMJudgeTask. Received {0}")]
     ExpectedListOfAssertionOrLLMJudgeTasks(String),
 
-    #[error("Expected a list of GenAIRecords. Received {0}")]
-    ExpectedListOfGenAIRecords(String),
+    #[error("Expected a list of GenAIEvalRecords. Received {0}")]
+    ExpectedListOfGenAIEvalRecords(String),
 
     #[error("Failed to process GenAI evaluation: {0}")]
     GenAIEvaluatorError(String),

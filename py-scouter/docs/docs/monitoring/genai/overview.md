@@ -259,7 +259,7 @@ For a general detailed guide on the `ScouterQueue`, and how to insert data for r
 
 ### GenAI Drift Data Insertion
 
-To insert data for GenAI drift profiles, you first create an `GenAIRecord`, which takes the following parameters:
+To insert data for GenAI drift profiles, you first create an `GenAIEvalRecord`, which takes the following parameters:
 
 | Argument    | Type                | Required | Description                                         |
 |-------------|---------------------|----------|-----------------------------------------------------|
@@ -268,9 +268,9 @@ To insert data for GenAI drift profiles, you first create an `GenAIRecord`, whic
 
 **Example:**
 ```python
-from scouter.queue import GenAIRecord
+from scouter.queue import GenAIEvalRecord
 
-record = GenAIRecord(
+record = GenAIEvalRecord(
     context={"input": "How do I find live music in my area?"}
 )
 
@@ -283,13 +283,13 @@ queue["my_genai_service"].insert(record)
 Scouter is designed to evaluate LLM metrics asynchronously on the server, ensuring your application's performance is not impacted. Here’s how the process works:
 
 1. **Record Ingestion:**
-   When you insert an `GenAIRecord`, it is sent to the Scouter server.
+   When you insert an `GenAIEvalRecord`, it is sent to the Scouter server.
 
 2. **Profile Retrieval:**
    Upon receiving the record, the server retrieves the associated drift profile, which specifies the metrics and workflow to execute.
 
 3. **Prompt Injection & Workflow Execution:**
-   The server injects the `context` from the `GenAIRecord` into the prompts defined in the workflow. It then runs the workflow according to your configuration.
+   The server injects the `context` from the `GenAIEvalRecord` into the prompts defined in the workflow. It then runs the workflow according to your configuration.
 
 4. **Metric Extraction:**
    After executing the workflow, the server extracts the `Score` object from the relevant tasks as defined by your `GenAIDriftMetric`s.

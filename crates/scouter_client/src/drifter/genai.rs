@@ -1,13 +1,11 @@
-use std::sync::Arc;
-
-use pyo3::prelude::*;
-use pyo3::types::PyList;
-use scouter_drift::{error::DriftError, GenAIEvaluator};
+use scouter_drift::error::DriftError;
+use scouter_evaluate::evaluate::GenAIEvaluator;
 use scouter_state::app_state;
 use scouter_types::genai::{
     AssertionTask, GenAIDriftConfig, GenAIEvalProfile, GenAIEvalSet, LLMJudgeTask,
 };
-use scouter_types::GenAIRecord;
+use scouter_types::GenAIEvalRecord;
+use std::sync::Arc;
 /// Using "ClientGenAIDrifter" to avoid confusion with the server-side GenAIDrifter
 pub struct ClientGenAIDrifter {}
 
@@ -33,17 +31,16 @@ impl ClientGenAIDrifter {
     }
 
     pub async fn compute_drift_single(
-        record: GenAIRecord,
+        record: GenAIEvalRecord,
         profile: &GenAIEvalProfile,
     ) -> Result<GenAIEvalSet, DriftError> {
-        let task_record = record.to_genai_event_record(&profile.config.uid);
         let profile = Arc::new(profile.clone());
-        GenAIEvaluator::process_event_record(&task_record, profile).await
+        Ok(GenAIEvaluator::process_event_record(&record, profile).await?)
     }
 
     pub fn compute_drift(
         &mut self,
-        data: Vec<GenAIRecord>,
+        data: Vec<GenAIEvalRecord>,
         profile: &GenAIEvalProfile,
     ) -> Result<Vec<GenAIEvalSet>, DriftError> {
         let results = app_state().handle().block_on(async move {

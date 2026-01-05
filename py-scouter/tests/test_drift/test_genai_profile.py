@@ -7,7 +7,7 @@ from scouter.alert import AlertThreshold
 from scouter.drift import Drifter, GenAIDriftConfig, GenAIDriftMetric, GenAIEvalProfile
 from scouter.genai import Agent, Prompt, Score, Task, Workflow
 from scouter.mock import LLMTestServer
-from scouter.queue import GenAIRecord
+from scouter.queue import GenAIEvalRecord
 
 
 class TaskOutput(BaseModel):
@@ -277,7 +277,7 @@ def test_genai_drifter():
             ],
         )
 
-        record = GenAIRecord(
+        record = GenAIEvalRecord(
             context={
                 "input": "What is the capital of France?",
                 "response": "The capital of France is Paris.",
