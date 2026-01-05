@@ -1,7 +1,7 @@
 WITH subquery1 AS (
     SELECT
         date_bin(($1 || ' minutes')::interval, created_at, TIMESTAMP '1970-01-01') as created_at,
-        pass_rate as value,
+        pass_rate as value
     FROM scouter.genai_eval_workflow
     WHERE
         1=1

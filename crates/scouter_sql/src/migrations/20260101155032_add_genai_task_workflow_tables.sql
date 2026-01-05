@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS scouter.genai_eval_workflow (
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     archived BOOLEAN DEFAULT FALSE,
     PRIMARY KEY (created_at, record_uid),
-    CONSTRAINT fk_entity FOREIGN KEY (entity_id) REFERENCES scouter.entities(id) ON DELETE CASCADE
+    CONSTRAINT fk_entity FOREIGN KEY (entity_id) REFERENCES scouter.drift_entities(id) ON DELETE CASCADE
 )
 PARTITION BY RANGE (created_at);
 
@@ -53,21 +53,19 @@ CREATE TABLE IF NOT EXISTS scouter.genai_eval_task (
 PARTITION BY RANGE (created_at);
 
 CREATE INDEX idx_genai_eval_task_record_lookup
-ON scouter.genai_eval_task_result (created_at, record_uid DESC);
+ON scouter.genai_eval_task (created_at, record_uid DESC);
 
 CREATE INDEX idx_genai_eval_entity_id_lookup
-ON scouter.genai_eval_task_result (created_at, entity_id DESC);
+ON scouter.genai_eval_task (created_at, entity_id DESC);
 
 -- Setup partitioning
 SELECT scouter.create_parent(
-    'scouter.genai_eval_task_result',
+    'scouter.genai_eval_task',
     'created_at',
     '1 day'
 );
 
-UPDATE scouter.part_config
-SET retention = '90 days'
-WHERE parent_table = 'scouter.genai_eval_task_result'
+UPDATE scouter.part_config SET retention = '90 days' WHERE parent_table = 'scouter.genai_eval_task';
 
 -- Need to drop old genai_drift table if it exists
 DROP TABLE IF EXISTS scouter.genai_drift CASCADE;

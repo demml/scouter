@@ -349,7 +349,10 @@ mod tests {
             FROM scouter.genai_eval_record;
 
             DELETE
-            FROM scouter.genai_drift;
+            FROM scouter.genai_eval_task;
+
+            DELETE
+            FROM scouter.genai_eval_workflow;
 
             DELETE
             FROM scouter.spans;

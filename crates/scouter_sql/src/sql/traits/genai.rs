@@ -528,7 +528,7 @@ pub trait GenAIDriftSqlLogic {
         storage_settings: &ObjectStorageSettings,
         entity_id: &i32,
     ) -> Result<BinnedMetrics, SqlError> {
-        debug!("Getting binned Custom drift records for {:?}", params);
+        debug!("Getting binned task drift records for {:?}", params);
 
         if !params.has_custom_interval() {
             debug!("No custom interval provided, using default");

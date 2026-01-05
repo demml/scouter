@@ -1,8 +1,9 @@
 WITH subquery1 AS (
     SELECT
         date_bin(($1 || ' minutes')::interval, created_at, TIMESTAMP '1970-01-01') as created_at,
-        pass_rate as value,
-    FROM scouter.genai_eval_task_result
+        task_id,
+        value
+    FROM scouter.genai_eval_task
     WHERE
         1=1
         AND created_at >= $2  -- start_datetime

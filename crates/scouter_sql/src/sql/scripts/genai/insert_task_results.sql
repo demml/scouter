@@ -1,4 +1,4 @@
-INSERT INTO scouter.genai_eval_task_result (
+INSERT INTO scouter.genai_eval_task (
     created_at,
     record_uid,
     entity_id,

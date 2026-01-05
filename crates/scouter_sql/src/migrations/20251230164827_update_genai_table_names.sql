@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS scouter.genai_eval_record (
     record_id TEXT,
     archived BOOLEAN DEFAULT false,
     PRIMARY KEY (uid, created_at),
-    UNIQUE (created_at, name, space, version)
+    UNIQUE (created_at, entity_id)
 )
 PARTITION BY RANGE (created_at);
 
