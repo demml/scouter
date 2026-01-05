@@ -126,6 +126,15 @@ pub enum DriftError {
 
     #[error("Task not found: {0}")]
     TaskNotFound(String),
+
+    #[error("List contains an item that is neither AssertionTask nor LLMJudgeTask")]
+    InvalidAssertionTaskType,
+
+    #[error("Expected a list of AssertionTask or LLMJudgeTask. Received {0}")]
+    ExpectedListOfAssertionOrLLMJudgeTasks(String),
+
+    #[error("Expected a list of GenAIRecords. Received {0}")]
+    ExpectedListOfGenAIRecords(String),
 }
 
 impl From<DriftError> for PyErr {
@@ -144,5 +153,11 @@ impl From<PyErr> for DriftError {
 impl<'a, 'py> From<PyClassGuardError<'a, 'py>> for DriftError {
     fn from(err: PyClassGuardError<'a, 'py>) -> Self {
         DriftError::RunTimeError(err.to_string())
+    }
+}
+
+impl<'a, 'py> From<pyo3::CastError<'a, 'py>> for DriftError {
+    fn from(err: pyo3::CastError<'a, 'py>) -> Self {
+        DriftError::DowncastError(err.to_string())
     }
 }

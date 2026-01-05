@@ -1,4 +1,5 @@
 use crate::data_utils::DataConverterEnum;
+use crate::drifter::genai::extract_assertion_tasks_from_pylist;
 use crate::drifter::{
     custom::CustomDrifter, genai::ClientGenAIDrifter, psi::PsiDrifter, spc::SpcDrifter,
 };
@@ -7,15 +8,14 @@ use pyo3::types::PyList;
 use pyo3::IntoPyObjectExt;
 use scouter_drift::error::DriftError;
 use scouter_drift::spc::SpcDriftMap;
-use scouter_types::genai::{AssertionTask, GenAIDriftMap, GenAIDriftMetric, LLMJudgeTask};
+use scouter_types::genai::{AssertionTask, GenAIEvalSetMap, LLMJudgeTask};
 use scouter_types::spc::SpcDriftProfile;
-use scouter_types::GenAIRecord;
 use scouter_types::{
     custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
     genai::{GenAIDriftConfig, GenAIEvalProfile},
     psi::{PsiDriftConfig, PsiDriftMap, PsiDriftProfile},
     spc::SpcDriftConfig,
-    DataType, DriftProfile, DriftType,
+    DataType, DriftProfile, DriftType, GenAIRecord,
 };
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -24,7 +24,7 @@ use std::sync::RwLock;
 pub enum DriftMap {
     Spc(SpcDriftMap),
     Psi(PsiDriftMap),
-    GenAI(GenAIDriftMap),
+    GenAI(GenAIEvalSetMap),
 }
 
 pub enum DriftConfig {
@@ -127,14 +127,23 @@ impl Drifter {
             }
             Drifter::GenAI(drifter) => {
                 // GenAI drift profiles are created separately, so we will handle this in the create_genai_drift_profile method
-                let metrics = if data.is_instance_of::<PyList>() {
-                    data.extract::<Vec<GenAIDriftMetric>>()?
-                } else {
-                    let metric = data.extract::<GenAIDriftMetric>()?;
-                    vec![metric]
+                if !data.is_instance_of::<PyList>() {
+                    // convert to pylist
+                    let type_ = data.get_type().name()?;
+                    return Err(DriftError::ExpectedListOfAssertionOrLLMJudgeTasks(
+                        type_.to_string(),
+                    ));
                 };
-                let profile =
-                    drifter.create_drift_profile(config.genai_config()?, metrics, workflow)?;
+
+                let list = data.cast::<PyList>()?;
+                let (assertions_tasks, llm_judge_tasks) =
+                    extract_assertion_tasks_from_pylist(&list)?;
+
+                let profile = drifter.create_drift_profile(
+                    config.genai_config()?,
+                    Some(assertions_tasks),
+                    Some(llm_judge_tasks),
+                )?;
                 Ok(DriftProfile::GenAI(profile))
             }
         }
@@ -167,15 +176,16 @@ impl Drifter {
 
             Drifter::GenAI(drifter) => {
                 // extract data to be Vec<GenAIRecord>
-                let data = if data.is_instance_of::<PyList>() {
-                    data.extract::<Vec<GenAIRecord>>()?
-                } else {
-                    let metric = data.extract::<GenAIRecord>()?;
-                    vec![metric]
+                if !data.is_instance_of::<PyList>() {
+                    // convert to pylist
+                    let type_ = data.get_type().name()?;
+                    return Err(DriftError::ExpectedListOfGenAIRecords(type_.to_string()));
                 };
-                let records = drifter.compute_drift(data, profile.get_genai_profile()?)?;
 
-                Ok(DriftMap::GenAI(GenAIDriftMap { records }))
+                let records = data.extract::<Vec<GenAIRecord>>()?;
+                let records = drifter.compute_drift(records, profile.get_genai_profile()?)?;
+
+                Ok(DriftMap::GenAI(GenAIEvalSetMap { records }))
             }
         }
     }
@@ -255,8 +265,7 @@ impl PyDrifter {
             }
         };
 
-        let profile =
-            drift_helper.create_drift_profile(py, data, data_type, config_helper, workflow)?;
+        let profile = drift_helper.create_drift_profile(py, data, data_type, config_helper)?;
 
         match profile {
             DriftProfile::Spc(profile) => Ok(profile.into_bound_py_any(py)?),

@@ -8,7 +8,6 @@ use pyo3::types::{PyBool, PyFloat, PyInt, PyList, PyString};
 use pythonize::{depythonize, pythonize};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
 use std::fmt::Display;
 use std::str::FromStr;
 
@@ -390,7 +389,11 @@ pub enum ComparisonOperator {
     StartsWith,
     EndsWith,
     Matches,
-    HasLength,
+    HasLengthGreaterThan,
+    HasLengthLessThan,
+    HasLengthEqual,
+    HasLengthGreaterThanOrEqual,
+    HasLengthLessThanOrEqual,
 }
 
 impl Display for ComparisonOperator {
@@ -415,7 +418,11 @@ impl FromStr for ComparisonOperator {
             "StartsWith" => Ok(ComparisonOperator::StartsWith),
             "EndsWith" => Ok(ComparisonOperator::EndsWith),
             "Matches" => Ok(ComparisonOperator::Matches),
-            "HasLength" => Ok(ComparisonOperator::HasLength),
+            "HasLengthEqual" => Ok(ComparisonOperator::HasLengthEqual),
+            "HasLengthGreaterThan" => Ok(ComparisonOperator::HasLengthGreaterThan),
+            "HasLengthLessThan" => Ok(ComparisonOperator::HasLengthLessThan),
+            "HasLengthGreaterThanOrEqual" => Ok(ComparisonOperator::HasLengthGreaterThanOrEqual),
+            "HasLengthLessThanOrEqual" => Ok(ComparisonOperator::HasLengthLessThanOrEqual),
             _ => Err(TypeError::InvalidCompressionTypeError),
         }
     }
@@ -435,7 +442,11 @@ impl ComparisonOperator {
             ComparisonOperator::StartsWith => "StartsWith",
             ComparisonOperator::EndsWith => "EndsWith",
             ComparisonOperator::Matches => "Matches",
-            ComparisonOperator::HasLength => "HasLength",
+            ComparisonOperator::HasLengthEqual => "HasLengthEqual",
+            ComparisonOperator::HasLengthGreaterThan => "HasLengthGreaterThan",
+            ComparisonOperator::HasLengthLessThan => "HasLengthLessThan",
+            ComparisonOperator::HasLengthGreaterThanOrEqual => "HasLengthGreaterThanOrEqual",
+            ComparisonOperator::HasLengthLessThanOrEqual => "HasLengthLessThanOrEqual",
         }
     }
 }
@@ -454,7 +465,11 @@ pub enum AssertionValue {
 impl AssertionValue {
     pub fn to_actual(self, comparison: &ComparisonOperator) -> AssertionValue {
         match comparison {
-            ComparisonOperator::HasLength => match self {
+            ComparisonOperator::HasLengthEqual
+            | ComparisonOperator::HasLengthGreaterThan
+            | ComparisonOperator::HasLengthLessThan
+            | ComparisonOperator::HasLengthGreaterThanOrEqual
+            | ComparisonOperator::HasLengthLessThanOrEqual => match self {
                 AssertionValue::List(arr) => AssertionValue::Integer(arr.len() as i64),
                 AssertionValue::String(s) => AssertionValue::Integer(s.chars().count() as i64),
                 _ => self,
@@ -561,57 +576,5 @@ impl EvaluationTaskType {
             EvaluationTaskType::LLMJudge => "LLMJudge",
             EvaluationTaskType::HumanValidation => "HumanValidation",
         }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct EvaluationContext {
-    /// Raw JSON output from LLM
-    pub context: Value,
-
-    pub task_results: HashMap<String, Value>,
-}
-
-impl EvaluationContext {
-    /// Create a new evaluation context
-    pub fn new(context: Value) -> Self {
-        Self {
-            context,
-            task_results: HashMap::new(),
-        }
-    }
-
-    pub fn build_merged_context(&self, depends_on: &[String]) -> Result<Value, TypeError> {
-        self.build_dependency_context(depends_on)
-    }
-
-    /// Build context from dependent task results
-    /// If only one dependency, return that result directly
-    /// If multiple dependencies, return an object with each dependency's result
-    /// keyed by the dependency ID
-    /// # Arguments
-    /// * `task`: The assertion task for which to build the dependency context
-    /// # Returns
-    /// A serde_json::Value representing the merged dependency context
-    fn build_dependency_context(&self, depends_on: &[String]) -> Result<Value, TypeError> {
-        if depends_on.len() == 1 {
-            let dep_id = &depends_on[0];
-            return self
-                .task_results
-                .get(dep_id)
-                .cloned()
-                .ok_or_else(|| TypeError::MissingDependency(dep_id.clone()));
-        }
-
-        let mut context_map = serde_json::Map::with_capacity(depends_on.len());
-        for dep_id in depends_on {
-            let dep_value = self
-                .task_results
-                .get(dep_id)
-                .ok_or_else(|| TypeError::MissingDependency(dep_id.clone()))?;
-            context_map.insert(dep_id.clone(), dep_value.clone());
-        }
-
-        Ok(Value::Object(context_map))
     }
 }

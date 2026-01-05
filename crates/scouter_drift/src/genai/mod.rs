@@ -1,4 +1,5 @@
 pub mod evaluator;
+pub mod store;
 
 #[cfg(feature = "sql")]
 pub mod poller;

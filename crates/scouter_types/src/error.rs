@@ -153,11 +153,14 @@ pub enum TypeError {
     #[error("Missing dependency: {0}")]
     MissingDependency(String),
 
-    #[error(transparent)]
-    PythonizeError(#[from] pythonize::PythonizeError),
-
     #[error("Expected a Python dict")]
     ExpectedPyDict,
+}
+
+impl From<pythonize::PythonizeError> for TypeError {
+    fn from(err: PythonizeError) -> Self {
+        TypeError::PyError(err.to_string())
+    }
 }
 
 impl<'a, 'py> From<pyo3::CastError<'a, 'py>> for TypeError {

@@ -388,6 +388,8 @@ impl Metrics {
     }
 }
 
+// there should be only one GenAIRecord type (for queue and eval)
+// only exception is GenAIEvalRecord which has extra fields for drift profiling and uses sql deps
 #[pyclass]
 #[derive(Clone, Serialize, Debug)]
 pub struct GenAIRecord {

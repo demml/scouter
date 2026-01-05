@@ -104,7 +104,21 @@ impl AssertionEvaluator {
         };
 
         let comparable_actual =
-            Self::transform_for_comparison(&actual_value, assertion.operator())?;
+            match Self::transform_for_comparison(&actual_value, assertion.operator()) {
+                Ok(val) => val,
+                Err(err) => {
+                    // return assertion result failure with error message
+                    return Ok(AssertionResult::new(
+                        false,
+                        (*actual_value).clone(),
+                        format!(
+                            "✗ Assertion '{}' failed during transformation: {}",
+                            assertion.id(),
+                            err.to_string()
+                        ),
+                    ));
+                }
+            };
         let expected = assertion.expected_value();
 
         let passed = Self::compare_values(&comparable_actual, assertion.operator(), expected)?;
@@ -137,19 +151,30 @@ impl AssertionEvaluator {
         operator: &ComparisonOperator,
     ) -> Result<Value, EvaluationError> {
         match operator {
-            ComparisonOperator::HasLength
-            | ComparisonOperator::LessThan
-            | ComparisonOperator::LessThanOrEqual
-            | ComparisonOperator::GreaterThan
-            | ComparisonOperator::GreaterThanOrEqual => {
+            // Only HasLength should convert to length
+            ComparisonOperator::HasLengthEqual
+            | ComparisonOperator::HasLengthGreaterThan
+            | ComparisonOperator::HasLengthLessThan
+            | ComparisonOperator::HasLengthGreaterThanOrEqual
+            | ComparisonOperator::HasLengthLessThanOrEqual => {
                 if let Some(len) = value.to_length() {
                     Ok(Value::Number(len.into()))
-                } else if value.is_number() {
-                    Ok(value.clone()) // Must clone to return owned
                 } else {
                     Err(EvaluationError::CannotGetLength(format!("{:?}", value)))
                 }
             }
+            // Numeric comparisons should require actual numbers
+            ComparisonOperator::LessThan
+            | ComparisonOperator::LessThanOrEqual
+            | ComparisonOperator::GreaterThan
+            | ComparisonOperator::GreaterThanOrEqual => {
+                if value.is_number() {
+                    Ok(value.clone())
+                } else {
+                    Err(EvaluationError::CannotCompareNonNumericValues)
+                }
+            }
+            // All other operators pass through unchanged
             _ => Ok(value.clone()),
         }
     }
@@ -173,7 +198,21 @@ impl AssertionEvaluator {
             ComparisonOperator::LessThanOrEqual => {
                 Self::compare_numeric(actual, expected, |a, b| a <= b)
             }
-            ComparisonOperator::HasLength => Self::compare_numeric(actual, expected, |a, b| a == b),
+            ComparisonOperator::HasLengthEqual => {
+                Self::compare_numeric(actual, expected, |a, b| a == b)
+            }
+            ComparisonOperator::HasLengthGreaterThan => {
+                Self::compare_numeric(actual, expected, |a, b| a > b)
+            }
+            ComparisonOperator::HasLengthLessThan => {
+                Self::compare_numeric(actual, expected, |a, b| a < b)
+            }
+            ComparisonOperator::HasLengthGreaterThanOrEqual => {
+                Self::compare_numeric(actual, expected, |a, b| a >= b)
+            }
+            ComparisonOperator::HasLengthLessThanOrEqual => {
+                Self::compare_numeric(actual, expected, |a, b| a <= b)
+            }
 
             ComparisonOperator::Contains => Self::check_contains(actual, expected),
             ComparisonOperator::NotContains => Ok(!Self::check_contains(actual, expected)?),
@@ -295,7 +334,7 @@ mod tests {
         AssertionTask {
             id: "tasks_length".to_string(),
             field_path: Some("tasks".to_string()),
-            operator: ComparisonOperator::HasLength,
+            operator: ComparisonOperator::HasLengthEqual,
             expected_value: Value::Number(3.into()),
             description: Some("There should be 3 tasks".to_string()),
             task_type: EvaluationTaskType::Assertion,
@@ -337,6 +376,84 @@ mod tests {
             operator: ComparisonOperator::Contains,
             expected_value: Value::String("backend".to_string()),
             description: Some("Tags should contain 'backend'".to_string()),
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        }
+    }
+
+    fn not_equal_assertion() -> AssertionTask {
+        AssertionTask {
+            id: "status_not_equal".to_string(),
+            field_path: Some("status".to_string()),
+            operator: ComparisonOperator::NotEqual,
+            expected_value: Value::String("completed".to_string()),
+            description: Some("Status should not be completed".to_string()),
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        }
+    }
+
+    fn greater_than_assertion() -> AssertionTask {
+        AssertionTask {
+            id: "total_greater".to_string(),
+            field_path: Some("counts.total".to_string()),
+            operator: ComparisonOperator::GreaterThan,
+            expected_value: Value::Number(40.into()),
+            description: Some("Total should be greater than 40".to_string()),
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        }
+    }
+
+    fn less_than_assertion() -> AssertionTask {
+        AssertionTask {
+            id: "completed_less".to_string(),
+            field_path: Some("counts.completed".to_string()),
+            operator: ComparisonOperator::LessThan,
+            expected_value: Value::Number(20.into()),
+            description: Some("Completed should be less than 20".to_string()),
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        }
+    }
+
+    fn not_contains_assertion() -> AssertionTask {
+        AssertionTask {
+            id: "tags_not_contains".to_string(),
+            field_path: Some("metadata.tags".to_string()),
+            operator: ComparisonOperator::NotContains,
+            expected_value: Value::String("frontend".to_string()),
+            description: Some("Tags should not contain 'frontend'".to_string()),
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        }
+    }
+
+    fn starts_with_assertion() -> AssertionTask {
+        AssertionTask {
+            id: "status_starts_with".to_string(),
+            field_path: Some("status".to_string()),
+            operator: ComparisonOperator::StartsWith,
+            expected_value: Value::String("in_".to_string()),
+            description: Some("Status should start with 'in_'".to_string()),
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        }
+    }
+
+    fn ends_with_assertion() -> AssertionTask {
+        AssertionTask {
+            id: "status_ends_with".to_string(),
+            field_path: Some("status".to_string()),
+            operator: ComparisonOperator::EndsWith,
+            expected_value: Value::String("_progress".to_string()),
+            description: Some("Status should end with '_progress'".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
@@ -611,5 +728,442 @@ mod tests {
         let first_keyword =
             FieldEvaluator::extract_field_value(&json, "analysis.keywords[0]").unwrap();
         assert_eq!(*first_keyword, json!("innovation"));
+    }
+
+    #[test]
+    fn test_assertion_equals_pass() {
+        let json = get_test_json();
+        let assertion = priority_assertion();
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(result.passed);
+        assert_eq!(result.actual, json!("high"));
+        assert!(result.message.contains("passed"));
+    }
+
+    #[test]
+    fn test_assertion_equals_fail() {
+        let json = get_test_json();
+        let mut assertion = priority_assertion();
+        assertion.expected_value = Value::String("low".to_string());
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(!result.passed);
+        assert_eq!(result.actual, json!("high"));
+        assert!(result.message.contains("failed"));
+    }
+
+    #[test]
+    fn test_assertion_not_equal_pass() {
+        let json = get_test_json();
+        let assertion = not_equal_assertion();
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(result.passed);
+        assert_eq!(result.actual, json!("in_progress"));
+    }
+
+    #[test]
+    fn test_assertion_not_equal_fail() {
+        let json = get_test_json();
+        let mut assertion = not_equal_assertion();
+        assertion.expected_value = Value::String("in_progress".to_string());
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(!result.passed);
+    }
+
+    #[test]
+    fn test_assertion_greater_than_pass() {
+        let json = get_test_json();
+        let assertion = greater_than_assertion();
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(result.passed);
+        assert_eq!(result.actual, json!(42));
+    }
+
+    #[test]
+    fn test_assertion_greater_than_fail() {
+        let json = get_test_json();
+        let mut assertion = greater_than_assertion();
+        assertion.expected_value = Value::Number(50.into());
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(!result.passed);
+    }
+
+    #[test]
+    fn test_assertion_greater_than_or_equal_pass() {
+        let json = get_test_json();
+        let assertion = length_assertion_greater();
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_assertion_greater_than_or_equal_equal_case() {
+        let json = get_test_json();
+        let mut assertion = length_assertion_greater();
+        assertion.expected_value = Value::Number(3.into());
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_assertion_less_than_pass() {
+        let json = get_test_json();
+        let assertion = less_than_assertion();
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(result.passed);
+        assert_eq!(result.actual, json!(15));
+    }
+
+    #[test]
+    fn test_assertion_less_than_fail() {
+        let json = get_test_json();
+        let mut assertion = less_than_assertion();
+        assertion.expected_value = Value::Number(10.into());
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(!result.passed);
+    }
+
+    #[test]
+    fn test_assertion_less_than_or_equal_pass() {
+        let json = get_test_json();
+        let assertion = length_assertion_less();
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_assertion_less_than_or_equal_equal_case() {
+        let json = get_test_json();
+        let mut assertion = length_assertion_less();
+        assertion.expected_value = Value::Number(3.into());
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_assertion_has_length_pass() {
+        let json = get_test_json();
+        let assertion = length_assertion();
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_assertion_has_length_fail() {
+        let json = get_test_json();
+        let mut assertion = length_assertion();
+        assertion.expected_value = Value::Number(5.into());
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(!result.passed);
+    }
+
+    #[test]
+    fn test_assertion_has_length_string() {
+        let json = json!({"name": "test_user"});
+        let assertion = AssertionTask {
+            id: "name_length".to_string(),
+            field_path: Some("name".to_string()),
+            operator: ComparisonOperator::HasLengthEqual,
+            expected_value: Value::Number(9.into()),
+            description: Some("Name should have 9 characters".to_string()),
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_assertion_contains_array_pass() {
+        let json = get_test_json();
+        let assertion = contains_assertion();
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_assertion_contains_array_fail() {
+        let json = get_test_json();
+        let mut assertion = contains_assertion();
+        assertion.expected_value = Value::String("frontend".to_string());
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(!result.passed);
+    }
+
+    #[test]
+    fn test_assertion_contains_string_pass() {
+        let json = get_test_json();
+        let assertion = AssertionTask {
+            id: "status_contains_prog".to_string(),
+            field_path: Some("status".to_string()),
+            operator: ComparisonOperator::Contains,
+            expected_value: Value::String("progress".to_string()),
+            description: Some("Status should contain 'progress'".to_string()),
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_assertion_not_contains_pass() {
+        let json = get_test_json();
+        let assertion = not_contains_assertion();
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_assertion_not_contains_fail() {
+        let json = get_test_json();
+        let mut assertion = not_contains_assertion();
+        assertion.expected_value = Value::String("backend".to_string());
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(!result.passed);
+    }
+
+    #[test]
+    fn test_assertion_starts_with_pass() {
+        let json = get_test_json();
+        let assertion = starts_with_assertion();
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_assertion_starts_with_fail() {
+        let json = get_test_json();
+        let mut assertion = starts_with_assertion();
+        assertion.expected_value = Value::String("completed".to_string());
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(!result.passed);
+    }
+
+    #[test]
+    fn test_assertion_ends_with_pass() {
+        let json = get_test_json();
+        let assertion = ends_with_assertion();
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_assertion_ends_with_fail() {
+        let json = get_test_json();
+        let mut assertion = ends_with_assertion();
+        assertion.expected_value = Value::String("_pending".to_string());
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(!result.passed);
+    }
+
+    #[test]
+    fn test_assertion_matches_pass() {
+        let json = get_test_json();
+        let assertion = match_assertion();
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_assertion_matches_fail() {
+        let json = get_test_json();
+        let mut assertion = match_assertion();
+        assertion.expected_value = Value::String(r"^completed.*$".to_string());
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(!result.passed);
+    }
+
+    #[test]
+    fn test_assertion_matches_complex_regex() {
+        let json = get_test_json();
+        let assertion = AssertionTask {
+            id: "user_format".to_string(),
+            field_path: Some("metadata.created_by".to_string()),
+            operator: ComparisonOperator::Matches,
+            expected_value: Value::String(r"^user_\d+$".to_string()),
+            description: Some("User ID should match format user_###".to_string()),
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_assertion_no_field_path_evaluates_root() {
+        let json = json!({"status": "active"});
+        let assertion = AssertionTask {
+            id: "root_check".to_string(),
+            field_path: None,
+            operator: ComparisonOperator::Equals,
+            expected_value: json!({"status": "active"}),
+            description: Some("Check entire root object".to_string()),
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_assertion_empty_array_length() {
+        let json = get_test_json();
+        let assertion = AssertionTask {
+            id: "empty_array_length".to_string(),
+            field_path: Some("empty_array".to_string()),
+            operator: ComparisonOperator::HasLengthEqual,
+            expected_value: Value::Number(0.into()),
+            description: Some("Empty array should have length 0".to_string()),
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_assertion_numeric_comparison_with_floats() {
+        let json = json!({"score": 85.5});
+        let assertion = AssertionTask {
+            id: "score_check".to_string(),
+            field_path: Some("score".to_string()),
+            operator: ComparisonOperator::GreaterThanOrEqual,
+            expected_value: json!(85.0),
+            description: Some("Score should be at least 85".to_string()),
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_assertion_error_field_not_found() {
+        let json = get_test_json();
+        let assertion = AssertionTask {
+            id: "missing_field".to_string(),
+            field_path: Some("nonexistent.field".to_string()),
+            operator: ComparisonOperator::Equals,
+            expected_value: Value::String("value".to_string()),
+            description: Some("Should fail with field not found".to_string()),
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion);
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("not found"));
+    }
+
+    #[test]
+    fn test_assertion_error_invalid_regex() {
+        let json = get_test_json();
+        let assertion = AssertionTask {
+            id: "bad_regex".to_string(),
+            field_path: Some("status".to_string()),
+            operator: ComparisonOperator::Matches,
+            expected_value: Value::String("[invalid(".to_string()),
+            description: Some("Invalid regex pattern".to_string()),
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_assertion_error_type_mismatch_starts_with() {
+        let json = get_test_json();
+        let assertion = AssertionTask {
+            id: "type_mismatch".to_string(),
+            field_path: Some("counts.total".to_string()),
+            operator: ComparisonOperator::StartsWith,
+            expected_value: Value::String("4".to_string()),
+            description: Some("Cannot use StartsWith on number".to_string()),
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_assertion_error_type_mismatch_numeric_comparison() {
+        let json = json!({"value": "not_a_number"});
+        let assertion = AssertionTask {
+            id: "numeric_on_string".to_string(),
+            field_path: Some("value".to_string()),
+            operator: ComparisonOperator::GreaterThan,
+            expected_value: Value::Number(10.into()),
+            description: Some("Cannot compare string with number".to_string()),
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(!result.passed);
     }
 }

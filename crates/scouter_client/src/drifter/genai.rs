@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
+use pyo3::prelude::*;
+use pyo3::types::PyList;
 use scouter_drift::{error::DriftError, GenAIEvaluator};
 use scouter_state::app_state;
 use scouter_types::genai::{
     AssertionTask, GenAIDriftConfig, GenAIEvalProfile, GenAIEvalSet, LLMJudgeTask,
 };
 use scouter_types::GenAIRecord;
-use tokio::sync::Mutex;
 /// Using "ClientGenAIDrifter" to avoid confusion with the server-side GenAIDrifter
 pub struct ClientGenAIDrifter {}
 
@@ -36,7 +37,7 @@ impl ClientGenAIDrifter {
         profile: &GenAIEvalProfile,
     ) -> Result<GenAIEvalSet, DriftError> {
         let task_record = record.to_genai_event_record(&profile.config.uid);
-        let profile = Arc::new(Mutex::new(profile.clone()));
+        let profile = Arc::new(profile.clone());
         GenAIEvaluator::process_event_record(&task_record, profile).await
     }
 
@@ -56,4 +57,25 @@ impl ClientGenAIDrifter {
 
         Ok(results)
     }
+}
+
+/// Helper function to extract AssertionTask and LLMJudgeTask from a PyList
+pub(crate) fn extract_assertion_tasks_from_pylist(
+    list: &Bound<'_, PyList>,
+) -> Result<(Vec<AssertionTask>, Vec<LLMJudgeTask>), DriftError> {
+    let mut assertion_tasks = Vec::new();
+    let mut llm_judge_tasks = Vec::new();
+
+    for item in list.iter() {
+        if item.is_instance_of::<AssertionTask>() {
+            let task = item.extract::<AssertionTask>()?;
+            assertion_tasks.push(task);
+        } else if item.is_instance_of::<LLMJudgeTask>() {
+            let task = item.extract::<LLMJudgeTask>()?;
+            llm_judge_tasks.push(task);
+        } else {
+            return Err(DriftError::InvalidAssertionTaskType);
+        }
+    }
+    Ok((assertion_tasks, llm_judge_tasks))
 }

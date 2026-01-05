@@ -32,7 +32,7 @@ impl GenAIPoller {
         debug!("Processing workflow");
 
         // create arc mutex for profile
-        let profile = Arc::new(tokio::sync::Mutex::new(profile.clone()));
+        let profile = Arc::new(profile.clone());
         match GenAIEvaluator::process_event_record(record, profile).await {
             Ok(result_set) => {
                 // insert task results first

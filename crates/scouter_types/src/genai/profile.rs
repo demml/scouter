@@ -1,7 +1,7 @@
 use crate::error::{ProfileError, TypeError};
 use crate::genai::alert::GenAIAlertConfig;
 use crate::genai::eval::{AssertionTask, LLMJudgeTask};
-use crate::genai::traits::{ProfileExt, TaskAccessor, TaskRef};
+use crate::genai::traits::{ProfileExt, TaskAccessor};
 use crate::util::{json_to_pyobject, pyobject_to_json, ConfigExt};
 use crate::{scouter_version, GenAIEvalTaskResultRecord, GenAIEvalWorkflowRecord};
 use crate::{
@@ -18,6 +18,7 @@ use potato_head::{create_uuid7, Task};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use scouter_semver::VersionType;
+use scouter_state::app_state;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::hash_map::Entry;
@@ -190,6 +191,62 @@ fn validate_prompt_parameters(prompt: &Prompt, id: &str) -> Result<(), ProfileEr
     Ok(())
 }
 
+fn get_workflow_task<'a>(
+    workflow: &'a Workflow,
+    task_id: &'a str,
+) -> Result<&'a Arc<std::sync::RwLock<potato_head::Task>>, ProfileError> {
+    workflow
+        .task_list
+        .tasks
+        .get(task_id)
+        .ok_or_else(|| ProfileError::NoTasksFoundError(format!("Task '{task_id}' not found")))
+}
+
+/// Helper function to validate first tasks in workflow execution.
+fn validate_first_tasks(
+    workflow: &Workflow,
+    execution_order: &HashMap<i32, std::collections::HashSet<String>>,
+) -> Result<(), ProfileError> {
+    let first_tasks = execution_order
+        .get(&1)
+        .ok_or_else(|| ProfileError::NoTasksFoundError("No initial tasks found".to_string()))?;
+
+    for task_id in first_tasks {
+        let task = get_workflow_task(workflow, task_id)?;
+        let task_guard = task
+            .read()
+            .map_err(|_| ProfileError::NoTasksFoundError("Failed to read task".to_string()))?;
+
+        validate_prompt_parameters(&task_guard.prompt, &task_guard.id)?;
+    }
+
+    Ok(())
+}
+
+/// Validates workflow execution parameters and response types.
+///
+/// Ensures that:
+/// - First tasks have required prompt parameters
+/// - Last tasks have a response type e
+///
+/// # Arguments
+/// * `workflow` - The workflow to validate
+///
+/// # Returns
+/// * `Ok(())` if validation passes
+/// * `Err(ProfileError)` if validation fails
+///
+/// # Errors
+/// Returns various ProfileError types based on validation failures.
+fn validate_workflow(workflow: &Workflow) -> Result<(), ProfileError> {
+    let execution_order = workflow.execution_plan()?;
+
+    // Validate first tasks have required parameters
+    validate_first_tasks(workflow, &execution_order)?;
+
+    Ok(())
+}
+
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct GenAIEvalProfile {
@@ -235,6 +292,17 @@ impl GenAIEvalProfile {
             return Err(ProfileError::EmptyTaskList);
         }
 
+        let workflow = if !llm_judge_tasks.is_empty() {
+            let workflow = app_state()
+                .block_on(async { Self::build_workflow_from_judges(&llm_judge_tasks).await })?;
+
+            // Validate the workflow
+            validate_workflow(&workflow)?;
+            Some(workflow)
+        } else {
+            None
+        };
+
         // Validate LLM judge prompts individually
         for judge in &llm_judge_tasks {
             validate_prompt_parameters(&judge.prompt, &judge.id)?;
@@ -245,7 +313,7 @@ impl GenAIEvalProfile {
             assertion_tasks,
             llm_judge_tasks,
             scouter_version: scouter_version(),
-            workflow: None, // No static workflow anymore
+            workflow,
         })
     }
 
@@ -433,7 +501,7 @@ impl GenAIEvalProfile {
     pub async fn build_workflow_from_judges(
         judges: &[LLMJudgeTask],
     ) -> Result<Workflow, ProfileError> {
-        let mut workflow = Workflow::new(&format!("genai_eval_level_{}", create_uuid7()));
+        let mut workflow = Workflow::new(&format!("genai_eval_{}", create_uuid7()));
         let mut agents = HashMap::new();
 
         for judge in judges {
@@ -446,14 +514,12 @@ impl GenAIEvalProfile {
                 }
             };
 
-            // For level-based workflows, dependencies within the level don't matter
-            // since they're already handled by execution_plan
             let task = Task::new(
                 &agent.id,
                 judge.prompt.clone(),
                 &judge.id,
-                None, // No internal dependencies - handled by level ordering
-                None,
+                Some(judge.depends_on.clone()),
+                judge.max_retries.clone(),
             );
 
             workflow.add_task(task)?;
@@ -649,6 +715,27 @@ impl GenAIEvalSet {
         self.inner.duration_ms
     }
 
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        PyHelperFuncs::__str__(self)
+    }
+}
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GenAIEvalSetMap {
+    #[pyo3(get)]
+    pub records: Vec<GenAIEvalSet>,
+}
+
+#[pymethods]
+impl GenAIEvalSetMap {
+    pub fn record(&self, id: &str) -> Option<GenAIEvalSet> {
+        self.records
+            .iter()
+            .find(|r| r.get_record_uid() == id)
+            .cloned()
+    }
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         PyHelperFuncs::__str__(self)

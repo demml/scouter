@@ -16,10 +16,12 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Display;
-use std::str::FromStr;
 
 #[cfg(feature = "server")]
 use sqlx::{postgres::PgRow, FromRow, Row};
+
+#[cfg(feature = "server")]
+use std::str::FromStr;
 
 #[pyclass(eq)]
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
