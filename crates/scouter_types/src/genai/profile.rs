@@ -529,7 +529,7 @@ impl GenAIEvalProfile {
     pub async fn build_workflow_from_judges(
         judges: &[LLMJudgeTask],
     ) -> Result<Workflow, ProfileError> {
-        let mut workflow = Workflow::new(&format!("genai_eval_{}", create_uuid7()));
+        let mut workflow = Workflow::new(&format!("eval_workflow_{}", create_uuid7()));
         let mut agents = HashMap::new();
 
         for judge in judges {
