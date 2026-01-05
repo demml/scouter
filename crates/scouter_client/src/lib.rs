@@ -78,7 +78,7 @@ pub use scouter_types::error::{ContractError, ProfileError, RecordError, TypeErr
 pub use scouter_evaluate::{
     error::EvaluationError,
     genai::evaluate_genai_dataset,
-    types::{EvaluationConfig, GenAIEvalResults, GenAIEvalResults},
+    types::{EvaluationConfig, GenAIEvalResults},
 };
 pub use scouter_tracing::error::TraceError;
 pub use scouter_tracing::exporter::{
