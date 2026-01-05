@@ -3,4 +3,4 @@ pub mod evaluate;
 pub mod genai;
 pub mod tasks;
 pub mod types;
-pub mod util;
+pub mod utils;

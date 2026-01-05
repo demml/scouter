@@ -12204,36 +12204,44 @@ class GenAIEvalRecord:
         "What is the capital of France?"
     """
 
-    prompt: Optional[Prompt]
-    """Optional prompt configuration associated with this record."""
-
-    entity_type: EntityType
-    """Type of entity, always EntityType.LLM for GenAIEvalRecord instances."""
-
     def __init__(
         self,
         context: Context,
-        prompt: Optional[Prompt | SerializedType] = None,
+        record_id: Optional[str] = None,
     ) -> None:
         """Creates a new LLM record to associate with an `GenAIEvalProfile`.
         The record is sent to the `Scouter` server via the `ScouterQueue` and is
         then used to inject context into the evaluation prompts.
 
         Args:
-            context:
+            context (Dict[str, Any] | BaseModel):
                 Additional context information as a dictionary or a pydantic BaseModel. During evaluation,
                 this will be merged with the input and response data and passed to the assigned
                 evaluation prompts. So if you're evaluation prompts expect additional context via
                 bound variables (e.g., `${foo}`), you can pass that here as key value pairs.
                 {"foo": "bar"}
-            prompt:
-                Optional prompt configuration associated with this record. Can be a Potatohead Prompt or
-                a JSON-serializable type.
+            record_id (Optional[str], optional):
+                Optional unique identifier for the record.
 
         Raises:
             TypeError: If context is not a dict or a pydantic BaseModel.
 
         """
+    @property
+    def record_id(self) -> Optional[str]:
+        """Get the record ID."""
+
+    @record_id.setter
+    def record_id(self, record_id: str) -> None:
+        """Set the record ID."""
+
+    @property
+    def created_at(self) -> datetime.datetime:
+        """Get the created at timestamp."""
+
+    @property
+    def uid(self) -> str:
+        """Get the unique identifier for the record."""
 
     @property
     def context(self) -> Dict[str, Any]:
@@ -12245,6 +12253,12 @@ class GenAIEvalRecord:
         Raises:
             TypeError: If the stored JSON cannot be converted to a Python object.
         """
+
+    def __str__(self) -> str:
+        """Return the string representation of the record."""
+
+    def model_dump_json(self) -> str:
+        """Return the json representation of the record."""
 
 class LLMTestServer:
     """
@@ -14914,56 +14928,6 @@ class GenAIEvalMetric:
     def __str__(self) -> str:
         """
         String representation of the GenAIEvalMetric
-        """
-
-class GenAIEvalRecord:
-    """LLM record containing context tied to a Large Language Model interaction
-    that is used to evaluate LLM responses.
-
-
-    Examples:
-        >>> record = GenAIEvalRecord(
-                id="123",
-                context={
-                    "input": "What is the capital of France?",
-                    "response": "Paris is the capital of France."
-                },
-        ... )
-        >>> print(record.context["input"])
-        "What is the capital of France?"
-    """
-
-    def __init__(
-        self,
-        context: Context,
-        id: Optional[str] = None,
-    ) -> None:
-        """Creates a new LLM record to associate with an `GenAIEvalProfile`.
-        The record is sent to the `Scouter` server via the `ScouterQueue` and is
-        then used to inject context into the evaluation prompts.
-
-        Args:
-            context:
-                Additional context information as a dictionary or a pydantic BaseModel. During evaluation,
-                this will be merged with the input and response data and passed to the assigned
-                evaluation prompts. So if you're evaluation prompts expect additional context via
-                bound variables (e.g., `${foo}`), you can pass that here as key value pairs.
-                {"foo": "bar"}
-            id:
-                Unique identifier for the record. If not provided, a new UUID will be generated.
-                This is helpful for when joining evaluation results back to the original request.
-
-        Raises:
-            TypeError: If context is not a dict or a pydantic BaseModel.
-
-        """
-
-    @property
-    def context(self) -> Dict[str, Any]:
-        """Get the contextual information.
-
-        Returns:
-            The context data as a Python object (deserialized from JSON).
         """
 
 def evaluate_genai(

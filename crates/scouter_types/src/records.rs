@@ -199,9 +199,7 @@ pub struct GenAIEvalRecord {
     #[pyo3(get)]
     pub uid: String,
     pub context: Value,
-    #[pyo3(get)]
     pub id: i64,
-    #[pyo3(get)]
     pub updated_at: Option<DateTime<Utc>>,
     pub processing_started_at: Option<DateTime<Utc>>,
     pub processing_ended_at: Option<DateTime<Utc>>,
