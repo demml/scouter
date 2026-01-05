@@ -155,6 +155,33 @@ impl MessageHandler {
                 }
             }
 
+            RecordType::GenAITask => {
+                debug!("GenAI Task count: {:?}", records.len());
+                let records = records.to_genai_task_records()?;
+                for chunk in records.chunks(Self::DEFAULT_BATCH_SIZE) {
+                    PostgresClient::insert_eval_task_results_batch(pool, chunk, &entity_id)
+                        .await
+                        .map_err(|e| {
+                            error!("Failed to insert GenAI task records batch: {:?}", e);
+                            e
+                        })?;
+                }
+            }
+
+            RecordType::GenAIWorkflow => {
+                debug!("GenAI Workflow count: {:?}", records.len());
+                let records = records.to_genai_workflow_records()?;
+                for record in records {
+                    let _ = PostgresClient::insert_genai_eval_workflow_record(
+                        pool, &record, &entity_id,
+                    )
+                    .await
+                    .map_err(|e| {
+                        error!("Failed to insert GenAI workflow record: {:?}", e);
+                    });
+                }
+            }
+
             _ => {
                 error!(
                     "Unsupported record type for batch insert: {:?}",
@@ -1075,7 +1102,7 @@ mod tests {
             &pool,
             &pending_tasks.unwrap(),
             Status::Processed,
-            &(1 as i32),
+            &(1 as i64),
         )
         .await
         .unwrap();

@@ -424,7 +424,7 @@ impl GenAIEvaluator {
             } else {
                 (passed_count as f64) / ((passed_count + failed_count) as f64)
             },
-            duration_ms: duration_ms as i32,
+            duration_ms: duration_ms,
             entity_uid: String::new(),
         };
 

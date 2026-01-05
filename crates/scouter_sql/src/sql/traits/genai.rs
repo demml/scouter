@@ -632,6 +632,8 @@ pub trait GenAIDriftSqlLogic {
             .await
             .map_err(SqlError::SqlxError)?;
 
+        debug!("Fetched pending GenAI drift record: {:?}", result);
+
         Ok(result)
     }
 
@@ -640,7 +642,7 @@ pub trait GenAIDriftSqlLogic {
         pool: &Pool<Postgres>,
         record: &GenAIEvalRecord,
         status: Status,
-        workflow_duration: &i32,
+        workflow_duration: &i64,
     ) -> Result<(), SqlError> {
         let query = Queries::UpdateGenAIEvalTask.get_query();
         let _query_result = sqlx::query(query)

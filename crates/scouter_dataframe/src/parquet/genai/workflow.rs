@@ -80,6 +80,7 @@ impl GenAIWorkflowDataFrame {
             Field::new("failed_tasks", DataType::Int32, false),
             Field::new("pass_rate", DataType::Float64, false),
             Field::new("duration_ms", DataType::Int64, false),
+            Field::new("metric", DataType::Utf8, false),
         ]));
 
         let object_store = ObjectStore::new(storage_settings)?;
@@ -124,7 +125,9 @@ impl GenAIWorkflowDataFrame {
 
         // 8. duration_ms
         let duration_ms_array =
-            arrow_array::Int32Array::from_iter_values(records.iter().map(|r| r.duration_ms));
+            arrow_array::Int64Array::from_iter_values(records.iter().map(|r| r.duration_ms));
+
+        let metric_array = StringArray::from_iter_values(records.iter().map(|_| "workflow"));
 
         let batch = RecordBatch::try_new(
             self.schema.clone(),
@@ -137,6 +140,7 @@ impl GenAIWorkflowDataFrame {
                 Arc::new(failed_tasks_array),
                 Arc::new(pass_rate_array),
                 Arc::new(duration_ms_array),
+                Arc::new(metric_array),
             ],
         )
         .map_err(DataFrameError::ArrowError)?;

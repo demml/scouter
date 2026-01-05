@@ -28,7 +28,7 @@ test.server:
 
 .PHONY: test.server.archive.genai
 test.server.archive.genai:
-	cargo test -p scouter-server test_data_archive_genai_drift --all-features -- --nocapture --test-threads=1
+	cargo test -p scouter-server test_data_archive_genai --all-features -- --nocapture --test-threads=1
 
 
 .PHONY: test.server.cloud

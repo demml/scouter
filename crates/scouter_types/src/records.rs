@@ -336,7 +336,7 @@ impl FromRow<'_, PgRow> for GenAIEvalRecord {
             processing_started_at: row.try_get("processing_started_at")?,
             processing_ended_at: row.try_get("processing_ended_at")?,
             processing_duration: row.try_get("processing_duration")?,
-            entity_id: -1,             // mask entity_id when loading from DB
+            entity_id: row.try_get("entity_id")?,
             entity_uid: String::new(), // mask entity_uid when loading from DB
             status,
             entity_type: EntityType::GenAI,
@@ -383,7 +383,7 @@ pub struct GenAIEvalWorkflowRecord {
     pub pass_rate: f64,
 
     #[pyo3(get)]
-    pub duration_ms: i32,
+    pub duration_ms: i64,
 
     #[cfg_attr(feature = "server", sqlx(skip))]
     pub entity_uid: String,
@@ -406,7 +406,7 @@ impl GenAIEvalWorkflowRecord {
         total_tasks: i32,
         passed_tasks: i32,
         failed_tasks: i32,
-        duration_ms: i32,
+        duration_ms: i64,
         entity_id: i32,
         entity_uid: String,
     ) -> Self {

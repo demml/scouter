@@ -124,7 +124,8 @@ pub fn get_binned_genai_workflow_values_query(
         r#"WITH subquery1 AS (
     SELECT
         date_bin(INTERVAL '{} minute', created_at, TIMESTAMP '1970-01-01') as created_at,
-        value
+        metric,
+        pass_rate as value
     FROM binned_genai_workflow
     WHERE
         1=1
@@ -135,6 +136,7 @@ pub fn get_binned_genai_workflow_values_query(
 subquery2 AS (
     SELECT
         created_at,
+        metric,
         avg(value) as average,
         stddev(value) as standard_dev
     FROM subquery1
@@ -146,6 +148,7 @@ subquery2 AS (
 subquery3 AS (
     SELECT
         created_at,
+        metric,
         struct(
             average as avg,
             average - COALESCE(standard_dev, 0) as lower_bound,
@@ -155,7 +158,7 @@ subquery3 AS (
 )
 
 SELECT
-    'workflow_metric' as metric,
+    metric,
     array_agg(created_at) as created_at,
     array_agg(stats) as stats
 FROM subquery3

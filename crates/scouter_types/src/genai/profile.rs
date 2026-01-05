@@ -555,85 +555,6 @@ impl GenAIEvalProfile {
 
         Ok(workflow)
     }
-
-    pub fn build_eval_set_from_tasks(
-        &self,
-        record: &GenAIEvalRecord,
-        duration_ms: i64,
-    ) -> GenAIEvalSet {
-        let mut passed_count = 0;
-        let mut failed_count = 0;
-        let mut records = Vec::new();
-
-        for assertion in &self.assertion_tasks {
-            if let Some(result) = &assertion.result {
-                if result.passed {
-                    passed_count += 1;
-                } else {
-                    failed_count += 1;
-                }
-                records.push(GenAIEvalTaskResultRecord {
-                    created_at: Utc::now(),
-                    record_uid: record.uid.clone(),
-                    entity_id: record.entity_id.clone(),
-                    task_id: assertion.id.clone(),
-                    task_type: assertion.task_type.clone(),
-                    passed: result.passed,
-                    value: result.to_metric_value(),
-                    field_path: assertion.field_path.clone(),
-                    expected: assertion.expected_value.clone(),
-                    actual: result.actual.clone(),
-                    message: result.message.clone(),
-                    operator: assertion.operator.clone(),
-                    // Not applicable for assertions ( we already have entity_id)
-                    entity_uid: String::new(),
-                });
-            }
-        }
-
-        for judge in &self.llm_judge_tasks {
-            if let Some(result) = &judge.result {
-                if result.passed {
-                    passed_count += 1;
-                } else {
-                    failed_count += 1;
-                }
-                records.push(GenAIEvalTaskResultRecord {
-                    created_at: Utc::now(),
-                    record_uid: record.uid.clone(),
-                    entity_id: record.entity_id.clone(),
-                    task_id: judge.id.clone(),
-                    task_type: judge.task_type.clone(),
-                    passed: result.passed,
-                    value: result.to_metric_value(),
-                    field_path: judge.field_path.clone(),
-                    expected: judge.expected_value.clone(),
-                    actual: result.actual.clone(),
-                    message: result.message.clone(),
-                    operator: judge.operator.clone(),
-                    entity_uid: String::new(), // Not applicable for assertions
-                });
-            }
-        }
-
-        let workflow_record = GenAIEvalWorkflowRecord {
-            created_at: Utc::now(),
-            entity_id: record.entity_id.clone(),
-            record_uid: record.uid.clone(),
-            total_tasks: (passed_count + failed_count) as i32,
-            passed_tasks: passed_count as i32,
-            failed_tasks: failed_count as i32,
-            pass_rate: if passed_count + failed_count == 0 {
-                0.0
-            } else {
-                (passed_count as f64) / ((passed_count + failed_count) as f64)
-            },
-            duration_ms: duration_ms as i32,
-            entity_uid: String::new(), // Not applicable for assertions
-        };
-
-        GenAIEvalSet::new(records, workflow_record)
-    }
 }
 
 impl ProfileExt for GenAIEvalProfile {
@@ -756,7 +677,7 @@ impl GenAIEvalSet {
     }
 
     #[getter]
-    pub fn get_duration_ms(&self) -> i32 {
+    pub fn get_duration_ms(&self) -> i64 {
         self.inner.duration_ms
     }
 
