@@ -1,9 +1,9 @@
-use crate::error::DriftError;
-use crate::genai::store::{AssertionResultStore, LLMResponseStore, TaskRegistry, TaskType};
-use scouter_evaluate::tasks::traits::EvaluationTask;
+use crate::error::EvaluationError;
+use crate::evaluate::store::{AssertionResultStore, LLMResponseStore, TaskRegistry, TaskType};
+use crate::tasks::traits::EvaluationTask;
 use scouter_types::genai::traits::ProfileExt;
 use scouter_types::genai::{AssertionResult, GenAIEvalProfile, GenAIEvalSet};
-use scouter_types::GenAIEventRecord;
+use scouter_types::GenAIEvalRecord;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -132,9 +132,9 @@ impl GenAIEvaluator {
     /// Process a GenAI event record through the evaluation pipeline
     #[instrument(skip_all, fields(record_uid = %record.uid))]
     pub async fn process_event_record(
-        record: &GenAIEventRecord,
+        record: &GenAIEvalRecord,
         profile: Arc<GenAIEvalProfile>,
-    ) -> Result<GenAIEvalSet, DriftError> {
+    ) -> Result<GenAIEvalSet, EvaluationError> {
         let evaluator = Self::new(record.context.clone(), &profile).await;
         evaluator.execute_tasks(record, profile).await
     }
@@ -142,9 +142,9 @@ impl GenAIEvaluator {
     #[instrument(skip_all)]
     async fn execute_tasks(
         &self,
-        record: &GenAIEventRecord,
+        record: &GenAIEvalRecord,
         profile: Arc<GenAIEvalProfile>,
-    ) -> Result<GenAIEvalSet, DriftError> {
+    ) -> Result<GenAIEvalSet, EvaluationError> {
         let begin = chrono::Utc::now();
         let execution_plan = profile.get_execution_plan()?;
 
@@ -190,7 +190,7 @@ impl GenAIEvaluator {
         &self,
         task_ids: &[String],
         profile: &Arc<GenAIEvalProfile>,
-    ) -> Result<(), DriftError> {
+    ) -> Result<(), EvaluationError> {
         let mut join_set = JoinSet::new();
 
         for task_id in task_ids {
@@ -206,7 +206,7 @@ impl GenAIEvaluator {
 
         while let Some(result) = join_set.join_next().await {
             result.map_err(|e| {
-                DriftError::GenAIEvaluatorError(format!("Task join error: {}", e))
+                EvaluationError::GenAIEvaluatorError(format!("Task join error: {}", e))
             })??;
         }
 
@@ -217,7 +217,7 @@ impl GenAIEvaluator {
         &self,
         task_ids: &[String],
         profile: &Arc<GenAIEvalProfile>,
-    ) -> Result<(), DriftError> {
+    ) -> Result<(), EvaluationError> {
         let (assertion_ids, llm_judge_ids) = self.partition_tasks(task_ids, profile).await;
 
         // Run both task groups concurrently
@@ -253,11 +253,11 @@ impl GenAIEvaluator {
         profile: Arc<GenAIEvalProfile>,
         base_context: Arc<Value>,
         result_store: TaskResultStore,
-    ) -> Result<(), DriftError> {
+    ) -> Result<(), EvaluationError> {
         // Get immutable task reference
         let task = profile
             .get_assertion_by_id(task_id)
-            .ok_or_else(|| DriftError::TaskNotFound(task_id.to_string()))?;
+            .ok_or_else(|| EvaluationError::TaskNotFound(task_id.to_string()))?;
 
         // Build scoped context
         let scoped_context = result_store
@@ -286,10 +286,10 @@ impl GenAIEvaluator {
     async fn execute_judge_workflow(
         &self,
         profile: &Arc<GenAIEvalProfile>,
-    ) -> Result<(), DriftError> {
+    ) -> Result<(), EvaluationError> {
         // Build workflow from LLM judges
         let workflow = profile.workflow.as_ref().ok_or_else(|| {
-            DriftError::GenAIEvaluatorError("No workflow defined in profile".to_string())
+            EvaluationError::GenAIEvaluatorError("No workflow defined in profile".to_string())
         })?;
 
         let result = workflow.run(Some((*self.base_context).clone())).await?;
@@ -298,7 +298,7 @@ impl GenAIEvaluator {
         let workflow_results: HashMap<String, Value> = {
             let read_result = result
                 .read()
-                .map_err(|_| DriftError::ReadLockAcquireError)?;
+                .map_err(|_| EvaluationError::ReadLockAcquireError)?;
             read_result.task_list.get_task_responses()?
         };
 
@@ -321,7 +321,7 @@ impl GenAIEvaluator {
         &self,
         workflow_results: HashMap<String, Value>,
         profile: &Arc<GenAIEvalProfile>,
-    ) -> Result<(), DriftError> {
+    ) -> Result<(), EvaluationError> {
         for (task_id, response) in workflow_results {
             if let Some(task) = profile.get_llm_judge_by_id(&task_id) {
                 // Build scoped context with dependencies
@@ -348,7 +348,7 @@ impl GenAIEvaluator {
     /// Build final eval set from stored results
     async fn build_eval_set(
         &self,
-        record: &GenAIEventRecord,
+        record: &GenAIEvalRecord,
         profile: &Arc<GenAIEvalProfile>,
         duration_ms: i64,
     ) -> GenAIEvalSet {

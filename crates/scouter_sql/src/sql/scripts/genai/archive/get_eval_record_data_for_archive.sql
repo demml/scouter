@@ -2,17 +2,15 @@ SELECT
     id,
     created_at,
     uid,
+    entity_id,
     context,
-    prompt,
-    status,
-    score,
     updated_at,
+     status,
     processing_started_at,
     processing_ended_at,
     processing_duration,
-    entity_uid,
-    entity_id
-FROM scouter.genai_event_record
+    record_id
+FROM scouter.genai_eval_record
 WHERE 1=1
     AND created_at BETWEEN $1 AND $2
     AND entity_id = $3

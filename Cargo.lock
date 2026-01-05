@@ -5727,11 +5727,13 @@ dependencies = [
 name = "scouter-evaluate"
 version = "0.13.0"
 dependencies = [
+ "chrono",
  "itertools 0.14.0",
  "ndarray",
  "num-traits",
  "potato-head",
  "pyo3",
+ "pythonize",
  "rayon",
  "regex",
  "scouter-profile",

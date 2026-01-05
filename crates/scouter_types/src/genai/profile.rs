@@ -2,13 +2,14 @@ use crate::error::{ProfileError, TypeError};
 use crate::genai::alert::GenAIAlertConfig;
 use crate::genai::eval::{AssertionTask, LLMJudgeTask};
 use crate::genai::traits::{ProfileExt, TaskAccessor};
+use crate::genai::utils::extract_assertion_tasks_from_pylist;
 use crate::util::{json_to_pyobject, pyobject_to_json, ConfigExt};
 use crate::{scouter_version, GenAIEvalTaskResultRecord, GenAIEvalWorkflowRecord};
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
     PyHelperFuncs, VersionRequest, DEFAULT_VERSION, MISSING,
 };
-use crate::{GenAIEventRecord, ProfileRequest};
+use crate::{GenAIEvalRecord, ProfileRequest};
 use chrono::{DateTime, Utc};
 use core::fmt::Debug;
 use potato_head::prompt_types::Prompt;
@@ -16,12 +17,13 @@ use potato_head::Agent;
 use potato_head::Workflow;
 use potato_head::{create_uuid7, Task};
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
+use pyo3::types::{PyDict, PyList};
 use scouter_semver::VersionType;
 use scouter_state::app_state;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::hash_map::Entry;
+use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -164,6 +166,20 @@ impl GenAIDriftConfig {
     }
 }
 
+impl Default for GenAIDriftConfig {
+    fn default() -> Self {
+        Self {
+            sample_rate: 5,
+            space: "default".to_string(),
+            name: "default_genai_profile".to_string(),
+            version: DEFAULT_VERSION.to_string(),
+            uid: create_uuid7(),
+            alert_config: GenAIAlertConfig::default(),
+            drift_type: DriftType::GenAI,
+        }
+    }
+}
+
 /// Validates that a prompt contains at least one required parameter.
 ///
 /// LLM evaluation prompts must have either "input" or "output" parameters
@@ -263,6 +279,8 @@ pub struct GenAIEvalProfile {
     pub scouter_version: String,
 
     pub workflow: Option<Workflow>,
+
+    pub task_ids: BTreeSet<String>,
 }
 
 #[pymethods]
@@ -308,12 +326,22 @@ impl GenAIEvalProfile {
             validate_prompt_parameters(&judge.prompt, &judge.id)?;
         }
 
+        // Collect all task IDs from assertion and LLM judge tasks
+        let mut task_ids = BTreeSet::new();
+        for task in &assertion_tasks {
+            task_ids.insert(task.id.clone());
+        }
+        for task in &llm_judge_tasks {
+            task_ids.insert(task.id.clone());
+        }
+
         Ok(Self {
             config,
             assertion_tasks,
             llm_judge_tasks,
             scouter_version: scouter_version(),
             workflow,
+            task_ids,
         })
     }
 
@@ -530,7 +558,7 @@ impl GenAIEvalProfile {
 
     pub fn build_eval_set_from_tasks(
         &self,
-        record: &GenAIEventRecord,
+        record: &GenAIEvalRecord,
         duration_ms: i64,
     ) -> GenAIEvalSet {
         let mut passed_count = 0;
@@ -676,6 +704,23 @@ impl GenAIEvalSet {
     pub fn new(records: Vec<GenAIEvalTaskResultRecord>, inner: GenAIEvalWorkflowRecord) -> Self {
         Self { records, inner }
     }
+
+    pub fn empty() -> Self {
+        Self {
+            records: Vec::new(),
+            inner: GenAIEvalWorkflowRecord {
+                created_at: Utc::now(),
+                record_uid: String::new(),
+                entity_id: 0,
+                total_tasks: 0,
+                passed_tasks: 0,
+                failed_tasks: 0,
+                pass_rate: 0.0,
+                duration_ms: 0,
+                entity_uid: String::new(),
+            },
+        }
+    }
 }
 
 #[pymethods]
@@ -723,13 +768,13 @@ impl GenAIEvalSet {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct GenAIEvalSetMap {
+pub struct GenAIEvalResultSet {
     #[pyo3(get)]
     pub records: Vec<GenAIEvalSet>,
 }
 
 #[pymethods]
-impl GenAIEvalSetMap {
+impl GenAIEvalResultSet {
     pub fn record(&self, id: &str) -> Option<GenAIEvalSet> {
         self.records
             .iter()
@@ -742,6 +787,48 @@ impl GenAIEvalSetMap {
     }
 }
 
+/// Create dataset to use in offline evaluation
+
+#[pyclass]
+pub struct GenAIEvalDataset {
+    #[pyo3(get)]
+    pub records: Vec<GenAIEvalRecord>,
+    pub profile: Arc<GenAIEvalProfile>,
+}
+
+#[pymethods]
+impl GenAIEvalDataset {
+    #[new]
+    #[pyo3(signature = (records, tasks))]
+    pub fn new(
+        records: Vec<GenAIEvalRecord>,
+        tasks: &Bound<'_, PyList>,
+    ) -> Result<Self, TypeError> {
+        let (assertions_tasks, llm_judge_tasks) = extract_assertion_tasks_from_pylist(tasks)?;
+
+        let profile = GenAIEvalProfile::new(
+            GenAIDriftConfig::default(),
+            Some(assertions_tasks),
+            Some(llm_judge_tasks),
+        )
+        .map_err(|e| TypeError::FailedToCreateProfile(e.to_string()))?;
+
+        Ok(Self {
+            records,
+            profile: Arc::new(profile),
+        })
+    }
+
+    #[getter]
+    pub fn llm_judge_tasks(&self) -> Vec<LLMJudgeTask> {
+        self.profile.llm_judge_tasks.clone()
+    }
+
+    #[getter]
+    pub fn assertion_tasks(&self) -> Vec<AssertionTask> {
+        self.profile.assertion_tasks.clone()
+    }
+}
 // write test using mock feature
 #[cfg(test)]
 #[cfg(feature = "mock")]

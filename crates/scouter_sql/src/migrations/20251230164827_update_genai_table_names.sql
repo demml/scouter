@@ -36,7 +36,7 @@ DROP TABLE IF EXISTS scouter.template_scouter_llm_drift CASCADE;
 -- STEP 5: Create New genai_event_record Table
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS scouter.genai_event_record (
+CREATE TABLE IF NOT EXISTS scouter.genai_eval_record (
     id BIGINT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     uid TEXT DEFAULT gen_random_uuid(),
@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS scouter.genai_event_record (
     processing_started_at TIMESTAMPTZ,
     processing_ended_at TIMESTAMPTZ,
     processing_duration INTEGER,
+    record_id TEXT,
     archived BOOLEAN DEFAULT false,
     PRIMARY KEY (uid, created_at),
     UNIQUE (created_at, name, space, version)
@@ -56,8 +57,8 @@ PARTITION BY RANGE (created_at);
 -- ============================================================================
 -- STEP 6: Create Indexes
 -- ============================================================================
-CREATE INDEX IF NOT EXISTS idx_genai_event_record_lookup ON scouter.genai_event_record (entity_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_genai_event_record_pagination ON scouter.genai_event_record (entity_id, id DESC);;
+CREATE INDEX IF NOT EXISTS idx_genai_event_record_lookup ON scouter.genai_eval_record (entity_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_genai_event_record_pagination ON scouter.genai_eval_record (entity_id, id DESC);;
 
 
 -- ============================================================================
@@ -66,7 +67,7 @@ CREATE INDEX IF NOT EXISTS idx_genai_event_record_pagination ON scouter.genai_ev
 
 -- Register table with pg_partman for automatic partition management
 SELECT scouter.create_parent(
-    'scouter.genai_event_record',
+    'scouter.genai_eval_record',
     'created_at',
     '1 day'
 );
@@ -74,4 +75,4 @@ SELECT scouter.create_parent(
 -- Set retention policy to automatically drop old partitions after 60 days
 UPDATE scouter.part_config
 SET retention = '60 days'
-WHERE parent_table = 'scouter.genai_event_record';
+WHERE parent_table = 'scouter.genai_eval_record';

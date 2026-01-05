@@ -12,7 +12,7 @@ use crate::queue::traits::queue::QueueMethods;
 use crate::queue::types::TransportConfig;
 use pyo3::prelude::*;
 use scouter_state::app_state;
-use scouter_types::{DriftProfile, GenAIRecord, QueueItem};
+use scouter_types::{DriftProfile, GenAIEvalRecord, QueueItem};
 use scouter_types::{Features, Metrics};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -44,7 +44,7 @@ pub enum QueueNum {
     Spc(SpcQueue),
     Psi(PsiQueue),
     Custom(CustomQueue),
-    LLM(GenAIQueue),
+    GenAI(GenAIQueue),
 }
 // need to add queue running lock to each and return it to the queue bus
 impl QueueNum {
@@ -72,7 +72,7 @@ impl QueueNum {
             }
             DriftProfile::GenAI(genai_profile) => {
                 let queue = GenAIQueue::new(genai_profile, transport_config).await?;
-                Ok(QueueNum::LLM(queue))
+                Ok(QueueNum::GenAI(queue))
             }
         }
     }
@@ -90,7 +90,7 @@ impl QueueNum {
         match entity {
             QueueItem::Features(features) => self.insert_features(features).await,
             QueueItem::Metrics(metrics) => self.insert_metrics(metrics).await,
-            QueueItem::LLM(genai_record) => self.insert_genai_record(*genai_record).await,
+            QueueItem::GenAI(genai_record) => self.insert_genai_record(*genai_record).await,
         }
     }
 
@@ -128,10 +128,10 @@ impl QueueNum {
     ///
     pub async fn insert_genai_record(
         &mut self,
-        genai_record: GenAIRecord,
+        genai_record: GenAIEvalRecord,
     ) -> Result<(), EventError> {
         match self {
-            QueueNum::LLM(queue) => {
+            QueueNum::GenAI(queue) => {
                 if !queue.should_insert() {
                     debug!("Skipping LLM record insertion due to sampling rate");
                     return Ok(());
@@ -149,7 +149,7 @@ impl QueueNum {
             QueueNum::Spc(queue) => queue.flush().await,
             QueueNum::Psi(queue) => queue.flush().await,
             QueueNum::Custom(queue) => queue.flush().await,
-            QueueNum::LLM(queue) => queue.flush().await,
+            QueueNum::GenAI(queue) => queue.flush().await,
         }
     }
 }

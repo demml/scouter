@@ -15,9 +15,9 @@ use scouter_types::custom::{
 use scouter_types::psi::BinnedPsiFeatureMetrics;
 use scouter_types::psi::{PsiAlertConfig, PsiDriftConfig};
 use scouter_types::spc::SpcDriftFeatures;
-use scouter_types::{contracts::DriftRequest, GenAIEventRecordPaginationResponse};
+use scouter_types::{contracts::DriftRequest, GenAIEvalRecordPaginationResponse};
 use scouter_types::{
-    AlertThreshold, BinnedMetrics, GenAIEventRecordPaginationRequest, RecordType, ServiceInfo,
+    AlertThreshold, BinnedMetrics, GenAIEvalRecordPaginationRequest, RecordType, ServiceInfo,
     TimeInterval,
 };
 use tokio::time::sleep;
@@ -290,7 +290,7 @@ fn test_genai_server_records() {
     assert!(!results.metrics.is_empty());
 
     // get drift records by page
-    let request = GenAIEventRecordPaginationRequest {
+    let request = GenAIEvalRecordPaginationRequest {
         service_info: ServiceInfo {
             space: SPACE.to_string(),
             uid: uid.clone(),
@@ -311,7 +311,7 @@ fn test_genai_server_records() {
     let response = runtime.block_on(async { helper.send_oneshot(request).await });
     let val = runtime.block_on(async { response.into_body().collect().await.unwrap().to_bytes() });
 
-    let records: GenAIEventRecordPaginationResponse = serde_json::from_slice(&val).unwrap();
+    let records: GenAIEvalRecordPaginationResponse = serde_json::from_slice(&val).unwrap();
     assert!(!records.items.is_empty());
     assert!(records.has_next);
 

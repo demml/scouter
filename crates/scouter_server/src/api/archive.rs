@@ -205,7 +205,7 @@ pub async fn archive_old_data(
                 record.genai_task =
                     process_record_type(db_pool, &RecordType::GenAITask, config).await?;
                 record.genai_event =
-                    process_record_type(db_pool, &RecordType::GenAIEvent, config).await?;
+                    process_record_type(db_pool, &RecordType::GenAIEval, config).await?;
                 record.genai_workflow =
                     process_record_type(db_pool, &RecordType::GenAIWorkflow, config).await?;
             }

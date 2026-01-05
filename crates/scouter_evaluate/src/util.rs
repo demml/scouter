@@ -1,48 +1,24 @@
 use crate::error::EvaluationError;
-use crate::types::{EvaluationConfig, GenAIEvalRecord, GenAIEvalResults, GenAIEvalTaskResult};
+use crate::evaluate::evaluator::GenAIEvaluator;
+use crate::types::{EvaluationConfig, GenAIEvalResults};
 use itertools::iproduct;
 use num_traits::FromPrimitive;
-use potato_head::StructuredOutput;
-use potato_head::{
-    prompt_types::Score, Embedder, EmbeddingInput, PyEmbedder, TaskStatus, Workflow, WorkflowError,
-};
+use potato_head::{Embedder, EmbeddingInput, PyEmbedder};
 use pyo3::prelude::*;
 use rayon::prelude::*;
+use scouter_types::genai::GenAIEvalDataset;
+use scouter_types::genai::GenAIEvalSet;
+use scouter_types::GenAIEvalRecord;
 use simsimd::SpatialSimilarity;
 use std::collections::BTreeMap;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use tokio::task::JoinSet;
 use tracing::{error, warn};
-/// Process a workflow result and extract scores from completed tasks
-pub fn process_workflow_result(
-    workflow_result: Arc<RwLock<Workflow>>,
-) -> Result<BTreeMap<String, Score>, EvaluationError> {
-    let mut metrics = BTreeMap::new();
 
-    let workflow = workflow_result
-        .read()
-        .map_err(|_| WorkflowError::LockAcquireError)?;
-
-    let tasks = workflow.task_list.tasks();
-
-    // iterate of each task and extract score
-    for task in tasks.values() {
-        if let (TaskStatus::Completed, Some(result)) = (&task.status, &task.result) {
-            match Score::model_validate_json_str(&result.response_text()) {
-                // response text is either valid json or an empty string
-                Ok(score) => {
-                    metrics.insert(task.id.clone(), score);
-                }
-                Err(e) => {
-                    error!("Failed to validate score for task {}: {:?}", task.id, e);
-                    // Continue processing other tasks instead of failing completely
-                }
-            }
-        }
-    }
-
-    Ok(metrics)
-}
+type EvalTaskResult = (
+    GenAIEvalRecord,
+    Result<(GenAIEvalSet, BTreeMap<String, Vec<f32>>), String>,
+);
 
 /// Spawn tasks without embedding support
 /// This function will spawn a task that runs the workflows and extracts the results
@@ -53,46 +29,21 @@ pub fn process_workflow_result(
 /// # Returns
 /// A JoinSet containing tuples of record ID and optional GenAIEvalTaskResult.
 pub async fn spawn_evaluation_tasks_without_embeddings(
-    workflow: Workflow,
-    records: Vec<GenAIEvalRecord>,
-) -> JoinSet<(String, Option<GenAIEvalTaskResult>)> {
+    dataset: GenAIEvalDataset,
+    _config: &Arc<EvaluationConfig>,
+) -> JoinSet<EvalTaskResult> {
     let mut join_set = JoinSet::new();
 
-    for record in records {
-        let inner_workflow = workflow.clone();
+    for record in dataset.records {
+        let profile = dataset.profile.clone();
 
         join_set.spawn(async move {
-            let record_id = record.id.clone();
+            let result = match GenAIEvaluator::process_event_record(&record, profile).await {
+                Ok(eval_set) => Ok((eval_set, BTreeMap::new())),
+                Err(e) => Err(format!("Evaluation failed: {}", e)),
+            };
 
-            match inner_workflow.run(Some(record.context)).await {
-                Ok(workflow_result) => {
-                    // parse the workflow result
-                    match process_workflow_result(workflow_result) {
-                        Ok(metrics) => (
-                            record_id.clone(),
-                            Some(GenAIEvalTaskResult::new(
-                                record_id,
-                                metrics,
-                                BTreeMap::new(),
-                            )),
-                        ),
-                        Err(error) => {
-                            error!(
-                                "Failed to process workflow result for record {}: {}",
-                                record_id, error
-                            );
-                            (record_id, None)
-                        }
-                    }
-                }
-                Err(workflow_error) => {
-                    error!(
-                        "Workflow execution failed for record {}: {}",
-                        record_id, workflow_error
-                    );
-                    (record_id, None)
-                }
-            }
+            (record, result)
         });
     }
 
@@ -101,30 +52,25 @@ pub async fn spawn_evaluation_tasks_without_embeddings(
 
 /// Spawn tasks to run evaluation workflows with embedding calculations
 /// # Arguments
-/// * `workflow` - The workflow to execute for each record.
-/// * `records` - The list of GenAIEvalRecords to process.
+/// * `dataset` - The GenAIEvalDataset containing records to evaluate.
 /// * `embedder` - The Embedder instance to use for generating embeddings.
-/// * `embedding_targets` - The list of keys in the record's context to generate embeddings.
+/// * `config` - The EvaluationConfig containing evaluation settings.
 /// # Returns
 /// A JoinSet containing GenAIEvalTaskResults for each record.
 pub async fn spawn_evaluation_tasks_with_embeddings(
-    workflow: Workflow,
-    records: Vec<GenAIEvalRecord>,
+    dataset: GenAIEvalDataset,
     embedder: Arc<Embedder>,
     config: &Arc<EvaluationConfig>,
-) -> JoinSet<(String, Option<GenAIEvalTaskResult>)> {
+) -> JoinSet<EvalTaskResult> {
     let mut join_set = JoinSet::new();
 
-    for record in records {
-        let inner_workflow = workflow.clone();
+    for record in dataset.records {
+        let profile = dataset.profile.clone();
         let cloned_embedder = embedder.clone();
         let cloned_config = config.clone();
 
         join_set.spawn(async move {
-            let record_id = record.id.clone();
-
-            // Generate embeddings
-            // We do this first because the workflow will consume the context
+            // Generate embeddings first
             let embeddings = generate_embeddings_for_record(
                 &record,
                 &cloned_embedder,
@@ -132,32 +78,13 @@ pub async fn spawn_evaluation_tasks_with_embeddings(
             )
             .await;
 
-            // Run workflow
-            match inner_workflow.run(Some(record.context)).await {
-                Ok(workflow_result) => {
-                    // parse the workflow result
-                    match process_workflow_result(workflow_result) {
-                        Ok(metrics) => (
-                            record_id.clone(),
-                            Some(GenAIEvalTaskResult::new(record_id, metrics, embeddings)),
-                        ),
-                        Err(error) => {
-                            error!(
-                                "Failed to process workflow result for record {}: {}",
-                                record_id, error
-                            );
-                            (record_id, None)
-                        }
-                    }
-                }
-                Err(workflow_error) => {
-                    error!(
-                        "Workflow execution failed for record {}: {}",
-                        record_id, workflow_error
-                    );
-                    (record_id, None)
-                }
-            }
+            // Execute evaluation
+            let result = match GenAIEvaluator::process_event_record(&record, profile).await {
+                Ok(eval_set) => Ok((eval_set, embeddings)),
+                Err(e) => Err(format!("Evaluation failed: {}", e)),
+            };
+
+            (record, result)
         });
     }
 
@@ -213,30 +140,55 @@ pub async fn generate_embeddings_for_record(
     embeddings
 }
 
-/// Enhanced result collection with proper error handling
-pub async fn collect_evaluation_results(
-    mut join_set: JoinSet<(String, Option<GenAIEvalTaskResult>)>,
+/// Collect and align results with original records
+pub async fn collect_and_align_results(
+    mut join_set: JoinSet<EvalTaskResult>,
 ) -> Result<GenAIEvalResults, EvaluationError> {
-    let mut eval_results = GenAIEvalResults::new();
+    let mut results = GenAIEvalResults::new();
 
     while let Some(join_result) = join_set.join_next().await {
         match join_result {
-            Ok(task_result) => {
-                let (record_id, task_result_opt) = task_result;
-                if let Some(task_result) = task_result_opt {
-                    eval_results.results.entry(record_id).or_insert(task_result);
-                } else {
-                    eval_results.errored_tasks.push(record_id);
+            Ok((record, eval_result)) => match eval_result {
+                Ok((eval_set, embeddings)) => {
+                    results.add_success(record, eval_set, embeddings);
                 }
-            }
+                Err(error_msg) => {
+                    results.add_failure(record, error_msg);
+                }
+            },
             Err(join_error) => {
                 error!("Task join error: {:?}", join_error);
-                // We can't associate this error with a specific record ID
             }
         }
     }
 
-    Ok(eval_results)
+    Ok(results)
+}
+
+/// Post-process aligned results
+pub fn post_process_aligned_results(
+    results: &mut GenAIEvalResults,
+    config: &Arc<EvaluationConfig>,
+) -> Result<(), EvaluationError> {
+    results.aligned_results.par_iter_mut().for_each(|aligned| {
+        // Compute embedding means
+        for (target, values) in aligned.embeddings.iter() {
+            if let Some(mean) = compute_mean(values) {
+                aligned.mean_embeddings.insert(target.clone(), mean);
+            }
+        }
+
+        // Compute similarities
+        if config.compute_similarity {
+            compute_similarity(
+                &config.embedding_targets,
+                &aligned.embeddings,
+                &mut aligned.similarity_scores,
+            );
+        }
+    });
+
+    Ok(())
 }
 
 /// Helper function for extracting embedder and runtime from optional PyEmbedder
@@ -306,19 +258,4 @@ pub fn compute_similarity(
             warn!("Missing embeddings for targets {} or {}", a, b);
         }
     }
-}
-
-pub fn post_process(results: &mut GenAIEvalResults, config: &Arc<EvaluationConfig>) {
-    // compute means for each embedding target
-    results.results.par_iter_mut().for_each(|(_, task_result)| {
-        for (target, values) in task_result.embedding.iter() {
-            let mean = compute_mean(values).unwrap_or(-1.0);
-            task_result.mean_embeddings.insert(target.clone(), mean);
-        }
-        compute_similarity(
-            &config.embedding_targets,
-            &task_result.embedding,
-            &mut task_result.similarity_scores,
-        );
-    });
 }

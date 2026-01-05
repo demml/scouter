@@ -43,10 +43,10 @@ const UPDATE_CUSTOM_ENTITIES: &str = include_str!("scripts/custom/update_data_to
 // genai insert
 const INSERT_GENAI_TASK_RESULTS_BATCH: &str = include_str!("scripts/genai/insert_task_results.sql");
 const INSERT_GENAI_WORKFLOW_RESULT: &str = include_str!("scripts/genai/insert_workflow_result.sql");
-const INSERT_GENAI_EVENT_RECORD: &str = include_str!("scripts/genai/insert_event_record.sql");
+const INSERT_GENAI_EVAL_RECORD: &str = include_str!("scripts/genai/insert_eval_record.sql");
 
 // genai query
-const GET_GENAI_EVENT_RECORDS: &str = include_str!("scripts/genai/get_event_records.sql");
+const GET_GENAI_EVAL_RECORDS: &str = include_str!("scripts/genai/get_eval_records.sql");
 const GET_GENAI_TASK_VALUES: &str = include_str!("scripts/genai/data/get_task_values.sql");
 const GET_GENAI_WORKFLOW_VALUES: &str = include_str!("scripts/genai/data/get_workflow_values.sql");
 const GET_BINNED_GENAI_WORKFLOW_VALUES: &str =
@@ -55,19 +55,19 @@ const GET_BINNED_GENAI_TASK_VALUES: &str =
     include_str!("scripts/genai/data/get_binned_task_values.sql");
 
 // genai paginated query
-const GET_PAGINATED_GENAI_EVENT_RECORDS: &str =
-    include_str!("scripts/genai/get_paginated_event_records.sql");
-const UPDATE_GENAI_EVENT_TASK: &str = include_str!("scripts/genai/update_event_record.sql");
+const GET_PAGINATED_GENAI_EVAL_RECORDS: &str =
+    include_str!("scripts/genai/get_paginated_eval_records.sql");
+const UPDATE_GENAI_EVAL_TASK: &str = include_str!("scripts/genai/update_eval_record.sql");
 
 // Archive data
 const GET_GENAI_TASK_DATA_FOR_ARCHIVE: &str =
     include_str!("scripts/genai/archive/get_task_data_for_archive.sql");
-const GET_GENAI_EVENT_RECORD_DATA_FOR_ARCHIVE: &str =
-    include_str!("scripts/genai/archive/get_event_record_data_for_archive.sql");
+const GET_GENAI_EVAL_RECORD_DATA_FOR_ARCHIVE: &str =
+    include_str!("scripts/genai/archive/get_eval_record_data_for_archive.sql");
 const GET_GENAI_WORKFLOW_DATA_FOR_ARCHIVE: &str =
     include_str!("scripts/genai/archive/get_workflow_data_for_archive.sql");
-const GET_GENAI_EVENT_RECORD_ENTITIES: &str =
-    include_str!("scripts/genai/archive/get_event_record_entities_for_archive.sql");
+const GET_GENAI_EVAL_RECORD_ENTITIES: &str =
+    include_str!("scripts/genai/archive/get_eval_record_entities_for_archive.sql");
 const GET_GENAI_TASK_RECORD_ENTITIES: &str =
     include_str!("scripts/genai/archive/get_task_entities_for_archive.sql");
 const GET_GENAI_WORKFLOW_ENTITIES: &str =
@@ -77,8 +77,8 @@ const UPDATE_GENAI_TASK_ENTITIES: &str =
     include_str!("scripts/genai/archive/update_task_to_archived.sql");
 const UPDATE_GENAI_WORKFLOW_ENTITIES: &str =
     include_str!("scripts/genai/archive/update_workflow_to_archived.sql");
-const UPDATE_GENAI_EVENT_ENTITIES: &str =
-    include_str!("scripts/genai/archive/update_event_record_to_archived.sql");
+const UPDATE_GENAI_EVAL_ENTITIES: &str =
+    include_str!("scripts/genai/archive/update_eval_record_to_archived.sql");
 
 // observability (experimental)
 const GET_BINNED_OBSERVABILITY_METRICS: &str =
@@ -106,8 +106,7 @@ const UPDATE_ALERT_STATUS: &str = include_str!("scripts/alert/update_alert_statu
 
 // poll
 const GET_DRIFT_TASK: &str = include_str!("scripts/poll/poll_for_drift_task.sql");
-const GET_PENDING_GENAI_EVENT_TASK: &str =
-    include_str!("scripts/poll/poll_for_genai_event_task.sql");
+const GET_PENDING_GENAI_EVAL_TASK: &str = include_str!("scripts/poll/poll_for_genai_eval_task.sql");
 
 // auth
 const INSERT_USER: &str = include_str!("scripts/user/insert_user.sql");
@@ -188,9 +187,9 @@ pub enum Queries {
     UpdateAlertStatus,
 
     // genai - query
-    GetGenAIEventRecords,
-    GetPendingGenAIEventTask,
-    GetPaginatedGenAIEventRecords,
+    GetGenAIEvalRecords,
+    GetPendingGenAIEvalTask,
+    GetPaginatedGenAIEvalRecords,
 
     // genai - data
     GetGenAIWorkflowBinnedMetrics,
@@ -201,20 +200,20 @@ pub enum Queries {
     // genai - insert
     InsertGenAITaskResultsBatch,
     InsertGenAIWorkflowResult,
-    InsertGenAIEventRecord,
+    InsertGenAIEvalRecord,
 
     // genai - update
-    UpdateGenAIEventTask,
+    UpdateGenAIEvalTask,
 
     // Genai - archive
-    GetGenAIEventRecordEntitiesForArchive,
+    GetGenAIEvalRecordEntitiesForArchive,
     GetGenAIEvalTaskResultEntitiesForArchive,
     GetGenAIEvalWorkflowEntitiesForArchive,
-    GetGenAIEventRecordDataForArchive,
+    GetGenAIEvalRecordDataForArchive,
     GetGenAITaskResultDataForArchive,
     GetGenAIWorkflowResultDataForArchive,
 
-    UpdateGenAIEventEntities,
+    UpdateGenAIEvalEntities,
     UpdateGenAITaskEntities,
     UpdateGenAIWorkflowEntities,
 
@@ -295,15 +294,15 @@ impl Queries {
             //genai - insert
             Queries::InsertGenAITaskResultsBatch => INSERT_GENAI_TASK_RESULTS_BATCH,
             Queries::InsertGenAIWorkflowResult => INSERT_GENAI_WORKFLOW_RESULT,
-            Queries::InsertGenAIEventRecord => INSERT_GENAI_EVENT_RECORD,
+            Queries::InsertGenAIEvalRecord => INSERT_GENAI_EVAL_RECORD,
 
-            Queries::GetGenAIEventRecords => GET_GENAI_EVENT_RECORDS,
-            Queries::GetPaginatedGenAIEventRecords => GET_PAGINATED_GENAI_EVENT_RECORDS,
-            Queries::GetPendingGenAIEventTask => GET_PENDING_GENAI_EVENT_TASK,
+            Queries::GetGenAIEvalRecords => GET_GENAI_EVAL_RECORDS,
+            Queries::GetPaginatedGenAIEvalRecords => GET_PAGINATED_GENAI_EVAL_RECORDS,
+            Queries::GetPendingGenAIEvalTask => GET_PENDING_GENAI_EVAL_TASK,
 
-            Queries::GetGenAIEventRecordEntitiesForArchive => GET_GENAI_EVENT_RECORD_ENTITIES,
-            Queries::GetGenAIEventRecordDataForArchive => GET_GENAI_EVENT_RECORD_DATA_FOR_ARCHIVE,
-            Queries::UpdateGenAIEventEntities => UPDATE_GENAI_EVENT_ENTITIES,
+            Queries::GetGenAIEvalRecordEntitiesForArchive => GET_GENAI_EVAL_RECORD_ENTITIES,
+            Queries::GetGenAIEvalRecordDataForArchive => GET_GENAI_EVAL_RECORD_DATA_FOR_ARCHIVE,
+            Queries::UpdateGenAIEvalEntities => UPDATE_GENAI_EVAL_ENTITIES,
 
             Queries::GetGenAIEvalTaskResultEntitiesForArchive => GET_GENAI_TASK_RECORD_ENTITIES,
             Queries::GetGenAITaskResultDataForArchive => GET_GENAI_TASK_DATA_FOR_ARCHIVE,
@@ -313,7 +312,7 @@ impl Queries {
             Queries::GetGenAIWorkflowResultDataForArchive => GET_GENAI_WORKFLOW_DATA_FOR_ARCHIVE,
             Queries::UpdateGenAIWorkflowEntities => UPDATE_GENAI_WORKFLOW_ENTITIES,
 
-            Queries::UpdateGenAIEventTask => UPDATE_GENAI_EVENT_TASK,
+            Queries::UpdateGenAIEvalTask => UPDATE_GENAI_EVAL_TASK,
 
             Queries::InsertCustomMetricValuesBatch => INSERT_CUSTOM_METRIC_VALUES_BATCH,
             Queries::InsertSpcDriftRecordBatch => INSERT_SPC_DRIFT_RECORD_BATCH,

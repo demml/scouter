@@ -1,25 +1,24 @@
 use crate::error::RecordError;
 use crate::genai::{ComparisonOperator, EvaluationTaskType};
 use crate::trace::TraceServerRecord;
-use crate::DriftType;
-
-use crate::Status;
-use crate::TagRecord;
+use crate::{is_pydantic_basemodel, DriftType, Status};
+use crate::{EntityType, TagRecord};
 use chrono::DateTime;
 use chrono::Utc;
+use potato_head::create_uuid7;
 use potato_head::PyHelperFuncs;
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
+use pythonize::depythonize;
 use pythonize::pythonize;
 use scouter_macro::impl_mask_entity_id;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+#[cfg(feature = "server")]
+use sqlx::{postgres::PgRow, FromRow, Row};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Display;
-
-#[cfg(feature = "server")]
-use sqlx::{postgres::PgRow, FromRow, Row};
-
 #[cfg(feature = "server")]
 use std::str::FromStr;
 
@@ -31,7 +30,7 @@ pub enum RecordType {
     Psi,
     Observability,
     Custom,
-    GenAIEvent,
+    GenAIEval,
     GenAITask,
     GenAIWorkflow,
     Trace,
@@ -43,7 +42,7 @@ impl RecordType {
             RecordType::Spc => DriftType::Spc.to_string(),
             RecordType::Psi => DriftType::Psi.to_string(),
             RecordType::Custom => DriftType::Custom.to_string(),
-            RecordType::GenAIEvent => DriftType::GenAI.to_string(),
+            RecordType::GenAIEval => DriftType::GenAI.to_string(),
             RecordType::GenAITask => DriftType::GenAI.to_string(),
             RecordType::GenAIWorkflow => DriftType::GenAI.to_string(),
             _ => "unknown",
@@ -64,7 +63,7 @@ impl RecordType {
             "psi" => Ok(RecordType::Psi),
             "observability" => Ok(RecordType::Observability),
             "custom" => Ok(RecordType::Custom),
-            "genai_event" => Ok(RecordType::GenAIEvent),
+            "genai_event" => Ok(RecordType::GenAIEval),
             "genai_task" => Ok(RecordType::GenAITask),
             "genai_workflow" => Ok(RecordType::GenAIWorkflow),
             "trace" => Ok(RecordType::Trace),
@@ -78,7 +77,7 @@ impl RecordType {
             RecordType::Psi => "psi",
             RecordType::Observability => "observability",
             RecordType::Custom => "custom",
-            RecordType::GenAIEvent => "genai_event",
+            RecordType::GenAIEval => "genai_event",
             RecordType::GenAITask => "genai_task",
             RecordType::GenAIWorkflow => "genai_workflow",
             RecordType::Trace => "trace",
@@ -192,59 +191,89 @@ impl PsiRecord {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
-pub struct GenAIEventRecord {
+pub struct GenAIEvalRecord {
+    #[pyo3(get, set)]
+    pub record_id: String,
     #[pyo3(get)]
     pub created_at: chrono::DateTime<Utc>,
-
     #[pyo3(get)]
     pub uid: String,
-
     pub context: Value,
-
-    #[cfg_attr(feature = "server", sqlx(try_from = "String"))]
-    pub status: Status,
-
+    #[pyo3(get)]
     pub id: i64,
-
+    #[pyo3(get)]
     pub updated_at: Option<DateTime<Utc>>,
-
     pub processing_started_at: Option<DateTime<Utc>>,
-
     pub processing_ended_at: Option<DateTime<Utc>>,
-
     pub processing_duration: Option<i32>,
-
-    #[cfg_attr(feature = "server", sqlx(skip))]
-    pub entity_uid: String,
-
     pub entity_id: i32,
+    pub entity_uid: String,
+    pub status: Status,
+    pub entity_type: EntityType,
 }
 
 #[pymethods]
-impl GenAIEventRecord {
+impl GenAIEvalRecord {
+    #[new]
+    #[pyo3(signature = (context, record_id = None))]
+
+    /// Creates a new GenAIRecord instance.
+    /// The context is either a python dictionary or a pydantic basemodel.
+    pub fn new(
+        py: Python<'_>,
+        context: Bound<'_, PyAny>,
+        record_id: Option<String>,
+    ) -> Result<Self, RecordError> {
+        // check if context is a PyDict or PyObject(Pydantic model)
+        let context_val = if context.is_instance_of::<PyDict>() {
+            depythonize(&context)?
+        } else if is_pydantic_basemodel(py, &context)? {
+            // Dump pydantic model to dictionary
+            let model = context.call_method0("model_dump")?;
+
+            // Serialize the dictionary to JSON
+            depythonize(&model)?
+        } else {
+            Err(RecordError::MustBeDictOrBaseModel)?
+        };
+
+        Ok(GenAIEvalRecord {
+            uid: create_uuid7(),
+            created_at: Utc::now(),
+            context: context_val,
+            record_id: record_id.unwrap_or_default(),
+
+            ..Default::default()
+        })
+    }
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         PyHelperFuncs::__str__(self)
     }
 
     pub fn get_record_type(&self) -> RecordType {
-        RecordType::GenAIEvent
+        RecordType::GenAIEval
     }
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
         PyHelperFuncs::__json__(self)
     }
+
+    #[getter]
+    pub fn context<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, RecordError> {
+        Ok(pythonize(py, &self.context)?)
+    }
 }
 
-impl GenAIEventRecord {
+impl GenAIEvalRecord {
     #[allow(clippy::too_many_arguments)]
     pub fn new_rs(
         context: Value,
         created_at: DateTime<Utc>,
         uid: String,
         entity_uid: String,
+        record_id: Option<String>,
     ) -> Self {
         Self {
             created_at,
@@ -258,6 +287,8 @@ impl GenAIEventRecord {
             processing_duration: None,
             entity_uid,
             entity_id: 0, // This is a placeholder, to be set when inserting into DB
+            record_id: record_id.unwrap_or_default(),
+            entity_type: EntityType::GenAI,
         }
     }
 
@@ -268,14 +299,61 @@ impl GenAIEventRecord {
     }
 }
 
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct BoxedGenAIEventRecord {
-    pub record: Box<GenAIEventRecord>,
+impl Default for GenAIEvalRecord {
+    fn default() -> Self {
+        Self {
+            created_at: Utc::now(),
+            uid: create_uuid7(),
+            context: Value::Null,
+            record_id: String::new(),
+            id: 0,
+            updated_at: None,
+            processing_started_at: None,
+            processing_ended_at: None,
+            processing_duration: None,
+            entity_id: 0,
+            entity_uid: String::new(),
+            status: Status::Pending,
+            entity_type: EntityType::GenAI,
+        }
+    }
 }
 
-impl BoxedGenAIEventRecord {
-    pub fn new(record: GenAIEventRecord) -> Self {
+#[cfg(feature = "server")]
+impl FromRow<'_, PgRow> for GenAIEvalRecord {
+    fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
+        let context: Value = serde_json::from_value(row.try_get("context")?).unwrap_or(Value::Null);
+
+        // load status from string
+        let status_string = row.try_get::<String, &str>("status")?;
+        let status = Status::from_str(&status_string).unwrap_or(Status::Pending);
+
+        Ok(GenAIEvalRecord {
+            record_id: row.try_get("record_id")?,
+            created_at: row.try_get("created_at")?,
+            context,
+            uid: row.try_get("uid")?,
+            id: row.try_get("id")?,
+            updated_at: row.try_get("updated_at")?,
+            processing_started_at: row.try_get("processing_started_at")?,
+            processing_ended_at: row.try_get("processing_ended_at")?,
+            processing_duration: row.try_get("processing_duration")?,
+            entity_id: -1,             // mask entity_id when loading from DB
+            entity_uid: String::new(), // mask entity_uid when loading from DB
+            status,
+            entity_type: EntityType::GenAI,
+        })
+    }
+}
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct BoxedGenAIEvalRecord {
+    pub record: Box<GenAIEvalRecord>,
+}
+
+impl BoxedGenAIEvalRecord {
+    pub fn new(record: GenAIEvalRecord) -> Self {
         Self {
             record: Box::new(record),
         }
@@ -624,47 +702,13 @@ pub enum ServerRecord {
     Psi(PsiRecord),
     Custom(CustomMetricRecord),
     Observability(ObservabilityMetrics),
-    GenAIEvent(BoxedGenAIEventRecord),
+    GenAIEval(BoxedGenAIEvalRecord),
     GenAITaskRecord(GenAIEvalTaskResultRecord),
     GenAIWorkflowRecord(GenAIEvalWorkflowRecord),
 }
 
 #[pymethods]
 impl ServerRecord {
-    #[new]
-    pub fn new(record: &Bound<'_, PyAny>) -> Result<Self, RecordError> {
-        let record_type = record
-            .call_method0("get_record_type")?
-            .extract::<RecordType>()?;
-
-        match record_type {
-            RecordType::Spc => {
-                let spc_record = record.extract::<SpcRecord>()?;
-                Ok(ServerRecord::Spc(spc_record))
-            }
-            RecordType::Psi => {
-                let psi_record = record.extract::<PsiRecord>()?;
-                Ok(ServerRecord::Psi(psi_record))
-            }
-            RecordType::Custom => {
-                let custom_record = record.extract::<CustomMetricRecord>()?;
-                Ok(ServerRecord::Custom(custom_record))
-            }
-            RecordType::Observability => {
-                let observability_record = record.extract::<ObservabilityMetrics>()?;
-                Ok(ServerRecord::Observability(observability_record))
-            }
-            RecordType::GenAIEvent => {
-                let genai_event_record = record.extract::<GenAIEventRecord>()?;
-                Ok(ServerRecord::GenAIEvent(BoxedGenAIEventRecord::new(
-                    genai_event_record,
-                )))
-            }
-
-            _ => Err(RecordError::InvalidDriftTypeError),
-        }
-    }
-
     #[getter]
     pub fn record<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, RecordError> {
         match self {
@@ -674,7 +718,7 @@ impl ServerRecord {
             ServerRecord::Observability(record) => {
                 Ok(PyHelperFuncs::to_bound_py_object(py, record)?)
             }
-            ServerRecord::GenAIEvent(record) => Ok(PyHelperFuncs::to_bound_py_object(py, record)?),
+            ServerRecord::GenAIEval(record) => Ok(PyHelperFuncs::to_bound_py_object(py, record)?),
             ServerRecord::GenAITaskRecord(record) => {
                 Ok(PyHelperFuncs::to_bound_py_object(py, record)?)
             }
@@ -691,7 +735,7 @@ impl ServerRecord {
             ServerRecord::Psi(record) => record.__str__(),
             ServerRecord::Custom(record) => record.__str__(),
             ServerRecord::Observability(record) => record.__str__(),
-            ServerRecord::GenAIEvent(record) => record.record.__str__(),
+            ServerRecord::GenAIEval(record) => record.record.__str__(),
             ServerRecord::GenAITaskRecord(record) => record.__str__(),
             ServerRecord::GenAIWorkflowRecord(record) => record.__str__(),
         }
@@ -703,7 +747,7 @@ impl ServerRecord {
             ServerRecord::Psi(_) => RecordType::Psi,
             ServerRecord::Custom(_) => RecordType::Custom,
             ServerRecord::Observability(_) => RecordType::Observability,
-            ServerRecord::GenAIEvent(_) => RecordType::GenAIEvent,
+            ServerRecord::GenAIEval(_) => RecordType::GenAIEval,
             ServerRecord::GenAITaskRecord(_) => RecordType::GenAITask,
             ServerRecord::GenAIWorkflowRecord(_) => RecordType::GenAIWorkflow,
         }
@@ -799,7 +843,7 @@ impl ServerRecords {
                 ServerRecord::Psi(inner) => Ok(&inner.uid),
                 ServerRecord::Custom(inner) => Ok(&inner.uid),
                 ServerRecord::Observability(inner) => Ok(&inner.uid),
-                ServerRecord::GenAIEvent(inner) => Ok(&inner.record.entity_uid),
+                ServerRecord::GenAIEval(inner) => Ok(&inner.record.entity_uid),
                 ServerRecord::GenAITaskRecord(inner) => Ok(&inner.entity_uid),
                 ServerRecord::GenAIWorkflowRecord(inner) => Ok(&inner.entity_uid),
             }
@@ -832,9 +876,9 @@ impl IntoServerRecord for CustomMetricRecord {
     }
 }
 
-impl IntoServerRecord for GenAIEventRecord {
+impl IntoServerRecord for GenAIEvalRecord {
     fn into_server_record(self) -> ServerRecord {
-        ServerRecord::GenAIEvent(BoxedGenAIEventRecord::new(self))
+        ServerRecord::GenAIEval(BoxedGenAIEvalRecord::new(self))
     }
 }
 
@@ -855,7 +899,7 @@ pub trait ToDriftRecords {
     fn to_observability_drift_records(self) -> Result<Vec<ObservabilityMetrics>, RecordError>;
     fn to_psi_drift_records(self) -> Result<Vec<PsiRecord>, RecordError>;
     fn to_custom_metric_drift_records(self) -> Result<Vec<CustomMetricRecord>, RecordError>;
-    fn to_genai_event_records(self) -> Result<Vec<BoxedGenAIEventRecord>, RecordError>;
+    fn to_genai_eval_records(self) -> Result<Vec<BoxedGenAIEvalRecord>, RecordError>;
     fn to_genai_workflow_records(self) -> Result<Vec<GenAIEvalWorkflowRecord>, RecordError>;
     fn to_genai_task_records(self) -> Result<Vec<GenAIEvalTaskResultRecord>, RecordError>;
 }
@@ -889,9 +933,9 @@ impl ToDriftRecords for ServerRecords {
         })
     }
 
-    fn to_genai_event_records(self) -> Result<Vec<BoxedGenAIEventRecord>, RecordError> {
+    fn to_genai_eval_records(self) -> Result<Vec<BoxedGenAIEvalRecord>, RecordError> {
         extract_owned_records(self.records, |record| match record {
-            ServerRecord::GenAIEvent(inner) => Some(inner),
+            ServerRecord::GenAIEval(inner) => Some(inner),
             _ => None,
         })
     }
@@ -989,7 +1033,7 @@ impl MessageRecord {
 
 impl_mask_entity_id!(
     crate::ScouterRecordExt =>
-    GenAIEventRecord,
+    GenAIEvalRecord,
     SpcRecord,
     PsiRecord,
     CustomMetricRecord,

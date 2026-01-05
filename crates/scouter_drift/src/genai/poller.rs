@@ -1,10 +1,10 @@
 // Module for polling GenAI drift records that are "pending" and need to be processed
 use crate::error::DriftError;
-use crate::genai::evaluator::GenAIEvaluator;
+use scouter_evaluate::evaluate::GenAIEvaluator;
 use scouter_sql::sql::traits::{GenAIDriftSqlLogic, ProfileSqlLogic};
 use scouter_sql::PostgresClient;
 use scouter_types::genai::{GenAIEvalProfile, GenAIEvalSet};
-use scouter_types::{GenAIEventRecord, Status};
+use scouter_types::{GenAIEvalRecord, Status};
 use sqlx::{Pool, Postgres};
 use std::sync::Arc;
 use std::time::Duration;
@@ -26,7 +26,7 @@ impl GenAIPoller {
     #[instrument(skip_all)]
     pub async fn process_event_record(
         &mut self,
-        record: &GenAIEventRecord,
+        record: &GenAIEvalRecord,
         profile: &GenAIEvalProfile,
     ) -> Result<GenAIEvalSet, DriftError> {
         debug!("Processing workflow");
@@ -69,7 +69,7 @@ impl GenAIPoller {
     #[instrument(skip_all)]
     pub async fn do_poll(&mut self) -> Result<bool, DriftError> {
         // Get task from the database (query uses skip lock to pull task and update to processing)
-        let task = PostgresClient::get_pending_genai_event_record(&self.db_pool).await?;
+        let task = PostgresClient::get_pending_genai_eval_record(&self.db_pool).await?;
 
         let Some(task) = task else {
             return Ok(false);
@@ -100,7 +100,7 @@ impl GenAIPoller {
         loop {
             match self.process_event_record(&task, &genai_profile).await {
                 Ok(result_set) => {
-                    PostgresClient::update_genai_event_record_status(
+                    PostgresClient::update_genai_eval_record_status(
                         &self.db_pool,
                         &task,
                         Status::Processed,
@@ -119,7 +119,7 @@ impl GenAIPoller {
                     retry_count += 1;
                     if retry_count >= self.max_retries {
                         // Update the record status to error
-                        PostgresClient::update_genai_event_record_status(
+                        PostgresClient::update_genai_eval_record_status(
                             &self.db_pool,
                             &task,
                             Status::Failed,

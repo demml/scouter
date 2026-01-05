@@ -1,4 +1,4 @@
-UPDATE scouter.genai_event_record
+UPDATE scouter.genai_eval_record
 SET status       = $1,
     processing_ended_at = CURRENT_TIMESTAMP,
     updated_at   = CURRENT_TIMESTAMP,

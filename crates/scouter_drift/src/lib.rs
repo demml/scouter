@@ -15,5 +15,3 @@ pub use drifter::drift_executor::DriftExecutor;
 
 #[cfg(feature = "sql")]
 pub use genai::GenAIPoller;
-
-pub use genai::evaluator::GenAIEvaluator;

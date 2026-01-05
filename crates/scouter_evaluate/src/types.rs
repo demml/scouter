@@ -1,16 +1,17 @@
 use crate::error::EvaluationError;
-use crate::util::{parse_embedder, post_process};
+use crate::util::{parse_embedder, post_process_aligned_results};
 use ndarray::Array2;
-use potato_head::{create_uuid7, prompt_types::Score, Embedder, PyHelperFuncs};
+use potato_head::Embedder;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use pyo3::IntoPyObjectExt;
 use scouter_profile::{Histogram, NumProfiler};
-use scouter_types::{is_pydantic_basemodel, json_to_pyobject_value, pyobject_to_json};
+use scouter_types::genai::GenAIEvalSet;
+use scouter_types::GenAIEvalRecord;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
+
 pub fn array_to_dict<'py>(
     py: Python<'py>,
     array: &ArrayDataset,
@@ -34,133 +35,6 @@ pub fn array_to_dict<'py>(
         pydict.set_item("cluster", array.clusters.clone())?;
     }
     Ok(pydict)
-}
-
-/// Enhanced results collection that captures both successes and failures
-#[derive(Debug, Serialize, Deserialize)]
-#[pyclass]
-pub struct GenAIEvalResults {
-    pub results: HashMap<String, GenAIEvalTaskResult>,
-
-    #[pyo3(get)]
-    pub errored_tasks: Vec<String>,
-
-    pub cluster_data: Option<ClusterData>,
-
-    #[pyo3(get)]
-    pub histograms: Option<HashMap<String, Histogram>>,
-
-    #[serde(skip)]
-    pub array_dataset: Option<ArrayDataset>,
-}
-
-#[pymethods]
-impl GenAIEvalResults {
-    /// Get tasks for a specific record ID
-    pub fn __getitem__(&self, key: &str) -> Result<GenAIEvalTaskResult, EvaluationError> {
-        match self.results.get(key) {
-            Some(value) => Ok(value.clone()),
-            None => Err(EvaluationError::MissingKeyError(key.to_string())),
-        }
-    }
-
-    pub fn __str__(&self) -> String {
-        PyHelperFuncs::__str__(self)
-    }
-
-    pub fn model_dump_json(&self) -> String {
-        // serialize the struct to a string
-        PyHelperFuncs::__json__(self)
-    }
-
-    #[staticmethod]
-    pub fn model_validate_json(json_string: String) -> Result<GenAIEvalResults, EvaluationError> {
-        // deserialize the string to a struct
-        Ok(serde_json::from_str(&json_string)?)
-    }
-
-    #[pyo3(signature = (polars=false))]
-    pub fn to_dataframe<'py>(
-        &mut self,
-        py: Python<'py>,
-        polars: bool,
-    ) -> Result<Bound<'py, PyAny>, EvaluationError> {
-        if self.array_dataset.is_none() {
-            self.build_array_dataset()?;
-        }
-
-        let dataset = self.array_dataset.as_ref().unwrap();
-        let records = array_to_dict(py, dataset)?;
-
-        let module = if polars { "polars" } else { "pandas" };
-
-        let df_module = py.import(module)?;
-        let df_class = df_module.getattr("DataFrame")?;
-
-        if polars {
-            Ok(df_class.call1((records,))?)
-        } else {
-            Ok(df_class.call_method1("from_dict", (records,))?)
-        }
-    }
-
-    #[getter]
-    pub fn cluster_data(&self) -> Option<ClusterData> {
-        self.cluster_data.clone()
-    }
-
-    #[getter]
-    pub fn successful_count(&self) -> usize {
-        self.results.len()
-    }
-
-    #[getter]
-    pub fn failed_count(&self) -> usize {
-        self.errored_tasks.len()
-    }
-}
-
-impl GenAIEvalResults {
-    /// Finalize the results by performing post-processing steps which includes:
-    /// - Post-processing embeddings (if any)
-    /// - Building the array dataset (if not already built)
-    /// - Performing clustering and dimensionality reduction (if enabled) for visualization
-    /// # Arguments
-    /// * `config` - The evaluation configuration that dictates post-processing behavior
-    /// # Returns
-    /// * `Result<(), EvaluationError>` - Returns Ok(()) if successful, otherwise returns
-    pub fn finalize(&mut self, config: &Arc<EvaluationConfig>) -> Result<(), EvaluationError> {
-        // Post-process embeddings if needed
-        if !config.embedding_targets.is_empty() {
-            post_process(self, config);
-        }
-
-        if config.compute_histograms {
-            self.build_array_dataset()?;
-
-            // Compute histograms for all numeric fields
-            if let Some(array_dataset) = &self.array_dataset {
-                let profiler = NumProfiler::new();
-                let histograms = profiler.compute_histogram(
-                    &array_dataset.data.view(),
-                    &array_dataset.feature_names,
-                    &10,
-                    false,
-                )?;
-                self.histograms = Some(histograms);
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Build an NDArray dataset from the result tasks
-    fn build_array_dataset(&mut self) -> Result<(), EvaluationError> {
-        if self.array_dataset.is_none() {
-            self.array_dataset = Some(ArrayDataset::from_results(self)?);
-        }
-        Ok(())
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -215,55 +89,90 @@ impl ArrayDataset {
         }
     }
 
-    /// Build feature names from the results keys
-    /// This is used when constructing a dataframe from the results and when writing records
-    /// to the server
+    /// Build feature names from aligned results
+    /// This extracts all unique task names, embedding targets, and similarity pairs
+    /// from the evaluation results to create column names for the array dataset
     fn build_feature_names(results: &GenAIEvalResults) -> Result<Vec<String>, EvaluationError> {
-        let first_task = results
-            .results
-            .values()
-            .next()
+        // Get first successful result to determine schema
+        let first_result = results
+            .aligned_results
+            .iter()
+            .find(|r| r.success)
             .ok_or(EvaluationError::NoResultsFound)?;
 
         let mut names = Vec::new();
 
-        // BTreeMap iteration is already sorted
-        names.extend(first_task.metrics.keys().cloned());
-        names.extend(first_task.mean_embeddings.keys().cloned());
-        names.extend(first_task.similarity_scores.keys().cloned());
+        for task_record in &first_result.eval_set.records {
+            names.push(task_record.task_id.clone());
+        }
+
+        names.extend(first_result.mean_embeddings.keys().cloned());
+        names.extend(first_result.similarity_scores.keys().cloned());
 
         Ok(names)
     }
 
+    // Build array dataset from aligned evaluation results
+    /// Creates a 2D array where:
+    /// - Rows = evaluation records
+    /// - Columns = task scores, embedding means, similarity scores
     fn from_results(results: &GenAIEvalResults) -> Result<Self, EvaluationError> {
-        if results.results.is_empty() {
+        if results.aligned_results.is_empty() {
             return Ok(Self::new());
         }
 
+        // Only include successful evaluations in the dataset
+        let successful_results: Vec<&AlignedEvalResult> = results
+            .aligned_results
+            .iter()
+            .filter(|r| r.success)
+            .collect();
+
+        if successful_results.is_empty() {
+            return Err(EvaluationError::NoResultsFound);
+        }
+
         let feature_names = Self::build_feature_names(results)?;
-        let n_rows = results.results.len();
+        let n_rows = successful_results.len();
         let n_cols = feature_names.len();
 
         let mut data = Vec::with_capacity(n_rows * n_cols);
         let mut idx_map = HashMap::new();
 
-        // Build data matrix efficiently
-        for (i, task) in results.results.values().enumerate() {
-            idx_map.insert(i, task.id.clone());
+        // Build task score lookup for efficient access
+        // This maps task_id -> score value for quick column population
+        for (row_idx, aligned) in successful_results.iter().enumerate() {
+            idx_map.insert(row_idx, aligned.record.uid.clone());
 
-            // Collect all values in correct order (metrics, embeddings, similarities)
+            // Build lookup map from task_id to value
+            let task_scores: HashMap<String, f64> = aligned
+                .eval_set
+                .records
+                .iter()
+                .map(|task| (task.task_id.clone(), task.value))
+                .collect();
+
+            // Collect all values in correct column order
             let row: Vec<f64> = feature_names
                 .iter()
-                .map(|name| {
-                    if let Some(score) = task.metrics.get(name) {
-                        score.score as f64
-                    } else if let Some(&mean) = task.mean_embeddings.get(name) {
-                        mean
-                    } else if let Some(&sim) = task.similarity_scores.get(name) {
-                        sim
-                    } else {
-                        0.0 // Default for missing values
+                .map(|feature_name| {
+                    // Try task scores first
+                    if let Some(&score) = task_scores.get(feature_name) {
+                        return score;
                     }
+
+                    // Try embedding means
+                    if let Some(&mean) = aligned.mean_embeddings.get(feature_name) {
+                        return mean;
+                    }
+
+                    // Try similarity scores
+                    if let Some(&sim) = aligned.similarity_scores.get(feature_name) {
+                        return sim;
+                    }
+
+                    // Default for missing values
+                    0.0
                 })
                 .collect();
 
@@ -281,116 +190,304 @@ impl ArrayDataset {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[pyclass]
+pub struct AlignedEvalResult {
+    /// Original record for reference
+    #[pyo3(get)]
+    pub record: GenAIEvalRecord,
+
+    /// Evaluation set containing all task results
+    #[pyo3(get)]
+    pub eval_set: GenAIEvalSet,
+
+    /// Computed embeddings (if enabled)
+    #[pyo3(get)]
+    #[serde(skip)]
+    pub embeddings: BTreeMap<String, Vec<f32>>,
+
+    /// Mean embeddings (computed during post-processing)
+    #[pyo3(get)]
+    pub mean_embeddings: BTreeMap<String, f64>,
+
+    /// Similarity scores between embedding targets
+    #[pyo3(get)]
+    pub similarity_scores: BTreeMap<String, f64>,
+
+    /// Whether evaluation succeeded
+    #[pyo3(get)]
+    pub success: bool,
+
+    /// Error message if evaluation failed
+    #[pyo3(get)]
+    pub error_message: Option<String>,
+}
+
+impl AlignedEvalResult {
+    /// Create from successful evaluation
+    pub fn from_success(
+        record: GenAIEvalRecord,
+        eval_set: GenAIEvalSet,
+        embeddings: BTreeMap<String, Vec<f32>>,
+    ) -> Self {
+        Self {
+            record,
+            eval_set,
+            embeddings,
+            mean_embeddings: BTreeMap::new(),
+            similarity_scores: BTreeMap::new(),
+            success: true,
+            error_message: None,
+        }
+    }
+
+    /// Create from failed evaluation
+    pub fn from_failure(record: GenAIEvalRecord, error: String) -> Self {
+        Self {
+            record,
+            eval_set: GenAIEvalSet::empty(), // You'll need to implement this
+            embeddings: BTreeMap::new(),
+            mean_embeddings: BTreeMap::new(),
+            similarity_scores: BTreeMap::new(),
+            success: false,
+            error_message: Some(error),
+        }
+    }
+
+    /// Get flattened data for dataframe export
+    pub fn to_flat_map(&self) -> BTreeMap<String, serde_json::Value> {
+        let mut flat = BTreeMap::new();
+
+        // Record metadata
+        flat.insert("record_uid".to_string(), self.record.uid.clone().into());
+        flat.insert(
+            "entity_id".to_string(),
+            self.record.entity_id.clone().into(),
+        );
+        flat.insert("success".to_string(), self.success.into());
+
+        if let Some(error) = &self.error_message {
+            flat.insert("error".to_string(), error.clone().into());
+        }
+
+        // Workflow-level metrics
+        flat.insert(
+            "total_tasks".to_string(),
+            self.eval_set.inner.total_tasks.into(),
+        );
+        flat.insert(
+            "passed_tasks".to_string(),
+            self.eval_set.inner.passed_tasks.into(),
+        );
+        flat.insert(
+            "failed_tasks".to_string(),
+            self.eval_set.inner.failed_tasks.into(),
+        );
+        flat.insert(
+            "pass_rate".to_string(),
+            self.eval_set.inner.pass_rate.into(),
+        );
+        flat.insert(
+            "duration_ms".to_string(),
+            self.eval_set.inner.duration_ms.into(),
+        );
+
+        // Original context fields (prefixed to avoid collisions)
+        if let Value::Object(context_map) = &self.record.context {
+            for (key, value) in context_map {
+                flat.insert(format!("context_{}", key), value.clone());
+            }
+        }
+
+        // Task results (flattened)
+        for task_result in &self.eval_set.records {
+            let prefix = format!("task_{}", task_result.task_id);
+            flat.insert(format!("{}_passed", prefix), task_result.passed.into());
+            flat.insert(format!("{}_value", prefix), task_result.value.into());
+            flat.insert(
+                format!("{}_message", prefix),
+                task_result.message.clone().into(),
+            );
+        }
+
+        // Mean embeddings
+        for (target, mean) in &self.mean_embeddings {
+            flat.insert(format!("embedding_mean_{}", target), (*mean).into());
+        }
+
+        // Similarity scores
+        for (pair, score) in &self.similarity_scores {
+            flat.insert(format!("similarity_{}", pair), (*score).into());
+        }
+
+        flat
+    }
+}
+
+/// Updated results container
+#[derive(Debug, Serialize, Deserialize)]
+#[pyclass]
+pub struct GenAIEvalResults {
+    /// Aligned results in original record order
+    pub aligned_results: Vec<AlignedEvalResult>,
+
+    /// Quick lookup by record UID
+    #[serde(skip)]
+    pub results_by_uid: BTreeMap<String, usize>,
+
+    #[pyo3(get)]
+    pub errored_tasks: Vec<String>,
+
+    pub cluster_data: Option<ClusterData>,
+
+    #[pyo3(get)]
+    pub histograms: Option<HashMap<String, Histogram>>,
+
+    #[serde(skip)]
+    pub array_dataset: Option<ArrayDataset>,
+}
+
+#[pymethods]
+impl GenAIEvalResults {
+    /// Get result by record UID
+    pub fn __getitem__(&self, key: &str) -> Result<AlignedEvalResult, EvaluationError> {
+        self.results_by_uid
+            .get(key)
+            .and_then(|&idx| self.aligned_results.get(idx))
+            .cloned()
+            .ok_or_else(|| EvaluationError::MissingKeyError(key.to_string()))
+    }
+
+    #[getter]
+    pub fn successful_count(&self) -> usize {
+        self.aligned_results.iter().filter(|r| r.success).count()
+    }
+
+    #[getter]
+    pub fn failed_count(&self) -> usize {
+        self.aligned_results.iter().filter(|r| !r.success).count()
+    }
+
+    /// Export to dataframe format
+    #[pyo3(signature = (polars=false))]
+    pub fn to_dataframe<'py>(
+        &mut self,
+        py: Python<'py>,
+        polars: bool,
+    ) -> Result<Bound<'py, PyAny>, EvaluationError> {
+        // Build list of flat records
+        let records_list = self
+            .aligned_results
+            .iter()
+            .map(|r| r.to_flat_map())
+            .collect::<Vec<_>>();
+
+        // Convert to Python dict format
+        let py_records = PyDict::new(py);
+
+        // Transpose data for columnar format
+        if let Some(first_record) = records_list.first() {
+            for key in first_record.keys() {
+                let column: Vec<_> = records_list
+                    .iter()
+                    .map(|r| r.get(key).cloned().unwrap_or(Value::Null))
+                    .collect();
+                let py_col = pythonize::pythonize(py, &column)?;
+                py_records.set_item(key, py_col)?;
+            }
+        }
+
+        let module = if polars { "polars" } else { "pandas" };
+        let df_module = py.import(module)?;
+        let df_class = df_module.getattr("DataFrame")?;
+
+        if polars {
+            Ok(df_class.call1((py_records,))?)
+        } else {
+            Ok(df_class.call_method1("from_dict", (py_records,))?)
+        }
+    }
+}
+
 impl GenAIEvalResults {
     pub fn new() -> Self {
         Self {
-            results: HashMap::new(),
+            aligned_results: Vec::new(),
+            results_by_uid: BTreeMap::new(),
             errored_tasks: Vec::new(),
             array_dataset: None,
             cluster_data: None,
             histograms: None,
         }
     }
-}
 
-impl Default for GenAIEvalResults {
-    fn default() -> Self {
-        Self::new()
+    /// Add a successful result
+    pub fn add_success(
+        &mut self,
+        record: GenAIEvalRecord,
+        eval_set: GenAIEvalSet,
+        embeddings: BTreeMap<String, Vec<f32>>,
+    ) {
+        let uid = record.uid.clone();
+        let idx = self.aligned_results.len();
+
+        self.aligned_results.push(AlignedEvalResult::from_success(
+            record, eval_set, embeddings,
+        ));
+
+        self.results_by_uid.insert(uid, idx);
     }
-}
 
-/// Struct for collecting results from LLM evaluation tasks.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[pyclass]
-pub struct GenAIEvalTaskResult {
-    #[pyo3(get)]
-    pub id: String,
+    /// Add a failed result
+    pub fn add_failure(&mut self, record: GenAIEvalRecord, error: String) {
+        let uid = record.uid.clone();
+        let idx = self.aligned_results.len();
 
-    #[pyo3(get)]
-    pub metrics: BTreeMap<String, Score>,
-
-    #[pyo3(get)]
-    #[serde(skip)]
-    pub embedding: BTreeMap<String, Vec<f32>>,
-
-    #[pyo3(get)]
-    pub mean_embeddings: BTreeMap<String, f64>,
-
-    #[pyo3(get)]
-    pub similarity_scores: BTreeMap<String, f64>,
-}
-
-#[pymethods]
-impl GenAIEvalTaskResult {
-    pub fn __str__(&self) -> String {
-        PyHelperFuncs::__str__(self)
+        self.aligned_results
+            .push(AlignedEvalResult::from_failure(record, error));
+        self.results_by_uid.insert(uid.clone(), idx);
+        self.errored_tasks.push(uid);
     }
-}
 
-impl GenAIEvalTaskResult {
-    pub fn new(
-        id: String,
-        metrics: BTreeMap<String, Score>,
-        embedding: BTreeMap<String, Vec<f32>>,
-    ) -> Self {
-        Self {
-            id,
-            metrics,
-            embedding,
-            mean_embeddings: BTreeMap::new(),
-            similarity_scores: BTreeMap::new(),
+    /// Finalize the results by performing post-processing steps which includes:
+    /// - Post-processing embeddings (if any)
+    /// - Building the array dataset (if not already built)
+    /// - Performing clustering and dimensionality reduction (if enabled) for visualization
+    /// # Arguments
+    /// * `config` - The evaluation configuration that dictates post-processing behavior
+    /// # Returns
+    /// * `Result<(), EvaluationError>` - Returns Ok(()) if successful, otherwise returns
+    pub fn finalize(&mut self, config: &Arc<EvaluationConfig>) -> Result<(), EvaluationError> {
+        // Post-process embeddings if needed
+        if !config.embedding_targets.is_empty() {
+            post_process_aligned_results(self, config)?;
         }
-    }
-}
 
-#[pyclass]
-#[derive(Clone, Debug)]
-pub struct GenAIEvalRecord {
-    pub id: String,
-    pub context: Value,
-}
+        if config.compute_histograms {
+            self.build_array_dataset()?;
 
-#[pymethods]
-impl GenAIEvalRecord {
-    #[new]
-    #[pyo3(signature = (
-        context,
-        id=None
-    ))]
+            // Compute histograms for all numeric fields
+            if let Some(array_dataset) = &self.array_dataset {
+                let profiler = NumProfiler::new();
+                let histograms = profiler.compute_histogram(
+                    &array_dataset.data.view(),
+                    &array_dataset.feature_names,
+                    &10,
+                    false,
+                )?;
+                self.histograms = Some(histograms);
+            }
+        }
 
-    /// Creates a new GenAIRecord instance.
-    /// The context is either a python dictionary or a pydantic basemodel.
-    pub fn new(
-        py: Python<'_>,
-        context: Bound<'_, PyAny>,
-        id: Option<String>,
-    ) -> Result<Self, EvaluationError> {
-        // check if context is a PyDict or PyObject(Pydantic model)
-        let context_val = if context.is_instance_of::<PyDict>() {
-            pyobject_to_json(&context)?
-        } else if is_pydantic_basemodel(py, &context)? {
-            // Dump pydantic model to dictionary
-            let model = context.call_method0("model_dump")?;
-
-            // Serialize the dictionary to JSON
-            pyobject_to_json(&model)?
-        } else {
-            Err(EvaluationError::MustBeDictOrBaseModel)?
-        };
-
-        let id = id.unwrap_or_else(create_uuid7);
-
-        Ok(GenAIEvalRecord {
-            id,
-            context: context_val,
-        })
+        Ok(())
     }
 
-    #[getter]
-    pub fn context<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, EvaluationError> {
-        Ok(json_to_pyobject_value(py, &self.context)?
-            .into_bound_py_any(py)?
-            .clone())
+    /// Build an NDArray dataset from the result tasks
+    fn build_array_dataset(&mut self) -> Result<(), EvaluationError> {
+        if self.array_dataset.is_none() {
+            self.array_dataset = Some(ArrayDataset::from_results(self)?);
+        }
+        Ok(())
     }
 }
 

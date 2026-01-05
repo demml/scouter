@@ -323,10 +323,10 @@ fn test_data_archive_genai_event_record() {
         &profile.config.uid,
         &runtime,
         Some(10),
-        RecordType::GenAIEvent,
+        RecordType::GenAIEval,
     );
     // 0 day old records
-    helper.populate_genai_records(&profile.config.uid, &runtime, None, RecordType::GenAIEvent);
+    helper.populate_genai_records(&profile.config.uid, &runtime, None, RecordType::GenAIEval);
 
     let record = runtime.block_on(async {
         sleep(Duration::from_secs(5)).await;
@@ -343,8 +343,8 @@ fn test_data_archive_genai_event_record() {
     assert!(record.genai_event);
 
     let df =
-        ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::GenAIEvent).unwrap();
-    let path = format!("{}/{}", profile.config.uid, RecordType::GenAIEvent.as_str());
+        ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::GenAIEval).unwrap();
+    let path = format!("{}/{}", profile.config.uid, RecordType::GenAIEval.as_str());
 
     let canonical_path = format!("{}/{}", df.storage_root(), path);
     let data_path = object_store::path::Path::from(canonical_path);

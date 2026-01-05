@@ -6,7 +6,7 @@ pub enum BinnedTableName {
     Spc,
     GenAITask,
     GenAIWorkflow,
-    GenAIEvent,
+    GenAIEval,
 }
 
 impl Display for BinnedTableName {
@@ -17,7 +17,7 @@ impl Display for BinnedTableName {
             BinnedTableName::Spc => write!(f, "binned_spc"),
             BinnedTableName::GenAITask => write!(f, "binned_genai_task"),
             BinnedTableName::GenAIWorkflow => write!(f, "binned_genai_workflow"),
-            BinnedTableName::GenAIEvent => write!(f, "binned_genai_event"),
+            BinnedTableName::GenAIEval => write!(f, "binned_genai_event"),
         }
     }
 }

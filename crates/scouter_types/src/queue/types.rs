@@ -1,23 +1,16 @@
 use crate::error::TypeError;
-use crate::util::{is_pydantic_basemodel, pyobject_to_json};
+use crate::GenAIEvalRecord;
 use crate::PyHelperFuncs;
-use crate::{json_to_pyobject_value, GenAIEventRecord};
-use chrono::DateTime;
-use chrono::Utc;
-use potato_head::create_uuid7;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyFloat, PyInt, PyList, PyString};
-use pyo3::IntoPyObjectExt;
-use pythonize::depythonize;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
 
 #[pyclass]
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum EntityType {
     Feature,
     Metric,
@@ -388,90 +381,11 @@ impl Metrics {
     }
 }
 
-// there should be only one GenAIRecord type (for queue and eval)
-// only exception is GenAIEvalRecord which has extra fields for drift profiling and uses sql deps
-#[pyclass]
-#[derive(Clone, Serialize, Debug)]
-pub struct GenAIRecord {
-    pub uid: String,
-    pub created_at: DateTime<Utc>,
-    pub context: Value,
-    #[pyo3(get)]
-    pub entity_type: EntityType,
-}
-
-#[pymethods]
-impl GenAIRecord {
-    #[new]
-    #[pyo3(signature = (context))]
-
-    /// Creates a new GenAIRecord instance.
-    /// The context is either a python dictionary or a pydantic basemodel.
-    pub fn new(py: Python<'_>, context: Bound<'_, PyAny>) -> Result<Self, TypeError> {
-        // check if context is a PyDict or PyObject(Pydantic model)
-        let context_val = if context.is_instance_of::<PyDict>() {
-            pyobject_to_json(&context)?
-        } else if is_pydantic_basemodel(py, &context)? {
-            // Dump pydantic model to dictionary
-            let model = context.call_method0("model_dump")?;
-
-            // Serialize the dictionary to JSON
-            depythonize(&model)?
-        } else {
-            Err(TypeError::MustBeDictOrBaseModel)?
-        };
-
-        Ok(GenAIRecord {
-            uid: create_uuid7(),
-            created_at: Utc::now(),
-            context: context_val,
-            entity_type: EntityType::GenAI,
-        })
-    }
-
-    #[getter]
-    pub fn context<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TypeError> {
-        Ok(json_to_pyobject_value(py, &self.context)?
-            .into_bound_py_any(py)?
-            .clone())
-    }
-}
-
-impl GenAIRecord {
-    pub fn new_rs(context: Option<Value>) -> Self {
-        GenAIRecord {
-            context: context.unwrap_or(Value::Object(serde_json::Map::new())),
-            entity_type: EntityType::GenAI,
-            uid: create_uuid7(),
-            created_at: Utc::now(),
-        }
-    }
-
-    pub fn __str__(&self) -> String {
-        PyHelperFuncs::__str__(self)
-    }
-
-    pub fn to_genai_event_record(self, drift_profile_uid: &str) -> GenAIEventRecord {
-        GenAIEventRecord::new_rs(
-            self.context,
-            self.created_at,
-            self.uid,
-            drift_profile_uid.to_string(),
-        )
-    }
-}
-
-impl Default for GenAIRecord {
-    fn default() -> Self {
-        GenAIRecord::new_rs(None)
-    }
-}
-
 #[derive(Debug)]
 pub enum QueueItem {
     Features(Features),
     Metrics(Metrics),
-    LLM(Box<GenAIRecord>),
+    GenAI(Box<GenAIEvalRecord>),
 }
 
 impl QueueItem {
@@ -490,8 +404,8 @@ impl QueueItem {
             }
             EntityType::GenAI => {
                 // LLM is not supported in this context
-                let genai = entity.extract::<GenAIRecord>()?;
-                Ok(QueueItem::LLM(Box::new(genai)))
+                let genai = entity.extract::<GenAIEvalRecord>()?;
+                Ok(QueueItem::GenAI(Box::new(genai)))
             }
         }
     }
@@ -500,7 +414,7 @@ impl QueueItem {
 pub trait QueueExt: Send + Sync {
     fn metrics(&self) -> &Vec<Metric>;
     fn features(&self) -> &Vec<Feature>;
-    fn into_genai_record(self) -> Option<GenAIRecord>;
+    fn into_genai_record(self) -> Option<GenAIEvalRecord>;
 }
 
 impl QueueExt for Features {
@@ -515,7 +429,7 @@ impl QueueExt for Features {
         &self.features
     }
 
-    fn into_genai_record(self) -> Option<GenAIRecord> {
+    fn into_genai_record(self) -> Option<GenAIEvalRecord> {
         // this is not a real implementation, just a placeholder
         // to satisfy the trait bound
         None
@@ -534,14 +448,14 @@ impl QueueExt for Metrics {
         &EMPTY
     }
 
-    fn into_genai_record(self) -> Option<GenAIRecord> {
+    fn into_genai_record(self) -> Option<GenAIEvalRecord> {
         // this is not a real implementation, just a placeholder
         // to satisfy the trait bound
         None
     }
 }
 
-impl QueueExt for GenAIRecord {
+impl QueueExt for GenAIEvalRecord {
     fn metrics(&self) -> &Vec<Metric> {
         // this is not a real implementation, just a placeholder
         // to satisfy the trait bound
@@ -556,7 +470,7 @@ impl QueueExt for GenAIRecord {
         &EMPTY
     }
 
-    fn into_genai_record(self) -> Option<GenAIRecord> {
+    fn into_genai_record(self) -> Option<GenAIEvalRecord> {
         Some(self)
     }
 }

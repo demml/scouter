@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use crossbeam_queue::ArrayQueue;
 use scouter_types::genai::GenAIEvalProfile;
-use scouter_types::GenAIRecord;
+use scouter_types::GenAIEvalRecord;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tracing::debug;
@@ -27,7 +27,7 @@ use tracing::debug;
 /// - `sample_size`: The size of the sample.
 /// - `sample`: A boolean indicating whether to sample metrics.
 pub struct GenAIQueue {
-    queue: Arc<ArrayQueue<GenAIRecord>>,
+    queue: Arc<ArrayQueue<GenAIEvalRecord>>,
     record_queue: Arc<GenAIRecordQueue>,
     producer: RustScouterProducer,
     last_publish: Arc<RwLock<DateTime<Utc>>>,
@@ -48,7 +48,7 @@ impl GenAIQueue {
         debug!("Creating GenAI Drift Queue");
         // ArrayQueue size is based on sample rate
         let queue = Arc::new(ArrayQueue::new(sample_rate * 2));
-        let record_queue = Arc::new(GenAIRecordQueue::new(drift_profile));
+        let record_queue = Arc::new(GenAIRecordQueue::new());
         let last_publish = Arc::new(RwLock::new(Utc::now()));
 
         let producer = RustScouterProducer::new(config).await?;
@@ -76,14 +76,14 @@ impl GenAIQueue {
 }
 
 impl BackgroundTask for GenAIQueue {
-    type DataItem = GenAIRecord;
+    type DataItem = GenAIEvalRecord;
     type Processor = GenAIRecordQueue;
 }
 
 #[async_trait]
 /// Implementing primary methods
 impl QueueMethods for GenAIQueue {
-    type ItemType = GenAIRecord;
+    type ItemType = GenAIEvalRecord;
     type FeatureQueue = GenAIRecordQueue;
 
     fn capacity(&self) -> usize {

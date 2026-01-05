@@ -12,22 +12,22 @@ use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::ToDriftRecords;
-use scouter_types::{BoxedGenAIEventRecord, ServerRecords, StorageType};
+use scouter_types::{BoxedGenAIEvalRecord, ServerRecords, StorageType};
 use std::sync::Arc;
 
-pub struct GenAIEventDataFrame {
+pub struct GenAIEvalDataFrame {
     schema: Arc<Schema>,
     pub object_store: ObjectStore,
 }
 
 #[async_trait]
-impl ParquetFrame for GenAIEventDataFrame {
+impl ParquetFrame for GenAIEvalDataFrame {
     fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, DataFrameError> {
-        GenAIEventDataFrame::new(storage_settings)
+        GenAIEvalDataFrame::new(storage_settings)
     }
 
     async fn get_dataframe(&self, records: ServerRecords) -> Result<DataFrame, DataFrameError> {
-        let records = records.to_genai_event_records()?;
+        let records = records.to_genai_eval_records()?;
         let batch = self.build_batch(records)?;
 
         let ctx = self.object_store.get_session()?;
@@ -60,11 +60,11 @@ impl ParquetFrame for GenAIEventDataFrame {
     }
 
     fn table_name(&self) -> String {
-        BinnedTableName::GenAIEvent.to_string()
+        BinnedTableName::GenAIEval.to_string()
     }
 }
 
-impl GenAIEventDataFrame {
+impl GenAIEvalDataFrame {
     pub fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, DataFrameError> {
         let schema = Arc::new(Schema::new(vec![
             Field::new("id", DataType::Int64, false),
@@ -97,7 +97,7 @@ impl GenAIEventDataFrame {
 
         let object_store = ObjectStore::new(storage_settings)?;
 
-        Ok(GenAIEventDataFrame {
+        Ok(GenAIEvalDataFrame {
             schema,
             object_store,
         })
@@ -105,7 +105,7 @@ impl GenAIEventDataFrame {
 
     fn build_batch(
         &self,
-        records: Vec<BoxedGenAIEventRecord>,
+        records: Vec<BoxedGenAIEvalRecord>,
     ) -> Result<RecordBatch, DataFrameError> {
         let id_array =
             arrow_array::Int64Array::from_iter_values(records.iter().map(|r| r.record.id));

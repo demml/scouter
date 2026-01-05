@@ -3,10 +3,8 @@ WITH selected_task AS (
         uid,
         entity_id,
         created_at,
-        context,
-        prompt,
-        score
-    FROM scouter.genai_event_record
+        context
+    FROM scouter.genai_eval_record
     WHERE 1=1
         AND status = 'pending'
     ORDER BY created_at ASC
@@ -14,7 +12,7 @@ WITH selected_task AS (
     FOR UPDATE SKIP LOCKED
 )
 
-UPDATE scouter.genai_event_record dp
+UPDATE scouter.genai_eval_record dp
 SET
     status = 'processing',
     processing_started_at = CURRENT_TIMESTAMP

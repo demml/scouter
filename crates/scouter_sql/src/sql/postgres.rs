@@ -143,11 +143,11 @@ impl MessageHandler {
                 }
             }
 
-            RecordType::GenAIEvent => {
+            RecordType::GenAIEval => {
                 debug!("LLM Drift record count: {:?}", records.len());
-                let records = records.to_genai_event_records()?;
+                let records = records.to_genai_eval_records()?;
                 for record in records {
-                    let _ = PostgresClient::insert_genai_event_record(pool, record, &entity_id)
+                    let _ = PostgresClient::insert_genai_eval_record(pool, record, &entity_id)
                         .await
                         .map_err(|e| {
                             error!("Failed to insert GenAI drift record: {:?}", e);
@@ -346,7 +346,7 @@ mod tests {
             FROM scouter.user;
 
             DELETE
-            FROM scouter.genai_event_record;
+            FROM scouter.genai_eval_record;
 
             DELETE
             FROM scouter.genai_drift;
@@ -1009,7 +1009,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_postgres_genai_event_record_insert_get() {
+    async fn test_postgres_genai_eval_record_insert_get() {
         let pool = db_pool().await;
 
         let (uid, entity_id) = PostgresClient::create_entity(
@@ -1030,36 +1030,33 @@ mod tests {
                 "input": input,
                 "response": output,
             });
-            let record = GenAIEventRecord {
+            let record = GenAIEvalRecord {
                 created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
                 context,
                 status: Status::Pending,
                 id: 0, // This will be set by the database
                 uid: format!("test_{}", j),
-                updated_at: None,
-                processing_started_at: None,
-                processing_ended_at: None,
-                processing_duration: None,
                 entity_uid: uid.clone(),
                 entity_id,
+                ..Default::default()
             };
 
-            let boxed = BoxedGenAIEventRecord::new(record);
+            let boxed = BoxedGenAIEvalRecord::new(record);
 
-            let result = PostgresClient::insert_genai_event_record(&pool, boxed, &entity_id)
+            let result = PostgresClient::insert_genai_eval_record(&pool, boxed, &entity_id)
                 .await
                 .unwrap();
 
             assert_eq!(result.rows_affected(), 1);
         }
 
-        let features = PostgresClient::get_genai_event_records(&pool, None, None, &entity_id)
+        let features = PostgresClient::get_genai_eval_records(&pool, None, None, &entity_id)
             .await
             .unwrap();
         assert_eq!(features.len(), 10);
 
         // get pending task
-        let pending_tasks = PostgresClient::get_pending_genai_event_record(&pool)
+        let pending_tasks = PostgresClient::get_pending_genai_eval_record(&pool)
             .await
             .unwrap();
 
@@ -1071,7 +1068,7 @@ mod tests {
         assert_eq!(*task_input, "This is a test input".to_string());
 
         // update pending task
-        PostgresClient::update_genai_event_record_status(
+        PostgresClient::update_genai_eval_record_status(
             &pool,
             &pending_tasks.unwrap(),
             Status::Processed,
@@ -1081,7 +1078,7 @@ mod tests {
         .unwrap();
 
         // query processed tasks
-        let processed_tasks = PostgresClient::get_genai_event_records(
+        let processed_tasks = PostgresClient::get_genai_eval_records(
             &pool,
             None,
             Some(Status::Processed),
@@ -1095,7 +1092,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_postgres_genai_event_record_pagination() {
+    async fn test_postgres_genai_eval_record_pagination() {
         let pool = db_pool().await;
 
         let (uid, entity_id) = PostgresClient::create_entity(
@@ -1117,23 +1114,20 @@ mod tests {
                 "input": input,
                 "response": output,
             });
-            let record = GenAIEventRecord {
+            let record = GenAIEvalRecord {
                 created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
                 context,
                 status: Status::Pending,
                 id: 0, // This will be set by the database
                 uid: format!("test_{}", j),
-                updated_at: None,
-                processing_started_at: None,
-                processing_ended_at: None,
-                processing_duration: None,
                 entity_uid: uid.clone(),
                 entity_id: ENTITY_ID,
+                ..Default::default()
             };
 
-            let boxed = BoxedGenAIEventRecord::new(record);
+            let boxed = BoxedGenAIEvalRecord::new(record);
 
-            let result = PostgresClient::insert_genai_event_record(&pool, boxed, &entity_id)
+            let result = PostgresClient::insert_genai_eval_record(&pool, boxed, &entity_id)
                 .await
                 .unwrap();
 
@@ -1141,7 +1135,7 @@ mod tests {
         }
 
         // ===== PAGE 1: Get first 5 records (newest) =====
-        let params = GenAIEventRecordPaginationRequest {
+        let params = GenAIEvalRecordPaginationRequest {
             status: None,
             limit: Some(5),
             cursor_created_at: None,
@@ -1150,7 +1144,7 @@ mod tests {
             ..Default::default()
         };
 
-        let page1 = PostgresClient::get_paginated_genai_event_records(&pool, &params, &entity_id)
+        let page1 = PostgresClient::get_paginated_genai_eval_records(&pool, &params, &entity_id)
             .await
             .unwrap();
 
@@ -1174,7 +1168,7 @@ mod tests {
         // ===== PAGE 2: Get next 5 records (older) =====
         let next_cursor = page1.next_cursor.unwrap();
 
-        let params = GenAIEventRecordPaginationRequest {
+        let params = GenAIEvalRecordPaginationRequest {
             status: None,
             limit: Some(5),
             cursor_created_at: Some(next_cursor.created_at),
@@ -1183,7 +1177,7 @@ mod tests {
             ..Default::default()
         };
 
-        let page2 = PostgresClient::get_paginated_genai_event_records(&pool, &params, &entity_id)
+        let page2 = PostgresClient::get_paginated_genai_eval_records(&pool, &params, &entity_id)
             .await
             .unwrap();
 
@@ -1223,7 +1217,7 @@ mod tests {
         // Go back from page 2 to page 1
         let previous_cursor = page2.previous_cursor.unwrap();
 
-        let params = GenAIEventRecordPaginationRequest {
+        let params = GenAIEvalRecordPaginationRequest {
             status: None,
             limit: Some(5),
             cursor_created_at: Some(previous_cursor.created_at),
@@ -1233,7 +1227,7 @@ mod tests {
         };
 
         let page1_again =
-            PostgresClient::get_paginated_genai_event_records(&pool, &params, &entity_id)
+            PostgresClient::get_paginated_genai_eval_records(&pool, &params, &entity_id)
                 .await
                 .unwrap();
 

@@ -155,6 +155,12 @@ pub enum TypeError {
 
     #[error("Expected a Python dict")]
     ExpectedPyDict,
+
+    #[error("List contains an item that is neither AssertionTask nor LLMJudgeTask")]
+    InvalidAssertionTaskType,
+
+    #[error("{0}")]
+    FailedToCreateProfile(String),
 }
 
 impl From<pythonize::PythonizeError> for TypeError {
@@ -232,6 +238,12 @@ pub enum RecordError {
 
     #[error(transparent)]
     PotatoUtilError(#[from] potato_head::UtilError),
+
+    #[error(transparent)]
+    TypeError(#[from] TypeError),
+
+    #[error("Invalid context type. Context must be dictionary or Pydantic BaseModel")]
+    MustBeDictOrBaseModel,
 }
 
 impl From<pythonize::PythonizeError> for RecordError {

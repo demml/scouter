@@ -35,7 +35,7 @@ use scouter_types::{
     PsiRecord,
 };
 use scouter_types::{
-    BoxedGenAIEventRecord, GenAIEventRecord, ServerRecord, ServerRecords, SpcRecord, Status,
+    BoxedGenAIEvalRecord, GenAIEvalRecord, ServerRecord, ServerRecords, SpcRecord, Status,
 };
 use scouter_types::{DriftType, RecordType};
 use serde_json::Value;
@@ -81,7 +81,7 @@ pub async fn cleanup_tables(pool: &Pool<Postgres>) -> Result<(), anyhow::Error> 
         FROM scouter.psi_drift;
 
         DELETE
-        FROM scouter.genai_event_record;
+        FROM scouter.genai_eval_record;
 
         DELETE
         FROM scouter.genai_eval_workflow;
@@ -340,22 +340,19 @@ impl TestHelper {
                     "input": format!("input{i}"),
                     "response": format!("output{i}"),
                 });
-                let record = GenAIEventRecord {
+                let record = GenAIEvalRecord {
                     created_at: Utc::now() - chrono::Duration::days(offset),
                     entity_uid: uid.to_string(),
                     context,
                     status: Status::Pending,
                     id: 0,
                     uid: create_uuid7(),
-                    updated_at: None,
-                    processing_started_at: None,
-                    processing_ended_at: None,
-                    processing_duration: None,
                     entity_id: ENTITY_ID_PLACEHOLDER,
+                    ..Default::default()
                 };
 
-                let boxed_record = BoxedGenAIEventRecord::new(record);
-                records.push(ServerRecord::GenAIEvent(boxed_record));
+                let boxed_record = BoxedGenAIEvalRecord::new(record);
+                records.push(ServerRecord::GenAIEval(boxed_record));
             }
         }
 
@@ -601,7 +598,7 @@ impl TestHelper {
                 let records = TestHelper::get_genai_workflow_results(time_offset, &uid);
                 serde_json::to_string(&records).unwrap()
             }
-            RecordType::GenAIEvent => {
+            RecordType::GenAIEval => {
                 let records = TestHelper::get_genai_event_records(time_offset, &uid);
                 serde_json::to_string(&records).unwrap()
             }

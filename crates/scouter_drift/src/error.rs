@@ -103,17 +103,11 @@ pub enum DriftError {
     #[error("Failed to setup tokio runtime for computing GenAI drift: {0}")]
     SetupTokioRuntimeError(#[source] io::Error),
 
-    #[error("Failed to process GenAI drift record: {0}")]
-    GenAIEvaluatorError(String),
-
     #[error("{0}")]
     InvalidDataConfiguration(String),
 
     #[error("Workflow is missing for GenAI drift evaluation")]
     MissingWorkflow,
-
-    #[error("Failed to acquire read lock on workflow")]
-    ReadLockAcquireError,
 
     #[error("Failed to acquire write lock on workflow")]
     WriteLockAcquireError,
@@ -124,17 +118,14 @@ pub enum DriftError {
     #[error(transparent)]
     EvaluationError(#[from] scouter_evaluate::error::EvaluationError),
 
-    #[error("Task not found: {0}")]
-    TaskNotFound(String),
-
-    #[error("List contains an item that is neither AssertionTask nor LLMJudgeTask")]
-    InvalidAssertionTaskType,
-
     #[error("Expected a list of AssertionTask or LLMJudgeTask. Received {0}")]
     ExpectedListOfAssertionOrLLMJudgeTasks(String),
 
     #[error("Expected a list of GenAIRecords. Received {0}")]
     ExpectedListOfGenAIRecords(String),
+
+    #[error("Failed to process GenAI evaluation: {0}")]
+    GenAIEvaluatorError(String),
 }
 
 impl From<DriftError> for PyErr {

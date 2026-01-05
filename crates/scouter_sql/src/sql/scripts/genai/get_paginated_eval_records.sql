@@ -1,17 +1,16 @@
 SELECT
-    uid,
-    created_at,
-    context,
-    prompt,
-    status,
-    score,
     id,
+    created_at,
+    uid,
+    entity_id,
+    context,
     updated_at,
+     status,
     processing_started_at,
     processing_ended_at,
     processing_duration,
-    entity_id
-FROM scouter.genai_event_record
+    record_id
+FROM scouter.genai_eval_record
 WHERE entity_id = $1
   AND ($2::VARCHAR IS NULL OR status = $2)
   AND ($7::TIMESTAMPTZ IS NULL OR created_at >= $7)  -- start_datetime

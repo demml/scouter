@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use sqlx::postgres::PgRow;
 
 use scouter_types::{
-    CustomMetricRecord, GenAIEvalTaskResultRecord, GenAIEvalWorkflowRecord, GenAIEventRecord,
+    CustomMetricRecord, GenAIEvalRecord, GenAIEvalTaskResultRecord, GenAIEvalWorkflowRecord,
     IntoServerRecord, PsiRecord, RecordType, ServerRecords, SpcRecord,
 };
 /// Generic function to deserialize PgRows into ServerRecords
@@ -37,8 +37,8 @@ pub fn parse_pg_rows(
         RecordType::Custom => {
             crate::sql::utils::pg_rows_to_server_records::<CustomMetricRecord>(rows, record_type)
         }
-        RecordType::GenAIEvent => {
-            crate::sql::utils::pg_rows_to_server_records::<GenAIEventRecord>(rows, record_type)
+        RecordType::GenAIEval => {
+            crate::sql::utils::pg_rows_to_server_records::<GenAIEvalRecord>(rows, record_type)
         }
         RecordType::GenAITask => crate::sql::utils::pg_rows_to_server_records::<
             GenAIEvalTaskResultRecord,

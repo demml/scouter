@@ -1,4 +1,4 @@
-UPDATE scouter.genai_event_record
+UPDATE scouter.genai_eval_record
 SET
     archived = true,
     updated_at = CURRENT_TIMESTAMP

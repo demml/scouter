@@ -1,46 +1,52 @@
 use crate::error::EvaluationError;
-use crate::types::{EvaluationConfig, GenAIEvalTaskResult};
-use crate::types::{GenAIEvalRecord, GenAIEvalResults};
+use crate::types::{EvaluationConfig, GenAIEvalResults};
 use crate::util::{
-    collect_evaluation_results, spawn_evaluation_tasks_with_embeddings,
-    spawn_evaluation_tasks_without_embeddings,
+    collect_and_align_results, post_process_aligned_results,
+    spawn_evaluation_tasks_with_embeddings, spawn_evaluation_tasks_without_embeddings,
 };
-use potato_head::Workflow;
+use scouter_types::genai::GenAIEvalDataset;
 use std::sync::Arc;
-use tokio::task::JoinSet;
 use tracing::{debug, instrument};
+
 /// Main orchestration function that decides which execution path to take
 /// # Arguments
-/// * `workflow`: The workflow to execute.
-/// * `records`: The data records to evaluate.
-/// * `embedder`: Optional embedder for embedding-based evaluations.
+/// * `dataset`: The dataset containing records to evaluate.
 /// * `embedding_targets`: Optional list of fields to embed.
 #[instrument(skip_all)]
-pub async fn async_evaluate_genai(
-    workflow: Workflow,
-    records: Vec<GenAIEvalRecord>,
+pub async fn evaluate_genai_dataset(
+    dataset: GenAIEvalDataset,
     config: &Arc<EvaluationConfig>,
 ) -> Result<GenAIEvalResults, EvaluationError> {
-    debug!("Starting LLM evaluation for {} records", records.len());
+    debug!(
+        "Starting LLM evaluation for {} records",
+        dataset.records.len()
+    );
 
-    let join_set: JoinSet<(String, Option<GenAIEvalTaskResult>)> = match (
+    let join_set = match (
         config.embedder.as_ref(),
         config.embedding_targets.is_empty(),
     ) {
         (Some(embedder), false) => {
             debug!("Using embedding-enabled evaluation path");
-            spawn_evaluation_tasks_with_embeddings(workflow, records, Arc::clone(embedder), config)
-                .await
+            spawn_evaluation_tasks_with_embeddings(dataset, Arc::clone(embedder), config).await
         }
         _ => {
             debug!("Using standard evaluation path");
-
-            // this will return a list of VecEval
-            spawn_evaluation_tasks_without_embeddings(workflow, records).await
+            spawn_evaluation_tasks_without_embeddings(dataset, config).await
         }
     };
 
-    let results = collect_evaluation_results(join_set).await?;
+    // Both paths now return the same type, so we can use a unified collection function
+    let mut results = collect_and_align_results(join_set).await?;
+
+    // Post-processing
+    if config.needs_post_processing() {
+        post_process_aligned_results(&mut results, config)?;
+    }
+
+    if config.compute_histograms {
+        results.finalize(config)?;
+    }
 
     Ok(results)
 }

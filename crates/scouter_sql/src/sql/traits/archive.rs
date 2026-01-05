@@ -27,7 +27,7 @@ pub trait ArchiveSqlLogic {
             RecordType::Spc => Queries::GetSpcEntities.get_query(),
             RecordType::Psi => Queries::GetBinCountEntities.get_query(),
             RecordType::Custom => Queries::GetCustomEntities.get_query(),
-            RecordType::GenAIEvent => Queries::GetGenAIEventRecordEntitiesForArchive.get_query(),
+            RecordType::GenAIEval => Queries::GetGenAIEvalRecordEntitiesForArchive.get_query(),
             RecordType::GenAITask => Queries::GetGenAIEvalTaskResultEntitiesForArchive.get_query(),
             RecordType::GenAIWorkflow => {
                 Queries::GetGenAIEvalWorkflowEntitiesForArchive.get_query()
@@ -67,7 +67,7 @@ pub trait ArchiveSqlLogic {
             RecordType::Spc => Queries::GetSpcDataForArchive.get_query(),
             RecordType::Psi => Queries::GetBinCountDataForArchive.get_query(),
             RecordType::Custom => Queries::GetCustomDataForArchive.get_query(),
-            RecordType::GenAIEvent => Queries::GetGenAIEventRecordDataForArchive.get_query(),
+            RecordType::GenAIEval => Queries::GetGenAIEvalRecordDataForArchive.get_query(),
             RecordType::GenAITask => Queries::GetGenAITaskResultDataForArchive.get_query(),
             RecordType::GenAIWorkflow => Queries::GetGenAIWorkflowResultDataForArchive.get_query(),
             _ => {
@@ -97,7 +97,7 @@ pub trait ArchiveSqlLogic {
             RecordType::Spc => Queries::UpdateSpcEntities.get_query(),
             RecordType::Psi => Queries::UpdateBinCountEntities.get_query(),
             RecordType::Custom => Queries::UpdateCustomEntities.get_query(),
-            RecordType::GenAIEvent => Queries::UpdateGenAIEventEntities.get_query(),
+            RecordType::GenAIEval => Queries::UpdateGenAIEvalEntities.get_query(),
             RecordType::GenAITask => Queries::UpdateGenAITaskEntities.get_query(),
             RecordType::GenAIWorkflow => Queries::UpdateGenAIWorkflowEntities.get_query(),
             _ => {

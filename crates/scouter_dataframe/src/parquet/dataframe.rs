@@ -1,6 +1,6 @@
 use crate::error::DataFrameError;
 use crate::parquet::custom::CustomMetricDataFrame;
-use crate::parquet::genai::{GenAIEventDataFrame, GenAITaskDataFrame, GenAIWorkflowDataFrame};
+use crate::parquet::genai::{GenAIEvalDataFrame, GenAITaskDataFrame, GenAIWorkflowDataFrame};
 use crate::parquet::psi::PsiDataFrame;
 use crate::parquet::spc::SpcDataFrame;
 use crate::parquet::traits::ParquetFrame;
@@ -17,7 +17,7 @@ pub enum ParquetDataFrame {
     Spc(SpcDataFrame),
     GenAITask(GenAITaskDataFrame),
     GenAIWorkflow(GenAIWorkflowDataFrame),
-    GenAIEvent(GenAIEventDataFrame),
+    GenAIEval(GenAIEvalDataFrame),
 }
 
 impl ParquetDataFrame {
@@ -37,7 +37,7 @@ impl ParquetDataFrame {
             RecordType::GenAIWorkflow => Ok(ParquetDataFrame::GenAIWorkflow(
                 GenAIWorkflowDataFrame::new(storage_settings)?,
             )),
-            RecordType::GenAIEvent => Ok(ParquetDataFrame::GenAIEvent(GenAIEventDataFrame::new(
+            RecordType::GenAIEval => Ok(ParquetDataFrame::GenAIEval(GenAIEvalDataFrame::new(
                 storage_settings,
             )?)),
 
@@ -68,7 +68,7 @@ impl ParquetDataFrame {
             ParquetDataFrame::Spc(df) => df.write_parquet(rpath, records).await,
             ParquetDataFrame::GenAITask(df) => df.write_parquet(rpath, records).await,
             ParquetDataFrame::GenAIWorkflow(df) => df.write_parquet(rpath, records).await,
-            ParquetDataFrame::GenAIEvent(df) => df.write_parquet(rpath, records).await,
+            ParquetDataFrame::GenAIEval(df) => df.write_parquet(rpath, records).await,
         }
     }
 
@@ -79,7 +79,7 @@ impl ParquetDataFrame {
             ParquetDataFrame::Spc(df) => df.storage_root(),
             ParquetDataFrame::GenAITask(df) => df.storage_root(),
             ParquetDataFrame::GenAIWorkflow(df) => df.storage_root(),
-            ParquetDataFrame::GenAIEvent(df) => df.storage_root(),
+            ParquetDataFrame::GenAIEval(df) => df.storage_root(),
         }
     }
 
@@ -91,7 +91,7 @@ impl ParquetDataFrame {
             ParquetDataFrame::Spc(df) => df.object_store.clone(),
             ParquetDataFrame::GenAITask(df) => df.object_store.clone(),
             ParquetDataFrame::GenAIWorkflow(df) => df.object_store.clone(),
-            ParquetDataFrame::GenAIEvent(df) => df.object_store.clone(),
+            ParquetDataFrame::GenAIEval(df) => df.object_store.clone(),
         }
     }
 
@@ -138,7 +138,7 @@ impl ParquetDataFrame {
                 df.get_binned_metrics(read_path, bin, start_time, end_time, entity_id)
                     .await
             }
-            ParquetDataFrame::GenAIEvent(_) => Err(DataFrameError::UnsupportedOperation(
+            ParquetDataFrame::GenAIEval(_) => Err(DataFrameError::UnsupportedOperation(
                 "GenAI drift does not support binned metrics".to_string(),
             )),
         }
@@ -158,7 +158,7 @@ impl ParquetDataFrame {
             ParquetDataFrame::GenAIWorkflow(df) => {
                 df.object_store.storage_settings.storage_type.clone()
             }
-            ParquetDataFrame::GenAIEvent(df) => {
+            ParquetDataFrame::GenAIEval(df) => {
                 df.object_store.storage_settings.storage_type.clone()
             }
         }
@@ -182,7 +182,7 @@ mod tests {
     use rand::Rng;
     use scouter_settings::ObjectStorageSettings;
     use scouter_types::{
-        BoxedGenAIEventRecord, GenAIEventRecord, PsiRecord, ServerRecord, ServerRecords, SpcRecord,
+        BoxedGenAIEvalRecord, GenAIEvalRecord, PsiRecord, ServerRecord, ServerRecords, SpcRecord,
         Status,
     };
     use scouter_types::{CustomMetricRecord, GenAIEvalTaskResultRecord, GenAIEvalWorkflowRecord};
@@ -202,34 +202,31 @@ mod tests {
     async fn test_write_genai_event_record_dataframe_local() {
         cleanup();
         let storage_settings = ObjectStorageSettings::default();
-        let df = ParquetDataFrame::new(&storage_settings, &RecordType::GenAIEvent).unwrap();
+        let df = ParquetDataFrame::new(&storage_settings, &RecordType::GenAIEval).unwrap();
         let mut batch = Vec::new();
         let entity_id = rand::rng().random_range(0..100);
 
         // create records
         for i in 0..3 {
             for j in 0..50 {
-                let record = GenAIEventRecord {
+                let record = GenAIEvalRecord {
                     created_at: Utc::now() + chrono::Duration::hours(i),
                     entity_id,
                     context: serde_json::Value::Object(Map::new()),
                     status: Status::Pending,
                     id: 0,
                     uid: format!("record_uid_{i}_{j}"),
-                    updated_at: None,
-                    processing_started_at: None,
-                    processing_ended_at: None,
-                    processing_duration: None,
                     entity_uid: format!("entity_uid_{entity_id}"),
+                    ..Default::default()
                 };
 
-                let boxed_record = BoxedGenAIEventRecord::new(record);
-                batch.push(ServerRecord::GenAIEvent(boxed_record));
+                let boxed_record = BoxedGenAIEvalRecord::new(record);
+                batch.push(ServerRecord::GenAIEval(boxed_record));
             }
         }
 
         let records = ServerRecords::new(batch);
-        let rpath = BinnedTableName::GenAIEvent.to_string();
+        let rpath = BinnedTableName::GenAIEval.to_string();
         df.write_parquet(&rpath, records.clone()).await.unwrap();
 
         // get canonical path

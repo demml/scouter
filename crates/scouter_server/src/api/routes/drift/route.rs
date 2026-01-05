@@ -18,7 +18,7 @@ use scouter_sql::PostgresClient;
 use scouter_types::{
     psi::{BinnedPsiFeatureMetrics, PsiDriftProfile},
     spc::SpcDriftFeatures,
-    BinnedMetrics, GenAIEventRecordPaginationRequest, GenAIEventRecordPaginationResponse,
+    BinnedMetrics, GenAIEvalRecordPaginationRequest, GenAIEvalRecordPaginationResponse,
     MessageRecord,
 };
 use scouter_types::{DriftRequest, ScouterResponse, ScouterServerError};
@@ -187,8 +187,8 @@ pub async fn get_custom_drift(
 pub async fn query_genai_event_records(
     State(data): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
-    Json(params): Json<GenAIEventRecordPaginationRequest>,
-) -> Result<Json<GenAIEventRecordPaginationResponse>, (StatusCode, Json<ScouterServerError>)> {
+    Json(params): Json<GenAIEvalRecordPaginationRequest>,
+) -> Result<Json<GenAIEvalRecordPaginationResponse>, (StatusCode, Json<ScouterServerError>)> {
     // validate time window
 
     if !perms.has_read_permission(&params.service_info.space) {

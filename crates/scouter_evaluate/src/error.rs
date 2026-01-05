@@ -1,6 +1,7 @@
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::pyclass::PyClassGuardError;
 use pyo3::PyErr;
+use pythonize::PythonizeError;
 use thiserror::Error;
 use tracing::error;
 #[derive(Error, Debug)]
@@ -97,6 +98,24 @@ pub enum EvaluationError {
 
     #[error("Cannot get length: {0}")]
     CannotGetLength(String),
+
+    #[error(transparent)]
+    ProfileError(#[from] scouter_types::error::ProfileError),
+
+    #[error("Failed to process GenAI drift record: {0}")]
+    GenAIEvaluatorError(String),
+
+    #[error("Task not found: {0}")]
+    TaskNotFound(String),
+
+    #[error("Failed to acquire read lock on workflow")]
+    ReadLockAcquireError,
+}
+
+impl From<pythonize::PythonizeError> for EvaluationError {
+    fn from(err: PythonizeError) -> Self {
+        EvaluationError::PyError(err.to_string())
+    }
 }
 
 impl<'a, 'py> From<pyo3::CastError<'a, 'py>> for EvaluationError {
