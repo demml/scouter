@@ -184,7 +184,7 @@ pub async fn get_custom_drift(
 
 /// This route is used to get the latest GenAI drift records by page
 #[instrument(skip_all)]
-pub async fn query_genai_event_records(
+pub async fn query_genai_eval_records(
     State(data): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
     Json(params): Json<GenAIEvalRecordPaginationRequest>,
@@ -203,7 +203,7 @@ pub async fn query_genai_event_records(
         .await?;
 
     let metrics =
-        PostgresClient::get_paginated_genai_event_records(&data.db_pool, &params, &entity_id).await;
+        PostgresClient::get_paginated_genai_eval_records(&data.db_pool, &params, &entity_id).await;
 
     match metrics {
         Ok(metrics) => Ok(Json(metrics)),
@@ -331,8 +331,8 @@ pub async fn get_drift_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
                 get(get_genai_workflow_metrics),
             )
             .route(
-                &format!("{prefix}/drift/genai/event"),
-                post(query_genai_event_records),
+                &format!("{prefix}/drift/genai/eval"),
+                post(query_genai_eval_records),
             )
     }));
 

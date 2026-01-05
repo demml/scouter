@@ -33,7 +33,7 @@ pub use scouter_types::{
     ConsoleDispatchConfig, CustomMetricRecord, DataType, Doane, DriftAlertPaginationRequest,
     DriftAlertPaginationResponse, DriftProfile, DriftRequest, DriftType, EntityIdTagsRequest,
     EntityIdTagsResponse, EntityType, EqualWidthBinning, Feature, FeatureMap, Features,
-    FreedmanDiaconis, GenAIEvalRecord, GenAIEvalRecord, GenAIEvalRecordPaginationRequest,
+    FreedmanDiaconis, GenAIEvalRecord, GenAIEvalRecordPaginationRequest,
     GenAIEvalRecordPaginationResponse, GenAIEvalTaskResultRecord, GenAIEvalWorkflowRecord,
     GetProfileRequest, LatencyMetrics, Manual, Metric, Metrics, ObservabilityMetrics,
     OpsGenieDispatchConfig, ProfileRequest, ProfileStatusRequest, PsiRecord, QuantileBinning,
@@ -77,8 +77,8 @@ pub use scouter_types::error::{ContractError, ProfileError, RecordError, TypeErr
 
 pub use scouter_evaluate::{
     error::EvaluationError,
-    genai::async_evaluate_genai,
-    types::{EvaluationConfig, GenAIEvalRecord, GenAIEvalResults, GenAIEvalTaskResult},
+    genai::evaluate_genai_dataset,
+    types::{EvaluationConfig, GenAIEvalResults},
 };
 pub use scouter_tracing::error::TraceError;
 pub use scouter_tracing::exporter::{

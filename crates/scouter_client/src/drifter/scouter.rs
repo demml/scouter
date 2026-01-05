@@ -7,6 +7,7 @@ use pyo3::types::PyList;
 use pyo3::IntoPyObjectExt;
 use scouter_drift::error::DriftError;
 use scouter_drift::spc::SpcDriftMap;
+use scouter_types::genai::utils::extract_assertion_tasks_from_pylist;
 use scouter_types::genai::{AssertionTask, GenAIEvalResultSet, LLMJudgeTask};
 use scouter_types::spc::SpcDriftProfile;
 use scouter_types::{

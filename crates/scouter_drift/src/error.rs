@@ -126,6 +126,9 @@ pub enum DriftError {
 
     #[error("Failed to process GenAI evaluation: {0}")]
     GenAIEvaluatorError(String),
+
+    #[error(transparent)]
+    TypeError(#[from] scouter_types::error::TypeError),
 }
 
 impl From<DriftError> for PyErr {
