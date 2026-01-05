@@ -1,5 +1,5 @@
 use crate::error::EvaluationError;
-use crate::util::{parse_embedder, post_process_aligned_results};
+use crate::utils::{parse_embedder, post_process_aligned_results};
 use ndarray::Array2;
 use potato_head::Embedder;
 use pyo3::prelude::*;
