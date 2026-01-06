@@ -39,10 +39,8 @@ pub async fn evaluate_genai_dataset(
         }
     };
 
-    // Pass records Arc for zero-copy access during collection
     let mut results = collect_and_align_results(join_set, &dataset.records).await?;
 
-    // Post-processing
     if config.needs_post_processing() {
         post_process_aligned_results(&mut results, config)?;
     }
@@ -78,7 +76,6 @@ impl GenAIEvalDataset {
 
     #[getter]
     pub fn records(&self) -> Vec<GenAIEvalRecord> {
-        // Clone for Python - only when explicitly requested
         (*self.records).clone()
     }
 
@@ -96,11 +93,9 @@ impl GenAIEvalDataset {
         &self,
         config: Option<EvaluationConfig>,
     ) -> Result<GenAIEvalResults, EvaluationError> {
-        // Create runtime and execute evaluation pipeline
-        // default config if none provided
         let config = Arc::new(config.unwrap_or_default());
         app_state()
             .handle()
-            .block_on(async { evaluate_genai_dataset(&self, &config).await })
+            .block_on(async { evaluate_genai_dataset(self, &config).await })
     }
 }

@@ -752,8 +752,6 @@ impl GenAIEvalResultSet {
     }
 }
 
-/// Create dataset to use in offline evaluation
-
 // write test using mock feature
 #[cfg(test)]
 #[cfg(feature = "mock")]
