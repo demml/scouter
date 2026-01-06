@@ -21,8 +21,8 @@ use scouter_types::{
     AlertThreshold, BinnedMetrics, RecordType,
 };
 use sqlx::types::chrono::Utc;
-use test_utils::retry_flaky_test;
-use tokio::time::{sleep, Duration};
+use test_utils::{retry_flaky_test, retry_flaky_test_with_runtime};
+use tokio::time::sleep;
 
 #[tokio::test]
 async fn test_data_archive_spc() {
@@ -302,249 +302,263 @@ async fn test_data_archive_custom() {
 }
 
 #[test]
-fn test_data_archive_genai_event_record() {
+fn test_data_archive_genai_eval_record() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
-    let mut mock = LLMTestServer::new();
-    mock.start_server().unwrap();
 
-    let helper = runtime.block_on(async { setup_test().await });
-    let mut profile = TestHelper::create_genai_drift_profile();
+    retry_flaky_test_with_runtime!(runtime, {
+        let mut mock = LLMTestServer::new();
+        mock.start_server().unwrap();
 
-    let uid = runtime.block_on(async {
-        helper
-            .register_drift_profile(profile.create_profile_request().unwrap())
-            .await
+        let helper = runtime.block_on(async { setup_test().await });
+        let mut profile =
+            runtime.block_on(async { TestHelper::create_genai_drift_profile().await });
+
+        let uid = runtime.block_on(async {
+            helper
+                .register_drift_profile(profile.create_profile_request().unwrap())
+                .await
+        });
+
+        profile.config.uid = uid.clone();
+
+        // 10 day old records
+        helper.populate_genai_records(
+            &profile.config.uid,
+            &runtime,
+            Some(10),
+            RecordType::GenAIEval,
+        );
+        // 0 day old records
+        helper.populate_genai_records(&profile.config.uid, &runtime, None, RecordType::GenAIEval);
+
+        let record = runtime.block_on(async {
+            sleep(Duration::from_secs(5)).await;
+            archive_old_data(&helper.pool, &helper.config)
+                .await
+                .unwrap()
+        });
+
+        assert!(!record.spc);
+        assert!(!record.psi);
+        assert!(!record.custom);
+        assert!(!record.genai_task);
+        assert!(!record.genai_workflow);
+        assert!(record.genai_event);
+
+        let df =
+            ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::GenAIEval).unwrap();
+        let path = format!("{}/{}", profile.config.uid, RecordType::GenAIEval.as_str());
+
+        let canonical_path = format!("{}/{}", df.storage_root(), path);
+        let data_path = object_store::path::Path::from(canonical_path);
+
+        let files =
+            runtime.block_on(async { df.storage_client().list(Some(&data_path)).await.unwrap() });
+
+        assert!(!files.is_empty());
+
+        mock.stop_server().unwrap();
+        TestHelper::cleanup_storage()
     });
-
-    profile.config.uid = uid.clone();
-
-    // 10 day old records
-    helper.populate_genai_records(
-        &profile.config.uid,
-        &runtime,
-        Some(10),
-        RecordType::GenAIEval,
-    );
-    // 0 day old records
-    helper.populate_genai_records(&profile.config.uid, &runtime, None, RecordType::GenAIEval);
-
-    let record = runtime.block_on(async {
-        sleep(Duration::from_secs(5)).await;
-        archive_old_data(&helper.pool, &helper.config)
-            .await
-            .unwrap()
-    });
-
-    assert!(!record.spc);
-    assert!(!record.psi);
-    assert!(!record.custom);
-    assert!(!record.genai_task);
-    assert!(!record.genai_workflow);
-    assert!(record.genai_event);
-
-    let df =
-        ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::GenAIEval).unwrap();
-    let path = format!("{}/{}", profile.config.uid, RecordType::GenAIEval.as_str());
-
-    let canonical_path = format!("{}/{}", df.storage_root(), path);
-    let data_path = object_store::path::Path::from(canonical_path);
-
-    let files =
-        runtime.block_on(async { df.storage_client().list(Some(&data_path)).await.unwrap() });
-
-    assert!(!files.is_empty());
-
-    mock.stop_server().unwrap();
-    TestHelper::cleanup_storage()
 }
 
 #[test]
 fn test_data_archive_genai_tasks() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
-    let mut mock = LLMTestServer::new();
-    mock.start_server().unwrap();
 
-    let helper = runtime.block_on(async { setup_test().await });
+    retry_flaky_test_with_runtime!(runtime, {
+        let mut mock = LLMTestServer::new();
+        mock.start_server().unwrap();
 
-    let mut profile = TestHelper::create_genai_drift_profile();
+        let helper = runtime.block_on(async { setup_test().await });
 
-    let uid = runtime.block_on(async {
-        helper
-            .register_drift_profile(profile.create_profile_request().unwrap())
-            .await
+        let mut profile =
+            runtime.block_on(async { TestHelper::create_genai_drift_profile().await });
+
+        let uid = runtime.block_on(async {
+            helper
+                .register_drift_profile(profile.create_profile_request().unwrap())
+                .await
+        });
+
+        profile.config.uid = uid.clone();
+
+        helper.populate_genai_records(
+            &profile.config.uid,
+            &runtime,
+            Some(20),
+            RecordType::GenAITask,
+        );
+
+        helper.populate_genai_records(
+            &profile.config.uid,
+            &runtime,
+            Some(10),
+            RecordType::GenAITask,
+        );
+
+        helper.populate_genai_records(&profile.config.uid, &runtime, None, RecordType::GenAITask);
+
+        let record = runtime.block_on(async {
+            sleep(Duration::from_secs(5)).await;
+            archive_old_data(&helper.pool, &helper.config)
+                .await
+                .unwrap()
+        });
+
+        assert!(!record.spc);
+        assert!(!record.psi);
+        assert!(!record.custom);
+        assert!(record.genai_task);
+        assert!(!record.genai_event);
+        assert!(!record.genai_workflow);
+
+        let df =
+            ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::GenAITask).unwrap();
+        let path = format!("{}/{}", profile.config.uid, RecordType::GenAITask.as_str());
+        let canonical_path = format!("{}/{}", df.storage_root(), path);
+        let data_path = object_store::path::Path::from(canonical_path);
+
+        let files =
+            runtime.block_on(async { df.storage_client().list(Some(&data_path)).await.unwrap() });
+
+        assert!(!files.is_empty());
+
+        let params = DriftRequest {
+            space: SPACE.to_string(),
+            uid: profile.config.uid.clone(),
+            max_data_points: 100,
+            start_custom_datetime: Some(Utc::now() - chrono::Duration::days(30)),
+            end_custom_datetime: Some(Utc::now()),
+            ..Default::default()
+        };
+
+        let query_string = serde_qs::to_string(&params).unwrap();
+
+        let request = Request::builder()
+            .uri(format!("/scouter/drift/genai/task?{query_string}"))
+            .method("GET")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = runtime.block_on(async { helper.send_oneshot(request).await });
+
+        //assert response
+        assert_eq!(response.status(), StatusCode::OK);
+        let val =
+            runtime.block_on(async { response.into_body().collect().await.unwrap().to_bytes() });
+
+        let results: BinnedMetrics = serde_json::from_slice(&val).unwrap();
+
+        assert!(!results.metrics.is_empty());
+        assert_eq!(results.metrics["task0"].created_at.len(), 3);
+
+        mock.stop_server().unwrap();
+        TestHelper::cleanup_storage();
     });
-
-    profile.config.uid = uid.clone();
-
-    helper.populate_genai_records(
-        &profile.config.uid,
-        &runtime,
-        Some(20),
-        RecordType::GenAITask,
-    );
-
-    helper.populate_genai_records(
-        &profile.config.uid,
-        &runtime,
-        Some(10),
-        RecordType::GenAITask,
-    );
-
-    helper.populate_genai_records(&profile.config.uid, &runtime, None, RecordType::GenAITask);
-
-    let record = runtime.block_on(async {
-        sleep(Duration::from_secs(5)).await;
-        archive_old_data(&helper.pool, &helper.config)
-            .await
-            .unwrap()
-    });
-
-    assert!(!record.spc);
-    assert!(!record.psi);
-    assert!(!record.custom);
-    assert!(record.genai_task);
-    assert!(!record.genai_event);
-    assert!(!record.genai_workflow);
-
-    let df =
-        ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::GenAITask).unwrap();
-    let path = format!("{}/{}", profile.config.uid, RecordType::GenAITask.as_str());
-    let canonical_path = format!("{}/{}", df.storage_root(), path);
-    let data_path = object_store::path::Path::from(canonical_path);
-
-    let files =
-        runtime.block_on(async { df.storage_client().list(Some(&data_path)).await.unwrap() });
-
-    assert!(!files.is_empty());
-
-    let params = DriftRequest {
-        space: SPACE.to_string(),
-        uid: profile.config.uid.clone(),
-        max_data_points: 100,
-        start_custom_datetime: Some(Utc::now() - chrono::Duration::days(30)),
-        end_custom_datetime: Some(Utc::now()),
-        ..Default::default()
-    };
-
-    let query_string = serde_qs::to_string(&params).unwrap();
-
-    let request = Request::builder()
-        .uri(format!("/scouter/drift/genai/task?{query_string}"))
-        .method("GET")
-        .body(Body::empty())
-        .unwrap();
-
-    let response = runtime.block_on(async { helper.send_oneshot(request).await });
-
-    //assert response
-    assert_eq!(response.status(), StatusCode::OK);
-    let val = runtime.block_on(async { response.into_body().collect().await.unwrap().to_bytes() });
-
-    let results: BinnedMetrics = serde_json::from_slice(&val).unwrap();
-
-    assert!(!results.metrics.is_empty());
-    assert_eq!(results.metrics["task0"].created_at.len(), 3);
-
-    mock.stop_server().unwrap();
-    TestHelper::cleanup_storage();
 }
 
 #[test]
 fn test_data_archive_genai_workflow() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
-    let mut mock = LLMTestServer::new();
-    mock.start_server().unwrap();
 
-    let helper = runtime.block_on(async { setup_test().await });
+    retry_flaky_test_with_runtime!(runtime, {
+        let mut mock = LLMTestServer::new();
+        mock.start_server().unwrap();
 
-    let mut profile = TestHelper::create_genai_drift_profile();
+        let helper = runtime.block_on(async { setup_test().await });
 
-    let uid = runtime.block_on(async {
-        helper
-            .register_drift_profile(profile.create_profile_request().unwrap())
-            .await
+        let mut profile =
+            runtime.block_on(async { TestHelper::create_genai_drift_profile().await });
+
+        let uid = runtime.block_on(async {
+            helper
+                .register_drift_profile(profile.create_profile_request().unwrap())
+                .await
+        });
+
+        profile.config.uid = uid.clone();
+
+        helper.populate_genai_records(
+            &profile.config.uid,
+            &runtime,
+            Some(20),
+            RecordType::GenAIWorkflow,
+        );
+
+        helper.populate_genai_records(
+            &profile.config.uid,
+            &runtime,
+            Some(10),
+            RecordType::GenAIWorkflow,
+        );
+
+        helper.populate_genai_records(
+            &profile.config.uid,
+            &runtime,
+            None,
+            RecordType::GenAIWorkflow,
+        );
+
+        let record = runtime.block_on(async {
+            sleep(Duration::from_secs(5)).await;
+            archive_old_data(&helper.pool, &helper.config)
+                .await
+                .unwrap()
+        });
+
+        assert!(!record.spc);
+        assert!(!record.psi);
+        assert!(!record.custom);
+        assert!(!record.genai_task);
+        assert!(!record.genai_event);
+        assert!(record.genai_workflow);
+
+        let df = ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::GenAIWorkflow)
+            .unwrap();
+        let path = format!(
+            "{}/{}",
+            profile.config.uid,
+            RecordType::GenAIWorkflow.as_str()
+        );
+        let canonical_path = format!("{}/{}", df.storage_root(), path);
+        let data_path = object_store::path::Path::from(canonical_path);
+
+        let files =
+            runtime.block_on(async { df.storage_client().list(Some(&data_path)).await.unwrap() });
+
+        assert!(!files.is_empty());
+
+        let params = DriftRequest {
+            space: SPACE.to_string(),
+            uid: profile.config.uid.clone(),
+            max_data_points: 100,
+            start_custom_datetime: Some(Utc::now() - chrono::Duration::days(30)),
+            end_custom_datetime: Some(Utc::now()),
+            ..Default::default()
+        };
+
+        let query_string = serde_qs::to_string(&params).unwrap();
+
+        let request = Request::builder()
+            .uri(format!("/scouter/drift/genai/workflow?{query_string}"))
+            .method("GET")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = runtime.block_on(async { helper.send_oneshot(request).await });
+
+        //assert response
+        assert_eq!(response.status(), StatusCode::OK);
+        let val =
+            runtime.block_on(async { response.into_body().collect().await.unwrap().to_bytes() });
+
+        let results: BinnedMetrics = serde_json::from_slice(&val).unwrap();
+
+        assert!(!results.metrics.is_empty());
+        assert_eq!(results.metrics["workflow"].created_at.len(), 3);
+
+        mock.stop_server().unwrap();
+        TestHelper::cleanup_storage();
     });
-
-    profile.config.uid = uid.clone();
-
-    helper.populate_genai_records(
-        &profile.config.uid,
-        &runtime,
-        Some(20),
-        RecordType::GenAIWorkflow,
-    );
-
-    helper.populate_genai_records(
-        &profile.config.uid,
-        &runtime,
-        Some(10),
-        RecordType::GenAIWorkflow,
-    );
-
-    helper.populate_genai_records(
-        &profile.config.uid,
-        &runtime,
-        None,
-        RecordType::GenAIWorkflow,
-    );
-
-    let record = runtime.block_on(async {
-        sleep(Duration::from_secs(5)).await;
-        archive_old_data(&helper.pool, &helper.config)
-            .await
-            .unwrap()
-    });
-
-    assert!(!record.spc);
-    assert!(!record.psi);
-    assert!(!record.custom);
-    assert!(!record.genai_task);
-    assert!(!record.genai_event);
-    assert!(record.genai_workflow);
-
-    let df =
-        ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::GenAIWorkflow).unwrap();
-    let path = format!(
-        "{}/{}",
-        profile.config.uid,
-        RecordType::GenAIWorkflow.as_str()
-    );
-    let canonical_path = format!("{}/{}", df.storage_root(), path);
-    let data_path = object_store::path::Path::from(canonical_path);
-
-    let files =
-        runtime.block_on(async { df.storage_client().list(Some(&data_path)).await.unwrap() });
-
-    assert!(!files.is_empty());
-
-    let params = DriftRequest {
-        space: SPACE.to_string(),
-        uid: profile.config.uid.clone(),
-        max_data_points: 100,
-        start_custom_datetime: Some(Utc::now() - chrono::Duration::days(30)),
-        end_custom_datetime: Some(Utc::now()),
-        ..Default::default()
-    };
-
-    let query_string = serde_qs::to_string(&params).unwrap();
-
-    let request = Request::builder()
-        .uri(format!("/scouter/drift/genai/workflow?{query_string}"))
-        .method("GET")
-        .body(Body::empty())
-        .unwrap();
-
-    let response = runtime.block_on(async { helper.send_oneshot(request).await });
-
-    //assert response
-    assert_eq!(response.status(), StatusCode::OK);
-    let val = runtime.block_on(async { response.into_body().collect().await.unwrap().to_bytes() });
-
-    let results: BinnedMetrics = serde_json::from_slice(&val).unwrap();
-
-    assert!(!results.metrics.is_empty());
-    assert_eq!(results.metrics["workflow"].created_at.len(), 3);
-
-    mock.stop_server().unwrap();
-    TestHelper::cleanup_storage();
 }

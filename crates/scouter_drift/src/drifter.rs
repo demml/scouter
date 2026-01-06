@@ -219,8 +219,8 @@ mod tests {
 
     use potato_head::mock::{create_score_prompt, LLMTestServer};
     use scouter_types::genai::{
-        AssertionTask, ComparisonOperator, EvaluationTaskType, GenAIAlertConfig, GenAIDriftConfig,
-        GenAIEvalAlertCondition, GenAIEvalProfile, LLMJudgeTask,
+        AssertionTask, ComparisonOperator, EvaluationTaskType, EvaluationTasks, GenAIAlertConfig,
+        GenAIDriftConfig, GenAIEvalAlertCondition, GenAIEvalProfile, LLMJudgeTask,
     };
     use scouter_types::{AlertThreshold, GenAIEvalRecord};
     use serde_json::Value;
@@ -608,6 +608,12 @@ mod tests {
             result: None,
         };
 
+        let tasks = EvaluationTasks::new()
+            .add_task(assertion_level_1)
+            .add_task(judge_task)
+            .add_task(assert_query_score)
+            .build();
+
         // Configure alert to trigger when workflow pass rate is below 80%
         let alert_condition = GenAIEvalAlertCondition {
             baseline_value: 0.8, // 80% pass rate threshold
@@ -625,13 +631,9 @@ mod tests {
             GenAIDriftConfig::new("scouter", "genai_test", "0.1.0", 25, alert_config, None)
                 .unwrap();
 
-        let profile = GenAIEvalProfile::new(
-            drift_config,
-            Some(vec![assertion_level_1, assert_query_score]),
-            Some(vec![judge_task]),
-        )
-        .unwrap();
-
+        let profile = runtime
+            .block_on(async { GenAIEvalProfile::new(drift_config, tasks).await })
+            .unwrap();
         let drift_profile = DriftProfile::GenAI(profile.clone());
 
         // Register drift profile
@@ -725,8 +727,6 @@ mod tests {
                 .await
                 .unwrap()
         });
-
-        println!("Generated Alerts: {:?}", alerts.items);
 
         assert!(
             !alerts.items.is_empty(),

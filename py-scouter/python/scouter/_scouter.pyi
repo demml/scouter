@@ -13666,8 +13666,107 @@ class ComparisonOperator:
     Matches: "ComparisonOperator"
     """Matches regular expression pattern"""
 
-    HasLength: "ComparisonOperator"
-    """Has specified length"""
+    HasLengthGreaterThan: "ComparisonOperator"
+    """Has specified length greater than"""
+
+    HasLengthLessThan: "ComparisonOperator"
+    """Has specified length less than"""
+
+    HasLengthEqual: "ComparisonOperator"
+    """Has specified length equal to"""
+
+    HasLengthGreaterThanOrEqual: "ComparisonOperator"
+    """Has specified length greater than or equal to"""
+
+    HasLengthLessThanOrEqual: "ComparisonOperator"
+    """Has specified length less than or equal to"""
+
+    # type validations
+    IsNumeric: "ComparisonOperator"
+    """Is a numeric value"""
+
+    IsString: "ComparisonOperator"
+    """Is a string value"""
+
+    IsBoolean: "ComparisonOperator"
+    """Is a boolean value"""
+
+    IsNull: "ComparisonOperator"
+    """Is null (None) value"""
+
+    IsArray: "ComparisonOperator"
+    """Is an array (list) value"""
+
+    IsObject: "ComparisonOperator"
+    """Is an object (dict) value"""
+
+    IsEmail: "ComparisonOperator"
+    """Is a valid email format"""
+
+    IsUrl: "ComparisonOperator"
+    """Is a valid URL format"""
+
+    IsUuid: "ComparisonOperator"
+    """Is a valid UUID format"""
+
+    IsIso8601: "ComparisonOperator"
+    """Is a valid ISO 8601 date format"""
+
+    IsJson: "ComparisonOperator"
+    """Is a valid JSON format"""
+
+    MatchesRegex: "ComparisonOperator"
+    """Matches a regular expression pattern"""
+
+    InRange: "ComparisonOperator"
+    """Is within a specified numeric range"""
+
+    NotInRange: "ComparisonOperator"
+    """Is outside a specified numeric range"""
+
+    IsPositive: "ComparisonOperator"
+    """Is a positive number"""
+
+    IsNegative: "ComparisonOperator"
+    """Is a negative number"""
+    IsZero: "ComparisonOperator"
+    """Is zero"""
+
+    ContainsAll: "ComparisonOperator"
+    """Contains all specified elements"""
+
+    ContainsAny: "ComparisonOperator"
+    """Contains any of the specified elements"""
+
+    ContainsNone: "ComparisonOperator"
+    """Contains none of the specified elements"""
+
+    IsEmpty: "ComparisonOperator"
+    """Is empty"""
+
+    IsNotEmpty: "ComparisonOperator"
+    """Is not empty"""
+
+    HasUniqueItems: "ComparisonOperator"
+    """Has unique items"""
+
+    IsAlphabetic: "ComparisonOperator"
+    """Is alphabetic"""
+
+    IsAlphanumeric: "ComparisonOperator"
+    """Is alphanumeric"""
+
+    IsLowerCase: "ComparisonOperator"
+    """Is lowercase"""
+
+    IsUpperCase: "ComparisonOperator"
+    """Is uppercase"""
+
+    ContainsWord: "ComparisonOperator"
+    """Contains a specific word"""
+
+    ApproximatelyEquals: "ComparisonOperator"
+    """Approximately equals within a tolerance"""
 
 class AssertionTask:
     """Assertion-based evaluation task for LLM monitoring.
@@ -14125,7 +14224,7 @@ class GenAIEvalProfile:
     Workflow Generation:
         When LLM judge tasks are present, the profile automatically:
         1. Builds an internal Workflow from LLMJudgeTask configurations
-        2. Validates task dependencies form a valid DAG (no cycles)
+        2. Validates task dependencies form a valid DAG
         3. Ensures Prompt configurations are compatible with execution
         4. Optimizes execution order for parallel processing where possible
 
@@ -14164,7 +14263,7 @@ class GenAIEvalProfile:
         >>>
         >>> profile = GenAIEvalProfile(
         ...     config=config,
-        ...     assertion_tasks=tasks
+        ...     tasks=tasks
         ... )
 
         LLM judge-based semantic monitoring:
@@ -14190,7 +14289,7 @@ class GenAIEvalProfile:
         >>>
         >>> profile = GenAIEvalProfile(
         ...     config=config,
-        ...     llm_judge_tasks=judge_tasks
+        ...     tasks=judge_tasks
         ... )
 
         Hybrid monitoring with dependencies:
@@ -14229,8 +14328,7 @@ class GenAIEvalProfile:
         >>>
         >>> profile = GenAIEvalProfile(
         ...     config=config,
-        ...     assertion_tasks=assertion_tasks,
-        ...     llm_judge_tasks=judge_tasks
+        ...     tasks=assertion_tasks + judge_tasks
         ... )
 
         Multi-stage dependent LLM judges:
@@ -14250,7 +14348,7 @@ class GenAIEvalProfile:
         ...     id="toxicity",
         ...     prompt=toxicity_prompt,
         ...     expected_value=0.2,
-        ...     field_path="score",
+        ...     field_path="relevance.score",
         ...     operator=ComparisonOperator.LessThan,
         ...     depends_on=["relevance"]  # Chain evaluations
         ... )
@@ -14260,14 +14358,14 @@ class GenAIEvalProfile:
         ...     id="quality",
         ...     prompt=quality_prompt,
         ...     expected_value=8,
-        ...     field_path="score",
+        ...     field_path="toxicity.score",
         ...     operator=ComparisonOperator.GreaterThanOrEqual,
         ...     depends_on=["relevance", "toxicity"]  # Multiple deps
         ... )
         >>>
         >>> profile = GenAIEvalProfile(
         ...     config=config,
-        ...     llm_judge_tasks=[relevance_task, toxicity_task, quality_task]
+        ...     tasks=[relevance_task, toxicity_task, quality_task]
         ... )
 
     Note:
@@ -14282,8 +14380,7 @@ class GenAIEvalProfile:
     def __init__(
         self,
         config: GenAIDriftConfig,
-        assertion_tasks: Optional[List[AssertionTask]] = None,
-        llm_judge_tasks: Optional[List[LLMJudgeTask]] = None,
+        tasks: List[Union[AssertionTask, LLMJudgeTask]],
     ):
         """Initialize a GenAIEvalProfile for LLM evaluation and drift detection.
 
@@ -14295,16 +14392,10 @@ class GenAIEvalProfile:
             config (GenAIDriftConfig):
                 Configuration for the GenAI drift profile containing space, name,
                 version, sample rate, and alert settings.
-            assertion_tasks (Optional[List[AssertionTask]]):
-                Optional list of assertion tasks for fast, deterministic validation.
-                Assertions execute without additional LLM calls and are ideal for
-                structural checks, threshold validation, and pattern matching.
-                Default: None (empty list)
-            llm_judge_tasks (Optional[List[LLMJudgeTask]]):
-                Optional list of LLM judge tasks for advanced reasoning-based evaluation.
-                When provided, automatically compiled into an internal Workflow.
-                Support dependencies to chain evaluations and pass results between tasks.
-                Default: None (empty list)
+            tasks (List[Union[AssertionTask, LLMJudgeTask]]):
+                List of evaluation tasks to include in the profile. Can contain
+                both AssertionTask and LLMJudgeTask instances. At least one task
+                (assertion or LLM judge) is required.
 
         Returns:
             GenAIEvalProfile: Configured profile ready for GenAI drift monitoring.
@@ -14323,7 +14414,7 @@ class GenAIEvalProfile:
             ...     AssertionTask(id="length_check", ...),
             ...     AssertionTask(id="confidence_check", ...)
             ... ]
-            >>> profile = GenAIEvalProfile(config, assertion_tasks=assertions)
+            >>> profile = GenAIEvalProfile(config, tasks=assertions)
 
             LLM judge-only profile:
 
@@ -14331,14 +14422,13 @@ class GenAIEvalProfile:
             ...     LLMJudgeTask(id="relevance", prompt=..., ...),
             ...     LLMJudgeTask(id="quality", prompt=..., depends_on=["relevance"])
             ... ]
-            >>> profile = GenAIEvalProfile(config, llm_judge_tasks=judges)
+            >>> profile = GenAIEvalProfile(config, tasks=judges)
 
             Hybrid profile:
 
             >>> profile = GenAIEvalProfile(
             ...     config=config,
-            ...     assertion_tasks=assertions,
-            ...     llm_judge_tasks=judges
+            ...     tasks=assertions + judges
             ... )
         """
 

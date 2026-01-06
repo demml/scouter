@@ -1,5 +1,6 @@
 use crate::genai::{
-    AssertionResult, AssertionTask, ComparisonOperator, EvaluationTaskType, LLMJudgeTask,
+    AssertionResult, AssertionTask, ComparisonOperator, EvaluationTask, EvaluationTaskType,
+    LLMJudgeTask,
 };
 use serde_json::Value;
 use std::fmt::Debug;
@@ -23,6 +24,20 @@ pub trait TaskAccessor {
     fn depends_on(&self) -> &[String];
 
     fn add_result(&mut self, result: AssertionResult);
+}
+
+pub fn separate_tasks(tasks: Vec<EvaluationTask>) -> (Vec<AssertionTask>, Vec<LLMJudgeTask>) {
+    let mut llm_judges = Vec::new();
+    let mut assertions = Vec::new();
+
+    for task in tasks {
+        match task {
+            EvaluationTask::Assertion(a) => assertions.push(a),
+            EvaluationTask::LLMJudge(j) => llm_judges.push(*j),
+        }
+    }
+
+    (assertions, llm_judges)
 }
 
 #[derive(Debug)]

@@ -228,7 +228,7 @@ fn test_genai_server_records() {
     mock.start_server().unwrap();
 
     let helper = runtime.block_on(async { setup_test().await });
-    let profile = TestHelper::create_genai_drift_profile();
+    let profile = runtime.block_on(async { TestHelper::create_genai_drift_profile().await });
 
     let uid = runtime.block_on(async {
         helper

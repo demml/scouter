@@ -442,18 +442,18 @@ mod tests {
 
     use chrono::Utc;
     use potato_head::mock::{create_score_prompt, LLMTestServer};
-    use scouter_types::genai::EvaluationTaskType;
     use scouter_types::genai::{
         AssertionTask, ComparisonOperator, GenAIAlertConfig, GenAIDriftConfig, GenAIEvalProfile,
         LLMJudgeTask,
     };
+    use scouter_types::genai::{EvaluationTaskType, EvaluationTasks};
     use scouter_types::GenAIEvalRecord;
     use serde_json::Value;
     use std::sync::Arc;
 
     use crate::evaluate::GenAIEvaluator;
 
-    fn create_assert_judge_profile() -> GenAIEvalProfile {
+    async fn create_assert_judge_profile() -> GenAIEvalProfile {
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
 
         let assertion_level_1 = AssertionTask {
@@ -499,24 +499,22 @@ mod tests {
             result: None,
         };
 
+        let tasks = EvaluationTasks::new()
+            .add_task(assertion_level_1)
+            .add_task(judge_task_level_1)
+            .add_task(assert_query_score)
+            .add_task(assert_query_reason)
+            .build();
+
         let alert_config = GenAIAlertConfig::default();
 
         let drift_config =
             GenAIDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
 
-        GenAIEvalProfile::new(
-            drift_config,
-            Some(vec![
-                assertion_level_1,
-                assert_query_score,
-                assert_query_reason,
-            ]),
-            Some(vec![judge_task_level_1]),
-        )
-        .unwrap()
+        GenAIEvalProfile::new(drift_config, tasks).await.unwrap()
     }
 
-    fn create_assert_profile() -> GenAIEvalProfile {
+    async fn create_assert_profile() -> GenAIEvalProfile {
         let assert1 = AssertionTask {
             id: "input_foo_check".to_string(),
             field_path: Some("input.foo".to_string()),
@@ -550,12 +548,18 @@ mod tests {
             result: None,
         };
 
+        let tasks = EvaluationTasks::new()
+            .add_task(assert1)
+            .add_task(assert2)
+            .add_task(assert3)
+            .build();
+
         let alert_config = GenAIAlertConfig::default();
 
         let drift_config =
             GenAIDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
 
-        GenAIEvalProfile::new(drift_config, Some(vec![assert1, assert2, assert3]), None).unwrap()
+        GenAIEvalProfile::new(drift_config, tasks).await.unwrap()
     }
 
     #[test]
@@ -563,7 +567,7 @@ mod tests {
         let mut mock = LLMTestServer::new();
         mock.start_server().unwrap();
         let runtime = tokio::runtime::Runtime::new().unwrap();
-        let profile = create_assert_judge_profile();
+        let profile = runtime.block_on(async { create_assert_judge_profile().await });
 
         assert!(profile.has_llm_tasks());
         assert!(profile.has_assertions());
@@ -598,7 +602,7 @@ mod tests {
         let mut mock = LLMTestServer::new();
         mock.start_server().unwrap();
         let runtime = tokio::runtime::Runtime::new().unwrap();
-        let profile = create_assert_profile();
+        let profile = runtime.block_on(async { create_assert_profile().await });
 
         assert!(!profile.has_llm_tasks());
         assert!(profile.has_assertions());

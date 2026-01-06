@@ -1,9 +1,7 @@
 use scouter_drift::error::DriftError;
 use scouter_evaluate::evaluate::GenAIEvaluator;
 use scouter_state::app_state;
-use scouter_types::genai::{
-    AssertionTask, GenAIDriftConfig, GenAIEvalProfile, GenAIEvalSet, LLMJudgeTask,
-};
+use scouter_types::genai::{GenAIEvalProfile, GenAIEvalSet};
 use scouter_types::GenAIEvalRecord;
 use std::sync::Arc;
 /// Using "ClientGenAIDrifter" to avoid confusion with the server-side GenAIDrifter
@@ -18,16 +16,6 @@ impl Default for ClientGenAIDrifter {
 impl ClientGenAIDrifter {
     pub fn new() -> Self {
         Self {}
-    }
-
-    pub fn create_drift_profile(
-        &mut self,
-        config: GenAIDriftConfig,
-        assertions_tasks: Option<Vec<AssertionTask>>,
-        llm_judge_tasks: Option<Vec<LLMJudgeTask>>,
-    ) -> Result<GenAIEvalProfile, DriftError> {
-        let profile = GenAIEvalProfile::new(config, assertions_tasks, llm_judge_tasks)?;
-        Ok(profile)
     }
 
     pub async fn compute_drift_single(

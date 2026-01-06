@@ -1,7 +1,7 @@
 use crate::error::{ProfileError, TypeError};
 use crate::genai::alert::GenAIAlertConfig;
-use crate::genai::eval::{AssertionTask, LLMJudgeTask};
-use crate::genai::traits::{ProfileExt, TaskAccessor};
+use crate::genai::eval::{AssertionTask, EvaluationTask, LLMJudgeTask};
+use crate::genai::traits::{separate_tasks, ProfileExt, TaskAccessor};
 use crate::genai::utils::extract_assertion_tasks_from_pylist;
 use crate::util::{json_to_pyobject, pyobject_to_json, ConfigExt};
 use crate::{scouter_version, GenAIEvalTaskResultRecord, GenAIEvalWorkflowRecord};
@@ -286,25 +286,22 @@ pub struct GenAIEvalProfile {
 #[pymethods]
 impl GenAIEvalProfile {
     #[new]
-    #[pyo3(signature = (config, assertion_tasks=None, llm_judge_tasks=None))]
+    #[pyo3(signature = (config, tasks))]
     /// Create a new GenAIEvalProfile
     /// GenAI evaluations are run asynchronously on the scouter server.
     /// # Arguments
     /// * `config` - GenAIDriftConfig - The configuration for the GenAI drift profile
-    /// * `assertion_tasks` - Option<Vec<AssertionTask>> - Optional list of assertion tasks
-    /// * `llm_judge_tasks` - Option<Vec<LLMJudgeTask>> - Optional list of LLM judge tasks
+    /// * `tasks` - PyList - List of AssertionTask and LLMJudgeTask
     /// # Returns
     /// * `Result<Self, ProfileError>` - The GenAIEvalProfile
     /// # Errors
     /// * `ProfileError::MissingWorkflowError` - If the workflow is
     #[instrument(skip_all)]
-    pub fn new(
+    pub fn new_py(
         config: GenAIDriftConfig,
-        assertion_tasks: Option<Vec<AssertionTask>>,
-        llm_judge_tasks: Option<Vec<LLMJudgeTask>>,
+        tasks: &Bound<'_, PyList>,
     ) -> Result<Self, ProfileError> {
-        let assertion_tasks = assertion_tasks.unwrap_or_default();
-        let llm_judge_tasks = llm_judge_tasks.unwrap_or_default();
+        let (assertion_tasks, llm_judge_tasks) = extract_assertion_tasks_from_pylist(tasks)?;
 
         if assertion_tasks.is_empty() && llm_judge_tasks.is_empty() {
             return Err(ProfileError::EmptyTaskList);
@@ -527,6 +524,50 @@ impl GenAIEvalProfile {
 }
 
 impl GenAIEvalProfile {
+    #[instrument(skip_all)]
+    pub async fn new(
+        config: GenAIDriftConfig,
+        tasks: Vec<EvaluationTask>,
+    ) -> Result<Self, ProfileError> {
+        let (assertion_tasks, llm_judge_tasks) = separate_tasks(tasks);
+
+        if assertion_tasks.is_empty() && llm_judge_tasks.is_empty() {
+            return Err(ProfileError::EmptyTaskList);
+        }
+
+        let workflow = if !llm_judge_tasks.is_empty() {
+            let workflow = Self::build_workflow_from_judges(&llm_judge_tasks).await?;
+
+            // Validate the workflow
+            validate_workflow(&workflow)?;
+            Some(workflow)
+        } else {
+            None
+        };
+
+        // Validate LLM judge prompts individually
+        for judge in &llm_judge_tasks {
+            validate_prompt_parameters(&judge.prompt, &judge.id)?;
+        }
+
+        // Collect all task IDs from assertion and LLM judge tasks
+        let mut task_ids = BTreeSet::new();
+        for task in &assertion_tasks {
+            task_ids.insert(task.id.clone());
+        }
+        for task in &llm_judge_tasks {
+            task_ids.insert(task.id.clone());
+        }
+
+        Ok(Self {
+            config,
+            assertion_tasks,
+            llm_judge_tasks,
+            scouter_version: scouter_version(),
+            workflow,
+            task_ids,
+        })
+    }
     /// Build workflow from LLM judge tasks
     /// # Arguments
     /// * `judges` - Slice of LLMJudgeTask
@@ -728,14 +769,8 @@ impl GenAIEvalDataset {
         records: Vec<GenAIEvalRecord>,
         tasks: &Bound<'_, PyList>,
     ) -> Result<Self, TypeError> {
-        let (assertions_tasks, llm_judge_tasks) = extract_assertion_tasks_from_pylist(tasks)?;
-
-        let profile = GenAIEvalProfile::new(
-            GenAIDriftConfig::default(),
-            Some(assertions_tasks),
-            Some(llm_judge_tasks),
-        )
-        .map_err(|e| TypeError::FailedToCreateProfile(e.to_string()))?;
+        let profile = GenAIEvalProfile::new_py(GenAIDriftConfig::default(), tasks)
+            .map_err(|e| TypeError::FailedToCreateProfile(e.to_string()))?;
 
         Ok(Self {
             records,
@@ -759,8 +794,9 @@ impl GenAIEvalDataset {
 mod tests {
 
     use super::*;
-    use crate::genai::ComparisonOperator;
+    use crate::genai::{ComparisonOperator, EvaluationTasks};
     use crate::{AlertDispatchConfig, OpsGenieDispatchConfig, SlackDispatchConfig};
+
     use potato_head::mock::create_score_prompt;
 
     #[test]
@@ -812,8 +848,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_genai_drift_profile_metric() {
+    #[tokio::test]
+    async fn test_genai_drift_profile_metric() {
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
 
         let task1 = LLMJudgeTask::new_rs(
@@ -836,6 +872,11 @@ mod tests {
             None,
         );
 
+        let tasks = EvaluationTasks::new()
+            .add_task(task1)
+            .add_task(task2)
+            .build();
+
         let alert_config = GenAIAlertConfig {
             schedule: "0 0 * * * *".to_string(),
             dispatch_config: AlertDispatchConfig::OpsGenie(OpsGenieDispatchConfig {
@@ -848,7 +889,7 @@ mod tests {
         let drift_config =
             GenAIDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
 
-        let profile = GenAIEvalProfile::new(drift_config, None, Some(vec![task1, task2])).unwrap();
+        let profile = GenAIEvalProfile::new(drift_config, tasks).await.unwrap();
 
         let _: Value =
             serde_json::from_str(&profile.model_dump_json()).expect("Failed to parse actual JSON");

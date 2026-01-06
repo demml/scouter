@@ -214,10 +214,10 @@ mod tests {
         // Verify alert contents
         let has_mse_alert = alerts
             .iter()
-            .any(|a| a.get("metric_name") == Some(&"mse".to_string()));
+            .any(|a| a.get("entity_name") == Some(&"mse".to_string()));
         let has_accuracy_alert = alerts
             .iter()
-            .any(|a| a.get("metric_name") == Some(&"accuracy".to_string()));
+            .any(|a| a.get("entity_name") == Some(&"accuracy".to_string()));
 
         assert!(has_mse_alert, "Should have MSE alert");
         assert!(has_accuracy_alert, "Should have accuracy alert");
@@ -264,7 +264,7 @@ mod tests {
 
         assert_eq!(alerts.len(), 1, "Should generate 1 alert");
         assert_eq!(
-            alerts[0].get("metric_name"),
+            alerts[0].get("entity_name"),
             Some(&"mse".to_string()),
             "Alert should be for MSE metric"
         );

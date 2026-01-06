@@ -374,6 +374,102 @@ impl TaskAccessor for LLMJudgeTask {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum EvaluationTask {
+    Assertion(AssertionTask),
+    LLMJudge(Box<LLMJudgeTask>),
+}
+
+impl TaskAccessor for EvaluationTask {
+    fn field_path(&self) -> Option<&str> {
+        match self {
+            EvaluationTask::Assertion(t) => t.field_path(),
+            EvaluationTask::LLMJudge(t) => t.field_path(),
+        }
+    }
+
+    fn id(&self) -> &str {
+        match self {
+            EvaluationTask::Assertion(t) => t.id(),
+            EvaluationTask::LLMJudge(t) => t.id(),
+        }
+    }
+
+    fn task_type(&self) -> &EvaluationTaskType {
+        match self {
+            EvaluationTask::Assertion(t) => t.task_type(),
+            EvaluationTask::LLMJudge(t) => t.task_type(),
+        }
+    }
+
+    fn operator(&self) -> &ComparisonOperator {
+        match self {
+            EvaluationTask::Assertion(t) => t.operator(),
+            EvaluationTask::LLMJudge(t) => t.operator(),
+        }
+    }
+
+    fn expected_value(&self) -> &Value {
+        match self {
+            EvaluationTask::Assertion(t) => t.expected_value(),
+            EvaluationTask::LLMJudge(t) => t.expected_value(),
+        }
+    }
+
+    fn depends_on(&self) -> &[String] {
+        match self {
+            EvaluationTask::Assertion(t) => t.depends_on(),
+            EvaluationTask::LLMJudge(t) => t.depends_on(),
+        }
+    }
+
+    fn add_result(&mut self, result: AssertionResult) {
+        match self {
+            EvaluationTask::Assertion(t) => t.add_result(result),
+            EvaluationTask::LLMJudge(t) => t.add_result(result),
+        }
+    }
+}
+
+pub struct EvaluationTasks(Vec<EvaluationTask>);
+
+impl EvaluationTasks {
+    /// Creates a new empty builder
+    pub fn new() -> Self {
+        Self(Vec::new())
+    }
+
+    /// Generic method that accepts anything implementing Into<EvaluationTask>
+    pub fn add_task(mut self, task: impl Into<EvaluationTask>) -> Self {
+        self.0.push(task.into());
+        self
+    }
+
+    /// Builds and returns the Vec<EvaluationTask>
+    pub fn build(self) -> Vec<EvaluationTask> {
+        self.0
+    }
+}
+
+// Implement From trait for automatic conversion
+impl From<AssertionTask> for EvaluationTask {
+    fn from(task: AssertionTask) -> Self {
+        EvaluationTask::Assertion(task)
+    }
+}
+
+impl From<LLMJudgeTask> for EvaluationTask {
+    fn from(task: LLMJudgeTask) -> Self {
+        EvaluationTask::LLMJudge(Box::new(task))
+    }
+}
+
+impl Default for EvaluationTasks {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ComparisonOperator {

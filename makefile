@@ -37,7 +37,7 @@ test.server.cloud: build.all_backends
 
 .PHONY: test.drift.executor
 test.drift.executor:
-	cargo test -p scouter-drift test_drift_executor_genai --all-features -- --nocapture --test-threads=1
+	cargo test -p scouter-drift test_drift_executor --all-features -- --nocapture --test-threads=1
 
 .PHONY: test.needs_sql
 test.needs_sql: test.sql test.server test.evaluate test.drift.executor

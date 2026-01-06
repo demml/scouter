@@ -29,11 +29,11 @@ VALUES
                         "alert_conditions": {
                             "mse": {
                                 "alert_threshold": "Above",
-                                "alert_threshold_value": 3.0
+                                "baseline_value": 3.0
                             },
                             "mae": {
                                 "alert_threshold": "Above",
-                                "alert_threshold_value": 2.0
+                                "baseline_value": 2.0
                             }
                         }
                     },

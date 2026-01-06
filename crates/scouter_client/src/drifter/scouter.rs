@@ -7,8 +7,7 @@ use pyo3::types::PyList;
 use pyo3::IntoPyObjectExt;
 use scouter_drift::error::DriftError;
 use scouter_drift::spc::SpcDriftMap;
-use scouter_types::genai::utils::extract_assertion_tasks_from_pylist;
-use scouter_types::genai::{AssertionTask, GenAIEvalResultSet, LLMJudgeTask};
+use scouter_types::genai::GenAIEvalResultSet;
 use scouter_types::spc::SpcDriftProfile;
 use scouter_types::{
     custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
@@ -49,16 +48,16 @@ impl DriftConfig {
         }
     }
 
-    pub fn custom_config(&self) -> Result<CustomMetricDriftConfig, DriftError> {
+    pub fn custom_config(self) -> Result<CustomMetricDriftConfig, DriftError> {
         match self {
-            DriftConfig::Custom(cfg) => Ok(cfg.clone()),
+            DriftConfig::Custom(cfg) => Ok(cfg),
             _ => Err(DriftError::InvalidConfigError),
         }
     }
 
-    pub fn genai_config(&self) -> Result<GenAIDriftConfig, DriftError> {
+    pub fn genai_config(self) -> Result<GenAIDriftConfig, DriftError> {
         match self {
-            DriftConfig::GenAI(cfg) => Ok(cfg.clone()),
+            DriftConfig::GenAI(cfg) => Ok(cfg),
             _ => Err(DriftError::InvalidConfigError),
         }
     }
@@ -125,7 +124,7 @@ impl Drifter {
                 let profile = drifter.create_drift_profile(config.custom_config()?, data)?;
                 Ok(DriftProfile::Custom(profile))
             }
-            Drifter::GenAI(drifter) => {
+            Drifter::GenAI(_drifter) => {
                 // GenAI drift profiles are created separately, so we will handle this in the create_genai_drift_profile method
                 if !data.is_instance_of::<PyList>() {
                     // convert to pylist
@@ -135,15 +134,8 @@ impl Drifter {
                     ));
                 };
 
-                let list = data.cast::<PyList>()?;
-                let (assertions_tasks, llm_judge_tasks) =
-                    extract_assertion_tasks_from_pylist(list)?;
-
-                let profile = drifter.create_drift_profile(
-                    config.genai_config()?,
-                    Some(assertions_tasks),
-                    Some(llm_judge_tasks),
-                )?;
+                let tasks = data.cast::<PyList>()?;
+                let profile = GenAIEvalProfile::new_py(config.genai_config()?, tasks)?;
                 Ok(DriftProfile::GenAI(profile))
             }
         }
@@ -279,15 +271,14 @@ impl PyDrifter {
 
     // Specific method for creating GenAI drift profiles
     // This is to avoid confusion with the other drifters
-    #[pyo3(signature = (config, assertion_tasks=None, llm_judge_tasks=None))]
+    #[pyo3(signature = (config, tasks))]
     pub fn create_genai_drift_profile<'py>(
         &mut self,
         py: Python<'py>,
         config: GenAIDriftConfig,
-        assertion_tasks: Option<Vec<AssertionTask>>,
-        llm_judge_tasks: Option<Vec<LLMJudgeTask>>,
+        tasks: &Bound<'py, PyList>,
     ) -> Result<Bound<'py, PyAny>, DriftError> {
-        let profile = GenAIEvalProfile::new(config, assertion_tasks, llm_judge_tasks)?;
+        let profile = GenAIEvalProfile::new_py(config, tasks)?;
         Ok(profile.into_bound_py_any(py)?)
     }
 

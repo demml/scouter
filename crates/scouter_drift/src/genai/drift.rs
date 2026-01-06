@@ -143,8 +143,8 @@ impl GenAIDrifter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use potato_head::mock::{create_score_prompt, LLMTestServer};
-    use scouter_types::genai::{ComparisonOperator, GenAIEvalAlertCondition};
+    use potato_head::mock::create_score_prompt;
+    use scouter_types::genai::{ComparisonOperator, EvaluationTasks, GenAIEvalAlertCondition};
     use scouter_types::genai::{
         GenAIAlertConfig, GenAIDriftConfig, GenAIEvalProfile, LLMJudgeTask,
     };
@@ -174,6 +174,11 @@ mod tests {
             None,
         );
 
+        let tasks = EvaluationTasks::new()
+            .add_task(task1)
+            .add_task(task2)
+            .build();
+
         let alert_condition = GenAIEvalAlertCondition {
             baseline_value: 5.0,
             alert_threshold: AlertThreshold::Below,
@@ -188,29 +193,20 @@ mod tests {
         let drift_config =
             GenAIDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
 
-        let profile = GenAIEvalProfile::new(drift_config, None, Some(vec![task1, task2])).unwrap();
+        let profile = GenAIEvalProfile::new(drift_config, tasks).await.unwrap();
 
         GenAIDrifter::new(profile)
     }
 
-    #[test]
-    fn test_generate_alerts_triggers_when_threshold_exceeded() {
-        let mut mock = LLMTestServer::new();
-        mock.start_server().unwrap();
-        let runtime = tokio::runtime::Runtime::new().unwrap();
+    #[tokio::test]
+    async fn test_generate_alerts_triggers_when_threshold_exceeded() {
+        let drifter = get_test_drifter().await;
 
-        let alerts = runtime.block_on(async {
-            let drifter = get_test_drifter().await;
-
-            // Workflow metric value that should trigger an alert
-            // (below baseline of 5.0 with delta of 1.0)
-            let observed_value = 3.0;
-
-            drifter
-                .generate_alerts(observed_value)
-                .await
-                .expect("Should generate alerts successfully")
-        });
+        let observed_value = 3.0;
+        let alerts = drifter
+            .generate_alerts(observed_value)
+            .await
+            .expect("Should generate alerts successfully");
 
         assert!(
             alerts.is_some(),
@@ -218,38 +214,27 @@ mod tests {
         );
 
         let alert_map = &alerts.unwrap()[0];
-        assert!(alert_map.contains_key("metric_name"));
+        assert!(alert_map.contains_key("entity_name"));
         assert_eq!(
-            alert_map.get("metric_name").unwrap(),
+            alert_map.get("entity_name").unwrap(),
             "genai_workflow_metric"
         );
-
-        mock.stop_server().unwrap();
     }
 
-    #[test]
-    fn test_generate_alerts_no_trigger_within_threshold() {
-        let mut mock = LLMTestServer::new();
-        mock.start_server().unwrap();
-        let runtime = tokio::runtime::Runtime::new().unwrap();
+    #[tokio::test]
+    async fn test_generate_alerts_no_trigger_within_threshold() {
+        let drifter = get_test_drifter().await;
 
-        let alerts = runtime.block_on(async {
-            let drifter = get_test_drifter().await;
-
-            // Workflow metric value within acceptable range
-            let observed_value = 5.0;
-
-            drifter
-                .generate_alerts(observed_value)
-                .await
-                .expect("Should handle no-alert case successfully")
-        });
+        // Workflow metric value within acceptable range
+        let observed_value = 5.0;
+        let alerts = drifter
+            .generate_alerts(observed_value)
+            .await
+            .expect("Should generate alerts successfully");
 
         assert!(
             alerts.is_none(),
             "Should not generate alerts for value within threshold"
         );
-
-        mock.stop_server().unwrap();
     }
 }
