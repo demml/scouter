@@ -13164,13 +13164,6 @@ class PsiDriftMap:
 
         """
 
-class GenAIDriftMap:
-    @property
-    def records(self) -> List[GenAIMetricRecord]:
-        """Return the list of LLM records."""
-
-    def __str__(self): ...
-
 class CustomMetricDriftConfig:
     def __init__(
         self,
@@ -13435,82 +13428,6 @@ class CustomDriftProfile:
         Returns:
             None
         """
-
-class GenAIDriftMetric:
-    """Metric for monitoring LLM performance."""
-
-    def __init__(
-        self,
-        name: str,
-        value: float,
-        alert_threshold: AlertThreshold,
-        alert_threshold_value: Optional[float] = None,
-        prompt: Optional[Prompt] = None,
-    ):
-        """
-        Initialize a metric for monitoring LLM performance.
-
-        Args:
-            name (str):
-                The name of the metric being monitored. This should be a
-                descriptive identifier for the metric.
-            value (float):
-                The current value of the metric.
-            alert_threshold (AlertThreshold):
-                The condition used to determine when an alert should be triggered.
-            alert_threshold_value (Optional[float]):
-                The threshold or boundary value used in conjunction with the alert_threshold.
-                If supplied, this value will be added or subtracted from the provided metric value to
-                determine if an alert should be triggered.
-            prompt (Optional[Prompt]):
-                Optional prompt associated with the metric. This can be used to provide context or
-                additional information about the metric being monitored. If creating an GenAI drift profile
-                from a pre-defined workflow, this can be none.
-        """
-
-    @property
-    def name(self) -> str:
-        """Return the metric name"""
-
-    @property
-    def value(self) -> float:
-        """Return the metric value"""
-
-    @property
-    def prompt(self) -> Optional[Prompt]:
-        """Return the prompt associated with the metric"""
-
-    @property
-    def alert_threshold(self) -> AlertThreshold:
-        """Return the alert_threshold"""
-
-    @property
-    def alert_threshold_value(self) -> Optional[float]:
-        """Return the alert_threshold_value"""
-
-class GenAIMetricRecord:
-    @property
-    def uid(self) -> str:
-        """Return the record uid"""
-
-    @property
-    def entity_uid(self) -> str:
-        """Returns the entity uid associated with the record"""
-
-    @property
-    def created_at(self) -> datetime.datetime:
-        """Return the timestamp when the record was created"""
-
-    @property
-    def metric(self) -> str:
-        """Return the name of the metric associated with the record"""
-
-    @property
-    def value(self) -> float:
-        """Return the value of the metric associated with the record"""
-
-    def __str__(self) -> str:
-        """Return the string representation of the record"""
 
 class GenAIDriftConfig:
     def __init__(
@@ -14795,8 +14712,7 @@ class Drifter:
     def create_genai_drift_profile(
         self,
         config: GenAIDriftConfig,
-        assertion_tasks: Optional[List[AssertionTask]] = None,
-        llm_judge_tasks: Optional[List[LLMJudgeTask]] = None,
+        tasks: List[LLMJudgeTask | AssertionTask],
     ) -> GenAIEvalProfile:
         """Initialize a GenAIEvalProfile for LLM evaluation and drift detection.
 
@@ -14818,13 +14734,10 @@ class Drifter:
             config (GenAIDriftConfig):
                 The configuration for the GenAI drift profile containing space, name,
                 version, and alert settings.
-            metrics (list[GenAIDriftMetric]):
-                A list of GenAIDriftMetric objects representing the metrics to be monitored.
-                Each metric defines evaluation criteria and alert thresholds.
-            workflow (Optional[Workflow]):
-                Optional custom workflow for advanced evaluation scenarios. If provided,
-                the workflow will be validated to ensure proper parameter and response
-                type configuration.
+            tasks (List[LLMJudgeTask | AssertionTask]):
+                List of evaluation tasks to include in the profile. Can contain
+                both AssertionTask and LLMJudgeTask instances. At least one task
+                (assertion or LLM judge) is required.
 
         Returns:
             GenAIEvalProfile: Configured profile ready for GenAI drift monitoring.
@@ -14837,22 +14750,18 @@ class Drifter:
             Basic usage with metrics only:
 
             >>> config = GenAIDriftConfig("my_space", "my_model", "1.0")
-            >>> metrics = [
-            ...     GenAIDriftMetric("accuracy", 0.95, AlertThreshold.Above, 0.1, prompt),
-            ...     GenAIDriftMetric("relevance", 0.85, AlertThreshold.Below, 0.2, prompt2)
+            >>>  tasks = [
+            ...     LLMJudgeTask(
+            ...         id="response_relevance",
+            ...         prompt=relevance_prompt,
+            ...         expected_value=7,
+            ...         field_path="score",
+            ...         operator=ComparisonOperator.GreaterThanOrEqual,
+            ...         description="Ensure relevance score >= 7"
+            ...     )
             ... ]
-            >>> profile = Drifter().create_genai_drift_profile(config, metrics)
+            >>> profile = Drifter().create_genai_drift_profile(config, tasks)
 
-            Advanced usage with custom workflow:
-
-            >>> workflow = create_custom_workflow()  # Your custom workflow
-            >>> metrics = [GenAIDriftMetric("final_task", 0.9, AlertThreshold.Above)]
-            >>> profile = Drifter().create_genai_drift_profile(config, metrics, workflow)
-
-        Note:
-            - When using custom workflows, ensure final tasks have Score response types
-            - Initial workflow tasks must include "input" and/or "response" parameters
-            - All metric names must match corresponding workflow task names
         """
 
     @overload
@@ -14902,22 +14811,22 @@ class Drifter:
     @overload
     def compute_drift(
         self,
-        data: Union[GenAIEvalRecord, List[GenAIEvalRecord]],
+        data: List[GenAIEvalRecord],
         drift_profile: GenAIEvalProfile,
         data_type: Optional[ScouterDataType] = None,
-    ) -> GenAIDriftMap:
+    ) -> GenAIEvalResultSet:
         """Create a drift map from data.
 
         Args:
-            data:
-
-            drift_profile:
+            data (List[GenAIEvalRecord]):
+                Data to create a data profile from. Data can be a list of GenAIEvalRecord.
+            profile (GenAIEvalProfile):
                 Drift profile to use to compute drift map
             data_type:
                 Optional data type. Inferred from data if not provided.
 
         Returns:
-            GenAIDriftMap
+            GenAIEvalResultSet
         """
 
     def compute_drift(  # type: ignore
@@ -14925,7 +14834,7 @@ class Drifter:
         data: Any,
         drift_profile: Union[SpcDriftProfile, PsiDriftProfile, GenAIEvalProfile],
         data_type: Optional[ScouterDataType] = None,
-    ) -> Union[SpcDriftMap, PsiDriftMap, GenAIDriftMap]:
+    ) -> Union[SpcDriftMap, PsiDriftMap, GenAIEvalResultSet]:
         """Create a drift map from data.
 
         Args:
@@ -14938,29 +14847,195 @@ class Drifter:
                 Optional data type. Inferred from data if not provided.
 
         Returns:
-            SpcDriftMap, PsiDriftMap or GenAIDriftMap
+            SpcDriftMap, PsiDriftMap or GenAIEvalResultSet
         """
 
 class GenAIEvalTaskResult:
+    class GenAIEvalTaskResult:
+        """Individual task result from an LLM evaluation run"""
+
+    @property
+    def created_at(self) -> datetime.datetime:
+        """Get the creation timestamp of this task result"""
+
+    @property
+    def record_uid(self) -> str:
+        """Get the unique identifier for the record associated with this task result"""
+
+    @property
+    def task_id(self) -> str:
+        """Get the unique identifier for the evaluation task"""
+
+    @property
+    def task_type(self) -> EvaluationTaskType:
+        """Get the type of evaluation task (Assertion, LLMJudge, or HumanValidation)"""
+
+    @property
+    def passed(self) -> bool:
+        """Check if the task evaluation passed"""
+
+    @property
+    def value(self) -> float:
+        """Get the evaluated value from the task"""
+
+    @property
+    def field_path(self) -> Optional[str]:
+        """Get the field path used for value extraction, if any"""
+
+    @property
+    def operator(self) -> ComparisonOperator:
+        """Get the comparison operator used in the evaluation"""
+
+    @property
+    def expected(self) -> Any:
+        """Get the expected value for comparison.
+
+        Returns:
+            The expected value as a Python object (deserialized from JSON).
+        """
+
+    @property
+    def actual(self) -> Any:
+        """Get the actual value that was evaluated.
+
+        Returns:
+            The actual value as a Python object (deserialized from JSON).
+        """
+
+    @property
+    def message(self) -> str:
+        """Get the evaluation result message"""
+
+    def __str__(self) -> str:
+        """String representation of the task result"""
+
+    def model_dump_json(self) -> str:
+        """Serialize the task result to JSON string"""
+
+class GenAIEvalDataset:
+    """Defines the dataset used for LLM evaluation"""
+
+    def __init__(
+        self,
+        record: List[GenAIEvalRecord],
+        tasks: List[LLMJudgeTask | AssertionTask],
+    ):
+        """Initialize the GenAIEvalDataset with records and tasks.
+
+        Args:
+            record (List[GenAIEvalRecord]):
+                List of LLM evaluation records to be evaluated.
+            tasks (List[LLMJudgeTask | AssertionTask]):
+                List of evaluation tasks to apply to the records.
+        """
+
+    @property
+    def records(self) -> List[GenAIEvalRecord]:
+        """Get the list of LLM evaluation records in this dataset"""
+
+    @property
+    def llm_judge_tasks(self) -> List[LLMJudgeTask]:
+        """Get the list of LLM judge tasks in this dataset"""
+
+    @property
+    def assertion_tasks(self) -> List[AssertionTask]:
+        """Get the list of assertion tasks in this dataset"""
+
+class GenAIEvalSet:
+    """Evaluation set for a specific evaluation run"""
+
+    @property
+    def records(self) -> List[GenAIEvalTaskResult]:
+        """Get the list of task results in this evaluation set"""
+
+    @property
+    def created_at(self) -> datetime.datetime:
+        """Get the creation timestamp of this evaluation set"""
+
+    @property
+    def record_uid(self) -> str:
+        """Get the unique identifier for the records in this evaluation set"""
+
+    @property
+    def total_tasks(self) -> int:
+        """Get the total number of tasks evaluated in this set"""
+
+    @property
+    def passed_tasks(self) -> int:
+        """Get the number of tasks that passed in this evaluation set"""
+
+    @property
+    def failed_tasks(self) -> int:
+        """Get the number of tasks that failed in this evaluation set"""
+
+    @property
+    def pass_rate(self) -> float:
+        """Get the pass rate (percentage of passed tasks) in this evaluation set"""
+
+    @property
+    def duration_ms(self) -> int:
+        """Get the duration of the evaluation set in milliseconds"""
+
+    def __str__(self): ...
+
+class GenAIEvalResultSet:
+    """Defines the results of a specific evaluation run"""
+    @property
+    def records(self) -> List[GenAIEvalSet]:
+        """Get the list of evaluation sets in this result set"""
+
+class AlignedEvalResult:
     """Eval Result for a specific evaluation"""
 
     @property
-    def id(self) -> str:
-        """Get the record id associated with this result"""
+    def record(self) -> GenAIEvalRecord:
+        """Get the record associated with this result"""
 
     @property
-    def metrics(self) -> Dict[str, Score]:
-        """Get the list of metrics"""
+    def eval_settings(self) -> GenAIEvalSet:
+        """Get the eval settings associated with this result"""
 
     @property
     def embedding(self) -> Dict[str, List[float]]:
         """Get embeddings of embedding targets"""
+
+    @property
+    def mean_embeddings(self) -> Dict[str, float]:
+        """Get mean embeddings of embedding targets"""
+
+    @property
+    def similarity_scores(self) -> Dict[str, float]:
+        """Get similarity scores of embedding targets"""
+
+    @property
+    def success(self) -> bool:
+        """Check if the evaluation was successful"""
+
+    @property
+    def error_message(self) -> Optional[str]:
+        """Get the error message if the evaluation failed"""
 
 class GenAIEvalResults:
     """Defines the results of an LLM eval metric"""
 
     def __getitem__(self, key: str) -> GenAIEvalTaskResult:
         """Get the task results for a specific record ID. A RuntimeError will be raised if the record ID does not exist."""
+
+    @property
+    def errored_tasks(self) -> List[str]:
+        """Get a list of record IDs that had errors during evaluation"""
+
+    @property
+    def histograms(self) -> Optional[Dict[str, Histogram]]:
+        """Get histograms for all calculated features (metrics, embeddings, similarities)"""
+
+    @property
+    def successful_count(self) -> int:
+        """Get the count of successful evaluations"""
+
+    @property
+    def failed_count(self) -> int:
+        """Get the count of failed evaluations"""
 
     def __str__(self):
         """String representation of the GenAIEvalResults"""
@@ -14990,40 +15065,9 @@ class GenAIEvalResults:
                 JSON string to validate and create the GenAIEvalResults instance from.
         """
 
-    @property
-    def errored_tasks(self) -> List[str]:
-        """Get a list of record IDs that had errors during evaluation"""
-
-    @property
-    def histograms(self) -> Optional[Dict[str, Histogram]]:
-        """Get histograms for all calculated features (metrics, embeddings, similarities)"""
-
-class GenAIEvalMetric:
-    """Defines an LLM eval metric to use when evaluating LLMs"""
-
-    def __init__(self, name: str, prompt: Prompt):
-        """
-        Initialize an GenAIEvalMetric to use for evaluating LLMs. This is
-        most commonly used in conjunction with `evaluate_genai` where LLM inputs
-        and responses can be evaluated against a variety of user-defined metrics.
-
-        Args:
-            name (str):
-                Name of the metric
-            prompt (Prompt):
-                Prompt to use for the metric. For example, a user may create
-                an accuracy analysis prompt or a query reformulation analysis prompt.
-        """
-
-    def __str__(self) -> str:
-        """
-        String representation of the GenAIEvalMetric
-        """
-
 def evaluate_genai(
     records: List[GenAIEvalRecord],
-    metrics: List[GenAIEvalMetric],
-    config: Optional[EvaluationConfig] = None,
+    tasks: List[LLMJudgeTask | AssertionTask],
 ) -> GenAIEvalResults:
     """
     Evaluate LLM responses using the provided evaluation metrics.
@@ -15031,10 +15075,8 @@ def evaluate_genai(
     Args:
         records (List[GenAIEvalRecord]):
             List of LLM evaluation records to evaluate.
-        metrics (List[GenAIEvalMetric]):
-            List of GenAIEvalMetric instances to use for evaluation.
-        config (Optional[EvaluationConfig]):
-            Optional EvaluationConfig instance to configure evaluation options.
+        tasks (List[LLMJudgeTask | AssertionTask]):
+            List of evaluation tasks to apply to the records.
 
     Returns:
         GenAIEvalResults
@@ -15355,7 +15397,6 @@ __all__ = [
     "CustomMetricDriftConfig",
     "CustomMetric",
     "CustomDriftProfile",
-    "GenAIDriftMetric",
     "GenAIDriftConfig",
     "GenAIEvalProfile",
     "Drifter",
@@ -15370,12 +15411,14 @@ __all__ = [
     "TerrellScott",
     "FreedmanDiaconis",
     # evaluate
-    "GenAIEvalTaskResult",
-    "GenAIEvalMetric",
     "GenAIEvalResults",
-    "GenAIEvalRecord",
-    "evaluate_genai",
     "EvaluationConfig",
+    "GenAIEvalDataset",
+    "GenAIEvalSet",
+    "GenAIEvalTaskResult",
+    "GenAIEvalResultSet",
+    "AlignedEvalResult",
+    "evaluate_genai",
     # genai
     #######_______________________ main _________________________######
     "Prompt",

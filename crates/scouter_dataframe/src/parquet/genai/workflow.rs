@@ -11,7 +11,7 @@ use chrono::{DateTime, Utc};
 use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::{GenAIEvalWorkflowRecord, ServerRecords, StorageType, ToDriftRecords};
+use scouter_types::{GenAIEvalWorkflowResult, ServerRecords, StorageType, ToDriftRecords};
 use std::sync::Arc;
 
 pub struct GenAIWorkflowDataFrame {
@@ -93,7 +93,7 @@ impl GenAIWorkflowDataFrame {
 
     fn build_batch(
         &self,
-        records: Vec<GenAIEvalWorkflowRecord>,
+        records: Vec<GenAIEvalWorkflowResult>,
     ) -> Result<RecordBatch, DataFrameError> {
         // 1. created_at
         let created_at_array = TimestampNanosecondArray::from_iter_values(

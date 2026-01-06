@@ -4,7 +4,7 @@ use crate::genai::eval::{AssertionTask, EvaluationTask, LLMJudgeTask};
 use crate::genai::traits::{separate_tasks, ProfileExt, TaskAccessor};
 use crate::genai::utils::extract_assertion_tasks_from_pylist;
 use crate::util::{json_to_pyobject, pyobject_to_json, ConfigExt};
-use crate::{scouter_version, GenAIEvalTaskResultRecord, GenAIEvalWorkflowRecord};
+use crate::{scouter_version, GenAIEvalTaskResult, GenAIEvalWorkflowResult};
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
     PyHelperFuncs, VersionRequest, DEFAULT_VERSION, MISSING,
@@ -664,19 +664,19 @@ impl ProfileBaseArgs for GenAIEvalProfile {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GenAIEvalSet {
     #[pyo3(get)]
-    pub records: Vec<GenAIEvalTaskResultRecord>,
-    pub inner: GenAIEvalWorkflowRecord,
+    pub records: Vec<GenAIEvalTaskResult>,
+    pub inner: GenAIEvalWorkflowResult,
 }
 
 impl GenAIEvalSet {
-    pub fn new(records: Vec<GenAIEvalTaskResultRecord>, inner: GenAIEvalWorkflowRecord) -> Self {
+    pub fn new(records: Vec<GenAIEvalTaskResult>, inner: GenAIEvalWorkflowResult) -> Self {
         Self { records, inner }
     }
 
     pub fn empty() -> Self {
         Self {
             records: Vec::new(),
-            inner: GenAIEvalWorkflowRecord {
+            inner: GenAIEvalWorkflowResult {
                 created_at: Utc::now(),
                 record_uid: String::new(),
                 entity_id: 0,

@@ -16,7 +16,9 @@ pub use scouter_types::{
         CustomMetricDriftConfig,
     },
     genai::{
-        GenAIAlertConfig, GenAIDriftConfig, GenAIEvalAlertCondition, GenAIEvalProfile, GenAIEvalSet,
+        AssertionTask, ComparisonOperator, GenAIAlertConfig, GenAIDriftConfig,
+        GenAIEvalAlertCondition, GenAIEvalDataset, GenAIEvalProfile, GenAIEvalResultSet,
+        GenAIEvalSet, LLMJudgeTask,
     },
     psi::{
         Bin, BinnedPsiFeatureMetrics, BinnedPsiMetric, PsiAlertConfig, PsiChiSquareThreshold,
@@ -34,7 +36,7 @@ pub use scouter_types::{
     DriftAlertPaginationResponse, DriftProfile, DriftRequest, DriftType, EntityIdTagsRequest,
     EntityIdTagsResponse, EntityType, EqualWidthBinning, Feature, FeatureMap, Features,
     FreedmanDiaconis, GenAIEvalRecord, GenAIEvalRecordPaginationRequest,
-    GenAIEvalRecordPaginationResponse, GenAIEvalTaskResultRecord, GenAIEvalWorkflowRecord,
+    GenAIEvalRecordPaginationResponse, GenAIEvalTaskResult, GenAIEvalWorkflowResult,
     GetProfileRequest, LatencyMetrics, Manual, Metric, Metrics, ObservabilityMetrics,
     OpsGenieDispatchConfig, ProfileRequest, ProfileStatusRequest, PsiRecord, QuantileBinning,
     RecordType, RegisteredProfileResponse, Rice, RouteMetrics, Scott, ScouterResponse,
@@ -78,7 +80,7 @@ pub use scouter_types::error::{ContractError, ProfileError, RecordError, TypeErr
 pub use scouter_evaluate::{
     error::EvaluationError,
     genai::evaluate_genai_dataset,
-    types::{EvaluationConfig, GenAIEvalResults},
+    types::{AlignedEvalResult, EvaluationConfig, GenAIEvalResults},
 };
 pub use scouter_tracing::error::TraceError;
 pub use scouter_tracing::exporter::{

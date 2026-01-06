@@ -199,9 +199,9 @@ impl PyDrifter {
     /// This method is used to create a drift profile based on the data and config provided
     /// It will automatically infer the data type if not provided
     /// If the config is not provided, it will create a default config based on the drift type
-    /// The data can be a numpy array, pandas dataframe, or pyarrow table, Vec<CustomMetric>, or Vec<GenAIDriftMetric>
+    /// The data can be a numpy array, pandas dataframe, or pyarrow table, Vec<CustomMetric>, or Vec<EvaluationTask>
     /// ## Arguments:
-    /// - `data`: The data to create the drift profile from. This can be a numpy array, pandas dataframe, pyarrow table, Vec<CustomMetric>, or Vec<GenAIDriftMetric>.
+    /// - `data`: The data to create the drift profile from. This can be a numpy array, pandas dataframe, pyarrow table, Vec<CustomMetric>, or Vec<EvaluationTask>.
     /// - `config`: The configuration for the drift profile. This is optional and if not provided, a default configuration will be created based on the drift type.
     /// - `data_type`: The type of the data. This is optional and if not provided, it will be inferred from the data class name.
     #[pyo3(signature = (data, config=None, data_type=None))]

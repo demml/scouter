@@ -1294,7 +1294,7 @@ mod tests {
         for i in 0..2 {
             let mut records = Vec::new();
             for j in 0..25 {
-                let record = GenAIEvalTaskResultRecord {
+                let record = GenAIEvalTaskResult {
                     record_uid: format!("record_uid_{i}_{j}"),
                     created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
                     entity_id,
@@ -1364,7 +1364,7 @@ mod tests {
 
         for i in 0..2 {
             for j in 0..25 {
-                let record = GenAIEvalWorkflowRecord {
+                let record = GenAIEvalWorkflowResult {
                     record_uid: format!("record_uid_{i}_{j}"),
                     created_at: Utc::now() + chrono::Duration::hours(i),
                     entity_id,

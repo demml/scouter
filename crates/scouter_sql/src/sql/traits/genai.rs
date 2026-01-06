@@ -10,8 +10,8 @@ use scouter_settings::ObjectStorageSettings;
 use scouter_types::contracts::DriftRequest;
 use scouter_types::BoxedGenAIEvalRecord;
 use scouter_types::GenAIEvalRecord;
-use scouter_types::GenAIEvalTaskResultRecord;
-use scouter_types::GenAIEvalWorkflowRecord;
+use scouter_types::GenAIEvalTaskResult;
+use scouter_types::GenAIEvalWorkflowResult;
 use scouter_types::Status;
 use scouter_types::{
     BinnedMetrics, GenAIEvalRecordPaginationRequest, GenAIEvalRecordPaginationResponse,
@@ -57,7 +57,7 @@ pub trait GenAIDriftSqlLogic {
     /// # Returns
     async fn insert_genai_eval_workflow_record(
         pool: &Pool<Postgres>,
-        record: &GenAIEvalWorkflowRecord,
+        record: &GenAIEvalWorkflowResult,
         entity_id: &i32,
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertGenAIWorkflowResult.get_query();
@@ -80,7 +80,7 @@ pub trait GenAIDriftSqlLogic {
     /// This is the output from processing/evaluating the GenAI drift records.
     async fn insert_eval_task_results_batch(
         pool: &Pool<Postgres>,
-        records: &[GenAIEvalTaskResultRecord], // Passed by slice for better ergonomics
+        records: &[GenAIEvalTaskResult], // Passed by slice for better ergonomics
         entity_id: &i32,
     ) -> Result<sqlx::postgres::PgQueryResult, SqlError> {
         if records.is_empty() {

@@ -553,7 +553,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(alerts.items.len(), 1);
+        assert_eq!(alerts.items.len(), 2);
     }
 
     #[test]

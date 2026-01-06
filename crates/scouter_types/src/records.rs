@@ -364,7 +364,7 @@ impl BoxedGenAIEvalRecord {
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "server", derive(sqlx::FromRow))]
-pub struct GenAIEvalWorkflowRecord {
+pub struct GenAIEvalWorkflowResult {
     #[pyo3(get)]
     pub created_at: DateTime<Utc>,
 
@@ -393,7 +393,7 @@ pub struct GenAIEvalWorkflowRecord {
 }
 
 #[pymethods]
-impl GenAIEvalWorkflowRecord {
+impl GenAIEvalWorkflowResult {
     pub fn __str__(&self) -> String {
         PyHelperFuncs::__str__(self)
     }
@@ -403,7 +403,7 @@ impl GenAIEvalWorkflowRecord {
     }
 }
 
-impl GenAIEvalWorkflowRecord {
+impl GenAIEvalWorkflowResult {
     pub fn new(
         record_uid: String,
         total_tasks: i32,
@@ -436,7 +436,7 @@ impl GenAIEvalWorkflowRecord {
 // Detailed result for an individual evaluation task within a workflow
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GenAIEvalTaskResultRecord {
+pub struct GenAIEvalTaskResult {
     #[pyo3(get)]
     pub created_at: DateTime<Utc>,
 
@@ -475,7 +475,7 @@ pub struct GenAIEvalTaskResultRecord {
 }
 
 #[pymethods]
-impl GenAIEvalTaskResultRecord {
+impl GenAIEvalTaskResult {
     #[getter]
     pub fn get_expected<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, RecordError> {
         let py_value = pythonize(py, &self.expected)?;
@@ -497,7 +497,7 @@ impl GenAIEvalTaskResultRecord {
     }
 }
 
-impl GenAIEvalTaskResultRecord {
+impl GenAIEvalTaskResult {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         record_uid: String,
@@ -532,7 +532,7 @@ impl GenAIEvalTaskResultRecord {
 }
 
 #[cfg(feature = "server")]
-impl FromRow<'_, PgRow> for GenAIEvalTaskResultRecord {
+impl FromRow<'_, PgRow> for GenAIEvalTaskResult {
     fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
         let expected: Value =
             serde_json::from_value(row.try_get("expected")?).unwrap_or(Value::Null);
@@ -544,7 +544,7 @@ impl FromRow<'_, PgRow> for GenAIEvalTaskResultRecord {
             ComparisonOperator::from_str(&row.try_get::<String, &str>("operator")?)
                 .unwrap_or(ComparisonOperator::Equals);
 
-        Ok(GenAIEvalTaskResultRecord {
+        Ok(GenAIEvalTaskResult {
             record_uid: row.try_get("record_uid")?,
             created_at: row.try_get("created_at")?,
             task_id: row.try_get("task_id")?,
@@ -705,8 +705,8 @@ pub enum ServerRecord {
     Custom(CustomMetricRecord),
     Observability(ObservabilityMetrics),
     GenAIEval(BoxedGenAIEvalRecord),
-    GenAITaskRecord(GenAIEvalTaskResultRecord),
-    GenAIWorkflowRecord(GenAIEvalWorkflowRecord),
+    GenAITaskRecord(GenAIEvalTaskResult),
+    GenAIWorkflowRecord(GenAIEvalWorkflowResult),
 }
 
 #[pymethods]
@@ -884,12 +884,12 @@ impl IntoServerRecord for GenAIEvalRecord {
     }
 }
 
-impl IntoServerRecord for GenAIEvalWorkflowRecord {
+impl IntoServerRecord for GenAIEvalWorkflowResult {
     fn into_server_record(self) -> ServerRecord {
         ServerRecord::GenAIWorkflowRecord(self)
     }
 }
-impl IntoServerRecord for GenAIEvalTaskResultRecord {
+impl IntoServerRecord for GenAIEvalTaskResult {
     fn into_server_record(self) -> ServerRecord {
         ServerRecord::GenAITaskRecord(self)
     }
@@ -902,8 +902,8 @@ pub trait ToDriftRecords {
     fn to_psi_drift_records(self) -> Result<Vec<PsiRecord>, RecordError>;
     fn to_custom_metric_drift_records(self) -> Result<Vec<CustomMetricRecord>, RecordError>;
     fn to_genai_eval_records(self) -> Result<Vec<BoxedGenAIEvalRecord>, RecordError>;
-    fn to_genai_workflow_records(self) -> Result<Vec<GenAIEvalWorkflowRecord>, RecordError>;
-    fn to_genai_task_records(self) -> Result<Vec<GenAIEvalTaskResultRecord>, RecordError>;
+    fn to_genai_workflow_records(self) -> Result<Vec<GenAIEvalWorkflowResult>, RecordError>;
+    fn to_genai_task_records(self) -> Result<Vec<GenAIEvalTaskResult>, RecordError>;
 }
 
 impl ToDriftRecords for ServerRecords {
@@ -942,14 +942,14 @@ impl ToDriftRecords for ServerRecords {
         })
     }
 
-    fn to_genai_workflow_records(self) -> Result<Vec<GenAIEvalWorkflowRecord>, RecordError> {
+    fn to_genai_workflow_records(self) -> Result<Vec<GenAIEvalWorkflowResult>, RecordError> {
         extract_owned_records(self.records, |record| match record {
             ServerRecord::GenAIWorkflowRecord(inner) => Some(inner),
             _ => None,
         })
     }
 
-    fn to_genai_task_records(self) -> Result<Vec<GenAIEvalTaskResultRecord>, RecordError> {
+    fn to_genai_task_records(self) -> Result<Vec<GenAIEvalTaskResult>, RecordError> {
         extract_owned_records(self.records, |record| match record {
             ServerRecord::GenAITaskRecord(inner) => Some(inner),
             _ => None,

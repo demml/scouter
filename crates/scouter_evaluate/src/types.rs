@@ -1,7 +1,7 @@
 use crate::error::EvaluationError;
 use crate::utils::{parse_embedder, post_process_aligned_results};
 use ndarray::Array2;
-use potato_head::Embedder;
+use potato_head::{Embedder, PyHelperFuncs};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use scouter_profile::{Histogram, NumProfiler};
@@ -193,32 +193,25 @@ impl ArrayDataset {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[pyclass]
 pub struct AlignedEvalResult {
-    /// Original record for reference
     #[pyo3(get)]
     pub record: GenAIEvalRecord,
 
-    /// Evaluation set containing all task results
     #[pyo3(get)]
     pub eval_set: GenAIEvalSet,
 
-    /// Computed embeddings (if enabled)
     #[pyo3(get)]
     #[serde(skip)]
     pub embeddings: BTreeMap<String, Vec<f32>>,
 
-    /// Mean embeddings (computed during post-processing)
     #[pyo3(get)]
     pub mean_embeddings: BTreeMap<String, f64>,
 
-    /// Similarity scores between embedding targets
     #[pyo3(get)]
     pub similarity_scores: BTreeMap<String, f64>,
 
-    /// Whether evaluation succeeded
     #[pyo3(get)]
     pub success: bool,
 
-    /// Error message if evaluation failed
     #[pyo3(get)]
     pub error_message: Option<String>,
 }
@@ -406,6 +399,10 @@ impl GenAIEvalResults {
         } else {
             Ok(df_class.call_method1("from_dict", (py_records,))?)
         }
+    }
+
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
     }
 }
 

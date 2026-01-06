@@ -11,7 +11,7 @@ use chrono::{DateTime, Utc};
 use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::{GenAIEvalTaskResultRecord, ServerRecords, StorageType, ToDriftRecords};
+use scouter_types::{GenAIEvalTaskResult, ServerRecords, StorageType, ToDriftRecords};
 use std::sync::Arc;
 
 pub struct GenAITaskDataFrame {
@@ -92,16 +92,16 @@ impl GenAITaskDataFrame {
         })
     }
 
-    /// Builds an Arrow RecordBatch from GenAIEvalTaskResultRecords
+    /// Builds an Arrow RecordBatch from GenAIEvalTaskResults
     /// # Arguments
-    /// * `records` - A vector of references to GenAIEvalTaskResultRecords
+    /// * `records` - A vector of references to GenAIEvalTaskResults
     /// # Returns
     /// * A RecordBatch containing the data from the records
     /// # Errors
     /// * DataFrameError if there is an issue creating the RecordBatch
     fn build_batch(
         &self,
-        records: Vec<GenAIEvalTaskResultRecord>,
+        records: Vec<GenAIEvalTaskResult>,
     ) -> Result<RecordBatch, DataFrameError> {
         // 1. created_at: TimestampNanosecond
         let created_at_array = TimestampNanosecondArray::from_iter_values(

@@ -371,7 +371,7 @@ impl GenAIEvaluator {
                 } else {
                     failed_count += 1;
                 }
-                records.push(scouter_types::GenAIEvalTaskResultRecord {
+                records.push(scouter_types::GenAIEvalTaskResult {
                     created_at: chrono::Utc::now(),
                     record_uid: record.uid.clone(),
                     entity_id: record.entity_id,
@@ -399,7 +399,7 @@ impl GenAIEvaluator {
                 } else {
                     failed_count += 1;
                 }
-                records.push(scouter_types::GenAIEvalTaskResultRecord {
+                records.push(scouter_types::GenAIEvalTaskResult {
                     created_at: chrono::Utc::now(),
                     record_uid: record.uid.clone(),
                     entity_id: record.entity_id,
@@ -417,7 +417,7 @@ impl GenAIEvaluator {
             }
         }
 
-        let workflow_record = scouter_types::GenAIEvalWorkflowRecord {
+        let workflow_record = scouter_types::GenAIEvalWorkflowResult {
             created_at: chrono::Utc::now(),
             entity_id: record.entity_id,
             record_uid: record.uid.clone(),

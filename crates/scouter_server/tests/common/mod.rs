@@ -32,8 +32,7 @@ use scouter_types::{
         ComparisonOperator, EvaluationTasks, GenAIAlertConfig, GenAIDriftConfig, GenAIEvalProfile,
         LLMJudgeTask,
     },
-    CustomMetricRecord, GenAIEvalTaskResultRecord, GenAIEvalWorkflowRecord, MessageRecord,
-    PsiRecord,
+    CustomMetricRecord, GenAIEvalTaskResult, GenAIEvalWorkflowResult, MessageRecord, PsiRecord,
 };
 use scouter_types::{
     BoxedGenAIEvalRecord, GenAIEvalRecord, ServerRecord, ServerRecords, SpcRecord, Status,
@@ -366,7 +365,7 @@ impl TestHelper {
 
         for i in 0..2 {
             for j in 0..25 {
-                let record = GenAIEvalTaskResultRecord {
+                let record = GenAIEvalTaskResult {
                     record_uid: format!("record_uid_{i}_{j}"),
                     created_at: Utc::now() + chrono::Duration::microseconds(j as i64)
                         - chrono::Duration::days(offset),
@@ -395,7 +394,7 @@ impl TestHelper {
 
         for i in 0..2 {
             for j in 0..25 {
-                let record = GenAIEvalWorkflowRecord {
+                let record = GenAIEvalWorkflowResult {
                     record_uid: format!("record_uid_{i}_{j}"),
                     created_at: Utc::now() + chrono::Duration::microseconds(j as i64)
                         - chrono::Duration::days(offset),
