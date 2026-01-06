@@ -237,13 +237,9 @@ fn test_genai_server_records() {
     });
 
     // populate the server with GenAI tasks and workflow records
-    helper.populate_genai_records(&profile.config.uid, &runtime, None, RecordType::GenAITask);
-    helper.populate_genai_records(
-        &profile.config.uid,
-        &runtime,
-        None,
-        RecordType::GenAIWorkflow,
-    );
+    helper.populate_genai_records(&uid, &runtime, None, RecordType::GenAIEval);
+    helper.populate_genai_records(&uid, &runtime, None, RecordType::GenAITask);
+    helper.populate_genai_records(&uid, &runtime, None, RecordType::GenAIWorkflow);
     //
     //// Sleep for 2 seconds to allow the http consumer time to process all server records sent above.
     runtime.block_on(async { sleep(Duration::from_secs(5)).await });
@@ -303,7 +299,7 @@ fn test_genai_server_records() {
     let body = serde_json::to_string(&request).unwrap();
 
     let request = Request::builder()
-        .uri("/scouter/drift/genai/event")
+        .uri("/scouter/drift/genai/eval")
         .method("POST")
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(body))
