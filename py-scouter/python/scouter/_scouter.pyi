@@ -10160,7 +10160,7 @@ class DriftType:
     Spc: "DriftType"
     Psi: "DriftType"
     Custom: "DriftType"
-    LLM = "DriftType"
+    GenAI: "DriftType"
 
     def value(self) -> str: ...
     @staticmethod
@@ -11572,21 +11572,21 @@ class MockConfig:
         """
 
 class EntityType:
-    Feature = "EntityType"
-    Metric = "EntityType"
+    Feature: "EntityType"
+    Metric: "EntityType"
+    GenAI: "EntityType"
 
 class RecordType:
-    Spc = "RecordType"
-    Psi = "RecordType"
-    Observability = "RecordType"
-    Custom = "RecordType"
+    Spc: "RecordType"
+    Psi: "RecordType"
+    Observability: "RecordType"
+    Custom: "RecordType"
+    Trace: "RecordType"
+    GenAIEval: "RecordType"
+    GenAITask: "RecordType"
+    GenAIWorkflow: "RecordType"
 
 class ServerRecord:
-    Spc: "ServerRecord"
-    Psi: "ServerRecord"
-    Custom: "ServerRecord"
-    Observability: "ServerRecord"
-
     def __init__(self, record: Any) -> None:
         """Initialize server record
 

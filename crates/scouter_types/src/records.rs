@@ -720,7 +720,11 @@ impl ServerRecord {
             ServerRecord::Observability(record) => {
                 Ok(PyHelperFuncs::to_bound_py_object(py, record)?)
             }
-            ServerRecord::GenAIEval(record) => Ok(PyHelperFuncs::to_bound_py_object(py, record)?),
+            ServerRecord::GenAIEval(record) => {
+                // unbox the record
+                let record = record.record.as_ref();
+                Ok(PyHelperFuncs::to_bound_py_object(py, record)?)
+            }
             ServerRecord::GenAITaskRecord(record) => {
                 Ok(PyHelperFuncs::to_bound_py_object(py, record)?)
             }
