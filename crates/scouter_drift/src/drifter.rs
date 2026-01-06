@@ -735,16 +735,16 @@ mod tests {
 
         // Verify alert content
         let alert = &alerts.items[0];
-        assert!(alert.alert.contains_key("metric_name"));
+        assert!(alert.alert.contains_key("entity_name"));
         assert_eq!(
-            alert.alert.get("metric_name").unwrap(),
+            alert.alert.get("entity_name").unwrap(),
             "genai_workflow_metric"
         );
 
         // Verify the observed value is below threshold
         let observed_value: f64 = alert
             .alert
-            .get("observed_metric")
+            .get("observed_metric_value")
             .and_then(|v| v.parse().ok())
             .unwrap();
         assert!(
