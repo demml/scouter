@@ -378,6 +378,7 @@ impl TaskAccessor for LLMJudgeTask {
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ComparisonOperator {
+    // Existing operators
     Equals,
     NotEqual,
     GreaterThan,
@@ -394,6 +395,47 @@ pub enum ComparisonOperator {
     HasLengthEqual,
     HasLengthGreaterThanOrEqual,
     HasLengthLessThanOrEqual,
+
+    // Type Validation Operators
+    IsNumeric,
+    IsString,
+    IsBoolean,
+    IsNull,
+    IsArray,
+    IsObject,
+
+    // Pattern & Format Validators
+    IsEmail,
+    IsUrl,
+    IsUuid,
+    IsIso8601,
+    IsJson,
+    MatchesRegex,
+
+    // Numeric Range Operators
+    InRange,
+    NotInRange,
+    IsPositive,
+    IsNegative,
+    IsZero,
+
+    // Collection/Array Operators
+    ContainsAll,
+    ContainsAny,
+    ContainsNone,
+    IsEmpty,
+    IsNotEmpty,
+    HasUniqueItems,
+
+    // String Operators
+    IsAlphabetic,
+    IsAlphanumeric,
+    IsLowerCase,
+    IsUpperCase,
+    ContainsWord,
+
+    // Comparison with Tolerance
+    ApproximatelyEquals,
 }
 
 impl Display for ComparisonOperator {
@@ -423,6 +465,48 @@ impl FromStr for ComparisonOperator {
             "HasLengthLessThan" => Ok(ComparisonOperator::HasLengthLessThan),
             "HasLengthGreaterThanOrEqual" => Ok(ComparisonOperator::HasLengthGreaterThanOrEqual),
             "HasLengthLessThanOrEqual" => Ok(ComparisonOperator::HasLengthLessThanOrEqual),
+
+            // Type Validation
+            "IsNumeric" => Ok(ComparisonOperator::IsNumeric),
+            "IsString" => Ok(ComparisonOperator::IsString),
+            "IsBoolean" => Ok(ComparisonOperator::IsBoolean),
+            "IsNull" => Ok(ComparisonOperator::IsNull),
+            "IsArray" => Ok(ComparisonOperator::IsArray),
+            "IsObject" => Ok(ComparisonOperator::IsObject),
+
+            // Pattern & Format
+            "IsEmail" => Ok(ComparisonOperator::IsEmail),
+            "IsUrl" => Ok(ComparisonOperator::IsUrl),
+            "IsUuid" => Ok(ComparisonOperator::IsUuid),
+            "IsIso8601" => Ok(ComparisonOperator::IsIso8601),
+            "IsJson" => Ok(ComparisonOperator::IsJson),
+            "MatchesRegex" => Ok(ComparisonOperator::MatchesRegex),
+
+            // Numeric Range
+            "InRange" => Ok(ComparisonOperator::InRange),
+            "NotInRange" => Ok(ComparisonOperator::NotInRange),
+            "IsPositive" => Ok(ComparisonOperator::IsPositive),
+            "IsNegative" => Ok(ComparisonOperator::IsNegative),
+            "IsZero" => Ok(ComparisonOperator::IsZero),
+
+            // Collection/Array
+            "ContainsAll" => Ok(ComparisonOperator::ContainsAll),
+            "ContainsAny" => Ok(ComparisonOperator::ContainsAny),
+            "ContainsNone" => Ok(ComparisonOperator::ContainsNone),
+            "IsEmpty" => Ok(ComparisonOperator::IsEmpty),
+            "IsNotEmpty" => Ok(ComparisonOperator::IsNotEmpty),
+            "HasUniqueItems" => Ok(ComparisonOperator::HasUniqueItems),
+
+            // String
+            "IsAlphabetic" => Ok(ComparisonOperator::IsAlphabetic),
+            "IsAlphanumeric" => Ok(ComparisonOperator::IsAlphanumeric),
+            "IsLowerCase" => Ok(ComparisonOperator::IsLowerCase),
+            "IsUpperCase" => Ok(ComparisonOperator::IsUpperCase),
+            "ContainsWord" => Ok(ComparisonOperator::ContainsWord),
+
+            // Tolerance
+            "ApproximatelyEquals" => Ok(ComparisonOperator::ApproximatelyEquals),
+
             _ => Err(TypeError::InvalidCompressionTypeError),
         }
     }
@@ -447,6 +531,47 @@ impl ComparisonOperator {
             ComparisonOperator::HasLengthLessThan => "HasLengthLessThan",
             ComparisonOperator::HasLengthGreaterThanOrEqual => "HasLengthGreaterThanOrEqual",
             ComparisonOperator::HasLengthLessThanOrEqual => "HasLengthLessThanOrEqual",
+
+            // Type Validation
+            ComparisonOperator::IsNumeric => "IsNumeric",
+            ComparisonOperator::IsString => "IsString",
+            ComparisonOperator::IsBoolean => "IsBoolean",
+            ComparisonOperator::IsNull => "IsNull",
+            ComparisonOperator::IsArray => "IsArray",
+            ComparisonOperator::IsObject => "IsObject",
+
+            // Pattern & Format
+            ComparisonOperator::IsEmail => "IsEmail",
+            ComparisonOperator::IsUrl => "IsUrl",
+            ComparisonOperator::IsUuid => "IsUuid",
+            ComparisonOperator::IsIso8601 => "IsIso8601",
+            ComparisonOperator::IsJson => "IsJson",
+            ComparisonOperator::MatchesRegex => "MatchesRegex",
+
+            // Numeric Range
+            ComparisonOperator::InRange => "InRange",
+            ComparisonOperator::NotInRange => "NotInRange",
+            ComparisonOperator::IsPositive => "IsPositive",
+            ComparisonOperator::IsNegative => "IsNegative",
+            ComparisonOperator::IsZero => "IsZero",
+
+            // Collection/Array
+            ComparisonOperator::ContainsAll => "ContainsAll",
+            ComparisonOperator::ContainsAny => "ContainsAny",
+            ComparisonOperator::ContainsNone => "ContainsNone",
+            ComparisonOperator::IsEmpty => "IsEmpty",
+            ComparisonOperator::IsNotEmpty => "IsNotEmpty",
+            ComparisonOperator::HasUniqueItems => "HasUniqueItems",
+
+            // String
+            ComparisonOperator::IsAlphabetic => "IsAlphabetic",
+            ComparisonOperator::IsAlphanumeric => "IsAlphanumeric",
+            ComparisonOperator::IsLowerCase => "IsLowerCase",
+            ComparisonOperator::IsUpperCase => "IsUpperCase",
+            ComparisonOperator::ContainsWord => "ContainsWord",
+
+            // Tolerance
+            ComparisonOperator::ApproximatelyEquals => "ApproximatelyEquals",
         }
     }
 }

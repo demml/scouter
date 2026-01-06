@@ -110,6 +110,54 @@ pub enum EvaluationError {
 
     #[error("Failed to acquire read lock on workflow")]
     ReadLockAcquireError,
+
+    #[error("Invalid email validation operation")]
+    InvalidEmailOperation,
+
+    #[error("Invalid URL validation operation")]
+    InvalidUrlOperation,
+
+    #[error("Invalid UUID validation operation")]
+    InvalidUuidOperation,
+
+    #[error("Invalid ISO8601 validation operation")]
+    InvalidIso8601Operation,
+
+    #[error("Invalid JSON validation operation")]
+    InvalidJsonOperation,
+
+    #[error("Invalid range format - expected [min, max] array")]
+    InvalidRangeFormat,
+
+    #[error("Invalid tolerance format - expected [value, tolerance] array")]
+    InvalidToleranceFormat,
+
+    #[error("Invalid ContainsAll operation")]
+    InvalidContainsAllOperation,
+
+    #[error("Invalid ContainsAny operation")]
+    InvalidContainsAnyOperation,
+
+    #[error("Invalid ContainsNone operation")]
+    InvalidContainsNoneOperation,
+
+    #[error("Invalid empty check operation")]
+    InvalidEmptyOperation,
+
+    #[error("Invalid unique items check operation")]
+    InvalidUniqueItemsOperation,
+
+    #[error("Invalid alphabetic check operation")]
+    InvalidAlphabeticOperation,
+
+    #[error("Invalid alphanumeric check operation")]
+    InvalidAlphanumericOperation,
+
+    #[error("Invalid case check operation")]
+    InvalidCaseOperation,
+
+    #[error("Invalid contains word operation")]
+    InvalidContainsWordOperation,
 }
 
 impl From<pythonize::PythonizeError> for EvaluationError {

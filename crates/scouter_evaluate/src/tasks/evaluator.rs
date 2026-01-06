@@ -185,9 +185,9 @@ impl AssertionEvaluator {
         expected: &Value,
     ) -> Result<bool, EvaluationError> {
         match operator {
+            // Existing operators
             ComparisonOperator::Equals => Ok(actual == expected),
             ComparisonOperator::NotEqual => Ok(actual != expected),
-
             ComparisonOperator::GreaterThan => {
                 Self::compare_numeric(actual, expected, |a, b| a > b)
             }
@@ -213,12 +213,54 @@ impl AssertionEvaluator {
             ComparisonOperator::HasLengthLessThanOrEqual => {
                 Self::compare_numeric(actual, expected, |a, b| a <= b)
             }
-
             ComparisonOperator::Contains => Self::check_contains(actual, expected),
             ComparisonOperator::NotContains => Ok(!Self::check_contains(actual, expected)?),
             ComparisonOperator::StartsWith => Self::check_starts_with(actual, expected),
             ComparisonOperator::EndsWith => Self::check_ends_with(actual, expected),
             ComparisonOperator::Matches => Self::check_regex_match(actual, expected),
+
+            // Type Validation Operators
+            ComparisonOperator::IsNumeric => Ok(actual.is_number()),
+            ComparisonOperator::IsString => Ok(actual.is_string()),
+            ComparisonOperator::IsBoolean => Ok(actual.is_boolean()),
+            ComparisonOperator::IsNull => Ok(actual.is_null()),
+            ComparisonOperator::IsArray => Ok(actual.is_array()),
+            ComparisonOperator::IsObject => Ok(actual.is_object()),
+
+            // Pattern & Format Validators
+            ComparisonOperator::IsEmail => Self::check_is_email(actual),
+            ComparisonOperator::IsUrl => Self::check_is_url(actual),
+            ComparisonOperator::IsUuid => Self::check_is_uuid(actual),
+            ComparisonOperator::IsIso8601 => Self::check_is_iso8601(actual),
+            ComparisonOperator::IsJson => Self::check_is_json(actual),
+            ComparisonOperator::MatchesRegex => Self::check_regex_match(actual, expected),
+
+            // Numeric Range Operators
+            ComparisonOperator::InRange => Self::check_in_range(actual, expected),
+            ComparisonOperator::NotInRange => Ok(!Self::check_in_range(actual, expected)?),
+            ComparisonOperator::IsPositive => Self::check_is_positive(actual),
+            ComparisonOperator::IsNegative => Self::check_is_negative(actual),
+            ComparisonOperator::IsZero => Self::check_is_zero(actual),
+
+            // Collection/Array Operators
+            ComparisonOperator::ContainsAll => Self::check_contains_all(actual, expected),
+            ComparisonOperator::ContainsAny => Self::check_contains_any(actual, expected),
+            ComparisonOperator::ContainsNone => Self::check_contains_none(actual, expected),
+            ComparisonOperator::IsEmpty => Self::check_is_empty(actual),
+            ComparisonOperator::IsNotEmpty => Ok(!Self::check_is_empty(actual)?),
+            ComparisonOperator::HasUniqueItems => Self::check_has_unique_items(actual),
+
+            // String Operators
+            ComparisonOperator::IsAlphabetic => Self::check_is_alphabetic(actual),
+            ComparisonOperator::IsAlphanumeric => Self::check_is_alphanumeric(actual),
+            ComparisonOperator::IsLowerCase => Self::check_is_lowercase(actual),
+            ComparisonOperator::IsUpperCase => Self::check_is_uppercase(actual),
+            ComparisonOperator::ContainsWord => Self::check_contains_word(actual, expected),
+
+            // Comparison with Tolerance
+            ComparisonOperator::ApproximatelyEquals => {
+                Self::check_approximately_equals(actual, expected)
+            }
         }
     }
 
@@ -270,6 +312,245 @@ impl AssertionEvaluator {
                 Ok(regex.is_match(s))
             }
             _ => Err(EvaluationError::InvalidRegexOperation),
+        }
+    }
+
+    // Pattern & Format Validation Helpers
+    fn check_is_email(actual: &Value) -> Result<bool, EvaluationError> {
+        match actual {
+            Value::String(s) => {
+                let email_regex = Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
+                    .map_err(|e| EvaluationError::RegexError(e))?;
+                Ok(email_regex.is_match(s))
+            }
+            _ => Err(EvaluationError::InvalidEmailOperation),
+        }
+    }
+
+    fn check_is_url(actual: &Value) -> Result<bool, EvaluationError> {
+        match actual {
+            Value::String(s) => {
+                let url_regex = Regex::new(
+                    r"^https?://[a-zA-Z0-9][a-zA-Z0-9-]*(\.[a-zA-Z0-9][a-zA-Z0-9-]*)*(/.*)?$",
+                )
+                .map_err(|e| EvaluationError::RegexError(e))?;
+                Ok(url_regex.is_match(s))
+            }
+            _ => Err(EvaluationError::InvalidUrlOperation),
+        }
+    }
+
+    fn check_is_uuid(actual: &Value) -> Result<bool, EvaluationError> {
+        match actual {
+            Value::String(s) => {
+                let uuid_regex = Regex::new(
+                    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+                ).map_err(|e| EvaluationError::RegexError(e))?;
+                Ok(uuid_regex.is_match(s))
+            }
+            _ => Err(EvaluationError::InvalidUuidOperation),
+        }
+    }
+
+    fn check_is_iso8601(actual: &Value) -> Result<bool, EvaluationError> {
+        match actual {
+            Value::String(s) => {
+                // ISO 8601 date-time format
+                let iso_regex = Regex::new(
+                    r"^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?)?$",
+                )
+                .map_err(|e| EvaluationError::RegexError(e))?;
+                Ok(iso_regex.is_match(s))
+            }
+            _ => Err(EvaluationError::InvalidIso8601Operation),
+        }
+    }
+
+    fn check_is_json(actual: &Value) -> Result<bool, EvaluationError> {
+        match actual {
+            Value::String(s) => Ok(serde_json::from_str::<Value>(s).is_ok()),
+            _ => Err(EvaluationError::InvalidJsonOperation),
+        }
+    }
+
+    // Numeric Range Helpers
+    fn check_in_range(actual: &Value, expected: &Value) -> Result<bool, EvaluationError> {
+        let actual_num = actual
+            .as_numeric()
+            .ok_or(EvaluationError::CannotCompareNonNumericValues)?;
+
+        match expected {
+            Value::Array(range) if range.len() == 2 => {
+                let min = range[0]
+                    .as_numeric()
+                    .ok_or(EvaluationError::InvalidRangeFormat)?;
+                let max = range[1]
+                    .as_numeric()
+                    .ok_or(EvaluationError::InvalidRangeFormat)?;
+                Ok(actual_num >= min && actual_num <= max)
+            }
+            _ => Err(EvaluationError::InvalidRangeFormat),
+        }
+    }
+
+    fn check_is_positive(actual: &Value) -> Result<bool, EvaluationError> {
+        let num = actual
+            .as_numeric()
+            .ok_or(EvaluationError::CannotCompareNonNumericValues)?;
+        Ok(num > 0.0)
+    }
+
+    fn check_is_negative(actual: &Value) -> Result<bool, EvaluationError> {
+        let num = actual
+            .as_numeric()
+            .ok_or(EvaluationError::CannotCompareNonNumericValues)?;
+        Ok(num < 0.0)
+    }
+
+    fn check_is_zero(actual: &Value) -> Result<bool, EvaluationError> {
+        let num = actual
+            .as_numeric()
+            .ok_or(EvaluationError::CannotCompareNonNumericValues)?;
+        Ok(num == 0.0)
+    }
+
+    // Collection/Array Helpers
+    fn check_contains_all(actual: &Value, expected: &Value) -> Result<bool, EvaluationError> {
+        match (actual, expected) {
+            (Value::Array(arr), Value::Array(required)) => {
+                Ok(required.iter().all(|item| arr.contains(item)))
+            }
+            _ => Err(EvaluationError::InvalidContainsAllOperation),
+        }
+    }
+
+    fn check_contains_any(actual: &Value, expected: &Value) -> Result<bool, EvaluationError> {
+        match (actual, expected) {
+            (Value::Array(arr), Value::Array(candidates)) => {
+                Ok(candidates.iter().any(|item| arr.contains(item)))
+            }
+            (Value::String(s), Value::Array(keywords)) => Ok(keywords.iter().any(|keyword| {
+                if let Value::String(kw) = keyword {
+                    s.contains(kw)
+                } else {
+                    false
+                }
+            })),
+            _ => Err(EvaluationError::InvalidContainsAnyOperation),
+        }
+    }
+
+    fn check_contains_none(actual: &Value, expected: &Value) -> Result<bool, EvaluationError> {
+        match (actual, expected) {
+            (Value::Array(arr), Value::Array(forbidden)) => {
+                Ok(!forbidden.iter().any(|item| arr.contains(item)))
+            }
+            _ => Err(EvaluationError::InvalidContainsNoneOperation),
+        }
+    }
+
+    fn check_is_empty(actual: &Value) -> Result<bool, EvaluationError> {
+        match actual {
+            Value::String(s) => Ok(s.is_empty()),
+            Value::Array(arr) => Ok(arr.is_empty()),
+            Value::Object(obj) => Ok(obj.is_empty()),
+            _ => Err(EvaluationError::InvalidEmptyOperation),
+        }
+    }
+
+    fn check_has_unique_items(actual: &Value) -> Result<bool, EvaluationError> {
+        match actual {
+            Value::Array(arr) => {
+                let mut seen = std::collections::HashSet::new();
+                for item in arr {
+                    let json_str = serde_json::to_string(item)
+                        .map_err(|_| EvaluationError::InvalidUniqueItemsOperation)?;
+                    if !seen.insert(json_str) {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            _ => Err(EvaluationError::InvalidUniqueItemsOperation),
+        }
+    }
+
+    // String Helpers
+    fn check_is_alphabetic(actual: &Value) -> Result<bool, EvaluationError> {
+        match actual {
+            Value::String(s) => Ok(s.chars().all(|c| c.is_alphabetic())),
+            _ => Err(EvaluationError::InvalidAlphabeticOperation),
+        }
+    }
+
+    fn check_is_alphanumeric(actual: &Value) -> Result<bool, EvaluationError> {
+        match actual {
+            Value::String(s) => Ok(s.chars().all(|c| c.is_alphanumeric())),
+            _ => Err(EvaluationError::InvalidAlphanumericOperation),
+        }
+    }
+
+    fn check_is_lowercase(actual: &Value) -> Result<bool, EvaluationError> {
+        match actual {
+            Value::String(s) => {
+                let has_letters = s.chars().any(|c| c.is_alphabetic());
+                if !has_letters {
+                    return Err(EvaluationError::InvalidCaseOperation);
+                }
+                Ok(s.chars()
+                    .filter(|c| c.is_alphabetic())
+                    .all(|c| c.is_lowercase()))
+            }
+            _ => Err(EvaluationError::InvalidCaseOperation),
+        }
+    }
+
+    fn check_is_uppercase(actual: &Value) -> Result<bool, EvaluationError> {
+        match actual {
+            Value::String(s) => {
+                let has_letters = s.chars().any(|c| c.is_alphabetic());
+                if !has_letters {
+                    return Err(EvaluationError::InvalidCaseOperation);
+                }
+                Ok(s.chars()
+                    .filter(|c| c.is_alphabetic())
+                    .all(|c| c.is_uppercase()))
+            }
+            _ => Err(EvaluationError::InvalidCaseOperation),
+        }
+    }
+
+    fn check_contains_word(actual: &Value, expected: &Value) -> Result<bool, EvaluationError> {
+        match (actual, expected) {
+            (Value::String(s), Value::String(word)) => {
+                let word_regex = Regex::new(&format!(r"\b{}\b", regex::escape(word)))
+                    .map_err(|e| EvaluationError::RegexError(e))?;
+                Ok(word_regex.is_match(s))
+            }
+            _ => Err(EvaluationError::InvalidContainsWordOperation),
+        }
+    }
+
+    // Tolerance Comparison Helper
+    fn check_approximately_equals(
+        actual: &Value,
+        expected: &Value,
+    ) -> Result<bool, EvaluationError> {
+        match expected {
+            Value::Array(arr) if arr.len() == 2 => {
+                let actual_num = actual
+                    .as_numeric()
+                    .ok_or(EvaluationError::CannotCompareNonNumericValues)?;
+                let expected_num = arr[0]
+                    .as_numeric()
+                    .ok_or(EvaluationError::InvalidToleranceFormat)?;
+                let tolerance = arr[1]
+                    .as_numeric()
+                    .ok_or(EvaluationError::InvalidToleranceFormat)?;
+
+                Ok((actual_num - expected_num).abs() <= tolerance)
+            }
+            _ => Err(EvaluationError::InvalidToleranceFormat),
         }
     }
 }
@@ -347,7 +628,7 @@ mod tests {
         AssertionTask {
             id: "tasks_length_gte".to_string(),
             field_path: Some("tasks".to_string()),
-            operator: ComparisonOperator::GreaterThanOrEqual,
+            operator: ComparisonOperator::HasLengthGreaterThanOrEqual,
             expected_value: Value::Number(2.into()),
             description: Some("There should be more than 2 tasks".to_string()),
             task_type: EvaluationTaskType::Assertion,
@@ -360,7 +641,7 @@ mod tests {
         AssertionTask {
             id: "tasks_length_lte".to_string(),
             field_path: Some("tasks".to_string()),
-            operator: ComparisonOperator::LessThanOrEqual,
+            operator: ComparisonOperator::HasLengthLessThanOrEqual,
             expected_value: Value::Number(5.into()),
             description: Some("There should be less than 5 tasks".to_string()),
             task_type: EvaluationTaskType::Assertion,
@@ -1158,6 +1439,479 @@ mod tests {
             operator: ComparisonOperator::GreaterThan,
             expected_value: Value::Number(10.into()),
             description: Some("Cannot compare string with number".to_string()),
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(!result.passed);
+    }
+
+    #[test]
+    fn test_is_numeric_pass() {
+        let json = json!({"value": 42});
+        let assertion = AssertionTask {
+            id: "type_check".to_string(),
+            field_path: Some("value".to_string()),
+            operator: ComparisonOperator::IsNumeric,
+            expected_value: Value::Bool(true),
+            description: Some("Value should be numeric".to_string()),
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_is_string_pass() {
+        let json = json!({"value": "hello"});
+        let assertion = AssertionTask {
+            id: "type_check".to_string(),
+            field_path: Some("value".to_string()),
+            operator: ComparisonOperator::IsString,
+            expected_value: Value::Bool(true),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_is_array_pass() {
+        let json = json!({"value": [1, 2, 3]});
+        let assertion = AssertionTask {
+            id: "type_check".to_string(),
+            field_path: Some("value".to_string()),
+            operator: ComparisonOperator::IsArray,
+            expected_value: Value::Bool(true),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(result.passed);
+    }
+
+    // Format Validation Tests
+    #[test]
+    fn test_is_email_pass() {
+        let json = json!({"email": "user@example.com"});
+        let assertion = AssertionTask {
+            id: "email_check".to_string(),
+            field_path: Some("email".to_string()),
+            operator: ComparisonOperator::IsEmail,
+            expected_value: Value::Bool(true),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_is_email_fail() {
+        let json = json!({"email": "not-an-email"});
+        let assertion = AssertionTask {
+            id: "email_check".to_string(),
+            field_path: Some("email".to_string()),
+            operator: ComparisonOperator::IsEmail,
+            expected_value: Value::Bool(true),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(!result.passed);
+    }
+
+    #[test]
+    fn test_is_url_pass() {
+        let json = json!({"url": "https://example.com"});
+        let assertion = AssertionTask {
+            id: "url_check".to_string(),
+            field_path: Some("url".to_string()),
+            operator: ComparisonOperator::IsUrl,
+            expected_value: Value::Bool(true),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_is_uuid_pass() {
+        let json = json!({"id": "550e8400-e29b-41d4-a716-446655440000"});
+        let assertion = AssertionTask {
+            id: "uuid_check".to_string(),
+            field_path: Some("id".to_string()),
+            operator: ComparisonOperator::IsUuid,
+            expected_value: Value::Bool(true),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_is_iso8601_pass() {
+        let json = json!({"timestamp": "2024-01-05T10:30:00Z"});
+        let assertion = AssertionTask {
+            id: "iso_check".to_string(),
+            field_path: Some("timestamp".to_string()),
+            operator: ComparisonOperator::IsIso8601,
+            expected_value: Value::Bool(true),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_is_json_pass() {
+        let json = json!({"data": r#"{"key": "value"}"#});
+        let assertion = AssertionTask {
+            id: "json_check".to_string(),
+            field_path: Some("data".to_string()),
+            operator: ComparisonOperator::IsJson,
+            expected_value: Value::Bool(true),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(result.passed);
+    }
+
+    // Range Tests
+    #[test]
+    fn test_in_range_pass() {
+        let json = json!({"score": 75});
+        let assertion = AssertionTask {
+            id: "range_check".to_string(),
+            field_path: Some("score".to_string()),
+            operator: ComparisonOperator::InRange,
+            expected_value: json!([0, 100]),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_in_range_fail() {
+        let json = json!({"score": 150});
+        let assertion = AssertionTask {
+            id: "range_check".to_string(),
+            field_path: Some("score".to_string()),
+            operator: ComparisonOperator::InRange,
+            expected_value: json!([0, 100]),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(!result.passed);
+    }
+
+    #[test]
+    fn test_is_positive_pass() {
+        let json = json!({"value": 42});
+        let assertion = AssertionTask {
+            id: "positive_check".to_string(),
+            field_path: Some("value".to_string()),
+            operator: ComparisonOperator::IsPositive,
+            expected_value: Value::Bool(true),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_is_negative_pass() {
+        let json = json!({"value": -42});
+        let assertion = AssertionTask {
+            id: "negative_check".to_string(),
+            field_path: Some("value".to_string()),
+            operator: ComparisonOperator::IsNegative,
+            expected_value: Value::Bool(true),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(result.passed);
+    }
+
+    // Collection Tests
+    #[test]
+    fn test_contains_all_pass() {
+        let json = json!({"tags": ["rust", "python", "javascript", "go"]});
+        let assertion = AssertionTask {
+            id: "contains_all_check".to_string(),
+            field_path: Some("tags".to_string()),
+            operator: ComparisonOperator::ContainsAll,
+            expected_value: json!(["rust", "python"]),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_contains_any_pass() {
+        let json = json!({"tags": ["rust", "python"]});
+        let assertion = AssertionTask {
+            id: "contains_any_check".to_string(),
+            field_path: Some("tags".to_string()),
+            operator: ComparisonOperator::ContainsAny,
+            expected_value: json!(["python", "java", "c++"]),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_is_empty_pass() {
+        let json = json!({"list": []});
+        let assertion = AssertionTask {
+            id: "empty_check".to_string(),
+            field_path: Some("list".to_string()),
+            operator: ComparisonOperator::IsEmpty,
+            expected_value: Value::Bool(true),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_has_unique_items_pass() {
+        let json = json!({"items": [1, 2, 3, 4]});
+        let assertion = AssertionTask {
+            id: "unique_check".to_string(),
+            field_path: Some("items".to_string()),
+            operator: ComparisonOperator::HasUniqueItems,
+            expected_value: Value::Bool(true),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_has_unique_items_fail() {
+        let json = json!({"items": [1, 2, 2, 3]});
+        let assertion = AssertionTask {
+            id: "unique_check".to_string(),
+            field_path: Some("items".to_string()),
+            operator: ComparisonOperator::HasUniqueItems,
+            expected_value: Value::Bool(true),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(!result.passed);
+    }
+
+    // String Tests
+    #[test]
+    fn test_is_alphabetic_pass() {
+        let json = json!({"text": "HelloWorld"});
+        let assertion = AssertionTask {
+            id: "alpha_check".to_string(),
+            field_path: Some("text".to_string()),
+            operator: ComparisonOperator::IsAlphabetic,
+            expected_value: Value::Bool(true),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_is_alphanumeric_pass() {
+        let json = json!({"text": "Hello123"});
+        let assertion = AssertionTask {
+            id: "alphanum_check".to_string(),
+            field_path: Some("text".to_string()),
+            operator: ComparisonOperator::IsAlphanumeric,
+            expected_value: Value::Bool(true),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_is_lowercase_pass() {
+        let json = json!({"text": "hello world"});
+        let assertion = AssertionTask {
+            id: "lowercase_check".to_string(),
+            field_path: Some("text".to_string()),
+            operator: ComparisonOperator::IsLowerCase,
+            expected_value: Value::Bool(true),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_is_uppercase_pass() {
+        let json = json!({"text": "HELLO WORLD"});
+        let assertion = AssertionTask {
+            id: "uppercase_check".to_string(),
+            field_path: Some("text".to_string()),
+            operator: ComparisonOperator::IsUpperCase,
+            expected_value: Value::Bool(true),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_contains_word_pass() {
+        let json = json!({"text": "The quick brown fox"});
+        let assertion = AssertionTask {
+            id: "word_check".to_string(),
+            field_path: Some("text".to_string()),
+            operator: ComparisonOperator::ContainsWord,
+            expected_value: Value::String("quick".to_string()),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_contains_word_fail() {
+        let json = json!({"text": "The quickly brown fox"});
+        let assertion = AssertionTask {
+            id: "word_check".to_string(),
+            field_path: Some("text".to_string()),
+            operator: ComparisonOperator::ContainsWord,
+            expected_value: Value::String("quick".to_string()),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(!result.passed);
+    }
+
+    // Tolerance Tests
+    #[test]
+    fn test_approximately_equals_pass() {
+        let json = json!({"value": 100.5});
+        let assertion = AssertionTask {
+            id: "approx_check".to_string(),
+            field_path: Some("value".to_string()),
+            operator: ComparisonOperator::ApproximatelyEquals,
+            expected_value: json!([100.0, 1.0]),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_approximately_equals_fail() {
+        let json = json!({"value": 102.0});
+        let assertion = AssertionTask {
+            id: "approx_check".to_string(),
+            field_path: Some("value".to_string()),
+            operator: ComparisonOperator::ApproximatelyEquals,
+            expected_value: json!([100.0, 1.0]),
+            description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,

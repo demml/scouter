@@ -459,27 +459,34 @@ impl GenAIEvalProfile {
         let mut graph: HashMap<String, Vec<String>> = HashMap::new();
         let mut in_degree: HashMap<String, usize> = HashMap::new();
 
-        // Add assertions
+        // Initialize all tasks with empty dependency lists and 0 in-degree
         for task in &self.assertion_tasks {
-            graph.insert(task.id.clone(), task.depends_on.clone());
+            graph.entry(task.id.clone()).or_default();
             in_degree.entry(task.id.clone()).or_insert(0);
-
-            for dep in &task.depends_on {
-                *in_degree.entry(dep.clone()).or_insert(0) += 1;
-            }
         }
-
-        // Add LLM judges
         for task in &self.llm_judge_tasks {
-            graph.insert(task.id.clone(), task.depends_on.clone());
+            graph.entry(task.id.clone()).or_default();
             in_degree.entry(task.id.clone()).or_insert(0);
+        }
 
+        // Build dependency graph correctly:
+        // For each dependency, add current task as a dependent
+        for task in &self.assertion_tasks {
             for dep in &task.depends_on {
-                *in_degree.entry(dep.clone()).or_insert(0) += 1;
+                // dep -> task_id (dep must execute before task_id)
+                graph.entry(dep.clone()).or_default().push(task.id.clone());
+                *in_degree.entry(task.id.clone()).or_insert(0) += 1;
             }
         }
 
-        // Topological sort for execution order
+        for task in &self.llm_judge_tasks {
+            for dep in &task.depends_on {
+                // dep -> task_id (dep must execute before task_id)
+                graph.entry(dep.clone()).or_default().push(task.id.clone());
+                *in_degree.entry(task.id.clone()).or_insert(0) += 1;
+            }
+        }
+
         let mut result = Vec::new();
         let mut current_level: Vec<String> = in_degree
             .iter()
@@ -492,12 +499,13 @@ impl GenAIEvalProfile {
 
             let mut next_level = Vec::new();
             for task_id in &current_level {
-                if let Some(deps) = graph.get(task_id) {
-                    for dep in deps {
-                        if let Some(degree) = in_degree.get_mut(dep) {
+                // For each task we just completed, reduce in-degree of its dependents
+                if let Some(dependents) = graph.get(task_id) {
+                    for dependent in dependents {
+                        if let Some(degree) = in_degree.get_mut(dependent) {
                             *degree -= 1;
                             if *degree == 0 {
-                                next_level.push(dep.clone());
+                                next_level.push(dependent.clone());
                             }
                         }
                     }
@@ -507,7 +515,6 @@ impl GenAIEvalProfile {
             current_level = next_level;
         }
 
-        // Validate that all tasks were included (detect cycles)
         let total_tasks = self.assertion_tasks.len() + self.llm_judge_tasks.len();
         let processed_tasks: usize = result.iter().map(|level| level.len()).sum();
 
@@ -647,37 +654,37 @@ impl GenAIEvalSet {
 #[pymethods]
 impl GenAIEvalSet {
     #[getter]
-    pub fn get_created_at(&self) -> DateTime<Utc> {
+    pub fn created_at(&self) -> DateTime<Utc> {
         self.inner.created_at
     }
 
     #[getter]
-    pub fn get_record_uid(&self) -> String {
+    pub fn record_uid(&self) -> String {
         self.inner.record_uid.clone()
     }
 
     #[getter]
-    pub fn get_total_tasks(&self) -> i32 {
+    pub fn total_tasks(&self) -> i32 {
         self.inner.total_tasks
     }
 
     #[getter]
-    pub fn get_passed_tasks(&self) -> i32 {
+    pub fn passed_tasks(&self) -> i32 {
         self.inner.passed_tasks
     }
 
     #[getter]
-    pub fn get_failed_tasks(&self) -> i32 {
+    pub fn failed_tasks(&self) -> i32 {
         self.inner.failed_tasks
     }
 
     #[getter]
-    pub fn get_pass_rate(&self) -> f64 {
+    pub fn pass_rate(&self) -> f64 {
         self.inner.pass_rate
     }
 
     #[getter]
-    pub fn get_duration_ms(&self) -> i64 {
+    pub fn duration_ms(&self) -> i64 {
         self.inner.duration_ms
     }
 
@@ -697,10 +704,7 @@ pub struct GenAIEvalResultSet {
 #[pymethods]
 impl GenAIEvalResultSet {
     pub fn record(&self, id: &str) -> Option<GenAIEvalSet> {
-        self.records
-            .iter()
-            .find(|r| r.get_record_uid() == id)
-            .cloned()
+        self.records.iter().find(|r| r.record_uid() == id).cloned()
     }
     pub fn __str__(&self) -> String {
         // serialize the struct to a string

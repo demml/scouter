@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tokio::task::JoinSet;
-use tracing::{debug, instrument, warn};
+use tracing::{debug, error, instrument, warn};
 
 /// Stores task execution results separate from the profile
 #[derive(Debug, Clone)]
@@ -154,7 +154,9 @@ impl GenAIEvaluator {
                 level_idx,
                 level_tasks.len()
             );
-            self.execute_level(&level_tasks, &profile).await?;
+            self.execute_level(&level_tasks, &profile)
+                .await
+                .inspect_err(|e| error!("Failed to execute level {}: {:?}", level_idx, e))?;
         }
 
         let duration_ms = (chrono::Utc::now() - begin).num_milliseconds();
@@ -231,7 +233,9 @@ impl GenAIEvaluator {
             },
             async {
                 if !llm_judge_ids.is_empty() && profile.workflow.is_some() {
-                    self.execute_judge_workflow(profile).await
+                    self.execute_judge_workflow(profile)
+                        .await
+                        .inspect_err(|e| error!("Failed to execute LLM judge workflow: {:?}", e))
                 } else {
                     Ok(())
                 }
@@ -429,5 +433,200 @@ impl GenAIEvaluator {
         };
 
         GenAIEvalSet::new(records, workflow_record)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use chrono::Utc;
+    use potato_head::mock::{create_score_prompt, LLMTestServer};
+    use scouter_types::genai::EvaluationTaskType;
+    use scouter_types::genai::{
+        AssertionTask, ComparisonOperator, GenAIAlertConfig, GenAIDriftConfig, GenAIEvalProfile,
+        LLMJudgeTask,
+    };
+    use scouter_types::GenAIEvalRecord;
+    use serde_json::Value;
+    use std::sync::Arc;
+
+    use crate::evaluate::GenAIEvaluator;
+
+    fn create_assert_judge_profile() -> GenAIEvalProfile {
+        let prompt = create_score_prompt(Some(vec!["input".to_string()]));
+
+        let assertion_level_1 = AssertionTask {
+            id: "input_check".to_string(),
+            field_path: Some("input.foo".to_string()),
+            operator: ComparisonOperator::Equals,
+            expected_value: Value::String("bar".to_string()),
+            description: Some("Check if input.foo is bar".to_string()),
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let judge_task_level_1 = LLMJudgeTask::new_rs(
+            "query_relevance",
+            prompt.clone(),
+            Value::Number(1.into()),
+            Some("score".to_string()),
+            ComparisonOperator::GreaterThanOrEqual,
+            None,
+            None,
+        );
+
+        let assert_query_score = AssertionTask {
+            id: "assert_score".to_string(),
+            field_path: Some("query_relevance.score".to_string()),
+            operator: ComparisonOperator::IsNumeric,
+            expected_value: Value::Bool(true),
+            depends_on: vec!["query_relevance".to_string()],
+            task_type: EvaluationTaskType::Assertion,
+            description: Some("Check that score is numeric".to_string()),
+            result: None,
+        };
+
+        let assert_query_reason = AssertionTask {
+            id: "assert_reason".to_string(),
+            field_path: Some("query_relevance.reason".to_string()),
+            operator: ComparisonOperator::IsString,
+            expected_value: Value::Bool(true),
+            depends_on: vec!["query_relevance".to_string()],
+            task_type: EvaluationTaskType::Assertion,
+            description: Some("Check that reason is alphabetic".to_string()),
+            result: None,
+        };
+
+        let alert_config = GenAIAlertConfig::default();
+
+        let drift_config =
+            GenAIDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
+
+        GenAIEvalProfile::new(
+            drift_config,
+            Some(vec![
+                assertion_level_1,
+                assert_query_score,
+                assert_query_reason,
+            ]),
+            Some(vec![judge_task_level_1]),
+        )
+        .unwrap()
+    }
+
+    fn create_assert_profile() -> GenAIEvalProfile {
+        let assert1 = AssertionTask {
+            id: "input_foo_check".to_string(),
+            field_path: Some("input.foo".to_string()),
+            operator: ComparisonOperator::Equals,
+            expected_value: Value::String("bar".to_string()),
+            description: Some("Check if input.foo is bar".to_string()),
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+        };
+
+        let assert2 = AssertionTask {
+            id: "input_bar_check".to_string(),
+            field_path: Some("input.bar".to_string()),
+            operator: ComparisonOperator::IsNumeric,
+            expected_value: Value::Bool(true),
+            depends_on: vec![],
+            task_type: EvaluationTaskType::Assertion,
+            description: Some("Check that bar is numeric".to_string()),
+            result: None,
+        };
+
+        let assert3 = AssertionTask {
+            id: "input_baz_check".to_string(),
+            field_path: Some("input.baz".to_string()),
+            operator: ComparisonOperator::HasLengthEqual,
+            expected_value: Value::Number(3.into()),
+            depends_on: vec![],
+            task_type: EvaluationTaskType::Assertion,
+            description: Some("Check that baz has length 3".to_string()),
+            result: None,
+        };
+
+        let alert_config = GenAIAlertConfig::default();
+
+        let drift_config =
+            GenAIDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
+
+        GenAIEvalProfile::new(drift_config, Some(vec![assert1, assert2, assert3]), None).unwrap()
+    }
+
+    #[test]
+    fn test_evaluator_assert_judge_all_pass() {
+        let mut mock = LLMTestServer::new();
+        mock.start_server().unwrap();
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let profile = create_assert_judge_profile();
+
+        assert!(profile.has_llm_tasks());
+        assert!(profile.has_assertions());
+
+        let context = serde_json::json!({
+            "input": {
+                "foo": "bar"
+            }
+        });
+
+        let record = GenAIEvalRecord::new_rs(
+            context,
+            Utc::now(),
+            "UID123".to_string(),
+            "ENTITY123".to_string(),
+            None,
+        );
+
+        let result_set = runtime.block_on(async {
+            GenAIEvaluator::process_event_record(&record, Arc::new(profile)).await
+        });
+
+        let eval_set = result_set.unwrap();
+        assert!(eval_set.passed_tasks() == 4);
+        assert!(eval_set.failed_tasks() == 0);
+
+        mock.stop_server().unwrap();
+    }
+
+    #[test]
+    fn test_evaluator_assert_one_fail() {
+        let mut mock = LLMTestServer::new();
+        mock.start_server().unwrap();
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let profile = create_assert_profile();
+
+        assert!(!profile.has_llm_tasks());
+        assert!(profile.has_assertions());
+
+        // we want task "input_bar_check" to fail (is_numeric on non-numeric)
+        let context = serde_json::json!({
+            "input": {
+                "foo": "bar",
+                "bar": "not_a_number",
+                "baz": [1, 2, 3]
+            }
+        });
+
+        let record = GenAIEvalRecord::new_rs(
+            context,
+            Utc::now(),
+            "UID123".to_string(),
+            "ENTITY123".to_string(),
+            None,
+        );
+
+        let result_set = runtime.block_on(async {
+            GenAIEvaluator::process_event_record(&record, Arc::new(profile)).await
+        });
+
+        let eval_set = result_set.unwrap();
+        assert!(eval_set.passed_tasks() == 2);
+        assert!(eval_set.failed_tasks() == 1);
+
+        mock.stop_server().unwrap();
     }
 }
