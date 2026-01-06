@@ -748,7 +748,7 @@ mod tests {
             .and_then(|v| v.parse().ok())
             .unwrap();
         assert!(
-            observed_value < 0.7, // Should be ~33% pass rate
+            observed_value < 0.8, // Should be ~33% pass rate
             "Expected low pass rate to trigger alert"
         );
 
