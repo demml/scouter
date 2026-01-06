@@ -636,41 +636,6 @@ pub fn get_utc_datetime() -> DateTime<Utc> {
     Utc::now()
 }
 
-#[pyclass(eq)]
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub enum AlertThreshold {
-    Below,
-    Above,
-    Outside,
-}
-
-impl Display for AlertThreshold {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
-
-#[pymethods]
-impl AlertThreshold {
-    #[staticmethod]
-    pub fn from_value(value: &str) -> Option<Self> {
-        match value.to_lowercase().as_str() {
-            "below" => Some(AlertThreshold::Below),
-            "above" => Some(AlertThreshold::Above),
-            "outside" => Some(AlertThreshold::Outside),
-            _ => None,
-        }
-    }
-
-    pub fn __str__(&self) -> String {
-        match self {
-            AlertThreshold::Below => "Below".to_string(),
-            AlertThreshold::Above => "Above".to_string(),
-            AlertThreshold::Outside => "Outside".to_string(),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Default)]
 pub enum Status {
     #[default]

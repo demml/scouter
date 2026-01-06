@@ -144,11 +144,13 @@ impl GenAIDrifter {
 mod tests {
     use super::*;
     use potato_head::mock::create_score_prompt;
-    use scouter_types::genai::{ComparisonOperator, EvaluationTasks, GenAIEvalAlertCondition};
+    use scouter_types::genai::{ComparisonOperator, EvaluationTasks};
     use scouter_types::genai::{
         GenAIAlertConfig, GenAIDriftConfig, GenAIEvalProfile, LLMJudgeTask,
     };
-    use scouter_types::{AlertDispatchConfig, AlertThreshold, ConsoleDispatchConfig};
+    use scouter_types::{
+        AlertCondition, AlertDispatchConfig, AlertThreshold, ConsoleDispatchConfig,
+    };
     use serde_json::Value;
 
     async fn get_test_drifter() -> GenAIDrifter {
@@ -179,7 +181,7 @@ mod tests {
             .add_task(task2)
             .build();
 
-        let alert_condition = GenAIEvalAlertCondition {
+        let alert_condition = AlertCondition {
             baseline_value: 5.0,
             alert_threshold: AlertThreshold::Below,
             delta: Some(1.0),

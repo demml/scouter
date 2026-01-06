@@ -1,4 +1,5 @@
 use crate::error::TypeError;
+use crate::AlertCondition;
 use crate::{
     dispatch::AlertDispatchType, AlertDispatchConfig, AlertThreshold, CommonCrons,
     DispatchAlertDescription, OpsGenieDispatchConfig, PyHelperFuncs, SlackDispatchConfig,
@@ -22,7 +23,7 @@ pub struct CustomMetric {
     pub baseline_value: f64,
 
     #[pyo3(get, set)]
-    pub alert_condition: CustomMetricAlertCondition,
+    pub alert_condition: AlertCondition,
 }
 
 #[pymethods]
@@ -35,8 +36,7 @@ impl CustomMetric {
         alert_threshold: AlertThreshold,
         delta: Option<f64>,
     ) -> Result<Self, TypeError> {
-        let custom_condition =
-            CustomMetricAlertCondition::new(baseline_value, alert_threshold, delta);
+        let custom_condition = AlertCondition::new(baseline_value, alert_threshold, delta);
 
         Ok(Self {
             name: name.to_lowercase(),
@@ -58,73 +58,6 @@ impl CustomMetric {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct CustomMetricAlertCondition {
-    /// The reference value to compare against
-    #[pyo3(get, set)]
-    pub baseline_value: f64,
-
-    #[pyo3(get, set)]
-    pub alert_threshold: AlertThreshold,
-
-    /// Optional delta value that modifies the baseline to create the alert boundary.
-    /// The interpretation depends on alert_threshold:
-    /// - Above: alert if value > (baseline + delta)
-    /// - Below: alert if value < (baseline - delta)
-    /// - Outside: alert if value is outside [baseline - delta, baseline + delta]
-    #[pyo3(get, set)]
-    pub delta: Option<f64>,
-}
-
-#[pymethods]
-#[allow(clippy::too_many_arguments)]
-impl CustomMetricAlertCondition {
-    #[new]
-    #[pyo3(signature = (baseline_value, alert_threshold, delta=None))]
-    pub fn new(baseline_value: f64, alert_threshold: AlertThreshold, delta: Option<f64>) -> Self {
-        Self {
-            baseline_value,
-            alert_threshold,
-            delta,
-        }
-    }
-
-    /// Returns the upper bound for the alert condition
-    pub fn upper_bound(&self) -> f64 {
-        match self.delta {
-            Some(d) => self.baseline_value + d,
-            None => self.baseline_value,
-        }
-    }
-
-    /// Returns the lower bound for the alert condition
-    pub fn lower_bound(&self) -> f64 {
-        match self.delta {
-            Some(d) => self.baseline_value - d,
-            None => self.baseline_value,
-        }
-    }
-
-    /// Checks if a value should trigger an alert
-    pub fn should_alert(&self, value: f64) -> bool {
-        match (&self.alert_threshold, self.delta) {
-            (AlertThreshold::Above, Some(d)) => value > (self.baseline_value + d),
-            (AlertThreshold::Above, None) => value > self.baseline_value,
-            (AlertThreshold::Below, Some(d)) => value < (self.baseline_value - d),
-            (AlertThreshold::Below, None) => value < self.baseline_value,
-            (AlertThreshold::Outside, Some(d)) => {
-                value < (self.baseline_value - d) || value > (self.baseline_value + d)
-            }
-            (AlertThreshold::Outside, None) => value != self.baseline_value,
-        }
-    }
-
-    pub fn __str__(&self) -> String {
-        PyHelperFuncs::__str__(self)
-    }
-}
-
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct CustomMetricAlertConfig {
     pub dispatch_config: AlertDispatchConfig,
 
@@ -132,7 +65,7 @@ pub struct CustomMetricAlertConfig {
     pub schedule: String,
 
     #[pyo3(get, set)]
-    pub alert_conditions: Option<HashMap<String, CustomMetricAlertCondition>>,
+    pub alert_conditions: Option<HashMap<String, AlertCondition>>,
 }
 
 impl CustomMetricAlertConfig {

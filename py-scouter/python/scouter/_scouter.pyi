@@ -245,7 +245,9 @@ class Prompt:
         model: str,
         provider: Provider | str,
         system_instructions: Optional[PromptMessage] = None,
-        model_settings: Optional[ModelSettings | OpenAIChatSettings | GeminiSettings | AnthropicSettings] = None,
+        model_settings: Optional[
+            ModelSettings | OpenAIChatSettings | GeminiSettings | AnthropicSettings
+        ] = None,
         output_type: Optional[Any] = None,
     ) -> None:
         """Initialize a Prompt object.
@@ -2527,7 +2529,9 @@ class ChatMessage:
     @property
     def content(
         self,
-    ) -> List[Union[TextContentPart, ImageContentPart, InputAudioContentPart, FileContentPart]]:
+    ) -> List[
+        Union[TextContentPart, ImageContentPart, InputAudioContentPart, FileContentPart]
+    ]:
         """The message content parts."""
 
     @property
@@ -9541,8 +9545,12 @@ class BatchConfig:
 def init_tracer(
     service_name: str = "scouter_service",
     scope: str = "scouter.tracer.{version}",
-    transport_config: Optional[HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig | GrpcConfig] = None,
-    exporter: Optional[HttpSpanExporter | GrpcSpanExporter | StdoutSpanExporter | TestSpanExporter] = None,
+    transport_config: Optional[
+        HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig | GrpcConfig
+    ] = None,
+    exporter: Optional[
+        HttpSpanExporter | GrpcSpanExporter | StdoutSpanExporter | TestSpanExporter
+    ] = None,
     batch_config: Optional[BatchConfig] = None,
 ) -> None:
     """
@@ -10241,7 +10249,9 @@ class AlertDispatchType:
     def to_string() -> str:
         """Return the string representation of the alert dispatch type"""
 
-DispatchConfigType = ConsoleDispatchConfig | SlackDispatchConfig | OpsGenieDispatchConfig
+DispatchConfigType = (
+    ConsoleDispatchConfig | SlackDispatchConfig | OpsGenieDispatchConfig
+)
 
 class AlertZone:
     Zone1: "AlertZone"
@@ -10514,14 +10524,14 @@ class AlertThreshold:
             AlertThreshold: The corresponding AlertThreshold enum member.
         """
 
-class CustomMetricAlertCondition:
+class AlertCondition:
     def __init__(
         self,
         baseline_value: float,
         alert_threshold: AlertThreshold,
         delta: Optional[float],
     ):
-        """Initialize a CustomMetricAlertCondition instance.
+        """Initialize a AlertCondition instance.
         Args:
             baseline_value (float):
                 The baseline value to compare against for alerting.
@@ -10535,7 +10545,7 @@ class CustomMetricAlertCondition:
                 - Below: alert if value < (baseline - delta)
                 - Outside: alert if value is outside [baseline - delta, baseline + delta]
         Example:
-            alert_threshold = CustomMetricAlertCondition(AlertCondition.BELOW, 2.0)
+            alert_threshold = AlertCondition(AlertCondition.BELOW, 2.0)
         """
 
     def upper_bound(self) -> float:
@@ -10580,11 +10590,11 @@ class CustomMetricAlertConfig:
         """Set the schedule"""
 
     @property
-    def alert_conditions(self) -> dict[str, CustomMetricAlertCondition]:
+    def alert_conditions(self) -> dict[str, AlertCondition]:
         """Return the alert_condition that were set during metric definition"""
 
     @alert_conditions.setter
-    def alert_conditions(self, alert_conditions: dict[str, CustomMetricAlertCondition]) -> None:
+    def alert_conditions(self, alert_conditions: dict[str, AlertCondition]) -> None:
         """Update the alert_condition that were set during metric definition"""
 
 class GenAIAlertConfig:
@@ -10620,44 +10630,8 @@ class GenAIAlertConfig:
         """Set the schedule"""
 
     @property
-    def alert_conditions(self) -> Optional[Dict[str, GenAIEvalAlertCondition]]:
+    def alert_conditions(self) -> Optional[Dict[str, AlertCondition]]:
         """Return the alert conditions"""
-
-class GenAIEvalAlertCondition:
-    def __init__(
-        self,
-        baseline_value: float,
-        alert_threshold: AlertThreshold,
-        delta: Optional[float],
-    ):
-        """Initialize a GenAIEvalAlertCondition instance.
-        Args:
-            baseline_value (float):
-                The baseline value to compare against for alerting.
-            alert_threshold (AlertThreshold):
-                The condition that determines when an alert should be triggered.
-                Must be one of the AlertThreshold enum members like Below, Above, or Outside.
-            delta (Optional[float], optional):
-                Optional delta value that modifies the baseline to create the alert boundary.
-                The interpretation depends on alert_threshold:
-                - Above: alert if value > (baseline + delta)
-                - Below: alert if value < (baseline - delta)
-                - Outside: alert if value is outside [baseline - delta, baseline + delta]
-        Example:
-            alert_threshold = GenAIEvalAlertCondition(AlertCondition.BELOW, 2.0)
-        """
-
-    def __str__(self) -> str:
-        """Return the string representation of GenAIEvalAlertCondition."""
-
-    def upper_bound(self) -> float:
-        """Calculate and return the upper bound for alerting based on baseline and delta."""
-
-    def lower_bound(self) -> float:
-        """Calculate and return the lower bound for alerting based on baseline and delta."""
-
-    def should_alert(self, value: float) -> bool:
-        """Determine if an alert should be triggered based on the provided value."""
 
 class LogLevel:
     Debug: "LogLevel"
@@ -11263,7 +11237,9 @@ class DriftRequest:
         """
 
 class ProfileStatusRequest:
-    def __init__(self, name: str, space: str, version: str, drift_type: DriftType, active: bool) -> None:
+    def __init__(
+        self, name: str, space: str, version: str, drift_type: DriftType, active: bool
+    ) -> None:
         """Initialize profile status request
 
         Args:
@@ -11280,7 +11256,9 @@ class ProfileStatusRequest:
         """
 
 class GetProfileRequest:
-    def __init__(self, name: str, space: str, version: str, drift_type: DriftType) -> None:
+    def __init__(
+        self, name: str, space: str, version: str, drift_type: DriftType
+    ) -> None:
         """Initialize get profile request
 
         Args:
@@ -11374,7 +11352,9 @@ class ScouterClient:
             Drift map of type BinnedMetrics | BinnedPsiFeatureMetrics | BinnedSpcFeatureMetrics
         """
 
-    def register_profile(self, profile: Any, set_active: bool = False, deactivate_others: bool = False) -> bool:
+    def register_profile(
+        self, profile: Any, set_active: bool = False, deactivate_others: bool = False
+    ) -> bool:
         """Registers a drift profile with the server
 
         Args:
@@ -11400,7 +11380,9 @@ class ScouterClient:
             boolean
         """
 
-    def get_alerts(self, request: DriftAlertPaginationRequest) -> DriftAlertPaginationResponse:
+    def get_alerts(
+        self, request: DriftAlertPaginationRequest
+    ) -> DriftAlertPaginationResponse:
         """Get alerts
 
         Args:
@@ -12754,7 +12736,16 @@ class FreedmanDiaconis:
         For more information, please see: https://en.wikipedia.org/wiki/Histogram
         """
 
-EqualWidthMethods = Manual | SquareRoot | Sturges | Rice | Doane | Scott | TerrellScott | FreedmanDiaconis
+EqualWidthMethods = (
+    Manual
+    | SquareRoot
+    | Sturges
+    | Rice
+    | Doane
+    | Scott
+    | TerrellScott
+    | FreedmanDiaconis
+)
 
 class EqualWidthBinning:
     def __init__(self, method: EqualWidthMethods = Doane()):
@@ -12828,7 +12819,9 @@ class PsiDriftConfig:
         alert_config: PsiAlertConfig = PsiAlertConfig(),
         config_path: Optional[Path] = None,
         categorical_features: Optional[list[str]] = None,
-        binning_strategy: QuantileBinning | EqualWidthBinning = QuantileBinning(num_bins=10),
+        binning_strategy: QuantileBinning | EqualWidthBinning = QuantileBinning(
+            num_bins=10
+        ),
     ):
         """Initialize monitor config
 
@@ -12906,7 +12899,9 @@ class PsiDriftConfig:
         """binning_strategy"""
 
     @binning_strategy.setter
-    def binning_strategy(self, binning_strategy: QuantileBinning | EqualWidthBinning) -> None:
+    def binning_strategy(
+        self, binning_strategy: QuantileBinning | EqualWidthBinning
+    ) -> None:
         """Set binning_strategy"""
 
     @property
@@ -13277,11 +13272,11 @@ class CustomMetric:
         """Set the baseline value"""
 
     @property
-    def alert_condition(self) -> CustomMetricAlertCondition:
+    def alert_condition(self) -> AlertCondition:
         """Return the alert_condition"""
 
     @alert_condition.setter
-    def alert_condition(self, alert_condition: CustomMetricAlertCondition) -> None:
+    def alert_condition(self, alert_condition: AlertCondition) -> None:
         """Set the alert_condition"""
 
     def __str__(self) -> str:
@@ -14654,7 +14649,9 @@ class Drifter:
     def create_drift_profile(  # type: ignore
         self,
         data: Any,
-        config: Optional[Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]] = None,
+        config: Optional[
+            Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]
+        ] = None,
         data_type: Optional[ScouterDataType] = None,
     ) -> Union[SpcDriftProfile, PsiDriftProfile, CustomDriftProfile]:
         """Create a drift profile from data.
@@ -15305,7 +15302,7 @@ __all__ = [
     "SpcAlertConfig",
     "SpcAlert",
     "AlertThreshold",
-    "CustomMetricAlertCondition",
+    "AlertCondition",
     "CustomMetricAlertConfig",
     "SlackDispatchConfig",
     "OpsGenieDispatchConfig",
@@ -15314,7 +15311,6 @@ __all__ = [
     "PsiNormalThreshold",
     "PsiChiSquareThreshold",
     "PsiFixedThreshold",
-    "GenAIEvalAlertCondition",
     "GenAIAlertConfig",
     # client
     "TimeInterval",

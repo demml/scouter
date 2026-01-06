@@ -220,9 +220,9 @@ mod tests {
     use potato_head::mock::{create_score_prompt, LLMTestServer};
     use scouter_types::genai::{
         AssertionTask, ComparisonOperator, EvaluationTaskType, EvaluationTasks, GenAIAlertConfig,
-        GenAIDriftConfig, GenAIEvalAlertCondition, GenAIEvalProfile, LLMJudgeTask,
+        GenAIDriftConfig, GenAIEvalProfile, LLMJudgeTask,
     };
-    use scouter_types::{AlertThreshold, GenAIEvalRecord};
+    use scouter_types::{AlertCondition, AlertThreshold, GenAIEvalRecord};
     use serde_json::Value;
 
     pub async fn cleanup(pool: &Pool<Postgres>) {
@@ -615,7 +615,7 @@ mod tests {
             .build();
 
         // Configure alert to trigger when workflow pass rate is below 80%
-        let alert_condition = GenAIEvalAlertCondition {
+        let alert_condition = AlertCondition {
             baseline_value: 0.8, // 80% pass rate threshold
             alert_threshold: AlertThreshold::Below,
             delta: Some(0.01), // Alert if 1% below baseline
