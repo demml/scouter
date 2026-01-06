@@ -128,9 +128,7 @@ def test_genai_drift_profile_from_metrics_fail():
         )
 
         # Drift profile with no required parameters should raise an error
-        with pytest.raises(
-            RuntimeError, match="LLM Metric requires at least one bound parameter"
-        ):
+        with pytest.raises(RuntimeError, match="LLM Metric requires at least one bound parameter"):
             _profile = GenAIEvalProfile(
                 config=GenAIDriftConfig(),
                 metrics=[metric1],
@@ -186,9 +184,7 @@ def test_genai_drift_profile_from_workflow_fail():
             alert_threshold=AlertThreshold.Below,
         )
 
-        with pytest.raises(
-            RuntimeError, match="LLM Metric requires at least one bound parameter"
-        ):
+        with pytest.raises(RuntimeError, match="LLM Metric requires at least one bound parameter"):
             _profile = GenAIEvalProfile(
                 config=GenAIDriftConfig(),
                 workflow=workflow,
@@ -248,10 +244,7 @@ def test_genai_drift_profile_workflow_run_context():
             == '"What is the capital of France?" + "The capital of France is Paris."?'
         )
 
-        assert (
-            result.tasks.get("relevance").prompt.messages[0].content[0].text
-            == '"foo bar"'
-        )
+        assert result.tasks.get("relevance").prompt.messages[0].content[0].text == '"foo bar"'
 
 
 def test_genai_drifter():

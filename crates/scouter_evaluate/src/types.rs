@@ -142,7 +142,7 @@ impl ArrayDataset {
         // Build task score lookup for efficient access
         // This maps task_id -> score value for quick column population
         for (row_idx, aligned) in successful_results.iter().enumerate() {
-            idx_map.insert(row_idx, aligned.record.uid.clone());
+            idx_map.insert(row_idx, aligned.record_uid.clone());
 
             // Build lookup map from task_id to value
             let task_scores: HashMap<String, f64> = aligned
@@ -194,7 +194,7 @@ impl ArrayDataset {
 #[pyclass]
 pub struct AlignedEvalResult {
     #[pyo3(get)]
-    pub record: GenAIEvalRecord,
+    pub record_uid: String,
 
     #[pyo3(get)]
     pub eval_set: GenAIEvalSet,
@@ -214,36 +214,53 @@ pub struct AlignedEvalResult {
 
     #[pyo3(get)]
     pub error_message: Option<String>,
+
+    #[serde(skip)]
+    pub context_snapshot: Option<BTreeMap<String, serde_json::Value>>,
 }
 
 impl AlignedEvalResult {
     /// Create from successful evaluation
     pub fn from_success(
-        record: GenAIEvalRecord,
+        record: &GenAIEvalRecord,
         eval_set: GenAIEvalSet,
         embeddings: BTreeMap<String, Vec<f32>>,
     ) -> Self {
         Self {
-            record,
+            record_uid: record.uid.clone(),
             eval_set,
             embeddings,
             mean_embeddings: BTreeMap::new(),
             similarity_scores: BTreeMap::new(),
             success: true,
             error_message: None,
+            context_snapshot: None,
         }
     }
 
     /// Create from failed evaluation
-    pub fn from_failure(record: GenAIEvalRecord, error: String) -> Self {
+    pub fn from_failure(record: &GenAIEvalRecord, error: String) -> Self {
         Self {
-            record,
-            eval_set: GenAIEvalSet::empty(), // You'll need to implement this
+            record_uid: record.uid.clone(),
+            eval_set: GenAIEvalSet::empty(),
             embeddings: BTreeMap::new(),
             mean_embeddings: BTreeMap::new(),
             similarity_scores: BTreeMap::new(),
             success: false,
             error_message: Some(error),
+            context_snapshot: None,
+        }
+    }
+
+    /// Capture context snapshot for dataframe export
+    pub fn capture_context(&mut self, record: &GenAIEvalRecord) {
+        if let serde_json::Value::Object(context_map) = &record.context {
+            self.context_snapshot = Some(
+                context_map
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect(),
+            );
         }
     }
 
@@ -252,11 +269,7 @@ impl AlignedEvalResult {
         let mut flat = BTreeMap::new();
 
         // Record metadata
-        flat.insert("record_uid".to_string(), self.record.uid.clone().into());
-        flat.insert(
-            "entity_id".to_string(),
-            serde_json::Value::from(self.record.entity_id),
-        );
+        flat.insert("record_uid".to_string(), self.record_uid.clone().into());
         flat.insert("success".to_string(), self.success.into());
 
         if let Some(error) = &self.error_message {
@@ -285,14 +298,14 @@ impl AlignedEvalResult {
             self.eval_set.inner.duration_ms.into(),
         );
 
-        // Original context fields (prefixed to avoid collisions)
-        if let Value::Object(context_map) = &self.record.context {
-            for (key, value) in context_map {
-                flat.insert(format!("context_{}", key), value.clone()); // value is already serde_json::Value
+        // Context from snapshot (if captured)
+        if let Some(context) = &self.context_snapshot {
+            for (key, value) in context {
+                flat.insert(format!("context_{}", key), value.clone());
             }
         }
 
-        // Task results (flattened)
+        // Task results
         for task_result in &self.eval_set.records {
             let prefix = format!("task_{}", task_result.task_id);
             flat.insert(format!("{}_passed", prefix), task_result.passed.into());
@@ -421,7 +434,7 @@ impl GenAIEvalResults {
     /// Add a successful result
     pub fn add_success(
         &mut self,
-        record: GenAIEvalRecord,
+        record: &GenAIEvalRecord,
         eval_set: GenAIEvalSet,
         embeddings: BTreeMap<String, Vec<f32>>,
     ) {
@@ -435,8 +448,8 @@ impl GenAIEvalResults {
         self.results_by_uid.insert(uid, idx);
     }
 
-    /// Add a failed result
-    pub fn add_failure(&mut self, record: GenAIEvalRecord, error: String) {
+    /// Add a failed result - only reference the record
+    pub fn add_failure(&mut self, record: &GenAIEvalRecord, error: String) {
         let uid = record.uid.clone();
         let idx = self.aligned_results.len();
 

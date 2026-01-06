@@ -17,8 +17,7 @@ pub use scouter_types::{
     },
     genai::{
         AssertionTask, ComparisonOperator, GenAIAlertConfig, GenAIDriftConfig,
-        GenAIEvalAlertCondition, GenAIEvalDataset, GenAIEvalProfile, GenAIEvalResultSet,
-        GenAIEvalSet, LLMJudgeTask,
+        GenAIEvalAlertCondition, GenAIEvalProfile, GenAIEvalResultSet, GenAIEvalSet, LLMJudgeTask,
     },
     psi::{
         Bin, BinnedPsiFeatureMetrics, BinnedPsiMetric, PsiAlertConfig, PsiChiSquareThreshold,
@@ -79,7 +78,7 @@ pub use scouter_types::error::{ContractError, ProfileError, RecordError, TypeErr
 
 pub use scouter_evaluate::{
     error::EvaluationError,
-    genai::evaluate_genai_dataset,
+    genai::GenAIEvalDataset,
     types::{AlignedEvalResult, EvaluationConfig, GenAIEvalResults},
 };
 pub use scouter_tracing::error::TraceError;

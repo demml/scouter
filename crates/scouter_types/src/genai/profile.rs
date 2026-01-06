@@ -4,12 +4,12 @@ use crate::genai::eval::{AssertionTask, EvaluationTask, LLMJudgeTask};
 use crate::genai::traits::{separate_tasks, ProfileExt, TaskAccessor};
 use crate::genai::utils::extract_assertion_tasks_from_pylist;
 use crate::util::{json_to_pyobject, pyobject_to_json, ConfigExt};
+use crate::ProfileRequest;
 use crate::{scouter_version, GenAIEvalTaskResult, GenAIEvalWorkflowResult};
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
     PyHelperFuncs, VersionRequest, DEFAULT_VERSION, MISSING,
 };
-use crate::{GenAIEvalRecord, ProfileRequest};
 use chrono::{DateTime, Utc};
 use core::fmt::Debug;
 use potato_head::prompt_types::Prompt;
@@ -754,40 +754,6 @@ impl GenAIEvalResultSet {
 
 /// Create dataset to use in offline evaluation
 
-#[pyclass]
-pub struct GenAIEvalDataset {
-    #[pyo3(get)]
-    pub records: Vec<GenAIEvalRecord>,
-    pub profile: Arc<GenAIEvalProfile>,
-}
-
-#[pymethods]
-impl GenAIEvalDataset {
-    #[new]
-    #[pyo3(signature = (records, tasks))]
-    pub fn new(
-        records: Vec<GenAIEvalRecord>,
-        tasks: &Bound<'_, PyList>,
-    ) -> Result<Self, TypeError> {
-        let profile = GenAIEvalProfile::new_py(GenAIDriftConfig::default(), tasks)
-            .map_err(|e| TypeError::FailedToCreateProfile(e.to_string()))?;
-
-        Ok(Self {
-            records,
-            profile: Arc::new(profile),
-        })
-    }
-
-    #[getter]
-    pub fn llm_judge_tasks(&self) -> Vec<LLMJudgeTask> {
-        self.profile.llm_judge_tasks.clone()
-    }
-
-    #[getter]
-    pub fn assertion_tasks(&self) -> Vec<AssertionTask> {
-        self.profile.assertion_tasks.clone()
-    }
-}
 // write test using mock feature
 #[cfg(test)]
 #[cfg(feature = "mock")]

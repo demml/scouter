@@ -245,9 +245,7 @@ class Prompt:
         model: str,
         provider: Provider | str,
         system_instructions: Optional[PromptMessage] = None,
-        model_settings: Optional[
-            ModelSettings | OpenAIChatSettings | GeminiSettings | AnthropicSettings
-        ] = None,
+        model_settings: Optional[ModelSettings | OpenAIChatSettings | GeminiSettings | AnthropicSettings] = None,
         output_type: Optional[Any] = None,
     ) -> None:
         """Initialize a Prompt object.
@@ -2529,9 +2527,7 @@ class ChatMessage:
     @property
     def content(
         self,
-    ) -> List[
-        Union[TextContentPart, ImageContentPart, InputAudioContentPart, FileContentPart]
-    ]:
+    ) -> List[Union[TextContentPart, ImageContentPart, InputAudioContentPart, FileContentPart]]:
         """The message content parts."""
 
     @property
@@ -9545,12 +9541,8 @@ class BatchConfig:
 def init_tracer(
     service_name: str = "scouter_service",
     scope: str = "scouter.tracer.{version}",
-    transport_config: Optional[
-        HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig | GrpcConfig
-    ] = None,
-    exporter: Optional[
-        HttpSpanExporter | GrpcSpanExporter | StdoutSpanExporter | TestSpanExporter
-    ] = None,
+    transport_config: Optional[HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig | GrpcConfig] = None,
+    exporter: Optional[HttpSpanExporter | GrpcSpanExporter | StdoutSpanExporter | TestSpanExporter] = None,
     batch_config: Optional[BatchConfig] = None,
 ) -> None:
     """
@@ -10249,9 +10241,7 @@ class AlertDispatchType:
     def to_string() -> str:
         """Return the string representation of the alert dispatch type"""
 
-DispatchConfigType = (
-    ConsoleDispatchConfig | SlackDispatchConfig | OpsGenieDispatchConfig
-)
+DispatchConfigType = ConsoleDispatchConfig | SlackDispatchConfig | OpsGenieDispatchConfig
 
 class AlertZone:
     Zone1: "AlertZone"
@@ -10594,9 +10584,7 @@ class CustomMetricAlertConfig:
         """Return the alert_condition that were set during metric definition"""
 
     @alert_conditions.setter
-    def alert_conditions(
-        self, alert_conditions: dict[str, CustomMetricAlertCondition]
-    ) -> None:
+    def alert_conditions(self, alert_conditions: dict[str, CustomMetricAlertCondition]) -> None:
         """Update the alert_condition that were set during metric definition"""
 
 class GenAIAlertConfig:
@@ -11275,9 +11263,7 @@ class DriftRequest:
         """
 
 class ProfileStatusRequest:
-    def __init__(
-        self, name: str, space: str, version: str, drift_type: DriftType, active: bool
-    ) -> None:
+    def __init__(self, name: str, space: str, version: str, drift_type: DriftType, active: bool) -> None:
         """Initialize profile status request
 
         Args:
@@ -11294,9 +11280,7 @@ class ProfileStatusRequest:
         """
 
 class GetProfileRequest:
-    def __init__(
-        self, name: str, space: str, version: str, drift_type: DriftType
-    ) -> None:
+    def __init__(self, name: str, space: str, version: str, drift_type: DriftType) -> None:
         """Initialize get profile request
 
         Args:
@@ -11390,9 +11374,7 @@ class ScouterClient:
             Drift map of type BinnedMetrics | BinnedPsiFeatureMetrics | BinnedSpcFeatureMetrics
         """
 
-    def register_profile(
-        self, profile: Any, set_active: bool = False, deactivate_others: bool = False
-    ) -> bool:
+    def register_profile(self, profile: Any, set_active: bool = False, deactivate_others: bool = False) -> bool:
         """Registers a drift profile with the server
 
         Args:
@@ -11418,9 +11400,7 @@ class ScouterClient:
             boolean
         """
 
-    def get_alerts(
-        self, request: DriftAlertPaginationRequest
-    ) -> DriftAlertPaginationResponse:
+    def get_alerts(self, request: DriftAlertPaginationRequest) -> DriftAlertPaginationResponse:
         """Get alerts
 
         Args:
@@ -12227,6 +12207,7 @@ class GenAIEvalRecord:
             TypeError: If context is not a dict or a pydantic BaseModel.
 
         """
+
     @property
     def record_id(self) -> Optional[str]:
         """Get the record ID."""
@@ -12773,16 +12754,7 @@ class FreedmanDiaconis:
         For more information, please see: https://en.wikipedia.org/wiki/Histogram
         """
 
-EqualWidthMethods = (
-    Manual
-    | SquareRoot
-    | Sturges
-    | Rice
-    | Doane
-    | Scott
-    | TerrellScott
-    | FreedmanDiaconis
-)
+EqualWidthMethods = Manual | SquareRoot | Sturges | Rice | Doane | Scott | TerrellScott | FreedmanDiaconis
 
 class EqualWidthBinning:
     def __init__(self, method: EqualWidthMethods = Doane()):
@@ -12856,9 +12828,7 @@ class PsiDriftConfig:
         alert_config: PsiAlertConfig = PsiAlertConfig(),
         config_path: Optional[Path] = None,
         categorical_features: Optional[list[str]] = None,
-        binning_strategy: QuantileBinning | EqualWidthBinning = QuantileBinning(
-            num_bins=10
-        ),
+        binning_strategy: QuantileBinning | EqualWidthBinning = QuantileBinning(num_bins=10),
     ):
         """Initialize monitor config
 
@@ -12936,9 +12906,7 @@ class PsiDriftConfig:
         """binning_strategy"""
 
     @binning_strategy.setter
-    def binning_strategy(
-        self, binning_strategy: QuantileBinning | EqualWidthBinning
-    ) -> None:
+    def binning_strategy(self, binning_strategy: QuantileBinning | EqualWidthBinning) -> None:
         """Set binning_strategy"""
 
     @property
@@ -13778,6 +13746,7 @@ class AssertionTask:
         - Type mismatches between actual and expected values will fail the assertion
         - Dependencies are executed before this task
     """
+
     def __init__(
         self,
         id: str,
@@ -14685,9 +14654,7 @@ class Drifter:
     def create_drift_profile(  # type: ignore
         self,
         data: Any,
-        config: Optional[
-            Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]
-        ] = None,
+        config: Optional[Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]] = None,
         data_type: Optional[ScouterDataType] = None,
     ) -> Union[SpcDriftProfile, PsiDriftProfile, CustomDriftProfile]:
         """Create a drift profile from data.
@@ -14941,6 +14908,18 @@ class GenAIEvalDataset:
     def assertion_tasks(self) -> List[AssertionTask]:
         """Get the list of assertion tasks in this dataset"""
 
+    def evaluate(self, config: Optional[EvaluationConfig] = None) -> GenAIEvalResults:
+        """Evaluate the records using the defined tasks.
+
+        Args:
+            config (Optional[EvaluationConfig]):
+                Optional configuration for the evaluation process.
+
+        Returns:
+            GenAIEvalResults:
+                The results of the evaluation.
+        """
+
 class GenAIEvalSet:
     """Evaluation set for a specific evaluation run"""
 
@@ -14980,6 +14959,7 @@ class GenAIEvalSet:
 
 class GenAIEvalResultSet:
     """Defines the results of a specific evaluation run"""
+
     @property
     def records(self) -> List[GenAIEvalSet]:
         """Get the list of evaluation sets in this result set"""
@@ -14988,12 +14968,12 @@ class AlignedEvalResult:
     """Eval Result for a specific evaluation"""
 
     @property
-    def record(self) -> GenAIEvalRecord:
-        """Get the record associated with this result"""
+    def record_uid(self) -> str:
+        """Get the unique identifier for the record associated with this result"""
 
     @property
-    def eval_settings(self) -> GenAIEvalSet:
-        """Get the eval settings associated with this result"""
+    def eval_set(self) -> GenAIEvalSet:
+        """Get the eval results"""
 
     @property
     def embedding(self) -> Dict[str, List[float]]:
@@ -15064,23 +15044,6 @@ class GenAIEvalResults:
             json_string (str):
                 JSON string to validate and create the GenAIEvalResults instance from.
         """
-
-def evaluate_genai(
-    records: List[GenAIEvalRecord],
-    tasks: List[LLMJudgeTask | AssertionTask],
-) -> GenAIEvalResults:
-    """
-    Evaluate LLM responses using the provided evaluation metrics.
-
-    Args:
-        records (List[GenAIEvalRecord]):
-            List of LLM evaluation records to evaluate.
-        tasks (List[LLMJudgeTask | AssertionTask]):
-            List of evaluation tasks to apply to the records.
-
-    Returns:
-        GenAIEvalResults
-    """
 
 class EvaluationConfig:
     """Configuration options for LLM evaluation."""
@@ -15418,7 +15381,6 @@ __all__ = [
     "GenAIEvalTaskResult",
     "GenAIEvalResultSet",
     "AlignedEvalResult",
-    "evaluate_genai",
     # genai
     #######_______________________ main _________________________######
     "Prompt",

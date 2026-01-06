@@ -1,12 +1,12 @@
 use crate::error::EvaluationError;
 use crate::evaluate::evaluator::GenAIEvaluator;
+use crate::genai::GenAIEvalDataset;
 use crate::types::{EvaluationConfig, GenAIEvalResults};
 use itertools::iproduct;
 use num_traits::FromPrimitive;
 use potato_head::{Embedder, EmbeddingInput, PyEmbedder};
 use pyo3::prelude::*;
 use rayon::prelude::*;
-use scouter_types::genai::GenAIEvalDataset;
 use scouter_types::genai::GenAIEvalSet;
 use scouter_types::GenAIEvalRecord;
 use simsimd::SpatialSimilarity;
@@ -16,7 +16,7 @@ use tokio::task::JoinSet;
 use tracing::{error, warn};
 
 type EvalTaskResult = (
-    GenAIEvalRecord,
+    usize, // Index into records array
     Result<(GenAIEvalSet, BTreeMap<String, Vec<f32>>), String>,
 );
 
@@ -29,21 +29,26 @@ type EvalTaskResult = (
 /// # Returns
 /// A JoinSet containing tuples of record ID and optional GenAIEvalTaskResult.
 pub async fn spawn_evaluation_tasks_without_embeddings(
-    dataset: GenAIEvalDataset,
+    dataset: &GenAIEvalDataset,
     _config: &Arc<EvaluationConfig>,
 ) -> JoinSet<EvalTaskResult> {
     let mut join_set = JoinSet::new();
 
-    for record in dataset.records {
-        let profile = dataset.profile.clone();
+    for (idx, _) in dataset.records.iter().enumerate() {
+        // cloning here so we can reference inside async move
+        let record_ref = dataset.records.clone();
+        let profile_ref = dataset.profile.clone();
 
         join_set.spawn(async move {
-            let result = match GenAIEvaluator::process_event_record(&record, profile).await {
+            // Access record by index - no cloning
+            let record = &record_ref[idx];
+
+            let result = match GenAIEvaluator::process_event_record(record, profile_ref).await {
                 Ok(eval_set) => Ok((eval_set, BTreeMap::new())),
                 Err(e) => Err(format!("Evaluation failed: {}", e)),
             };
 
-            (record, result)
+            (idx, result)
         });
     }
 
@@ -58,33 +63,36 @@ pub async fn spawn_evaluation_tasks_without_embeddings(
 /// # Returns
 /// A JoinSet containing GenAIEvalTaskResults for each record.
 pub async fn spawn_evaluation_tasks_with_embeddings(
-    dataset: GenAIEvalDataset,
+    dataset: &GenAIEvalDataset,
     embedder: Arc<Embedder>,
     config: &Arc<EvaluationConfig>,
 ) -> JoinSet<EvalTaskResult> {
     let mut join_set = JoinSet::new();
 
-    for record in dataset.records {
-        let profile = dataset.profile.clone();
-        let cloned_embedder = embedder.clone();
-        let cloned_config = config.clone();
+    for (idx, _) in dataset.records.iter().enumerate() {
+        let record_ref = dataset.records.clone();
+        let profile_ref = dataset.profile.clone();
+        let embedder_ref = embedder.clone();
+        let config_ref = config.clone();
 
         join_set.spawn(async move {
-            // Generate embeddings first
+            let record = &record_ref[idx];
+
+            // Generate embeddings
             let embeddings = generate_embeddings_for_record(
-                &record,
-                &cloned_embedder,
-                &cloned_config.embedding_targets,
+                record,
+                &embedder_ref,
+                &config_ref.embedding_targets,
             )
             .await;
 
             // Execute evaluation
-            let result = match GenAIEvaluator::process_event_record(&record, profile).await {
+            let result = match GenAIEvaluator::process_event_record(record, profile_ref).await {
                 Ok(eval_set) => Ok((eval_set, embeddings)),
                 Err(e) => Err(format!("Evaluation failed: {}", e)),
             };
 
-            (record, result)
+            (idx, result)
         });
     }
 
@@ -143,19 +151,24 @@ pub async fn generate_embeddings_for_record(
 /// Collect and align results with original records
 pub async fn collect_and_align_results(
     mut join_set: JoinSet<EvalTaskResult>,
+    records: &Arc<Vec<GenAIEvalRecord>>,
 ) -> Result<GenAIEvalResults, EvaluationError> {
     let mut results = GenAIEvalResults::new();
 
     while let Some(join_result) = join_set.join_next().await {
         match join_result {
-            Ok((record, eval_result)) => match eval_result {
-                Ok((eval_set, embeddings)) => {
-                    results.add_success(record, eval_set, embeddings);
+            Ok((idx, eval_result)) => {
+                let record = &records[idx];
+
+                match eval_result {
+                    Ok((eval_set, embeddings)) => {
+                        results.add_success(record, eval_set, embeddings);
+                    }
+                    Err(error_msg) => {
+                        results.add_failure(record, error_msg);
+                    }
                 }
-                Err(error_msg) => {
-                    results.add_failure(record, error_msg);
-                }
-            },
+            }
             Err(join_error) => {
                 error!("Task join error: {:?}", join_error);
             }

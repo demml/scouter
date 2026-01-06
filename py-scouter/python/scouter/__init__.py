@@ -32,8 +32,8 @@ from ._scouter import (
     FreedmanDiaconis,
     GenAIDriftConfig,
     GenAIDriftMetric,
-    GenAIEvalProfile,
     GenAIEvalMetric,
+    GenAIEvalProfile,
     GenAIEvalRecord,
     GenAIEvalResults,
     GrpcConfig,
@@ -70,7 +70,6 @@ from ._scouter import (
     TerrellScott,
     _get_log_level,
     _log_json,
-    evaluate_genai,
 )
 
 # Configure Rust logging for Python based on environment variables
@@ -139,7 +138,6 @@ __all__ = [
     "GenAIEvalMetric",
     "GenAIEvalResults",
     "GenAIEvalRecord",
-    "evaluate_genai",
     "HttpConfig",
     "GrpcConfig",
     "KafkaConfig",
