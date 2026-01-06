@@ -154,7 +154,7 @@ impl GenAIEvaluator {
                 level_idx,
                 level_tasks.len()
             );
-            self.execute_level(&level_tasks, &profile)
+            self.execute_level(level_tasks, &profile)
                 .await
                 .inspect_err(|e| error!("Failed to execute level {}: {:?}", level_idx, e))?;
         }
@@ -286,7 +286,8 @@ impl GenAIEvaluator {
     /// * `llm_judge_ids` - The IDs of the LLM judge tasks
     /// * `profile` - The evaluation profile
     /// * `level_idx` - The current execution level index (for logging)
-    /// Returns nothing, errors if workflow execution or result processing fails
+    /// # Returns
+    /// * `Result<(), EvaluationError>` - Ok if successful, Err otherwise
     async fn execute_judge_workflow(
         &self,
         profile: &Arc<GenAIEvalProfile>,
@@ -373,7 +374,7 @@ impl GenAIEvaluator {
                 records.push(scouter_types::GenAIEvalTaskResultRecord {
                     created_at: chrono::Utc::now(),
                     record_uid: record.uid.clone(),
-                    entity_id: record.entity_id.clone(),
+                    entity_id: record.entity_id,
                     task_id: assertion.id.clone(),
                     task_type: assertion.task_type.clone(),
                     passed: result.passed,
@@ -401,7 +402,7 @@ impl GenAIEvaluator {
                 records.push(scouter_types::GenAIEvalTaskResultRecord {
                     created_at: chrono::Utc::now(),
                     record_uid: record.uid.clone(),
-                    entity_id: record.entity_id.clone(),
+                    entity_id: record.entity_id,
                     task_id: judge.id.clone(),
                     task_type: judge.task_type.clone(),
                     passed: result.passed,
@@ -418,17 +419,17 @@ impl GenAIEvaluator {
 
         let workflow_record = scouter_types::GenAIEvalWorkflowRecord {
             created_at: chrono::Utc::now(),
-            entity_id: record.entity_id.clone(),
+            entity_id: record.entity_id,
             record_uid: record.uid.clone(),
-            total_tasks: (passed_count + failed_count) as i32,
-            passed_tasks: passed_count as i32,
-            failed_tasks: failed_count as i32,
+            total_tasks: (passed_count + failed_count),
+            passed_tasks: passed_count,
+            failed_tasks: failed_count,
             pass_rate: if passed_count + failed_count == 0 {
                 0.0
             } else {
                 (passed_count as f64) / ((passed_count + failed_count) as f64)
             },
-            duration_ms: duration_ms,
+            duration_ms,
             entity_uid: String::new(),
         };
 

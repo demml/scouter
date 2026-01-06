@@ -1,4 +1,4 @@
-#[cfg(all(feature = "sql"))]
+#[cfg(feature = "sql")]
 pub mod http;
 #[cfg(all(feature = "kafka", feature = "sql"))]
 pub mod kafka;
@@ -6,5 +6,5 @@ pub mod kafka;
 pub mod rabbitmq;
 #[cfg(all(feature = "redis_events", feature = "sql"))]
 pub mod redis;
-#[cfg(all(feature = "sql"))]
+#[cfg(feature = "sql")]
 pub mod utils;

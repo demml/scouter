@@ -34,7 +34,7 @@ impl RedisMQSetup for TestHelper {
                         uid: entity_uid.clone(),
                         feature: "feature".to_string(),
                         value: i as f64,
-                        entity_id: 0 as i32,
+                        entity_id: 0_i32,
                     });
                     records.push(record);
                 }

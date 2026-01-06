@@ -262,7 +262,7 @@ impl AlignedEvalResult {
         flat.insert("record_uid".to_string(), self.record.uid.clone().into());
         flat.insert(
             "entity_id".to_string(),
-            self.record.entity_id.clone().into(),
+            serde_json::Value::from(self.record.entity_id),
         );
         flat.insert("success".to_string(), self.success.into());
 
@@ -295,7 +295,7 @@ impl AlignedEvalResult {
         // Original context fields (prefixed to avoid collisions)
         if let Value::Object(context_map) = &self.record.context {
             for (key, value) in context_map {
-                flat.insert(format!("context_{}", key), value.clone());
+                flat.insert(format!("context_{}", key), value.clone()); // value is already serde_json::Value
             }
         }
 
@@ -488,6 +488,12 @@ impl GenAIEvalResults {
             self.array_dataset = Some(ArrayDataset::from_results(self)?);
         }
         Ok(())
+    }
+}
+
+impl Default for GenAIEvalResults {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

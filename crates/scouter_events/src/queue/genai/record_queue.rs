@@ -5,6 +5,7 @@ use scouter_types::BoxedGenAIEvalRecord;
 use scouter_types::QueueExt;
 use scouter_types::{MessageRecord, ServerRecord, ServerRecords};
 
+#[derive(Default)]
 pub struct GenAIEvalRecordQueue {}
 
 impl GenAIEvalRecordQueue {

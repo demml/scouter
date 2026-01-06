@@ -37,6 +37,12 @@ impl TaskRegistry {
     }
 }
 
+impl Default for TaskRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Store for assertion results
 #[derive(Debug)]
 pub struct AssertionResultStore {
@@ -60,6 +66,12 @@ impl AssertionResultStore {
     }
 }
 
+impl Default for AssertionResultStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Store for raw LLM responses
 #[derive(Debug)]
 pub struct LLMResponseStore {
@@ -80,6 +92,12 @@ impl LLMResponseStore {
 
     pub fn retrieve(&self, task_id: &str) -> Option<serde_json::Value> {
         self.store.get(task_id).cloned()
+    }
+}
+
+impl Default for LLMResponseStore {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

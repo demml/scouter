@@ -151,7 +151,6 @@ impl GenAITaskDataFrame {
         let message_array =
             StringArray::from_iter_values(records.iter().map(|r| r.message.as_str()));
 
-        // Build the batch ensuring the order matches the Schema defined in ::new()
         let batch = RecordBatch::try_new(
             self.schema.clone(),
             vec![
@@ -169,7 +168,7 @@ impl GenAITaskDataFrame {
                 Arc::new(message_array),    // 12
             ],
         )
-        .map_err(|e| DataFrameError::ArrowError(e))?; // Assuming ArrowError variant in your Enum
+        .map_err(DataFrameError::ArrowError)?;
 
         Ok(batch)
     }

@@ -270,7 +270,7 @@ mod tests {
                 let record = ServerRecord::GenAITaskRecord(GenAIEvalTaskResultRecord {
                     record_uid: format!("record_uid_{i}_{j}"),
                     created_at: Utc::now() + chrono::Duration::hours(i),
-                    entity_id: entity_id,
+                    entity_id,
                     task_id: format!("task{i}"),
                     task_type: scouter_types::genai::EvaluationTaskType::Assertion,
                     passed: true,
@@ -348,7 +348,7 @@ mod tests {
                 let record = ServerRecord::GenAIWorkflowRecord(GenAIEvalWorkflowRecord {
                     record_uid: format!("record_uid_{i}_{j}"),
                     created_at: Utc::now() + chrono::Duration::hours(i),
-                    entity_id: entity_id,
+                    entity_id,
                     total_tasks: 10,
                     passed_tasks: 8,
                     failed_tasks: 2,

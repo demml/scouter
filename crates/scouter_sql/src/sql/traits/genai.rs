@@ -63,14 +63,14 @@ pub trait GenAIDriftSqlLogic {
         let query = Queries::InsertGenAIWorkflowResult.get_query();
 
         sqlx::query(query)
-            .bind(&record.created_at)
+            .bind(record.created_at)
             .bind(record.record_uid.as_str())
             .bind(entity_id)
-            .bind(&record.total_tasks)
-            .bind(&record.passed_tasks)
-            .bind(&record.failed_tasks)
-            .bind(&record.pass_rate)
-            .bind(&record.duration_ms)
+            .bind(record.total_tasks)
+            .bind(record.passed_tasks)
+            .bind(record.failed_tasks)
+            .bind(record.pass_rate)
+            .bind(record.duration_ms)
             .execute(pool)
             .await
             .map_err(SqlError::SqlxError)

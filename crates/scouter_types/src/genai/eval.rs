@@ -321,8 +321,7 @@ impl LLMJudgeTask {
     /// * `field_path`: Optional field path to extract from the context for evaluation
     /// * `operator`: The comparison operator to use
     /// * `depends_on`: Optional list of task IDs this task depends on
-    /// * `max_retries`: Optional maximum number of retries for this task (defaults to
-    /// 3 if not provided)
+    /// * `max_retries`: Optional maximum number of retries for this task (defaults to 3 if not provided)
     /// # Returns
     /// A new LLMJudgeTask object
     pub fn new_rs(

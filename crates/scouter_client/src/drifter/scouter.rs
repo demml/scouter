@@ -137,7 +137,7 @@ impl Drifter {
 
                 let list = data.cast::<PyList>()?;
                 let (assertions_tasks, llm_judge_tasks) =
-                    extract_assertion_tasks_from_pylist(&list)?;
+                    extract_assertion_tasks_from_pylist(list)?;
 
                 let profile = drifter.create_drift_profile(
                     config.genai_config()?,

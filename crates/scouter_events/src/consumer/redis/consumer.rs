@@ -137,7 +137,7 @@ pub mod redis_consumer {
         // Process messages. If processing fails, log the error, record metrics, and continue
         match process_message(&payload).await {
             Ok(Some(records)) => {
-                process_message_record(id, records, &db_pool).await;
+                process_message_record(id, records, db_pool).await;
             }
             Ok(None) => {
                 // No records to process

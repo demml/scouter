@@ -19,7 +19,6 @@ use sqlx::{postgres::PgRow, FromRow, Row};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Display;
-#[cfg(feature = "server")]
 use std::str::FromStr;
 
 #[pyclass(eq)]
@@ -56,8 +55,10 @@ impl Display for RecordType {
     }
 }
 
-impl RecordType {
-    pub fn from_str(record_type: &str) -> Result<Self, RecordError> {
+impl FromStr for RecordType {
+    type Err = RecordError;
+
+    fn from_str(record_type: &str) -> Result<Self, Self::Err> {
         match record_type.to_lowercase().as_str() {
             "spc" => Ok(RecordType::Spc),
             "psi" => Ok(RecordType::Psi),
@@ -70,7 +71,9 @@ impl RecordType {
             _ => Err(RecordError::InvalidDriftTypeError),
         }
     }
+}
 
+impl RecordType {
     pub fn as_str(&self) -> &str {
         match self {
             RecordType::Spc => "spc",
@@ -495,6 +498,7 @@ impl GenAIEvalTaskResultRecord {
 }
 
 impl GenAIEvalTaskResultRecord {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         record_uid: String,
         task_id: String,
@@ -544,7 +548,7 @@ impl FromRow<'_, PgRow> for GenAIEvalTaskResultRecord {
             record_uid: row.try_get("record_uid")?,
             created_at: row.try_get("created_at")?,
             task_id: row.try_get("task_id")?,
-            task_type: task_type,
+            task_type,
             passed: row.try_get("passed")?,
             value: row.try_get("value")?,
             field_path: row.try_get("field_path")?,

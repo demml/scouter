@@ -104,7 +104,7 @@ impl AssertionEvaluator {
         };
 
         let comparable_actual =
-            match Self::transform_for_comparison(&actual_value, assertion.operator()) {
+            match Self::transform_for_comparison(actual_value, assertion.operator()) {
                 Ok(val) => val,
                 Err(err) => {
                     // return assertion result failure with error message
@@ -114,7 +114,7 @@ impl AssertionEvaluator {
                         format!(
                             "✗ Assertion '{}' failed during transformation: {}",
                             assertion.id(),
-                            err.to_string()
+                            err
                         ),
                     ));
                 }
@@ -320,7 +320,7 @@ impl AssertionEvaluator {
         match actual {
             Value::String(s) => {
                 let email_regex = Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
-                    .map_err(|e| EvaluationError::RegexError(e))?;
+                    .map_err(EvaluationError::RegexError)?;
                 Ok(email_regex.is_match(s))
             }
             _ => Err(EvaluationError::InvalidEmailOperation),
@@ -333,7 +333,7 @@ impl AssertionEvaluator {
                 let url_regex = Regex::new(
                     r"^https?://[a-zA-Z0-9][a-zA-Z0-9-]*(\.[a-zA-Z0-9][a-zA-Z0-9-]*)*(/.*)?$",
                 )
-                .map_err(|e| EvaluationError::RegexError(e))?;
+                .map_err(EvaluationError::RegexError)?;
                 Ok(url_regex.is_match(s))
             }
             _ => Err(EvaluationError::InvalidUrlOperation),
@@ -345,7 +345,7 @@ impl AssertionEvaluator {
             Value::String(s) => {
                 let uuid_regex = Regex::new(
                     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
-                ).map_err(|e| EvaluationError::RegexError(e))?;
+                ).map_err(EvaluationError::RegexError)?;
                 Ok(uuid_regex.is_match(s))
             }
             _ => Err(EvaluationError::InvalidUuidOperation),
@@ -359,7 +359,7 @@ impl AssertionEvaluator {
                 let iso_regex = Regex::new(
                     r"^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?)?$",
                 )
-                .map_err(|e| EvaluationError::RegexError(e))?;
+                .map_err(EvaluationError::RegexError)?;
                 Ok(iso_regex.is_match(s))
             }
             _ => Err(EvaluationError::InvalidIso8601Operation),
@@ -524,7 +524,7 @@ impl AssertionEvaluator {
         match (actual, expected) {
             (Value::String(s), Value::String(word)) => {
                 let word_regex = Regex::new(&format!(r"\b{}\b", regex::escape(word)))
-                    .map_err(|e| EvaluationError::RegexError(e))?;
+                    .map_err(EvaluationError::RegexError)?;
                 Ok(word_regex.is_match(s))
             }
             _ => Err(EvaluationError::InvalidContainsWordOperation),

@@ -591,15 +591,15 @@ impl TestHelper {
     ) {
         let body = match record_type {
             RecordType::GenAITask => {
-                let records = TestHelper::get_genai_task_results(time_offset, &uid);
+                let records = TestHelper::get_genai_task_results(time_offset, uid);
                 serde_json::to_string(&records).unwrap()
             }
             RecordType::GenAIWorkflow => {
-                let records = TestHelper::get_genai_workflow_results(time_offset, &uid);
+                let records = TestHelper::get_genai_workflow_results(time_offset, uid);
                 serde_json::to_string(&records).unwrap()
             }
             RecordType::GenAIEval => {
-                let records = TestHelper::get_genai_event_records(time_offset, &uid);
+                let records = TestHelper::get_genai_event_records(time_offset, uid);
                 serde_json::to_string(&records).unwrap()
             }
             _ => panic!("Unsupported record type for GenAI task population"),

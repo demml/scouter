@@ -24,11 +24,11 @@ test.sql:
 
 .PHONY: test.server
 test.server:
-	cargo test -p scouter-server test_genai_server_records --all-features -- --nocapture --test-threads=1 --skip test_storage_integration_cloud --skip test_data_archive_genai
+	cargo test -p scouter-server --all-features -- --nocapture --test-threads=1 --skip test_storage_integration_cloud
 
 .PHONY: test.server.archive.genai
 test.server.archive.genai:
-	cargo test -p scouter-server --all-features -- --nocapture --test-threads=1
+	cargo test -p scouter-server test_data_archive_genai --all-features -- --nocapture --test-threads=1
 
 
 .PHONY: test.server.cloud
@@ -40,7 +40,7 @@ test.drift.executor:
 	cargo test -p scouter-drift test_drift_executor_genai --all-features -- --nocapture --test-threads=1
 
 .PHONY: test.needs_sql
-test.needs_sql: test.sql test.server test.server.archive.genai test.drift.executor
+test.needs_sql: test.sql test.server test.evaluate test.drift.executor
 
 #### Unit tests
 .PHONY: test.types

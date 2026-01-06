@@ -346,7 +346,7 @@ mod tests {
     #[test]
     fn test_create_alert_description() {
         let alert_above_threshold = ComparisonMetricAlert {
-            metric_name: &"mse".to_string(),
+            metric_name: "mse",
             baseline_metric: &12.5,
             observed_metric: &14.0,
             delta: &Some(1.0),
@@ -362,7 +362,7 @@ mod tests {
         assert!(description.contains("Current Metric Value: 14"));
 
         let alert_below_threshold = ComparisonMetricAlert {
-            metric_name: &"accuracy".to_string(),
+            metric_name: "accuracy",
             baseline_metric: &0.9,
             observed_metric: &0.7,
             delta: &None,
@@ -378,7 +378,7 @@ mod tests {
         assert!(description.contains("Current Metric Value: 0.7"));
 
         let alert_outside_threshold = ComparisonMetricAlert {
-            metric_name: &"mae".to_string(),
+            metric_name: "mae",
             baseline_metric: &12.5,
             observed_metric: &22.0,
             delta: &Some(2.0),

@@ -532,7 +532,6 @@ impl GenAIEvalProfile {
     /// * `judges` - Slice of LLMJudgeTask
     /// # Returns
     /// * `Result<Workflow, ProfileError>` - The constructed workflow
-    /// Build workflow from a subset of LLM judges (for a specific level)
     pub async fn build_workflow_from_judges(
         judges: &[LLMJudgeTask],
     ) -> Result<Workflow, ProfileError> {
@@ -554,7 +553,7 @@ impl GenAIEvalProfile {
                 judge.prompt.clone(),
                 &judge.id,
                 Some(judge.depends_on.clone()),
-                judge.max_retries.clone(),
+                judge.max_retries,
             );
 
             workflow.add_task(task)?;
