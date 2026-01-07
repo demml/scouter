@@ -45,9 +45,9 @@ def test_genai_eval_no_embedding(
 
         assert isinstance(result_df, pd.DataFrame)
 
-        result_polars_df: pl.DataFrame = results.to_dataframe(polars=True)
+        df: pl.DataFrame = results.to_dataframe(polars=True)
 
-        assert isinstance(result_polars_df, pl.DataFrame)
+        assert isinstance(df, pl.DataFrame)
 
 
 def test_genai_eval_no_embedding_one_fail(

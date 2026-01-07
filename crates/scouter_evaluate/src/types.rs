@@ -4,6 +4,7 @@ use ndarray::Array2;
 use owo_colors::OwoColorize;
 use potato_head::{Embedder, PyHelperFuncs};
 use pyo3::prelude::*;
+use pyo3::types::IntoPyDict;
 use pyo3::types::PyDict;
 use scouter_profile::{Histogram, NumProfiler};
 use scouter_types::genai::GenAIEvalSet;
@@ -16,7 +17,6 @@ use tabled::{
     settings::{object::Rows, Alignment, Color, Format, Style},
     Table,
 };
-
 pub fn array_to_dict<'py>(
     py: Python<'py>,
     array: &ArrayDataset,
@@ -284,9 +284,14 @@ impl AlignedEvalResult {
             flat.insert("record_uid".to_string(), self.record_uid.clone().into());
             flat.insert("success".to_string(), self.success.into());
 
-            if let Some(error) = &self.error_message {
-                flat.insert("workflow_error".to_string(), error.clone().into());
-            }
+            // insert workflow error or "" if none
+            flat.insert(
+                "workflow_error".to_string(),
+                match &self.error_message {
+                    Some(err) => serde_json::Value::String(err.clone()),
+                    None => serde_json::Value::String("".to_string()),
+                },
+            );
 
             // Workflow-level metrics
             flat.insert(
@@ -320,12 +325,16 @@ impl AlignedEvalResult {
             flat.insert("task_value".to_string(), task_result.value.into());
             flat.insert(
                 "task_message".to_string(),
-                task_result.message.clone().into(),
+                serde_json::Value::String(task_result.message.clone()),
             );
 
-            if let Some(field_path) = &task_result.field_path {
-                flat.insert("task_field_path".to_string(), field_path.clone().into());
-            }
+            flat.insert(
+                "task_field_path".to_string(),
+                match &task_result.field_path {
+                    Some(path) => serde_json::Value::String(path.clone()),
+                    None => serde_json::Value::Null,
+                },
+            );
 
             flat.insert(
                 "task_operator".to_string(),
@@ -334,22 +343,26 @@ impl AlignedEvalResult {
             flat.insert("task_expected".to_string(), task_result.expected.clone());
             flat.insert("task_actual".to_string(), task_result.actual.clone());
 
-            // Context snapshot (repeated for each task)
-            if let Some(context) = &self.context_snapshot {
-                for (key, value) in context {
-                    flat.insert(format!("context_{}", key), value.clone());
-                }
-            }
+            // Context as single JSON column
+            flat.insert(
+                "context".to_string(),
+                self.context_snapshot
+                    .as_ref()
+                    .map(|ctx| serde_json::to_value(ctx).unwrap_or(serde_json::Value::Null))
+                    .unwrap_or(serde_json::Value::Null),
+            );
 
-            // Embedding means (shared across all tasks in this workflow)
-            for (target, mean) in &self.mean_embeddings {
-                flat.insert(format!("embedding_mean_{}", target), (*mean).into());
-            }
+            // Embedding means as single JSON column
+            flat.insert(
+                "embedding_means".to_string(),
+                serde_json::to_value(&self.mean_embeddings).unwrap_or(serde_json::Value::Null),
+            );
 
-            // Similarity scores (shared across all tasks in this workflow)
-            for (pair, score) in &self.similarity_scores {
-                flat.insert(format!("similarity_{}", pair), (*score).into());
-            }
+            // Similarity scores as single JSON column
+            flat.insert(
+                "similarity_scores".to_string(),
+                serde_json::to_value(&self.similarity_scores).unwrap_or(serde_json::Value::Null),
+            );
 
             records.push(flat);
         }
@@ -443,7 +456,10 @@ impl GenAIEvalResults {
         let df_class = df_module.getattr("DataFrame")?;
 
         if polars {
-            Ok(df_class.call1((py_records,))?)
+            let schema = self.get_schema_mapping(py)?;
+            let schema_dict = &[("schema", schema)].into_py_dict(py)?;
+            schema_dict.set_item("strict", false)?;
+            Ok(df_class.call((py_records,), Some(schema_dict))?)
         } else {
             Ok(df_class.call_method1("from_dict", (py_records,))?)
         }
@@ -481,6 +497,40 @@ impl GenAIEvalResults {
 }
 
 impl GenAIEvalResults {
+    fn get_schema_mapping<'py>(
+        &self,
+        py: Python<'py>,
+    ) -> Result<Bound<'py, PyDict>, EvaluationError> {
+        let schema = PyDict::new(py);
+        let pl = py.import("polars")?;
+
+        schema.set_item("created_at", pl.getattr("Utf8")?)?;
+        schema.set_item("record_uid", pl.getattr("Utf8")?)?;
+        schema.set_item("success", pl.getattr("Boolean")?)?;
+        schema.set_item("workflow_error", pl.getattr("Utf8")?)?;
+
+        schema.set_item("workflow_total_tasks", pl.getattr("Int64")?)?;
+        schema.set_item("workflow_passed_tasks", pl.getattr("Int64")?)?;
+        schema.set_item("workflow_failed_tasks", pl.getattr("Int64")?)?;
+        schema.set_item("workflow_pass_rate", pl.getattr("Float64")?)?;
+        schema.set_item("workflow_duration_ms", pl.getattr("Int64")?)?;
+
+        schema.set_item("task_id", pl.getattr("Utf8")?)?;
+        schema.set_item("task_type", pl.getattr("Utf8")?)?;
+        schema.set_item("task_passed", pl.getattr("Boolean")?)?;
+        schema.set_item("task_value", pl.getattr("Float64")?)?;
+        schema.set_item("task_message", pl.getattr("Utf8")?)?;
+        schema.set_item("task_field_path", pl.getattr("Utf8")?)?;
+        schema.set_item("task_operator", pl.getattr("Utf8")?)?;
+        schema.set_item("task_expected", pl.getattr("Utf8")?)?;
+        schema.set_item("task_actual", pl.getattr("Utf8")?)?;
+
+        schema.set_item("context", pl.getattr("Utf8")?)?;
+        schema.set_item("embedding_means", pl.getattr("Utf8")?)?;
+        schema.set_item("similarity_scores", pl.getattr("Utf8")?)?;
+
+        Ok(schema)
+    }
     /// Build workflow result table for console display
     fn build_workflow_table(&self) -> Table {
         let entries: Vec<WorkflowResultTableEntry> = self
