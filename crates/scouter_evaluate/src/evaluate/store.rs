@@ -5,6 +5,7 @@ use std::collections::HashMap;
 pub enum TaskType {
     Assertion,
     LLMJudge,
+    Condition,
 }
 
 /// Registry that tracks task IDs and their types for store routing
@@ -12,12 +13,14 @@ pub enum TaskType {
 pub struct TaskRegistry {
     /// Maps task_id -> TaskType
     registry: HashMap<String, TaskType>,
+    dependency_map: HashMap<String, Vec<String>>,
 }
 
 impl TaskRegistry {
     pub fn new() -> Self {
         Self {
             registry: HashMap::new(),
+            dependency_map: HashMap::new(),
         }
     }
 
@@ -34,6 +37,36 @@ impl TaskRegistry {
     /// Check if a task is registered
     pub fn contains(&self, task_id: &str) -> bool {
         self.registry.contains_key(task_id)
+    }
+
+    /// Register dependencies for a task
+    /// # Arguments
+    /// * `task_id` - The ID of the task
+    /// * `dependencies` - A list of task IDs that this task depends on
+    pub fn register_dependencies(&mut self, task_id: String, dependencies: Vec<String>) {
+        self.dependency_map.insert(task_id, dependencies);
+    }
+
+    /// For a given task ID, get its dependencies and return only those that are Condition tasks
+    /// # Arguments
+    /// * `task_id` - The ID of the task
+    /// Get all conditional dependencies for a task
+    /// Returns None if task not found, Some(vec) if found (may be empty)
+    pub fn get_conditional_dependencies(&self, task_id: &str) -> Option<Vec<&str>> {
+        if !self.registry.contains_key(task_id) {
+            return None;
+        }
+
+        let mut conditions = Vec::new();
+        if let Some(dependencies) = self.dependency_map.get(task_id) {
+            for dep_id in dependencies {
+                if let Some(TaskType::Condition) = self.registry.get(dep_id.as_str()) {
+                    conditions.push(dep_id.as_str());
+                }
+            }
+        }
+
+        Some(conditions)
     }
 }
 

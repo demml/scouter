@@ -87,11 +87,15 @@ def create_vegetarian_validation_prompt() -> Prompt:
     )
 
 
-def build_recipe_eval_dataset(user_request: str, recipe_response: Recipe) -> GenAIEvalDataset:
+def build_recipe_eval_dataset(
+    user_request: str, recipe_response: Recipe
+) -> GenAIEvalDataset:
     """
     Creates an evaluation dataset for validating vegetarian recipe generation.
     """
-    record = GenAIEvalRecord(context={"user_request": user_request, "recipe": recipe_response})
+    record = GenAIEvalRecord(
+        context={"user_request": user_request, "recipe": recipe_response}
+    )
 
     dataset = GenAIEvalDataset(
         records=[record],
@@ -159,7 +163,9 @@ if __name__ == "__main__":
     for i, direction in enumerate(recipe.directions, 1):
         print(f"  {i}. {direction}")
 
-    dataset = build_recipe_eval_dataset(user_request=user_request, recipe_response=recipe)
+    dataset = build_recipe_eval_dataset(
+        user_request=user_request, recipe_response=recipe
+    )
 
     print("\n=== Evaluation Plan ===")
     dataset.print_execution_plan()

@@ -26,7 +26,6 @@ customer_issue = (
     "receiving the reset email. I need access urgently for a meeting in 2 hours!"
 )
 
-# Your agent generates a response
 support_response = SupportResponse(
     response="I apologize for the frustration. Let me help you immediately...",
     addresses_issue=True,
@@ -45,7 +44,7 @@ quality_prompt = Prompt(
     ),
     model="gemini-2.5-flash-lite",
     provider="gemini",
-    output_type=ResponseQuality,  # Your evaluation model
+    output_type=ResponseQuality,
 )
 
 record = GenAIEvalRecord(

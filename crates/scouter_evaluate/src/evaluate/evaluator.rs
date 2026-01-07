@@ -36,11 +36,17 @@ impl TaskResultStore {
         // Register assertion tasks
         for task in &profile.assertion_tasks {
             registry.register(task.id.clone(), TaskType::Assertion);
+            if !task.depends_on.is_empty() {
+                registry.register_dependencies(task.id.clone(), task.depends_on.clone());
+            }
         }
 
         // Register LLM judge tasks
         for task in &profile.llm_judge_tasks {
             registry.register(task.id.clone(), TaskType::LLMJudge);
+            if !task.depends_on.is_empty() {
+                registry.register_dependencies(task.id.clone(), task.depends_on.clone());
+            }
         }
     }
 
@@ -90,6 +96,9 @@ impl TaskResultStore {
                         warn!("LLM judge dependency '{}' not found in results", dep_id);
                     }
                 }
+                Some(TaskType::Condition) => {
+                    // Condition output are not injected into context, skip
+                }
                 None => {
                     warn!(
                         "Task dependency '{}' not registered in task registry",
@@ -107,6 +116,65 @@ impl TaskResultStore {
         let mut map = serde_json::Map::new();
         map.insert("context".to_string(), value.clone());
         map
+    }
+
+    /// Check if assertion task passed
+    fn check_assertion_passed(&self, task_id: &str) -> Option<bool> {
+        let store = self.assertion_store.blocking_read();
+        store.retrieve(task_id).map(|res| res.passed)
+    }
+
+    /// Check if all conditional dependencies passed for a given task
+    /// Returns None if conditions haven't been evaluated yet
+    /// Returns Some(true) if all conditions passed or no conditions exist
+    /// Returns Some(false) if any condition failed
+    fn check_conditional_passed(&self, task_id: &str) -> Option<bool> {
+        let registry = self.task_registry.blocking_read();
+        let condition_deps = registry.get_conditional_dependencies(task_id)?;
+
+        // If no conditional dependencies, allow execution
+        if condition_deps.is_empty() {
+            return Some(true);
+        }
+
+        // Check all conditional dependencies
+        for cond_id in condition_deps {
+            match self.check_assertion_passed(cond_id) {
+                Some(false) => return Some(false), // Condition failed, skip task
+                None => return None,               // Condition not yet evaluated
+                Some(true) => continue,            // Condition passed, check next
+            }
+        }
+
+        Some(true) // All conditions passed
+    }
+
+    /// Filter task IDs based on conditional dependencies
+    /// Returns only tasks whose conditional dependencies have all passed
+    fn filter_conditional_tasks(&self, task_ids: &[String]) -> Vec<String> {
+        task_ids
+            .iter()
+            .filter(|task_id| {
+                match self.check_conditional_passed(task_id) {
+                    Some(true) => true, // All conditions passed
+                    Some(false) => {
+                        debug!(
+                            "Skipping task '{}' due to failed conditional dependency",
+                            task_id
+                        );
+                        false
+                    }
+                    None => {
+                        warn!(
+                            "Task '{}' has unevaluated conditional dependencies",
+                            task_id
+                        );
+                        false
+                    }
+                }
+            })
+            .cloned()
+            .collect()
     }
 }
 
@@ -222,7 +290,16 @@ impl GenAIEvaluator {
         task_ids: &[String],
         profile: &Arc<GenAIEvalProfile>,
     ) -> Result<(), EvaluationError> {
-        let (assertion_ids, llm_judge_ids) = self.partition_tasks(task_ids, profile).await;
+        // remove any task ids that depend on a condition that evaluated to false
+        let filtered_task_ids = self.result_store.filter_conditional_tasks(task_ids);
+
+        if filtered_task_ids.is_empty() {
+            debug!("No tasks to execute after conditional filtering");
+            return Ok(());
+        }
+
+        let (assertion_ids, llm_judge_ids) =
+            self.partition_tasks(&filtered_task_ids, profile).await;
 
         // Run both task groups concurrently
         let (assertion_result, judge_result) = tokio::join!(
