@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tokio::task::JoinSet;
-use tracing::{debug, error, instrument, warn};
+use tracing::{debug, error, info, instrument, warn};
 
 /// Stores task execution results separate from the profile
 #[derive(Debug, Clone)]
@@ -116,8 +116,8 @@ impl TaskResultStore {
     }
 
     /// Check if assertion task passed
-    fn check_assertion_passed(&self, task_id: &str) -> Option<bool> {
-        let store = self.assertion_store.blocking_read();
+    async fn check_assertion_passed(&self, task_id: &str) -> Option<bool> {
+        let store = self.assertion_store.read().await;
         store.retrieve(task_id).map(|res| res.passed)
     }
 
@@ -125,53 +125,49 @@ impl TaskResultStore {
     /// Returns None if conditions haven't been evaluated yet
     /// Returns Some(true) if all conditions passed or no conditions exist
     /// Returns Some(false) if any condition failed
-    fn check_conditional_passed(&self, task_id: &str) -> Option<bool> {
-        let registry = self.task_registry.blocking_read();
-        let condition_deps = registry.get_conditional_dependencies(task_id)?;
+    async fn check_conditional_passed(&self, task_id: &str) -> Option<bool> {
+        let registry = self.task_registry.read().await;
+        let condition_deps = registry.get_dependencies(task_id)?;
 
-        // If no conditional dependencies, allow execution
         if condition_deps.is_empty() {
             return Some(true);
         }
 
-        // Check all conditional dependencies
         for cond_id in condition_deps {
-            match self.check_assertion_passed(cond_id) {
-                Some(false) => return Some(false), // Condition failed, skip task
-                None => return None,               // Condition not yet evaluated
-                Some(true) => continue,            // Condition passed, check next
+            match self.check_assertion_passed(cond_id).await {
+                Some(false) => return Some(false),
+                None => return None,
+                Some(true) => continue,
             }
         }
 
-        Some(true) // All conditions passed
+        Some(true)
     }
 
     /// Filter task IDs based on conditional dependencies
     /// Returns only tasks whose conditional dependencies have all passed
-    fn filter_conditional_tasks(&self, task_ids: &[String]) -> Vec<String> {
-        task_ids
-            .iter()
-            .filter(|task_id| {
-                match self.check_conditional_passed(task_id) {
-                    Some(true) => true, // All conditions passed
-                    Some(false) => {
-                        debug!(
-                            "Skipping task '{}' due to failed conditional dependency",
-                            task_id
-                        );
-                        false
-                    }
-                    None => {
-                        warn!(
-                            "Task '{}' has unevaluated conditional dependencies",
-                            task_id
-                        );
-                        false
-                    }
+    async fn filter_conditional_tasks(&self, task_ids: &[String]) -> Vec<String> {
+        let mut filtered = Vec::with_capacity(task_ids.len());
+
+        for task_id in task_ids {
+            match self.check_conditional_passed(task_id).await {
+                Some(true) => filtered.push(task_id.clone()),
+                Some(false) => {
+                    debug!(
+                        "Skipping task '{}' due to failed conditional dependency",
+                        task_id
+                    );
                 }
-            })
-            .cloned()
-            .collect()
+                None => {
+                    warn!(
+                        "Task '{}' has unevaluated conditional dependencies",
+                        task_id
+                    );
+                }
+            }
+        }
+
+        filtered
     }
 }
 
@@ -278,13 +274,23 @@ impl GenAIEvaluator {
         Ok(())
     }
 
+    #[instrument(skip_all)]
     async fn execute_level(
         &self,
         task_ids: &[String],
         profile: &Arc<GenAIEvalProfile>,
     ) -> Result<(), EvaluationError> {
+        debug!(
+            "Executing level with {} tasks before conditional filtering",
+            task_ids.len()
+        );
         // remove any task ids that depend on a task that evaluated to false
-        let filtered_task_ids = self.result_store.filter_conditional_tasks(task_ids);
+        let filtered_task_ids = self.result_store.filter_conditional_tasks(task_ids).await;
+
+        debug!(
+            "{} tasks to execute after conditional filtering",
+            filtered_task_ids.len()
+        );
 
         if filtered_task_ids.is_empty() {
             debug!("No tasks to execute after conditional filtering");
@@ -338,6 +344,11 @@ impl GenAIEvaluator {
         let scoped_context = result_store
             .build_scoped_context(&base_context, &task.depends_on)
             .await;
+
+        debug!(
+            "Executing assertion task '{}' with scoped context {:?}",
+            task_id, scoped_context
+        );
 
         let result = task.execute(&scoped_context)?;
 
@@ -436,12 +447,23 @@ impl GenAIEvaluator {
         for assertion in &profile.assertion_tasks {
             let assert_store = self.result_store.assertion_store.read().await;
             let result = assert_store.retrieve(&assertion.id);
+
             if let Some(result) = result {
+                // skip if assertion condition is true and result is false
+                if assertion.condition && !result.passed {
+                    debug!(
+                        "Skipping assertion '{}' due to condition being true and result false",
+                        assertion.id
+                    );
+                    continue;
+                }
+
                 if result.passed {
                     passed_count += 1;
                 } else {
                     failed_count += 1;
                 }
+
                 records.push(scouter_types::GenAIEvalTaskResult {
                     created_at: chrono::Utc::now(),
                     record_uid: record.uid.clone(),
@@ -536,6 +558,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let judge_task_level_1 = LLMJudgeTask::new_rs(
@@ -558,6 +581,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             description: Some("Check that score is numeric".to_string()),
             result: None,
+            condition: false,
         };
 
         let assert_query_reason = AssertionTask {
@@ -569,6 +593,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             description: Some("Check that reason is alphabetic".to_string()),
             result: None,
+            condition: false,
         };
 
         let tasks = EvaluationTasks::new()
@@ -596,6 +621,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let assert2 = AssertionTask {
@@ -607,6 +633,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             description: Some("Check that bar is numeric".to_string()),
             result: None,
+            condition: false,
         };
 
         let assert3 = AssertionTask {
@@ -618,6 +645,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             description: Some("Check that baz has length 3".to_string()),
             result: None,
+            condition: false,
         };
 
         let tasks = EvaluationTasks::new()

@@ -51,7 +51,7 @@ impl TaskRegistry {
     /// * `task_id` - The ID of the task
     /// Get all conditional dependencies for a task
     /// Returns None if task not found, Some(vec) if found (may be empty)
-    pub fn get_conditional_dependencies(&self, task_id: &str) -> Option<Vec<&str>> {
+    pub fn get_dependencies(&self, task_id: &str) -> Option<Vec<&str>> {
         if !self.registry.contains_key(task_id) {
             return None;
         }

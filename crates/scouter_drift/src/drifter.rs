@@ -585,6 +585,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let judge_task = LLMJudgeTask::new_rs(
@@ -607,6 +608,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             description: Some("Check that score is numeric".to_string()),
             result: None,
+            condition: false,
         };
 
         let tasks = EvaluationTasks::new()

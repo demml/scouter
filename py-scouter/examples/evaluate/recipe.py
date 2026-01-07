@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel
 from scouter.evaluate import (
@@ -11,7 +11,7 @@ from scouter.genai import Agent, Prompt, Provider
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 from scouter.queue import GenAIEvalRecord
 
-RustyLogger.setup_logging(LoggingConfig(log_level=LogLevel.Debug))
+RustyLogger.setup_logging(LoggingConfig(log_level=LogLevel.Info))
 
 
 class Ingredient(BaseModel):
@@ -20,12 +20,18 @@ class Ingredient(BaseModel):
     unit: str
 
 
+class Rating(BaseModel):
+    score: int
+    reason: str
+
+
 class Recipe(BaseModel):
     name: str
     ingredients: List[Ingredient]
     directions: List[str]
     prep_time_minutes: int
     servings: int
+    rating: Optional[Rating] = None
 
 
 class VegetarianValidation(BaseModel):
@@ -93,12 +99,25 @@ def build_recipe_eval_dataset(
     """
     Creates an evaluation dataset for validating vegetarian recipe generation.
     """
-    record = GenAIEvalRecord(
-        context={"user_request": user_request, "recipe": recipe_response}
-    )
+
+    # create 4 records with the same context
+    # every other record add rating to the recipe response
+    records = []
+    for i in range(4):
+        if i % 2 == 0:
+            response = recipe_response
+            response.rating = None
+        else:
+            response = recipe_response.model_copy()
+            response.rating = Rating(score=5, reason="Excellent recipe")
+
+        record = GenAIEvalRecord(
+            context={"user_request": user_request, "recipe": response}
+        )
+        records.append(record)
 
     dataset = GenAIEvalDataset(
-        records=[record],
+        records=records,
         tasks=[
             LLMJudgeTask(  # LLM judges validate the prompt outputs, not original context
                 id="vegetarian_validation",
@@ -136,6 +155,23 @@ def build_recipe_eval_dataset(
                 expected_value=[0, 120],
                 description="Verify prep time is within a reasonable range",
             ),
+            # Conditional checks to validate rating if present
+            AssertionTask(
+                id="has_rating",
+                field_path="recipe.rating",
+                operator=ComparisonOperator.IsNotEmpty,
+                expected_value=True,
+                description="Check that the recipe has a rating",
+                condition=True,
+            ),
+            AssertionTask(
+                id="valid_rating_score",
+                field_path="context.recipe.rating.score",
+                operator=ComparisonOperator.InRange,
+                expected_value=[1, 5],
+                description="Verify rating score is between 1 and 5",
+                depends_on=["has_rating"],
+            ),
         ],
     )
     return dataset
@@ -172,4 +208,4 @@ if __name__ == "__main__":
 
     print("\n=== Running Evaluation ===")
     results = dataset.evaluate()
-    results.as_table(show_tasks=True)
+    results.as_table()

@@ -13731,6 +13731,7 @@ class AssertionTask:
         field_path: Optional[str] = None,
         description: Optional[str] = None,
         depends_on: Optional[List[str]] = None,
+        condition: bool = False,
     ):
         """Initialize an assertion task for rule-based evaluation.
 
@@ -13754,6 +13755,10 @@ class AssertionTask:
             depends_on:
                 Optional list of task IDs that must complete successfully before
                 this task executes. Empty list if not provided.
+            condition:
+                If True, this assertion task acts as a condition for subsequent tasks.
+                If the assertion fails, dependent tasks will be skipped and this task
+                will be excluded from final results.
 
         Raises:
             TypeError: If expected_value is not JSON-serializable or if operator

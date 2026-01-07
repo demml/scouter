@@ -59,6 +59,8 @@ pub struct AssertionTask {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<AssertionResult>,
+
+    pub condition: bool,
 }
 
 #[pymethods]
@@ -117,7 +119,7 @@ impl AssertionTask {
     /// * `description`: Optional description for the assertion
     /// # Returns
     /// A new AssertionTask object
-    #[pyo3(signature = (id, field_path, expected_value, operator, description=None, depends_on=None))]
+    #[pyo3(signature = (id, field_path, expected_value, operator, description=None, depends_on=None, condition=None))]
     pub fn new(
         id: String,
         field_path: Option<String>,
@@ -125,8 +127,11 @@ impl AssertionTask {
         operator: ComparisonOperator,
         description: Option<String>,
         depends_on: Option<Vec<String>>,
+        condition: Option<bool>,
     ) -> Result<Self, TypeError> {
         let expected_value = depythonize(expected_value)?;
+        let condition = condition.unwrap_or(false);
+
         Ok(Self {
             id: id.to_lowercase(),
             field_path,
@@ -136,6 +141,7 @@ impl AssertionTask {
             task_type: EvaluationTaskType::Assertion,
             depends_on: depends_on.unwrap_or_default(),
             result: None,
+            condition,
         })
     }
 

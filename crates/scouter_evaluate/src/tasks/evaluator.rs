@@ -452,6 +452,7 @@ impl AssertionEvaluator {
     fn check_is_empty(actual: &Value) -> Result<bool, EvaluationError> {
         match actual {
             Value::String(s) => Ok(s.is_empty()),
+            Value::Null => Ok(true),
             Value::Array(arr) => Ok(arr.is_empty()),
             Value::Object(obj) => Ok(obj.is_empty()),
             _ => Err(EvaluationError::InvalidEmptyOperation),
@@ -595,6 +596,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         }
     }
 
@@ -608,6 +610,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         }
     }
 
@@ -621,6 +624,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         }
     }
 
@@ -634,6 +638,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         }
     }
 
@@ -647,6 +652,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         }
     }
 
@@ -660,6 +666,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         }
     }
 
@@ -673,6 +680,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         }
     }
 
@@ -686,6 +694,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         }
     }
 
@@ -699,6 +708,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         }
     }
 
@@ -712,6 +722,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         }
     }
 
@@ -725,6 +736,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         }
     }
 
@@ -738,6 +750,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         }
     }
 
@@ -1170,6 +1183,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1209,6 +1223,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1308,6 +1323,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1327,6 +1343,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1346,6 +1363,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1365,6 +1383,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1384,6 +1403,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion);
@@ -1404,6 +1424,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion);
@@ -1423,6 +1444,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion);
@@ -1442,6 +1464,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1460,6 +1483,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1478,6 +1502,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1496,6 +1521,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1515,6 +1541,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1533,6 +1560,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1551,6 +1579,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1569,6 +1598,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1587,6 +1617,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1605,6 +1636,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1624,6 +1656,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1642,6 +1675,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1660,6 +1694,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1678,6 +1713,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1697,6 +1733,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1715,6 +1752,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1733,6 +1771,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1751,6 +1790,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1769,6 +1809,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1788,6 +1829,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1806,6 +1848,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1824,6 +1867,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1842,6 +1886,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1860,6 +1905,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1878,6 +1924,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1897,6 +1944,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1915,6 +1963,7 @@ mod tests {
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
             result: None,
+            condition: false,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
