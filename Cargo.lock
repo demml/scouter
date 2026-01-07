@@ -811,7 +811,7 @@ dependencies = [
 [[package]]
 name = "baked-potato"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=main#609d0ab23cc5e0cfcbacf49e228623cfede082b6"
+source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fexecute-single-task#8d42e74cfc84b379945edf1b652eb3131474b9a8"
 dependencies = [
  "mockito",
  "potato-agent",
@@ -2723,9 +2723,9 @@ checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
 
 [[package]]
 name = "h2"
-version = "0.4.12"
+version = "0.4.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3c0b69cfcb4e1b9f1bf2f53f95f766e4661169728ec61cd3fe5a0166f2d1386"
+checksum = "2f44da3a8150a6703ed5d34e164b875fd14c2cdab9af1252a9a1020bde2bdc54"
 dependencies = [
  "atomic-waker",
  "bytes",
@@ -3115,9 +3115,9 @@ dependencies = [
 
 [[package]]
 name = "indexmap"
-version = "2.12.1"
+version = "2.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ad4bb2b565bca0645f4d68c5c9af97fba094e9791da685bf83cb5f3ce74acf2"
+checksum = "7714e70437a7dc3ac8eb7e6f8df75fd8eb422675fc7678aff7364301092b1017"
 dependencies = [
  "equivalent",
  "hashbrown 0.16.1",
@@ -3762,9 +3762,9 @@ dependencies = [
 
 [[package]]
 name = "noisy_float"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "978fe6e6ebc0bf53de533cd456ca2d9de13de13856eda1518a285d7705a213af"
+checksum = "c16843be85dd410c6a12251c4eca0dd1d3ee8c5725f746c4d5e0fdcec0a864b2"
 dependencies = [
  "num-traits",
 ]
@@ -4505,7 +4505,7 @@ dependencies = [
 [[package]]
 name = "potato-agent"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=main#609d0ab23cc5e0cfcbacf49e228623cfede082b6"
+source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fexecute-single-task#8d42e74cfc84b379945edf1b652eb3131474b9a8"
 dependencies = [
  "base64",
  "gcloud-auth",
@@ -4527,7 +4527,7 @@ dependencies = [
 [[package]]
 name = "potato-head"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=main#609d0ab23cc5e0cfcbacf49e228623cfede082b6"
+source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fexecute-single-task#8d42e74cfc84b379945edf1b652eb3131474b9a8"
 dependencies = [
  "baked-potato",
  "potato-agent",
@@ -4540,7 +4540,7 @@ dependencies = [
 [[package]]
 name = "potato-macro"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=main#609d0ab23cc5e0cfcbacf49e228623cfede082b6"
+source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fexecute-single-task#8d42e74cfc84b379945edf1b652eb3131474b9a8"
 dependencies = [
  "thiserror 2.0.17",
 ]
@@ -4548,7 +4548,7 @@ dependencies = [
 [[package]]
 name = "potato-provider"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=main#609d0ab23cc5e0cfcbacf49e228623cfede082b6"
+source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fexecute-single-task#8d42e74cfc84b379945edf1b652eb3131474b9a8"
 dependencies = [
  "base64",
  "gcloud-auth",
@@ -4570,7 +4570,7 @@ dependencies = [
 [[package]]
 name = "potato-state"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=main#609d0ab23cc5e0cfcbacf49e228623cfede082b6"
+source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fexecute-single-task#8d42e74cfc84b379945edf1b652eb3131474b9a8"
 dependencies = [
  "thiserror 2.0.17",
  "tokio",
@@ -4580,7 +4580,7 @@ dependencies = [
 [[package]]
 name = "potato-type"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=main#609d0ab23cc5e0cfcbacf49e228623cfede082b6"
+source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fexecute-single-task#8d42e74cfc84b379945edf1b652eb3131474b9a8"
 dependencies = [
  "potato-macro",
  "potato-util",
@@ -4597,7 +4597,7 @@ dependencies = [
 [[package]]
 name = "potato-util"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=main#609d0ab23cc5e0cfcbacf49e228623cfede082b6"
+source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fexecute-single-task#8d42e74cfc84b379945edf1b652eb3131474b9a8"
 dependencies = [
  "colored_json",
  "pyo3",
@@ -4613,7 +4613,7 @@ dependencies = [
 [[package]]
 name = "potato-workflow"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=main#609d0ab23cc5e0cfcbacf49e228623cfede082b6"
+source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fexecute-single-task#8d42e74cfc84b379945edf1b652eb3131474b9a8"
 dependencies = [
  "chrono",
  "potato-agent",
@@ -4697,9 +4697,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.104"
+version = "1.0.105"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9695f8df41bb4f3d222c95a67532365f569318332d03d5f3f67f37b20e6ebdf0"
+checksum = "535d180e0ecab6268a3e718bb9fd44db66bbbc256257165fc699dadf70d16fe7"
 dependencies = [
  "unicode-ident",
 ]
@@ -5005,9 +5005,9 @@ dependencies = [
 
 [[package]]
 name = "quote"
-version = "1.0.42"
+version = "1.0.43"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a338cc41d27e6cc6dce6cefc13a0729dfbb81c262b1f519331575dd80ef3067f"
+checksum = "dc74d9a594b72ae6656596548f56f667211f8a97b3d4c3d467150794690dc40a"
 dependencies = [
  "proc-macro2",
 ]
@@ -5383,9 +5383,9 @@ dependencies = [
 
 [[package]]
 name = "rsa"
-version = "0.9.9"
+version = "0.9.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "40a0376c50d0358279d9d643e4bf7b7be212f1f4ff1da9070a7b54d22ef75c88"
+checksum = "b8573f03f5883dcaebdfcf4725caa1ecb9c15b2ef50c43a07b816e06799bb12d"
 dependencies = [
  "const-oid",
  "digest",
@@ -5483,9 +5483,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.35"
+version = "0.23.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "533f54bc6a7d4f647e46ad909549eda97bf5afc1585190ef692b4286b198bd8f"
+checksum = "c665f33d38cea657d9614f766881e4d510e0eda4239891eea56b4cadcf01801b"
 dependencies = [
  "once_cell",
  "ring",
@@ -6218,9 +6218,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.148"
+version = "1.0.149"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3084b546a1dd6289475996f182a22aba973866ea8e8b02c51d9f46b1336a22da"
+checksum = "83fc039473c5595ace860d8c4fafa220ff474b3fc6bfdb4293327f1a37e94d86"
 dependencies = [
  "itoa",
  "memchr",
@@ -6782,9 +6782,9 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "syn"
-version = "2.0.113"
+version = "2.0.114"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "678faa00651c9eb72dd2020cbdf275d92eccb2400d568e419efdd64838145cb4"
+checksum = "d4d107df263a3013ef9b1879b0df87d706ff80f65a86ea879bd9c31f9b307c2a"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7396,9 +7396,9 @@ checksum = "eaea85b334db583fe3274d12b4cd1880032beab409c0d774be044d4480ab9a94"
 
 [[package]]
 name = "unicase"
-version = "2.8.1"
+version = "2.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75b844d17643ee918803943289730bec8aac480150456169e647ed0b576ba539"
+checksum = "dbc4bc3a9f746d862c45cb89d705aa10f187bb96c76001afab07a0d35ce60142"
 
 [[package]]
 name = "unicode-bidi"
@@ -7465,9 +7465,9 @@ checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 
 [[package]]
 name = "url"
-version = "2.5.7"
+version = "2.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08bc136a29a3d1758e07a9cca267be308aeebf5cfd5a10f3f67ab2097683ef5b"
+checksum = "ff67a8a4397373c3ef660812acab3268222035010ab8680ec4215f38ba3d0eed"
 dependencies = [
  "form_urlencoded",
  "idna",
@@ -8117,18 +8117,18 @@ dependencies = [
 
 [[package]]
 name = "zerocopy"
-version = "0.8.31"
+version = "0.8.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd74ec98b9250adb3ca554bdde269adf631549f51d8a8f8f0a10b50f1cb298c3"
+checksum = "668f5168d10b9ee831de31933dc111a459c97ec93225beb307aed970d1372dfd"
 dependencies = [
  "zerocopy-derive",
 ]
 
 [[package]]
 name = "zerocopy-derive"
-version = "0.8.31"
+version = "0.8.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8a8d209fdf45cf5138cbb5a506f6b52522a25afccc534d1475dad8e31105c6a"
+checksum = "2c7962b26b0a8685668b671ee4b54d007a67d4eaf05fda79ac0ecf41e32270f1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -8203,9 +8203,9 @@ checksum = "40990edd51aae2c2b6907af74ffb635029d5788228222c4bb811e9351c0caad3"
 
 [[package]]
 name = "zmij"
-version = "1.0.10"
+version = "1.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30e0d8dffbae3d840f64bda38e28391faef673a7b5a6017840f2a106c8145868"
+checksum = "2fc5a66a20078bf1251bde995aa2fdcc4b800c70b5d92dd2c62abc5c60f679f8"
 
 [[package]]
 name = "zstd"

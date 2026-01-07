@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tokio::task::JoinSet;
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{debug, error, instrument, warn};
 
 /// Stores task execution results separate from the profile
 #[derive(Debug, Clone)]
@@ -111,7 +111,16 @@ impl TaskResultStore {
     // for all non level-0 tasks, we build a context map of base context + dep results
     fn build_context_map(value: &Value) -> serde_json::Map<String, Value> {
         let mut map = serde_json::Map::new();
-        map.insert("context".to_string(), value.clone());
+
+        // if base context is an object, do nothing
+        // if not, wrap it under "context" key
+        let map = match value {
+            Value::Object(obj) => obj.clone(),
+            _ => {
+                map.insert("context".to_string(), value.clone());
+                map
+            }
+        };
         map
     }
 
@@ -284,7 +293,7 @@ impl GenAIEvaluator {
             "Executing level with {} tasks before conditional filtering",
             task_ids.len()
         );
-        // remove any task ids that depend on a task that evaluated to false
+
         let filtered_task_ids = self.result_store.filter_conditional_tasks(task_ids).await;
 
         debug!(
@@ -299,7 +308,6 @@ impl GenAIEvaluator {
 
         let (assertion_ids, llm_judge_ids) = self.partition_tasks(&filtered_task_ids).await;
 
-        // Run both task groups concurrently
         let (assertion_result, judge_result) = tokio::join!(
             async {
                 if !assertion_ids.is_empty() {
@@ -309,21 +317,80 @@ impl GenAIEvaluator {
                 }
             },
             async {
-                if !llm_judge_ids.is_empty() && profile.workflow.is_some() {
-                    self.execute_judge_workflow(profile)
+                if !llm_judge_ids.is_empty() {
+                    self.execute_llm_judges_for_level(&llm_judge_ids, profile)
                         .await
-                        .inspect_err(|e| error!("Failed to execute LLM judge workflow: {:?}", e))
+                        .inspect_err(|e| error!("Failed to execute LLM judge tasks: {:?}", e))
                 } else {
                     Ok(())
                 }
             }
         );
 
-        // Check both results
         assertion_result?;
         judge_result?;
 
         Ok(())
+    }
+
+    #[instrument(skip_all)]
+    async fn execute_llm_judges_for_level(
+        &self,
+        judge_ids: &[String],
+        profile: &Arc<GenAIEvalProfile>,
+    ) -> Result<(), EvaluationError> {
+        let mut join_set = JoinSet::new();
+
+        for judge_id in judge_ids {
+            let judge_id = judge_id.clone();
+            let profile = profile.clone();
+            let base_context = self.base_context.clone();
+            let result_store = self.result_store.clone();
+
+            join_set.spawn(async move {
+                Self::execute_llm_judge_task(&judge_id, profile, base_context, result_store).await
+            });
+        }
+
+        let mut results = HashMap::new();
+        while let Some(task_result) = join_set.join_next().await {
+            let (judge_id, response) = task_result.map_err(|e| {
+                EvaluationError::GenAIEvaluatorError(format!("Task join error: {}", e))
+            })??;
+            results.insert(judge_id, response);
+        }
+
+        self.process_llm_judge_results(results, profile).await?;
+
+        Ok(())
+    }
+
+    #[instrument(skip_all, fields(task_id = %task_id))]
+    async fn execute_llm_judge_task(
+        task_id: &str,
+        profile: Arc<GenAIEvalProfile>,
+        base_context: Arc<Value>,
+        result_store: TaskResultStore,
+    ) -> Result<(String, Value), EvaluationError> {
+        let judge = profile
+            .get_llm_judge_by_id(task_id)
+            .ok_or_else(|| EvaluationError::TaskNotFound(task_id.to_string()))?;
+
+        let scoped_context = result_store
+            .build_scoped_context(&base_context, &judge.depends_on)
+            .await;
+
+        debug!("Executing LLM judge '{}' with scoped context", task_id);
+
+        let workflow = profile.workflow.as_ref().ok_or_else(|| {
+            EvaluationError::GenAIEvaluatorError("No workflow defined in profile".to_string())
+        })?;
+
+        let task_result = workflow
+            .execute_task_with_context(task_id, scoped_context)
+            .await?;
+
+        Ok((task_id.to_string(), task_result))
     }
 
     /// Execute a single assertion task with scoped context
@@ -360,50 +427,6 @@ impl GenAIEvaluator {
         Ok(())
     }
 
-    /// Execute LLM judge tasks via workflow
-    /// Tasks a vec of judge tasks, builds and runs a workflow and then processes results
-    /// The workflow is built at runtme because llm judge tasks can depend on assertion tasks and vice versa,
-    /// whose outputs need to be available in the workflow context
-    /// # Arguments
-    /// * `llm_judge_ids` - The IDs of the LLM judge tasks
-    /// * `profile` - The evaluation profile
-    /// * `level_idx` - The current execution level index (for logging)
-    /// # Returns
-    /// * `Result<(), EvaluationError>` - Ok if successful, Err otherwise
-    async fn execute_judge_workflow(
-        &self,
-        profile: &Arc<GenAIEvalProfile>,
-    ) -> Result<(), EvaluationError> {
-        // Build workflow from LLM judges
-        let workflow = profile.workflow.as_ref().ok_or_else(|| {
-            EvaluationError::GenAIEvaluatorError("No workflow defined in profile".to_string())
-        })?;
-
-        let result = workflow.run(Some((*self.base_context).clone())).await?;
-
-        // Extract workflow results
-        let workflow_results: HashMap<String, Value> = {
-            let read_result = result
-                .read()
-                .map_err(|_| EvaluationError::ReadLockAcquireError)?;
-            read_result.task_list.get_task_responses()?
-        };
-
-        // store all results in the result store
-        // We want to store the raw Value responses from the workflow
-        for (task_id, response) in &workflow_results {
-            self.result_store
-                .store_llm_response(task_id.clone(), response.clone())
-                .await;
-        }
-
-        // Process and store results
-        self.execute_judge_assertions(workflow_results, profile)
-            .await?;
-
-        Ok(())
-    }
-
     async fn execute_judge_assertions(
         &self,
         workflow_results: HashMap<String, Value>,
@@ -426,6 +449,31 @@ impl GenAIEvaluator {
                     .await;
             } else {
                 warn!("LLM judge task '{}' not found in profile", task_id);
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Process LLM judge results and store them
+    async fn process_llm_judge_results(
+        &self,
+        results: HashMap<String, Value>,
+        profile: &Arc<GenAIEvalProfile>,
+    ) -> Result<(), EvaluationError> {
+        for (task_id, response) in results {
+            // Store raw response
+            self.result_store
+                .store_llm_response(task_id.clone(), response.clone())
+                .await;
+
+            // Execute assertion on response
+            if let Some(task) = profile.get_llm_judge_by_id(&task_id) {
+                let assertion_result = task.execute(&response)?;
+
+                self.result_store
+                    .store_assertion(task_id.clone(), assertion_result)
+                    .await;
             }
         }
 
