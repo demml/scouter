@@ -252,6 +252,8 @@ pub struct LLMJudgeTask {
     pub result: Option<AssertionResult>,
 
     pub description: Option<String>,
+
+    pub condition: bool,
 }
 
 #[pymethods]
@@ -276,7 +278,7 @@ impl LLMJudgeTask {
     /// # Returns
     /// A new LLMJudgeTask object
     #[new]
-    #[pyo3(signature = (id, prompt, expected_value,  field_path,operator, description=None, depends_on=None, max_retries=None))]
+    #[pyo3(signature = (id, prompt, expected_value,  field_path,operator, description=None, depends_on=None, max_retries=None, condition=None))]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: &str,
@@ -287,6 +289,7 @@ impl LLMJudgeTask {
         description: Option<String>,
         depends_on: Option<Vec<String>>,
         max_retries: Option<u32>,
+        condition: Option<bool>,
     ) -> Result<Self, TypeError> {
         let expected_value = depythonize(expected_value)?;
 
@@ -301,6 +304,7 @@ impl LLMJudgeTask {
             field_path,
             result: None,
             description,
+            condition: condition.unwrap_or(false),
         })
     }
 
@@ -338,6 +342,7 @@ impl LLMJudgeTask {
         depends_on: Option<Vec<String>>,
         max_retries: Option<u32>,
         description: Option<String>,
+        condition: Option<bool>,
     ) -> Self {
         Self {
             id: id.to_lowercase(),
@@ -350,6 +355,7 @@ impl LLMJudgeTask {
             field_path,
             result: None,
             description,
+            condition: condition.unwrap_or(false),
         }
     }
 }

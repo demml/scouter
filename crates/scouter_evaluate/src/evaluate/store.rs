@@ -13,6 +13,7 @@ pub struct TaskRegistry {
     /// Maps task_id -> TaskType
     registry: HashMap<String, TaskType>,
     dependency_map: HashMap<String, Vec<String>>,
+    first_level_tasks: Vec<String>,
 }
 
 impl TaskRegistry {
@@ -20,6 +21,7 @@ impl TaskRegistry {
         Self {
             registry: HashMap::new(),
             dependency_map: HashMap::new(),
+            first_level_tasks: Vec::new(),
         }
     }
 
@@ -38,6 +40,11 @@ impl TaskRegistry {
         self.registry.contains_key(task_id)
     }
 
+    // set first level tasks
+    pub fn set_first_level_tasks(&mut self, task_ids: Vec<String>) {
+        self.first_level_tasks = task_ids;
+    }
+
     /// Register dependencies for a task
     /// # Arguments
     /// * `task_id` - The ID of the task
@@ -49,8 +56,6 @@ impl TaskRegistry {
     /// For a given task ID, get its dependencies
     /// # Arguments
     /// * `task_id` - The ID of the task
-    /// Get all conditional dependencies for a task
-    /// Returns None if task not found, Some(vec) if found (may be empty)
     pub fn get_dependencies(&self, task_id: &str) -> Option<Vec<&str>> {
         if !self.registry.contains_key(task_id) {
             return None;
@@ -59,13 +64,17 @@ impl TaskRegistry {
         let mut conditions = Vec::new();
         if let Some(dependencies) = self.dependency_map.get(task_id) {
             for dep_id in dependencies {
-                if let Some(_) = self.registry.get(dep_id.as_str()) {
+                if self.registry.contains_key(dep_id.as_str()) {
                     conditions.push(dep_id.as_str());
                 }
             }
         }
 
         Some(conditions)
+    }
+
+    pub fn is_first_level_task(&self, task_id: &str) -> bool {
+        self.first_level_tasks.contains(&task_id.to_string())
     }
 }
 

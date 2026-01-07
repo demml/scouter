@@ -114,14 +114,13 @@ impl TaskResultStore {
 
         // if base context is an object, do nothing
         // if not, wrap it under "context" key
-        let map = match value {
+        match value {
             Value::Object(obj) => obj.clone(),
             _ => {
                 map.insert("context".to_string(), value.clone());
                 map
             }
-        };
-        map
+        }
     }
 
     /// Check if assertion task passed
@@ -218,6 +217,11 @@ impl GenAIEvaluator {
         let begin = chrono::Utc::now();
 
         let execution_plan = profile.get_execution_plan()?;
+        self.result_store
+            .task_registry
+            .write()
+            .await
+            .set_first_level_tasks(execution_plan.get(0).cloned().unwrap_or_default());
 
         for (level_idx, level_tasks) in execution_plan.iter().enumerate() {
             debug!(
@@ -386,9 +390,7 @@ impl GenAIEvaluator {
             EvaluationError::GenAIEvaluatorError("No workflow defined in profile".to_string())
         })?;
 
-        let task_result = workflow
-            .execute_task_with_context(task_id, scoped_context)
-            .await?;
+        let task_result = workflow.execute_task(task_id, &scoped_context).await?;
 
         Ok((task_id.to_string(), task_result))
     }
@@ -423,34 +425,6 @@ impl GenAIEvaluator {
         result_store
             .store_assertion(task_id.to_string(), result)
             .await;
-
-        Ok(())
-    }
-
-    async fn execute_judge_assertions(
-        &self,
-        workflow_results: HashMap<String, Value>,
-        profile: &Arc<GenAIEvalProfile>,
-    ) -> Result<(), EvaluationError> {
-        for (task_id, response) in workflow_results {
-            if let Some(task) = profile.get_llm_judge_by_id(&task_id) {
-                // Build scoped context with dependencies
-                let _scoped_context = self
-                    .result_store
-                    .build_scoped_context(&response, &task.depends_on)
-                    .await;
-
-                // Execute the task with the raw response
-                let assertion_result = task.execute(&response)?;
-
-                // Store the result
-                self.result_store
-                    .store_assertion(task_id.clone(), assertion_result)
-                    .await;
-            } else {
-                warn!("LLM judge task '{}' not found in profile", task_id);
-            }
-        }
 
         Ok(())
     }
@@ -497,8 +471,16 @@ impl GenAIEvaluator {
             let result = assert_store.retrieve(&assertion.id);
 
             if let Some(result) = result {
-                // skip if assertion condition is true and result is false
-                if assertion.condition && !result.passed {
+                let is_first_task = self
+                    .result_store
+                    .task_registry
+                    .read()
+                    .await
+                    .is_first_level_task(&assertion.id);
+
+                // skip if assertion condition is the following criteria are met
+                // 1. condition is true + result is false + task is not first level
+                if assertion.condition && !result.passed && !is_first_task {
                     debug!(
                         "Skipping assertion '{}' due to condition being true and result false",
                         assertion.id
@@ -615,6 +597,7 @@ mod tests {
             Value::Number(1.into()),
             Some("score".to_string()),
             ComparisonOperator::GreaterThanOrEqual,
+            None,
             None,
             None,
             None,

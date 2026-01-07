@@ -597,6 +597,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
 
         let assert_query_score = AssertionTask {

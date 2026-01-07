@@ -40,6 +40,11 @@ class VegetarianValidation(BaseModel):
     non_vegetarian_ingredients: List[str]
 
 
+class PracticalValidation(BaseModel):
+    is_practical: bool
+    reason: str
+
+
 def create_recipe_generation_prompt() -> Prompt:
     """
     Builds a prompt for generating a vegetarian recipe with structured output.
@@ -50,6 +55,7 @@ def create_recipe_generation_prompt() -> Prompt:
             "a complete vegetarian recipe based on the user's request.\n\n"
             "Guidelines:\n"
             "- Ensure all ingredients are vegetarian (no meat, poultry, or seafood)\n"
+            "- Recipe should be easy to follow and practical for home cooks\n"
             "- Provide specific quantities and units for each ingredient\n"
             "- Include detailed, step-by-step cooking directions\n"
             "- Specify prep time (less than 120 minutes) and number of servings\n"
@@ -93,7 +99,36 @@ def create_vegetarian_validation_prompt() -> Prompt:
     )
 
 
-def build_recipe_eval_dataset(user_request: str, recipe_response: Recipe) -> GenAIEvalDataset:
+def create_practical_prompt() -> Prompt:
+    """
+    Builds a prompt for validating that a recipe is practical. and easy to follow.
+    """
+    return Prompt(
+        messages=(
+            "You are a culinary expert focused on creating practical and easy-to-follow recipes. "
+            "Your task is to evaluate whether a given recipe is practical for home cooks.\n\n"
+            "A practical recipe:\n"
+            "- Uses common ingredients that are easy to find in regular grocery stores\n"
+            "- Has clear, step-by-step directions that are easy to follow\n"
+            "- Requires reasonable prep time (ideally under 120 minutes)\n"
+            "- Is suitable for home cooking without specialized equipment\n\n"
+            "Analyze the following recipe and determine if it is practical.\n\n"
+            "Recipe:\n"
+            "${response}\n\n"
+            "Provide your evaluation as a JSON object with:\n"
+            "- is_practical: boolean indicating if the recipe is practical\n"
+            "- reason: explanation for your determination\n\n"
+            "Evaluation:"
+        ),
+        model="gemini-2.5-flash-lite",
+        provider="gemini",
+        output_type=PracticalValidation,
+    )
+
+
+def build_recipe_eval_dataset(
+    user_request: str, recipe_response: Recipe
+) -> GenAIEvalDataset:
     """
     Creates an evaluation dataset for validating vegetarian recipe generation.
     """
@@ -109,7 +144,9 @@ def build_recipe_eval_dataset(user_request: str, recipe_response: Recipe) -> Gen
             response = recipe_response.model_copy()
             response.rating = Rating(score=5, reason="Excellent recipe")
 
-        record = GenAIEvalRecord(context={"user_request": user_request, "recipe": response})
+        record = GenAIEvalRecord(
+            context={"user_request": user_request, "recipe": response}
+        )
         records.append(record)
 
     dataset = GenAIEvalDataset(
@@ -162,10 +199,19 @@ def build_recipe_eval_dataset(user_request: str, recipe_response: Recipe) -> Gen
             ),
             AssertionTask(
                 id="valid_rating_score",
-                field_path="context.recipe.rating.score",
+                field_path="recipe.rating.score",
                 operator=ComparisonOperator.InRange,
                 expected_value=[1, 5],
                 description="Verify rating score is between 1 and 5",
+                depends_on=["has_rating"],
+            ),
+            LLMJudgeTask(  # LLM judges validate the prompt outputs, not original context
+                id="practical_validation",
+                prompt=create_practical_prompt(),
+                expected_value=True,
+                operator=ComparisonOperator.Equals,
+                field_path="is_practical",
+                description="Validate that the recipe is practical and easy to follow",
                 depends_on=["has_rating"],
             ),
         ],
@@ -195,7 +241,9 @@ if __name__ == "__main__":
     for i, direction in enumerate(recipe.directions, 1):
         print(f"  {i}. {direction}")
 
-    dataset = build_recipe_eval_dataset(user_request=user_request, recipe_response=recipe)
+    dataset = build_recipe_eval_dataset(
+        user_request=user_request, recipe_response=recipe
+    )
 
     print("\n=== Evaluation Plan ===")
     dataset.print_execution_plan()

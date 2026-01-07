@@ -165,6 +165,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
 
         let task2 = LLMJudgeTask::new_rs(
@@ -173,6 +174,7 @@ mod tests {
             Value::Number(2.into()),
             None,
             ComparisonOperator::LessThanOrEqual,
+            None,
             None,
             None,
             None,

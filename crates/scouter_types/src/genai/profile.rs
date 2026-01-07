@@ -584,8 +584,11 @@ impl GenAIEvalProfile {
         }
 
         let workflow = if !judge_tasks.is_empty() {
-            let workflow = app_state()
-                .block_on(async { Self::build_workflow_from_judges(judge_tasks).await })?;
+            let assertion_ids: BTreeSet<String> =
+                assertion_tasks.iter().map(|t| t.id.clone()).collect();
+            let workflow = app_state().block_on(async {
+                Self::build_workflow_from_judges(judge_tasks, &assertion_ids).await
+            })?;
 
             // Validate the workflow
             validate_workflow(&workflow)?;
@@ -624,6 +627,7 @@ impl GenAIEvalProfile {
     /// * `Result<Workflow, ProfileError>` - The constructed workflow
     pub async fn build_workflow_from_judges(
         judges: &[LLMJudgeTask],
+        assertion_ids: &BTreeSet<String>,
     ) -> Result<Workflow, ProfileError> {
         let mut workflow = Workflow::new(&format!("eval_workflow_{}", create_uuid7()));
         let mut agents = HashMap::new();
@@ -638,11 +642,26 @@ impl GenAIEvalProfile {
                 }
             };
 
+            // filter out assertion IDs from dependencies
+            // All dependencies are checked when building a workflow, and non-judge tasks are not part of the workflow
+            let workflow_dependencies: Vec<String> = judge
+                .depends_on
+                .iter()
+                .filter(|dep_id| !assertion_ids.contains(*dep_id))
+                .cloned()
+                .collect();
+
+            let task_deps = if workflow_dependencies.is_empty() {
+                None
+            } else {
+                Some(workflow_dependencies)
+            };
+
             let task = Task::new(
                 &agent.id,
                 judge.prompt.clone(),
                 &judge.id,
-                Some(judge.depends_on.clone()),
+                task_deps,
                 judge.max_retries,
             );
 
@@ -934,6 +953,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
 
         let task2 = LLMJudgeTask::new_rs(
@@ -942,6 +962,7 @@ mod tests {
             Value::Number(2.into()),
             None,
             ComparisonOperator::LessThanOrEqual,
+            None,
             None,
             None,
             None,
