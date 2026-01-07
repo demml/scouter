@@ -51,8 +51,13 @@ impl CustomMetric {
     }
 
     #[getter]
-    pub fn class_id(&self) -> String {
-        self.name.clone()
+    pub fn alert_threshold(&self) -> AlertThreshold {
+        self.alert_condition.alert_threshold.clone()
+    }
+
+    #[getter]
+    pub fn delta(&self) -> Option<f64> {
+        self.alert_condition.delta
     }
 }
 

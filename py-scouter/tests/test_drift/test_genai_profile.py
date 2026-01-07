@@ -1,14 +1,15 @@
 from typing import cast
+
 from pydantic import BaseModel
 from scouter._scouter import GenAIEvalResultSet
-from scouter.alert import AlertThreshold, AlertCondition
+from scouter.alert import AlertCondition, AlertThreshold
 from scouter.drift import (
+    ComparisonOperator,
     Drifter,
+    GenAIAlertConfig,
     GenAIDriftConfig,
     GenAIEvalProfile,
-    GenAIAlertConfig,
     LLMJudgeTask,
-    ComparisonOperator,
 )
 from scouter.genai import Prompt, Score
 from scouter.mock import LLMTestServer
