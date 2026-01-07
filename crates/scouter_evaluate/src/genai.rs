@@ -11,6 +11,7 @@ use scouter_types::genai::{AssertionTask, GenAIDriftConfig, GenAIEvalProfile, LL
 use scouter_types::GenAIEvalRecord;
 use std::sync::Arc;
 use tracing::{debug, instrument};
+
 /// Main orchestration function that decides which execution path to take
 /// # Arguments
 /// * `dataset`: The dataset containing records to evaluate.
@@ -90,7 +91,7 @@ impl GenAIEvalDataset {
     }
 
     pub fn print_execution_plan(&self) -> Result<(), EvaluationError> {
-        let _ = self.profile.print_execution_plan()?;
+        self.profile.print_execution_plan()?;
         Ok(())
     }
 
