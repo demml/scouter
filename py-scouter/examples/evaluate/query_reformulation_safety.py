@@ -146,6 +146,6 @@ if __name__ == "__main__":
     )
 
     results = dataset.evaluate()
-    results.as_table()
+    results.as_table(True)
 
     # print(results)

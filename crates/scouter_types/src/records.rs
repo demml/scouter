@@ -193,6 +193,29 @@ impl PsiRecord {
     }
 }
 
+fn process_dict_with_nested_models(
+    py: Python<'_>,
+    dict: &Bound<'_, PyAny>,
+) -> Result<Value, RecordError> {
+    let py_dict = dict.cast::<PyDict>()?;
+    let mut result = serde_json::Map::new();
+
+    for (key, value) in py_dict.iter() {
+        let key_str: String = key.extract()?;
+
+        let processed_value = if is_pydantic_basemodel(py, &value)? {
+            let model = value.call_method0("model_dump")?;
+            depythonize(&model)?
+        } else {
+            depythonize(&value)?
+        };
+
+        result.insert(key_str, processed_value);
+    }
+
+    Ok(Value::Object(result))
+}
+
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GenAIEvalRecord {
@@ -227,14 +250,11 @@ impl GenAIEvalRecord {
         id: Option<String>,
     ) -> Result<Self, RecordError> {
         // check if context is a PyDict or PyObject(Pydantic model)
-        let context_val = if context.is_instance_of::<PyDict>() {
-            depythonize(&context)?
-        } else if is_pydantic_basemodel(py, &context)? {
-            // Dump pydantic model to dictionary
+        let context_val = if is_pydantic_basemodel(py, &context)? {
             let model = context.call_method0("model_dump")?;
-
-            // Serialize the dictionary to JSON
             depythonize(&model)?
+        } else if context.is_instance_of::<PyDict>() {
+            process_dict_with_nested_models(py, &context)?
         } else {
             Err(RecordError::MustBeDictOrBaseModel)?
         };
@@ -450,6 +470,28 @@ impl GenAIEvalWorkflowResult {
             entity_uid,
         }
     }
+}
+
+#[derive(Tabled)]
+pub struct TaskResultTableEntry {
+    #[tabled(rename = "Created At")]
+    pub created_at: String,
+    #[tabled(rename = "Record UID")]
+    pub record_uid: String,
+    #[tabled(rename = "Task ID")]
+    pub task_id: String,
+    #[tabled(rename = "Task Type")]
+    pub task_type: String,
+    #[tabled(rename = "Passed")]
+    pub passed: String,
+    #[tabled(rename = "Field Path")]
+    pub field_path: String,
+    #[tabled(rename = "Operator")]
+    pub operator: String,
+    #[tabled(rename = "Expected")]
+    pub expected: String,
+    #[tabled(rename = "Actual")]
+    pub actual: String,
 }
 
 // Detailed result for an individual evaluation task within a workflow

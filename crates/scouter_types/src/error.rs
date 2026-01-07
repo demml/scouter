@@ -241,6 +241,15 @@ pub enum RecordError {
 
     #[error("Invalid context type. Context must be dictionary or Pydantic BaseModel")]
     MustBeDictOrBaseModel,
+
+    #[error("Failed to downcast Python object: {0}")]
+    DowncastError(String),
+}
+
+impl<'a, 'py> From<pyo3::CastError<'a, 'py>> for RecordError {
+    fn from(err: pyo3::CastError) -> Self {
+        RecordError::DowncastError(err.to_string())
+    }
 }
 
 impl From<pythonize::PythonizeError> for RecordError {

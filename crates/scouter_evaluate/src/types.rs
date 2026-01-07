@@ -1,16 +1,21 @@
 use crate::error::EvaluationError;
 use crate::utils::{parse_embedder, post_process_aligned_results};
 use ndarray::Array2;
+use owo_colors::OwoColorize;
 use potato_head::{Embedder, PyHelperFuncs};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use scouter_profile::{Histogram, NumProfiler};
 use scouter_types::genai::GenAIEvalSet;
-use scouter_types::{GenAIEvalRecord, WorkflowResultTableEntry};
+use scouter_types::{GenAIEvalRecord, TaskResultTableEntry, WorkflowResultTableEntry};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
+use tabled::{
+    settings::{object::Rows, Alignment, Color, Format, Style},
+    Table,
+};
 
 pub fn array_to_dict<'py>(
     py: Python<'py>,
@@ -418,13 +423,32 @@ impl GenAIEvalResults {
         PyHelperFuncs::__str__(self)
     }
 
-    pub fn as_table(&self) {
-        use owo_colors::OwoColorize;
-        use tabled::{
-            settings::{object::Rows, Alignment, Color, Format, Style},
-            Table,
-        };
+    pub fn as_table(&self, show_tasks: bool) {
+        if show_tasks {
+            let tasks_table = self.build_tasks_table();
+            println!("\n{}", "Task Details".truecolor(245, 77, 85).bold());
+            println!("{}", tasks_table);
+        } else {
+            let workflow_table = self.build_workflow_table();
+            println!("\n{}", "Workflow Summary".truecolor(245, 77, 85).bold());
+            println!("{}", workflow_table);
+        }
+    }
 
+    pub fn model_dump_json(&self) -> String {
+        // serialize the struct to a string
+        PyHelperFuncs::__json__(self)
+    }
+
+    #[staticmethod]
+    pub fn model_validate_json(json_string: String) -> Result<Self, EvaluationError> {
+        Ok(serde_json::from_str(&json_string)?)
+    }
+}
+
+impl GenAIEvalResults {
+    /// Build workflow result table for console display
+    fn build_workflow_table(&self) -> Table {
         let entries: Vec<WorkflowResultTableEntry> = self
             .aligned_results
             .iter()
@@ -477,22 +501,66 @@ impl GenAIEvalResults {
                 Color::BOLD,
             ),
         );
-
-        println!("{}", &table);
+        table
     }
 
-    pub fn model_dump_json(&self) -> String {
-        // serialize the struct to a string
-        PyHelperFuncs::__json__(self)
+    /// Build detailed task results table for console display
+    fn build_tasks_table(&self) -> Table {
+        let entries: Vec<TaskResultTableEntry> = self
+            .aligned_results
+            .iter()
+            .flat_map(|result| {
+                result.eval_set.records.iter().map(move |task| {
+                    let expected_str = serde_json::to_string(&task.expected)
+                        .unwrap_or_else(|_| "null".to_string());
+                    let actual_str =
+                        serde_json::to_string(&task.actual).unwrap_or_else(|_| "null".to_string());
+
+                    let expected_truncated = if expected_str.len() > 50 {
+                        format!("{}...", &expected_str[..47])
+                    } else {
+                        expected_str
+                    };
+
+                    let actual_truncated = if actual_str.len() > 50 {
+                        format!("{}...", &actual_str[..47])
+                    } else {
+                        actual_str
+                    };
+
+                    TaskResultTableEntry {
+                        created_at: task.created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+                        record_uid: result.record_uid.truecolor(249, 179, 93).to_string(),
+                        task_id: task.task_id.clone(),
+                        task_type: task.task_type.to_string(),
+                        passed: if task.passed {
+                            "✓".green().to_string()
+                        } else {
+                            "✗".red().to_string()
+                        },
+                        field_path: task.field_path.clone().unwrap_or_default(),
+                        operator: task.operator.to_string(),
+                        expected: expected_truncated,
+                        actual: actual_truncated,
+                    }
+                })
+            })
+            .collect();
+
+        let mut table = Table::new(entries);
+        table.with(Style::sharp());
+
+        table.modify(
+            Rows::new(0..1),
+            (
+                Format::content(|s: &str| s.truecolor(245, 77, 85).bold().to_string()),
+                Alignment::center(),
+                Color::BOLD,
+            ),
+        );
+        table
     }
 
-    #[staticmethod]
-    pub fn model_validate_json(json_string: String) -> Result<Self, EvaluationError> {
-        Ok(serde_json::from_str(&json_string)?)
-    }
-}
-
-impl GenAIEvalResults {
     pub fn new() -> Self {
         Self {
             aligned_results: Vec::new(),
