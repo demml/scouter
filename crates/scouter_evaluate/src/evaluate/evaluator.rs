@@ -96,9 +96,6 @@ impl TaskResultStore {
                         warn!("LLM judge dependency '{}' not found in results", dep_id);
                     }
                 }
-                Some(TaskType::Condition) => {
-                    // Condition output are not injected into context, skip
-                }
                 None => {
                     warn!(
                         "Task dependency '{}' not registered in task registry",
@@ -238,19 +235,15 @@ impl GenAIEvaluator {
     }
 
     /// Partition task IDs by type (assertions vs LLM judges)
-    async fn partition_tasks(
-        &self,
-        task_ids: &[String],
-        profile: &Arc<GenAIEvalProfile>,
-    ) -> (Vec<String>, Vec<String>) {
+    async fn partition_tasks(&self, task_ids: &[String]) -> (Vec<String>, Vec<String>) {
         let mut assertions = Vec::new();
         let mut judges = Vec::new();
 
         for id in task_ids {
-            if profile.get_assertion_by_id(id).is_some() {
-                assertions.push(id.clone());
-            } else {
-                judges.push(id.clone());
+            match self.result_store.task_registry.read().await.get_type(id) {
+                Some(TaskType::Assertion) => assertions.push(id.clone()),
+                Some(TaskType::LLMJudge) => judges.push(id.clone()),
+                _ => continue,
             }
         }
 
@@ -290,7 +283,7 @@ impl GenAIEvaluator {
         task_ids: &[String],
         profile: &Arc<GenAIEvalProfile>,
     ) -> Result<(), EvaluationError> {
-        // remove any task ids that depend on a condition that evaluated to false
+        // remove any task ids that depend on a task that evaluated to false
         let filtered_task_ids = self.result_store.filter_conditional_tasks(task_ids);
 
         if filtered_task_ids.is_empty() {
@@ -298,8 +291,7 @@ impl GenAIEvaluator {
             return Ok(());
         }
 
-        let (assertion_ids, llm_judge_ids) =
-            self.partition_tasks(&filtered_task_ids, profile).await;
+        let (assertion_ids, llm_judge_ids) = self.partition_tasks(&filtered_task_ids).await;
 
         // Run both task groups concurrently
         let (assertion_result, judge_result) = tokio::join!(

@@ -3,7 +3,6 @@ use crate::genai::alert::GenAIAlertConfig;
 use crate::genai::eval::{AssertionTask, EvaluationTask, LLMJudgeTask};
 use crate::genai::traits::{separate_tasks, ProfileExt, TaskAccessor};
 use crate::genai::utils::extract_assertion_tasks_from_pylist;
-use crate::genai::ConditionalTask;
 use crate::util::{json_to_pyobject, pyobject_to_json, ConfigExt};
 use crate::{
     scouter_version, GenAIEvalTaskResult, GenAIEvalWorkflowResult, WorkflowResultTableEntry,
@@ -284,9 +283,6 @@ pub struct GenAIEvalProfile {
     pub llm_judge_tasks: Vec<LLMJudgeTask>,
 
     #[pyo3(get)]
-    pub conditional_tasks: Vec<ConditionalTask>,
-
-    #[pyo3(get)]
     pub scouter_version: String,
 
     pub workflow: Option<Workflow>,
@@ -312,17 +308,15 @@ impl GenAIEvalProfile {
         config: GenAIDriftConfig,
         tasks: &Bound<'_, PyList>,
     ) -> Result<Self, ProfileError> {
-        let (assertion_tasks, llm_judge_tasks, conditional_tasks) =
-            extract_assertion_tasks_from_pylist(tasks)?;
+        let (assertion_tasks, llm_judge_tasks) = extract_assertion_tasks_from_pylist(tasks)?;
 
-        let (workflow, task_ids) =
-            Self::build_profile(&llm_judge_tasks, &assertion_tasks, &conditional_tasks)?;
+        let (workflow, task_ids) = Self::build_profile(&llm_judge_tasks, &assertion_tasks)?;
 
         Ok(Self {
             config,
             assertion_tasks,
             llm_judge_tasks,
-            conditional_tasks,
+
             scouter_version: scouter_version(),
             workflow,
             task_ids,
@@ -567,15 +561,14 @@ impl GenAIEvalProfile {
         config: GenAIDriftConfig,
         tasks: Vec<EvaluationTask>,
     ) -> Result<Self, ProfileError> {
-        let (assertion_tasks, llm_judge_tasks, conditional_tasks) = separate_tasks(tasks);
-        let (workflow, task_ids) =
-            Self::build_profile(&llm_judge_tasks, &assertion_tasks, &conditional_tasks)?;
+        let (assertion_tasks, llm_judge_tasks) = separate_tasks(tasks);
+        let (workflow, task_ids) = Self::build_profile(&llm_judge_tasks, &assertion_tasks)?;
 
         Ok(Self {
             config,
             assertion_tasks,
             llm_judge_tasks,
-            conditional_tasks,
+
             scouter_version: scouter_version(),
             workflow,
             task_ids,
@@ -585,13 +578,12 @@ impl GenAIEvalProfile {
     fn build_profile(
         judge_tasks: &[LLMJudgeTask],
         assertion_tasks: &[AssertionTask],
-        conditional_tasks: &[ConditionalTask],
     ) -> Result<(Option<Workflow>, BTreeSet<String>), ProfileError> {
-        if assertion_tasks.is_empty() && judge_tasks.is_empty() && conditional_tasks.is_empty() {
+        if assertion_tasks.is_empty() && judge_tasks.is_empty() {
             return Err(ProfileError::EmptyTaskList);
         }
 
-        let workflow = if !judge_tasks.is_empty() && conditional_tasks.is_empty() {
+        let workflow = if !judge_tasks.is_empty() {
             let workflow = app_state()
                 .block_on(async { Self::build_workflow_from_judges(judge_tasks).await })?;
 
@@ -615,12 +607,9 @@ impl GenAIEvalProfile {
         for task in judge_tasks {
             task_ids.insert(task.id.clone());
         }
-        for task in conditional_tasks {
-            task_ids.insert(task.id.clone());
-        }
 
         // check for duplicate task IDs across all task types
-        let total_tasks = assertion_tasks.len() + judge_tasks.len() + conditional_tasks.len();
+        let total_tasks = assertion_tasks.len() + judge_tasks.len();
 
         if task_ids.len() != total_tasks {
             return Err(ProfileError::DuplicateTaskIds);
@@ -683,6 +672,7 @@ impl ProfileExt for GenAIEvalProfile {
     }
 
     #[inline]
+    /// Get assertion task by ID, first checking AssertionTasks, then ConditionalTasks
     fn get_assertion_by_id(&self, id: &str) -> Option<&AssertionTask> {
         self.assertion_tasks.iter().find(|t| t.id() == id)
     }

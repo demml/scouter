@@ -5,7 +5,6 @@ use std::collections::HashMap;
 pub enum TaskType {
     Assertion,
     LLMJudge,
-    Condition,
 }
 
 /// Registry that tracks task IDs and their types for store routing
@@ -47,7 +46,7 @@ impl TaskRegistry {
         self.dependency_map.insert(task_id, dependencies);
     }
 
-    /// For a given task ID, get its dependencies and return only those that are Condition tasks
+    /// For a given task ID, get its dependencies
     /// # Arguments
     /// * `task_id` - The ID of the task
     /// Get all conditional dependencies for a task
@@ -60,7 +59,7 @@ impl TaskRegistry {
         let mut conditions = Vec::new();
         if let Some(dependencies) = self.dependency_map.get(task_id) {
             for dep_id in dependencies {
-                if let Some(TaskType::Condition) = self.registry.get(dep_id.as_str()) {
+                if let Some(_) = self.registry.get(dep_id.as_str()) {
                     conditions.push(dep_id.as_str());
                 }
             }
