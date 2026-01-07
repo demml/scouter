@@ -1,6 +1,6 @@
 use crate::genai::{
-    AssertionResult, AssertionTask, ComparisonOperator, EvaluationTask, EvaluationTaskType,
-    LLMJudgeTask,
+    AssertionResult, AssertionTask, ComparisonOperator, ConditionalTask, EvaluationTask,
+    EvaluationTaskType, LLMJudgeTask,
 };
 use serde_json::Value;
 use std::fmt::Debug;
@@ -26,7 +26,10 @@ pub trait TaskAccessor {
     fn add_result(&mut self, result: AssertionResult);
 }
 
-pub fn separate_tasks(tasks: Vec<EvaluationTask>) -> (Vec<AssertionTask>, Vec<LLMJudgeTask>) {
+pub fn separate_tasks(
+    tasks: Vec<EvaluationTask>,
+) -> (Vec<AssertionTask>, Vec<LLMJudgeTask>, Vec<ConditionalTask>) {
+    let mut conditionals = Vec::new();
     let mut llm_judges = Vec::new();
     let mut assertions = Vec::new();
 
@@ -34,16 +37,18 @@ pub fn separate_tasks(tasks: Vec<EvaluationTask>) -> (Vec<AssertionTask>, Vec<LL
         match task {
             EvaluationTask::Assertion(a) => assertions.push(a),
             EvaluationTask::LLMJudge(j) => llm_judges.push(*j),
+            EvaluationTask::Conditional(c) => conditionals.push(c),
         }
     }
 
-    (assertions, llm_judges)
+    (assertions, llm_judges, conditionals)
 }
 
 #[derive(Debug)]
 pub enum TaskRef<'a> {
     Assertion(&'a mut AssertionTask),
     LLMJudge(&'a mut LLMJudgeTask),
+    Conditional(&'a mut ConditionalTask),
 }
 
 impl<'a> TaskRef<'a> {
@@ -51,6 +56,7 @@ impl<'a> TaskRef<'a> {
         match self {
             TaskRef::Assertion(t) => t.depends_on(),
             TaskRef::LLMJudge(t) => t.depends_on(),
+            TaskRef::Conditional(t) => t.depends_on(),
         }
     }
 }

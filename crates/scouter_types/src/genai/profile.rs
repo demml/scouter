@@ -587,9 +587,10 @@ impl GenAIEvalProfile {
         config: GenAIDriftConfig,
         tasks: Vec<EvaluationTask>,
     ) -> Result<Self, ProfileError> {
-        let (assertion_tasks, llm_judge_tasks) = separate_tasks(tasks);
+        let (assertion_tasks, llm_judge_tasks, conditional_tasks) = separate_tasks(tasks);
 
-        if assertion_tasks.is_empty() && llm_judge_tasks.is_empty() {
+        if assertion_tasks.is_empty() && llm_judge_tasks.is_empty() && conditional_tasks.is_empty()
+        {
             return Err(ProfileError::EmptyTaskList);
         }
 
@@ -615,6 +616,15 @@ impl GenAIEvalProfile {
         }
         for task in &llm_judge_tasks {
             task_ids.insert(task.id.clone());
+        }
+        for task in &conditional_tasks {
+            task_ids.insert(task.id.clone());
+        }
+
+        // check for duplicate task IDs across all task types
+        let total_tasks = assertion_tasks.len() + llm_judge_tasks.len() + conditional_tasks.len();
+        if task_ids.len() != total_tasks {
+            return Err(ProfileError::DuplicateTaskIds);
         }
 
         Ok(Self {
