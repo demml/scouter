@@ -216,6 +216,101 @@ impl ValueExt for Value {
     }
 }
 
+#[pyclass]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ConditionalTask {
+    #[pyo3(get, set)]
+    pub id: String,
+
+    #[pyo3(get, set)]
+    pub field_path: Option<String>,
+
+    #[pyo3(get, set)]
+    pub operator: ComparisonOperator,
+
+    pub expected_value: Value,
+
+    #[pyo3(get, set)]
+    pub description: Option<String>,
+
+    #[pyo3(get, set)]
+    pub depends_on: Vec<String>,
+
+    pub task_type: EvaluationTaskType,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<AssertionResult>,
+}
+
+#[pymethods]
+impl ConditionalTask {
+    /// # Arguments
+    /// * `id`: The id of the conditional task
+    /// * `field_path`: The path to the field to be asserted
+    /// * `operator`: The comparison operator to use
+    /// * `expected_value`: The expected value for the assertion
+    /// * `description`: Optional description for the assertion
+    /// # Returns
+    /// A new AssertionTask object
+    #[pyo3(signature = (id, field_path, expected_value, operator, description=None, depends_on=None))]
+    pub fn new(
+        id: String,
+        field_path: Option<String>,
+        expected_value: &Bound<'_, PyAny>,
+        operator: ComparisonOperator,
+        description: Option<String>,
+        depends_on: Option<Vec<String>>,
+    ) -> Result<Self, TypeError> {
+        let expected_value = depythonize(expected_value)?;
+        Ok(Self {
+            id: id.to_lowercase(),
+            field_path,
+            operator,
+            expected_value,
+            description,
+            task_type: EvaluationTaskType::Conditional,
+            depends_on: depends_on.unwrap_or_default(),
+            result: None,
+        })
+    }
+
+    #[getter]
+    pub fn get_expected_value<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TypeError> {
+        let py_value = pythonize(py, &self.expected_value)?;
+        Ok(py_value)
+    }
+}
+
+impl TaskAccessor for ConditionalTask {
+    fn field_path(&self) -> Option<&str> {
+        self.field_path.as_deref()
+    }
+
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn operator(&self) -> &ComparisonOperator {
+        &self.operator
+    }
+
+    fn task_type(&self) -> &EvaluationTaskType {
+        &self.task_type
+    }
+
+    fn expected_value(&self) -> &Value {
+        &self.expected_value
+    }
+
+    fn depends_on(&self) -> &[String] {
+        &self.depends_on
+    }
+
+    fn add_result(&mut self, result: AssertionResult) {
+        self.result = Some(result);
+    }
+}
+
 /// Primary class for defining an LLM as a Judge in evaluation workflows
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -379,6 +474,7 @@ impl TaskAccessor for LLMJudgeTask {
 pub enum EvaluationTask {
     Assertion(AssertionTask),
     LLMJudge(Box<LLMJudgeTask>),
+    Conditional(ConditionalTask),
 }
 
 impl TaskAccessor for EvaluationTask {
@@ -386,6 +482,7 @@ impl TaskAccessor for EvaluationTask {
         match self {
             EvaluationTask::Assertion(t) => t.field_path(),
             EvaluationTask::LLMJudge(t) => t.field_path(),
+            EvaluationTask::Conditional(t) => t.field_path(),
         }
     }
 
@@ -393,6 +490,7 @@ impl TaskAccessor for EvaluationTask {
         match self {
             EvaluationTask::Assertion(t) => t.id(),
             EvaluationTask::LLMJudge(t) => t.id(),
+            EvaluationTask::Conditional(t) => t.id(),
         }
     }
 
@@ -400,6 +498,7 @@ impl TaskAccessor for EvaluationTask {
         match self {
             EvaluationTask::Assertion(t) => t.task_type(),
             EvaluationTask::LLMJudge(t) => t.task_type(),
+            EvaluationTask::Conditional(t) => t.task_type(),
         }
     }
 
@@ -407,6 +506,7 @@ impl TaskAccessor for EvaluationTask {
         match self {
             EvaluationTask::Assertion(t) => t.operator(),
             EvaluationTask::LLMJudge(t) => t.operator(),
+            EvaluationTask::Conditional(t) => t.operator(),
         }
     }
 
@@ -414,6 +514,7 @@ impl TaskAccessor for EvaluationTask {
         match self {
             EvaluationTask::Assertion(t) => t.expected_value(),
             EvaluationTask::LLMJudge(t) => t.expected_value(),
+            EvaluationTask::Conditional(t) => t.expected_value(),
         }
     }
 
@@ -421,6 +522,7 @@ impl TaskAccessor for EvaluationTask {
         match self {
             EvaluationTask::Assertion(t) => t.depends_on(),
             EvaluationTask::LLMJudge(t) => t.depends_on(),
+            EvaluationTask::Conditional(t) => t.depends_on(),
         }
     }
 
@@ -428,6 +530,7 @@ impl TaskAccessor for EvaluationTask {
         match self {
             EvaluationTask::Assertion(t) => t.add_result(result),
             EvaluationTask::LLMJudge(t) => t.add_result(result),
+            EvaluationTask::Conditional(t) => t.add_result(result),
         }
     }
 }
@@ -763,6 +866,7 @@ pub fn assertion_value_from_py(value: &Bound<'_, PyAny>) -> Result<AssertionValu
 pub enum EvaluationTaskType {
     Assertion,
     LLMJudge,
+    Conditional,
     HumanValidation,
 }
 
@@ -771,6 +875,7 @@ impl Display for EvaluationTaskType {
         let task_type_str = match self {
             EvaluationTaskType::Assertion => "Assertion",
             EvaluationTaskType::LLMJudge => "LLMJudge",
+            EvaluationTaskType::Conditional => "Conditional",
             EvaluationTaskType::HumanValidation => "HumanValidation",
         };
         write!(f, "{}", task_type_str)
@@ -784,6 +889,7 @@ impl FromStr for EvaluationTaskType {
         match s {
             "Assertion" => Ok(EvaluationTaskType::Assertion),
             "LLMJudge" => Ok(EvaluationTaskType::LLMJudge),
+            "Conditional" => Ok(EvaluationTaskType::Conditional),
             "HumanValidation" => Ok(EvaluationTaskType::HumanValidation),
             _ => Err(TypeError::InvalidEvalType(s.to_string())),
         }
@@ -795,6 +901,7 @@ impl EvaluationTaskType {
         match self {
             EvaluationTaskType::Assertion => "Assertion",
             EvaluationTaskType::LLMJudge => "LLMJudge",
+            EvaluationTaskType::Conditional => "Conditional",
             EvaluationTaskType::HumanValidation => "HumanValidation",
         }
     }
