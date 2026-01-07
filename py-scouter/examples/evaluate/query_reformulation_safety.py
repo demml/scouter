@@ -1,9 +1,9 @@
 ### The following example shows how to run offline evaluations
+from pydantic import BaseModel
 from scouter.evaluate import ComparisonOperator, GenAIEvalDataset, LLMJudgeTask
 from scouter.genai import Agent, Prompt, Provider, Score
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 from scouter.queue import GenAIEvalRecord
-from pydantic import BaseModel
 
 RustyLogger.setup_logging(LoggingConfig(log_level=LogLevel.Debug))
 
@@ -141,9 +141,7 @@ if __name__ == "__main__":
     # print reformulated query
     print("Reformulated Query:", response.response_text())
 
-    dataset = build_eval_dataset(
-        user_query=user_query, response=response.response_text()
-    )
+    dataset = build_eval_dataset(user_query=user_query, response=response.response_text())
 
     results = dataset.evaluate()
     results.as_table(True)

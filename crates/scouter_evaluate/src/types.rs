@@ -423,6 +423,10 @@ impl GenAIEvalResults {
         PyHelperFuncs::__str__(self)
     }
 
+    #[pyo3(signature = (show_tasks=false))]
+    /// Display results as a table in the console
+    /// # Arguments
+    /// * `show_tasks` - If true, display detailed task results; otherwise, show workflow summary
     pub fn as_table(&self, show_tasks: bool) {
         if show_tasks {
             let tasks_table = self.build_tasks_table();
@@ -452,42 +456,7 @@ impl GenAIEvalResults {
         let entries: Vec<WorkflowResultTableEntry> = self
             .aligned_results
             .iter()
-            .map(|result| {
-                let pass_rate_display = format!("{:.1}%", result.eval_set.pass_rate() * 100.0);
-
-                WorkflowResultTableEntry {
-                    created_at: result
-                        .eval_set
-                        .created_at()
-                        .format("%Y-%m-%d %H:%M:%S")
-                        .to_string(),
-                    record_uid: result.record_uid.truecolor(249, 179, 93).to_string(),
-                    total_tasks: result.eval_set.total_tasks().to_string(),
-                    passed_tasks: if result.eval_set.passed_tasks() > 0 {
-                        result
-                            .eval_set
-                            .passed_tasks()
-                            .to_string()
-                            .green()
-                            .to_string()
-                    } else {
-                        result.eval_set.passed_tasks().to_string()
-                    },
-                    failed_tasks: if result.eval_set.failed_tasks() > 0 {
-                        result.eval_set.failed_tasks().to_string().red().to_string()
-                    } else {
-                        result.eval_set.failed_tasks().to_string()
-                    },
-                    pass_rate: if result.eval_set.pass_rate() >= 0.9 {
-                        pass_rate_display.green().to_string()
-                    } else if result.eval_set.pass_rate() >= 0.6 {
-                        pass_rate_display.yellow().to_string()
-                    } else {
-                        pass_rate_display.red().to_string()
-                    },
-                    duration_ms: result.eval_set.duration_ms().to_string(),
-                }
-            })
+            .flat_map(|result| result.eval_set.build_workflow_entries())
             .collect();
 
         let mut table = Table::new(entries);
@@ -509,42 +478,7 @@ impl GenAIEvalResults {
         let entries: Vec<TaskResultTableEntry> = self
             .aligned_results
             .iter()
-            .flat_map(|result| {
-                result.eval_set.records.iter().map(move |task| {
-                    let expected_str = serde_json::to_string(&task.expected)
-                        .unwrap_or_else(|_| "null".to_string());
-                    let actual_str =
-                        serde_json::to_string(&task.actual).unwrap_or_else(|_| "null".to_string());
-
-                    let expected_truncated = if expected_str.len() > 50 {
-                        format!("{}...", &expected_str[..47])
-                    } else {
-                        expected_str
-                    };
-
-                    let actual_truncated = if actual_str.len() > 50 {
-                        format!("{}...", &actual_str[..47])
-                    } else {
-                        actual_str
-                    };
-
-                    TaskResultTableEntry {
-                        created_at: task.created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-                        record_uid: result.record_uid.truecolor(249, 179, 93).to_string(),
-                        task_id: task.task_id.clone(),
-                        task_type: task.task_type.to_string(),
-                        passed: if task.passed {
-                            "✓".green().to_string()
-                        } else {
-                            "✗".red().to_string()
-                        },
-                        field_path: task.field_path.clone().unwrap_or_default(),
-                        operator: task.operator.to_string(),
-                        expected: expected_truncated,
-                        actual: actual_truncated,
-                    }
-                })
-            })
+            .flat_map(|result| result.eval_set.build_task_entries())
             .collect();
 
         let mut table = Table::new(entries);

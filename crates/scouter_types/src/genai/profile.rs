@@ -4,14 +4,17 @@ use crate::genai::eval::{AssertionTask, EvaluationTask, LLMJudgeTask};
 use crate::genai::traits::{separate_tasks, ProfileExt, TaskAccessor};
 use crate::genai::utils::extract_assertion_tasks_from_pylist;
 use crate::util::{json_to_pyobject, pyobject_to_json, ConfigExt};
-use crate::ProfileRequest;
-use crate::{scouter_version, GenAIEvalTaskResult, GenAIEvalWorkflowResult};
+use crate::{
+    scouter_version, GenAIEvalTaskResult, GenAIEvalWorkflowResult, WorkflowResultTableEntry,
+};
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
     PyHelperFuncs, VersionRequest, DEFAULT_VERSION, MISSING,
 };
+use crate::{ProfileRequest, TaskResultTableEntry};
 use chrono::{DateTime, Utc};
 use core::fmt::Debug;
+use owo_colors::OwoColorize;
 use potato_head::prompt_types::Prompt;
 use potato_head::Agent;
 use potato_head::Workflow;
@@ -27,6 +30,10 @@ use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tabled::{
+    settings::{object::Rows, Alignment, Color, Format, Style},
+    Table,
+};
 use tracing::instrument;
 
 #[pyclass]
@@ -720,6 +727,49 @@ pub struct GenAIEvalSet {
 }
 
 impl GenAIEvalSet {
+    pub fn build_task_entries(&self) -> Vec<TaskResultTableEntry> {
+        self.records
+            .iter()
+            .map(|record| record.to_table_entry())
+            .collect()
+    }
+    pub fn build_workflow_entries(&self) -> Vec<WorkflowResultTableEntry> {
+        vec![self.inner.to_table_entry()]
+    }
+    fn build_tasks_table(&self) -> Table {
+        let entries: Vec<TaskResultTableEntry> = self.build_task_entries();
+
+        let mut table = Table::new(entries);
+        table.with(Style::sharp());
+
+        table.modify(
+            Rows::new(0..1),
+            (
+                Format::content(|s: &str| s.truecolor(245, 77, 85).bold().to_string()),
+                Alignment::center(),
+                Color::BOLD,
+            ),
+        );
+        table
+    }
+
+    fn build_workflow_table(&self) -> Table {
+        let entries: Vec<WorkflowResultTableEntry> = self.build_workflow_entries();
+
+        let mut table = Table::new(entries);
+        table.with(Style::sharp());
+
+        table.modify(
+            Rows::new(0..1),
+            (
+                Format::content(|s: &str| s.truecolor(245, 77, 85).bold().to_string()),
+                Alignment::center(),
+                Color::BOLD,
+            ),
+        );
+        table
+    }
+
     pub fn new(records: Vec<GenAIEvalTaskResult>, inner: GenAIEvalWorkflowResult) -> Self {
         Self { records, inner }
     }
@@ -782,6 +832,22 @@ impl GenAIEvalSet {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         PyHelperFuncs::__str__(self)
+    }
+
+    #[pyo3(signature = (show_tasks=false))]
+    /// Display results as a table in the console
+    /// # Arguments
+    /// * `show_tasks` - If true, display detailed task results; otherwise, show workflow summary
+    pub fn as_table(&self, show_tasks: bool) {
+        if show_tasks {
+            let tasks_table = self.build_tasks_table();
+            println!("\n{}", "Task Details".truecolor(245, 77, 85).bold());
+            println!("{}", tasks_table);
+        } else {
+            let workflow_table = self.build_workflow_table();
+            println!("\n{}", "Workflow Summary".truecolor(245, 77, 85).bold());
+            println!("{}", workflow_table);
+        }
     }
 }
 

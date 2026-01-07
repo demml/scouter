@@ -5,6 +5,7 @@ use crate::{is_pydantic_basemodel, DriftType, Status};
 use crate::{EntityType, TagRecord};
 use chrono::DateTime;
 use chrono::Utc;
+use owo_colors::OwoColorize;
 use potato_head::create_uuid7;
 use potato_head::PyHelperFuncs;
 use pyo3::prelude::*;
@@ -21,6 +22,10 @@ use std::collections::HashSet;
 use std::fmt::Display;
 use std::str::FromStr;
 use tabled::Tabled;
+use tabled::{
+    settings::{object::Rows, Alignment, Color, Format, Style},
+    Table,
+};
 
 #[pyclass(eq)]
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
@@ -440,9 +445,53 @@ impl GenAIEvalWorkflowResult {
     pub fn model_dump_json(&self) -> String {
         PyHelperFuncs::__json__(self)
     }
+
+    pub fn as_table(&self) {
+        let workflow_table = self.to_table_entry();
+        let mut table = Table::new(vec![workflow_table]);
+        table.with(Style::sharp());
+
+        table.modify(
+            Rows::new(0..1),
+            (
+                Format::content(|s: &str| s.truecolor(245, 77, 85).bold().to_string()),
+                Alignment::center(),
+                Color::BOLD,
+            ),
+        );
+
+        println!("\n{}", "Workflow Summary".truecolor(245, 77, 85).bold());
+        println!("{}", table)
+    }
 }
 
 impl GenAIEvalWorkflowResult {
+    pub fn to_table_entry(&self) -> WorkflowResultTableEntry {
+        let pass_rate_display = format!("{:.1}%", self.pass_rate * 100.0);
+        WorkflowResultTableEntry {
+            created_at: self.created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+            record_uid: self.record_uid.truecolor(249, 179, 93).to_string(),
+            total_tasks: self.total_tasks.to_string(),
+            passed_tasks: if self.passed_tasks > 0 {
+                self.passed_tasks.to_string().green().to_string()
+            } else {
+                self.passed_tasks.to_string()
+            },
+            failed_tasks: if self.failed_tasks > 0 {
+                self.failed_tasks.to_string().red().to_string()
+            } else {
+                self.failed_tasks.to_string()
+            },
+            pass_rate: if self.pass_rate >= 0.9 {
+                pass_rate_display.green().to_string()
+            } else if self.pass_rate >= 0.6 {
+                pass_rate_display.yellow().to_string()
+            } else {
+                pass_rate_display.red().to_string()
+            },
+            duration_ms: self.duration_ms.to_string(),
+        }
+    }
     pub fn new(
         record_uid: String,
         total_tasks: i32,
@@ -556,9 +605,60 @@ impl GenAIEvalTaskResult {
     pub fn model_dump_json(&self) -> String {
         PyHelperFuncs::__json__(self)
     }
+
+    pub fn as_table(&self) {
+        let task_table = self.to_table_entry();
+        let mut table = Table::new(vec![task_table]);
+        table.with(Style::sharp());
+
+        table.modify(
+            Rows::new(0..1),
+            (
+                Format::content(|s: &str| s.truecolor(245, 77, 85).bold().to_string()),
+                Alignment::center(),
+                Color::BOLD,
+            ),
+        );
+
+        println!("\n{}", "Task Details".truecolor(245, 77, 85).bold());
+        println!("{}", table);
+    }
 }
 
 impl GenAIEvalTaskResult {
+    pub(crate) fn to_table_entry(&self) -> TaskResultTableEntry {
+        let expected_str =
+            serde_json::to_string(&self.expected).unwrap_or_else(|_| "null".to_string());
+        let actual_str = serde_json::to_string(&self.actual).unwrap_or_else(|_| "null".to_string());
+
+        let expected_truncated = if expected_str.len() > 50 {
+            format!("{}...", &expected_str[..47])
+        } else {
+            expected_str
+        };
+
+        let actual_truncated = if actual_str.len() > 50 {
+            format!("{}...", &actual_str[..47])
+        } else {
+            actual_str
+        };
+
+        TaskResultTableEntry {
+            created_at: self.created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+            record_uid: self.record_uid.truecolor(249, 179, 93).to_string(),
+            task_id: self.task_id.clone(),
+            task_type: self.task_type.to_string(),
+            passed: if self.passed {
+                "✓".green().to_string()
+            } else {
+                "✗".red().to_string()
+            },
+            field_path: self.field_path.clone().unwrap_or_default(),
+            operator: self.operator.to_string(),
+            expected: expected_truncated,
+            actual: actual_truncated,
+        }
+    }
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         record_uid: String,
