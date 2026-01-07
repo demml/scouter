@@ -3,6 +3,7 @@ use crate::genai::alert::GenAIAlertConfig;
 use crate::genai::eval::{AssertionTask, EvaluationTask, LLMJudgeTask};
 use crate::genai::traits::{separate_tasks, ProfileExt, TaskAccessor};
 use crate::genai::utils::extract_assertion_tasks_from_pylist;
+use crate::genai::ConditionalTask;
 use crate::util::{json_to_pyobject, pyobject_to_json, ConfigExt};
 use crate::{
     scouter_version, GenAIEvalTaskResult, GenAIEvalWorkflowResult, WorkflowResultTableEntry,
@@ -283,6 +284,9 @@ pub struct GenAIEvalProfile {
     pub llm_judge_tasks: Vec<LLMJudgeTask>,
 
     #[pyo3(get)]
+    pub conditional_tasks: Vec<ConditionalTask>,
+
+    #[pyo3(get)]
     pub scouter_version: String,
 
     pub workflow: Option<Workflow>,
@@ -298,7 +302,7 @@ impl GenAIEvalProfile {
     /// GenAI evaluations are run asynchronously on the scouter server.
     /// # Arguments
     /// * `config` - GenAIDriftConfig - The configuration for the GenAI drift profile
-    /// * `tasks` - PyList - List of AssertionTask and LLMJudgeTask
+    /// * `tasks` - PyList - List of AssertionTask, LLMJudgeTask or ConditionalTask
     /// # Returns
     /// * `Result<Self, ProfileError>` - The GenAIEvalProfile
     /// # Errors
@@ -308,41 +312,17 @@ impl GenAIEvalProfile {
         config: GenAIDriftConfig,
         tasks: &Bound<'_, PyList>,
     ) -> Result<Self, ProfileError> {
-        let (assertion_tasks, llm_judge_tasks) = extract_assertion_tasks_from_pylist(tasks)?;
+        let (assertion_tasks, llm_judge_tasks, conditional_tasks) =
+            extract_assertion_tasks_from_pylist(tasks)?;
 
-        if assertion_tasks.is_empty() && llm_judge_tasks.is_empty() {
-            return Err(ProfileError::EmptyTaskList);
-        }
-
-        let workflow = if !llm_judge_tasks.is_empty() {
-            let workflow = app_state()
-                .block_on(async { Self::build_workflow_from_judges(&llm_judge_tasks).await })?;
-
-            // Validate the workflow
-            validate_workflow(&workflow)?;
-            Some(workflow)
-        } else {
-            None
-        };
-
-        // Validate LLM judge prompts individually
-        for judge in &llm_judge_tasks {
-            validate_prompt_parameters(&judge.prompt, &judge.id)?;
-        }
-
-        // Collect all task IDs from assertion and LLM judge tasks
-        let mut task_ids = BTreeSet::new();
-        for task in &assertion_tasks {
-            task_ids.insert(task.id.clone());
-        }
-        for task in &llm_judge_tasks {
-            task_ids.insert(task.id.clone());
-        }
+        let (workflow, task_ids) =
+            Self::build_profile(&llm_judge_tasks, &assertion_tasks, &conditional_tasks)?;
 
         Ok(Self {
             config,
             assertion_tasks,
             llm_judge_tasks,
+            conditional_tasks,
             scouter_version: scouter_version(),
             workflow,
             task_ids,
@@ -588,14 +568,32 @@ impl GenAIEvalProfile {
         tasks: Vec<EvaluationTask>,
     ) -> Result<Self, ProfileError> {
         let (assertion_tasks, llm_judge_tasks, conditional_tasks) = separate_tasks(tasks);
+        let (workflow, task_ids) =
+            Self::build_profile(&llm_judge_tasks, &assertion_tasks, &conditional_tasks)?;
 
-        if assertion_tasks.is_empty() && llm_judge_tasks.is_empty() && conditional_tasks.is_empty()
-        {
+        Ok(Self {
+            config,
+            assertion_tasks,
+            llm_judge_tasks,
+            conditional_tasks,
+            scouter_version: scouter_version(),
+            workflow,
+            task_ids,
+        })
+    }
+
+    fn build_profile(
+        judge_tasks: &[LLMJudgeTask],
+        assertion_tasks: &[AssertionTask],
+        conditional_tasks: &[ConditionalTask],
+    ) -> Result<(Option<Workflow>, BTreeSet<String>), ProfileError> {
+        if assertion_tasks.is_empty() && judge_tasks.is_empty() && conditional_tasks.is_empty() {
             return Err(ProfileError::EmptyTaskList);
         }
 
-        let workflow = if !llm_judge_tasks.is_empty() {
-            let workflow = Self::build_workflow_from_judges(&llm_judge_tasks).await?;
+        let workflow = if !judge_tasks.is_empty() && conditional_tasks.is_empty() {
+            let workflow = app_state()
+                .block_on(async { Self::build_workflow_from_judges(judge_tasks).await })?;
 
             // Validate the workflow
             validate_workflow(&workflow)?;
@@ -605,37 +603,31 @@ impl GenAIEvalProfile {
         };
 
         // Validate LLM judge prompts individually
-        for judge in &llm_judge_tasks {
+        for judge in judge_tasks {
             validate_prompt_parameters(&judge.prompt, &judge.id)?;
         }
 
         // Collect all task IDs from assertion and LLM judge tasks
         let mut task_ids = BTreeSet::new();
-        for task in &assertion_tasks {
+        for task in assertion_tasks {
             task_ids.insert(task.id.clone());
         }
-        for task in &llm_judge_tasks {
+        for task in judge_tasks {
             task_ids.insert(task.id.clone());
         }
-        for task in &conditional_tasks {
+        for task in conditional_tasks {
             task_ids.insert(task.id.clone());
         }
 
         // check for duplicate task IDs across all task types
-        let total_tasks = assertion_tasks.len() + llm_judge_tasks.len() + conditional_tasks.len();
+        let total_tasks = assertion_tasks.len() + judge_tasks.len() + conditional_tasks.len();
+
         if task_ids.len() != total_tasks {
             return Err(ProfileError::DuplicateTaskIds);
         }
-
-        Ok(Self {
-            config,
-            assertion_tasks,
-            llm_judge_tasks,
-            scouter_version: scouter_version(),
-            workflow,
-            task_ids,
-        })
+        Ok((workflow, task_ids))
     }
+
     /// Build workflow from LLM judge tasks
     /// # Arguments
     /// * `judges` - Slice of LLMJudgeTask
