@@ -1,6 +1,7 @@
 use crate::error::EvaluationError;
 use crate::evaluate::evaluator::GenAIEvaluator;
 use crate::genai::GenAIEvalDataset;
+use crate::tasks::evaluator::FieldEvaluator;
 use crate::types::{EvaluationConfig, GenAIEvalResults};
 use itertools::iproduct;
 use num_traits::FromPrimitive;
@@ -9,6 +10,7 @@ use pyo3::prelude::*;
 use rayon::prelude::*;
 use scouter_types::genai::GenAIEvalSet;
 use scouter_types::GenAIEvalRecord;
+use serde_json::Value;
 use simsimd::SpatialSimilarity;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -113,41 +115,50 @@ pub async fn generate_embeddings_for_record(
     let mut embeddings = BTreeMap::new();
 
     for target in embedding_targets {
-        let texts = record
-            .context
-            .get(target)
-            .and_then(|v| v.as_str())
-            .map(|s| vec![s.to_string()]);
-
-        if let Some(texts) = texts {
-            match embedder.embed(EmbeddingInput::Texts(texts)).await {
-                Ok(embedding_response) => match embedding_response.values() {
-                    Ok(values) => {
-                        // move ownership of values into Embedding struct
-                        embeddings.insert(target.clone(), values.to_vec());
-                    }
-                    Err(e) => {
-                        error!(
-                            "Failed to extract embedding values for target {}: {:?}",
-                            target, e
+        match FieldEvaluator::extract_field_value(&record.context, target) {
+            Ok(value) => {
+                let text = match value {
+                    Value::String(s) => Some(s.clone()),
+                    Value::Array(_) | Value::Object(_) => serde_json::to_string(value).ok(),
+                    _ => {
+                        warn!(
+                            "Field '{}' has unsupported type for embedding: {:?}",
+                            target, value
                         );
+                        None
                     }
-                },
-                Err(e) => {
-                    error!(
-                        "Failed to generate embedding for target {}: {:?}",
-                        target, e
-                    );
+                };
+
+                if let Some(text) = text {
+                    match embedder.embed(EmbeddingInput::Texts(vec![text])).await {
+                        Ok(embedding_response) => match embedding_response.values() {
+                            Ok(values) => {
+                                embeddings.insert(target.clone(), values.to_vec());
+                            }
+                            Err(e) => {
+                                error!(
+                                    "Failed to extract embedding values for target '{}': {:?}",
+                                    target, e
+                                );
+                            }
+                        },
+                        Err(e) => {
+                            error!(
+                                "Failed to generate embedding for target '{}': {:?}",
+                                target, e
+                            );
+                        }
+                    }
                 }
             }
-        } else {
-            warn!("No text found for embedding target: {}", target);
+            Err(e) => {
+                warn!("Failed to extract field '{}' for embedding: {}", target, e);
+            }
         }
     }
 
     embeddings
 }
-
 /// Collect and align results with original records
 pub async fn collect_and_align_results(
     mut join_set: JoinSet<EvalTaskResult>,

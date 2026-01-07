@@ -424,6 +424,7 @@ impl TestHelper {
             ComparisonOperator::GreaterThanOrEqual,
             None,
             None,
+            None,
         );
 
         let task2 = LLMJudgeTask::new_rs(
@@ -432,6 +433,7 @@ impl TestHelper {
             Value::Number(2.into()),
             None,
             ComparisonOperator::LessThanOrEqual,
+            None,
             None,
             None,
         );

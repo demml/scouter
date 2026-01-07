@@ -1,44 +1,45 @@
 import pandas as pd
 import polars as pl
-from scouter.evaluate import (  # type: ignore
+from scouter.evaluate import (
     EvaluationConfig,
-    GenAIEvalMetric,
+    GenAIEvalDataset,
     GenAIEvalRecord,
     GenAIEvalResults,
-    evaluate_genai,
 )
-from scouter.genai import Embedder, Provider  # type: ignore
-from scouter.genai.openai import OpenAIEmbeddingConfig  # type: ignore
+from scouter.genai import Embedder, Provider
+from scouter.genai.openai import OpenAIEmbeddingConfig
 from scouter.mock import LLMTestServer
 
 
-def test_genai_eval_no_embedding(reformulation_evaluation_prompt, relevancy_evaluation_prompt) -> None:
+# maintain parity with rust tests
+def test_genai_eval_no_embedding(
+    assertion_task_foo,
+    llm_judge_query_relevance,
+    query_relevance_score_assertion_task,
+    query_relevance_reason_assertion_task,
+) -> None:
     with LLMTestServer():
-        records = []
-        for i in range(10):
-            record = GenAIEvalRecord(
-                context={"user_query": "my query", "response": "my response"},
-                id=f"test_id_{i}",
-            )
-            records.append(record)
-
-        reformulation_metric = GenAIEvalMetric(
-            name="reformulation",
-            prompt=reformulation_evaluation_prompt,
-        )
-        relevancy_metric = GenAIEvalMetric(
-            name="relevancy",
-            prompt=relevancy_evaluation_prompt,
-        )
-        results = evaluate_genai(
-            records=records,
-            metrics=[reformulation_metric, relevancy_metric],
+        record = GenAIEvalRecord(
+            context={"input": {"foo": "bar", "bar": 42, "baz": [1, 2, 3]}},
+            id="test_id_1",
         )
 
-        metrics = results["test_id_1"].metrics
+        dataset = GenAIEvalDataset(
+            records=[record],
+            tasks=[
+                assertion_task_foo,
+                llm_judge_query_relevance,
+                query_relevance_score_assertion_task,
+                query_relevance_reason_assertion_task,
+            ],
+        )
 
-        assert metrics["reformulation"].score > 0
-        assert metrics["relevancy"].score > 0
+        assert len(dataset.llm_judge_tasks) == 1
+        assert len(dataset.assertion_tasks) == 3
+
+        results = dataset.evaluate()
+
+        results.as_table()
 
         result_df: pd.DataFrame = results.to_dataframe()
 
@@ -49,10 +50,81 @@ def test_genai_eval_no_embedding(reformulation_evaluation_prompt, relevancy_eval
         assert isinstance(result_polars_df, pl.DataFrame)
 
 
-def test_genai_eval_embedding(reformulation_evaluation_prompt, relevancy_evaluation_prompt) -> None:
+def test_genai_eval_no_embedding_one_fail(
+    assertion_task_foo,
+    llm_judge_query_relevance,
+    query_relevance_score_assertion_task,
+    query_relevance_reason_assertion_task,
+    assertion_task_baz,
+) -> None:
     with LLMTestServer():
         records = []
 
+        for i in range(5):
+            record = GenAIEvalRecord(
+                context={"input": {"foo": "bar", "bar": 42, "baz": [1, 2, 3]}},
+                id=f"test_id_{i}",
+            )
+            records.append(record)
+
+        dataset = GenAIEvalDataset(
+            records=records,
+            tasks=[
+                assertion_task_foo,
+                assertion_task_baz,
+                llm_judge_query_relevance,
+                query_relevance_score_assertion_task,
+                query_relevance_reason_assertion_task,
+            ],
+        )
+
+        dataset.print_execution_plan()
+
+        results = dataset.evaluate()
+        results.as_table()
+
+        assert len(dataset.llm_judge_tasks) == 1
+        assert len(dataset.assertion_tasks) == 4
+
+
+def test_genai_eval_no_embedding_all_assertion(
+    assertion_task_foo,
+    assertion_task_bar,
+    assertion_task_baz,
+) -> None:
+    with LLMTestServer():
+        records = []
+
+        for i in range(5):
+            record = GenAIEvalRecord(
+                context={"input": {"foo": "bar", "bar": 42, "baz": [1, 2, 3]}},
+                id=f"test_id_{i}",
+            )
+            records.append(record)
+
+        dataset = GenAIEvalDataset(
+            records=records,
+            tasks=[
+                assertion_task_foo,
+                assertion_task_baz,
+                assertion_task_bar,
+            ],
+        )
+
+        dataset.print_execution_plan()
+
+        results = dataset.evaluate()
+        results.as_table()
+
+        assert len(dataset.assertion_tasks) == 3
+
+
+def test_genai_eval_embedding_all_assertion(
+    assertion_task_foo,
+    assertion_task_bar,
+    assertion_task_baz,
+) -> None:
+    with LLMTestServer():
         embedder = Embedder(
             Provider.OpenAI,
             config=OpenAIEmbeddingConfig(
@@ -60,48 +132,42 @@ def test_genai_eval_embedding(reformulation_evaluation_prompt, relevancy_evaluat
                 dimensions=512,
             ),
         )
-        for i in range(100):
+
+        records = []
+
+        for i in range(5):
             record = GenAIEvalRecord(
-                context={"user_query": "my query", "response": "my response"},
+                context={
+                    "input": {"foo": "bar", "bar": 42, "baz": [1, 2, 3]},
+                    "response": "my response",
+                },
                 id=f"test_id_{i}",
             )
             records.append(record)
 
-        reformulation_metric = GenAIEvalMetric(
-            name="reformulation",
-            prompt=reformulation_evaluation_prompt,
-        )
-        relevancy_metric = GenAIEvalMetric(
-            name="relevancy",
-            prompt=relevancy_evaluation_prompt,
-        )
-        results = evaluate_genai(
+        dataset = GenAIEvalDataset(
             records=records,
-            metrics=[reformulation_metric, relevancy_metric],
+            tasks=[
+                assertion_task_foo,
+                assertion_task_baz,
+                assertion_task_bar,
+            ],
+        )
+
+        dataset.print_execution_plan()
+
+        results = dataset.evaluate(
             config=EvaluationConfig(
                 embedder=embedder,
-                embedding_targets=["user_query", "response"],
+                embedding_targets=["input.foo", "response"],
                 compute_similarity=True,
-                cluster=True,
                 compute_histograms=True,
             ),
         )
-        metrics = results["test_id_1"].metrics
+        results.as_table()
 
-        assert metrics["reformulation"].score > 0
-        assert metrics["relevancy"].score > 0
+        assert len(dataset.assertion_tasks) == 3
 
-        result_df: pd.DataFrame = results.to_dataframe()
-
-        assert isinstance(result_df, pd.DataFrame)
-
-        result_polars_df: pl.DataFrame = results.to_dataframe(polars=True)
-
-        assert isinstance(result_polars_df, pl.DataFrame)
-
-        assert result_df.shape[0] == 100  # 10 records x 2 metrics
-
-        # test model_dump_json and model_validate_json
         json_str = results.model_dump_json()
         assert isinstance(json_str, str)
 

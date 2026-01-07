@@ -20,6 +20,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Display;
 use std::str::FromStr;
+use tabled::Tabled;
 
 #[pyclass(eq)]
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
@@ -216,14 +217,14 @@ pub struct GenAIEvalRecord {
 #[pymethods]
 impl GenAIEvalRecord {
     #[new]
-    #[pyo3(signature = (context, record_id = None))]
+    #[pyo3(signature = (context, id = None))]
 
     /// Creates a new GenAIEvalRecord instance.
     /// The context is either a python dictionary or a pydantic basemodel.
     pub fn new(
         py: Python<'_>,
         context: Bound<'_, PyAny>,
-        record_id: Option<String>,
+        id: Option<String>,
     ) -> Result<Self, RecordError> {
         // check if context is a PyDict or PyObject(Pydantic model)
         let context_val = if context.is_instance_of::<PyDict>() {
@@ -242,7 +243,7 @@ impl GenAIEvalRecord {
             uid: create_uuid7(),
             created_at: Utc::now(),
             context: context_val,
-            record_id: record_id.unwrap_or_default(),
+            record_id: id.unwrap_or_default(),
 
             ..Default::default()
         })
@@ -359,6 +360,24 @@ impl BoxedGenAIEvalRecord {
             record: Box::new(record),
         }
     }
+}
+
+#[derive(Tabled)]
+pub struct WorkflowResultTableEntry {
+    #[tabled(rename = "Created At")]
+    pub created_at: String,
+    #[tabled(rename = "Record UID")]
+    pub record_uid: String,
+    #[tabled(rename = "Total Tasks")]
+    pub total_tasks: String,
+    #[tabled(rename = "Passed")]
+    pub passed_tasks: String,
+    #[tabled(rename = "Failed")]
+    pub failed_tasks: String,
+    #[tabled(rename = "Pass Rate")]
+    pub pass_rate: String,
+    #[tabled(rename = "Duration (ms)")]
+    pub duration_ms: String,
 }
 
 #[pyclass]

@@ -23,6 +23,7 @@ hex = { workspace = true }
 opentelemetry = { workspace = true }
 opentelemetry-proto = { workspace = true }
 opentelemetry-otlp = { workspace = true }
+owo-colors = { workspace = true }
 rayon = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
@@ -32,6 +33,7 @@ pythonize = { workspace = true }
 sqlx = { workspace = true, optional = true }
 strum = { workspace = true }
 strum_macros = { workspace = true }
+tabled = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true}
 tracing = { workspace = true }

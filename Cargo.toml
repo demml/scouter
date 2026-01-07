@@ -82,6 +82,7 @@ opentelemetry-stdout = "0.31.0"
 opentelemetry_sdk = { version = "0.31.0", features = ["trace"] }
 opentelemetry-proto = { version = "0.31.0" , features = ["trace"] }
 opentelemetry-otlp = { version = "0.31.0", features = ["grpc-tonic", "trace"] }
+owo-colors = "4.*"
 parquet = { version = ">=55.*", features = ["arrow"] }
 password-auth = "1.*"
 potato-head = { git = "https://github.com/demml/potatohead.git", branch = "main" }
@@ -102,7 +103,7 @@ simsimd = "6.5.*"
 sqlx = { version = "0.*", features = [ "runtime-tokio", "tls-native-tls", "postgres", "chrono", "json"] }
 strum = "0.*"
 strum_macros = "0.*"
-
+tabled = { version = "0.*", features = ["ansi"] }
 tempfile = "3.*"
 thiserror = "2.*"
 time = "0.*"

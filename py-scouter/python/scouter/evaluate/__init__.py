@@ -2,6 +2,8 @@
 
 from .._scouter import (
     AlignedEvalResult,
+    AssertionTask,
+    ComparisonOperator,
     EvaluationConfig,
     GenAIEvalDataset,
     GenAIEvalRecord,
@@ -9,6 +11,7 @@ from .._scouter import (
     GenAIEvalResultSet,
     GenAIEvalSet,
     GenAIEvalTaskResult,
+    LLMJudgeTask,
 )
 
 __all__ = [
@@ -20,4 +23,7 @@ __all__ = [
     "GenAIEvalResultSet",
     "AlignedEvalResult",
     "GenAIEvalRecord",
+    "LLMJudgeTask",
+    "AssertionTask",
+    "ComparisonOperator",
 ]

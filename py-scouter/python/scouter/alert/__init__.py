@@ -1,11 +1,11 @@
 # mypy: disable-error-code="attr-defined"
 
 from .._scouter import (
+    AlertCondition,
     AlertDispatchType,
     AlertThreshold,
     AlertZone,
     ConsoleDispatchConfig,
-    AlertCondition,
     CustomMetricAlertConfig,
     GenAIAlertConfig,
     OpsGenieDispatchConfig,

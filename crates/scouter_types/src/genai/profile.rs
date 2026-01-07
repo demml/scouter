@@ -521,6 +521,57 @@ impl GenAIEvalProfile {
 
         Ok(result)
     }
+
+    pub fn print_execution_plan(&self) -> Result<(), ProfileError> {
+        use owo_colors::OwoColorize;
+
+        let plan = self.get_execution_plan()?;
+
+        println!("\n{}", "Evaluation Execution Plan".bold().green());
+        println!("{}", "═".repeat(50).green());
+
+        for (level_idx, level) in plan.iter().enumerate() {
+            let stage_label = format!("Stage {}", level_idx + 1);
+            println!("\n{}", stage_label.bold().cyan());
+
+            for (task_idx, task_id) in level.iter().enumerate() {
+                let is_last = task_idx == level.len() - 1;
+                let prefix = if is_last { "└─" } else { "├─" };
+
+                let (task_type, color_fn): (&str, fn(&str) -> String) =
+                    if self.assertion_tasks.iter().any(|t| &t.id == task_id) {
+                        ("Assertion", |s: &str| s.yellow().to_string())
+                    } else {
+                        ("LLM Judge", |s: &str| s.purple().to_string())
+                    };
+
+                println!("{} {} ({})", prefix, task_id.bold(), color_fn(task_type));
+
+                if let Some(task) = self.get_task_by_id(task_id) {
+                    let deps = task.depends_on();
+                    if !deps.is_empty() {
+                        let dep_prefix = if is_last { "  " } else { "│ " };
+                        println!(
+                            "{}   {} {}",
+                            dep_prefix,
+                            "depends on:".dimmed(),
+                            deps.join(", ").dimmed()
+                        );
+                    }
+                }
+            }
+        }
+
+        println!("\n{}", "═".repeat(50).green());
+        println!(
+            "{}: {} tasks across {} stages\n",
+            "Summary".bold(),
+            self.assertion_tasks.len() + self.llm_judge_tasks.len(),
+            plan.len()
+        );
+
+        Ok(())
+    }
 }
 
 impl GenAIEvalProfile {
@@ -824,6 +875,7 @@ mod tests {
             ComparisonOperator::GreaterThanOrEqual,
             None,
             None,
+            None,
         );
 
         let task2 = LLMJudgeTask::new_rs(
@@ -832,6 +884,7 @@ mod tests {
             Value::Number(2.into()),
             None,
             ComparisonOperator::LessThanOrEqual,
+            None,
             None,
             None,
         );

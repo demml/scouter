@@ -16,8 +16,10 @@ from . import (
     types,
     util,
 )
-from ._scouter import (
+from ._scouter import (  # genai
+    AssertionTask,
     CommonCrons,
+    ComparisonOperator,
     CustomDriftProfile,
     CustomMetric,
     CustomMetricAlertConfig,
@@ -31,14 +33,13 @@ from ._scouter import (
     Features,
     FreedmanDiaconis,
     GenAIDriftConfig,
-    GenAIDriftMetric,
-    GenAIEvalMetric,
     GenAIEvalProfile,
     GenAIEvalRecord,
     GenAIEvalResults,
     GrpcConfig,
     HttpConfig,
     KafkaConfig,
+    LLMJudgeTask,
     LoggingConfig,
     Manual,
     Metric,
@@ -51,7 +52,7 @@ from ._scouter import (
     Queue,
 )
 from ._scouter import QueueFeature as Feature
-from ._scouter import (
+from ._scouter import (  # genai
     RabbitMQConfig,
     RedisConfig,
     Rice,
@@ -119,9 +120,6 @@ __all__ = [
     "Scott",
     "TerrellScott",
     "FreedmanDiaconis",
-    "GenAIDriftMetric",
-    "GenAIDriftConfig",
-    "GenAIEvalProfile",
     "DataProfiler",
     "DataProfile",
     "ScouterQueue",
@@ -135,12 +133,17 @@ __all__ = [
     "SpcAlertConfig",
     "CustomMetricAlertConfig",
     "ScouterClient",
-    "GenAIEvalMetric",
-    "GenAIEvalResults",
-    "GenAIEvalRecord",
     "HttpConfig",
     "GrpcConfig",
     "KafkaConfig",
     "RabbitMQConfig",
     "RedisConfig",
+    # genai
+    "GenAIDriftConfig",
+    "GenAIEvalProfile",
+    "GenAIEvalRecord",
+    "LLMJudgeTask",
+    "AssertionTask",
+    "ComparisonOperator",
+    "GenAIEvalResults",
 ]

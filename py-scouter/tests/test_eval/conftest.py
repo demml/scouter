@@ -1,79 +1,86 @@
 import pytest
-from scouter.genai import Prompt, Score
+from scouter.evaluate import AssertionTask, ComparisonOperator, LLMJudgeTask
+from scouter.genai import Prompt, Provider, Role, Score
+from scouter.genai.openai import ChatMessage
 
 
 @pytest.fixture
-def reformulation_evaluation_prompt():
-    """
-    Builds a prompt for evaluating the quality of a reformulated query.
-
-    Returns:
-        Prompt: A prompt that asks for a JSON evaluation of the reformulation.
-
-    Example:
-        >>> prompt = create_reformulation_evaluation_prompt()
-    """
-    return Prompt(
-        messages=(
-            "You are an expert evaluator of search query reformulations. "
-            "Given the original user query and its reformulated version, your task is to assess how well the reformulation improves the query. "
-            "Consider the following criteria:\n"
-            "- Does the reformulation make the query more explicit and comprehensive?\n"
-            "- Are relevant synonyms, related concepts, or specific features added?\n"
-            "- Is the original intent preserved without changing the meaning?\n"
-            "- Is the reformulation clear and unambiguous?\n\n"
-            "Provide your evaluation as a JSON object with the following attributes:\n"
-            "- score: An integer from 1 (poor) to 5 (excellent) indicating the overall quality of the reformulation.\n"
-            "- reason: A brief explanation for your score.\n\n"
-            "Format your response as:\n"
-            "{\n"
-            '  "score": <integer 1-5>,\n'
-            '  "reason": "<your explanation>"\n'
-            "}\n\n"
-            "Original Query:\n"
-            "${user_query}\n\n"
-            "Reformulated Query:\n"
-            "${response}\n\n"
-            "Evaluation:"
-        ),
-        model="gemini-2.5-flash-lite-preview-06-17",
-        provider="gemini",
-        output_type=Score,
+def assertion_task_foo() -> AssertionTask:
+    return AssertionTask(
+        id="input_foo_check",
+        field_path="input.foo",
+        operator=ComparisonOperator.Equals,
+        expected_value="bar",
+        description="Check that input.foo equals 'bar'",
     )
 
 
 @pytest.fixture
-def relevancy_evaluation_prompt():
-    """
-    Builds a prompt for evaluating the relevance of a search query.
+def assertion_task_bar() -> AssertionTask:
+    return AssertionTask(
+        id="input_bar_check",
+        field_path="input.bar",
+        operator=ComparisonOperator.IsNumeric,
+        expected_value=True,
+        description="Check that input.bar is numeric",
+    )
 
-    Returns:
-        Prompt: A prompt that asks for a JSON evaluation of the query's relevance.
 
-    Example:
-        >>> prompt = create_relevancy_evaluation_prompt()
-    """
-    return Prompt(
-        messages=(
-            "You are an expert evaluator of search query relevance. "
-            "Given a user query, your task is to assess its relevance to the information needs of the user. "
-            "Consider the following criteria:\n"
-            "- Does the query contain relevant keywords and concepts?\n"
-            "- Is the query clear and unambiguous?\n"
-            "- Does the query adequately express the user's intent?\n\n"
-            "Provide your evaluation as a JSON object with the following attributes:\n"
-            "- score: An integer from 1 (poor) to 5 (excellent) indicating the overall relevance of the query.\n"
-            "- reason: A brief explanation for your score.\n\n"
-            "Format your response as:\n"
-            "{\n"
-            '  "score": <integer 1-5>,\n'
-            '  "reason": "<your explanation>"\n'
-            "}\n\n"
-            "User Query:\n"
-            "${user_query}\n\n"
-            "Evaluation:"
+@pytest.fixture
+def assertion_task_baz() -> AssertionTask:
+    return AssertionTask(
+        id="input_baz_check",
+        field_path="input.baz",
+        operator=ComparisonOperator.HasLengthEqual,
+        expected_value=3,
+        description="Check that input.baz has length equal to 3",
+    )
+
+
+@pytest.fixture
+def llm_judge_query_relevance() -> LLMJudgeTask:
+    prompt = Prompt(
+        messages=ChatMessage(
+            role=Role.User.as_str(),
+            content="What is the score ${input}",
         ),
-        model="gemini-2.5-flash-lite-preview-06-17",
-        provider="gemini",
+        system_instructions=ChatMessage(
+            role=Role.Developer.as_str(),
+            content="You are a helpful assistant.",
+        ),
+        model="gpt-4o",
+        provider=Provider.OpenAI,
         output_type=Score,
+    )
+    return LLMJudgeTask(
+        id="query_relevance",
+        field_path="score",
+        prompt=prompt,
+        operator=ComparisonOperator.GreaterThanOrEqual,
+        expected_value=3,
+        description="Check that input.baz has length equal to 3",
+    )
+
+
+@pytest.fixture
+def query_relevance_score_assertion_task() -> AssertionTask:
+    return AssertionTask(
+        id="assert_score",
+        field_path="query_relevance.score",
+        operator=ComparisonOperator.IsNumeric,
+        expected_value=True,
+        description="Check that score is numeric",
+        depends_on=["query_relevance"],
+    )
+
+
+@pytest.fixture
+def query_relevance_reason_assertion_task() -> AssertionTask:
+    return AssertionTask(
+        id="assert_reason",
+        field_path="query_relevance.reason",
+        operator=ComparisonOperator.IsString,
+        expected_value=True,
+        description="Check that reason is alphabetic",
+        depends_on=["query_relevance"],
     )

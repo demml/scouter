@@ -89,6 +89,12 @@ impl GenAIEvalDataset {
         self.profile.assertion_tasks.clone()
     }
 
+    pub fn print_execution_plan(&self) -> Result<(), EvaluationError> {
+        let _ = self.profile.print_execution_plan()?;
+        Ok(())
+    }
+
+    #[pyo3(signature = (config=None))]
     fn evaluate(
         &self,
         config: Option<EvaluationConfig>,

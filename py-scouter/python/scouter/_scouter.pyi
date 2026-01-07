@@ -10602,6 +10602,7 @@ class GenAIAlertConfig:
         self,
         dispatch_config: Optional[SlackDispatchConfig | OpsGenieDispatchConfig] = None,
         schedule: Optional[str | CommonCrons] = None,
+        alert_condition: Optional[AlertCondition] = None,
     ):
         """Initialize alert config
 
@@ -10610,6 +10611,8 @@ class GenAIAlertConfig:
                 Alert dispatch config. Defaults to console
             schedule:
                 Schedule to run monitor. Defaults to daily at midnight
+            alert_condition:
+                Alert condition for a GenAI drift profile
 
         """
 
@@ -10630,8 +10633,8 @@ class GenAIAlertConfig:
         """Set the schedule"""
 
     @property
-    def alert_conditions(self) -> Optional[Dict[str, AlertCondition]]:
-        """Return the alert conditions"""
+    def alert_conditions(self) -> Optional[AlertCondition]:
+        """Return the alert condition"""
 
 class LogLevel:
     Debug: "LogLevel"
@@ -12169,7 +12172,7 @@ class GenAIEvalRecord:
     def __init__(
         self,
         context: Context,
-        record_id: Optional[str] = None,
+        id: Optional[str] = None,
     ) -> None:
         """Creates a new LLM record to associate with an `GenAIEvalProfile`.
         The record is sent to the `Scouter` server via the `ScouterQueue` and is
@@ -12182,7 +12185,7 @@ class GenAIEvalRecord:
                 evaluation prompts. So if you're evaluation prompts expect additional context via
                 bound variables (e.g., `${foo}`), you can pass that here as key value pairs.
                 {"foo": "bar"}
-            record_id (Optional[str], optional):
+            id (Optional[str], optional):
                 Optional unique identifier for the record.
 
         Raises:
@@ -13513,7 +13516,7 @@ class ComparisonOperator:
         >>> operator = ComparisonOperator.Equal
     """
 
-    Equal: "ComparisonOperator"
+    Equals: "ComparisonOperator"
     """Equality comparison (==)"""
 
     NotEqual: "ComparisonOperator"
@@ -13944,6 +13947,7 @@ class LLMJudgeTask:
         expected_value: Any,
         field_path: Optional[str],
         operator: ComparisonOperator,
+        description: Optional[str] = None,
         depends_on: Optional[List[str]] = None,
         max_retries: Optional[int] = None,
     ):
@@ -13970,6 +13974,8 @@ class LLMJudgeTask:
                 evaluated.
             operator (ComparisonOperator):
                 Comparison operator to apply between LLM response and expected_value
+            description (Optional[str]):
+                Optional human-readable description of what this judge evaluates.
             depends_on (Optional[List[str]]):
                 Optional list of task IDs that must complete successfully before this
                 task executes. Results from dependencies are passed to the LLM prompt
@@ -14409,6 +14415,9 @@ class GenAIEvalProfile:
             Total levels: 2
         """
 
+    def print_execution_plan(self) -> None:
+        """Print the execution plan for all tasks."""
+
     def __str__(self) -> str:
         """String representation of GenAIEvalProfile.
 
@@ -14691,9 +14700,6 @@ class Drifter:
             for monitoring LLM performance and detecting drift over time.
 
 
-
-        Baseline metrics and thresholds will be extracted from the GenAIDriftMetric objects.
-
         Args:
             config (GenAIDriftConfig):
                 The configuration for the GenAI drift profile containing space, name,
@@ -14881,13 +14887,13 @@ class GenAIEvalDataset:
 
     def __init__(
         self,
-        record: List[GenAIEvalRecord],
+        records: List[GenAIEvalRecord],
         tasks: List[LLMJudgeTask | AssertionTask],
     ):
         """Initialize the GenAIEvalDataset with records and tasks.
 
         Args:
-            record (List[GenAIEvalRecord]):
+            records (List[GenAIEvalRecord]):
                 List of LLM evaluation records to be evaluated.
             tasks (List[LLMJudgeTask | AssertionTask]):
                 List of evaluation tasks to apply to the records.
@@ -14916,6 +14922,9 @@ class GenAIEvalDataset:
             GenAIEvalResults:
                 The results of the evaluation.
         """
+
+    def print_execution_plan(self) -> None:
+        """Print the execution plan for all tasks in the dataset."""
 
 class GenAIEvalSet:
     """Evaluation set for a specific evaluation run"""
@@ -15042,6 +15051,9 @@ class GenAIEvalResults:
                 JSON string to validate and create the GenAIEvalResults instance from.
         """
 
+    def as_table(self) -> str:
+        """Pretty print the results as a table string"""
+
 class EvaluationConfig:
     """Configuration options for LLM evaluation."""
 
@@ -15050,7 +15062,6 @@ class EvaluationConfig:
         embedder: Optional[Embedder] = None,
         embedding_targets: Optional[List[str]] = None,
         compute_similarity: bool = False,
-        cluster: bool = False,
         compute_histograms: bool = False,
     ):
         """
@@ -15065,8 +15076,6 @@ class EvaluationConfig:
                 be generated for all string fields in the record context.
             compute_similarity (bool):
                 Whether to compute similarity between embeddings. Default is False.
-            cluster (bool):
-                Whether to perform clustering on the embeddings. Default is False.
             compute_histograms (bool):
                 Whether to compute histograms for all calculated features (metrics, embeddings, similarities).
                 Default is False.

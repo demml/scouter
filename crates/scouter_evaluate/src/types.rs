@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use scouter_profile::{Histogram, NumProfiler};
 use scouter_types::genai::GenAIEvalSet;
-use scouter_types::GenAIEvalRecord;
+use scouter_types::{GenAIEvalRecord, WorkflowResultTableEntry};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
@@ -417,6 +417,79 @@ impl GenAIEvalResults {
     pub fn __str__(&self) -> String {
         PyHelperFuncs::__str__(self)
     }
+
+    pub fn as_table(&self) {
+        use owo_colors::OwoColorize;
+        use tabled::{
+            settings::{object::Rows, Alignment, Color, Format, Style},
+            Table,
+        };
+
+        let entries: Vec<WorkflowResultTableEntry> = self
+            .aligned_results
+            .iter()
+            .map(|result| {
+                let pass_rate_display = format!("{:.1}%", result.eval_set.pass_rate() * 100.0);
+
+                WorkflowResultTableEntry {
+                    created_at: result
+                        .eval_set
+                        .created_at()
+                        .format("%Y-%m-%d %H:%M:%S")
+                        .to_string(),
+                    record_uid: result.record_uid.truecolor(249, 179, 93).to_string(),
+                    total_tasks: result.eval_set.total_tasks().to_string(),
+                    passed_tasks: if result.eval_set.passed_tasks() > 0 {
+                        result
+                            .eval_set
+                            .passed_tasks()
+                            .to_string()
+                            .green()
+                            .to_string()
+                    } else {
+                        result.eval_set.passed_tasks().to_string()
+                    },
+                    failed_tasks: if result.eval_set.failed_tasks() > 0 {
+                        result.eval_set.failed_tasks().to_string().red().to_string()
+                    } else {
+                        result.eval_set.failed_tasks().to_string()
+                    },
+                    pass_rate: if result.eval_set.pass_rate() >= 0.9 {
+                        pass_rate_display.green().to_string()
+                    } else if result.eval_set.pass_rate() >= 0.6 {
+                        pass_rate_display.yellow().to_string()
+                    } else {
+                        pass_rate_display.red().to_string()
+                    },
+                    duration_ms: result.eval_set.duration_ms().to_string(),
+                }
+            })
+            .collect();
+
+        let mut table = Table::new(entries);
+        table.with(Style::sharp());
+
+        table.modify(
+            Rows::new(0..1),
+            (
+                Format::content(|s: &str| s.truecolor(245, 77, 85).bold().to_string()),
+                Alignment::center(),
+                Color::BOLD,
+            ),
+        );
+
+        println!("{}", &table);
+    }
+
+    pub fn model_dump_json(&self) -> String {
+        // serialize the struct to a string
+        PyHelperFuncs::__json__(self)
+    }
+
+    #[staticmethod]
+    pub fn model_validate_json(json_string: String) -> Result<Self, EvaluationError> {
+        Ok(serde_json::from_str(&json_string)?)
+    }
 }
 
 impl GenAIEvalResults {
@@ -520,9 +593,6 @@ pub struct EvaluationConfig {
     // e.g. if you have targets ["a", "b"], it will compute similarity between a-b
     pub compute_similarity: bool,
 
-    // whether to run clustering for all scores, embeddings and similarities (if available)
-    pub cluster: bool,
-
     // whether to compute histograms for all scores, embeddings and similarities (if available)
     pub compute_histograms: bool,
 }
@@ -530,13 +600,12 @@ pub struct EvaluationConfig {
 #[pymethods]
 impl EvaluationConfig {
     #[new]
-    #[pyo3(signature = (embedder=None, embedding_targets=None, compute_similarity=false, cluster=false, compute_histograms=false))]
+    #[pyo3(signature = (embedder=None, embedding_targets=None, compute_similarity=false, compute_histograms=false))]
     /// Creates a new EvaluationConfig instance.
     /// # Arguments
     /// * `embedder` - Optional reference to a PyEmbedder instance.
     /// * `embedding_targets` - Optional list of fields in the record to generate embeddings for.
     /// * `compute_similarity` - Whether to compute similarities between embeddings.
-    /// * `cluster` - Whether to run clustering for all scores, embeddings and similarities (if available).
     /// * `compute_histograms` - Whether to compute histograms for all scores, embeddings and similarities (if available).
     /// # Returns
     /// A new EvaluationConfig instance.
@@ -544,7 +613,6 @@ impl EvaluationConfig {
         embedder: Option<&Bound<'_, PyAny>>,
         embedding_targets: Option<Vec<String>>,
         compute_similarity: bool,
-        cluster: bool,
         compute_histograms: bool,
     ) -> Result<Self, EvaluationError> {
         let embedder = parse_embedder(embedder)?;
@@ -554,12 +622,11 @@ impl EvaluationConfig {
             embedder,
             embedding_targets,
             compute_similarity,
-            cluster,
             compute_histograms,
         })
     }
 
     pub fn needs_post_processing(&self) -> bool {
-        !self.embedding_targets.is_empty() || self.cluster
+        !self.embedding_targets.is_empty()
     }
 }

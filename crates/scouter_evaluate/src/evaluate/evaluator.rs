@@ -146,6 +146,7 @@ impl GenAIEvaluator {
         profile: Arc<GenAIEvalProfile>,
     ) -> Result<GenAIEvalSet, EvaluationError> {
         let begin = chrono::Utc::now();
+
         let execution_plan = profile.get_execution_plan()?;
 
         for (level_idx, level_tasks) in execution_plan.iter().enumerate() {
@@ -159,7 +160,8 @@ impl GenAIEvaluator {
                 .inspect_err(|e| error!("Failed to execute level {}: {:?}", level_idx, e))?;
         }
 
-        let duration_ms = (chrono::Utc::now() - begin).num_milliseconds();
+        let end = chrono::Utc::now();
+        let duration_ms = (end - begin).num_milliseconds();
 
         // Reconcile results back to profile at the end
         let eval_set = self.build_eval_set(record, &profile, duration_ms).await;
@@ -473,6 +475,7 @@ mod tests {
             Value::Number(1.into()),
             Some("score".to_string()),
             ComparisonOperator::GreaterThanOrEqual,
+            None,
             None,
             None,
         );

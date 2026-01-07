@@ -2,7 +2,7 @@ use crate::error::TypeError;
 use crate::genai::traits::TaskAccessor;
 use crate::PyHelperFuncs;
 use core::fmt::Debug;
-use potato_head::prompt_types::{Prompt, ResponseType};
+use potato_head::prompt_types::Prompt;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyFloat, PyInt, PyList, PyString};
 use pythonize::{depythonize, pythonize};
@@ -244,6 +244,8 @@ pub struct LLMJudgeTask {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<AssertionResult>,
+
+    pub description: Option<String>,
 }
 
 #[pymethods]
@@ -268,24 +270,18 @@ impl LLMJudgeTask {
     /// # Returns
     /// A new LLMJudgeTask object
     #[new]
-    #[pyo3(signature = (id, prompt, expected_value,  field_path,operator, depends_on=None, max_retries=None))]
+    #[pyo3(signature = (id, prompt, expected_value,  field_path,operator, description=None, depends_on=None, max_retries=None))]
     pub fn new(
         id: &str,
         prompt: Prompt,
         expected_value: &Bound<'_, PyAny>,
         field_path: Option<String>,
         operator: ComparisonOperator,
+        description: Option<String>,
         depends_on: Option<Vec<String>>,
         max_retries: Option<u32>,
     ) -> Result<Self, TypeError> {
         let expected_value = depythonize(expected_value)?;
-
-        // Prompt must have a response type of Score
-        if prompt.response_type != ResponseType::Score
-            || prompt.response_type != ResponseType::Pydantic
-        {
-            return Err(TypeError::InvalidResponseType);
-        }
 
         Ok(Self {
             id: id.to_lowercase(),
@@ -297,6 +293,7 @@ impl LLMJudgeTask {
             max_retries: max_retries.or(Some(3)),
             field_path,
             result: None,
+            description,
         })
     }
 
@@ -332,6 +329,7 @@ impl LLMJudgeTask {
         operator: ComparisonOperator,
         depends_on: Option<Vec<String>>,
         max_retries: Option<u32>,
+        description: Option<String>,
     ) -> Self {
         Self {
             id: id.to_lowercase(),
@@ -343,6 +341,7 @@ impl LLMJudgeTask {
             max_retries: max_retries.or(Some(3)),
             field_path,
             result: None,
+            description,
         }
     }
 }

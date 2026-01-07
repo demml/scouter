@@ -91,9 +91,6 @@ pub enum TypeError {
     #[error("{0}")]
     PyError(String),
 
-    #[error("Invalid prompt response type. Expected json schema as the output type")]
-    InvalidResponseType,
-
     #[error(
         "Unsupported feature type. Feature must be an integer, float or string. Received: {0}"
     )]
@@ -337,11 +334,6 @@ pub enum ProfileError {
 
     #[error("No tasks found in the workflow when validating: {0}")]
     NoTasksFoundError(String),
-
-    #[error(
-        "Invalid prompt response type. Expected Score as the output type for the GenAIDriftMetric prompt. Id: {0}"
-    )]
-    InvalidResponseType(String),
 
     #[error("No metrics found for the output task: {0}")]
     MetricNotFoundForOutputTask(String),
