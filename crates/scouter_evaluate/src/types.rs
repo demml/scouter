@@ -270,68 +270,91 @@ impl AlignedEvalResult {
     }
 
     /// Get flattened data for dataframe export
-    pub fn to_flat_map(&self) -> BTreeMap<String, serde_json::Value> {
-        let mut flat = BTreeMap::new();
+    pub fn to_flat_task_records(&self) -> Vec<BTreeMap<String, serde_json::Value>> {
+        let mut records = Vec::new();
 
-        // Record metadata
-        flat.insert("record_uid".to_string(), self.record_uid.clone().into());
-        flat.insert("success".to_string(), self.success.into());
-
-        if let Some(error) = &self.error_message {
-            flat.insert("error".to_string(), error.clone().into());
-        }
-
-        // Workflow-level metrics
-        flat.insert(
-            "total_tasks".to_string(),
-            self.eval_set.inner.total_tasks.into(),
-        );
-        flat.insert(
-            "passed_tasks".to_string(),
-            self.eval_set.inner.passed_tasks.into(),
-        );
-        flat.insert(
-            "failed_tasks".to_string(),
-            self.eval_set.inner.failed_tasks.into(),
-        );
-        flat.insert(
-            "pass_rate".to_string(),
-            self.eval_set.inner.pass_rate.into(),
-        );
-        flat.insert(
-            "duration_ms".to_string(),
-            self.eval_set.inner.duration_ms.into(),
-        );
-
-        // Context from snapshot (if captured)
-        if let Some(context) = &self.context_snapshot {
-            for (key, value) in context {
-                flat.insert(format!("context_{}", key), value.clone());
-            }
-        }
-
-        // Task results
         for task_result in &self.eval_set.records {
-            let prefix = format!("task_{}", task_result.task_id);
-            flat.insert(format!("{}_passed", prefix), task_result.passed.into());
-            flat.insert(format!("{}_value", prefix), task_result.value.into());
+            let mut flat = BTreeMap::new();
+
+            // Workflow metadata (repeated for each task)
             flat.insert(
-                format!("{}_message", prefix),
+                "created_at".to_string(),
+                self.eval_set.inner.created_at.to_rfc3339().into(),
+            );
+            flat.insert("record_uid".to_string(), self.record_uid.clone().into());
+            flat.insert("success".to_string(), self.success.into());
+
+            if let Some(error) = &self.error_message {
+                flat.insert("workflow_error".to_string(), error.clone().into());
+            }
+
+            // Workflow-level metrics
+            flat.insert(
+                "workflow_total_tasks".to_string(),
+                self.eval_set.inner.total_tasks.into(),
+            );
+            flat.insert(
+                "workflow_passed_tasks".to_string(),
+                self.eval_set.inner.passed_tasks.into(),
+            );
+            flat.insert(
+                "workflow_failed_tasks".to_string(),
+                self.eval_set.inner.failed_tasks.into(),
+            );
+            flat.insert(
+                "workflow_pass_rate".to_string(),
+                self.eval_set.inner.pass_rate.into(),
+            );
+            flat.insert(
+                "workflow_duration_ms".to_string(),
+                self.eval_set.inner.duration_ms.into(),
+            );
+
+            // Task-specific data
+            flat.insert("task_id".to_string(), task_result.task_id.clone().into());
+            flat.insert(
+                "task_type".to_string(),
+                task_result.task_type.to_string().into(),
+            );
+            flat.insert("task_passed".to_string(), task_result.passed.into());
+            flat.insert("task_value".to_string(), task_result.value.into());
+            flat.insert(
+                "task_message".to_string(),
                 task_result.message.clone().into(),
             );
+
+            if let Some(field_path) = &task_result.field_path {
+                flat.insert("task_field_path".to_string(), field_path.clone().into());
+            }
+
+            flat.insert(
+                "task_operator".to_string(),
+                task_result.operator.to_string().into(),
+            );
+            flat.insert("task_expected".to_string(), task_result.expected.clone());
+            flat.insert("task_actual".to_string(), task_result.actual.clone());
+
+            // Context snapshot (repeated for each task)
+            if let Some(context) = &self.context_snapshot {
+                for (key, value) in context {
+                    flat.insert(format!("context_{}", key), value.clone());
+                }
+            }
+
+            // Embedding means (shared across all tasks in this workflow)
+            for (target, mean) in &self.mean_embeddings {
+                flat.insert(format!("embedding_mean_{}", target), (*mean).into());
+            }
+
+            // Similarity scores (shared across all tasks in this workflow)
+            for (pair, score) in &self.similarity_scores {
+                flat.insert(format!("similarity_{}", pair), (*score).into());
+            }
+
+            records.push(flat);
         }
 
-        // Mean embeddings
-        for (target, mean) in &self.mean_embeddings {
-            flat.insert(format!("embedding_mean_{}", target), (*mean).into());
-        }
-
-        // Similarity scores
-        for (pair, score) in &self.similarity_scores {
-            flat.insert(format!("similarity_{}", pair), (*score).into());
-        }
-
-        flat
+        records
     }
 }
 
@@ -386,26 +409,33 @@ impl GenAIEvalResults {
         py: Python<'py>,
         polars: bool,
     ) -> Result<Bound<'py, PyAny>, EvaluationError> {
-        // Build list of flat records
-        let records_list = self
+        let all_task_records: Vec<_> = self
             .aligned_results
             .iter()
-            .map(|r| r.to_flat_map())
-            .collect::<Vec<_>>();
+            .flat_map(|r| r.to_flat_task_records())
+            .collect();
 
-        // Convert to Python dict format
+        if all_task_records.is_empty() {
+            return Err(EvaluationError::NoResultsFound);
+        }
+
         let py_records = PyDict::new(py);
 
-        // Transpose data for columnar format
-        if let Some(first_record) = records_list.first() {
-            for key in first_record.keys() {
-                let column: Vec<_> = records_list
-                    .iter()
-                    .map(|r| r.get(key).cloned().unwrap_or(Value::Null))
-                    .collect();
-                let py_col = pythonize::pythonize(py, &column)?;
-                py_records.set_item(key, py_col)?;
-            }
+        // Collect all unique column names
+        let mut all_columns = std::collections::BTreeSet::new();
+        for record in &all_task_records {
+            all_columns.extend(record.keys().cloned());
+        }
+
+        // Build columns in consistent order
+        for column_name in all_columns {
+            let column_data: Vec<_> = all_task_records
+                .iter()
+                .map(|record| record.get(&column_name).cloned().unwrap_or(Value::Null))
+                .collect();
+
+            let py_col = pythonize::pythonize(py, &column_data)?;
+            py_records.set_item(&column_name, py_col)?;
         }
 
         let module = if polars { "polars" } else { "pandas" };
