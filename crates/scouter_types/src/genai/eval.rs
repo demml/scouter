@@ -271,6 +271,7 @@ impl LLMJudgeTask {
     /// A new LLMJudgeTask object
     #[new]
     #[pyo3(signature = (id, prompt, expected_value,  field_path,operator, description=None, depends_on=None, max_retries=None))]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: &str,
         prompt: Prompt,
@@ -321,6 +322,7 @@ impl LLMJudgeTask {
     /// * `max_retries`: Optional maximum number of retries for this task (defaults to 3 if not provided)
     /// # Returns
     /// A new LLMJudgeTask object
+    #[allow(clippy::too_many_arguments)]
     pub fn new_rs(
         id: &str,
         prompt: Prompt,
