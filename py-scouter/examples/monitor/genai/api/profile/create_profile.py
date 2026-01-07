@@ -1,8 +1,14 @@
 from pathlib import Path
 
-from scouter.alert import AlertThreshold
+from scouter._scouter import ComparisonOperator
+from scouter.alert import AlertCondition, AlertThreshold
 from scouter.client import ScouterClient
-from scouter.drift import GenAIDriftConfig, GenAIDriftMetric, GenAIEvalProfile
+from scouter.drift import (
+    GenAIAlertConfig,
+    GenAIDriftConfig,
+    GenAIEvalProfile,
+    LLMJudgeTask,
+)
 from scouter.genai import Prompt, Score
 
 
@@ -84,19 +90,22 @@ def create_relevance_evaluation_prompt() -> Prompt:
     )
 
 
-relevance = GenAIDriftMetric(
-    name="relevance",
+relevance = LLMJudgeTask(
+    id="relevance",
     prompt=create_relevance_evaluation_prompt(),
-    value=5.0,
-    alert_threshold_value=2.0,
-    alert_threshold=AlertThreshold.Below,
+    expected_value=3.0,
+    field_path="score",
+    operator=ComparisonOperator.GreaterThanOrEqual,
+    description="Evaluate the relevance of the LLM response to the user query",
 )
-reformulation = GenAIDriftMetric(
-    name="reformulation",
+
+reformulation = LLMJudgeTask(
+    id="reformulation",
     prompt=create_reformulation_evaluation_prompt(),
-    value=5.0,
-    alert_threshold_value=2.0,
-    alert_threshold=AlertThreshold.Above,
+    expected_value=3.0,
+    field_path="score",
+    operator=ComparisonOperator.GreaterThanOrEqual,
+    description="Evaluate the quality of the query reformulation",
 )
 
 profile = GenAIEvalProfile(
@@ -105,8 +114,15 @@ profile = GenAIEvalProfile(
         name="genai_metrics",
         version="0.0.1",
         sample_rate=1,
+        alert_config=GenAIAlertConfig(
+            alert_condition=AlertCondition(
+                baseline_value=0.80,
+                alert_threshold=AlertThreshold.Below,
+                delta=0.05,
+            )
+        ),
     ),
-    metrics=[relevance, reformulation],
+    tasks=[relevance, reformulation],
 )
 
 

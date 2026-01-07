@@ -13,6 +13,7 @@ from typing import (
     Optional,
     ParamSpec,
     Protocol,
+    Sequence,
     TypeAlias,
     TypeVar,
     Union,
@@ -194,8 +195,8 @@ class Score:
     ```python
         Prompt(
             model="openai:gpt-4o",
-            message="What is the score of this response?",
-            system_instruction="system_prompt",
+            messages="What is the score of this response?",
+            system_instructions="system_prompt",
             response_format=Score,
         )
     ```
@@ -299,8 +300,8 @@ class Prompt:
             ```python
             prompt = Prompt(
                 model="gpt-4o",
-                message="My prompt variable is ${variable}",
-                system_instruction="You are a helpful assistant",
+                messages="My prompt variable is ${variable}",
+                system_instructions="You are a helpful assistant",
                 provider="openai",
             )
 
@@ -411,7 +412,7 @@ class Prompt:
         Example:
             ```python
             prompt = Prompt(
-                message="Hello ${name}, your score is ${score}",
+                messages="Hello ${name}, your score is ${score}",
                 model="gpt-4o",
                 provider="openai",
             )
@@ -432,7 +433,7 @@ class Prompt:
 
         Example:
             ```python
-            prompt = Prompt(message="Hello!", model="gpt-4o", provider="openai")
+            prompt = Prompt(messages="Hello!", model="gpt-4o", provider="openai")
             saved_path = prompt.save_prompt(Path("my_prompt.json"))
             ```
         """
@@ -494,7 +495,7 @@ class Prompt:
 
         Example:
             ```python
-            prompt = Prompt(message="Hello!", model="gpt-4o", provider="openai")
+            prompt = Prompt(messages="Hello!", model="gpt-4o", provider="openai")
             json_str = prompt.model_dump_json()
             ```
         """
@@ -530,7 +531,7 @@ class Prompt:
         Example:
             ```python
             prompt = Prompt(
-                message="Hello ${name}, you scored ${score}/100",
+                messages="Hello ${name}, you scored ${score}/100",
                 model="gpt-4o",
                 provider="openai",
             )
@@ -575,7 +576,7 @@ class Prompt:
         Example:
             ```python
             prompt = Prompt(
-                message="Hello ${name}, you scored ${score}/100",
+                messages="Hello ${name}, you scored ${score}/100",
                 model="gpt-4o",
                 provider="openai",
             )
@@ -824,7 +825,7 @@ class Agent:
         ```python
             agent = Agent(
                 provider=Provider.OpenAI,
-                system_instruction="You are a helpful assistant.",
+                system_instructions="You are a helpful assistant.",
             )
         ```
         """
@@ -6787,7 +6788,7 @@ class PromptFeedback:
         >>> feedback = PromptFeedback(
         ...     block_reason=BlockedReason.Safety,
         ...     safety_ratings=[...],
-        ...     block_reason_message="Prompt contains unsafe content"
+        ...     block_reason_messages="Prompt contains unsafe content"
         ... )
     """
 
@@ -13844,8 +13845,8 @@ class LLMJudgeTask:
 
         >>> # Define a prompt that evaluates relevance
         >>> relevance_prompt = Prompt(
-        ...     system_instruction="Evaluate if the response is relevant to the query",
-        ...     message="Given the query '{{query}}' and response '{{response}}', rate the relevance from 0 to 10 as an integer.",
+        ...     system_instructions="Evaluate if the response is relevant to the query",
+        ...     messages="Given the query '{{query}}' and response '{{response}}', rate the relevance from 0 to 10 as an integer.",
         ...     model="gpt-4",
         ...     provider= Provider.OpenAI,
         ...     output_type=Score # returns a structured output with schema {"score": float, "reason": str}
@@ -13870,8 +13871,8 @@ class LLMJudgeTask:
         ...     confidence: float
 
         >>> fact_check_prompt = Prompt(
-        ...     system_instruction="Verify factual claims in the response",
-        ...     message="Assess the factual accuracy of the response: '{{response}}'. Provide a JSON with fields 'is_factual' (bool) and 'confidence' (float).",
+        ...     system_instructions="Verify factual claims in the response",
+        ...     messages="Assess the factual accuracy of the response: '{{response}}'. Provide a JSON with fields 'is_factual' (bool) and 'confidence' (float).", # pylint: disable=line-too-long
         ...     model="gpt-4",
         ...     provider= Provider.OpenAI,
         ...     output_type=FactCheckResult
@@ -13890,8 +13891,8 @@ class LLMJudgeTask:
 
         >>> # This judge depends on previous relevance check
         >>> quality_prompt = Prompt(
-        ...     system_instruction="Assess the overall quality of the response",
-        ...     message="Given the response '{{response}}', rate its quality from 0 to 5",
+        ...     system_instructions="Assess the overall quality of the response",
+        ...     messages="Given the response '{{response}}', rate its quality from 0 to 5",
         ...     model="gemini-3.0-flash",
         ...     provider= Provider.Google,
         ...     output_type=Score
@@ -14658,9 +14659,7 @@ class Drifter:
         """
 
     def create_genai_drift_profile(
-        self,
-        config: GenAIDriftConfig,
-        tasks: List[LLMJudgeTask | AssertionTask],
+        self, config: GenAIDriftConfig, tasks: Sequence[LLMJudgeTask | AssertionTask]
     ) -> GenAIEvalProfile:
         """Initialize a GenAIEvalProfile for LLM evaluation and drift detection.
 
@@ -14759,7 +14758,7 @@ class Drifter:
         data: List[GenAIEvalRecord],
         drift_profile: GenAIEvalProfile,
         data_type: Optional[ScouterDataType] = None,
-    ) -> GenAIEvalResultSet:
+    ) -> "GenAIEvalResultSet":
         """Create a drift map from data.
 
         Args:
@@ -14886,7 +14885,10 @@ class GenAIEvalDataset:
     def assertion_tasks(self) -> List[AssertionTask]:
         """Get the list of assertion tasks in this dataset"""
 
-    def evaluate(self, config: Optional[EvaluationConfig] = None) -> GenAIEvalResults:
+    def evaluate(
+        self,
+        config: Optional[EvaluationConfig] = None,
+    ) -> "GenAIEvalResults":
         """Evaluate the records using the defined tasks.
 
         Args:

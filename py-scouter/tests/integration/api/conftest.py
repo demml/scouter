@@ -8,13 +8,19 @@ import pandas as pd
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from scouter import HttpConfig, KafkaConfig, Queue, ScouterQueue
-from scouter.alert import AlertThreshold, GenAIAlertConfig, SpcAlertConfig
+from scouter.alert import (
+    AlertCondition,
+    AlertThreshold,
+    GenAIAlertConfig,
+    SpcAlertConfig,
+)
 from scouter.client import ScouterClient
 from scouter.drift import (
+    ComparisonOperator,
     Drifter,
     GenAIDriftConfig,
-    GenAIDriftMetric,
     GenAIEvalProfile,
+    LLMJudgeTask,
     SpcDriftConfig,
     SpcDriftProfile,
 )
@@ -128,16 +134,23 @@ def create_and_register_genai_drift_profile(
         name=name,
         version="0.1.0",
         sample_rate=1,
-        alert_config=GenAIAlertConfig(),
+        alert_config=GenAIAlertConfig(
+            alert_condition=AlertCondition(
+                baseline_value=0.80,
+                alert_threshold=AlertThreshold.Below,
+                delta=0.01,
+            )
+        ),
     )
 
-    metrics = [
-        GenAIDriftMetric(
-            name="coherence",
-            value=5,
-            alert_threshold=AlertThreshold.Below,
-            alert_threshold_value=0.2,
+    tasks = [
+        LLMJudgeTask(
+            id="coherence",
+            expected_value=4,
             prompt=create_coherence_evaluation_prompt(),
+            field_path="score",
+            operator=ComparisonOperator.GreaterThanOrEqual,
+            description="Evaluate text coherence",
         )
     ]
 
@@ -145,7 +158,7 @@ def create_and_register_genai_drift_profile(
     drifter = Drifter()
 
     # create drift profile
-    profile = drifter.create_genai_drift_profile(config=config, metrics=metrics)
+    profile = drifter.create_genai_drift_profile(config=config, tasks=tasks)
     client.register_profile(profile, True)
 
     return profile
