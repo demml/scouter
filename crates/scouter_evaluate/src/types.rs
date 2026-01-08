@@ -224,6 +224,18 @@ pub struct AlignedEvalResult {
     pub context_snapshot: Option<BTreeMap<String, serde_json::Value>>,
 }
 
+#[pymethods]
+impl AlignedEvalResult {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+
+    #[getter]
+    pub fn task_count(&self) -> usize {
+        self.eval_set.records.len()
+    }
+}
+
 impl AlignedEvalResult {
     /// Create from successful evaluation
     pub fn from_success(
@@ -382,6 +394,9 @@ pub struct GenAIEvalResults {
     #[serde(skip)]
     pub results_by_uid: BTreeMap<String, usize>,
 
+    #[serde(skip)]
+    pub results_by_id: BTreeMap<String, usize>,
+
     #[pyo3(get)]
     pub errored_tasks: Vec<String>,
 
@@ -398,7 +413,7 @@ pub struct GenAIEvalResults {
 impl GenAIEvalResults {
     /// Get result by record UID
     pub fn __getitem__(&self, key: &str) -> Result<AlignedEvalResult, EvaluationError> {
-        self.results_by_uid
+        self.results_by_id
             .get(key)
             .and_then(|&idx| self.aligned_results.get(idx))
             .cloned()
@@ -580,6 +595,7 @@ impl GenAIEvalResults {
         Self {
             aligned_results: Vec::new(),
             results_by_uid: BTreeMap::new(),
+            results_by_id: BTreeMap::new(),
             errored_tasks: Vec::new(),
             array_dataset: None,
             cluster_data: None,
@@ -602,6 +618,11 @@ impl GenAIEvalResults {
         ));
 
         self.results_by_uid.insert(uid, idx);
+
+        // if record has an id, also index by that
+        if !record.record_id.is_empty() {
+            self.results_by_id.insert(record.record_id.clone(), idx);
+        }
     }
 
     /// Add a failed result - only reference the record
@@ -612,6 +633,9 @@ impl GenAIEvalResults {
         self.aligned_results
             .push(AlignedEvalResult::from_failure(record, error));
         self.results_by_uid.insert(uid.clone(), idx);
+        if !record.record_id.is_empty() {
+            self.results_by_id.insert(record.record_id.clone(), idx);
+        }
         self.errored_tasks.push(uid);
     }
 

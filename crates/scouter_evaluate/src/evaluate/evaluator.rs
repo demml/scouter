@@ -430,27 +430,30 @@ impl GenAIEvaluator {
 
         let result = task.execute(&scoped_context)?;
 
-        // Check if this is a conditional gate task (not first-level but has condition=true)
         let is_first_level = result_store
             .task_registry
             .read()
             .await
             .is_first_level_task(task_id);
 
-        // conditional gate if condition is true and not first level
-        let is_conditional_gate = task.condition && !is_first_level;
+        let should_store_result = if task.condition {
+            result.passed
+        } else {
+            is_first_level || result.passed
+        };
 
-        // Only store result if:
-        // 1. It's a first-level task (always store)
-        // 2. It's not a conditional gate, OR it passed (we're on this branch)
-        // 3. For conditional gates that fail, DON'T store - we're not executing this branch
-        if is_first_level || !is_conditional_gate || result.passed {
+        if should_store_result {
             result_store
                 .store_assertion(task_id.to_string(), result)
                 .await;
         } else {
             debug!(
-                "Skipping storage of failed conditional gate '{}' (not on execution path)",
+                "Skipping storage of {} conditional '{}' (branch not taken)",
+                if is_first_level {
+                    "first-level"
+                } else {
+                    "nested"
+                },
                 task_id
             );
         }

@@ -1,10 +1,12 @@
 import pandas as pd
 import polars as pl
+from scouter._scouter import ComparisonOperator
 from scouter.evaluate import (
     EvaluationConfig,
     GenAIEvalDataset,
     GenAIEvalRecord,
     GenAIEvalResults,
+    AssertionTask,
 )
 from scouter.genai import Embedder, Provider
 from scouter.genai.openai import OpenAIEmbeddingConfig
@@ -178,3 +180,84 @@ def test_genai_eval_embedding_all_assertion(
         assert histograms is not None
         for field, histogram in histograms.items():
             print(f"Histogram for {field}: {histogram}")
+
+
+def test_genai_conditional_assertions():
+    """Main goal of this test is to ensure that conditional assertions work as expected."""
+
+    stage_1_tasks = [
+        AssertionTask(
+            id="is_foo",
+            field_path="input",
+            operator=ComparisonOperator.Equals,
+            expected_value="foo",
+            description="Check if input is 'foo'",
+            condition=True,
+        ),
+        AssertionTask(
+            id="is_bar",
+            field_path="input",
+            operator=ComparisonOperator.Equals,
+            expected_value="bar",
+            description="Check if input is 'bar'",
+            condition=True,
+        ),
+        AssertionTask(
+            id="is_baz",
+            field_path="input",
+            operator=ComparisonOperator.Equals,
+            expected_value="baz",
+            description="Check if input is 'baz'",
+            condition=True,
+        ),
+    ]
+
+    stage_2_task = [
+        AssertionTask(
+            id="is_foo_foo",
+            field_path="response",
+            operator=ComparisonOperator.Equals,
+            expected_value="foo_foo",
+            description="Check if response is 'foo_foo'",
+            depends_on=["is_foo"],
+        ),
+        AssertionTask(
+            id="is_bar_bar",
+            field_path="response",
+            operator=ComparisonOperator.Equals,
+            expected_value="bar_bar",
+            description="Check if response is 'bar_bar'",
+            depends_on=["is_bar"],
+        ),
+        AssertionTask(
+            id="is_baz_baz",
+            field_path="response",
+            operator=ComparisonOperator.Equals,
+            expected_value="baz_baz",
+            description="Check if response is 'baz_baz'",
+            depends_on=["is_baz"],
+        ),
+    ]
+
+    record = GenAIEvalRecord(
+        context={"input": "bar", "response": "bar_bar"},
+        id="test_conditional_1",
+    )
+
+    dataset = GenAIEvalDataset(
+        records=[record],
+        tasks=stage_1_tasks + stage_2_task,
+    )
+
+    results = dataset.evaluate()
+
+    results.as_table()
+
+    print(results)
+
+    assert results["test_conditional_1"].task_count == 2, (
+        f"Expected 2 tasks to run, got {results['test_conditional_1'].task_count}"
+    )
+    assert results["test_conditional_1"].eval_set.records[0].task_id == "is_bar", (
+        f"Expected first task to be 'is_bar', got {results['test_conditional_1'].eval_set.records[0].task_id}"
+    )
