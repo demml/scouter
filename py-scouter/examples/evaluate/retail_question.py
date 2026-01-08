@@ -228,10 +228,8 @@ def simulate_agent_interaction(
     question_prompt = create_question_generation_prompt()
     user_questions: List[UserQuestion] = []
 
-    # random number between 0 and 2
-    random_int = random.randint(0, 2)
-
     for i in range(num_questions):
+        random_int = random.randint(0, 2)
         question = agent.execute_prompt(
             prompt=question_prompt.bind(category=categories[random_int]),
             output_type=UserQuestion,
