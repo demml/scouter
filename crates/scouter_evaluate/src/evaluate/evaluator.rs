@@ -232,7 +232,7 @@ impl GenAIEvaluator {
             .task_registry
             .write()
             .await
-            .set_first_level_tasks(execution_plan.get(0).cloned().unwrap_or_default());
+            .set_first_level_tasks(execution_plan.first().cloned().unwrap_or_default());
 
         for (level_idx, level_tasks) in execution_plan.iter().enumerate() {
             debug!(
