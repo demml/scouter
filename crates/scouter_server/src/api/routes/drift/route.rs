@@ -18,7 +18,7 @@ use scouter_sql::PostgresClient;
 use scouter_types::{
     psi::{BinnedPsiFeatureMetrics, PsiDriftProfile},
     spc::SpcDriftFeatures,
-    BinnedMetrics, GenAIDriftRecordPaginationRequest, GenAIDriftRecordPaginationResponse,
+    BinnedMetrics, GenAIEvalRecordPaginationRequest, GenAIEvalRecordPaginationResponse,
     MessageRecord,
 };
 use scouter_types::{DriftRequest, ScouterResponse, ScouterServerError};
@@ -184,11 +184,11 @@ pub async fn get_custom_drift(
 
 /// This route is used to get the latest GenAI drift records by page
 #[instrument(skip_all)]
-pub async fn get_genai_event_records(
+pub async fn query_genai_eval_records(
     State(data): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
-    Json(params): Json<GenAIDriftRecordPaginationRequest>,
-) -> Result<Json<GenAIDriftRecordPaginationResponse>, (StatusCode, Json<ScouterServerError>)> {
+    Json(params): Json<GenAIEvalRecordPaginationRequest>,
+) -> Result<Json<GenAIEvalRecordPaginationResponse>, (StatusCode, Json<ScouterServerError>)> {
     // validate time window
 
     if !perms.has_read_permission(&params.service_info.space) {
@@ -203,7 +203,7 @@ pub async fn get_genai_event_records(
         .await?;
 
     let metrics =
-        PostgresClient::get_paginated_genai_event_records(&data.db_pool, &params, &entity_id).await;
+        PostgresClient::get_paginated_genai_eval_records(&data.db_pool, &params, &entity_id).await;
 
     match metrics {
         Ok(metrics) => Ok(Json(metrics)),
@@ -219,7 +219,7 @@ pub async fn get_genai_event_records(
 }
 
 #[instrument(skip_all)]
-pub async fn get_genai_drift_metrics(
+pub async fn get_genai_task_metrics(
     State(data): State<Arc<AppState>>,
     Query(params): Query<DriftRequest>,
     Extension(perms): Extension<UserPermissions>,
@@ -235,7 +235,7 @@ pub async fn get_genai_drift_metrics(
 
     let entity_id = data.get_entity_id_for_request(&params.uid).await?;
 
-    let metrics = PostgresClient::get_binned_genai_metric_values(
+    let metrics = PostgresClient::get_binned_genai_task_values(
         &data.db_pool,
         &params,
         &data.config.database_settings.retention_period,
@@ -247,7 +247,46 @@ pub async fn get_genai_drift_metrics(
     match metrics {
         Ok(metrics) => Ok(Json(metrics)),
         Err(e) => {
-            error!("Failed to query drift records: {:?}", e);
+            error!("Failed to query genai eval task metrics: {:?}", e);
+
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::query_records_error(e)),
+            ))
+        }
+    }
+}
+
+#[instrument(skip_all)]
+pub async fn get_genai_workflow_metrics(
+    State(data): State<Arc<AppState>>,
+    Query(params): Query<DriftRequest>,
+    Extension(perms): Extension<UserPermissions>,
+) -> Result<Json<BinnedMetrics>, (StatusCode, Json<ScouterServerError>)> {
+    // validate time window
+
+    if !perms.has_read_permission(&params.space) {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(ScouterServerError::permission_denied()),
+        ));
+    }
+
+    let entity_id = data.get_entity_id_for_request(&params.uid).await?;
+
+    let metrics = PostgresClient::get_binned_genai_workflow_values(
+        &data.db_pool,
+        &params,
+        &data.config.database_settings.retention_period,
+        &data.config.storage_settings,
+        &entity_id,
+    )
+    .await;
+
+    match metrics {
+        Ok(metrics) => Ok(Json(metrics)),
+        Err(e) => {
+            error!("Failed to query genai eval workflow metrics: {:?}", e);
 
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -284,12 +323,16 @@ pub async fn get_drift_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
             .route(&format!("{prefix}/drift/custom"), get(get_custom_drift))
             .route(&format!("{prefix}/drift/psi"), get(get_psi_drift))
             .route(
-                &format!("{prefix}/drift/genai"),
-                get(get_genai_drift_metrics),
+                &format!("{prefix}/drift/genai/task"),
+                get(get_genai_task_metrics),
             )
             .route(
-                &format!("{prefix}/drift/genai/records"),
-                post(get_genai_event_records),
+                &format!("{prefix}/drift/genai/workflow"),
+                get(get_genai_workflow_metrics),
+            )
+            .route(
+                &format!("{prefix}/drift/genai/eval"),
+                post(query_genai_eval_records),
             )
     }));
 

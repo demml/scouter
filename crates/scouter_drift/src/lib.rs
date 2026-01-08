@@ -11,9 +11,7 @@ pub use utils::*;
 pub mod drifter;
 
 #[cfg(feature = "sql")]
-pub use drifter::drift_executor::DriftExecutor;
+pub use drifter::DriftExecutor;
 
 #[cfg(feature = "sql")]
 pub use genai::GenAIPoller;
-
-pub use genai::evaluator::GenAIEvaluator;

@@ -3,16 +3,12 @@ use chrono::{DateTime, Utc};
 use scouter_dispatch::AlertDispatcher;
 use scouter_sql::sql::traits::CustomMetricSqlLogic;
 use scouter_sql::{sql::cache::entity_cache, PostgresClient};
+use scouter_types::custom::{ComparisonMetricAlert, CustomDriftProfile};
 use scouter_types::ProfileBaseArgs;
-use scouter_types::{
-    custom::{ComparisonMetricAlert, CustomDriftProfile},
-    AlertThreshold,
-};
 use sqlx::{Pool, Postgres};
 use std::collections::{BTreeMap, HashMap};
 use tracing::error;
 use tracing::info;
-
 pub struct CustomDrifter {
     profile: CustomDriftProfile,
 }
@@ -22,6 +18,17 @@ impl CustomDrifter {
         Self { profile }
     }
 
+    /// Helper method to format profile identifier for logging
+    fn profile_id(&self) -> String {
+        format!(
+            "{}/{}/{}",
+            self.profile.space(),
+            self.profile.name(),
+            self.profile.version()
+        )
+    }
+
+    /// Fetches observed custom metric values from database for the given time limit
     pub async fn get_observed_custom_metric_values(
         &self,
         limit_datetime: &DateTime<Utc>,
@@ -32,22 +39,19 @@ impl CustomDrifter {
             .get_entity_id_from_uid(db_pool, &self.profile.config.uid)
             .await?;
 
-        Ok(
-            PostgresClient::get_custom_metric_values(db_pool, limit_datetime, &metrics, &entity_id)
-                .await
-                .inspect_err(|e| {
-                    let msg = format!(
-                        "Error: Unable to obtain custom metric data from DB for {}/{}/{}: {}",
-                        self.profile.space(),
-                        self.profile.name(),
-                        self.profile.version(),
-                        e
-                    );
-                    error!(msg);
-                })?,
-        )
+        PostgresClient::get_custom_metric_values(db_pool, limit_datetime, &metrics, &entity_id)
+            .await
+            .inspect_err(|e| {
+                error!(
+                    "Unable to obtain custom metric data from DB for {}: {}",
+                    self.profile_id(),
+                    e
+                );
+            })
+            .map_err(Into::into)
     }
 
+    /// Retrieves metric map and logs if no data found
     pub async fn get_metric_map(
         &self,
         limit_datetime: &DateTime<Utc>,
@@ -59,10 +63,8 @@ impl CustomDrifter {
 
         if metric_map.is_empty() {
             info!(
-                "No custom metric data was found for {}/{}/{}. Skipping alert processing.",
-                self.profile.space(),
-                self.profile.name(),
-                self.profile.version(),
+                "No custom metric data found for {}. Skipping alert processing.",
+                self.profile_id()
             );
             return Ok(None);
         }
@@ -70,62 +72,33 @@ impl CustomDrifter {
         Ok(Some(metric_map))
     }
 
-    fn is_out_of_bounds(
-        training_value: f64,
-        observed_value: f64,
-        alert_condition: &AlertThreshold,
-        alert_boundary: Option<f64>,
-    ) -> bool {
-        if observed_value == training_value {
-            return false;
-        }
-
-        let below_threshold = |boundary: Option<f64>| match boundary {
-            Some(b) => observed_value < training_value - b,
-            None => observed_value < training_value,
-        };
-
-        let above_threshold = |boundary: Option<f64>| match boundary {
-            Some(b) => observed_value > training_value + b,
-            None => observed_value > training_value,
-        };
-
-        match alert_condition {
-            AlertThreshold::Below => below_threshold(alert_boundary),
-            AlertThreshold::Above => above_threshold(alert_boundary),
-            AlertThreshold::Outside => {
-                below_threshold(alert_boundary) || above_threshold(alert_boundary)
-            } // Handled by early equality check
-        }
-    }
-
+    /// Generates alerts for metrics that exceed their thresholds and dispatches them
     pub async fn generate_alerts(
         &self,
         metric_map: &HashMap<String, f64>,
-    ) -> Result<Option<Vec<ComparisonMetricAlert>>, DriftError> {
+    ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
+        // Early return if no alert conditions configured
+        let Some(alert_conditions) = &self.profile.config.alert_config.alert_conditions else {
+            info!(
+                "No alert conditions configured for {}. Skipping alert processing.",
+                self.profile_id()
+            );
+            return Ok(None);
+        };
+
+        // Collect metrics that should trigger alerts
         let metric_alerts: Vec<ComparisonMetricAlert> = metric_map
             .iter()
             .filter_map(|(name, observed_value)| {
-                let training_value = self.profile.metrics[name];
-                let alert_condition = &self
-                    .profile
-                    .config
-                    .alert_config
-                    .alert_conditions
-                    .as_ref()
-                    .unwrap()[name];
-                if Self::is_out_of_bounds(
-                    training_value,
-                    *observed_value,
-                    &alert_condition.alert_threshold,
-                    alert_condition.alert_threshold_value,
-                ) {
+                let alert_condition = alert_conditions.get(name)?;
+
+                if alert_condition.should_alert(*observed_value) {
                     Some(ComparisonMetricAlert {
-                        metric_name: name.clone(),
-                        training_metric_value: training_value,
-                        observed_metric_value: *observed_value,
-                        alert_threshold_value: alert_condition.alert_threshold_value,
-                        alert_threshold: alert_condition.alert_threshold.clone(),
+                        metric_name: name,
+                        baseline_metric: &alert_condition.baseline_value,
+                        observed_metric: observed_value,
+                        delta: &alert_condition.delta,
+                        alert_threshold: &alert_condition.alert_threshold,
                     })
                 } else {
                     None
@@ -133,25 +106,23 @@ impl CustomDrifter {
             })
             .collect();
 
+        // Early return if no alerts to process
         if metric_alerts.is_empty() {
             info!(
-                "No alerts to process for {}/{}/{}",
-                self.profile.space(),
-                self.profile.name(),
-                self.profile.version()
+                "No alerts to process for {} (checked {} metrics)",
+                self.profile_id(),
+                metric_map.len()
             );
             return Ok(None);
         }
 
+        // Dispatch alerts
         let alert_dispatcher = AlertDispatcher::new(&self.profile.config).inspect_err(|e| {
-            let msg = format!(
-                "Error creating alert dispatcher for {}/{}/{}: {}",
-                self.profile.space(),
-                self.profile.name(),
-                self.profile.version(),
+            error!(
+                "Error creating alert dispatcher for {}: {}",
+                self.profile_id(),
                 e
             );
-            error!(msg);
         })?;
 
         for alert in &metric_alerts {
@@ -159,77 +130,37 @@ impl CustomDrifter {
                 .process_alerts(alert)
                 .await
                 .inspect_err(|e| {
-                    let msg = format!(
-                        "Error processing alerts for {}/{}/{}: {}",
-                        self.profile.space(),
-                        self.profile.name(),
-                        self.profile.version(),
+                    error!(
+                        "Error processing alert for metric '{}' in {}: {}",
+                        alert.metric_name,
+                        self.profile_id(),
                         e
                     );
-                    error!(msg);
                 })?;
         }
 
-        Ok(Some(metric_alerts))
+        // Convert to owned maps before returning
+        Ok(Some(
+            metric_alerts
+                .iter()
+                .map(|alert| alert.organize_to_map())
+                .collect(),
+        ))
     }
 
-    fn organize_alerts(mut alerts: Vec<ComparisonMetricAlert>) -> Vec<BTreeMap<String, String>> {
-        let mut alert_vec = Vec::new();
-        alerts.iter_mut().for_each(|alert| {
-            let mut alert_map = BTreeMap::new();
-            alert_map.insert("entity_name".to_string(), alert.metric_name.clone());
-            alert_map.insert(
-                "training_metric_value".to_string(),
-                alert.training_metric_value.to_string(),
-            );
-            alert_map.insert(
-                "observed_metric_value".to_string(),
-                alert.observed_metric_value.to_string(),
-            );
-            let alert_threshold_value_str = match alert.alert_threshold_value {
-                Some(value) => value.to_string(),
-                None => "None".to_string(),
-            };
-            alert_map.insert(
-                "alert_threshold_value".to_string(),
-                alert_threshold_value_str,
-            );
-            alert_map.insert(
-                "alert_threshold".to_string(),
-                alert.alert_threshold.to_string(),
-            );
-            alert_vec.push(alert_map);
-        });
-
-        alert_vec
-    }
-
+    /// Checks for alerts based on metric values since previous run
     pub async fn check_for_alerts(
         &self,
         db_pool: &Pool<Postgres>,
         previous_run: &DateTime<Utc>,
     ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
-        let metric_map = self.get_metric_map(previous_run, db_pool).await?;
+        let Some(metric_map) = self.get_metric_map(previous_run, db_pool).await? else {
+            return Ok(None);
+        };
 
-        match metric_map {
-            Some(metric_map) => {
-                let alerts = self.generate_alerts(&metric_map).await.inspect_err(|e| {
-                    let msg = format!(
-                        "Error generating alerts for {}/{}/{}: {}",
-                        self.profile.space(),
-                        self.profile.name(),
-                        self.profile.version(),
-                        e
-                    );
-                    error!(msg);
-                })?;
-                match alerts {
-                    Some(alerts) => Ok(Some(Self::organize_alerts(alerts))),
-                    None => Ok(None),
-                }
-            }
-            None => Ok(None),
-        }
+        self.generate_alerts(&metric_map).await.inspect_err(|e| {
+            error!("Error generating alerts for {}: {}", self.profile_id(), e);
+        })
     }
 }
 
@@ -237,6 +168,7 @@ impl CustomDrifter {
 mod tests {
     use super::*;
     use scouter_types::custom::{CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig};
+    use scouter_types::AlertThreshold;
 
     fn get_test_drifter() -> CustomDrifter {
         let custom_metrics = vec![
@@ -259,86 +191,90 @@ mod tests {
         CustomDrifter::new(profile)
     }
 
-    #[test]
-    fn test_is_out_of_bounds() {
-        // mse training value obtained during initial model training.
-        let mse_training_value = 12.0;
-
-        // observed mse metric value captured somewhere after the initial training run.
-        let mse_observed_value = 14.5;
-
-        // we want mse to be as small as possible, so we want to see if the metric has increased.
-        let mse_alert_condition = AlertThreshold::Above;
-
-        // we do not want to alert if the mse values has simply increased, but we want to alert
-        // if the metric observed has increased beyond (mse_training_value + 2.0)
-        let mse_alert_boundary = Some(2.0);
-
-        let mse_is_out_of_bounds = CustomDrifter::is_out_of_bounds(
-            mse_training_value,
-            mse_observed_value,
-            &mse_alert_condition,
-            mse_alert_boundary,
-        );
-        assert!(mse_is_out_of_bounds);
-
-        // test observed metric has decreased beyond threshold.
-
-        // accuracy training value obtained during initial model training.
-        let accuracy_training_value = 0.76;
-
-        // observed accuracy metric value captured somewhere after the initial training run.
-        let accuracy_observed_value = 0.67;
-
-        // we want to alert if accuracy has decreased.
-        let accuracy_alert_condition = AlertThreshold::Below;
-
-        // we will not be specifying a boundary here as we want to alert if accuracy has decreased by any amount
-        let accuracy_alert_boundary = None;
-
-        let accuracy_is_out_of_bounds = CustomDrifter::is_out_of_bounds(
-            accuracy_training_value,
-            accuracy_observed_value,
-            &accuracy_alert_condition,
-            accuracy_alert_boundary,
-        );
-        assert!(accuracy_is_out_of_bounds);
-
-        // test observed metric has not increased.
-
-        // mae training value obtained during initial model training.
-        let mae_training_value = 13.5;
-
-        // observed mae metric value captured somewhere after the initial training run.
-        let mae_observed_value = 10.5;
-
-        // we want to alert if mae has increased.
-        let mae_alert_condition = AlertThreshold::Above;
-
-        // we will not be specifying a boundary here as we want to alert if mae has increased by any amount
-        let mae_alert_boundary = None;
-
-        let mae_is_out_of_bounds = CustomDrifter::is_out_of_bounds(
-            mae_training_value,
-            mae_observed_value,
-            &mae_alert_condition,
-            mae_alert_boundary,
-        );
-        assert!(!mae_is_out_of_bounds);
-    }
-
     #[tokio::test]
-    async fn test_generate_alerts() {
+    async fn test_generate_alerts_triggers_for_out_of_bounds_metrics() {
         let drifter = get_test_drifter();
 
         let mut metric_map = HashMap::new();
-        // mse had an initial value of 12.02 when the profile was generated
+        // mse baseline: 12.02, threshold: Above, delta: 1.0
+        // This should trigger (14.0 > 12.02 + 1.0)
         metric_map.insert("mse".to_string(), 14.0);
-        // accuracy had an initial 0.75 when the profile was generated
+        // accuracy baseline: 0.75, threshold: Below, delta: None
+        // This should trigger (0.65 < 0.75)
         metric_map.insert("accuracy".to_string(), 0.65);
 
-        let alerts = drifter.generate_alerts(&metric_map).await.unwrap().unwrap();
+        let alerts = drifter
+            .generate_alerts(&metric_map)
+            .await
+            .expect("Should generate alerts successfully")
+            .expect("Should have alerts");
 
-        assert_eq!(alerts.len(), 2);
+        assert_eq!(alerts.len(), 2, "Should generate 2 alerts");
+
+        // Verify alert contents
+        let has_mse_alert = alerts
+            .iter()
+            .any(|a| a.get("entity_name") == Some(&"mse".to_string()));
+        let has_accuracy_alert = alerts
+            .iter()
+            .any(|a| a.get("entity_name") == Some(&"accuracy".to_string()));
+
+        assert!(has_mse_alert, "Should have MSE alert");
+        assert!(has_accuracy_alert, "Should have accuracy alert");
+    }
+
+    #[tokio::test]
+    async fn test_generate_alerts_no_trigger_within_threshold() {
+        let drifter = get_test_drifter();
+
+        let mut metric_map = HashMap::new();
+        // mse baseline: 12.02, threshold: Above, delta: 1.0
+        // This should NOT trigger (12.5 < 12.02 + 1.0)
+        metric_map.insert("mse".to_string(), 12.5);
+        // accuracy baseline: 0.75, threshold: Below
+        // This should NOT trigger (0.76 > 0.75)
+        metric_map.insert("accuracy".to_string(), 0.76);
+
+        let alerts = drifter
+            .generate_alerts(&metric_map)
+            .await
+            .expect("Should handle no-alert case successfully");
+
+        assert!(
+            alerts.is_none(),
+            "Should not generate alerts for values within threshold"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_generate_alerts_partial_triggers() {
+        let drifter = get_test_drifter();
+
+        let mut metric_map = HashMap::new();
+        // Only MSE should trigger
+        metric_map.insert("mse".to_string(), 14.0);
+        // Accuracy within bounds
+        metric_map.insert("accuracy".to_string(), 0.76);
+
+        let alerts = drifter
+            .generate_alerts(&metric_map)
+            .await
+            .expect("Should generate alerts successfully")
+            .expect("Should have alerts");
+
+        assert_eq!(alerts.len(), 1, "Should generate 1 alert");
+        assert_eq!(
+            alerts[0].get("entity_name"),
+            Some(&"mse".to_string()),
+            "Alert should be for MSE metric"
+        );
+    }
+
+    #[test]
+    fn test_profile_id_formatting() {
+        let drifter = get_test_drifter();
+        let profile_id = drifter.profile_id();
+
+        assert_eq!(profile_id, "scouter/model/0.1.0");
     }
 }

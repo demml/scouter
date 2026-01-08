@@ -119,7 +119,6 @@ impl StorageProvider {
     /// # Returns
     /// * `Result<Vec<String>, StorageError>` - A result containing a vector of file paths or an error.
     pub async fn list(&self, path: Option<&Path>) -> Result<Vec<String>, StorageError> {
-        // Get the stream based on the provided path
         let stream = match self {
             StorageProvider::Local(store) => store.list(path),
             StorageProvider::Google(store) => store.list(path),

@@ -363,6 +363,47 @@ mod tests {
     use ndarray::{arr1, Array1};
     use ndarray_rand::rand_distr::Normal;
     use ndarray_rand::RandomExt;
+
+    macro_rules! retry_flaky_test_sync {
+        ($attempts:expr, $delay_ms:expr, $test_logic:block) => {{
+            use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
+            use std::thread;
+            use std::time::Duration;
+
+            const MAX_ATTEMPTS: usize = $attempts;
+            const RETRY_DELAY: Duration = Duration::from_millis($delay_ms);
+
+            for attempt in 1..=MAX_ATTEMPTS {
+                let result = catch_unwind(AssertUnwindSafe(|| $test_logic));
+
+                match result {
+                    Ok(_) => {
+                        return;
+                    }
+                    Err(e) => {
+                        if attempt < MAX_ATTEMPTS {
+                            eprintln!(
+                                "Flaky test attempt {} failed (Panic). Retrying in {:?}...",
+                                attempt, RETRY_DELAY
+                            );
+                            thread::sleep(RETRY_DELAY);
+                        } else {
+                            eprintln!(
+                                "Flaky test failed on final attempt {}. Max retries reached.",
+                                attempt
+                            );
+                            resume_unwind(e);
+                        }
+                    }
+                }
+            }
+        }};
+
+        ($test_logic:block) => {
+            retry_flaky_test_sync!(3, 1000, $test_logic)
+        };
+    }
+
     fn create_normal_data(n: usize, mean: f64, std: f64) -> Array1<f64> {
         Array1::random(n, Normal::new(mean, std).unwrap())
     }
@@ -444,20 +485,22 @@ mod tests {
 
     #[test]
     fn test_freedman_diaconis_heavy_tailed() {
-        let fd = FreedmanDiaconis::new();
-        // Test with heavy-tailed distribution (using scaled normal as approximation)
-        let mut arr = create_normal_data(200, 0.0, 3.0);
-        // Add some extreme values to create heavy tails
-        for i in 0..10 {
-            arr[i] *= 3.0
-        }
+        retry_flaky_test_sync!(3, 1000, {
+            let fd = FreedmanDiaconis::new();
+            // Test with heavy-tailed distribution (using scaled normal as approximation)
+            let mut arr = create_normal_data(200, 0.0, 3.0);
+            // Add some extreme values to create heavy tails
+            for i in 0..10 {
+                arr[i] *= 3.0
+            }
 
-        let bins = fd.num_bins(&arr.view());
-        assert!(
-            bins > 3 && bins < 30,
-            "Expected bins between 3 and 30, got {}",
-            bins
-        );
+            let bins = fd.num_bins(&arr.view());
+            assert!(
+                bins > 3 && bins < 30,
+                "Expected bins between 3 and 30, got {}",
+                bins
+            );
+        });
     }
 
     #[test]

@@ -93,7 +93,7 @@ impl MessageHandler {
     #[instrument(skip_all)]
     pub async fn insert_server_records(
         pool: &Pool<Postgres>,
-        records: &ServerRecords,
+        records: ServerRecords,
     ) -> Result<(), SqlError> {
         info!("Inserting server records: {:?}", records.record_type()?);
 
@@ -143,11 +143,11 @@ impl MessageHandler {
                 }
             }
 
-            RecordType::GenAIEvent => {
+            RecordType::GenAIEval => {
                 debug!("LLM Drift record count: {:?}", records.len());
-                let records = records.to_genai_event_records()?;
+                let records = records.to_genai_eval_records()?;
                 for record in records {
-                    let _ = PostgresClient::insert_genai_event_record(pool, record, &entity_id)
+                    let _ = PostgresClient::insert_genai_eval_record(pool, record, &entity_id)
                         .await
                         .map_err(|e| {
                             error!("Failed to insert GenAI drift record: {:?}", e);
@@ -155,17 +155,30 @@ impl MessageHandler {
                 }
             }
 
-            RecordType::GenAIMetric => {
-                debug!("LLM Metric record count: {:?}", records.len());
-                let genai_metric_records = records.to_genai_metric_records()?;
-
-                for chunk in genai_metric_records.chunks(Self::DEFAULT_BATCH_SIZE) {
-                    PostgresClient::insert_genai_metric_values_batch(pool, chunk, &entity_id)
+            RecordType::GenAITask => {
+                debug!("GenAI Task count: {:?}", records.len());
+                let records = records.to_genai_task_records()?;
+                for chunk in records.chunks(Self::DEFAULT_BATCH_SIZE) {
+                    PostgresClient::insert_eval_task_results_batch(pool, chunk, &entity_id)
                         .await
                         .map_err(|e| {
-                            error!("Failed to insert LLM metric records batch: {:?}", e);
+                            error!("Failed to insert GenAI task records batch: {:?}", e);
                             e
                         })?;
+                }
+            }
+
+            RecordType::GenAIWorkflow => {
+                debug!("GenAI Workflow count: {:?}", records.len());
+                let records = records.to_genai_workflow_records()?;
+                for record in records {
+                    let _ = PostgresClient::insert_genai_eval_workflow_record(
+                        pool, &record, &entity_id,
+                    )
+                    .await
+                    .map_err(|e| {
+                        error!("Failed to insert GenAI workflow record: {:?}", e);
+                    });
                 }
             }
 
@@ -183,7 +196,7 @@ impl MessageHandler {
 
     pub async fn insert_trace_server_record(
         pool: &Pool<Postgres>,
-        records: &TraceServerRecord,
+        records: TraceServerRecord,
     ) -> Result<(), SqlError> {
         let (span_batch, baggage_batch, tag_records) = records.to_records()?;
 
@@ -206,9 +219,9 @@ impl MessageHandler {
 
     pub async fn insert_tag_record(
         pool: &Pool<Postgres>,
-        record: &TagRecord,
+        record: TagRecord,
     ) -> Result<(), SqlError> {
-        let result = PostgresClient::insert_tag_batch(pool, std::slice::from_ref(record)).await?;
+        let result = PostgresClient::insert_tag_batch(pool, std::slice::from_ref(&record)).await?;
 
         debug!(
             rows_affected = result.rows_affected(),
@@ -232,7 +245,7 @@ mod tests {
     use crate::sql::schema::User;
     use crate::sql::traits::EntitySqlLogic;
     use chrono::{Duration, Utc};
-    use potato_head::{create_uuid7, mock::create_score_prompt};
+    use potato_head::create_uuid7;
     use rand::Rng;
     use scouter_semver::VersionType;
     use scouter_settings::ObjectStorageSettings;
@@ -360,10 +373,13 @@ mod tests {
             FROM scouter.user;
 
             DELETE
-            FROM scouter.genai_event_record;
+            FROM scouter.genai_eval_record;
 
             DELETE
-            FROM scouter.genai_drift;
+            FROM scouter.genai_eval_task;
+
+            DELETE
+            FROM scouter.genai_eval_workflow;
 
             DELETE
             FROM scouter.spans;
@@ -621,7 +637,7 @@ mod tests {
             uid: UID.to_string(),
             feature: "test".to_string(),
             value: 1.0,
-            entity_id: None,
+            entity_id: 0,
         };
 
         let record2 = SpcRecord {
@@ -629,16 +645,13 @@ mod tests {
             uid: UID.to_string(),
             feature: "test2".to_string(),
             value: 2.0,
-            entity_id: None,
+            entity_id: 0,
         };
 
-        let result = PostgresClient::insert_spc_drift_records_batch(
-            &pool,
-            &[&record1, &record2],
-            &ENTITY_ID,
-        )
-        .await
-        .unwrap();
+        let result =
+            PostgresClient::insert_spc_drift_records_batch(&pool, &[record1, record2], &ENTITY_ID)
+                .await
+                .unwrap();
 
         assert_eq!(result.rows_affected(), 2);
     }
@@ -653,7 +666,7 @@ mod tests {
             feature: "test".to_string(),
             bin_id: 1,
             bin_count: 1,
-            entity_id: None,
+            entity_id: ENTITY_ID,
         };
 
         let record2 = PsiRecord {
@@ -662,11 +675,11 @@ mod tests {
             feature: "test2".to_string(),
             bin_id: 2,
             bin_count: 2,
-            entity_id: None,
+            entity_id: ENTITY_ID,
         };
 
         let result =
-            PostgresClient::insert_bin_counts_batch(&pool, &[&record1, &record2], &ENTITY_ID)
+            PostgresClient::insert_bin_counts_batch(&pool, &[record1, record2], &ENTITY_ID)
                 .await
                 .unwrap();
 
@@ -748,19 +761,16 @@ mod tests {
                     uid: UID.to_string(),
                     feature: format!("test{j}"),
                     value: j as f64,
-                    entity_id: None,
+                    entity_id: ENTITY_ID,
                 };
 
                 records.push(record);
             }
 
-            let result = PostgresClient::insert_spc_drift_records_batch(
-                &pool,
-                &records.iter().collect::<Vec<&SpcRecord>>(),
-                &ENTITY_ID,
-            )
-            .await
-            .unwrap();
+            let result =
+                PostgresClient::insert_spc_drift_records_batch(&pool, &records, &ENTITY_ID)
+                    .await
+                    .unwrap();
             assert_eq!(result.rows_affected(), records.len() as u64);
         }
 
@@ -848,18 +858,14 @@ mod tests {
                         feature: format!("feature{feature}"),
                         bin_id: bin,
                         bin_count: rand::rng().random_range(0..10) as i32,
-                        entity_id: None,
+                        entity_id: ENTITY_ID,
                     };
 
                     records.push(record);
                 }
-                PostgresClient::insert_bin_counts_batch(
-                    &pool,
-                    &records.iter().collect::<Vec<&PsiRecord>>(),
-                    &entity_id,
-                )
-                .await
-                .unwrap();
+                PostgresClient::insert_bin_counts_batch(&pool, &records, &entity_id)
+                    .await
+                    .unwrap();
             }
         }
 
@@ -924,17 +930,14 @@ mod tests {
                     uid: uid.clone(),
                     metric: format!("metric{i}"),
                     value: rand::rng().random_range(0..10) as f64,
-                    entity_id: None,
+                    entity_id: ENTITY_ID,
                 };
                 records.push(record);
             }
-            let result = PostgresClient::insert_custom_metric_values_batch(
-                &pool,
-                &records.iter().collect::<Vec<&CustomMetricRecord>>(),
-                &entity_id,
-            )
-            .await
-            .unwrap();
+            let result =
+                PostgresClient::insert_custom_metric_values_batch(&pool, &records, &entity_id)
+                    .await
+                    .unwrap();
             assert_eq!(result.rows_affected(), 25);
         }
 
@@ -944,11 +947,11 @@ mod tests {
             uid: uid.clone(),
             metric: "metric3".to_string(),
             value: rand::rng().random_range(0..10) as f64,
-            entity_id: None,
+            entity_id: ENTITY_ID,
         };
 
         let result =
-            PostgresClient::insert_custom_metric_values_batch(&pool, &[&record], &entity_id)
+            PostgresClient::insert_custom_metric_values_batch(&pool, &[record], &entity_id)
                 .await
                 .unwrap();
         assert_eq!(result.rows_affected(), 1);
@@ -1036,7 +1039,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_postgres_genai_event_record_insert_get() {
+    async fn test_postgres_genai_eval_record_insert_get() {
         let pool = db_pool().await;
 
         let (uid, entity_id) = PostgresClient::create_entity(
@@ -1051,45 +1054,39 @@ mod tests {
 
         let input = "This is a test input";
         let output = "This is a test response";
-        let prompt = create_score_prompt(None);
 
         for j in 0..10 {
             let context = serde_json::json!({
                 "input": input,
                 "response": output,
             });
-            let record = GenAIDriftRecord {
+            let record = GenAIEvalRecord {
                 created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
-                prompt: Some(prompt.model_dump_value()),
                 context,
                 status: Status::Pending,
                 id: 0, // This will be set by the database
                 uid: format!("test_{}", j),
-                updated_at: None,
-                score: Value::Null,
-                processing_started_at: None,
-                processing_ended_at: None,
-                processing_duration: None,
                 entity_uid: uid.clone(),
-                entity_id: None,
+                entity_id,
+                ..Default::default()
             };
 
-            let boxed = BoxedGenAIDriftRecord::new(record);
+            let boxed = BoxedGenAIEvalRecord::new(record);
 
-            let result = PostgresClient::insert_genai_event_record(&pool, &boxed, &entity_id)
+            let result = PostgresClient::insert_genai_eval_record(&pool, boxed, &entity_id)
                 .await
                 .unwrap();
 
             assert_eq!(result.rows_affected(), 1);
         }
 
-        let features = PostgresClient::get_genai_event_records(&pool, None, None, &entity_id)
+        let features = PostgresClient::get_genai_eval_records(&pool, None, None, &entity_id)
             .await
             .unwrap();
         assert_eq!(features.len(), 10);
 
         // get pending task
-        let pending_tasks = PostgresClient::get_pending_genai_event_record(&pool)
+        let pending_tasks = PostgresClient::get_pending_genai_eval_record(&pool)
             .await
             .unwrap();
 
@@ -1101,17 +1098,17 @@ mod tests {
         assert_eq!(*task_input, "This is a test input".to_string());
 
         // update pending task
-        PostgresClient::update_genai_event_record_status(
+        PostgresClient::update_genai_eval_record_status(
             &pool,
             &pending_tasks.unwrap(),
             Status::Processed,
-            Some(1),
+            &(1_i64),
         )
         .await
         .unwrap();
 
         // query processed tasks
-        let processed_tasks = PostgresClient::get_genai_event_records(
+        let processed_tasks = PostgresClient::get_genai_eval_records(
             &pool,
             None,
             Some(Status::Processed),
@@ -1125,7 +1122,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_postgres_genai_event_record_pagination() {
+    async fn test_postgres_genai_eval_record_pagination() {
         let pool = db_pool().await;
 
         let (uid, entity_id) = PostgresClient::create_entity(
@@ -1140,7 +1137,6 @@ mod tests {
 
         let input = "This is a test input";
         let output = "This is a test response";
-        let prompt = create_score_prompt(None);
 
         // Insert 10 records with increasing timestamps
         for j in 0..10 {
@@ -1148,25 +1144,20 @@ mod tests {
                 "input": input,
                 "response": output,
             });
-            let record = GenAIDriftRecord {
+            let record = GenAIEvalRecord {
                 created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
-                prompt: Some(prompt.model_dump_value()),
                 context,
-                score: Value::Null,
                 status: Status::Pending,
                 id: 0, // This will be set by the database
                 uid: format!("test_{}", j),
-                updated_at: None,
-                processing_started_at: None,
-                processing_ended_at: None,
-                processing_duration: None,
                 entity_uid: uid.clone(),
-                entity_id: None,
+                entity_id: ENTITY_ID,
+                ..Default::default()
             };
 
-            let boxed = BoxedGenAIDriftRecord::new(record);
+            let boxed = BoxedGenAIEvalRecord::new(record);
 
-            let result = PostgresClient::insert_genai_event_record(&pool, &boxed, &entity_id)
+            let result = PostgresClient::insert_genai_eval_record(&pool, boxed, &entity_id)
                 .await
                 .unwrap();
 
@@ -1174,7 +1165,7 @@ mod tests {
         }
 
         // ===== PAGE 1: Get first 5 records (newest) =====
-        let params = GenAIDriftRecordPaginationRequest {
+        let params = GenAIEvalRecordPaginationRequest {
             status: None,
             limit: Some(5),
             cursor_created_at: None,
@@ -1183,7 +1174,7 @@ mod tests {
             ..Default::default()
         };
 
-        let page1 = PostgresClient::get_paginated_genai_event_records(&pool, &params, &entity_id)
+        let page1 = PostgresClient::get_paginated_genai_eval_records(&pool, &params, &entity_id)
             .await
             .unwrap();
 
@@ -1207,7 +1198,7 @@ mod tests {
         // ===== PAGE 2: Get next 5 records (older) =====
         let next_cursor = page1.next_cursor.unwrap();
 
-        let params = GenAIDriftRecordPaginationRequest {
+        let params = GenAIEvalRecordPaginationRequest {
             status: None,
             limit: Some(5),
             cursor_created_at: Some(next_cursor.created_at),
@@ -1216,7 +1207,7 @@ mod tests {
             ..Default::default()
         };
 
-        let page2 = PostgresClient::get_paginated_genai_event_records(&pool, &params, &entity_id)
+        let page2 = PostgresClient::get_paginated_genai_eval_records(&pool, &params, &entity_id)
             .await
             .unwrap();
 
@@ -1256,7 +1247,7 @@ mod tests {
         // Go back from page 2 to page 1
         let previous_cursor = page2.previous_cursor.unwrap();
 
-        let params = GenAIDriftRecordPaginationRequest {
+        let params = GenAIEvalRecordPaginationRequest {
             status: None,
             limit: Some(5),
             cursor_created_at: Some(previous_cursor.created_at),
@@ -1266,7 +1257,7 @@ mod tests {
         };
 
         let page1_again =
-            PostgresClient::get_paginated_genai_event_records(&pool, &params, &entity_id)
+            PostgresClient::get_paginated_genai_eval_records(&pool, &params, &entity_id)
                 .await
                 .unwrap();
 
@@ -1285,7 +1276,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_postgres_genai_metrics_insert_get() {
+    async fn test_postgres_genai_task_result_insert_get() {
         let pool = db_pool().await;
 
         let timestamp = Utc::now();
@@ -1303,37 +1294,41 @@ mod tests {
         for i in 0..2 {
             let mut records = Vec::new();
             for j in 0..25 {
-                let record = GenAIMetricRecord {
-                    uid: format!("uid{i}{j}"),
+                let record = GenAIEvalTaskResult {
+                    record_uid: format!("record_uid_{i}_{j}"),
                     created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
+                    entity_id,
+                    task_id: format!("task{i}"),
+                    task_type: scouter_types::genai::EvaluationTaskType::Assertion,
+                    passed: true,
+                    value: j as f64,
+                    field_path: Some(format!("field.path.{i}")),
+                    operator: scouter_types::genai::ComparisonOperator::Contains,
+                    expected: Value::Null,
+                    actual: Value::Null,
+                    message: "All good".to_string(),
                     entity_uid: uid.clone(),
-                    metric: format!("metric{i}"),
-                    value: rand::rng().random_range(0..10) as f64,
-                    entity_id: None,
                 };
                 records.push(record);
             }
-            let result = PostgresClient::insert_genai_metric_values_batch(
-                &pool,
-                &records.iter().collect::<Vec<&GenAIMetricRecord>>(),
-                &entity_id,
-            )
-            .await
-            .unwrap();
+            let result =
+                PostgresClient::insert_eval_task_results_batch(&pool, &records, &entity_id)
+                    .await
+                    .unwrap();
             assert_eq!(result.rows_affected(), 25);
         }
 
-        let metrics = PostgresClient::get_genai_metric_values(
+        let metrics = PostgresClient::get_genai_task_values(
             &pool,
             &timestamp,
-            &["metric1".to_string()],
+            &["task1".to_string()],
             &entity_id,
         )
         .await
         .unwrap();
 
         assert_eq!(metrics.len(), 1);
-        let binned_records = PostgresClient::get_binned_genai_metric_values(
+        let binned_records = PostgresClient::get_binned_genai_task_values(
             &pool,
             &DriftRequest {
                 uid: uid.clone(),
@@ -1349,6 +1344,67 @@ mod tests {
         .unwrap();
         //
         assert_eq!(binned_records.metrics.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_postgres_genai_workflow_result_insert_get() {
+        let pool = db_pool().await;
+
+        let timestamp = Utc::now();
+
+        let (uid, entity_id) = PostgresClient::create_entity(
+            &pool,
+            SPACE,
+            NAME,
+            VERSION,
+            DriftType::GenAI.to_string(),
+        )
+        .await
+        .unwrap();
+
+        for i in 0..2 {
+            for j in 0..25 {
+                let record = GenAIEvalWorkflowResult {
+                    record_uid: format!("record_uid_{i}_{j}"),
+                    created_at: Utc::now() + chrono::Duration::hours(i),
+                    entity_id,
+                    total_tasks: 10,
+                    passed_tasks: 8,
+                    failed_tasks: 2,
+                    pass_rate: 0.8,
+                    duration_ms: 1500,
+                    entity_uid: uid.clone(),
+                };
+                let result =
+                    PostgresClient::insert_genai_eval_workflow_record(&pool, &record, &entity_id)
+                        .await
+                        .unwrap();
+                assert_eq!(result.rows_affected(), 1);
+            }
+        }
+
+        let metric = PostgresClient::get_genai_workflow_value(&pool, &timestamp, &entity_id)
+            .await
+            .unwrap();
+
+        assert!(metric.is_some());
+
+        let binned_records = PostgresClient::get_binned_genai_workflow_values(
+            &pool,
+            &DriftRequest {
+                uid: uid.clone(),
+                time_interval: TimeInterval::OneHour,
+                max_data_points: 1000,
+                ..Default::default()
+            },
+            &DatabaseSettings::default().retention_period,
+            &ObjectStorageSettings::default(),
+            &entity_id,
+        )
+        .await
+        .unwrap();
+        //
+        assert_eq!(binned_records.metrics.len(), 1);
     }
 
     #[tokio::test]

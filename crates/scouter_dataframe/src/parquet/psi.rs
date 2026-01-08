@@ -94,15 +94,14 @@ impl PsiDataFrame {
     }
 
     /// Create and arrow RecordBatch from the given records
-    fn build_batch(&self, records: Vec<&PsiRecord>) -> Result<RecordBatch, DataFrameError> {
+    fn build_batch(&self, records: Vec<PsiRecord>) -> Result<RecordBatch, DataFrameError> {
         let created_at_array = TimestampNanosecondArray::from_iter_values(
             records
                 .iter()
                 .map(|r| r.created_at.timestamp_nanos_opt().unwrap_or_default()),
         );
 
-        let entity_id_array =
-            Int32Array::from_iter_values(records.iter().map(|r| r.entity_id.unwrap()));
+        let entity_id_array = Int32Array::from_iter_values(records.iter().map(|r| r.entity_id));
         let feature_array =
             StringArray::from_iter_values(records.iter().map(|r| r.feature.as_str()));
 

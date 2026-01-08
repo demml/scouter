@@ -199,7 +199,10 @@ impl CustomDriftProfile {
 
         config.alert_config.set_alert_conditions(&metrics);
 
-        let metric_vals = metrics.iter().map(|m| (m.name.clone(), m.value)).collect();
+        let metric_vals = metrics
+            .iter()
+            .map(|m| (m.name.clone(), m.baseline_value))
+            .collect();
 
         Ok(Self {
             config,
@@ -306,13 +309,7 @@ impl CustomDriftProfile {
                     .get(name)
                     .ok_or(ProfileError::CustomAlertThresholdNotFound)
                     .unwrap();
-                CustomMetric::new(
-                    name,
-                    *value,
-                    alert.alert_threshold.clone(),
-                    alert.alert_threshold_value,
-                )
-                .unwrap()
+                CustomMetric::new(name, *value, alert.alert_threshold.clone(), alert.delta).unwrap()
             })
             .collect())
     }
@@ -447,11 +444,11 @@ mod tests {
         assert_eq!(profile.scouter_version, env!("CARGO_PKG_VERSION"));
         let conditions = profile.config.alert_config.alert_conditions.unwrap();
         assert_eq!(conditions["mae"].alert_threshold, AlertThreshold::Above);
-        assert_eq!(conditions["mae"].alert_threshold_value, Some(2.3));
+        assert_eq!(conditions["mae"].delta, Some(2.3));
         assert_eq!(
             conditions["accuracy"].alert_threshold,
             AlertThreshold::Below
         );
-        assert_eq!(conditions["accuracy"].alert_threshold_value, None);
+        assert_eq!(conditions["accuracy"].delta, None);
     }
 }

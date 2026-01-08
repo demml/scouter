@@ -57,3 +57,46 @@ macro_rules! retry_flaky_test {
         retry_flaky_test!(3, 1000, $test_logic)
     };
 }
+
+#[macro_export]
+macro_rules! retry_flaky_test_with_runtime {
+    ($runtime:expr, $attempts:expr, $delay_ms:expr, $test_logic:block) => {{
+        use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
+        use std::time::Duration;
+
+        const MAX_ATTEMPTS: usize = $attempts;
+        const RETRY_DELAY: Duration = Duration::from_millis($delay_ms);
+
+        for attempt in 1..=MAX_ATTEMPTS {
+            let result = catch_unwind(AssertUnwindSafe(|| $test_logic));
+
+            match result {
+                Ok(_) => {
+                    return;
+                }
+                Err(e) => {
+                    if attempt < MAX_ATTEMPTS {
+                        eprintln!(
+                            "Flaky test attempt {} failed (Panic). Retrying in {:?}...",
+                            attempt, RETRY_DELAY
+                        );
+                        $runtime.block_on(async {
+                            tokio::time::sleep(RETRY_DELAY).await;
+                        });
+                    } else {
+                        eprintln!(
+                            "Flaky test failed on final attempt {}. Max retries reached.",
+                            attempt
+                        );
+                        resume_unwind(e);
+                    }
+                }
+            }
+        }
+    }};
+
+    // Default invocation with runtime
+    ($runtime:expr, $test_logic:block) => {
+        retry_flaky_test_with_runtime!($runtime, 3, 1000, $test_logic)
+    };
+}

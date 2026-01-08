@@ -103,11 +103,32 @@ pub enum DriftError {
     #[error("Failed to setup tokio runtime for computing GenAI drift: {0}")]
     SetupTokioRuntimeError(#[source] io::Error),
 
-    #[error("Failed to process GenAI drift record: {0}")]
-    GenAIEvaluatorError(String),
-
     #[error("{0}")]
     InvalidDataConfiguration(String),
+
+    #[error("Workflow is missing for GenAI drift evaluation")]
+    MissingWorkflow,
+
+    #[error("Failed to acquire write lock on workflow")]
+    WriteLockAcquireError,
+
+    #[error("Task execution error: {0}")]
+    TaskExecutionError(String),
+
+    #[error(transparent)]
+    EvaluationError(#[from] scouter_evaluate::error::EvaluationError),
+
+    #[error("Expected a list of AssertionTask or LLMJudgeTask. Received {0}")]
+    ExpectedListOfAssertionOrLLMJudgeTasks(String),
+
+    #[error("Expected a list of GenAIEvalRecords. Received {0}")]
+    ExpectedListOfGenAIEvalRecords(String),
+
+    #[error("Failed to process GenAI evaluation: {0}")]
+    GenAIEvaluatorError(String),
+
+    #[error(transparent)]
+    TypeError(#[from] scouter_types::error::TypeError),
 }
 
 impl From<DriftError> for PyErr {
@@ -126,5 +147,11 @@ impl From<PyErr> for DriftError {
 impl<'a, 'py> From<PyClassGuardError<'a, 'py>> for DriftError {
     fn from(err: PyClassGuardError<'a, 'py>) -> Self {
         DriftError::RunTimeError(err.to_string())
+    }
+}
+
+impl<'a, 'py> From<pyo3::CastError<'a, 'py>> for DriftError {
+    fn from(err: pyo3::CastError<'a, 'py>) -> Self {
+        DriftError::DowncastError(err.to_string())
     }
 }

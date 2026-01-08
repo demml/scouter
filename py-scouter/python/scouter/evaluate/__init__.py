@@ -1,19 +1,29 @@
 # mypy: disable-error-code="attr-defined"
 
 from .._scouter import (
+    AlignedEvalResult,
+    AssertionTask,
+    ComparisonOperator,
     EvaluationConfig,
-    GenAIEvalMetric,
+    GenAIEvalDataset,
     GenAIEvalRecord,
     GenAIEvalResults,
+    GenAIEvalResultSet,
+    GenAIEvalSet,
     GenAIEvalTaskResult,
-    evaluate_genai,
+    LLMJudgeTask,
 )
 
 __all__ = [
-    "GenAIEvalTaskResult",
-    "GenAIEvalMetric",
     "GenAIEvalResults",
-    "GenAIEvalRecord",
-    "evaluate_genai",
     "EvaluationConfig",
+    "GenAIEvalDataset",
+    "GenAIEvalSet",
+    "GenAIEvalTaskResult",
+    "GenAIEvalResultSet",
+    "AlignedEvalResult",
+    "GenAIEvalRecord",
+    "LLMJudgeTask",
+    "AssertionTask",
+    "ComparisonOperator",
 ]

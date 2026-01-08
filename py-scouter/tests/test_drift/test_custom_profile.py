@@ -11,9 +11,9 @@ def test_custom_profile(custom_metric_drift_config: CustomMetricDriftConfig):
     # create custom metric obj
     accuracy = CustomMetric(
         name="accuracy",
-        value=0.75,
         alert_threshold=AlertThreshold.Below,
-        alert_threshold_value=0.05,
+        baseline_value=0.75,
+        delta=0.05,
     )
 
     # create custom drifter
@@ -24,7 +24,13 @@ def test_custom_profile(custom_metric_drift_config: CustomMetricDriftConfig):
     # assert profile is what we expect
     assert profile.model_dump()["config"] == {
         "alert_config": {
-            "alert_conditions": {"accuracy": {"alert_threshold": "Below", "alert_threshold_value": 0.05}},
+            "alert_conditions": {
+                "accuracy": {
+                    "alert_threshold": "Below",
+                    "baseline_value": 0.75,
+                    "delta": 0.05,
+                }
+            },
             "dispatch_config": {"Slack": {"channel": "test_channel"}},
             "schedule": "0 0 * * * *",
         },
@@ -40,6 +46,6 @@ def test_custom_profile(custom_metric_drift_config: CustomMetricDriftConfig):
 
     # test helper function that allows users to see their metrics in the format they were submitted
     assert profile.custom_metrics[0].name == "accuracy"
-    assert profile.custom_metrics[0].value == 0.75
-    assert profile.custom_metrics[0].alert_threshold_value == 0.05
+    assert profile.custom_metrics[0].baseline_value == 0.75
+    assert profile.custom_metrics[0].delta == 0.05
     assert profile.custom_metrics[0].alert_threshold == AlertThreshold.Below

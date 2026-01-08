@@ -11,14 +11,10 @@ pub use scouter_types::{
     alert::{Alert, Alerts, CompressionType},
     create_feature_map,
     cron::*,
-    custom::{
-        CustomDriftProfile, CustomMetric, CustomMetricAlertCondition, CustomMetricAlertConfig,
-        CustomMetricDriftConfig,
-    },
-    eval::GenAIEvalMetric,
+    custom::{CustomDriftProfile, CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig},
     genai::{
-        GenAIAlertConfig, GenAIDriftConfig, GenAIDriftMap, GenAIDriftMetric, GenAIDriftProfile,
-        GenAIMetricAlertCondition,
+        AssertionTask, ComparisonOperator, GenAIAlertConfig, GenAIDriftConfig, GenAIEvalProfile,
+        GenAIEvalResultSet, GenAIEvalSet, LLMJudgeTask,
     },
     psi::{
         Bin, BinnedPsiFeatureMetrics, BinnedPsiMetric, PsiAlertConfig, PsiChiSquareThreshold,
@@ -31,20 +27,20 @@ pub use scouter_types::{
         SpcFeatureDriftProfile,
     },
     sql::{TraceFilters, TraceListItem, TraceMetricBucket, TraceSpan},
-    AlertDispatchType, AlertThreshold, Attribute, BinnedMetric, BinnedMetricStats, BinnedMetrics,
-    ConsoleDispatchConfig, CustomMetricRecord, DataType, Doane, DriftAlertPaginationRequest,
-    DriftAlertPaginationResponse, DriftProfile, DriftRequest, DriftType, EntityIdTagsRequest,
-    EntityIdTagsResponse, EntityType, EqualWidthBinning, Feature, FeatureMap, Features,
-    FreedmanDiaconis, GenAIDriftRecord, GenAIDriftRecordPaginationRequest,
-    GenAIDriftRecordPaginationResponse, GenAIMetricRecord, GenAIRecord, GetProfileRequest,
-    LatencyMetrics, Manual, Metric, Metrics, ObservabilityMetrics, OpsGenieDispatchConfig,
-    ProfileRequest, ProfileStatusRequest, PsiRecord, QuantileBinning, RecordType,
-    RegisteredProfileResponse, Rice, RouteMetrics, Scott, ScouterResponse, ScouterServerError,
-    ServerRecord, ServerRecords, SlackDispatchConfig, SpanEvent, SpanLink, SpcRecord, SquareRoot,
-    Sturges, TagRecord, TagsResponse, TerrellScott, TimeInterval, TraceBaggageRecord,
-    TraceBaggageResponse, TraceMetricsRequest, TraceMetricsResponse, TracePaginationResponse,
-    TraceRecord, TraceRequest, TraceSpanRecord, TraceSpansResponse, UpdateAlertResponse,
-    UpdateAlertStatus, VersionRequest, SCOUTER_TAG_PREFIX,
+    AlertCondition, AlertDispatchType, AlertThreshold, Attribute, BinnedMetric, BinnedMetricStats,
+    BinnedMetrics, ConsoleDispatchConfig, CustomMetricRecord, DataType, Doane,
+    DriftAlertPaginationRequest, DriftAlertPaginationResponse, DriftProfile, DriftRequest,
+    DriftType, EntityIdTagsRequest, EntityIdTagsResponse, EntityType, EqualWidthBinning, Feature,
+    FeatureMap, Features, FreedmanDiaconis, GenAIEvalRecord, GenAIEvalRecordPaginationRequest,
+    GenAIEvalRecordPaginationResponse, GenAIEvalTaskResult, GenAIEvalWorkflowResult,
+    GetProfileRequest, LatencyMetrics, Manual, Metric, Metrics, ObservabilityMetrics,
+    OpsGenieDispatchConfig, ProfileRequest, ProfileStatusRequest, PsiRecord, QuantileBinning,
+    RecordType, RegisteredProfileResponse, Rice, RouteMetrics, Scott, ScouterResponse,
+    ScouterServerError, ServerRecord, ServerRecords, SlackDispatchConfig, SpanEvent, SpanLink,
+    SpcRecord, SquareRoot, Sturges, TagRecord, TagsResponse, TerrellScott, TimeInterval,
+    TraceBaggageRecord, TraceBaggageResponse, TraceMetricsRequest, TraceMetricsResponse,
+    TracePaginationResponse, TraceRecord, TraceRequest, TraceSpanRecord, TraceSpansResponse,
+    UpdateAlertResponse, UpdateAlertStatus, VersionRequest, SCOUTER_TAG_PREFIX,
 };
 
 pub use crate::http::{PyScouterClient, ScouterClient};
@@ -60,7 +56,7 @@ pub use scouter_events::producer::{
 };
 pub use scouter_events::queue::bus::TaskState;
 pub use scouter_events::queue::{
-    custom::CustomMetricFeatureQueue, genai::GenAIRecordQueue, psi::PsiFeatureQueue,
+    custom::CustomMetricFeatureQueue, genai::GenAIEvalRecordQueue, psi::PsiFeatureQueue,
     spc::SpcFeatureQueue, QueueBus, ScouterQueue,
 };
 
@@ -79,8 +75,8 @@ pub use scouter_types::error::{ContractError, ProfileError, RecordError, TypeErr
 
 pub use scouter_evaluate::{
     error::EvaluationError,
-    genai::{async_evaluate_genai, evaluate_genai, workflow_from_eval_metrics},
-    types::{EvaluationConfig, GenAIEvalRecord, GenAIEvalResults, GenAIEvalTaskResult},
+    genai::GenAIEvalDataset,
+    types::{AlignedEvalResult, EvaluationConfig, GenAIEvalResults},
 };
 pub use scouter_tracing::error::TraceError;
 pub use scouter_tracing::exporter::{

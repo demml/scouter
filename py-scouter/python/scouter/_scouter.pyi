@@ -13,6 +13,7 @@ from typing import (
     Optional,
     ParamSpec,
     Protocol,
+    Sequence,
     TypeAlias,
     TypeVar,
     Union,
@@ -194,8 +195,8 @@ class Score:
     ```python
         Prompt(
             model="openai:gpt-4o",
-            message="What is the score of this response?",
-            system_instruction="system_prompt",
+            messages="What is the score of this response?",
+            system_instructions="system_prompt",
             response_format=Score,
         )
     ```
@@ -299,8 +300,8 @@ class Prompt:
             ```python
             prompt = Prompt(
                 model="gpt-4o",
-                message="My prompt variable is ${variable}",
-                system_instruction="You are a helpful assistant",
+                messages="My prompt variable is ${variable}",
+                system_instructions="You are a helpful assistant",
                 provider="openai",
             )
 
@@ -411,7 +412,7 @@ class Prompt:
         Example:
             ```python
             prompt = Prompt(
-                message="Hello ${name}, your score is ${score}",
+                messages="Hello ${name}, your score is ${score}",
                 model="gpt-4o",
                 provider="openai",
             )
@@ -432,7 +433,7 @@ class Prompt:
 
         Example:
             ```python
-            prompt = Prompt(message="Hello!", model="gpt-4o", provider="openai")
+            prompt = Prompt(messages="Hello!", model="gpt-4o", provider="openai")
             saved_path = prompt.save_prompt(Path("my_prompt.json"))
             ```
         """
@@ -494,7 +495,7 @@ class Prompt:
 
         Example:
             ```python
-            prompt = Prompt(message="Hello!", model="gpt-4o", provider="openai")
+            prompt = Prompt(messages="Hello!", model="gpt-4o", provider="openai")
             json_str = prompt.model_dump_json()
             ```
         """
@@ -530,7 +531,7 @@ class Prompt:
         Example:
             ```python
             prompt = Prompt(
-                message="Hello ${name}, you scored ${score}/100",
+                messages="Hello ${name}, you scored ${score}/100",
                 model="gpt-4o",
                 provider="openai",
             )
@@ -575,7 +576,7 @@ class Prompt:
         Example:
             ```python
             prompt = Prompt(
-                message="Hello ${name}, you scored ${score}/100",
+                messages="Hello ${name}, you scored ${score}/100",
                 model="gpt-4o",
                 provider="openai",
             )
@@ -824,7 +825,7 @@ class Agent:
         ```python
             agent = Agent(
                 provider=Provider.OpenAI,
-                system_instruction="You are a helpful assistant.",
+                system_instructions="You are a helpful assistant.",
             )
         ```
         """
@@ -6787,7 +6788,7 @@ class PromptFeedback:
         >>> feedback = PromptFeedback(
         ...     block_reason=BlockedReason.Safety,
         ...     safety_ratings=[...],
-        ...     block_reason_message="Prompt contains unsafe content"
+        ...     block_reason_messages="Prompt contains unsafe content"
         ... )
     """
 
@@ -10152,7 +10153,7 @@ class DriftType:
     Spc: "DriftType"
     Psi: "DriftType"
     Custom: "DriftType"
-    LLM = "DriftType"
+    GenAI: "DriftType"
 
     def value(self) -> str: ...
     @staticmethod
@@ -10514,39 +10515,38 @@ class AlertThreshold:
             AlertThreshold: The corresponding AlertThreshold enum member.
         """
 
-class CustomMetricAlertCondition:
+class AlertCondition:
     def __init__(
         self,
+        baseline_value: float,
         alert_threshold: AlertThreshold,
-        alert_threshold_value: Optional[float],
+        delta: Optional[float],
     ):
-        """Initialize a CustomMetricAlertCondition instance.
+        """Initialize a AlertCondition instance.
         Args:
-            alert_threshold (AlertThreshold): The condition that determines when an alert
-                should be triggered. This could be comparisons like 'greater than',
-                'less than', 'equal to', etc.
-            alert_threshold_value (Optional[float], optional): A numerical boundary used in
-                conjunction with the alert_threshold. This can be None for certain
-                types of comparisons that don't require a fixed boundary.
+            baseline_value (float):
+                The baseline value to compare against for alerting.
+            alert_threshold (AlertThreshold):
+                The condition that determines when an alert should be triggered.
+                Must be one of the AlertThreshold enum members like Below, Above, or Outside.
+            delta (Optional[float], optional):
+                Optional delta value that modifies the baseline to create the alert boundary.
+                The interpretation depends on alert_threshold:
+                - Above: alert if value > (baseline + delta)
+                - Below: alert if value < (baseline - delta)
+                - Outside: alert if value is outside [baseline - delta, baseline + delta]
         Example:
-            alert_threshold = CustomMetricAlertCondition(AlertCondition.BELOW, 2.0)
+            alert_threshold = AlertCondition(AlertCondition.BELOW, 2.0)
         """
 
-    @property
-    def alert_threshold(self) -> AlertThreshold:
-        """Return the alert_threshold"""
+    def upper_bound(self) -> float:
+        """Calculate and return the upper bound for alerting based on baseline and delta."""
 
-    @alert_threshold.setter
-    def alert_threshold(self, alert_threshold: AlertThreshold) -> None:
-        """Set the alert_threshold"""
+    def lower_bound(self) -> float:
+        """Calculate and return the lower bound for alerting based on baseline and delta."""
 
-    @property
-    def alert_threshold_value(self) -> float:
-        """Return the alert_threshold_value"""
-
-    @alert_threshold_value.setter
-    def alert_threshold_value(self, alert_threshold_value: float) -> None:
-        """Set the alert_threshold_value"""
+    def should_alert(self, value: float) -> bool:
+        """Determine if an alert should be triggered based on the provided value."""
 
 class CustomMetricAlertConfig:
     def __init__(
@@ -10581,11 +10581,11 @@ class CustomMetricAlertConfig:
         """Set the schedule"""
 
     @property
-    def alert_conditions(self) -> dict[str, CustomMetricAlertCondition]:
+    def alert_conditions(self) -> dict[str, AlertCondition]:
         """Return the alert_condition that were set during metric definition"""
 
     @alert_conditions.setter
-    def alert_conditions(self, alert_conditions: dict[str, CustomMetricAlertCondition]) -> None:
+    def alert_conditions(self, alert_conditions: dict[str, AlertCondition]) -> None:
         """Update the alert_condition that were set during metric definition"""
 
 class GenAIAlertConfig:
@@ -10593,6 +10593,7 @@ class GenAIAlertConfig:
         self,
         dispatch_config: Optional[SlackDispatchConfig | OpsGenieDispatchConfig] = None,
         schedule: Optional[str | CommonCrons] = None,
+        alert_condition: Optional[AlertCondition] = None,
     ):
         """Initialize alert config
 
@@ -10601,6 +10602,8 @@ class GenAIAlertConfig:
                 Alert dispatch config. Defaults to console
             schedule:
                 Schedule to run monitor. Defaults to daily at midnight
+            alert_condition:
+                Alert condition for a GenAI drift profile
 
         """
 
@@ -10621,29 +10624,8 @@ class GenAIAlertConfig:
         """Set the schedule"""
 
     @property
-    def alert_conditions(self) -> Optional[Dict[str, GenAIMetricAlertCondition]]:
-        """Return the alert conditions"""
-
-class GenAIMetricAlertCondition:
-    def __init__(
-        self,
-        alert_threshold: AlertThreshold,
-        alert_threshold_value: Optional[float],
-    ):
-        """Initialize a GenAIMetricAlertCondition instance.
-        Args:
-            alert_threshold (AlertThreshold):
-                The condition that determines when an alert should be triggered.
-                Must be one of the AlertThreshold enum members like Below, Above, or Outside.
-            alert_threshold_value (Optional[float], optional):
-                A numerical boundary used in conjunction with the alert_threshold.
-                This can be None for certain types of comparisons that don't require a fixed boundary.
-        Example:
-            alert_threshold = GenAIMetricAlertCondition(AlertCondition.BELOW, 2.0)
-        """
-
-    def __str__(self) -> str:
-        """Return the string representation of GenAIMetricAlertCondition."""
+    def alert_conditions(self) -> Optional[AlertCondition]:
+        """Return the alert condition"""
 
 class LogLevel:
     Debug: "LogLevel"
@@ -11576,21 +11558,21 @@ class MockConfig:
         """
 
 class EntityType:
-    Feature = "EntityType"
-    Metric = "EntityType"
+    Feature: "EntityType"
+    Metric: "EntityType"
+    GenAI: "EntityType"
 
 class RecordType:
-    Spc = "RecordType"
-    Psi = "RecordType"
-    Observability = "RecordType"
-    Custom = "RecordType"
+    Spc: "RecordType"
+    Psi: "RecordType"
+    Observability: "RecordType"
+    Custom: "RecordType"
+    Trace: "RecordType"
+    GenAIEval: "RecordType"
+    GenAITask: "RecordType"
+    GenAIWorkflow: "RecordType"
 
 class ServerRecord:
-    Spc: "ServerRecord"
-    Psi: "ServerRecord"
-    Custom: "ServerRecord"
-    Observability: "ServerRecord"
-
     def __init__(self, record: Any) -> None:
         """Initialize server record
 
@@ -11942,13 +11924,13 @@ class Metrics:
 class Queue:
     """Individual queue associated with a drift profile"""
 
-    def insert(self, entity: Union[Features, Metrics, GenAIRecord]) -> None:
+    def insert(self, entity: Union[Features, Metrics, GenAIEvalRecord]) -> None:
         """Insert a record into the queue
 
         Args:
             entity:
                 Entity to insert into the queue.
-                Can be an instance for Features, Metrics, or GenAIRecord.
+                Can be an instance for Features, Metrics, or GenAIEvalRecord.
 
         Example:
             ```python
@@ -11997,7 +11979,7 @@ class ScouterQueue:
         ║                              │                                           ║
         ║                              ▼                                           ║
         ║  ┌────────────────────────────────────────────────────────────────────┐  ║
-        ║  │  queue["profile_alias"].insert(Features | Metrics | GenAIRecord)     │  ║
+        ║  │  queue["profile_alias"].insert(Features | Metrics | GenAIEvalRecord)     │  ║
         ║  └───────────────────────────┬────────────────────────────────────────┘  ║
         ║                              │                                           ║
         ╚══════════════════════════════╪═══════════════════════════════════════════╝
@@ -12048,7 +12030,7 @@ class ScouterQueue:
         ```
         Flow Summary:
             1. **Python Runtime**: Initialize queue with drift profiles and transport config
-            2. **Insert Records**: Call queue["alias"].insert() with Features/Metrics/GenAIRecord
+            2. **Insert Records**: Call queue["alias"].insert() with Features/Metrics/GenAIEvalRecord
             3. **Rust Queue**: Buffer and validate records against profile schema
             4. **Transport Producer**: Serialize and publish to configured transport
             5. **Network**: Records travel via Kafka/RabbitMQ/Redis/HTTP/gRPC
@@ -12064,7 +12046,7 @@ class ScouterQueue:
                     • SpcDriftProfile    - Statistical Process Control monitoring
                     • PsiDriftProfile    - Population Stability Index monitoring
                     • CustomDriftProfile - Custom metric monitoring
-                    • GenAIDriftProfile    - LLM evaluation monitoring
+                    • GenAIEvalProfile    - LLM evaluation monitoring
 
             transport_config (Union[KafkaConfig, RabbitMQConfig, RedisConfig, HttpConfig, GrpcConfig]):
                 Transport configuration for the queue publisher.
@@ -12120,7 +12102,7 @@ class ScouterQueue:
                 ...     ),
                 ... )
                 >>> queue["genai_eval"].insert(
-                ...     GenAIRecord(context={"input": "...", "response": "..."})
+                ...     GenAIEvalRecord(context={"input": "...", "response": "..."})
                 ... )
         """
 
@@ -12154,13 +12136,13 @@ class BaseModel(Protocol):
     def __str__(self) -> str:
         """String representation of the model"""
 
-class GenAIRecord:
+class GenAIEvalRecord:
     """LLM record containing context tied to a Large Language Model interaction
     that is used to evaluate drift in LLM responses.
 
 
     Examples:
-        >>> record = GenAIRecord(
+        >>> record = GenAIEvalRecord(
         ...     context={
         ...         "input": "What is the capital of France?",
         ...         "response": "Paris is the capital of France."
@@ -12170,36 +12152,45 @@ class GenAIRecord:
         "What is the capital of France?"
     """
 
-    prompt: Optional[Prompt]
-    """Optional prompt configuration associated with this record."""
-
-    entity_type: EntityType
-    """Type of entity, always EntityType.LLM for GenAIRecord instances."""
-
     def __init__(
         self,
         context: Context,
-        prompt: Optional[Prompt | SerializedType] = None,
+        id: Optional[str] = None,
     ) -> None:
-        """Creates a new LLM record to associate with an `GenAIDriftProfile`.
+        """Creates a new LLM record to associate with an `GenAIEvalProfile`.
         The record is sent to the `Scouter` server via the `ScouterQueue` and is
         then used to inject context into the evaluation prompts.
 
         Args:
-            context:
+            context (Dict[str, Any] | BaseModel):
                 Additional context information as a dictionary or a pydantic BaseModel. During evaluation,
                 this will be merged with the input and response data and passed to the assigned
                 evaluation prompts. So if you're evaluation prompts expect additional context via
                 bound variables (e.g., `${foo}`), you can pass that here as key value pairs.
                 {"foo": "bar"}
-            prompt:
-                Optional prompt configuration associated with this record. Can be a Potatohead Prompt or
-                a JSON-serializable type.
+            id (Optional[str], optional):
+                Optional unique identifier for the record.
 
         Raises:
             TypeError: If context is not a dict or a pydantic BaseModel.
 
         """
+
+    @property
+    def record_id(self) -> Optional[str]:
+        """Get the record ID."""
+
+    @record_id.setter
+    def record_id(self, record_id: str) -> None:
+        """Set the record ID."""
+
+    @property
+    def created_at(self) -> datetime.datetime:
+        """Get the created at timestamp."""
+
+    @property
+    def uid(self) -> str:
+        """Get the unique identifier for the record."""
 
     @property
     def context(self) -> Dict[str, Any]:
@@ -12211,6 +12202,12 @@ class GenAIRecord:
         Raises:
             TypeError: If the stored JSON cannot be converted to a Python object.
         """
+
+    def __str__(self) -> str:
+        """Return the string representation of the record."""
+
+    def model_dump_json(self) -> str:
+        """Return the json representation of the record."""
 
 class LLMTestServer:
     """
@@ -13103,13 +13100,6 @@ class PsiDriftMap:
 
         """
 
-class GenAIDriftMap:
-    @property
-    def records(self) -> List[GenAIMetricRecord]:
-        """Return the list of LLM records."""
-
-    def __str__(self): ...
-
 class CustomMetricDriftConfig:
     def __init__(
         self,
@@ -13214,9 +13204,9 @@ class CustomMetric:
     def __init__(
         self,
         name: str,
-        value: float,
+        baseline_value: float,
         alert_threshold: AlertThreshold,
-        alert_threshold_value: Optional[float] = None,
+        delta: Optional[float] = None,
     ):
         """
         Initialize a custom metric for alerting.
@@ -13225,13 +13215,14 @@ class CustomMetric:
         an alert condition to a single metric value.
 
         Args:
-            name (str): The name of the metric being monitored. This should be a
-                descriptive identifier for the metric.
-            value (float): The current value of the metric.
+            name (str):
+                The name of the metric being monitored. This should be a descriptive identifier for the metric.
+            baseline_value (float):
+                The baseline value of the metric.
             alert_threshold (AlertThreshold):
                 The condition used to determine when an alert should be triggered.
-            alert_threshold_value (Optional[float]):
-                The threshold or boundary value used in conjunction with the alert_threshold.
+            delta (Optional[float]):
+                The delta value used in conjunction with the alert_threshold.
                 If supplied, this value will be added or subtracted from the provided metric value to
                 determine if an alert should be triggered.
 
@@ -13246,19 +13237,19 @@ class CustomMetric:
         """Set the metric name"""
 
     @property
-    def value(self) -> float:
-        """Return the metric value"""
+    def baseline_value(self) -> float:
+        """Return the baseline value"""
 
-    @value.setter
-    def value(self, value: float) -> None:
-        """Set the metric value"""
+    @baseline_value.setter
+    def baseline_value(self, value: float) -> None:
+        """Set the baseline value"""
 
     @property
-    def alert_condition(self) -> CustomMetricAlertCondition:
+    def alert_condition(self) -> AlertCondition:
         """Return the alert_condition"""
 
     @alert_condition.setter
-    def alert_condition(self, alert_condition: CustomMetricAlertCondition) -> None:
+    def alert_condition(self, alert_condition: AlertCondition) -> None:
         """Set the alert_condition"""
 
     @property
@@ -13266,8 +13257,8 @@ class CustomMetric:
         """Return the alert_threshold"""
 
     @property
-    def alert_threshold_value(self) -> Optional[float]:
-        """Return the alert_threshold_value"""
+    def delta(self) -> Optional[float]:
+        """Return the delta value"""
 
     def __str__(self) -> str:
         """Return the string representation of the config."""
@@ -13382,82 +13373,6 @@ class CustomDriftProfile:
             None
         """
 
-class GenAIDriftMetric:
-    """Metric for monitoring LLM performance."""
-
-    def __init__(
-        self,
-        name: str,
-        value: float,
-        alert_threshold: AlertThreshold,
-        alert_threshold_value: Optional[float] = None,
-        prompt: Optional[Prompt] = None,
-    ):
-        """
-        Initialize a metric for monitoring LLM performance.
-
-        Args:
-            name (str):
-                The name of the metric being monitored. This should be a
-                descriptive identifier for the metric.
-            value (float):
-                The current value of the metric.
-            alert_threshold (AlertThreshold):
-                The condition used to determine when an alert should be triggered.
-            alert_threshold_value (Optional[float]):
-                The threshold or boundary value used in conjunction with the alert_threshold.
-                If supplied, this value will be added or subtracted from the provided metric value to
-                determine if an alert should be triggered.
-            prompt (Optional[Prompt]):
-                Optional prompt associated with the metric. This can be used to provide context or
-                additional information about the metric being monitored. If creating an GenAI drift profile
-                from a pre-defined workflow, this can be none.
-        """
-
-    @property
-    def name(self) -> str:
-        """Return the metric name"""
-
-    @property
-    def value(self) -> float:
-        """Return the metric value"""
-
-    @property
-    def prompt(self) -> Optional[Prompt]:
-        """Return the prompt associated with the metric"""
-
-    @property
-    def alert_threshold(self) -> AlertThreshold:
-        """Return the alert_threshold"""
-
-    @property
-    def alert_threshold_value(self) -> Optional[float]:
-        """Return the alert_threshold_value"""
-
-class GenAIMetricRecord:
-    @property
-    def uid(self) -> str:
-        """Return the record uid"""
-
-    @property
-    def entity_uid(self) -> str:
-        """Returns the entity uid associated with the record"""
-
-    @property
-    def created_at(self) -> datetime.datetime:
-        """Return the timestamp when the record was created"""
-
-    @property
-    def metric(self) -> str:
-        """Return the name of the metric associated with the record"""
-
-    @property
-    def value(self) -> float:
-        """Return the value of the metric associated with the record"""
-
-    def __str__(self) -> str:
-        """Return the string representation of the record"""
-
 class GenAIDriftConfig:
     def __init__(
         self,
@@ -13558,129 +13473,1040 @@ class GenAIDriftConfig:
                 LLM alert configuration
         """
 
-class GenAIDriftProfile:
+class EvaluationTaskType:
+    """Types of evaluation tasks for LLM assessments."""
+
+    Assertion: "EvaluationTaskType"
+    """Assertion-based evaluation task."""
+    LLMJudge: "EvaluationTaskType"
+    """LLM judge-based evaluation task."""
+    HumanValidation: "EvaluationTaskType"
+    """Human validation evaluation task."""
+
+class ComparisonOperator:
+    """Comparison operators for assertion-based evaluations.
+
+    Defines the available comparison operators that can be used to evaluate
+    assertions against expected values in LLM evaluation workflows.
+
+    Examples:
+        >>> operator = ComparisonOperator.GreaterThan
+        >>> operator = ComparisonOperator.Equal
+    """
+
+    Equals: "ComparisonOperator"
+    """Equality comparison (==)"""
+
+    NotEqual: "ComparisonOperator"
+    """Inequality comparison (!=)"""
+
+    GreaterThan: "ComparisonOperator"
+    """Greater than comparison (>)"""
+
+    GreaterThanOrEqual: "ComparisonOperator"
+    """Greater than or equal comparison (>=)"""
+
+    LessThan: "ComparisonOperator"
+    """Less than comparison (<)"""
+
+    LessThanOrEqual: "ComparisonOperator"
+    """Less than or equal comparison (<=)"""
+
+    Contains: "ComparisonOperator"
+    """Contains substring or element (in)"""
+
+    NotContains: "ComparisonOperator"
+    """Does not contain substring or element (not in)"""
+
+    StartsWith: "ComparisonOperator"
+    """Starts with substring"""
+
+    EndsWith: "ComparisonOperator"
+    """Ends with substring"""
+
+    Matches: "ComparisonOperator"
+    """Matches regular expression pattern"""
+
+    HasLengthGreaterThan: "ComparisonOperator"
+    """Has specified length greater than"""
+
+    HasLengthLessThan: "ComparisonOperator"
+    """Has specified length less than"""
+
+    HasLengthEqual: "ComparisonOperator"
+    """Has specified length equal to"""
+
+    HasLengthGreaterThanOrEqual: "ComparisonOperator"
+    """Has specified length greater than or equal to"""
+
+    HasLengthLessThanOrEqual: "ComparisonOperator"
+    """Has specified length less than or equal to"""
+
+    # type validations
+    IsNumeric: "ComparisonOperator"
+    """Is a numeric value"""
+
+    IsString: "ComparisonOperator"
+    """Is a string value"""
+
+    IsBoolean: "ComparisonOperator"
+    """Is a boolean value"""
+
+    IsNull: "ComparisonOperator"
+    """Is null (None) value"""
+
+    IsArray: "ComparisonOperator"
+    """Is an array (list) value"""
+
+    IsObject: "ComparisonOperator"
+    """Is an object (dict) value"""
+
+    IsEmail: "ComparisonOperator"
+    """Is a valid email format"""
+
+    IsUrl: "ComparisonOperator"
+    """Is a valid URL format"""
+
+    IsUuid: "ComparisonOperator"
+    """Is a valid UUID format"""
+
+    IsIso8601: "ComparisonOperator"
+    """Is a valid ISO 8601 date format"""
+
+    IsJson: "ComparisonOperator"
+    """Is a valid JSON format"""
+
+    MatchesRegex: "ComparisonOperator"
+    """Matches a regular expression pattern"""
+
+    InRange: "ComparisonOperator"
+    """Is within a specified numeric range"""
+
+    NotInRange: "ComparisonOperator"
+    """Is outside a specified numeric range"""
+
+    IsPositive: "ComparisonOperator"
+    """Is a positive number"""
+
+    IsNegative: "ComparisonOperator"
+    """Is a negative number"""
+    IsZero: "ComparisonOperator"
+    """Is zero"""
+
+    ContainsAll: "ComparisonOperator"
+    """Contains all specified elements"""
+
+    ContainsAny: "ComparisonOperator"
+    """Contains any of the specified elements"""
+
+    ContainsNone: "ComparisonOperator"
+    """Contains none of the specified elements"""
+
+    IsEmpty: "ComparisonOperator"
+    """Is empty"""
+
+    IsNotEmpty: "ComparisonOperator"
+    """Is not empty"""
+
+    HasUniqueItems: "ComparisonOperator"
+    """Has unique items"""
+
+    IsAlphabetic: "ComparisonOperator"
+    """Is alphabetic"""
+
+    IsAlphanumeric: "ComparisonOperator"
+    """Is alphanumeric"""
+
+    IsLowerCase: "ComparisonOperator"
+    """Is lowercase"""
+
+    IsUpperCase: "ComparisonOperator"
+    """Is uppercase"""
+
+    ContainsWord: "ComparisonOperator"
+    """Contains a specific word"""
+
+    ApproximatelyEquals: "ComparisonOperator"
+    """Approximately equals within a tolerance"""
+
+class AssertionTask:
+    """Assertion-based evaluation task for LLM monitoring.
+
+    Defines a rule-based assertion that evaluates values extracted from LLM
+    context/responses against expected conditions without requiring additional LLM calls.
+    Assertions are efficient, deterministic evaluations ideal for validating
+    structured outputs, checking thresholds, or verifying data constraints.
+
+    Assertions can operate on:
+        - Nested fields via dot-notation paths (e.g., "response.user.age")
+        - Top-level context values when field_path is None
+        - String, numeric, boolean, or collection values
+
+    Common Use Cases:
+        - Validate response structure ("response.status" == "success")
+        - Check numeric thresholds ("response.confidence" >= 0.8)
+        - Verify required fields exist ("response.user.id" is not None)
+        - Validate string patterns ("response.language" contains "en")
+
+    Examples:
+        Basic numeric comparison:
+
+        >>> # Context at runtime: {"response": {"user": {"age": 25}}}
+        >>> task = AssertionTask(
+        ...     id="check_user_age",
+        ...     field_path="response.user.age",
+        ...     operator=ComparisonOperator.GreaterThan,
+        ...     expected_value=18,
+        ...     description="Verify user is an adult"
+        ... )
+
+        Checking top-level fields:
+
+        >>> # Context at runtime: {"user": {"age": 25}}
+        >>> task = AssertionTask(
+        ...     id="check_age",
+        ...     field_path="user.age",
+        ...     operator=ComparisonOperator.GreaterThanOrEqual,
+        ...     expected_value=21,
+        ...     description="Check minimum age requirement"
+        ... )
+
+        Operating on entire context (no nested path):
+
+        >>> # Context at runtime: 25
+        >>> task = AssertionTask(
+        ...     id="age_threshold",
+        ...     field_path=None,
+        ...     operator=ComparisonOperator.GreaterThan,
+        ...     expected_value=18,
+        ...     description="Validate age value"
+        ... )
+
+        String validation:
+
+        >>> # Context: {"response": {"status": "completed"}}
+        >>> task = AssertionTask(
+        ...     id="status_check",
+        ...     field_path="response.status",
+        ...     operator=ComparisonOperator.Equals,
+        ...     expected_value="completed",
+        ...     description="Verify completion status"
+        ... )
+
+        Collection membership:
+
+        >>> # Context: {"response": {"tags": ["valid", "processed"]}}
+        >>> task = AssertionTask(
+        ...     id="tag_validation",
+        ...     field_path="response.tags",
+        ...     operator=ComparisonOperator.Contains,
+        ...     expected_value="valid",
+        ...     description="Check for required tag"
+        ... )
+
+        With dependencies:
+
+        >>> task = AssertionTask(
+        ...     id="confidence_check",
+        ...     field_path="response.confidence",
+        ...     operator=ComparisonOperator.GreaterThan,
+        ...     expected_value=0.9,
+        ...     description="High confidence validation",
+        ...     depends_on=["status_check"]
+        ... )
+
+    Note:
+        - Field paths use dot-notation for nested access
+        - Field paths are case-sensitive
+        - When field_path is None, the entire context is used as the value
+        - Type mismatches between actual and expected values will fail the assertion
+        - Dependencies are executed before this task
+    """
+
+    def __init__(
+        self,
+        id: str,
+        expected_value: Any,
+        operator: ComparisonOperator,
+        field_path: Optional[str] = None,
+        description: Optional[str] = None,
+        depends_on: Optional[List[str]] = None,
+        condition: bool = False,
+    ):
+        """Initialize an assertion task for rule-based evaluation.
+
+        Args:
+            id:
+                Unique identifier for the task. Will be converted to lowercase.
+                Used to reference this task in dependencies and results.
+            expected_value:
+                The expected value to compare against. Can be any JSON-serializable
+                type: str, int, float, bool, list, dict, or None.
+            operator:
+                Comparison operator to use for the assertion. Must be a
+                ComparisonOperator enum value.
+            field_path:
+                Optional dot-notation path to extract value from context
+                (e.g., "response.user.age"). If None, the entire context
+                is used as the comparison value.
+            description:
+                Optional human-readable description of what this assertion validates.
+                Useful for understanding evaluation results.
+            depends_on:
+                Optional list of task IDs that must complete successfully before
+                this task executes. Empty list if not provided.
+            condition:
+                If True, this assertion task acts as a condition for subsequent tasks.
+                If the assertion fails, dependent tasks will be skipped and this task
+                will be excluded from final results.
+
+        Raises:
+            TypeError: If expected_value is not JSON-serializable or if operator
+                is not a valid ComparisonOperator.
+        """
+
+    @property
+    def id(self) -> str:
+        """Unique task identifier (lowercase)."""
+
+    @id.setter
+    def id(self, id: str) -> None:
+        """Set task identifier (will be converted to lowercase)."""
+
+    @property
+    def field_path(self) -> Optional[str]:
+        """Dot-notation path to field in context, or None for entire context."""
+
+    @field_path.setter
+    def field_path(self, field_path: Optional[str]) -> None:
+        """Set field path for value extraction."""
+
+    @property
+    def operator(self) -> ComparisonOperator:
+        """Comparison operator for the assertion."""
+
+    @operator.setter
+    def operator(self, operator: ComparisonOperator) -> None:
+        """Set comparison operator."""
+
+    @property
+    def expected_value(self) -> Any:
+        """Expected value for comparison.
+
+        Returns:
+            The expected value as a Python object (deserialized from internal
+            JSON representation).
+        """
+
+    @property
+    def description(self) -> Optional[str]:
+        """Human-readable description of the assertion."""
+
+    @description.setter
+    def description(self, description: Optional[str]) -> None:
+        """Set assertion description."""
+
+    @property
+    def depends_on(self) -> List[str]:
+        """List of task IDs this task depends on."""
+
+    @depends_on.setter
+    def depends_on(self, depends_on: List[str]) -> None:
+        """Set task dependencies."""
+
+    def __str__(self) -> str:
+        """Return string representation of the assertion task."""
+
+class LLMJudgeTask:
+    """LLM-powered evaluation task for complex assessments.
+
+    Uses an additional LLM call to evaluate responses based on sophisticated
+    criteria that require reasoning, context understanding, or subjective judgment.
+    LLM judges are ideal for evaluations that cannot be captured by deterministic
+    rules, such as semantic similarity, quality assessment, or nuanced criteria.
+
+    Unlike AssertionTask which provides efficient, deterministic rule-based evaluation,
+    LLMJudgeTask leverages an LLM's reasoning capabilities for:
+        - Semantic similarity and relevance assessment
+        - Quality, coherence, and fluency evaluation
+        - Factual accuracy and hallucination detection
+        - Tone, sentiment, and style analysis
+        - Custom evaluation criteria requiring judgment
+        - Complex reasoning over multiple context elements
+
+    The LLM judge executes a prompt that receives context (either raw or from
+    dependencies) and returns a response that is then compared against the expected
+    value using the specified operator.
+
+    Common Use Cases:
+        - Evaluate semantic similarity between generated and reference answers
+        - Assess response quality on subjective criteria (helpfulness, clarity)
+        - Detect factual inconsistencies or hallucinations
+        - Score tone appropriateness for different audiences
+        - Judge whether responses meet complex, nuanced requirements
+
+    Examples:
+        Basic relevance check using LLM judge:
+
+        >>> # Define a prompt that evaluates relevance
+        >>> relevance_prompt = Prompt(
+        ...     system_instructions="Evaluate if the response is relevant to the query",
+        ...     messages="Given the query '{{query}}' and response '{{response}}', rate the relevance from 0 to 10 as an integer.",
+        ...     model="gpt-4",
+        ...     provider= Provider.OpenAI,
+        ...     output_type=Score # returns a structured output with schema {"score": float, "reason": str}
+        ... )
+
+        >>> # Context at runtime: {"query": "What is AI?", "response": "AI is..."}
+        >>> task = LLMJudgeTask(
+        ...     id="relevance_judge",
+        ...     prompt=relevance_prompt,
+        ...     expected_value=8,
+        ...     field_path="score",
+        ...     operator=ComparisonOperator.GreaterThanOrEqual,
+        ...     description="Ensure response relevance score >= 8"
+        ... )
+
+        Factuality check with structured output:
+
+        >>> # Prompt returns a Pydantic model with factuality assessment
+        >>> from pydantic import BaseModel
+        >>> class FactCheckResult(BaseModel):
+        ...     is_factual: bool
+        ...     confidence: float
+
+        >>> fact_check_prompt = Prompt(
+        ...     system_instructions="Verify factual claims in the response",
+        ...     messages="Assess the factual accuracy of the response: '{{response}}'. Provide a JSON with fields 'is_factual' (bool) and 'confidence' (float).", # pylint: disable=line-too-long
+        ...     model="gpt-4",
+        ...     provider= Provider.OpenAI,
+        ...     output_type=FactCheckResult
+        ... )
+
+        >>> # Context: {"response": "Paris is the capital of France"}
+        >>> task = LLMJudgeTask(
+        ...     id="fact_checker",
+        ...     prompt=fact_check_prompt,
+        ...     expected_value={"is_factual": True, "confidence": 0.95},
+        ...     field_path="response",
+        ...     operator=ComparisonOperator.Contains
+        ... )
+
+        Quality assessment with dependencies:
+
+        >>> # This judge depends on previous relevance check
+        >>> quality_prompt = Prompt(
+        ...     system_instructions="Assess the overall quality of the response",
+        ...     messages="Given the response '{{response}}', rate its quality from 0 to 5",
+        ...     model="gemini-3.0-flash",
+        ...     provider= Provider.Google,
+        ...     output_type=Score
+        ... )
+
+        >>> task = LLMJudgeTask(
+        ...     id="quality_judge",
+        ...     prompt=quality_prompt,
+        ...     expected_value=0.7,
+        ...     field_path=None,
+        ...     operator=ComparisonOperator.GreaterThan,
+        ...     depends_on=["relevance_judge"],
+        ...     description="Evaluate overall quality after relevance check"
+        ... )
+    Note:
+        - LLM judge tasks incur additional latency and cost vs assertions
+        - Scouter does not auto-inject any additional prompts or context apart from what is defined
+          in the Prompt object
+        - For tasks that contain dependencies, upstream results are passed as context to downstream tasks.
+        - Use dependencies to chain evaluations and pass results between tasks
+        - max_retries helps handle transient LLM failures (defaults to 3)
+        - Field paths work the same as AssertionTask (dot-notation for nested access)
+        - Consider cost/latency tradeoffs when designing judge evaluations
+    """
+
+    def __init__(
+        self,
+        id: str,
+        prompt: Prompt,
+        expected_value: Any,
+        field_path: Optional[str],
+        operator: ComparisonOperator,
+        description: Optional[str] = None,
+        depends_on: Optional[List[str]] = None,
+        max_retries: Optional[int] = None,
+        condition: bool = False,
+    ):
+        """Initialize an LLM judge task for advanced evaluation.
+
+        Creates an evaluation task that uses an LLM to assess responses based on
+        sophisticated criteria requiring reasoning or subjective judgment. The LLM
+        receives context (raw or from dependencies) and returns a response that
+        is compared against the expected value.
+
+        Args:
+            id (str):
+                Unique identifier for the task. Will be converted to lowercase.
+                Used to reference this task in dependencies and results.
+            prompt (Prompt):
+                Prompt configuration defining the LLM evaluation task.
+            expected_value (Any):
+                The expected value to compare against the LLM's response. Type depends
+                on prompt response type. Can be any JSON-serializable type: str, int,
+                float, bool, list, dict, or None.
+            field_path (Optional[str]):
+                Optional dot-notation path to extract value from context before passing
+                to the LLM prompt (e.g., "response.text"), the entire response will be
+                evaluated.
+            operator (ComparisonOperator):
+                Comparison operator to apply between LLM response and expected_value
+            description (Optional[str]):
+                Optional human-readable description of what this judge evaluates.
+            depends_on (Optional[List[str]]):
+                Optional list of task IDs that must complete successfully before this
+                task executes. Results from dependencies are passed to the LLM prompt
+                as additional context parameters. Empty list if not provided.
+            max_retries (Optional[int]):
+                Optional maximum number of retry attempts if the LLM call fails
+                (network errors, rate limits, etc.). Defaults to 3 if not provided.
+                Set to 0 to disable retries.
+            condition (bool):
+                If True, this judge task acts as a condition for subsequent tasks.
+                If the judge fails, dependent tasks will be skipped and this task
+                will be excluded from final results.
+        """
+
+    @property
+    def id(self) -> str:
+        """Unique task identifier (lowercase)."""
+
+    @id.setter
+    def id(self, id: str) -> None:
+        """Set task identifier (will be converted to lowercase)."""
+
+    @property
+    def prompt(self) -> Prompt:
+        """Prompt configuration for the LLM evaluation task.
+
+        Defines the LLM model, evaluation instructions, and response format.
+        The prompt must have response_type of Score or Pydantic.
+        """
+
+    @property
+    def field_path(self) -> Optional[str]:
+        """Dot-notation path to extract value from context before LLM evaluation.
+
+        If specified, extracts nested value from context (e.g., "response.text")
+        and passes it to the LLM prompt. If None, the entire context or
+        dependency results are passed.
+        """
+
+    @property
+    def operator(self) -> ComparisonOperator:
+        """Comparison operator for evaluating LLM response against expected value.
+
+        For Score responses: use numeric operators (GreaterThan, Equals, etc.)
+        For Pydantic responses: use structural operators (Contains, Equals, etc.)
+        """
+
+    @property
+    def expected_value(self) -> Any:
+        """Expected value to compare against LLM response.
+
+        Returns:
+            The expected value as a Python object (deserialized from internal
+            JSON representation).
+        """
+
+    @property
+    def depends_on(self) -> List[str]:
+        """List of task IDs this task depends on.
+
+        Dependency results are passed to the LLM prompt as additional context
+        parameters, enabling chained evaluations.
+        """
+
+    @depends_on.setter
+    def depends_on(self, depends_on: List[str]) -> None:
+        """Set task dependencies."""
+
+    @property
+    def max_retries(self) -> Optional[int]:
+        """Maximum number of retry attempts for LLM call failures.
+
+        Handles transient failures like network errors or rate limits.
+        Defaults to 3 if not specified during initialization.
+        """
+
+    @max_retries.setter
+    def max_retries(self, max_retries: Optional[int]) -> None:
+        """Set maximum retry attempts."""
+
+    def __str__(self) -> str:
+        """Return string representation of the LLM judge task."""
+
+class GenAIEvalProfile:
+    """Profile for LLM evaluation and drift detection.
+
+    GenAIEvalProfile combines assertion tasks and LLM judge tasks into a unified
+    evaluation framework for monitoring LLM performance. Evaluations run asynchronously
+    on the Scouter server, enabling scalable drift detection without blocking your
+    application.
+
+    Architecture:
+        The profile automatically orchestrates two types of evaluation tasks:
+
+        1. **Assertion Tasks**: Fast, deterministic rule-based validations
+           - Execute locally without additional LLM calls
+           - Ideal for structural validation, threshold checks, pattern matching
+           - Zero latency overhead, minimal cost
+
+        2. **LLM Judge Tasks**: Advanced reasoning-based evaluations
+           - Leverage additional LLM calls for complex assessments
+           - Automatically compiled into an internal Workflow for execution
+           - Support dependencies to chain evaluations and pass results
+           - Ideal for semantic similarity, quality assessment, factuality checks
+
+    Task Execution Order:
+        Tasks are executed based on their dependency graph using topological sort:
+
+        ```
+        ╔══════════════════════════════════════════════════════════════╗
+        ║              TASK EXECUTION ARCHITECTURE                     ║
+        ╠══════════════════════════════════════════════════════════════╣
+        ║                                                              ║
+        ║  Level 0: Independent Tasks (no dependencies)                ║
+        ║  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          ║
+        ║  │ Assertion A │  │ Assertion B │  │ LLM Judge X │          ║
+        ║  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘          ║
+        ║         │                │                │                  ║
+        ║         └────────┬───────┴────────┬───────┘                  ║
+        ║                  │                │                          ║
+        ║  Level 1: Tasks depending on Level 0                         ║
+        ║         ┌────────▼────────┐  ┌────▼────────┐                ║
+        ║         │  LLM Judge Y    │  │Assertion C  │                ║
+        ║         │ (depends: A, X) │  │(depends: B) │                ║
+        ║         └────────┬────────┘  └────┬────────┘                ║
+        ║                  │                │                          ║
+        ║  Level 2: Final aggregation tasks                            ║
+        ║                  └────────┬───────┘                          ║
+        ║                  ┌────────▼────────┐                         ║
+        ║                  │  LLM Judge Z    │                         ║
+        ║                  │ (depends: Y, C) │                         ║
+        ║                  └─────────────────┘                         ║
+        ║                                                              ║
+        ╚══════════════════════════════════════════════════════════════╝
+        ```
+
+    Workflow Generation:
+        When LLM judge tasks are present, the profile automatically:
+        1. Builds an internal Workflow from LLMJudgeTask configurations
+        2. Validates task dependencies form a valid DAG
+        3. Ensures Prompt configurations are compatible with execution
+        4. Optimizes execution order for parallel processing where possible
+
+    Common Use Cases:
+        - Multi-stage LLM evaluation (relevance → quality → toxicity)
+        - Hybrid assertion + LLM judge pipelines (fast checks, then deep analysis)
+        - Dependent evaluations (use upstream results in downstream prompts)
+        - Cost-optimized monitoring (assertions for 90%, LLM judges for 10%)
+
+    Examples:
+        Pure assertion-based monitoring (no LLM calls):
+
+        >>> config = GenAIDriftConfig(
+        ...     space="production",
+        ...     name="chatbot",
+        ...     version="1.0",
+        ...     sample_rate=10
+        ... )
+        >>>
+        >>> tasks = [
+        ...     AssertionTask(
+        ...         id="response_length",
+        ...         field_path="response",
+        ...         operator=ComparisonOperator.HasLength,
+        ...         expected_value={"min": 10, "max": 500},
+        ...         description="Ensure response is reasonable length"
+        ...     ),
+        ...     AssertionTask(
+        ...         id="confidence_threshold",
+        ...         field_path="metadata.confidence",
+        ...         operator=ComparisonOperator.GreaterThanOrEqual,
+        ...         expected_value=0.7,
+        ...         description="Require minimum confidence"
+        ...     )
+        ... ]
+        >>>
+        >>> profile = GenAIEvalProfile(
+        ...     config=config,
+        ...     tasks=tasks
+        ... )
+
+        LLM judge-based semantic monitoring:
+
+        >>> relevance_prompt = Prompt(
+        ...     system_instructions="Evaluate response relevance to query",
+        ...     messages="Query: {{input}}\\nResponse: {{response}}\\nRate 0-10:",
+        ...     model="gpt-4o-mini",
+        ...     provider=Provider.OpenAI,
+        ...     output_type=Score
+        ... )
+        >>>
+        >>> judge_tasks = [
+        ...     LLMJudgeTask(
+        ...         id="relevance_judge",
+        ...         prompt=relevance_prompt,
+        ...         expected_value=7,
+        ...         field_path="score",
+        ...         operator=ComparisonOperator.GreaterThanOrEqual,
+        ...         description="Ensure relevance score >= 7"
+        ...     )
+        ... ]
+        >>>
+        >>> profile = GenAIEvalProfile(
+        ...     config=config,
+        ...     tasks=judge_tasks
+        ... )
+
+        Hybrid monitoring with dependencies:
+
+        >>> # Fast assertion checks first
+        >>> assertion_tasks = [
+        ...     AssertionTask(
+        ...         id="not_empty",
+        ...         field_path="response",
+        ...         operator=ComparisonOperator.HasLength,
+        ...         expected_value={"min": 1},
+        ...         description="Response must not be empty"
+        ...     )
+        ... ]
+        >>>
+        >>> # Deep LLM analysis only if assertions pass
+        >>> quality_prompt = Prompt(
+        ...     system_instructions="Assess response quality",
+        ...     messages="{{response}}",
+        ...     model="claude-3-5-sonnet-20241022",
+        ...     provider=Provider.Anthropic,
+        ...     output_type=Score
+        ... )
+        >>>
+        >>> judge_tasks = [
+        ...     LLMJudgeTask(
+        ...         id="quality_judge",
+        ...         prompt=quality_prompt,
+        ...         expected_value=8,
+        ...         field_path="score",
+        ...         operator=ComparisonOperator.GreaterThanOrEqual,
+        ...         depends_on=["not_empty"],  # Only run if assertion passes
+        ...         description="Quality assessment after validation"
+        ...     )
+        ... ]
+        >>>
+        >>> profile = GenAIEvalProfile(
+        ...     config=config,
+        ...     tasks=assertion_tasks + judge_tasks
+        ... )
+
+        Multi-stage dependent LLM judges:
+
+        >>> # Stage 1: Relevance check
+        >>> relevance_task = LLMJudgeTask(
+        ...     id="relevance",
+        ...     prompt=relevance_prompt,
+        ...     expected_value=7,
+        ...     field_path="score",
+        ...     operator=ComparisonOperator.GreaterThanOrEqual
+        ... )
+        >>>
+        >>> # Stage 2: Toxicity check (only if relevant)
+        >>> toxicity_prompt = Prompt(...)
+        >>> toxicity_task = LLMJudgeTask(
+        ...     id="toxicity",
+        ...     prompt=toxicity_prompt,
+        ...     expected_value=0.2,
+        ...     field_path="relevance.score",
+        ...     operator=ComparisonOperator.LessThan,
+        ...     depends_on=["relevance"]  # Chain evaluations
+        ... )
+        >>>
+        >>> # Stage 3: Final quality (only if relevant and non-toxic)
+        >>> quality_task = LLMJudgeTask(
+        ...     id="quality",
+        ...     prompt=quality_prompt,
+        ...     expected_value=8,
+        ...     field_path="toxicity.score",
+        ...     operator=ComparisonOperator.GreaterThanOrEqual,
+        ...     depends_on=["relevance", "toxicity"]  # Multiple deps
+        ... )
+        >>>
+        >>> profile = GenAIEvalProfile(
+        ...     config=config,
+        ...     tasks=[relevance_task, toxicity_task, quality_task]
+        ... )
+
+    Note:
+        - At least one task (assertion or LLM judge) is required
+        - LLM judge tasks are automatically compiled into an internal Workflow
+        - Task dependencies must form a valid DAG (no circular dependencies)
+        - Execution order is optimized via topological sort
+        - Independent tasks at the same level can execute in parallel
+        - Failed tasks halt execution of dependent downstream tasks
+    """
+
     def __init__(
         self,
         config: GenAIDriftConfig,
-        metrics: list[GenAIDriftMetric],
-        workflow: Optional[Workflow] = None,
+        tasks: List[Union[AssertionTask, LLMJudgeTask]],
     ):
-        """Initialize a GenAIDriftProfile for LLM evaluation and drift detection.
+        """Initialize a GenAIEvalProfile for LLM evaluation and drift detection.
 
-        LLM evaluations are run asynchronously on the scouter server.
-
-        Logic flow:
-            1. If only metrics are provided, a workflow will be created automatically
-               from the metrics. In this case a prompt is required for each metric.
-            2. If a workflow is provided, it will be parsed and validated for compatibility:
-               - A list of metrics to evaluate workflow output must be provided
-               - Metric names must correspond to the final task names in the workflow
-
-        Baseline metrics and thresholds will be extracted from the GenAIDriftMetric objects.
+        Creates a profile that combines assertion tasks and LLM judge tasks into
+        a unified evaluation framework. LLM judge tasks are automatically compiled
+        into an internal Workflow for execution on the Scouter server.
 
         Args:
             config (GenAIDriftConfig):
-                The configuration for the GenAI drift profile containing space, name,
-                version, and alert settings.
-            metrics (list[GenAIDriftMetric]):
-                A list of GenAIDriftMetric objects representing the metrics to be monitored.
-                Each metric defines evaluation criteria and alert thresholds.
-            workflow (Optional[Workflow]):
-                Optional custom workflow for advanced evaluation scenarios. If provided,
-                the workflow will be validated to ensure proper parameter and response
-                type configuration.
+                Configuration for the GenAI drift profile containing space, name,
+                version, sample rate, and alert settings.
+            tasks (List[Union[AssertionTask, LLMJudgeTask]]):
+                List of evaluation tasks to include in the profile. Can contain
+                both AssertionTask and LLMJudgeTask instances. At least one task
+                (assertion or LLM judge) is required.
 
         Returns:
-            GenAIDriftProfile: Configured profile ready for GenAI drift monitoring.
+            GenAIEvalProfile: Configured profile ready for GenAI drift monitoring.
 
         Raises:
-            ProfileError: If workflow validation fails, metrics are empty when no
-                workflow is provided, or if workflow tasks don't match metric names.
+            ProfileError: If validation fails due to:
+                - Empty task lists (both assertion_tasks and llm_judge_tasks are None/empty)
+                - Circular dependencies in task dependency graph
+                - Invalid task configurations (malformed prompts, missing fields, etc.)
 
         Examples:
-            Basic usage with metrics only:
+            Assertion-only profile:
 
-            >>> config = GenAIDriftConfig("my_space", "my_model", "1.0")
-            >>> metrics = [
-            ...     GenAIDriftMetric("accuracy", 0.95, AlertThreshold.Above, 0.1, prompt),
-            ...     GenAIDriftMetric("relevance", 0.85, AlertThreshold.Below, 0.2, prompt2)
+            >>> config = GenAIDriftConfig(space="prod", name="bot", version="1.0")
+            >>> assertions = [
+            ...     AssertionTask(id="length_check", ...),
+            ...     AssertionTask(id="confidence_check", ...)
             ... ]
-            >>> profile = GenAIDriftProfile(config, metrics)
+            >>> profile = GenAIEvalProfile(config, tasks=assertions)
 
-            Advanced usage with custom workflow:
+            LLM judge-only profile:
 
-            >>> workflow = create_custom_workflow()  # Your custom workflow
-            >>> metrics = [GenAIDriftMetric("final_task", 0.9, AlertThreshold.Above)]
-            >>> profile = GenAIDriftProfile(config, metrics, workflow)
+            >>> judges = [
+            ...     LLMJudgeTask(id="relevance", prompt=..., ...),
+            ...     LLMJudgeTask(id="quality", prompt=..., depends_on=["relevance"])
+            ... ]
+            >>> profile = GenAIEvalProfile(config, tasks=judges)
 
-        Note:
-            - When using custom workflows, ensure final tasks have Score response types
-            - Initial workflow tasks must include "input" and/or "response" parameters
-            - All metric names must match corresponding workflow task names
+            Hybrid profile:
+
+            >>> profile = GenAIEvalProfile(
+            ...     config=config,
+            ...     tasks=assertions + judges
+            ... )
         """
 
     @property
     def uid(self) -> str:
-        """Return the unique identifier for the drift profile"""
+        """Unique identifier for the drift profile.
+
+        Derived from the config's space, name, and version. Used for tracking
+        and querying evaluation results.
+        """
+
+    @uid.setter
+    def uid(self, uid: str) -> None:
+        """Set unique identifier for the drift profile."""
 
     @property
     def config(self) -> GenAIDriftConfig:
-        """Return the drift config"""
+        """Configuration for the drift profile.
+
+        Contains space, name, version, sample rate, and alert settings.
+        """
 
     @property
-    def metrics(self) -> List[GenAIDriftMetric]:
-        """Return LLM metrics and their corresponding values"""
+    def assertion_tasks(self) -> List[AssertionTask]:
+        """List of assertion tasks for deterministic validation.
+
+        Assertions execute without additional LLM calls, providing fast,
+        cost-effective validation of structural properties, thresholds,
+        and patterns.
+        """
+
+    @property
+    def llm_judge_tasks(self) -> List[LLMJudgeTask]:
+        """List of LLM judge tasks for reasoning-based evaluation.
+
+        LLM judges use additional LLM calls to assess complex criteria
+        like semantic similarity, quality, and factuality. Automatically
+        compiled into an internal Workflow for execution.
+        """
 
     @property
     def scouter_version(self) -> str:
-        """Return scouter version used to create DriftProfile"""
+        """Scouter version used to create this profile.
+
+        Used for compatibility tracking and migration support.
+        """
+
+    def has_llm_tasks(self) -> bool:
+        """Check if profile contains LLM judge tasks.
+
+        Returns:
+            bool: True if llm_judge_tasks is non-empty, False otherwise.
+
+        Example:
+            >>> if profile.has_llm_tasks():
+            ...     print("Profile uses LLM judges (additional cost/latency)")
+        """
+
+    def has_assertions(self) -> bool:
+        """Check if profile contains assertion tasks.
+
+        Returns:
+            bool: True if assertion_tasks is non-empty, False otherwise.
+
+        Example:
+            >>> if profile.has_assertions():
+            ...     print("Profile includes fast assertion checks")
+        """
+
+    def get_execution_plan(self) -> List[List[str]]:
+        """Get the execution plan for all tasks.
+
+        Returns task IDs grouped by execution level based on dependency graph.
+        Tasks at the same level can execute in parallel. Each subsequent level
+        depends on completion of all previous levels.
+
+        Uses topological sort to determine optimal execution order while
+        respecting task dependencies.
+
+        Returns:
+            List[List[str]]: Nested list where each inner list contains task IDs
+                for that execution level. Level 0 contains tasks with no dependencies,
+                Level 1 contains tasks depending only on Level 0, etc.
+
+        Raises:
+            ProfileError: If circular dependencies are detected in the task graph.
+
+        Example:
+            >>> plan = profile.get_execution_plan()
+            >>> print(f"Level 0 (parallel): {plan[0]}")
+            >>> print(f"Level 1 (after L0): {plan[1]}")
+            >>> print(f"Total levels: {len(plan)}")
+
+            Output:
+            Level 0 (parallel): ['assertion_a', 'assertion_b', 'judge_x']
+            Level 1 (after L0): ['judge_y', 'assertion_c']
+            Total levels: 2
+        """
+
+    def print_execution_plan(self) -> None:
+        """Print the execution plan for all tasks."""
 
     def __str__(self) -> str:
-        """String representation of GenAIDriftProfile"""
+        """String representation of GenAIEvalProfile.
+
+        Returns:
+            str: Human-readable string showing config and task counts.
+        """
 
     def model_dump_json(self) -> str:
-        """Return json representation of drift profile"""
+        """Serialize profile to JSON string.
+
+        Returns:
+            str: JSON string representation of the profile including config,
+                tasks, workflow (if present), and metadata.
+
+        Example:
+            >>> json_str = profile.model_dump_json()
+            >>> # Save to file, send to API, etc.
+        """
 
     def model_dump(self) -> Dict[str, Any]:
-        """Return dictionary representation of drift profile"""
+        """Serialize profile to dictionary.
+
+        Returns:
+            Dict[str, Any]: Dictionary representation of the profile.
+
+        Example:
+            >>> data = profile.model_dump()
+            >>> print(data["config"]["space"])
+            >>> print(f"Task count: {len(data['assertion_tasks'])}")
+        """
 
     def save_to_json(self, path: Optional[Path] = None) -> Path:
-        """Save drift profile to json file
+        """Save profile to JSON file.
 
         Args:
-            path: Optional path to save the json file. If not provided, a default path will be used.
+            path (Optional[Path]):
+                Optional path to save the profile. If None, saves to
+                "genai_eval_profile.json" in the current directory.
 
         Returns:
-            Path to the saved json file.
+            Path: Path where the profile was saved.
+
+        Example:
+            >>> path = profile.save_to_json(Path("my_profile.json"))
+            >>> print(f"Saved to: {path}")
         """
 
     @staticmethod
-    def model_validate(data: Dict[str, Any]) -> "GenAIDriftProfile":
-        """Load drift profile from dictionary
+    def model_validate(data: Dict[str, Any]) -> "GenAIEvalProfile":
+        """Load profile from dictionary.
 
         Args:
-            data:
-                DriftProfile dictionary
-        """
-
-    @staticmethod
-    def model_validate_json(json_string: str) -> "GenAIDriftProfile":
-        """Load drift profile from json
-
-        Args:
-            json_string:
-                JSON string representation of the drift profile
-        """
-
-    @staticmethod
-    def from_file(path: Path) -> "GenAIDriftProfile":
-        """Load drift profile from file
-
-        Args:
-            path: Path to the json file
+            data (Dict[str, Any]):
+                Dictionary representation of the profile.
 
         Returns:
-            GenAIDriftProfile
+            GenAIEvalProfile: Reconstructed profile instance.
+
+        Raises:
+            ProfileError: If dictionary structure is invalid or missing required fields.
+
+        Example:
+            >>> data = {"config": {...}, "assertion_tasks": [...]}
+            >>> profile = GenAIEvalProfile.model_validate(data)
+        """
+
+    @staticmethod
+    def model_validate_json(json_string: str) -> "GenAIEvalProfile":
+        """Load profile from JSON string.
+
+        Args:
+            json_string (str):
+                JSON string representation of the profile.
+
+        Returns:
+            GenAIEvalProfile: Reconstructed profile instance.
+
+        Raises:
+            ProfileError: If JSON is malformed or invalid.
+
+        Example:
+            >>> json_str = '{"config": {...}, "assertion_tasks": [...]}'
+            >>> profile = GenAIEvalProfile.model_validate_json(json_str)
+        """
+
+    @staticmethod
+    def from_file(path: Path) -> "GenAIEvalProfile":
+        """Load profile from JSON file.
+
+        Args:
+            path (Path):
+                Path to the JSON file containing the profile.
+
+        Returns:
+            GenAIEvalProfile: Loaded profile instance.
+
+        Raises:
+            ProfileError: If file doesn't exist, is malformed, or invalid.
+
+        Example:
+            >>> profile = GenAIEvalProfile.from_file(Path("my_profile.json"))
         """
 
     def update_config_args(
@@ -13688,22 +14514,32 @@ class GenAIDriftProfile:
         space: Optional[str] = None,
         name: Optional[str] = None,
         version: Optional[str] = None,
-        sample_size: Optional[int] = None,
+        uid: Optional[str] = None,
         alert_config: Optional[GenAIAlertConfig] = None,
     ) -> None:
-        """Inplace operation that updates config args
+        """Update profile configuration in-place.
+
+        Modifies the profile's config without recreating the entire profile.
+        Useful for adjusting space/name/version after initial creation or
+        updating alert settings.
 
         Args:
-            name:
-                Model name
-            space:
-                Model space
-            version:
-                Model version
-            sample_size:
-                Sample size
-            alert_config:
-                Alert configuration
+            space (Optional[str]):
+                New model space. If None, keeps existing value.
+            name (Optional[str]):
+                New model name. If None, keeps existing value.
+            version (Optional[str]):
+                New model version. If None, keeps existing value.
+            uid (Optional[str]):
+                New unique identifier. If None, keeps existing value.
+            alert_config (Optional[GenAIAlertConfig]):
+                New alert configuration. If None, keeps existing value.
+
+        Example:
+            >>> profile.update_config_args(
+            ...     space="production",
+            ...     alert_config=GenAIAlertConfig(schedule="0 */6 * * *")
+            ... )
         """
 
 class Drifter:
@@ -13833,38 +14669,32 @@ class Drifter:
         """
 
     def create_genai_drift_profile(
-        self,
-        config: GenAIDriftConfig,
-        metrics: List[GenAIDriftMetric],
-        workflow: Optional[Workflow] = None,
-    ) -> GenAIDriftProfile:
-        """Initialize a GenAIDriftProfile for LLM evaluation and drift detection.
+        self, config: GenAIDriftConfig, tasks: Sequence[LLMJudgeTask | AssertionTask]
+    ) -> GenAIEvalProfile:
+        """Initialize a GenAIEvalProfile for LLM evaluation and drift detection.
 
         LLM evaluations are run asynchronously on the scouter server.
 
-        Logic flow:
-            1. If only metrics are provided, a workflow will be created automatically
-               from the metrics. In this case a prompt is required for each metric.
-            2. If a workflow is provided, it will be parsed and validated for compatibility:
-               - A list of metrics to evaluate workflow output must be provided
-               - Metric names must correspond to the final task names in the workflow
+        Overview:
+            GenAI evaluations are defined using assertion tasks and LLM judge tasks.
+            Assertion tasks evaluate specific metrics based on model responses, and do not require
+            the use of an LLM judge or extra call. It is recommended to use assertion tasks whenever possible
+            to reduce cost and latency. LLM judge tasks leverage an additional LLM call to evaluate
+            model responses based on more complex criteria. Together, these tasks provide a flexible framework
+            for monitoring LLM performance and detecting drift over time.
 
-        Baseline metrics and thresholds will be extracted from the GenAIDriftMetric objects.
 
         Args:
             config (GenAIDriftConfig):
                 The configuration for the GenAI drift profile containing space, name,
                 version, and alert settings.
-            metrics (list[GenAIDriftMetric]):
-                A list of GenAIDriftMetric objects representing the metrics to be monitored.
-                Each metric defines evaluation criteria and alert thresholds.
-            workflow (Optional[Workflow]):
-                Optional custom workflow for advanced evaluation scenarios. If provided,
-                the workflow will be validated to ensure proper parameter and response
-                type configuration.
+            tasks (List[LLMJudgeTask | AssertionTask]):
+                List of evaluation tasks to include in the profile. Can contain
+                both AssertionTask and LLMJudgeTask instances. At least one task
+                (assertion or LLM judge) is required.
 
         Returns:
-            GenAIDriftProfile: Configured profile ready for GenAI drift monitoring.
+            GenAIEvalProfile: Configured profile ready for GenAI drift monitoring.
 
         Raises:
             ProfileError: If workflow validation fails, metrics are empty when no
@@ -13874,22 +14704,18 @@ class Drifter:
             Basic usage with metrics only:
 
             >>> config = GenAIDriftConfig("my_space", "my_model", "1.0")
-            >>> metrics = [
-            ...     GenAIDriftMetric("accuracy", 0.95, AlertThreshold.Above, 0.1, prompt),
-            ...     GenAIDriftMetric("relevance", 0.85, AlertThreshold.Below, 0.2, prompt2)
+            >>>  tasks = [
+            ...     LLMJudgeTask(
+            ...         id="response_relevance",
+            ...         prompt=relevance_prompt,
+            ...         expected_value=7,
+            ...         field_path="score",
+            ...         operator=ComparisonOperator.GreaterThanOrEqual,
+            ...         description="Ensure relevance score >= 7"
+            ...     )
             ... ]
-            >>> profile = Drifter().create_genai_drift_profile(config, metrics)
+            >>> profile = Drifter().create_genai_drift_profile(config, tasks)
 
-            Advanced usage with custom workflow:
-
-            >>> workflow = create_custom_workflow()  # Your custom workflow
-            >>> metrics = [GenAIDriftMetric("final_task", 0.9, AlertThreshold.Above)]
-            >>> profile = Drifter().create_genai_drift_profile(config, metrics, workflow)
-
-        Note:
-            - When using custom workflows, ensure final tasks have Score response types
-            - Initial workflow tasks must include "input" and/or "response" parameters
-            - All metric names must match corresponding workflow task names
         """
 
     @overload
@@ -13939,30 +14765,30 @@ class Drifter:
     @overload
     def compute_drift(
         self,
-        data: Union[GenAIRecord, List[GenAIRecord]],
-        drift_profile: GenAIDriftProfile,
+        data: List[GenAIEvalRecord],
+        drift_profile: GenAIEvalProfile,
         data_type: Optional[ScouterDataType] = None,
-    ) -> GenAIDriftMap:
+    ) -> "GenAIEvalResultSet":
         """Create a drift map from data.
 
         Args:
-            data:
-
-            drift_profile:
+            data (List[GenAIEvalRecord]):
+                Data to create a data profile from. Data can be a list of GenAIEvalRecord.
+            profile (GenAIEvalProfile):
                 Drift profile to use to compute drift map
             data_type:
                 Optional data type. Inferred from data if not provided.
 
         Returns:
-            GenAIDriftMap
+            GenAIEvalResultSet
         """
 
     def compute_drift(  # type: ignore
         self,
         data: Any,
-        drift_profile: Union[SpcDriftProfile, PsiDriftProfile, GenAIDriftProfile],
+        drift_profile: Union[SpcDriftProfile, PsiDriftProfile, GenAIEvalProfile],
         data_type: Optional[ScouterDataType] = None,
-    ) -> Union[SpcDriftMap, PsiDriftMap, GenAIDriftMap]:
+    ) -> Union[SpcDriftMap, PsiDriftMap, GenAIEvalResultSet]:
         """Create a drift map from data.
 
         Args:
@@ -13975,29 +14801,226 @@ class Drifter:
                 Optional data type. Inferred from data if not provided.
 
         Returns:
-            SpcDriftMap, PsiDriftMap or GenAIDriftMap
+            SpcDriftMap, PsiDriftMap or GenAIEvalResultSet
         """
 
 class GenAIEvalTaskResult:
+    """Individual task result from an LLM evaluation run"""
+
+    @property
+    def created_at(self) -> datetime.datetime:
+        """Get the creation timestamp of this task result"""
+
+    @property
+    def record_uid(self) -> str:
+        """Get the unique identifier for the record associated with this task result"""
+
+    @property
+    def task_id(self) -> str:
+        """Get the unique identifier for the evaluation task"""
+
+    @property
+    def task_type(self) -> EvaluationTaskType:
+        """Get the type of evaluation task (Assertion, LLMJudge, or HumanValidation)"""
+
+    @property
+    def passed(self) -> bool:
+        """Check if the task evaluation passed"""
+
+    @property
+    def value(self) -> float:
+        """Get the evaluated value from the task"""
+
+    @property
+    def field_path(self) -> Optional[str]:
+        """Get the field path used for value extraction, if any"""
+
+    @property
+    def operator(self) -> ComparisonOperator:
+        """Get the comparison operator used in the evaluation"""
+
+    @property
+    def expected(self) -> Any:
+        """Get the expected value for comparison.
+
+        Returns:
+            The expected value as a Python object (deserialized from JSON).
+        """
+
+    @property
+    def actual(self) -> Any:
+        """Get the actual value that was evaluated.
+
+        Returns:
+            The actual value as a Python object (deserialized from JSON).
+        """
+
+    @property
+    def message(self) -> str:
+        """Get the evaluation result message"""
+
+    def __str__(self) -> str:
+        """String representation of the task result"""
+
+    def model_dump_json(self) -> str:
+        """Serialize the task result to JSON string"""
+
+class GenAIEvalDataset:
+    """Defines the dataset used for LLM evaluation"""
+
+    def __init__(
+        self,
+        records: Sequence[GenAIEvalRecord],
+        tasks: Sequence[LLMJudgeTask | AssertionTask],
+    ):
+        """Initialize the GenAIEvalDataset with records and tasks.
+
+        Args:
+            records (List[GenAIEvalRecord]):
+                List of LLM evaluation records to be evaluated.
+            tasks (List[LLMJudgeTask | AssertionTask]):
+                List of evaluation tasks to apply to the records.
+        """
+
+    @property
+    def records(self) -> List[GenAIEvalRecord]:
+        """Get the list of LLM evaluation records in this dataset"""
+
+    @property
+    def llm_judge_tasks(self) -> List[LLMJudgeTask]:
+        """Get the list of LLM judge tasks in this dataset"""
+
+    @property
+    def assertion_tasks(self) -> List[AssertionTask]:
+        """Get the list of assertion tasks in this dataset"""
+
+    def evaluate(
+        self,
+        config: Optional[EvaluationConfig] = None,
+    ) -> "GenAIEvalResults":
+        """Evaluate the records using the defined tasks.
+
+        Args:
+            config (Optional[EvaluationConfig]):
+                Optional configuration for the evaluation process.
+
+        Returns:
+            GenAIEvalResults:
+                The results of the evaluation.
+        """
+
+    def print_execution_plan(self) -> None:
+        """Print the execution plan for all tasks in the dataset."""
+
+class GenAIEvalSet:
+    """Evaluation set for a specific evaluation run"""
+
+    @property
+    def records(self) -> List[GenAIEvalTaskResult]:
+        """Get the list of task results in this evaluation set"""
+
+    @property
+    def created_at(self) -> datetime.datetime:
+        """Get the creation timestamp of this evaluation set"""
+
+    @property
+    def record_uid(self) -> str:
+        """Get the unique identifier for the records in this evaluation set"""
+
+    @property
+    def total_tasks(self) -> int:
+        """Get the total number of tasks evaluated in this set"""
+
+    @property
+    def passed_tasks(self) -> int:
+        """Get the number of tasks that passed in this evaluation set"""
+
+    @property
+    def failed_tasks(self) -> int:
+        """Get the number of tasks that failed in this evaluation set"""
+
+    @property
+    def pass_rate(self) -> float:
+        """Get the pass rate (percentage of passed tasks) in this evaluation set"""
+
+    @property
+    def duration_ms(self) -> int:
+        """Get the duration of the evaluation set in milliseconds"""
+
+    def as_table(self, show_tasks: bool = False) -> str:
+        """Pretty print the evaluation workflow or task results as a table
+
+        Args:
+            show_tasks (bool):
+                Whether to show individual task results or just the summary. Default is False
+                meaning only the workflow summary is shown.
+        """
+
+    def __str__(self): ...
+
+class GenAIEvalResultSet:
+    """Defines the results of a specific evaluation run"""
+
+    @property
+    def records(self) -> List[GenAIEvalSet]:
+        """Get the list of evaluation sets in this result set"""
+
+class AlignedEvalResult:
     """Eval Result for a specific evaluation"""
 
     @property
-    def id(self) -> str:
-        """Get the record id associated with this result"""
+    def record_uid(self) -> str:
+        """Get the unique identifier for the record associated with this result"""
 
     @property
-    def metrics(self) -> Dict[str, Score]:
-        """Get the list of metrics"""
+    def eval_set(self) -> GenAIEvalSet:
+        """Get the eval results"""
 
     @property
     def embedding(self) -> Dict[str, List[float]]:
         """Get embeddings of embedding targets"""
 
+    @property
+    def mean_embeddings(self) -> Dict[str, float]:
+        """Get mean embeddings of embedding targets"""
+
+    @property
+    def similarity_scores(self) -> Dict[str, float]:
+        """Get similarity scores of embedding targets"""
+
+    @property
+    def success(self) -> bool:
+        """Check if the evaluation was successful"""
+
+    @property
+    def error_message(self) -> Optional[str]:
+        """Get the error message if the evaluation failed"""
+
+    @property
+    def task_count(self) -> int:
+        """Get the total number of tasks in the evaluation"""
+
 class GenAIEvalResults:
     """Defines the results of an LLM eval metric"""
 
-    def __getitem__(self, key: str) -> GenAIEvalTaskResult:
+    def __getitem__(self, key: str) -> AlignedEvalResult:
         """Get the task results for a specific record ID. A RuntimeError will be raised if the record ID does not exist."""
+
+    @property
+    def errored_tasks(self) -> List[str]:
+        """Get a list of record IDs that had errors during evaluation"""
+
+    @property
+    def histograms(self) -> Optional[Dict[str, Histogram]]:
+        """Get histograms for all calculated features (metrics, embeddings, similarities)"""
+
+    @property
+    def successful_count(self) -> int:
+        """Get the count of successful evaluations"""
+
+    @property
+    def failed_count(self) -> int:
+        """Get the count of failed evaluations"""
 
     def __str__(self):
         """String representation of the GenAIEvalResults"""
@@ -14027,105 +15050,15 @@ class GenAIEvalResults:
                 JSON string to validate and create the GenAIEvalResults instance from.
         """
 
-    @property
-    def errored_tasks(self) -> List[str]:
-        """Get a list of record IDs that had errors during evaluation"""
-
-    @property
-    def histograms(self) -> Optional[Dict[str, Histogram]]:
-        """Get histograms for all calculated features (metrics, embeddings, similarities)"""
-
-class GenAIEvalMetric:
-    """Defines an LLM eval metric to use when evaluating LLMs"""
-
-    def __init__(self, name: str, prompt: Prompt):
-        """
-        Initialize an GenAIEvalMetric to use for evaluating LLMs. This is
-        most commonly used in conjunction with `evaluate_genai` where LLM inputs
-        and responses can be evaluated against a variety of user-defined metrics.
+    def as_table(self, show_tasks: bool = False) -> str:
+        """Pretty print the workflow or task results as a table
 
         Args:
-            name (str):
-                Name of the metric
-            prompt (Prompt):
-                Prompt to use for the metric. For example, a user may create
-                an accuracy analysis prompt or a query reformulation analysis prompt.
-        """
-
-    def __str__(self) -> str:
-        """
-        String representation of the GenAIEvalMetric
-        """
-
-class GenAIEvalRecord:
-    """LLM record containing context tied to a Large Language Model interaction
-    that is used to evaluate LLM responses.
-
-
-    Examples:
-        >>> record = GenAIEvalRecord(
-                id="123",
-                context={
-                    "input": "What is the capital of France?",
-                    "response": "Paris is the capital of France."
-                },
-        ... )
-        >>> print(record.context["input"])
-        "What is the capital of France?"
-    """
-
-    def __init__(
-        self,
-        context: Context,
-        id: Optional[str] = None,
-    ) -> None:
-        """Creates a new LLM record to associate with an `GenAIDriftProfile`.
-        The record is sent to the `Scouter` server via the `ScouterQueue` and is
-        then used to inject context into the evaluation prompts.
-
-        Args:
-            context:
-                Additional context information as a dictionary or a pydantic BaseModel. During evaluation,
-                this will be merged with the input and response data and passed to the assigned
-                evaluation prompts. So if you're evaluation prompts expect additional context via
-                bound variables (e.g., `${foo}`), you can pass that here as key value pairs.
-                {"foo": "bar"}
-            id:
-                Unique identifier for the record. If not provided, a new UUID will be generated.
-                This is helpful for when joining evaluation results back to the original request.
-
-        Raises:
-            TypeError: If context is not a dict or a pydantic BaseModel.
+            show_tasks (bool):
+                Whether to show individual task results or just the workflow summary. Default is False
+                meaning only the workflow summary is shown.
 
         """
-
-    @property
-    def context(self) -> Dict[str, Any]:
-        """Get the contextual information.
-
-        Returns:
-            The context data as a Python object (deserialized from JSON).
-        """
-
-def evaluate_genai(
-    records: List[GenAIEvalRecord],
-    metrics: List[GenAIEvalMetric],
-    config: Optional[EvaluationConfig] = None,
-) -> GenAIEvalResults:
-    """
-    Evaluate LLM responses using the provided evaluation metrics.
-
-    Args:
-        records (List[GenAIEvalRecord]):
-            List of LLM evaluation records to evaluate.
-        metrics (List[GenAIEvalMetric]):
-            List of GenAIEvalMetric instances to use for evaluation.
-        config (Optional[EvaluationConfig]):
-            Optional EvaluationConfig instance to configure evaluation options.
-
-    Returns:
-        GenAIEvalResults
-    """
 
 class EvaluationConfig:
     """Configuration options for LLM evaluation."""
@@ -14135,7 +15068,6 @@ class EvaluationConfig:
         embedder: Optional[Embedder] = None,
         embedding_targets: Optional[List[str]] = None,
         compute_similarity: bool = False,
-        cluster: bool = False,
         compute_histograms: bool = False,
     ):
         """
@@ -14150,8 +15082,6 @@ class EvaluationConfig:
                 be generated for all string fields in the record context.
             compute_similarity (bool):
                 Whether to compute similarity between embeddings. Default is False.
-            cluster (bool):
-                Whether to perform clustering on the embeddings. Default is False.
             compute_histograms (bool):
                 Whether to compute histograms for all calculated features (metrics, embeddings, similarities).
                 Default is False.
@@ -14387,7 +15317,7 @@ __all__ = [
     "SpcAlertConfig",
     "SpcAlert",
     "AlertThreshold",
-    "CustomMetricAlertCondition",
+    "AlertCondition",
     "CustomMetricAlertConfig",
     "SlackDispatchConfig",
     "OpsGenieDispatchConfig",
@@ -14396,7 +15326,6 @@ __all__ = [
     "PsiNormalThreshold",
     "PsiChiSquareThreshold",
     "PsiFixedThreshold",
-    "GenAIMetricAlertCondition",
     "GenAIAlertConfig",
     # client
     "TimeInterval",
@@ -14442,9 +15371,8 @@ __all__ = [
     "CustomMetricDriftConfig",
     "CustomMetric",
     "CustomDriftProfile",
-    "GenAIDriftMetric",
     "GenAIDriftConfig",
-    "GenAIDriftProfile",
+    "GenAIEvalProfile",
     "Drifter",
     "QuantileBinning",
     "EqualWidthBinning",
@@ -14457,12 +15385,13 @@ __all__ = [
     "TerrellScott",
     "FreedmanDiaconis",
     # evaluate
-    "GenAIEvalTaskResult",
-    "GenAIEvalMetric",
     "GenAIEvalResults",
-    "GenAIEvalRecord",
-    "evaluate_genai",
     "EvaluationConfig",
+    "GenAIEvalDataset",
+    "GenAIEvalSet",
+    "GenAIEvalTaskResult",
+    "GenAIEvalResultSet",
+    "AlignedEvalResult",
     # genai
     #######_______________________ main _________________________######
     "Prompt",
@@ -14764,7 +15693,7 @@ __all__ = [
     "Metric",
     "Metrics",
     "EntityType",
-    "GenAIRecord",
+    "GenAIEvalRecord",
     # transport
     "HttpConfig",
     "KafkaConfig",

@@ -29,7 +29,7 @@ pub trait PsiSqlLogic {
     /// * A result containing the query result or an error
     async fn insert_bin_counts_batch(
         pool: &Pool<Postgres>,
-        records: &[&PsiRecord],
+        records: &[PsiRecord],
         entity_id: &i32,
     ) -> Result<PgQueryResult, SqlError> {
         if records.is_empty() {

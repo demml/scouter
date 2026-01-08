@@ -85,17 +85,13 @@ impl CustomMetricDataFrame {
         })
     }
 
-    fn build_batch(
-        &self,
-        records: Vec<&CustomMetricRecord>,
-    ) -> Result<RecordBatch, DataFrameError> {
+    fn build_batch(&self, records: Vec<CustomMetricRecord>) -> Result<RecordBatch, DataFrameError> {
         let created_at_array = TimestampNanosecondArray::from_iter_values(
             records
                 .iter()
                 .map(|r| r.created_at.timestamp_nanos_opt().unwrap_or_default()),
         );
-        let entity_id_array =
-            Int32Array::from_iter_values(records.iter().map(|r| r.entity_id.unwrap()));
+        let entity_id_array = Int32Array::from_iter_values(records.iter().map(|r| r.entity_id));
         let metric_array = StringArray::from_iter_values(records.iter().map(|r| r.metric.as_str()));
         let value_array = Float64Array::from_iter_values(records.iter().map(|r| r.value));
         let batch = RecordBatch::try_new(

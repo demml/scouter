@@ -16,8 +16,10 @@ from . import (
     types,
     util,
 )
-from ._scouter import (
+from ._scouter import (  # genai
+    AssertionTask,
     CommonCrons,
+    ComparisonOperator,
     CustomDriftProfile,
     CustomMetric,
     CustomMetricAlertConfig,
@@ -31,14 +33,13 @@ from ._scouter import (
     Features,
     FreedmanDiaconis,
     GenAIDriftConfig,
-    GenAIDriftMetric,
-    GenAIDriftProfile,
-    GenAIEvalMetric,
+    GenAIEvalProfile,
     GenAIEvalRecord,
     GenAIEvalResults,
     GrpcConfig,
     HttpConfig,
     KafkaConfig,
+    LLMJudgeTask,
     LoggingConfig,
     Manual,
     Metric,
@@ -51,7 +52,7 @@ from ._scouter import (
     Queue,
 )
 from ._scouter import QueueFeature as Feature
-from ._scouter import (
+from ._scouter import (  # genai
     RabbitMQConfig,
     RedisConfig,
     Rice,
@@ -70,7 +71,6 @@ from ._scouter import (
     TerrellScott,
     _get_log_level,
     _log_json,
-    evaluate_genai,
 )
 
 # Configure Rust logging for Python based on environment variables
@@ -120,9 +120,6 @@ __all__ = [
     "Scott",
     "TerrellScott",
     "FreedmanDiaconis",
-    "GenAIDriftMetric",
-    "GenAIDriftConfig",
-    "GenAIDriftProfile",
     "DataProfiler",
     "DataProfile",
     "ScouterQueue",
@@ -136,13 +133,17 @@ __all__ = [
     "SpcAlertConfig",
     "CustomMetricAlertConfig",
     "ScouterClient",
-    "GenAIEvalMetric",
-    "GenAIEvalResults",
-    "GenAIEvalRecord",
-    "evaluate_genai",
     "HttpConfig",
     "GrpcConfig",
     "KafkaConfig",
     "RabbitMQConfig",
     "RedisConfig",
+    # genai
+    "GenAIDriftConfig",
+    "GenAIEvalProfile",
+    "GenAIEvalRecord",
+    "LLMJudgeTask",
+    "AssertionTask",
+    "ComparisonOperator",
+    "GenAIEvalResults",
 ]

@@ -26,7 +26,7 @@ pub trait CustomMetricSqlLogic {
     #[instrument(skip_all)]
     async fn insert_custom_metric_values_batch(
         pool: &Pool<Postgres>,
-        records: &[&CustomMetricRecord],
+        records: &[CustomMetricRecord],
         entity_id: &i32,
     ) -> Result<PgQueryResult, SqlError> {
         if records.is_empty() {

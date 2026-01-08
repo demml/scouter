@@ -1,20 +1,26 @@
-from pathlib import Path
-from tempfile import TemporaryDirectory
+from typing import cast
 
-import pytest
 from pydantic import BaseModel
-from scouter.alert import AlertThreshold
-from scouter.drift import Drifter, GenAIDriftConfig, GenAIDriftMetric, GenAIDriftProfile
-from scouter.genai import Agent, Prompt, Score, Task, Workflow
+from scouter._scouter import GenAIEvalResultSet
+from scouter.alert import AlertCondition, AlertThreshold
+from scouter.drift import (
+    ComparisonOperator,
+    Drifter,
+    GenAIAlertConfig,
+    GenAIDriftConfig,
+    GenAIEvalProfile,
+    LLMJudgeTask,
+)
+from scouter.genai import Prompt, Score
 from scouter.mock import LLMTestServer
-from scouter.queue import GenAIRecord
+from scouter.queue import GenAIEvalRecord
 
 
 class TaskOutput(BaseModel):
     task_output: str
 
 
-def test_genai_drift_profile_from_metrics():
+def test_genai_drift_profile_from_task():
     with LLMTestServer():
         prompt = Prompt(
             messages="${input} + ${response}?",
@@ -24,227 +30,15 @@ def test_genai_drift_profile_from_metrics():
             output_type=Score,
         )
 
-        metric1 = GenAIDriftMetric(
-            name="test_metric",
+        task = LLMJudgeTask(
+            id="query_relevance",
+            field_path="score",
             prompt=prompt,
-            value=5.0,
-            alert_threshold=AlertThreshold.Below,
-        )
-        metric2 = GenAIDriftMetric(
-            name="test_metric_2",
-            prompt=prompt,
-            value=10.0,
-            alert_threshold=AlertThreshold.Above,
+            operator=ComparisonOperator.GreaterThanOrEqual,
+            expected_value=3,
         )
 
-        _profile = GenAIDriftProfile(
-            config=GenAIDriftConfig(),
-            metrics=[metric1, metric2],
-        )
-
-
-def test_genai_drift_profile_from_workflow():
-    with LLMTestServer():
-        start_prompt = Prompt(
-            messages="${input} + ${response}?",
-            system_instructions="You are a helpful assistant.",
-            model="gpt-4o",
-            provider="openai",
-        )
-
-        end_prompt = Prompt(
-            messages="Foo bar",
-            system_instructions="You are a helpful assistant.",
-            model="gpt-4o",
-            provider="openai",
-            output_type=Score,
-        )
-
-        open_agent = Agent("openai")
-        workflow = Workflow(name="test_workflow")
-        workflow.add_agent(open_agent)
-        workflow.add_tasks(
-            [  # allow adding list of tasks
-                Task(
-                    prompt=start_prompt,
-                    agent_id=open_agent.id,
-                    id="start_task",
-                ),
-                Task(
-                    prompt=end_prompt,
-                    agent_id=open_agent.id,
-                    id="relevance",
-                    dependencies=["start_task"],
-                ),
-            ]
-        )
-
-        metric = GenAIDriftMetric(
-            name="relevance",
-            value=5.0,
-            alert_threshold=AlertThreshold.Below,
-        )
-
-        profile = GenAIDriftProfile(
-            config=GenAIDriftConfig(),
-            workflow=workflow,
-            metrics=[metric],
-        )
-
-        assert profile.config is not None
-
-        assert isinstance(profile.model_dump_json(), str)
-        assert isinstance(profile.model_dump(), dict)
-
-        with TemporaryDirectory() as temp_dir:
-            path = Path(temp_dir) / "profile.json"
-            profile.save_to_json(path)
-            assert (Path(temp_dir) / "profile.json").exists()
-
-            with open(path, "r") as f:
-                GenAIDriftProfile.model_validate_json(f.read())
-
-
-def test_genai_drift_profile_from_metrics_fail():
-    with LLMTestServer():
-        prompt = Prompt(
-            messages="foo bar",
-            system_instructions="You are a helpful assistant.",
-            model="gpt-4o",
-            provider="openai",
-            output_type=Score,
-        )
-
-        metric1 = GenAIDriftMetric(
-            name="test_metric",
-            prompt=prompt,
-            value=5.0,
-            alert_threshold=AlertThreshold.Below,
-        )
-        metric2 = GenAIDriftMetric(
-            name="test_metric_2",
-            value=10.0,
-            alert_threshold=AlertThreshold.Above,
-        )
-
-        # Drift profile with no required parameters should raise an error
-        with pytest.raises(RuntimeError, match="LLM Metric requires at least one bound parameter"):
-            _profile = GenAIDriftProfile(
-                config=GenAIDriftConfig(),
-                metrics=[metric1],
-            )
-
-        # Drift profile with metric without prompt should raise an error
-        with pytest.raises(RuntimeError, match="Missing prompt in LLM Metric"):
-            _profile = GenAIDriftProfile(
-                config=GenAIDriftConfig(),
-                metrics=[metric2],
-            )
-
-
-def test_genai_drift_profile_from_workflow_fail():
-    with LLMTestServer():
-        start_prompt = Prompt(
-            messages="Foo bar",
-            system_instructions="You are a helpful assistant.",
-            model="gpt-4o",
-            provider="openai",
-        )
-
-        end_prompt = Prompt(
-            messages="Foo bar",
-            system_instructions="You are a helpful assistant.",
-            model="gpt-4o",
-            provider="openai",
-            output_type=Score,
-        )
-
-        open_agent = Agent("openai")
-        workflow = Workflow(name="test_workflow")
-        workflow.add_agent(open_agent)
-        workflow.add_tasks(
-            [  # allow adding list of tasks
-                Task(
-                    prompt=start_prompt,
-                    agent_id=open_agent.id,
-                    id="start_task",
-                ),
-                Task(
-                    prompt=end_prompt,
-                    agent_id=open_agent.id,
-                    id="relevance",
-                    dependencies=["start_task"],
-                ),
-            ]
-        )
-
-        metric = GenAIDriftMetric(
-            name="relevance",
-            value=5.0,
-            alert_threshold=AlertThreshold.Below,
-        )
-
-        with pytest.raises(RuntimeError, match="LLM Metric requires at least one bound parameter"):
-            _profile = GenAIDriftProfile(
-                config=GenAIDriftConfig(),
-                workflow=workflow,
-                metrics=[metric],
-            )
-
-
-def test_genai_drift_profile_workflow_run_context():
-    with LLMTestServer():
-        # this should bind the input and response context and return TaskOutput
-        start_prompt = Prompt(
-            messages="${input} + ${response}?",
-            system_instructions="You are a helpful assistant.",
-            model="gpt-4o",
-            provider="openai",
-            output_type=TaskOutput,
-        )
-
-        # this should bind the task_output context and return Score
-        end_prompt = Prompt(
-            messages="${task_output}",
-            system_instructions="You are a helpful assistant.",
-            model="gpt-4o",
-            provider="openai",
-            output_type=Score,
-        )
-
-        open_agent = Agent("openai")
-        workflow = Workflow(name="test_workflow")
-        workflow.add_agent(open_agent)
-        workflow.add_tasks(
-            [  # allow adding list of tasks
-                Task(
-                    prompt=start_prompt,
-                    agent_id=open_agent.id,
-                    id="start_task",
-                ),
-                Task(
-                    prompt=end_prompt,
-                    agent_id=open_agent.id,
-                    id="relevance",
-                    dependencies=["start_task"],
-                ),
-            ]
-        )
-
-        global_context = {
-            "input": "What is the capital of France?",
-            "response": "The capital of France is Paris.",
-        }
-        result = workflow.run(
-            global_context=global_context,
-        )
-
-        assert (
-            result.tasks.get("start_task").prompt.messages[0].content[0].text
-            == '"What is the capital of France?" + "The capital of France is Paris."?'
-        )
-
-        assert result.tasks.get("relevance").prompt.messages[0].content[0].text == '"foo bar"'
+        _profile = GenAIEvalProfile(config=GenAIDriftConfig(), tasks=[task])
 
 
 def test_genai_drifter():
@@ -258,19 +52,28 @@ def test_genai_drifter():
             output_type=Score,
         )
 
-        profile = GenAIDriftProfile(
-            config=GenAIDriftConfig(),
-            metrics=[
-                GenAIDriftMetric(
-                    name="relevance",
-                    prompt=eval_prompt,
-                    value=5.0,
-                    alert_threshold=AlertThreshold.Below,
-                )
-            ],
+        task = LLMJudgeTask(
+            id="query_relevance",
+            field_path="score",
+            prompt=eval_prompt,
+            operator=ComparisonOperator.GreaterThanOrEqual,
+            expected_value=3,
         )
 
-        record = GenAIRecord(
+        profile = GenAIEvalProfile(
+            config=GenAIDriftConfig(
+                alert_config=GenAIAlertConfig(
+                    alert_condition=AlertCondition(
+                        baseline_value=0.80,
+                        alert_threshold=AlertThreshold.Below,
+                        delta=0.10,
+                    )
+                )
+            ),
+            tasks=[task],
+        )
+
+        record = GenAIEvalRecord(
             context={
                 "input": "What is the capital of France?",
                 "response": "The capital of France is Paris.",
@@ -278,8 +81,6 @@ def test_genai_drifter():
         )
 
         drifter = Drifter()
-        results = drifter.compute_drift(record, profile)
+        results = cast(GenAIEvalResultSet, drifter.compute_drift([record], profile))
 
         assert len(results.records) == 1
-        assert results.records[0].metric == "relevance"
-        assert results.records[0].value > 0

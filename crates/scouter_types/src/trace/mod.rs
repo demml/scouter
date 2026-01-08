@@ -688,7 +688,6 @@ impl TraceServerRecord {
     /// Convert to TraceRecord
     #[allow(clippy::too_many_arguments)]
     pub fn convert_to_span_record(
-        &self,
         trace_id: &str,
         span_id: &str,
         span: &Span,
@@ -737,8 +736,8 @@ impl TraceServerRecord {
         })
     }
 
-    pub fn to_records(&self) -> Result<TraceRecords, RecordError> {
-        let resource_spans = &self.request.resource_spans;
+    pub fn to_records(self) -> Result<TraceRecords, RecordError> {
+        let resource_spans = self.request.resource_spans;
 
         // Pre-calculate capacity to avoid reallocations
         let estimated_capacity: usize = resource_spans
@@ -780,7 +779,7 @@ impl TraceServerRecord {
                     tags.extend(span_tags);
 
                     // SpanRecord for insert
-                    span_records.push(self.convert_to_span_record(
+                    span_records.push(Self::convert_to_span_record(
                         &trace_id,
                         &span_id,
                         span,

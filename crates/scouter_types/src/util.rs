@@ -10,8 +10,9 @@ use opentelemetry::Value as OTelValue;
 use opentelemetry_proto::tonic::common::v1::{any_value::Value as AnyValueVariant, AnyValue};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
+use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyInt, PyList, PyString, PyTuple};
 use pyo3::IntoPyObjectExt;
+use pythonize::depythonize;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -35,7 +36,7 @@ pub enum FileName {
     CustomDriftProfile,
     DriftProfile,
     DataProfile,
-    GenAIDriftProfile,
+    GenAIEvalProfile,
 }
 
 impl FileName {
@@ -48,7 +49,7 @@ impl FileName {
             FileName::CustomDriftProfile => "custom_drift_profile.json",
             FileName::DataProfile => "data_profile.json",
             FileName::DriftProfile => "drift_profile.json",
-            FileName::GenAIDriftProfile => "genai_drift_profile.json",
+            FileName::GenAIEvalProfile => "genai_drift_profile.json",
         }
     }
 }
@@ -211,6 +212,17 @@ pub fn pyobject_to_json(obj: &Bound<'_, PyAny>) -> Result<Value, TypeError> {
             vec.push(pyobject_to_json(&item)?);
         }
         Ok(Value::Array(vec))
+    } else if obj.is_instance_of::<PyTuple>() {
+        let tuple = obj.cast::<PyTuple>()?;
+        let mut vec = Vec::new();
+        for item in tuple.iter() {
+            vec.push(pyobject_to_json(&item)?);
+        }
+        Ok(Value::Array(vec))
+    } else if obj.is_instance_of::<PyBytes>() {
+        let bytes = obj.cast::<PyBytes>()?;
+        let b64_string = BASE64_STANDARD.encode(bytes.as_bytes());
+        Ok(Value::String(b64_string))
     } else if obj.is_instance_of::<PyString>() {
         let s = obj.extract::<String>()?;
         Ok(Value::String(s))
@@ -266,6 +278,17 @@ pub fn pyobject_to_tracing_json(
             vec.push(pyobject_to_tracing_json(&item, max_length)?);
         }
         Ok(Value::Array(vec))
+    } else if obj.is_instance_of::<PyTuple>() {
+        let tuple = obj.cast::<PyTuple>()?;
+        let mut vec = Vec::new();
+        for item in tuple.iter() {
+            vec.push(pyobject_to_tracing_json(&item, max_length)?);
+        }
+        Ok(Value::Array(vec))
+    } else if obj.is_instance_of::<PyBytes>() {
+        let bytes = obj.cast::<PyBytes>()?;
+        let b64_string = BASE64_STANDARD.encode(bytes.as_bytes());
+        Ok(Value::String(b64_string))
     } else if obj.is_instance_of::<PyString>() {
         let s = obj.extract::<String>()?;
         let truncated = if s.len() > *max_length {
@@ -297,126 +320,125 @@ pub fn pyobject_to_tracing_json(
     }
 }
 
-/// Helper function to convert a Python object to an OpenTelemetry Value
+/// Converts a Python object to an OpenTelemetry Value.
+/// Complex types (dicts, nested structures) are serialized to JSON strings.
 pub fn pyobject_to_otel_value(obj: &Bound<'_, PyAny>) -> Result<OTelValue, TypeError> {
-    if obj.is_instance_of::<PyBool>() {
-        let b = obj.extract::<bool>()?;
-        Ok(OTelValue::Bool(b))
-    } else if obj.is_instance_of::<PyInt>() {
-        let i = obj.extract::<i64>()?;
-        Ok(OTelValue::I64(i))
-    } else if obj.is_instance_of::<PyFloat>() {
-        let f = obj.extract::<f64>()?;
-        Ok(OTelValue::F64(f))
-    } else if obj.is_instance_of::<PyString>() {
-        let s = obj.extract::<String>()?;
-        Ok(OTelValue::String(opentelemetry::StringValue::from(s)))
-    } else if obj.is_instance_of::<PyList>() {
-        let list = obj.cast::<PyList>()?;
-        pylist_to_otel_array(list)
-    } else if obj.is_none() {
-        // Convert None to string "null" since OTEL doesn't have null
-        Ok(OTelValue::String(opentelemetry::StringValue::from("null")))
-    } else {
-        let json_value = pyobject_to_json(obj)?;
-        Ok(OTelValue::String(opentelemetry::StringValue::from(
-            json_value.to_string(),
-        )))
+    let value: Value = depythonize(obj)?;
+    Ok(serde_value_to_otel_value(&value))
+}
+
+/// Converts serde_json::Value to OpenTelemetry Value.
+/// Maps/objects are serialized to JSON strings since OTel doesn't support nested maps.
+fn serde_value_to_otel_value(value: &Value) -> OTelValue {
+    match value {
+        Value::Bool(b) => OTelValue::Bool(*b),
+        Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                OTelValue::I64(i)
+            } else if let Some(f) = n.as_f64() {
+                OTelValue::F64(f)
+            } else {
+                OTelValue::String(opentelemetry::StringValue::from(n.to_string()))
+            }
+        }
+        Value::String(s) => OTelValue::String(opentelemetry::StringValue::from(s.clone())),
+        Value::Array(arr) => {
+            // Try to preserve homogeneous arrays, fallback to string array for mixed types
+            if let Some(array) = try_homogeneous_array(arr) {
+                OTelValue::Array(array)
+            } else {
+                // Mixed types - convert to string array
+                let strings: Vec<opentelemetry::StringValue> = arr
+                    .iter()
+                    .map(|v| opentelemetry::StringValue::from(v.to_string()))
+                    .collect();
+                OTelValue::Array(opentelemetry::Array::String(strings))
+            }
+        }
+        Value::Object(_) => {
+            // OTel doesn't support nested maps - serialize to JSON string
+            OTelValue::String(opentelemetry::StringValue::from(value.to_string()))
+        }
+        Value::Null => OTelValue::String(opentelemetry::StringValue::from("null")),
     }
 }
 
-fn flatten_nested_dict(
-    obj: &Bound<'_, PyDict>,
-    prefix: Option<String>,
-) -> Result<Vec<KeyValue>, TypeError> {
+/// Attempts to create a homogeneous OpenTelemetry array.
+/// Returns None if the array contains mixed types.
+fn try_homogeneous_array(arr: &[Value]) -> Option<opentelemetry::Array> {
+    if arr.is_empty() {
+        return Some(opentelemetry::Array::String(Vec::new()));
+    }
+
+    // Check if all elements are the same type
+    match arr.first()? {
+        Value::Bool(_) => {
+            let bools: Option<Vec<bool>> = arr.iter().map(|v| v.as_bool()).collect();
+            bools.map(opentelemetry::Array::Bool)
+        }
+        Value::Number(n) if n.is_i64() => {
+            let ints: Option<Vec<i64>> = arr.iter().map(|v| v.as_i64()).collect();
+            ints.map(opentelemetry::Array::I64)
+        }
+        Value::Number(_) => {
+            let floats: Option<Vec<f64>> = arr.iter().map(|v| v.as_f64()).collect();
+            floats.map(opentelemetry::Array::F64)
+        }
+        Value::String(_) => {
+            let strings: Vec<opentelemetry::StringValue> = arr
+                .iter()
+                .filter_map(|v| v.as_str())
+                .map(|s| opentelemetry::StringValue::from(s.to_string()))
+                .collect();
+            if strings.len() == arr.len() {
+                Some(opentelemetry::Array::String(strings))
+            } else {
+                None
+            }
+        }
+        _ => None, // Mixed types or nested structures
+    }
+}
+
+/// Converts a Python dict to flattened OpenTelemetry KeyValue pairs.
+/// Nested dicts are flattened using dot notation (e.g., "user.name", "user.email").
+/// This is the standard approach for OpenTelemetry span events and attributes.
+pub fn pydict_to_otel_keyvalue(obj: &Bound<'_, PyAny>) -> Result<Vec<KeyValue>, TypeError> {
+    let value: Value = depythonize(obj)?;
+
+    match value {
+        Value::Object(map) => Ok(flatten_json_object(&map, None)),
+        _ => Err(TypeError::ExpectedPyDict),
+    }
+}
+
+/// Recursively flattens a JSON object into dot-notation key-value pairs
+fn flatten_json_object(
+    obj: &serde_json::Map<String, Value>,
+    prefix: Option<&str>,
+) -> Vec<KeyValue> {
     let mut result = Vec::new();
 
-    for (key, value) in obj.iter() {
-        let key_str = key.extract::<String>()?;
-        let full_key = if let Some(ref p) = prefix {
-            format!("{}.{}", p, key_str)
+    for (key, value) in obj {
+        let full_key = if let Some(p) = prefix {
+            format!("{}.{}", p, key)
         } else {
-            key_str
+            key.clone()
         };
 
-        if value.is_instance_of::<PyDict>() {
-            let nested_dict = value.cast::<PyDict>()?;
-            result.extend(flatten_nested_dict(nested_dict, Some(full_key))?);
-        } else {
-            let otel_value = pyobject_to_otel_value(&value)?;
-            result.push(KeyValue::new(Key::new(full_key), otel_value));
-        }
-    }
-
-    Ok(result)
-}
-
-pub fn pydict_to_otel_keyvalue(obj: &Bound<'_, PyDict>) -> Result<Vec<KeyValue>, TypeError> {
-    flatten_nested_dict(obj, None)
-}
-
-/// Converts a Python list to an OpenTelemetry Array, ensuring homogeneous types.
-fn pylist_to_otel_array(list: &Bound<'_, PyList>) -> Result<OTelValue, TypeError> {
-    if list.is_empty() {
-        // Return empty string array for empty lists
-        return Ok(OTelValue::Array(opentelemetry::Array::String(Vec::new())));
-    }
-
-    // Check first element to determine array type
-    let first_item = list.get_item(0)?;
-
-    if first_item.is_instance_of::<PyBool>() {
-        let mut bools = Vec::new();
-        for item in list.iter() {
-            if item.is_instance_of::<PyBool>() {
-                bools.push(item.extract::<bool>()?);
-            } else {
-                // Mixed types - fall back to string array
-                return pylist_to_string_array(list);
+        match value {
+            Value::Object(nested) => {
+                // Recursively flatten nested objects
+                result.extend(flatten_json_object(nested, Some(&full_key)));
+            }
+            _ => {
+                // Convert leaf values to OTel values
+                let otel_value = serde_value_to_otel_value(value);
+                result.push(KeyValue::new(Key::new(full_key), otel_value));
             }
         }
-        Ok(OTelValue::Array(opentelemetry::Array::Bool(bools)))
-    } else if first_item.is_instance_of::<PyInt>() {
-        let mut ints = Vec::new();
-        for item in list.iter() {
-            if item.is_instance_of::<PyInt>() {
-                ints.push(item.extract::<i64>()?);
-            } else {
-                // Mixed types - fall back to string array
-                return pylist_to_string_array(list);
-            }
-        }
-        Ok(OTelValue::Array(opentelemetry::Array::I64(ints)))
-    } else if first_item.is_instance_of::<PyFloat>() {
-        let mut floats = Vec::new();
-        for item in list.iter() {
-            if item.is_instance_of::<PyFloat>() {
-                floats.push(item.extract::<f64>()?);
-            } else {
-                // Mixed types - fall back to string array
-                return pylist_to_string_array(list);
-            }
-        }
-        Ok(OTelValue::Array(opentelemetry::Array::F64(floats)))
-    } else {
-        // Default to string array for strings and mixed types
-        pylist_to_string_array(list)
     }
-}
-
-/// Converts a Python list to a string array (fallback for mixed types).
-fn pylist_to_string_array(list: &Bound<'_, PyList>) -> Result<OTelValue, TypeError> {
-    let mut strings = Vec::new();
-    for item in list.iter() {
-        let string_val = if item.is_instance_of::<PyString>() {
-            item.extract::<String>()?
-        } else {
-            // Convert other types to JSON string representation
-            pyobject_to_json(&item)?.to_string()
-        };
-        strings.push(opentelemetry::StringValue::from(string_val));
-    }
-    Ok(OTelValue::Array(opentelemetry::Array::String(strings)))
+    result
 }
 
 /// Converts OpenTelemetry AnyValue to serde_json::Value
@@ -428,12 +450,9 @@ pub fn otel_value_to_serde_value(otel_value: &AnyValue) -> Value {
         Some(variant) => match variant {
             AnyValueVariant::BoolValue(b) => Value::Bool(*b),
             AnyValueVariant::IntValue(i) => Value::Number(serde_json::Number::from(*i)),
-            AnyValueVariant::DoubleValue(d) => {
-                // Handle NaN and infinity cases gracefully
-                serde_json::Number::from_f64(*d)
-                    .map(Value::Number)
-                    .unwrap_or(Value::Null)
-            }
+            AnyValueVariant::DoubleValue(d) => serde_json::Number::from_f64(*d)
+                .map(Value::Number)
+                .unwrap_or(Value::Null),
             AnyValueVariant::StringValue(s) => Value::String(s.clone()),
             AnyValueVariant::ArrayValue(array) => {
                 let values: Vec<Value> =
@@ -449,10 +468,7 @@ pub fn otel_value_to_serde_value(otel_value: &AnyValue) -> Value {
                 }
                 Value::Object(map)
             }
-            AnyValueVariant::BytesValue(bytes) => {
-                // Convert bytes to base64 string for JSON compatibility
-                Value::String(BASE64_STANDARD.encode(bytes))
-            }
+            AnyValueVariant::BytesValue(bytes) => Value::String(BASE64_STANDARD.encode(bytes)),
         },
         None => Value::Null,
     }
@@ -610,7 +626,7 @@ impl DataType {
             "polars.dataframe.frame.DataFrame" => Ok(DataType::Polars),
             "numpy.ndarray" => Ok(DataType::Numpy),
             "pyarrow.lib.Table" => Ok(DataType::Arrow),
-            "scouter_drift.genai.GenAIRecord" => Ok(DataType::GenAI),
+            "scouter_drift.genai.GenAIEvalRecord" => Ok(DataType::GenAI),
             _ => Err(TypeError::InvalidDataType),
         }
     }
@@ -618,41 +634,6 @@ impl DataType {
 
 pub fn get_utc_datetime() -> DateTime<Utc> {
     Utc::now()
-}
-
-#[pyclass(eq)]
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub enum AlertThreshold {
-    Below,
-    Above,
-    Outside,
-}
-
-impl Display for AlertThreshold {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
-
-#[pymethods]
-impl AlertThreshold {
-    #[staticmethod]
-    pub fn from_value(value: &str) -> Option<Self> {
-        match value.to_lowercase().as_str() {
-            "below" => Some(AlertThreshold::Below),
-            "above" => Some(AlertThreshold::Above),
-            "outside" => Some(AlertThreshold::Outside),
-            _ => None,
-        }
-    }
-
-    pub fn __str__(&self) -> String {
-        match self {
-            AlertThreshold::Below => "Below".to_string(),
-            AlertThreshold::Above => "Above".to_string(),
-            AlertThreshold::Outside => "Outside".to_string(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Default)]

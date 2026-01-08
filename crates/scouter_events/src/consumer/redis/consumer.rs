@@ -1,5 +1,6 @@
 #[cfg(all(feature = "redis_events", feature = "sql"))]
 pub mod redis_consumer {
+    use crate::consumer::utils::process_message_record;
     use crate::error::EventError;
     use crate::producer::redis::producer::redis_producer::RedisMessageBroker;
     use futures_util::StreamExt;
@@ -7,7 +8,6 @@ pub mod redis_consumer {
     use redis::aio::PubSub;
     use redis::{Msg, RedisResult};
     use scouter_settings::RedisSettings;
-    use scouter_sql::MessageHandler;
     use scouter_types::MessageRecord;
     use sqlx::{Pool, Postgres};
     use tokio::sync::watch;
@@ -137,32 +137,7 @@ pub mod redis_consumer {
         // Process messages. If processing fails, log the error, record metrics, and continue
         match process_message(&payload).await {
             Ok(Some(records)) => {
-                let result = match &records {
-                    MessageRecord::ServerRecords(records) => {
-                        MessageHandler::insert_server_records(db_pool, records).await
-                    }
-                    MessageRecord::TraceServerRecord(trace_record) => {
-                        MessageHandler::insert_trace_server_record(db_pool, trace_record).await
-                    }
-                    MessageRecord::TagServerRecord(tag_record) => {
-                        MessageHandler::insert_tag_record(db_pool, tag_record).await
-                    }
-                };
-
-                if let Err(e) = result {
-                    error!("Worker {}: Failed to insert record: {:?}", id, e);
-                    counter!("db_insert_errors").increment(1);
-                } else {
-                    match &records {
-                        MessageRecord::ServerRecords(server_records) => {
-                            counter!("records_inserted").increment(server_records.len() as u64);
-                        }
-                        MessageRecord::TraceServerRecord(_) | MessageRecord::TagServerRecord(_) => {
-                            counter!("records_inserted").increment(1);
-                        }
-                    }
-                    counter!("messages_processed").increment(1);
-                }
+                process_message_record(id, records, db_pool).await;
             }
             Ok(None) => {
                 // No records to process

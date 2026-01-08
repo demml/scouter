@@ -1,6 +1,6 @@
 use crate::custom::CustomDriftProfile;
 use crate::error::ProfileError;
-use crate::genai::profile::GenAIDriftProfile;
+use crate::genai::profile::GenAIEvalProfile;
 use crate::psi::PsiDriftProfile;
 use crate::spc::SpcDriftProfile;
 use crate::util::ProfileBaseArgs;
@@ -86,7 +86,7 @@ pub enum DriftProfile {
     Spc(SpcDriftProfile),
     Psi(PsiDriftProfile),
     Custom(CustomDriftProfile),
-    GenAI(GenAIDriftProfile),
+    GenAI(GenAIEvalProfile),
 }
 
 #[pymethods]
@@ -205,7 +205,7 @@ impl DriftProfile {
                 Ok(DriftProfile::Custom(profile))
             }
             DriftType::GenAI => {
-                let profile = profile.extract::<GenAIDriftProfile>()?;
+                let profile = profile.extract::<GenAIEvalProfile>()?;
                 Ok(DriftProfile::GenAI(profile))
             }
         }
@@ -225,7 +225,7 @@ impl DriftProfile {
         }
     }
 
-    pub fn get_genai_profile(&self) -> Result<&GenAIDriftProfile, ProfileError> {
+    pub fn get_genai_profile(&self) -> Result<&GenAIEvalProfile, ProfileError> {
         match self {
             DriftProfile::GenAI(profile) => Ok(profile),
             _ => Err(ProfileError::InvalidDriftTypeError),

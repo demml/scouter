@@ -1,6 +1,7 @@
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::pyclass::PyClassGuardError;
 use pyo3::PyErr;
+use pythonize::PythonizeError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -76,7 +77,7 @@ pub enum TypeError {
     RootMustBeObject,
 
     #[error("Unsupported type: {0}")]
-    UnsupportedTypeError(String),
+    UnsupportedType(String),
 
     #[error("Failed to downcast Python object: {0}")]
     DowncastError(String),
@@ -89,11 +90,6 @@ pub enum TypeError {
 
     #[error("{0}")]
     PyError(String),
-
-    #[error(
-        "Invalid prompt response type. Expect Score as the output type for the GenAIDriftMetric prompt"
-    )]
-    InvalidResponseType,
 
     #[error(
         "Unsupported feature type. Feature must be an integer, float or string. Received: {0}"
@@ -145,8 +141,29 @@ pub enum TypeError {
     #[error("Invalid compressions type")]
     InvalidCompressionTypeError,
 
+    #[error("Invalid evaluation task type: {0}")]
+    InvalidEvalType(String),
+
     #[error("Compression type not supported: {0}")]
     CompressionTypeNotSupported(String),
+
+    #[error("Missing dependency: {0}")]
+    MissingDependency(String),
+
+    #[error("Expected a Python dict")]
+    ExpectedPyDict,
+
+    #[error("List contains an item that is neither AssertionTask nor LLMJudgeTask")]
+    InvalidAssertionTaskType,
+
+    #[error("{0}")]
+    FailedToCreateProfile(String),
+}
+
+impl From<pythonize::PythonizeError> for TypeError {
+    fn from(err: PythonizeError) -> Self {
+        TypeError::PyError(err.to_string())
+    }
 }
 
 impl<'a, 'py> From<pyo3::CastError<'a, 'py>> for TypeError {
@@ -215,6 +232,30 @@ pub enum RecordError {
 
     #[error("Failed to supply either input or response for the genai record")]
     MissingInputOrResponse,
+
+    #[error(transparent)]
+    PotatoUtilError(#[from] potato_head::UtilError),
+
+    #[error(transparent)]
+    TypeError(#[from] TypeError),
+
+    #[error("Invalid context type. Context must be dictionary or Pydantic BaseModel")]
+    MustBeDictOrBaseModel,
+
+    #[error("Failed to downcast Python object: {0}")]
+    DowncastError(String),
+}
+
+impl<'a, 'py> From<pyo3::CastError<'a, 'py>> for RecordError {
+    fn from(err: pyo3::CastError) -> Self {
+        RecordError::DowncastError(err.to_string())
+    }
+}
+
+impl From<pythonize::PythonizeError> for RecordError {
+    fn from(err: PythonizeError) -> Self {
+        RecordError::PyError(err.to_string())
+    }
 }
 
 impl From<RecordError> for PyErr {
@@ -289,8 +330,8 @@ pub enum ProfileError {
     #[error("Invalid metric name found: {0}")]
     InvalidMetricNameError(String),
 
-    #[error("No metrics provided for workflow validation")]
-    EmptyMetricsList,
+    #[error("No AssertionTasks or LLMJudgeTasks found in the workflow")]
+    EmptyTaskList,
 
     #[error("LLM Metric requires at least one bound parameter")]
     NeedAtLeastOneBoundParameterError(String),
@@ -303,11 +344,6 @@ pub enum ProfileError {
     #[error("No tasks found in the workflow when validating: {0}")]
     NoTasksFoundError(String),
 
-    #[error(
-        "Invalid prompt response type. Expected Score as the output type for the GenAIDriftMetric prompt. Id: {0}"
-    )]
-    InvalidResponseType(String),
-
     #[error("No metrics found for the output task: {0}")]
     MetricNotFoundForOutputTask(String),
 
@@ -316,6 +352,15 @@ pub enum ProfileError {
 
     #[error(transparent)]
     PotatoTypeError(#[from] potato_head::TypeError),
+
+    #[error("Invalid task type. Expected either AssertionTask or LLMJudgeTask: {0}")]
+    InvalidTaskType(String),
+
+    #[error("Detected circular dependency in evaluation tasks")]
+    CircularDependency,
+
+    #[error("Duplicate task IDs found in evaluation tasks")]
+    DuplicateTaskIds,
 }
 
 impl From<ProfileError> for PyErr {
@@ -333,6 +378,12 @@ impl From<PyErr> for ProfileError {
 
 impl<'a, 'py> From<PyClassGuardError<'a, 'py>> for ProfileError {
     fn from(err: PyClassGuardError<'a, 'py>) -> Self {
+        ProfileError::PyError(err.to_string())
+    }
+}
+
+impl<'a, 'py> From<pyo3::CastError<'a, 'py>> for ProfileError {
+    fn from(err: pyo3::CastError) -> Self {
         ProfileError::PyError(err.to_string())
     }
 }

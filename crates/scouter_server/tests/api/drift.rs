@@ -15,9 +15,10 @@ use scouter_types::custom::{
 use scouter_types::psi::BinnedPsiFeatureMetrics;
 use scouter_types::psi::{PsiAlertConfig, PsiDriftConfig};
 use scouter_types::spc::SpcDriftFeatures;
-use scouter_types::{contracts::DriftRequest, GenAIDriftRecordPaginationResponse};
+use scouter_types::{contracts::DriftRequest, GenAIEvalRecordPaginationResponse};
 use scouter_types::{
-    AlertThreshold, BinnedMetrics, GenAIDriftRecordPaginationRequest, ServiceInfo, TimeInterval,
+    AlertThreshold, BinnedMetrics, GenAIEvalRecordPaginationRequest, RecordType, ServiceInfo,
+    TimeInterval,
 };
 use tokio::time::sleep;
 
@@ -235,21 +236,10 @@ fn test_genai_server_records() {
             .await
     });
 
-    // populate the server with GenAI drift records
-    let records = helper.get_genai_event_records(None, &uid);
-
-    let body = serde_json::to_string(&records).unwrap();
-    //
-    let request = Request::builder()
-        .uri("/scouter/message")
-        .method("POST")
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(body))
-        .unwrap();
-
-    let response = runtime.block_on(async { helper.send_oneshot(request).await });
-
-    assert_eq!(response.status(), StatusCode::OK);
+    // populate the server with GenAI tasks and workflow records
+    helper.populate_genai_records(&uid, &runtime, None, RecordType::GenAIEval);
+    helper.populate_genai_records(&uid, &runtime, None, RecordType::GenAITask);
+    helper.populate_genai_records(&uid, &runtime, None, RecordType::GenAIWorkflow);
     //
     //// Sleep for 2 seconds to allow the http consumer time to process all server records sent above.
     runtime.block_on(async { sleep(Duration::from_secs(5)).await });
@@ -263,29 +253,40 @@ fn test_genai_server_records() {
         ..Default::default()
     };
 
+    // Test getting binned task metrics
     let query_string = serde_qs::to_string(&params).unwrap();
-
     let request = Request::builder()
-        .uri(format!("/scouter/drift/genai?{query_string}"))
+        .uri(format!("/scouter/drift/genai/task?{query_string}"))
         .method("GET")
         .body(Body::empty())
         .unwrap();
 
     let response = runtime.block_on(async { helper.send_oneshot(request).await });
-
     //assert response
     assert_eq!(response.status(), StatusCode::OK);
-
     // collect body into serde Value
-
     let val = runtime.block_on(async { response.into_body().collect().await.unwrap().to_bytes() });
-
     let results: BinnedMetrics = serde_json::from_slice(&val).unwrap();
+    assert!(!results.metrics.is_empty());
 
+    // Test getting binned workflow metric
+    let query_string = serde_qs::to_string(&params).unwrap();
+    let request = Request::builder()
+        .uri(format!("/scouter/drift/genai/workflow?{query_string}"))
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+
+    let response = runtime.block_on(async { helper.send_oneshot(request).await });
+    //assert response
+    assert_eq!(response.status(), StatusCode::OK);
+    // collect body into serde Value
+    let val = runtime.block_on(async { response.into_body().collect().await.unwrap().to_bytes() });
+    let results: BinnedMetrics = serde_json::from_slice(&val).unwrap();
     assert!(!results.metrics.is_empty());
 
     // get drift records by page
-    let request = GenAIDriftRecordPaginationRequest {
+    let request = GenAIEvalRecordPaginationRequest {
         service_info: ServiceInfo {
             space: SPACE.to_string(),
             uid: uid.clone(),
@@ -298,7 +299,7 @@ fn test_genai_server_records() {
     let body = serde_json::to_string(&request).unwrap();
 
     let request = Request::builder()
-        .uri("/scouter/drift/genai/records")
+        .uri("/scouter/drift/genai/eval")
         .method("POST")
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(body))
@@ -306,7 +307,7 @@ fn test_genai_server_records() {
     let response = runtime.block_on(async { helper.send_oneshot(request).await });
     let val = runtime.block_on(async { response.into_body().collect().await.unwrap().to_bytes() });
 
-    let records: GenAIDriftRecordPaginationResponse = serde_json::from_slice(&val).unwrap();
+    let records: GenAIEvalRecordPaginationResponse = serde_json::from_slice(&val).unwrap();
     assert!(!records.items.is_empty());
     assert!(records.has_next);
 

@@ -7,7 +7,7 @@ macro_rules! impl_mask_entity_id {
             impl $trait_path for $record_type {
                 /// Masks sensitive data by removing entity_id
                 fn mask_sensitive_data(&mut self) {
-                    self.entity_id = None;
+                    self.entity_id = -1;
                 }
             }
         )+

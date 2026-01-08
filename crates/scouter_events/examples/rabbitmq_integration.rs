@@ -45,7 +45,7 @@ impl RabbitMQSetup for TestHelper {
                         uid: entity_uid.clone(),
                         feature: "feature".to_string(),
                         value: i as f64,
-                        entity_id: None,
+                        entity_id: 0_i32,
                     });
                     records.push(record);
                 }

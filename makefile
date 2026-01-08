@@ -24,11 +24,11 @@ test.sql:
 
 .PHONY: test.server
 test.server:
-	cargo test -p scouter-server --all-features -- --nocapture --test-threads=1 --skip test_storage_integration_cloud --skip test_data_archive_genai
+	cargo test -p scouter-server --all-features -- --nocapture --test-threads=1 --skip test_storage_integration_cloud
 
 .PHONY: test.server.archive.genai
 test.server.archive.genai:
-	cargo test -p scouter-server test_data_archive_genai_drift --all-features -- --nocapture --test-threads=1
+	cargo test -p scouter-server test_data_archive_genai --all-features -- --nocapture --test-threads=1
 
 
 .PHONY: test.server.cloud
@@ -40,7 +40,7 @@ test.drift.executor:
 	cargo test -p scouter-drift test_drift_executor --all-features -- --nocapture --test-threads=1
 
 .PHONY: test.needs_sql
-test.needs_sql: test.sql test.server test.server.archive.genai test.drift.executor
+test.needs_sql: test.sql test.server test.evaluate test.drift.executor
 
 #### Unit tests
 .PHONY: test.types
@@ -81,6 +81,9 @@ test.rabbitmq_events:
 
 .PHONY: test.events
 test.events: test.kafka_events test.rabbitmq_events
+
+test.evaluate: test.evaluate
+	cargo test -p scouter-evaluate test_evaluator -- --nocapture --test-threads=1
 
 .PHONY: test.dataframe
 test.dataframe:

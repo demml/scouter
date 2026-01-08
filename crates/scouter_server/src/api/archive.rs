@@ -183,7 +183,6 @@ pub async fn archive_old_data(
     // get old records
     debug!("Archiving old data");
 
-    // record whether there was any data archived
     // TODO(Steven): Make this an audit event in the future
     let mut record = ArchiveRecord::default();
 
@@ -203,10 +202,12 @@ pub async fn archive_old_data(
             }
             DriftType::GenAI => {
                 // process GenAI drift and metric records
-                record.genai_metric =
-                    process_record_type(db_pool, &RecordType::GenAIMetric, config).await?;
-                record.genai_drift =
-                    process_record_type(db_pool, &RecordType::GenAIEvent, config).await?;
+                record.genai_task =
+                    process_record_type(db_pool, &RecordType::GenAITask, config).await?;
+                record.genai_event =
+                    process_record_type(db_pool, &RecordType::GenAIEval, config).await?;
+                record.genai_workflow =
+                    process_record_type(db_pool, &RecordType::GenAIWorkflow, config).await?;
             }
         }
     }

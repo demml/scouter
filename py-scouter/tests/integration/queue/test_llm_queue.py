@@ -2,7 +2,7 @@ import re
 
 import pytest
 from pydantic import BaseModel
-from scouter.queue import GenAIRecord
+from scouter.queue import GenAIEvalRecord
 
 
 class Context(BaseModel):
@@ -12,9 +12,9 @@ class Context(BaseModel):
 
 def test_genai_record():
     """
-    Test the GenAIRecord class.
+    Test the GenAIEvalRecord class.
     """
-    record = GenAIRecord(
+    record = GenAIEvalRecord(
         context={
             "input": "What is the capital of France?",
             "response": "Paris is the capital of France.",
@@ -35,7 +35,7 @@ def test_genai_record():
         ],
     }
 
-    record = GenAIRecord(
+    record = GenAIEvalRecord(
         context={
             "role": "system",
             "content": system_prompt,
@@ -45,11 +45,11 @@ def test_genai_record():
     # Test error - provide no input or response
     with pytest.raises(
         TypeError,
-        match=re.escape("GenAIRecord.__new__() missing 1 required positional argument: 'context'"),
+        match=re.escape("GenAIEvalRecord.__new__() missing 1 required positional argument: 'context'"),
     ):
-        GenAIRecord()
+        GenAIEvalRecord()
 
-    record = GenAIRecord(
+    record = GenAIEvalRecord(
         context={"foo": "bar", "value": 1},
         prompt=system_prompt,
     )
@@ -59,7 +59,7 @@ def test_genai_record():
         input="What is the capital of France?",
         response="Paris is the capital of France.",
     )
-    record = GenAIRecord(
+    record = GenAIEvalRecord(
         context=context,
         prompt=system_prompt,
     )
@@ -72,4 +72,4 @@ def test_genai_record():
         RuntimeError,
         match=re.escape("Invalid context type. Context must be a PyDict or a Pydantic BaseModel"),
     ):
-        GenAIRecord(context="This is a string, not a dict or pydantic model")
+        GenAIEvalRecord(context="This is a string, not a dict or pydantic model")

@@ -4,7 +4,6 @@ pub mod contracts;
 pub mod custom;
 pub mod drift;
 pub mod error;
-pub mod eval;
 pub mod genai;
 pub mod http;
 pub mod psi;

@@ -1,5 +1,3 @@
-pub mod evaluator;
-
 #[cfg(feature = "sql")]
 pub mod poller;
 
@@ -11,5 +9,3 @@ pub use drift::GenAIDrifter;
 
 #[cfg(feature = "sql")]
 pub use poller::GenAIPoller;
-
-pub use evaluator::GenAIEvaluator;
