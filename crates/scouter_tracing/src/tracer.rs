@@ -170,6 +170,7 @@ fn get_trace_metadata_store() -> &'static TraceMetadataStore {
     transport_config=None,
     exporter=None,
     batch_config=None,
+    sample_ratio=None,
 ))]
 #[instrument(skip_all)]
 #[allow(clippy::too_many_arguments)]
@@ -180,6 +181,7 @@ pub fn init_tracer(
     transport_config: Option<&Bound<'_, PyAny>>,
     exporter: Option<&Bound<'_, PyAny>>,
     batch_config: Option<Py<BatchConfig>>,
+    sample_ratio: Option<f64>,
 ) -> Result<(), TraceError> {
     debug!("Initializing tracer");
     let transport_config = match transport_config {
@@ -189,6 +191,18 @@ pub fn init_tracer(
             let config = HttpConfig::default();
             TransportConfig::Http(config)
         }
+    };
+
+    let clamped_sample_ratio = match sample_ratio {
+        Some(ratio) if ratio >= 0.0 && ratio <= 1.0 => Some(ratio),
+        Some(ratio) => {
+            info!(
+                "Sample ratio {} is out of bounds [0.0, 1.0]. Clamping to valid range.",
+                ratio
+            );
+            Some(ratio.clamp(0.0, 1.0))
+        }
+        None => None,
     };
 
     let batch_config = if let Some(bc) = batch_config {
@@ -214,11 +228,14 @@ pub fn init_tracer(
 
     let scouter_export = ScouterSpanExporter::new(transport_config, &resource)?;
 
-    let span_exporter = if let Some(exporter) = exporter {
+    let mut span_exporter = if let Some(exporter) = exporter {
         SpanExporterNum::from_pyobject(exporter).expect("failed to convert exporter")
     } else {
         SpanExporterNum::default()
     };
+
+    // set the sample ratio on the exporter (this will apply to both OTLP and Scouter exporters)
+    span_exporter.set_sample_ratio(clamped_sample_ratio);
 
     let provider = span_exporter
         .build_provider(resource, scouter_export, batch_config)

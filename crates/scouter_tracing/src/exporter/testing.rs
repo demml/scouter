@@ -23,6 +23,7 @@ pub struct TestRecords {
 pub struct TestSpanExporter {
     records: Arc<RwLock<TestRecords>>,
     batch_export: bool,
+    sample_ratio: Option<f64>,
 }
 
 #[pymethods]
@@ -37,6 +38,7 @@ impl TestSpanExporter {
                 baggage: Vec::new(),
             })),
             batch_export,
+            sample_ratio: None,
         }
     }
 
@@ -78,6 +80,10 @@ impl SpanExporterBuilder for TestSpanExporter {
 
     fn sample_ratio(&self) -> Option<f64> {
         Some(1.0)
+    }
+
+    fn set_sample_ratio(&mut self, sample_ratio: Option<f64>) {
+        self.sample_ratio = sample_ratio;
     }
 
     fn batch_export(&self) -> bool {

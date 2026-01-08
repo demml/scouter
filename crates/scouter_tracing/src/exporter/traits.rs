@@ -17,6 +17,8 @@ pub trait SpanExporterBuilder {
     /// Get the sampling ratio for this exporter
     fn sample_ratio(&self) -> Option<f64>;
 
+    fn set_sample_ratio(&mut self, sample_ratio: Option<f64>);
+
     /// Whether to use simple or batch exporter
     fn batch_export(&self) -> bool;
 

@@ -9553,6 +9553,7 @@ def init_tracer(
         HttpSpanExporter | GrpcSpanExporter | StdoutSpanExporter | TestSpanExporter
     ] = None,
     batch_config: Optional[BatchConfig] = None,
+    sample_ratio: Optional[float] = None,
 ) -> None:
     """
     Initialize the tracer for a service with dual export capability.
@@ -9651,6 +9652,11 @@ def init_tracer(
             default batch settings apply.
 
             Batching improves performance for high-throughput applications.
+
+        sample_ratio (float | None):
+            Sampling ratio for tracing. A value between 0.0 and 1.0.
+            All provided values are clamped between 0.0 and 1.0.
+            If None, all spans are sampled (no sampling).
 
     Examples:
         Basic setup (Scouter only via HTTP):

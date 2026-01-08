@@ -632,7 +632,7 @@ mod tests {
         };
 
         let drift_config =
-            GenAIDriftConfig::new("scouter", "genai_test", "0.1.0", 25, alert_config, None)
+            GenAIDriftConfig::new("scouter", "genai_test", "0.1.0", 1.0, alert_config, None)
                 .unwrap();
 
         let profile = runtime

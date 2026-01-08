@@ -197,7 +197,7 @@ mod tests {
         };
 
         let drift_config =
-            GenAIDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
+            GenAIDriftConfig::new("scouter", "ML", "0.1.0", 1.0, alert_config, None).unwrap();
 
         let profile = GenAIEvalProfile::new(drift_config, tasks).await.unwrap();
 
