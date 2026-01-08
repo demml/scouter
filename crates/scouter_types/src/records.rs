@@ -631,32 +631,31 @@ impl GenAIEvalTaskResult {
             serde_json::to_string(&self.expected).unwrap_or_else(|_| "null".to_string());
         let actual_str = serde_json::to_string(&self.actual).unwrap_or_else(|_| "null".to_string());
 
-        let expected_truncated = if expected_str.len() > 50 {
-            format!("{}...", &expected_str[..47])
-        } else {
-            expected_str
-        };
-
-        let actual_truncated = if actual_str.len() > 50 {
-            format!("{}...", &actual_str[..47])
-        } else {
-            actual_str
+        let truncate = |s: String, max_len: usize| {
+            if s.len() > max_len {
+                format!("{}...", &s[..max_len.saturating_sub(3)])
+            } else {
+                s
+            }
         };
 
         TaskResultTableEntry {
             created_at: self.created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-            record_uid: self.record_uid.truecolor(249, 179, 93).to_string(),
-            task_id: self.task_id.clone(),
+
+            record_uid: truncate(self.record_uid.clone(), 16)
+                .truecolor(249, 179, 93)
+                .to_string(), // UUIDs are ~36 chars
+            task_id: truncate(self.task_id.clone(), 16),
             task_type: self.task_type.to_string(),
             passed: if self.passed {
                 "✓".green().to_string()
             } else {
                 "✗".red().to_string()
             },
-            field_path: self.field_path.clone().unwrap_or_default(),
+            field_path: truncate(self.field_path.clone().unwrap_or_default(), 12),
             operator: self.operator.to_string(),
-            expected: expected_truncated,
-            actual: actual_truncated,
+            expected: truncate(expected_str, 20),
+            actual: truncate(actual_str, 20),
         }
     }
     #[allow(clippy::too_many_arguments)]

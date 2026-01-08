@@ -33,6 +33,17 @@ class Recipe(BaseModel):
     servings: int
     rating: Optional[Rating] = None
 
+    @staticmethod
+    def default():
+        return Recipe(
+            name="",
+            ingredients=[],
+            directions=[],
+            prep_time_minutes=0,
+            servings=0,
+            rating=None,
+        )
+
 
 class VegetarianValidation(BaseModel):
     is_vegetarian: bool
@@ -126,9 +137,7 @@ def create_practical_prompt() -> Prompt:
     )
 
 
-def build_recipe_eval_dataset(
-    user_request: str, recipe_response: Recipe
-) -> GenAIEvalDataset:
+def build_recipe_eval_dataset(user_request: str, recipe_response: Recipe) -> GenAIEvalDataset:
     """
     Creates an evaluation dataset for validating vegetarian recipe generation.
     """
@@ -144,9 +153,7 @@ def build_recipe_eval_dataset(
             response = recipe_response.model_copy()
             response.rating = Rating(score=5, reason="Excellent recipe")
 
-        record = GenAIEvalRecord(
-            context={"user_request": user_request, "recipe": response}
-        )
+        record = GenAIEvalRecord(context={"user_request": user_request, "recipe": response})
         records.append(record)
 
     dataset = GenAIEvalDataset(
@@ -241,9 +248,7 @@ if __name__ == "__main__":
     for i, direction in enumerate(recipe.directions, 1):
         print(f"  {i}. {direction}")
 
-    dataset = build_recipe_eval_dataset(
-        user_request=user_request, recipe_response=recipe
-    )
+    dataset = build_recipe_eval_dataset(user_request=user_request, recipe_response=recipe)
 
     print("\n=== Evaluation Plan ===")
     dataset.print_execution_plan()

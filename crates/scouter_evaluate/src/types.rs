@@ -572,6 +572,7 @@ impl GenAIEvalResults {
                 Color::BOLD,
             ),
         );
+
         table
     }
 

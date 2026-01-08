@@ -141,12 +141,23 @@ impl TaskResultStore {
             return Some(true);
         }
 
-        for cond_id in condition_deps {
-            match self.check_assertion_passed(cond_id).await {
-                Some(false) => return Some(false),
-                None => return None,
-                Some(true) => continue,
-            }
+        let mut results = Vec::with_capacity(condition_deps.len());
+        for dep_id in condition_deps {
+            results.push(self.check_assertion_passed(dep_id).await);
+        }
+
+        if results.iter().any(|r| matches!(r, Some(false))) {
+            return Some(false);
+        }
+
+        let all_missing = results.iter().all(|r| r.is_none());
+        if all_missing {
+            return Some(false);
+        }
+
+        let any_missing = results.iter().any(|r| r.is_none());
+        if any_missing {
+            return None;
         }
 
         Some(true)
@@ -404,12 +415,10 @@ impl GenAIEvaluator {
         base_context: Arc<Value>,
         result_store: TaskResultStore,
     ) -> Result<(), EvaluationError> {
-        // Get immutable task reference
         let task = profile
             .get_assertion_by_id(task_id)
             .ok_or_else(|| EvaluationError::TaskNotFound(task_id.to_string()))?;
 
-        // Build scoped context
         let scoped_context = result_store
             .build_scoped_context(&base_context, &task.depends_on)
             .await;
@@ -421,10 +430,30 @@ impl GenAIEvaluator {
 
         let result = task.execute(&scoped_context)?;
 
-        // Store result in our result store
-        result_store
-            .store_assertion(task_id.to_string(), result)
-            .await;
+        // Check if this is a conditional gate task (not first-level but has condition=true)
+        let is_first_level = result_store
+            .task_registry
+            .read()
+            .await
+            .is_first_level_task(task_id);
+
+        // conditional gate if condition is true and not first level
+        let is_conditional_gate = task.condition && !is_first_level;
+
+        // Only store result if:
+        // 1. It's a first-level task (always store)
+        // 2. It's not a conditional gate, OR it passed (we're on this branch)
+        // 3. For conditional gates that fail, DON'T store - we're not executing this branch
+        if is_first_level || !is_conditional_gate || result.passed {
+            result_store
+                .store_assertion(task_id.to_string(), result)
+                .await;
+        } else {
+            debug!(
+                "Skipping storage of failed conditional gate '{}' (not on execution path)",
+                task_id
+            );
+        }
 
         Ok(())
     }
@@ -465,29 +494,10 @@ impl GenAIEvaluator {
         let mut failed_count = 0;
         let mut records = Vec::new();
 
-        // Process assertion results
+        // Process assertion results - only tasks that were actually stored
         for assertion in &profile.assertion_tasks {
             let assert_store = self.result_store.assertion_store.read().await;
-            let result = assert_store.retrieve(&assertion.id);
-
-            if let Some(result) = result {
-                let is_first_task = self
-                    .result_store
-                    .task_registry
-                    .read()
-                    .await
-                    .is_first_level_task(&assertion.id);
-
-                // skip if assertion condition is the following criteria are met
-                // 1. condition is true + result is false + task is not first level
-                if assertion.condition && !result.passed && !is_first_task {
-                    debug!(
-                        "Skipping assertion '{}' due to condition being true and result false",
-                        assertion.id
-                    );
-                    continue;
-                }
-
+            if let Some(result) = assert_store.retrieve(&assertion.id) {
                 if result.passed {
                     passed_count += 1;
                 } else {
@@ -512,16 +522,16 @@ impl GenAIEvaluator {
             }
         }
 
-        // Process LLM judge results
+        // Process LLM judge results - only tasks that were actually stored
         for judge in &profile.llm_judge_tasks {
             let assert_store = self.result_store.assertion_store.read().await;
-            let result = assert_store.retrieve(&judge.id);
-            if let Some(result) = result {
+            if let Some(result) = assert_store.retrieve(&judge.id) {
                 if result.passed {
                     passed_count += 1;
                 } else {
                     failed_count += 1;
                 }
+
                 records.push(scouter_types::GenAIEvalTaskResult {
                     created_at: chrono::Utc::now(),
                     record_uid: record.uid.clone(),

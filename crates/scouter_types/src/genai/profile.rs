@@ -509,7 +509,9 @@ impl GenAIEvalProfile {
         let plan = self.get_execution_plan()?;
 
         println!("\n{}", "Evaluation Execution Plan".bold().green());
-        println!("{}", "═".repeat(50).green());
+        println!("{}", "═".repeat(70).green());
+
+        let mut conditional_count = 0;
 
         for (level_idx, level) in plan.iter().enumerate() {
             let stage_label = format!("Stage {}", level_idx + 1);
@@ -519,6 +521,22 @@ impl GenAIEvalProfile {
                 let is_last = task_idx == level.len() - 1;
                 let prefix = if is_last { "└─" } else { "├─" };
 
+                let task = self.get_task_by_id(task_id).ok_or_else(|| {
+                    ProfileError::NoTasksFoundError(format!("Task '{}' not found", task_id))
+                })?;
+
+                let is_conditional = if let Some(assertion) = self.get_assertion_by_id(task_id) {
+                    assertion.condition
+                } else if let Some(judge) = self.get_llm_judge_by_id(task_id) {
+                    judge.condition
+                } else {
+                    false
+                };
+
+                if is_conditional {
+                    conditional_count += 1;
+                }
+
                 let (task_type, color_fn): (&str, fn(&str) -> String) =
                     if self.assertion_tasks.iter().any(|t| &t.id == task_id) {
                         ("Assertion", |s: &str| s.yellow().to_string())
@@ -526,30 +544,91 @@ impl GenAIEvalProfile {
                         ("LLM Judge", |s: &str| s.purple().to_string())
                     };
 
-                println!("{} {} ({})", prefix, task_id.bold(), color_fn(task_type));
+                let conditional_marker = if is_conditional {
+                    " [CONDITIONAL]".bright_red().to_string()
+                } else {
+                    String::new()
+                };
 
-                if let Some(task) = self.get_task_by_id(task_id) {
-                    let deps = task.depends_on();
-                    if !deps.is_empty() {
-                        let dep_prefix = if is_last { "  " } else { "│ " };
+                println!(
+                    "{} {} ({}){}",
+                    prefix,
+                    task_id.bold(),
+                    color_fn(task_type),
+                    conditional_marker
+                );
+
+                let deps = task.depends_on();
+                if !deps.is_empty() {
+                    let dep_prefix = if is_last { "  " } else { "│ " };
+
+                    let (conditional_deps, normal_deps): (Vec<_>, Vec<_>) =
+                        deps.iter().partition(|dep_id| {
+                            self.get_assertion_by_id(dep_id)
+                                .map(|t| t.condition)
+                                .or_else(|| self.get_llm_judge_by_id(dep_id).map(|t| t.condition))
+                                .unwrap_or(false)
+                        });
+
+                    if !normal_deps.is_empty() {
                         println!(
                             "{}   {} {}",
                             dep_prefix,
                             "depends on:".dimmed(),
-                            deps.join(", ").dimmed()
+                            normal_deps
+                                .iter()
+                                .map(|s| s.as_str())
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                                .dimmed()
                         );
                     }
+
+                    if !conditional_deps.is_empty() {
+                        println!(
+                            "{}   {} {}",
+                            dep_prefix,
+                            "▶ conditional gate:".bright_red().dimmed(),
+                            conditional_deps
+                                .iter()
+                                .map(|d| format!("{} must pass", d))
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                                .red()
+                                .dimmed()
+                        );
+                    }
+                }
+
+                if is_conditional {
+                    let continuation = if is_last { "  " } else { "│ " };
+                    println!(
+                        "{}   {} {}",
+                        continuation,
+                        "▶".bright_red(),
+                        "creates conditional branch".bright_red().dimmed()
+                    );
                 }
             }
         }
 
-        println!("\n{}", "═".repeat(50).green());
+        println!("\n{}", "═".repeat(70).green());
         println!(
-            "{}: {} tasks across {} stages\n",
+            "{}: {} tasks across {} stages",
             "Summary".bold(),
             self.assertion_tasks.len() + self.llm_judge_tasks.len(),
             plan.len()
         );
+
+        if conditional_count > 0 {
+            println!(
+                "{}: {} conditional tasks that create execution branches",
+                "Branches".bold().bright_red(),
+                conditional_count
+            );
+        }
+
+        println!();
 
         Ok(())
     }

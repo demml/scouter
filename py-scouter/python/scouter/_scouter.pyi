@@ -13933,6 +13933,7 @@ class LLMJudgeTask:
         description: Optional[str] = None,
         depends_on: Optional[List[str]] = None,
         max_retries: Optional[int] = None,
+        condition: bool = False,
     ):
         """Initialize an LLM judge task for advanced evaluation.
 
@@ -13967,6 +13968,10 @@ class LLMJudgeTask:
                 Optional maximum number of retry attempts if the LLM call fails
                 (network errors, rate limits, etc.). Defaults to 3 if not provided.
                 Set to 0 to disable retries.
+            condition (bool):
+                If True, this judge task acts as a condition for subsequent tasks.
+                If the judge fails, dependent tasks will be skipped and this task
+                will be excluded from final results.
         """
 
     @property
@@ -14866,8 +14871,8 @@ class GenAIEvalDataset:
 
     def __init__(
         self,
-        records: List[GenAIEvalRecord],
-        tasks: List[LLMJudgeTask | AssertionTask],
+        records: Sequence[GenAIEvalRecord],
+        tasks: Sequence[LLMJudgeTask | AssertionTask],
     ):
         """Initialize the GenAIEvalDataset with records and tasks.
 
