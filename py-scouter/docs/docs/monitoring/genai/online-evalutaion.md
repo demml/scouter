@@ -182,7 +182,7 @@ config = GenAIDriftConfig(
     space="production",
     name="chatbot_service",
     version="1.0.0",
-    sample_rate=1.0,  # Evaluate every request
+    sample_ratio=1.0,  # Evaluate every request
     alert_config=alert_config
 )
 ```
@@ -194,7 +194,7 @@ config = GenAIDriftConfig(
 | `space` | `str` | `"__missing__"` | Logical grouping (e.g., "production", "staging") |
 | `name` | `str` | `"__missing__"` | Service identifier |
 | `version` | `str` | `"0.1.0"` | Version for this profile |
-| `sample_rate` | `float` | `1.0` | Percentage of requests to evaluate (0.0 to 1.0) |
+| `sample_ratio` | `float` | `1.0` | Percentage of requests to evaluate (0.0 to 1.0) |
 | `alert_config` | `GenAIAlertConfig` | Default console | Alert configuration |
 
 **Alert Dispatch Options:**
@@ -397,7 +397,7 @@ config = GenAIDriftConfig(
     space="production",
     name="support_agent",
     version="2.0.0",
-    sample_rate=10,
+    sample_ratio=10,
     alert_config=alert_config
 )
 

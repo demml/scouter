@@ -780,6 +780,15 @@ impl TraceSpansResponse {
     pub fn __str__(&self) -> String {
         PyHelperFuncs::__str__(self)
     }
+
+    pub fn get_span_by_name(&self, span_name: &str) -> Result<Option<TraceSpan>, TypeError> {
+        let span = self
+            .spans
+            .iter()
+            .find(|s| s.span_name == span_name)
+            .cloned();
+        Ok(span)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

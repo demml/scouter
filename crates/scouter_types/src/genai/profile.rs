@@ -40,7 +40,7 @@ use tracing::instrument;
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct GenAIDriftConfig {
     #[pyo3(get, set)]
-    pub sample_rate: f64,
+    pub sample_ratio: f64,
 
     #[pyo3(get, set)]
     pub space: String,
@@ -95,12 +95,12 @@ impl DispatchDriftConfig for GenAIDriftConfig {
 #[allow(clippy::too_many_arguments)]
 impl GenAIDriftConfig {
     #[new]
-    #[pyo3(signature = (space=MISSING, name=MISSING, version=DEFAULT_VERSION, sample_rate=1.0, alert_config=GenAIAlertConfig::default(), config_path=None))]
+    #[pyo3(signature = (space=MISSING, name=MISSING, version=DEFAULT_VERSION, sample_ratio=1.0, alert_config=GenAIAlertConfig::default(), config_path=None))]
     pub fn new(
         space: &str,
         name: &str,
         version: &str,
-        sample_rate: f64,
+        sample_ratio: f64,
         alert_config: GenAIAlertConfig,
         config_path: Option<PathBuf>,
     ) -> Result<Self, ProfileError> {
@@ -110,7 +110,7 @@ impl GenAIDriftConfig {
         }
 
         Ok(Self {
-            sample_rate: sample_rate.clamp(0.0, 1.0),
+            sample_ratio: sample_ratio.clamp(0.0, 1.0),
             space: space.to_string(),
             name: name.to_string(),
             uid: create_uuid7(),
@@ -176,7 +176,7 @@ impl GenAIDriftConfig {
 impl Default for GenAIDriftConfig {
     fn default() -> Self {
         Self {
-            sample_rate: 1.0,
+            sample_ratio: 1.0,
             space: "default".to_string(),
             name: "default_genai_profile".to_string(),
             version: DEFAULT_VERSION.to_string(),

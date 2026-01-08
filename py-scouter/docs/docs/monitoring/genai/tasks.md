@@ -341,7 +341,7 @@ profile = GenAIEvalProfile(
     config=GenAIDriftConfig(
         space="production",
         name="chatbot",
-        sample_rate=0.1  # Evaluate 10% of traffic
+        sample_ratio=0.1  # Evaluate 10% of traffic
     ),
     tasks=[
         AssertionTask(id="not_empty", ...),

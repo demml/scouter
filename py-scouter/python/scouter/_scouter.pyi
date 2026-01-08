@@ -11160,6 +11160,9 @@ class TraceSpansResponse:
 
     spans: List[TraceSpan]
 
+    def get_span_by_name(self, span_name: str) -> Optional[TraceSpan]:
+        """Retrieve a span by its name."""
+
 class TraceBaggageResponse:
     """Response structure containing trace baggage records."""
 
@@ -13419,7 +13422,7 @@ class GenAIDriftConfig:
         space: str = "__missing__",
         name: str = "__missing__",
         version: str = "0.1.0",
-        sample_rate: float = 1.0,
+        sample_ratio: float = 1.0,
         alert_config: GenAIAlertConfig = GenAIAlertConfig(),
     ):
         """Initialize drift config
@@ -13430,7 +13433,7 @@ class GenAIDriftConfig:
                 Name to associate with the config
             version:
                 Version to associate with the config. Defaults to 0.1.0
-            sample_rate:
+            sample_ratio:
                 Sample rate percentage for data collection. Must be between 0.0 and 1.0.
                 Defaults to 1.0 (100%).
             alert_config:
@@ -14157,7 +14160,7 @@ class GenAIEvalProfile:
         ...     space="production",
         ...     name="chatbot",
         ...     version="1.0",
-        ...     sample_rate=10
+        ...     sample_ratio=10
         ... )
         >>>
         >>> tasks = [

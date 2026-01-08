@@ -34,7 +34,7 @@ pub struct GenAIQueue {
     producer: RustScouterProducer,
     last_publish: Arc<RwLock<DateTime<Utc>>>,
     capacity: usize,
-    sample_rate_percentage: f64,
+    sample_ratio_percentage: f64,
 }
 
 impl GenAIQueue {
@@ -42,7 +42,7 @@ impl GenAIQueue {
         drift_profile: GenAIEvalProfile,
         config: TransportConfig,
     ) -> Result<Self, EventError> {
-        let sample_rate_percentage = drift_profile.config.sample_rate;
+        let sample_ratio_percentage = drift_profile.config.sample_ratio;
 
         debug!("Creating GenAI Drift Queue");
         // ArrayQueue size is based on sample rate
@@ -58,7 +58,7 @@ impl GenAIQueue {
             producer,
             last_publish,
             capacity: GENAI_MAX_QUEUE_SIZE,
-            sample_rate_percentage,
+            sample_ratio_percentage,
         };
 
         Ok(genai_queue)
@@ -66,11 +66,11 @@ impl GenAIQueue {
 
     pub fn should_insert(&self) -> bool {
         // if the sample rate is 1, we always insert
-        if self.sample_rate_percentage == 1.0 {
+        if self.sample_ratio_percentage == 1.0 {
             return true;
         }
         // otherwise, we use the sample rate to determine if we should insert
-        rand::random::<f64>() < self.sample_rate_percentage
+        rand::random::<f64>() < self.sample_ratio_percentage
     }
 }
 

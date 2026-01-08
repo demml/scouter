@@ -133,7 +133,7 @@ def create_and_register_genai_drift_profile(
         space="scouter",
         name=name,
         version="0.1.0",
-        sample_rate=1,
+        sample_ratio=1,
         alert_config=GenAIAlertConfig(
             alert_condition=AlertCondition(
                 baseline_value=0.80,
