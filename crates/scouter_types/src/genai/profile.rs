@@ -310,7 +310,8 @@ impl GenAIEvalProfile {
     ) -> Result<Self, ProfileError> {
         let (assertion_tasks, llm_judge_tasks) = extract_assertion_tasks_from_pylist(tasks)?;
 
-        let (workflow, task_ids) = Self::build_profile(&llm_judge_tasks, &assertion_tasks)?;
+        let (workflow, task_ids) = app_state()
+            .block_on(async { Self::build_profile(&llm_judge_tasks, &assertion_tasks).await })?;
 
         Ok(Self {
             config,
@@ -641,7 +642,7 @@ impl GenAIEvalProfile {
         tasks: Vec<EvaluationTask>,
     ) -> Result<Self, ProfileError> {
         let (assertion_tasks, llm_judge_tasks) = separate_tasks(tasks);
-        let (workflow, task_ids) = Self::build_profile(&llm_judge_tasks, &assertion_tasks)?;
+        let (workflow, task_ids) = Self::build_profile(&llm_judge_tasks, &assertion_tasks).await?;
 
         Ok(Self {
             config,
@@ -654,7 +655,7 @@ impl GenAIEvalProfile {
         })
     }
 
-    fn build_profile(
+    async fn build_profile(
         judge_tasks: &[LLMJudgeTask],
         assertion_tasks: &[AssertionTask],
     ) -> Result<(Option<Workflow>, BTreeSet<String>), ProfileError> {
@@ -665,9 +666,7 @@ impl GenAIEvalProfile {
         let workflow = if !judge_tasks.is_empty() {
             let assertion_ids: BTreeSet<String> =
                 assertion_tasks.iter().map(|t| t.id.clone()).collect();
-            let workflow = app_state().block_on(async {
-                Self::build_workflow_from_judges(judge_tasks, &assertion_ids).await
-            })?;
+            let workflow = Self::build_workflow_from_judges(judge_tasks, &assertion_ids).await?;
 
             // Validate the workflow
             validate_workflow(&workflow)?;
