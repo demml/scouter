@@ -9751,6 +9751,36 @@ class ActiveSpan:
                 Can be any serializable type or pydantic `BaseModel`.
         """
 
+    def add_entity(
+        self,
+        alias: str,
+        entity: Union[Features, Metrics, GenAIEvalRecord],
+    ) -> None:
+        """Helpers to add queue entities into a specified queue associated with the active span.
+        This is an convenience method that abstracts away the details of queue management and
+        leverages tracing's sampling capabilities to control data ingestion. Thus, correlated queue
+        records and spans/traces can be sampled together based on the same sampling decision.
+
+        Args:
+            alias (str):
+                Alias of the queue to add the entity into.
+            entity (Union[Features, Metrics, GenAIEvalRecord]):
+                Entity to add into the queue.
+                Can be an instance for Features, Metrics, or GenAIEvalRecord.
+
+        Example:
+            ```python
+            features = Features(
+                features=[
+                    Feature("feature_1", 1),
+                    Feature("feature_2", 2.0),
+                    Feature("feature_3", "value"),
+                ]
+            )
+            span.add_entity(alias, features)
+            ```
+        """
+
     def set_status(self, status: str, description: Optional[str] = None) -> None:
         """Set the status of the active span.
 
@@ -11981,6 +12011,31 @@ class Queue:
 
 class ScouterQueue:
     """Main queue class for Scouter. Publishes drift records to the configured transport"""
+
+    def insert(
+        self, alias: str, entity: Union[Features, Metrics, GenAIEvalRecord]
+    ) -> None:
+        """Insert a record into the queue
+
+        Args:
+            alias (str):
+                Alias of the queue to insert the record into.
+            entity (Union[Features, Metrics, GenAIEvalRecord]):
+                Entity to insert into the queue.
+                Can be an instance for Features, Metrics, or GenAIEvalRecord.
+
+        Example:
+            ```python
+            features = Features(
+                features=[
+                    Feature("feature_1", 1),
+                    Feature("feature_2", 2.0),
+                    Feature("feature_3", "value"),
+                ]
+            )
+            queue.insert(alias, features)
+            ```
+        """
 
     @staticmethod
     def from_path(

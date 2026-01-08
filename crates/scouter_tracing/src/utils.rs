@@ -6,6 +6,7 @@ use opentelemetry::{trace, KeyValue};
 use opentelemetry_otlp::ExportConfig as OtlpExportConfig;
 use pyo3::types::{PyDict, PyModule, PyTuple};
 use pyo3::{prelude::*, IntoPyObjectExt};
+use scouter_events::queue::ScouterQueue;
 use scouter_types::CompressionType;
 use scouter_types::{
     FUNCTION_MODULE, FUNCTION_NAME, FUNCTION_QUALNAME, FUNCTION_STREAMING, FUNCTION_TYPE,
@@ -353,6 +354,7 @@ pub(crate) struct ActiveSpanInner {
     pub context_id: String,
     pub span: BoxedSpan,
     pub context_token: Option<Py<PyAny>>,
+    pub queue: Option<Py<ScouterQueue>>,
 }
 
 #[pyclass(eq)]

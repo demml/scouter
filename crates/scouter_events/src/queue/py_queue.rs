@@ -446,4 +446,20 @@ impl ScouterQueue {
             queue_state: Arc::new(queue_state),
         })
     }
+
+    pub fn insert(
+        &self,
+        py: Python,
+        alias: &str,
+        entity: &Bound<'_, PyAny>,
+    ) -> Result<(), PyEventError> {
+        match self.queues.get(alias) {
+            Some(queue_bus) => {
+                let queue_bus_py = queue_bus.bind(py);
+                queue_bus_py.call_method1("insert", (entity,))?;
+                Ok(())
+            }
+            None => Err(PyEventError::MissingQueueError(alias.to_string())),
+        }
+    }
 }

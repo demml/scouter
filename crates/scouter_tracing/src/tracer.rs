@@ -33,6 +33,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 use pyo3::IntoPyObjectExt;
 use scouter_events::queue::types::TransportConfig;
+use scouter_events::queue::ScouterQueue;
 use scouter_settings::http::HttpConfig;
 
 use scouter_types::{
@@ -357,6 +358,38 @@ impl ActiveSpan {
         self.with_inner_mut(|inner| inner.span.add_event(name, pairs))
     }
 
+    /// Add an entity into the Scouter queue associated with this span
+    /// # Arguments
+    /// * `alias` - The queue alias to add into
+    /// * `entity` - The entity to add
+    /// # Returns
+    /// * `Result<(), TraceError>` - Ok if successful, Err otherwise
+    fn add_entity(
+        &self,
+        py: Python<'_>,
+        alias: String,
+        entity: &Bound<'_, PyAny>,
+    ) -> Result<(), TraceError> {
+        // check if sampling allows for this span to be sent
+        self.with_inner(
+            |inner| match &inner.span.span_context().trace_flags().is_sampled() {
+                true => {
+                    if let Some(queue) = &inner.queue {
+                        let queue_bus = queue.bind(py);
+                        queue_bus.call_method1("insert", (alias, entity))?;
+                        Ok(())
+                    } else {
+                        Err(TraceError::QueueNotInitialized)
+                    }
+                }
+                false => {
+                    debug!("Span is not sampled, skipping insert into queue");
+                    Ok(())
+                }
+            },
+        )?
+    }
+
     /// Set the status of the span
     /// # Arguments
     /// * `status` - The status string ("ok", "error", or "unset")
@@ -424,6 +457,7 @@ impl ActiveSpan {
             let context_id = inner.context_id.clone();
             let trace_id = inner.span.span_context().trace_id().to_string();
             let context_token = inner.context_token.take();
+            inner.queue.take();
 
             (context_id, trace_id, context_token)
         };
@@ -505,6 +539,7 @@ impl ActiveSpan {
 #[pyclass(subclass)]
 pub struct BaseTracer {
     tracer: SdkTracer,
+    queue: Option<Py<ScouterQueue>>,
 }
 
 impl BaseTracer {
@@ -576,10 +611,10 @@ impl BaseTracer {
 #[pymethods]
 impl BaseTracer {
     #[new]
-    #[pyo3(signature = (name))]
-    fn new(name: String) -> Result<Self, TraceError> {
+    #[pyo3(signature = (name, queue=None))]
+    fn new(name: String, queue: Option<Py<ScouterQueue>>) -> Result<Self, TraceError> {
         let tracer = get_tracer(name)?;
-        Ok(BaseTracer { tracer })
+        Ok(BaseTracer { tracer, queue })
     }
 
     /// Start a span and set it as the current span
@@ -686,6 +721,8 @@ impl BaseTracer {
             context_id,
             span,
             context_token: None,
+            // clone references to the queue
+            queue: self.queue.as_ref().map(|q| q.clone_ref(py)),
         }));
 
         // set as current span
