@@ -13,6 +13,8 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use tracing::debug;
 
+const GENAI_MAX_QUEUE_SIZE: usize = 100;
+
 /// The following code is a custom queue implementation for handling custom metrics.
 /// It consists of a `CustomQueue` struct that manages a queue of metrics and a background task
 ///
@@ -40,14 +42,11 @@ impl GenAIQueue {
         drift_profile: GenAIEvalProfile,
         config: TransportConfig,
     ) -> Result<Self, EventError> {
-        let sample_rate = drift_profile.config.sample_rate;
-
-        // calculate sample rate percentage (1 / sample_rate)
-        let sample_rate_percentage = 1.0 / sample_rate as f64;
+        let sample_rate_percentage = drift_profile.config.sample_rate;
 
         debug!("Creating GenAI Drift Queue");
         // ArrayQueue size is based on sample rate
-        let queue = Arc::new(ArrayQueue::new(sample_rate * 2));
+        let queue = Arc::new(ArrayQueue::new(GENAI_MAX_QUEUE_SIZE * 2));
         let record_queue = Arc::new(GenAIEvalRecordQueue::new());
         let last_publish = Arc::new(RwLock::new(Utc::now()));
 
@@ -58,7 +57,7 @@ impl GenAIQueue {
             record_queue,
             producer,
             last_publish,
-            capacity: sample_rate,
+            capacity: GENAI_MAX_QUEUE_SIZE,
             sample_rate_percentage,
         };
 

@@ -135,33 +135,59 @@
 }
 
 
-@media screen and (min-width: 76.25em) {
-  .md-nav__title {
-    display: none;
+
+.md-sidebar--primary,
+.md-sidebar--secondary {
+  width: 8rem !important;
+}
+
+/* Large screens: 10rem */
+@media screen and (min-width: 100em) {
+  .md-sidebar--primary,
+  .md-sidebar--secondary {
+    width: 10rem !important;
   }
 }
- 
-  .md-nav--primary .md-nav__link {
-    margin: 0;
-  }
 
-  .md-nav--primary .md-nav__item {
-    margin-top: 0.35em;
+/* Medium screens: 8rem (override if needed) */
+@media screen and (min-width: 76.25em) and (max-width: 99.99em) {
+  .md-sidebar--primary,
+  .md-sidebar--secondary {
+    width: 8rem !important;
   }
+}
 
 
-  .md-nav--primary .md-nav__item--section {
-    margin-bottom: 0.75em;
-    margin-top: 1em;
-  }
+.md-nav--primary .md-nav__link {
+  margin: 0;
+}
 
-  
-  .md-nav--primary > .md-nav__list > .md-nav__item:first-of-type {
-    font-size: 0.85rem;
-    margin-bottom: 0.75em; 
-  }
+.md-nav--primary .md-nav__item {
+  margin-top: 0.35em;
+}
+
+
+.md-nav--primary .md-nav__item--section {
+  margin-bottom: 0.75em;
+  margin-top: 1em;
+}
+
+
+.md-nav--primary > .md-nav__list > .md-nav__item:first-of-type {
+  font-size: 0.85rem;
+  margin-bottom: 0.75em; 
+}
 
 
 .md-nav__link--active {
-  font-weight: bold;
+font-weight: bold;
+}
+
+.md-typeset pre {
+      border-radius: 12px;
+  }
+
+
+.md-typeset pre > code {
+    border-radius: 12px; 
 }
