@@ -2,11 +2,11 @@ import pandas as pd
 import polars as pl
 from scouter._scouter import ComparisonOperator
 from scouter.evaluate import (
+    AssertionTask,
     EvaluationConfig,
     GenAIEvalDataset,
     GenAIEvalRecord,
     GenAIEvalResults,
-    AssertionTask,
 )
 from scouter.genai import Embedder, Provider
 from scouter.genai.openai import OpenAIEmbeddingConfig
@@ -255,9 +255,9 @@ def test_genai_conditional_assertions():
 
     print(results)
 
-    assert results["test_conditional_1"].task_count == 2, (
-        f"Expected 2 tasks to run, got {results['test_conditional_1'].task_count}"
-    )
-    assert results["test_conditional_1"].eval_set.records[0].task_id == "is_bar", (
-        f"Expected first task to be 'is_bar', got {results['test_conditional_1'].eval_set.records[0].task_id}"
-    )
+    assert (
+        results["test_conditional_1"].task_count == 2
+    ), f"Expected 2 tasks to run, got {results['test_conditional_1'].task_count}"
+    assert (
+        results["test_conditional_1"].eval_set.records[0].task_id == "is_bar"
+    ), f"Expected first task to be 'is_bar', got {results['test_conditional_1'].eval_set.records[0].task_id}"
