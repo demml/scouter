@@ -1,26 +1,25 @@
 # Online GenAI Evaluation with Scouter
 
-Monitor your LLM services in real-time using the same evaluation tasks as offline testing. Online evaluation runs asynchronously on the Scouter server, providing continuous quality monitoring without impacting your application's performance.
+Evaluate your GenAI services in real-time using the same evaluation tasks as offline testing. Online evaluation runs asynchronously on the Scouter server, providing continuous monitoring and observability without impacting your application's performance.
 
 ## Overview
 
 Online GenAI evaluation enables:
 
-- **Real-time Monitoring**: Track LLM quality as production traffic flows through your system
+- **Real-time Monitoring**: Track service quality as traffic flows through your system
 - **Automated Alerting**: Get notified when metrics fall below acceptable thresholds
 - **Zero Latency Impact**: Evaluations run server-side without blocking your application
-- **Cost Control**: Configure sampling to balance monitoring coverage with evaluation costs
+- **Cost Control**: Configure sampling to balance monitoring coverage with evaluation costs (integrates with Scouter Tracing)
 - **Consistent Evaluation**: Use identical tasks from offline testing for production monitoring
 
 ## What is a GenAI Drift Profile?
 
-A **GenAI Drift Profile** combines three components for production monitoring:
+A **GenAI Drift Profile** combines 2 components for online-evaluation:
 
-- **GenAIDriftConfig**: Sampling rate, alerting schedule, and service metadata
-- **Evaluation Tasks**: `LLMJudgeTask` and `AssertionTask` definitions (same as offline)
-- **Alert Conditions**: Thresholds that trigger notifications when metrics degrade
+- **GenAIDriftConfig**: Service metadata and alert configuration
+- **Evaluation Tasks**: `LLMJudgeTask` and `AssertionTask` tasks to validate service context (same as offline)
 
-The profile executes your evaluation tasks asynchronously on sampled production traffic, storing results and checking alert conditions on a configured schedule.
+The profile executes your evaluation tasks asynchronously on sampled traffic, storing results and checking alert conditions on a configured schedule.
 
 ## Creating a GenAI Drift Profile
 
@@ -68,6 +67,7 @@ length_check = AssertionTask(
     operator=ComparisonOperator.HasLengthGreaterThan,
     expected_value=10,
     description="Response must have meaningful length"
+    condition=True
 )
 
 # Quality check only if length passes
@@ -144,16 +144,16 @@ tasks = [category_task, technical_check, technical_quality_task]
 
 ### 2. Configure Alert Conditions
 
-Define when alerts should trigger using `AlertCondition`:
+Define when alerts should trigger using `AlertCondition`. Alerts are triggerred based on the overall pass rate of your evaluation tasks. Meaning, if you have multiple tasks, the alert condition evaluates the aggregated workflow results.
 
 ```python
 from scouter import AlertThreshold, AlertCondition
 
 # Alert if average score falls below 4
 alert_condition = AlertCondition(
-    baseline_value=4.0,
+    baseline_value=.80,  # 80% pass rate
     alert_threshold=AlertThreshold.Below,
-    delta=0.5  # Alert if value < 3.5 (4.0 - 0.5)
+    delta=0.05  # Alert if value < 0.75 (0.80 - 0.05), optional
 )
 ```
 
@@ -182,7 +182,7 @@ config = GenAIDriftConfig(
     space="production",
     name="chatbot_service",
     version="1.0.0",
-    sample_rate=10,  # Evaluate 1 out of every 10 requests
+    sample_rate=1.0,  # Evaluate every request
     alert_config=alert_config
 )
 ```
@@ -194,7 +194,7 @@ config = GenAIDriftConfig(
 | `space` | `str` | `"__missing__"` | Logical grouping (e.g., "production", "staging") |
 | `name` | `str` | `"__missing__"` | Service identifier |
 | `version` | `str` | `"0.1.0"` | Version for this profile |
-| `sample_rate` | `int` | `5` | Evaluate 1 out of N requests |
+| `sample_rate` | `float` | `1.0` | Percentage of requests to evaluate (0.0 to 1.0) |
 | `alert_config` | `GenAIAlertConfig` | Default console | Alert configuration |
 
 **Alert Dispatch Options:**
@@ -296,34 +296,33 @@ queue["chatbot_service"].insert(record)
 **Important:**
 
 - Context keys must match prompt parameter names (e.g., `${user_query}` → `"user_query"`)
-- Queue name must match `name` in `GenAIDriftConfig`
-- Insertion adds minimal latency to your application
+- Queue name must match `alias` define in ScouterQueue path configuration
+- Insertion adds minimal latency to your application (nanoseconds)
 
 ## Evaluation Flow
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Your Application                         │
-│                                                             │
-│  ┌──────────────┐    ┌──────────────────────────────────┐  │
-│  │   LLM Call   │───>│   Insert GenAIEvalRecord         │  │
-│  │              │    │   to ScouterQueue                │  │
-│  └──────────────┘    └──────────┬───────────────────────┘  │
-│                                 │ (async, non-blocking)     │
+┌───────────────────────────────────────────────────────────┐
+│                    Your Application                       │
+│                                                           │
+│  ┌──────────────┐    ┌──────────────────────────────────┐ │
+│  │   LLM Call   │───>│   Insert GenAIEvalRecord         │ │
+│  │              │    │   to ScouterQueue (sampled)      │ │
+│  └──────────────┘    └──────────┬───────────────────────┘ │
+│                                 │ (async, non-blocking)   │
 └─────────────────────────────────┼─────────────────────────┘
                                   │
                                   ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                   Scouter Server                            │
 │                                                             │
-│  1. Sample Request (based on sample_rate)                   │
-│  2. Retrieve Profile & Tasks                                │
-│  3. Execute Evaluation Tasks                                │
+│  1. Retrieve Profile & Tasks                                │
+│  2. Execute Evaluation Tasks                                │
 │     • Rebuild context for each task                         │
 │     • Execute based on dependency graph                     │
-│  4. Store Results                                           │
-│  5. Check Alert Conditions (on schedule)                    │
-│  6. Send Alerts (Slack/OpsGenie/Console)                    │
+│  3. Store Results                                           │
+│  4. Check Alert Conditions (on schedule)                    │
+│  5. Send Alerts (Slack/OpsGenie/Console)                    │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -413,7 +412,10 @@ client = ScouterClient()
 client.register_profile(profile, set_active=True)
 
 # 5. Use in production
-queue = ScouterQueue()
+queue = ScouterQueue.from_path(
+    path={"support_agent": profile_path},
+    ...
+)
 
 for user_query, model_response in production_requests:
     record = GenAIEvalRecord(
@@ -429,7 +431,7 @@ for user_query, model_response in production_requests:
 
 ### Sampling Strategy
 
-- **High-traffic services**: Lower sampling rates (e.g., `sample_rate=100` for 1%)
+- **High-traffic services**: Use lower sampling rates
 - **Critical metrics**: Higher sampling for important evaluations
 - **Cost management**: Balance evaluation costs against monitoring needs
 - **Statistical significance**: Ensure enough samples for meaningful alerts

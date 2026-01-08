@@ -9820,6 +9820,7 @@ class BaseTracer:
         parent_context_id: Optional[str] = None,
         trace_id: Optional[str] = None,
         span_id: Optional[str] = None,
+        remote_sampled: Optional[bool] = None,
     ) -> ActiveSpan:
         """Context manager to start a new span as the current span.
 
@@ -9843,6 +9844,8 @@ class BaseTracer:
                 when linking spans across different services or systems.
             span_id (Optional[str]):
                 Optional span ID to associate with the span. This will be the parent span ID.
+            remote_sampled (Optional[bool]):
+                Optional flag indicating if the span was sampled remotely.
         Returns:
             ActiveSpan:
         """
