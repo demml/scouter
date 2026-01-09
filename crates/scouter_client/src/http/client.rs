@@ -394,10 +394,20 @@ impl PyScouterClient {
             DriftType::Custom => {
                 PyScouterClient::get_custom_binned_drift(py, &self.client.client, drift_request)
             }
-            DriftType::GenAI => {
-                PyScouterClient::get_genai_task_binned_drift(py, &self.client.client, drift_request)
-            }
+            DriftType::GenAI => PyScouterClient::get_genai_workflow_binned_drift(
+                py,
+                &self.client.client,
+                drift_request,
+            ),
         }
+    }
+
+    pub fn get_genai_task_binned_drift<'py>(
+        &self,
+        py: Python<'py>,
+        drift_request: DriftRequest,
+    ) -> Result<Bound<'py, PyAny>, ClientError> {
+        PyScouterClient::_get_genai_task_binned_drift(py, &self.client.client, drift_request)
     }
 
     pub fn get_alerts(
@@ -581,7 +591,7 @@ impl PyScouterClient {
         Ok(results.into_bound_py_any(py).unwrap())
     }
 
-    fn get_genai_task_binned_drift<'py>(
+    fn _get_genai_task_binned_drift<'py>(
         py: Python<'py>,
         client: &HttpClient,
         drift_request: DriftRequest,
@@ -590,6 +600,32 @@ impl PyScouterClient {
 
         let response = client.request(
             Routes::GenAITaskDrift,
+            RequestType::Get,
+            None,
+            Some(query_string),
+            None,
+        )?;
+
+        if response.status().is_client_error() || response.status().is_server_error() {
+            return Err(ClientError::GetDriftDataError);
+        }
+
+        let body = response.bytes()?;
+
+        let results: BinnedMetrics = serde_json::from_slice(&body)?;
+
+        Ok(results.into_bound_py_any(py).unwrap())
+    }
+
+    fn get_genai_workflow_binned_drift<'py>(
+        py: Python<'py>,
+        client: &HttpClient,
+        drift_request: DriftRequest,
+    ) -> Result<Bound<'py, PyAny>, ClientError> {
+        let query_string = serde_qs::to_string(&drift_request)?;
+
+        let response = client.request(
+            Routes::GenAIWorkflowDrift,
             RequestType::Get,
             None,
             Some(query_string),

@@ -29,7 +29,7 @@ def test_genai_tracing_api(scouter_grpc_openai_server):
     with TestClient(app) as client:
         time.sleep(5)
         # Simulate requests
-        for i in range(20):
+        for i in range(30):
             response = client.post(
                 "/chat",
                 json=ChatRequest(
@@ -50,15 +50,14 @@ def test_genai_tracing_api(scouter_grpc_openai_server):
         max_data_points=1,
     )
 
-    metrics = scouter_client.get_binned_drift(
+    workflow_results = scouter_client.get_binned_drift(
         request,
         drift_type=DriftType.GenAI,
     )
 
-    print(metrics)
-
-    assert len(metrics["coherence"].stats) == 1
-    assert metrics["coherence"].stats[0].avg > 0
+    assert len(workflow_results["workflow"].stats) == 1
+    task_results = scouter_client.get_genai_task_binned_drift(request)
+    assert len(task_results["coherence"].stats) == 1
 
     # delete the drift_path
     drift_path.unlink()

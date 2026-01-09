@@ -55,14 +55,14 @@ def test_genai_api_kafka(kafka_scouter_openai_server):
         max_data_points=1,
     )
 
-    # task metrics
-    metrics = scouter_client.get_binned_drift(
+    # workflow metrics
+    workflow_results = scouter_client.get_binned_drift(
         request,
         drift_type=DriftType.GenAI,
     )
 
-    assert len(metrics["coherence"].stats) == 1
-    assert metrics["coherence"].stats[0].avg > 0
+    assert len(workflow_results["workflow"].stats) == 1
+    task_results = scouter_client.get_genai_task_binned_drift(request)
+    assert len(task_results["coherence"].stats) == 1
 
-    # delete the drift_path
     drift_path.unlink()

@@ -66,6 +66,9 @@ pub enum ClientError {
 
     #[error("Failed to get tags")]
     GetTagsError,
+
+    #[error("Invalid drift type for GenAI task request")]
+    InvalidDriftTypeForGenAITask,
 }
 
 impl From<ClientError> for PyErr {

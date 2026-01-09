@@ -11394,6 +11394,13 @@ class ScouterClient:
             Drift map of type BinnedMetrics | BinnedPsiFeatureMetrics | BinnedSpcFeatureMetrics
         """
 
+    def get_genai_task_binned_drift(self, drift_request: DriftRequest) -> Any:
+        """Get GenAI task drift map from server
+        Args:
+            drift_request:
+                DriftRequest object
+        """
+
     def register_profile(self, profile: Any, set_active: bool = False, deactivate_others: bool = False) -> bool:
         """Registers a drift profile with the server
 

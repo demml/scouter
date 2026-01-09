@@ -359,8 +359,7 @@ def create_tracing_genai_app(tracer: Tracer, profile_path: Path) -> FastAPI:
 
         logger.info("Shutting down FastAPI app")
         # Shutdown the queue
-        app.state.queue.shutdown()
-        app.state.queue = None
+        queue.shutdown()
 
     app = FastAPI(lifespan=lifespan)
 
