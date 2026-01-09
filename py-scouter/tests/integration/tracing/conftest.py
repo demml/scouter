@@ -161,15 +161,11 @@ def create_service_a_app() -> FastAPI:
         trace_id = incoming_headers.get("trace_id")
         span_id = incoming_headers.get("span_id")
 
-        with tracer.start_as_current_span(
-            "service_a_double", trace_id=trace_id, span_id=span_id
-        ):
+        with tracer.start_as_current_span("service_a_double", trace_id=trace_id, span_id=span_id):
             doubled = payload.value * 2
 
             service_a_inner_function()
 
-            return ServiceAResponse(
-                result=doubled + 10, trace_id=trace_id, span_id=span_id
-            )
+            return ServiceAResponse(result=doubled + 10, trace_id=trace_id, span_id=span_id)
 
     return app

@@ -30,14 +30,16 @@ from scouter.queue import GenAIEvalRecord
 from scouter.tracing import (
     BatchConfig,
     TestSpanExporter,
+    Tracer,
     get_tracer,
     init_tracer,
     shutdown_tracer,
 )
+from scouter.transport import GrpcConfig
 from scouter.util import FeatureMixin
 
 logger = RustyLogger.get_logger(
-    LoggingConfig(log_level=LogLevel.Info),
+    LoggingConfig(log_level=LogLevel.Debug),
 )
 
 
@@ -273,6 +275,12 @@ def create_kafka_genai_app(profile_path: Path) -> FastAPI:
         )
         return TestResponse(message="success")
 
+    @app.post("/flush", response_model=TestResponse)
+    async def flush(request: Request) -> TestResponse:
+        queue: ScouterQueue = request.app.state.queue
+        queue.shutdown()
+        return TestResponse(message="flushed")
+
     return app
 
 
@@ -319,5 +327,64 @@ def create_http_app(profile_path: Path) -> FastAPI:
         await nested2(payload.feature_3, payload.feature_0)
         request.app.state.queue["spc"].insert(payload.to_features())
         return TestResponse(message="success")
+
+    return app
+
+
+def create_tracing_genai_app(tracer: Tracer, profile_path: Path) -> FastAPI:
+    config = GrpcConfig()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        logger.info("Starting up FastAPI app")
+
+        app.state.agent = Agent(
+            system_instruction="You are a helpful assistant",
+            provider=Provider.OpenAI,
+        )
+
+        app.state.prompt = Prompt(
+            messages="Answer the following question and provide a response with a score and reason: ${question}",
+            model="gpt-4o",
+            provider="openai",
+            output_type=Score,
+        )
+
+        queue = ScouterQueue.from_path(
+            path={"genai": profile_path},
+            transport_config=config,
+        )
+        tracer.add_queue(queue)
+        yield
+
+        logger.info("Shutting down FastAPI app")
+        # Shutdown the queue
+        app.state.queue.shutdown()
+        app.state.queue = None
+
+    app = FastAPI(lifespan=lifespan)
+
+    @app.post("/chat", response_model=TestResponse)
+    async def chat(request: Request, payload: ChatRequest) -> TestResponse:
+        with tracer.start_as_current_span("genai_service") as active_span:
+            agent: Agent = request.app.state.agent
+            prompt: Prompt = request.app.state.prompt
+
+            # Create an GenAIEvalRecord from the payload
+            bound_prompt = prompt.bind(question=payload.question)
+
+            response = agent.execute_prompt(prompt=bound_prompt)
+
+            active_span.add_entity(
+                alias="genai",
+                entity=GenAIEvalRecord(
+                    context={
+                        "input": bound_prompt.messages[0].text(),
+                        "response": response.response_text(),
+                    },
+                ),
+            )
+
+            return TestResponse(message="success")
 
     return app

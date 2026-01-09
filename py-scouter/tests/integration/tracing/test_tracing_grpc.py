@@ -62,9 +62,7 @@ def test_tracer_grpc_sampling(setup_tracer_grpc_sample):
     assert len(traces) < 20
 
     scouter_client = ScouterClient()
-    traces = scouter_client.get_paginated_traces(
-        TraceFilters(service_name="tracing-grpc-sample")
-    )
+    traces = scouter_client.get_paginated_traces(TraceFilters(service_name="tracing-grpc-sample"))
 
     assert len(traces.items) > 0
     assert len(traces.items) < 20

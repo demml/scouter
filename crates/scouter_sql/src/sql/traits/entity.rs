@@ -3,6 +3,7 @@ use crate::sql::query::Queries;
 use async_trait::async_trait;
 use sqlx::{Pool, Postgres, Row};
 use std::result::Result::Ok;
+use tracing::{error, instrument};
 
 #[async_trait]
 pub trait EntitySqlLogic {
@@ -11,6 +12,7 @@ pub trait EntitySqlLogic {
     /// * `uid` - The UID of the entity
     /// # Returns
     /// * `Result<i32, SqlError>` - Result of the query returning the entity ID
+    #[instrument(skip_all)]
     async fn get_entity_id_from_uid(pool: &Pool<Postgres>, uid: &str) -> Result<i32, SqlError> {
         let query = Queries::GetEntityIdFromUid.get_query();
 
@@ -18,7 +20,7 @@ pub trait EntitySqlLogic {
             .bind(uid)
             .fetch_one(pool)
             .await
-            .map_err(SqlError::SqlxError)?;
+            .inspect_err(|e| error!("Failed to fetch entity ID from UID: {:?} uid: {}", e, uid))?;
 
         let id: i32 = result.get("id");
 

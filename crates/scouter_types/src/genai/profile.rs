@@ -635,6 +635,19 @@ impl GenAIEvalProfile {
     }
 }
 
+impl Default for GenAIEvalProfile {
+    fn default() -> Self {
+        Self {
+            config: GenAIDriftConfig::default(),
+            assertion_tasks: Vec::new(),
+            llm_judge_tasks: Vec::new(),
+            scouter_version: scouter_version(),
+            workflow: None,
+            task_ids: BTreeSet::new(),
+        }
+    }
+}
+
 impl GenAIEvalProfile {
     #[instrument(skip_all)]
     pub async fn new(

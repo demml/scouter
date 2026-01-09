@@ -239,6 +239,7 @@ pub struct GenAIEvalRecord {
     pub entity_id: i32,
     pub entity_uid: String,
     pub status: Status,
+    #[pyo3(get)]
     pub entity_type: EntityType,
 }
 
@@ -1009,7 +1010,7 @@ impl ServerRecords {
                 ServerRecord::Psi(inner) => Ok(&inner.uid),
                 ServerRecord::Custom(inner) => Ok(&inner.uid),
                 ServerRecord::Observability(inner) => Ok(&inner.uid),
-                ServerRecord::GenAIEval(inner) => Ok(&inner.record.entity_uid),
+                ServerRecord::GenAIEval(inner) => Ok(&inner.record.entity_uid), // this is the profile uid
                 ServerRecord::GenAITaskRecord(inner) => Ok(&inner.entity_uid),
                 ServerRecord::GenAIWorkflowRecord(inner) => Ok(&inner.entity_uid),
             }

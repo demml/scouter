@@ -8,17 +8,12 @@ use opentelemetry_sdk::Resource;
 use opentelemetry_stdout::SpanExporter as OTelStdoutSpanExporter;
 #[derive(Debug, Default)]
 pub struct NoopSpanExporter {
-    _private: (),
     pub sample_ratio: Option<f64>,
 }
 
 impl NoopSpanExporter {
-    /// Create a new noop span exporter
     pub fn new() -> Self {
-        NoopSpanExporter {
-            _private: (),
-            sample_ratio: None,
-        }
+        NoopSpanExporter { sample_ratio: None }
     }
 }
 

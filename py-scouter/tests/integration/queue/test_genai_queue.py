@@ -51,7 +51,6 @@ def test_genai_record():
 
     record = GenAIEvalRecord(
         context={"foo": "bar", "value": 1},
-        prompt=system_prompt,
     )
 
     # test with pydantic model
@@ -59,10 +58,7 @@ def test_genai_record():
         input="What is the capital of France?",
         response="Paris is the capital of France.",
     )
-    record = GenAIEvalRecord(
-        context=context,
-        prompt=system_prompt,
-    )
+    record = GenAIEvalRecord(context=context)
 
     assert record.context["input"] == "What is the capital of France?"
     assert record.context["response"] == "Paris is the capital of France."

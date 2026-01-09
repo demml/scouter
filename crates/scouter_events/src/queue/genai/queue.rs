@@ -13,7 +13,7 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use tracing::debug;
 
-const GENAI_MAX_QUEUE_SIZE: usize = 100;
+const GENAI_MAX_QUEUE_SIZE: usize = 25;
 
 /// The following code is a custom queue implementation for handling custom metrics.
 /// It consists of a `CustomQueue` struct that manages a queue of metrics and a background task
@@ -47,7 +47,7 @@ impl GenAIQueue {
         debug!("Creating GenAI Drift Queue");
         // ArrayQueue size is based on sample rate
         let queue = Arc::new(ArrayQueue::new(GENAI_MAX_QUEUE_SIZE * 2));
-        let record_queue = Arc::new(GenAIEvalRecordQueue::new());
+        let record_queue = Arc::new(GenAIEvalRecordQueue::new(drift_profile));
         let last_publish = Arc::new(RwLock::new(Utc::now()));
 
         let producer = RustScouterProducer::new(config).await?;

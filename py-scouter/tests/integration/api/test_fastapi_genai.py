@@ -24,11 +24,12 @@ def test_genai_api_kafka(kafka_scouter_openai_server):
     drift_path = profile.save_to_json()
 
     app = create_kafka_genai_app(drift_path)
+
     # Configure the TestClient
     with TestClient(app) as client:
         time.sleep(5)
         # Simulate requests
-        for i in range(20):
+        for i in range(30):
             response = client.post(
                 "/chat",
                 json=ChatRequest(
@@ -38,6 +39,11 @@ def test_genai_api_kafka(kafka_scouter_openai_server):
             assert response.status_code == 200
             time.sleep(0.5)
         time.sleep(5)
+
+        # flush the queue
+        response = client.post("/flush")
+        assert response.status_code == 200
+
         client.wait_shutdown()
 
     time.sleep(10)
@@ -49,9 +55,10 @@ def test_genai_api_kafka(kafka_scouter_openai_server):
         max_data_points=1,
     )
 
+    # task metrics
     metrics = scouter_client.get_binned_drift(
         request,
-        drift_type=DriftType.LLM,
+        drift_type=DriftType.GenAI,
     )
 
     assert len(metrics["coherence"].stats) == 1

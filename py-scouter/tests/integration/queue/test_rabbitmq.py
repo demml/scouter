@@ -33,15 +33,15 @@ def test_custom_monitor_pandas_rabbitmq(rabbitmq_scouter_server):
     metrics = [
         CustomMetric(
             name="mae",
-            value=1,
-            alert_threshold=AlertThreshold.Outside,
-            alert_threshold_value=0.5,
+            baseline_value=1,
+            threshold=AlertThreshold.Outside,
+            delta=0.5,
         ),
         CustomMetric(
             name="mape",
-            value=2,
-            alert_threshold=AlertThreshold.Outside,
-            alert_threshold_value=0.5,
+            baseline_value=2,
+            threshold=AlertThreshold.Outside,
+            delta=0.5,
         ),
     ]
     drift_config = CustomMetricDriftConfig(

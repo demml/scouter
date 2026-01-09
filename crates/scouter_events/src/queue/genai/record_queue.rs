@@ -1,16 +1,19 @@
 use crate::error::FeatureQueueError;
 use crate::queue::traits::FeatureQueue;
 use core::result::Result::Ok;
+use scouter_types::genai::GenAIEvalProfile;
 use scouter_types::BoxedGenAIEvalRecord;
 use scouter_types::QueueExt;
 use scouter_types::{MessageRecord, ServerRecord, ServerRecords};
 
 #[derive(Default)]
-pub struct GenAIEvalRecordQueue {}
+pub struct GenAIEvalRecordQueue {
+    pub drift_profile: GenAIEvalProfile,
+}
 
 impl GenAIEvalRecordQueue {
-    pub fn new() -> Self {
-        GenAIEvalRecordQueue {}
+    pub fn new(drift_profile: GenAIEvalProfile) -> Self {
+        GenAIEvalRecordQueue { drift_profile }
     }
 }
 
@@ -24,7 +27,13 @@ impl FeatureQueue for GenAIEvalRecordQueue {
             .into_iter()
             .filter_map(|item| {
                 let record = item.into_genai_record();
-                record.map(|r| ServerRecord::GenAIEval(BoxedGenAIEvalRecord::new(r)))
+
+                record.map(|r| {
+                    // Set the entity_uid from the drift profile
+                    let mut r = r;
+                    r.entity_uid = self.drift_profile.config.uid.clone();
+                    ServerRecord::GenAIEval(BoxedGenAIEvalRecord::new(r))
+                })
             })
             .collect();
 
@@ -42,7 +51,8 @@ mod tests {
 
     #[test]
     fn test_feature_queue_genai_insert_record() {
-        let feature_queue = GenAIEvalRecordQueue::new();
+        let profile = GenAIEvalProfile::default();
+        let feature_queue = GenAIEvalRecordQueue::new(profile);
 
         let mut record_batch = Vec::new();
         for _ in 0..1 {

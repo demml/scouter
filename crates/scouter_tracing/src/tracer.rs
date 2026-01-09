@@ -44,7 +44,7 @@ use scouter_types::{
 };
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock, RwLock};
-use tracing::{debug, info, instrument};
+use tracing::{debug, info, instrument, warn};
 
 /// Global static instance of the tracer provider.
 static TRACER_PROVIDER_STORE: RwLock<Option<Arc<SdkTracerProvider>>> = RwLock::new(None);
@@ -195,7 +195,7 @@ pub fn init_tracer(
     };
 
     let clamped_sample_ratio = match sample_ratio {
-        Some(ratio) if ratio >= 0.0 && ratio <= 1.0 => Some(ratio),
+        Some(ratio) if (0.0..=1.0).contains(&ratio) => Some(ratio),
         Some(ratio) => {
             info!(
                 "Sample ratio {} is out of bounds [0.0, 1.0]. Clamping to valid range.",
@@ -379,7 +379,11 @@ impl ActiveSpan {
                         queue_bus.call_method1("insert", (alias, entity))?;
                         Ok(())
                     } else {
-                        Err(TraceError::QueueNotInitialized)
+                        warn!(
+                            "Queue not initialized for span {}. Skipping",
+                            inner.context_id
+                        );
+                        Ok(())
                     }
                 }
                 false => {
@@ -615,6 +619,10 @@ impl BaseTracer {
     fn new(name: String, queue: Option<Py<ScouterQueue>>) -> Result<Self, TraceError> {
         let tracer = get_tracer(name)?;
         Ok(BaseTracer { tracer, queue })
+    }
+
+    pub fn add_queue(&mut self, queue: Py<ScouterQueue>) {
+        self.queue = Some(queue);
     }
 
     /// Start a span and set it as the current span

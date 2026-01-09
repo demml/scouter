@@ -97,7 +97,5 @@ def test_distributed_trace_propagation(setup_tracer_http):
     scouter_client = ScouterClient()
     trace_span = scouter_client.get_trace_spans(trace_id)
 
-    span = trace_span.get_span_by_name(
-        "service_a_inner_function"
-    )  # inner function called in service A
+    span = trace_span.get_span_by_name("service_a_inner_function")  # inner function called in service A
     assert span is not None
