@@ -374,9 +374,9 @@ def create_tracing_genai_app(tracer: Tracer, profile_path: Path) -> FastAPI:
 
             response = agent.execute_prompt(prompt=bound_prompt)
 
-            active_span.add_entity(
+            active_span.add_queue_item(
                 alias="genai",
-                entity=GenAIEvalRecord(
+                item=GenAIEvalRecord(
                     context={
                         "input": bound_prompt.messages[0].text(),
                         "response": response.response_text(),
