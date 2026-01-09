@@ -10,6 +10,10 @@ This point has been made multiple times by others, so we won't rehash it here, b
 
 ## What does Scouter provide for GenAI Evaluation?
 
+### Building Blocks for GenAI Evaluations
+
+Before going over offline and online evaluations, it's important to understand how tasks (`AssertionTask` and `LLMJudgeTask`) work in Scouter for GenAI evaluations. These tasks allow you to define prompts, expected outputs, and evaluation criteria for your GenAI services. You can chain multiple tasks together to create complex evaluation workflows that assess various aspects of your service's performance. More on this can be found in the [Task Building Blocks Section](/scouter/docs/monitoring/genai/tasks/).
+
 ### Offline Evaluation
 
 One of our goals with GenAI evaluations is to maintain parity between offline and online evaluations. This means you can define your evaluation tasks once and use them both for offline batch evaluations as well as on-line. This ensures consistency in how you measure your LLM's performance across different environments and versions. To run offline evaluations, you can use the `GenAIEvalDataset` along with the `GenAIEvalRecord` class and `LLMJudgeTask` and `AssertionTask` to run evaluations against a set of records. More on this can be found in the [Offline Evaluation Documentation](/scouter/docs/monitoring/genai/offline-evaluation/).
@@ -17,11 +21,4 @@ One of our goals with GenAI evaluations is to maintain parity between offline an
 
 ### Online Drift Detection
 
-In line with our other drift tooling, Scouter provides a way to define GenAI Eval Profiles that can be used to monitor your LLM services in real-time. These profiles allow you to specify both tasks and alert criteria, so you can be notified when your LLM's performance degrades or drifts from expected behavior. This is done using the `GenAIEvalProfile`, `GenAIDriftConfig`, `LLMJudgeTask` and `AssertionTask` classes. More on this can be found in the [Offline Evaluation Documentation](/scouter/docs/monitoring/genai/online-evaluation/)
-
-
-## Task Building Blocks
-
-The key building block to GenAI evaluations in Scouter are the `LLMJudgeTask` and `AssertionTask` classes. These tasks allow you to define prompts, expected outputs, and evaluation criteria for your GenAI services. You can chain multiple tasks together to create complex evaluation workflows that assess various aspects of your service's performance.
-
-The concept of evaluation is simple: An agentic service takes an input and gives an output (with a little bit of optional metadata in between). All of this can be considered evaluation `context`. Based on the provided `context` and how you define your evaluation tasks, each tasks will parse the context, run the necessary LLM calls (if using `LLMJudgeTask`), and validate against the expected output and assertion criteria.
+In line with our other drift tooling, Scouter provides a way to define GenAI Eval Profiles that can be used to monitor your LLM services in real-time. These profiles allow you to specify both tasks and alert criteria, so you can be notified when your LLM's performance degrades or drifts from expected behavior. This is done using the `GenAIEvalProfile`, `GenAIDriftConfig`, `LLMJudgeTask` and `AssertionTask` classes. More on this can be found in the [Online Evaluation Documentation](/scouter/docs/monitoring/genai/online-evaluation/).

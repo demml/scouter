@@ -439,7 +439,7 @@ for user_query, model_response in production_requests:
 - **Critical metrics**: Higher sampling for important evaluations
 - **Cost management**: Balance evaluation costs against monitoring needs
 - **Statistical significance**: Ensure enough samples for meaningful alerts
-- **Tracing integration**: Add your `ScouterQueue` to the Scouter Tracer for correlated observability, sampling and evaluation. See [Tracing Overview](scouter/docs/tracing/overview.md) for details.
+- **Tracing integration**: Add your `ScouterQueue` to the Scouter Tracer for correlated observability, sampling and evaluation. See [Tracing Overview](/scouter/docs/tracing/overview/) for details.
 
 ### Task Design
 
