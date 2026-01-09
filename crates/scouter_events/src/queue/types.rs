@@ -8,8 +8,30 @@ use pyo3::IntoPyObjectExt;
 use scouter_settings::grpc::GrpcConfig;
 use scouter_settings::HttpConfig;
 use scouter_types::TransportType;
+use std::collections::HashMap;
 use tracing::error;
 use tracing::instrument;
+
+/// Individual queue settings
+/// this is currently a hacky way to mutate sample ratios for GenAI queues when
+/// using tracing. The main problem to be solved here is communicating with the background
+/// task that is processing the queue to update the sample ratio from python.
+pub(crate) struct QueueSettings {
+    pub id: String,
+    pub sample_ratio: f64,
+}
+
+impl QueueSettings {
+    pub fn new(id: String, sample_ratio: f64) -> Self {
+        QueueSettings { id, sample_ratio }
+    }
+
+    /// updates all sample ratios in the settings
+    /// this is only used by the GenAI queues currently
+    pub fn update_sample_ratio(&mut self, sample_ratio: f64) {
+        self.sample_ratio = sample_ratio;
+    }
+}
 
 #[derive(Clone, Debug)]
 pub enum TransportConfig {

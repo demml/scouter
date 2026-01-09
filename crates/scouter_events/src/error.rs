@@ -184,6 +184,9 @@ pub enum EventError {
 
     #[error(transparent)]
     GrpcClientError(#[from] scouter_tonic::error::ClientError),
+
+    #[error("Failed to get queue settings for GenAI queue")]
+    MissingQueueSettingsError,
 }
 
 #[derive(Error, Debug)]

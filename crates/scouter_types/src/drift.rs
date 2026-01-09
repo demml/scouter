@@ -313,6 +313,14 @@ impl DriftProfile {
             DriftProfile::GenAI(profile) => &profile.config.uid,
         }
     }
+
+    /// This is a genai only route
+    pub fn update_sample_ratio(&mut self, sample_ratio: f64) {
+        match self {
+            DriftProfile::GenAI(profile) => profile.config.sample_ratio = sample_ratio,
+            _ => {}
+        }
+    }
 }
 
 impl Default for DriftProfile {
