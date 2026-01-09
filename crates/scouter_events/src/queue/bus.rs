@@ -228,11 +228,11 @@ impl QueueBus {
     ///
     /// # Arguments
     /// * `event` - The event to publish
-    pub fn insert(&self, entity: &Bound<'_, PyAny>) -> Result<(), PyEventError> {
-        let entity = QueueItem::from_py_entity(entity)
+    pub fn insert(&self, item: &Bound<'_, PyAny>) -> Result<(), PyEventError> {
+        let item = QueueItem::from_py_entity(item)
             .inspect_err(|e| error!("Failed to convert entity to QueueItem: {}", e))?;
-        debug!("Inserting event into QueueBus: {:?}", entity);
-        let event = Event::Task(entity);
+        debug!("Inserting event into QueueBus: {:?}", item);
+        let event = Event::Task(item);
         self.publish(event)?;
         Ok(())
     }

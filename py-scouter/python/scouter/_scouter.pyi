@@ -9743,10 +9743,10 @@ class ActiveSpan:
                 Can be any serializable type or pydantic `BaseModel`.
         """
 
-    def add_entity(
+    def add_queue_item(
         self,
         alias: str,
-        entity: Union[Features, Metrics, GenAIEvalRecord],
+        item: Union[Features, Metrics, GenAIEvalRecord],
     ) -> None:
         """Helpers to add queue entities into a specified queue associated with the active span.
         This is an convenience method that abstracts away the details of queue management and
@@ -9755,9 +9755,9 @@ class ActiveSpan:
 
         Args:
             alias (str):
-                Alias of the queue to add the entity into.
-            entity (Union[Features, Metrics, GenAIEvalRecord]):
-                Entity to add into the queue.
+                Alias of the queue to add the item into.
+            item (Union[Features, Metrics, GenAIEvalRecord]):
+                Item to add into the queue.
                 Can be an instance for Features, Metrics, or GenAIEvalRecord.
 
         Example:
@@ -9769,7 +9769,7 @@ class ActiveSpan:
                     Feature("feature_3", "value"),
                 ]
             )
-            span.add_entity(alias, features)
+            span.add_queue_item(alias, features)
             ```
         """
 
@@ -9837,7 +9837,7 @@ class BaseTracer:
                 The name of the service for tracing.
         """
 
-    def add_queue(self, queue: "ScouterQueue") -> None:
+    def set_scouter_queue(self, queue: "ScouterQueue") -> None:
         """Add a ScouterQueue to the tracer. This allows the tracer to manage
         and export queue entities in conjunction with span data for correlated
         monitoring and observability.
@@ -11983,12 +11983,12 @@ class Metrics:
 class Queue:
     """Individual queue associated with a drift profile"""
 
-    def insert(self, entity: Union[Features, Metrics, GenAIEvalRecord]) -> None:
+    def insert(self, item: Union[Features, Metrics, GenAIEvalRecord]) -> None:
         """Insert a record into the queue
 
         Args:
-            entity:
-                Entity to insert into the queue.
+            item:
+                Item to insert into the queue.
                 Can be an instance for Features, Metrics, or GenAIEvalRecord.
 
         Example:
@@ -12010,29 +12010,6 @@ class Queue:
 
 class ScouterQueue:
     """Main queue class for Scouter. Publishes drift records to the configured transport"""
-
-    def insert(self, alias: str, entity: Union[Features, Metrics, GenAIEvalRecord]) -> None:
-        """Insert a record into the queue
-
-        Args:
-            alias (str):
-                Alias of the queue to insert the record into.
-            entity (Union[Features, Metrics, GenAIEvalRecord]):
-                Entity to insert into the queue.
-                Can be an instance for Features, Metrics, or GenAIEvalRecord.
-
-        Example:
-            ```python
-            features = Features(
-                features=[
-                    Feature("feature_1", 1),
-                    Feature("feature_2", 2.0),
-                    Feature("feature_3", "value"),
-                ]
-            )
-            queue.insert(alias, features)
-            ```
-        """
 
     @staticmethod
     def from_path(

@@ -361,14 +361,14 @@ impl ActiveSpan {
     /// Add an entity into the Scouter queue associated with this span
     /// # Arguments
     /// * `alias` - The queue alias to add into
-    /// * `entity` - The entity to add
+    /// * `item` - The item to add
     /// # Returns
     /// * `Result<(), TraceError>` - Ok if successful, Err otherwise
-    fn add_entity(
+    fn add_queue_item(
         &self,
         py: Python<'_>,
         alias: String,
-        entity: &Bound<'_, PyAny>,
+        item: &Bound<'_, PyAny>,
     ) -> Result<(), TraceError> {
         // check if sampling allows for this span to be sent
         self.with_inner(
@@ -376,7 +376,7 @@ impl ActiveSpan {
                 true => {
                     if let Some(queue) = &inner.queue {
                         let bound_queue = queue.bind(py).get_item(&alias)?;
-                        bound_queue.call_method1("insert", (entity,))?;
+                        bound_queue.call_method1("insert", (item,))?;
                         Ok(())
                     } else {
                         warn!(
@@ -623,7 +623,11 @@ impl BaseTracer {
         Ok(BaseTracer { tracer, queue })
     }
 
-    pub fn add_queue(&mut self, py: Python<'_>, queue: Py<ScouterQueue>) -> Result<(), TraceError> {
+    pub fn set_scouter_queue(
+        &mut self,
+        py: Python<'_>,
+        queue: Py<ScouterQueue>,
+    ) -> Result<(), TraceError> {
         // if queue is not none, we set sample_ratio to 1.0 to ensure we override the drift profile sampling ratio
         // this mainly applies to genai evaluations as each insert checks if an eval record should be sampled
         // When we use tracing, we want to let tracing control the sampling decision, so we need to set the queue

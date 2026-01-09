@@ -354,7 +354,7 @@ def create_tracing_genai_app(tracer: Tracer, profile_path: Path) -> FastAPI:
             path={"genai": profile_path},
             transport_config=config,
         )
-        tracer.add_queue(queue)
+        tracer.set_scouter_queue(queue)
         yield
 
         logger.info("Shutting down FastAPI app")
