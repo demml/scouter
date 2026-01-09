@@ -9910,6 +9910,9 @@ class BaseTracer:
                 Raises an error if no active span exists.
         """
 
+    def shutdown(self) -> None:
+        """Shutdown the tracer and flush any remaining spans."""
+
 def get_current_active_span(self) -> ActiveSpan:
     """Get the current active span.
 

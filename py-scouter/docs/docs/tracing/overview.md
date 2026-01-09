@@ -380,21 +380,41 @@ from scouter.tracing import get_tracer, init_tracer
 # usually called once at app startup
 init_tracer(service_name="monitoring-service")
 
-tracer = get_tracer(name="monitoring-service")
 
-queue = ScouterQueue.from_path(...)
+# example fastapi lifespan
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Starting up FastAPI app")
 
-# add queue to tracer for automatic span correlation
-tracer.set_scouter_queue(queue)
+    # get tracer
+    tracer = get_tracer(name="monitoring-service")
+
+    queue ScouterQueue.from_path(
+        path={"genai": Path(...)},
+        transport_config=GrpcConfig(),
+    )
+
+    # set the queue on the tracer
+    tracer.set_scouter_queue(queue)
+
+    yield
+
+    logger.info("Shutting down FastAPI app")
+    queue.shutdown()
+    tracer.shutdown()
+
 
 def monitoring_task():
     with tracer.start_as_current_span("monitoring_task") as span:
-        # perform monitoring logic
-        span.insert_entity_record({
-            "type": "custom_monitoring_event",
-            "details": {"status": "ok"}
-        })  # (1)
+        # insert items into queue with the span
+        span.insert_queue_item(
+            "alias",  # (1)
+            GenAIEvaluationRecord(...) # (2)
+        )
 ```
+
+1. Alias to identify the queue
+2. Any Scouter entity record type can be inserted into the queue
 
 ## Performance Considerations
 
