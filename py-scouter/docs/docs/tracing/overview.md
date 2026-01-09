@@ -368,14 +368,90 @@ def process():
 
 1. Exception automatically recorded with type, value, and full traceback. Span status set to ERROR
 
+## Real-time Monitoring
+
+In addition to standard span methods, Scouter provides additional convenience methods for real-time monitoring and inserting entity records into queues. This is especially useful for apis in which you wish to correlate traces and drift detection/evaluation records.
+
+```python
+
+from scouter.queue import ScouterQueue
+from scouter.tracing import get_tracer, init_tracer
+
+# usually called once at app startup
+init_tracer(service_name="monitoring-service")
+
+tracer = get_tracer(name="monitoring-service")
+
+queue = ScouterQueue.from_path(...)
+
+# add queue to tracer for automatic span correlation
+tracer.set_scouter_queue(queue)
+
+def monitoring_task():
+    with tracer.start_as_current_span("monitoring_task") as span:
+        # perform monitoring logic
+        span.insert_entity_record({
+            "type": "custom_monitoring_event",
+            "details": {"status": "ok"}
+        })  # (1)
+```
+
 ## Performance Considerations
+
+
+### Sampling
+
+Control trace sampling rates to balance performance and observability
+
+Each OTEL exporter can be instantiated with a sampling ratio between 0.0 and 1.0:
+
+```python
+from scouter.tracing import init_tracer, HttpSpanExporter, GrpcSpanExporter
+
+init_tracer(
+    service_name="sampled-service",
+    exporter=HttpSpanExporter(
+        sample_ratio=0.25,  # (1)
+    )
+)
+
+init_tracer(
+    service_name="sampled-service-grpc",
+    exporter=GrpcSpanExporter(
+        sample_ratio=0.25,
+    )
+)
+```
+
+1. 25% of spans exported to OTEL collector
+
+!!! note
+
+    Sample ratio in the above example only affects the OTEL exporter. If you wish to enforce the same sampling ratio for both Scouter and OTEL exporters, you must set the `sample_ratio` parameter in the init_tracer function directly.
+
+
+**Enforce Global Sampling Ratio** for both Scouter and OTEL exporters:
+
+```python
+from scouter import init_tracer, HttpSpanExporter
+
+init_tracer(
+    service_name="globally-sampled-service",
+    sample_ratio=0.1,  # (1)
+    exporter=HttpSpanExporter()
+)
+```
+
+1. 10% of spans exported to both Scouter and OTEL collector. This overrides individual exporter sampling ratios.
 
 ### Batch Export
 
 Scouter provides a BatchConfig to optimize span exporting:
 
+**Batch is enabled by default.** Customize batch settings as needed:
+
 ```python
-from scouter.tracing import BatchConfig, init_tracer
+from scouter.tracing import BatchConfig, init_tracer, GrpcSpanExporter
 
 init_tracer(
     service_name="high-throughput-service",
@@ -383,11 +459,22 @@ init_tracer(
         max_queue_size=4096,
         scheduled_delay_ms=1000,  # (1)
         max_export_batch_size=1024
-    )
+    ),
+    exporter=GrpcSpanExporter(batch_export=True) # (2)
+
+)
+
+init_tracer(
+    service_name="high-throughput-service",
+    exporter=GrpcSpanExporter(batch_export=True) # (3)
+
 )
 ```
 
 1. Export spans every 1 second in batches
+2. Ensure exporter is set to batch mode (default is True)
+3. Exporter uses default batch settings if not specified
+
 
 ### Input/output Truncation
 Large span inputs/outputs can be truncated to reduce payload size:
