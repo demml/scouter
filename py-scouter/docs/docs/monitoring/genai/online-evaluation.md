@@ -250,7 +250,11 @@ client.register_profile(
 
 ## Inserting Records for Evaluation
 
-Use `GenAIEvalRecord` to send evaluation data to the queue:
+Use `GenAIEvalRecord` to send evaluation data to the queue. Queue insertion is meant for real-time applications that need to monitor ML/GenAI services without blocking. In these scenarios the typical flow is:
+
+1. Load your `ScouterQueue` with the profile path on application startup
+2. For each request/response, create a `GenAIEvalRecord` with the context and insert it into the queue which will be processed asynchronously by the Scouter server.
+3. The server executes the evaluation tasks on sampled records, stores results, and checks alert conditions on schedule.
 
 ### Creating Records
 
@@ -435,6 +439,7 @@ for user_query, model_response in production_requests:
 - **Critical metrics**: Higher sampling for important evaluations
 - **Cost management**: Balance evaluation costs against monitoring needs
 - **Statistical significance**: Ensure enough samples for meaningful alerts
+- **Tracing integration**: Add your `ScouterQueue` to the Scouter Tracer for correlated observability, sampling and evaluation. See [Tracing Overview](/scouter/docs/tracing/overview/) for details.
 
 ### Task Design
 

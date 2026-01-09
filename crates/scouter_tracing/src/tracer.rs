@@ -827,7 +827,6 @@ impl BaseTracer {
         Ok(span)
     }
 
-    // TODO: remove?
     pub fn shutdown(&self) -> Result<(), TraceError> {
         shutdown_tracer()
     }

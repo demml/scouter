@@ -387,9 +387,9 @@ client.register_profile(profile, set_active=True)
 - **Conditional tasks**: Failed conditions skip dependent tasks without failing the workflow
 - **Field paths**: Invalid paths cause task failure with clear error messages
 
-## Examples
+## Next Steps
 
-For complete examples demonstrating task usage in real-world scenarios:
+Now that you understand evaluation tasks, explore how to build complete GenAI evaluation workflows:
 
 - [Offline Evaluation](/scouter/docs/monitoring/genai/offline-evaluation/) - Batch evaluation with complex task chains
 - [Online Monitoring](/scouter/docs/monitoring/genai/online-evaluation/) - Production monitoring setup
