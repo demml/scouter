@@ -66,6 +66,6 @@ def test_genai_record():
     # pass incorrect type for context
     with pytest.raises(
         RuntimeError,
-        match=re.escape("Invalid context type. Context must be a PyDict or a Pydantic BaseModel"),
+        match=re.escape("Invalid context type. Context must be dictionary or Pydantic BaseModel"),
     ):
         GenAIEvalRecord(context="This is a string, not a dict or pydantic model")

@@ -34,13 +34,13 @@ def test_custom_monitor_pandas_rabbitmq(rabbitmq_scouter_server):
         CustomMetric(
             name="mae",
             baseline_value=1,
-            threshold=AlertThreshold.Outside,
+            alert_threshold=AlertThreshold.Outside,
             delta=0.5,
         ),
         CustomMetric(
             name="mape",
             baseline_value=2,
-            threshold=AlertThreshold.Outside,
+            alert_threshold=AlertThreshold.Outside,
             delta=0.5,
         ),
     ]
