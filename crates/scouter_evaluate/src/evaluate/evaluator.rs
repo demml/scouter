@@ -403,6 +403,8 @@ impl GenAIEvaluator {
 
         let task_result = workflow.execute_task(task_id, &scoped_context).await?;
 
+        debug!("LLM judge '{}' completed", task_id);
+
         Ok((task_id.to_string(), task_result))
     }
 

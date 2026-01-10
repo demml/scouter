@@ -9,12 +9,7 @@ Uses only assertion-based tasks to showcase objective metric tracking across run
 from typing import List
 
 from pydantic import BaseModel
-from scouter.evaluate import (
-    AssertionTask,
-    ComparisonOperator,
-    EvaluationConfig,
-    GenAIEvalDataset,
-)
+from scouter.evaluate import AssertionTask, ComparisonOperator, GenAIEvalDataset
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 from scouter.queue import GenAIEvalRecord
 

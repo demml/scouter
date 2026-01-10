@@ -593,9 +593,13 @@ class Prompt:
     def response_json_schema(self) -> Optional[str]:
         """The JSON schema for structured output responses if provided.
 
-        Returns the JSON schema string that was generated from the response_format
+        Returns the raw JSON schema string that was generated from the output_type
         parameter during initialization. Returns None if no response format was specified.
         """
+
+    @property
+    def response_json_schema_pretty(self) -> Optional[str]:
+        """The pretty-printed JSON schema for structured output responses if provided."""
 
     def __str__(self) -> str:
         """Return a string representation of the Prompt."""
@@ -981,6 +985,22 @@ class Workflow:
             global_context (Optional[Dict[str, Any]]):
                 A dictionary of global context to bind to the workflow.
                 All tasks in the workflow will have this context bound to them.
+        """
+
+    def execute_task(
+        self,
+        task_id: str,
+        global_context: Optional[Any] = None,
+    ) -> Any:
+        """Execute a single task in the workflow by its ID.
+        Args:
+            task_id (str):
+                The ID of the task to execute.
+            global_context (Optional[Any]):
+                Any serializable global context to bind to the task before execution.
+                This is typically a dictionary or Pydantic BaseModel.
+        Returns:
+            Any:
         """
 
     def model_dump_json(self) -> str:
