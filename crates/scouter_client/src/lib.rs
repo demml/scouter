@@ -75,8 +75,11 @@ pub use scouter_types::error::{ContractError, ProfileError, RecordError, TypeErr
 
 pub use scouter_evaluate::{
     error::EvaluationError,
+    evaluate::types::{
+        AlignedEvalResult, ComparisonResults, EvaluationConfig, GenAIEvalResults, MissingTask,
+        TaskComparison, WorkflowComparison,
+    },
     genai::GenAIEvalDataset,
-    types::{AlignedEvalResult, EvaluationConfig, GenAIEvalResults},
 };
 pub use scouter_tracing::error::TraceError;
 pub use scouter_tracing::exporter::{

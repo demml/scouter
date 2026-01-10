@@ -14,6 +14,10 @@ pub fn add_evaluate_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<GenAIEvalResultSet>()?;
     m.add_class::<AlignedEvalResult>()?;
 
-    //m.add_function(wrap_pyfunction!(evaluate_genai, m)?)?;
+    m.add_class::<MissingTask>()?;
+    m.add_class::<ComparisonResults>()?;
+    m.add_class::<TaskComparison>()?;
+    m.add_class::<WorkflowComparison>()?;
+
     Ok(())
 }

@@ -246,7 +246,9 @@ class Prompt:
         model: str,
         provider: Provider | str,
         system_instructions: Optional[PromptMessage] = None,
-        model_settings: Optional[ModelSettings | OpenAIChatSettings | GeminiSettings | AnthropicSettings] = None,
+        model_settings: Optional[
+            ModelSettings | OpenAIChatSettings | GeminiSettings | AnthropicSettings
+        ] = None,
         output_type: Optional[Any] = None,
     ) -> None:
         """Initialize a Prompt object.
@@ -2528,7 +2530,9 @@ class ChatMessage:
     @property
     def content(
         self,
-    ) -> List[Union[TextContentPart, ImageContentPart, InputAudioContentPart, FileContentPart]]:
+    ) -> List[
+        Union[TextContentPart, ImageContentPart, InputAudioContentPart, FileContentPart]
+    ]:
         """The message content parts."""
 
     @property
@@ -9542,8 +9546,12 @@ class BatchConfig:
 def init_tracer(
     service_name: str = "scouter_service",
     scope: str = "scouter.tracer.{version}",
-    transport_config: Optional[HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig | GrpcConfig] = None,
-    exporter: Optional[HttpSpanExporter | GrpcSpanExporter | StdoutSpanExporter | TestSpanExporter] = None,
+    transport_config: Optional[
+        HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig | GrpcConfig
+    ] = None,
+    exporter: Optional[
+        HttpSpanExporter | GrpcSpanExporter | StdoutSpanExporter | TestSpanExporter
+    ] = None,
     batch_config: Optional[BatchConfig] = None,
     sample_ratio: Optional[float] = None,
 ) -> None:
@@ -10294,7 +10302,9 @@ class AlertDispatchType:
     def to_string() -> str:
         """Return the string representation of the alert dispatch type"""
 
-DispatchConfigType = ConsoleDispatchConfig | SlackDispatchConfig | OpsGenieDispatchConfig
+DispatchConfigType = (
+    ConsoleDispatchConfig | SlackDispatchConfig | OpsGenieDispatchConfig
+)
 
 class AlertZone:
     Zone1: "AlertZone"
@@ -11286,7 +11296,9 @@ class DriftRequest:
         """
 
 class ProfileStatusRequest:
-    def __init__(self, name: str, space: str, version: str, drift_type: DriftType, active: bool) -> None:
+    def __init__(
+        self, name: str, space: str, version: str, drift_type: DriftType, active: bool
+    ) -> None:
         """Initialize profile status request
 
         Args:
@@ -11303,7 +11315,9 @@ class ProfileStatusRequest:
         """
 
 class GetProfileRequest:
-    def __init__(self, name: str, space: str, version: str, drift_type: DriftType) -> None:
+    def __init__(
+        self, name: str, space: str, version: str, drift_type: DriftType
+    ) -> None:
         """Initialize get profile request
 
         Args:
@@ -11404,7 +11418,9 @@ class ScouterClient:
                 DriftRequest object
         """
 
-    def register_profile(self, profile: Any, set_active: bool = False, deactivate_others: bool = False) -> bool:
+    def register_profile(
+        self, profile: Any, set_active: bool = False, deactivate_others: bool = False
+    ) -> bool:
         """Registers a drift profile with the server
 
         Args:
@@ -11430,7 +11446,9 @@ class ScouterClient:
             boolean
         """
 
-    def get_alerts(self, request: DriftAlertPaginationRequest) -> DriftAlertPaginationResponse:
+    def get_alerts(
+        self, request: DriftAlertPaginationRequest
+    ) -> DriftAlertPaginationResponse:
         """Get alerts
 
         Args:
@@ -12784,7 +12802,16 @@ class FreedmanDiaconis:
         For more information, please see: https://en.wikipedia.org/wiki/Histogram
         """
 
-EqualWidthMethods = Manual | SquareRoot | Sturges | Rice | Doane | Scott | TerrellScott | FreedmanDiaconis
+EqualWidthMethods = (
+    Manual
+    | SquareRoot
+    | Sturges
+    | Rice
+    | Doane
+    | Scott
+    | TerrellScott
+    | FreedmanDiaconis
+)
 
 class EqualWidthBinning:
     def __init__(self, method: EqualWidthMethods = Doane()):
@@ -12858,7 +12885,9 @@ class PsiDriftConfig:
         alert_config: PsiAlertConfig = PsiAlertConfig(),
         config_path: Optional[Path] = None,
         categorical_features: Optional[list[str]] = None,
-        binning_strategy: QuantileBinning | EqualWidthBinning = QuantileBinning(num_bins=10),
+        binning_strategy: QuantileBinning | EqualWidthBinning = QuantileBinning(
+            num_bins=10
+        ),
     ):
         """Initialize monitor config
 
@@ -12936,7 +12965,9 @@ class PsiDriftConfig:
         """binning_strategy"""
 
     @binning_strategy.setter
-    def binning_strategy(self, binning_strategy: QuantileBinning | EqualWidthBinning) -> None:
+    def binning_strategy(
+        self, binning_strategy: QuantileBinning | EqualWidthBinning
+    ) -> None:
         """Set binning_strategy"""
 
     @property
@@ -14709,7 +14740,9 @@ class Drifter:
     def create_drift_profile(  # type: ignore
         self,
         data: Any,
-        config: Optional[Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]] = None,
+        config: Optional[
+            Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]
+        ] = None,
         data_type: Optional[ScouterDataType] = None,
     ) -> Union[SpcDriftProfile, PsiDriftProfile, CustomDriftProfile]:
         """Create a drift profile from data.
@@ -15063,6 +15096,129 @@ class AlignedEvalResult:
     def task_count(self) -> int:
         """Get the total number of tasks in the evaluation"""
 
+class MissingTask:
+    """Represents a task that exists in only one of the compared evaluations"""
+
+    @property
+    def task_id(self) -> str:
+        """Get the task identifier"""
+
+    @property
+    def present_in(self) -> str:
+        """Get which evaluation contains this task ('baseline_only' or 'comparison_only')"""
+
+class TaskComparison:
+    """Represents a comparison between the same task in baseline and comparison evaluations"""
+
+    @property
+    def task_id(self) -> str:
+        """Get the task identifier"""
+
+    @property
+    def baseline_passed(self) -> bool:
+        """Check if the task passed in the baseline evaluation"""
+
+    @property
+    def comparison_passed(self) -> bool:
+        """Check if the task passed in the comparison evaluation"""
+
+    @property
+    def status_changed(self) -> bool:
+        """Check if the task's pass/fail status changed between evaluations"""
+
+class WorkflowComparison:
+    """Represents a comparison between matching workflows in baseline and comparison evaluations"""
+
+    @property
+    def baseline_uid(self) -> str:
+        """Get the baseline workflow unique identifier"""
+
+    @property
+    def comparison_uid(self) -> str:
+        """Get the comparison workflow unique identifier"""
+
+    @property
+    def baseline_pass_rate(self) -> float:
+        """Get the baseline workflow pass rate (0.0 to 1.0)"""
+
+    @property
+    def comparison_pass_rate(self) -> float:
+        """Get the comparison workflow pass rate (0.0 to 1.0)"""
+
+    @property
+    def pass_rate_delta(self) -> float:
+        """Get the change in pass rate (positive = improvement, negative = regression)"""
+
+    @property
+    def is_regression(self) -> bool:
+        """Check if this workflow shows a significant regression"""
+
+    @property
+    def task_comparisons(self) -> List[TaskComparison]:
+        """Get detailed task-by-task comparisons for this workflow"""
+
+class ComparisonResults:
+    """Results from comparing two GenAIEvalResults evaluations"""
+
+    @property
+    def workflow_comparisons(self) -> List[WorkflowComparison]:
+        """Get all workflow-level comparisons"""
+
+    @property
+    def total_workflows(self) -> int:
+        """Get the total number of workflows compared"""
+
+    @property
+    def improved_workflows(self) -> int:
+        """Get the count of workflows that improved"""
+
+    @property
+    def regressed_workflows(self) -> int:
+        """Get the count of workflows that regressed"""
+
+    @property
+    def unchanged_workflows(self) -> int:
+        """Get the count of workflows with no significant change"""
+
+    @property
+    def mean_pass_rate_delta(self) -> float:
+        """Get the mean change in pass rate across all workflows"""
+
+    @property
+    def task_status_changes(self) -> List[TaskComparison]:
+        """Get all tasks where pass/fail status changed"""
+
+    @property
+    def missing_tasks(self) -> List[MissingTask]:
+        """Get all tasks present in only one evaluation"""
+
+    @property
+    def baseline_workflow_count(self) -> int:
+        """Get the number of workflows in the baseline evaluation"""
+
+    @property
+    def comparison_workflow_count(self) -> int:
+        """Get the number of workflows in the comparison evaluation"""
+
+    @property
+    def has_missing_tasks(self) -> bool:
+        """Check if there are any missing tasks between evaluations"""
+
+    def print_missing_tasks(self) -> None:
+        """Print a formatted list of missing tasks to the console"""
+
+    def __str__(self) -> str:
+        """String representation of the comparison results"""
+
+    def as_table(self) -> None:
+        """Print comparison results as formatted tables to the console.
+
+        Displays:
+        - Workflow-level summary table
+        - Task status changes table (if any)
+        - Missing tasks list (if any)
+        """
+
 class GenAIEvalResults:
     """Defines the results of an LLM eval metric"""
 
@@ -15121,6 +15277,21 @@ class GenAIEvalResults:
                 Whether to show individual task results or just the workflow summary. Default is False
                 meaning only the workflow summary is shown.
 
+        """
+
+    def compare_to(
+        self, baseline: "GenAIEvalResults", regression_threshold: float
+    ) -> ComparisonResults:
+        """Compare the current evaluation results to a baseline with a regression threshold.
+
+        Args:
+            baseline (GenAIEvalResults):
+                The baseline evaluation results to compare against.
+            regression_threshold (float):
+                The threshold for considering a regression significant.
+
+        Returns:
+            ComparisonResults
         """
 
 class EvaluationConfig:

@@ -1,8 +1,8 @@
 use crate::error::EvaluationError;
 use crate::evaluate::evaluator::GenAIEvaluator;
+use crate::evaluate::types::{EvaluationConfig, GenAIEvalResults};
 use crate::genai::GenAIEvalDataset;
 use crate::tasks::evaluator::FieldEvaluator;
-use crate::types::{EvaluationConfig, GenAIEvalResults};
 use itertools::iproduct;
 use num_traits::FromPrimitive;
 use potato_head::{Embedder, EmbeddingInput, PyEmbedder};

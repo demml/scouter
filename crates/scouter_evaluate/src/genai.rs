@@ -1,5 +1,5 @@
 use crate::error::EvaluationError;
-use crate::types::{EvaluationConfig, GenAIEvalResults};
+use crate::evaluate::types::{EvaluationConfig, GenAIEvalResults};
 use crate::utils::{
     collect_and_align_results, post_process_aligned_results,
     spawn_evaluation_tasks_with_embeddings, spawn_evaluation_tasks_without_embeddings,
