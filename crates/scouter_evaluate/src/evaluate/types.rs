@@ -39,6 +39,9 @@ pub struct TaskComparison {
     pub task_id: String,
 
     #[pyo3(get)]
+    pub record_uid: String,
+
+    #[pyo3(get)]
     pub baseline_passed: bool,
 
     #[pyo3(get)]
@@ -91,6 +94,47 @@ struct WorkflowComparisonEntry {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[pyclass]
+pub struct TaskAggregateStats {
+    #[pyo3(get)]
+    pub task_id: String,
+
+    #[pyo3(get)]
+    pub workflows_evaluated: usize,
+
+    #[pyo3(get)]
+    pub baseline_pass_count: usize,
+
+    #[pyo3(get)]
+    pub comparison_pass_count: usize,
+
+    #[pyo3(get)]
+    pub status_changed_count: usize,
+
+    #[pyo3(get)]
+    pub baseline_pass_rate: f64,
+
+    #[pyo3(get)]
+    pub comparison_pass_rate: f64,
+}
+
+#[derive(Tabled)]
+struct TaskAggregateEntry {
+    #[tabled(rename = "Task ID")]
+    task_id: String,
+    #[tabled(rename = "Workflows")]
+    workflows: String,
+    #[tabled(rename = "Baseline Pass Rate")]
+    baseline_rate: String,
+    #[tabled(rename = "Comparison Pass Rate")]
+    comparison_rate: String,
+    #[tabled(rename = "Delta")]
+    delta: String,
+    #[tabled(rename = "Status Changes")]
+    changes: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[pyclass]
 pub struct ComparisonResults {
     #[pyo3(get)]
     pub workflow_comparisons: Vec<WorkflowComparison>,
@@ -121,10 +165,49 @@ pub struct ComparisonResults {
 
     #[pyo3(get)]
     pub comparison_workflow_count: usize,
+
+    #[pyo3(get)]
+    pub regressed: bool,
 }
 
 #[pymethods]
 impl ComparisonResults {
+    #[getter]
+    pub fn task_aggregate_stats(&self) -> Vec<TaskAggregateStats> {
+        let mut task_stats: HashMap<String, (usize, usize, usize, usize)> = HashMap::new();
+
+        for wc in &self.workflow_comparisons {
+            for tc in &wc.task_comparisons {
+                let entry = task_stats.entry(tc.task_id.clone()).or_insert((0, 0, 0, 0));
+                entry.0 += 1; // workflows_evaluated
+                if tc.baseline_passed {
+                    entry.1 += 1; // baseline_pass_count
+                }
+                if tc.comparison_passed {
+                    entry.2 += 1; // comparison_pass_count
+                }
+                if tc.status_changed {
+                    entry.3 += 1; // status_changed_count
+                }
+            }
+        }
+
+        task_stats
+            .into_iter()
+            .map(
+                |(task_id, (total, baseline_pass, comparison_pass, changed))| TaskAggregateStats {
+                    task_id,
+                    workflows_evaluated: total,
+                    baseline_pass_count: baseline_pass,
+                    comparison_pass_count: comparison_pass,
+                    status_changed_count: changed,
+                    baseline_pass_rate: baseline_pass as f64 / total as f64,
+                    comparison_pass_rate: comparison_pass as f64 / total as f64,
+                },
+            )
+            .collect()
+    }
+
     #[getter]
     pub fn has_missing_tasks(&self) -> bool {
         !self.missing_tasks.is_empty()
@@ -170,37 +253,144 @@ impl ComparisonResults {
         self.print_summary_table();
 
         if !self.task_status_changes.is_empty() {
-            println!("\n{}", "Task Status Changes".truecolor(245, 77, 85).bold());
+            println!(
+                "\n{}",
+                "Task Status Changes (Workflow-Specific)"
+                    .truecolor(245, 77, 85)
+                    .bold()
+            );
             self.print_status_changes_table();
         }
+
+        self.print_task_aggregate_table();
 
         if self.has_missing_tasks() {
             self.print_missing_tasks();
         }
+
+        self.print_summary_stats();
+    }
+
+    fn print_task_aggregate_table(&self) {
+        let stats = self.task_aggregate_stats();
+
+        if stats.is_empty() {
+            return;
+        }
+
+        println!(
+            "\n{}",
+            "Task Aggregate Stats (Cross-Workflow)"
+                .truecolor(245, 77, 85)
+                .bold()
+        );
+
+        let entries: Vec<_> = stats
+            .iter()
+            .map(|ts| {
+                let baseline_rate = format!("{:.1}%", ts.baseline_pass_rate * 100.0);
+                let comparison_rate = format!("{:.1}%", ts.comparison_pass_rate * 100.0);
+                let delta_val = (ts.comparison_pass_rate - ts.baseline_pass_rate) * 100.0;
+                let delta_str = format!("{:+.1}%", delta_val);
+
+                let colored_delta = if delta_val > 1.0 {
+                    delta_str.green().to_string()
+                } else if delta_val < -1.0 {
+                    delta_str.red().to_string()
+                } else {
+                    delta_str.yellow().to_string()
+                };
+
+                let change_pct = if ts.workflows_evaluated > 0 {
+                    (ts.status_changed_count as f64 / ts.workflows_evaluated as f64) * 100.0
+                } else {
+                    0.0
+                };
+
+                TaskAggregateEntry {
+                    task_id: ts.task_id.clone(),
+                    workflows: ts.workflows_evaluated.to_string(),
+                    baseline_rate,
+                    comparison_rate,
+                    delta: colored_delta,
+                    changes: format!(
+                        "{}/{} ({:.0}%)",
+                        ts.status_changed_count, ts.workflows_evaluated, change_pct
+                    ),
+                }
+            })
+            .collect();
+
+        let mut table = Table::new(entries);
+        table.with(Style::sharp());
+
+        table.modify(
+            Rows::new(0..1),
+            (
+                Format::content(|s: &str| s.truecolor(245, 77, 85).bold().to_string()),
+                Alignment::center(),
+                Color::BOLD,
+            ),
+        );
+
+        println!("{}", table);
     }
 
     fn print_summary_table(&self) {
         let entries: Vec<_> = self
             .workflow_comparisons
             .iter()
-            .map(|wc| WorkflowComparisonEntry {
-                baseline_uid: wc.baseline_uid.clone(),
-                comparison_uid: wc.comparison_uid.clone(),
-                baseline_pass_rate: format!("{:.2}%", wc.baseline_pass_rate * 100.0),
-                comparison_pass_rate: format!("{:.2}%", wc.comparison_pass_rate * 100.0),
-                delta: format!("{:+.2}%", wc.pass_rate_delta * 100.0),
-                status: if wc.is_regression {
-                    "Regressed".to_string()
-                } else if wc.pass_rate_delta > 0.01 {
-                    "Improved".to_string()
+            .map(|wc| {
+                let baseline_rate = format!("{:.1}%", wc.baseline_pass_rate * 100.0);
+                let comparison_rate = format!("{:.1}%", wc.comparison_pass_rate * 100.0);
+                let delta_val = wc.pass_rate_delta * 100.0;
+                let delta_str = format!("{:+.1}%", delta_val);
+
+                let colored_delta = if delta_val > 1.0 {
+                    delta_str.green().to_string()
+                } else if delta_val < -1.0 {
+                    delta_str.red().to_string()
                 } else {
-                    "Unchanged".to_string()
-                },
+                    delta_str.yellow().to_string()
+                };
+
+                let status = if wc.is_regression {
+                    "Regressed".red().to_string()
+                } else if wc.pass_rate_delta > 0.01 {
+                    "Improved".green().to_string()
+                } else {
+                    "Unchanged".yellow().to_string()
+                };
+
+                WorkflowComparisonEntry {
+                    baseline_uid: wc.baseline_uid[..16.min(wc.baseline_uid.len())]
+                        .to_string()
+                        .truecolor(249, 179, 93)
+                        .to_string(),
+                    comparison_uid: wc.comparison_uid[..16.min(wc.comparison_uid.len())]
+                        .to_string()
+                        .truecolor(249, 179, 93)
+                        .to_string(),
+                    baseline_pass_rate: baseline_rate,
+                    comparison_pass_rate: comparison_rate,
+                    delta: colored_delta,
+                    status,
+                }
             })
             .collect();
 
         let mut table = Table::new(entries);
         table.with(Style::sharp());
+
+        table.modify(
+            Rows::new(0..1),
+            (
+                Format::content(|s: &str| s.truecolor(245, 77, 85).bold().to_string()),
+                Alignment::center(),
+                Color::BOLD,
+            ),
+        );
+
         println!("{}", table);
     }
 
@@ -208,24 +398,88 @@ impl ComparisonResults {
         let entries: Vec<_> = self
             .task_status_changes
             .iter()
-            .map(|tc| TaskStatusChangeEntry {
-                task_id: tc.task_id.clone(),
-                baseline_status: if tc.baseline_passed { "Pass" } else { "Fail" }.to_string(),
-                comparison_status: if tc.comparison_passed { "Pass" } else { "Fail" }.to_string(),
-                change: match (tc.baseline_passed, tc.comparison_passed) {
-                    (true, false) => "Pass → Fail",
-                    (false, true) => "Fail → Pass",
-                    _ => "No Change",
+            .map(|tc| {
+                let baseline_status = if tc.baseline_passed {
+                    "✓ Pass".green().to_string()
+                } else {
+                    "✗ Fail".red().to_string()
+                };
+
+                let comparison_status = if tc.comparison_passed {
+                    "✓ Pass".green().to_string()
+                } else {
+                    "✗ Fail".red().to_string()
+                };
+
+                let change = match (tc.baseline_passed, tc.comparison_passed) {
+                    (true, false) => "Pass → Fail".red().bold().to_string(),
+                    (false, true) => "Fail → Pass".green().bold().to_string(),
+                    _ => "No Change".yellow().to_string(),
+                };
+
+                TaskStatusChangeEntry {
+                    task_id: tc.task_id.clone(),
+                    baseline_status,
+                    comparison_status,
+                    change,
                 }
-                .to_string(),
             })
             .collect();
 
         let mut table = Table::new(entries);
         table.with(Style::sharp());
+
+        table.modify(
+            Rows::new(0..1),
+            (
+                Format::content(|s: &str| s.truecolor(245, 77, 85).bold().to_string()),
+                Alignment::center(),
+                Color::BOLD,
+            ),
+        );
+
         println!("{}", table);
     }
+
+    fn print_summary_stats(&self) {
+        println!("\n{}", "Summary".truecolor(245, 77, 85).bold());
+
+        let regression_indicator = if self.regressed {
+            "⚠️  REGRESSION DETECTED".red().bold().to_string()
+        } else if self.improved_workflows > 0 {
+            "✅ IMPROVEMENT DETECTED".green().bold().to_string()
+        } else {
+            "➡️  NO SIGNIFICANT CHANGE".yellow().bold().to_string()
+        };
+
+        println!("  Overall Status: {}", regression_indicator);
+        println!("  Total Workflows: {}", self.total_workflows);
+        println!(
+            "  Improved: {}",
+            self.improved_workflows.to_string().green()
+        );
+        println!(
+            "  Regressed: {}",
+            self.regressed_workflows.to_string().red()
+        );
+        println!(
+            "  Unchanged: {}",
+            self.unchanged_workflows.to_string().yellow()
+        );
+
+        let mean_delta_str = format!("{:+.2}%", self.mean_pass_rate_delta * 100.0);
+        let colored_mean = if self.mean_pass_rate_delta > 0.0 {
+            mean_delta_str.green().to_string()
+        } else if self.mean_pass_rate_delta < 0.0 {
+            mean_delta_str.red().to_string()
+        } else {
+            mean_delta_str.yellow().to_string()
+        };
+        println!("  Mean Pass Rate Delta: {}", colored_mean);
+    }
 }
+
+impl ComparisonResults {}
 
 #[derive(Tabled)]
 struct TaskStatusChangeEntry {

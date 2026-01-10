@@ -55,8 +55,8 @@ pub fn compare_results(
         .collect();
 
     let mut workflow_comparisons = Vec::new();
-    let mut all_task_comparisons = Vec::new();
-    let mut all_missing_tasks = Vec::new();
+    let mut task_status_changes = Vec::new();
+    let mut missing_tasks = Vec::new();
 
     for (record_uid, baseline_result) in &baseline_map {
         if let Some(comparison_result) = comparison_map.get(record_uid) {
@@ -75,7 +75,6 @@ pub fn compare_results(
                 .collect();
 
             let mut workflow_task_comparisons = Vec::new();
-            let mut workflow_missing_tasks = Vec::new();
             let mut matched_baseline_passed = 0;
             let mut matched_comparison_passed = 0;
             let mut total_matched = 0;
@@ -97,28 +96,28 @@ pub fn compare_results(
                         baseline_passed: baseline_task.passed,
                         comparison_passed: comparison_task.passed,
                         status_changed,
+                        record_uid: (*record_uid).to_string(),
                     };
 
                     workflow_task_comparisons.push(task_comp.clone());
-                    all_task_comparisons.push(task_comp);
+
+                    if status_changed {
+                        task_status_changes.push(task_comp.clone());
+                    }
                 } else {
-                    let missing = MissingTask {
+                    missing_tasks.push(MissingTask {
                         task_id: task_id.to_string(),
                         present_in: "baseline_only".to_string(),
-                    };
-                    workflow_missing_tasks.push(missing.clone());
-                    all_missing_tasks.push(missing);
+                    });
                 }
             }
 
             for task_id in comparison_task_map.keys() {
                 if !baseline_task_map.contains_key(task_id) {
-                    let missing = MissingTask {
+                    missing_tasks.push(MissingTask {
                         task_id: task_id.to_string(),
                         present_in: "comparison_only".to_string(),
-                    };
-                    workflow_missing_tasks.push(missing.clone());
-                    all_missing_tasks.push(missing);
+                    });
                 }
             }
 
@@ -149,12 +148,6 @@ pub fn compare_results(
         }
     }
 
-    let task_status_changes: Vec<_> = all_task_comparisons
-        .iter()
-        .filter(|tc| tc.status_changed)
-        .cloned()
-        .collect();
-
     let (improved, regressed, unchanged) =
         workflow_comparisons
             .iter()
@@ -178,6 +171,8 @@ pub fn compare_results(
         0.0
     };
 
+    let has_regressed = regressed > 0;
+
     Ok(ComparisonResults {
         workflow_comparisons,
         total_workflows: baseline_map.len().min(comparison_map.len()),
@@ -186,8 +181,9 @@ pub fn compare_results(
         unchanged_workflows: unchanged,
         mean_pass_rate_delta: mean_delta,
         task_status_changes,
-        missing_tasks: all_missing_tasks,
+        missing_tasks: missing_tasks,
         baseline_workflow_count: baseline.aligned_results.len(),
         comparison_workflow_count: comparison.aligned_results.len(),
+        regressed: has_regressed,
     })
 }

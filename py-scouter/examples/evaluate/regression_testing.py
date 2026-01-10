@@ -265,9 +265,7 @@ def create_baseline_dataset() -> GenAIEvalDataset:
 
     records = []
     for idx, model_output in enumerate(baseline_data):
-        record = GenAIEvalRecord(
-            context=model_output, id=f"product_classification_{idx}"
-        )
+        record = GenAIEvalRecord(context=model_output, id=f"product_classification_{idx}")
         records.append(record)
 
     tasks = [
@@ -331,10 +329,7 @@ def main():
 
     improved_data = generate_improved_classifications()
 
-    context_map = {
-        f"product_classification_{idx}": model_output
-        for idx, model_output in enumerate(improved_data)
-    }
+    context_map = {f"product_classification_{idx}": model_output for idx, model_output in enumerate(improved_data)}
     improved_dataset = baseline_dataset.with_updated_contexts_by_id(context_map)
 
     improved_results = improved_dataset.evaluate()

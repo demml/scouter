@@ -5,12 +5,13 @@ use crate::utils::{
     spawn_evaluation_tasks_with_embeddings, spawn_evaluation_tasks_without_embeddings,
 };
 use pyo3::prelude::*;
-use pyo3::types::PyList;
+use pyo3::types::{PyList, PySlice};
+use pyo3::IntoPyObjectExt;
 use scouter_state::app_state;
 use scouter_types::genai::{AssertionTask, GenAIDriftConfig, GenAIEvalProfile, LLMJudgeTask};
 use scouter_types::GenAIEvalRecord;
 use scouter_types::PyHelperFuncs;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, instrument};
@@ -57,7 +58,69 @@ pub async fn evaluate_genai_dataset(
 }
 
 #[pyclass]
-#[derive(Debug, Serialize)]
+pub struct DatasetRecords {
+    records: Arc<Vec<GenAIEvalRecord>>,
+    index: usize,
+}
+
+#[pymethods]
+impl DatasetRecords {
+    pub fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    pub fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<GenAIEvalRecord> {
+        if slf.index < slf.records.len() {
+            let record = slf.records[slf.index].clone();
+            slf.index += 1;
+            Some(record)
+        } else {
+            None
+        }
+    }
+
+    fn __getitem__<'py>(
+        &self,
+        py: Python<'py>,
+        index: &Bound<'py, PyAny>,
+    ) -> Result<Bound<'py, PyAny>, EvaluationError> {
+        if let Ok(i) = index.extract::<isize>() {
+            let len = self.records.len() as isize;
+            let actual_index = if i < 0 { len + i } else { i };
+
+            if actual_index < 0 || actual_index >= len {
+                return Err(EvaluationError::IndexOutOfBounds {
+                    index: i,
+                    length: self.records.len(),
+                });
+            }
+
+            Ok(self.records[actual_index as usize]
+                .clone()
+                .into_bound_py_any(py)?)
+        } else if let Ok(slice) = index.cast::<PySlice>() {
+            let indices = slice.indices(self.records.len() as isize)?;
+            let mut result = Vec::new();
+
+            let mut i = indices.start;
+            while (indices.step > 0 && i < indices.stop) || (indices.step < 0 && i > indices.stop) {
+                result.push(self.records[i as usize].clone());
+                i += indices.step;
+            }
+
+            Ok(result.into_bound_py_any(py)?)
+        } else {
+            Err(EvaluationError::IndexOrSliceExpected)
+        }
+    }
+
+    fn __len__(&self) -> usize {
+        self.records.len()
+    }
+}
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct GenAIEvalDataset {
     pub records: Arc<Vec<GenAIEvalRecord>>,
     pub profile: Arc<GenAIEvalProfile>,
@@ -80,8 +143,22 @@ impl GenAIEvalDataset {
     }
 
     #[getter]
-    pub fn records(&self) -> Vec<GenAIEvalRecord> {
-        (*self.records).clone()
+    pub fn records(&self) -> DatasetRecords {
+        DatasetRecords {
+            records: Arc::clone(&self.records),
+            index: 0,
+        }
+    }
+
+    fn __iter__(slf: PyRef<'_, Self>) -> DatasetRecords {
+        DatasetRecords {
+            records: Arc::clone(&slf.records),
+            index: 0,
+        }
+    }
+
+    fn __len__(&self) -> usize {
+        self.records.len()
     }
 
     #[getter]

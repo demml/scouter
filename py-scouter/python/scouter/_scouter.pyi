@@ -15124,6 +15124,10 @@ class TaskComparison:
     def status_changed(self) -> bool:
         """Check if the task's pass/fail status changed between evaluations"""
 
+    @property
+    def record_uid(self) -> str:
+        """Get the record unique identifier associated with this task comparison"""
+
 class WorkflowComparison:
     """Represents a comparison between matching workflows in baseline and comparison evaluations"""
 
@@ -15202,11 +15206,27 @@ class ComparisonResults:
     def has_missing_tasks(self) -> bool:
         """Check if there are any missing tasks between evaluations"""
 
+    def __str__(self) -> str:
+        """String representation of the comparison results"""
+
+    @property
+    def regressed(self) -> bool:
+        """Check if any workflows regressed in the comparison"""
+
     def print_missing_tasks(self) -> None:
         """Print a formatted list of missing tasks to the console"""
 
-    def __str__(self) -> str:
-        """String representation of the comparison results"""
+    def print_task_aggregate_table(self) -> None:
+        """Print a formatted table of task status changes to the console"""
+
+    def print_summary_table(self) -> None:
+        """Print a formatted summary table of workflow comparisons to the console"""
+
+    def print_status_changes_table(self) -> None:
+        """Print a formatted table of task status changes to the console"""
+
+    def print_summary_stats(self) -> None:
+        """Print summary statistics of the comparison results to the console"""
 
     def as_table(self) -> None:
         """Print comparison results as formatted tables to the console.
