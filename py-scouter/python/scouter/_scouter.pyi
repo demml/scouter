@@ -246,9 +246,7 @@ class Prompt:
         model: str,
         provider: Provider | str,
         system_instructions: Optional[PromptMessage] = None,
-        model_settings: Optional[
-            ModelSettings | OpenAIChatSettings | GeminiSettings | AnthropicSettings
-        ] = None,
+        model_settings: Optional[ModelSettings | OpenAIChatSettings | GeminiSettings | AnthropicSettings] = None,
         output_type: Optional[Any] = None,
     ) -> None:
         """Initialize a Prompt object.
@@ -2530,9 +2528,7 @@ class ChatMessage:
     @property
     def content(
         self,
-    ) -> List[
-        Union[TextContentPart, ImageContentPart, InputAudioContentPart, FileContentPart]
-    ]:
+    ) -> List[Union[TextContentPart, ImageContentPart, InputAudioContentPart, FileContentPart]]:
         """The message content parts."""
 
     @property
@@ -9546,12 +9542,8 @@ class BatchConfig:
 def init_tracer(
     service_name: str = "scouter_service",
     scope: str = "scouter.tracer.{version}",
-    transport_config: Optional[
-        HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig | GrpcConfig
-    ] = None,
-    exporter: Optional[
-        HttpSpanExporter | GrpcSpanExporter | StdoutSpanExporter | TestSpanExporter
-    ] = None,
+    transport_config: Optional[HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig | GrpcConfig] = None,
+    exporter: Optional[HttpSpanExporter | GrpcSpanExporter | StdoutSpanExporter | TestSpanExporter] = None,
     batch_config: Optional[BatchConfig] = None,
     sample_ratio: Optional[float] = None,
 ) -> None:
@@ -10302,9 +10294,7 @@ class AlertDispatchType:
     def to_string() -> str:
         """Return the string representation of the alert dispatch type"""
 
-DispatchConfigType = (
-    ConsoleDispatchConfig | SlackDispatchConfig | OpsGenieDispatchConfig
-)
+DispatchConfigType = ConsoleDispatchConfig | SlackDispatchConfig | OpsGenieDispatchConfig
 
 class AlertZone:
     Zone1: "AlertZone"
@@ -11296,9 +11286,7 @@ class DriftRequest:
         """
 
 class ProfileStatusRequest:
-    def __init__(
-        self, name: str, space: str, version: str, drift_type: DriftType, active: bool
-    ) -> None:
+    def __init__(self, name: str, space: str, version: str, drift_type: DriftType, active: bool) -> None:
         """Initialize profile status request
 
         Args:
@@ -11315,9 +11303,7 @@ class ProfileStatusRequest:
         """
 
 class GetProfileRequest:
-    def __init__(
-        self, name: str, space: str, version: str, drift_type: DriftType
-    ) -> None:
+    def __init__(self, name: str, space: str, version: str, drift_type: DriftType) -> None:
         """Initialize get profile request
 
         Args:
@@ -11418,9 +11404,7 @@ class ScouterClient:
                 DriftRequest object
         """
 
-    def register_profile(
-        self, profile: Any, set_active: bool = False, deactivate_others: bool = False
-    ) -> bool:
+    def register_profile(self, profile: Any, set_active: bool = False, deactivate_others: bool = False) -> bool:
         """Registers a drift profile with the server
 
         Args:
@@ -11446,9 +11430,7 @@ class ScouterClient:
             boolean
         """
 
-    def get_alerts(
-        self, request: DriftAlertPaginationRequest
-    ) -> DriftAlertPaginationResponse:
+    def get_alerts(self, request: DriftAlertPaginationRequest) -> DriftAlertPaginationResponse:
         """Get alerts
 
         Args:
@@ -12289,6 +12271,17 @@ class GenAIEvalRecord:
     def model_dump_json(self) -> str:
         """Return the json representation of the record."""
 
+    def update_context_field(self, key: str, value: Any) -> None:
+        """Update a specific field in the context.
+        If the key does not exist, it will be added.
+
+        Args:
+            key (str):
+                The key of the context field to update.
+            value (Any):
+                The new value for the context field.
+        """
+
 class LLMTestServer:
     """
     Mock server for OpenAI API.
@@ -12802,16 +12795,7 @@ class FreedmanDiaconis:
         For more information, please see: https://en.wikipedia.org/wiki/Histogram
         """
 
-EqualWidthMethods = (
-    Manual
-    | SquareRoot
-    | Sturges
-    | Rice
-    | Doane
-    | Scott
-    | TerrellScott
-    | FreedmanDiaconis
-)
+EqualWidthMethods = Manual | SquareRoot | Sturges | Rice | Doane | Scott | TerrellScott | FreedmanDiaconis
 
 class EqualWidthBinning:
     def __init__(self, method: EqualWidthMethods = Doane()):
@@ -12885,9 +12869,7 @@ class PsiDriftConfig:
         alert_config: PsiAlertConfig = PsiAlertConfig(),
         config_path: Optional[Path] = None,
         categorical_features: Optional[list[str]] = None,
-        binning_strategy: QuantileBinning | EqualWidthBinning = QuantileBinning(
-            num_bins=10
-        ),
+        binning_strategy: QuantileBinning | EqualWidthBinning = QuantileBinning(num_bins=10),
     ):
         """Initialize monitor config
 
@@ -12965,9 +12947,7 @@ class PsiDriftConfig:
         """binning_strategy"""
 
     @binning_strategy.setter
-    def binning_strategy(
-        self, binning_strategy: QuantileBinning | EqualWidthBinning
-    ) -> None:
+    def binning_strategy(self, binning_strategy: QuantileBinning | EqualWidthBinning) -> None:
         """Set binning_strategy"""
 
     @property
@@ -13824,7 +13804,7 @@ class AssertionTask:
         operator: ComparisonOperator,
         field_path: Optional[str] = None,
         description: Optional[str] = None,
-        depends_on: Optional[List[str]] = None,
+        depends_on: Optional[Sequence[str]] = None,
         condition: bool = False,
     ):
         """Initialize an assertion task for rule-based evaluation.
@@ -14740,9 +14720,7 @@ class Drifter:
     def create_drift_profile(  # type: ignore
         self,
         data: Any,
-        config: Optional[
-            Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]
-        ] = None,
+        config: Optional[Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]] = None,
         data_type: Optional[ScouterDataType] = None,
     ) -> Union[SpcDriftProfile, PsiDriftProfile, CustomDriftProfile]:
         """Create a drift profile from data.
@@ -15007,6 +14985,26 @@ class GenAIEvalDataset:
 
     def print_execution_plan(self) -> None:
         """Print the execution plan for all tasks in the dataset."""
+
+    def with_updated_contexts_by_id(
+        self,
+        updated_contexts: Dict[str, Any],
+    ) -> "GenAIEvalDataset":
+        """Create a new GenAIEvalDataset with updated contexts for specific records.
+
+        Example:
+            >>> updated_contexts = {
+            ...     "record_1_uid": {"new_field": "new_value"},
+            ...     "record_2_uid": {"another_field": 123}
+            ... }
+            >>> new_dataset = dataset.with_updated_contexts_by_id(updated_contexts)
+        Args:
+            updated_contexts (Dict[str, Any]):
+                A dictionary mapping record UIDs to their new context data.
+        Returns:
+            GenAIEvalDataset:
+                A new dataset instance with the updated contexts.
+        """
 
 class GenAIEvalSet:
     """Evaluation set for a specific evaluation run"""
@@ -15279,9 +15277,7 @@ class GenAIEvalResults:
 
         """
 
-    def compare_to(
-        self, baseline: "GenAIEvalResults", regression_threshold: float
-    ) -> ComparisonResults:
+    def compare_to(self, baseline: "GenAIEvalResults", regression_threshold: float) -> ComparisonResults:
         """Compare the current evaluation results to a baseline with a regression threshold.
 
         Args:

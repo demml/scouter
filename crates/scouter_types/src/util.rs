@@ -547,6 +547,37 @@ pub fn pydantic_to_value<'py>(obj: &Bound<'py, PyAny>) -> Result<Value, TypeErro
     pyobject_to_json(&dict)
 }
 
+fn process_dict_with_nested_models(
+    py: Python<'_>,
+    dict: &Bound<'_, PyAny>,
+) -> Result<Value, TypeError> {
+    let py_dict = dict.cast::<PyDict>()?;
+    let mut result = serde_json::Map::new();
+
+    for (key, value) in py_dict.iter() {
+        let key_str: String = key.extract()?;
+        let processed_value = depythonize_object_to_value(py, &value)?;
+        result.insert(key_str, processed_value);
+    }
+
+    Ok(Value::Object(result))
+}
+
+pub fn depythonize_object_to_value<'py>(
+    py: Python<'py>,
+    value: &Bound<'py, PyAny>,
+) -> Result<Value, TypeError> {
+    let py_value = if is_pydantic_basemodel(py, value)? {
+        let model = value.call_method0("model_dump")?;
+        depythonize(&model)?
+    } else if value.is_instance_of::<PyDict>() {
+        process_dict_with_nested_models(py, value)?
+    } else {
+        depythonize(value)?
+    };
+    Ok(py_value)
+}
+
 #[derive(PartialEq, Debug)]
 pub struct ProfileArgs {
     pub name: String,

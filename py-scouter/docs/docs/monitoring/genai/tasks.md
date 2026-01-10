@@ -37,16 +37,31 @@ AssertionTask(
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `id` | `str` | Yes | Unique identifier (converted to lowercase). Used in dependencies and results. |
-| `expected_value` | `Any` | Yes | Value to compare against. Must be JSON-serializable (str, int, float, bool, list, dict, None). |
+| `expected_value` | `Any` | Yes | Value to compare against. Supports static values (str, int, float, bool, list, dict, None) or template references to context fields using `${field.path}` syntax. |
 | `operator` | `ComparisonOperator` | Yes | Comparison operator to use for evaluation. |
 | `field_path` | `str` | No | Dot-notation path to extract value from context (e.g., `"response.confidence"`). If `None`, uses entire context. |
 | `description` | `str` | No | Human-readable description for understanding results. |
 | `depends_on` | `List[str]` | No | Task IDs that must complete before this task executes. Outputs from dependencies are added to context. |
 | `condition` | `bool` | No | If `True`, acts as conditional gate. Failed conditions skip dependent tasks and exclude this task from final results. |
 
+### Template Variable Substitution
+
+The `expected_value` parameter supports **template variable substitution** to reference values from the evaluation context dynamically. This is particularly useful for comparing against ground truth values or data provided at runtime.
+
+**Template Syntax:**
+- Use `${field.path}` to reference a field in the context
+- Supports nested paths: `${ground_truth.category}`, `${metadata.expected_score}`
+- Works with all comparison operators and data types
+- Resolved at evaluation time with proper error handling
+
+**Use Cases:**
+- **Ground Truth Comparison**: Compare model predictions against reference values
+- **Dynamic Thresholds**: Use runtime-provided thresholds from metadata
+- **Cross-Field Validation**: Compare one field against another in the same context
+
 ### Common Patterns
 
-**Threshold Validation:**
+**Static Threshold Validation:**
 
 ```python
 AssertionTask(
@@ -58,7 +73,68 @@ AssertionTask(
 )
 ```
 
-**Structure Validation:**
+**Ground Truth Comparison (Template):**
+
+```python
+# Context: {"prediction": "electronics", "ground_truth": "electronics"}
+AssertionTask(
+    id="correct_category",
+    field_path="prediction",
+    operator=ComparisonOperator.Equals,
+    expected_value="${ground_truth}",  # Template reference
+    description="Verify prediction matches ground truth"
+)
+```
+
+**Nested Ground Truth Reference:**
+
+```python
+# Context: {
+#   "agent_classification": {"category": "kitchen"},
+#   "ground_truth": {"category": "kitchen", "confidence": 0.9}
+# }
+AssertionTask(
+    id="validate_category",
+    field_path="agent_classification.category",
+    operator=ComparisonOperator.Equals,
+    expected_value="${ground_truth.category}",  # Nested template
+    description="Compare against nested ground truth"
+)
+```
+
+**Dynamic Threshold from Metadata:**
+
+```python
+# Context: {
+#   "score": 8.5,
+#   "thresholds": {"min_score": 7.0}
+# }
+AssertionTask(
+    id="score_threshold",
+    field_path="score",
+    operator=ComparisonOperator.GreaterThanOrEqual,
+    expected_value="${thresholds.min_score}",  # Dynamic threshold
+    description="Score must exceed dynamic threshold"
+)
+```
+
+**Array/List Comparison with Template:**
+
+```python
+# Context: {
+#   "recommended_products": ["Bosch", "Miele"],
+#   "ground_truth": {"expected_brands": ["Bosch", "Miele", "LG"]}
+# }
+AssertionTask(
+    id="validate_products",
+    field_path="recommended_products",
+    operator=ComparisonOperator.ContainsAny,
+    expected_value="${ground_truth.expected_brands}",
+    description="Recommendations must include expected brands"
+)
+```
+
+**Structure Validation (Static):**
 
 ```python
 AssertionTask(
@@ -70,7 +146,7 @@ AssertionTask(
 )
 ```
 
-**Conditional Gate:**
+**Conditional Gate (Static):**
 
 ```python
 AssertionTask(
@@ -83,18 +159,42 @@ AssertionTask(
 )
 ```
 
-**Dependent Assertion:**
+**Dependent Assertion with Template:**
 
 ```python
+# Depends on upstream LLMJudgeTask that adds output to context
 AssertionTask(
     id="technical_score_high",
     field_path="expert_validation.technical_score",
     operator=ComparisonOperator.GreaterThan,
-    expected_value=8,
-    depends_on=["expert_validation"],  # Access upstream LLMJudgeTask output
-    description="Technical score must exceed 8"
+    expected_value="${quality_thresholds.technical}",  # Template from context
+    depends_on=["expert_validation"],
+    description="Technical score must exceed configured threshold"
 )
 ```
+
+### Template Error Handling
+
+If a template variable cannot be resolved it will raise an error
+
+```python
+# Context: {"prediction": "electronics"}
+# Missing "ground_truth" field
+
+AssertionTask(
+    id="correct_category",
+    field_path="prediction",
+    operator=ComparisonOperator.Equals,
+    expected_value="${ground_truth}",  # Will fail
+)
+```
+
+**Best Practices:**
+- Use templates for dynamic comparisons against runtime data
+- Use static values for fixed thresholds and validation rules
+- Validate that template fields exist in your context structure
+- Use descriptive field paths in templates for clarity
+- Combine with `depends_on` to ensure upstream data is available
 
 ## LLMJudgeTask
 

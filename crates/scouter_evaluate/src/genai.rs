@@ -9,6 +9,9 @@ use pyo3::types::PyList;
 use scouter_state::app_state;
 use scouter_types::genai::{AssertionTask, GenAIDriftConfig, GenAIEvalProfile, LLMJudgeTask};
 use scouter_types::GenAIEvalRecord;
+use scouter_types::PyHelperFuncs;
+use serde::Serialize;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, instrument};
 
@@ -54,6 +57,7 @@ pub async fn evaluate_genai_dataset(
 }
 
 #[pyclass]
+#[derive(Debug, Serialize)]
 pub struct GenAIEvalDataset {
     pub records: Arc<Vec<GenAIEvalRecord>>,
     pub profile: Arc<GenAIEvalProfile>,
@@ -104,5 +108,57 @@ impl GenAIEvalDataset {
         app_state()
             .handle()
             .block_on(async { evaluate_genai_dataset(self, &config).await })
+    }
+
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        PyHelperFuncs::__str__(self)
+    }
+
+    /// Update contexts by record ID mapping. This is the safest approach for
+    /// ensuring context updates align with the correct records.
+    ///
+    /// # Arguments
+    /// * `context_map` - Dictionary mapping record_id to new context object
+    ///
+    /// # Returns
+    /// A new `GenAIEvalDataset` with updated contexts for matched IDs
+    ///
+    /// # Example
+    /// ```python
+    /// baseline_dataset = GenAIEvalDataset(records=[...], tasks=[...])
+    ///
+    /// # Update specific records by ID
+    /// new_contexts = {
+    ///     "product_classification_0": updated_context_0,
+    ///     "product_classification_1": updated_context_1,
+    /// }
+    ///
+    /// comparison_dataset = baseline_dataset.with_updated_contexts_by_id(new_contexts)
+    /// ```
+    #[pyo3(signature = (context_map))]
+    pub fn with_updated_contexts_by_id(
+        &self,
+        py: Python<'_>,
+        context_map: HashMap<String, Bound<'_, PyAny>>,
+    ) -> Result<Self, EvaluationError> {
+        let updated_records: Vec<GenAIEvalRecord> = self
+            .records
+            .iter()
+            .map(|record| {
+                if let Some(new_context) = context_map.get(&record.record_id) {
+                    let mut updated_record = record.clone();
+                    updated_record.update_context(py, new_context)?;
+                    Ok(updated_record)
+                } else {
+                    Ok(record.clone())
+                }
+            })
+            .collect::<Result<Vec<GenAIEvalRecord>, EvaluationError>>()?;
+
+        Ok(Self {
+            records: Arc::new(updated_records),
+            profile: Arc::clone(&self.profile),
+        })
     }
 }

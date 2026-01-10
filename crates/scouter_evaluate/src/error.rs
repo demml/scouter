@@ -158,6 +158,9 @@ pub enum EvaluationError {
 
     #[error("Invalid contains word operation")]
     InvalidContainsWordOperation,
+
+    #[error(transparent)]
+    RecordError(#[from] scouter_types::error::RecordError),
 }
 
 impl From<pythonize::PythonizeError> for EvaluationError {

@@ -16,14 +16,16 @@ pub struct AssertionResult {
     pub passed: bool,
     pub actual: Value,
     pub message: String,
+    pub expected: Value,
 }
 
 impl AssertionResult {
-    pub fn new(passed: bool, actual: Value, message: String) -> Self {
+    pub fn new(passed: bool, actual: Value, message: String, expected: Value) -> Self {
         Self {
             passed,
             actual,
             message,
+            expected,
         }
     }
     pub fn to_metric_value(&self) -> f64 {

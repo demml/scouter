@@ -103,6 +103,8 @@ impl AssertionEvaluator {
             json_value
         };
 
+        let expected = Self::resolve_expected_value(json_value, assertion.expected_value())?;
+
         let comparable_actual =
             match Self::transform_for_comparison(actual_value, assertion.operator()) {
                 Ok(val) => val,
@@ -116,10 +118,10 @@ impl AssertionEvaluator {
                             assertion.id(),
                             err
                         ),
+                        expected.clone(),
                     ));
                 }
             };
-        let expected = assertion.expected_value();
 
         let passed = Self::compare_values(&comparable_actual, assertion.operator(), expected)?;
         let messages = if passed {
@@ -133,9 +135,25 @@ impl AssertionEvaluator {
             )
         };
 
-        let assertion_result = AssertionResult::new(passed, (*actual_value).clone(), messages);
+        let assertion_result =
+            AssertionResult::new(passed, (*actual_value).clone(), messages, expected.clone());
 
         Ok(assertion_result)
+    }
+
+    fn resolve_expected_value<'a>(
+        context: &'a Value,
+        expected: &'a Value,
+    ) -> Result<&'a Value, EvaluationError> {
+        match expected {
+            Value::String(s) if s.starts_with("${") && s.ends_with("}") => {
+                // Extract field path from template: "${field.path}" -> "field.path"
+                let field_path = &s[2..s.len() - 1];
+                let resolved = FieldEvaluator::extract_field_value(context, field_path)?;
+                Ok(resolved)
+            }
+            _ => Ok(expected),
+        }
     }
 
     /// Transforms a value based on the comparison operator

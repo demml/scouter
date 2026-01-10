@@ -516,7 +516,7 @@ impl GenAIEvaluator {
                     passed: result.passed,
                     value: result.to_metric_value(),
                     field_path: assertion.field_path.clone(),
-                    expected: assertion.expected_value.clone(),
+                    expected: result.expected.clone(), // use result expected value because it may be templated
                     actual: result.actual.clone(),
                     message: result.message.clone(),
                     operator: assertion.operator.clone(),

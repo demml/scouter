@@ -1,7 +1,7 @@
 use crate::error::RecordError;
 use crate::genai::{ComparisonOperator, EvaluationTaskType};
 use crate::trace::TraceServerRecord;
-use crate::{is_pydantic_basemodel, DriftType, Status};
+use crate::{depythonize_object_to_value, DriftType, Status};
 use crate::{EntityType, TagRecord};
 use chrono::DateTime;
 use chrono::Utc;
@@ -9,8 +9,6 @@ use owo_colors::OwoColorize;
 use potato_head::create_uuid7;
 use potato_head::PyHelperFuncs;
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
-use pythonize::depythonize;
 use pythonize::pythonize;
 use scouter_macro::impl_mask_entity_id;
 use serde::{Deserialize, Serialize};
@@ -198,29 +196,6 @@ impl PsiRecord {
     }
 }
 
-fn process_dict_with_nested_models(
-    py: Python<'_>,
-    dict: &Bound<'_, PyAny>,
-) -> Result<Value, RecordError> {
-    let py_dict = dict.cast::<PyDict>()?;
-    let mut result = serde_json::Map::new();
-
-    for (key, value) in py_dict.iter() {
-        let key_str: String = key.extract()?;
-
-        let processed_value = if is_pydantic_basemodel(py, &value)? {
-            let model = value.call_method0("model_dump")?;
-            depythonize(&model)?
-        } else {
-            depythonize(&value)?
-        };
-
-        result.insert(key_str, processed_value);
-    }
-
-    Ok(Value::Object(result))
-}
-
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GenAIEvalRecord {
@@ -246,23 +221,19 @@ pub struct GenAIEvalRecord {
 #[pymethods]
 impl GenAIEvalRecord {
     #[new]
-    #[pyo3(signature = (context, id = None))]
+    #[pyo3(signature = (context=None, id = None))]
 
     /// Creates a new GenAIEvalRecord instance.
     /// The context is either a python dictionary or a pydantic basemodel.
     pub fn new(
         py: Python<'_>,
-        context: Bound<'_, PyAny>,
+        context: Option<Bound<'_, PyAny>>,
         id: Option<String>,
     ) -> Result<Self, RecordError> {
         // check if context is a PyDict or PyObject(Pydantic model)
-        let context_val = if is_pydantic_basemodel(py, &context)? {
-            let model = context.call_method0("model_dump")?;
-            depythonize(&model)?
-        } else if context.is_instance_of::<PyDict>() {
-            process_dict_with_nested_models(py, &context)?
-        } else {
-            Err(RecordError::MustBeDictOrBaseModel)?
+        let context_val = match context {
+            Some(ctx) => depythonize_object_to_value(py, &ctx)?,
+            None => Value::Object(serde_json::Map::new()),
         };
 
         Ok(GenAIEvalRecord {
@@ -292,9 +263,60 @@ impl GenAIEvalRecord {
     pub fn context<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, RecordError> {
         Ok(pythonize(py, &self.context)?)
     }
+    #[pyo3(signature = (key, value))]
+    pub fn update_context_field(
+        &mut self,
+        py: Python<'_>,
+        key: String,
+        value: &Bound<'_, PyAny>,
+    ) -> Result<(), RecordError> {
+        let py_value = depythonize_object_to_value(py, value)?;
+
+        match &mut self.context {
+            Value::Object(map) => {
+                map.insert(key, py_value);
+            }
+            _ => {
+                let mut new_map = serde_json::Map::new();
+                new_map.insert(key, py_value);
+                self.context = Value::Object(new_map);
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl GenAIEvalRecord {
+    /// will update the entire context of the record
+    /// If new context is a map, update context fields individually
+    /// if not, replace entire context
+    /// # Arguments
+    /// * `new_context` - New context to set
+    pub fn update_context(
+        &mut self,
+        py: Python<'_>,
+        new_context: &Bound<'_, PyAny>,
+    ) -> Result<(), RecordError> {
+        let py_value = depythonize_object_to_value(py, new_context)?;
+
+        match &mut self.context {
+            Value::Object(map) => {
+                if let Value::Object(new_map) = py_value {
+                    for (key, value) in new_map {
+                        map.insert(key, value);
+                    }
+                } else {
+                    self.context = py_value;
+                }
+            }
+            _ => {
+                self.context = py_value;
+            }
+        }
+        Ok(())
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn new_rs(
         context: Value,
