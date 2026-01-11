@@ -754,7 +754,8 @@ impl GenAIEvalProfile {
                 &judge.id,
                 task_deps,
                 judge.max_retries,
-            );
+            )
+            .unwrap();
 
             workflow.add_task(task)?;
         }
