@@ -181,7 +181,7 @@ pub fn compare_results(
         unchanged_workflows: unchanged,
         mean_pass_rate_delta: mean_delta,
         task_status_changes,
-        missing_tasks: missing_tasks,
+        missing_tasks,
         baseline_workflow_count: baseline.aligned_results.len(),
         comparison_workflow_count: comparison.aligned_results.len(),
         regressed: has_regressed,
