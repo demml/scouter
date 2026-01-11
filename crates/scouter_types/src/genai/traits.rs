@@ -32,7 +32,7 @@ pub fn separate_tasks(tasks: Vec<EvaluationTask>) -> (Vec<AssertionTask>, Vec<LL
 
     for task in tasks {
         match task {
-            EvaluationTask::Assertion(a) => assertions.push(a),
+            EvaluationTask::Assertion(a) => assertions.push(*a),
             EvaluationTask::LLMJudge(j) => llm_judges.push(*j),
         }
     }

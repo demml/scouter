@@ -391,7 +391,7 @@ impl TaskAccessor for LLMJudgeTask {
 
 #[derive(Debug, Clone)]
 pub enum EvaluationTask {
-    Assertion(AssertionTask),
+    Assertion(Box<AssertionTask>),
     LLMJudge(Box<LLMJudgeTask>),
 }
 
@@ -469,7 +469,7 @@ impl EvaluationTasks {
 // Implement From trait for automatic conversion
 impl From<AssertionTask> for EvaluationTask {
     fn from(task: AssertionTask) -> Self {
-        EvaluationTask::Assertion(task)
+        EvaluationTask::Assertion(Box::new(task))
     }
 }
 

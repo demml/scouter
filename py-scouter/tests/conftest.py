@@ -14,10 +14,6 @@ from scouter.alert import (
     SlackDispatchConfig,
 )
 from scouter.drift import CustomMetricDriftConfig, PsiDriftConfig, SpcDriftConfig
-from scouter.logging import LoggingConfig, LogLevel, RustyLogger
-
-# Sets up logging for tests
-RustyLogger.setup_logging(LoggingConfig(log_level=LogLevel.Debug))
 
 T = TypeVar("T")
 YieldFixture = Generator[T, None, None]
