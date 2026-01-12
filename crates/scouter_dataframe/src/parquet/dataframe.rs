@@ -270,6 +270,10 @@ mod tests {
                 let record = ServerRecord::GenAITaskRecord(GenAIEvalTaskResult {
                     record_uid: format!("record_uid_{i}_{j}"),
                     created_at: Utc::now() + chrono::Duration::hours(i),
+                    start_time: Utc::now() + chrono::Duration::hours(i),
+                    end_time: Utc::now()
+                        + chrono::Duration::hours(i)
+                        + chrono::Duration::minutes(5),
                     entity_id,
                     task_id: format!("task{i}"),
                     task_type: scouter_types::genai::EvaluationTaskType::Assertion,

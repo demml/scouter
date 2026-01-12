@@ -1,5 +1,6 @@
 INSERT INTO scouter.genai_eval_task (
-    created_at,
+    start_time,
+    end_time,
     record_uid,
     entity_id,
     task_id,
@@ -15,7 +16,8 @@ INSERT INTO scouter.genai_eval_task (
     stage
     )
 SELECT
-    created_at,
+    start_time,
+    end_time,
     record_uid,
     entity_id,
     task_id,
@@ -30,23 +32,25 @@ SELECT
     condition,
     stage
 FROM UNNEST(
-    $1::timestamptz[], -- created_at
-    $2::text[],        -- record_uid
-    $3::integer[],     -- entity_id
-    $4::text[],        -- task_id
-    $5::text[],        -- task_type
-    $6::boolean[],     -- passed
-    $7::double precision[], -- value
-    $8::text[],        -- field_path
-    $9::text[],        -- operator
-    $10::jsonb[],       -- expected
-    $11::jsonb[],       -- actual
-    $12::text[],        -- message
-    $13::boolean[],     -- condition
-    $14::integer[]    -- stage
+    $1::timestamptz[], -- start_time
+    $2::timestamptz[], -- end_time
+    $3::text[],        -- record_uid
+    $4::integer[],     -- entity_id
+    $5::text[],        -- task_id
+    $6::text[],        -- task_type
+    $7::boolean[],     -- passed
+    $8::double precision[], -- value
+    $9::text[],        -- field_path
+    $10::text[],        -- operator
+    $11::jsonb[],       -- expected
+    $12::jsonb[],       -- actual
+    $13::text[],        -- message
+    $14::boolean[],     -- condition
+    $15::integer[]    -- stage
 
 ) AS t(
-    created_at,
+    start_time,
+    end_time,
     record_uid,
     entity_id,
     task_id,

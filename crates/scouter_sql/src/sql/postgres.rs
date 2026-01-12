@@ -1299,6 +1299,8 @@ mod tests {
                 let record = GenAIEvalTaskResult {
                     record_uid: format!("record_uid_{i}_{j}"),
                     created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
+                    start_time: Utc::now(),
+                    end_time: Utc::now() + chrono::Duration::seconds(1),
                     entity_id,
                     task_id: format!("task{i}"),
                     task_type: scouter_types::genai::EvaluationTaskType::Assertion,

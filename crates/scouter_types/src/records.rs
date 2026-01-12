@@ -604,6 +604,12 @@ pub struct GenAIEvalTaskResult {
     pub created_at: DateTime<Utc>,
 
     #[pyo3(get)]
+    pub start_time: DateTime<Utc>,
+
+    #[pyo3(get)]
+    pub end_time: DateTime<Utc>,
+
+    #[pyo3(get)]
     pub record_uid: String,
 
     // this is not exposed to python
@@ -720,6 +726,8 @@ impl GenAIEvalTaskResult {
     }
     #[allow(clippy::too_many_arguments)]
     pub fn new(
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
         record_uid: String,
         task_id: String,
         task_type: EvaluationTaskType,
@@ -736,6 +744,8 @@ impl GenAIEvalTaskResult {
         stage: i32,
     ) -> Self {
         Self {
+            start_time,
+            end_time,
             record_uid,
             created_at: Utc::now(),
             task_id,
@@ -771,6 +781,8 @@ impl FromRow<'_, PgRow> for GenAIEvalTaskResult {
         Ok(GenAIEvalTaskResult {
             record_uid: row.try_get("record_uid")?,
             created_at: row.try_get("created_at")?,
+            start_time: row.try_get("start_time")?,
+            end_time: row.try_get("end_time")?,
             task_id: row.try_get("task_id")?,
             task_type,
             passed: row.try_get("passed")?,

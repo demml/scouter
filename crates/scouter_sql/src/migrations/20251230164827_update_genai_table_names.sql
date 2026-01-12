@@ -58,7 +58,7 @@ PARTITION BY RANGE (created_at);
 -- STEP 6: Create Indexes
 -- ============================================================================
 CREATE INDEX IF NOT EXISTS idx_genai_event_record_lookup ON scouter.genai_eval_record (entity_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_genai_event_record_pagination ON scouter.genai_eval_record (entity_id, id DESC);;
+CREATE INDEX IF NOT EXISTS idx_genai_event_record_pagination ON scouter.genai_eval_record (entity_id, id DESC);
 
 
 -- ============================================================================

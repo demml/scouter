@@ -1,6 +1,7 @@
 use crate::error::EvaluationError;
 use crate::evaluate::store::{AssertionResultStore, LLMResponseStore, TaskRegistry, TaskType};
 use crate::tasks::traits::EvaluationTask;
+use chrono::{DateTime, Utc};
 use scouter_types::genai::traits::ProfileExt;
 use scouter_types::genai::{AssertionResult, ExecutionPlan, GenAIEvalProfile, GenAIEvalSet};
 use scouter_types::GenAIEvalRecord;
@@ -53,7 +54,7 @@ impl ExecutionContext {
                 Some(TaskType::Assertion) => {
                     let store = self.assertion_store.read().await;
                     if let Some(result) = store.retrieve(dep_id) {
-                        scoped_context.insert(dep_id.clone(), result.actual.clone());
+                        scoped_context.insert(dep_id.clone(), result.2.actual.clone());
                     }
                 }
                 Some(TaskType::LLMJudge) => {
@@ -80,8 +81,17 @@ impl ExecutionContext {
         }
     }
 
-    async fn store_assertion(&self, task_id: String, result: AssertionResult) {
-        self.assertion_store.write().await.store(task_id, result);
+    async fn store_assertion(
+        &self,
+        task_id: String,
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
+        result: AssertionResult,
+    ) {
+        self.assertion_store
+            .write()
+            .await
+            .store(task_id, start_time, end_time, result);
     }
 
     async fn store_llm_response(&self, task_id: String, response: Value) {
@@ -186,7 +196,7 @@ impl DependencyChecker {
             .read()
             .await
             .retrieve(task_id)
-            .map(|res| res.passed)
+            .map(|res| res.2.passed)
     }
 
     async fn mark_skipped(&self, task_id: &str) {
@@ -313,10 +323,10 @@ impl TaskExecutor {
 
         let mut results = HashMap::with_capacity(task_ids.len());
         while let Some(result) = join_set.join_next().await {
-            let (judge_id, response) = result.map_err(|e| {
+            let (judge_id, start_time, response) = result.map_err(|e| {
                 EvaluationError::GenAIEvaluatorError(format!("Task join error: {}", e))
             })??;
-            results.insert(judge_id, response);
+            results.insert(judge_id, (start_time, response));
         }
 
         self.process_llm_judge_results(results).await?;
@@ -329,6 +339,8 @@ impl TaskExecutor {
         context: &ExecutionContext,
         profile: &GenAIEvalProfile,
     ) -> Result<(), EvaluationError> {
+        let start_time = Utc::now();
+
         let task = profile
             .get_assertion_by_id(task_id)
             .ok_or_else(|| EvaluationError::TaskNotFound(task_id.to_string()))?;
@@ -336,7 +348,10 @@ impl TaskExecutor {
         let scoped_context = context.build_scoped_context(&task.depends_on).await;
         let result = task.execute(&scoped_context)?;
 
-        context.store_assertion(task_id.to_string(), result).await;
+        let end_time = Utc::now();
+        context
+            .store_assertion(task_id.to_string(), start_time, end_time, result)
+            .await;
         Ok(())
     }
 
@@ -345,9 +360,9 @@ impl TaskExecutor {
         task_id: &str,
         context: &ExecutionContext,
         profile: &GenAIEvalProfile,
-    ) -> Result<(String, Value), EvaluationError> {
+    ) -> Result<(String, DateTime<Utc>, serde_json::Value), EvaluationError> {
         debug!("Starting LLM judge task: {}", task_id);
-
+        let start_time = Utc::now();
         let judge = profile
             .get_llm_judge_by_id(task_id)
             .ok_or_else(|| EvaluationError::TaskNotFound(task_id.to_string()))?;
@@ -368,14 +383,14 @@ impl TaskExecutor {
             .inspect_err(|e| error!("LLM task {} failed: {:?}", task_id, e))?;
 
         debug!("Successfully completed LLM judge task: {}", task_id);
-        Ok((task_id.to_string(), response))
+        Ok((task_id.to_string(), start_time, response))
     }
 
     async fn process_llm_judge_results(
         &self,
-        results: HashMap<String, Value>,
+        results: HashMap<String, (DateTime<Utc>, Value)>,
     ) -> Result<(), EvaluationError> {
-        for (task_id, response) in results {
+        for (task_id, (start_time, response)) in results {
             if let Some(task) = self.profile.get_llm_judge_by_id(&task_id) {
                 let assertion_result = task.execute(&response)?;
 
@@ -384,7 +399,7 @@ impl TaskExecutor {
                     .await;
 
                 self.context
-                    .store_assertion(task_id, assertion_result)
+                    .store_assertion(task_id, start_time, Utc::now(), assertion_result)
                     .await;
             }
         }
@@ -415,7 +430,7 @@ impl ResultCollector {
         let assert_store = self.context.assertion_store.read().await;
 
         for assertion in &profile.assertion_tasks {
-            if let Some(result) = assert_store.retrieve(&assertion.id) {
+            if let Some((start_time, end_time, result)) = assert_store.retrieve(&assertion.id) {
                 if !assertion.condition {
                     if result.passed {
                         passed_count += 1;
@@ -428,6 +443,8 @@ impl ResultCollector {
 
                 records.push(scouter_types::GenAIEvalTaskResult {
                     created_at: chrono::Utc::now(),
+                    start_time,
+                    end_time,
                     record_uid: record.uid.clone(),
                     entity_id: record.entity_id,
                     task_id: assertion.id.clone(),
@@ -447,7 +464,7 @@ impl ResultCollector {
         }
 
         for judge in &profile.llm_judge_tasks {
-            if let Some(result) = assert_store.retrieve(&judge.id) {
+            if let Some((start_time, end_time, result)) = assert_store.retrieve(&judge.id) {
                 if !judge.condition {
                     if result.passed {
                         passed_count += 1;
@@ -460,6 +477,8 @@ impl ResultCollector {
 
                 records.push(scouter_types::GenAIEvalTaskResult {
                     created_at: chrono::Utc::now(),
+                    start_time,
+                    end_time,
                     record_uid: record.uid.clone(),
                     entity_id: record.entity_id,
                     task_id: judge.id.clone(),

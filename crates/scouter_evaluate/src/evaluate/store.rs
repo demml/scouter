@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use scouter_types::genai::AssertionResult;
 use std::sync::RwLock;
 use std::{
@@ -100,11 +101,14 @@ impl Default for TaskRegistry {
     }
 }
 
+// start time, end time, result
+type AssertionResultType = (DateTime<Utc>, DateTime<Utc>, AssertionResult);
+
 /// Store for assertion results
 #[derive(Debug)]
 pub struct AssertionResultStore {
     /// Internal store mapping task IDs to results
-    store: HashMap<String, AssertionResult>,
+    store: HashMap<String, AssertionResultType>,
 }
 
 impl AssertionResultStore {
@@ -114,11 +118,17 @@ impl AssertionResultStore {
         }
     }
 
-    pub fn store(&mut self, task_id: String, result: AssertionResult) {
-        self.store.insert(task_id, result);
+    pub fn store(
+        &mut self,
+        task_id: String,
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
+        result: AssertionResult,
+    ) {
+        self.store.insert(task_id, (start_time, end_time, result));
     }
 
-    pub fn retrieve(&self, task_id: &str) -> Option<AssertionResult> {
+    pub fn retrieve(&self, task_id: &str) -> Option<AssertionResultType> {
         self.store.get(task_id).cloned()
     }
 }
