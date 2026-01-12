@@ -362,6 +362,7 @@ mod tests {
                     duration_ms: 1500,
                     entity_uid: format!("entity_uid_{entity_id}"),
                     execution_plan: scouter_types::genai::ExecutionPlan::default(),
+                    id: j,
                 });
 
                 batch.push(record);

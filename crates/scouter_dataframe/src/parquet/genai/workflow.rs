@@ -13,6 +13,7 @@ use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::{GenAIEvalWorkflowResult, ServerRecords, StorageType, ToDriftRecords};
 use std::sync::Arc;
+use tokio::runtime::Id;
 
 pub struct GenAIWorkflowDataFrame {
     schema: Arc<Schema>,
@@ -68,6 +69,7 @@ impl ParquetFrame for GenAIWorkflowDataFrame {
 impl GenAIWorkflowDataFrame {
     pub fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, DataFrameError> {
         let schema = Arc::new(Schema::new(vec![
+            Field::new("id", DataType::Int64, false),
             Field::new(
                 "created_at",
                 DataType::Timestamp(TimeUnit::Nanosecond, None),
@@ -96,7 +98,9 @@ impl GenAIWorkflowDataFrame {
         &self,
         records: Vec<GenAIEvalWorkflowResult>,
     ) -> Result<RecordBatch, DataFrameError> {
-        // 1. created_at
+        // id
+        let id_array = arrow_array::Int64Array::from_iter_values(records.iter().map(|r| r.id));
+        // created_at
         let created_at_array = TimestampNanosecondArray::from_iter_values(
             records
                 .iter()
@@ -139,6 +143,7 @@ impl GenAIWorkflowDataFrame {
         let batch = RecordBatch::try_new(
             self.schema.clone(),
             vec![
+                Arc::new(id_array),
                 Arc::new(created_at_array),
                 Arc::new(uid_array),
                 Arc::new(entity_id_array),

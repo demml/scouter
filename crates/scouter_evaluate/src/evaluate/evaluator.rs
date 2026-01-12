@@ -499,6 +499,7 @@ impl ResultCollector {
 
         let workflow_record = scouter_types::GenAIEvalWorkflowResult {
             created_at: chrono::Utc::now(),
+            id: record.id,
             entity_id: record.entity_id,
             record_uid: record.uid.clone(),
             total_tasks: passed_count + failed_count,

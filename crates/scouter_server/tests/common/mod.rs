@@ -383,6 +383,8 @@ impl TestHelper {
                     entity_uid: uid.to_string(),
                     condition: false,
                     stage: i,
+                    start_time: Utc::now(),
+                    end_time: Utc::now(),
                 };
                 records.push(ServerRecord::GenAITaskRecord(record));
             }

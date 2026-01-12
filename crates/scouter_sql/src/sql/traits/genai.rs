@@ -11,6 +11,7 @@ use scouter_types::contracts::DriftRequest;
 use scouter_types::BoxedGenAIEvalRecord;
 use scouter_types::GenAIEvalRecord;
 use scouter_types::GenAIEvalTaskResult;
+use scouter_types::GenAIEvalWorkflowRecordPaginationResponse;
 use scouter_types::GenAIEvalWorkflowResult;
 use scouter_types::Status;
 use scouter_types::{
@@ -91,7 +92,8 @@ pub trait GenAIDriftSqlLogic {
         let n = records.len();
 
         // Pre-allocate vectors to avoid reallocations
-        let mut created_ats = Vec::with_capacity(n);
+        let mut start_times = Vec::with_capacity(n);
+        let mut end_times = Vec::with_capacity(n);
         let mut record_uids = Vec::with_capacity(n);
         let mut entity_ids = Vec::with_capacity(n);
         let mut task_ids = Vec::with_capacity(n);
@@ -107,7 +109,8 @@ pub trait GenAIDriftSqlLogic {
         let mut stage = Vec::with_capacity(n);
 
         for r in records {
-            created_ats.push(r.created_at);
+            start_times.push(r.start_time);
+            end_times.push(r.end_time);
             record_uids.push(&r.record_uid);
             entity_ids.push(entity_id);
             task_ids.push(&r.task_id);
@@ -281,6 +284,111 @@ pub trait GenAIDriftSqlLogic {
             .collect();
 
         Ok(GenAIEvalRecordPaginationResponse {
+            items: public_items,
+            has_next,
+            next_cursor,
+            has_previous,
+            previous_cursor,
+        })
+    }
+
+    /// Retrieves a paginated list of GenAI drift records with bidirectional cursor support
+    ///
+    /// # Arguments
+    /// * `pool` - The database connection pool
+    /// * `params` - The pagination request containing limit, cursor, and direction
+    /// * `entity_id` - The entity ID to filter records
+    ///
+    /// # Returns
+    /// * Result with paginated response containing GenAI drift records
+    #[instrument(skip_all)]
+    async fn get_paginated_genai_eval_workflow_records(
+        pool: &Pool<Postgres>,
+        params: &GenAIEvalRecordPaginationRequest,
+        entity_id: &i32,
+    ) -> Result<GenAIEvalWorkflowRecordPaginationResponse, SqlError> {
+        let query = Queries::GetPaginatedGenAIEvalRecords.get_query();
+        let limit = params.limit.unwrap_or(50);
+        let direction = params.direction.as_deref().unwrap_or("next");
+
+        let mut items: Vec<GenAIEvalWorkflowResult> = sqlx::query_as(query)
+            .bind(entity_id)
+            .bind(params.status.as_ref().and_then(|s| s.as_str()))
+            .bind(params.cursor_created_at)
+            .bind(direction)
+            .bind(params.cursor_id)
+            .bind(limit)
+            .bind(params.start_datetime)
+            .bind(params.end_datetime)
+            .fetch_all(pool)
+            .await
+            .map_err(SqlError::SqlxError)?;
+
+        let has_more = items.len() > limit as usize;
+
+        if has_more {
+            items.pop();
+        }
+
+        let (has_next, next_cursor, has_previous, previous_cursor) = match direction {
+            "previous" => {
+                items.reverse();
+
+                let previous_cursor = if has_more {
+                    items.first().map(|first| RecordCursor {
+                        created_at: first.created_at,
+                        id: first.id,
+                    })
+                } else {
+                    None
+                };
+
+                let next_cursor = items.last().map(|last| RecordCursor {
+                    created_at: last.created_at,
+                    id: last.id,
+                });
+
+                (
+                    params.cursor_created_at.is_some(),
+                    next_cursor,
+                    has_more,
+                    previous_cursor,
+                )
+            }
+            _ => {
+                // Forward pagination (default)
+                let next_cursor = if has_more {
+                    items.last().map(|last| RecordCursor {
+                        created_at: last.created_at,
+                        id: last.id,
+                    })
+                } else {
+                    None
+                };
+
+                let previous_cursor = items.first().map(|first| RecordCursor {
+                    created_at: first.created_at,
+                    id: first.id,
+                });
+
+                (
+                    has_more,
+                    next_cursor,
+                    params.cursor_created_at.is_some(),
+                    previous_cursor,
+                )
+            }
+        };
+
+        let public_items = items
+            .into_iter()
+            .map(|mut r| {
+                r.mask_sensitive_data();
+                r
+            })
+            .collect();
+
+        Ok(GenAIEvalWorkflowRecordPaginationResponse {
             items: public_items,
             has_next,
             next_cursor,

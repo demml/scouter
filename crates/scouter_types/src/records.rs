@@ -457,6 +457,8 @@ pub struct GenAIEvalWorkflowResult {
     pub entity_uid: String,
 
     pub execution_plan: ExecutionPlan,
+
+    pub id: i64,
 }
 
 #[cfg(feature = "server")]
@@ -478,6 +480,7 @@ impl FromRow<'_, PgRow> for GenAIEvalWorkflowResult {
             pass_rate: row.try_get("pass_rate")?,
             duration_ms: row.try_get("duration_ms")?,
             entity_uid: String::new(), // mask entity_uid when loading from DB
+            id: row.try_get("id")?,
             execution_plan,
         })
     }
@@ -566,6 +569,7 @@ impl GenAIEvalWorkflowResult {
             entity_id,
             entity_uid,
             execution_plan,
+            id: 0,
         }
     }
 }
