@@ -50,7 +50,7 @@ pub async fn spawn_evaluation_tasks_without_embeddings(
                 record.uid, idx
             );
 
-            let result = match GenAIEvaluatorNew::process_event_record(record, profile_ref).await {
+            let result = match GenAIEvaluator::process_event_record(record, profile_ref).await {
                 Ok(eval_set) => Ok((eval_set, BTreeMap::new())),
                 Err(e) => Err(format!("Evaluation failed: {}", e)),
             };

@@ -613,7 +613,6 @@ impl GenAIEvalResults {
     }
 
     pub fn model_dump_json(&self) -> String {
-        // serialize the struct to a string
         PyHelperFuncs::__json__(self)
     }
 

@@ -21,7 +21,7 @@ struct ExecutionContext {
 }
 
 impl ExecutionContext {
-    fn new(base_context: Value, registry: TaskRegistry, execution_plan: &Vec<Vec<String>>) -> Self {
+    fn new(base_context: Value, registry: TaskRegistry, execution_plan: &[Vec<String>]) -> Self {
         debug!("Creating ExecutionContext");
         Self {
             base_context: Arc::new(base_context),
@@ -32,7 +32,7 @@ impl ExecutionContext {
         }
     }
 
-    fn build_task_stages(execution_plan: &Vec<Vec<String>>) -> HashMap<String, i32> {
+    fn build_task_stages(execution_plan: &[Vec<String>]) -> HashMap<String, i32> {
         let mut task_stages = HashMap::new();
         for (level_idx, level_tasks) in execution_plan.iter().enumerate() {
             for task_id in level_tasks {

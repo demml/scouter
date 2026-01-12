@@ -381,6 +381,7 @@ impl TestHelper {
                     message: "All good".to_string(),
                     entity_uid: uid.to_string(),
                     condition: false,
+                    stage: i,
                 };
                 records.push(ServerRecord::GenAITaskRecord(record));
             }
