@@ -1,5 +1,5 @@
 use crate::error::RecordError;
-use crate::genai::{ComparisonOperator, EvaluationTaskType};
+use crate::genai::{ComparisonOperator, EvaluationTaskType, ExecutionPlan};
 use crate::trace::TraceServerRecord;
 use crate::{depythonize_object_to_value, DriftType, Status};
 use crate::{EntityType, TagRecord};
@@ -430,7 +430,6 @@ pub struct WorkflowResultTableEntry {
 
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct GenAIEvalWorkflowResult {
     #[pyo3(get)]
     pub created_at: DateTime<Utc>,
@@ -455,8 +454,33 @@ pub struct GenAIEvalWorkflowResult {
     #[pyo3(get)]
     pub duration_ms: i64,
 
-    #[cfg_attr(feature = "server", sqlx(skip))]
     pub entity_uid: String,
+
+    pub execution_plan: ExecutionPlan,
+}
+
+#[cfg(feature = "server")]
+impl FromRow<'_, PgRow> for GenAIEvalWorkflowResult {
+    fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
+        let execution_plan: ExecutionPlan = serde_json::from_value(row.try_get("execution_plan")?)
+            .unwrap_or(ExecutionPlan {
+                stages: vec![],
+                nodes: HashMap::new(),
+            });
+
+        Ok(GenAIEvalWorkflowResult {
+            created_at: row.try_get("created_at")?,
+            record_uid: row.try_get("record_uid")?,
+            entity_id: row.try_get("entity_id")?,
+            total_tasks: row.try_get("total_tasks")?,
+            passed_tasks: row.try_get("passed_tasks")?,
+            failed_tasks: row.try_get("failed_tasks")?,
+            pass_rate: row.try_get("pass_rate")?,
+            duration_ms: row.try_get("duration_ms")?,
+            entity_uid: String::new(), // mask entity_uid when loading from DB
+            execution_plan,
+        })
+    }
 }
 
 #[pymethods]
@@ -523,6 +547,7 @@ impl GenAIEvalWorkflowResult {
         duration_ms: i64,
         entity_id: i32,
         entity_uid: String,
+        execution_plan: ExecutionPlan,
     ) -> Self {
         let pass_rate = if total_tasks > 0 {
             passed_tasks as f64 / total_tasks as f64
@@ -540,6 +565,7 @@ impl GenAIEvalWorkflowResult {
             duration_ms,
             entity_id,
             entity_uid,
+            execution_plan,
         }
     }
 }

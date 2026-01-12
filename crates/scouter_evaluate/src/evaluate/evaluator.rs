@@ -406,6 +406,7 @@ impl ResultCollector {
         record: &GenAIEvalRecord,
         profile: &GenAIEvalProfile,
         duration_ms: i64,
+        execution_plan: ExecutionPlan,
     ) -> GenAIEvalSet {
         let mut passed_count = 0;
         let mut failed_count = 0;
@@ -491,6 +492,7 @@ impl ResultCollector {
             },
             duration_ms,
             entity_uid: String::new(),
+            execution_plan,
         };
 
         GenAIEvalSet::new(records, workflow_record)
@@ -537,7 +539,7 @@ impl GenAIEvaluator {
 
         let collector = ResultCollector::new(context);
         let eval_set = collector
-            .build_eval_set(record, &profile, duration_ms)
+            .build_eval_set(record, &profile, duration_ms, execution_plan)
             .await;
 
         Ok(eval_set)

@@ -288,6 +288,15 @@ pub struct ExecutionPlan {
     pub nodes: HashMap<String, ExecutionNode>,
 }
 
+impl Default for ExecutionPlan {
+    fn default() -> Self {
+        Self {
+            stages: Vec::new(),
+            nodes: HashMap::new(),
+        }
+    }
+}
+
 fn initialize_node_graphs(
     tasks: &[impl TaskAccessor],
     graph: &mut HashMap<String, Vec<String>>,
@@ -961,6 +970,7 @@ impl GenAIEvalSet {
                 pass_rate: 0.0,
                 duration_ms: 0,
                 entity_uid: String::new(),
+                execution_plan: ExecutionPlan::default(),
             },
         }
     }
