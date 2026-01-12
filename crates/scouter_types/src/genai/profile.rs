@@ -270,6 +270,57 @@ fn validate_workflow(workflow: &Workflow) -> Result<(), ProfileError> {
     Ok(())
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[pyclass]
+pub struct ExecutionNode {
+    pub id: String,
+    pub stage: usize,
+    pub parents: Vec<String>,
+    pub children: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[pyclass]
+pub struct ExecutionPlan {
+    #[pyo3(get)]
+    pub stages: Vec<Vec<String>>,
+    #[pyo3(get)]
+    pub nodes: HashMap<String, ExecutionNode>,
+}
+
+fn initialize_node_graphs(
+    tasks: &[impl TaskAccessor],
+    graph: &mut HashMap<String, Vec<String>>,
+    reverse_graph: &mut HashMap<String, Vec<String>>,
+    in_degree: &mut HashMap<String, usize>,
+) {
+    for task in tasks {
+        let task_id = task.id().to_string();
+        graph.entry(task_id.clone()).or_default();
+        reverse_graph.entry(task_id.clone()).or_default();
+        in_degree.entry(task_id).or_insert(0);
+    }
+}
+
+fn build_dependency_edges(
+    tasks: &[impl TaskAccessor],
+    graph: &mut HashMap<String, Vec<String>>,
+    reverse_graph: &mut HashMap<String, Vec<String>>,
+    in_degree: &mut HashMap<String, usize>,
+) {
+    for task in tasks {
+        let task_id = task.id().to_string();
+        for dep in task.depends_on() {
+            graph.entry(dep.clone()).or_default().push(task_id.clone());
+            reverse_graph
+                .entry(task_id.clone())
+                .or_default()
+                .push(dep.clone());
+            *in_degree.entry(task_id.clone()).or_insert(0) += 1;
+        }
+    }
+}
+
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct GenAIEvalProfile {
@@ -434,51 +485,64 @@ impl GenAIEvalProfile {
     }
 
     /// Get execution order for all tasks (assertions + LLM judges)
-    pub fn get_execution_plan(&self) -> Result<Vec<Vec<String>>, ProfileError> {
+    pub fn get_execution_plan(&self) -> Result<ExecutionPlan, ProfileError> {
         let mut graph: HashMap<String, Vec<String>> = HashMap::new();
+        let mut reverse_graph: HashMap<String, Vec<String>> = HashMap::new();
         let mut in_degree: HashMap<String, usize> = HashMap::new();
 
-        // Initialize all tasks with empty dependency lists and 0 in-degree
-        for task in &self.assertion_tasks {
-            graph.entry(task.id.clone()).or_default();
-            in_degree.entry(task.id.clone()).or_insert(0);
-        }
-        for task in &self.llm_judge_tasks {
-            graph.entry(task.id.clone()).or_default();
-            in_degree.entry(task.id.clone()).or_insert(0);
-        }
+        initialize_node_graphs(
+            &self.assertion_tasks,
+            &mut graph,
+            &mut reverse_graph,
+            &mut in_degree,
+        );
+        initialize_node_graphs(
+            &self.llm_judge_tasks,
+            &mut graph,
+            &mut reverse_graph,
+            &mut in_degree,
+        );
 
-        // Build dependency graph correctly:
-        // For each dependency, add current task as a dependent
-        for task in &self.assertion_tasks {
-            for dep in &task.depends_on {
-                // dep -> task_id (dep must execute before task_id)
-                graph.entry(dep.clone()).or_default().push(task.id.clone());
-                *in_degree.entry(task.id.clone()).or_insert(0) += 1;
-            }
-        }
+        build_dependency_edges(
+            &self.assertion_tasks,
+            &mut graph,
+            &mut reverse_graph,
+            &mut in_degree,
+        );
+        build_dependency_edges(
+            &self.llm_judge_tasks,
+            &mut graph,
+            &mut reverse_graph,
+            &mut in_degree,
+        );
 
-        for task in &self.llm_judge_tasks {
-            for dep in &task.depends_on {
-                // dep -> task_id (dep must execute before task_id)
-                graph.entry(dep.clone()).or_default().push(task.id.clone());
-                *in_degree.entry(task.id.clone()).or_insert(0) += 1;
-            }
-        }
-
-        let mut result = Vec::new();
+        let mut stages = Vec::new();
+        let mut nodes: HashMap<String, ExecutionNode> = HashMap::new();
         let mut current_level: Vec<String> = in_degree
             .iter()
             .filter(|(_, &degree)| degree == 0)
             .map(|(id, _)| id.clone())
             .collect();
 
+        let mut stage_idx = 0;
+
         while !current_level.is_empty() {
-            result.push(current_level.clone());
+            stages.push(current_level.clone());
+
+            for task_id in &current_level {
+                nodes.insert(
+                    task_id.clone(),
+                    ExecutionNode {
+                        id: task_id.clone(),
+                        stage: stage_idx,
+                        parents: reverse_graph.get(task_id).cloned().unwrap_or_default(),
+                        children: graph.get(task_id).cloned().unwrap_or_default(),
+                    },
+                );
+            }
 
             let mut next_level = Vec::new();
             for task_id in &current_level {
-                // For each task we just completed, reduce in-degree of its dependents
                 if let Some(dependents) = graph.get(task_id) {
                     for dependent in dependents {
                         if let Some(degree) = in_degree.get_mut(dependent) {
@@ -492,16 +556,17 @@ impl GenAIEvalProfile {
             }
 
             current_level = next_level;
+            stage_idx += 1;
         }
 
         let total_tasks = self.assertion_tasks.len() + self.llm_judge_tasks.len();
-        let processed_tasks: usize = result.iter().map(|level| level.len()).sum();
+        let processed_tasks: usize = stages.iter().map(|level| level.len()).sum();
 
         if processed_tasks != total_tasks {
             return Err(ProfileError::CircularDependency);
         }
 
-        Ok(result)
+        Ok(ExecutionPlan { stages, nodes })
     }
 
     pub fn print_execution_plan(&self) -> Result<(), ProfileError> {
@@ -514,7 +579,7 @@ impl GenAIEvalProfile {
 
         let mut conditional_count = 0;
 
-        for (level_idx, level) in plan.iter().enumerate() {
+        for (level_idx, level) in plan.stages.iter().enumerate() {
             let stage_label = format!("Stage {}", level_idx + 1);
             println!("\n{}", stage_label.bold().cyan());
 
@@ -618,7 +683,7 @@ impl GenAIEvalProfile {
             "{}: {} tasks across {} stages",
             "Summary".bold(),
             self.assertion_tasks.len() + self.llm_judge_tasks.len(),
-            plan.len()
+            plan.stages.len()
         );
 
         if conditional_count > 0 {
