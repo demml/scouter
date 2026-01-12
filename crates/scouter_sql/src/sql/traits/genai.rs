@@ -71,6 +71,7 @@ pub trait GenAIDriftSqlLogic {
             .bind(record.failed_tasks)
             .bind(record.pass_rate)
             .bind(record.duration_ms)
+            .bind(Json(&record.execution_plan))
             .execute(pool)
             .await
             .map_err(SqlError::SqlxError)

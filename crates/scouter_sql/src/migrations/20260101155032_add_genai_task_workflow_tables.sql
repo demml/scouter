@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS scouter.genai_eval_workflow (
     failed_tasks INTEGER NOT NULL,
     pass_rate DOUBLE PRECISION NOT NULL,
     duration_ms BIGINT,
+    execution_plan JSONB NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     archived BOOLEAN DEFAULT FALSE,
     PRIMARY KEY (created_at, record_uid),

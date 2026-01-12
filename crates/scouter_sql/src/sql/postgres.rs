@@ -250,6 +250,7 @@ mod tests {
     use rand::Rng;
     use scouter_semver::VersionType;
     use scouter_settings::ObjectStorageSettings;
+    use scouter_types::genai::ExecutionPlan;
     use scouter_types::psi::{Bin, BinType, PsiDriftConfig, PsiFeatureDriftProfile};
     use scouter_types::spc::SpcDriftProfile;
     use scouter_types::sql::TraceFilters;
@@ -1377,6 +1378,7 @@ mod tests {
                     pass_rate: 0.8,
                     duration_ms: 1500,
                     entity_uid: uid.clone(),
+                    execution_plan: ExecutionPlan::default(),
                 };
                 let result =
                     PostgresClient::insert_genai_eval_workflow_record(&pool, &record, &entity_id)

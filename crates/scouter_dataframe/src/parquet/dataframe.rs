@@ -338,7 +338,7 @@ mod tests {
     async fn test_write_genai_workflow_dataframe_local() {
         cleanup();
         let storage_settings = ObjectStorageSettings::default();
-        let df = ParquetDataFrame::new(&storage_settings, &RecordType::GenAITask).unwrap();
+        let df = ParquetDataFrame::new(&storage_settings, &RecordType::GenAIWorkflow).unwrap();
         let mut batch = Vec::new();
         let start_utc = Utc::now();
         let end_utc_for_test = start_utc + chrono::Duration::hours(3);
@@ -357,6 +357,7 @@ mod tests {
                     pass_rate: 0.8,
                     duration_ms: 1500,
                     entity_uid: format!("entity_uid_{entity_id}"),
+                    execution_plan: scouter_types::genai::ExecutionPlan::default(),
                 });
 
                 batch.push(record);

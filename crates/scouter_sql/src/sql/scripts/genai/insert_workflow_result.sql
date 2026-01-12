@@ -6,7 +6,8 @@ INSERT INTO scouter.genai_eval_workflow (
     passed_tasks,
     failed_tasks,
     pass_rate,
-    duration_ms
+    duration_ms,
+    execution_plan
 )
 VALUES (
     $1,  -- created_at: timestamptz
@@ -16,6 +17,7 @@ VALUES (
     $5,  -- passed_tasks: integer
     $6,  -- failed_tasks: integer
     $7,  -- pass_rate: double precision
-    $8   -- duration_ms: integer
+    $8,  -- duration_ms: integer
+    $9   -- execution_plan: jsonb
 )
 ON CONFLICT DO NOTHING;
