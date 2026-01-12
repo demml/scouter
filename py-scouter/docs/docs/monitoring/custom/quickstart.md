@@ -26,8 +26,8 @@ if __name__ == "__main__":
         CustomMetric(
             name="mape",
             value=2,
-            alert_threshold=AlertThreshold.Outside,
-            alert_threshold_value=0.5,
+            threshold=AlertThreshold.Outside,
+            delta=0.5,
         ),
     ]
 

@@ -9545,6 +9545,7 @@ def init_tracer(
     transport_config: Optional[HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig | GrpcConfig] = None,
     exporter: Optional[HttpSpanExporter | GrpcSpanExporter | StdoutSpanExporter | TestSpanExporter] = None,
     batch_config: Optional[BatchConfig] = None,
+    sample_ratio: Optional[float] = None,
 ) -> None:
     """
     Initialize the tracer for a service with dual export capability.
@@ -9644,6 +9645,11 @@ def init_tracer(
 
             Batching improves performance for high-throughput applications.
 
+        sample_ratio (float | None):
+            Sampling ratio for tracing. A value between 0.0 and 1.0.
+            All provided values are clamped between 0.0 and 1.0.
+            If None, all spans are sampled (no sampling).
+
     Examples:
         Basic setup (Scouter only via HTTP):
             >>> init_tracer(service_name="my-service")
@@ -9737,6 +9743,36 @@ class ActiveSpan:
                 Can be any serializable type or pydantic `BaseModel`.
         """
 
+    def add_queue_item(
+        self,
+        alias: str,
+        item: Union[Features, Metrics, GenAIEvalRecord],
+    ) -> None:
+        """Helpers to add queue entities into a specified queue associated with the active span.
+        This is an convenience method that abstracts away the details of queue management and
+        leverages tracing's sampling capabilities to control data ingestion. Thus, correlated queue
+        records and spans/traces can be sampled together based on the same sampling decision.
+
+        Args:
+            alias (str):
+                Alias of the queue to add the item into.
+            item (Union[Features, Metrics, GenAIEvalRecord]):
+                Item to add into the queue.
+                Can be an instance for Features, Metrics, or GenAIEvalRecord.
+
+        Example:
+            ```python
+            features = Features(
+                features=[
+                    Feature("feature_1", 1),
+                    Feature("feature_2", 2.0),
+                    Feature("feature_3", "value"),
+                ]
+            )
+            span.add_queue_item(alias, features)
+            ```
+        """
+
     def set_status(self, status: str, description: Optional[str] = None) -> None:
         """Set the status of the active span.
 
@@ -9801,6 +9837,16 @@ class BaseTracer:
                 The name of the service for tracing.
         """
 
+    def set_scouter_queue(self, queue: "ScouterQueue") -> None:
+        """Add a ScouterQueue to the tracer. This allows the tracer to manage
+        and export queue entities in conjunction with span data for correlated
+        monitoring and observability.
+
+        Args:
+            queue (ScouterQueue):
+                The ScouterQueue instance to add.
+        """
+
     def start_as_current_span(
         self,
         name: str,
@@ -9812,6 +9858,7 @@ class BaseTracer:
         parent_context_id: Optional[str] = None,
         trace_id: Optional[str] = None,
         span_id: Optional[str] = None,
+        remote_sampled: Optional[bool] = None,
     ) -> ActiveSpan:
         """Context manager to start a new span as the current span.
 
@@ -9835,6 +9882,8 @@ class BaseTracer:
                 when linking spans across different services or systems.
             span_id (Optional[str]):
                 Optional span ID to associate with the span. This will be the parent span ID.
+            remote_sampled (Optional[bool]):
+                Optional flag indicating if the span was sampled remotely.
         Returns:
             ActiveSpan:
         """
@@ -9898,6 +9947,9 @@ class BaseTracer:
                 The current active span.
                 Raises an error if no active span exists.
         """
+
+    def shutdown(self) -> None:
+        """Shutdown the tracer and flush any remaining spans."""
 
 def get_current_active_span(self) -> ActiveSpan:
     """Get the current active span.
@@ -11141,6 +11193,9 @@ class TraceSpansResponse:
 
     spans: List[TraceSpan]
 
+    def get_span_by_name(self, span_name: str) -> Optional[TraceSpan]:
+        """Retrieve a span by its name."""
+
 class TraceBaggageResponse:
     """Response structure containing trace baggage records."""
 
@@ -11340,6 +11395,13 @@ class ScouterClient:
 
         Returns:
             Drift map of type BinnedMetrics | BinnedPsiFeatureMetrics | BinnedSpcFeatureMetrics
+        """
+
+    def get_genai_task_binned_drift(self, drift_request: DriftRequest) -> Any:
+        """Get GenAI task drift map from server
+        Args:
+            drift_request:
+                DriftRequest object
         """
 
     def register_profile(self, profile: Any, set_active: bool = False, deactivate_others: bool = False) -> bool:
@@ -11924,12 +11986,12 @@ class Metrics:
 class Queue:
     """Individual queue associated with a drift profile"""
 
-    def insert(self, entity: Union[Features, Metrics, GenAIEvalRecord]) -> None:
+    def insert(self, item: Union[Features, Metrics, GenAIEvalRecord]) -> None:
         """Insert a record into the queue
 
         Args:
-            entity:
-                Entity to insert into the queue.
+            item:
+                Item to insert into the queue.
                 Can be an instance for Features, Metrics, or GenAIEvalRecord.
 
         Example:
@@ -13379,7 +13441,7 @@ class GenAIDriftConfig:
         space: str = "__missing__",
         name: str = "__missing__",
         version: str = "0.1.0",
-        sample_rate: int = 5,
+        sample_ratio: float = 1.0,
         alert_config: GenAIAlertConfig = GenAIAlertConfig(),
     ):
         """Initialize drift config
@@ -13390,8 +13452,9 @@ class GenAIDriftConfig:
                 Name to associate with the config
             version:
                 Version to associate with the config. Defaults to 0.1.0
-            sample_rate:
-                Sample rate for GenAI drift detection. Defaults to 5.
+            sample_ratio:
+                Sample rate percentage for data collection. Must be between 0.0 and 1.0.
+                Defaults to 1.0 (100%).
             alert_config:
                 Custom metric alert configuration
         """
@@ -14116,7 +14179,7 @@ class GenAIEvalProfile:
         ...     space="production",
         ...     name="chatbot",
         ...     version="1.0",
-        ...     sample_rate=10
+        ...     sample_ratio=10
         ... )
         >>>
         >>> tasks = [

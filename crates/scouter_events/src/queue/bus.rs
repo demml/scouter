@@ -8,7 +8,7 @@ use tokio::task::JoinHandle;
 use tokio::time::Duration;
 use tokio::{sync::mpsc::UnboundedSender, task::AbortHandle};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, instrument, warn};
+use tracing::{debug, error, instrument, warn};
 
 #[derive(Debug)]
 pub enum Event {
@@ -228,10 +228,11 @@ impl QueueBus {
     ///
     /// # Arguments
     /// * `event` - The event to publish
-    pub fn insert(&self, entity: &Bound<'_, PyAny>) -> Result<(), PyEventError> {
-        let entity = QueueItem::from_py_entity(entity)?;
-        debug!("Inserting event into QueueBus: {:?}", entity);
-        let event = Event::Task(entity);
+    pub fn insert(&self, item: &Bound<'_, PyAny>) -> Result<(), PyEventError> {
+        let item = QueueItem::from_py_entity(item)
+            .inspect_err(|e| error!("Failed to convert entity to QueueItem: {}", e))?;
+        debug!("Inserting event into QueueBus: {:?}", item);
+        let event = Event::Task(item);
         self.publish(event)?;
         Ok(())
     }

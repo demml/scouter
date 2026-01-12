@@ -33,6 +33,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 use pyo3::IntoPyObjectExt;
 use scouter_events::queue::types::TransportConfig;
+use scouter_events::queue::ScouterQueue;
 use scouter_settings::http::HttpConfig;
 
 use scouter_types::{
@@ -43,7 +44,7 @@ use scouter_types::{
 };
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock, RwLock};
-use tracing::{debug, info, instrument};
+use tracing::{debug, info, instrument, warn};
 
 /// Global static instance of the tracer provider.
 static TRACER_PROVIDER_STORE: RwLock<Option<Arc<SdkTracerProvider>>> = RwLock::new(None);
@@ -170,6 +171,7 @@ fn get_trace_metadata_store() -> &'static TraceMetadataStore {
     transport_config=None,
     exporter=None,
     batch_config=None,
+    sample_ratio=None,
 ))]
 #[instrument(skip_all)]
 #[allow(clippy::too_many_arguments)]
@@ -180,6 +182,7 @@ pub fn init_tracer(
     transport_config: Option<&Bound<'_, PyAny>>,
     exporter: Option<&Bound<'_, PyAny>>,
     batch_config: Option<Py<BatchConfig>>,
+    sample_ratio: Option<f64>,
 ) -> Result<(), TraceError> {
     debug!("Initializing tracer");
     let transport_config = match transport_config {
@@ -189,6 +192,18 @@ pub fn init_tracer(
             let config = HttpConfig::default();
             TransportConfig::Http(config)
         }
+    };
+
+    let clamped_sample_ratio = match sample_ratio {
+        Some(ratio) if (0.0..=1.0).contains(&ratio) => Some(ratio),
+        Some(ratio) => {
+            info!(
+                "Sample ratio {} is out of bounds [0.0, 1.0]. Clamping to valid range.",
+                ratio
+            );
+            Some(ratio.clamp(0.0, 1.0))
+        }
+        None => None,
     };
 
     let batch_config = if let Some(bc) = batch_config {
@@ -214,11 +229,14 @@ pub fn init_tracer(
 
     let scouter_export = ScouterSpanExporter::new(transport_config, &resource)?;
 
-    let span_exporter = if let Some(exporter) = exporter {
+    let mut span_exporter = if let Some(exporter) = exporter {
         SpanExporterNum::from_pyobject(exporter).expect("failed to convert exporter")
     } else {
         SpanExporterNum::default()
     };
+
+    // set the sample ratio on the exporter (this will apply to both OTLP and Scouter exporters)
+    span_exporter.set_sample_ratio(clamped_sample_ratio);
 
     let provider = span_exporter
         .build_provider(resource, scouter_export, batch_config)
@@ -340,6 +358,42 @@ impl ActiveSpan {
         self.with_inner_mut(|inner| inner.span.add_event(name, pairs))
     }
 
+    /// Add an entity into the Scouter queue associated with this span
+    /// # Arguments
+    /// * `alias` - The queue alias to add into
+    /// * `item` - The item to add
+    /// # Returns
+    /// * `Result<(), TraceError>` - Ok if successful, Err otherwise
+    fn add_queue_item(
+        &self,
+        py: Python<'_>,
+        alias: String,
+        item: &Bound<'_, PyAny>,
+    ) -> Result<(), TraceError> {
+        // check if sampling allows for this span to be sent
+        self.with_inner(
+            |inner| match &inner.span.span_context().trace_flags().is_sampled() {
+                true => {
+                    if let Some(queue) = &inner.queue {
+                        let bound_queue = queue.bind(py).get_item(&alias)?;
+                        bound_queue.call_method1("insert", (item,))?;
+                        Ok(())
+                    } else {
+                        warn!(
+                            "Queue not initialized for span {}. Skipping",
+                            inner.context_id
+                        );
+                        Ok(())
+                    }
+                }
+                false => {
+                    debug!("Span is not sampled, skipping insert into queue");
+                    Ok(())
+                }
+            },
+        )?
+    }
+
     /// Set the status of the span
     /// # Arguments
     /// * `status` - The status string ("ok", "error", or "unset")
@@ -407,6 +461,7 @@ impl ActiveSpan {
             let context_id = inner.context_id.clone();
             let trace_id = inner.span.span_context().trace_id().to_string();
             let context_token = inner.context_token.take();
+            inner.queue.take();
 
             (context_id, trace_id, context_token)
         };
@@ -488,6 +543,7 @@ impl ActiveSpan {
 #[pyclass(subclass)]
 pub struct BaseTracer {
     tracer: SdkTracer,
+    queue: Option<Py<ScouterQueue>>,
 }
 
 impl BaseTracer {
@@ -559,10 +615,28 @@ impl BaseTracer {
 #[pymethods]
 impl BaseTracer {
     #[new]
-    #[pyo3(signature = (name))]
-    fn new(name: String) -> Result<Self, TraceError> {
+    #[pyo3(signature = (name, queue=None))]
+    fn new(name: String, queue: Option<Py<ScouterQueue>>) -> Result<Self, TraceError> {
         let tracer = get_tracer(name)?;
-        Ok(BaseTracer { tracer })
+
+        //
+        Ok(BaseTracer { tracer, queue })
+    }
+
+    pub fn set_scouter_queue(
+        &mut self,
+        py: Python<'_>,
+        queue: Py<ScouterQueue>,
+    ) -> Result<(), TraceError> {
+        // if queue is not none, we set sample_ratio to 1.0 to ensure we override the drift profile sampling ratio
+        // this mainly applies to genai evaluations as each insert checks if an eval record should be sampled
+        // When we use tracing, we want to let tracing control the sampling decision, so we need to set the queue
+        // sample ratio to 1.0 so that all events that the tracer samples are sent to the queue
+        let bound_queue = queue.bind(py);
+        bound_queue.call_method1("_set_sample_ratio", (1.0,))?;
+
+        self.queue = Some(queue);
+        Ok(())
     }
 
     /// Start a span and set it as the current span
@@ -602,7 +676,6 @@ impl BaseTracer {
             let parsed_span_id = SpanId::from_hex(sid)?; // This is the PARENT's span_id
 
             // Create remote context that says:
-            // "My parent is span_id in trace_id, and it's from another service"
             let remote_span_context = SpanContext::new(
                 parsed_trace_id, // The shared trace ID
                 parsed_span_id,  // The parent span's ID
@@ -643,13 +716,6 @@ impl BaseTracer {
             .span_builder(name.clone())
             .with_kind(kind.to_otel_span_kind());
 
-        // Conditionally set trace_id if provided
-        //if let Some(trace_id) = trace_id {
-        //    let parsed_trace_id = opentelemetry::trace::TraceId::from_hex(&trace_id)
-        //        .map_err(|e| TraceError::InitializationError(format!("Invalid trace_id: {}", e)))?;
-        //    span_builder = span_builder.with_trace_id(parsed_trace_id);
-        //}
-
         let mut span = BoxedSpan::new(span_builder.start_with_context(&self.tracer, &final_ctx));
 
         attributes.iter().for_each(|attr_map| {
@@ -658,7 +724,6 @@ impl BaseTracer {
             });
         });
 
-        // set label if provided
         if let Some(label) = label {
             span.set_attribute(KeyValue::new(SCOUTER_TRACING_LABEL, label));
         }
@@ -669,6 +734,7 @@ impl BaseTracer {
             context_id,
             span,
             context_token: None,
+            queue: self.queue.as_ref().map(|q| q.clone_ref(py)),
         }));
 
         // set as current span
@@ -761,7 +827,6 @@ impl BaseTracer {
         Ok(span)
     }
 
-    // remove?
     pub fn shutdown(&self) -> Result<(), TraceError> {
         shutdown_tracer()
     }

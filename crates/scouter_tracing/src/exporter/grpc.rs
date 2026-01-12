@@ -87,6 +87,10 @@ impl SpanExporterBuilder for GrpcSpanExporter {
         self.sample_ratio
     }
 
+    fn set_sample_ratio(&mut self, sample_ratio: Option<f64>) {
+        self.sample_ratio = sample_ratio;
+    }
+
     fn batch_export(&self) -> bool {
         self.batch_export
     }

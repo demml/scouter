@@ -48,6 +48,9 @@ pub enum TraceError {
 
     #[error(transparent)]
     ParseIntError(#[from] std::num::ParseIntError),
+
+    #[error("Queue not initialized")]
+    QueueNotInitialized,
 }
 
 impl From<TraceError> for PyErr {

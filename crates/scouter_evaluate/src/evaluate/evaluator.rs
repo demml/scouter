@@ -650,7 +650,7 @@ mod tests {
         let alert_config = GenAIAlertConfig::default();
 
         let drift_config =
-            GenAIDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
+            GenAIDriftConfig::new("scouter", "ML", "0.1.0", 1.0, alert_config, None).unwrap();
 
         GenAIEvalProfile::new(drift_config, tasks).await.unwrap()
     }
@@ -701,7 +701,7 @@ mod tests {
         let alert_config = GenAIAlertConfig::default();
 
         let drift_config =
-            GenAIDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
+            GenAIDriftConfig::new("scouter", "ML", "0.1.0", 1.0, alert_config, None).unwrap();
 
         GenAIEvalProfile::new(drift_config, tasks).await.unwrap()
     }

@@ -1,6 +1,6 @@
 {
   "config": {
-    "sample_rate": 1,
+    "sample_ratio": 1,
     "space": "scouter",
     "name": "genai_metrics",
     "version": "0.0.1",

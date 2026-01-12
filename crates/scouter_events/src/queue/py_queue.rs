@@ -9,7 +9,7 @@ use crate::queue::spc::SpcQueue;
 use crate::queue::traits::queue::wait_for_background_task;
 use crate::queue::traits::queue::wait_for_event_task;
 use crate::queue::traits::queue::QueueMethods;
-use crate::queue::types::TransportConfig;
+use crate::queue::types::{QueueSettings, TransportConfig};
 use pyo3::prelude::*;
 use scouter_state::app_state;
 use scouter_types::{DriftProfile, GenAIEvalRecord, QueueItem};
@@ -52,6 +52,7 @@ impl QueueNum {
         transport_config: TransportConfig,
         drift_profile: DriftProfile,
         task_state: &mut TaskState,
+        queue_settings: Option<Arc<RwLock<QueueSettings>>>,
     ) -> Result<Self, EventError> {
         let identifier = drift_profile.identifier();
         match drift_profile {
@@ -71,7 +72,16 @@ impl QueueNum {
                 Ok(QueueNum::Custom(queue))
             }
             DriftProfile::GenAI(genai_profile) => {
-                let queue = GenAIQueue::new(genai_profile, transport_config).await?;
+                // settings cannot be None here
+                let queue_settings = match queue_settings {
+                    Some(s) => s,
+                    None => {
+                        return Err(EventError::MissingQueueSettingsError);
+                    }
+                };
+
+                let queue =
+                    GenAIQueue::new(genai_profile, transport_config, queue_settings).await?;
                 Ok(QueueNum::GenAI(queue))
             }
         }
@@ -162,6 +172,7 @@ async fn spawn_queue_event_handler(
     id: String,
     mut task_state: TaskState,
     cancellation_token: CancellationToken,
+    queue_settings: Option<Arc<RwLock<QueueSettings>>>,
 ) -> Result<(), EventError> {
     // This will create the specific queue based on the transport config and drift profile
     // Available queues:
@@ -170,7 +181,14 @@ async fn spawn_queue_event_handler(
     // - Custom - will also create a background task
     // - LLM
     // event loops are used to monitor the background tasks of both custom and PSI queues
-    let mut queue = match QueueNum::new(transport_config, drift_profile, &mut task_state).await {
+    let mut queue = match QueueNum::new(
+        transport_config,
+        drift_profile,
+        &mut task_state,
+        queue_settings,
+    )
+    .await
+    {
         Ok(q) => q,
         Err(e) => {
             error!("Failed to initialize queue {}: {}", id, e);
@@ -245,6 +263,9 @@ async fn spawn_queue_event_handler(
 pub struct ScouterQueue {
     queues: HashMap<String, Py<QueueBus>>,
     transport_config: TransportConfig,
+    // this is used to update settings for a particular queue
+    // Key is the alias of the queue
+    settings: HashMap<String, Arc<RwLock<QueueSettings>>>,
     pub queue_state: Arc<HashMap<String, TaskState>>,
 }
 
@@ -344,6 +365,19 @@ impl ScouterQueue {
 
         Ok(())
     }
+
+    /// Update the sample ratio for all queues
+    pub fn _set_sample_ratio(&self, sample_ratio: f64) -> Result<(), PyEventError> {
+        for (alias, settings) in self.settings.iter() {
+            debug!(
+                "Updating sample ratio for queue {} to {}",
+                alias, sample_ratio
+            );
+            let mut settings_write = settings.write().unwrap();
+            settings_write.update_sample_ratio(sample_ratio);
+        }
+        Ok(())
+    }
 }
 
 impl ScouterQueue {
@@ -376,6 +410,7 @@ impl ScouterQueue {
         debug!("Creating ScouterQueue from path");
         let mut queues = HashMap::new();
         let mut queue_state = HashMap::new();
+        let mut queue_settings = HashMap::new();
 
         // assert transport config is not None
         if transport_config.is_none() {
@@ -390,6 +425,18 @@ impl ScouterQueue {
         for (id, profile_path) in path {
             let cloned_config = config.clone();
             let drift_profile = DriftProfile::from_profile_path(profile_path)?;
+
+            // if drift_profile is of dritfype GenAI, create queue settings
+            let settings = if let DriftProfile::GenAI(genai_profile) = &drift_profile {
+                let settings = Arc::new(RwLock::new(QueueSettings::new(
+                    id.clone(),
+                    genai_profile.config.sample_ratio,
+                )));
+                queue_settings.insert(id.clone(), settings.clone());
+                Some(settings)
+            } else {
+                None
+            };
 
             let (mut event_state, event_rx) = create_event_state(id.clone());
 
@@ -413,6 +460,7 @@ impl ScouterQueue {
                     id_clone,
                     cloned_event_state,
                     cloned_cancellation_token,
+                    settings,
                 )
                 .await
                 {
@@ -444,6 +492,7 @@ impl ScouterQueue {
             queues,
             transport_config: config,
             queue_state: Arc::new(queue_state),
+            settings: queue_settings,
         })
     }
 }

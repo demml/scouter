@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
+use tracing::error;
 
 #[pyclass]
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -391,7 +392,10 @@ pub enum QueueItem {
 impl QueueItem {
     /// Helper for extracting an Entity from a Python object
     pub fn from_py_entity(entity: &Bound<'_, PyAny>) -> Result<Self, TypeError> {
-        let entity_type = entity.getattr("entity_type")?.extract::<EntityType>()?;
+        let entity_type = entity
+            .getattr("entity_type")?
+            .extract::<EntityType>()
+            .inspect_err(|e| error!("Failed to extract entity type: {}", e))?;
 
         match entity_type {
             EntityType::Feature => {

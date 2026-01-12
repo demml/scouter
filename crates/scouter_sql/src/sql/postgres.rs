@@ -95,11 +95,12 @@ impl MessageHandler {
         pool: &Pool<Postgres>,
         records: ServerRecords,
     ) -> Result<(), SqlError> {
-        info!("Inserting server records: {:?}", records.record_type()?);
+        debug!("Inserting server records: {:?}", records.record_type()?);
 
         let entity_id = entity_cache()
             .get_entity_id_from_uid(pool, records.uid()?)
-            .await?;
+            .await
+            .inspect_err(|e| error!("Failed to get entity ID from UID: {:?}", e))?;
 
         match records.record_type()? {
             RecordType::Spc => {

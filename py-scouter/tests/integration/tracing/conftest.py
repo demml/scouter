@@ -18,7 +18,7 @@ from scouter.tracing import (
 from scouter.transport import GrpcConfig
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def http_span_exporter():
     """Create a fresh http span exporter for each test.
     This should write to the otel collector
@@ -32,7 +32,7 @@ def http_scouter_server():
         yield server
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def setup_tracer_http(http_span_exporter):
     """Initialize tracer with http exporter for each test."""
     with ScouterTestServer() as server:
@@ -46,7 +46,7 @@ def setup_tracer_http(http_span_exporter):
         shutdown_tracer()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def grpc_span_exporter():
     """Create a fresh grpc span exporter for each test.
     This should write to the otel collector
@@ -54,7 +54,7 @@ def grpc_span_exporter():
     return GrpcSpanExporter()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def setup_tracer_grpc(grpc_span_exporter):
     """Initialize tracer with grpc exporter for each test."""
     with ScouterTestServer() as server:
@@ -69,15 +69,16 @@ def setup_tracer_grpc(grpc_span_exporter):
         shutdown_tracer()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def setup_tracer_grpc_sample():
     """Initialize tracer with grpc exporter for each test."""
     with ScouterTestServer() as server:
         init_tracer(
             service_name="tracing-grpc-sample",
             transport_config=GrpcConfig(),
-            exporter=GrpcSpanExporter(sample_ratio=0.2),
+            exporter=GrpcSpanExporter(),
             batch_config=BatchConfig(scheduled_delay_ms=200),
+            sample_ratio=0.2,
         )
         yield get_tracer("test-service-grpc"), server
 

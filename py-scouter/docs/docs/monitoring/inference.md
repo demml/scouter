@@ -202,29 +202,39 @@ Metrics(my_metrics.model_dump())
 
 
 #### GenAIEvalRecord
-The `GenAIEvalRecord` object is used to send LLM records to the Scouter server for monitoring. It contains the input, response, and context of the LLM service. You can create an `GenAIEvalRecord` object by passing the input, response, and context as parameters.
+The `GenAIEvalRecord` object is used to send GenAI service records to the Scouter server for online evaluation. It contains a context map of keys and relevant values for your GenAI service. For instance, if you are monitoring a question-answering service, you might want to include the following fields in your context:
+- `input`: The input question to the GenAI service
+- `response`: The response from the GenAI service
 
 **Note**
 
- Input, response and context should be serializable types (i.e. strings, numbers, lists, dictionaries). If you want to send more complex objects, you can use the `to_json` method to convert them to a JSON string. In addition, all of these fields will be injected into your LLM metric prompts on the server side, so if your prompts expect `${input}` or `${response}`, you can use these fields to populate them.
+ Context keys should match the context variables defined in your GenAIEvalProfile evaluation tasks. Context values can be any JSON serializable type (str, int, float, dict, list, bool, null).
 
 ```python
 
+# dictionary context
 record = GenAIEvalRecord(
-    input="What is the capital of France?",
-    response="Paris is the capital of France.",
-    context={"foo": "bar"}
+    context={
+        "input": "What is the capital of France?",
+        "response": "The capital of France is Paris.",
+    }
 )
+
+# pydantic model context (must be JSON serializable)
+from pydantic import BaseModel
+class QARecord(BaseModel):
+    input: str
+    response: str
+
+qa_record = QARecord(
+    input="What is the capital of France?",
+    response="The capital of France is Paris.",
+)
+
+record = GenAIEvalRecord(context=qa_record)
 ```
 
-GenAIEvalRecord Arguments
-
-| `Argument` | `Type` | `Description` |
-|------------|--------|----------------|
-| `input` | `str | int | float | dict | list` | The input to the LLM service. This could be something like a user question |
-| `response` | `str | int | float | dict | list` | The response from the LLM service. This could be something like the answer to the user question |
-| `context` | `Dict[str, Any]` | The context for the LLM service (if any). The keys should map to the context variables in your LLM metric prompts |
-| `prompt` | `Prompt str | int | float | dict | list` | The prompt used to generate the response |
+For more information on creating `GenAIEvalRecord` objects, please refer to the [GenAI Tasks Documentation](/scouter/docs/monitoring/genai/tasks/).
 
 ### Ready to go!
 

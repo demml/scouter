@@ -448,7 +448,7 @@ impl TestHelper {
         let alert_config = GenAIAlertConfig::default();
 
         let drift_config =
-            GenAIDriftConfig::new(SPACE, NAME, VERSION, 25, alert_config, None).unwrap();
+            GenAIDriftConfig::new(SPACE, NAME, VERSION, 1.0, alert_config, None).unwrap();
 
         GenAIEvalProfile::new(drift_config, tasks).await.unwrap()
     }

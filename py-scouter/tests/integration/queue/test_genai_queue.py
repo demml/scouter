@@ -51,7 +51,6 @@ def test_genai_record():
 
     record = GenAIEvalRecord(
         context={"foo": "bar", "value": 1},
-        prompt=system_prompt,
     )
 
     # test with pydantic model
@@ -59,10 +58,7 @@ def test_genai_record():
         input="What is the capital of France?",
         response="Paris is the capital of France.",
     )
-    record = GenAIEvalRecord(
-        context=context,
-        prompt=system_prompt,
-    )
+    record = GenAIEvalRecord(context=context)
 
     assert record.context["input"] == "What is the capital of France?"
     assert record.context["response"] == "Paris is the capital of France."
@@ -70,6 +66,6 @@ def test_genai_record():
     # pass incorrect type for context
     with pytest.raises(
         RuntimeError,
-        match=re.escape("Invalid context type. Context must be a PyDict or a Pydantic BaseModel"),
+        match=re.escape("Invalid context type. Context must be dictionary or Pydantic BaseModel"),
     ):
         GenAIEvalRecord(context="This is a string, not a dict or pydantic model")

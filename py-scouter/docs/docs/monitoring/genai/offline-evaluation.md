@@ -1,332 +1,680 @@
-## GenAI Evaluation
+## Offline GenAI Evaluation with Scouter
 
-In addition to real-time or online monitoring of GenAI services, Scouter provides you with tools to run offline GenAI evaluations. This is is often useful for when you (1) want to compare and benchmark various prompts, and (2) you want to evaluate different versions of prompts and GenAI services that you may already be using in production. Even more, we've desinged our offline evaluation system to have parity with our on-line evaluation/monitoring system, so that you can easily migrate your evaluation tasks to real-time monitoring when you are ready.
+This guide demonstrates how to perform offline batch evaluations of GenAI services using Scouter's evaluation framework. We'll walk through a real-world example of evaluating a home appliance customer service agent across different product categories.
 
-## Getting Started
+## Overview
 
-To run and GenAI evaluation, you will first need to obtain your evaluation data and construct a list of `GenAIEvalRecord` instances. Each `GenAIEvalRecord` represents a single evaluation instance, containing the metadata you wish to evaluate. Note, we have left this intentionally flexible so that you can evaluate any type of metadata you wish.
-Another way to think of `GenAIEvalRecord` is that it represents a single "call" to your GenAI service that you wish to evaluate (inputs, outputs, etc.).
+Offline evaluation allows you to test and validate your GenAI service's outputs in batch mode before deploying to production. This is essential for:
 
-### Example: Evaluating a Prompt for Query Reformulation
+- **Regression Testing**: Ensure new model versions maintain quality standards
+- **Model Comparison**: Evaluate different models or prompts side-by-side
+- **Quality Assurance**: Validate responses meet domain-specific requirements
+- **Category-Specific Validation**: Apply specialized evaluation logic based on context
 
-#### Step 1: Example Workflow Setup
+## Key Concepts
 
-Let's say you have a use case where you want to evaluate how well a prompt reformulates user search queries and how relevant the answers are to the original user query. The prompts used for this task are shown below and do the following:
+## Evaluation Components
 
-- Take a bound parameter `${user_query}` which is the original user search query
-- Reformulate the query to be more feature-rich and keyword-dense while preserving the original intent
-- Take the `${reformulated_query}` and inject it into an answer prompt to generate a response
+Scouter's offline evaluation framework consists of four main building blocks:
 
-```python
-from scouter.genai import Prompt, Provider
+- **GenAIEvalRecord**: Contains the context (input/output pairs) to evaluate
+- **GenAIEvalDataset**: Collection of records and evaluation tasks
+- **LLMJudgeTask**: Uses an LLM to evaluate injected context
+- **AssertionTask**: Validates specific conditions without LLM calls
+- **Task Dependencies and Conditional Execution**: Tasks can depend on other tasks, creating an evaluation workflow. Use the condition parameter on tasks to create branching logic:
 
-reformulation_prompt = Prompt(
-    messages=(
-        "You are an expert at query reformulation. Your task is to take a user's original search query "
-        "and rewrite it to be more feature-rich and keyword-dense, so it better aligns with the user's intent "
-        "and improves search results.\n\n"
-        "Guidelines:\n"
-        "- Expand abbreviations and clarify ambiguous terms.\n"
-        "- Add relevant synonyms, related concepts, and specific features.\n"
-        "- Preserve the original intent, but make the query more explicit and comprehensive.\n"
-        "- Do not change the meaning of the query.\n"
-        "- Return only the reformulated query.\n\n"
-        "User Query:\n"
-        "${user_query}\n\n"
-        "Reformulated Query:"
-    ),
-    model="gemini-2.5-flash-lite",
-    provider="gemini",
-)
+    - When condition=True, the task acts as a conditional gate
+    - Downstream tasks only execute if the conditional task passes
+    - This enables category-specific validation paths in a single dataset
 
-answer_prompt = Prompt(
-    messages=(
-        "You are a helpful assistant that can answer any question! "
-        "Please provide an answer to the following user query.\n\n"
-        "Question:\n"
-        "${reformulated_query}\n\n"
-        "Answer:"
-    ),
-    model="gemini-2.5-flash-lite",
-    provider="gemini",
-)
-```
+## Example: Home Appliance Customer Service Evaluation
 
-The overall flow for using these prompts would look like:
+Let's build an evaluation system for a customer service agent that handles questions about kitchen, bath, and outdoor appliances.
 
-```mermaid
-flowchart TD
-subgraph A["Question Answer Agent"]
-    direction LR
-    User_Query --> Reformulation_Prompt
-    Reformulation_Prompt --> Reformulated_Query
-    Reformulated_Query --> Answer_Prompt
-    Answer_Prompt --> Answer
-end
-```
+### Step 1: Generate Test Data
 
-#### Step 2: Create an `GenAIEvalMetric` to Evaluate the Prompt
-
-Now say you want to (1) evaluate how well the prompt reformulates user queries into better-structured queries and (2) how relevant the provided answer is to the user input. In this scenario, imagine you already have a dataset of user queries, their reformulated queries, and the returned answers (this could be from an experiment you ran).
-
-To run an evaluation on these records, you would first define a `GenAIEvalDataset` with your examples mapped to `GenAIEvalRecord` records and then define your evaluation tasks using `LLMJudgeTask` and `AssertionTask` to evaluate the reformulation quality and answer relevance.
+First, we simulate customer interactions by generating questions and agent responses. For simplicity, we'll use random generation here, but in practice, you might pull from historical data or a test set. Here we are randomly generating question answer pairs for three categories: kitchen, bath, and outdoor appliances. The questions are designed to be realistic customer inquiries, and the agent responses include answers, product recommendations, and safety notes.
 
 ```python
+
+# imports for entire example
+import random
+from typing import List, Literal, Sequence
+
+from pydantic import BaseModel
 from scouter.evaluate import (
+    AssertionTask,
     ComparisonOperator,
     GenAIEvalDataset,
     LLMJudgeTask,
-    AssertionTask,
 )
-from scouter.genai import Prompt, Score
+from scouter.genai import Agent, Prompt, Provider
+from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 from scouter.queue import GenAIEvalRecord
 
+categories = ["bath", "kitchen", "outdoor"]
+ApplianceCategory = Literal["kitchen", "bath", "outdoor"]
 
-# Define evaluation prompt for reformulation quality
-reformulation_eval_prompt = Prompt(
-    messages=(
-        "You are an expert evaluator of search query relevance. \n"
-        "You will be given a user query and its reformulated version. \n"
-        "Your task is to assess how relevant the reformulated query is to the information needs of the user. \n"
-        "Consider the following criteria:\n"
-        "- Does the query contain relevant keywords and concepts?\n"
-        "- Is the query clear and unambiguous?\n"
-        "- Does the query adequately express the user's intent?\n\n"
-        "Provide your evaluation as a JSON object with the following attributes:\n"
-        "- score: An integer from 1 (poor) to 5 (excellent) indicating the overall reformulation score.\n"
-        "- reason: A brief explanation for your score.\n\n"
-        "Format your response as:\n"
-        "{\n"
-        '  "score": <integer 1-5>,\n'
-        '  "reason": "<your explanation>"\n'
-        "}\n\n"
-        "User Query:\n"
-        "${user_query}\n\n"
-        "Reformulated Query:\n"
-        "${reformulated_query}\n\n"
-        "Evaluation:"
-    ),
-    model="gemini-2.5-flash-lite",
-    provider="gemini",
-    output_type=Score,
+
+class UserQuestion(BaseModel):
+    question: str
+    category: ApplianceCategory
+
+
+class AgentResponse(BaseModel):
+    answer: str
+    product_recommendations: List[str]
+    safety_notes: List[str]
+
+
+class CategoryValidation(BaseModel):
+    category: ApplianceCategory
+    reason: str
+    confidence: float
+
+
+class KitchenExpertValidation(BaseModel):
+    is_suitable: bool
+    reason: str
+    addresses_safety: bool
+    technical_accuracy_score: int
+
+
+class BathExpertValidation(BaseModel):
+    is_suitable: bool
+    reason: str
+    water_safety_addressed: bool
+    installation_guidance_score: int
+
+
+class OutdoorExpertValidation(BaseModel):
+    is_suitable: bool
+    reason: str
+    weather_considerations: bool
+    durability_assessment_score: int
+
+def create_question_generation_prompt() -> Prompt:
+    """
+    Builds a prompt for generating a random appliance-related user question.
+    """
+    return Prompt(
+        messages=(
+            "You are a customer service bot for a home retail company focusing on bath, kitchen, and outdoor. Generate a realistic "
+            "customer question about one of three appliance categories: kitchen, bath, or outdoor.\n\n"
+            "Guidelines:\n"
+            "- Randomly select one category: kitchen (refrigerators, ovens, dishwashers, microwaves), "
+            "bath (water heaters, bathroom fans, towel warmers), or outdoor (grills, patio heaters, "
+            "outdoor lighting, pool equipment)\n"
+            "- Create a specific, detailed question a real customer might ask\n"
+            "- Question should be practical and answerable by a knowledgeable agent\n"
+            "- Include enough context to make the question realistic\n\n"
+            "Generate a customer question for the category: ${category}"
+        ),
+        model="gemini-2.5-flash-lite",
+        provider="gemini",
+        output_type=UserQuestion,
+    )
+
+def create_agent_response_prompt() -> Prompt:
+    """
+    Builds a prompt for answering the user's appliance question.
+    """
+    return Prompt(
+        messages=(
+            "You are a knowledgeable home appliance expert providing customer support. "
+            "Answer the following customer question with accurate, helpful information.\n\n"
+            "Guidelines:\n"
+            "- Provide a clear, detailed answer to the customer's question\n"
+            "- Recommend 2-3 specific products or solutions when appropriate\n"
+            "- Include any relevant safety notes or warnings\n"
+            "- Be professional and friendly\n"
+            "- Use technical terms accurately while remaining accessible\n\n"
+            "Customer Question:\n"
+            "${user_question}\n\n"
+            "Provide your response:"
+        ),
+        model="gemini-2.5-flash-lite",
+        provider="gemini",
+        output_type=AgentResponse,
+    )
+
+def simulate_agent_interaction(num_questions: int) -> List[GenAIEvalRecord]:
+    """Generates user questions and agent responses for appliance support.
+
+    Args:
+        num_questions (int): Number of question/response pairs to generate.
+    Returns:
+        List[GenAIEvalRecord]: Generated evaluation records.
+    """
+    print(f"\n=== Generating {num_questions} Customer Questions ===")
+    question_prompt = create_question_generation_prompt()
+    user_questions: List[UserQuestion] = []
+
+    # create agent to run prompts
+    agent = Agent(Provider.Gemini)
+
+    for i in range(num_questions):
+        random_int = random.randint(0, 2)
+        question = agent.execute_prompt(
+            prompt=question_prompt.bind(category=categories[random_int]),
+            output_type=UserQuestion,
+        ).structured_output
+        user_questions.append(question)
+        print(f"\nQuestion {i + 1} [{question.category}]:")
+        print(f"  {question.question}")
+
+    print("\n=== Generating Agent Responses ===")
+    response_prompt = create_agent_response_prompt()
+    agent_responses: List[AgentResponse] = []
+
+    for i, question in enumerate(user_questions):
+        response = agent.execute_prompt(
+            prompt=response_prompt.bind(user_question=question.question),
+            output_type=AgentResponse,
+        ).structured_output
+        agent_responses.append(response)
+        print(f"\nResponse {i + 1}:")
+        print(f"  Answer: {response.answer[:100]}...")
+        print(f"  Products: {', '.join(response.product_recommendations)}")
+        print(f"  Safety Notes: {len(response.safety_notes)} items")
+
+    records = []
+    for question, response in zip(user_questions, agent_responses):
+        record = GenAIEvalRecord(
+            context={
+                "user_input": question.question,
+                "agent_response": response.model_dump_json(),
+            }
+        )
+        records.append(record)
+
+    return records
+```
+
+### Step 2: Define Evaluation Tasks
+
+**Base Classification Task**
+
+The first task classifies which appliance category the question belongs to. The output of this task will determine which specialized evaluation path to follow.
+The classification task will do the following:
+
+- Parse the injected context for the `GenAIAvalRecord` (**user_input** and **agent_response**)
+- Classify the appliance category (kitchen, bath, outdoor) and provide reasoning with a structured output (`CategoryValidation`)
+
+```python
+
+def create_category_classification_prompt() -> Prompt:
+    """
+    Builds a prompt for classifying the appliance category of the user question.
+    """
+    return Prompt(
+        messages=(
+            "You are an expert in appliance classification. Analyze the user question and agent response "
+            "to determine which appliance category it belongs to.\n\n"
+            "Categories:\n"
+            "- kitchen: refrigerators, ovens, dishwashers, microwaves, small kitchen appliances\n"
+            "- bath: water heaters, bathroom fans, towel warmers, bathroom lighting\n"
+            "- outdoor: grills, patio heaters, outdoor lighting, pool equipment, lawn equipment\n\n"
+            "User Question:\n"
+            "${user_input}\n\n" # (1)
+            "Agent Response:\n"
+            "${agent_response}\n\n" # (2)
+            "Classify the category and provide your reasoning:"
+        ),
+        model="gemini-2.5-flash-lite",
+        provider="gemini",
+        output_type=CategoryValidation,
 )
 
-# Define evaluation prompt for answer relevance
-answer_eval_prompt = Prompt(
-    messages=(
-        "You are an expert evaluator of answer relevance. \n"
-        "You will be given a user query and an answer generated from a reformulated version of that query. \n"
-        "Your task is to assess how relevant and accurate the answer is in addressing the user's original information needs. \n"
-        "Consider the following criteria:\n"
-        "- Does the answer directly address the user's query?\n"
-        "- Is the information provided accurate and reliable?\n"
-        "- Is the answer clear, concise, and well-structured?\n\n"
-        "Provide your evaluation as a JSON object with the following attributes:\n"
-        "- score: An integer from 1 (poor) to 5 (excellent) indicating the overall answer quality score.\n"
-        "- reason: A brief explanation for your score.\n\n"
-        "Format your response as:\n"
-        "{\n"
-        '  "score": <integer 1-5>,\n'
-        '  "reason": "<your explanation>"\n'
-        "}\n\n"
-        "User Query:\n"
-        "${user_query}\n\n" # (1)
-        "Answer:\n"
-        "${answer}\n\n" # (2)
-        "Evaluation:"
-    ),
-    model="gemini-2.5-flash-lite",
-    provider="gemini",
-    output_type=Score, # (3)
+classification_judge_task = LLMJudgeTask(
+    id="category_classification",
+    prompt=create_category_classification_prompt(),
+    expected_value=None,
+    operator=ComparisonOperator.IsNotEmpty,
+    field_path="category",
+    description="Classify the appliance category"
 )
+```
 
-# Create evaluation records
-flight_record = GenAIEvalRecord(
-    context={
-        "user_query": "cheap flights to Europe next month",
-        "reformulated_query": "affordable airfare to Europe next month",
-        "answer": "I found several options for cheap flights to Europe next month.",
-    },
-)
+1. Injected user question from the record context
+2. Injected agent response from the record context
 
-technical_record = GenAIEvalRecord(
-    context={
-        "user_query": "why won't my laptop turn on",
-        "reformulated_query": "laptop computer won't boot power issues troubleshooting steps hardware failure battery power supply diagnostic repair",
-        "answer": "If your laptop won't turn on, try these troubleshooting steps: 1) Check power connections - ensure the charger is plugged in securely and the power outlet works. 2) Remove the battery (if removable) and hold the power button for 30 seconds, then reconnect and try again. 3) Look for LED indicators on the laptop or charger. 4) Try a different power adapter if available. 5) Check for physical damage to ports or cables. 6) If these steps don't work, the issue may be hardware-related (motherboard, RAM, or hard drive failure) requiring professional repair",
-    },
-)
+**Category-Specific Validation Chains**
 
-cooking_record = GenAIEvalRecord(
-    context={
-        "user_query": "easy dinner recipes with chicken",
-        "reformulated_query": "simple quick chicken dinner recipes healthy family-friendly weeknight meals",
-        "answer": "Here are some easy chicken dinner recipes: 1) Baked Lemon Garlic Chicken - Marinate chicken breasts in lemon juice, garlic, olive oil, and herbs, then bake until cooked through. 2) One-Pan Chicken and Veggies - Sauté chicken pieces with mixed vegetables in a skillet with olive oil and your favorite seasonings. 3) Chicken Stir-Fry - Cook sliced chicken with colorful veggies in a wok or large pan, adding soy sauce and ginger for flavor. 4) Chicken Tacos - Season shredded chicken with taco seasoning and serve in tortillas with your favorite toppings. 5) Chicken Alfredo Pasta - Toss cooked pasta with grilled chicken and a creamy Alfredo sauce for a quick and satisfying meal.",
-    },
-)
+Each category has its own validation chain that only executes if the record belongs to that category:
 
-# Create the evaluation dataset with tasks
-dataset = GenAIEvalDataset(
-    records=[flight_record, technical_record, cooking_record],
-    tasks=[
+
+#### Kitchen Appliance Validation Chain
+
+```python
+def create_kitchen_expert_prompt() -> Prompt:
+    """
+    Builds a prompt for a kitchen appliance expert to evaluate the response.
+    """
+    return Prompt(
+        messages=(
+            "You are a certified kitchen appliance specialist with 15 years of experience in "
+            "residential kitchen equipment. Evaluate whether the agent's response is suitable "
+            "and accurate for this kitchen appliance question.\n\n"
+            "Evaluation Criteria:\n"
+            "- Technical accuracy of information provided\n"
+            "- Appropriate product recommendations for kitchen use\n"
+            "- Safety considerations (electrical, fire, food safety)\n"
+            "- Proper installation and maintenance guidance\n\n"
+            "User Question:\n"
+            "${user_input}\n\n"
+            "Agent Response:\n"
+            "${agent_response}\n\n"
+            "Provide your expert evaluation with:\n"
+            "- is_suitable: boolean indicating if response is appropriate\n"
+            "- reason: detailed explanation of your assessment\n"
+            "- addresses_safety: whether critical safety information is included\n"
+            "- technical_accuracy_score: score from 1-10 on technical correctness\n\n"
+            "Evaluation:"
+        ),
+        model="gemini-2.5-flash-lite",
+        provider="gemini",
+        output_type=KitchenExpertValidation,
+    )
+
+def kitchen_category_tasks() -> List[LLMJudgeTask | AssertionTask]:
+    """
+    Builds the evaluation tasks specific to the kitchen appliance category.
+
+    Steps:
+        1. Conditional check to see if the category is "kitchen"
+        2. Expert validation using LLMJudgeTask
+        3. Technical accuracy assertion
+    """
+    return [
+        # Conditional check - only proceed if category is "kitchen"
+        AssertionTask(
+            id="is_kitchen_category",
+            field_path="category_classification.category",
+            operator=ComparisonOperator.Equals,
+            expected_value="kitchen",
+            description="Check if categorized as kitchen",
+            depends_on=["category_classification"],
+            condition=True,  # Only execute kitchen tasks if this passes
+        ),
+        # Expert validation with LLM
         LLMJudgeTask(
-            id="reformulation_quality", # (4)
-            prompt=reformulation_eval_prompt,
-            expected_value=3, # (5)
-            operator=ComparisonOperator.GreaterThanOrEqual, # (6)
-            field_path="score", # (7)
-            description="Evaluate the quality of query reformulation",
+            id="kitchen_expert_validation",
+            prompt=create_kitchen_expert_prompt(),
+            expected_value=True,
+            operator=ComparisonOperator.Equals,
+            field_path="is_suitable",
+            description="Kitchen expert validates response quality",
+            depends_on=["is_kitchen_category"],
+        ),
+        # Technical accuracy check
+        AssertionTask(
+            id="kitchen_technical_score",
+            field_path="kitchen_expert_validation.technical_accuracy_score",
+            operator=ComparisonOperator.GreaterThanOrEqual,
+            expected_value=7,
+            description="Technical accuracy must be ≥7/10",
+            depends_on=["kitchen_expert_validation"],
+        ),
+    ]
+```
+
+#### Batch Appliance Validation Chain
+
+```python
+def create_bath_expert_prompt() -> Prompt:
+    """
+    Builds a prompt for a bathroom appliance expert to evaluate the response.
+    """
+    return Prompt(
+        messages=(
+            "You are a licensed plumber and bathroom fixture specialist with expertise in "
+            "water heaters, ventilation, and bathroom electrical systems. Evaluate whether "
+            "the agent's response is suitable and accurate for this bath appliance question.\n\n"
+            "Evaluation Criteria:\n"
+            "- Water safety and plumbing code compliance\n"
+            "- Electrical safety for bathroom environments\n"
+            "- Proper ventilation considerations\n"
+            "- Installation guidance and professional service recommendations\n\n"
+            "User Question:\n"
+            "${user_input}\n\n"
+            "Agent Response:\n"
+            "${agent_response}\n\n"
+            "Provide your expert evaluation with:\n"
+            "- is_suitable: boolean indicating if response is appropriate\n"
+            "- reason: detailed explanation of your assessment\n"
+            "- water_safety_addressed: whether water/moisture safety is properly covered\n"
+            "- installation_guidance_score: score from 1-10 on installation advice quality\n\n"
+            "Evaluation:"
+        ),
+        model="gemini-2.5-flash-lite",
+        provider="gemini",
+        output_type=BathExpertValidation,
+    )
+
+def bath_category_tasks() -> List[LLMJudgeTask | AssertionTask]:
+    """
+    Builds the evaluation tasks specific to the bath appliance category.
+
+    Steps:
+        1. Conditional check to see if the category is "bath"
+        2. Expert validation using LLMJudgeTask
+        3. Installation guidance assertion
+    """
+    return [
+        AssertionTask(
+            id="is_bath_category",
+            field_path="category_classification.category",
+            operator=ComparisonOperator.Equals,
+            expected_value="bath",
+            description="Check if categorized as bath",
+            depends_on=["category_classification"],
+            condition=True,
         ),
         LLMJudgeTask(
-            id="answer_relevance",
-            prompt=answer_eval_prompt,
-            expected_value=3,
-            operator=ComparisonOperator.GreaterThanOrEqual,
-            field_path="score",
-            description="Evaluate the relevance of the answer to the user query",
+            id="bath_expert_validation",
+            prompt=create_bath_expert_prompt(),
+            expected_value=True,
+            operator=ComparisonOperator.Equals,
+            field_path="is_suitable",
+            description="Bath expert validates response quality and safety",
+            depends_on=["is_bath_category"],
         ),
         AssertionTask(
-            id="not_empty_reformulation",
-            expected_value=True,
-            operator=ComparisonOperator.IsNotEmpty,
-            field_path="answer",
-            description="Check that the answer is not empty",
+            id="bath_installation_score",
+            field_path="bath_expert_validation.installation_guidance_score",
+            operator=ComparisonOperator.GreaterThanOrEqual,
+            expected_value=7,
+            description="Verify bath installation guidance score is at least 7/10",
+            depends_on=["bath_expert_validation"],
         ),
-    ],
-)
+    ]
+```
 
-# show execution plan
+#### Outdoor Appliance Validation Chain
+
+```python
+
+def create_outdoor_expert_prompt() -> Prompt:
+    """
+    Builds a prompt for an outdoor appliance expert to evaluate the response.
+    """
+    return Prompt(
+        messages=(
+            "You are an outdoor living specialist with expertise in grills, patio equipment, "
+            "and weatherproof electrical systems. Evaluate whether the agent's response is "
+            "suitable and accurate for this outdoor appliance question.\n\n"
+            "Evaluation Criteria:\n"
+            "- Weather resistance and durability considerations\n"
+            "- Proper outdoor electrical safety (GFCI, weatherproofing)\n"
+            "- Material recommendations for outdoor environments\n"
+            "- Maintenance requirements for outdoor conditions\n\n"
+            "User Question:\n"
+            "${user_input}\n\n"
+            "Agent Response:\n"
+            "${agent_response}\n\n"
+            "Provide your expert evaluation with:\n"
+            "- is_suitable: boolean indicating if response is appropriate\n"
+            "- reason: detailed explanation of your assessment\n"
+            "- weather_considerations: whether weatherproofing is adequately addressed\n"
+            "- durability_assessment_score: score from 1-10 on durability guidance\n\n"
+            "Evaluation:"
+        ),
+        model="gemini-2.5-flash-lite",
+        provider="gemini",
+        output_type=OutdoorExpertValidation,
+    )
+
+def outdoor_category_tasks() -> List[LLMJudgeTask | AssertionTask]:
+    """
+    Builds the evaluation tasks specific to the outdoor appliance category.
+
+    Steps:
+        1. Conditional check to see if the category is "outdoor"
+        2. Expert validation using LLMJudgeTask
+        3. Durability assessment assertion
+    """
+    return [
+        AssertionTask(
+            id="is_outdoor_category",
+            field_path="category_classification.category",  # reference upstream field value
+            operator=ComparisonOperator.Equals,
+            expected_value="outdoor",
+            description="Check if categorized as outdoor",
+            depends_on=["category_classification"],
+            condition=True,
+        ),
+        LLMJudgeTask(
+            id="outdoor_expert_validation",
+            prompt=create_outdoor_expert_prompt(),
+            expected_value=True,
+            operator=ComparisonOperator.Equals,
+            field_path="is_suitable",
+            description="Outdoor expert validates response quality and safety",
+            depends_on=["is_outdoor_category"],
+        ),
+        AssertionTask(
+            id="outdoor_durability_score",
+            field_path="outdoor_expert_validation.durability_assessment_score",
+            operator=ComparisonOperator.GreaterThanOrEqual,
+            expected_value=7,
+            description="Verify outdoor durability assessment score is at least 7/10",
+            depends_on=["outdoor_expert_validation"],
+        ),
+    ]
+
+```
+
+### Step 3: Assemble the Evaluation Dataset
+
+Combine all tasks into a single evaluation dataset:
+
+```python
+def build_appliance_support_dataset(
+    records: Sequence[GenAIEvalRecord],
+) -> GenAIEvalDataset:
+    """
+    Creates an evaluation dataset for validating appliance support responses.
+    """
+
+    dataset = GenAIEvalDataset(
+        records=records,
+        tasks=[
+            # Base classification (always runs)
+            classification_judge_task,
+        ]
+        + kitchen_category_tasks()    # Runs only for kitchen items
+        + bath_category_tasks()       # Runs only for bath items
+        + outdoor_category_tasks(),   # Runs only for outdoor items
+    )
+    return dataset
+```
+
+
+### Step 4: Execute the Evaluation
+
+Finally, run the evaluation and review results:
+
+```python
+
+# Generate test records
+records = simulate_agent_interaction(num_questions=10)
+
+# Build dataset
+dataset = build_appliance_support_dataset(records=records)
+
+# View execution plan
 dataset.print_execution_plan()
 
-# Run the evaluation
-results = dataset.evaluate()
-
-# show worflow summary table
-results.as_table()
-
-```
-
-1. `${user_query}` is a bound parameter that will be populated from the `GenAIEvalRecord` context
-2. `${reformulated_query}` is a bound parameter that will be populated from the `GenAIEvalRecord` context
-3. Score is a built in strucutred response type that extracts `score` and `reason` fields from the LLM response; however, you could also define your own custom response type (BaseModel) if needed if you wish to return a structured output.
-4. Each task has a unique identifier for tracking results
-5. `expected_value` defines the threshold or expected result for the evaluation
-6. `operator` specifies how to compare the actual result against the expected value
-7. `field_path` indicates which field in the response to extract and evaluate
-8. The `evaluate()` method executes all tasks against all records and returns comprehensive results
-.
-
-```console
-Evaluation Execution Plan
-══════════════════════════════════════════════════
-
-Stage 1
-├─ not_empty_reformulation (Assertion)
-├─ answer_relevance (LLM Judge)
-└─ reformulation_quality (LLM Judge)
-
-══════════════════════════════════════════════════
-Summary: 3 tasks across 1 stages
-
-
-Workflow Summary
-┌─────────────────────┬──────────────────────────────────────┬─────────────┬────────┬────────┬───────────┬───────────────┐
-│     Created At      │              Record UID              │ Total Tasks │ Passed │ Failed │ Pass Rate │ Duration (ms) │
-├─────────────────────┼──────────────────────────────────────┼─────────────┼────────┼────────┼───────────┼───────────────┤
-│ 2026-01-07 16:12:27 │ 019b993b-1b88-7252-8f79-a818461c2567 │ 3           │ 3      │ 0      │ 100.0%    │ 1208          │
-│ 2026-01-07 16:12:28 │ 019b993b-1b88-7252-8f79-a7fcc7020ea5 │ 3           │ 3      │ 0      │ 100.0%    │ 1394          │
-│ 2026-01-07 16:12:28 │ 019b993b-1b87-7301-805d-6e18fb63441d │ 3           │ 3      │ 0      │ 100.0%    │ 1720          │
-└─────────────────────┴──────────────────────────────────────┴─────────────┴────────┴────────┴───────────┴───────────────┘
-```
-
-##### Eval Task Flow
-
-The evaluation flow using `GenAIEvalDataset`, `LLMJudgeTask` and `AssertionTask` works as follows:
-
-1. Define evaluation prompts that will act as LLM judges for specific quality dimensions (for `LLMJudgeTask`)
-2. Create `GenAIEvalRecord` instances for each scenario you want to evaluate
-3. Define `LLMJudgeTask` instances that specify:
-   - Which prompt to use for evaluation
-   - Expected values and comparison operators for pass/fail criteria
-   - Which fields from the LLM response to extract and validate
-4. Define any `AssertionTask` instances for simple checks (e.g., non-empty responses)
-5. Bundle records and tasks into a `GenAIEvalDataset`
-6. Call `dataset.evaluate()` to execute all evaluations
-
-#### Step 3: Evaluation Configuration (Optional)
-
-By default, the above `evaulate_llm` function will execute without any additional configuration, and will only execute the defined tasks. However, if you want a more robust evaluation, we recommend you provide an `EvaluationConfig` configured to your needs.
-
-EvaluationConfig allows you to customize the evaluation process in several ways:
-
-- Specify which fields from the `GenAIEvalRecord` context should be embedded. These embedding will be used to calculate means and similarity scores.
-- Indicate whether you want to compute similarity scores between the embedded fields.
-- Enable histogram computations to generate histograms for all numerical fields.
-
-[EvaluationConfig documentation](/scouter/docs/api/scouter/#scouter._scouter.EvaluationConfig)
-
-```python
-from scouter.evaluate import EvaluationConfig
-from scouter.genai.openai import OpenAIEmbeddingConfig
-from scouter.genai import Embedder, Provider
-
-#(previous code)...
-
-embedder = Embedder( #(1)
-    Provider.OpenAI,
-    config=OpenAIEmbeddingConfig(
-        model="text-embedding-3-small",
-        dimensions=512,
-    ),
-)
-
-results = dataset.evaluate(
-    config=EvaluationConfig( #(2)
-        embedder=embedder,
-        embedding_targets=["user_query", "answer"], #(3)
-        compute_similarity=True, #(4)
-        compute_histograms=True, #(5)
-    ),
-)
-```
-
-1. Create an `Embedder` instance to generate embeddings for the evaluation records. This is useful for similarity computations and clustering. Here, we are using OpenAI's embedding model.
-2. Pass an `EvaluationConfig` instance to the `evaluate` function to customize the evaluation process.
-3. Specify which fields from the `GenAIEvalRecord` context should be embedded. In this case, we are embedding both the `user_query` and `answer`. These embedding will be used to calculate means and similarity scores.
-4. Indicate that we want to compute similarity scores between the embedded fields.
-5. Enable histogram computations to generate histograms for all numerical fields
-
-#### Step 4: Analyzing the Results
-
-The results object (`GenAIEvalResults`) returned from the `evaluate_genai` function contains a wealth of information about the evaluation. You can access individual record results, overall metrics, and any errors that occurred during the evaluation process.
-
-The results object returned from `dataset.evaluate()` contains comprehensive information about each evaluation task's performance across all records.
-
-```python
 # Run evaluation
 results = dataset.evaluate()
 
-# Display workflow results as a formatted table
-results.as_table()
-
-# Display task results as a formatted table
-results.as_table(show_tasks=True)
-
-# Export to DataFrame for deeper analysis
-df = results.to_dataframe()  # pandas
-print(df.head())
-
-# Export to DataFrame for deeper analysis
-df = results.to_dataframe(polars=True)  # polars
-print(df.head())
-
-# export to json
-results.model_dump_json()
-
-# Access histograms
-histograms = results.histograms
-for field, histogram in histograms.items():
-    print(f"Histogram for {field}: {histogram}")
+# Display results
+results.as_table()              # Workflow Summary view
+results.as_table(show_tasks=True)  # Detailed task results
 ```
 
-Please refer to the [GenAIEvalResults documentation](/scouter/docs/api/scouter/#scouter._scouter.GenAIEvalResults) for more details on how to work with the results object.
+#### Understanding Evaluation Flow
+
+For each record, the evaluation follows this flow:
+
+```shell
+1. category_classification (LLMJudgeTask, condition=True)
+   └─> Determines: kitchen | bath | outdoor
+       │
+       ├─> If kitchen:
+       │   └─> is_kitchen_category (AssertionTask, condition=True)
+       │       └─> kitchen_expert_validation (LLMJudgeTask)
+       │           └─> kitchen_technical_score (AssertionTask)
+       │
+       ├─> If bath:
+       │   └─> is_bath_category (AssertionTask, condition=True)
+       │       └─> bath_expert_validation (LLMJudgeTask)
+       │           └─> bath_installation_score (AssertionTask)
+       │
+       └─> If outdoor:
+           └─> is_outdoor_category (AssertionTask, condition=True)
+               └─> outdoor_expert_validation (LLMJudgeTask)
+                   └─> outdoor_durability_score (AssertionTask)
+```
+
+##### Key Points:
+
+- The category_classification task routes evaluation to the appropriate specialist path
+- Each category's conditional gate (is_*_category) ensures only relevant validations run
+- Tasks with condition=True act as boolean gates - downstream tasks only execute if they pass
+- This prevents unnecessary LLM calls and enables efficient category-specific validation
+
+##### Context Flow
+
+Understanding how context flows through evaluation tasks is crucial for building effective evaluation workflows. Let's break down how Scouter manages and propagates context through task dependencies.
+
+**Base Context**
+
+Every evaluation starts with a **base context map** provided in the `GenAIEvalRecord`. In our example, the base context contains two keys:
+
+```python
+record = GenAIEvalRecord(
+    context={
+        "user_input": "What's the best grill for outdoor cooking?",
+        "agent_response": '{"answer": "...", "product_recommendations": [...], "safety_notes": [...]}'
+    }
+)
+```
+
+This base context is available to **all tasks** in the evaluation workflow.
+
+**Context Reconstruction Per Task**
+
+For each task execution, the context is **rebuilt** by combining:
+
+1. **Base context** (always included)
+2. **Dependency outputs** (outputs from tasks this task depends on)
+
+This means each task gets a fresh context map containing only what it needs.
+
+**Visualization: Context Reconstruction**
+
+Here's how context is rebuilt for each task in our outdoor appliance validation chain:
+
+```
+Task 1: category_classification
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Context built for this task:
+┌─────────────────────────────────────────┐
+│ Base Context                            │
+├─────────────────────────────────────────┤
+│ user_input: "What's the best grill?"    │
+│ agent_response: "{...}"                 │
+└─────────────────────────────────────────┘
+↓ Executes and produces output
+Output: { category: "outdoor", reason: "...", confidence: 0.95 }
+
+
+Task 2: is_outdoor_category (depends_on: ["category_classification"])
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Context rebuilt for this task:
+┌───────────────────────────────────────────────────────┐
+│ Base Context + Dependency Context                     │
+├───────────────────────────────────────────────────────┤
+│ user_input: "What's the best grill?"                  │
+│ agent_response: "{...}"                               │
+│ category_classification: {                            │  ← Added from dependency
+│   category: "outdoor",                                │
+│   reason: "Question about grills...",                 │
+│   confidence: 0.95                                    │
+│ }                                                     │
+└───────────────────────────────────────────────────────┘
+↓ Reads category_classification.category
+↓ Evaluates: "outdoor" == "outdoor" → Pass
+Output: True
+
+
+Task 3: outdoor_expert_validation (depends_on: ["is_outdoor_category"])
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Context rebuilt for this task:
+┌───────────────────────────────────────────────────────┐
+│ Base Context + Dependency Context                     │
+├───────────────────────────────────────────────────────┤
+│ user_input: "What's the best grill?"                  │
+│ agent_response: "{...}"                               │
+│ is_outdoor_category: True                             │  ← Added from dependency
+└───────────────────────────────────────────────────────┘
+Note: category_classification is NOT included because
+      outdoor_expert_validation doesn't depend on it directly
+
+↓ Uses user_input and agent_response in prompt
+↓ LLM evaluates the response
+Output: {
+  is_suitable: true,
+  reason: "...",
+  weather_considerations: true,
+  durability_assessment_score: 8
+}
+
+
+Task 4: outdoor_durability_score (depends_on: ["outdoor_expert_validation"])
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Context rebuilt for this task:
+┌───────────────────────────────────────────────────────┐
+│ Base Context + Dependency Context                     │
+├───────────────────────────────────────────────────────┤
+│ user_input: "What's the best grill?"                  │
+│ agent_response: "{...}"                               │
+│ outdoor_expert_validation: {                          │  ← Added from dependency
+│   is_suitable: true,                                  │
+│   reason: "...",                                      │
+│   weather_considerations: true,                       │
+│   durability_assessment_score: 8                      │
+│ }                                                     │
+└───────────────────────────────────────────────────────┘
+Note: is_outdoor_category and category_classification
+      are NOT included - only direct dependencies
+
+↓ Reads outdoor_expert_validation.durability_assessment_score
+↓ Evaluates: 8 >= 7 → Pass
+Output: True
+```
+
+**Field Path Resolution**
+
+When a task uses `field_path` to reference upstream data, it's reading from the reconstructed context:
+
+```python
+AssertionTask(
+    id="outdoor_durability_score",
+    field_path="outdoor_expert_validation.durability_assessment_score",
+    #          ^^^^^^^^^^^^^^^^^^^^^^^^ ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    #          Dependency task ID       Field in that task's output
+    operator=ComparisonOperator.GreaterThanOrEqual,
+    expected_value=7,
+    depends_on=["outdoor_expert_validation"],  # This makes the output available
+)
+```
+
+**Key Points**
+
+1. **Explicit Dependencies**: You must declare `depends_on` to access upstream task outputs
+2. **Clean Context**: Each task only sees relevant data, not everything that came before
+3. **Memory Efficient**: Context doesn't grow unbounded through long chains
+4. **Clear Data Flow**: Looking at `depends_on` tells you exactly what data a task can access

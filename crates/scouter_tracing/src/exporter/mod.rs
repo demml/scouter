@@ -57,7 +57,17 @@ impl SpanExporterNum {
             Ok(SpanExporterNum::Testing(exporter))
         } else {
             debug!("Using NoopSpanExporter as default");
-            Ok(SpanExporterNum::Noop(NoopSpanExporter::new()))
+            Ok(SpanExporterNum::Noop(NoopSpanExporter::default()))
+        }
+    }
+
+    pub(crate) fn set_sample_ratio(&mut self, sample_ratio: Option<f64>) {
+        match self {
+            SpanExporterNum::Http(builder) => builder.set_sample_ratio(sample_ratio),
+            SpanExporterNum::Stdout(builder) => builder.set_sample_ratio(sample_ratio),
+            SpanExporterNum::Testing(builder) => builder.set_sample_ratio(sample_ratio),
+            SpanExporterNum::Noop(builder) => builder.set_sample_ratio(sample_ratio),
+            SpanExporterNum::Grpc(builder) => builder.set_sample_ratio(sample_ratio),
         }
     }
 
@@ -90,7 +100,6 @@ impl SpanExporterNum {
 
 impl Default for SpanExporterNum {
     fn default() -> Self {
-        // set to Noop exporter by default
-        SpanExporterNum::Noop(NoopSpanExporter::new())
+        SpanExporterNum::Noop(NoopSpanExporter::default())
     }
 }

@@ -3,6 +3,7 @@ use crate::producer::RustScouterProducer;
 use crate::queue::genai::record_queue::GenAIEvalRecordQueue;
 use crate::queue::traits::BackgroundTask;
 use crate::queue::traits::QueueMethods;
+use crate::queue::types::QueueSettings;
 use crate::queue::types::TransportConfig;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -12,6 +13,8 @@ use scouter_types::GenAIEvalRecord;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tracing::debug;
+
+const GENAI_MAX_QUEUE_SIZE: usize = 25;
 
 /// The following code is a custom queue implementation for handling custom metrics.
 /// It consists of a `CustomQueue` struct that manages a queue of metrics and a background task
@@ -32,23 +35,19 @@ pub struct GenAIQueue {
     producer: RustScouterProducer,
     last_publish: Arc<RwLock<DateTime<Utc>>>,
     capacity: usize,
-    sample_rate_percentage: f64,
+    settings: Arc<RwLock<QueueSettings>>,
 }
 
 impl GenAIQueue {
     pub async fn new(
         drift_profile: GenAIEvalProfile,
         config: TransportConfig,
+        settings: Arc<RwLock<QueueSettings>>,
     ) -> Result<Self, EventError> {
-        let sample_rate = drift_profile.config.sample_rate;
-
-        // calculate sample rate percentage (1 / sample_rate)
-        let sample_rate_percentage = 1.0 / sample_rate as f64;
-
         debug!("Creating GenAI Drift Queue");
         // ArrayQueue size is based on sample rate
-        let queue = Arc::new(ArrayQueue::new(sample_rate * 2));
-        let record_queue = Arc::new(GenAIEvalRecordQueue::new());
+        let queue = Arc::new(ArrayQueue::new(GENAI_MAX_QUEUE_SIZE * 2));
+        let record_queue = Arc::new(GenAIEvalRecordQueue::new(drift_profile));
         let last_publish = Arc::new(RwLock::new(Utc::now()));
 
         let producer = RustScouterProducer::new(config).await?;
@@ -58,8 +57,8 @@ impl GenAIQueue {
             record_queue,
             producer,
             last_publish,
-            capacity: sample_rate,
-            sample_rate_percentage,
+            capacity: GENAI_MAX_QUEUE_SIZE,
+            settings,
         };
 
         Ok(genai_queue)
@@ -67,11 +66,14 @@ impl GenAIQueue {
 
     pub fn should_insert(&self) -> bool {
         // if the sample rate is 1, we always insert
-        if self.sample_rate_percentage == 1.0 {
+        let settings_read = self.settings.read().unwrap();
+        let sample_ratio_percentage = settings_read.sample_ratio;
+
+        if sample_ratio_percentage == 1.0 {
             return true;
         }
         // otherwise, we use the sample rate to determine if we should insert
-        rand::random::<f64>() < self.sample_rate_percentage
+        rand::random::<f64>() < sample_ratio_percentage
     }
 }
 

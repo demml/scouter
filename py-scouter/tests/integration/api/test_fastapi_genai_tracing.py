@@ -7,10 +7,11 @@ from scouter.types import DriftType
 
 from tests.integration.api.conftest import ChatRequest
 
-from .conftest import create_and_register_genai_drift_profile, create_kafka_genai_app
+from .conftest import create_and_register_genai_drift_profile, create_tracing_genai_app
 
 
-def test_genai_api_kafka(kafka_scouter_openai_server):
+def test_genai_tracing_api(scouter_grpc_openai_server):
+    tracer, _server = scouter_grpc_openai_server
     random_number = np.random.randint(0, 10)
 
     # create the client
@@ -19,16 +20,16 @@ def test_genai_api_kafka(kafka_scouter_openai_server):
     # create the drift profile
     profile = create_and_register_genai_drift_profile(
         client=scouter_client,
-        name=f"kafka_genai_test_{random_number}",
+        name=f"grpc_genai_test_{random_number}",
     )
     drift_path = profile.save_to_json()
 
-    app = create_kafka_genai_app(drift_path)
+    app = create_tracing_genai_app(tracer, drift_path)
     # Configure the TestClient
     with TestClient(app) as client:
         time.sleep(5)
         # Simulate requests
-        for i in range(20):
+        for i in range(30):
             response = client.post(
                 "/chat",
                 json=ChatRequest(
@@ -49,13 +50,14 @@ def test_genai_api_kafka(kafka_scouter_openai_server):
         max_data_points=1,
     )
 
-    metrics = scouter_client.get_binned_drift(
+    workflow_results = scouter_client.get_binned_drift(
         request,
-        drift_type=DriftType.LLM,
+        drift_type=DriftType.GenAI,
     )
 
-    assert len(metrics["coherence"].stats) == 1
-    assert metrics["coherence"].stats[0].avg > 0
+    assert len(workflow_results["workflow"].stats) == 1
+    task_results = scouter_client.get_genai_task_binned_drift(request)
+    assert len(task_results["coherence"].stats) == 1
 
     # delete the drift_path
     drift_path.unlink()

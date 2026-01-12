@@ -8,13 +8,12 @@ use opentelemetry_sdk::Resource;
 use opentelemetry_stdout::SpanExporter as OTelStdoutSpanExporter;
 #[derive(Debug, Default)]
 pub struct NoopSpanExporter {
-    _private: (),
+    pub sample_ratio: Option<f64>,
 }
 
 impl NoopSpanExporter {
-    /// Create a new noop span exporter
     pub fn new() -> Self {
-        NoopSpanExporter { _private: () }
+        NoopSpanExporter { sample_ratio: None }
     }
 }
 
@@ -32,11 +31,15 @@ impl SpanExporterBuilder for NoopSpanExporter {
     }
 
     fn sample_ratio(&self) -> Option<f64> {
-        None
+        self.sample_ratio
     }
 
     fn batch_export(&self) -> bool {
         true
+    }
+
+    fn set_sample_ratio(&mut self, sample_ratio: Option<f64>) {
+        self.sample_ratio = sample_ratio;
     }
 
     fn build_exporter(&self, resource: &Resource) -> Result<Self::Exporter, TraceError> {
