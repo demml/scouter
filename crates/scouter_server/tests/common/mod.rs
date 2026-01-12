@@ -411,6 +411,7 @@ impl TestHelper {
                     duration_ms: 1500,
                     entity_uid: uid.to_string(),
                     execution_plan: ExecutionPlan::default(),
+                    id: 0,
                 };
                 records.push(ServerRecord::GenAIWorkflowRecord(record));
             }

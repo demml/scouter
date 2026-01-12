@@ -1278,6 +1278,156 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_postgres_genai_eval_workflow_pagination() {
+        let pool = db_pool().await;
+
+        let (uid, entity_id) = PostgresClient::create_entity(
+            &pool,
+            SPACE,
+            NAME,
+            VERSION,
+            DriftType::GenAI.to_string(),
+        )
+        .await
+        .unwrap();
+
+        let input = "This is a test input";
+        let output = "This is a test response";
+
+        // Insert 10 records with increasing timestamps
+        for j in 0..10 {
+            let context = serde_json::json!({
+                "input": input,
+                "response": output,
+            });
+            let record = GenAIEvalWorkflowResult {
+                created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
+                record_uid: format!("test_{}", j),
+                entity_id: entity_id,
+                ..Default::default()
+            };
+
+            let result =
+                PostgresClient::insert_genai_eval_workflow_record(&pool, &record, &entity_id)
+                    .await
+                    .unwrap();
+
+            assert_eq!(result.rows_affected(), 1);
+        }
+
+        // ===== PAGE 1: Get first 5 records (newest) =====
+        let params = GenAIEvalRecordPaginationRequest {
+            status: None,
+            limit: Some(5),
+            cursor_created_at: None,
+            cursor_id: None,
+            direction: None,
+            ..Default::default()
+        };
+
+        let page1 =
+            PostgresClient::get_paginated_genai_eval_workflow_records(&pool, &params, &entity_id)
+                .await
+                .unwrap();
+
+        assert_eq!(page1.items.len(), 5, "Page 1 should have 5 records");
+        assert!(page1.has_next, "Should have next page");
+        assert!(
+            !page1.has_previous,
+            "Should not have previous page (first page)"
+        );
+        assert!(page1.next_cursor.is_some(), "Should have next cursor");
+
+        // First item should be the NEWEST record (highest ID)
+        let page1_first = page1.items.first().unwrap();
+        let page1_last = page1.items.last().unwrap();
+
+        assert!(
+            page1_first.created_at >= page1_last.created_at,
+            "Page 1 should be sorted newest first (DESC)"
+        );
+
+        // ===== PAGE 2: Get next 5 records (older) =====
+        let next_cursor = page1.next_cursor.unwrap();
+
+        let params = GenAIEvalRecordPaginationRequest {
+            status: None,
+            limit: Some(5),
+            cursor_created_at: Some(next_cursor.created_at),
+            cursor_id: Some(next_cursor.id),
+            direction: None,
+            ..Default::default()
+        };
+
+        let page2 = PostgresClient::get_paginated_genai_eval_records(&pool, &params, &entity_id)
+            .await
+            .unwrap();
+
+        assert_eq!(page2.items.len(), 5, "Page 2 should have 5 records");
+        assert!(!page2.has_next, "Should not have next page (last page)");
+        assert!(page2.has_previous, "Should have previous page");
+        assert!(
+            page2.previous_cursor.is_some(),
+            "Should have previous cursor"
+        );
+
+        let page2_first = page2.items.first().unwrap();
+
+        // Page 2 first item should be OLDER than Page 1 last item
+        assert!(
+            page2_first.created_at < page1_last.created_at
+                || (page2_first.created_at == page1_last.created_at
+                    && page2_first.id < page1_last.id),
+            "Page 2 should start with records older than Page 1 last item"
+        );
+
+        // Verify we got all 10 records across both pages
+        let all_ids: Vec<i64> = page1
+            .items
+            .iter()
+            .chain(page2.items.iter())
+            .map(|r| r.id)
+            .collect();
+
+        assert_eq!(all_ids.len(), 10, "Should have 10 unique records total");
+
+        // All IDs should be unique
+        let unique_ids: std::collections::HashSet<_> = all_ids.iter().collect();
+        assert_eq!(unique_ids.len(), 10, "All IDs should be unique");
+
+        // ===== BACKWARD PAGINATION TEST =====
+        // Go back from page 2 to page 1
+        let previous_cursor = page2.previous_cursor.unwrap();
+
+        let params = GenAIEvalRecordPaginationRequest {
+            status: None,
+            limit: Some(5),
+            cursor_created_at: Some(previous_cursor.created_at),
+            cursor_id: Some(previous_cursor.id),
+            direction: Some("previous".to_string()),
+            ..Default::default()
+        };
+
+        let page1_again =
+            PostgresClient::get_paginated_genai_eval_records(&pool, &params, &entity_id)
+                .await
+                .unwrap();
+
+        assert_eq!(
+            page1_again.items.len(),
+            5,
+            "Going back should return 5 records"
+        );
+
+        // Should get the same records as page 1
+        assert_eq!(
+            page1_again.items.first().unwrap().id,
+            page1_first.id,
+            "Should return to the same first record"
+        );
+    }
+
+    #[tokio::test]
     async fn test_postgres_genai_task_result_insert_get() {
         let pool = db_pool().await;
 
@@ -1381,6 +1531,7 @@ mod tests {
                     duration_ms: 1500,
                     entity_uid: uid.clone(),
                     execution_plan: ExecutionPlan::default(),
+                    id: 0,
                 };
                 let result =
                     PostgresClient::insert_genai_eval_workflow_record(&pool, &record, &entity_id)

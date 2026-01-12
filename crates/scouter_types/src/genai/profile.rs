@@ -971,6 +971,7 @@ impl GenAIEvalSet {
                 duration_ms: 0,
                 entity_uid: String::new(),
                 execution_plan: ExecutionPlan::default(),
+                id: 0,
             },
         }
     }

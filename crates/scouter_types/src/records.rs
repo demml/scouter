@@ -429,7 +429,7 @@ pub struct WorkflowResultTableEntry {
 }
 
 #[pyclass]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GenAIEvalWorkflowResult {
     #[pyo3(get)]
     pub created_at: DateTime<Utc>,
@@ -459,6 +459,12 @@ pub struct GenAIEvalWorkflowResult {
     pub execution_plan: ExecutionPlan,
 
     pub id: i64,
+}
+
+impl GenAIEvalWorkflowResult {
+    pub fn mask_sensitive_data(&mut self) {
+        self.entity_id = -1;
+    }
 }
 
 #[cfg(feature = "server")]

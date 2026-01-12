@@ -13,7 +13,6 @@ use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::{GenAIEvalWorkflowResult, ServerRecords, StorageType, ToDriftRecords};
 use std::sync::Arc;
-use tokio::runtime::Id;
 
 pub struct GenAIWorkflowDataFrame {
     schema: Arc<Schema>,

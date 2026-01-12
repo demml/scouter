@@ -129,7 +129,8 @@ pub trait GenAIDriftSqlLogic {
         let query = Queries::InsertGenAITaskResultsBatch.get_query();
 
         sqlx::query(query)
-            .bind(&created_ats)
+            .bind(&start_times)
+            .bind(&end_times)
             .bind(&record_uids)
             .bind(&entity_ids)
             .bind(&task_ids)
