@@ -3,7 +3,6 @@ WITH next_id AS (
     FROM scouter.genai_eval_workflow
     WHERE entity_id = $3
 )
-
 INSERT INTO scouter.genai_eval_workflow (
     id,
     created_at,
@@ -16,7 +15,7 @@ INSERT INTO scouter.genai_eval_workflow (
     duration_ms,
     execution_plan
 )
-VALUES (
+SELECT
     next_id.id,
     $1,  -- created_at: timestamptz
     $2,  -- record_uid: text
@@ -27,5 +26,5 @@ VALUES (
     $7,  -- pass_rate: double precision
     $8,  -- duration_ms: integer
     $9   -- execution_plan: jsonb
-)
+FROM next_id
 ON CONFLICT DO NOTHING;

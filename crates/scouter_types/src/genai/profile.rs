@@ -279,22 +279,13 @@ pub struct ExecutionNode {
     pub children: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[pyclass]
 pub struct ExecutionPlan {
     #[pyo3(get)]
     pub stages: Vec<Vec<String>>,
     #[pyo3(get)]
     pub nodes: HashMap<String, ExecutionNode>,
-}
-
-impl Default for ExecutionPlan {
-    fn default() -> Self {
-        Self {
-            stages: Vec::new(),
-            nodes: HashMap::new(),
-        }
-    }
 }
 
 fn initialize_node_graphs(

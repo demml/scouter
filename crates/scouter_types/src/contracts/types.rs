@@ -566,7 +566,7 @@ pub struct GenAIEvalRecordPaginationResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct GenAIEvalWorkflowRecordPaginationResponse {
+pub struct GenAIEvalWorkflowPaginationResponse {
     pub items: Vec<GenAIEvalWorkflowResult>,
     pub has_next: bool,
     pub next_cursor: Option<RecordCursor>,

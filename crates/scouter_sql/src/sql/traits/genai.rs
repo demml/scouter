@@ -11,7 +11,7 @@ use scouter_types::contracts::DriftRequest;
 use scouter_types::BoxedGenAIEvalRecord;
 use scouter_types::GenAIEvalRecord;
 use scouter_types::GenAIEvalTaskResult;
-use scouter_types::GenAIEvalWorkflowRecordPaginationResponse;
+use scouter_types::GenAIEvalWorkflowPaginationResponse;
 use scouter_types::GenAIEvalWorkflowResult;
 use scouter_types::Status;
 use scouter_types::{
@@ -293,7 +293,7 @@ pub trait GenAIDriftSqlLogic {
         })
     }
 
-    /// Retrieves a paginated list of GenAI drift records with bidirectional cursor support
+    /// Retrieves a paginated list of GenAI workflow records with bidirectional cursor support
     ///
     /// # Arguments
     /// * `pool` - The database connection pool
@@ -301,20 +301,19 @@ pub trait GenAIDriftSqlLogic {
     /// * `entity_id` - The entity ID to filter records
     ///
     /// # Returns
-    /// * Result with paginated response containing GenAI drift records
+    /// * Result with paginated response containing GenAI workflow records
     #[instrument(skip_all)]
     async fn get_paginated_genai_eval_workflow_records(
         pool: &Pool<Postgres>,
         params: &GenAIEvalRecordPaginationRequest,
         entity_id: &i32,
-    ) -> Result<GenAIEvalWorkflowRecordPaginationResponse, SqlError> {
-        let query = Queries::GetPaginatedGenAIEvalRecords.get_query();
+    ) -> Result<GenAIEvalWorkflowPaginationResponse, SqlError> {
+        let query = Queries::GetPaginatedGenAIEvalWorkflow.get_query();
         let limit = params.limit.unwrap_or(50);
         let direction = params.direction.as_deref().unwrap_or("next");
 
         let mut items: Vec<GenAIEvalWorkflowResult> = sqlx::query_as(query)
             .bind(entity_id)
-            .bind(params.status.as_ref().and_then(|s| s.as_str()))
             .bind(params.cursor_created_at)
             .bind(direction)
             .bind(params.cursor_id)
@@ -389,7 +388,7 @@ pub trait GenAIDriftSqlLogic {
             })
             .collect();
 
-        Ok(GenAIEvalWorkflowRecordPaginationResponse {
+        Ok(GenAIEvalWorkflowPaginationResponse {
             items: public_items,
             has_next,
             next_cursor,

@@ -1296,7 +1296,7 @@ mod tests {
             let record = GenAIEvalWorkflowResult {
                 created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
                 record_uid: format!("test_{}", j),
-                entity_id: entity_id,
+                entity_id,
                 ..Default::default()
             };
 
@@ -1403,7 +1403,7 @@ mod tests {
         };
 
         let page1_again =
-            PostgresClient::get_paginated_genai_eval_records(&pool, &params, &entity_id)
+            PostgresClient::get_paginated_genai_eval_workflow_records(&pool, &params, &entity_id)
                 .await
                 .unwrap();
 

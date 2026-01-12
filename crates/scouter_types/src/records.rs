@@ -548,6 +548,8 @@ impl GenAIEvalWorkflowResult {
             duration_ms: self.duration_ms.to_string(),
         }
     }
+
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         record_uid: String,
         total_tasks: i32,
