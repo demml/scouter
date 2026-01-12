@@ -1281,7 +1281,7 @@ mod tests {
     async fn test_postgres_genai_eval_workflow_pagination() {
         let pool = db_pool().await;
 
-        let (uid, entity_id) = PostgresClient::create_entity(
+        let (_uid, entity_id) = PostgresClient::create_entity(
             &pool,
             SPACE,
             NAME,
@@ -1291,15 +1291,8 @@ mod tests {
         .await
         .unwrap();
 
-        let input = "This is a test input";
-        let output = "This is a test response";
-
         // Insert 10 records with increasing timestamps
         for j in 0..10 {
-            let context = serde_json::json!({
-                "input": input,
-                "response": output,
-            });
             let record = GenAIEvalWorkflowResult {
                 created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
                 record_uid: format!("test_{}", j),
@@ -1359,9 +1352,10 @@ mod tests {
             ..Default::default()
         };
 
-        let page2 = PostgresClient::get_paginated_genai_eval_records(&pool, &params, &entity_id)
-            .await
-            .unwrap();
+        let page2 =
+            PostgresClient::get_paginated_genai_eval_workflow_records(&pool, &params, &entity_id)
+                .await
+                .unwrap();
 
         assert_eq!(page2.items.len(), 5, "Page 2 should have 5 records");
         assert!(!page2.has_next, "Should not have next page (last page)");
