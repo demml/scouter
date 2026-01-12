@@ -82,6 +82,8 @@ impl GenAITaskDataFrame {
             Field::new("expected", DataType::Utf8, false),
             Field::new("actual", DataType::Utf8, false),
             Field::new("message", DataType::Utf8, false),
+            Field::new("condition", DataType::Boolean, false),
+            Field::new("stage", DataType::Int32, false),
         ]));
 
         let object_store = ObjectStore::new(storage_settings)?;
@@ -151,6 +153,10 @@ impl GenAITaskDataFrame {
         let message_array =
             StringArray::from_iter_values(records.iter().map(|r| r.message.as_str()));
 
+        let condition_array = BooleanArray::from_iter(records.iter().map(|r| r.condition));
+
+        let stage_array = Int32Array::from_iter_values(records.iter().map(|r| r.stage));
+
         let batch = RecordBatch::try_new(
             self.schema.clone(),
             vec![
@@ -166,6 +172,8 @@ impl GenAITaskDataFrame {
                 Arc::new(expected_array),   // 10
                 Arc::new(actual_array),     // 11
                 Arc::new(message_array),    // 12
+                Arc::new(condition_array),  // 13
+                Arc::new(stage_array),      // 14
             ],
         )
         .map_err(DataFrameError::ArrowError)?;

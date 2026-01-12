@@ -15,7 +15,7 @@ use simsimd::SpatialSimilarity;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use tokio::task::JoinSet;
-use tracing::{error, warn};
+use tracing::{debug, error, warn};
 
 type EvalTaskResult = (
     usize, // Index into records array
@@ -45,7 +45,12 @@ pub async fn spawn_evaluation_tasks_without_embeddings(
             // Access record by index - no cloning
             let record = &record_ref[idx];
 
-            let result = match GenAIEvaluator::process_event_record(record, profile_ref).await {
+            debug!(
+                "Starting evaluation for record {} and index {}",
+                record.uid, idx
+            );
+
+            let result = match GenAIEvaluatorNew::process_event_record(record, profile_ref).await {
                 Ok(eval_set) => Ok((eval_set, BTreeMap::new())),
                 Err(e) => Err(format!("Evaluation failed: {}", e)),
             };

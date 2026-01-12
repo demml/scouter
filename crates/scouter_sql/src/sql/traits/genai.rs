@@ -102,6 +102,8 @@ pub trait GenAIDriftSqlLogic {
         let mut expected_jsons = Vec::with_capacity(n);
         let mut actual_jsons = Vec::with_capacity(n);
         let mut messages = Vec::with_capacity(n);
+        let mut condition = Vec::with_capacity(n);
+        let mut stage = Vec::with_capacity(n);
 
         for r in records {
             created_ats.push(r.created_at);
@@ -116,6 +118,8 @@ pub trait GenAIDriftSqlLogic {
             expected_jsons.push(Json(&r.expected));
             actual_jsons.push(Json(&r.actual));
             messages.push(&r.message);
+            condition.push(r.condition);
+            stage.push(r.stage);
         }
 
         let query = Queries::InsertGenAITaskResultsBatch.get_query();

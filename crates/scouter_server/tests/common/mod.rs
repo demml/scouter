@@ -380,6 +380,7 @@ impl TestHelper {
                     actual: Value::Null,
                     message: "All good".to_string(),
                     entity_uid: uid.to_string(),
+                    condition: false,
                 };
                 records.push(ServerRecord::GenAITaskRecord(record));
             }

@@ -30,6 +30,9 @@ pub struct MissingTask {
 
     #[pyo3(get)]
     pub present_in: String,
+
+    #[pyo3(get)]
+    pub record_uid: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -232,14 +235,14 @@ impl ComparisonResults {
             if !baseline_only.is_empty() {
                 println!("  Baseline only ({} tasks):", baseline_only.len());
                 for task in baseline_only {
-                    println!("    - {}", task.task_id);
+                    println!("    - {} - {}", task.task_id, task.record_uid);
                 }
             }
 
             if !comparison_only.is_empty() {
                 println!("  Comparison only ({} tasks):", comparison_only.len());
                 for task in comparison_only {
-                    println!("    - {}", task.task_id);
+                    println!("    - {} - {}", task.task_id, task.record_uid);
                 }
             }
         }
@@ -597,7 +600,7 @@ impl GenAIEvalResults {
     /// Display results as a table in the console
     /// # Arguments
     /// * `show_tasks` - If true, display detailed task results; otherwise, show workflow summary
-    pub fn as_table(&self, show_tasks: bool) {
+    pub fn as_table(&mut self, show_tasks: bool) {
         if show_tasks {
             let tasks_table = self.build_tasks_table();
             println!("\n{}", "Task Details".truecolor(245, 77, 85).bold());
@@ -689,10 +692,10 @@ impl GenAIEvalResults {
     }
 
     /// Build detailed task results table for console display
-    fn build_tasks_table(&self) -> Table {
+    fn build_tasks_table(&mut self) -> Table {
         let entries: Vec<TaskResultTableEntry> = self
             .aligned_results
-            .iter()
+            .iter_mut()
             .flat_map(|result| result.eval_set.build_task_entries())
             .collect();
 

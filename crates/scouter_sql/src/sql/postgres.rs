@@ -1309,6 +1309,8 @@ mod tests {
                     actual: Value::Null,
                     message: "All good".to_string(),
                     entity_uid: uid.clone(),
+                    condition: false,
+                    stage: 0_i32,
                 };
                 records.push(record);
             }

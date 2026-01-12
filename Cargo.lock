@@ -802,7 +802,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b62ddb9cb1ec0a098ad4bbf9344d0713fa193ae1a80af55febcff2627b6a00c1"
 dependencies = [
  "futures-core",
- "getrandom 0.2.16",
+ "getrandom 0.2.17",
  "instant",
  "pin-project-lite",
  "rand 0.8.5",
@@ -812,7 +812,7 @@ dependencies = [
 [[package]]
 name = "baked-potato"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fexecute-single-task#9cf37902bbe5df9473b666edb6ec5f8a9e7ea445"
+source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fnon-mut-execute-task#b799ff9dfae9b725cce34e7c8743e71cf9d777db"
 dependencies = [
  "mockito",
  "potato-agent",
@@ -1316,7 +1316,7 @@ version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9d839f2a20b0aee515dc581a6172f2321f96cab76c1a38a4c584a194955390e"
 dependencies = [
- "getrandom 0.2.16",
+ "getrandom 0.2.17",
  "once_cell",
  "tiny-keccak",
 ]
@@ -2754,9 +2754,9 @@ dependencies = [
 
 [[package]]
 name = "getrandom"
-version = "0.2.16"
+version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "335ff9f135e4384c8150d6f27c6daed433577f86b4750418338c01a1a2528592"
+checksum = "ff2abc00be7fca6ebc474524697ae276ad847ad0a6b3faa4bcb027e9a4614ad0"
 dependencies = [
  "cfg-if",
  "js-sys",
@@ -3364,7 +3364,7 @@ checksum = "c76e1c7d7df3e34443b3621b459b066a7b79644f059fc8b2db7070c825fd417e"
 dependencies = [
  "aws-lc-rs",
  "base64",
- "getrandom 0.2.16",
+ "getrandom 0.2.17",
  "js-sys",
  "pem",
  "serde",
@@ -3792,7 +3792,7 @@ version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a51313c5820b0b02bd422f4b44776fbf47961755c74ce64afc73bfad10226c3"
 dependencies = [
- "getrandom 0.2.16",
+ "getrandom 0.2.17",
 ]
 
 [[package]]
@@ -4368,7 +4368,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1a2a4764cc1f8d961d802af27193c6f4f0124bd0e76e8393cf818e18880f0524"
 dependencies = [
  "argon2",
- "getrandom 0.2.16",
+ "getrandom 0.2.17",
  "password-hash",
  "rand_core 0.6.4",
 ]
@@ -4615,7 +4615,7 @@ dependencies = [
 [[package]]
 name = "potato-agent"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fexecute-single-task#9cf37902bbe5df9473b666edb6ec5f8a9e7ea445"
+source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fnon-mut-execute-task#b799ff9dfae9b725cce34e7c8743e71cf9d777db"
 dependencies = [
  "base64",
  "gcloud-auth",
@@ -4638,7 +4638,7 @@ dependencies = [
 [[package]]
 name = "potato-head"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fexecute-single-task#9cf37902bbe5df9473b666edb6ec5f8a9e7ea445"
+source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fnon-mut-execute-task#b799ff9dfae9b725cce34e7c8743e71cf9d777db"
 dependencies = [
  "baked-potato",
  "potato-agent",
@@ -4651,7 +4651,7 @@ dependencies = [
 [[package]]
 name = "potato-macro"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fexecute-single-task#9cf37902bbe5df9473b666edb6ec5f8a9e7ea445"
+source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fnon-mut-execute-task#b799ff9dfae9b725cce34e7c8743e71cf9d777db"
 dependencies = [
  "thiserror 2.0.17",
 ]
@@ -4659,7 +4659,7 @@ dependencies = [
 [[package]]
 name = "potato-provider"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fexecute-single-task#9cf37902bbe5df9473b666edb6ec5f8a9e7ea445"
+source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fnon-mut-execute-task#b799ff9dfae9b725cce34e7c8743e71cf9d777db"
 dependencies = [
  "base64",
  "gcloud-auth",
@@ -4681,7 +4681,7 @@ dependencies = [
 [[package]]
 name = "potato-state"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fexecute-single-task#9cf37902bbe5df9473b666edb6ec5f8a9e7ea445"
+source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fnon-mut-execute-task#b799ff9dfae9b725cce34e7c8743e71cf9d777db"
 dependencies = [
  "thiserror 2.0.17",
  "tokio",
@@ -4691,7 +4691,7 @@ dependencies = [
 [[package]]
 name = "potato-type"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fexecute-single-task#9cf37902bbe5df9473b666edb6ec5f8a9e7ea445"
+source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fnon-mut-execute-task#b799ff9dfae9b725cce34e7c8743e71cf9d777db"
 dependencies = [
  "potato-macro",
  "potato-util",
@@ -4708,7 +4708,7 @@ dependencies = [
 [[package]]
 name = "potato-util"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fexecute-single-task#9cf37902bbe5df9473b666edb6ec5f8a9e7ea445"
+source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fnon-mut-execute-task#b799ff9dfae9b725cce34e7c8743e71cf9d777db"
 dependencies = [
  "colored_json",
  "pyo3",
@@ -4724,7 +4724,7 @@ dependencies = [
 [[package]]
 name = "potato-workflow"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fexecute-single-task#9cf37902bbe5df9473b666edb6ec5f8a9e7ea445"
+source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fnon-mut-execute-task#b799ff9dfae9b725cce34e7c8743e71cf9d777db"
 dependencies = [
  "chrono",
  "potato-agent",
@@ -5175,7 +5175,7 @@ version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 dependencies = [
- "getrandom 0.2.16",
+ "getrandom 0.2.17",
 ]
 
 [[package]]
@@ -5500,7 +5500,7 @@ checksum = "a4689e6c2294d81e88dc6261c768b63bc4fcdb852be6d1352498b114f61383b7"
 dependencies = [
  "cc",
  "cfg-if",
- "getrandom 0.2.16",
+ "getrandom 0.2.17",
  "libc",
  "untrusted 0.9.0",
  "windows-sys 0.52.0",
@@ -8350,9 +8350,9 @@ checksum = "40990edd51aae2c2b6907af74ffb635029d5788228222c4bb811e9351c0caad3"
 
 [[package]]
 name = "zmij"
-version = "1.0.12"
+version = "1.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2fc5a66a20078bf1251bde995aa2fdcc4b800c70b5d92dd2c62abc5c60f679f8"
+checksum = "ac93432f5b761b22864c774aac244fa5c0fd877678a4c37ebf6cf42208f9c9ec"
 
 [[package]]
 name = "zstd"

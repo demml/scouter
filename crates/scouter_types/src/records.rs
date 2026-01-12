@@ -554,6 +554,10 @@ pub struct TaskResultTableEntry {
     pub task_id: String,
     #[tabled(rename = "Task Type")]
     pub task_type: String,
+    #[tabled(rename = "Condition")]
+    pub condition: bool,
+    #[tabled(rename = "Stage")]
+    pub stage: i32,
     #[tabled(rename = "Passed")]
     pub passed: String,
     #[tabled(rename = "Field Path")]
@@ -605,6 +609,10 @@ pub struct GenAIEvalTaskResult {
     pub message: String,
 
     pub entity_uid: String,
+
+    pub condition: bool,
+
+    pub stage: i32,
 }
 
 #[pymethods]
@@ -670,11 +678,14 @@ impl GenAIEvalTaskResult {
                 .to_string(), // UUIDs are ~36 chars
             task_id: truncate(self.task_id.clone(), 16),
             task_type: self.task_type.to_string(),
+            condition: self.condition,
+            stage: self.stage,
             passed: if self.passed {
                 "✓".green().to_string()
             } else {
                 "✗".red().to_string()
             },
+
             field_path: truncate(self.field_path.clone().unwrap_or_default(), 12),
             operator: self.operator.to_string(),
             expected: truncate(expected_str, 20),
@@ -695,6 +706,8 @@ impl GenAIEvalTaskResult {
         message: String,
         entity_id: i32,
         entity_uid: String,
+        condition: bool,
+        stage: i32,
     ) -> Self {
         Self {
             record_uid,
@@ -710,6 +723,8 @@ impl GenAIEvalTaskResult {
             message,
             entity_id,
             entity_uid,
+            condition,
+            stage,
         }
     }
 }
@@ -744,6 +759,8 @@ impl FromRow<'_, PgRow> for GenAIEvalTaskResult {
             // empty here, not needed for server operations
             // entity_uid is only used when creating new records
             entity_uid: String::new(),
+            condition: row.try_get("condition")?,
+            stage: row.try_get("stage")?,
         })
     }
 }

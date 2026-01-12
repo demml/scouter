@@ -10,7 +10,9 @@ INSERT INTO scouter.genai_eval_task (
     operator,
     expected,
     actual,
-    message
+    message,
+    condition,
+    stage
     )
 SELECT
     created_at,
@@ -24,7 +26,9 @@ SELECT
     operator,
     expected,
     actual,
-    message
+    message,
+    condition,
+    stage
 FROM UNNEST(
     $1::timestamptz[], -- created_at
     $2::text[],        -- record_uid
@@ -37,7 +41,10 @@ FROM UNNEST(
     $9::text[],        -- operator
     $10::jsonb[],       -- expected
     $11::jsonb[],       -- actual
-    $12::text[]        -- message
+    $12::text[],        -- message
+    $13::boolean[],     -- condition
+    $14::integer[]    -- stage
+
 ) AS t(
     created_at,
     record_uid,
@@ -50,6 +57,8 @@ FROM UNNEST(
     operator,
     expected,
     actual,
-    message
+    message,
+    condition,
+    stage
 )
 ON CONFLICT DO NOTHING;

@@ -108,6 +108,7 @@ pub fn compare_results(
                     missing_tasks.push(MissingTask {
                         task_id: task_id.to_string(),
                         present_in: "baseline_only".to_string(),
+                        record_uid: (*record_uid).to_string(),
                     });
                 }
             }
@@ -117,6 +118,7 @@ pub fn compare_results(
                     missing_tasks.push(MissingTask {
                         task_id: task_id.to_string(),
                         present_in: "comparison_only".to_string(),
+                        record_uid: (*record_uid).to_string(),
                     });
                 }
             }

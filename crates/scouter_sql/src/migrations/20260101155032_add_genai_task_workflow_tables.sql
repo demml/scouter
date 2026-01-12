@@ -46,6 +46,8 @@ CREATE TABLE IF NOT EXISTS scouter.genai_eval_task (
     expected JSONB NOT NULL,
     actual JSONB NOT NULL,
     message TEXT,
+    condition BOOLEAN NOT NULL,
+    stage INTEGER NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     archived BOOLEAN DEFAULT FALSE,
     PRIMARY KEY (record_uid, task_id, created_at)

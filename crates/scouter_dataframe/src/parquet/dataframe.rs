@@ -281,6 +281,8 @@ mod tests {
                     actual: Value::Null,
                     message: "All good".to_string(),
                     entity_uid: format!("entity_uid_{entity_id}"),
+                    condition: false,
+                    stage: 0,
                 });
 
                 batch.push(record);
