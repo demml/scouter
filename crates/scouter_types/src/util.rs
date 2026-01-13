@@ -573,7 +573,8 @@ pub fn depythonize_object_to_value<'py>(
     } else if value.is_instance_of::<PyDict>() {
         process_dict_with_nested_models(py, value)?
     } else {
-        depythonize(value)?
+        // only pydantic models and dicts are processed specially
+        Err(TypeError::MustBeDictOrBaseModel)?
     };
     Ok(py_value)
 }
