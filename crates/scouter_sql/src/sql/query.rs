@@ -47,6 +47,7 @@ const INSERT_GENAI_EVAL_RECORD: &str = include_str!("scripts/genai/insert_eval_r
 
 // genai query
 const GET_GENAI_EVAL_RECORDS: &str = include_str!("scripts/genai/get_eval_records.sql");
+const GET_GENAI_EVAL_TASKS: &str = include_str!("scripts/genai/get_eval_tasks.sql");
 const GET_GENAI_TASK_VALUES: &str = include_str!("scripts/genai/data/get_task_values.sql");
 const GET_GENAI_WORKFLOW_VALUES: &str = include_str!("scripts/genai/data/get_workflow_values.sql");
 const GET_BINNED_GENAI_WORKFLOW_VALUES: &str =
@@ -193,6 +194,7 @@ pub enum Queries {
     GetPendingGenAIEvalTask,
     GetPaginatedGenAIEvalRecords,
     GetPaginatedGenAIEvalWorkflow,
+    GetGenAIEvalTasks,
 
     // genai - data
     GetGenAIWorkflowBinnedMetrics,
@@ -303,6 +305,7 @@ impl Queries {
             Queries::GetPaginatedGenAIEvalRecords => GET_PAGINATED_GENAI_EVAL_RECORDS,
             Queries::GetPaginatedGenAIEvalWorkflow => GET_PAGINATED_GENAI_EVAL_WORKFLOW,
             Queries::GetPendingGenAIEvalTask => GET_PENDING_GENAI_EVAL_TASK,
+            Queries::GetGenAIEvalTasks => GET_GENAI_EVAL_TASKS,
 
             Queries::GetGenAIEvalRecordEntitiesForArchive => GET_GENAI_EVAL_RECORD_ENTITIES,
             Queries::GetGenAIEvalRecordDataForArchive => GET_GENAI_EVAL_RECORD_DATA_FOR_ARCHIVE,

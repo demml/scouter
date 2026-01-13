@@ -298,6 +298,26 @@ pub trait GenAIDriftSqlLogic {
         })
     }
 
+    /// Attempts to retrieve trace spans for a given trace ID.
+    /// # Arguments
+    /// * `pool` - The database connection pool
+    /// * `trace_id` - The trace ID to retrieve spans for
+    /// # Returns
+    /// * A vector of `TraceSpan` associated with the trace ID
+    async fn get_genai_eval_task(
+        pool: &Pool<Postgres>,
+        record_uid: &str,
+    ) -> Result<Vec<GenAIEvalTaskResult>, SqlError> {
+        let query = Queries::GetGenAIEvalTasks.get_query();
+        let tasks: Result<Vec<GenAIEvalTaskResult>, SqlError> = sqlx::query_as(query)
+            .bind(record_uid)
+            .fetch_all(pool)
+            .await
+            .map_err(SqlError::SqlxError);
+
+        tasks
+    }
+
     /// Retrieves a paginated list of GenAI workflow records with bidirectional cursor support
     ///
     /// # Arguments

@@ -1,6 +1,7 @@
 pub mod alerts;
 pub mod auth;
 pub mod drift;
+pub mod genai;
 pub mod health;
 pub mod message;
 pub mod observability;
