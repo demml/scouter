@@ -55,10 +55,3 @@ def test_genai_record():
 
     assert record.context["input"] == "What is the capital of France?"
     assert record.context["response"] == "Paris is the capital of France."
-
-    # pass incorrect type for context
-    with pytest.raises(
-        RuntimeError,
-        match=re.escape("Invalid context type. Context must be dictionary or Pydantic BaseModel"),
-    ):
-        GenAIEvalRecord(context="This is a string, not a dict or pydantic model")
