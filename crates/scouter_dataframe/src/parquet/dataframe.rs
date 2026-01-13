@@ -270,6 +270,10 @@ mod tests {
                 let record = ServerRecord::GenAITaskRecord(GenAIEvalTaskResult {
                     record_uid: format!("record_uid_{i}_{j}"),
                     created_at: Utc::now() + chrono::Duration::hours(i),
+                    start_time: Utc::now() + chrono::Duration::hours(i),
+                    end_time: Utc::now()
+                        + chrono::Duration::hours(i)
+                        + chrono::Duration::minutes(5),
                     entity_id,
                     task_id: format!("task{i}"),
                     task_type: scouter_types::genai::EvaluationTaskType::Assertion,
@@ -281,6 +285,8 @@ mod tests {
                     actual: Value::Null,
                     message: "All good".to_string(),
                     entity_uid: format!("entity_uid_{entity_id}"),
+                    condition: false,
+                    stage: 0,
                 });
 
                 batch.push(record);
@@ -336,7 +342,7 @@ mod tests {
     async fn test_write_genai_workflow_dataframe_local() {
         cleanup();
         let storage_settings = ObjectStorageSettings::default();
-        let df = ParquetDataFrame::new(&storage_settings, &RecordType::GenAITask).unwrap();
+        let df = ParquetDataFrame::new(&storage_settings, &RecordType::GenAIWorkflow).unwrap();
         let mut batch = Vec::new();
         let start_utc = Utc::now();
         let end_utc_for_test = start_utc + chrono::Duration::hours(3);
@@ -355,6 +361,8 @@ mod tests {
                     pass_rate: 0.8,
                     duration_ms: 1500,
                     entity_uid: format!("entity_uid_{entity_id}"),
+                    execution_plan: scouter_types::genai::ExecutionPlan::default(),
+                    id: j,
                 });
 
                 batch.push(record);

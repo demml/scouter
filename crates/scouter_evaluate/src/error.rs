@@ -158,6 +158,15 @@ pub enum EvaluationError {
 
     #[error("Invalid contains word operation")]
     InvalidContainsWordOperation,
+
+    #[error(transparent)]
+    RecordError(#[from] scouter_types::error::RecordError),
+
+    #[error("Array {index} out of bounds for length {length}")]
+    IndexOutOfBounds { index: isize, length: usize },
+
+    #[error("Expected an integer index or a slice")]
+    IndexOrSliceExpected,
 }
 
 impl From<pythonize::PythonizeError> for EvaluationError {

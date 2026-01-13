@@ -68,6 +68,7 @@ impl ParquetFrame for GenAIWorkflowDataFrame {
 impl GenAIWorkflowDataFrame {
     pub fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, DataFrameError> {
         let schema = Arc::new(Schema::new(vec![
+            Field::new("id", DataType::Int64, false),
             Field::new(
                 "created_at",
                 DataType::Timestamp(TimeUnit::Nanosecond, None),
@@ -81,6 +82,7 @@ impl GenAIWorkflowDataFrame {
             Field::new("pass_rate", DataType::Float64, false),
             Field::new("duration_ms", DataType::Int64, false),
             Field::new("metric", DataType::Utf8, false),
+            Field::new("execution_plan", DataType::Utf8, false),
         ]));
 
         let object_store = ObjectStore::new(storage_settings)?;
@@ -95,7 +97,9 @@ impl GenAIWorkflowDataFrame {
         &self,
         records: Vec<GenAIEvalWorkflowResult>,
     ) -> Result<RecordBatch, DataFrameError> {
-        // 1. created_at
+        // id
+        let id_array = arrow_array::Int64Array::from_iter_values(records.iter().map(|r| r.id));
+        // created_at
         let created_at_array = TimestampNanosecondArray::from_iter_values(
             records
                 .iter()
@@ -129,9 +133,16 @@ impl GenAIWorkflowDataFrame {
 
         let metric_array = StringArray::from_iter_values(records.iter().map(|_| "workflow"));
 
+        let execution_plan_array = StringArray::from_iter_values(
+            records
+                .iter()
+                .map(|r| serde_json::to_string(&r.execution_plan).unwrap_or_default()),
+        );
+
         let batch = RecordBatch::try_new(
             self.schema.clone(),
             vec![
+                Arc::new(id_array),
                 Arc::new(created_at_array),
                 Arc::new(uid_array),
                 Arc::new(entity_id_array),
@@ -141,6 +152,7 @@ impl GenAIWorkflowDataFrame {
                 Arc::new(pass_rate_array),
                 Arc::new(duration_ms_array),
                 Arc::new(metric_array),
+                Arc::new(execution_plan_array),
             ],
         )
         .map_err(DataFrameError::ArrowError)?;

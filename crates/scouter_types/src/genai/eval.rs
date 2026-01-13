@@ -16,14 +16,16 @@ pub struct AssertionResult {
     pub passed: bool,
     pub actual: Value,
     pub message: String,
+    pub expected: Value,
 }
 
 impl AssertionResult {
-    pub fn new(passed: bool, actual: Value, message: String) -> Self {
+    pub fn new(passed: bool, actual: Value, message: String, expected: Value) -> Self {
         Self {
             passed,
             actual,
             message,
+            expected,
         }
     }
     pub fn to_metric_value(&self) -> f64 {
@@ -389,7 +391,7 @@ impl TaskAccessor for LLMJudgeTask {
 
 #[derive(Debug, Clone)]
 pub enum EvaluationTask {
-    Assertion(AssertionTask),
+    Assertion(Box<AssertionTask>),
     LLMJudge(Box<LLMJudgeTask>),
 }
 
@@ -467,7 +469,7 @@ impl EvaluationTasks {
 // Implement From trait for automatic conversion
 impl From<AssertionTask> for EvaluationTask {
     fn from(task: AssertionTask) -> Self {
-        EvaluationTask::Assertion(task)
+        EvaluationTask::Assertion(Box::new(task))
     }
 }
 

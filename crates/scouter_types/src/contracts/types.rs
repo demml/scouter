@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::error::{ContractError, TypeError};
 use crate::sql::{TraceListItem, TraceMetricBucket, TraceSpan};
-use crate::Alert;
+use crate::{Alert, GenAIEvalWorkflowResult};
 use crate::{
     CustomInterval, DriftProfile, GenAIEvalRecord, Status, Tag, TagRecord, TraceBaggageRecord,
 };
@@ -559,6 +559,15 @@ pub struct GenAIEvalRecordPaginationRequest {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GenAIEvalRecordPaginationResponse {
     pub items: Vec<GenAIEvalRecord>,
+    pub has_next: bool,
+    pub next_cursor: Option<RecordCursor>,
+    pub has_previous: bool,
+    pub previous_cursor: Option<RecordCursor>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct GenAIEvalWorkflowPaginationResponse {
+    pub items: Vec<GenAIEvalWorkflowResult>,
     pub has_next: bool,
     pub next_cursor: Option<RecordCursor>,
     pub has_previous: bool,

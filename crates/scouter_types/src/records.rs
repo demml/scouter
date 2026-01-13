@@ -1,7 +1,7 @@
 use crate::error::RecordError;
-use crate::genai::{ComparisonOperator, EvaluationTaskType};
+use crate::genai::{ComparisonOperator, EvaluationTaskType, ExecutionPlan};
 use crate::trace::TraceServerRecord;
-use crate::{is_pydantic_basemodel, DriftType, Status};
+use crate::{depythonize_object_to_value, DriftType, Status};
 use crate::{EntityType, TagRecord};
 use chrono::DateTime;
 use chrono::Utc;
@@ -9,8 +9,6 @@ use owo_colors::OwoColorize;
 use potato_head::create_uuid7;
 use potato_head::PyHelperFuncs;
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
-use pythonize::depythonize;
 use pythonize::pythonize;
 use scouter_macro::impl_mask_entity_id;
 use serde::{Deserialize, Serialize};
@@ -198,29 +196,6 @@ impl PsiRecord {
     }
 }
 
-fn process_dict_with_nested_models(
-    py: Python<'_>,
-    dict: &Bound<'_, PyAny>,
-) -> Result<Value, RecordError> {
-    let py_dict = dict.cast::<PyDict>()?;
-    let mut result = serde_json::Map::new();
-
-    for (key, value) in py_dict.iter() {
-        let key_str: String = key.extract()?;
-
-        let processed_value = if is_pydantic_basemodel(py, &value)? {
-            let model = value.call_method0("model_dump")?;
-            depythonize(&model)?
-        } else {
-            depythonize(&value)?
-        };
-
-        result.insert(key_str, processed_value);
-    }
-
-    Ok(Value::Object(result))
-}
-
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GenAIEvalRecord {
@@ -246,23 +221,19 @@ pub struct GenAIEvalRecord {
 #[pymethods]
 impl GenAIEvalRecord {
     #[new]
-    #[pyo3(signature = (context, id = None))]
+    #[pyo3(signature = (context=None, id = None))]
 
     /// Creates a new GenAIEvalRecord instance.
     /// The context is either a python dictionary or a pydantic basemodel.
     pub fn new(
         py: Python<'_>,
-        context: Bound<'_, PyAny>,
+        context: Option<Bound<'_, PyAny>>,
         id: Option<String>,
     ) -> Result<Self, RecordError> {
         // check if context is a PyDict or PyObject(Pydantic model)
-        let context_val = if is_pydantic_basemodel(py, &context)? {
-            let model = context.call_method0("model_dump")?;
-            depythonize(&model)?
-        } else if context.is_instance_of::<PyDict>() {
-            process_dict_with_nested_models(py, &context)?
-        } else {
-            Err(RecordError::MustBeDictOrBaseModel)?
+        let context_val = match context {
+            Some(ctx) => depythonize_object_to_value(py, &ctx)?,
+            None => Value::Object(serde_json::Map::new()),
         };
 
         Ok(GenAIEvalRecord {
@@ -292,9 +263,60 @@ impl GenAIEvalRecord {
     pub fn context<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, RecordError> {
         Ok(pythonize(py, &self.context)?)
     }
+    #[pyo3(signature = (key, value))]
+    pub fn update_context_field(
+        &mut self,
+        py: Python<'_>,
+        key: String,
+        value: &Bound<'_, PyAny>,
+    ) -> Result<(), RecordError> {
+        let py_value = depythonize_object_to_value(py, value)?;
+
+        match &mut self.context {
+            Value::Object(map) => {
+                map.insert(key, py_value);
+            }
+            _ => {
+                let mut new_map = serde_json::Map::new();
+                new_map.insert(key, py_value);
+                self.context = Value::Object(new_map);
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl GenAIEvalRecord {
+    /// will update the entire context of the record
+    /// If new context is a map, update context fields individually
+    /// if not, replace entire context
+    /// # Arguments
+    /// * `new_context` - New context to set
+    pub fn update_context(
+        &mut self,
+        py: Python<'_>,
+        new_context: &Bound<'_, PyAny>,
+    ) -> Result<(), RecordError> {
+        let py_value = depythonize_object_to_value(py, new_context)?;
+
+        match &mut self.context {
+            Value::Object(map) => {
+                if let Value::Object(new_map) = py_value {
+                    for (key, value) in new_map {
+                        map.insert(key, value);
+                    }
+                } else {
+                    self.context = py_value;
+                }
+            }
+            _ => {
+                self.context = py_value;
+            }
+        }
+        Ok(())
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn new_rs(
         context: Value,
@@ -407,8 +429,7 @@ pub struct WorkflowResultTableEntry {
 }
 
 #[pyclass]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GenAIEvalWorkflowResult {
     #[pyo3(get)]
     pub created_at: DateTime<Utc>,
@@ -433,8 +454,42 @@ pub struct GenAIEvalWorkflowResult {
     #[pyo3(get)]
     pub duration_ms: i64,
 
-    #[cfg_attr(feature = "server", sqlx(skip))]
     pub entity_uid: String,
+
+    pub execution_plan: ExecutionPlan,
+
+    pub id: i64,
+}
+
+impl GenAIEvalWorkflowResult {
+    pub fn mask_sensitive_data(&mut self) {
+        self.entity_id = -1;
+    }
+}
+
+#[cfg(feature = "server")]
+impl FromRow<'_, PgRow> for GenAIEvalWorkflowResult {
+    fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
+        let execution_plan: ExecutionPlan = serde_json::from_value(row.try_get("execution_plan")?)
+            .unwrap_or(ExecutionPlan {
+                stages: vec![],
+                nodes: HashMap::new(),
+            });
+
+        Ok(GenAIEvalWorkflowResult {
+            created_at: row.try_get("created_at")?,
+            record_uid: row.try_get("record_uid")?,
+            entity_id: row.try_get("entity_id")?,
+            total_tasks: row.try_get("total_tasks")?,
+            passed_tasks: row.try_get("passed_tasks")?,
+            failed_tasks: row.try_get("failed_tasks")?,
+            pass_rate: row.try_get("pass_rate")?,
+            duration_ms: row.try_get("duration_ms")?,
+            entity_uid: String::new(), // mask entity_uid when loading from DB
+            id: row.try_get("id")?,
+            execution_plan,
+        })
+    }
 }
 
 #[pymethods]
@@ -493,6 +548,8 @@ impl GenAIEvalWorkflowResult {
             duration_ms: self.duration_ms.to_string(),
         }
     }
+
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         record_uid: String,
         total_tasks: i32,
@@ -501,6 +558,7 @@ impl GenAIEvalWorkflowResult {
         duration_ms: i64,
         entity_id: i32,
         entity_uid: String,
+        execution_plan: ExecutionPlan,
     ) -> Self {
         let pass_rate = if total_tasks > 0 {
             passed_tasks as f64 / total_tasks as f64
@@ -518,6 +576,8 @@ impl GenAIEvalWorkflowResult {
             duration_ms,
             entity_id,
             entity_uid,
+            execution_plan,
+            id: 0,
         }
     }
 }
@@ -526,12 +586,16 @@ impl GenAIEvalWorkflowResult {
 pub struct TaskResultTableEntry {
     #[tabled(rename = "Created At")]
     pub created_at: String,
-    #[tabled(rename = "Record UID")]
-    pub record_uid: String,
+    #[tabled(rename = "Record ID")]
+    pub record_id: String,
     #[tabled(rename = "Task ID")]
     pub task_id: String,
     #[tabled(rename = "Task Type")]
     pub task_type: String,
+    #[tabled(rename = "Condition")]
+    pub condition: bool,
+    #[tabled(rename = "Stage")]
+    pub stage: i32,
     #[tabled(rename = "Passed")]
     pub passed: String,
     #[tabled(rename = "Field Path")]
@@ -550,6 +614,12 @@ pub struct TaskResultTableEntry {
 pub struct GenAIEvalTaskResult {
     #[pyo3(get)]
     pub created_at: DateTime<Utc>,
+
+    #[pyo3(get)]
+    pub start_time: DateTime<Utc>,
+
+    #[pyo3(get)]
+    pub end_time: DateTime<Utc>,
 
     #[pyo3(get)]
     pub record_uid: String,
@@ -583,6 +653,10 @@ pub struct GenAIEvalTaskResult {
     pub message: String,
 
     pub entity_uid: String,
+
+    pub condition: bool,
+
+    pub stage: i32,
 }
 
 #[pymethods]
@@ -606,28 +680,10 @@ impl GenAIEvalTaskResult {
     pub fn model_dump_json(&self) -> String {
         PyHelperFuncs::__json__(self)
     }
-
-    pub fn as_table(&self) {
-        let task_table = self.to_table_entry();
-        let mut table = Table::new(vec![task_table]);
-        table.with(Style::sharp());
-
-        table.modify(
-            Rows::new(0..1),
-            (
-                Format::content(|s: &str| s.truecolor(245, 77, 85).bold().to_string()),
-                Alignment::center(),
-                Color::BOLD,
-            ),
-        );
-
-        println!("\n{}", "Task Details".truecolor(245, 77, 85).bold());
-        println!("{}", table);
-    }
 }
 
 impl GenAIEvalTaskResult {
-    pub(crate) fn to_table_entry(&self) -> TaskResultTableEntry {
+    pub(crate) fn to_table_entry(&self, record_id: &str) -> TaskResultTableEntry {
         let expected_str =
             serde_json::to_string(&self.expected).unwrap_or_else(|_| "null".to_string());
         let actual_str = serde_json::to_string(&self.actual).unwrap_or_else(|_| "null".to_string());
@@ -643,16 +699,19 @@ impl GenAIEvalTaskResult {
         TaskResultTableEntry {
             created_at: self.created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
 
-            record_uid: truncate(self.record_uid.clone(), 16)
+            record_id: truncate(record_id.to_string(), 16)
                 .truecolor(249, 179, 93)
                 .to_string(), // UUIDs are ~36 chars
             task_id: truncate(self.task_id.clone(), 16),
             task_type: self.task_type.to_string(),
+            condition: self.condition,
+            stage: self.stage,
             passed: if self.passed {
                 "✓".green().to_string()
             } else {
                 "✗".red().to_string()
             },
+
             field_path: truncate(self.field_path.clone().unwrap_or_default(), 12),
             operator: self.operator.to_string(),
             expected: truncate(expected_str, 20),
@@ -661,6 +720,8 @@ impl GenAIEvalTaskResult {
     }
     #[allow(clippy::too_many_arguments)]
     pub fn new(
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
         record_uid: String,
         task_id: String,
         task_type: EvaluationTaskType,
@@ -673,8 +734,12 @@ impl GenAIEvalTaskResult {
         message: String,
         entity_id: i32,
         entity_uid: String,
+        condition: bool,
+        stage: i32,
     ) -> Self {
         Self {
+            start_time,
+            end_time,
             record_uid,
             created_at: Utc::now(),
             task_id,
@@ -688,6 +753,8 @@ impl GenAIEvalTaskResult {
             message,
             entity_id,
             entity_uid,
+            condition,
+            stage,
         }
     }
 }
@@ -708,6 +775,8 @@ impl FromRow<'_, PgRow> for GenAIEvalTaskResult {
         Ok(GenAIEvalTaskResult {
             record_uid: row.try_get("record_uid")?,
             created_at: row.try_get("created_at")?,
+            start_time: row.try_get("start_time")?,
+            end_time: row.try_get("end_time")?,
             task_id: row.try_get("task_id")?,
             task_type,
             passed: row.try_get("passed")?,
@@ -722,6 +791,8 @@ impl FromRow<'_, PgRow> for GenAIEvalTaskResult {
             // empty here, not needed for server operations
             // entity_uid is only used when creating new records
             entity_uid: String::new(),
+            condition: row.try_get("condition")?,
+            stage: row.try_get("stage")?,
         })
     }
 }

@@ -1,8 +1,8 @@
 use crate::error::EvaluationError;
 use crate::evaluate::evaluator::GenAIEvaluator;
+use crate::evaluate::types::{EvaluationConfig, GenAIEvalResults};
 use crate::genai::GenAIEvalDataset;
 use crate::tasks::evaluator::FieldEvaluator;
-use crate::types::{EvaluationConfig, GenAIEvalResults};
 use itertools::iproduct;
 use num_traits::FromPrimitive;
 use potato_head::{Embedder, EmbeddingInput, PyEmbedder};
@@ -15,7 +15,7 @@ use simsimd::SpatialSimilarity;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use tokio::task::JoinSet;
-use tracing::{error, warn};
+use tracing::{debug, error, warn};
 
 type EvalTaskResult = (
     usize, // Index into records array
@@ -44,6 +44,11 @@ pub async fn spawn_evaluation_tasks_without_embeddings(
         join_set.spawn(async move {
             // Access record by index - no cloning
             let record = &record_ref[idx];
+
+            debug!(
+                "Starting evaluation for record {} and index {}",
+                record.uid, idx
+            );
 
             let result = match GenAIEvaluator::process_event_record(record, profile_ref).await {
                 Ok(eval_set) => Ok((eval_set, BTreeMap::new())),

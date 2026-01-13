@@ -23,6 +23,7 @@ use scouter_sql::sql::traits::AlertSqlLogic;
 use scouter_sql::sql::traits::EntitySqlLogic;
 use scouter_sql::PostgresClient;
 use scouter_tonic::GrpcClient;
+use scouter_types::genai::ExecutionPlan;
 use scouter_types::spc::SpcDriftConfig;
 use scouter_types::spc::{SpcAlertConfig, SpcDriftProfile};
 use scouter_types::JwtToken;
@@ -380,6 +381,10 @@ impl TestHelper {
                     actual: Value::Null,
                     message: "All good".to_string(),
                     entity_uid: uid.to_string(),
+                    condition: false,
+                    stage: i,
+                    start_time: Utc::now(),
+                    end_time: Utc::now(),
                 };
                 records.push(ServerRecord::GenAITaskRecord(record));
             }
@@ -405,6 +410,8 @@ impl TestHelper {
                     pass_rate: 0.8,
                     duration_ms: 1500,
                     entity_uid: uid.to_string(),
+                    execution_plan: ExecutionPlan::default(),
+                    id: 0,
                 };
                 records.push(ServerRecord::GenAIWorkflowRecord(record));
             }

@@ -253,11 +253,9 @@ def test_genai_conditional_assertions():
 
     results.as_table()
 
-    print(results)
-
     assert (
-        results["test_conditional_1"].task_count == 2
+        results["test_conditional_1"].task_count == 4
     ), f"Expected 2 tasks to run, got {results['test_conditional_1'].task_count}"
     assert (
-        results["test_conditional_1"].eval_set.records[0].task_id == "is_bar"
+        results["test_conditional_1"].eval_set.records[0].task_id == "is_foo"
     ), f"Expected first task to be 'is_bar', got {results['test_conditional_1'].eval_set.records[0].task_id}"

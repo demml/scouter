@@ -191,3 +191,46 @@ font-weight: bold;
 .md-typeset pre > code {
     border-radius: 12px; 
 }
+
+
+
+/* Mermaid Theme Override */
+.mermaid {
+  --mermaid-font-family: inherit;
+}
+
+[data-md-color-scheme="scouter-dark"] .mermaid {
+  --primaryColor: var(--primary-700);
+  --primaryTextColor: var(--black);
+  --primaryBorderColor: var(--primary-500);
+  --lineColor: var(--secondary);
+  --secondBkgColor: var(--primary-500);
+  --secondBorderColor: var(--secondary);
+  --tertiaryColor: var(--primary-900);
+  --tertiaryTextColor: var(--black);
+  --tertiaryBorderColor: var(--secondary);
+  --background: var(--primary-900);
+  --mainBkg: var(--primary-700);
+  --clusterBkg: var(--primary-700);
+  --clusterBorder: var(--secondary);
+  --textColor: var(--black);
+  --fontSize: 14px;
+}
+
+[data-md-color-scheme="scouter-light"] .mermaid {
+  --primaryColor: #f5f5f5;
+  --primaryTextColor: var(--black);
+  --primaryBorderColor: var(--primary-500);
+  --lineColor: var(--secondary);
+  --secondBkgColor: var(--primary-300);
+  --secondBorderColor: var(--primary-500);
+  --tertiaryColor: #e8e8e8;
+  --tertiaryTextColor: var(--black);
+  --tertiaryBorderColor: var(--secondary);
+  --background: var(--white);
+  --mainBkg: #f5f5f5;
+  --clusterBkg: #f5f5f5;
+  --clusterBorder: var(--secondary);
+  --textColor: var(--black);
+  --fontSize: 14px;
+}

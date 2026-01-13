@@ -57,6 +57,8 @@ const GET_BINNED_GENAI_TASK_VALUES: &str =
 // genai paginated query
 const GET_PAGINATED_GENAI_EVAL_RECORDS: &str =
     include_str!("scripts/genai/get_paginated_eval_records.sql");
+const GET_PAGINATED_GENAI_EVAL_WORKFLOW: &str =
+    include_str!("scripts/genai/get_paginated_eval_workflow.sql");
 const UPDATE_GENAI_EVAL_TASK: &str = include_str!("scripts/genai/update_eval_record.sql");
 
 // Archive data
@@ -190,6 +192,7 @@ pub enum Queries {
     GetGenAIEvalRecords,
     GetPendingGenAIEvalTask,
     GetPaginatedGenAIEvalRecords,
+    GetPaginatedGenAIEvalWorkflow,
 
     // genai - data
     GetGenAIWorkflowBinnedMetrics,
@@ -298,6 +301,7 @@ impl Queries {
 
             Queries::GetGenAIEvalRecords => GET_GENAI_EVAL_RECORDS,
             Queries::GetPaginatedGenAIEvalRecords => GET_PAGINATED_GENAI_EVAL_RECORDS,
+            Queries::GetPaginatedGenAIEvalWorkflow => GET_PAGINATED_GENAI_EVAL_WORKFLOW,
             Queries::GetPendingGenAIEvalTask => GET_PENDING_GENAI_EVAL_TASK,
 
             Queries::GetGenAIEvalRecordEntitiesForArchive => GET_GENAI_EVAL_RECORD_ENTITIES,

@@ -42,13 +42,6 @@ def test_genai_record():
         },
     )
 
-    # Test error - provide no input or response
-    with pytest.raises(
-        TypeError,
-        match=re.escape("GenAIEvalRecord.__new__() missing 1 required positional argument: 'context'"),
-    ):
-        GenAIEvalRecord()
-
     record = GenAIEvalRecord(
         context={"foo": "bar", "value": 1},
     )

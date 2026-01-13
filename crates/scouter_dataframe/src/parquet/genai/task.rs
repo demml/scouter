@@ -71,6 +71,16 @@ impl GenAITaskDataFrame {
                 DataType::Timestamp(TimeUnit::Nanosecond, None),
                 false,
             ),
+            Field::new(
+                "start_time",
+                DataType::Timestamp(TimeUnit::Nanosecond, None),
+                false,
+            ),
+            Field::new(
+                "end_time",
+                DataType::Timestamp(TimeUnit::Nanosecond, None),
+                false,
+            ),
             Field::new("record_uid", DataType::Utf8, false),
             Field::new("entity_id", DataType::Int32, false),
             Field::new("task_id", DataType::Utf8, false),
@@ -82,6 +92,8 @@ impl GenAITaskDataFrame {
             Field::new("expected", DataType::Utf8, false),
             Field::new("actual", DataType::Utf8, false),
             Field::new("message", DataType::Utf8, false),
+            Field::new("condition", DataType::Boolean, false),
+            Field::new("stage", DataType::Int32, false),
         ]));
 
         let object_store = ObjectStore::new(storage_settings)?;
@@ -103,69 +115,77 @@ impl GenAITaskDataFrame {
         &self,
         records: Vec<GenAIEvalTaskResult>,
     ) -> Result<RecordBatch, DataFrameError> {
-        // 1. created_at: TimestampNanosecond
         let created_at_array = TimestampNanosecondArray::from_iter_values(
             records
                 .iter()
                 .map(|r| r.created_at.timestamp_nanos_opt().unwrap_or_default()),
         );
 
-        // 2. record_uid: Utf8
+        let start_time_array = TimestampNanosecondArray::from_iter_values(
+            records
+                .iter()
+                .map(|r| r.start_time.timestamp_nanos_opt().unwrap_or_default()),
+        );
+
+        let end_time_array = TimestampNanosecondArray::from_iter_values(
+            records
+                .iter()
+                .map(|r| r.end_time.timestamp_nanos_opt().unwrap_or_default()),
+        );
+
         let uid_array =
             StringArray::from_iter_values(records.iter().map(|r| r.record_uid.as_str()));
 
-        // 3. entity_id: Int32
         let entity_id_array = Int32Array::from_iter_values(records.iter().map(|r| r.entity_id));
 
-        // 4. task_id: Utf8
         let task_id_array =
             StringArray::from_iter_values(records.iter().map(|r| r.task_id.as_str()));
 
-        // 5. task_type: Utf8 (Enum to string)
         let task_type_array =
             StringArray::from_iter_values(records.iter().map(|r| r.task_type.as_str()));
 
-        // 6. passed: Boolean
         let passed_array = BooleanArray::from_iter(records.iter().map(|r| r.passed));
 
-        // 7. value: Float64
         let value_array = Float64Array::from_iter_values(records.iter().map(|r| r.value));
 
-        // 8. field_path: Utf8 (Nullable)
         let field_path_array =
             StringArray::from_iter(records.iter().map(|r| r.field_path.as_deref()));
 
-        // 9. operator: Utf8 (Enum to string)
         let operator_array =
             StringArray::from_iter_values(records.iter().map(|r| r.operator.as_str()));
 
-        // 10. expected: Utf8 (JSON to String)
         let expected_array =
             StringArray::from_iter_values(records.iter().map(|r| r.expected.to_string()));
 
-        // 11. actual: Utf8 (JSON to String)
         let actual_array =
             StringArray::from_iter_values(records.iter().map(|r| r.actual.to_string()));
 
-        // 12. message: Utf8
         let message_array =
             StringArray::from_iter_values(records.iter().map(|r| r.message.as_str()));
+
+        let condition_array = BooleanArray::from_iter(records.iter().map(|r| r.condition));
+
+        let stage_array = Int32Array::from_iter_values(records.iter().map(|r| r.stage));
 
         let batch = RecordBatch::try_new(
             self.schema.clone(),
             vec![
-                Arc::new(created_at_array), // 1
-                Arc::new(uid_array),        // 2
-                Arc::new(entity_id_array),  // 3
-                Arc::new(task_id_array),    // 4
-                Arc::new(task_type_array),  // 5
-                Arc::new(passed_array),     // 6
-                Arc::new(value_array),      // 7
-                Arc::new(field_path_array), // 8
-                Arc::new(operator_array),   // 9
-                Arc::new(expected_array),   // 10
-                Arc::new(actual_array),     // 11
-                Arc::new(message_array),    // 12
+                Arc::new(created_at_array),
+                Arc::new(start_time_array),
+                Arc::new(end_time_array),
+                Arc::new(uid_array),
+                Arc::new(entity_id_array),
+                Arc::new(task_id_array),
+                Arc::new(task_type_array),
+                Arc::new(passed_array),
+                Arc::new(value_array),
+                Arc::new(field_path_array),
+                Arc::new(operator_array),
+                Arc::new(expected_array),
+                Arc::new(actual_array),
+                Arc::new(message_array),
+                Arc::new(condition_array),
+                Arc::new(stage_array),
             ],
         )
         .map_err(DataFrameError::ArrowError)?;

@@ -9,10 +9,7 @@ from scouter.evaluate import (
     LLMJudgeTask,
 )
 from scouter.genai import Agent, Prompt, Provider
-from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 from scouter.queue import GenAIEvalRecord
-
-RustyLogger.setup_logging(LoggingConfig(log_level=LogLevel.Info))
 
 categories = ["bath", "kitchen", "outdoor"]
 ApplianceCategory = Literal["kitchen", "bath", "outdoor"]
@@ -376,7 +373,6 @@ def build_appliance_support_dataset(
                 operator=ComparisonOperator.IsNotEmpty,
                 field_path="category",
                 description="Classify the appliance category (kitchen, bath, outdoor)",
-                condition=True,
             ),
         ]
         + kitchen_category_tasks()
@@ -391,6 +387,7 @@ if __name__ == "__main__":
     num_questions = 2
 
     records = simulate_agent_interaction(num_questions=num_questions)
+
     dataset = build_appliance_support_dataset(records=records)
 
     print("\n=== Evaluation Plan ===")
@@ -399,5 +396,4 @@ if __name__ == "__main__":
     print("\n=== Running Evaluation ===")
     results = dataset.evaluate()
     results.as_table()
-
     results.as_table(show_tasks=True)

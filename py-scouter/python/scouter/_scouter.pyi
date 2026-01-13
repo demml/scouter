@@ -593,9 +593,13 @@ class Prompt:
     def response_json_schema(self) -> Optional[str]:
         """The JSON schema for structured output responses if provided.
 
-        Returns the JSON schema string that was generated from the response_format
+        Returns the raw JSON schema string that was generated from the output_type
         parameter during initialization. Returns None if no response format was specified.
         """
+
+    @property
+    def response_json_schema_pretty(self) -> Optional[str]:
+        """The pretty-printed JSON schema for structured output responses if provided."""
 
     def __str__(self) -> str:
         """Return a string representation of the Prompt."""
@@ -981,6 +985,22 @@ class Workflow:
             global_context (Optional[Dict[str, Any]]):
                 A dictionary of global context to bind to the workflow.
                 All tasks in the workflow will have this context bound to them.
+        """
+
+    def execute_task(
+        self,
+        task_id: str,
+        global_context: Optional[Any] = None,
+    ) -> Any:
+        """Execute a single task in the workflow by its ID.
+        Args:
+            task_id (str):
+                The ID of the task to execute.
+            global_context (Optional[Any]):
+                Any serializable global context to bind to the task before execution.
+                This is typically a dictionary or Pydantic BaseModel.
+        Returns:
+            Any:
         """
 
     def model_dump_json(self) -> str:
@@ -12271,6 +12291,17 @@ class GenAIEvalRecord:
     def model_dump_json(self) -> str:
         """Return the json representation of the record."""
 
+    def update_context_field(self, key: str, value: Any) -> None:
+        """Update a specific field in the context.
+        If the key does not exist, it will be added.
+
+        Args:
+            key (str):
+                The key of the context field to update.
+            value (Any):
+                The new value for the context field.
+        """
+
 class LLMTestServer:
     """
     Mock server for OpenAI API.
@@ -13793,7 +13824,7 @@ class AssertionTask:
         operator: ComparisonOperator,
         field_path: Optional[str] = None,
         description: Optional[str] = None,
-        depends_on: Optional[List[str]] = None,
+        depends_on: Optional[Sequence[str]] = None,
         condition: bool = False,
     ):
         """Initialize an assertion task for rule-based evaluation.
@@ -14975,6 +15006,26 @@ class GenAIEvalDataset:
     def print_execution_plan(self) -> None:
         """Print the execution plan for all tasks in the dataset."""
 
+    def with_updated_contexts_by_id(
+        self,
+        updated_contexts: Dict[str, Any],
+    ) -> "GenAIEvalDataset":
+        """Create a new GenAIEvalDataset with updated contexts for specific records.
+
+        Example:
+            >>> updated_contexts = {
+            ...     "record_1_uid": {"new_field": "new_value"},
+            ...     "record_2_uid": {"another_field": 123}
+            ... }
+            >>> new_dataset = dataset.with_updated_contexts_by_id(updated_contexts)
+        Args:
+            updated_contexts (Dict[str, Any]):
+                A dictionary mapping record UIDs to their new context data.
+        Returns:
+            GenAIEvalDataset:
+                A new dataset instance with the updated contexts.
+        """
+
 class GenAIEvalSet:
     """Evaluation set for a specific evaluation run"""
 
@@ -15063,6 +15114,149 @@ class AlignedEvalResult:
     def task_count(self) -> int:
         """Get the total number of tasks in the evaluation"""
 
+class MissingTask:
+    """Represents a task that exists in only one of the compared evaluations"""
+
+    @property
+    def task_id(self) -> str:
+        """Get the task identifier"""
+
+    @property
+    def present_in(self) -> str:
+        """Get which evaluation contains this task ('baseline_only' or 'comparison_only')"""
+
+class TaskComparison:
+    """Represents a comparison between the same task in baseline and comparison evaluations"""
+
+    @property
+    def task_id(self) -> str:
+        """Get the task identifier"""
+
+    @property
+    def baseline_passed(self) -> bool:
+        """Check if the task passed in the baseline evaluation"""
+
+    @property
+    def comparison_passed(self) -> bool:
+        """Check if the task passed in the comparison evaluation"""
+
+    @property
+    def status_changed(self) -> bool:
+        """Check if the task's pass/fail status changed between evaluations"""
+
+    @property
+    def record_uid(self) -> str:
+        """Get the record unique identifier associated with this task comparison"""
+
+class WorkflowComparison:
+    """Represents a comparison between matching workflows in baseline and comparison evaluations"""
+
+    @property
+    def baseline_uid(self) -> str:
+        """Get the baseline workflow unique identifier"""
+
+    @property
+    def comparison_uid(self) -> str:
+        """Get the comparison workflow unique identifier"""
+
+    @property
+    def baseline_pass_rate(self) -> float:
+        """Get the baseline workflow pass rate (0.0 to 1.0)"""
+
+    @property
+    def comparison_pass_rate(self) -> float:
+        """Get the comparison workflow pass rate (0.0 to 1.0)"""
+
+    @property
+    def pass_rate_delta(self) -> float:
+        """Get the change in pass rate (positive = improvement, negative = regression)"""
+
+    @property
+    def is_regression(self) -> bool:
+        """Check if this workflow shows a significant regression"""
+
+    @property
+    def task_comparisons(self) -> List[TaskComparison]:
+        """Get detailed task-by-task comparisons for this workflow"""
+
+class ComparisonResults:
+    """Results from comparing two GenAIEvalResults evaluations"""
+
+    @property
+    def workflow_comparisons(self) -> List[WorkflowComparison]:
+        """Get all workflow-level comparisons"""
+
+    @property
+    def total_workflows(self) -> int:
+        """Get the total number of workflows compared"""
+
+    @property
+    def improved_workflows(self) -> int:
+        """Get the count of workflows that improved"""
+
+    @property
+    def regressed_workflows(self) -> int:
+        """Get the count of workflows that regressed"""
+
+    @property
+    def unchanged_workflows(self) -> int:
+        """Get the count of workflows with no significant change"""
+
+    @property
+    def mean_pass_rate_delta(self) -> float:
+        """Get the mean change in pass rate across all workflows"""
+
+    @property
+    def task_status_changes(self) -> List[TaskComparison]:
+        """Get all tasks where pass/fail status changed"""
+
+    @property
+    def missing_tasks(self) -> List[MissingTask]:
+        """Get all tasks present in only one evaluation"""
+
+    @property
+    def baseline_workflow_count(self) -> int:
+        """Get the number of workflows in the baseline evaluation"""
+
+    @property
+    def comparison_workflow_count(self) -> int:
+        """Get the number of workflows in the comparison evaluation"""
+
+    @property
+    def has_missing_tasks(self) -> bool:
+        """Check if there are any missing tasks between evaluations"""
+
+    def __str__(self) -> str:
+        """String representation of the comparison results"""
+
+    @property
+    def regressed(self) -> bool:
+        """Check if any workflows regressed in the comparison"""
+
+    def print_missing_tasks(self) -> None:
+        """Print a formatted list of missing tasks to the console"""
+
+    def print_task_aggregate_table(self) -> None:
+        """Print a formatted table of task status changes to the console"""
+
+    def print_summary_table(self) -> None:
+        """Print a formatted summary table of workflow comparisons to the console"""
+
+    def print_status_changes_table(self) -> None:
+        """Print a formatted table of task status changes to the console"""
+
+    def print_summary_stats(self) -> None:
+        """Print summary statistics of the comparison results to the console"""
+
+    def as_table(self) -> None:
+        """Print comparison results as formatted tables to the console.
+
+        Displays:
+        - Workflow-level summary table
+        - Task status changes table (if any)
+        - Missing tasks list (if any)
+        """
+
 class GenAIEvalResults:
     """Defines the results of an LLM eval metric"""
 
@@ -15121,6 +15315,19 @@ class GenAIEvalResults:
                 Whether to show individual task results or just the workflow summary. Default is False
                 meaning only the workflow summary is shown.
 
+        """
+
+    def compare_to(self, baseline: "GenAIEvalResults", regression_threshold: float) -> ComparisonResults:
+        """Compare the current evaluation results to a baseline with a regression threshold.
+
+        Args:
+            baseline (GenAIEvalResults):
+                The baseline evaluation results to compare against.
+            regression_threshold (float):
+                The threshold for considering a regression significant.
+
+        Returns:
+            ComparisonResults
         """
 
 class EvaluationConfig:

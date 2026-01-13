@@ -11,6 +11,7 @@ use scouter_types::contracts::DriftRequest;
 use scouter_types::BoxedGenAIEvalRecord;
 use scouter_types::GenAIEvalRecord;
 use scouter_types::GenAIEvalTaskResult;
+use scouter_types::GenAIEvalWorkflowPaginationResponse;
 use scouter_types::GenAIEvalWorkflowResult;
 use scouter_types::Status;
 use scouter_types::{
@@ -71,6 +72,7 @@ pub trait GenAIDriftSqlLogic {
             .bind(record.failed_tasks)
             .bind(record.pass_rate)
             .bind(record.duration_ms)
+            .bind(Json(&record.execution_plan))
             .execute(pool)
             .await
             .map_err(SqlError::SqlxError)
@@ -91,6 +93,8 @@ pub trait GenAIDriftSqlLogic {
 
         // Pre-allocate vectors to avoid reallocations
         let mut created_ats = Vec::with_capacity(n);
+        let mut start_times = Vec::with_capacity(n);
+        let mut end_times = Vec::with_capacity(n);
         let mut record_uids = Vec::with_capacity(n);
         let mut entity_ids = Vec::with_capacity(n);
         let mut task_ids = Vec::with_capacity(n);
@@ -102,9 +106,13 @@ pub trait GenAIDriftSqlLogic {
         let mut expected_jsons = Vec::with_capacity(n);
         let mut actual_jsons = Vec::with_capacity(n);
         let mut messages = Vec::with_capacity(n);
+        let mut condition = Vec::with_capacity(n);
+        let mut stage = Vec::with_capacity(n);
 
         for r in records {
             created_ats.push(r.created_at);
+            start_times.push(r.start_time);
+            end_times.push(r.end_time);
             record_uids.push(&r.record_uid);
             entity_ids.push(entity_id);
             task_ids.push(&r.task_id);
@@ -116,12 +124,16 @@ pub trait GenAIDriftSqlLogic {
             expected_jsons.push(Json(&r.expected));
             actual_jsons.push(Json(&r.actual));
             messages.push(&r.message);
+            condition.push(r.condition);
+            stage.push(r.stage);
         }
 
         let query = Queries::InsertGenAITaskResultsBatch.get_query();
 
         sqlx::query(query)
             .bind(&created_ats)
+            .bind(&start_times)
+            .bind(&end_times)
             .bind(&record_uids)
             .bind(&entity_ids)
             .bind(&task_ids)
@@ -133,6 +145,8 @@ pub trait GenAIDriftSqlLogic {
             .bind(&expected_jsons)
             .bind(&actual_jsons)
             .bind(&messages)
+            .bind(&condition)
+            .bind(&stage)
             .execute(pool)
             .await
             .map_err(SqlError::SqlxError)
@@ -276,6 +290,110 @@ pub trait GenAIDriftSqlLogic {
             .collect();
 
         Ok(GenAIEvalRecordPaginationResponse {
+            items: public_items,
+            has_next,
+            next_cursor,
+            has_previous,
+            previous_cursor,
+        })
+    }
+
+    /// Retrieves a paginated list of GenAI workflow records with bidirectional cursor support
+    ///
+    /// # Arguments
+    /// * `pool` - The database connection pool
+    /// * `params` - The pagination request containing limit, cursor, and direction
+    /// * `entity_id` - The entity ID to filter records
+    ///
+    /// # Returns
+    /// * Result with paginated response containing GenAI workflow records
+    #[instrument(skip_all)]
+    async fn get_paginated_genai_eval_workflow_records(
+        pool: &Pool<Postgres>,
+        params: &GenAIEvalRecordPaginationRequest,
+        entity_id: &i32,
+    ) -> Result<GenAIEvalWorkflowPaginationResponse, SqlError> {
+        let query = Queries::GetPaginatedGenAIEvalWorkflow.get_query();
+        let limit = params.limit.unwrap_or(50);
+        let direction = params.direction.as_deref().unwrap_or("next");
+
+        let mut items: Vec<GenAIEvalWorkflowResult> = sqlx::query_as(query)
+            .bind(entity_id)
+            .bind(params.cursor_created_at)
+            .bind(direction)
+            .bind(params.cursor_id)
+            .bind(limit)
+            .bind(params.start_datetime)
+            .bind(params.end_datetime)
+            .fetch_all(pool)
+            .await
+            .map_err(SqlError::SqlxError)?;
+
+        let has_more = items.len() > limit as usize;
+
+        if has_more {
+            items.pop();
+        }
+
+        let (has_next, next_cursor, has_previous, previous_cursor) = match direction {
+            "previous" => {
+                items.reverse();
+
+                let previous_cursor = if has_more {
+                    items.first().map(|first| RecordCursor {
+                        created_at: first.created_at,
+                        id: first.id,
+                    })
+                } else {
+                    None
+                };
+
+                let next_cursor = items.last().map(|last| RecordCursor {
+                    created_at: last.created_at,
+                    id: last.id,
+                });
+
+                (
+                    params.cursor_created_at.is_some(),
+                    next_cursor,
+                    has_more,
+                    previous_cursor,
+                )
+            }
+            _ => {
+                // Forward pagination (default)
+                let next_cursor = if has_more {
+                    items.last().map(|last| RecordCursor {
+                        created_at: last.created_at,
+                        id: last.id,
+                    })
+                } else {
+                    None
+                };
+
+                let previous_cursor = items.first().map(|first| RecordCursor {
+                    created_at: first.created_at,
+                    id: first.id,
+                });
+
+                (
+                    has_more,
+                    next_cursor,
+                    params.cursor_created_at.is_some(),
+                    previous_cursor,
+                )
+            }
+        };
+
+        let public_items = items
+            .into_iter()
+            .map(|mut r| {
+                r.mask_sensitive_data();
+                r
+            })
+            .collect();
+
+        Ok(GenAIEvalWorkflowPaginationResponse {
             items: public_items,
             has_next,
             next_cursor,

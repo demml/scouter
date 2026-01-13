@@ -8,7 +8,7 @@ format.black:
 	uv run black ${SOURCE_OBJECTS}
 format.ruff:
 	uv run ruff check --silent --exit-zero ${SOURCE_OBJECTS}
-format: format.isort format.ruff format.black
+format: format.isort format.black format.ruff 
 
 lints.format_check:
 	uv run black --check ${SOURCE_OBJECTS}

@@ -1,5 +1,11 @@
+use chrono::{DateTime, Utc};
 use scouter_types::genai::AssertionResult;
-use std::collections::HashMap;
+use std::sync::RwLock;
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
+use tracing::debug;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TaskType {
@@ -7,32 +13,61 @@ pub enum TaskType {
     LLMJudge,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TaskMetadata {
+    pub task_type: TaskType,
+    pub is_conditional: bool,
+}
+
 /// Registry that tracks task IDs and their types for store routing
 #[derive(Debug)]
 pub struct TaskRegistry {
     /// Maps task_id -> TaskType
-    registry: HashMap<String, TaskType>,
-    dependency_map: HashMap<String, Vec<String>>,
-    first_level_tasks: Vec<String>,
+    registry: HashMap<String, TaskMetadata>,
+    dependency_map: HashMap<String, Arc<Vec<String>>>,
+    skipped_tasks: RwLock<HashSet<String>>,
 }
 
 impl TaskRegistry {
     pub fn new() -> Self {
+        debug!("Initializing TaskRegistry");
         Self {
             registry: HashMap::new(),
             dependency_map: HashMap::new(),
-            first_level_tasks: Vec::new(),
+            skipped_tasks: RwLock::new(HashSet::new()),
         }
     }
 
-    /// Register a task with its type
-    pub fn register(&mut self, task_id: String, task_type: TaskType) {
-        self.registry.insert(task_id, task_type);
+    pub fn mark_skipped(&self, task_id: String) {
+        self.skipped_tasks.write().unwrap().insert(task_id);
+    }
+
+    pub fn is_skipped(&self, task_id: &str) -> bool {
+        self.skipped_tasks.read().unwrap().contains(task_id)
+    }
+
+    /// Register a task with its type and conditional status
+    pub fn register(&mut self, task_id: String, task_type: TaskType, is_conditional: bool) {
+        self.registry.insert(
+            task_id,
+            TaskMetadata {
+                task_type,
+                is_conditional,
+            },
+        );
     }
 
     /// Get the type of a task by ID
     pub fn get_type(&self, task_id: &str) -> Option<TaskType> {
-        self.registry.get(task_id).copied()
+        self.registry.get(task_id).map(|meta| meta.task_type)
+    }
+
+    /// Check if a task is marked as conditional
+    pub fn is_conditional(&self, task_id: &str) -> bool {
+        self.registry
+            .get(task_id)
+            .map(|meta| meta.is_conditional)
+            .unwrap_or(false)
     }
 
     /// Check if a task is registered
@@ -40,41 +75,23 @@ impl TaskRegistry {
         self.registry.contains_key(task_id)
     }
 
-    // set first level tasks
-    pub fn set_first_level_tasks(&mut self, task_ids: Vec<String>) {
-        self.first_level_tasks = task_ids;
-    }
-
     /// Register dependencies for a task
     /// # Arguments
     /// * `task_id` - The ID of the task
     /// * `dependencies` - A list of task IDs that this task depends on
     pub fn register_dependencies(&mut self, task_id: String, dependencies: Vec<String>) {
-        self.dependency_map.insert(task_id, dependencies);
+        self.dependency_map.insert(task_id, Arc::new(dependencies));
     }
 
     /// For a given task ID, get its dependencies
     /// # Arguments
     /// * `task_id` - The ID of the task
-    pub fn get_dependencies(&self, task_id: &str) -> Option<Vec<&str>> {
+    pub fn get_dependencies(&self, task_id: &str) -> Option<Arc<Vec<String>>> {
         if !self.registry.contains_key(task_id) {
             return None;
         }
 
-        let mut conditions = Vec::new();
-        if let Some(dependencies) = self.dependency_map.get(task_id) {
-            for dep_id in dependencies {
-                if self.registry.contains_key(dep_id.as_str()) {
-                    conditions.push(dep_id.as_str());
-                }
-            }
-        }
-
-        Some(conditions)
-    }
-
-    pub fn is_first_level_task(&self, task_id: &str) -> bool {
-        self.first_level_tasks.contains(&task_id.to_string())
+        Some(self.dependency_map.get(task_id)?.clone())
     }
 }
 
@@ -84,11 +101,14 @@ impl Default for TaskRegistry {
     }
 }
 
+// start time, end time, result
+type AssertionResultType = (DateTime<Utc>, DateTime<Utc>, AssertionResult);
+
 /// Store for assertion results
 #[derive(Debug)]
 pub struct AssertionResultStore {
     /// Internal store mapping task IDs to results
-    store: HashMap<String, AssertionResult>,
+    store: HashMap<String, AssertionResultType>,
 }
 
 impl AssertionResultStore {
@@ -98,11 +118,17 @@ impl AssertionResultStore {
         }
     }
 
-    pub fn store(&mut self, task_id: String, result: AssertionResult) {
-        self.store.insert(task_id, result);
+    pub fn store(
+        &mut self,
+        task_id: String,
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
+        result: AssertionResult,
+    ) {
+        self.store.insert(task_id, (start_time, end_time, result));
     }
 
-    pub fn retrieve(&self, task_id: &str) -> Option<AssertionResult> {
+    pub fn retrieve(&self, task_id: &str) -> Option<AssertionResultType> {
         self.store.get(task_id).cloned()
     }
 }
@@ -149,8 +175,8 @@ mod tests {
     #[test]
     fn test_task_registry() {
         let mut registry = TaskRegistry::new();
-        registry.register("task1".to_string(), TaskType::Assertion);
-        registry.register("task2".to_string(), TaskType::LLMJudge);
+        registry.register("task1".to_string(), TaskType::Assertion, false);
+        registry.register("task2".to_string(), TaskType::LLMJudge, false);
         assert_eq!(registry.get_type("task1"), Some(TaskType::Assertion));
         assert_eq!(registry.get_type("task2"), Some(TaskType::LLMJudge));
         assert!(registry.contains("task1"));

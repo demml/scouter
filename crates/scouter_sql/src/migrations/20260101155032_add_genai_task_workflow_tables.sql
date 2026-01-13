@@ -3,6 +3,7 @@
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS scouter.genai_eval_workflow (
+    id BIGINT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
     record_uid TEXT NOT NULL,
     entity_id INTEGER NOT NULL,
@@ -11,15 +12,17 @@ CREATE TABLE IF NOT EXISTS scouter.genai_eval_workflow (
     failed_tasks INTEGER NOT NULL,
     pass_rate DOUBLE PRECISION NOT NULL,
     duration_ms BIGINT,
+    execution_plan JSONB NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     archived BOOLEAN DEFAULT FALSE,
-    PRIMARY KEY (created_at, record_uid),
+    PRIMARY KEY (created_at, id),
     CONSTRAINT fk_entity FOREIGN KEY (entity_id) REFERENCES scouter.drift_entities(id) ON DELETE CASCADE
 )
 PARTITION BY RANGE (created_at);
 
-CREATE INDEX idx_genai_eval_workflow_lookup
-ON scouter.genai_eval_workflow (created_at, entity_id DESC);
+CREATE INDEX idx_genai_eval_workflow_lookup ON scouter.genai_eval_workflow (entity_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_genai_eval_workflow_pagination ON scouter.genai_eval_workflow (entity_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_genai_eval_workflow_uid_date ON scouter.genai_eval_workflow (entity_id, record_uid, created_at DESC);
 
 -- partition
 SELECT scouter.create_parent(
@@ -34,7 +37,9 @@ WHERE parent_table = 'scouter.genai_eval_workflow';
 
 
 CREATE TABLE IF NOT EXISTS scouter.genai_eval_task (
-    created_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    start_time TIMESTAMPTZ NOT NULL,
+    end_time TIMESTAMPTZ,
     record_uid TEXT NOT NULL,
     entity_id INTEGER NOT NULL,
     task_id TEXT NOT NULL,
@@ -46,6 +51,8 @@ CREATE TABLE IF NOT EXISTS scouter.genai_eval_task (
     expected JSONB NOT NULL,
     actual JSONB NOT NULL,
     message TEXT,
+    condition BOOLEAN NOT NULL,
+    stage INTEGER NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     archived BOOLEAN DEFAULT FALSE,
     PRIMARY KEY (record_uid, task_id, created_at)
@@ -53,10 +60,13 @@ CREATE TABLE IF NOT EXISTS scouter.genai_eval_task (
 PARTITION BY RANGE (created_at);
 
 CREATE INDEX idx_genai_eval_task_record_lookup
-ON scouter.genai_eval_task (created_at, record_uid DESC);
+ON scouter.genai_eval_task (record_uid, start_time DESC);
 
 CREATE INDEX idx_genai_eval_entity_id_lookup
-ON scouter.genai_eval_task (created_at, entity_id DESC);
+ON scouter.genai_eval_task (entity_id, start_time DESC);
+
+CREATE INDEX IF NOT EXISTS idx_genai_eval_task_uid_date
+ON scouter.genai_eval_task (entity_id, record_uid, created_at DESC);
 
 -- Setup partitioning
 SELECT scouter.create_parent(

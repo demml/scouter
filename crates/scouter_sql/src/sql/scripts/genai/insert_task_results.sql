@@ -1,5 +1,7 @@
 INSERT INTO scouter.genai_eval_task (
     created_at,
+    start_time,
+    end_time,
     record_uid,
     entity_id,
     task_id,
@@ -10,10 +12,14 @@ INSERT INTO scouter.genai_eval_task (
     operator,
     expected,
     actual,
-    message
+    message,
+    condition,
+    stage
     )
 SELECT
     created_at,
+    start_time,
+    end_time,
     record_uid,
     entity_id,
     task_id,
@@ -24,22 +30,30 @@ SELECT
     operator,
     expected,
     actual,
-    message
+    message,
+    condition,
+    stage
 FROM UNNEST(
     $1::timestamptz[], -- created_at
-    $2::text[],        -- record_uid
-    $3::integer[],     -- entity_id
-    $4::text[],        -- task_id
-    $5::text[],        -- task_type
-    $6::boolean[],     -- passed
-    $7::double precision[], -- value
-    $8::text[],        -- field_path
-    $9::text[],        -- operator
-    $10::jsonb[],       -- expected
-    $11::jsonb[],       -- actual
-    $12::text[]        -- message
+    $2::timestamptz[], -- start_time
+    $3::timestamptz[], -- end_time
+    $4::text[],        -- record_uid
+    $5::integer[],     -- entity_id
+    $6::text[],        -- task_id
+    $7::text[],        -- task_type
+    $8::boolean[],     -- passed
+    $9::double precision[], -- value
+    $10::text[],        -- field_path
+    $11::text[],        -- operator
+    $12::jsonb[],       -- expected
+    $13::jsonb[],       -- actual
+    $14::text[],        -- message
+    $15::boolean[],     -- condition
+    $16::integer[]    -- stage
 ) AS t(
     created_at,
+    start_time,
+    end_time,
     record_uid,
     entity_id,
     task_id,
@@ -50,6 +64,8 @@ FROM UNNEST(
     operator,
     expected,
     actual,
-    message
+    message,
+    condition,
+    stage
 )
 ON CONFLICT DO NOTHING;
