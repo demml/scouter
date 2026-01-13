@@ -8,7 +8,7 @@ use axum::{
 use http_body_util::BodyExt;
 use potato_head::mock::LLMTestServer;
 use scouter_types::{
-    GenAIEvalRecordPaginationRequest, GenAIEvalTaskResult, RecordType, ServiceInfo,
+    GenAIEvalRecordPaginationRequest, GenAIEvalTaskResponse, RecordType, ServiceInfo,
 };
 use scouter_types::{GenAIEvalRecordPaginationResponse, GenAIEvalWorkflowPaginationResponse};
 use tokio::time::sleep;
@@ -79,16 +79,16 @@ fn test_genai_server_records() {
     // get first eval task for the first record, get record_uid and get tasks
     let first_record_uid = records.items[0].record_uid.clone();
     let request = Request::builder()
-        .uri(format!(
-            "/scouter/genai/eval/task?record_uid={first_record_uid}"
-        ))
+        .uri(format!("/scouter/genai/task?record_uid={first_record_uid}"))
         .method("GET")
         .body(Body::empty())
         .unwrap();
     let response = runtime.block_on(async { helper.send_oneshot(request).await });
+    // Get response body as bytes
     let val = runtime.block_on(async { response.into_body().collect().await.unwrap().to_bytes() });
-    let tasks: Vec<GenAIEvalTaskResult> = serde_json::from_slice(&val).unwrap();
-    assert!(!tasks.is_empty());
+
+    let tasks: GenAIEvalTaskResponse = serde_json::from_slice(&val).unwrap();
+    assert!(!tasks.tasks.is_empty());
 
     mock.stop_server().unwrap();
     TestHelper::cleanup_storage();
