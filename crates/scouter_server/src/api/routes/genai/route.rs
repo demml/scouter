@@ -9,11 +9,11 @@ use axum::{
 use scouter_auth::permission::UserPermissions;
 use scouter_sql::sql::traits::GenAIDriftSqlLogic;
 use scouter_sql::PostgresClient;
-use scouter_types::ScouterServerError;
 use scouter_types::{
     GenAIEvalRecordPaginationRequest, GenAIEvalRecordPaginationResponse, GenAIEvalTaskRequest,
-    GenAIEvalTaskResult, GenAIEvalWorkflowPaginationResponse,
+    GenAIEvalWorkflowPaginationResponse,
 };
+use scouter_types::{GenAIEvalTaskResponse, ScouterServerError};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 use tracing::{error, instrument};
@@ -90,13 +90,13 @@ pub async fn query_genai_eval_workflow(
 pub async fn get_genai_tasks(
     State(data): State<Arc<AppState>>,
     Query(params): Query<GenAIEvalTaskRequest>,
-) -> Result<Json<Vec<GenAIEvalTaskResult>>, (StatusCode, Json<ScouterServerError>)> {
+) -> Result<Json<GenAIEvalTaskResponse>, (StatusCode, Json<ScouterServerError>)> {
     // validate time window
 
     let tasks = PostgresClient::get_genai_eval_task(&data.db_pool, &params.record_uid).await;
 
     match tasks {
-        Ok(tasks) => Ok(Json(tasks)),
+        Ok(tasks) => Ok(Json(GenAIEvalTaskResponse { tasks })),
         Err(e) => {
             error!("Failed to query genai eval task metrics: {:?}", e);
 
