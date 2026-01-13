@@ -1,5 +1,10 @@
 import pytest
-from scouter.evaluate import AssertionTask, ComparisonOperator, LLMJudgeTask
+from scouter.evaluate import (
+    AssertionTask,
+    ComparisonOperator,
+    GenAIEvalRecord,
+    LLMJudgeTask,
+)
 from scouter.genai import Prompt, Provider, Role, Score
 from scouter.genai.openai import ChatMessage
 
@@ -84,3 +89,164 @@ def query_relevance_reason_assertion_task() -> AssertionTask:
         description="Check that reason is alphabetic",
         depends_on=["query_relevance"],
     )
+
+
+@pytest.fixture
+def base_assertion_tasks():
+    """Shared assertion tasks for comparison tests."""
+    return [
+        AssertionTask(
+            id="quality_check",
+            field_path="metrics.quality_score",
+            operator=ComparisonOperator.GreaterThanOrEqual,
+            expected_value=7,
+            description="Quality score must be at least 7/10",
+        ),
+        AssertionTask(
+            id="accuracy_check",
+            field_path="metrics.accuracy_score",
+            operator=ComparisonOperator.GreaterThanOrEqual,
+            expected_value=8,
+            description="Accuracy score must be at least 8/10",
+        ),
+        AssertionTask(
+            id="provides_solution",
+            field_path="response.provides_solution",
+            operator=ComparisonOperator.Equals,
+            expected_value=True,
+            description="Response must provide a solution",
+        ),
+        AssertionTask(
+            id="acknowledges_concern",
+            field_path="response.acknowledges_concern",
+            operator=ComparisonOperator.Equals,
+            expected_value=True,
+            description="Response must acknowledge concern",
+        ),
+    ]
+
+
+@pytest.fixture
+def baseline_records():
+    """Baseline records with mixed success rates."""
+    return [
+        GenAIEvalRecord(
+            context={
+                "metrics": {"quality_score": 5, "accuracy_score": 6},
+                "response": {"provides_solution": False, "acknowledges_concern": False},
+            },
+            id="record_1",
+        ),
+        GenAIEvalRecord(
+            context={
+                "metrics": {"quality_score": 7, "accuracy_score": 8},
+                "response": {"provides_solution": True, "acknowledges_concern": True},
+            },
+            id="record_2",
+        ),
+        GenAIEvalRecord(
+            context={
+                "metrics": {"quality_score": 6, "accuracy_score": 7},
+                "response": {"provides_solution": True, "acknowledges_concern": False},
+            },
+            id="record_3",
+        ),
+        GenAIEvalRecord(
+            context={
+                "metrics": {"quality_score": 8, "accuracy_score": 9},
+                "response": {"provides_solution": True, "acknowledges_concern": True},
+            },
+            id="record_4",
+        ),
+        GenAIEvalRecord(
+            context={
+                "metrics": {"quality_score": 5, "accuracy_score": 6},
+                "response": {"provides_solution": False, "acknowledges_concern": True},
+            },
+            id="record_5",
+        ),
+    ]
+
+
+@pytest.fixture
+def improved_records():
+    """Improved records with better scores across the board."""
+    return [
+        GenAIEvalRecord(
+            context={
+                "metrics": {"quality_score": 8, "accuracy_score": 9},
+                "response": {"provides_solution": True, "acknowledges_concern": True},
+            },
+            id="record_1",
+        ),
+        GenAIEvalRecord(
+            context={
+                "metrics": {"quality_score": 9, "accuracy_score": 10},
+                "response": {"provides_solution": True, "acknowledges_concern": True},
+            },
+            id="record_2",
+        ),
+        GenAIEvalRecord(
+            context={
+                "metrics": {"quality_score": 7, "accuracy_score": 8},
+                "response": {"provides_solution": True, "acknowledges_concern": True},
+            },
+            id="record_3",
+        ),
+        GenAIEvalRecord(
+            context={
+                "metrics": {"quality_score": 9, "accuracy_score": 10},
+                "response": {"provides_solution": True, "acknowledges_concern": True},
+            },
+            id="record_4",
+        ),
+        GenAIEvalRecord(
+            context={
+                "metrics": {"quality_score": 8, "accuracy_score": 9},
+                "response": {"provides_solution": True, "acknowledges_concern": True},
+            },
+            id="record_5",
+        ),
+    ]
+
+
+@pytest.fixture
+def regressed_records():
+    """Records showing regression in some metrics."""
+    return [
+        GenAIEvalRecord(
+            context={
+                "metrics": {"quality_score": 4, "accuracy_score": 5},
+                "response": {"provides_solution": False, "acknowledges_concern": False},
+            },
+            id="record_1",
+        ),
+        GenAIEvalRecord(
+            context={
+                "metrics": {"quality_score": 6, "accuracy_score": 7},
+                "response": {"provides_solution": True, "acknowledges_concern": False},
+            },
+            id="record_2",
+        ),
+        GenAIEvalRecord(
+            context={
+                "metrics": {"quality_score": 5, "accuracy_score": 6},
+                "response": {"provides_solution": False, "acknowledges_concern": True},
+            },
+            id="record_3",
+        ),
+        GenAIEvalRecord(
+            context={
+                "metrics": {"quality_score": 7, "accuracy_score": 8},
+                "response": {"provides_solution": True, "acknowledges_concern": True},
+            },
+            id="record_4",
+        ),
+        GenAIEvalRecord(
+            context={
+                "metrics": {"quality_score": 4, "accuracy_score": 5},
+                "response": {"provides_solution": False, "acknowledges_concern": False},
+            },
+            id="record_5",
+        ),
+    ]

@@ -586,8 +586,8 @@ impl GenAIEvalWorkflowResult {
 pub struct TaskResultTableEntry {
     #[tabled(rename = "Created At")]
     pub created_at: String,
-    #[tabled(rename = "Record UID")]
-    pub record_uid: String,
+    #[tabled(rename = "Record ID")]
+    pub record_id: String,
     #[tabled(rename = "Task ID")]
     pub task_id: String,
     #[tabled(rename = "Task Type")]
@@ -680,28 +680,10 @@ impl GenAIEvalTaskResult {
     pub fn model_dump_json(&self) -> String {
         PyHelperFuncs::__json__(self)
     }
-
-    pub fn as_table(&self) {
-        let task_table = self.to_table_entry();
-        let mut table = Table::new(vec![task_table]);
-        table.with(Style::sharp());
-
-        table.modify(
-            Rows::new(0..1),
-            (
-                Format::content(|s: &str| s.truecolor(245, 77, 85).bold().to_string()),
-                Alignment::center(),
-                Color::BOLD,
-            ),
-        );
-
-        println!("\n{}", "Task Details".truecolor(245, 77, 85).bold());
-        println!("{}", table);
-    }
 }
 
 impl GenAIEvalTaskResult {
-    pub(crate) fn to_table_entry(&self) -> TaskResultTableEntry {
+    pub(crate) fn to_table_entry(&self, record_id: &str) -> TaskResultTableEntry {
         let expected_str =
             serde_json::to_string(&self.expected).unwrap_or_else(|_| "null".to_string());
         let actual_str = serde_json::to_string(&self.actual).unwrap_or_else(|_| "null".to_string());
@@ -717,7 +699,7 @@ impl GenAIEvalTaskResult {
         TaskResultTableEntry {
             created_at: self.created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
 
-            record_uid: truncate(self.record_uid.clone(), 16)
+            record_id: truncate(record_id.to_string(), 16)
                 .truecolor(249, 179, 93)
                 .to_string(), // UUIDs are ~36 chars
             task_id: truncate(self.task_id.clone(), 16),

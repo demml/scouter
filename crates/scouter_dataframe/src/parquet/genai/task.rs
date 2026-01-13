@@ -71,6 +71,16 @@ impl GenAITaskDataFrame {
                 DataType::Timestamp(TimeUnit::Nanosecond, None),
                 false,
             ),
+            Field::new(
+                "start_time",
+                DataType::Timestamp(TimeUnit::Nanosecond, None),
+                false,
+            ),
+            Field::new(
+                "end_time",
+                DataType::Timestamp(TimeUnit::Nanosecond, None),
+                false,
+            ),
             Field::new("record_uid", DataType::Utf8, false),
             Field::new("entity_id", DataType::Int32, false),
             Field::new("task_id", DataType::Utf8, false),

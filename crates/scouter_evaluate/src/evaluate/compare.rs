@@ -44,22 +44,34 @@ pub fn compare_results(
         .aligned_results
         .iter()
         .filter(|r| r.success)
-        .map(|r| (r.record_uid.as_str(), r))
+        .map(|r| {
+            if r.record_id.is_empty() {
+                (r.record_uid.as_str(), r)
+            } else {
+                (r.record_id.as_str(), r)
+            }
+        })
         .collect();
 
     let comparison_map: HashMap<_, _> = comparison
         .aligned_results
         .iter()
         .filter(|r| r.success)
-        .map(|r| (r.record_uid.as_str(), r))
+        .map(|r| {
+            if r.record_id.is_empty() {
+                (r.record_uid.as_str(), r)
+            } else {
+                (r.record_id.as_str(), r)
+            }
+        })
         .collect();
 
     let mut workflow_comparisons = Vec::new();
     let mut task_status_changes = Vec::new();
     let mut missing_tasks = Vec::new();
 
-    for (record_uid, baseline_result) in &baseline_map {
-        if let Some(comparison_result) = comparison_map.get(record_uid) {
+    for (record_id, baseline_result) in &baseline_map {
+        if let Some(comparison_result) = comparison_map.get(record_id) {
             let baseline_task_map: HashMap<_, _> = baseline_result
                 .eval_set
                 .records
@@ -96,7 +108,7 @@ pub fn compare_results(
                         baseline_passed: baseline_task.passed,
                         comparison_passed: comparison_task.passed,
                         status_changed,
-                        record_uid: (*record_uid).to_string(),
+                        record_id: (*record_id).to_string(),
                     };
 
                     workflow_task_comparisons.push(task_comp.clone());
@@ -108,7 +120,7 @@ pub fn compare_results(
                     missing_tasks.push(MissingTask {
                         task_id: task_id.to_string(),
                         present_in: "baseline_only".to_string(),
-                        record_uid: (*record_uid).to_string(),
+                        record_id: (*record_id).to_string(),
                     });
                 }
             }
@@ -118,7 +130,7 @@ pub fn compare_results(
                     missing_tasks.push(MissingTask {
                         task_id: task_id.to_string(),
                         present_in: "comparison_only".to_string(),
-                        record_uid: (*record_uid).to_string(),
+                        record_id: (*record_id).to_string(),
                     });
                 }
             }
@@ -139,8 +151,8 @@ pub fn compare_results(
             let is_regression = pass_rate_delta < -regression_threshold;
 
             workflow_comparisons.push(WorkflowComparison {
-                baseline_uid: (*record_uid).to_string(),
-                comparison_uid: (*record_uid).to_string(),
+                baseline_id: (*record_id).to_string(),
+                comparison_id: (*record_id).to_string(),
                 baseline_pass_rate,
                 comparison_pass_rate,
                 pass_rate_delta,

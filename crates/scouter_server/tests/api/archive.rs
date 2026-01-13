@@ -400,7 +400,7 @@ fn test_data_archive_genai_tasks() {
         helper.populate_genai_records(&profile.config.uid, &runtime, None, RecordType::GenAITask);
 
         let record = runtime.block_on(async {
-            sleep(Duration::from_secs(5)).await;
+            sleep(tokio::time::Duration::from_secs(5)).await;
             archive_old_data(&helper.pool, &helper.config)
                 .await
                 .unwrap()

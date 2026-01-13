@@ -92,6 +92,7 @@ pub trait GenAIDriftSqlLogic {
         let n = records.len();
 
         // Pre-allocate vectors to avoid reallocations
+        let mut created_ats = Vec::with_capacity(n);
         let mut start_times = Vec::with_capacity(n);
         let mut end_times = Vec::with_capacity(n);
         let mut record_uids = Vec::with_capacity(n);
@@ -109,6 +110,7 @@ pub trait GenAIDriftSqlLogic {
         let mut stage = Vec::with_capacity(n);
 
         for r in records {
+            created_ats.push(r.created_at);
             start_times.push(r.start_time);
             end_times.push(r.end_time);
             record_uids.push(&r.record_uid);
@@ -129,6 +131,7 @@ pub trait GenAIDriftSqlLogic {
         let query = Queries::InsertGenAITaskResultsBatch.get_query();
 
         sqlx::query(query)
+            .bind(&created_ats)
             .bind(&start_times)
             .bind(&end_times)
             .bind(&record_uids)
@@ -142,6 +145,8 @@ pub trait GenAIDriftSqlLogic {
             .bind(&expected_jsons)
             .bind(&actual_jsons)
             .bind(&messages)
+            .bind(&condition)
+            .bind(&stage)
             .execute(pool)
             .await
             .map_err(SqlError::SqlxError)

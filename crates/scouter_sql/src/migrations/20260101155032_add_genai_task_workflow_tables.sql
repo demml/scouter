@@ -22,6 +22,7 @@ PARTITION BY RANGE (created_at);
 
 CREATE INDEX idx_genai_eval_workflow_lookup ON scouter.genai_eval_workflow (entity_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_genai_eval_workflow_pagination ON scouter.genai_eval_workflow (entity_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_genai_eval_workflow_uid_date ON scouter.genai_eval_workflow (entity_id, record_uid, created_at DESC);
 
 -- partition
 SELECT scouter.create_parent(
@@ -63,6 +64,9 @@ ON scouter.genai_eval_task (record_uid, start_time DESC);
 
 CREATE INDEX idx_genai_eval_entity_id_lookup
 ON scouter.genai_eval_task (entity_id, start_time DESC);
+
+CREATE INDEX IF NOT EXISTS idx_genai_eval_task_uid_date
+ON scouter.genai_eval_task (entity_id, record_uid, created_at DESC);
 
 -- Setup partitioning
 SELECT scouter.create_parent(

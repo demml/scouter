@@ -32,7 +32,7 @@ pub struct MissingTask {
     pub present_in: String,
 
     #[pyo3(get)]
-    pub record_uid: String,
+    pub record_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,7 +42,7 @@ pub struct TaskComparison {
     pub task_id: String,
 
     #[pyo3(get)]
-    pub record_uid: String,
+    pub record_id: String,
 
     #[pyo3(get)]
     pub baseline_passed: bool,
@@ -58,10 +58,10 @@ pub struct TaskComparison {
 #[pyclass]
 pub struct WorkflowComparison {
     #[pyo3(get)]
-    pub baseline_uid: String,
+    pub baseline_id: String,
 
     #[pyo3(get)]
-    pub comparison_uid: String,
+    pub comparison_id: String,
 
     #[pyo3(get)]
     pub baseline_pass_rate: f64,
@@ -81,10 +81,10 @@ pub struct WorkflowComparison {
 
 #[derive(Tabled)]
 struct WorkflowComparisonEntry {
-    #[tabled(rename = "Baseline UID")]
-    baseline_uid: String,
-    #[tabled(rename = "Comparison UID")]
-    comparison_uid: String,
+    #[tabled(rename = "Baseline ID")]
+    baseline_id: String,
+    #[tabled(rename = "Comparison ID")]
+    comparison_id: String,
     #[tabled(rename = "Baseline Pass Rate")]
     baseline_pass_rate: String,
     #[tabled(rename = "Comparison Pass Rate")]
@@ -235,14 +235,14 @@ impl ComparisonResults {
             if !baseline_only.is_empty() {
                 println!("  Baseline only ({} tasks):", baseline_only.len());
                 for task in baseline_only {
-                    println!("    - {} - {}", task.task_id, task.record_uid);
+                    println!("    - {} - {}", task.task_id, task.record_id);
                 }
             }
 
             if !comparison_only.is_empty() {
                 println!("  Comparison only ({} tasks):", comparison_only.len());
                 for task in comparison_only {
-                    println!("    - {} - {}", task.task_id, task.record_uid);
+                    println!("    - {} - {}", task.task_id, task.record_id);
                 }
             }
         }
@@ -366,11 +366,11 @@ impl ComparisonResults {
                 };
 
                 WorkflowComparisonEntry {
-                    baseline_uid: wc.baseline_uid[..16.min(wc.baseline_uid.len())]
+                    baseline_id: wc.baseline_id[..16.min(wc.baseline_id.len())]
                         .to_string()
                         .truecolor(249, 179, 93)
                         .to_string(),
-                    comparison_uid: wc.comparison_uid[..16.min(wc.comparison_uid.len())]
+                    comparison_id: wc.comparison_id[..16.min(wc.comparison_id.len())]
                         .to_string()
                         .truecolor(249, 179, 93)
                         .to_string(),
@@ -502,13 +502,6 @@ pub struct GenAIEvalResults {
     /// Aligned results in original record order
     pub aligned_results: Vec<AlignedEvalResult>,
 
-    /// Quick lookup by record UID
-    #[serde(skip)]
-    pub results_by_uid: BTreeMap<String, usize>,
-
-    #[serde(skip)]
-    pub results_by_id: BTreeMap<String, usize>,
-
     #[pyo3(get)]
     pub errored_tasks: Vec<String>,
 
@@ -523,15 +516,6 @@ pub struct GenAIEvalResults {
 
 #[pymethods]
 impl GenAIEvalResults {
-    /// Get result by record UID
-    pub fn __getitem__(&self, key: &str) -> Result<AlignedEvalResult, EvaluationError> {
-        self.results_by_id
-            .get(key)
-            .and_then(|&idx| self.aligned_results.get(idx))
-            .cloned()
-            .ok_or_else(|| EvaluationError::MissingKeyError(key.to_string()))
-    }
-
     #[getter]
     pub fn successful_count(&self) -> usize {
         self.aligned_results.iter().filter(|r| r.success).count()
@@ -692,10 +676,32 @@ impl GenAIEvalResults {
 
     /// Build detailed task results table for console display
     fn build_tasks_table(&mut self) -> Table {
+        self.aligned_results.sort_by(|a, b| {
+            let a_id = if a.record_id.is_empty() {
+                &a.record_uid
+            } else {
+                &a.record_id
+            };
+            let b_id = if b.record_id.is_empty() {
+                &b.record_uid
+            } else {
+                &b.record_id
+            };
+            a_id.cmp(b_id)
+        });
+
         let entries: Vec<TaskResultTableEntry> = self
             .aligned_results
             .iter_mut()
-            .flat_map(|result| result.eval_set.build_task_entries())
+            .flat_map(|result| {
+                let resolved_id = if result.record_id.is_empty() {
+                    &result.record_uid
+                } else {
+                    &result.record_id
+                };
+
+                result.eval_set.build_task_entries(resolved_id)
+            })
             .collect();
 
         let mut table = Table::new(entries);
@@ -716,8 +722,6 @@ impl GenAIEvalResults {
     pub fn new() -> Self {
         Self {
             aligned_results: Vec::new(),
-            results_by_uid: BTreeMap::new(),
-            results_by_id: BTreeMap::new(),
             errored_tasks: Vec::new(),
             array_dataset: None,
             cluster_data: None,
@@ -732,32 +736,18 @@ impl GenAIEvalResults {
         eval_set: GenAIEvalSet,
         embeddings: BTreeMap<String, Vec<f32>>,
     ) {
-        let uid = record.uid.clone();
-        let idx = self.aligned_results.len();
-
         self.aligned_results.push(AlignedEvalResult::from_success(
             record, eval_set, embeddings,
         ));
-
-        self.results_by_uid.insert(uid, idx);
-
-        // if record has an id, also index by that
-        if !record.record_id.is_empty() {
-            self.results_by_id.insert(record.record_id.clone(), idx);
-        }
     }
 
     /// Add a failed result - only reference the record
     pub fn add_failure(&mut self, record: &GenAIEvalRecord, error: String) {
         let uid = record.uid.clone();
-        let idx = self.aligned_results.len();
 
         self.aligned_results
             .push(AlignedEvalResult::from_failure(record, error));
-        self.results_by_uid.insert(uid.clone(), idx);
-        if !record.record_id.is_empty() {
-            self.results_by_id.insert(record.record_id.clone(), idx);
-        }
+
         self.errored_tasks.push(uid);
     }
 
@@ -991,6 +981,9 @@ impl ArrayDataset {
 #[pyclass]
 pub struct AlignedEvalResult {
     #[pyo3(get)]
+    pub record_id: String,
+
+    #[pyo3(get)]
     pub record_uid: String,
 
     #[pyo3(get)]
@@ -1037,6 +1030,7 @@ impl AlignedEvalResult {
     ) -> Self {
         Self {
             record_uid: record.uid.clone(),
+            record_id: record.record_id.clone(),
             eval_set,
             embeddings,
             mean_embeddings: BTreeMap::new(),
@@ -1058,6 +1052,7 @@ impl AlignedEvalResult {
             success: false,
             error_message: Some(error),
             context_snapshot: None,
+            record_id: record.record_id.clone(),
         }
     }
 
