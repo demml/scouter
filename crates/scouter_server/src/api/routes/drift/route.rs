@@ -330,10 +330,6 @@ pub async fn get_drift_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
                 &format!("{prefix}/drift/genai/workflow"),
                 get(get_genai_workflow_metrics),
             )
-            .route(
-                &format!("{prefix}/drift/genai/eval"),
-                post(query_genai_eval_records),
-            )
     }));
 
     match result {

@@ -13,6 +13,7 @@ pub mod user;
 pub use alerts::get_alert_router;
 pub use auth::get_auth_router;
 pub use drift::get_drift_router;
+pub use genai::get_genai_router;
 pub use health::get_health_router;
 pub use message::get_message_router;
 pub use observability::get_observability_router;
