@@ -21,7 +21,7 @@ scouter-drift = { workspace = true, features = ["sql"] }
 scouter-observability = { workspace = true }
 scouter-sql = { workspace = true }
 scouter-tonic = { workspace = true, features = ["server"] }
-test-utils = { workspace = true }
+
 
 anyhow = {workspace = true}
 axum = {workspace = true}
@@ -66,6 +66,7 @@ serde_qs = { workspace = true }
 tower = { version = "0.*", features = ["util"] }
 url = { workspace = true }
 scouter-tonic = { workspace = true, features = ["client"] }
+test-utils = { workspace = true }
 
 [features]
 default = []

@@ -512,10 +512,21 @@ pub struct GenAIEvalResults {
 
     #[serde(skip)]
     pub array_dataset: Option<ArrayDataset>,
+
+    #[serde(skip)]
+    pub results_by_id: HashMap<String, usize>,
 }
 
 #[pymethods]
 impl GenAIEvalResults {
+    pub fn __getitem__(&self, key: &str) -> Result<AlignedEvalResult, EvaluationError> {
+        self.results_by_id
+            .get(key)
+            .and_then(|&idx| self.aligned_results.get(idx))
+            .cloned()
+            .ok_or_else(|| EvaluationError::MissingKeyError(key.to_string()))
+    }
+
     #[getter]
     pub fn successful_count(&self) -> usize {
         self.aligned_results.iter().filter(|r| r.success).count()
@@ -726,6 +737,7 @@ impl GenAIEvalResults {
             array_dataset: None,
             cluster_data: None,
             histograms: None,
+            results_by_id: HashMap::new(),
         }
     }
 
@@ -739,6 +751,11 @@ impl GenAIEvalResults {
         self.aligned_results.push(AlignedEvalResult::from_success(
             record, eval_set, embeddings,
         ));
+
+        if !record.record_id.is_empty() {
+            self.results_by_id
+                .insert(record.record_id.clone(), self.aligned_results.len() - 1);
+        }
     }
 
     /// Add a failed result - only reference the record

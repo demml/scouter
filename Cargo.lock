@@ -6232,6 +6232,7 @@ dependencies = [
  "strum_macros",
  "tabled",
  "tempfile",
+ "test-utils",
  "thiserror 2.0.17",
  "tokio",
  "tracing",

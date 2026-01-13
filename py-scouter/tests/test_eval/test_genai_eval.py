@@ -253,8 +253,6 @@ def test_genai_conditional_assertions():
 
     results.as_table()
 
-    print(results)
-
     assert (
         results["test_conditional_1"].task_count == 4
     ), f"Expected 2 tasks to run, got {results['test_conditional_1'].task_count}"

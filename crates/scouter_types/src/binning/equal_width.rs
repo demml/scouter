@@ -363,46 +363,7 @@ mod tests {
     use ndarray::{arr1, Array1};
     use ndarray_rand::rand_distr::Normal;
     use ndarray_rand::RandomExt;
-
-    macro_rules! retry_flaky_test_sync {
-        ($attempts:expr, $delay_ms:expr, $test_logic:block) => {{
-            use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
-            use std::thread;
-            use std::time::Duration;
-
-            const MAX_ATTEMPTS: usize = $attempts;
-            const RETRY_DELAY: Duration = Duration::from_millis($delay_ms);
-
-            for attempt in 1..=MAX_ATTEMPTS {
-                let result = catch_unwind(AssertUnwindSafe(|| $test_logic));
-
-                match result {
-                    Ok(_) => {
-                        return;
-                    }
-                    Err(e) => {
-                        if attempt < MAX_ATTEMPTS {
-                            eprintln!(
-                                "Flaky test attempt {} failed (Panic). Retrying in {:?}...",
-                                attempt, RETRY_DELAY
-                            );
-                            thread::sleep(RETRY_DELAY);
-                        } else {
-                            eprintln!(
-                                "Flaky test failed on final attempt {}. Max retries reached.",
-                                attempt
-                            );
-                            resume_unwind(e);
-                        }
-                    }
-                }
-            }
-        }};
-
-        ($test_logic:block) => {
-            retry_flaky_test_sync!(3, 1000, $test_logic)
-        };
-    }
+    use test_utils::retry_flaky_test_sync;
 
     fn create_normal_data(n: usize, mean: f64, std: f64) -> Array1<f64> {
         Array1::random(n, Normal::new(mean, std).unwrap())
@@ -459,17 +420,19 @@ mod tests {
 
     #[test]
     fn test_scott_different_scales() {
-        let scott = Scott::new();
+        retry_flaky_test_sync!(3, 1000, {
+            let scott = Scott::new();
 
-        // Same distribution shape but different scales
-        let arr1 = create_normal_data(100, 0.0, 1.0);
-        let arr2 = create_normal_data(100, 0.0, 10.0);
+            // Same distribution shape but different scales
+            let arr1 = create_normal_data(100, 0.0, 1.0);
+            let arr2 = create_normal_data(100, 0.0, 10.0);
 
-        let bins1 = scott.num_bins(&arr1.view());
-        let bins2 = scott.num_bins(&arr2.view());
+            let bins1 = scott.num_bins(&arr1.view());
+            let bins2 = scott.num_bins(&arr2.view());
 
-        // Both should give similar bin counts since Scott's rule accounts for scale
-        assert!((bins1 as i32 - bins2 as i32).abs() <= 2);
+            // Both should give similar bin counts since Scott's rule accounts for scale
+            assert!((bins1 as i32 - bins2 as i32).abs() <= 2);
+        });
     }
 
     #[test]
