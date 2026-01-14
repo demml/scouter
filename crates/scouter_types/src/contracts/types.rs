@@ -566,7 +566,7 @@ pub struct GenAIEvalRecordPaginationRequest {
     pub end_datetime: Option<DateTime<Utc>>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct GenAIEvalRecordPaginationResponse {
     pub items: Vec<GenAIEvalRecord>,
     pub has_next: bool,
