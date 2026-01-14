@@ -549,7 +549,7 @@ pub struct GenAIEvalTaskRequest {
     pub record_uid: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct GenAIEvalTaskResponse {
     pub tasks: Vec<GenAIEvalTaskResult>,
 }
