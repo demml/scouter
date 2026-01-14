@@ -1,6 +1,3 @@
-import re
-
-import pytest
 from pydantic import BaseModel
 from scouter.queue import GenAIEvalRecord
 
