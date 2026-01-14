@@ -1437,8 +1437,8 @@ mod tests {
         .await
         .unwrap();
 
+        let mut records = Vec::new();
         for i in 0..2 {
-            let mut records = Vec::new();
             for j in 0..25 {
                 let record = GenAIEvalTaskResult {
                     record_uid: format!("record_uid_{i}_{j}"),
@@ -1494,6 +1494,12 @@ mod tests {
         .unwrap();
         //
         assert_eq!(binned_records.metrics.len(), 2);
+
+        let eval_task = PostgresClient::get_genai_eval_task(&pool, &records[0].record_uid)
+            .await
+            .unwrap();
+
+        assert_eq!(eval_task[0].record_uid, records[0].record_uid);
     }
 
     #[tokio::test]

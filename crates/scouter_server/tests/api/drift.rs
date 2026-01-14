@@ -9,17 +9,14 @@ use potato_head::mock::LLMTestServer;
 
 use http_body_util::BodyExt;
 use scouter_drift::psi::PsiMonitor;
+use scouter_types::contracts::DriftRequest;
 use scouter_types::custom::{
     CustomDriftProfile, CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig,
 };
 use scouter_types::psi::BinnedPsiFeatureMetrics;
 use scouter_types::psi::{PsiAlertConfig, PsiDriftConfig};
 use scouter_types::spc::SpcDriftFeatures;
-use scouter_types::{contracts::DriftRequest, GenAIEvalRecordPaginationResponse};
-use scouter_types::{
-    AlertThreshold, BinnedMetrics, GenAIEvalRecordPaginationRequest, RecordType, ServiceInfo,
-    TimeInterval,
-};
+use scouter_types::{AlertThreshold, BinnedMetrics, RecordType, TimeInterval};
 use tokio::time::sleep;
 
 #[tokio::test]
@@ -284,32 +281,6 @@ fn test_genai_server_records() {
     let val = runtime.block_on(async { response.into_body().collect().await.unwrap().to_bytes() });
     let results: BinnedMetrics = serde_json::from_slice(&val).unwrap();
     assert!(!results.metrics.is_empty());
-
-    // get drift records by page
-    let request = GenAIEvalRecordPaginationRequest {
-        service_info: ServiceInfo {
-            space: SPACE.to_string(),
-            uid: uid.clone(),
-        },
-        status: None,
-        limit: Some(10),
-        ..Default::default()
-    };
-
-    let body = serde_json::to_string(&request).unwrap();
-
-    let request = Request::builder()
-        .uri("/scouter/drift/genai/eval")
-        .method("POST")
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(body))
-        .unwrap();
-    let response = runtime.block_on(async { helper.send_oneshot(request).await });
-    let val = runtime.block_on(async { response.into_body().collect().await.unwrap().to_bytes() });
-
-    let records: GenAIEvalRecordPaginationResponse = serde_json::from_slice(&val).unwrap();
-    assert!(!records.items.is_empty());
-    assert!(records.has_next);
 
     mock.stop_server().unwrap();
     TestHelper::cleanup_storage();

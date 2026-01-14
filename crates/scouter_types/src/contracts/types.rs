@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::error::{ContractError, TypeError};
 use crate::sql::{TraceListItem, TraceMetricBucket, TraceSpan};
-use crate::{Alert, GenAIEvalWorkflowResult};
+use crate::{Alert, GenAIEvalTaskResult, GenAIEvalWorkflowResult};
 use crate::{
     CustomInterval, DriftProfile, GenAIEvalRecord, Status, Tag, TagRecord, TraceBaggageRecord,
 };
@@ -542,6 +542,16 @@ pub struct RegisteredProfileResponse {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UpdateAlertResponse {
     pub updated: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GenAIEvalTaskRequest {
+    pub record_uid: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GenAIEvalTaskResponse {
+    pub tasks: Vec<GenAIEvalTaskResult>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
