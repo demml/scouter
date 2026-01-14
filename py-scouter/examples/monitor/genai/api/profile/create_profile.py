@@ -5,7 +5,7 @@ from scouter.alert import AlertCondition, AlertThreshold
 from scouter.client import ScouterClient
 from scouter.drift import (
     GenAIAlertConfig,
-    GenAIDriftConfig,
+    GenAIEvalConfig,
     GenAIEvalProfile,
     LLMJudgeTask,
 )
@@ -109,7 +109,7 @@ reformulation = LLMJudgeTask(
 )
 
 profile = GenAIEvalProfile(
-    config=GenAIDriftConfig(
+    config=GenAIEvalConfig(
         space="scouter",
         name="genai_metrics",
         version="0.0.1",

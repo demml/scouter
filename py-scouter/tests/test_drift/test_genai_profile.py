@@ -7,7 +7,7 @@ from scouter.drift import (
     ComparisonOperator,
     Drifter,
     GenAIAlertConfig,
-    GenAIDriftConfig,
+    GenAIEvalConfig,
     GenAIEvalProfile,
     LLMJudgeTask,
 )
@@ -38,7 +38,7 @@ def test_genai_drift_profile_from_task():
             expected_value=3,
         )
 
-        _profile = GenAIEvalProfile(config=GenAIDriftConfig(), tasks=[task])
+        _profile = GenAIEvalProfile(config=GenAIEvalConfig(), tasks=[task])
 
 
 def test_genai_drifter():
@@ -61,7 +61,7 @@ def test_genai_drifter():
         )
 
         profile = GenAIEvalProfile(
-            config=GenAIDriftConfig(
+            config=GenAIEvalConfig(
                 alert_config=GenAIAlertConfig(
                     alert_condition=AlertCondition(
                         baseline_value=0.80,

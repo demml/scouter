@@ -30,7 +30,7 @@ use scouter_types::JwtToken;
 use scouter_types::RegisteredProfileResponse;
 use scouter_types::{
     genai::{
-        ComparisonOperator, EvaluationTasks, GenAIAlertConfig, GenAIDriftConfig, GenAIEvalProfile,
+        ComparisonOperator, EvaluationTasks, GenAIAlertConfig, GenAIEvalConfig, GenAIEvalProfile,
         LLMJudgeTask,
     },
     CustomMetricRecord, GenAIEvalTaskResult, GenAIEvalWorkflowResult, MessageRecord, PsiRecord,
@@ -455,7 +455,7 @@ impl TestHelper {
         let alert_config = GenAIAlertConfig::default();
 
         let drift_config =
-            GenAIDriftConfig::new(SPACE, NAME, VERSION, 1.0, alert_config, None).unwrap();
+            GenAIEvalConfig::new(SPACE, NAME, VERSION, 1.0, alert_config, None).unwrap();
 
         GenAIEvalProfile::new(drift_config, tasks).await.unwrap()
     }

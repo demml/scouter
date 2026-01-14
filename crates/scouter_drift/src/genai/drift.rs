@@ -145,9 +145,7 @@ mod tests {
     use super::*;
     use potato_head::mock::create_score_prompt;
     use scouter_types::genai::{ComparisonOperator, EvaluationTasks};
-    use scouter_types::genai::{
-        GenAIAlertConfig, GenAIDriftConfig, GenAIEvalProfile, LLMJudgeTask,
-    };
+    use scouter_types::genai::{GenAIAlertConfig, GenAIEvalConfig, GenAIEvalProfile, LLMJudgeTask};
     use scouter_types::{
         AlertCondition, AlertDispatchConfig, AlertThreshold, ConsoleDispatchConfig,
     };
@@ -197,7 +195,7 @@ mod tests {
         };
 
         let drift_config =
-            GenAIDriftConfig::new("scouter", "ML", "0.1.0", 1.0, alert_config, None).unwrap();
+            GenAIEvalConfig::new("scouter", "ML", "0.1.0", 1.0, alert_config, None).unwrap();
 
         let profile = GenAIEvalProfile::new(drift_config, tasks).await.unwrap();
 

@@ -34,7 +34,7 @@ use tracing::instrument;
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct GenAIDriftConfig {
+pub struct GenAIEvalConfig {
     #[pyo3(get, set)]
     pub sample_ratio: f64,
 
@@ -58,7 +58,7 @@ pub struct GenAIDriftConfig {
     pub drift_type: DriftType,
 }
 
-impl ConfigExt for GenAIDriftConfig {
+impl ConfigExt for GenAIEvalConfig {
     fn space(&self) -> &str {
         &self.space
     }
@@ -76,7 +76,7 @@ fn default_drift_type() -> DriftType {
     DriftType::GenAI
 }
 
-impl DispatchDriftConfig for GenAIDriftConfig {
+impl DispatchDriftConfig for GenAIEvalConfig {
     fn get_drift_args(&self) -> DriftArgs {
         DriftArgs {
             name: self.name.clone(),
@@ -89,7 +89,7 @@ impl DispatchDriftConfig for GenAIDriftConfig {
 
 #[pymethods]
 #[allow(clippy::too_many_arguments)]
-impl GenAIDriftConfig {
+impl GenAIEvalConfig {
     #[new]
     #[pyo3(signature = (space=MISSING, name=MISSING, version=DEFAULT_VERSION, sample_ratio=1.0, alert_config=GenAIAlertConfig::default(), config_path=None))]
     pub fn new(
@@ -101,7 +101,7 @@ impl GenAIDriftConfig {
         config_path: Option<PathBuf>,
     ) -> Result<Self, ProfileError> {
         if let Some(config_path) = config_path {
-            let config = GenAIDriftConfig::load_from_json_file(config_path)?;
+            let config = GenAIEvalConfig::load_from_json_file(config_path)?;
             return Ok(config);
         }
 
@@ -117,7 +117,7 @@ impl GenAIDriftConfig {
     }
 
     #[staticmethod]
-    pub fn load_from_json_file(path: PathBuf) -> Result<GenAIDriftConfig, ProfileError> {
+    pub fn load_from_json_file(path: PathBuf) -> Result<GenAIEvalConfig, ProfileError> {
         // deserialize the string to a struct
 
         let file = std::fs::read_to_string(&path)?;
@@ -169,7 +169,7 @@ impl GenAIDriftConfig {
     }
 }
 
-impl Default for GenAIDriftConfig {
+impl Default for GenAIEvalConfig {
     fn default() -> Self {
         Self {
             sample_ratio: 1.0,
@@ -321,7 +321,7 @@ fn build_dependency_edges(
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct GenAIEvalProfile {
     #[pyo3(get)]
-    pub config: GenAIDriftConfig,
+    pub config: GenAIEvalConfig,
 
     #[pyo3(get)]
     pub assertion_tasks: Vec<AssertionTask>,
@@ -344,7 +344,7 @@ impl GenAIEvalProfile {
     /// Create a new GenAIEvalProfile
     /// GenAI evaluations are run asynchronously on the scouter server.
     /// # Arguments
-    /// * `config` - GenAIDriftConfig - The configuration for the GenAI drift profile
+    /// * `config` - GenAIEvalConfig - The configuration for the GenAI drift profile
     /// * `tasks` - PyList - List of AssertionTask, LLMJudgeTask or ConditionalTask
     /// # Returns
     /// * `Result<Self, ProfileError>` - The GenAIEvalProfile
@@ -352,7 +352,7 @@ impl GenAIEvalProfile {
     /// * `ProfileError::MissingWorkflowError` - If the workflow is
     #[instrument(skip_all)]
     pub fn new_py(
-        config: GenAIDriftConfig,
+        config: GenAIEvalConfig,
         tasks: &Bound<'_, PyList>,
     ) -> Result<Self, ProfileError> {
         let (assertion_tasks, llm_judge_tasks) = extract_assertion_tasks_from_pylist(tasks)?;
@@ -699,7 +699,7 @@ impl GenAIEvalProfile {
 impl Default for GenAIEvalProfile {
     fn default() -> Self {
         Self {
-            config: GenAIDriftConfig::default(),
+            config: GenAIEvalConfig::default(),
             assertion_tasks: Vec::new(),
             llm_judge_tasks: Vec::new(),
             scouter_version: scouter_version(),
@@ -712,7 +712,7 @@ impl Default for GenAIEvalProfile {
 impl GenAIEvalProfile {
     #[instrument(skip_all)]
     pub async fn new(
-        config: GenAIDriftConfig,
+        config: GenAIEvalConfig,
         tasks: Vec<EvaluationTask>,
     ) -> Result<Self, ProfileError> {
         let (assertion_tasks, llm_judge_tasks) = separate_tasks(tasks);
@@ -861,7 +861,7 @@ impl ProfileExt for GenAIEvalProfile {
 }
 
 impl ProfileBaseArgs for GenAIEvalProfile {
-    type Config = GenAIDriftConfig;
+    type Config = GenAIEvalConfig;
 
     fn config(&self) -> &Self::Config {
         &self.config
@@ -1005,7 +1005,7 @@ mod tests {
 
     #[test]
     fn test_genai_drift_config() {
-        let mut drift_config = GenAIDriftConfig::new(
+        let mut drift_config = GenAIEvalConfig::new(
             MISSING,
             MISSING,
             "0.1.0",
@@ -1095,7 +1095,7 @@ mod tests {
         };
 
         let drift_config =
-            GenAIDriftConfig::new("scouter", "ML", "0.1.0", 1.0, alert_config, None).unwrap();
+            GenAIEvalConfig::new("scouter", "ML", "0.1.0", 1.0, alert_config, None).unwrap();
 
         let profile = GenAIEvalProfile::new(drift_config, tasks).await.unwrap();
 

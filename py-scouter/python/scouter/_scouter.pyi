@@ -13466,7 +13466,7 @@ class CustomDriftProfile:
             None
         """
 
-class GenAIDriftConfig:
+class GenAIEvalConfig:
     def __init__(
         self,
         space: str = "__missing__",
@@ -13535,7 +13535,7 @@ class GenAIDriftConfig:
         """Set alert_config"""
 
     @staticmethod
-    def load_from_json_file(path: Path) -> "GenAIDriftConfig":
+    def load_from_json_file(path: Path) -> "GenAIEvalConfig":
         """Load config from json file
         Args:
             path:
@@ -14206,7 +14206,7 @@ class GenAIEvalProfile:
     Examples:
         Pure assertion-based monitoring (no LLM calls):
 
-        >>> config = GenAIDriftConfig(
+        >>> config = GenAIEvalConfig(
         ...     space="production",
         ...     name="chatbot",
         ...     version="1.0",
@@ -14348,7 +14348,7 @@ class GenAIEvalProfile:
 
     def __init__(
         self,
-        config: GenAIDriftConfig,
+        config: GenAIEvalConfig,
         tasks: List[Union[AssertionTask, LLMJudgeTask]],
     ):
         """Initialize a GenAIEvalProfile for LLM evaluation and drift detection.
@@ -14358,7 +14358,7 @@ class GenAIEvalProfile:
         into an internal Workflow for execution on the Scouter server.
 
         Args:
-            config (GenAIDriftConfig):
+            config (GenAIEvalConfig):
                 Configuration for the GenAI drift profile containing space, name,
                 version, sample rate, and alert settings.
             tasks (List[Union[AssertionTask, LLMJudgeTask]]):
@@ -14378,7 +14378,7 @@ class GenAIEvalProfile:
         Examples:
             Assertion-only profile:
 
-            >>> config = GenAIDriftConfig(space="prod", name="bot", version="1.0")
+            >>> config = GenAIEvalConfig(space="prod", name="bot", version="1.0")
             >>> assertions = [
             ...     AssertionTask(id="length_check", ...),
             ...     AssertionTask(id="confidence_check", ...)
@@ -14414,7 +14414,7 @@ class GenAIEvalProfile:
         """Set unique identifier for the drift profile."""
 
     @property
-    def config(self) -> GenAIDriftConfig:
+    def config(self) -> GenAIEvalConfig:
         """Configuration for the drift profile.
 
         Contains space, name, version, sample rate, and alert settings.
@@ -14763,7 +14763,7 @@ class Drifter:
         """
 
     def create_genai_drift_profile(
-        self, config: GenAIDriftConfig, tasks: Sequence[LLMJudgeTask | AssertionTask]
+        self, config: GenAIEvalConfig, tasks: Sequence[LLMJudgeTask | AssertionTask]
     ) -> GenAIEvalProfile:
         """Initialize a GenAIEvalProfile for LLM evaluation and drift detection.
 
@@ -14779,7 +14779,7 @@ class Drifter:
 
 
         Args:
-            config (GenAIDriftConfig):
+            config (GenAIEvalConfig):
                 The configuration for the GenAI drift profile containing space, name,
                 version, and alert settings.
             tasks (List[LLMJudgeTask | AssertionTask]):
@@ -14797,7 +14797,7 @@ class Drifter:
         Examples:
             Basic usage with metrics only:
 
-            >>> config = GenAIDriftConfig("my_space", "my_model", "1.0")
+            >>> config = GenAIEvalConfig("my_space", "my_model", "1.0")
             >>>  tasks = [
             ...     LLMJudgeTask(
             ...         id="response_relevance",
@@ -15641,7 +15641,7 @@ __all__ = [
     "CustomMetricDriftConfig",
     "CustomMetric",
     "CustomDriftProfile",
-    "GenAIDriftConfig",
+    "GenAIEvalConfig",
     "GenAIEvalProfile",
     "Drifter",
     "QuantileBinning",

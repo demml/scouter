@@ -32,7 +32,7 @@ from ._scouter import (  # genai
     FeatureMap,
     Features,
     FreedmanDiaconis,
-    GenAIDriftConfig,
+    GenAIEvalConfig,
     GenAIEvalProfile,
     GenAIEvalRecord,
     GenAIEvalResults,
@@ -139,7 +139,7 @@ __all__ = [
     "RabbitMQConfig",
     "RedisConfig",
     # genai
-    "GenAIDriftConfig",
+    "GenAIEvalConfig",
     "GenAIEvalProfile",
     "GenAIEvalRecord",
     "LLMJudgeTask",

@@ -435,10 +435,10 @@ Tasks are included in a `GenAIEvalProfile` for real-time monitoring:
 
 ```python
 from scouter.evaluate import GenAIEvalProfile
-from scouter import GenAIDriftConfig
+from scouter import GenAIEvalConfig
 
 profile = GenAIEvalProfile(
-    config=GenAIDriftConfig(
+    config=GenAIEvalConfig(
         space="production",
         name="chatbot",
         sample_ratio=0.1  # Evaluate 10% of traffic

@@ -220,7 +220,7 @@ mod tests {
     use potato_head::mock::{create_score_prompt, LLMTestServer};
     use scouter_types::genai::{
         AssertionTask, ComparisonOperator, EvaluationTaskType, EvaluationTasks, GenAIAlertConfig,
-        GenAIDriftConfig, GenAIEvalProfile, LLMJudgeTask,
+        GenAIEvalConfig, GenAIEvalProfile, LLMJudgeTask,
     };
     use scouter_types::{AlertCondition, AlertThreshold, GenAIEvalRecord};
     use serde_json::Value;
@@ -632,7 +632,7 @@ mod tests {
         };
 
         let drift_config =
-            GenAIDriftConfig::new("scouter", "genai_test", "0.1.0", 1.0, alert_config, None)
+            GenAIEvalConfig::new("scouter", "genai_test", "0.1.0", 1.0, alert_config, None)
                 .unwrap();
 
         let profile = runtime
