@@ -544,7 +544,7 @@ pub struct UpdateAlertResponse {
     pub updated: bool,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct GenAIEvalTaskRequest {
     pub record_uid: String,
 }
