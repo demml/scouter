@@ -33,14 +33,15 @@ pub use scouter_types::{
     DriftType, EntityIdTagsRequest, EntityIdTagsResponse, EntityType, EqualWidthBinning, Feature,
     FeatureMap, Features, FreedmanDiaconis, GenAIEvalRecord, GenAIEvalRecordPaginationRequest,
     GenAIEvalRecordPaginationResponse, GenAIEvalTaskRequest, GenAIEvalTaskResult,
-    GenAIEvalWorkflowResult, GetProfileRequest, LatencyMetrics, Manual, Metric, Metrics,
-    ObservabilityMetrics, OpsGenieDispatchConfig, ProfileRequest, ProfileStatusRequest, PsiRecord,
-    QuantileBinning, RecordType, RegisteredProfileResponse, Rice, RouteMetrics, Scott,
-    ScouterResponse, ScouterServerError, ServerRecord, ServerRecords, SlackDispatchConfig,
-    SpanEvent, SpanLink, SpcRecord, SquareRoot, Sturges, TagRecord, TagsResponse, TerrellScott,
-    TimeInterval, TraceBaggageRecord, TraceBaggageResponse, TraceMetricsRequest,
-    TraceMetricsResponse, TracePaginationResponse, TraceRecord, TraceRequest, TraceSpanRecord,
-    TraceSpansResponse, UpdateAlertResponse, UpdateAlertStatus, VersionRequest, SCOUTER_TAG_PREFIX,
+    GenAIEvalWorkflowPaginationResponse, GenAIEvalWorkflowResult, GetProfileRequest,
+    LatencyMetrics, Manual, Metric, Metrics, ObservabilityMetrics, OpsGenieDispatchConfig,
+    ProfileRequest, ProfileStatusRequest, PsiRecord, QuantileBinning, RecordType,
+    RegisteredProfileResponse, Rice, RouteMetrics, Scott, ScouterResponse, ScouterServerError,
+    ServerRecord, ServerRecords, SlackDispatchConfig, SpanEvent, SpanLink, SpcRecord, SquareRoot,
+    Sturges, TagRecord, TagsResponse, TerrellScott, TimeInterval, TraceBaggageRecord,
+    TraceBaggageResponse, TraceMetricsRequest, TraceMetricsResponse, TracePaginationResponse,
+    TraceRecord, TraceRequest, TraceSpanRecord, TraceSpansResponse, UpdateAlertResponse,
+    UpdateAlertStatus, VersionRequest, SCOUTER_TAG_PREFIX,
 };
 
 pub use crate::http::{PyScouterClient, ScouterClient};
