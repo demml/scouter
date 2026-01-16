@@ -38,9 +38,10 @@ use scouter_settings::http::HttpConfig;
 
 use scouter_types::{
     is_pydantic_basemodel, pydict_to_otel_keyvalue, pyobject_to_otel_value,
-    pyobject_to_tracing_json, BAGGAGE_PREFIX, EXCEPTION_TRACEBACK, SCOUTER_SCOPE,
-    SCOUTER_SCOPE_DEFAULT, SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL,
-    SCOUTER_TRACING_OUTPUT, SPAN_ERROR, TRACE_START_TIME_KEY,
+    pyobject_to_tracing_json, EntityType, BAGGAGE_PREFIX, EXCEPTION_TRACEBACK, SCOUTER_QUEUE_EVENT,
+    SCOUTER_QUEUE_RECORD, SCOUTER_SCOPE, SCOUTER_SCOPE_DEFAULT, SCOUTER_TAG_PREFIX,
+    SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL, SCOUTER_TRACING_OUTPUT, SPAN_ERROR,
+    TRACE_START_TIME_KEY,
 };
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock, RwLock};
@@ -371,12 +372,32 @@ impl ActiveSpan {
         item: &Bound<'_, PyAny>,
     ) -> Result<(), TraceError> {
         // check if sampling allows for this span to be sent
-        self.with_inner(
+        self.with_inner_mut(
             |inner| match &inner.span.span_context().trace_flags().is_sampled() {
                 true => {
                     if let Some(queue) = &inner.queue {
                         let bound_queue = queue.bind(py).get_item(&alias)?;
                         bound_queue.call_method1("insert", (item,))?;
+
+                        let entity_type_py = item.getattr("entity_type")?;
+                        let entity_type = entity_type_py.extract::<EntityType>()?;
+
+                        // always record event type for easier correlation
+                        inner
+                            .span
+                            .set_attribute(KeyValue::new(SCOUTER_QUEUE_EVENT, entity_type));
+
+                        // get record_id if available (only available for GenAIEval Records at the moment)
+                        if let Ok(record_id) = item.getattr("record_id") {
+                            let record_id_str = record_id.str()?;
+                            // add span attribute for easier correlation
+                            // We'll use this to lookup records, tasks and eval metrics when rendering a span's details
+                            inner.span.set_attribute(KeyValue::new(
+                                SCOUTER_QUEUE_RECORD,
+                                record_id_str.to_str()?.to_string(),
+                            ));
+                        };
+
                         Ok(())
                     } else {
                         warn!(

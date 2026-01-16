@@ -82,6 +82,7 @@ pub struct DriftArgs {
 
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(untagged)]
 pub enum DriftProfile {
     Spc(SpcDriftProfile),
     Psi(PsiDriftProfile),
