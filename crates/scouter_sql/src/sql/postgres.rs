@@ -256,7 +256,6 @@ mod tests {
     use scouter_types::sql::TraceFilters;
     use scouter_types::*;
     use serde_json::Value;
-    use std::collections::BTreeMap;
 
     const SPACE: &str = "space";
     const NAME: &str = "name";
@@ -449,11 +448,15 @@ mod tests {
 
         // Insert 10 alerts with slight delays to ensure different timestamps
         for i in 0..10 {
-            let alert = (0..10)
-                .map(|j| (j.to_string(), format!("alert_{}_value_{}", i, j)))
-                .collect::<BTreeMap<String, String>>();
+            let alert = AlertMap::Custom(custom::ComparisonMetricAlert {
+                metric_name: "test".to_string(),
+                baseline_value: 0 as f64,
+                observed_value: i as f64,
+                delta: None,
+                alert_threshold: AlertThreshold::Above,
+            });
 
-            let result = PostgresClient::insert_drift_alert(&pool, &entity_id, "test", &alert)
+            let result = PostgresClient::insert_drift_alert(&pool, &entity_id, &alert)
                 .await
                 .unwrap();
 

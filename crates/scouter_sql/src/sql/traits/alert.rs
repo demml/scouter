@@ -6,13 +6,11 @@ use scouter_types::contracts::{
 };
 
 use crate::sql::error::SqlError;
-use scouter_types::{alert::Alert, RecordCursor};
-
-use sqlx::{postgres::PgQueryResult, Pool, Postgres};
-use std::collections::BTreeMap;
-use std::result::Result::Ok;
+use scouter_types::{alert::Alert, AlertMap, RecordCursor};
 
 use async_trait::async_trait;
+use sqlx::{postgres::PgQueryResult, Pool, Postgres};
+use std::result::Result::Ok;
 
 #[async_trait]
 pub trait AlertSqlLogic {
@@ -28,14 +26,13 @@ pub trait AlertSqlLogic {
     async fn insert_drift_alert(
         pool: &Pool<Postgres>,
         entity_id: &i32,
-        entity_name: &str,
-        alert: &BTreeMap<String, String>,
+        alert: &AlertMap,
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertDriftAlert.get_query();
 
         let query_result = sqlx::query(query)
             .bind(entity_id)
-            .bind(entity_name)
+            .bind(alert.entity_name())
             .bind(serde_json::to_value(alert).unwrap())
             .execute(pool)
             .await?;

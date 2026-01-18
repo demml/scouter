@@ -4,9 +4,8 @@ use chrono::{DateTime, Utc};
 
 use scouter_sql::sql::traits::{AlertSqlLogic, ProfileSqlLogic};
 use scouter_sql::{sql::schema::TaskRequest, PostgresClient};
-use scouter_types::DriftProfile;
+use scouter_types::{AlertMap, DriftProfile};
 use sqlx::{Pool, Postgres};
-use std::collections::BTreeMap;
 use std::result::Result;
 use std::result::Result::Ok;
 
@@ -25,7 +24,7 @@ impl Drifter {
         &self,
         db_pool: &Pool<Postgres>,
         previous_run: &DateTime<Utc>,
-    ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
+    ) -> Result<Option<Vec<AlertMap>>, DriftError> {
         match self {
             Drifter::SpcDrifter(drifter) => drifter.check_for_alerts(db_pool, previous_run).await,
             Drifter::PsiDrifter(drifter) => drifter.check_for_alerts(db_pool, previous_run).await,
@@ -93,7 +92,7 @@ impl DriftExecutor {
         &mut self,
         profile: DriftProfile,
         previous_run: &DateTime<Utc>,
-    ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
+    ) -> Result<Option<Vec<AlertMap>>, DriftError> {
         // match Drifter enum
 
         profile
@@ -175,17 +174,12 @@ impl DriftExecutor {
 
                 // Insert alerts atomically within the same transaction
                 for alert in alerts {
-                    PostgresClient::insert_drift_alert(
-                        &self.db_pool,
-                        &task.entity_id,
-                        alert.get("entity_name").unwrap_or(&"NA".to_string()),
-                        &alert,
-                    )
-                    .await
-                    .map_err(|e| {
-                        error!("Error inserting drift alert: {:?}", e);
-                        DriftError::SqlError(e)
-                    })?;
+                    PostgresClient::insert_drift_alert(&self.db_pool, &task.entity_id, &alert)
+                        .await
+                        .map_err(|e| {
+                            error!("Error inserting drift alert: {:?}", e);
+                            DriftError::SqlError(e)
+                        })?;
                 }
                 Ok(())
             }
@@ -762,18 +756,15 @@ mod tests {
 
         // Verify alert content
         let alert = &alerts.items[0];
-        assert!(alert.alert.contains_key("entity_name"));
-        assert_eq!(
-            alert.alert.get("entity_name").unwrap(),
-            "genai_workflow_metric"
-        );
+
+        assert_eq!(alert.alert.entity_name(), "genai_workflow_metric");
 
         // Verify the observed value is below threshold
-        let observed_value: f64 = alert
-            .alert
-            .get("observed_metric_value")
-            .and_then(|v| v.parse().ok())
-            .unwrap();
+        let observed_value: f64 = match &alert.alert {
+            AlertMap::GenAI(genai_alert) => genai_alert.observed_value,
+            _ => panic!("Expected GenAI alert map"),
+        };
+
         assert!(
             observed_value < 0.8, // Should be ~33% pass rate
             "Expected low pass rate to trigger alert"

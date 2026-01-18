@@ -3,10 +3,9 @@ use chrono::{DateTime, Utc};
 use scouter_dispatch::AlertDispatcher;
 use scouter_sql::sql::traits::GenAIDriftSqlLogic;
 use scouter_sql::{sql::cache::entity_cache, PostgresClient};
-use scouter_types::ProfileBaseArgs;
 use scouter_types::{custom::ComparisonMetricAlert, genai::GenAIEvalProfile};
+use scouter_types::{AlertMap, ProfileBaseArgs};
 use sqlx::{Pool, Postgres};
-use std::collections::BTreeMap;
 use tracing::error;
 use tracing::info;
 
@@ -73,7 +72,7 @@ impl GenAIDrifter {
     pub async fn generate_alerts(
         &self,
         observed_value: f64,
-    ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
+    ) -> Result<Option<Vec<AlertMap>>, DriftError> {
         // Early return if no alert condition configured
         let Some(alert_condition) = &self.profile.config.alert_config.alert_condition else {
             info!(
@@ -97,11 +96,11 @@ impl GenAIDrifter {
         // Build comparison alert with owned data
         let metric_name = "genai_workflow_metric".to_string();
         let comparison_alert = ComparisonMetricAlert {
-            metric_name: &metric_name,
-            baseline_metric: &alert_condition.baseline_value,
-            observed_metric: &observed_value,
-            delta: &alert_condition.delta,
-            alert_threshold: &alert_condition.alert_threshold,
+            metric_name: metric_name.clone(),
+            baseline_value: alert_condition.baseline_value,
+            observed_value: observed_value,
+            delta: alert_condition.delta,
+            alert_threshold: alert_condition.alert_threshold.clone(),
         };
 
         // Dispatch alert
@@ -121,7 +120,7 @@ impl GenAIDrifter {
             })?;
 
         // Convert to owned map before returning
-        Ok(Some(vec![comparison_alert.organize_to_map()]))
+        Ok(Some(vec![AlertMap::GenAI(comparison_alert)]))
     }
 
     /// Checks for alerts based on metric value since previous run
@@ -129,7 +128,7 @@ impl GenAIDrifter {
         &self,
         db_pool: &Pool<Postgres>,
         previous_run: &DateTime<Utc>,
-    ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
+    ) -> Result<Option<Vec<AlertMap>>, DriftError> {
         let Some(metric_value) = self.get_metric_value(previous_run, db_pool).await? else {
             return Ok(None);
         };
@@ -218,11 +217,13 @@ mod tests {
         );
 
         let alert_map = &alerts.unwrap()[0];
-        assert!(alert_map.contains_key("entity_name"));
-        assert_eq!(
-            alert_map.get("entity_name").unwrap(),
-            "genai_workflow_metric"
-        );
+        match alert_map {
+            AlertMap::GenAI(alert) => {
+                assert_eq!(alert.metric_name, "genai_workflow_metric");
+                assert_eq!(alert.observed_value, observed_value);
+            }
+            _ => panic!("Expected GenAI alert map"),
+        }
     }
 
     #[tokio::test]

@@ -14,6 +14,7 @@ pub mod psi_drifter {
         BinnedPsiFeatureMetrics, BinnedPsiMetric, FeatureDistributions, PsiDriftProfile,
         PsiFeatureAlert, PsiFeatureAlerts, PsiFeatureDriftProfile,
     };
+    use scouter_types::AlertMap;
     use scouter_types::{contracts::DriftRequest, ProfileBaseArgs};
 
     use sqlx::{Pool, Postgres};
@@ -109,7 +110,7 @@ pub mod psi_drifter {
             &self,
             drift_map: &HashMap<String, f64>,
             target_feature_distributions: &FeatureDistributions,
-        ) -> Result<Option<Vec<PsiFeatureAlert>>, DriftError> {
+        ) -> Result<Option<Vec<AlertMap>>, DriftError> {
             let alert_dispatcher = AlertDispatcher::new(&self.profile.config).inspect_err(|e| {
                 error!(
                     "Error creating alert dispatcher for {}/{}/{}: {}",
@@ -146,29 +147,7 @@ pub mod psi_drifter {
                         e
                     );
                 })?;
-            Ok(Some(alerts))
-        }
-
-        /// organize alerts so that each alert is mapped to a single entry and feature
-        /// Some features may produce multiple alerts
-        ///
-        /// # Arguments
-        ///
-        /// * `alerts` - TaskAlerts to organize
-        ///
-        /// # Returns
-        ///
-        fn organize_alerts(alerts: &[PsiFeatureAlert]) -> Vec<BTreeMap<String, String>> {
-            alerts
-                .iter()
-                .map(|alert| {
-                    let mut alert_map = BTreeMap::new();
-                    alert_map.insert("entity_name".to_string(), alert.feature.clone());
-                    alert_map.insert("psi".to_string(), alert.drift.to_string());
-                    alert_map.insert("threshold".to_string(), alert.threshold.to_string());
-                    alert_map
-                })
-                .collect()
+            Ok(Some(alerts.into_iter().map(|a| a.into()).collect()))
         }
 
         fn get_drift_map(
@@ -191,7 +170,7 @@ pub mod psi_drifter {
             &self,
             db_pool: &Pool<Postgres>,
             previous_run: &DateTime<Utc>,
-        ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
+        ) -> Result<Option<Vec<AlertMap>>, DriftError> {
             // Check if there are any feature profiles to monitor
             let profiles_to_monitor = self.get_monitored_profiles();
 
@@ -228,7 +207,7 @@ pub mod psi_drifter {
                 return Ok(None);
             };
 
-            Ok(Some(Self::organize_alerts(&alerts)))
+            Ok(Some(alerts))
         }
 
         fn create_feature_bin_proportion_pairs(

@@ -1,13 +1,15 @@
+use crate::spc::SpcAlertEntry;
 use crate::util::PyHelperFuncs;
+use crate::{custom::ComparisonMetricAlert, psi::PsiFeatureAlert};
 use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
 
 #[pyclass(eq)]
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub enum AlertThreshold {
+    #[default]
     Below,
     Above,
     Outside,
@@ -106,6 +108,33 @@ impl AlertCondition {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+pub enum AlertMap {
+    Custom(ComparisonMetricAlert),
+    Psi(PsiFeatureAlert),
+    Spc(SpcAlertEntry),
+    GenAI(ComparisonMetricAlert),
+
+    #[default]
+    None,
+}
+
+impl AlertMap {
+    pub fn is_none(&self) -> bool {
+        matches!(self, AlertMap::None)
+    }
+
+    pub fn entity_name(&self) -> &str {
+        match self {
+            AlertMap::Custom(alert) => &alert.metric_name,
+            AlertMap::Psi(alert) => &alert.feature,
+            AlertMap::Spc(alert) => &alert.feature,
+            AlertMap::GenAI(alert) => &alert.metric_name,
+            AlertMap::None => "none",
+        }
+    }
+}
+
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Alert {
@@ -115,8 +144,7 @@ pub struct Alert {
     #[pyo3(get)]
     pub entity_name: String,
 
-    #[pyo3(get)]
-    pub alert: BTreeMap<String, String>,
+    pub alert: AlertMap,
 
     #[pyo3(get)]
     pub id: i32,
@@ -131,8 +159,7 @@ impl<'r> sqlx::FromRow<'r, sqlx::postgres::PgRow> for Alert {
         use sqlx::Row;
 
         let alert_value: serde_json::Value = row.try_get("alert")?;
-        let alert: BTreeMap<String, String> =
-            serde_json::from_value(alert_value).unwrap_or_default();
+        let alert: AlertMap = serde_json::from_value(alert_value).unwrap_or_default();
 
         Ok(Alert {
             created_at: row.try_get("created_at")?,

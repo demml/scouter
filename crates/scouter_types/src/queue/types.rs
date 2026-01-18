@@ -19,9 +19,9 @@ pub enum EntityType {
     GenAI,
 }
 
-impl Into<opentelemetry::Value> for EntityType {
-    fn into(self) -> opentelemetry::Value {
-        match self {
+impl From<EntityType> for opentelemetry::Value {
+    fn from(val: EntityType) -> Self {
+        match val {
             EntityType::Feature => opentelemetry::Value::String(StringValue::from("Feature")),
             EntityType::Metric => opentelemetry::Value::String(StringValue::from("Metric")),
             EntityType::GenAI => opentelemetry::Value::String(StringValue::from("GenAI")),

@@ -1,6 +1,6 @@
 use crate::error::TypeError;
 use crate::{
-    AlertDispatchConfig, AlertDispatchType, CommonCrons, DispatchAlertDescription,
+    AlertDispatchConfig, AlertDispatchType, AlertMap, CommonCrons, DispatchAlertDescription,
     OpsGenieDispatchConfig, SlackDispatchConfig, ValidateAlertConfig,
 };
 use core::fmt::Debug;
@@ -257,11 +257,16 @@ impl PsiAlertConfig {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct PsiFeatureAlert {
     pub feature: String,
     pub drift: f64,
     pub threshold: f64,
+}
+impl From<PsiFeatureAlert> for AlertMap {
+    fn from(val: PsiFeatureAlert) -> Self {
+        AlertMap::Psi(val)
+    }
 }
 
 pub struct PsiFeatureAlerts {
