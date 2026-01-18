@@ -714,7 +714,7 @@ pub trait GenAIDriftSqlLogic {
         storage_settings: &ObjectStorageSettings,
         entity_id: &i32,
     ) -> Result<BinnedMetrics, SqlError> {
-        debug!("Getting binned Custom drift records for {:?}", params);
+        debug!("Getting binned workflow drift records for {:?}", params);
 
         if !params.has_custom_interval() {
             debug!("No custom interval provided, using default");
@@ -756,6 +756,11 @@ pub trait GenAIDriftSqlLogic {
                 Self::merge_feature_results(archived_results, &mut custom_metric_map)?;
             }
         }
+
+        debug!(
+            "Custom metric map length: {:?}",
+            custom_metric_map.metrics.len()
+        );
 
         Ok(custom_metric_map)
     }

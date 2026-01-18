@@ -102,14 +102,20 @@ impl DriftExecutor {
             .await
     }
 
-    async fn do_poll(&mut self) -> Result<Option<TaskRequest>, DriftError> {
+    async fn do_poll(&mut self) -> bool {
         debug!("Polling for drift tasks");
 
         // Get task from the database (query uses skip lock to pull task and update to processing)
-        let task = PostgresClient::get_drift_profile_task(&self.db_pool).await?;
+        let task = match PostgresClient::get_drift_profile_task(&self.db_pool).await {
+            Ok(task) => task,
+            Err(e) => {
+                error!("Error fetching drift task: {:?}", e);
+                return false;
+            }
+        };
 
         let Some(task) = task else {
-            return Ok(None);
+            return false;
         };
 
         info!(
@@ -117,18 +123,35 @@ impl DriftExecutor {
             task.uid, task.drift_type
         );
 
-        self.process_task(&task).await?;
+        // Silently process the task and log any errors
+        match self.process_task(&task).await {
+            Ok(_) => info!(
+                "Successfully processed drift task for profile: {}",
+                task.uid
+            ),
+            Err(e) => error!(
+                "Error processing drift task for profile {}: {:?}",
+                task.uid, e
+            ),
+        }
 
-        // Update the run dates while still holding the lock
-        PostgresClient::update_drift_profile_run_dates(
+        match PostgresClient::update_drift_profile_run_dates(
             &self.db_pool,
             &task.entity_id,
             &task.schedule,
+            &task.previous_run,
         )
         .instrument(span!(Level::INFO, "Update Run Dates"))
-        .await?;
+        .await
+        {
+            Ok(_) => info!("Updated run dates for drift profile task: {}", task.uid),
+            Err(e) => error!(
+                "CRITICAL: Failed to reschedule task Error updating run dates for drift profile task {}: {:?}",
+                task.uid, e
+            ),
+        }
 
-        Ok(Some(task))
+        true
     }
 
     #[instrument(skip_all)]
@@ -184,12 +207,12 @@ impl DriftExecutor {
     /// * `Result<()>` - Result of drift computation and alerting
     #[instrument(skip_all)]
     pub async fn poll_for_tasks(&mut self) -> Result<(), DriftError> {
-        match self.do_poll().await? {
-            Some(_) => {
+        match self.do_poll().await {
+            true => {
                 info!("Successfully processed drift task");
                 Ok(())
             }
-            None => {
+            false => {
                 info!("No triggered schedules found in db. Sleeping for 10 seconds");
                 tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
                 Ok(())

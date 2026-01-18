@@ -16,7 +16,7 @@ use scouter_types::{
 use scouter_types::{GenAIEvalTaskResponse, ScouterServerError};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
-use tracing::{error, instrument};
+use tracing::{debug, error, instrument};
 
 /// This route is used to get the latest GenAI drift records by page
 #[instrument(skip_all)]
@@ -37,6 +37,11 @@ pub async fn query_genai_eval_records(
     let entity_id = data
         .get_entity_id_for_request(&params.service_info.uid)
         .await?;
+
+    debug!(
+        "Querying GenAI eval records for entity_id and request: {} {:?}",
+        entity_id, params
+    );
 
     let metrics =
         PostgresClient::get_paginated_genai_eval_records(&data.db_pool, &params, &entity_id).await;

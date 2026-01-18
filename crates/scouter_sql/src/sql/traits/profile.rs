@@ -4,6 +4,7 @@ use crate::sql::schema::TaskRequest;
 use crate::sql::error::SqlError;
 use crate::sql::schema::VersionResult;
 use async_trait::async_trait;
+use chrono::DateTime;
 use chrono::Utc;
 use cron::Schedule;
 use potato_head::create_uuid7;
@@ -287,12 +288,14 @@ pub trait ProfileSqlLogic {
     }
 
     /// Update the drift profile run dates in the database
+    /// Next run is calculated based on the provided schedule and previous run date
     ///
     /// # Arguments
     ///
     /// * `transaction` - The database transaction
     /// * `service_info` - The service info to update the run dates for
     /// * `schedule` - The schedule to update the run dates with
+    /// * `previous_run` - The previous run datetime
     ///
     /// # Returns
     ///
@@ -302,14 +305,16 @@ pub trait ProfileSqlLogic {
         pool: &Pool<Postgres>,
         entity_id: &i32,
         schedule: &str,
+        previous_run: &DateTime<Utc>,
     ) -> Result<(), SqlError> {
         let query = Queries::UpdateDriftProfileRunDates.get_query();
 
         let schedule = Schedule::from_str(schedule)?;
 
-        let next_run = match schedule.upcoming(Utc).take(1).next() {
+        let next_run = match schedule.after(previous_run).next() {
             Some(next_run) => next_run,
             None => {
+                error!("Failed to calculate next run for schedule: {}", schedule);
                 return Err(SqlError::GetNextRunError);
             }
         };
