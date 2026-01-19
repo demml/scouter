@@ -8,7 +8,7 @@ use scouter_types::sql::{TraceFilters, TraceListItem, TraceMetricBucket, TraceSp
 use scouter_types::{TraceBaggageRecord, TraceCursor, TracePaginationResponse, TraceSpanRecord};
 use sqlx::{postgres::PgQueryResult, types::Json, Pool, Postgres};
 use std::collections::HashMap;
-use tracing::instrument;
+use tracing::{error, instrument};
 #[async_trait]
 pub trait TraceSqlLogic {
     /// Attempts to insert multiple trace span records into the database in a batch.
@@ -92,7 +92,8 @@ pub trait TraceSqlLogic {
             .bind(service_name)
             .bind(resource_attributes)
             .execute(pool)
-            .await?;
+            .await
+            .inspect_err(|e| error!("Error inserting trace spans: {:?}", e))?;
 
         Ok(query_result)
     }
@@ -131,7 +132,8 @@ pub trait TraceSqlLogic {
             .bind(key)
             .bind(value)
             .execute(pool)
-            .await?;
+            .await
+            .inspect_err(|e| error!("Error inserting trace baggage: {:?}", e))?;
 
         Ok(query_result)
     }

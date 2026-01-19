@@ -735,6 +735,7 @@ mod tests {
             "UID123".to_string(),
             "ENTITY123".to_string(),
             None,
+            None,
         );
 
         let result_set = runtime.block_on(async {
@@ -771,6 +772,7 @@ mod tests {
             Utc::now(),
             "UID123".to_string(),
             "ENTITY123".to_string(),
+            None,
             None,
         );
 

@@ -4,7 +4,7 @@ WITH next_id AS (
     WHERE entity_id = $3
 )
 INSERT INTO scouter.genai_eval_record (
-    id, uid, created_at, entity_id, context, record_id
+    id, uid, created_at, entity_id, context, record_id, session_id
 )
 SELECT
     next_id.id,
@@ -12,6 +12,7 @@ SELECT
     $2, -- created_at
     $3, -- entity_id
     $4, -- context
-    $5  -- record_id
+    $5,  -- record_id
+    $6   -- session_id
 FROM next_id
 ON CONFLICT DO NOTHING;

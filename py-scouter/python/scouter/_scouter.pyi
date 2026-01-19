@@ -12238,6 +12238,7 @@ class GenAIEvalRecord:
         self,
         context: Context,
         id: Optional[str] = None,
+        session_id: Optional[str] = None,
     ) -> None:
         """Creates a new LLM record to associate with an `GenAIEvalProfile`.
         The record is sent to the `Scouter` server via the `ScouterQueue` and is
@@ -12252,11 +12253,21 @@ class GenAIEvalRecord:
                 {"foo": "bar"}
             id (Optional[str], optional):
                 Optional unique identifier for the record.
+            session_id (Optional[str], optional):
+                Optional session identifier to group related records.
 
         Raises:
             TypeError: If context is not a dict or a pydantic BaseModel.
 
         """
+
+    @property
+    def session_id(self) -> str:
+        """Get the session ID."""
+
+    @session_id.setter
+    def session_id(self, session_id: str) -> None:
+        """Set the session ID."""
 
     @property
     def record_id(self) -> Optional[str]:

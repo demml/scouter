@@ -68,6 +68,8 @@ impl GenAIEvalDataFrame {
     pub fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, DataFrameError> {
         let schema = Arc::new(Schema::new(vec![
             Field::new("id", DataType::Int64, false),
+            Field::new("record_id", DataType::Utf8, true),
+            Field::new("session_id", DataType::Utf8, true),
             Field::new(
                 "created_at",
                 DataType::Timestamp(TimeUnit::Nanosecond, None),
@@ -109,6 +111,10 @@ impl GenAIEvalDataFrame {
     ) -> Result<RecordBatch, DataFrameError> {
         let id_array =
             arrow_array::Int64Array::from_iter_values(records.iter().map(|r| r.record.id));
+        let record_id_array =
+            StringArray::from_iter_values(records.iter().map(|r| r.record.record_id.as_str()));
+        let session_id_array =
+            StringArray::from_iter_values(records.iter().map(|r| r.record.session_id.as_str()));
         let created_at_array =
             TimestampNanosecondArray::from_iter_values(records.iter().map(|r| {
                 r.record
@@ -153,6 +159,8 @@ impl GenAIEvalDataFrame {
             self.schema.clone(),
             vec![
                 Arc::new(id_array),
+                Arc::new(record_id_array),
+                Arc::new(session_id_array),
                 Arc::new(created_at_array),
                 Arc::new(uid_array),
                 Arc::new(context_array),

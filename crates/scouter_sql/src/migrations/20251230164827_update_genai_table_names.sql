@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS scouter.genai_eval_record (
     processing_ended_at TIMESTAMPTZ,
     processing_duration INTEGER,
     record_id TEXT,
+    session_id TEXT,
     archived BOOLEAN DEFAULT false,
     PRIMARY KEY (uid, created_at),
     UNIQUE (created_at, entity_id)
@@ -59,7 +60,7 @@ PARTITION BY RANGE (created_at);
 -- ============================================================================
 CREATE INDEX IF NOT EXISTS idx_genai_event_record_lookup ON scouter.genai_eval_record (entity_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_genai_event_record_pagination ON scouter.genai_eval_record (entity_id, id DESC);
-CREATE INDEX IF NOT EXISTS idx_genai_eval_record_comparison_lookup ON scouter.genai_eval_record (entity_id, record_id, created_at DESC)
+CREATE INDEX IF NOT EXISTS idx_genai_eval_record_comparison_lookup ON scouter.genai_eval_record (entity_id, record_id, session_id, created_at DESC)
 WHERE record_id IS NOT NULL AND record_id != '';
 
 
