@@ -201,6 +201,8 @@ impl PsiRecord {
 pub struct GenAIEvalRecord {
     #[pyo3(get, set)]
     pub record_id: String,
+    #[pyo3(get, set)]
+    pub session_id: String,
     #[pyo3(get)]
     pub created_at: chrono::DateTime<Utc>,
     #[pyo3(get)]
@@ -221,7 +223,7 @@ pub struct GenAIEvalRecord {
 #[pymethods]
 impl GenAIEvalRecord {
     #[new]
-    #[pyo3(signature = (context=None, id = None))]
+    #[pyo3(signature = (context=None, id = None, session_id = None))]
 
     /// Creates a new GenAIEvalRecord instance.
     /// The context is either a python dictionary or a pydantic basemodel.
@@ -229,6 +231,7 @@ impl GenAIEvalRecord {
         py: Python<'_>,
         context: Option<Bound<'_, PyAny>>,
         id: Option<String>,
+        session_id: Option<String>,
     ) -> Result<Self, RecordError> {
         // check if context is a PyDict or PyObject(Pydantic model)
         let context_val = match context {
@@ -241,7 +244,7 @@ impl GenAIEvalRecord {
             created_at: Utc::now(),
             context: context_val,
             record_id: id.unwrap_or_default(),
-
+            session_id: session_id.unwrap_or_else(create_uuid7),
             ..Default::default()
         })
     }
@@ -324,6 +327,7 @@ impl GenAIEvalRecord {
         uid: String,
         entity_uid: String,
         record_id: Option<String>,
+        session_id: Option<String>,
     ) -> Self {
         Self {
             created_at,
@@ -339,6 +343,7 @@ impl GenAIEvalRecord {
             entity_id: 0, // This is a placeholder, to be set when inserting into DB
             record_id: record_id.unwrap_or_default(),
             entity_type: EntityType::GenAI,
+            session_id: session_id.unwrap_or_else(create_uuid7),
         }
     }
 
@@ -365,6 +370,7 @@ impl Default for GenAIEvalRecord {
             entity_uid: String::new(),
             status: Status::Pending,
             entity_type: EntityType::GenAI,
+            session_id: create_uuid7(),
         }
     }
 }
@@ -380,6 +386,7 @@ impl FromRow<'_, PgRow> for GenAIEvalRecord {
 
         Ok(GenAIEvalRecord {
             record_id: row.try_get("record_id")?,
+            session_id: row.try_get("session_id")?,
             created_at: row.try_get("created_at")?,
             context,
             uid: row.try_get("uid")?,
