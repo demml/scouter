@@ -394,7 +394,7 @@ impl ActiveSpan {
                             // We'll use this to lookup records, tasks and eval metrics when rendering a span's details
                             inner.span.set_attribute(KeyValue::new(
                                 SCOUTER_QUEUE_RECORD,
-                                record_id_str.to_str()?.to_string(),
+                                record_id_str.str()?.to_string(),
                             ));
                         };
 
