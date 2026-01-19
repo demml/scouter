@@ -9,7 +9,8 @@ SELECT
     processing_started_at,
     processing_ended_at,
     processing_duration,
-    record_id
+    record_id,
+    session_id
 FROM scouter.genai_eval_record
 WHERE 1=1
     AND created_at BETWEEN $1 AND $2
