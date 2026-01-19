@@ -98,7 +98,7 @@ impl GenAIDrifter {
         let comparison_alert = ComparisonMetricAlert {
             metric_name: metric_name.clone(),
             baseline_value: alert_condition.baseline_value,
-            observed_value: observed_value,
+            observed_value,
             delta: alert_condition.delta,
             alert_threshold: alert_condition.alert_threshold.clone(),
         };
