@@ -588,7 +588,7 @@ mod tests {
     use chrono::Utc;
     use potato_head::mock::{create_score_prompt, LLMTestServer};
     use scouter_types::genai::{
-        AssertionTask, ComparisonOperator, GenAIAlertConfig, GenAIDriftConfig, GenAIEvalProfile,
+        AssertionTask, ComparisonOperator, GenAIAlertConfig, GenAIEvalConfig, GenAIEvalProfile,
         LLMJudgeTask,
     };
     use scouter_types::genai::{EvaluationTaskType, EvaluationTasks};
@@ -659,7 +659,7 @@ mod tests {
         let alert_config = GenAIAlertConfig::default();
 
         let drift_config =
-            GenAIDriftConfig::new("scouter", "ML", "0.1.0", 1.0, alert_config, None).unwrap();
+            GenAIEvalConfig::new("scouter", "ML", "0.1.0", 1.0, alert_config, None).unwrap();
 
         GenAIEvalProfile::new(drift_config, tasks).await.unwrap()
     }
@@ -709,7 +709,7 @@ mod tests {
         let alert_config = GenAIAlertConfig::default();
 
         let drift_config =
-            GenAIDriftConfig::new("scouter", "ML", "0.1.0", 1.0, alert_config, None).unwrap();
+            GenAIEvalConfig::new("scouter", "ML", "0.1.0", 1.0, alert_config, None).unwrap();
 
         GenAIEvalProfile::new(drift_config, tasks).await.unwrap()
     }

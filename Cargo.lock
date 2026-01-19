@@ -812,7 +812,7 @@ dependencies = [
 [[package]]
 name = "baked-potato"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fnon-mut-execute-task#b799ff9dfae9b725cce34e7c8743e71cf9d777db"
+source = "git+https://github.com/demml/potatohead.git?branch=main#96d95e068fd378ac8501ee2fdf09ee5914553237"
 dependencies = [
  "mockito",
  "potato-agent",
@@ -4615,7 +4615,7 @@ dependencies = [
 [[package]]
 name = "potato-agent"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fnon-mut-execute-task#b799ff9dfae9b725cce34e7c8743e71cf9d777db"
+source = "git+https://github.com/demml/potatohead.git?branch=main#96d95e068fd378ac8501ee2fdf09ee5914553237"
 dependencies = [
  "base64",
  "gcloud-auth",
@@ -4638,7 +4638,7 @@ dependencies = [
 [[package]]
 name = "potato-head"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fnon-mut-execute-task#b799ff9dfae9b725cce34e7c8743e71cf9d777db"
+source = "git+https://github.com/demml/potatohead.git?branch=main#96d95e068fd378ac8501ee2fdf09ee5914553237"
 dependencies = [
  "baked-potato",
  "potato-agent",
@@ -4651,7 +4651,7 @@ dependencies = [
 [[package]]
 name = "potato-macro"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fnon-mut-execute-task#b799ff9dfae9b725cce34e7c8743e71cf9d777db"
+source = "git+https://github.com/demml/potatohead.git?branch=main#96d95e068fd378ac8501ee2fdf09ee5914553237"
 dependencies = [
  "thiserror 2.0.17",
 ]
@@ -4659,7 +4659,7 @@ dependencies = [
 [[package]]
 name = "potato-provider"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fnon-mut-execute-task#b799ff9dfae9b725cce34e7c8743e71cf9d777db"
+source = "git+https://github.com/demml/potatohead.git?branch=main#96d95e068fd378ac8501ee2fdf09ee5914553237"
 dependencies = [
  "base64",
  "gcloud-auth",
@@ -4681,7 +4681,7 @@ dependencies = [
 [[package]]
 name = "potato-state"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fnon-mut-execute-task#b799ff9dfae9b725cce34e7c8743e71cf9d777db"
+source = "git+https://github.com/demml/potatohead.git?branch=main#96d95e068fd378ac8501ee2fdf09ee5914553237"
 dependencies = [
  "thiserror 2.0.17",
  "tokio",
@@ -4691,7 +4691,7 @@ dependencies = [
 [[package]]
 name = "potato-type"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fnon-mut-execute-task#b799ff9dfae9b725cce34e7c8743e71cf9d777db"
+source = "git+https://github.com/demml/potatohead.git?branch=main#96d95e068fd378ac8501ee2fdf09ee5914553237"
 dependencies = [
  "potato-macro",
  "potato-util",
@@ -4708,7 +4708,7 @@ dependencies = [
 [[package]]
 name = "potato-util"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fnon-mut-execute-task#b799ff9dfae9b725cce34e7c8743e71cf9d777db"
+source = "git+https://github.com/demml/potatohead.git?branch=main#96d95e068fd378ac8501ee2fdf09ee5914553237"
 dependencies = [
  "colored_json",
  "pyo3",
@@ -4724,7 +4724,7 @@ dependencies = [
 [[package]]
 name = "potato-workflow"
 version = "0.10.0"
-source = "git+https://github.com/demml/potatohead.git?branch=feat%2Fnon-mut-execute-task#b799ff9dfae9b725cce34e7c8743e71cf9d777db"
+source = "git+https://github.com/demml/potatohead.git?branch=main#96d95e068fd378ac8501ee2fdf09ee5914553237"
 dependencies = [
  "chrono",
  "potato-agent",

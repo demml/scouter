@@ -1,4 +1,5 @@
 use crate::error::TypeError;
+use crate::AlertMap;
 use crate::{
     dispatch::AlertDispatchType, AlertDispatchConfig, CommonCrons, DispatchAlertDescription,
     OpsGenieDispatchConfig, PyHelperFuncs, SlackDispatchConfig, ValidateAlertConfig,
@@ -14,12 +15,13 @@ use std::fmt::Display;
 use tracing::error;
 
 #[pyclass(eq)]
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, std::cmp::Eq, Hash)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, std::cmp::Eq, Hash, Default)]
 pub enum AlertZone {
     Zone1,
     Zone2,
     Zone3,
     Zone4,
+    #[default]
     NotApplicable,
 }
 
@@ -165,8 +167,9 @@ impl Default for SpcAlertConfig {
 }
 
 #[pyclass(eq)]
-#[derive(Debug, Eq, Hash, PartialEq, Serialize, Deserialize, Clone, Copy)]
+#[derive(Debug, Eq, Hash, PartialEq, Serialize, Deserialize, Default, Clone, Copy)]
 pub enum SpcAlertType {
+    #[default]
     OutOfBounds,
     Consecutive,
     Alternating,
@@ -187,7 +190,7 @@ impl Display for SpcAlertType {
 }
 
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, Hash, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, Eq, Hash, PartialEq)]
 pub struct SpcAlert {
     #[pyo3(get)]
     pub kind: SpcAlertType,
@@ -210,9 +213,16 @@ impl SpcAlert {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+pub struct SpcAlertEntry {
+    pub feature: String,
+    pub kind: SpcAlertType,
+    pub zone: AlertZone,
+}
+
 // Drift config to use when calculating drift on a new sample of data
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct SpcFeatureAlert {
     pub feature: String,
     pub alerts: Vec<SpcAlert>,
@@ -221,6 +231,19 @@ pub struct SpcFeatureAlert {
 impl SpcFeatureAlert {
     pub fn new(feature: String, alerts: Vec<SpcAlert>) -> Self {
         Self { feature, alerts }
+    }
+
+    pub fn to_alert_map(&self) -> Vec<AlertMap> {
+        self.alerts
+            .iter()
+            .map(|alert| {
+                AlertMap::Spc(SpcAlertEntry {
+                    feature: self.feature.clone(),
+                    kind: alert.kind,
+                    zone: alert.zone.clone(),
+                })
+            })
+            .collect()
     }
 }
 

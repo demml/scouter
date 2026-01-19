@@ -11,7 +11,7 @@ use scouter_types::genai::GenAIEvalResultSet;
 use scouter_types::spc::SpcDriftProfile;
 use scouter_types::{
     custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
-    genai::{GenAIDriftConfig, GenAIEvalProfile},
+    genai::{GenAIEvalConfig, GenAIEvalProfile},
     psi::{PsiDriftConfig, PsiDriftMap, PsiDriftProfile},
     spc::SpcDriftConfig,
     DataType, DriftProfile, DriftType, GenAIEvalRecord,
@@ -29,7 +29,7 @@ pub enum DriftMap {
 pub enum DriftConfig {
     Spc(Arc<RwLock<SpcDriftConfig>>),
     Psi(Arc<RwLock<PsiDriftConfig>>),
-    GenAI(GenAIDriftConfig),
+    GenAI(GenAIEvalConfig),
     Custom(CustomMetricDriftConfig),
 }
 
@@ -55,7 +55,7 @@ impl DriftConfig {
         }
     }
 
-    pub fn genai_config(self) -> Result<GenAIDriftConfig, DriftError> {
+    pub fn genai_config(self) -> Result<GenAIEvalConfig, DriftError> {
         match self {
             DriftConfig::GenAI(cfg) => Ok(cfg),
             _ => Err(DriftError::InvalidConfigError),
@@ -230,7 +230,7 @@ impl PyDrifter {
                     DriftConfig::Custom(config)
                 }
                 DriftType::GenAI => {
-                    let config = obj.extract::<GenAIDriftConfig>()?;
+                    let config = obj.extract::<GenAIEvalConfig>()?;
                     DriftConfig::GenAI(config)
                 }
             };
@@ -275,7 +275,7 @@ impl PyDrifter {
     pub fn create_genai_drift_profile<'py>(
         &mut self,
         py: Python<'py>,
-        config: GenAIDriftConfig,
+        config: GenAIEvalConfig,
         tasks: &Bound<'py, PyList>,
     ) -> Result<Bound<'py, PyAny>, DriftError> {
         let profile = GenAIEvalProfile::new_py(config, tasks)?;

@@ -10,9 +10,9 @@ pub mod spc_drifter {
     use scouter_sql::sql::traits::SpcSqlLogic;
     use scouter_sql::{sql::cache::entity_cache, PostgresClient};
     use scouter_types::spc::{SpcDriftFeatures, SpcDriftProfile, TaskAlerts};
+    use scouter_types::AlertMap;
     use scouter_types::ProfileBaseArgs;
     use sqlx::{Pool, Postgres};
-    use std::collections::BTreeMap;
     use tracing::error;
     use tracing::info;
 
@@ -198,19 +198,11 @@ pub mod spc_drifter {
         ///
         /// # Returns
         ///
-        fn organize_alerts(&self, mut alerts: TaskAlerts) -> Vec<BTreeMap<String, String>> {
+        fn organize_alerts(&self, alerts: TaskAlerts) -> Vec<AlertMap> {
             let mut tasks = Vec::new();
-            alerts.alerts.features.iter_mut().for_each(|(_, feature)| {
-                feature.alerts.iter().for_each(|alert| {
-                    let alert_map = {
-                        let mut alert_map = BTreeMap::new();
-                        alert_map.insert("zone".to_string(), alert.zone.clone().to_string());
-                        alert_map.insert("kind".to_string(), alert.kind.clone().to_string());
-                        alert_map.insert("entity_name".to_string(), feature.feature.clone());
-                        alert_map
-                    };
-                    tasks.push(alert_map);
-                });
+            alerts.alerts.features.iter().for_each(|(_, feature)| {
+                let entry_vec = feature.to_alert_map();
+                tasks.extend(entry_vec);
             });
 
             tasks
@@ -224,7 +216,7 @@ pub mod spc_drifter {
             &self,
             db_client: &Pool<Postgres>,
             previous_run: &DateTime<Utc>,
-        ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
+        ) -> Result<Option<Vec<AlertMap>>, DriftError> {
             // Compute drift
             let (drift_array, keys) = self.compute_drift(previous_run, db_client).await?;
 

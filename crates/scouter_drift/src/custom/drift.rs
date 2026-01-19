@@ -4,9 +4,9 @@ use scouter_dispatch::AlertDispatcher;
 use scouter_sql::sql::traits::CustomMetricSqlLogic;
 use scouter_sql::{sql::cache::entity_cache, PostgresClient};
 use scouter_types::custom::{ComparisonMetricAlert, CustomDriftProfile};
-use scouter_types::ProfileBaseArgs;
+use scouter_types::{AlertMap, ProfileBaseArgs};
 use sqlx::{Pool, Postgres};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use tracing::error;
 use tracing::info;
 pub struct CustomDrifter {
@@ -76,7 +76,7 @@ impl CustomDrifter {
     pub async fn generate_alerts(
         &self,
         metric_map: &HashMap<String, f64>,
-    ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
+    ) -> Result<Option<Vec<AlertMap>>, DriftError> {
         // Early return if no alert conditions configured
         let Some(alert_conditions) = &self.profile.config.alert_config.alert_conditions else {
             info!(
@@ -94,11 +94,11 @@ impl CustomDrifter {
 
                 if alert_condition.should_alert(*observed_value) {
                     Some(ComparisonMetricAlert {
-                        metric_name: name,
-                        baseline_metric: &alert_condition.baseline_value,
-                        observed_metric: observed_value,
-                        delta: &alert_condition.delta,
-                        alert_threshold: &alert_condition.alert_threshold,
+                        metric_name: name.clone(),
+                        baseline_value: alert_condition.baseline_value,
+                        observed_value: *observed_value,
+                        delta: alert_condition.delta,
+                        alert_threshold: alert_condition.alert_threshold.clone(),
                     })
                 } else {
                     None
@@ -140,12 +140,7 @@ impl CustomDrifter {
         }
 
         // Convert to owned maps before returning
-        Ok(Some(
-            metric_alerts
-                .iter()
-                .map(|alert| alert.organize_to_map())
-                .collect(),
-        ))
+        Ok(Some(metric_alerts.into_iter().map(|a| a.into()).collect()))
     }
 
     /// Checks for alerts based on metric values since previous run
@@ -153,7 +148,7 @@ impl CustomDrifter {
         &self,
         db_pool: &Pool<Postgres>,
         previous_run: &DateTime<Utc>,
-    ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
+    ) -> Result<Option<Vec<AlertMap>>, DriftError> {
         let Some(metric_map) = self.get_metric_map(previous_run, db_pool).await? else {
             return Ok(None);
         };
@@ -214,11 +209,10 @@ mod tests {
         // Verify alert contents
         let has_mse_alert = alerts
             .iter()
-            .any(|a| a.get("entity_name") == Some(&"mse".to_string()));
+            .any(|a| matches!(a, AlertMap::Custom(alert) if alert.metric_name == "mse"));
         let has_accuracy_alert = alerts
             .iter()
-            .any(|a| a.get("entity_name") == Some(&"accuracy".to_string()));
-
+            .any(|a| matches!(a, AlertMap::Custom(alert) if alert.metric_name == "accuracy"));
         assert!(has_mse_alert, "Should have MSE alert");
         assert!(has_accuracy_alert, "Should have accuracy alert");
     }
@@ -263,9 +257,8 @@ mod tests {
             .expect("Should have alerts");
 
         assert_eq!(alerts.len(), 1, "Should generate 1 alert");
-        assert_eq!(
-            alerts[0].get("entity_name"),
-            Some(&"mse".to_string()),
+        assert!(
+            matches!(&alerts[0], AlertMap::Custom(alert) if alert.metric_name == "mse"),
             "Alert should be for MSE metric"
         );
     }

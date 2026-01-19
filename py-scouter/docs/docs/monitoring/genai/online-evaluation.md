@@ -16,7 +16,7 @@ Online GenAI evaluation enables:
 
 A **GenAI Drift Profile** combines 2 components for online-evaluation:
 
-- **GenAIDriftConfig**: Service metadata and alert configuration
+- **GenAIEvalConfig**: Service metadata and alert configuration
 - **Evaluation Tasks**: `LLMJudgeTask` and `AssertionTask` tasks to validate service context (same as offline)
 
 The profile executes your evaluation tasks asynchronously on sampled traffic, storing results and checking alert conditions on a configured schedule.
@@ -170,7 +170,7 @@ alert_condition = AlertCondition(
 Configure sampling rate, alerting schedule, and dispatch channels:
 
 ```python
-from scouter import GenAIDriftConfig, GenAIAlertConfig, SlackDispatchConfig
+from scouter import GenAIEvalConfig, GenAIAlertConfig, SlackDispatchConfig
 
 alert_config = GenAIAlertConfig(
     dispatch_config=SlackDispatchConfig(channel="#ml-alerts"),
@@ -178,7 +178,7 @@ alert_config = GenAIAlertConfig(
     alert_condition=alert_condition
 )
 
-config = GenAIDriftConfig(
+config = GenAIEvalConfig(
     space="production",
     name="chatbot_service",
     version="1.0.0",
@@ -335,7 +335,7 @@ queue["chatbot_service"].insert(record)
 
 ```python
 from scouter import (
-    GenAIDriftConfig,
+    GenAIEvalConfig,
     GenAIAlertConfig,
     AlertCondition,
     AlertThreshold,
@@ -397,7 +397,7 @@ alert_config = GenAIAlertConfig(
     )
 )
 
-config = GenAIDriftConfig(
+config = GenAIEvalConfig(
     space="production",
     name="support_agent",
     version="2.0.0",

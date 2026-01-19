@@ -1,6 +1,7 @@
 use crate::error::TypeError;
 use crate::GenAIEvalRecord;
 use crate::PyHelperFuncs;
+use opentelemetry::StringValue;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyFloat, PyInt, PyList, PyString};
 use serde::{Deserialize, Serialize};
@@ -16,6 +17,16 @@ pub enum EntityType {
     Feature,
     Metric,
     GenAI,
+}
+
+impl From<EntityType> for opentelemetry::Value {
+    fn from(val: EntityType) -> Self {
+        match val {
+            EntityType::Feature => opentelemetry::Value::String(StringValue::from("Feature")),
+            EntityType::Metric => opentelemetry::Value::String(StringValue::from("Metric")),
+            EntityType::GenAI => opentelemetry::Value::String(StringValue::from("GenAI")),
+        }
+    }
 }
 
 #[pyclass]

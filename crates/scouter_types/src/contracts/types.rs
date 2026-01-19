@@ -223,7 +223,7 @@ impl DriftAlertPaginationRequest {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[pyclass]
 pub struct RecordCursor {
     #[pyo3(get)]
@@ -566,7 +566,7 @@ pub struct GenAIEvalRecordPaginationRequest {
     pub end_datetime: Option<DateTime<Utc>>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct GenAIEvalRecordPaginationResponse {
     pub items: Vec<GenAIEvalRecord>,
     pub has_next: bool,
@@ -575,7 +575,7 @@ pub struct GenAIEvalRecordPaginationResponse {
     pub previous_cursor: Option<RecordCursor>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct GenAIEvalWorkflowPaginationResponse {
     pub items: Vec<GenAIEvalWorkflowResult>,
     pub has_next: bool,

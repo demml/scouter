@@ -23,6 +23,7 @@ use scouter_sql::sql::traits::AlertSqlLogic;
 use scouter_sql::sql::traits::EntitySqlLogic;
 use scouter_sql::PostgresClient;
 use scouter_tonic::GrpcClient;
+use scouter_types::custom::ComparisonMetricAlert;
 use scouter_types::genai::ExecutionPlan;
 use scouter_types::spc::SpcDriftConfig;
 use scouter_types::spc::{SpcAlertConfig, SpcDriftProfile};
@@ -30,10 +31,11 @@ use scouter_types::JwtToken;
 use scouter_types::RegisteredProfileResponse;
 use scouter_types::{
     genai::{
-        ComparisonOperator, EvaluationTasks, GenAIAlertConfig, GenAIDriftConfig, GenAIEvalProfile,
+        ComparisonOperator, EvaluationTasks, GenAIAlertConfig, GenAIEvalConfig, GenAIEvalProfile,
         LLMJudgeTask,
     },
-    CustomMetricRecord, GenAIEvalTaskResult, GenAIEvalWorkflowResult, MessageRecord, PsiRecord,
+    AlertMap, CustomMetricRecord, GenAIEvalTaskResult, GenAIEvalWorkflowResult, MessageRecord,
+    PsiRecord,
 };
 use scouter_types::{
     BoxedGenAIEvalRecord, GenAIEvalRecord, ServerRecord, ServerRecords, SpcRecord, Status,
@@ -41,7 +43,6 @@ use scouter_types::{
 use scouter_types::{DriftType, RecordType};
 use serde_json::Value;
 use sqlx::{PgPool, Pool, Postgres};
-use std::collections::BTreeMap;
 use std::env;
 use std::sync::Arc;
 use tokio::runtime;
@@ -455,7 +456,7 @@ impl TestHelper {
         let alert_config = GenAIAlertConfig::default();
 
         let drift_config =
-            GenAIDriftConfig::new(SPACE, NAME, VERSION, 1.0, alert_config, None).unwrap();
+            GenAIEvalConfig::new(SPACE, NAME, VERSION, 1.0, alert_config, None).unwrap();
 
         GenAIEvalProfile::new(drift_config, tasks).await.unwrap()
     }
@@ -492,12 +493,17 @@ impl TestHelper {
             ("Custom Model Alert", custom_id),
             ("SPC Model Alert", spc_id),
         ];
-        for (entity_name, id) in entities {
+        for (_entity_name, id) in entities {
             for _ in 0..3 {
-                let mut alert = BTreeMap::new();
-                alert.insert("alert_name".to_string(), entity_name.to_string());
-                alert.insert("alert_level".to_string(), "high".to_string());
-                PostgresClient::insert_drift_alert(&self.pool, &id, entity_name, &alert).await?;
+                let alert = AlertMap::Custom(ComparisonMetricAlert {
+                    metric_name: "test_metric".to_string(),
+                    baseline_value: 5.0,
+                    observed_value: 10.0,
+                    delta: Some(1.0),
+                    alert_threshold: scouter_types::AlertThreshold::Above,
+                });
+
+                PostgresClient::insert_drift_alert(&self.pool, &id, &alert).await?;
             }
         }
 

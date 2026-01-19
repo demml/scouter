@@ -4,9 +4,8 @@ use chrono::{DateTime, Utc};
 
 use scouter_sql::sql::traits::{AlertSqlLogic, ProfileSqlLogic};
 use scouter_sql::{sql::schema::TaskRequest, PostgresClient};
-use scouter_types::DriftProfile;
+use scouter_types::{AlertMap, DriftProfile};
 use sqlx::{Pool, Postgres};
-use std::collections::BTreeMap;
 use std::result::Result;
 use std::result::Result::Ok;
 
@@ -25,7 +24,7 @@ impl Drifter {
         &self,
         db_pool: &Pool<Postgres>,
         previous_run: &DateTime<Utc>,
-    ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
+    ) -> Result<Option<Vec<AlertMap>>, DriftError> {
         match self {
             Drifter::SpcDrifter(drifter) => drifter.check_for_alerts(db_pool, previous_run).await,
             Drifter::PsiDrifter(drifter) => drifter.check_for_alerts(db_pool, previous_run).await,
@@ -93,7 +92,7 @@ impl DriftExecutor {
         &mut self,
         profile: DriftProfile,
         previous_run: &DateTime<Utc>,
-    ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
+    ) -> Result<Option<Vec<AlertMap>>, DriftError> {
         // match Drifter enum
 
         profile
@@ -102,14 +101,20 @@ impl DriftExecutor {
             .await
     }
 
-    async fn do_poll(&mut self) -> Result<Option<TaskRequest>, DriftError> {
+    async fn do_poll(&mut self) -> bool {
         debug!("Polling for drift tasks");
 
         // Get task from the database (query uses skip lock to pull task and update to processing)
-        let task = PostgresClient::get_drift_profile_task(&self.db_pool).await?;
+        let task = match PostgresClient::get_drift_profile_task(&self.db_pool).await {
+            Ok(task) => task,
+            Err(e) => {
+                error!("Error fetching drift task: {:?}", e);
+                return false;
+            }
+        };
 
         let Some(task) = task else {
-            return Ok(None);
+            return false;
         };
 
         info!(
@@ -117,18 +122,35 @@ impl DriftExecutor {
             task.uid, task.drift_type
         );
 
-        self.process_task(&task).await?;
+        // Silently process the task and log any errors
+        match self.process_task(&task).await {
+            Ok(_) => info!(
+                "Successfully processed drift task for profile: {}",
+                task.uid
+            ),
+            Err(e) => error!(
+                "Error processing drift task for profile {}: {:?}",
+                task.uid, e
+            ),
+        }
 
-        // Update the run dates while still holding the lock
-        PostgresClient::update_drift_profile_run_dates(
+        match PostgresClient::update_drift_profile_run_dates(
             &self.db_pool,
             &task.entity_id,
             &task.schedule,
+            &task.previous_run,
         )
         .instrument(span!(Level::INFO, "Update Run Dates"))
-        .await?;
+        .await
+        {
+            Ok(_) => info!("Updated run dates for drift profile task: {}", task.uid),
+            Err(e) => error!(
+                "CRITICAL: Failed to reschedule task Error updating run dates for drift profile task {}: {:?}",
+                task.uid, e
+            ),
+        }
 
-        Ok(Some(task))
+        true
     }
 
     #[instrument(skip_all)]
@@ -152,17 +174,12 @@ impl DriftExecutor {
 
                 // Insert alerts atomically within the same transaction
                 for alert in alerts {
-                    PostgresClient::insert_drift_alert(
-                        &self.db_pool,
-                        &task.entity_id,
-                        alert.get("entity_name").unwrap_or(&"NA".to_string()),
-                        &alert,
-                    )
-                    .await
-                    .map_err(|e| {
-                        error!("Error inserting drift alert: {:?}", e);
-                        DriftError::SqlError(e)
-                    })?;
+                    PostgresClient::insert_drift_alert(&self.db_pool, &task.entity_id, &alert)
+                        .await
+                        .map_err(|e| {
+                            error!("Error inserting drift alert: {:?}", e);
+                            DriftError::SqlError(e)
+                        })?;
                 }
                 Ok(())
             }
@@ -184,12 +201,12 @@ impl DriftExecutor {
     /// * `Result<()>` - Result of drift computation and alerting
     #[instrument(skip_all)]
     pub async fn poll_for_tasks(&mut self) -> Result<(), DriftError> {
-        match self.do_poll().await? {
-            Some(_) => {
+        match self.do_poll().await {
+            true => {
                 info!("Successfully processed drift task");
                 Ok(())
             }
-            None => {
+            false => {
                 info!("No triggered schedules found in db. Sleeping for 10 seconds");
                 tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
                 Ok(())
@@ -220,7 +237,7 @@ mod tests {
     use potato_head::mock::{create_score_prompt, LLMTestServer};
     use scouter_types::genai::{
         AssertionTask, ComparisonOperator, EvaluationTaskType, EvaluationTasks, GenAIAlertConfig,
-        GenAIDriftConfig, GenAIEvalProfile, LLMJudgeTask,
+        GenAIEvalConfig, GenAIEvalProfile, LLMJudgeTask,
     };
     use scouter_types::{AlertCondition, AlertThreshold, GenAIEvalRecord};
     use serde_json::Value;
@@ -632,7 +649,7 @@ mod tests {
         };
 
         let drift_config =
-            GenAIDriftConfig::new("scouter", "genai_test", "0.1.0", 1.0, alert_config, None)
+            GenAIEvalConfig::new("scouter", "genai_test", "0.1.0", 1.0, alert_config, None)
                 .unwrap();
 
         let profile = runtime
@@ -739,18 +756,15 @@ mod tests {
 
         // Verify alert content
         let alert = &alerts.items[0];
-        assert!(alert.alert.contains_key("entity_name"));
-        assert_eq!(
-            alert.alert.get("entity_name").unwrap(),
-            "genai_workflow_metric"
-        );
+
+        assert_eq!(alert.alert.entity_name(), "genai_workflow_metric");
 
         // Verify the observed value is below threshold
-        let observed_value: f64 = alert
-            .alert
-            .get("observed_metric_value")
-            .and_then(|v| v.parse().ok())
-            .unwrap();
+        let observed_value: f64 = match &alert.alert {
+            AlertMap::GenAI(genai_alert) => genai_alert.observed_value,
+            _ => panic!("Expected GenAI alert map"),
+        };
+
         assert!(
             observed_value < 0.8, // Should be ~33% pass rate
             "Expected low pass rate to trigger alert"

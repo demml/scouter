@@ -37,6 +37,8 @@ pub const SCOUTER_SCOPE: &str = "scouter.scope";
 pub const SCOUTER_SCOPE_DEFAULT: &str = concat!("scouter.tracer.", env!("CARGO_PKG_VERSION"));
 pub const SPAN_ERROR: &str = "span.error";
 pub const EXCEPTION_TRACEBACK: &str = "exception.traceback";
+pub const SCOUTER_QUEUE_RECORD: &str = "scouter.queue.record";
+pub const SCOUTER_QUEUE_EVENT: &str = "scouter.queue.event";
 
 // patterns for identifying baggage and tags
 pub const BAGGAGE_PATTERN: &str = "baggage.";

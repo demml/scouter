@@ -18,7 +18,7 @@ from scouter.client import ScouterClient
 from scouter.drift import (
     ComparisonOperator,
     Drifter,
-    GenAIDriftConfig,
+    GenAIEvalConfig,
     GenAIEvalProfile,
     LLMJudgeTask,
     SpcDriftConfig,
@@ -131,7 +131,7 @@ def create_and_register_genai_drift_profile(
     name: str,
 ) -> GenAIEvalProfile:
     # create drift config (usually associated with a model name, space name, version)
-    config = GenAIDriftConfig(
+    config = GenAIEvalConfig(
         space="scouter",
         name=name,
         version="0.1.0",

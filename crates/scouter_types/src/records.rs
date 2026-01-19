@@ -759,6 +759,30 @@ impl GenAIEvalTaskResult {
     }
 }
 
+impl Default for GenAIEvalTaskResult {
+    fn default() -> Self {
+        Self {
+            created_at: Utc::now(),
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            record_uid: String::new(),
+            task_id: String::new(),
+            task_type: EvaluationTaskType::Assertion,
+            passed: false,
+            value: 0.0,
+            field_path: None,
+            operator: ComparisonOperator::Equals,
+            expected: Value::Null,
+            actual: Value::Null,
+            message: String::new(),
+            entity_id: 0,
+            entity_uid: String::new(),
+            condition: false,
+            stage: 0,
+        }
+    }
+}
+
 #[cfg(feature = "server")]
 impl FromRow<'_, PgRow> for GenAIEvalTaskResult {
     fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {

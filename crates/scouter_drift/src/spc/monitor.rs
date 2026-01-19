@@ -410,7 +410,7 @@ impl SpcMonitor {
             + ndarray::ScalarOperand,
         F: Into<f64>,
     {
-        let num_features = drift_profile.config.alert_config.features_to_monitor.len();
+        let num_features = features.len();
 
         // iterate through each feature
         let sample_data =
@@ -419,6 +419,10 @@ impl SpcMonitor {
         let mut records = Vec::new();
 
         for (i, feature) in features.iter().enumerate() {
+            if !drift_profile.features.contains_key(feature) {
+                continue;
+            }
+
             let sample = sample_data.column(i);
 
             sample.iter().for_each(|value| {
@@ -431,7 +435,6 @@ impl SpcMonitor {
                 records.push(ServerRecord::Spc(record));
             });
         }
-
         Ok(ServerRecords::new(records))
     }
 

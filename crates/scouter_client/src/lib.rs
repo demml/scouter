@@ -13,7 +13,7 @@ pub use scouter_types::{
     cron::*,
     custom::{CustomDriftProfile, CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig},
     genai::{
-        AssertionTask, ComparisonOperator, GenAIAlertConfig, GenAIDriftConfig, GenAIEvalProfile,
+        AssertionTask, ComparisonOperator, GenAIAlertConfig, GenAIEvalConfig, GenAIEvalProfile,
         GenAIEvalResultSet, GenAIEvalSet, LLMJudgeTask,
     },
     psi::{
