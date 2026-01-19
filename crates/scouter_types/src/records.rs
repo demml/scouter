@@ -1242,6 +1242,7 @@ fn extract_owned_records<T>(
     Ok(extracted)
 }
 
+#[derive(Debug)]
 pub enum MessageType {
     Server,
     Trace,

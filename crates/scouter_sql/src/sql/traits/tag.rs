@@ -6,6 +6,7 @@ use itertools::multiunzip;
 use scouter_types::{Tag, TagRecord};
 use sqlx::{postgres::PgQueryResult, types::Json, Pool, Postgres};
 use std::result::Result::Ok;
+use tracing::error;
 
 #[async_trait]
 pub trait TagSqlLogic {
@@ -36,7 +37,8 @@ pub trait TagSqlLogic {
             .bind(key)
             .bind(value)
             .execute(pool)
-            .await?;
+            .await
+            .inspect_err(|e| error!("Error inserting tags: {:?}", e))?;
 
         Ok(query_result)
     }

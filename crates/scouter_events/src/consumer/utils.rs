@@ -32,7 +32,10 @@ pub(crate) async fn process_message_record(
     };
 
     if let Err(e) = result {
-        error!("Worker {}: Failed to insert record: {:?}", id, e);
+        error!(
+            "Worker {}: Failed to insert record: {:?}, record type: {:?}",
+            id, e, message_type
+        );
         counter!("db_insert_errors").increment(1);
         return false;
     } else {
