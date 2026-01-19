@@ -84,3 +84,13 @@ def test_genai_drifter():
         results = cast(GenAIEvalResultSet, drifter.compute_drift([record], profile))
 
         assert len(results.records) == 1
+
+        record = GenAIEvalRecord(
+            context={
+                "input": "What is the capital of France?",
+                "response": "The capital of France is Paris.",
+            },
+            session_id="test-session-123",
+        )
+
+        assert record.session_id == "test-session-123"

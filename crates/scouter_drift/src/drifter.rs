@@ -707,6 +707,7 @@ mod tests {
                 format!("UID{}", i),
                 uid.clone(),
                 None,
+                None,
             );
 
             records.push(BoxedGenAIEvalRecord::new(record));
