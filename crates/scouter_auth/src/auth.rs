@@ -40,8 +40,9 @@ impl AuthManager {
         let expiration = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
-            .as_secs()
-            + 3600; // 1 hour expiration
+            .as_secs()// 10 sec expiration
+            + 10;
+        //+ 3600; // 1 hour expiration
 
         let claims = Claims {
             sub: user.username.clone(),

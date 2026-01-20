@@ -4955,7 +4955,7 @@ dependencies = [
 
 [[package]]
 name = "py-scouter"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "ndarray-stats",
  "num-traits",
@@ -5889,7 +5889,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "scouter-auth"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "jsonwebtoken 9.3.1",
  "password-auth",
@@ -5902,7 +5902,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-client"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "chrono",
  "ndarray",
@@ -5933,7 +5933,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-dataframe"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -5958,7 +5958,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-dispatch"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "futures",
  "mockito",
@@ -5974,7 +5974,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-drift"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "approx",
  "chrono",
@@ -6005,7 +6005,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-evaluate"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "chrono",
  "itertools 0.14.0",
@@ -6031,7 +6031,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-events"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -6070,7 +6070,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-http"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "pyo3",
  "reqwest 0.12.28",
@@ -6084,14 +6084,14 @@ dependencies = [
 
 [[package]]
 name = "scouter-macro"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "thiserror 2.0.18",
 ]
 
 [[package]]
 name = "scouter-mocks"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "mockito",
  "potato-head",
@@ -6108,7 +6108,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-observability"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "itertools 0.14.0",
  "ndarray",
@@ -6125,7 +6125,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-profile"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "approx",
  "chrono",
@@ -6149,7 +6149,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-semver"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "pyo3",
  "semver",
@@ -6159,7 +6159,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-server"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "anyhow",
  "approx",
@@ -6211,7 +6211,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-settings"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "base64",
  "potato-head",
@@ -6223,7 +6223,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-sql"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6250,7 +6250,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-state"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "thiserror 2.0.18",
  "tokio",
@@ -6259,7 +6259,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-tonic"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "prost",
  "prost-types",
@@ -6277,7 +6277,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-tracing"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "chrono",
  "opentelemetry",
@@ -6301,7 +6301,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-types"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "approx",
  "base64",
@@ -8560,9 +8560,9 @@ checksum = "40990edd51aae2c2b6907af74ffb635029d5788228222c4bb811e9351c0caad3"
 
 [[package]]
 name = "zmij"
-version = "1.0.15"
+version = "1.0.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94f63c051f4fe3c1509da62131a678643c5b6fbdc9273b2b79d4378ebda003d2"
+checksum = "dfcd145825aace48cff44a8844de64bf75feec3080e0aa5cdbde72961ae51a65"
 
 [[package]]
 name = "zstd"

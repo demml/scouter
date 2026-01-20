@@ -1,13 +1,13 @@
 use crate::api::state::AppState;
 use anyhow::Result;
-use scouter_types::MessageRecord;
-use std::sync::Arc;
-use tonic::{Request, Response, Status};
-use tracing::{debug, error, instrument};
-
 use scouter_tonic::{
     InsertMessageRequest, InsertMessageResponse, MessageService, MessageServiceServer,
 };
+use scouter_types::MessageRecord;
+use std::sync::Arc;
+use tonic::metadata::MetadataMap;
+use tonic::{Request, Response, Status};
+use tracing::{debug, error, info, instrument};
 
 #[derive(Clone)]
 pub struct MessageGrpcService {
@@ -34,7 +34,7 @@ impl MessageService for MessageGrpcService {
         let message_bytes = &request.get_ref().message_record;
 
         // Check if token was refreshed and add to response
-        let refreshed_token = request.metadata().get("x-refreshed-token").cloned();
+        let refreshed_metadata = request.extensions().get::<MetadataMap>();
 
         let message_record: MessageRecord = serde_json::from_slice(message_bytes).map_err(|e| {
             error!(error = %e, "Failed to deserialize MessageRecord");
@@ -58,8 +58,13 @@ impl MessageService for MessageGrpcService {
         });
 
         // If token was refreshed, add it to response metadata
-        if let Some(token) = refreshed_token {
-            response.metadata_mut().insert("x-refreshed-token", token);
+        if let Some(metadata) = refreshed_metadata {
+            if let Some(token) = metadata.get("x-refreshed-token") {
+                info!("Adding refreshed token to response metadata");
+                response
+                    .metadata_mut()
+                    .insert("x-refreshed-token", token.clone());
+            }
         }
 
         Ok(response)

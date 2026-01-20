@@ -6,9 +6,10 @@ use scouter_sql::PostgresClient;
 use std::sync::Arc;
 use tonic::body::Body;
 use tonic::codegen::http::{HeaderValue, Request};
+use tonic::metadata::MetadataMap;
 use tonic::{async_trait, Status};
 use tonic_middleware::RequestInterceptor;
-use tracing::info;
+use tracing::{info, instrument};
 
 const AUTHORIZATION: &str = "authorization";
 const X_REFRESHED_TOKEN: &str = "x-refreshed-token";
@@ -27,6 +28,7 @@ impl AuthInterceptor {
 
 #[async_trait]
 impl RequestInterceptor for AuthInterceptor {
+    #[instrument(skip_all)]
     async fn intercept(&self, mut req: Request<Body>) -> Result<Request<Body>, Status> {
         // Extract bearer token from HTTP headers (not metadata)
         let token = req
@@ -104,13 +106,16 @@ impl RequestInterceptor for AuthInterceptor {
                         req.headers_mut().insert(X_USERNAME, username_header);
 
                         // Add new token to headers so it can be returned to client
-                        let new_token_header =
-                            HeaderValue::from_str(&format!("Bearer {}", new_access_token))
-                                .map_err(|_| {
-                                    Status::internal("Failed to set refreshed token header")
-                                })?;
-                        req.headers_mut()
-                            .insert(X_REFRESHED_TOKEN, new_token_header);
+                        let mut metadata = MetadataMap::new();
+                        let token_value = format!("Bearer {}", new_access_token)
+                            .parse()
+                            .map_err(|_| Status::internal("Failed to parse token value"))?;
+                        metadata.insert(X_REFRESHED_TOKEN, token_value);
+
+                        info!("Token successfully refreshed");
+
+                        // Store metadata in extensions for handler to access
+                        req.extensions_mut().insert(metadata);
 
                         return Ok(req);
                     }
