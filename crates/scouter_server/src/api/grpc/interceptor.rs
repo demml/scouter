@@ -9,7 +9,7 @@ use tonic::codegen::http::{HeaderValue, Request};
 use tonic::metadata::MetadataMap;
 use tonic::{async_trait, Status};
 use tonic_middleware::RequestInterceptor;
-use tracing::{info, instrument};
+use tracing::{error, info, instrument};
 
 const AUTHORIZATION: &str = "authorization";
 const X_REFRESHED_TOKEN: &str = "x-refreshed-token";
@@ -35,7 +35,6 @@ impl RequestInterceptor for AuthInterceptor {
             .headers()
             .get(AUTHORIZATION)
             .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.strip_prefix("Bearer "))
             .ok_or_else(|| Status::unauthenticated("Missing authorization token"))?;
 
         // Validate token
@@ -70,7 +69,10 @@ impl RequestInterceptor for AuthInterceptor {
                 // Get user from database
                 let mut user = get_user(&self.state, &expired_claims.sub)
                     .await
-                    .map_err(|_| Status::unauthenticated("User not found"))?;
+                    .map_err(|_| {
+                        error!("Failed to get user for token refresh");
+                        Status::unauthenticated("User not found")
+                    })?;
 
                 // Validate stored refresh token
                 if let Some(stored_refresh) = user.refresh_token.as_ref() {
@@ -90,7 +92,10 @@ impl RequestInterceptor for AuthInterceptor {
 
                         PostgresClient::update_user(&self.state.db_pool, &user)
                             .await
-                            .map_err(|_| Status::internal("Failed to update refresh token"))?;
+                            .map_err(|_| {
+                                error!("Failed to update refresh token in database");
+                                Status::internal("Failed to update refresh token")
+                            })?;
 
                         // Store permissions in request extensions
                         let auth_middleware = UserPermissions {
@@ -121,6 +126,7 @@ impl RequestInterceptor for AuthInterceptor {
                     }
                 }
 
+                error!("Refresh token invalid or missing");
                 Err(Status::unauthenticated("Token refresh failed"))
             }
         }

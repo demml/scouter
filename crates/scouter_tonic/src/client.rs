@@ -163,7 +163,7 @@ impl GrpcClient {
         let mut request = Request::new(InsertMessageRequest { message_record });
 
         let token = self.get_current_token();
-        let metadata_value = MetadataValue::try_from(format!("Bearer {}", token))
+        let metadata_value = MetadataValue::try_from(format!("{}", token))
             .map_err(|e| ClientError::GrpcError(format!("Invalid metadata: {}", e)))?;
 
         request.metadata_mut().insert(AUTHORIZATION, metadata_value);

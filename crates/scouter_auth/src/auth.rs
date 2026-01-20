@@ -6,6 +6,7 @@ use rand::Rng;
 use scouter_sql::sql::schema::User;
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
+use tracing::error;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Claims {
@@ -88,7 +89,8 @@ impl AuthManager {
             token,
             &DecodingKey::from_secret(self.jwt_secret.as_ref()),
             &Validation::default(),
-        )?;
+        )
+        .inspect_err(|e| error!("{:?}", e))?;
         Ok(token_data.claims)
     }
 
