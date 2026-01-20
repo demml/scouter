@@ -78,8 +78,8 @@ impl GrpcClient {
             return Err(ClientError::Unauthorized);
         }
 
-        self.update_token(login_response.token);
-        debug!("Successfully logged in via gRPC");
+        self.update_token(login_response.token.clone());
+        debug!("Successfully logged in via gRPC: {:?}", login_response);
 
         Ok(())
     }
@@ -95,7 +95,7 @@ impl GrpcClient {
         });
 
         // Add current token as bearer token in metadata
-        let metadata_value = MetadataValue::try_from(format!("Bearer {}", current_token))
+        let metadata_value = MetadataValue::try_from(format!("{}", current_token))
             .map_err(|e| ClientError::GrpcError(format!("Invalid metadata: {}", e)))?;
 
         request.metadata_mut().insert(AUTHORIZATION, metadata_value);
@@ -127,7 +127,7 @@ impl GrpcClient {
             token: current_token.clone(),
         });
 
-        let metadata_value = MetadataValue::try_from(format!("Bearer {}", current_token))
+        let metadata_value = MetadataValue::try_from(format!("{}", current_token))
             .map_err(|e| ClientError::GrpcError(format!("Invalid metadata: {}", e)))?;
 
         request.metadata_mut().insert(AUTHORIZATION, metadata_value);

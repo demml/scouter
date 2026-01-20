@@ -37,6 +37,8 @@ impl RequestInterceptor for AuthInterceptor {
             .and_then(|v| v.to_str().ok())
             .ok_or_else(|| Status::unauthenticated("Missing authorization token"))?;
 
+        info!("Validating access token: {}", token);
+
         // Validate token
         match self.state.auth_manager.validate_jwt(token) {
             Ok(claims) => {
