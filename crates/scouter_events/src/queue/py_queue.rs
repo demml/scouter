@@ -80,8 +80,14 @@ impl QueueNum {
                     }
                 };
 
-                let queue =
-                    GenAIQueue::new(genai_profile, transport_config, queue_settings).await?;
+                let queue = GenAIQueue::new(
+                    genai_profile,
+                    transport_config,
+                    queue_settings,
+                    task_state,
+                    identifier,
+                )
+                .await?;
                 Ok(QueueNum::GenAI(queue))
             }
         }
