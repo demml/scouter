@@ -165,6 +165,7 @@ impl QueueNum {
 }
 
 #[allow(clippy::too_many_arguments)]
+#[instrument(skip_all)]
 async fn spawn_queue_event_handler(
     mut event_rx: UnboundedReceiver<Event>,
     transport_config: TransportConfig,
@@ -401,6 +402,7 @@ impl ScouterQueue {
     ///
     /// # Returns
     /// * `ScouterQueue` - A new ScouterQueue
+    #[instrument(skip_all)]
     pub fn from_path_rs(
         py: Python,
         path: HashMap<String, PathBuf>,

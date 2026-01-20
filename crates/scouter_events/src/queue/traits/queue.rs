@@ -43,7 +43,7 @@ pub trait BackgroundTask: Send + Sync + 'static {
         let span = info_span!("background_task", task = %identifier);
 
         let future = async move {
-            debug!("Starting background task");
+            debug!("Starting background task for {}", identifier);
 
             // Set running state immediately
             task_state.set_background_running(true);
@@ -236,10 +236,10 @@ pub fn wait_for_background_task(task_state: &TaskState) -> Result<(), EventError
             max_retries -= 1;
             std::thread::sleep(Duration::from_millis(200));
         }
-        error!("Background task failed to start");
+        error!("Background task failed to start for {}", task_state.id);
         Err(EventError::BackgroundTaskFailedToStartError)
     } else {
-        debug!("No background handle to wait for");
+        debug!("No background handle to wait for {}", task_state.id);
         Ok(())
     }
 }

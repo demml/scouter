@@ -19,9 +19,13 @@ impl GrpcProducer {
 
     pub async fn publish(&self, message: MessageRecord) -> Result<(), EventError> {
         let msg_bytes = serde_json::to_vec(&message)?;
+        let msg_type = message.record_type();
         let response = self.client.insert_message(msg_bytes).await?;
 
-        debug!("Published message to drift with response: {:?}", response);
+        debug!(
+            "Published message to drift with response: {:?}, message type: {:?}",
+            response, msg_type
+        );
 
         Ok(())
     }

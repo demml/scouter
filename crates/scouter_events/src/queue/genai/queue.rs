@@ -1,5 +1,6 @@
 use crate::error::EventError;
 use crate::producer::RustScouterProducer;
+use crate::queue::bus::TaskState;
 use crate::queue::genai::record_queue::GenAIEvalRecordQueue;
 use crate::queue::traits::BackgroundTask;
 use crate::queue::traits::QueueMethods;
@@ -12,6 +13,7 @@ use scouter_types::genai::GenAIEvalProfile;
 use scouter_types::GenAIEvalRecord;
 use std::sync::Arc;
 use std::sync::RwLock;
+use tokio_util::sync::CancellationToken;
 use tracing::debug;
 
 const GENAI_MAX_QUEUE_SIZE: usize = 25;
@@ -43,6 +45,8 @@ impl GenAIQueue {
         drift_profile: GenAIEvalProfile,
         config: TransportConfig,
         settings: Arc<RwLock<QueueSettings>>,
+        task_state: &mut TaskState,
+        identifier: String,
     ) -> Result<Self, EventError> {
         debug!("Creating GenAI Drift Queue");
         // ArrayQueue size is based on sample rate
@@ -51,15 +55,30 @@ impl GenAIQueue {
         let last_publish = Arc::new(RwLock::new(Utc::now()));
 
         let producer = RustScouterProducer::new(config).await?;
+        let cancellation_token = CancellationToken::new();
 
         let genai_queue = GenAIQueue {
-            queue,
-            record_queue,
+            queue: queue.clone(),
+            record_queue: record_queue.clone(),
             producer,
             last_publish,
             capacity: GENAI_MAX_QUEUE_SIZE,
             settings,
         };
+
+        let handle = genai_queue.start_background_task(
+            queue,
+            record_queue,
+            genai_queue.producer.clone(),
+            genai_queue.last_publish.clone(),
+            genai_queue.capacity,
+            identifier,
+            task_state.clone(),
+            cancellation_token.clone(),
+        )?;
+
+        task_state.add_background_abort_handle(handle);
+        task_state.add_background_cancellation_token(cancellation_token);
 
         Ok(genai_queue)
     }

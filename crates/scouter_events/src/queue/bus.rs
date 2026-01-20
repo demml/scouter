@@ -208,7 +208,7 @@ pub struct QueueBus {
 impl QueueBus {
     #[instrument(skip_all)]
     pub fn new(task_state: TaskState, identifier: String) -> Self {
-        debug!("Creating unbounded QueueBus");
+        debug!("Creating unbounded QueueBus for identifier: {}", identifier);
 
         Self {
             task_state,
@@ -218,6 +218,10 @@ impl QueueBus {
 
     #[instrument(skip_all)]
     pub fn publish(&self, event: Event) -> Result<(), EventError> {
+        debug!(
+            "Publishing event to QueueBus for identifier: {}",
+            self.identifier
+        );
         Ok(self.task_state.event_tx.send(event)?)
     }
 }
@@ -231,7 +235,10 @@ impl QueueBus {
     pub fn insert(&self, item: &Bound<'_, PyAny>) -> Result<(), PyEventError> {
         let item = QueueItem::from_py_entity(item)
             .inspect_err(|e| error!("Failed to convert entity to QueueItem: {}", e))?;
-        debug!("Inserting event into QueueBus: {:?}", item);
+        debug!(
+            "Inserting event into QueueBus for identifier: {}: {:?}",
+            self.identifier, item
+        );
         let event = Event::Task(item);
         self.publish(event)?;
         Ok(())
