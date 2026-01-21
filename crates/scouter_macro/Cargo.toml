@@ -4,12 +4,15 @@ version = { workspace = true }
 edition = { workspace = true }
 repository = { workspace = true }
 
-[lib]
-proc-macro = false
+authors = [
+  "Steven Forrester <sjforrester32@gmail.com>"
+]
 
 license = "MIT"
 description = "Macro utilities for scouter"
 
+[lib]
+proc-macro = false
 
 [dependencies]
 thiserror = { workspace = true }
