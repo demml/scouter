@@ -7,6 +7,9 @@ repository = { workspace = true }
 [lib]
 proc-macro = false
 
+license = "MIT"
+description = "Macro utilities for scouter"
+
 
 [dependencies]
 thiserror = { workspace = true }
