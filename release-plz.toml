@@ -56,6 +56,7 @@ publish = true
 [[package]]
 name = "scouter-tonic"
 publish = true
+no-verify = true
 
 [[package]]
 name = "scouter-types"

@@ -3,7 +3,6 @@ name = "scouter-tonic"
 version = { workspace = true }
 edition = { workspace = true }
 repository = { workspace = true }
-publish = ["--allow-dirty"]
 
 authors = [
   "Steven Forrester <sjforrester32@gmail.com>"
