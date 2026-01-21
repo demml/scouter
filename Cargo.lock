@@ -6170,6 +6170,7 @@ dependencies = [
  "flume",
  "futures",
  "http-body-util",
+ "jsonwebtoken 9.3.1",
  "metrics",
  "metrics-exporter-prometheus",
  "mimalloc",

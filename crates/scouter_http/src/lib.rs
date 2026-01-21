@@ -17,7 +17,6 @@ pub fn build_http_client(settings: &HttpConfig) -> Result<Client, ClientError> {
     let mut headers = HeaderMap::new();
 
     headers.insert("Username", HeaderValue::from_str(&settings.username)?);
-
     headers.insert("Password", HeaderValue::from_str(&settings.password)?);
 
     let client_builder = Client::builder().timeout(std::time::Duration::from_secs(TIMEOUT_SECS));
