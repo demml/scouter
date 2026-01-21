@@ -3,7 +3,12 @@ name = "scouter-evaluate"
 version = { workspace = true }
 edition = { workspace = true }
 repository = { workspace = true }
+license = "MIT"
 description = "LLM Evaluation logic for Scouter"
+
+authors = [
+  "Steven Forrester <sjforrester32@gmail.com>"
+]
 
 [lib]
 doctest = false
