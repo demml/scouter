@@ -26,6 +26,14 @@ name = "scouter-events"
 publish = true
 
 [[package]]
+name = "scouter-http"
+publish = true
+
+[[package]]
+name = "scouter-macro"
+publish = true
+
+[[package]]
 name = "scouter-observability"
 publish = true
 
@@ -39,6 +47,10 @@ publish = true
 
 [[package]]
 name = "scouter-semver"
+publish = true
+
+[[package]]
+name = "scouter-tracing"
 publish = true
 
 [[package]]

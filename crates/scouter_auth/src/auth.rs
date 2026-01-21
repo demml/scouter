@@ -6,6 +6,7 @@ use rand::Rng;
 use scouter_sql::sql::schema::User;
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
+use tracing::error;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Claims {
@@ -87,7 +88,8 @@ impl AuthManager {
             token,
             &DecodingKey::from_secret(self.jwt_secret.as_ref()),
             &Validation::default(),
-        )?;
+        )
+        .inspect_err(|e| error!("failed to validate JWT: {:?}", e))?;
         Ok(token_data.claims)
     }
 
@@ -96,12 +98,14 @@ impl AuthManager {
         token: &str,
     ) -> Result<Claims, jsonwebtoken::errors::Error> {
         let mut validation = Validation::default();
-        validation.insecure_disable_signature_validation();
+        // Disable expiration validation ( we just want to decode the claims )
+        validation.validate_exp = false;
         let token_data = decode::<Claims>(
             token,
             &DecodingKey::from_secret(self.jwt_secret.as_ref()),
             &validation,
-        )?;
+        )
+        .inspect_err(|e| error!("failed to decode JWT without validation: {:?}", e))?;
 
         Ok(token_data.claims)
     }

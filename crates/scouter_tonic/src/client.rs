@@ -10,7 +10,7 @@ use tonic::transport::Channel;
 use tonic::Request;
 use tonic_health::pb::health_client::HealthClient;
 use tonic_health::pb::HealthCheckRequest;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, instrument};
 
 pub const X_REFRESHED_TOKEN: &str = "x-refreshed-token";
 pub const AUTHORIZATION: &str = "authorization";
@@ -56,6 +56,7 @@ impl GrpcClient {
     }
 
     /// Login via gRPC and store the JWT token
+    #[instrument(skip_all)]
     pub async fn login(&mut self) -> Result<(), ClientError> {
         debug!("Attempting gRPC login for user: {}", self.config.username);
 
@@ -171,6 +172,7 @@ impl GrpcClient {
     }
 
     /// Insert message with automatic token refresh and retry
+    #[instrument(skip_all)]
     pub async fn insert_message(
         &self,
         message_record: Vec<u8>,
@@ -191,12 +193,10 @@ impl GrpcClient {
             ))
         })?;
 
-        // Check if server refreshed the token
         if let Some(new_token) = response
             .metadata()
             .get(X_REFRESHED_TOKEN)
             .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.strip_prefix("Bearer "))
         {
             info!("Server refreshed token, updating local copy");
             self.update_token(new_token.to_string());

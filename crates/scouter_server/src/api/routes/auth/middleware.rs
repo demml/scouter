@@ -161,6 +161,7 @@ pub async fn auth_api_middleware(
                         header::AUTHORIZATION,
                         HeaderValue::from_str(&format!("Bearer {new_access_token}")).unwrap(),
                     );
+                    info!("Successfully refreshed access token");
 
                     return Ok(response);
                 }

@@ -34,6 +34,7 @@ metrics-exporter-prometheus = { workspace = true }
 mimalloc = { workspace = true }
 password-auth = { workspace = true }
 potato-head = { workspace = true }
+jsonwebtoken = { workspace = true }
 rand = { workspace = true }
 rusty-logging= { workspace = true }
 scouter-settings = { workspace = true }
