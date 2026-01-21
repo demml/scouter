@@ -54,6 +54,10 @@ name = "scouter-tracing"
 publish = true
 
 [[package]]
+name = "scouter-tonic"
+publish = true
+
+[[package]]
 name = "scouter-types"
 publish = true
 
