@@ -92,7 +92,7 @@ impl AuthInterceptor {
 
         if let Some(token) = refreshed_token {
             let mut metadata = MetadataMap::new();
-            let token_value = format!("Bearer {}", token)
+            let token_value = token
                 .parse()
                 .map_err(|_| Status::internal("Failed to parse token value"))?;
             metadata.insert(X_REFRESHED_TOKEN, token_value);
