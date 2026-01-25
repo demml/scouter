@@ -253,7 +253,7 @@ pub fn init_tracer(
 
     *store_guard = Some(Arc::new(provider));
 
-    Ok(BaseTracer::new(py, service_name, scouter_queue)?)
+    BaseTracer::new(py, service_name, scouter_queue)
 }
 
 fn reset_current_context(py: Python, token: &Py<PyAny>) -> PyResult<()> {
