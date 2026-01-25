@@ -197,7 +197,6 @@ pub fn init_tracer(
     let transport_config = match transport_config {
         Some(config) => TransportConfig::from_py_config(config)?,
         None => {
-            // default to http transport config
             let config = HttpConfig::default();
             TransportConfig::Http(config)
         }
@@ -221,38 +220,42 @@ pub fn init_tracer(
         None
     };
 
-    let mut store_guard = TRACER_PROVIDER_STORE
-        .write()
-        .map_err(|e| TraceError::PoisonError(e.to_string()))?;
+    // setupt the store provider in different scope to avoid deadlock
+    {
+        debug!("Setting up tracer provider store");
+        let mut store_guard = TRACER_PROVIDER_STORE
+            .write()
+            .map_err(|e| TraceError::PoisonError(e.to_string()))?;
 
-    if store_guard.is_some() {
-        return Err(TraceError::InitializationError(
-            "Tracer provider already initialized. Call shutdown_tracer() first.".to_string(),
-        ));
+        if store_guard.is_some() {
+            return Err(TraceError::InitializationError(
+                "Tracer provider already initialized. Call shutdown_tracer() first.".to_string(),
+            ));
+        }
+
+        let resource = Resource::builder()
+            .with_service_name(service_name.clone())
+            .with_attributes([KeyValue::new(SCOUTER_SCOPE, scope.clone())])
+            .build();
+
+        let scouter_export = ScouterSpanExporter::new(transport_config, &resource)?;
+
+        let mut span_exporter = if let Some(exporter) = exporter {
+            SpanExporterNum::from_pyobject(exporter).expect("failed to convert exporter")
+        } else {
+            SpanExporterNum::default()
+        };
+
+        span_exporter.set_sample_ratio(clamped_sample_ratio);
+
+        let provider = span_exporter
+            .build_provider(resource, scouter_export, batch_config)
+            .expect("failed to build tracer provider");
+
+        *store_guard = Some(Arc::new(provider));
     }
 
-    let resource = Resource::builder()
-        .with_service_name(service_name.clone())
-        .with_attributes([KeyValue::new(SCOUTER_SCOPE, scope.clone())])
-        .build();
-
-    let scouter_export = ScouterSpanExporter::new(transport_config, &resource)?;
-
-    let mut span_exporter = if let Some(exporter) = exporter {
-        SpanExporterNum::from_pyobject(exporter).expect("failed to convert exporter")
-    } else {
-        SpanExporterNum::default()
-    };
-
-    // set the sample ratio on the exporter (this will apply to both OTLP and Scouter exporters)
-    span_exporter.set_sample_ratio(clamped_sample_ratio);
-
-    let provider = span_exporter
-        .build_provider(resource, scouter_export, batch_config)
-        .expect("failed to build tracer provider");
-
-    *store_guard = Some(Arc::new(provider));
-
+    // BaseTracer accesses store provider internally
     BaseTracer::new(py, service_name, scouter_queue)
 }
 
@@ -650,6 +653,7 @@ impl BaseTracer {
         name: String,
         queue: Option<Py<ScouterQueue>>,
     ) -> Result<Self, TraceError> {
+        debug!("Creating new BaseTracer instance");
         let tracer = get_tracer(name)?;
 
         // if queue is provided, set it on the tracer
