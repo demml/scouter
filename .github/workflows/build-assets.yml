@@ -103,7 +103,7 @@ jobs:
                   "container_image": "rockylinux:9",
                   "tag": "rocky",
                   "archive_name_suffix": "-rocky",
-                  "feature": "redis_events"
+                  "feature": "redis"
                 },
                 {
                   "os": "ubuntu-22.04-arm",
@@ -113,7 +113,7 @@ jobs:
                   "container_image": null,
                   "tag": "ubuntu",
                   "archive_name_suffix": "",
-                  "feature": "redis_events"
+                  "feature": "redis"
                 },
                 {
                   "os": "ubuntu-22.04",
@@ -163,7 +163,7 @@ jobs:
                   "container_image": "rockylinux:9",
                   "tag": "rocky",
                   "archive_name_suffix": "-rocky",
-                  "feature": "redis_events"
+                  "feature": "redis"
                 },
                 {
                   "os": "ubuntu-22.04",
@@ -173,7 +173,7 @@ jobs:
                   "container_image": null,
                   "tag": "ubuntu",
                   "archive_name_suffix": "",
-                  "feature": "redis_events"
+                  "feature": "redis"
                 }
               ]
             }'
