@@ -51,6 +51,10 @@ use tracing::{debug, info, instrument, warn};
 static TRACER_PROVIDER_STORE: RwLock<Option<Arc<SdkTracerProvider>>> = RwLock::new(None);
 static TRACE_METADATA_STORE: OnceLock<TraceMetadataStore> = OnceLock::new();
 
+// Static ScouterQueue store for global access if needed
+// This allows us to set the queue anytime get_tracer is called
+static SCOUTER_QUEUE_STORE: RwLock<Option<Py<ScouterQueue>>> = RwLock::new(None);
+
 fn get_tracer_provider() -> Result<Option<Arc<SdkTracerProvider>>, TraceError> {
     TRACER_PROVIDER_STORE
         .read()
@@ -165,6 +169,8 @@ fn get_trace_metadata_store() -> &'static TraceMetadataStore {
 /// * `transport_config` - Optional transport configuration for the Scouter exporter
 /// * `exporter` - Optional span exporter to use if you want to export spans to an OTLP collector
 /// * `batch_config` - Optional batch configuration for span exporting
+/// * `sample_ratio` - Optional sampling ratio between 0.0 and 1.0
+/// * `scouter_queue` - Optional ScouterQueue to associate with the tracer for span queueing
 #[pyfunction]
 #[pyo3(signature = (
     service_name="scouter_service".to_string(),
@@ -173,6 +179,7 @@ fn get_trace_metadata_store() -> &'static TraceMetadataStore {
     exporter=None,
     batch_config=None,
     sample_ratio=None,
+    scouter_queue=None,
 ))]
 #[instrument(skip_all)]
 #[allow(clippy::too_many_arguments)]
@@ -184,12 +191,12 @@ pub fn init_tracer(
     exporter: Option<&Bound<'_, PyAny>>,
     batch_config: Option<Py<BatchConfig>>,
     sample_ratio: Option<f64>,
-) -> Result<(), TraceError> {
+    scouter_queue: Option<Py<ScouterQueue>>,
+) -> Result<BaseTracer, TraceError> {
     debug!("Initializing tracer");
     let transport_config = match transport_config {
         Some(config) => TransportConfig::from_py_config(config)?,
         None => {
-            // default to http transport config
             let config = HttpConfig::default();
             TransportConfig::Http(config)
         }
@@ -213,39 +220,43 @@ pub fn init_tracer(
         None
     };
 
-    let mut store_guard = TRACER_PROVIDER_STORE
-        .write()
-        .map_err(|e| TraceError::PoisonError(e.to_string()))?;
+    // setupt the store provider in different scope to avoid deadlock
+    {
+        debug!("Setting up tracer provider store");
+        let mut store_guard = TRACER_PROVIDER_STORE
+            .write()
+            .map_err(|e| TraceError::PoisonError(e.to_string()))?;
 
-    if store_guard.is_some() {
-        return Err(TraceError::InitializationError(
-            "Tracer provider already initialized. Call shutdown_tracer() first.".to_string(),
-        ));
+        if store_guard.is_some() {
+            return Err(TraceError::InitializationError(
+                "Tracer provider already initialized. Call shutdown_tracer() first.".to_string(),
+            ));
+        }
+
+        let resource = Resource::builder()
+            .with_service_name(service_name.clone())
+            .with_attributes([KeyValue::new(SCOUTER_SCOPE, scope.clone())])
+            .build();
+
+        let scouter_export = ScouterSpanExporter::new(transport_config, &resource)?;
+
+        let mut span_exporter = if let Some(exporter) = exporter {
+            SpanExporterNum::from_pyobject(exporter).expect("failed to convert exporter")
+        } else {
+            SpanExporterNum::default()
+        };
+
+        span_exporter.set_sample_ratio(clamped_sample_ratio);
+
+        let provider = span_exporter
+            .build_provider(resource, scouter_export, batch_config)
+            .expect("failed to build tracer provider");
+
+        *store_guard = Some(Arc::new(provider));
     }
 
-    let resource = Resource::builder()
-        .with_service_name(service_name.clone())
-        .with_attributes([KeyValue::new(SCOUTER_SCOPE, scope.clone())])
-        .build();
-
-    let scouter_export = ScouterSpanExporter::new(transport_config, &resource)?;
-
-    let mut span_exporter = if let Some(exporter) = exporter {
-        SpanExporterNum::from_pyobject(exporter).expect("failed to convert exporter")
-    } else {
-        SpanExporterNum::default()
-    };
-
-    // set the sample ratio on the exporter (this will apply to both OTLP and Scouter exporters)
-    span_exporter.set_sample_ratio(clamped_sample_ratio);
-
-    let provider = span_exporter
-        .build_provider(resource, scouter_export, batch_config)
-        .expect("failed to build tracer provider");
-
-    *store_guard = Some(Arc::new(provider));
-
-    Ok(())
+    // BaseTracer accesses store provider internally
+    BaseTracer::new(py, service_name, scouter_queue)
 }
 
 fn reset_current_context(py: Python, token: &Py<PyAny>) -> PyResult<()> {
@@ -637,11 +648,33 @@ impl BaseTracer {
 impl BaseTracer {
     #[new]
     #[pyo3(signature = (name, queue=None))]
-    fn new(name: String, queue: Option<Py<ScouterQueue>>) -> Result<Self, TraceError> {
+    fn new(
+        py: Python<'_>,
+        name: String,
+        queue: Option<Py<ScouterQueue>>,
+    ) -> Result<Self, TraceError> {
+        debug!("Creating new BaseTracer instance");
         let tracer = get_tracer(name)?;
 
-        //
-        Ok(BaseTracer { tracer, queue })
+        // if queue is provided, set it on the tracer
+        let mut base_tracer = BaseTracer {
+            tracer,
+            queue: None,
+        };
+        if let Some(queue) = queue {
+            // set queue on the tracer
+            base_tracer.set_scouter_queue(py, queue)?;
+        } else {
+            // check if global queue is set. If set, clone reference
+            let store_guard = SCOUTER_QUEUE_STORE
+                .read()
+                .map_err(|e| TraceError::PoisonError(e.to_string()))?;
+            if let Some(global_queue) = &*store_guard {
+                base_tracer.queue = Some(global_queue.clone_ref(py));
+            }
+        }
+
+        Ok(base_tracer)
     }
 
     pub fn set_scouter_queue(
@@ -656,7 +689,14 @@ impl BaseTracer {
         let bound_queue = queue.bind(py);
         bound_queue.call_method1("_set_sample_ratio", (1.0,))?;
 
+        // update the store
+        let mut store_guard = SCOUTER_QUEUE_STORE
+            .write()
+            .map_err(|e| TraceError::PoisonError(e.to_string()))?;
+        *store_guard = Some(queue.clone_ref(py));
+
         self.queue = Some(queue);
+
         Ok(())
     }
 
@@ -916,6 +956,13 @@ pub fn shutdown_tracer() -> Result<(), TraceError> {
     }
 
     get_trace_metadata_store().clear_all()?;
+
+    // clear global scouter queue
+    let mut queue_store_guard = SCOUTER_QUEUE_STORE
+        .write()
+        .map_err(|e| TraceError::PoisonError(e.to_string()))?;
+    *queue_store_guard = None;
+
     Ok(())
 }
 

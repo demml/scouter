@@ -365,7 +365,8 @@ def create_tracing_genai_app(tracer: Tracer, profile_path: Path) -> FastAPI:
 
     @app.post("/chat", response_model=TestResponse)
     async def chat(request: Request, payload: ChatRequest) -> TestResponse:
-        with tracer.start_as_current_span("genai_service") as active_span:
+        service_tracer = get_tracer("api-tracer")
+        with service_tracer.start_as_current_span("genai_service") as active_span:
             agent: Agent = request.app.state.agent
             prompt: Prompt = request.app.state.prompt
 
