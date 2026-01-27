@@ -369,4 +369,32 @@ pub trait TraceSqlLogic {
 
         Ok(query_result)
     }
+
+    /// Attempts to retrieve trace spans based on tag filters.
+    /// # Arguments
+    /// * `pool` - The database connection pool
+    /// * `entity_type` - The entity type to filter spans
+    /// * `tag_filters` - The tag filters to apply
+    /// * `match_all` - Whether to match all tags or any
+    /// * `service_name` - Optional service name to filter spans
+    /// # Returns
+    /// * A vector of `TraceSpan` matching the tag filters
+    async fn get_spans_by_tags(
+        pool: &Pool<Postgres>,
+        entity_type: &str,
+        tag_filters: Vec<HashMap<String, String>>,
+        match_all: bool,
+        service_name: Option<&str>,
+    ) -> Result<Vec<TraceSpan>, SqlError> {
+        let query = Queries::GetSpansByTags.get_query();
+
+        sqlx::query_as(query)
+            .bind(entity_type)
+            .bind(Json(tag_filters))
+            .bind(match_all)
+            .bind(service_name)
+            .fetch_all(pool)
+            .await
+            .map_err(SqlError::SqlxError)
+    }
 }

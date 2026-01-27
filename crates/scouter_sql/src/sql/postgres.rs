@@ -242,6 +242,8 @@ impl MessageHandler {
 #[cfg(test)]
 mod tests {
 
+    use std::collections::HashMap;
+
     use super::*;
     use crate::sql::schema::User;
     use crate::sql::traits::EntitySqlLogic;
@@ -1780,5 +1782,60 @@ mod tests {
             .unwrap();
 
         assert_eq!(entity_id.first().unwrap(), &uid);
+    }
+
+    #[tokio::test]
+    async fn test_postgres_get_spans_by_tags() {
+        let pool = db_pool().await;
+
+        // create parent trace
+        let mut trace_record = random_trace_record();
+        let trace_id = trace_record.trace_id.clone();
+
+        // create spans
+        let root_span = random_span_record(&trace_id, None, &trace_record.service_name);
+        let child_span =
+            random_span_record(&trace_id, Some(&root_span.span_id), &root_span.service_name);
+
+        // set root span id in trace record
+        trace_record.root_span_id = root_span.span_id.clone();
+
+        // insert spans
+        let result =
+            PostgresClient::insert_span_batch(&pool, &[root_span.clone(), child_span.clone()])
+                .await
+                .unwrap();
+
+        assert_eq!(result.rows_affected(), 2);
+
+        let tag = TagRecord {
+            entity_id: trace_record.trace_id.clone(),
+            entity_type: "trace".to_string(),
+            key: "env".to_string(),
+            value: "production".to_string(),
+        };
+
+        let result = PostgresClient::insert_tag_batch(&pool, &[tag.clone()])
+            .await
+            .unwrap();
+
+        assert_eq!(result.rows_affected(), 1);
+
+        let tag_filters = vec![HashMap::from([
+            ("key".to_string(), "env".to_string()),
+            ("value".to_string(), "production".to_string()),
+        ])];
+
+        let spans = PostgresClient::get_spans_by_tags(
+            &pool,
+            "trace",
+            tag_filters,
+            true,
+            Some(&trace_record.service_name),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(spans.len(), 2);
     }
 }
