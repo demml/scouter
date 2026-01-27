@@ -5,9 +5,10 @@ use axum::{
 };
 use http_body_util::BodyExt;
 use scouter_types::{
-    sql::TraceFilters, TraceMetricsRequest, TraceMetricsResponse, TracePaginationResponse,
-    TraceRequest, TraceSpansResponse,
+    sql::TraceFilters, SpansFromTagsRequest, TraceMetricsRequest, TraceMetricsResponse,
+    TracePaginationResponse, TraceRequest, TraceSpansResponse,
 };
+use std::collections::HashMap;
 
 #[tokio::test]
 async fn test_tracing() {
@@ -155,4 +156,32 @@ async fn test_tracing() {
     let metrics_response: TraceMetricsResponse = serde_json::from_slice(&body).unwrap();
 
     assert!(metrics_response.metrics.len() >= 10);
+
+    // get trace by tags
+    let mut map = HashMap::new();
+    map.insert("key".to_string(), "scouter.queue.record".to_string());
+    map.insert("value".to_string(), "id-1".to_string());
+
+    let trace_request = SpansFromTagsRequest {
+        entity_type: "trace".to_string(),
+        tag_filters: vec![map],
+        match_all: false,
+        service_name: None,
+    };
+
+    let request = Request::builder()
+        .uri("/scouter/trace/spans/tags".to_string())
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(serde_json::to_string(&trace_request).unwrap()))
+        .unwrap();
+
+    let response = helper.send_oneshot(request).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let spans_response: TraceSpansResponse = serde_json::from_slice(&body).unwrap();
+    assert!(
+        !spans_response.spans.is_empty(),
+        "Should return spans for the specified tags"
+    );
 }
