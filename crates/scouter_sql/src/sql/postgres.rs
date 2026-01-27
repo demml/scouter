@@ -1785,7 +1785,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_postgres_get_spans_by_tags() {
+    async fn test_postgres_get_spans_from_tags() {
         let pool = db_pool().await;
 
         // create parent trace
@@ -1826,7 +1826,7 @@ mod tests {
             ("value".to_string(), "production".to_string()),
         ])];
 
-        let spans = PostgresClient::get_spans_by_tags(
+        let spans = PostgresClient::get_spans_from_tags(
             &pool,
             "trace",
             tag_filters,

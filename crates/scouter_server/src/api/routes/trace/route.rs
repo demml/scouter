@@ -83,6 +83,29 @@ pub async fn get_trace_spans(
 }
 
 #[instrument(skip_all)]
+pub async fn get_trace_spans_from_tags(
+    State(data): State<Arc<AppState>>,
+    Query(params): Query<TraceRequest>,
+) -> Result<Json<TraceSpansResponse>, (StatusCode, Json<ScouterServerError>)> {
+    // Execute both queries concurrently
+    let spans = PostgresClient::get_spans_from_tags(pool, entity_type, tag_filters, match_all, service_name)
+        &data.db_pool,
+        &params.trace_id,
+        params.service_name.as_deref(),
+    )
+    .await
+    .map_err(|e| {
+        error!("Failed to get trace spans: {:?}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ScouterServerError::get_trace_spans_error(e)),
+        )
+    })?;
+
+    Ok(Json(TraceSpansResponse { spans }))
+}
+
+#[instrument(skip_all)]
 pub async fn trace_metrics(
     State(data): State<Arc<AppState>>,
     Json(body): Json<TraceMetricsRequest>,
@@ -114,6 +137,10 @@ pub async fn get_trace_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
             .route(&format!("{prefix}/trace/baggage"), get(get_trace_baggage))
             .route(&format!("{prefix}/trace/paginated"), post(paginated_traces))
             .route(&format!("{prefix}/trace/spans"), get(get_trace_spans))
+            .route(
+                &format!("{prefix}/trace/spans/tags"),
+                get(get_trace_spans_from_tags),
+            )
             .route(&format!("{prefix}/trace/metrics"), post(trace_metrics))
     }));
 

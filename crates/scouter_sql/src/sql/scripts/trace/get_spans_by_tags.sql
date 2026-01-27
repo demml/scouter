@@ -19,7 +19,7 @@ SELECT
     output,
     service_name,
     span_order
-FROM scouter.get_spans_by_tags(
+FROM scouter.get_spans_from_tags(
     $1, -- p_entity_type
     $2, -- p_tag_filters (JSONB)
     $3, -- p_match_all

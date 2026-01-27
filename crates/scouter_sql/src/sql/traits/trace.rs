@@ -379,7 +379,7 @@ pub trait TraceSqlLogic {
     /// * `service_name` - Optional service name to filter spans
     /// # Returns
     /// * A vector of `TraceSpan` matching the tag filters
-    async fn get_spans_by_tags(
+    async fn get_spans_from_tags(
         pool: &Pool<Postgres>,
         entity_type: &str,
         tag_filters: Vec<HashMap<String, String>>,

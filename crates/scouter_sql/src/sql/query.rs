@@ -125,7 +125,7 @@ const GET_PAGINATED_TRACES: &str = include_str!("scripts/trace/get_paginated_tra
 const GET_TRACE_SPANS: &str = include_str!("scripts/trace/get_trace_spans.sql");
 const GET_TRACE_METRICS: &str = include_str!("scripts/trace/get_trace_metrics.sql");
 const GET_TRACE_BAGGAGE: &str = include_str!("scripts/trace/get_trace_baggage.sql");
-const GET_SPANS_BY_TAG: &str = include_str!("scripts/trace/get_spans_by_tags.sql");
+const GET_SPANS_BY_TAG: &str = include_str!("scripts/trace/get_spans_from_tags.sql");
 
 // tags
 const INSERT_TAG: &str = include_str!("scripts/tag/insert_tags.sql");

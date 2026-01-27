@@ -1,5 +1,5 @@
 -- Add migration script here
-CREATE OR REPLACE FUNCTION scouter.get_spans_by_tags(
+CREATE OR REPLACE FUNCTION scouter.get_spans_from_tags(
     p_entity_type TEXT,
     p_tag_filters JSONB,
     p_match_all BOOLEAN DEFAULT TRUE,
