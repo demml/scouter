@@ -234,17 +234,20 @@ impl ScouterClient {
             service_name,
         };
 
-        let query_string = serde_qs::to_string(&trace_request)?;
+        let query = serde_json::to_value(&trace_request).unwrap();
 
         let response = self.client.request(
-            Routes::TraceSpans,
-            RequestType::Get,
+            Routes::TraceSpanTags,
+            RequestType::Post,
+            Some(query),
             None,
-            Some(query_string),
             None,
         )?;
         if !response.status().is_success() {
-            error!("Failed to get trace spans. Status: {:?}", response.status());
+            error!(
+                "Failed to get trace spans from tags. Status: {:?}",
+                response.status()
+            );
             return Err(ClientError::GetTraceSpansError);
         }
 
