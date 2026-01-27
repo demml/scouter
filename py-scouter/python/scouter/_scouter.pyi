@@ -14,6 +14,7 @@ from typing import (
     ParamSpec,
     Protocol,
     Sequence,
+    Tuple,
     TypeAlias,
     TypeVar,
     Union,
@@ -11493,6 +11494,25 @@ class ScouterClient:
         Args:
             trace_id:
                 Trace ID
+            service_name:
+                Service name
+
+        Returns:
+            TraceSpansResponse
+        """
+
+    def get_trace_spans_from_tags(
+        self,
+        tags: List[Tuple[str, str]],
+        match_all: bool = False,
+        service_name: Optional[str] = None,
+    ) -> TraceSpansResponse:
+        """Get trace spans from tags
+        Args:
+            tags:
+                List of tags to filter by
+            match_all:
+                Whether to match all tags or any tag
             service_name:
                 Service name
 

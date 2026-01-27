@@ -1815,7 +1815,7 @@ mod tests {
             value: "production".to_string(),
         };
 
-        let result = PostgresClient::insert_tag_batch(&pool, &[tag.clone()])
+        let result = PostgresClient::insert_tag_batch(&pool, std::slice::from_ref(&tag))
             .await
             .unwrap();
 
