@@ -168,6 +168,7 @@ def create_and_register_genai_drift_profile(
 
 class TestResponse(BaseModel):
     message: str
+    record_uid: str = ""
 
 
 class PredictRequest(BaseModel, FeatureMixin):
@@ -374,17 +375,17 @@ def create_tracing_genai_app(tracer: Tracer, profile_path: Path) -> FastAPI:
             bound_prompt = prompt.bind(question=payload.question)
 
             response = agent.execute_prompt(prompt=bound_prompt)
-
-            active_span.add_queue_item(
-                alias="genai",
-                item=GenAIEvalRecord(
-                    context={
-                        "input": bound_prompt.messages[0].text(),
-                        "response": response.response_text(),
-                    },
-                ),
+            queue_record = GenAIEvalRecord(
+                context={
+                    "input": bound_prompt.messages[0].text(),
+                    "response": response.response_text(),
+                },
             )
+            active_span.add_queue_item(alias="genai", item=queue_record)
 
-            return TestResponse(message="success")
+            return TestResponse(
+                message="success",
+                record_uid=queue_record.uid,
+            )
 
     return app

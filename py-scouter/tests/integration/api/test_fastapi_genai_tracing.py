@@ -59,5 +59,13 @@ def test_genai_tracing_api(scouter_grpc_openai_server):
     task_results = scouter_client.get_genai_task_binned_drift(request)
     assert len(task_results["coherence"].stats) == 1
 
+    # get TestResponse record_uid from response
+    record_uid = response.json().get("record_uid")
+    assert record_uid is not None
+
+    spans = scouter_client.get_trace_spans_from_tags(tags=[("scouter.queue.record", record_uid)])
+
+    assert len(spans.spans) > 0
+
     # delete the drift_path
     drift_path.unlink()

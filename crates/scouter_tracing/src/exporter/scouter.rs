@@ -40,35 +40,20 @@ impl ScouterSpanExporter {
 impl SpanExporter for ScouterSpanExporter {
     #[instrument(name = "ScouterSpanExporter::export", skip_all)]
     async fn export(&self, batch: Vec<SpanData>) -> OTelSdkResult {
-        let producer = self.producer.clone(); // Requires RustScouterProducer: Clone
-        let resource = self.resource.clone();
-        let export_future = async move {
-            let resource_spans = group_spans_by_resource_and_scope(
-                batch,
-                &ResourceAttributesWithSchema::from(&resource),
-            );
-            let req = ExportTraceServiceRequest { resource_spans };
+        let resource_spans = group_spans_by_resource_and_scope(
+            batch,
+            &ResourceAttributesWithSchema::from(&self.resource),
+        );
 
-            // Note: `self` is consumed by the async move block.
-            let record = TraceServerRecord { request: req };
-            let message = MessageRecord::TraceServerRecord(record);
+        let req = ExportTraceServiceRequest { resource_spans };
+        let record = TraceServerRecord { request: req };
+        let message = MessageRecord::TraceServerRecord(record);
 
-            // This fallible call requires the block to resolve to a Result
-            producer.publish(message).await.map_err(|e| {
-                let msg = format!("Failed to publish message to scouter: {}", e);
-                error!("{}", msg);
-                OTelSdkError::InternalFailure(msg)
-            })?;
-
-            // Explicitly return the Ok(()) that the outer spawn expects
-            Ok(()) as Result<(), OTelSdkError>
-        };
-
-        let runtime_handle = app_state().handle();
-        runtime_handle
-            .spawn(export_future)
-            .await
-            .map_err(|e| OTelSdkError::InternalFailure(format!("Task spawn failed: {}", e)))?
+        self.producer.publish(message).await.map_err(|e| {
+            let msg = format!("Failed to publish message to scouter: {}", e);
+            error!("{}", msg);
+            OTelSdkError::InternalFailure(msg)
+        })
     }
 
     fn shutdown(&mut self) -> OTelSdkResult {
