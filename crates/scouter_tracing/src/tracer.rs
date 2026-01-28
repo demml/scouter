@@ -948,8 +948,18 @@ pub fn shutdown_tracer() -> Result<(), TraceError> {
 
     if let Some(provider) = provider_arc {
         match Arc::try_unwrap(provider) {
-            Ok(provider) => provider.shutdown()?,
-            Err(arc) => arc.shutdown()?,
+            Ok(provider) => match provider.shutdown() {
+                Ok(_) => (),
+                Err(e) => {
+                    tracing::warn!("Failed to shut down tracer provider: {}", e);
+                }
+            },
+            Err(arc) => match arc.shutdown() {
+                Ok(_) => (),
+                Err(e) => {
+                    tracing::warn!("Failed to shut down tracer provider: {}", e);
+                }
+            },
         }
     } else {
         tracing::warn!("Tracer provider was already shut down or never initialized.");

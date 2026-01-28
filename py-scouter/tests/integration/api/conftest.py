@@ -269,8 +269,8 @@ def create_kafka_genai_app(profile_path: Path) -> FastAPI:
         queue.insert(
             GenAIEvalRecord(
                 context={
-                    "input": bound_prompt.messages[0].text(),
-                    "response": response.response_text(),
+                    "input": bound_prompt.messages[0].text,
+                    "response": response.response_text,
                 },
             )
         )
@@ -377,7 +377,7 @@ def create_tracing_genai_app(tracer: Tracer, profile_path: Path) -> FastAPI:
             response = agent.execute_prompt(prompt=bound_prompt)
             queue_record = GenAIEvalRecord(
                 context={
-                    "input": bound_prompt.messages[0].text(),
+                    "input": bound_prompt.messages[0].text,
                     "response": response.response_text(),
                 },
             )

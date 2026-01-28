@@ -7,7 +7,7 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 license = "MIT"
-version = "0.15.0"
+version = "0.16.0"
 description = ""
 authors = [
     {name = "Thorrester", email = "<support@demmlai.com>"},
@@ -50,6 +50,12 @@ docs = [
 [tool.isort]
 profile = "black"
 
+[tool.ruff]
+exclude = [
+    "python/scouter/utils/comparison/*",
+    "python/scouter/stubs/*",
+]
+
 [tool.black]
 line-length = 120
 target-version = ['py312']
@@ -58,7 +64,10 @@ include = '\.pyi?$'
 [tool.pylint.MASTER]
 ignore-paths = ["python/scouter/utils/comparison/*"]
 load-plugins = ["pylint.extensions.docparams"]
-ignore-patterns = ["tests/*"]
+ignore-patterns = [
+    "tests/*",
+    "python/scouter/stubs/*",
+]
 
 [tool.pylint.messages_control]
 max-line-length = 130
@@ -107,6 +116,7 @@ plugins = [
 ]
 exclude = [
     "python/scouter/utils/comparison/*",
+    "python/scouter/stubs/*",
 ]
 files = ["python/scouter", "tests", "examples"]
 
