@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS scouter.tags (
     value TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-    PRIMARY KEY (entity_type, entity_id, key)
+    PRIMARY KEY (entity_type, entity_id, key, value)
 );
 
 -- Optimized indexes for common query patterns
@@ -33,6 +33,12 @@ ON scouter.tags (entity_type, entity_id, created_at DESC);
 
 CREATE INDEX idx_tags_key_lookup
 ON scouter.tags (key, created_at DESC);
+
+-- Partial index for scouter queue trace lookups
+CREATE INDEX idx_tags_genai_queue_record
+ON scouter.tags (entity_id, value)
+WHERE entity_type = 'trace'
+  AND key = 'scouter.queue.record';
 
 
 CREATE TABLE IF NOT EXISTS scouter.spans (
@@ -178,7 +184,7 @@ AS $$
         FROM scouter.service_entities
         WHERE p_service_name IS NULL OR service_name = p_service_name
     ),
-  
+
     matching_traces AS (
         SELECT DISTINCT trace_id
         FROM scouter.spans

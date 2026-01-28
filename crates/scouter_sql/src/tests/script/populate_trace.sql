@@ -276,9 +276,8 @@ BEGIN
                             ELSE 'custom-value-' || k
                         END
                     )
-                    ON CONFLICT (entity_type, entity_id, key)
+                    ON CONFLICT (entity_type, entity_id, key, value)
                     DO UPDATE SET
-                        value = EXCLUDED.value,
                         updated_at = NOW();
                 END LOOP;
             END IF;
@@ -311,6 +310,13 @@ BEGIN
                 END LOOP;
             END IF;
         END LOOP;
+
+        -- insert tags for span
+        insert into scouter.tags (created_at, entity_type, entity_id, key, value)
+        values (v_span_start, 'trace', v_trace_id, 'scouter.queue.record', 'id-' || i)
+        on conflict (entity_type, entity_id, key, value)
+        do update set
+            updated_at = NOW();
 
         -- Progress indicator
         IF i % 100 = 0 THEN

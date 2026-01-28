@@ -125,6 +125,7 @@ const GET_PAGINATED_TRACES: &str = include_str!("scripts/trace/get_paginated_tra
 const GET_TRACE_SPANS: &str = include_str!("scripts/trace/get_trace_spans.sql");
 const GET_TRACE_METRICS: &str = include_str!("scripts/trace/get_trace_metrics.sql");
 const GET_TRACE_BAGGAGE: &str = include_str!("scripts/trace/get_trace_baggage.sql");
+const GET_SPANS_BY_TAG: &str = include_str!("scripts/trace/get_spans_from_tags.sql");
 
 // tags
 const INSERT_TAG: &str = include_str!("scripts/tag/insert_tags.sql");
@@ -233,6 +234,7 @@ pub enum Queries {
     GetTraceSpans,
     GetTraceMetrics,
     GetTraceBaggage,
+    GetSpansByTags,
 
     // tags
     InsertTag,
@@ -332,6 +334,7 @@ impl Queries {
             Queries::GetTraceSpans => GET_TRACE_SPANS,
             Queries::GetTraceMetrics => GET_TRACE_METRICS,
             Queries::GetTraceBaggage => GET_TRACE_BAGGAGE,
+            Queries::GetSpansByTags => GET_SPANS_BY_TAG,
 
             // tags
             Queries::InsertTag => INSERT_TAG,

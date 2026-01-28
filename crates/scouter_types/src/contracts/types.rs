@@ -13,6 +13,7 @@ use scouter_semver::VersionType;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::BTreeMap;
+use std::collections::HashMap;
 use tracing::error;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -271,13 +272,6 @@ impl DriftAlertPaginationResponse {
 pub struct ServiceInfo {
     pub space: String,
     pub uid: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct LLMServiceInfo {
-    pub space: String,
-    pub name: String,
-    pub version: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -692,6 +686,15 @@ pub struct InsertTagsRequest {
 #[pyclass]
 pub struct TraceRequest {
     pub trace_id: String,
+    pub service_name: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass]
+pub struct SpansFromTagsRequest {
+    pub entity_type: String,
+    pub tag_filters: Vec<HashMap<String, String>>,
+    pub match_all: bool,
     pub service_name: Option<String>,
 }
 

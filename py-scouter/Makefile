@@ -60,15 +60,15 @@ uv.sub.pre.tag:
 prep.pre.patch: uv.pre.patch uv.sub.pre.tag
 
 build.docs:
-	uv run python scripts/create_stubs.py
+	uv run python scripts/create_mkdocs_stubs.py
 	uv run mkdocs build
 
 serve.docs:
-	uv run python scripts/create_stubs.py
+	uv run python scripts/create_mkdocs_stubs.py
 	uv run mkdocs serve
 
 publish.docs:
-	uv run python scripts/create_stubs.py
+	uv run python scripts/create_mkdocs_stubs.py
 	uv run mkdocs gh-deploy --force
 
 

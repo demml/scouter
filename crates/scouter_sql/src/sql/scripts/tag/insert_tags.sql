@@ -24,7 +24,6 @@ FROM UNNEST(
     key,
     value
 )
-ON CONFLICT (entity_type, entity_id, key)
+ON CONFLICT (entity_type, entity_id, key, value)
 DO UPDATE SET
-    value = EXCLUDED.value,
     updated_at = NOW();

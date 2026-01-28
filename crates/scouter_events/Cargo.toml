@@ -48,7 +48,7 @@ redis = { workspace = true, optional = true }
 # RabbitMQ dependencies
 lapin = { workspace = true, optional = true }
 
-rdkafka = { version = "0.*", features = ["cmake-build", "ssl-vendored"] , optional = true}
+rdkafka = { workspace = true, optional = true }
 
 [dev-dependencies]
 ndarray-rand = { workspace = true }

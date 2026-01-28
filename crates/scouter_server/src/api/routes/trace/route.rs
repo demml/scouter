@@ -10,8 +10,9 @@ use axum::{
 use scouter_sql::sql::traits::TraceSqlLogic;
 use scouter_sql::PostgresClient;
 use scouter_types::{
-    contracts::ScouterServerError, sql::TraceFilters, TraceBaggageResponse, TraceMetricsRequest,
-    TraceMetricsResponse, TracePaginationResponse, TraceRequest, TraceSpansResponse,
+    contracts::ScouterServerError, sql::TraceFilters, SpansFromTagsRequest, TraceBaggageResponse,
+    TraceMetricsRequest, TraceMetricsResponse, TracePaginationResponse, TraceRequest,
+    TraceSpansResponse,
 };
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
@@ -83,6 +84,31 @@ pub async fn get_trace_spans(
 }
 
 #[instrument(skip_all)]
+pub async fn query_trace_spans_from_tags(
+    State(data): State<Arc<AppState>>,
+    Json(params): Json<SpansFromTagsRequest>,
+) -> Result<Json<TraceSpansResponse>, (StatusCode, Json<ScouterServerError>)> {
+    // Execute both queries concurrently
+    let spans = PostgresClient::get_spans_from_tags(
+        &data.db_pool,
+        &params.entity_type,
+        params.tag_filters,
+        params.match_all,
+        params.service_name.as_deref(),
+    )
+    .await
+    .map_err(|e| {
+        error!("Failed to get trace spans from tags: {:?}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ScouterServerError::get_trace_spans_error(e)),
+        )
+    })?;
+
+    Ok(Json(TraceSpansResponse { spans }))
+}
+
+#[instrument(skip_all)]
 pub async fn trace_metrics(
     State(data): State<Arc<AppState>>,
     Json(body): Json<TraceMetricsRequest>,
@@ -114,6 +140,10 @@ pub async fn get_trace_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
             .route(&format!("{prefix}/trace/baggage"), get(get_trace_baggage))
             .route(&format!("{prefix}/trace/paginated"), post(paginated_traces))
             .route(&format!("{prefix}/trace/spans"), get(get_trace_spans))
+            .route(
+                &format!("{prefix}/trace/spans/tags"),
+                post(query_trace_spans_from_tags),
+            )
             .route(&format!("{prefix}/trace/metrics"), post(trace_metrics))
     }));
 

@@ -399,13 +399,13 @@ impl ActiveSpan {
                             .set_attribute(KeyValue::new(SCOUTER_QUEUE_EVENT, entity_type));
 
                         // get record_id if available (only available for GenAIEval Records at the moment)
-                        if let Ok(record_id) = item.getattr("record_id") {
-                            let record_id_str = record_id.str()?;
-                            // add span attribute for easier correlation
+                        if let Ok(record_uid) = item.getattr("uid") {
+                            let record_uid_str = record_uid.str()?;
+                            // add tag for easier correlation
                             // We'll use this to lookup records, tasks and eval metrics when rendering a span's details
                             inner.span.set_attribute(KeyValue::new(
-                                SCOUTER_QUEUE_RECORD,
-                                record_id_str.str()?.to_string(),
+                                format!("{}.{}", SCOUTER_TAG_PREFIX, SCOUTER_QUEUE_RECORD),
+                                record_uid_str.str()?.to_string(),
                             ));
                         };
 
@@ -948,8 +948,18 @@ pub fn shutdown_tracer() -> Result<(), TraceError> {
 
     if let Some(provider) = provider_arc {
         match Arc::try_unwrap(provider) {
-            Ok(provider) => provider.shutdown()?,
-            Err(arc) => arc.shutdown()?,
+            Ok(provider) => match provider.shutdown() {
+                Ok(_) => (),
+                Err(e) => {
+                    tracing::warn!("Failed to shut down tracer provider: {}", e);
+                }
+            },
+            Err(arc) => match arc.shutdown() {
+                Ok(_) => (),
+                Err(e) => {
+                    tracing::warn!("Failed to shut down tracer provider: {}", e);
+                }
+            },
         }
     } else {
         tracing::warn!("Tracer provider was already shut down or never initialized.");
