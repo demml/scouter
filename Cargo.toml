@@ -126,6 +126,10 @@ prost-types = { version = "0.*" }
 # RabbitMQ dependencies
 lapin = { version = "2.*" }
 
+# kafka dependencies
+rdkafka = { version = "0.39.0", features = ["cmake-build", "ssl-vendored"]}
+
+
 [profile.release]
 lto = "fat"
 codegen-units = 1
