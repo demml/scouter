@@ -17,10 +17,10 @@ from typing import (
     Tuple,
     Type,
     TypeAlias,
-    TypeVar,
     Union,
     overload,
 )
+from typing_extensions import TypeVar
 
 SerializedType: TypeAlias = Union[str, int, float, dict, list]
 Context: TypeAlias = Union[Dict[str, Any], "BaseModel"]
