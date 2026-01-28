@@ -265,6 +265,11 @@ jobs:
           version: "33.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Install build dependencies (rdkafka_sys 4.10)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev pkg-config
+
       - name: cache rust
         uses: Swatinem/rust-cache@v2
         with:
