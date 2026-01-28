@@ -91,7 +91,7 @@ jobs:
           before-script-linux: |
             # Install required packages
             if command -v yum &> /dev/null; then
-                yum update -y && yum install -y perl-core openssl openssl-devel pkgconfig libatomic
+                yum update -y && yum install -y perl-core openssl openssl-devel pkgconfig libatomic curl-devel
 
                 # If we're running on i686 we need to symlink libatomic
                 # in order to build openssl with -latomic flag.

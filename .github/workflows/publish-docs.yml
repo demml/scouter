@@ -24,6 +24,17 @@ jobs:
           version: "33.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Install Protocol Buffers Compiler
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "33.2"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev pkg-config
+
       - name: Set up uv
         run: curl -LsSf https://astral.sh/uv/install.sh | sh
 

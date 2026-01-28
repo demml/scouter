@@ -39,6 +39,11 @@ jobs:
           version: "33.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev pkg-config
+
       - name: Set up Rust
         run: rustup override set stable && rustup update
 
@@ -81,6 +86,11 @@ jobs:
           version: "33.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev pkg-config
+
       - name: Set up Rust
         run: rustup override set stable && rustup update
 
@@ -114,6 +124,11 @@ jobs:
         with:
           version: "33.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev pkg-config
 
       - name: Set up Rust
         run: rustup override set stable && rustup update
