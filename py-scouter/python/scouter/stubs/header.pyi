@@ -20,6 +20,7 @@ from typing import (
     Union,
     overload,
 )
+
 from typing_extensions import TypeVar
 
 SerializedType: TypeAlias = Union[str, int, float, dict, list]

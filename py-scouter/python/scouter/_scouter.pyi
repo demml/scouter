@@ -23,6 +23,7 @@ from typing import (
     Union,
     overload,
 )
+
 from typing_extensions import TypeVar
 
 SerializedType: TypeAlias = Union[str, int, float, dict, list]
@@ -42,7 +43,6 @@ class BaseModel(Protocol):
 
     def __str__(self) -> str:
         """String representation of the model"""
-
 
 ### logging.pyi ###
 class LogLevel:
@@ -197,7 +197,6 @@ class RustyLogger:
             *args:
                 Additional arguments to log.
         """
-
 
 ### potato.pyi ###
 class Provider:
@@ -9720,7 +9719,6 @@ class LLMTestServer:
         Stop the mock server.
         """
 
-
 ### scouter.pyi ###
 def get_function_type(func: Callable[..., Any]) -> "FunctionType":
     """Determine the function type (sync, async, generator, async generator).
@@ -15680,7 +15678,6 @@ class DataProfiler:
                 bucket_interval (str):
                     Optional interval for aggregating metrics (e.g., "1m", "5m").
             """
-
 
 ### GLOBAL EXPORTS ###
 __all__ = [
