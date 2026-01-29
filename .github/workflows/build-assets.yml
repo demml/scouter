@@ -37,7 +37,8 @@ jobs:
                   "container_image": null,
                   "tag": "ubuntu",
                   "archive_name_suffix": "",
-                  "feature": "kafka"
+                  "feature": "kafka",
+                  "artifact_name": "kafka"
                 },
                 {
                   "os": "ubuntu-22.04-arm",
@@ -47,7 +48,8 @@ jobs:
                   "container_image": "rockylinux:9",
                   "tag": "rocky",
                   "archive_name_suffix": "-rocky",
-                  "feature": "kafka"
+                  "feature": "kafka",
+                  "artifact_name": "kafka"
                 }
               ]
             }'
@@ -63,7 +65,8 @@ jobs:
                   "container_image": "rockylinux:9",
                   "tag": "rocky",
                   "archive_name_suffix": "-rocky",
-                  "feature": "kafka"
+                  "feature": "kafka",
+                  "artifact_name": "kafka"
                 },
                 {
                   "os": "ubuntu-22.04-arm",
@@ -73,7 +76,8 @@ jobs:
                   "container_image": null,
                   "tag": "ubuntu",
                   "archive_name_suffix": "",
-                  "feature": "kafka"
+                  "feature": "kafka",
+                  "artifact_name": "kafka"
                 },
                 {
                   "os": "ubuntu-22.04-arm",
@@ -83,7 +87,8 @@ jobs:
                   "container_image": "rockylinux:9",
                   "tag": "rocky",
                   "archive_name_suffix": "-rocky",
-                  "feature": "rabbitmq"
+                  "feature": "rabbitmq",
+                  "artifact_name": "rabbitmq"
                 },
                 {
                   "os": "ubuntu-22.04-arm",
@@ -93,7 +98,8 @@ jobs:
                   "container_image": null,
                   "tag": "ubuntu",
                   "archive_name_suffix": "",
-                  "feature": "rabbitmq"
+                  "feature": "rabbitmq",
+                  "artifact_name": "rabbitmq"
                 },
                 {
                   "os": "ubuntu-22.04-arm",
@@ -103,7 +109,8 @@ jobs:
                   "container_image": "rockylinux:9",
                   "tag": "rocky",
                   "archive_name_suffix": "-rocky",
-                  "feature": "redis"
+                  "feature": "redis_events",
+                  "artifact_name": "redis"
                 },
                 {
                   "os": "ubuntu-22.04-arm",
@@ -113,7 +120,8 @@ jobs:
                   "container_image": null,
                   "tag": "ubuntu",
                   "archive_name_suffix": "",
-                  "feature": "redis"
+                  "feature": "redis_events",
+                  "artifact_name": "redis"
                 },
                 {
                   "os": "ubuntu-22.04",
@@ -123,7 +131,8 @@ jobs:
                   "container_image": "rockylinux:9",
                   "tag": "rocky",
                   "archive_name_suffix": "-rocky",
-                  "feature": "kafka"
+                  "feature": "kafka",
+                  "artifact_name": "kafka"
                 },
                 {
                   "os": "ubuntu-22.04",
@@ -133,7 +142,8 @@ jobs:
                   "container_image": null,
                   "tag": "ubuntu",
                   "archive_name_suffix": "",
-                  "feature": "kafka"
+                  "feature": "kafka",
+                  "artifact_name": "kafka"
                 },
                 {
                   "os": "ubuntu-22.04",
@@ -143,7 +153,8 @@ jobs:
                   "container_image": "rockylinux:9",
                   "tag": "rocky",
                   "archive_name_suffix": "-rocky",
-                  "feature": "rabbitmq"
+                  "feature": "rabbitmq",
+                  "artifact_name": "rabbitmq"
                 },
                 {
                   "os": "ubuntu-22.04",
@@ -153,7 +164,8 @@ jobs:
                   "container_image": null,
                   "tag": "ubuntu",
                   "archive_name_suffix": "",
-                  "feature": "rabbitmq"
+                  "feature": "rabbitmq",
+                  "artifact_name": "rabbitmq"
                 },
                 {
                   "os": "ubuntu-22.04",
@@ -163,7 +175,8 @@ jobs:
                   "container_image": "rockylinux:9",
                   "tag": "rocky",
                   "archive_name_suffix": "-rocky",
-                  "feature": "redis"
+                  "feature": "redis_events",
+                  "artifact_name": "redis"
                 },
                 {
                   "os": "ubuntu-22.04",
@@ -173,7 +186,8 @@ jobs:
                   "container_image": null,
                   "tag": "ubuntu",
                   "archive_name_suffix": "",
-                  "feature": "redis"
+                  "feature": "redis_events",
+                  "artifact_name": "redis"
                 }
               ]
             }'
@@ -291,7 +305,7 @@ jobs:
         shell: bash
         run: |
           # Create the unique base name including target, feature, and suffix
-          ARTIFACT_BASE_NAME="${{ env.BINARY_NAME }}-${{ matrix.target_name }}-${{ matrix.feature }}${{ matrix.archive_name_suffix }}"
+          ARTIFACT_BASE_NAME="${{ env.BINARY_NAME }}-${{ matrix.target_name }}-${{ matrix.artifact_name }}${{ matrix.archive_name_suffix }}"
           ARTIFACT_ARCHIVE_NAME="${ARTIFACT_BASE_NAME}.${{ matrix.archive_ext }}"
 
           mkdir -p release-bin
