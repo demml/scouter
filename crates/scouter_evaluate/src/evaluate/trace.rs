@@ -7,14 +7,15 @@ use scouter_types::genai::{AggregationType, SpanFilter, SpanStatus, TraceAsserti
 use scouter_types::sql::TraceSpan;
 use serde_json::{json, Value};
 use std::collections::HashSet;
-use tabled::settings::span;
+use std::sync::Arc;
 
 pub struct TraceContextBuilder {
-    spans: Vec<TraceSpan>,
+    /// We want to share trace spans across multiple evaluations
+    spans: Arc<Vec<TraceSpan>>,
 }
 
 impl TraceContextBuilder {
-    pub fn new(spans: Vec<TraceSpan>) -> Self {
+    pub fn new(spans: Arc<Vec<TraceSpan>>) -> Self {
         Self { spans }
     }
 
@@ -52,7 +53,7 @@ impl TraceContextBuilder {
     fn filter_spans(&self, filter: &SpanFilter) -> Result<Vec<&TraceSpan>, EvaluationError> {
         let mut filtered = Vec::new();
 
-        for span in &self.spans {
+        for span in self.spans.iter() {
             if self.matches_filter(span, filter)? {
                 filtered.push(span);
             }
@@ -335,7 +336,7 @@ impl TraceContextBuilder {
 mod test_helpers {
     use super::*;
     use chrono::{DateTime, Duration, Utc};
-    use scouter_types::trace::{Attribute, SpanEvent, SpanLink};
+    use scouter_types::trace::Attribute;
     use serde_json::json;
 
     pub struct SpanBuilder {
@@ -552,21 +553,21 @@ mod tests {
     #[test]
     fn test_nested_trace_depth() {
         let spans = create_nested_trace();
-        let builder = TraceContextBuilder::new(spans);
+        let builder = TraceContextBuilder::new(Arc::new(spans));
         assert_eq!(builder.calculate_max_depth(), 2);
     }
 
     #[test]
     fn test_error_counting() {
         let spans = create_trace_with_errors();
-        let builder = TraceContextBuilder::new(spans);
+        let builder = TraceContextBuilder::new(Arc::new(spans));
         assert_eq!(builder.count_error_spans(), 1);
     }
 
     #[test]
     fn test_attribute_filtering() {
         let spans = create_trace_with_attributes();
-        let builder = TraceContextBuilder::new(spans);
+        let builder = TraceContextBuilder::new(Arc::new(spans));
 
         let filter = SpanFilter::WithAttribute {
             key: "model".to_string(),
@@ -579,7 +580,7 @@ mod tests {
     #[test]
     fn test_sequence_pattern_detection() {
         let spans = create_sequence_pattern_trace();
-        let builder = TraceContextBuilder::new(spans);
+        let builder = TraceContextBuilder::new(Arc::new(spans));
 
         let filter = SpanFilter::Sequence {
             names: vec!["call_tool".to_string(), "run_agent".to_string()],
@@ -592,14 +593,14 @@ mod tests {
     #[test]
     fn test_multi_service_trace() {
         let spans = create_multi_service_trace();
-        let builder = TraceContextBuilder::new(spans);
+        let builder = TraceContextBuilder::new(Arc::new(spans));
         assert_eq!(builder.count_unique_services(), 3);
     }
 
     #[test]
     fn test_aggregation_with_numeric_attributes() {
         let spans = create_trace_with_attributes();
-        let builder = TraceContextBuilder::new(spans);
+        let builder = TraceContextBuilder::new(Arc::new(spans));
 
         let filter = SpanFilter::WithAttribute {
             key: "tokens.input".to_string(),
@@ -615,7 +616,7 @@ mod tests {
     #[test]
     fn test_trace_assertion_span_sequence_evaluation() {
         let spans = create_simple_trace();
-        let builder = TraceContextBuilder::new(spans);
+        let builder = TraceContextBuilder::new(Arc::new(spans));
 
         let assertion = TraceAssertion::SpanSequence {
             span_names: vec![
@@ -632,7 +633,7 @@ mod tests {
     #[test]
     fn test_trace_assertion_span_set_evaluation() {
         let spans = create_simple_trace();
-        let builder = TraceContextBuilder::new(spans);
+        let builder = TraceContextBuilder::new(Arc::new(spans));
 
         let assertion = TraceAssertion::SpanSet {
             span_names: vec![
@@ -649,7 +650,7 @@ mod tests {
     #[test]
     fn test_trace_assertion_span_count() {
         let spans = create_simple_trace();
-        let builder = TraceContextBuilder::new(spans);
+        let builder = TraceContextBuilder::new(Arc::new(spans));
 
         let filter = SpanFilter::ByName {
             name: "child_1".to_string(),
@@ -673,7 +674,7 @@ mod tests {
 
         // Test span count with attribute filter
         let trace_with_attributes = create_trace_with_attributes();
-        let builder_attr = TraceContextBuilder::new(trace_with_attributes);
+        let builder_attr = TraceContextBuilder::new(Arc::new(trace_with_attributes));
 
         let filter_attr = SpanFilter::WithAttribute {
             key: "model".to_string(),
@@ -754,7 +755,7 @@ mod tests {
     #[test]
     fn test_span_exists() {
         let spans = create_simple_trace();
-        let builder = TraceContextBuilder::new(spans);
+        let builder = TraceContextBuilder::new(Arc::new(spans));
         let filter = SpanFilter::ByName {
             name: "child_1".to_string(),
         };
@@ -767,7 +768,7 @@ mod tests {
     fn test_span_attribute() {
         // test model
         let spans = create_trace_with_attributes();
-        let builder = TraceContextBuilder::new(spans);
+        let builder = TraceContextBuilder::new(Arc::new(spans));
         let filter = SpanFilter::ByName {
             name: "api_call".to_string(),
         };
@@ -780,7 +781,7 @@ mod tests {
 
         // check response
         let spans = create_trace_with_attributes();
-        let builder = TraceContextBuilder::new(spans);
+        let builder = TraceContextBuilder::new(Arc::new(spans));
         let filter = SpanFilter::ByName {
             name: "api_call".to_string(),
         };
@@ -795,7 +796,7 @@ mod tests {
     #[test]
     fn test_span_attribute_aggregation() {
         let spans = create_trace_with_attributes();
-        let builder = TraceContextBuilder::new(spans);
+        let builder = TraceContextBuilder::new(Arc::new(spans));
         let filter = SpanFilter::ByName {
             name: "api_call".to_string(),
         };
@@ -813,7 +814,7 @@ mod tests {
     fn test_sequence_pattern_counting() {
         // count how often "call_tool" followed by "run_agent" occurs
         let spans = create_sequence_pattern_trace();
-        let builder = TraceContextBuilder::new(spans);
+        let builder = TraceContextBuilder::new(Arc::new(spans));
         let filter = SpanFilter::Sequence {
             names: vec!["call_tool".to_string(), "run_agent".to_string()],
         };
@@ -823,7 +824,7 @@ mod tests {
 
         // count how often "call_tool" occurs
         let spans = create_sequence_pattern_trace();
-        let builder = TraceContextBuilder::new(spans);
+        let builder = TraceContextBuilder::new(Arc::new(spans));
         let filter = SpanFilter::ByName {
             name: "call_tool".to_string(),
         };
