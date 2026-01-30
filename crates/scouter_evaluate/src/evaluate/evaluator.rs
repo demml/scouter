@@ -429,7 +429,7 @@ impl ResultCollector {
 
         let assert_store = self.context.assertion_store.read().await;
 
-        for assertion in &profile.assertion_tasks {
+        for assertion in &profile.tasks.assertion {
             if let Some((start_time, end_time, result)) = assert_store.retrieve(&assertion.id) {
                 if !assertion.condition {
                     if result.passed {
@@ -463,7 +463,7 @@ impl ResultCollector {
             }
         }
 
-        for judge in &profile.llm_judge_tasks {
+        for judge in &profile.tasks.judge {
             if let Some((start_time, end_time, result)) = assert_store.retrieve(&judge.id) {
                 if !judge.condition {
                     if result.passed {
@@ -566,14 +566,14 @@ impl GenAIEvaluator {
     }
 
     fn register_tasks(registry: &mut TaskRegistry, profile: &GenAIEvalProfile) {
-        for task in &profile.assertion_tasks {
+        for task in &profile.tasks.assertion {
             registry.register(task.id.clone(), TaskType::Assertion, task.condition);
             if !task.depends_on.is_empty() {
                 registry.register_dependencies(task.id.clone(), task.depends_on.clone());
             }
         }
 
-        for task in &profile.llm_judge_tasks {
+        for task in &profile.tasks.judge {
             registry.register(task.id.clone(), TaskType::LLMJudge, task.condition);
             if !task.depends_on.is_empty() {
                 registry.register_dependencies(task.id.clone(), task.depends_on.clone());

@@ -15,7 +15,6 @@ use crate::{
 use crate::{ProfileRequest, TaskResultTableEntry};
 use chrono::{DateTime, Utc};
 use core::fmt::Debug;
-use opentelemetry::trace;
 use potato_head::prompt_types::Prompt;
 use potato_head::Agent;
 use potato_head::Workflow;
@@ -325,7 +324,7 @@ pub struct GenAIEvalProfile {
     #[pyo3(get)]
     pub config: GenAIEvalConfig,
 
-    tasks: AssertionTasks,
+    pub tasks: AssertionTasks,
 
     #[pyo3(get)]
     pub scouter_version: String,
@@ -620,6 +619,8 @@ impl GenAIEvalProfile {
                     assertion.condition
                 } else if let Some(judge) = self.get_llm_judge_by_id(task_id) {
                     judge.condition
+                } else if let Some(trace) = self.get_trace_assertion_by_id(task_id) {
+                    trace.condition
                 } else {
                     false
                 };
@@ -629,8 +630,10 @@ impl GenAIEvalProfile {
                 }
 
                 let (task_type, color_fn): (&str, fn(&str) -> String) =
-                    if self.assertion_tasks.iter().any(|t| &t.id == task_id) {
+                    if self.tasks.assertion.iter().any(|t| &t.id == task_id) {
                         ("Assertion", |s: &str| s.yellow().to_string())
+                    } else if self.tasks.trace.iter().any(|t| &t.id == task_id) {
+                        ("Trace Assertion", |s: &str| s.bright_blue().to_string())
                     } else {
                         ("LLM Judge", |s: &str| s.purple().to_string())
                     };
@@ -658,6 +661,9 @@ impl GenAIEvalProfile {
                             self.get_assertion_by_id(dep_id)
                                 .map(|t| t.condition)
                                 .or_else(|| self.get_llm_judge_by_id(dep_id).map(|t| t.condition))
+                                .or_else(|| {
+                                    self.get_trace_assertion_by_id(dep_id).map(|t| t.condition)
+                                })
                                 .unwrap_or(false)
                         });
 
@@ -707,7 +713,7 @@ impl GenAIEvalProfile {
         println!(
             "{}: {} tasks across {} stages",
             "Summary".bold(),
-            self.assertion_tasks.len() + self.llm_judge_tasks.len(),
+            self.tasks.assertion.len() + self.tasks.judge.len() + self.tasks.trace.len(),
             plan.stages.len()
         );
 
@@ -729,8 +735,11 @@ impl Default for GenAIEvalProfile {
     fn default() -> Self {
         Self {
             config: GenAIEvalConfig::default(),
-            assertion_tasks: Vec::new(),
-            llm_judge_tasks: Vec::new(),
+            tasks: AssertionTasks {
+                assertion: Vec::new(),
+                judge: Vec::new(),
+                trace: Vec::new(),
+            },
             scouter_version: scouter_version(),
             workflow: None,
             task_ids: BTreeSet::new(),
@@ -749,9 +758,7 @@ impl GenAIEvalProfile {
 
         Ok(Self {
             config,
-            assertion_tasks,
-            llm_judge_tasks,
-
+            tasks,
             scouter_version: scouter_version(),
             workflow,
             task_ids,
@@ -857,12 +864,16 @@ impl ProfileExt for GenAIEvalProfile {
     }
 
     fn get_task_by_id(&self, id: &str) -> Option<&dyn TaskAccessor> {
-        if let Some(assertion) = self.assertion_tasks.iter().find(|t| t.id() == id) {
+        if let Some(assertion) = self.tasks.assertion.iter().find(|t| t.id() == id) {
             return Some(assertion);
         }
 
-        if let Some(judge) = self.llm_judge_tasks.iter().find(|t| t.id() == id) {
+        if let Some(judge) = self.tasks.judge.iter().find(|t| t.id() == id) {
             return Some(judge);
+        }
+
+        if let Some(trace) = self.tasks.trace.iter().find(|t| t.id() == id) {
+            return Some(trace);
         }
 
         None
@@ -871,17 +882,27 @@ impl ProfileExt for GenAIEvalProfile {
     #[inline]
     /// Get assertion task by ID, first checking AssertionTasks, then ConditionalTasks
     fn get_assertion_by_id(&self, id: &str) -> Option<&AssertionTask> {
-        self.assertion_tasks.iter().find(|t| t.id() == id)
+        self.tasks.assertion.iter().find(|t| t.id() == id)
     }
 
     #[inline]
     fn get_llm_judge_by_id(&self, id: &str) -> Option<&LLMJudgeTask> {
-        self.llm_judge_tasks.iter().find(|t| t.id() == id)
+        self.tasks.judge.iter().find(|t| t.id() == id)
+    }
+
+    #[inline]
+    fn get_trace_assertion_by_id(&self, id: &str) -> Option<&TraceAssertionTask> {
+        self.tasks.trace.iter().find(|t| t.id() == id)
     }
 
     #[inline]
     fn has_llm_tasks(&self) -> bool {
-        !self.llm_judge_tasks.is_empty()
+        !self.tasks.judge.is_empty()
+    }
+
+    #[inline]
+    fn has_trace_assertions(&self) -> bool {
+        !self.tasks.trace.is_empty()
     }
 }
 
@@ -1127,7 +1148,7 @@ mod tests {
         let _: Value =
             serde_json::from_str(&profile.model_dump_json()).expect("Failed to parse actual JSON");
 
-        assert_eq!(profile.llm_judge_tasks.len(), 2);
+        assert_eq!(profile.llm_judge_tasks().len(), 2);
         assert_eq!(profile.scouter_version, env!("CARGO_PKG_VERSION"));
     }
 }

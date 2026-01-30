@@ -23,6 +23,7 @@ impl EvaluateTaskMut for TaskRef<'_> {
         let result = match self {
             TaskRef::Assertion(assertion) => assertion.execute(context)?,
             TaskRef::LLMJudge(judge) => judge.execute(context)?,
+            TaskRef::TraceAssertion(trace) => trace.execute(context)?,
         };
         Ok(result)
     }

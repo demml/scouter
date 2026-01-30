@@ -40,7 +40,11 @@ pub fn separate_tasks(tasks: Vec<EvaluationTask>) -> AssertionTasks {
         }
     }
 
-    (assertions, llm_judges, trace_assertions)
+    AssertionTasks {
+        assertion: assertions,
+        judge: llm_judges,
+        trace: trace_assertions,
+    }
 }
 
 #[derive(Debug)]
@@ -66,7 +70,8 @@ pub trait ProfileExt {
     fn id(&self) -> &str;
     fn get_assertion_by_id(&self, id: &str) -> Option<&AssertionTask>;
     fn get_llm_judge_by_id(&self, id: &str) -> Option<&LLMJudgeTask>;
-    fn get_trace_by_id(&self, id: &str) -> Option<&TraceAssertionTask>;
+    fn get_trace_assertion_by_id(&self, id: &str) -> Option<&TraceAssertionTask>;
     fn get_task_by_id(&self, id: &str) -> Option<&dyn TaskAccessor>;
     fn has_llm_tasks(&self) -> bool;
+    fn has_trace_assertions(&self) -> bool;
 }
