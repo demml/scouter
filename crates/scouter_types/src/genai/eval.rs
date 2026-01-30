@@ -255,6 +255,7 @@ pub struct LLMJudgeTask {
 
     pub description: Option<String>,
 
+    #[pyo3(get, set)]
     pub condition: bool,
 }
 
@@ -389,7 +390,7 @@ impl TaskAccessor for LLMJudgeTask {
     }
 }
 
-#[pyclass]
+#[pyclass(eq, eq_int)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum SpanStatus {
     Ok,
@@ -420,7 +421,7 @@ impl<'a, 'py> FromPyObject<'a, 'py> for PyValueWrapper {
 }
 
 /// Filter configuration for selecting spans to assert on
-#[pyclass]
+#[pyclass(eq)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum SpanFilter {
     /// Match spans by exact name
@@ -477,6 +478,7 @@ impl SpanFilter {
     }
 
     #[staticmethod]
+    #[pyo3(signature = (min_ms=None, max_ms=None))]
     pub fn with_duration(min_ms: Option<f64>, max_ms: Option<f64>) -> Self {
         SpanFilter::WithDuration { min_ms, max_ms }
     }
@@ -486,7 +488,7 @@ impl SpanFilter {
         SpanFilter::Sequence { names }
     }
 
-    pub fn and(&self, other: SpanFilter) -> Self {
+    pub fn and_(&self, other: SpanFilter) -> Self {
         match self {
             SpanFilter::And { filters } => {
                 let mut new_filters = filters.clone();
@@ -501,7 +503,7 @@ impl SpanFilter {
         }
     }
 
-    pub fn or(&self, other: SpanFilter) -> Self {
+    pub fn or_(&self, other: SpanFilter) -> Self {
         match self {
             SpanFilter::Or { filters } => {
                 let mut new_filters = filters.clone();
@@ -517,7 +519,7 @@ impl SpanFilter {
     }
 }
 
-#[pyclass]
+#[pyclass(eq, eq_int)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum AggregationType {
     Count,
@@ -684,6 +686,7 @@ pub struct TraceAssertionTask {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<AssertionResult>,
 
+    #[pyo3(get, set)]
     pub condition: bool,
 }
 
@@ -909,7 +912,7 @@ impl Default for EvaluationTasks {
     }
 }
 
-#[pyclass]
+#[pyclass(eq, eq_int)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ComparisonOperator {
     // Existing operators

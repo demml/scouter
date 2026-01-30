@@ -4288,6 +4288,14 @@ class AssertionTask:
     def depends_on(self, depends_on: List[str]) -> None:
         """Set task dependencies."""
 
+    @property
+    def condition(self) -> bool:
+        """Indicates if this task is a condition for subsequent tasks."""
+
+    @condition.setter
+    def condition(self, condition: bool) -> None:
+        """Set whether this task is a condition for subsequent tasks."""
+
     def __str__(self) -> str:
         """Return string representation of the assertion task."""
 
@@ -4513,6 +4521,14 @@ class LLMJudgeTask:
     @max_retries.setter
     def max_retries(self, max_retries: Optional[int]) -> None:
         """Set maximum retry attempts."""
+
+    @property
+    def condition(self) -> bool:
+        """Indicates if this task is a condition for subsequent tasks."""
+
+    @condition.setter
+    def condition(self, condition: bool) -> None:
+        """Set whether this task is a condition for subsequent tasks."""
 
     def __str__(self) -> str:
         """Return string representation of the LLM judge task."""
@@ -6078,6 +6094,71 @@ class SpanFilter:
         - Attribute values are internally wrapped for type safety
     """
 
+    class ByName:
+        """Filter spans by exact name match."""
+
+        name: str
+        def and_(self, other: SpanFilter) -> SpanFilter: ...
+        def or_(self, other: SpanFilter) -> SpanFilter: ...
+
+    class ByNamePattern:
+        """Filter spans by regex name pattern."""
+
+        pattern: str
+        def and_(self, other: SpanFilter) -> SpanFilter: ...
+        def or_(self, other: SpanFilter) -> SpanFilter: ...
+
+    class WithAttribute:
+        """Filter spans with specific attribute key."""
+
+        key: str
+        def and_(self, other: SpanFilter) -> SpanFilter: ...
+        def or_(self, other: SpanFilter) -> SpanFilter: ...
+
+    class WithAttributeValue:
+        """Filter spans with specific attribute key-value pair."""
+
+        key: str
+        value: object  # PyValueWrapper is internal, expose as object
+        def and_(self, other: SpanFilter) -> SpanFilter: ...
+        def or_(self, other: SpanFilter) -> SpanFilter: ...
+
+    class WithStatus:
+        """Filter spans by status code."""
+
+        status: SpanStatus
+        def and_(self, other: SpanFilter) -> SpanFilter: ...
+        def or_(self, other: SpanFilter) -> SpanFilter: ...
+
+    class WithDuration:
+        """Filter spans with duration constraints."""
+
+        min_ms: Optional[float]
+        max_ms: Optional[float]
+        def and_(self, other: SpanFilter) -> SpanFilter: ...
+        def or_(self, other: SpanFilter) -> SpanFilter: ...
+
+    class Sequence:
+        """Match a sequence of span names in order."""
+
+        names: List[str]
+        def and_(self, other: SpanFilter) -> SpanFilter: ...
+        def or_(self, other: SpanFilter) -> SpanFilter: ...
+
+    class And:
+        """Combine multiple filters with AND logic."""
+
+        filters: List[SpanFilter]
+        def and_(self, other: SpanFilter) -> SpanFilter: ...
+        def or_(self, other: SpanFilter) -> SpanFilter: ...
+
+    class Or:
+        """Combine multiple filters with OR logic."""
+
+        filters: List[SpanFilter]
+        def and_(self, other: SpanFilter) -> SpanFilter: ...
+        def or_(self, other: SpanFilter) -> SpanFilter: ...
+
     @staticmethod
     def by_name(name: str) -> "SpanFilter":
         """Filter spans by exact name match.
@@ -6127,10 +6208,7 @@ class SpanFilter:
         """
 
     @staticmethod
-    def with_duration(
-        min_ms: Optional[float] = None,
-        max_ms: Optional[float] = None
-    ) -> "SpanFilter":
+    def with_duration(min_ms: Optional[float] = None, max_ms: Optional[float] = None) -> "SpanFilter":
         """Filter spans by duration constraints.
 
         Args:
@@ -6286,6 +6364,49 @@ class TraceAssertion:
         - Trace-level assertions evaluate the entire trace without filtering
     """
 
+    class SpanSequence:
+        """Extracts a sequence of span names in order."""
+
+        span_names: List[str]
+
+    class SpanSet:
+        """Checks for existence of all specified span names."""
+
+        span_names: List[str]
+
+    class SpanCount:
+        """Counts spans matching a filter."""
+
+        filter: SpanFilter
+
+    class SpanExists:
+        """Checks if any span matches a filter."""
+
+        filter: SpanFilter
+
+    class SpanAttribute:
+        """Extracts attribute value from span matching filter."""
+
+        filter: SpanFilter
+        attribute_key: str
+
+    class SpanDuration:
+        """Extracts duration of span matching filter."""
+
+        filter: SpanFilter
+
+    class SpanAggregation:
+        """Aggregates numeric attribute across filtered spans."""
+
+        filter: SpanFilter
+        attribute_key: str
+        aggregation: AggregationType
+
+    class TraceAttribute:
+        """Extracts trace-level attribute value."""
+
+        attribute_key: str
+
     @staticmethod
     def span_sequence(span_names: List[str]) -> "TraceAssertion":
         """Assert spans appear in specific order.
@@ -6367,11 +6488,7 @@ class TraceAssertion:
         """
 
     @staticmethod
-    def span_aggregation(
-        filter: SpanFilter,
-        attribute_key: str,
-        aggregation: AggregationType
-    ) -> "TraceAssertion":
+    def span_aggregation(filter: SpanFilter, attribute_key: str, aggregation: AggregationType) -> "TraceAssertion":
         """Aggregate numeric attribute across filtered spans.
 
         Args:
@@ -6640,7 +6757,7 @@ class TraceAssertionTask:
     @assertion.setter
     def assertion(self, assertion: TraceAssertion) -> None:
         """Set trace assertion target.
-        
+
         Args:
             assertion (TraceAssertion):
                 TraceAssertion defining what to measure.
@@ -6653,7 +6770,7 @@ class TraceAssertionTask:
     @operator.setter
     def operator(self, operator: ComparisonOperator) -> None:
         """Set comparison operator.
-        
+
         Args:
             operator (ComparisonOperator):
                 ComparisonOperator defining how to compare values.
@@ -6675,7 +6792,7 @@ class TraceAssertionTask:
     @description.setter
     def description(self, description: Optional[str]) -> None:
         """Set assertion description.
-        
+
         Args:
             description (Optional[str]):
                 Human-readable description of the assertion.
@@ -6688,16 +6805,23 @@ class TraceAssertionTask:
     @depends_on.setter
     def depends_on(self, depends_on: List[str]) -> None:
         """Set task dependencies.
-        
+
         Args:
             depends_on (List[str]):
                 List of task IDs that must complete before this task.
         """
 
+    @property
+    def condition(self) -> bool:
+        """Indicates if this task is a condition for subsequent tasks."""
+
+    @condition.setter
+    def condition(self, condition: bool) -> None:
+        """Set whether this task is a condition for subsequent tasks."""
+
     def __str__(self) -> str:
         """Return string representation of the trace assertion task."""
-        
-        
+
 __all__ = [
     "AlertZone",
     "SpcAlertType",

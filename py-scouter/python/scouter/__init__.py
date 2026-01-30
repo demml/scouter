@@ -17,6 +17,7 @@ from . import (
     util,
 )
 from ._scouter import (  # genai
+    AggregationType,
     AssertionTask,
     CommonCrons,
     ComparisonOperator,
@@ -50,11 +51,6 @@ from ._scouter import (  # genai
     PsiDriftProfile,
     QuantileBinning,
     Queue,
-    SpanStatus,
-    AggregationType,
-    SpanFilter,
-    TraceAssertion,
-    TraceAssertionTask,
 )
 from ._scouter import QueueFeature as Feature
 from ._scouter import (  # genai
@@ -65,6 +61,8 @@ from ._scouter import (  # genai
     Scott,
     ScouterClient,
     ScouterQueue,
+    SpanFilter,
+    SpanStatus,
     SpcAlertConfig,
     SpcDriftConfig,
     SpcDriftMap,
@@ -74,6 +72,8 @@ from ._scouter import (  # genai
     SquareRoot,
     Sturges,
     TerrellScott,
+    TraceAssertion,
+    TraceAssertionTask,
     _get_log_level,
     _log_json,
 )

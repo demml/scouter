@@ -1,6 +1,7 @@
 # mypy: disable-error-code="attr-defined"
 
 from .._scouter import (
+    AggregationType,
     AlignedEvalResult,
     AssertionTask,
     ComparisonOperator,
@@ -12,9 +13,8 @@ from .._scouter import (
     GenAIEvalSet,
     GenAIEvalTaskResult,
     LLMJudgeTask,
-    SpanStatus,
-    AggregationType,
     SpanFilter,
+    SpanStatus,
     TraceAssertion,
     TraceAssertionTask,
 )
