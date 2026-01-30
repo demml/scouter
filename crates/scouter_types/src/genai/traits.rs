@@ -1,6 +1,6 @@
 use crate::genai::{
     AssertionResult, AssertionTask, ComparisonOperator, EvaluationTask, EvaluationTaskType,
-    LLMJudgeTask,
+    LLMJudgeTask, TraceAssertionTask,
 };
 use serde_json::Value;
 use std::fmt::Debug;
@@ -34,6 +34,7 @@ pub fn separate_tasks(tasks: Vec<EvaluationTask>) -> (Vec<AssertionTask>, Vec<LL
         match task {
             EvaluationTask::Assertion(a) => assertions.push(*a),
             EvaluationTask::LLMJudge(j) => llm_judges.push(*j),
+            _ => todo!("Handle other task types"),
         }
     }
 

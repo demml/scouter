@@ -13,8 +13,9 @@ pub use scouter_types::{
     cron::*,
     custom::{CustomDriftProfile, CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig},
     genai::{
-        AssertionTask, ComparisonOperator, GenAIAlertConfig, GenAIEvalConfig, GenAIEvalProfile,
-        GenAIEvalResultSet, GenAIEvalSet, LLMJudgeTask,
+        AggregationType, AssertionTask, ComparisonOperator, GenAIAlertConfig, GenAIEvalConfig,
+        GenAIEvalProfile, GenAIEvalResultSet, GenAIEvalSet, LLMJudgeTask, SpanFilter, SpanStatus,
+        TraceAssertion, TraceAssertionTask,
     },
     psi::{
         Bin, BinnedPsiFeatureMetrics, BinnedPsiMetric, PsiAlertConfig, PsiChiSquareThreshold,

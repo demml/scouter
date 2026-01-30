@@ -167,6 +167,9 @@ pub enum EvaluationError {
 
     #[error("Expected an integer index or a slice")]
     IndexOrSliceExpected,
+
+    #[error("Invalid sequence matches operation")]
+    InvalidSequenceMatchesOperation,
 }
 
 impl From<pythonize::PythonizeError> for EvaluationError {

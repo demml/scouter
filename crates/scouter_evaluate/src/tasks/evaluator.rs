@@ -267,6 +267,7 @@ impl AssertionEvaluator {
             ComparisonOperator::IsEmpty => Self::check_is_empty(actual),
             ComparisonOperator::IsNotEmpty => Ok(!Self::check_is_empty(actual)?),
             ComparisonOperator::HasUniqueItems => Self::check_has_unique_items(actual),
+            ComparisonOperator::SequenceMatches => Self::check_sequence_matches(actual, expected),
 
             // String Operators
             ComparisonOperator::IsAlphabetic => Self::check_is_alphabetic(actual),
@@ -408,6 +409,15 @@ impl AssertionEvaluator {
                 Ok(actual_num >= min && actual_num <= max)
             }
             _ => Err(EvaluationError::InvalidRangeFormat),
+        }
+    }
+
+    fn check_sequence_matches(actual: &Value, expected: &Value) -> Result<bool, EvaluationError> {
+        match (actual, expected) {
+            (Value::Array(actual_arr), Value::Array(expected_arr)) => {
+                Ok(actual_arr == expected_arr)
+            }
+            _ => Err(EvaluationError::InvalidSequenceMatchesOperation),
         }
     }
 

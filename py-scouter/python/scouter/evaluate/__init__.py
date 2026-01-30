@@ -12,6 +12,11 @@ from .._scouter import (
     GenAIEvalSet,
     GenAIEvalTaskResult,
     LLMJudgeTask,
+    SpanStatus,
+    AggregationType,
+    SpanFilter,
+    TraceAssertion,
+    TraceAssertionTask,
 )
 
 __all__ = [
@@ -26,4 +31,9 @@ __all__ = [
     "LLMJudgeTask",
     "AssertionTask",
     "ComparisonOperator",
+    "TraceAssertion",
+    "TraceAssertionTask",
+    "SpanStatus",
+    "AggregationType",
+    "SpanFilter",
 ]

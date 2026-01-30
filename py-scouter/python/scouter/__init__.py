@@ -50,6 +50,11 @@ from ._scouter import (  # genai
     PsiDriftProfile,
     QuantileBinning,
     Queue,
+    SpanStatus,
+    AggregationType,
+    SpanFilter,
+    TraceAssertion,
+    TraceAssertionTask,
 )
 from ._scouter import QueueFeature as Feature
 from ._scouter import (  # genai
@@ -146,4 +151,9 @@ __all__ = [
     "AssertionTask",
     "ComparisonOperator",
     "GenAIEvalResults",
+    "TraceAssertion",
+    "TraceAssertionTask",
+    "SpanStatus",
+    "AggregationType",
+    "SpanFilter",
 ]

@@ -389,10 +389,428 @@ impl TaskAccessor for LLMJudgeTask {
     }
 }
 
+#[pyclass]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum SpanStatus {
+    Ok,
+    Error,
+    Unset,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PyValueWrapper(pub Value);
+
+impl<'py> IntoPyObject<'py> for PyValueWrapper {
+    type Target = PyAny; // the Python type
+    type Output = Bound<'py, Self::Target>;
+    type Error = std::convert::Infallible;
+
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        Ok(pythonize(py, &self.0).unwrap())
+    }
+}
+
+impl<'a, 'py> FromPyObject<'a, 'py> for PyValueWrapper {
+    type Error = TypeError;
+
+    fn extract(ob: pyo3::Borrowed<'a, 'py, pyo3::PyAny>) -> Result<Self, Self::Error> {
+        let value: Value = depythonize(&ob)?;
+        Ok(PyValueWrapper(value))
+    }
+}
+
+/// Filter configuration for selecting spans to assert on
+#[pyclass]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum SpanFilter {
+    /// Match spans by exact name
+    ByName { name: String },
+
+    /// Match spans by name pattern (regex)
+    ByNamePattern { pattern: String },
+
+    /// Match spans with specific attribute key
+    WithAttribute { key: String },
+
+    /// Match spans with specific attribute key-value pair
+    WithAttributeValue { key: String, value: PyValueWrapper },
+
+    /// Match spans by status code
+    WithStatus { status: SpanStatus },
+
+    /// Match spans with duration constraints
+    WithDuration {
+        min_ms: Option<f64>,
+        max_ms: Option<f64>,
+    },
+
+    /// Match a sequence of span names in order
+    Sequence { names: Vec<String> },
+
+    /// Combine multiple filters with AND logic
+    And { filters: Vec<SpanFilter> },
+
+    /// Combine multiple filters with OR logic
+    Or { filters: Vec<SpanFilter> },
+}
+
+#[pymethods]
+impl SpanFilter {
+    #[staticmethod]
+    pub fn by_name(name: String) -> Self {
+        SpanFilter::ByName { name }
+    }
+
+    #[staticmethod]
+    pub fn by_name_pattern(pattern: String) -> Self {
+        SpanFilter::ByNamePattern { pattern }
+    }
+
+    #[staticmethod]
+    pub fn with_attribute(key: String) -> Self {
+        SpanFilter::WithAttribute { key }
+    }
+
+    #[staticmethod]
+    pub fn with_status(status: SpanStatus) -> Self {
+        SpanFilter::WithStatus { status }
+    }
+
+    #[staticmethod]
+    pub fn with_duration(min_ms: Option<f64>, max_ms: Option<f64>) -> Self {
+        SpanFilter::WithDuration { min_ms, max_ms }
+    }
+
+    #[staticmethod]
+    pub fn sequence(names: Vec<String>) -> Self {
+        SpanFilter::Sequence { names }
+    }
+
+    pub fn and(&self, other: SpanFilter) -> Self {
+        match self {
+            SpanFilter::And { filters } => {
+                let mut new_filters = filters.clone();
+                new_filters.push(other);
+                SpanFilter::And {
+                    filters: new_filters,
+                }
+            }
+            _ => SpanFilter::And {
+                filters: vec![self.clone(), other],
+            },
+        }
+    }
+
+    pub fn or(&self, other: SpanFilter) -> Self {
+        match self {
+            SpanFilter::Or { filters } => {
+                let mut new_filters = filters.clone();
+                new_filters.push(other);
+                SpanFilter::Or {
+                    filters: new_filters,
+                }
+            }
+            _ => SpanFilter::Or {
+                filters: vec![self.clone(), other],
+            },
+        }
+    }
+}
+
+#[pyclass]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum AggregationType {
+    Count,
+    Sum,
+    Average,
+    Min,
+    Max,
+    First,
+    Last,
+}
+
+/// Unified assertion target that can operate on traces or filtered spans
+#[pyclass]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum TraceAssertion {
+    /// Check if spans exist in a specific order
+    SpanSequence { span_names: Vec<String> },
+
+    /// Check if all specified span names exist (order doesn't matter)
+    SpanSet { span_names: Vec<String> },
+
+    /// Count spans matching a filter
+    SpanCount { filter: SpanFilter },
+
+    /// Check if any span matching filter exists
+    SpanExists { filter: SpanFilter },
+
+    /// Get attribute value from span(s) matching filter
+    SpanAttribute {
+        filter: SpanFilter,
+        attribute_key: String,
+    },
+
+    /// Get duration of span(s) matching filter
+    SpanDuration { filter: SpanFilter },
+
+    /// Aggregate a numeric attribute across filtered spans
+    SpanAggregation {
+        filter: SpanFilter,
+        attribute_key: String,
+        aggregation: AggregationType,
+    },
+
+    /// Check total duration of entire trace
+    TraceDuration {},
+
+    /// Count total spans in trace
+    TraceSpanCount {},
+
+    /// Count spans with errors in trace
+    TraceErrorCount {},
+
+    /// Count unique services in trace
+    TraceServiceCount {},
+
+    /// Get maximum depth of span tree
+    TraceMaxDepth {},
+
+    /// Get trace-level attribute
+    TraceAttribute { attribute_key: String },
+}
+
+#[pymethods]
+impl TraceAssertion {
+    #[staticmethod]
+    pub fn span_sequence(span_names: Vec<String>) -> Self {
+        TraceAssertion::SpanSequence { span_names }
+    }
+
+    #[staticmethod]
+    pub fn span_set(span_names: Vec<String>) -> Self {
+        TraceAssertion::SpanSet { span_names }
+    }
+
+    #[staticmethod]
+    pub fn span_count(filter: SpanFilter) -> Self {
+        TraceAssertion::SpanCount { filter }
+    }
+
+    #[staticmethod]
+    pub fn span_exists(filter: SpanFilter) -> Self {
+        TraceAssertion::SpanExists { filter }
+    }
+
+    #[staticmethod]
+    pub fn span_attribute(filter: SpanFilter, attribute_key: String) -> Self {
+        TraceAssertion::SpanAttribute {
+            filter,
+            attribute_key,
+        }
+    }
+
+    #[staticmethod]
+    pub fn span_duration(filter: SpanFilter) -> Self {
+        TraceAssertion::SpanDuration { filter }
+    }
+
+    #[staticmethod]
+    pub fn span_aggregation(
+        filter: SpanFilter,
+        attribute_key: String,
+        aggregation: AggregationType,
+    ) -> Self {
+        TraceAssertion::SpanAggregation {
+            filter,
+            attribute_key,
+            aggregation,
+        }
+    }
+
+    #[staticmethod]
+    pub fn trace_duration() -> Self {
+        TraceAssertion::TraceDuration {}
+    }
+
+    #[staticmethod]
+    pub fn trace_span_count() -> Self {
+        TraceAssertion::TraceSpanCount {}
+    }
+
+    #[staticmethod]
+    pub fn trace_error_count() -> Self {
+        TraceAssertion::TraceErrorCount {}
+    }
+
+    #[staticmethod]
+    pub fn trace_service_count() -> Self {
+        TraceAssertion::TraceServiceCount {}
+    }
+
+    #[staticmethod]
+    pub fn trace_max_depth() -> Self {
+        TraceAssertion::TraceMaxDepth {}
+    }
+
+    #[staticmethod]
+    pub fn trace_attribute(attribute_key: String) -> Self {
+        TraceAssertion::TraceAttribute { attribute_key }
+    }
+}
+
+#[pyclass]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TraceAssertionTask {
+    #[pyo3(get, set)]
+    pub id: String,
+
+    #[pyo3(get, set)]
+    pub assertion: TraceAssertion,
+
+    #[pyo3(get, set)]
+    pub operator: ComparisonOperator,
+
+    pub expected_value: Value,
+
+    #[pyo3(get, set)]
+    pub description: Option<String>,
+
+    #[pyo3(get, set)]
+    pub depends_on: Vec<String>,
+
+    pub task_type: EvaluationTaskType,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<AssertionResult>,
+
+    pub condition: bool,
+}
+
+#[pymethods]
+impl TraceAssertionTask {
+    /// Creates a new TraceAssertionTask
+    ///
+    /// # Examples
+    /// ```python
+    /// # Check execution order of spans
+    /// task = TraceAssertionTask(
+    ///     id="verify_agent_workflow",
+    ///     assertion=TraceAssertion.span_sequence(["call_tool", "run_agent", "double_check"]),
+    ///     operator=ComparisonOperator.SequenceMatches,
+    ///     expected_value=True
+    /// )
+    ///
+    /// # Check all required spans exist
+    /// task = TraceAssertionTask(
+    ///     id="verify_required_steps",
+    ///     assertion=TraceAssertion.span_set(["call_tool", "run_agent", "double_check"]),
+    ///     operator=ComparisonOperator.ContainsAll,
+    ///     expected_value=True
+    /// )
+    ///
+    /// # Check total trace duration
+    /// task = TraceAssertionTask(
+    ///     id="verify_performance",
+    ///     assertion=TraceAssertion.trace_duration(),
+    ///     operator=ComparisonOperator.LessThan,
+    ///     expected_value=5000.0
+    /// )
+    ///
+    /// # Check count of specific spans
+    /// task = TraceAssertionTask(
+    ///     id="verify_retry_count",
+    ///     assertion=TraceAssertion.span_count(
+    ///         SpanFilter.by_name("retry_operation")
+    ///     ),
+    ///     operator=ComparisonOperator.LessThanOrEqual,
+    ///     expected_value=3
+    /// )
+    ///
+    /// # Check span attribute
+    /// task = TraceAssertionTask(
+    ///     id="verify_model_used",
+    ///     assertion=TraceAssertion.span_attribute(
+    ///         SpanFilter.by_name("llm.generate"),
+    ///         "model"
+    ///     ),
+    ///     operator=ComparisonOperator.Equals,
+    ///     expected_value="gpt-4"
+    /// )
+    /// ```
+    #[new]
+    /// Creates a new TraceAssertionTask
+    #[pyo3(signature = (id, assertion, expected_value, operator, description=None, depends_on=None, condition=None))]
+    pub fn new(
+        id: String,
+        assertion: TraceAssertion,
+        expected_value: &Bound<'_, PyAny>,
+        operator: ComparisonOperator,
+        description: Option<String>,
+        depends_on: Option<Vec<String>>,
+        condition: Option<bool>,
+    ) -> Result<Self, TypeError> {
+        let expected_value = depythonize(expected_value)?;
+        Ok(Self {
+            id: id.to_lowercase(),
+            assertion,
+            operator,
+            expected_value,
+            description,
+            task_type: EvaluationTaskType::TraceAssertion,
+            depends_on: depends_on.unwrap_or_default(),
+            result: None,
+            condition: condition.unwrap_or(false),
+        })
+    }
+
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        PyHelperFuncs::__str__(self)
+    }
+
+    #[getter]
+    pub fn get_expected_value<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TypeError> {
+        let py_value = pythonize(py, &self.expected_value)?;
+        Ok(py_value)
+    }
+}
+
+impl TaskAccessor for TraceAssertionTask {
+    fn field_path(&self) -> Option<&str> {
+        None
+    }
+
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn operator(&self) -> &ComparisonOperator {
+        &self.operator
+    }
+
+    fn task_type(&self) -> &EvaluationTaskType {
+        &self.task_type
+    }
+
+    fn expected_value(&self) -> &Value {
+        &self.expected_value
+    }
+
+    fn depends_on(&self) -> &[String] {
+        &self.depends_on
+    }
+
+    fn add_result(&mut self, result: AssertionResult) {
+        self.result = Some(result);
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum EvaluationTask {
     Assertion(Box<AssertionTask>),
     LLMJudge(Box<LLMJudgeTask>),
+    TraceAssertion(Box<TraceAssertionTask>),
 }
 
 impl TaskAccessor for EvaluationTask {
@@ -400,6 +818,7 @@ impl TaskAccessor for EvaluationTask {
         match self {
             EvaluationTask::Assertion(t) => t.field_path(),
             EvaluationTask::LLMJudge(t) => t.field_path(),
+            EvaluationTask::TraceAssertion(t) => t.field_path(),
         }
     }
 
@@ -407,6 +826,7 @@ impl TaskAccessor for EvaluationTask {
         match self {
             EvaluationTask::Assertion(t) => t.id(),
             EvaluationTask::LLMJudge(t) => t.id(),
+            EvaluationTask::TraceAssertion(t) => t.id(),
         }
     }
 
@@ -414,6 +834,7 @@ impl TaskAccessor for EvaluationTask {
         match self {
             EvaluationTask::Assertion(t) => t.task_type(),
             EvaluationTask::LLMJudge(t) => t.task_type(),
+            EvaluationTask::TraceAssertion(t) => t.task_type(),
         }
     }
 
@@ -421,6 +842,7 @@ impl TaskAccessor for EvaluationTask {
         match self {
             EvaluationTask::Assertion(t) => t.operator(),
             EvaluationTask::LLMJudge(t) => t.operator(),
+            EvaluationTask::TraceAssertion(t) => t.operator(),
         }
     }
 
@@ -428,6 +850,7 @@ impl TaskAccessor for EvaluationTask {
         match self {
             EvaluationTask::Assertion(t) => t.expected_value(),
             EvaluationTask::LLMJudge(t) => t.expected_value(),
+            EvaluationTask::TraceAssertion(t) => t.expected_value(),
         }
     }
 
@@ -435,6 +858,7 @@ impl TaskAccessor for EvaluationTask {
         match self {
             EvaluationTask::Assertion(t) => t.depends_on(),
             EvaluationTask::LLMJudge(t) => t.depends_on(),
+            EvaluationTask::TraceAssertion(t) => t.depends_on(),
         }
     }
 
@@ -442,6 +866,7 @@ impl TaskAccessor for EvaluationTask {
         match self {
             EvaluationTask::Assertion(t) => t.add_result(result),
             EvaluationTask::LLMJudge(t) => t.add_result(result),
+            EvaluationTask::TraceAssertion(t) => t.add_result(result),
         }
     }
 }
@@ -466,7 +891,6 @@ impl EvaluationTasks {
     }
 }
 
-// Implement From trait for automatic conversion
 impl From<AssertionTask> for EvaluationTask {
     fn from(task: AssertionTask) -> Self {
         EvaluationTask::Assertion(Box::new(task))
@@ -530,6 +954,7 @@ pub enum ComparisonOperator {
     IsZero,
 
     // Collection/Array Operators
+    SequenceMatches,
     ContainsAll,
     ContainsAny,
     ContainsNone,
@@ -606,6 +1031,7 @@ impl FromStr for ComparisonOperator {
             "IsEmpty" => Ok(ComparisonOperator::IsEmpty),
             "IsNotEmpty" => Ok(ComparisonOperator::IsNotEmpty),
             "HasUniqueItems" => Ok(ComparisonOperator::HasUniqueItems),
+            "SequenceMatches" => Ok(ComparisonOperator::SequenceMatches),
 
             // String
             "IsAlphabetic" => Ok(ComparisonOperator::IsAlphabetic),
@@ -672,6 +1098,7 @@ impl ComparisonOperator {
             ComparisonOperator::IsEmpty => "IsEmpty",
             ComparisonOperator::IsNotEmpty => "IsNotEmpty",
             ComparisonOperator::HasUniqueItems => "HasUniqueItems",
+            ComparisonOperator::SequenceMatches => "SequenceMatches",
 
             // String
             ComparisonOperator::IsAlphabetic => "IsAlphabetic",
@@ -779,6 +1206,7 @@ pub enum EvaluationTaskType {
     LLMJudge,
     Conditional,
     HumanValidation,
+    TraceAssertion,
 }
 
 impl Display for EvaluationTaskType {
@@ -788,6 +1216,7 @@ impl Display for EvaluationTaskType {
             EvaluationTaskType::LLMJudge => "LLMJudge",
             EvaluationTaskType::Conditional => "Conditional",
             EvaluationTaskType::HumanValidation => "HumanValidation",
+            EvaluationTaskType::TraceAssertion => "TraceAssertion",
         };
         write!(f, "{}", task_type_str)
     }
@@ -802,6 +1231,7 @@ impl FromStr for EvaluationTaskType {
             "LLMJudge" => Ok(EvaluationTaskType::LLMJudge),
             "Conditional" => Ok(EvaluationTaskType::Conditional),
             "HumanValidation" => Ok(EvaluationTaskType::HumanValidation),
+            "TraceAssertion" => Ok(EvaluationTaskType::TraceAssertion),
             _ => Err(TypeError::InvalidEvalType(s.to_string())),
         }
     }
@@ -814,6 +1244,7 @@ impl EvaluationTaskType {
             EvaluationTaskType::LLMJudge => "LLMJudge",
             EvaluationTaskType::Conditional => "Conditional",
             EvaluationTaskType::HumanValidation => "HumanValidation",
+            EvaluationTaskType::TraceAssertion => "TraceAssertion",
         }
     }
 }
