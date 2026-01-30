@@ -158,6 +158,9 @@ pub enum TypeError {
 
     #[error("{0}")]
     FailedToCreateProfile(String),
+
+    #[error("Duplicate task IDs found in evaluation tasks")]
+    DuplicateTaskIds,
 }
 
 impl From<pythonize::PythonizeError> for TypeError {
@@ -358,9 +361,6 @@ pub enum ProfileError {
 
     #[error("Detected circular dependency in evaluation tasks")]
     CircularDependency,
-
-    #[error("Duplicate task IDs found in evaluation tasks")]
-    DuplicateTaskIds,
 }
 
 impl From<ProfileError> for PyErr {
