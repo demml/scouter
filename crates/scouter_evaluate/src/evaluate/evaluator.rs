@@ -63,6 +63,14 @@ impl ExecutionContext {
                         scoped_context.insert(dep_id.clone(), response.clone());
                     }
                 }
+
+                Some(TaskType::TraceAssertion) => {
+                    // Trace assertions store their results in the assertion store
+                    let store = self.assertion_store.read().await;
+                    if let Some(result) = store.retrieve(dep_id) {
+                        scoped_context.insert(dep_id.clone(), result.2.actual.clone());
+                    }
+                }
                 None => {}
             }
         }
@@ -186,6 +194,13 @@ impl DependencyChecker {
                 .await
                 .retrieve(task_id)
                 .is_some(),
+            Some(TaskType::TraceAssertion) => self
+                .context
+                .assertion_store
+                .read()
+                .await
+                .retrieve(task_id)
+                .is_some(),
             None => false,
         }
     }
@@ -243,36 +258,42 @@ impl TaskExecutor {
             return Ok(());
         }
 
-        let (assertions, judges) = self.partition_tasks(executable_tasks).await;
+        let (assertions, judges, traces_assertions) = self.partition_tasks(executable_tasks).await;
 
         debug!(
-            "Executing level with {} assertions and {} LLM judges",
+            "Executing level with {} assertions, {} LLM judges, and {} trace assertions",
             assertions.len(),
-            judges.len()
+            judges.len(),
+            traces_assertions.len()
         );
 
         let _result = tokio::try_join!(
             self.execute_assertions(&assertions),
-            self.execute_llm_judges(&judges)
+            self.execute_llm_judges(&judges) //self.execute_trace_assertions(&traces_assertions)
         )?;
 
         Ok(())
     }
 
-    async fn partition_tasks<'a>(&self, task_ids: Vec<&'a str>) -> (Vec<&'a str>, Vec<&'a str>) {
+    async fn partition_tasks<'a>(
+        &self,
+        task_ids: Vec<&'a str>,
+    ) -> (Vec<&'a str>, Vec<&'a str>, Vec<&'a str>) {
         let registry = self.context.task_registry.read().await;
         let mut assertions = Vec::new();
+        let mut traces_assertions = Vec::new();
         let mut judges = Vec::new();
 
         for id in task_ids {
             match registry.get_type(id) {
                 Some(TaskType::Assertion) => assertions.push(id),
                 Some(TaskType::LLMJudge) => judges.push(id),
+                Some(TaskType::TraceAssertion) => traces_assertions.push(id),
                 None => continue,
             }
         }
 
-        (assertions, judges)
+        (assertions, judges, traces_assertions)
     }
 
     async fn execute_assertions(&self, task_ids: &[&str]) -> Result<(), EvaluationError> {
@@ -575,6 +596,13 @@ impl GenAIEvaluator {
 
         for task in &profile.tasks.judge {
             registry.register(task.id.clone(), TaskType::LLMJudge, task.condition);
+            if !task.depends_on.is_empty() {
+                registry.register_dependencies(task.id.clone(), task.depends_on.clone());
+            }
+        }
+
+        for task in &profile.tasks.trace {
+            registry.register(task.id.clone(), TaskType::TraceAssertion, task.condition);
             if !task.depends_on.is_empty() {
                 registry.register_dependencies(task.id.clone(), task.depends_on.clone());
             }

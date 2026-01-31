@@ -17,6 +17,7 @@ from .._scouter import (
     SpanStatus,
     TraceAssertion,
     TraceAssertionTask,
+    execute_trace_assertion_tasks,
 )
 
 __all__ = [
@@ -36,4 +37,5 @@ __all__ = [
     "SpanStatus",
     "AggregationType",
     "SpanFilter",
+    "execute_trace_assertion_tasks",
 ]

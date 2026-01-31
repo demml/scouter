@@ -13,9 +13,9 @@ pub use scouter_types::{
     cron::*,
     custom::{CustomDriftProfile, CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig},
     genai::{
-        AggregationType, AssertionTask, ComparisonOperator, GenAIAlertConfig, GenAIEvalConfig,
-        GenAIEvalProfile, GenAIEvalResultSet, GenAIEvalSet, LLMJudgeTask, SpanFilter, SpanStatus,
-        TraceAssertion, TraceAssertionTask,
+        AggregationType, AssertionResult, AssertionResults, AssertionTask, ComparisonOperator,
+        GenAIAlertConfig, GenAIEvalConfig, GenAIEvalProfile, GenAIEvalResultSet, GenAIEvalSet,
+        LLMJudgeTask, SpanFilter, SpanStatus, TraceAssertion, TraceAssertionTask,
     },
     psi::{
         Bin, BinnedPsiFeatureMetrics, BinnedPsiMetric, PsiAlertConfig, PsiChiSquareThreshold,
@@ -82,6 +82,7 @@ pub use scouter_evaluate::{
         TaskComparison, WorkflowComparison,
     },
     genai::GenAIEvalDataset,
+    tasks::trace::execute_trace_assertion_tasks,
 };
 pub use scouter_tracing::error::TraceError;
 pub use scouter_tracing::exporter::{

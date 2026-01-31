@@ -2,7 +2,9 @@ use crate::error::TypeError;
 use crate::genai::{AssertionTask, LLMJudgeTask, TraceAssertionTask};
 use pyo3::prelude::*;
 use pyo3::types::PyList;
+use pythonize::depythonize;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::BTreeSet;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]

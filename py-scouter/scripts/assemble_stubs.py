@@ -9,6 +9,8 @@ STUB_FILES = [
     "header.pyi",
     "logging.pyi",
     "potato.pyi",
+    "evaluate.pyi",
+    "mock.pyi",
     "scouter.pyi",
 ]
 

@@ -9,6 +9,7 @@ use serde_json::{json, Value};
 use std::collections::HashSet;
 use std::sync::Arc;
 
+#[derive(Debug, Clone)]
 pub struct TraceContextBuilder {
     /// We want to share trace spans across multiple evaluations
     spans: Arc<Vec<TraceSpan>>,

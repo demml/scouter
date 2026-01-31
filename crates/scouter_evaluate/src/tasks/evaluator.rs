@@ -197,15 +197,90 @@ impl AssertionEvaluator {
         }
     }
 
+    fn are_same_type(actual: &Value, expected: &Value) -> bool {
+        match (actual, expected) {
+            (Value::Null, Value::Null) => true,
+            (Value::Bool(_), Value::Bool(_)) => true,
+            (Value::Number(a), Value::Number(b)) => {
+                // match underlying numeric types
+                (a.is_i64() && b.is_i64())
+                    || (a.is_u64() && b.is_u64())
+                    || (a.is_f64() && b.is_f64())
+            }
+            (Value::String(_), Value::String(_)) => true,
+            (Value::Array(_), Value::Array(_)) => true,
+            (Value::Object(_), Value::Object(_)) => true,
+            _ => false,
+        }
+    }
+
+    /// Normalizes values for comparison by coercing numeric types
+    ///
+    /// Handles cases where semantically equal values have different JSON types:
+    /// - 300.0 (float) and 300 (int) should be considered equal
+    /// - Preserves original type for non-numeric comparisons
+    /// - this isn't going to cover every edge case, but should handle the common scenarios like
+    /// when a user specifies an expected integer but the actual value is a float
+    fn normalize_for_comparison(actual: &Value, expected: &Value) -> (Value, Value) {
+        match (actual, expected) {
+            // Both are already numbers - try to normalize to comparable form
+            (Value::Number(a), Value::Number(e)) => {
+                let a_num = a.as_f64().unwrap_or(0.0);
+                let e_num = e.as_f64().unwrap_or(0.0);
+
+                // If both represent integers, compare as integers
+                if a_num.fract() == 0.0 && e_num.fract() == 0.0 {
+                    (
+                        Value::Number((a_num as i64).into()),
+                        Value::Number((e_num as i64).into()),
+                    )
+                } else {
+                    // Compare as floats
+                    (serde_json::json!(a_num), serde_json::json!(e_num))
+                }
+            }
+            // One is string, one is number - try to parse string as number
+            (Value::String(s), Value::Number(n)) | (Value::Number(n), Value::String(s)) => {
+                if let Ok(parsed) = s.parse::<f64>() {
+                    let num_val = n.as_f64().unwrap_or(0.0);
+                    (serde_json::json!(parsed), serde_json::json!(num_val))
+                } else {
+                    (actual.clone(), expected.clone())
+                }
+            }
+            // No normalization needed
+            _ => (actual.clone(), expected.clone()),
+        }
+    }
+
     fn compare_values(
         actual: &Value,
         operator: &ComparisonOperator,
         expected: &Value,
     ) -> Result<bool, EvaluationError> {
+        // resolve
+
         match operator {
             // Existing operators
-            ComparisonOperator::Equals => Ok(actual == expected),
-            ComparisonOperator::NotEqual => Ok(actual != expected),
+            ComparisonOperator::Equals => {
+                // check type first to avoid unnecessary coercion/clones
+                if !Self::are_same_type(actual, expected) {
+                    let (norm_actual, norm_expected) =
+                        Self::normalize_for_comparison(actual, expected);
+                    Ok(norm_actual == norm_expected)
+                } else {
+                    Ok(actual == expected)
+                }
+            }
+            ComparisonOperator::NotEqual => {
+                if !Self::are_same_type(actual, expected) {
+                    let (norm_actual, norm_expected) =
+                        Self::normalize_for_comparison(actual, expected);
+                    Ok(norm_actual != norm_expected)
+                } else {
+                    Ok(actual != expected)
+                }
+            }
             ComparisonOperator::GreaterThan => {
                 Self::compare_numeric(actual, expected, |a, b| a > b)
             }

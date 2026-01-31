@@ -6094,6 +6094,7 @@ dependencies = [
 name = "scouter-mocks"
 version = "0.16.0"
 dependencies = [
+ "chrono",
  "mockito",
  "potato-head",
  "pyo3",
@@ -6101,6 +6102,7 @@ dependencies = [
  "scouter-client",
  "scouter-server",
  "scouter-tonic",
+ "scouter-types",
  "serde_json",
  "thiserror 2.0.18",
  "tokio",

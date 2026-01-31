@@ -8,14 +8,20 @@ use pyo3::types::{PyBool, PyFloat, PyInt, PyList, PyString};
 use pythonize::{depythonize, pythonize};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::str::FromStr;
 
+#[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AssertionResult {
+    #[pyo3(get)]
     pub passed: bool,
     pub actual: Value,
+
+    #[pyo3(get)]
     pub message: String,
+
     pub expected: Value,
 }
 
@@ -33,6 +39,49 @@ impl AssertionResult {
             1.0
         } else {
             0.0
+        }
+    }
+}
+
+#[pymethods]
+impl AssertionResult {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+
+    #[getter]
+    pub fn get_actual<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TypeError> {
+        let py_value = pythonize(py, &self.actual)?;
+        Ok(py_value)
+    }
+
+    #[getter]
+    pub fn get_expected<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TypeError> {
+        let py_value = pythonize(py, &self.expected)?;
+        Ok(py_value)
+    }
+}
+
+#[pyclass]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AssertionResults {
+    #[pyo3(get)]
+    pub results: HashMap<String, AssertionResult>,
+}
+
+#[pymethods]
+impl AssertionResults {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+
+    pub fn __getitem__(&self, key: &str) -> Result<AssertionResult, TypeError> {
+        if let Some(result) = self.results.get(key) {
+            Ok(result.clone())
+        } else {
+            Err(TypeError::KeyNotFound {
+                key: key.to_string(),
+            })
         }
     }
 }
@@ -473,6 +522,12 @@ impl SpanFilter {
     }
 
     #[staticmethod]
+    pub fn with_attribute_value(key: String, value: &Bound<'_, PyAny>) -> Result<Self, TypeError> {
+        let value = PyValueWrapper(depythonize(value).unwrap());
+        Ok(SpanFilter::WithAttributeValue { key, value })
+    }
+
+    #[staticmethod]
     pub fn with_status(status: SpanStatus) -> Self {
         SpanFilter::WithStatus { status }
     }
@@ -754,6 +809,7 @@ impl TraceAssertionTask {
         condition: Option<bool>,
     ) -> Result<Self, TypeError> {
         let expected_value = depythonize(expected_value)?;
+
         Ok(Self {
             id: id.to_lowercase(),
             assertion,

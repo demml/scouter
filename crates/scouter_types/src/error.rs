@@ -161,6 +161,9 @@ pub enum TypeError {
 
     #[error("Duplicate task IDs found in evaluation tasks")]
     DuplicateTaskIds,
+
+    #[error("Key not found: {key}")]
+    KeyNotFound { key: String },
 }
 
 impl From<pythonize::PythonizeError> for TypeError {
