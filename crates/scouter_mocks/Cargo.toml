@@ -4,6 +4,7 @@ version = { workspace = true }
 edition = "2021"
 
 [dependencies]
+chrono = { workspace = true }
 pyo3 = { workspace = true }
 mockito = { workspace = true, optional = true }
 potato-head = { workspace = true , features = ["mock"] }
@@ -11,6 +12,7 @@ reqwest = { workspace = true, optional = true }
 scouter-tonic = { workspace = true, optional = true, features = ["all"] }
 scouter-client = { workspace = true }
 scouter-server = { workspace = true , optional = true, features = ["kafka", "rabbitmq", "redis_events"] }
+scouter-types = { workspace = true }
 serde_json = { workspace = true, optional = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }

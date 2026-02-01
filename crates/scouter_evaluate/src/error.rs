@@ -167,6 +167,18 @@ pub enum EvaluationError {
 
     #[error("Expected an integer index or a slice")]
     IndexOrSliceExpected,
+
+    #[error("Invalid sequence matches operation")]
+    InvalidSequenceMatchesOperation,
+
+    #[error("Invalid filter: {0}")]
+    InvalidFilter(String),
+
+    #[error("Trace data has no spans")]
+    NoRootSpan,
+
+    #[error("Attribute '{0}' not found in span")]
+    AttributeNotFound(String),
 }
 
 impl From<pythonize::PythonizeError> for EvaluationError {

@@ -12,18 +12,3 @@ pub trait EvaluationTask: Debug + Send + Sync {
     /// An EvaluationTaskResult containing the outcome of the task
     fn execute(&self, context: &Value) -> Result<AssertionResult, EvaluationError>;
 }
-
-/// Helper for mutably evaluation tasks for different task types
-pub trait EvaluateTaskMut {
-    fn evaluate_task(&self, context: &Value) -> Result<AssertionResult, EvaluationError>;
-}
-
-impl EvaluateTaskMut for TaskRef<'_> {
-    fn evaluate_task(&self, context: &Value) -> Result<AssertionResult, EvaluationError> {
-        let result = match self {
-            TaskRef::Assertion(assertion) => assertion.execute(context)?,
-            TaskRef::LLMJudge(judge) => judge.execute(context)?,
-        };
-        Ok(result)
-    }
-}

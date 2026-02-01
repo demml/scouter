@@ -8,7 +8,9 @@ use pyo3::prelude::*;
 use pyo3::types::{PyList, PySlice};
 use pyo3::IntoPyObjectExt;
 use scouter_state::app_state;
-use scouter_types::genai::{AssertionTask, GenAIEvalConfig, GenAIEvalProfile, LLMJudgeTask};
+use scouter_types::genai::{
+    AssertionTask, GenAIEvalConfig, GenAIEvalProfile, LLMJudgeTask, TraceAssertionTask,
+};
 use scouter_types::GenAIEvalRecord;
 use scouter_types::PyHelperFuncs;
 use serde::{Deserialize, Serialize};
@@ -163,12 +165,17 @@ impl GenAIEvalDataset {
 
     #[getter]
     pub fn llm_judge_tasks(&self) -> Vec<LLMJudgeTask> {
-        self.profile.llm_judge_tasks.clone()
+        self.profile.llm_judge_tasks()
     }
 
     #[getter]
     pub fn assertion_tasks(&self) -> Vec<AssertionTask> {
-        self.profile.assertion_tasks.clone()
+        self.profile.assertion_tasks()
+    }
+
+    #[getter]
+    pub fn trace_assertion_tasks(&self) -> Vec<TraceAssertionTask> {
+        self.profile.trace_assertion_tasks()
     }
 
     pub fn print_execution_plan(&self) -> Result<(), EvaluationError> {
