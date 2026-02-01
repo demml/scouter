@@ -110,9 +110,7 @@ def test_trace_attributes():
             TraceAssertionTask(
                 id="check_span_and_filter",
                 assertion=TraceAssertion.span_count(
-                    filter=SpanFilter.with_attribute(key="http.method").and_(
-                        SpanFilter.with_status(SpanStatus.Ok)
-                    ),
+                    filter=SpanFilter.with_attribute(key="http.method").and_(SpanFilter.with_status(SpanStatus.Ok)),
                 ),
                 operator=ComparisonOperator.Equals,
                 expected_value=1,
@@ -121,9 +119,7 @@ def test_trace_attributes():
             TraceAssertionTask(
                 id="check_span_or_filter",
                 assertion=TraceAssertion.span_count(
-                    filter=SpanFilter.with_attribute_value(
-                        key="http.method", value="GET"
-                    ).or_(
+                    filter=SpanFilter.with_attribute_value(key="http.method", value="GET").or_(
                         SpanFilter.with_attribute_value(key="model", value="gpt-4"),
                     ),
                 ),
@@ -172,17 +168,13 @@ def test_trace_sequence_pattern():
         tasks=[
             TraceAssertionTask(
                 id="check_sequence_pattern_exists",
-                assertion=TraceAssertion.SpanCount(
-                    filter=SpanFilter.sequence(names=["call_tool", "run_agent"])
-                ),
+                assertion=TraceAssertion.SpanCount(filter=SpanFilter.sequence(names=["call_tool", "run_agent"])),
                 operator=ComparisonOperator.Equals,
                 expected_value=2,
             ),
             TraceAssertionTask(
                 id="check_call_tool",
-                assertion=TraceAssertion.SpanCount(
-                    filter=SpanFilter.by_name("call_tool")
-                ),
+                assertion=TraceAssertion.SpanCount(filter=SpanFilter.by_name("call_tool")),
                 operator=ComparisonOperator.Equals,
                 expected_value=2,
             ),
