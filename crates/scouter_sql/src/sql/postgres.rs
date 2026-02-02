@@ -1455,7 +1455,7 @@ mod tests {
                     task_type: scouter_types::genai::EvaluationTaskType::Assertion,
                     passed: true,
                     value: j as f64,
-                    field_path: Some(format!("field.path.{i}")),
+                    assertion: Assertion::FieldPath(Some(format!("field.path.{i}"))),
                     operator: scouter_types::genai::ComparisonOperator::Contains,
                     expected: Value::Null,
                     actual: Value::Null,

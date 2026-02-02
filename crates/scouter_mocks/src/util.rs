@@ -1,10 +1,13 @@
 use chrono::{DateTime, Duration, Utc};
 use pyo3::pyfunction;
 use scouter_types::sql::TraceSpan;
-use scouter_types::trace::Attribute;
 use serde_json::json;
 use serde_json::Value;
 
+#[cfg(feature = "server")]
+use scouter_types::trace::Attribute;
+
+#[cfg(feature = "server")]
 pub struct SpanBuilder {
     trace_id: String,
     service_name: String,
@@ -14,6 +17,7 @@ pub struct SpanBuilder {
     next_order: i32,
 }
 
+#[cfg(feature = "server")]
 impl SpanBuilder {
     pub fn new(trace_id: impl Into<String>, service_name: impl Into<String>) -> Self {
         let trace_id = trace_id.into();

@@ -9,7 +9,7 @@ use scouter_types::genai::{
     AssertionResult, ExecutionPlan, GenAIEvalProfile, GenAIEvalSet, TraceAssertionTask,
 };
 use scouter_types::sql::TraceSpan;
-use scouter_types::GenAIEvalRecord;
+use scouter_types::{Assertion, GenAIEvalRecord};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -251,7 +251,7 @@ impl TaskExecutor {
     fn new(
         context: ExecutionContext,
         profile: Arc<GenAIEvalProfile>,
-        spans: Vec<TraceSpan>,
+        spans: Arc<Vec<TraceSpan>>,
     ) -> Self {
         debug!("Creating TaskExecutor");
         let context_builder = TraceContextBuilder::new(spans);
@@ -349,6 +349,8 @@ impl TaskExecutor {
             .filter_map(|&task_id| self.profile.get_trace_assertion_by_id(task_id))
             .cloned()
             .collect();
+
+        debug!("Executing {} trace assertion tasks", tasks.len());
 
         let results = execute_trace_assertions(&self.context_builder, &tasks).inspect_err(|e| {
             error!("Failed to execute trace assertions: {:?}", e);
@@ -515,7 +517,7 @@ impl ResultCollector {
                     task_type: assertion.task_type.clone(),
                     passed: result.passed,
                     value: result.to_metric_value(),
-                    field_path: assertion.field_path.clone(),
+                    assertion: Assertion::FieldPath(assertion.field_path.clone()),
                     expected: result.expected.clone(),
                     actual: result.actual.clone(),
                     message: result.message.clone(),
@@ -549,13 +551,52 @@ impl ResultCollector {
                     task_type: judge.task_type.clone(),
                     passed: result.passed,
                     value: result.to_metric_value(),
-                    field_path: judge.field_path.clone(),
+                    assertion: Assertion::FieldPath(judge.field_path.clone()),
                     expected: judge.expected_value.clone(),
                     actual: result.actual.clone(),
                     message: result.message.clone(),
                     operator: judge.operator.clone(),
                     entity_uid: String::new(),
                     condition: judge.condition,
+                    stage,
+                });
+            }
+        }
+
+        for trace_assertion in &profile.tasks.trace {
+            if let Some((start_time, end_time, result)) = assert_store.retrieve(&trace_assertion.id)
+            {
+                if !trace_assertion.condition {
+                    if result.passed {
+                        passed_count += 1;
+                    } else {
+                        failed_count += 1;
+                    }
+                }
+
+                let stage = *self
+                    .context
+                    .task_stages
+                    .get(&trace_assertion.id)
+                    .unwrap_or(&-1);
+
+                records.push(scouter_types::GenAIEvalTaskResult {
+                    created_at: chrono::Utc::now(),
+                    start_time,
+                    end_time,
+                    record_uid: record.uid.clone(),
+                    entity_id: record.entity_id,
+                    task_id: trace_assertion.id.clone(),
+                    task_type: trace_assertion.task_type.clone(),
+                    passed: result.passed,
+                    value: result.to_metric_value(),
+                    assertion: Assertion::TraceAssertion(trace_assertion.assertion.clone()),
+                    expected: result.expected.clone(),
+                    actual: result.actual.clone(),
+                    message: result.message.clone(),
+                    operator: trace_assertion.operator.clone(),
+                    entity_uid: String::new(),
+                    condition: trace_assertion.condition,
                     stage,
                 });
             }
@@ -590,7 +631,7 @@ impl GenAIEvaluator {
     pub async fn process_event_record(
         record: &GenAIEvalRecord,
         profile: Arc<GenAIEvalProfile>,
-        spans: Vec<TraceSpan>,
+        spans: Arc<Vec<TraceSpan>>,
     ) -> Result<GenAIEvalSet, EvaluationError> {
         let begin = chrono::Utc::now();
 
@@ -598,6 +639,7 @@ impl GenAIEvaluator {
         Self::register_tasks(&mut registry, &profile);
 
         let execution_plan = profile.get_execution_plan()?;
+
         let context = ExecutionContext::new(record.context.clone(), registry, &execution_plan);
         let executor = TaskExecutor::new(context.clone(), profile.clone(), spans);
 
@@ -659,6 +701,13 @@ mod tests {
 
     use chrono::Utc;
     use potato_head::mock::{create_score_prompt, LLMTestServer};
+    use scouter_mocks::{
+        create_multi_service_trace, create_nested_trace, create_sequence_pattern_trace,
+        create_simple_trace, create_trace_with_attributes, create_trace_with_errors, init_tracing,
+    };
+    use scouter_types::genai::{
+        AggregationType, SpanFilter, SpanStatus, TraceAssertion, TraceAssertionTask,
+    };
     use scouter_types::genai::{
         AssertionTask, ComparisonOperator, GenAIAlertConfig, GenAIEvalConfig, GenAIEvalProfile,
         LLMJudgeTask,
@@ -786,6 +835,227 @@ mod tests {
         GenAIEvalProfile::new(drift_config, tasks).await.unwrap()
     }
 
+    async fn create_trace_profile_simple() -> GenAIEvalProfile {
+        let trace_task = TraceAssertionTask {
+            id: "check_span_sequence".to_string(),
+            assertion: TraceAssertion::SpanSequence {
+                span_names: vec![
+                    "root".to_string(),
+                    "child_1".to_string(),
+                    "child_2".to_string(),
+                ],
+            },
+            operator: ComparisonOperator::Equals,
+            expected_value: Value::Bool(true),
+            description: Some("Verify span execution order".to_string()),
+            task_type: EvaluationTaskType::TraceAssertion,
+            depends_on: vec![],
+            condition: false,
+            result: None,
+        };
+
+        let tasks = EvaluationTasks::new().add_task(trace_task).build();
+
+        let alert_config = GenAIAlertConfig::default();
+        let drift_config =
+            GenAIEvalConfig::new("scouter", "trace_test", "0.1.0", 1.0, alert_config, None)
+                .unwrap();
+
+        GenAIEvalProfile::new(drift_config, tasks).await.unwrap()
+    }
+
+    async fn create_trace_profile_with_filters() -> GenAIEvalProfile {
+        let span_count_task = TraceAssertionTask {
+            id: "count_error_spans".to_string(),
+            assertion: TraceAssertion::SpanCount {
+                filter: SpanFilter::WithStatus {
+                    status: SpanStatus::Error,
+                },
+            },
+            operator: ComparisonOperator::Equals,
+            expected_value: Value::Number(1.into()),
+            description: Some("Count spans with error status".to_string()),
+            task_type: EvaluationTaskType::TraceAssertion,
+            depends_on: vec![],
+            condition: false,
+            result: None,
+        };
+
+        let span_exists_task = TraceAssertionTask {
+            id: "check_recovery_span".to_string(),
+            assertion: TraceAssertion::SpanExists {
+                filter: SpanFilter::ByName {
+                    name: "recovery".to_string(),
+                },
+            },
+            operator: ComparisonOperator::Equals,
+            expected_value: Value::Bool(true),
+            description: Some("Verify recovery span exists".to_string()),
+            task_type: EvaluationTaskType::TraceAssertion,
+            depends_on: vec![],
+            condition: false,
+            result: None,
+        };
+
+        let tasks = EvaluationTasks::new()
+            .add_task(span_count_task)
+            .add_task(span_exists_task)
+            .build();
+
+        let alert_config = GenAIAlertConfig::default();
+        let drift_config =
+            GenAIEvalConfig::new("scouter", "trace_test", "0.1.0", 1.0, alert_config, None)
+                .unwrap();
+
+        GenAIEvalProfile::new(drift_config, tasks).await.unwrap()
+    }
+
+    async fn create_trace_profile_with_attributes() -> GenAIEvalProfile {
+        let attribute_task = TraceAssertionTask {
+            id: "check_model_name".to_string(),
+            assertion: TraceAssertion::SpanAttribute {
+                filter: SpanFilter::ByName {
+                    name: "api_call".to_string(),
+                },
+                attribute_key: "model".to_string(),
+            },
+            operator: ComparisonOperator::Equals,
+            expected_value: Value::String("gpt-4".to_string()),
+            description: Some("Verify model attribute".to_string()),
+            task_type: EvaluationTaskType::TraceAssertion,
+            depends_on: vec![],
+            condition: false,
+            result: None,
+        };
+
+        let aggregation_task = TraceAssertionTask {
+            id: "sum_token_output".to_string(),
+            assertion: TraceAssertion::SpanAggregation {
+                filter: SpanFilter::ByName {
+                    name: "api_call".to_string(),
+                },
+                attribute_key: "tokens.output".to_string(),
+                aggregation: AggregationType::Sum,
+            },
+            operator: ComparisonOperator::Equals,
+            expected_value: Value::Number(300.into()),
+            description: Some("Sum output tokens".to_string()),
+            task_type: EvaluationTaskType::TraceAssertion,
+            depends_on: vec![],
+            condition: false,
+            result: None,
+        };
+
+        let tasks = EvaluationTasks::new()
+            .add_task(attribute_task)
+            .add_task(aggregation_task)
+            .build();
+
+        let alert_config = GenAIAlertConfig::default();
+        let drift_config =
+            GenAIEvalConfig::new("scouter", "trace_test", "0.1.0", 1.0, alert_config, None)
+                .unwrap();
+
+        GenAIEvalProfile::new(drift_config, tasks).await.unwrap()
+    }
+
+    async fn create_trace_profile_complex() -> GenAIEvalProfile {
+        let sequence_count_task = TraceAssertionTask {
+            id: "count_tool_agent_sequence".to_string(),
+            assertion: TraceAssertion::SpanCount {
+                filter: SpanFilter::Sequence {
+                    names: vec!["call_tool".to_string(), "run_agent".to_string()],
+                },
+            },
+            operator: ComparisonOperator::Equals,
+            expected_value: Value::Number(2.into()),
+            description: Some("Count tool->agent sequences".to_string()),
+            task_type: EvaluationTaskType::TraceAssertion,
+            depends_on: vec![],
+            condition: false,
+            result: None,
+        };
+
+        let trace_duration_task = TraceAssertionTask {
+            id: "check_trace_duration".to_string(),
+            assertion: TraceAssertion::TraceDuration {},
+            operator: ComparisonOperator::LessThanOrEqual,
+            expected_value: Value::Number(1000.into()),
+            description: Some("Verify trace completes within 1s".to_string()),
+            task_type: EvaluationTaskType::TraceAssertion,
+            depends_on: vec![],
+            condition: false,
+            result: None,
+        };
+
+        let service_count_task = TraceAssertionTask {
+            id: "check_service_count".to_string(),
+            assertion: TraceAssertion::TraceServiceCount {},
+            operator: ComparisonOperator::Equals,
+            expected_value: Value::Number(1.into()),
+            description: Some("Verify single service".to_string()),
+            task_type: EvaluationTaskType::TraceAssertion,
+            depends_on: vec![],
+            condition: false,
+            result: None,
+        };
+
+        let tasks = EvaluationTasks::new()
+            .add_task(sequence_count_task)
+            .add_task(trace_duration_task)
+            .add_task(service_count_task)
+            .build();
+
+        let alert_config = GenAIAlertConfig::default();
+        let drift_config =
+            GenAIEvalConfig::new("scouter", "trace_test", "0.1.0", 1.0, alert_config, None)
+                .unwrap();
+
+        GenAIEvalProfile::new(drift_config, tasks).await.unwrap()
+    }
+
+    async fn create_trace_profile_with_dependencies() -> GenAIEvalProfile {
+        let error_check = TraceAssertionTask {
+            id: "check_has_errors".to_string(),
+            assertion: TraceAssertion::TraceErrorCount {},
+            operator: ComparisonOperator::GreaterThan,
+            expected_value: Value::Number(0.into()),
+            description: Some("Check if trace has errors".to_string()),
+            task_type: EvaluationTaskType::TraceAssertion,
+            depends_on: vec![],
+            condition: true,
+            result: None,
+        };
+
+        let recovery_check = TraceAssertionTask {
+            id: "check_recovery_exists".to_string(),
+            assertion: TraceAssertion::SpanExists {
+                filter: SpanFilter::ByName {
+                    name: "recovery".to_string(),
+                },
+            },
+            operator: ComparisonOperator::Equals,
+            expected_value: Value::Bool(true),
+            description: Some("Verify recovery span exists when errors present".to_string()),
+            task_type: EvaluationTaskType::TraceAssertion,
+            depends_on: vec!["check_has_errors".to_string()],
+            condition: false,
+            result: None,
+        };
+
+        let tasks = EvaluationTasks::new()
+            .add_task(error_check)
+            .add_task(recovery_check)
+            .build();
+
+        let alert_config = GenAIAlertConfig::default();
+        let drift_config =
+            GenAIEvalConfig::new("scouter", "trace_test", "0.1.0", 1.0, alert_config, None)
+                .unwrap();
+
+        GenAIEvalProfile::new(drift_config, tasks).await.unwrap()
+    }
+
     #[test]
     fn test_evaluator_assert_judge_all_pass() {
         let mut mock = LLMTestServer::new();
@@ -811,7 +1081,7 @@ mod tests {
         );
 
         let result_set = runtime.block_on(async {
-            GenAIEvaluator::process_event_record(&record, Arc::new(profile), vec![]).await
+            GenAIEvaluator::process_event_record(&record, Arc::new(profile), Arc::new(vec![])).await
         });
 
         let eval_set = result_set.unwrap();
@@ -849,7 +1119,7 @@ mod tests {
         );
 
         let result_set = runtime.block_on(async {
-            GenAIEvaluator::process_event_record(&record, Arc::new(profile), vec![]).await
+            GenAIEvaluator::process_event_record(&record, Arc::new(profile), Arc::new(vec![])).await
         });
 
         let eval_set = result_set.unwrap();
@@ -857,5 +1127,369 @@ mod tests {
         assert!(eval_set.failed_tasks() == 1);
 
         mock.stop_server().unwrap();
+    }
+
+    #[test]
+    fn test_evaluator_trace_simple_sequence() {
+        init_tracing();
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let profile = runtime.block_on(create_trace_profile_simple());
+        let spans = Arc::new(create_simple_trace());
+
+        let context = serde_json::json!({});
+        let record = GenAIEvalRecord::new_rs(
+            context,
+            Utc::now(),
+            "TRACE_UID_001".to_string(),
+            "ENTITY_001".to_string(),
+            None,
+            None,
+        );
+
+        let result = runtime.block_on(GenAIEvaluator::process_event_record(
+            &record,
+            Arc::new(profile),
+            spans,
+        ));
+
+        let eval_set = result.unwrap();
+        assert_eq!(eval_set.passed_tasks(), 1);
+        assert_eq!(eval_set.failed_tasks(), 0);
+    }
+
+    #[test]
+    fn test_evaluator_trace_error_detection() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let profile = runtime.block_on(create_trace_profile_with_filters());
+        let spans = Arc::new(create_trace_with_errors());
+
+        let context = serde_json::json!({});
+        let record = GenAIEvalRecord::new_rs(
+            context,
+            Utc::now(),
+            "TRACE_UID_002".to_string(),
+            "ENTITY_002".to_string(),
+            None,
+            None,
+        );
+
+        let result = runtime.block_on(GenAIEvaluator::process_event_record(
+            &record,
+            Arc::new(profile),
+            spans,
+        ));
+
+        let eval_set = result.unwrap();
+        assert_eq!(eval_set.passed_tasks(), 2);
+        assert_eq!(eval_set.failed_tasks(), 0);
+    }
+
+    #[test]
+    fn test_evaluator_trace_attribute_extraction() {
+        init_tracing();
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let profile = runtime.block_on(create_trace_profile_with_attributes());
+        let spans = Arc::new(create_trace_with_attributes());
+
+        let context = serde_json::json!({});
+        let record = GenAIEvalRecord::new_rs(
+            context,
+            Utc::now(),
+            "TRACE_UID_003".to_string(),
+            "ENTITY_003".to_string(),
+            None,
+            None,
+        );
+
+        let result = runtime.block_on(GenAIEvaluator::process_event_record(
+            &record,
+            Arc::new(profile),
+            spans,
+        ));
+
+        let eval_set = result.unwrap();
+        assert_eq!(eval_set.passed_tasks(), 2);
+        assert_eq!(eval_set.failed_tasks(), 0);
+    }
+
+    #[test]
+    fn test_evaluator_trace_sequence_pattern() {
+        init_tracing();
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let profile = runtime.block_on(create_trace_profile_complex());
+        let spans = Arc::new(create_sequence_pattern_trace());
+
+        let context = serde_json::json!({});
+        let record = GenAIEvalRecord::new_rs(
+            context,
+            Utc::now(),
+            "TRACE_UID_004".to_string(),
+            "ENTITY_004".to_string(),
+            None,
+            None,
+        );
+
+        let result = runtime.block_on(GenAIEvaluator::process_event_record(
+            &record,
+            Arc::new(profile),
+            spans,
+        ));
+
+        let eval_set = result.unwrap();
+        assert_eq!(eval_set.passed_tasks(), 3);
+        assert_eq!(eval_set.failed_tasks(), 0);
+    }
+
+    #[test]
+    fn test_evaluator_trace_conditional_dependency() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let profile = runtime.block_on(create_trace_profile_with_dependencies());
+        let spans = Arc::new(create_trace_with_errors());
+
+        let context = serde_json::json!({});
+        let record = GenAIEvalRecord::new_rs(
+            context,
+            Utc::now(),
+            "TRACE_UID_005".to_string(),
+            "ENTITY_005".to_string(),
+            None,
+            None,
+        );
+
+        let result = runtime.block_on(GenAIEvaluator::process_event_record(
+            &record,
+            Arc::new(profile),
+            spans,
+        ));
+
+        let eval_set = result.unwrap();
+        assert_eq!(eval_set.passed_tasks(), 1); // first task is conditional and is excluded
+        assert_eq!(eval_set.failed_tasks(), 0);
+    }
+
+    #[test]
+    fn test_evaluator_trace_multi_service() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+
+        let task = TraceAssertionTask {
+            id: "check_service_count".to_string(),
+            assertion: TraceAssertion::TraceServiceCount {},
+            operator: ComparisonOperator::Equals,
+            expected_value: Value::Number(3.into()),
+            description: Some("Verify three services".to_string()),
+            task_type: EvaluationTaskType::TraceAssertion,
+            depends_on: vec![],
+            condition: false,
+            result: None,
+        };
+
+        let tasks = EvaluationTasks::new().add_task(task).build();
+        let alert_config = GenAIAlertConfig::default();
+        let drift_config =
+            GenAIEvalConfig::new("scouter", "trace_test", "0.1.0", 1.0, alert_config, None)
+                .unwrap();
+
+        let profile = runtime
+            .block_on(GenAIEvalProfile::new(drift_config, tasks))
+            .unwrap();
+        let spans = Arc::new(create_multi_service_trace());
+
+        let context = serde_json::json!({});
+        let record = GenAIEvalRecord::new_rs(
+            context,
+            Utc::now(),
+            "TRACE_UID_006".to_string(),
+            "ENTITY_006".to_string(),
+            None,
+            None,
+        );
+
+        let result = runtime.block_on(GenAIEvaluator::process_event_record(
+            &record,
+            Arc::new(profile),
+            spans,
+        ));
+
+        let eval_set = result.unwrap();
+        assert_eq!(eval_set.passed_tasks(), 1);
+        assert_eq!(eval_set.failed_tasks(), 0);
+    }
+
+    #[test]
+    fn test_evaluator_trace_assertion_failure() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+
+        let task = TraceAssertionTask {
+            id: "check_wrong_sequence".to_string(),
+            assertion: TraceAssertion::SpanSequence {
+                span_names: vec![
+                    "root".to_string(),
+                    "wrong_child".to_string(),
+                    "child_2".to_string(),
+                ],
+            },
+            operator: ComparisonOperator::Equals,
+            expected_value: Value::Bool(true),
+            description: Some("Verify incorrect span order".to_string()),
+            task_type: EvaluationTaskType::TraceAssertion,
+            depends_on: vec![],
+            condition: false,
+            result: None,
+        };
+
+        let tasks = EvaluationTasks::new().add_task(task).build();
+        let alert_config = GenAIAlertConfig::default();
+        let drift_config =
+            GenAIEvalConfig::new("scouter", "trace_test", "0.1.0", 1.0, alert_config, None)
+                .unwrap();
+
+        let profile = runtime
+            .block_on(GenAIEvalProfile::new(drift_config, tasks))
+            .unwrap();
+        let spans = Arc::new(create_simple_trace());
+
+        let context = serde_json::json!({});
+        let record = GenAIEvalRecord::new_rs(
+            context,
+            Utc::now(),
+            "TRACE_UID_007".to_string(),
+            "ENTITY_007".to_string(),
+            None,
+            None,
+        );
+
+        let result = runtime.block_on(GenAIEvaluator::process_event_record(
+            &record,
+            Arc::new(profile),
+            spans,
+        ));
+
+        let eval_set = result.unwrap();
+        assert_eq!(eval_set.passed_tasks(), 0);
+        assert_eq!(eval_set.failed_tasks(), 1);
+    }
+
+    #[test]
+    fn test_evaluator_trace_mixed_assertions() {
+        init_tracing();
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+
+        let trace_task = TraceAssertionTask {
+            id: "check_max_depth".to_string(),
+            assertion: TraceAssertion::TraceMaxDepth {},
+            operator: ComparisonOperator::Equals,
+            expected_value: Value::Number(2.into()),
+            description: Some("Verify max depth".to_string()),
+            task_type: EvaluationTaskType::TraceAssertion,
+            depends_on: vec![],
+            condition: false,
+            result: None,
+        };
+
+        let regular_assertion = AssertionTask {
+            id: "check_context".to_string(),
+            field_path: Some("metadata.version".to_string()),
+            operator: ComparisonOperator::Equals,
+            expected_value: Value::String("1.0.0".to_string()),
+            description: Some("Verify version".to_string()),
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+            condition: false,
+        };
+
+        let tasks = EvaluationTasks::new()
+            .add_task(trace_task)
+            .add_task(regular_assertion)
+            .build();
+
+        let alert_config = GenAIAlertConfig::default();
+        let drift_config =
+            GenAIEvalConfig::new("scouter", "trace_test", "0.1.0", 1.0, alert_config, None)
+                .unwrap();
+
+        let profile = runtime
+            .block_on(GenAIEvalProfile::new(drift_config, tasks))
+            .unwrap();
+        let spans = Arc::new(create_nested_trace());
+
+        let context = serde_json::json!({
+            "metadata": {
+                "version": "1.0.0"
+            }
+        });
+
+        let record = GenAIEvalRecord::new_rs(
+            context,
+            Utc::now(),
+            "TRACE_UID_008".to_string(),
+            "ENTITY_008".to_string(),
+            None,
+            None,
+        );
+
+        let result = runtime.block_on(GenAIEvaluator::process_event_record(
+            &record,
+            Arc::new(profile),
+            spans,
+        ));
+
+        let eval_set = result.unwrap();
+        assert_eq!(eval_set.passed_tasks(), 2);
+        assert_eq!(eval_set.failed_tasks(), 0);
+    }
+
+    #[test]
+    fn test_evaluator_trace_duration_filter() {
+        init_tracing();
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+
+        let task = TraceAssertionTask {
+            id: "check_slow_spans".to_string(),
+            assertion: TraceAssertion::SpanCount {
+                filter: SpanFilter::WithDuration {
+                    min_ms: Some(100.0),
+                    max_ms: None,
+                },
+            },
+            operator: ComparisonOperator::GreaterThanOrEqual,
+            expected_value: Value::Number(2.into()),
+            description: Some("Count spans over 100ms".to_string()),
+            task_type: EvaluationTaskType::TraceAssertion,
+            depends_on: vec![],
+            condition: false,
+            result: None,
+        };
+
+        let tasks = EvaluationTasks::new().add_task(task).build();
+        let alert_config = GenAIAlertConfig::default();
+        let drift_config =
+            GenAIEvalConfig::new("scouter", "trace_test", "0.1.0", 1.0, alert_config, None)
+                .unwrap();
+
+        let profile = runtime
+            .block_on(GenAIEvalProfile::new(drift_config, tasks))
+            .unwrap();
+        let spans = Arc::new(create_nested_trace());
+
+        let context = serde_json::json!({});
+        let record = GenAIEvalRecord::new_rs(
+            context,
+            Utc::now(),
+            "TRACE_UID_009".to_string(),
+            "ENTITY_009".to_string(),
+            None,
+            None,
+        );
+
+        let result = runtime.block_on(GenAIEvaluator::process_event_record(
+            &record,
+            Arc::new(profile),
+            spans,
+        ));
+
+        let eval_set = result.unwrap();
+        assert_eq!(eval_set.passed_tasks(), 1);
+        assert_eq!(eval_set.failed_tasks(), 0);
     }
 }

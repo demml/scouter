@@ -23,7 +23,6 @@ scouter-mocks = { workspace = true}
 scouter-tracing = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true,  optional = true }
-tracing-subscriber = { workspace = true }
 time = "0.*"
 tracing = { workspace = true }
 

@@ -220,7 +220,6 @@ impl AssertionEvaluator {
     /// - 300.0 (float) and 300 (int) should be considered equal
     /// - Preserves original type for non-numeric comparisons
     /// - this isn't going to cover every edge case, but should handle the common scenarios like
-    /// when a user specifies an expected integer but the actual value is a float
     fn normalize_for_comparison(actual: &Value, expected: &Value) -> (Value, Value) {
         match (actual, expected) {
             // Both are already numbers - try to normalize to comparable form

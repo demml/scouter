@@ -8,7 +8,7 @@ INSERT INTO scouter.genai_eval_task (
     task_type,
     passed,
     value,
-    field_path,
+    assertion,
     operator,
     expected,
     actual,
@@ -26,7 +26,7 @@ SELECT
     task_type,
     passed,
     value,
-    field_path,
+    assertion,
     operator,
     expected,
     actual,
@@ -43,7 +43,7 @@ FROM UNNEST(
     $7::text[],        -- task_type
     $8::boolean[],     -- passed
     $9::double precision[], -- value
-    $10::text[],        -- field_path
+    $10::jsonb[],        -- assertion
     $11::text[],        -- operator
     $12::jsonb[],       -- expected
     $13::jsonb[],       -- actual
@@ -60,7 +60,7 @@ FROM UNNEST(
     task_type,
     passed,
     value,
-    field_path,
+    assertion,
     operator,
     expected,
     actual,

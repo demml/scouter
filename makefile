@@ -83,7 +83,7 @@ test.rabbitmq_events:
 test.events: test.kafka_events test.rabbitmq_events
 
 test.evaluate: test.evaluate
-	cargo test -p scouter-evaluate test_evaluator -- --nocapture --test-threads=1
+	cargo test -p scouter-evaluate test_evaluator_trace -- --nocapture --test-threads=1
 
 .PHONY: test.dataframe
 test.dataframe:

@@ -36,7 +36,6 @@ pub fn separate_tasks(tasks: Vec<EvaluationTask>) -> AssertionTasks {
             EvaluationTask::Assertion(a) => assertions.push(*a),
             EvaluationTask::LLMJudge(j) => llm_judges.push(*j),
             EvaluationTask::TraceAssertion(t) => trace_assertions.push(*t),
-            _ => todo!("Handle other task types"),
         }
     }
 

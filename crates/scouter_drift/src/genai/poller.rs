@@ -30,7 +30,7 @@ impl GenAIPoller {
         &mut self,
         record: &GenAIEvalRecord,
         profile: &GenAIEvalProfile,
-        spans: Vec<TraceSpan>,
+        spans: Arc<Vec<TraceSpan>>,
     ) -> Result<GenAIEvalSet, DriftError> {
         debug!("Processing workflow");
 
@@ -114,19 +114,19 @@ impl GenAIPoller {
                 .inspect_err(|e| {
                     error!("Failed to get spans for trace tasks: {:?}", e);
                 }) {
-                Ok(spans) => spans,
+                Ok(spans) => Arc::new(spans),
                 Err(_) => {
                     error!("No spans found for trace tasks for {}", task.uid);
-                    vec![]
+                    Arc::new(vec![])
                 }
             }
         } else {
-            vec![]
+            Arc::new(vec![])
         };
 
         loop {
             match self
-                .process_event_record(&task, &genai_profile, spans)
+                .process_event_record(&task, &genai_profile, spans.clone())
                 .await
             {
                 Ok(result_set) => {

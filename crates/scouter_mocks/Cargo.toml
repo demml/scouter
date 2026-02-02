@@ -17,6 +17,7 @@ serde_json = { workspace = true, optional = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true, optional = true }
+tracing-subscriber = { workspace = true, optional = true }
 
 [features]
 default = []
@@ -27,6 +28,7 @@ server = [
     "serde_json",
     "scouter-server",
     "scouter-tonic/all",
+    "tracing-subscriber",
 ]
 
 [profile.release]

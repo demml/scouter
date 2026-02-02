@@ -637,6 +637,15 @@ pub enum TraceAssertion {
     TraceAttribute { attribute_key: String },
 }
 
+// implement to_string for TraceAssertion
+impl Display for TraceAssertion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // serde serialize to string
+        let s = serde_json::to_string(self).unwrap_or_default();
+        write!(f, "{}", s)
+    }
+}
+
 #[pymethods]
 impl TraceAssertion {
     #[staticmethod]
@@ -713,6 +722,10 @@ impl TraceAssertion {
     #[staticmethod]
     pub fn trace_attribute(attribute_key: String) -> Self {
         TraceAssertion::TraceAttribute { attribute_key }
+    }
+
+    pub fn model_dump_json(&self) -> String {
+        serde_json::to_string(self).unwrap_or_default()
     }
 }
 
@@ -959,6 +972,12 @@ impl From<AssertionTask> for EvaluationTask {
 impl From<LLMJudgeTask> for EvaluationTask {
     fn from(task: LLMJudgeTask) -> Self {
         EvaluationTask::LLMJudge(Box::new(task))
+    }
+}
+
+impl From<TraceAssertionTask> for EvaluationTask {
+    fn from(task: TraceAssertionTask) -> Self {
+        EvaluationTask::TraceAssertion(Box::new(task))
     }
 }
 

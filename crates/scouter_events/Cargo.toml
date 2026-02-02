@@ -40,7 +40,6 @@ tokio-stream = { workspace = true }
 tokio-util = { workspace = true }
 
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
 
 # Redis dependencies
 redis = { workspace = true, optional = true }
@@ -53,6 +52,7 @@ rdkafka = { workspace = true, optional = true }
 [dev-dependencies]
 ndarray-rand = { workspace = true }
 potato-head = { workspace = true, features = ["mock"] }
+tracing-subscriber = { workspace = true }
 
 [features]
 default = ["sql"]
