@@ -10,6 +10,7 @@ use object_store::path::Path;
 use object_store::ObjectStore as ObjStore;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::StorageType;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::debug;
 use url::Url;
@@ -81,8 +82,27 @@ impl StorageProvider {
         match self {
             StorageProvider::Google(_) => Ok(Url::parse(&storage_settings.storage_uri)?),
             StorageProvider::Aws(_) => Ok(Url::parse(&storage_settings.storage_uri)?),
-            StorageProvider::Local(_) => Ok(Url::parse("file:///")?),
             StorageProvider::Azure(_) => Ok(Url::parse(&storage_settings.storage_uri)?),
+            StorageProvider::Local(_) => {
+                let path = PathBuf::from(&storage_settings.storage_uri);
+                let canonical_path = if path.exists() {
+                    path.canonicalize().unwrap_or(path)
+                } else {
+                    path
+                };
+
+                let absolute_path = if canonical_path.is_absolute() {
+                    canonical_path
+                } else {
+                    std::env::current_dir()
+                        .unwrap_or_default()
+                        .join(canonical_path)
+                };
+
+                Url::from_file_path(absolute_path).map_err(|_| {
+                    StorageError::UrlParseError("Invalid file path for URL conversion".into())
+                })
+            }
         }
     }
 
@@ -173,9 +193,18 @@ impl ObjectStore {
     /// # Returns
     /// * `Result<ObjectStore, StorageError>` - A result containing the ObjectStore instance or an error.
     pub fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, StorageError> {
-        let store = StorageProvider::new(storage_settings)?;
-        Ok(ObjectStore {
-            provider: store,
+        // Ensure local storage directory exists
+        if storage_settings.storage_type == StorageType::Local {
+            let storage_path = std::path::PathBuf::from(&storage_settings.storage_uri);
+            if !storage_path.exists() {
+                std::fs::create_dir_all(&storage_path)?;
+            }
+        }
+
+        let provider = StorageProvider::new(storage_settings)?;
+
+        Ok(Self {
+            provider,
             storage_settings: storage_settings.clone(),
         })
     }

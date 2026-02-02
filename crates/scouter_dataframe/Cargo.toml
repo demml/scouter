@@ -38,6 +38,8 @@ rand = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }
 potato-head = { workspace = true, features = ["mock"] }
+scouter-mocks = { workspace = true, features = ["server"] }
+tracing-subscriber = { workspace = true }
 
 [profile.release]
 lto = "fat"

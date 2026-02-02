@@ -1,4 +1,5 @@
 use thiserror::Error;
+use url::Url;
 
 #[derive(Error, Debug)]
 pub enum StorageError {
@@ -16,6 +17,12 @@ pub enum StorageError {
 
     #[error(transparent)]
     Utf8Error(#[from] std::string::FromUtf8Error),
+
+    #[error("{0}")]
+    UrlParseError(String),
+
+    #[error(transparent)]
+    IOError(#[from] std::io::Error),
 }
 
 #[derive(Error, Debug)]

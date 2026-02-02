@@ -1,4 +1,5 @@
 use crate::error::TraceEngineError;
+use crate::parquet::tracing::traits::arrow_schema_to_delta;
 use crate::parquet::tracing::traits::TraceSchemaExt;
 use crate::storage::ObjectStore;
 use arrow::array::*;
@@ -7,15 +8,16 @@ use arrow_array::RecordBatch;
 use datafusion::prelude::SessionContext;
 use deltalake::operations::optimize::OptimizeType;
 use deltalake::DeltaTable;
-use deltalake::DeltaTableBuilder;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::sql::TraceSpan;
 use scouter_types::{Attribute, SpanEvent, SpanLink, StorageType};
 use serde_json::Value;
+use std::fs;
 use std::sync::Arc;
 use tokio::sync::oneshot;
 use tokio::sync::{mpsc, RwLock as AsyncRwLock};
 use tokio::time::{interval, Duration};
+use tracing::info;
 use url::Url;
 
 const TRACE_SPAN_TABLE_NAME: &str = "trace_spans";
@@ -31,6 +33,46 @@ pub enum TableCommand {
     Shutdown,
 }
 
+async fn build_url(object_store: &ObjectStore) -> Result<Url, TraceEngineError> {
+    let base_url = object_store.get_base_url()?; // Use existing method
+    Ok(base_url)
+}
+
+async fn create_table(table_url: Url, schema: SchemaRef) -> Result<DeltaTable, TraceEngineError> {
+    info!("Creating new Delta table at URL: {}", table_url);
+
+    let table = DeltaTable::try_from_url(table_url).await?;
+
+    let delta_fields = arrow_schema_to_delta(&schema);
+
+    table
+        .create()
+        .with_table_name(TRACE_SPAN_TABLE_NAME)
+        .with_columns(delta_fields)
+        .await
+        .map_err(Into::into)
+}
+
+async fn build_or_create_table(
+    object_store: &ObjectStore,
+    schema: SchemaRef,
+) -> Result<DeltaTable, TraceEngineError> {
+    let table_url = build_url(object_store).await?;
+
+    info!("Attempting to load table at URL: {}", table_url);
+
+    match DeltaTable::try_from_url(table_url.clone()).await {
+        Ok(table) => {
+            info!("Loaded existing Delta table");
+            Ok(table)
+        }
+        Err(deltalake::DeltaTableError::NotATable(_)) => {
+            info!("Table does not exist, creating new table");
+            create_table(table_url, schema).await
+        }
+        Err(e) => Err(e.into()),
+    }
+}
 /// Core trace span dataframe for high-throughput observability workloads
 ///
 /// Design decisions:
@@ -47,17 +89,17 @@ pub struct TraceSpanDBEngine {
 }
 
 impl TraceSchemaExt for TraceSpanDBEngine {}
+
 impl TraceSpanDBEngine {
-    pub fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, TraceEngineError> {
+    pub async fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, TraceEngineError> {
         let object_store = ObjectStore::new(storage_settings)?;
-        let storage_root = object_store.storage_settings.canonicalized_path();
-        let table_url = Url::parse(&format!("{}/{}", storage_root, TRACE_SPAN_TABLE_NAME))?;
+        let schema = Arc::new(Self::create_schema());
+        let delta_table = build_or_create_table(&object_store, schema.clone()).await?;
         let ctx = object_store.get_session()?;
-        let delta_table = DeltaTableBuilder::from_url(table_url)?.build()?;
         ctx.register_table(TRACE_SPAN_TABLE_NAME, Arc::new(delta_table.clone()))?;
 
         Ok(TraceSpanDBEngine {
-            schema: Arc::new(Self::create_schema()),
+            schema,
             object_store,
             table: Arc::new(AsyncRwLock::new(delta_table)),
             ctx,
@@ -75,10 +117,6 @@ impl TraceSpanDBEngine {
         builder.finish()
     }
 
-    fn storage_root(&self) -> String {
-        self.object_store.storage_settings.canonicalized_path()
-    }
-
     fn storage_type(&self) -> StorageType {
         self.object_store.storage_settings.storage_type.clone()
     }
@@ -90,9 +128,14 @@ impl TraceSpanDBEngine {
     /// Helper to write spans directly to the Delta table
     /// Write will consume current table state and return updated table
     async fn write_spans(&self, spans: Vec<TraceSpan>) -> Result<(), TraceEngineError> {
+        info!("Engine received write request for {} spans", spans.len());
+
         let batch = self.build_batch(spans)?;
+        info!("Built batch with {} rows", batch.num_rows());
 
         let mut table_guard = self.table.write().await;
+        info!("Acquired table write lock");
+
         table_guard.update_incremental(None).await?;
 
         // Clone is cheap - just Arc increments
@@ -102,6 +145,8 @@ impl TraceSpanDBEngine {
             .write(vec![batch])
             .with_save_mode(deltalake::protocol::SaveMode::Append)
             .await?;
+
+        info!("Successfully wrote batch to Delta Lake");
 
         *table_guard = updated_table;
 
