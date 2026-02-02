@@ -1,11 +1,13 @@
 // Module for polling GenAI drift records that are "pending" and need to be processed
 use crate::error::DriftError;
 use scouter_evaluate::evaluate::GenAIEvaluator;
-use scouter_sql::sql::traits::{GenAIDriftSqlLogic, ProfileSqlLogic};
+use scouter_sql::sql::traits::{GenAIDriftSqlLogic, ProfileSqlLogic, TraceSqlLogic};
 use scouter_sql::PostgresClient;
 use scouter_types::genai::{GenAIEvalProfile, GenAIEvalSet};
-use scouter_types::{GenAIEvalRecord, Status};
+use scouter_types::sql::TraceSpan;
+use scouter_types::{GenAIEvalRecord, Status, SCOUTER_QUEUE_RECORD};
 use sqlx::{Pool, Postgres};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -28,12 +30,14 @@ impl GenAIPoller {
         &mut self,
         record: &GenAIEvalRecord,
         profile: &GenAIEvalProfile,
+        spans: Vec<TraceSpan>,
     ) -> Result<GenAIEvalSet, DriftError> {
         debug!("Processing workflow");
 
         // create arc mutex for profile
         let profile = Arc::new(profile.clone());
-        match GenAIEvaluator::process_event_record(record, profile).await {
+
+        match GenAIEvaluator::process_event_record(record, profile, spans).await {
             Ok(result_set) => {
                 // insert task results first
                 PostgresClient::insert_eval_task_results_batch(
@@ -97,8 +101,34 @@ impl GenAIPoller {
             })?;
         }
 
+        // if genai_profile has trace_tasks, query for trace
+        // todo - cleanup later
+        let spans = if genai_profile.has_trace_assertions() {
+            let tags = vec![HashMap::from([
+                ("key".to_string(), SCOUTER_QUEUE_RECORD.to_string()),
+                ("value".to_string(), task.uid.clone()),
+            ])];
+
+            match PostgresClient::get_spans_from_tags(&self.db_pool, "trace", tags, false, None)
+                .await
+                .inspect_err(|e| {
+                    error!("Failed to get spans for trace tasks: {:?}", e);
+                }) {
+                Ok(spans) => spans,
+                Err(_) => {
+                    error!("No spans found for trace tasks for {}", task.uid);
+                    vec![]
+                }
+            }
+        } else {
+            vec![]
+        };
+
         loop {
-            match self.process_event_record(&task, &genai_profile).await {
+            match self
+                .process_event_record(&task, &genai_profile, spans)
+                .await
+            {
                 Ok(result_set) => {
                     PostgresClient::update_genai_eval_record_status(
                         &self.db_pool,

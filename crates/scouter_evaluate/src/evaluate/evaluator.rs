@@ -1,9 +1,14 @@
 use crate::error::EvaluationError;
 use crate::evaluate::store::{AssertionResultStore, LLMResponseStore, TaskRegistry, TaskType};
+use crate::evaluate::trace::TraceContextBuilder;
+use crate::tasks::trace::execute_trace_assertions;
 use crate::tasks::traits::EvaluationTask;
 use chrono::{DateTime, Utc};
 use scouter_types::genai::traits::ProfileExt;
-use scouter_types::genai::{AssertionResult, ExecutionPlan, GenAIEvalProfile, GenAIEvalSet};
+use scouter_types::genai::{
+    AssertionResult, ExecutionPlan, GenAIEvalProfile, GenAIEvalSet, TraceAssertionTask,
+};
+use scouter_types::sql::TraceSpan;
 use scouter_types::GenAIEvalRecord;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -239,12 +244,22 @@ impl DependencyChecker {
 struct TaskExecutor {
     context: ExecutionContext,
     profile: Arc<GenAIEvalProfile>,
+    context_builder: TraceContextBuilder,
 }
 
 impl TaskExecutor {
-    fn new(context: ExecutionContext, profile: Arc<GenAIEvalProfile>) -> Self {
+    fn new(
+        context: ExecutionContext,
+        profile: Arc<GenAIEvalProfile>,
+        spans: Vec<TraceSpan>,
+    ) -> Self {
         debug!("Creating TaskExecutor");
-        Self { context, profile }
+        let context_builder = TraceContextBuilder::new(spans);
+        Self {
+            context,
+            profile,
+            context_builder,
+        }
     }
 
     #[instrument(skip_all)]
@@ -269,7 +284,8 @@ impl TaskExecutor {
 
         let _result = tokio::try_join!(
             self.execute_assertions(&assertions),
-            self.execute_llm_judges(&judges) //self.execute_trace_assertions(&traces_assertions)
+            self.execute_llm_judges(&judges),
+            self.execute_trace_assertions(&traces_assertions)
         )?;
 
         Ok(())
@@ -318,6 +334,33 @@ impl TaskExecutor {
             result.map_err(|e| {
                 EvaluationError::GenAIEvaluatorError(format!("Task join error: {}", e))
             })??;
+        }
+
+        Ok(())
+    }
+
+    async fn execute_trace_assertions(&self, task_ids: &[&str]) -> Result<(), EvaluationError> {
+        debug!("Executing trace assertion tasks: {:?}", task_ids);
+        if task_ids.is_empty() {
+            return Ok(());
+        }
+        let tasks: Vec<TraceAssertionTask> = task_ids
+            .iter()
+            .filter_map(|&task_id| self.profile.get_trace_assertion_by_id(task_id))
+            .cloned()
+            .collect();
+
+        let results = execute_trace_assertions(&self.context_builder, &tasks).inspect_err(|e| {
+            error!("Failed to execute trace assertions: {:?}", e);
+        })?;
+
+        for (task_id, result) in results.results {
+            let start_time = Utc::now(); // In a real implementation, track actual start times
+            let end_time = Utc::now();
+
+            self.context
+                .store_assertion(task_id, start_time, end_time, result)
+                .await;
         }
 
         Ok(())
@@ -547,6 +590,7 @@ impl GenAIEvaluator {
     pub async fn process_event_record(
         record: &GenAIEvalRecord,
         profile: Arc<GenAIEvalProfile>,
+        spans: Vec<TraceSpan>,
     ) -> Result<GenAIEvalSet, EvaluationError> {
         let begin = chrono::Utc::now();
 
@@ -555,7 +599,7 @@ impl GenAIEvaluator {
 
         let execution_plan = profile.get_execution_plan()?;
         let context = ExecutionContext::new(record.context.clone(), registry, &execution_plan);
-        let executor = TaskExecutor::new(context.clone(), profile.clone());
+        let executor = TaskExecutor::new(context.clone(), profile.clone(), spans);
 
         debug!(
             "Starting evaluation for record: {} with {} stages",
@@ -767,7 +811,7 @@ mod tests {
         );
 
         let result_set = runtime.block_on(async {
-            GenAIEvaluator::process_event_record(&record, Arc::new(profile)).await
+            GenAIEvaluator::process_event_record(&record, Arc::new(profile), vec![]).await
         });
 
         let eval_set = result_set.unwrap();
@@ -805,7 +849,7 @@ mod tests {
         );
 
         let result_set = runtime.block_on(async {
-            GenAIEvaluator::process_event_record(&record, Arc::new(profile)).await
+            GenAIEvaluator::process_event_record(&record, Arc::new(profile), vec![]).await
         });
 
         let eval_set = result_set.unwrap();

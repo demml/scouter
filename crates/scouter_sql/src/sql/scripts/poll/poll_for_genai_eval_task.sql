@@ -7,6 +7,8 @@ WITH selected_task AS (
     FROM scouter.genai_eval_record
     WHERE 1=1
         AND status = 'pending'
+        -- need 5 sec buffer to get traces
+        AND created_at <= CURRENT_TIMESTAMP - INTERVAL '5 seconds'
     ORDER BY created_at ASC
     LIMIT 1
     FOR UPDATE SKIP LOCKED

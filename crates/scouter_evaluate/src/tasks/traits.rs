@@ -1,6 +1,6 @@
 use crate::error::EvaluationError;
 
-use scouter_types::genai::{traits::TaskRef, AssertionResult};
+use scouter_types::genai::AssertionResult;
 use serde_json::Value;
 use std::fmt::Debug;
 
