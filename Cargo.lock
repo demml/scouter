@@ -6227,6 +6227,7 @@ name = "scouter-settings"
 version = "0.16.0"
 dependencies = [
  "base64",
+ "chrono",
  "potato-head",
  "pyo3",
  "scouter-types",

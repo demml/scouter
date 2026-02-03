@@ -1046,6 +1046,75 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_postgres_genai_eval_record_reschedule() {
+        let pool = db_pool().await;
+
+        let (uid, entity_id) = PostgresClient::create_entity(
+            &pool,
+            SPACE,
+            NAME,
+            VERSION,
+            DriftType::GenAI.to_string(),
+        )
+        .await
+        .unwrap();
+
+        let input = "This is a test input";
+        let output = "This is a test response";
+
+        for j in 0..10 {
+            let context = serde_json::json!({
+                "input": input,
+                "response": output,
+            });
+            let record = GenAIEvalRecord {
+                created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
+                context,
+                status: Status::Pending,
+                id: 0, // This will be set by the database
+                uid: format!("test_{}", j),
+                entity_uid: uid.clone(),
+                entity_id,
+                ..Default::default()
+            };
+
+            let boxed = BoxedGenAIEvalRecord::new(record);
+
+            let result = PostgresClient::insert_genai_eval_record(&pool, boxed, &entity_id)
+                .await
+                .unwrap();
+
+            assert_eq!(result.rows_affected(), 1);
+        }
+
+        let features = PostgresClient::get_genai_eval_records(&pool, None, None, &entity_id)
+            .await
+            .unwrap();
+        assert_eq!(features.len(), 10);
+
+        // get pending task
+        let pending_tasks = PostgresClient::get_pending_genai_eval_record(&pool)
+            .await
+            .unwrap();
+
+        // assert not empty
+        assert!(pending_tasks.is_some());
+
+        // get pending task with space, name, version
+        let task_input = &pending_tasks.as_ref().unwrap().context["input"];
+        assert_eq!(*task_input, "This is a test input".to_string());
+
+        // reschedule task
+        PostgresClient::reschedule_genai_eval_record(
+            &pool,
+            &pending_tasks.as_ref().unwrap().uid,
+            Duration::seconds(30),
+        )
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
     async fn test_postgres_genai_eval_record_insert_get() {
         let pool = db_pool().await;
 

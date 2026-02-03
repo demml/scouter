@@ -7,7 +7,8 @@ use password_auth::generate_hash;
 use rusty_logging::logger::{LogLevel, LoggingConfig, RustyLogger};
 use scouter_auth::util::generate_recovery_codes_with_hashes;
 use scouter_settings::{
-    DatabaseSettings, KafkaSettings, PollingSettings, RabbitMQSettings, ScouterServerConfig,
+    polling::GenAIPollerSettings, DatabaseSettings, KafkaSettings, PollingSettings,
+    RabbitMQSettings, ScouterServerConfig,
 };
 use scouter_sql::sql::schema::User;
 use scouter_sql::sql::traits::UserSqlLogic;
@@ -101,7 +102,7 @@ impl ScouterSetupComponents {
         if config.genai_enabled() {
             Self::setup_background_genai_drift_workers(
                 &db_pool,
-                &config.polling_settings,
+                &config.genai_polling_settings,
                 tokio_shutdown_rx.clone(),
             )
             .await?;
@@ -403,8 +404,7 @@ impl ScouterSetupComponents {
     #[instrument(skip_all)]
     async fn setup_background_genai_drift_workers(
         db_pool: &Pool<Postgres>,
-        poll_settings: &PollingSettings,
-
+        poll_settings: &GenAIPollerSettings,
         shutdown_rx: tokio::sync::watch::Receiver<()>,
     ) -> AnyhowResult<()> {
         BackgroundGenAIDriftManager::start_workers(db_pool, poll_settings, shutdown_rx).await?;

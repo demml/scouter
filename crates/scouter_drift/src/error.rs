@@ -129,6 +129,12 @@ pub enum DriftError {
 
     #[error(transparent)]
     TypeError(#[from] scouter_types::error::TypeError),
+
+    #[error("Trace spans not available for task: {0}")]
+    TraceSpansNotAvailable(String),
+
+    #[error(transparent)]
+    OutOfRangeError(#[from] chrono::OutOfRangeError),
 }
 
 impl From<DriftError> for PyErr {

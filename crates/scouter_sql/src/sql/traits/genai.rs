@@ -3,7 +3,7 @@ use crate::sql::query::Queries;
 use crate::sql::schema::BinnedMetricWrapper;
 use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use scouter_dataframe::parquet::BinnedMetricsExtractor;
 use scouter_dataframe::parquet::ParquetDataFrame;
 use scouter_settings::ObjectStorageSettings;
@@ -797,6 +797,27 @@ pub trait GenAIDriftSqlLogic {
             .await
             .inspect_err(|e| {
                 error!("Failed to update GenAI drift record status: {:?}", e);
+            })?;
+
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    async fn reschedule_genai_eval_record(
+        pool: &Pool<Postgres>,
+        uid: &str,
+        delay: Duration,
+    ) -> Result<(), SqlError> {
+        let scheduled_at = Utc::now() + delay;
+
+        let query = Queries::RescheduleGenAIEvalRecord.get_query();
+        sqlx::query(query)
+            .bind(scheduled_at)
+            .bind(uid)
+            .execute(pool)
+            .await
+            .inspect_err(|e| {
+                error!("Failed to reschedule GenAI eval record: {:?}", e);
             })?;
 
         Ok(())

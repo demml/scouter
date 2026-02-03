@@ -218,6 +218,7 @@ pub struct GenAIEvalRecord {
     pub status: Status,
     #[pyo3(get)]
     pub entity_type: EntityType,
+    pub retry_count: i32,
 }
 
 #[pymethods]
@@ -344,6 +345,7 @@ impl GenAIEvalRecord {
             record_id: record_id.unwrap_or_default(),
             entity_type: EntityType::GenAI,
             session_id: session_id.unwrap_or_else(create_uuid7),
+            retry_count: 0,
         }
     }
 
@@ -371,6 +373,7 @@ impl Default for GenAIEvalRecord {
             status: Status::Pending,
             entity_type: EntityType::GenAI,
             session_id: create_uuid7(),
+            retry_count: 0,
         }
     }
 }
@@ -399,6 +402,7 @@ impl FromRow<'_, PgRow> for GenAIEvalRecord {
             entity_uid: String::new(), // mask entity_uid when loading from DB
             status,
             entity_type: EntityType::GenAI,
+            retry_count: row.try_get("retry_count")?,
         })
     }
 }
