@@ -4,15 +4,21 @@ from pathlib import Path
 STUB_DIR = Path("python/scouter/stubs")
 OUTPUT_FILE = Path("python/scouter/_scouter.pyi")
 
-# Order matters here. dont change
 STUB_FILES = [
     "header.pyi",
     "logging.pyi",
     "potato.pyi",
+    "tracing.pyi",
     "evaluate.pyi",
     "mock.pyi",
     "scouter.pyi",
 ]
+
+
+def strip_imports_section(content: str) -> str:
+    """Remove the imports section between #### begin imports #### and #### end of imports ####"""
+    pattern = r"####\s*begin\s+imports\s*####.*?####\s*end\s+of\s+imports\s*####\s*\n?"
+    return re.sub(pattern, "", content, flags=re.DOTALL)
 
 
 def assemble():
@@ -30,6 +36,10 @@ def assemble():
             continue
 
         raw_text = file_path.read_text()
+
+        # Strip imports section from all files except header.pyi
+        if filename != "header.pyi":
+            raw_text = strip_imports_section(raw_text)
 
         match = all_pattern.search(raw_text)
         if match:
