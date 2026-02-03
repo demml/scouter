@@ -15824,7 +15824,7 @@ class Drifter:
         """
 
     def create_genai_drift_profile(
-        self, config: GenAIEvalConfig, tasks: Sequence[LLMJudgeTask | AssertionTask]
+        self, config: GenAIEvalConfig, tasks: Sequence[LLMJudgeTask | AssertionTask | TraceAssertionTask]
     ) -> GenAIEvalProfile:
         """Initialize a GenAIEvalProfile for LLM evaluation and drift detection.
 

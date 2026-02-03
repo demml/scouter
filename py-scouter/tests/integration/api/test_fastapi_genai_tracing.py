@@ -58,6 +58,7 @@ def test_genai_tracing_api(scouter_grpc_openai_server):
     assert len(workflow_results["workflow"].stats) == 1
     task_results = scouter_client.get_genai_task_binned_drift(request)
     assert len(task_results["coherence"].stats) == 1
+    assert len(task_results["no_errors"].stats) == 1
 
     # get TestResponse record_uid from response
     record_uid = response.json().get("record_uid")

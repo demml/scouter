@@ -1,3 +1,20 @@
+#### begin imports ####
+
+import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Sequence, overload
+
+from .evaluate import (
+    AssertionTask,
+    ComparisonOperator,
+    EvaluationTaskType,
+    LLMJudgeTask,
+    TraceAssertionTask,
+)
+from .tracing import TraceSpan
+
+#### end of imports ####
+
 #################
 # _scouter.types
 #################
@@ -3661,7 +3678,7 @@ class Drifter:
         """
 
     def create_genai_drift_profile(
-        self, config: GenAIEvalConfig, tasks: Sequence[LLMJudgeTask | AssertionTask]
+        self, config: GenAIEvalConfig, tasks: Sequence[LLMJudgeTask | AssertionTask | TraceAssertionTask]
     ) -> GenAIEvalProfile:
         """Initialize a GenAIEvalProfile for LLM evaluation and drift detection.
 
