@@ -2,7 +2,6 @@ use chrono::{DateTime, Duration, Utc};
 use pyo3::pyfunction;
 use scouter_types::sql::TraceSpan;
 
-
 #[cfg(feature = "server")]
 use scouter_types::trace::Attribute;
 
@@ -124,7 +123,9 @@ pub fn create_simple_trace() -> Vec<TraceSpan> {
     }
     #[cfg(not(feature = "server"))]
     {
-       tracing::warn!("create_simple_trace is not available without the 'server' feature enabled.");
+        tracing::warn!(
+            "create_simple_trace is not available without the 'server' feature enabled."
+        );
         vec![]
     }
 }
@@ -144,7 +145,9 @@ pub fn create_nested_trace() -> Vec<TraceSpan> {
     }
     #[cfg(not(feature = "server"))]
     {
-        warn!("create_nested_trace is not available without the 'server' feature enabled.");
+        tracing::warn!(
+            "create_nested_trace is not available without the 'server' feature enabled."
+        );
         vec![]
     }
 }
@@ -167,7 +170,9 @@ pub fn create_trace_with_errors() -> Vec<TraceSpan> {
 
     #[cfg(not(feature = "server"))]
     {
-        warn!("create_trace_with_errors is not available without the 'server' feature enabled.");
+        tracing::warn!(
+            "create_trace_with_errors is not available without the 'server' feature enabled."
+        );
         vec![]
     }
 }
@@ -205,7 +210,7 @@ pub fn create_trace_with_attributes() -> Vec<TraceSpan> {
     {
         use tracing::warn;
 
-        warn!(
+        tracing::warn!(
             "create_trace_with_attributes is not available without the 'server' feature enabled."
         );
         vec![]
@@ -240,7 +245,9 @@ pub fn create_multi_service_trace() -> Vec<TraceSpan> {
     {
         use tracing::warn;
 
-        warn!("create_multi_service_trace is not available without the 'server' feature enabled.");
+        tracing::warn!(
+            "create_multi_service_trace is not available without the 'server' feature enabled."
+        );
         vec![]
     }
 }
@@ -262,7 +269,7 @@ pub fn create_sequence_pattern_trace() -> Vec<TraceSpan> {
     }
     #[cfg(not(feature = "server"))]
     {
-        warn!(
+        tracing::warn!(
             "create_sequence_pattern_trace is not available without the 'server' feature enabled."
         );
         vec![]
