@@ -50,4 +50,7 @@ pub enum SqlError {
 
     #[error(transparent)]
     ProfileError(#[from] ProfileError),
+
+    #[error(transparent)]
+    OutOfRangeError(#[from] chrono::OutOfRangeError),
 }

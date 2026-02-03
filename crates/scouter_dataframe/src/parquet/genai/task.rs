@@ -87,7 +87,7 @@ impl GenAITaskDataFrame {
             Field::new("task_type", DataType::Utf8, false),
             Field::new("passed", DataType::Boolean, false),
             Field::new("value", DataType::Float64, false),
-            Field::new("field_path", DataType::Utf8, true),
+            Field::new("assertion", DataType::Utf8, true),
             Field::new("operator", DataType::Utf8, false),
             Field::new("expected", DataType::Utf8, false),
             Field::new("actual", DataType::Utf8, false),
@@ -148,8 +148,7 @@ impl GenAITaskDataFrame {
 
         let value_array = Float64Array::from_iter_values(records.iter().map(|r| r.value));
 
-        let field_path_array =
-            StringArray::from_iter(records.iter().map(|r| r.field_path.as_deref()));
+        let assertion_array = StringArray::from_iter_values(records.iter().map(|r| r.assertion()));
 
         let operator_array =
             StringArray::from_iter_values(records.iter().map(|r| r.operator.as_str()));
@@ -179,7 +178,7 @@ impl GenAITaskDataFrame {
                 Arc::new(task_type_array),
                 Arc::new(passed_array),
                 Arc::new(value_array),
-                Arc::new(field_path_array),
+                Arc::new(assertion_array),
                 Arc::new(operator_array),
                 Arc::new(expected_array),
                 Arc::new(actual_array),

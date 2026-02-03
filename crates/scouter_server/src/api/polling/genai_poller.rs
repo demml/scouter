@@ -1,7 +1,7 @@
 // Module to process GenAI drift record tasks
 use crate::api::error::ServerError;
 use scouter_drift::genai::GenAIPoller;
-use scouter_settings::PollingSettings;
+use scouter_settings::polling::GenAIPollerSettings;
 use sqlx::{Pool, Postgres};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
@@ -14,7 +14,7 @@ pub struct BackgroundGenAIDriftManager {
 impl BackgroundGenAIDriftManager {
     pub async fn start_workers(
         db_pool: &Pool<Postgres>,
-        poll_settings: &PollingSettings,
+        poll_settings: &GenAIPollerSettings,
         shutdown_rx: watch::Receiver<()>,
     ) -> Result<(), ServerError> {
         let num_workers = poll_settings.genai_workers;
@@ -23,7 +23,13 @@ impl BackgroundGenAIDriftManager {
 
         for id in 0..num_workers {
             let shutdown_rx = shutdown_rx.clone();
-            let genai_poller = GenAIPoller::new(db_pool, poll_settings.max_retries);
+            let genai_poller = GenAIPoller::new(
+                db_pool,
+                poll_settings.max_retries,
+                poll_settings.trace_wait_timeout,
+                poll_settings.trace_backoff,
+                poll_settings.trace_reschedule_delay,
+            );
             let worker_shutdown_rx = shutdown_rx.clone();
 
             workers.push(tokio::spawn(Self::start_worker(

@@ -9,6 +9,7 @@ use potato_head::mock::LLMTestServer;
 use scouter_dataframe::parquet::dataframe::ParquetDataFrame;
 use scouter_drift::psi::PsiMonitor;
 use scouter_drift::spc::SpcMonitor;
+use scouter_mocks::init_tracing;
 use scouter_server::api::archive::archive_old_data;
 use scouter_sql::MessageHandler;
 use scouter_types::contracts::DriftRequest;
@@ -303,6 +304,7 @@ async fn test_data_archive_custom() {
 
 #[test]
 fn test_data_archive_genai_eval_record() {
+    init_tracing();
     let runtime = tokio::runtime::Runtime::new().unwrap();
 
     retry_flaky_test_with_runtime!(runtime, {

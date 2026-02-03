@@ -1,7 +1,6 @@
 use crate::error::DriftError;
 use crate::{custom::CustomDrifter, genai::GenAIDrifter, psi::PsiDrifter, spc::SpcDrifter};
 use chrono::{DateTime, Utc};
-
 use scouter_sql::sql::traits::{AlertSqlLogic, ProfileSqlLogic};
 use scouter_sql::{sql::schema::TaskRequest, PostgresClient};
 use scouter_types::{AlertMap, DriftProfile};
@@ -220,6 +219,7 @@ mod tests {
     use crate::GenAIPoller;
 
     use super::*;
+    use chrono::Duration;
     use rusty_logging::logger::{LogLevel, LoggingConfig, RustyLogger};
     use scouter_settings::DatabaseSettings;
     use scouter_sql::sql::traits::{EntitySqlLogic, GenAIDriftSqlLogic, SpcSqlLogic};
@@ -714,7 +714,13 @@ mod tests {
         }
 
         // Insert all records and results into database and poll for tasks
-        let mut poller = GenAIPoller::new(&db_pool, 3);
+        let mut poller = GenAIPoller::new(
+            &db_pool,
+            3,
+            Duration::seconds(10),
+            Duration::milliseconds(100),
+            Duration::seconds(30),
+        );
         for record in records {
             // Insert eval record for poller to pick up
 

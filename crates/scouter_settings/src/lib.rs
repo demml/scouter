@@ -12,7 +12,7 @@ pub mod http;
 pub mod polling;
 pub mod storage;
 
-use crate::events::HttpConsumerSettings;
+use crate::{events::HttpConsumerSettings, polling::GenAIPollerSettings};
 pub use auth::AuthSettings;
 pub use database::DatabaseSettings;
 pub use events::{KafkaSettings, RabbitMQSettings, RedisSettings};
@@ -36,6 +36,7 @@ fn generate_default_secret() -> String {
 #[derive(Debug, Clone)]
 pub struct ScouterServerConfig {
     pub polling_settings: PollingSettings,
+    pub genai_polling_settings: GenAIPollerSettings,
     pub database_settings: DatabaseSettings,
     pub kafka_settings: Option<KafkaSettings>,
     pub rabbitmq_settings: Option<RabbitMQSettings>,
@@ -65,6 +66,7 @@ impl ScouterServerConfig {
 impl ScouterServerConfig {
     pub async fn new() -> Self {
         let polling = PollingSettings::default();
+        let genai_polling = GenAIPollerSettings::default();
         let database = DatabaseSettings::default();
         let kafka = if env::var("KAFKA_BROKERS").is_ok() {
             Some(KafkaSettings::default())
@@ -110,6 +112,7 @@ impl ScouterServerConfig {
 
         Self {
             polling_settings: polling,
+            genai_polling_settings: genai_polling,
             database_settings: database,
             kafka_settings: kafka,
             rabbitmq_settings: rabbitmq,

@@ -17,6 +17,7 @@ from . import (
     util,
 )
 from ._scouter import (  # genai
+    AggregationType,
     AssertionTask,
     CommonCrons,
     ComparisonOperator,
@@ -60,6 +61,8 @@ from ._scouter import (  # genai
     Scott,
     ScouterClient,
     ScouterQueue,
+    SpanFilter,
+    SpanStatus,
     SpcAlertConfig,
     SpcDriftConfig,
     SpcDriftMap,
@@ -69,6 +72,8 @@ from ._scouter import (  # genai
     SquareRoot,
     Sturges,
     TerrellScott,
+    TraceAssertion,
+    TraceAssertionTask,
     _get_log_level,
     _log_json,
 )
@@ -146,4 +151,9 @@ __all__ = [
     "AssertionTask",
     "ComparisonOperator",
     "GenAIEvalResults",
+    "TraceAssertion",
+    "TraceAssertionTask",
+    "SpanStatus",
+    "AggregationType",
+    "SpanFilter",
 ]

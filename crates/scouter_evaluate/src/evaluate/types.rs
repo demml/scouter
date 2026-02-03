@@ -652,7 +652,7 @@ impl GenAIEvalResults {
         schema.set_item("task_passed", pl.getattr("Boolean")?)?;
         schema.set_item("task_value", pl.getattr("Float64")?)?;
         schema.set_item("task_message", pl.getattr("Utf8")?)?;
-        schema.set_item("task_field_path", pl.getattr("Utf8")?)?;
+        schema.set_item("task_assertion", pl.getattr("Utf8")?)?;
         schema.set_item("task_operator", pl.getattr("Utf8")?)?;
         schema.set_item("task_expected", pl.getattr("Utf8")?)?;
         schema.set_item("task_actual", pl.getattr("Utf8")?)?;
@@ -1145,11 +1145,9 @@ impl AlignedEvalResult {
             );
 
             flat.insert(
-                "task_field_path".to_string(),
-                match &task_result.field_path {
-                    Some(path) => serde_json::Value::String(path.clone()),
-                    None => serde_json::Value::Null,
-                },
+                "task_assertion".to_string(),
+                serde_json::to_value(task_result.assertion.clone())
+                    .unwrap_or(serde_json::Value::Null),
             );
 
             flat.insert(

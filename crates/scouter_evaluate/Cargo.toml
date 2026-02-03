@@ -38,3 +38,4 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 potato-head = { workspace = true, features = ["mock"] }
+scouter-mocks = { workspace = true, features = ["server"] }

@@ -11,6 +11,7 @@ use tracing::debug;
 pub enum TaskType {
     Assertion,
     LLMJudge,
+    TraceAssertion,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

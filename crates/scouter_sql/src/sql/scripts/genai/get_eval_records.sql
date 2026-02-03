@@ -11,7 +11,8 @@ SELECT
     processing_ended_at,
     processing_duration,
     record_id,
-    session_id
+    session_id,
+    retry_count
 FROM scouter.genai_eval_record
 WHERE 1=1
   AND entity_id = $1

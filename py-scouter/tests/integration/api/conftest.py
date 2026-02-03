@@ -20,9 +20,14 @@ from scouter.drift import (
     Drifter,
     GenAIEvalConfig,
     GenAIEvalProfile,
-    LLMJudgeTask,
     SpcDriftConfig,
     SpcDriftProfile,
+)
+from scouter.evaluate import (
+    AssertionTask,
+    LLMJudgeTask,
+    TraceAssertion,
+    TraceAssertionTask,
 )
 from scouter.genai import Agent, Prompt, Provider, Score
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
@@ -145,7 +150,14 @@ def create_and_register_genai_drift_profile(
         ),
     )
 
-    tasks = [
+    tasks: list[AssertionTask | LLMJudgeTask | TraceAssertionTask] = [
+        AssertionTask(
+            id="response_time",
+            expected_value=10,
+            field_path="assertion",
+            operator=ComparisonOperator.GreaterThanOrEqual,
+            description="Ensure response time is within acceptable limits",
+        ),
         LLMJudgeTask(
             id="coherence",
             expected_value=4,
@@ -153,7 +165,13 @@ def create_and_register_genai_drift_profile(
             field_path="score",
             operator=ComparisonOperator.GreaterThanOrEqual,
             description="Evaluate text coherence",
-        )
+        ),
+        TraceAssertionTask(
+            id="no_errors",
+            assertion=TraceAssertion.trace_error_count(),
+            expected_value=0,
+            operator=ComparisonOperator.Equals,
+        ),
     ]
 
     # create drifter
@@ -379,6 +397,7 @@ def create_tracing_genai_app(tracer: Tracer, profile_path: Path) -> FastAPI:
                 context={
                     "input": bound_prompt.messages[0].text,
                     "response": response.response_text(),
+                    "assertion": 10,
                 },
             )
             active_span.add_queue_item(alias="genai", item=queue_record)

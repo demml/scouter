@@ -10,7 +10,8 @@ SELECT
     processing_ended_at,
     processing_duration,
     record_id,
-    session_id
+    session_id,
+    retry_count
 FROM scouter.genai_eval_record
 WHERE entity_id = $1
   AND ($2::VARCHAR IS NULL OR status = $2)

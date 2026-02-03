@@ -3,7 +3,7 @@ use crate::sql::query::Queries;
 use crate::sql::schema::BinnedMetricWrapper;
 use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use scouter_dataframe::parquet::BinnedMetricsExtractor;
 use scouter_dataframe::parquet::ParquetDataFrame;
 use scouter_settings::ObjectStorageSettings;
@@ -102,7 +102,7 @@ pub trait GenAIDriftSqlLogic {
         let mut task_types = Vec::with_capacity(n);
         let mut passed_flags = Vec::with_capacity(n);
         let mut values = Vec::with_capacity(n);
-        let mut field_paths = Vec::with_capacity(n);
+        let mut assertions = Vec::with_capacity(n);
         let mut operators = Vec::with_capacity(n);
         let mut expected_jsons = Vec::with_capacity(n);
         let mut actual_jsons = Vec::with_capacity(n);
@@ -120,7 +120,7 @@ pub trait GenAIDriftSqlLogic {
             task_types.push(r.task_type.as_str());
             passed_flags.push(r.passed);
             values.push(r.value);
-            field_paths.push(r.field_path.as_deref());
+            assertions.push(Json(r.assertion()));
             operators.push(r.operator.as_str());
             expected_jsons.push(Json(&r.expected));
             actual_jsons.push(Json(&r.actual));
@@ -141,7 +141,7 @@ pub trait GenAIDriftSqlLogic {
             .bind(&task_types)
             .bind(&passed_flags)
             .bind(&values)
-            .bind(&field_paths)
+            .bind(&assertions)
             .bind(&operators)
             .bind(&expected_jsons)
             .bind(&actual_jsons)
@@ -797,6 +797,27 @@ pub trait GenAIDriftSqlLogic {
             .await
             .inspect_err(|e| {
                 error!("Failed to update GenAI drift record status: {:?}", e);
+            })?;
+
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    async fn reschedule_genai_eval_record(
+        pool: &Pool<Postgres>,
+        uid: &str,
+        delay: Duration,
+    ) -> Result<(), SqlError> {
+        let scheduled_at = Utc::now() + delay;
+
+        let query = Queries::RescheduleGenAIEvalRecord.get_query();
+        sqlx::query(query)
+            .bind(scheduled_at)
+            .bind(uid)
+            .execute(pool)
+            .await
+            .inspect_err(|e| {
+                error!("Failed to reschedule GenAI eval record: {:?}", e);
             })?;
 
         Ok(())

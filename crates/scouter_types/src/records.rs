@@ -1,5 +1,5 @@
 use crate::error::RecordError;
-use crate::genai::{ComparisonOperator, EvaluationTaskType, ExecutionPlan};
+use crate::genai::{ComparisonOperator, EvaluationTaskType, ExecutionPlan, TraceAssertion};
 use crate::trace::TraceServerRecord;
 use crate::{depythonize_object_to_value, DriftType, Status};
 use crate::{EntityType, TagRecord};
@@ -218,6 +218,7 @@ pub struct GenAIEvalRecord {
     pub status: Status,
     #[pyo3(get)]
     pub entity_type: EntityType,
+    pub retry_count: i32,
 }
 
 #[pymethods]
@@ -344,6 +345,7 @@ impl GenAIEvalRecord {
             record_id: record_id.unwrap_or_default(),
             entity_type: EntityType::GenAI,
             session_id: session_id.unwrap_or_else(create_uuid7),
+            retry_count: 0,
         }
     }
 
@@ -371,6 +373,7 @@ impl Default for GenAIEvalRecord {
             status: Status::Pending,
             entity_type: EntityType::GenAI,
             session_id: create_uuid7(),
+            retry_count: 0,
         }
     }
 }
@@ -399,6 +402,7 @@ impl FromRow<'_, PgRow> for GenAIEvalRecord {
             entity_uid: String::new(), // mask entity_uid when loading from DB
             status,
             entity_type: EntityType::GenAI,
+            retry_count: row.try_get("retry_count")?,
         })
     }
 }
@@ -605,14 +609,20 @@ pub struct TaskResultTableEntry {
     pub stage: i32,
     #[tabled(rename = "Passed")]
     pub passed: String,
-    #[tabled(rename = "Field Path")]
-    pub field_path: String,
+    #[tabled(rename = "Assertion")]
+    pub assertion: String,
     #[tabled(rename = "Operator")]
     pub operator: String,
     #[tabled(rename = "Expected")]
     pub expected: String,
     #[tabled(rename = "Actual")]
     pub actual: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub enum Assertion {
+    FieldPath(Option<String>),
+    TraceAssertion(TraceAssertion),
 }
 
 // Detailed result for an individual evaluation task within a workflow
@@ -646,8 +656,7 @@ pub struct GenAIEvalTaskResult {
     #[pyo3(get)]
     pub value: f64,
 
-    #[pyo3(get)]
-    pub field_path: Option<String>,
+    pub assertion: Assertion,
 
     #[pyo3(get)]
     pub operator: ComparisonOperator,
@@ -687,6 +696,14 @@ impl GenAIEvalTaskResult {
     pub fn model_dump_json(&self) -> String {
         PyHelperFuncs::__json__(self)
     }
+
+    #[getter]
+    pub fn assertion(&self) -> String {
+        match &self.assertion {
+            Assertion::FieldPath(path) => path.clone().unwrap_or_default(),
+            Assertion::TraceAssertion(trace_assertion) => trace_assertion.to_string(),
+        }
+    }
 }
 
 impl GenAIEvalTaskResult {
@@ -719,7 +736,7 @@ impl GenAIEvalTaskResult {
                 "✗".red().to_string()
             },
 
-            field_path: truncate(self.field_path.clone().unwrap_or_default(), 12),
+            assertion: truncate(self.assertion(), 12),
             operator: self.operator.to_string(),
             expected: truncate(expected_str, 20),
             actual: truncate(actual_str, 20),
@@ -734,7 +751,7 @@ impl GenAIEvalTaskResult {
         task_type: EvaluationTaskType,
         passed: bool,
         value: f64,
-        field_path: Option<String>,
+        assertion: Assertion,
         operator: ComparisonOperator,
         expected: Value,
         actual: Value,
@@ -753,7 +770,7 @@ impl GenAIEvalTaskResult {
             task_type,
             passed,
             value,
-            field_path,
+            assertion,
             operator,
             expected,
             actual,
@@ -777,7 +794,7 @@ impl Default for GenAIEvalTaskResult {
             task_type: EvaluationTaskType::Assertion,
             passed: false,
             value: 0.0,
-            field_path: None,
+            assertion: Assertion::FieldPath(None),
             operator: ComparisonOperator::Equals,
             expected: Value::Null,
             actual: Value::Null,
@@ -802,6 +819,8 @@ impl FromRow<'_, PgRow> for GenAIEvalTaskResult {
         let comparison_operator: ComparisonOperator =
             ComparisonOperator::from_str(&row.try_get::<String, &str>("operator")?)
                 .unwrap_or(ComparisonOperator::Equals);
+        let assertion: Assertion =
+            serde_json::from_value(row.try_get("assertion")?).unwrap_or(Assertion::FieldPath(None));
 
         Ok(GenAIEvalTaskResult {
             record_uid: row.try_get("record_uid")?,
@@ -812,7 +831,7 @@ impl FromRow<'_, PgRow> for GenAIEvalTaskResult {
             task_type,
             passed: row.try_get("passed")?,
             value: row.try_get("value")?,
-            field_path: row.try_get("field_path")?,
+            assertion,
             operator: comparison_operator,
             expected,
             actual,

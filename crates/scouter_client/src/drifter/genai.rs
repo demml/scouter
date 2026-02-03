@@ -23,7 +23,7 @@ impl ClientGenAIDrifter {
         profile: &GenAIEvalProfile,
     ) -> Result<GenAIEvalSet, DriftError> {
         let profile = Arc::new(profile.clone());
-        Ok(GenAIEvaluator::process_event_record(&record, profile).await?)
+        Ok(GenAIEvaluator::process_event_record(&record, profile, Arc::new(vec![])).await?)
     }
 
     pub fn compute_drift(

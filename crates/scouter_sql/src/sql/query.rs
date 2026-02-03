@@ -54,6 +54,8 @@ const GET_BINNED_GENAI_WORKFLOW_VALUES: &str =
     include_str!("scripts/genai/data/get_binned_workflow_values.sql");
 const GET_BINNED_GENAI_TASK_VALUES: &str =
     include_str!("scripts/genai/data/get_binned_task_values.sql");
+const RESCHEDULE_GENAI_EVAL_RECORD: &str =
+    include_str!("scripts/genai/reschedule_genai_record.sql");
 
 // genai paginated query
 const GET_PAGINATED_GENAI_EVAL_RECORDS: &str =
@@ -196,6 +198,7 @@ pub enum Queries {
     GetPaginatedGenAIEvalRecords,
     GetPaginatedGenAIEvalWorkflow,
     GetGenAIEvalTasks,
+    RescheduleGenAIEvalRecord,
 
     // genai - data
     GetGenAIWorkflowBinnedMetrics,
@@ -308,6 +311,7 @@ impl Queries {
             Queries::GetPaginatedGenAIEvalWorkflow => GET_PAGINATED_GENAI_EVAL_WORKFLOW,
             Queries::GetPendingGenAIEvalTask => GET_PENDING_GENAI_EVAL_TASK,
             Queries::GetGenAIEvalTasks => GET_GENAI_EVAL_TASKS,
+            Queries::RescheduleGenAIEvalRecord => RESCHEDULE_GENAI_EVAL_RECORD,
 
             Queries::GetGenAIEvalRecordEntitiesForArchive => GET_GENAI_EVAL_RECORD_ENTITIES,
             Queries::GetGenAIEvalRecordDataForArchive => GET_GENAI_EVAL_RECORD_DATA_FOR_ARCHIVE,

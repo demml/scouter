@@ -95,6 +95,7 @@ impl GenAIEvalDataFrame {
             ),
             Field::new("processing_duration", DataType::Int32, true),
             Field::new("entity_id", DataType::Int32, false),
+            Field::new("retry_count", DataType::Int32, false),
         ]));
 
         let object_store = ObjectStore::new(storage_settings)?;
@@ -155,6 +156,9 @@ impl GenAIEvalDataFrame {
         let processing_duration_array =
             Int32Array::from_iter(records.iter().map(|r| r.record.processing_duration));
 
+        let retry_count_array =
+            Int32Array::from_iter_values(records.iter().map(|r| r.record.retry_count));
+
         let batch = RecordBatch::try_new(
             self.schema.clone(),
             vec![
@@ -170,6 +174,7 @@ impl GenAIEvalDataFrame {
                 Arc::new(processing_ended_at_array),
                 Arc::new(processing_duration_array),
                 Arc::new(entity_id_array),
+                Arc::new(retry_count_array),
             ],
         )?;
 

@@ -2,7 +2,8 @@ use crate::error::{ProfileError, TypeError};
 use crate::genai::alert::GenAIAlertConfig;
 use crate::genai::eval::{AssertionTask, EvaluationTask, LLMJudgeTask};
 use crate::genai::traits::{separate_tasks, ProfileExt, TaskAccessor};
-use crate::genai::utils::extract_assertion_tasks_from_pylist;
+use crate::genai::utils::{extract_assertion_tasks_from_pylist, AssertionTasks};
+use crate::genai::TraceAssertionTask;
 use crate::util::{json_to_pyobject, pyobject_to_json, ConfigExt};
 use crate::{
     scouter_version, GenAIEvalTaskResult, GenAIEvalWorkflowResult, WorkflowResultTableEntry,
@@ -323,11 +324,7 @@ pub struct GenAIEvalProfile {
     #[pyo3(get)]
     pub config: GenAIEvalConfig,
 
-    #[pyo3(get)]
-    pub assertion_tasks: Vec<AssertionTask>,
-
-    #[pyo3(get)]
-    pub llm_judge_tasks: Vec<LLMJudgeTask>,
+    pub tasks: AssertionTasks,
 
     #[pyo3(get)]
     pub scouter_version: String,
@@ -355,16 +352,14 @@ impl GenAIEvalProfile {
         config: GenAIEvalConfig,
         tasks: &Bound<'_, PyList>,
     ) -> Result<Self, ProfileError> {
-        let (assertion_tasks, llm_judge_tasks) = extract_assertion_tasks_from_pylist(tasks)?;
+        let tasks = extract_assertion_tasks_from_pylist(tasks)?;
 
-        let (workflow, task_ids) = app_state()
-            .block_on(async { Self::build_profile(&llm_judge_tasks, &assertion_tasks).await })?;
+        let (workflow, task_ids) =
+            app_state().block_on(async { Self::build_profile(&tasks).await })?;
 
         Ok(Self {
             config,
-            assertion_tasks,
-            llm_judge_tasks,
-
+            tasks,
             scouter_version: scouter_version(),
             workflow,
             task_ids,
@@ -392,6 +387,21 @@ impl GenAIEvalProfile {
 
         // Return the Python dictionary
         Ok(dict.into())
+    }
+
+    #[getter]
+    pub fn assertion_tasks(&self) -> Vec<AssertionTask> {
+        self.tasks.assertion.clone()
+    }
+
+    #[getter]
+    pub fn llm_judge_tasks(&self) -> Vec<LLMJudgeTask> {
+        self.tasks.judge.clone()
+    }
+
+    #[getter]
+    pub fn trace_assertion_tasks(&self) -> Vec<TraceAssertionTask> {
+        self.tasks.trace.clone()
     }
 
     #[getter]
@@ -472,46 +482,63 @@ impl GenAIEvalProfile {
     }
 
     pub fn has_llm_tasks(&self) -> bool {
-        !self.llm_judge_tasks.is_empty()
+        !self.tasks.judge.is_empty()
     }
 
     /// Check if this profile has assertions
     pub fn has_assertions(&self) -> bool {
-        !self.assertion_tasks.is_empty()
+        !self.tasks.assertion.is_empty()
     }
 
-    /// Get execution order for all tasks (assertions + LLM judges)
+    pub fn has_trace_assertions(&self) -> bool {
+        !self.tasks.trace.is_empty()
+    }
+
+    /// Get execution order for all tasks (assertions + LLM judges + trace assertions)
     pub fn get_execution_plan(&self) -> Result<ExecutionPlan, ProfileError> {
         let mut graph: HashMap<String, Vec<String>> = HashMap::new();
         let mut reverse_graph: HashMap<String, Vec<String>> = HashMap::new();
         let mut in_degree: HashMap<String, usize> = HashMap::new();
 
         initialize_node_graphs(
-            &self.assertion_tasks,
+            &self.tasks.assertion,
             &mut graph,
             &mut reverse_graph,
             &mut in_degree,
         );
         initialize_node_graphs(
-            &self.llm_judge_tasks,
+            &self.tasks.judge,
+            &mut graph,
+            &mut reverse_graph,
+            &mut in_degree,
+        );
+
+        initialize_node_graphs(
+            &self.tasks.trace,
             &mut graph,
             &mut reverse_graph,
             &mut in_degree,
         );
 
         build_dependency_edges(
-            &self.assertion_tasks,
+            &self.tasks.assertion,
             &mut graph,
             &mut reverse_graph,
             &mut in_degree,
         );
         build_dependency_edges(
-            &self.llm_judge_tasks,
+            &self.tasks.judge,
             &mut graph,
             &mut reverse_graph,
             &mut in_degree,
         );
 
+        build_dependency_edges(
+            &self.tasks.trace,
+            &mut graph,
+            &mut reverse_graph,
+            &mut in_degree,
+        );
         let mut stages = Vec::new();
         let mut nodes: HashMap<String, ExecutionNode> = HashMap::new();
         let mut current_level: Vec<String> = in_degree
@@ -555,7 +582,8 @@ impl GenAIEvalProfile {
             stage_idx += 1;
         }
 
-        let total_tasks = self.assertion_tasks.len() + self.llm_judge_tasks.len();
+        let total_tasks =
+            self.tasks.assertion.len() + self.tasks.judge.len() + self.tasks.trace.len();
         let processed_tasks: usize = stages.iter().map(|level| level.len()).sum();
 
         if processed_tasks != total_tasks {
@@ -591,6 +619,8 @@ impl GenAIEvalProfile {
                     assertion.condition
                 } else if let Some(judge) = self.get_llm_judge_by_id(task_id) {
                     judge.condition
+                } else if let Some(trace) = self.get_trace_assertion_by_id(task_id) {
+                    trace.condition
                 } else {
                     false
                 };
@@ -600,8 +630,10 @@ impl GenAIEvalProfile {
                 }
 
                 let (task_type, color_fn): (&str, fn(&str) -> String) =
-                    if self.assertion_tasks.iter().any(|t| &t.id == task_id) {
+                    if self.tasks.assertion.iter().any(|t| &t.id == task_id) {
                         ("Assertion", |s: &str| s.yellow().to_string())
+                    } else if self.tasks.trace.iter().any(|t| &t.id == task_id) {
+                        ("Trace Assertion", |s: &str| s.bright_blue().to_string())
                     } else {
                         ("LLM Judge", |s: &str| s.purple().to_string())
                     };
@@ -629,6 +661,9 @@ impl GenAIEvalProfile {
                             self.get_assertion_by_id(dep_id)
                                 .map(|t| t.condition)
                                 .or_else(|| self.get_llm_judge_by_id(dep_id).map(|t| t.condition))
+                                .or_else(|| {
+                                    self.get_trace_assertion_by_id(dep_id).map(|t| t.condition)
+                                })
                                 .unwrap_or(false)
                         });
 
@@ -678,7 +713,7 @@ impl GenAIEvalProfile {
         println!(
             "{}: {} tasks across {} stages",
             "Summary".bold(),
-            self.assertion_tasks.len() + self.llm_judge_tasks.len(),
+            self.tasks.assertion.len() + self.tasks.judge.len() + self.tasks.trace.len(),
             plan.stages.len()
         );
 
@@ -700,8 +735,11 @@ impl Default for GenAIEvalProfile {
     fn default() -> Self {
         Self {
             config: GenAIEvalConfig::default(),
-            assertion_tasks: Vec::new(),
-            llm_judge_tasks: Vec::new(),
+            tasks: AssertionTasks {
+                assertion: Vec::new(),
+                judge: Vec::new(),
+                trace: Vec::new(),
+            },
             scouter_version: scouter_version(),
             workflow: None,
             task_ids: BTreeSet::new(),
@@ -715,14 +753,12 @@ impl GenAIEvalProfile {
         config: GenAIEvalConfig,
         tasks: Vec<EvaluationTask>,
     ) -> Result<Self, ProfileError> {
-        let (assertion_tasks, llm_judge_tasks) = separate_tasks(tasks);
-        let (workflow, task_ids) = Self::build_profile(&llm_judge_tasks, &assertion_tasks).await?;
+        let tasks = separate_tasks(tasks);
+        let (workflow, task_ids) = Self::build_profile(&tasks).await?;
 
         Ok(Self {
             config,
-            assertion_tasks,
-            llm_judge_tasks,
-
+            tasks,
             scouter_version: scouter_version(),
             workflow,
             task_ids,
@@ -730,19 +766,14 @@ impl GenAIEvalProfile {
     }
 
     async fn build_profile(
-        judge_tasks: &[LLMJudgeTask],
-        assertion_tasks: &[AssertionTask],
+        tasks: &AssertionTasks,
     ) -> Result<(Option<Workflow>, BTreeSet<String>), ProfileError> {
-        if assertion_tasks.is_empty() && judge_tasks.is_empty() {
+        if tasks.assertion.is_empty() && tasks.judge.is_empty() && tasks.trace.is_empty() {
             return Err(ProfileError::EmptyTaskList);
         }
 
-        let workflow = if !judge_tasks.is_empty() {
-            let assertion_ids: BTreeSet<String> =
-                assertion_tasks.iter().map(|t| t.id.clone()).collect();
-            let workflow = Self::build_workflow_from_judges(judge_tasks, &assertion_ids).await?;
-
-            // Validate the workflow
+        let workflow = if !tasks.judge.is_empty() {
+            let workflow = Self::build_workflow_from_judges(tasks).await?;
             validate_workflow(&workflow)?;
             Some(workflow)
         } else {
@@ -750,64 +781,66 @@ impl GenAIEvalProfile {
         };
 
         // Validate LLM judge prompts individually
-        for judge in judge_tasks {
+        for judge in &tasks.judge {
             validate_prompt_parameters(&judge.prompt, &judge.id)?;
         }
 
-        // Collect all task IDs from assertion and LLM judge tasks
-        let mut task_ids = BTreeSet::new();
-        for task in assertion_tasks {
-            task_ids.insert(task.id.clone());
-        }
-        for task in judge_tasks {
-            task_ids.insert(task.id.clone());
-        }
+        // Collect all task IDs
+        let task_ids = tasks.collect_all_task_ids()?;
 
-        // check for duplicate task IDs across all task types
-        let total_tasks = assertion_tasks.len() + judge_tasks.len();
-
-        if task_ids.len() != total_tasks {
-            return Err(ProfileError::DuplicateTaskIds);
-        }
         Ok((workflow, task_ids))
+    }
+
+    async fn get_or_create_agent(
+        agents: &mut HashMap<potato_head::Provider, Agent>,
+        workflow: &mut Workflow,
+        provider: &potato_head::Provider,
+    ) -> Result<Agent, ProfileError> {
+        match agents.entry(provider.clone()) {
+            Entry::Occupied(entry) => Ok(entry.get().clone()),
+            Entry::Vacant(entry) => {
+                let agent = Agent::new(provider.clone(), None).await?;
+                workflow.add_agent(&agent);
+                Ok(entry.insert(agent).clone())
+            }
+        }
+    }
+
+    fn filter_judge_dependencies(
+        depends_on: &[String],
+        non_judge_task_ids: &BTreeSet<String>,
+    ) -> Option<Vec<String>> {
+        let filtered: Vec<String> = depends_on
+            .iter()
+            .filter(|dep_id| !non_judge_task_ids.contains(*dep_id))
+            .cloned()
+            .collect();
+
+        if filtered.is_empty() {
+            None
+        } else {
+            Some(filtered)
+        }
     }
 
     /// Build workflow from LLM judge tasks
     /// # Arguments
-    /// * `judges` - Slice of LLMJudgeTask
+    /// * `tasks` - Reference to AssertionTasks
     /// # Returns
     /// * `Result<Workflow, ProfileError>` - The constructed workflow
     pub async fn build_workflow_from_judges(
-        judges: &[LLMJudgeTask],
-        assertion_ids: &BTreeSet<String>,
+        tasks: &AssertionTasks,
     ) -> Result<Workflow, ProfileError> {
         let mut workflow = Workflow::new(&format!("eval_workflow_{}", create_uuid7()));
         let mut agents = HashMap::new();
+        let non_judge_task_ids = tasks.collect_non_judge_task_ids();
 
-        for judge in judges {
-            let agent = match agents.entry(&judge.prompt.provider) {
-                Entry::Occupied(entry) => entry.into_mut(),
-                Entry::Vacant(entry) => {
-                    let agent = Agent::new(judge.prompt.provider.clone(), None).await?;
-                    workflow.add_agent(&agent);
-                    entry.insert(agent)
-                }
-            };
+        for judge in &tasks.judge {
+            let agent =
+                Self::get_or_create_agent(&mut agents, &mut workflow, &judge.prompt.provider)
+                    .await?;
 
-            // filter out assertion IDs from dependencies
-            // All dependencies are checked when building a workflow, and non-judge tasks are not part of the workflow
-            let workflow_dependencies: Vec<String> = judge
-                .depends_on
-                .iter()
-                .filter(|dep_id| !assertion_ids.contains(*dep_id))
-                .cloned()
-                .collect();
-
-            let task_deps = if workflow_dependencies.is_empty() {
-                None
-            } else {
-                Some(workflow_dependencies)
-            };
+            let task_deps = Self::filter_judge_dependencies(&judge.depends_on, &non_judge_task_ids);
 
             let task = Task::new(
                 &agent.id,
@@ -815,8 +848,7 @@ impl GenAIEvalProfile {
                 &judge.id,
                 task_deps,
                 judge.max_retries,
-            )
-            .unwrap();
+            )?;
 
             workflow.add_task(task)?;
         }
@@ -832,12 +864,16 @@ impl ProfileExt for GenAIEvalProfile {
     }
 
     fn get_task_by_id(&self, id: &str) -> Option<&dyn TaskAccessor> {
-        if let Some(assertion) = self.assertion_tasks.iter().find(|t| t.id() == id) {
+        if let Some(assertion) = self.tasks.assertion.iter().find(|t| t.id() == id) {
             return Some(assertion);
         }
 
-        if let Some(judge) = self.llm_judge_tasks.iter().find(|t| t.id() == id) {
+        if let Some(judge) = self.tasks.judge.iter().find(|t| t.id() == id) {
             return Some(judge);
+        }
+
+        if let Some(trace) = self.tasks.trace.iter().find(|t| t.id() == id) {
+            return Some(trace);
         }
 
         None
@@ -846,17 +882,27 @@ impl ProfileExt for GenAIEvalProfile {
     #[inline]
     /// Get assertion task by ID, first checking AssertionTasks, then ConditionalTasks
     fn get_assertion_by_id(&self, id: &str) -> Option<&AssertionTask> {
-        self.assertion_tasks.iter().find(|t| t.id() == id)
+        self.tasks.assertion.iter().find(|t| t.id() == id)
     }
 
     #[inline]
     fn get_llm_judge_by_id(&self, id: &str) -> Option<&LLMJudgeTask> {
-        self.llm_judge_tasks.iter().find(|t| t.id() == id)
+        self.tasks.judge.iter().find(|t| t.id() == id)
+    }
+
+    #[inline]
+    fn get_trace_assertion_by_id(&self, id: &str) -> Option<&TraceAssertionTask> {
+        self.tasks.trace.iter().find(|t| t.id() == id)
     }
 
     #[inline]
     fn has_llm_tasks(&self) -> bool {
-        !self.llm_judge_tasks.is_empty()
+        !self.tasks.judge.is_empty()
+    }
+
+    #[inline]
+    fn has_trace_assertions(&self) -> bool {
+        !self.tasks.trace.is_empty()
     }
 }
 
@@ -1102,7 +1148,7 @@ mod tests {
         let _: Value =
             serde_json::from_str(&profile.model_dump_json()).expect("Failed to parse actual JSON");
 
-        assert_eq!(profile.llm_judge_tasks.len(), 2);
+        assert_eq!(profile.llm_judge_tasks().len(), 2);
         assert_eq!(profile.scouter_version, env!("CARGO_PKG_VERSION"));
     }
 }

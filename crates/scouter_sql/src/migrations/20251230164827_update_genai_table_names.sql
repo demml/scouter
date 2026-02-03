@@ -39,6 +39,7 @@ DROP TABLE IF EXISTS scouter.template_scouter_llm_drift CASCADE;
 CREATE TABLE IF NOT EXISTS scouter.genai_eval_record (
     id BIGINT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    scheduled_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     uid TEXT DEFAULT gen_random_uuid(),
     entity_id INTEGER NOT NULL,
     context JSONB,
@@ -49,6 +50,7 @@ CREATE TABLE IF NOT EXISTS scouter.genai_eval_record (
     processing_duration INTEGER,
     record_id TEXT,
     session_id TEXT,
+    retry_count INTEGER DEFAULT 0,
     archived BOOLEAN DEFAULT false,
     PRIMARY KEY (uid, created_at),
     UNIQUE (created_at, entity_id)
@@ -63,6 +65,9 @@ CREATE INDEX IF NOT EXISTS idx_genai_event_record_pagination ON scouter.genai_ev
 CREATE INDEX IF NOT EXISTS idx_genai_eval_record_comparison_lookup ON scouter.genai_eval_record (entity_id, record_id, session_id, created_at DESC)
 WHERE record_id IS NOT NULL AND record_id != '';
 
+CREATE INDEX IF NOT EXISTS idx_genai_eval_record_polling
+ON scouter.genai_eval_record(status, scheduled_at, retry_count)
+WHERE status = 'pending';
 
 -- ============================================================================
 -- STEP 7: Setup pg_partman Configuration

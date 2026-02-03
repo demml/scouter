@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS scouter.genai_eval_task (
     task_type TEXT NOT NULL,
     passed BOOLEAN NOT NULL,
     value DOUBLE PRECISION NOT NULL,
-    field_path TEXT,
+    assertion JSONB,
     operator TEXT NOT NULL,
     expected JSONB NOT NULL,
     actual JSONB NOT NULL,

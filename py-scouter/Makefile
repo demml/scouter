@@ -8,7 +8,7 @@ format.black:
 	uv run black ${SOURCE_OBJECTS}
 format.ruff:
 	uv run ruff check --silent --exit-zero ${SOURCE_OBJECTS}
-format: format.isort format.black format.ruff 
+format: format.isort format.black format.ruff
 
 lints.format_check:
 	uv run black --check ${SOURCE_OBJECTS}
@@ -21,7 +21,13 @@ lints.pylint:
 lints: lints.ruff lints.pylint lints.mypy
 lints.ci: lints.format_check lints.ruff lints.pylint lints.mypy
 
-setup.project:
+build.stubs:
+	uv run python scripts/assemble_stubs.py
+	uv run isort ${SOURCE_OBJECTS}
+	uv run black ${SOURCE_OBJECTS}
+	uv run ruff check --silent --exit-zero ${SOURCE_OBJECTS}
+
+setup.project: build.stubs
 	uv sync --all-extras --group dev --group docs
 	uv run maturin develop --features server
 

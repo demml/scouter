@@ -50,10 +50,13 @@ pub async fn spawn_evaluation_tasks_without_embeddings(
                 record.uid, idx
             );
 
-            let result = match GenAIEvaluator::process_event_record(record, profile_ref).await {
-                Ok(eval_set) => Ok((eval_set, BTreeMap::new())),
-                Err(e) => Err(format!("Evaluation failed: {}", e)),
-            };
+            let result =
+                match GenAIEvaluator::process_event_record(record, profile_ref, Arc::new(vec![]))
+                    .await
+                {
+                    Ok(eval_set) => Ok((eval_set, BTreeMap::new())),
+                    Err(e) => Err(format!("Evaluation failed: {}", e)),
+                };
 
             (idx, result)
         });
@@ -94,10 +97,13 @@ pub async fn spawn_evaluation_tasks_with_embeddings(
             .await;
 
             // Execute evaluation
-            let result = match GenAIEvaluator::process_event_record(record, profile_ref).await {
-                Ok(eval_set) => Ok((eval_set, embeddings)),
-                Err(e) => Err(format!("Evaluation failed: {}", e)),
-            };
+            let result =
+                match GenAIEvaluator::process_event_record(record, profile_ref, Arc::new(vec![]))
+                    .await
+                {
+                    Ok(eval_set) => Ok((eval_set, embeddings)),
+                    Err(e) => Err(format!("Evaluation failed: {}", e)),
+                };
 
             (idx, result)
         });
