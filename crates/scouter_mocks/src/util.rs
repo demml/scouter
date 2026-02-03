@@ -1,11 +1,13 @@
 use chrono::{DateTime, Duration, Utc};
 use pyo3::pyfunction;
 use scouter_types::sql::TraceSpan;
-use serde_json::json;
-use serde_json::Value;
+
 
 #[cfg(feature = "server")]
 use scouter_types::trace::Attribute;
+
+#[cfg(feature = "server")]
+use serde_json::{json, Value};
 
 #[cfg(feature = "server")]
 pub struct SpanBuilder {
@@ -122,7 +124,7 @@ pub fn create_simple_trace() -> Vec<TraceSpan> {
     }
     #[cfg(not(feature = "server"))]
     {
-        warn!("create_simple_trace is not available without the 'server' feature enabled.");
+       tracing::warn!("create_simple_trace is not available without the 'server' feature enabled.");
         vec![]
     }
 }

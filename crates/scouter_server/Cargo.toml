@@ -66,6 +66,7 @@ serde_qs = { workspace = true }
 tower = { version = "0.*", features = ["util"] }
 url = { workspace = true }
 scouter-tonic = { workspace = true, features = ["client"] }
+scouter-mocks = { workspace = true, features = ["server"] }
 test-utils = { workspace = true }
 
 [features]

@@ -6199,6 +6199,7 @@ dependencies = [
  "scouter-dispatch",
  "scouter-drift",
  "scouter-events",
+ "scouter-mocks",
  "scouter-observability",
  "scouter-settings",
  "scouter-sql",
