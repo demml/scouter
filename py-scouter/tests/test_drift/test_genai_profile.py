@@ -12,8 +12,8 @@ from scouter.drift import (
     LLMJudgeTask,
 )
 from scouter.genai import Prompt, Score
-from scouter.mock import LLMTestServer
-from scouter.queue import GenAIEvalRecord
+from scouter.mock import LLMTestServer, MockConfig
+from scouter.queue import GenAIEvalRecord, ScouterQueue
 
 
 class TaskOutput(BaseModel):
@@ -38,7 +38,14 @@ def test_genai_drift_profile_from_task():
             expected_value=3,
         )
 
-        _profile = GenAIEvalProfile(tasks=[task])
+        profile = GenAIEvalProfile(tasks=[task], alias="test-profile")
+
+        # test scouterqueue from profile
+        _queue = ScouterQueue.from_profile(
+            profile=profile,
+            transport_config=MockConfig(),
+            wait_for_startup=True,
+        )
 
 
 def test_genai_drifter():

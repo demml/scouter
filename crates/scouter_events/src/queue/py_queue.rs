@@ -11,7 +11,7 @@ use crate::queue::traits::queue::wait_for_event_task;
 use crate::queue::traits::queue::QueueMethods;
 use crate::queue::types::{QueueSettings, TransportConfig};
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList, PyListMethods, PyTuple, PyTupleMethods};
+use pyo3::types::{PyDict, PyList, PyListMethods};
 use scouter_state::app_state;
 use scouter_types::{DriftProfile, GenAIEvalRecord, QueueItem};
 use scouter_types::{Features, Metrics};
@@ -205,6 +205,7 @@ async fn spawn_queue_event_handler(
     };
 
     task_state.set_event_running(true);
+    task_state.notify_event_started();
     debug!("Event loop for queue {} set to running", id);
     loop {
         tokio::select! {
@@ -293,31 +294,40 @@ impl ScouterQueue {
     /// # Arguments
     /// * `paths` - A map of aliases to paths
     /// * `transport_config` - The transport config to use
-    ///
+    /// * *wait_for_startup* - Whether to wait for each queue to signal startup before returning
     /// # Returns
     /// * `ScouterQueue` - A new ScouterQueue
     #[staticmethod]
-    #[pyo3(signature = (path, transport_config))]
+    #[pyo3(signature = (path, transport_config, wait_for_startup=false))]
     pub fn from_path(
         py: Python,
         path: HashMap<String, PathBuf>,
         transport_config: &Bound<'_, PyAny>,
+        wait_for_startup: bool,
     ) -> Result<Self, PyEventError> {
-        ScouterQueue::from_path_rs(py, path, transport_config, false)
+        ScouterQueue::from_path_rs(py, path, transport_config, wait_for_startup)
     }
 
     /// Create a new ScouterQueue from a drift profile.
     /// This is used for programmatic creation of queues without needing to read from a path.
     /// This is useful for testing and for dynamic queue creation.
+    /// # Arguments
+    /// * `profile` - A dict, list, or single drift profile object
+    /// * `transport_config` - The transport config to use
+    /// * *wait_for_startup* - Whether to wait for each queue to signal startup before returning
+    /// # Returns
+    /// * `ScouterQueue` - A new ScouterQueue
     #[staticmethod]
-    #[pyo3(signature = (profile, transport_config))]
+    #[pyo3(signature = (profile, transport_config, wait_for_startup=false))]
     pub fn from_profile(
         py: Python,
         profile: &Bound<'_, PyAny>,
         transport_config: &Bound<'_, PyAny>,
+        wait_for_startup: bool,
     ) -> Result<Self, PyEventError> {
+        debug!("Creating ScouterQueue from profile");
         let profiles = extract_drift_profiles(profile)?;
-        ScouterQueue::from_profile_rs(py, profiles, transport_config, false)
+        ScouterQueue::from_profile_rs(py, profiles, transport_config, wait_for_startup)
     }
 
     /// Get a queue by its alias
@@ -457,12 +467,13 @@ impl ScouterQueue {
         event_state.add_event_abort_handle(handle);
         event_state.add_event_cancellation_token(cancellation_token);
 
-        std::thread::sleep(std::time::Duration::from_millis(1000));
-
         if wait_for_startup {
             debug!("Waiting for queue {} to signal startup", id);
-            wait_for_background_task(&event_state)?;
-            wait_for_event_task(&event_state)?;
+            runtime_handle.block_on(async {
+                wait_for_background_task(&event_state).await?;
+                wait_for_event_task(&event_state).await
+            })?;
+            debug!("Queue {} has signaled startup", id);
         }
 
         Ok(Py::new(py, bus)?)

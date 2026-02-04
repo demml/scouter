@@ -4,6 +4,7 @@ use crate::error::{EventError, PyEventError};
 use pyo3::prelude::*;
 use scouter_types::QueueItem;
 use std::sync::RwLock;
+use tokio::sync::Notify;
 use tokio::task::JoinHandle;
 use tokio::time::Duration;
 use tokio::{sync::mpsc::UnboundedSender, task::AbortHandle};
@@ -21,6 +22,7 @@ pub struct Task {
     pub abort_handle: Option<AbortHandle>,
     pub running: bool,
     pub cancel_token: Option<CancellationToken>,
+    pub startup_notify: Arc<Notify>,
 }
 
 impl Task {
@@ -29,10 +31,10 @@ impl Task {
             abort_handle: None,
             running: false,
             cancel_token: None,
+            startup_notify: Arc::new(Notify::new()),
         }
     }
 }
-
 impl Default for Task {
     fn default() -> Self {
         Self::new()
@@ -54,6 +56,18 @@ pub struct TaskState {
 }
 
 impl TaskState {
+    pub fn notify_event_started(&self) {
+        self.event_task.read().unwrap().startup_notify.notify_one();
+    }
+
+    pub fn notify_background_started(&self) {
+        self.background_task
+            .read()
+            .unwrap()
+            .startup_notify
+            .notify_one();
+    }
+
     pub fn add_background_cancellation_token(&mut self, token: CancellationToken) {
         self.background_task.write().unwrap().cancel_token = Some(token);
     }
