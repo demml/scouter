@@ -11,6 +11,7 @@ use crate::queue::traits::queue::wait_for_event_task;
 use crate::queue::traits::queue::QueueMethods;
 use crate::queue::types::{QueueSettings, TransportConfig};
 use pyo3::prelude::*;
+use pyo3::types::{PyDict, PyList, PyListMethods};
 use scouter_state::app_state;
 use scouter_types::{DriftProfile, GenAIEvalRecord, QueueItem};
 use scouter_types::{Features, Metrics};
@@ -204,6 +205,7 @@ async fn spawn_queue_event_handler(
     };
 
     task_state.set_event_running(true);
+    task_state.notify_event_started();
     debug!("Event loop for queue {} set to running", id);
     loop {
         tokio::select! {
@@ -292,17 +294,40 @@ impl ScouterQueue {
     /// # Arguments
     /// * `paths` - A map of aliases to paths
     /// * `transport_config` - The transport config to use
-    ///
+    /// * *wait_for_startup* - Whether to wait for each queue to signal startup before returning
     /// # Returns
     /// * `ScouterQueue` - A new ScouterQueue
     #[staticmethod]
-    #[pyo3(signature = (path, transport_config))]
+    #[pyo3(signature = (path, transport_config, wait_for_startup=false))]
     pub fn from_path(
         py: Python,
         path: HashMap<String, PathBuf>,
         transport_config: &Bound<'_, PyAny>,
+        wait_for_startup: bool,
     ) -> Result<Self, PyEventError> {
-        ScouterQueue::from_path_rs(py, path, transport_config, false)
+        ScouterQueue::from_path_rs(py, path, transport_config, wait_for_startup)
+    }
+
+    /// Create a new ScouterQueue from a drift profile.
+    /// This is used for programmatic creation of queues without needing to read from a path.
+    /// This is useful for testing and for dynamic queue creation.
+    /// # Arguments
+    /// * `profile` - A dict, list, or single drift profile object
+    /// * `transport_config` - The transport config to use
+    /// * *wait_for_startup* - Whether to wait for each queue to signal startup before returning
+    /// # Returns
+    /// * `ScouterQueue` - A new ScouterQueue
+    #[staticmethod]
+    #[pyo3(signature = (profile, transport_config, wait_for_startup=false))]
+    pub fn from_profile(
+        py: Python,
+        profile: &Bound<'_, PyAny>,
+        transport_config: &Bound<'_, PyAny>,
+        wait_for_startup: bool,
+    ) -> Result<Self, PyEventError> {
+        debug!("Creating ScouterQueue from profile");
+        let profiles = extract_drift_profiles(profile)?;
+        ScouterQueue::from_profile_rs(py, profiles, transport_config, wait_for_startup)
     }
 
     /// Get a queue by its alias
@@ -388,6 +413,72 @@ impl ScouterQueue {
 }
 
 impl ScouterQueue {
+    #[instrument(skip_all)]
+    fn initialize_queue(
+        py: Python,
+        id: String,
+        drift_profile: DriftProfile,
+        config: TransportConfig,
+        queue_state: &mut HashMap<String, TaskState>,
+        queue_settings: &mut HashMap<String, Arc<RwLock<QueueSettings>>>,
+        wait_for_startup: bool,
+    ) -> Result<Py<QueueBus>, PyEventError> {
+        let settings = if let DriftProfile::GenAI(genai_profile) = &drift_profile {
+            let settings = Arc::new(RwLock::new(QueueSettings::new(
+                id.clone(),
+                genai_profile.config.sample_ratio,
+            )));
+            queue_settings.insert(id.clone(), settings.clone());
+            Some(settings)
+        } else {
+            None
+        };
+
+        let (mut event_state, event_rx) = create_event_state(id.clone());
+        let bus = QueueBus::new(event_state.clone(), drift_profile.identifier());
+        queue_state.insert(id.clone(), event_state.clone());
+
+        let cancellation_token = CancellationToken::new();
+        let cloned_cancellation_token = cancellation_token.clone();
+
+        let runtime_handle = app_state().handle();
+        let id_clone = id.clone();
+        let cloned_event_state = event_state.clone();
+
+        let handle = runtime_handle.spawn(async move {
+            match spawn_queue_event_handler(
+                event_rx,
+                config,
+                drift_profile,
+                id_clone,
+                cloned_event_state,
+                cloned_cancellation_token,
+                settings,
+            )
+            .await
+            {
+                Ok(running) => running,
+                Err(e) => {
+                    error!("Queue initialization failed: {}", e);
+                }
+            }
+        });
+
+        event_state.add_event_abort_handle(handle);
+        event_state.add_event_cancellation_token(cancellation_token);
+
+        if wait_for_startup {
+            debug!("Waiting for queue {} to signal startup", id);
+            runtime_handle.block_on(async {
+                wait_for_background_task(&event_state).await?;
+                wait_for_event_task(&event_state).await
+            })?;
+            debug!("Queue {} has signaled startup", id);
+        }
+
+        Ok(Py::new(py, bus)?)
+    }
+
     /// Create a new ScouterQueue from a map of aliases and paths
     /// This will create a new ScouterQueue for each path in the map
     /// This method was created to help with integration into the Opsml CardDeck where this
@@ -420,80 +511,24 @@ impl ScouterQueue {
         let mut queue_state = HashMap::new();
         let mut queue_settings = HashMap::new();
 
-        // assert transport config is not None
         if transport_config.is_none() {
             return Err(PyEventError::MissingTransportConfig);
         }
 
-        // Extract transport config from python object
         let config = TransportConfig::from_py_config(transport_config)?;
 
-        // load each profile from path
-        // In practice you can load as many profiles as you want
         for (id, profile_path) in path {
-            let cloned_config = config.clone();
             let drift_profile = DriftProfile::from_profile_path(profile_path)?;
-
-            // if drift_profile is of dritfype GenAI, create queue settings
-            let settings = if let DriftProfile::GenAI(genai_profile) = &drift_profile {
-                let settings = Arc::new(RwLock::new(QueueSettings::new(
-                    id.clone(),
-                    genai_profile.config.sample_ratio,
-                )));
-                queue_settings.insert(id.clone(), settings.clone());
-                Some(settings)
-            } else {
-                None
-            };
-
-            let (mut event_state, event_rx) = create_event_state(id.clone());
-
-            // create startup channels to ensure queues are initialized before use
-            let bus = QueueBus::new(event_state.clone(), drift_profile.identifier());
-            queue_state.insert(id.clone(), event_state.clone());
-            let cancellation_token = CancellationToken::new();
-            let cloned_cancellation_token = cancellation_token.clone();
-
-            // queue args
-            let runtime_handle = app_state().handle();
-            let id_clone = id.clone();
-            let cloned_event_state = event_state.clone();
-
-            // Spawn the task without waiting for initialization
-            let handle = runtime_handle.spawn(async move {
-                match spawn_queue_event_handler(
-                    event_rx,
-                    cloned_config,
-                    drift_profile,
-                    id_clone,
-                    cloned_event_state,
-                    cloned_cancellation_token,
-                    settings,
-                )
-                .await
-                {
-                    Ok(running) => running,
-                    Err(e) => {
-                        error!("Queue initialization failed: {}", e);
-                    }
-                }
-            });
-
-            // add handle and stop tx to event loops for management
-            event_state.add_event_abort_handle(handle);
-            event_state.add_event_cancellation_token(cancellation_token);
-
-            std::thread::sleep(std::time::Duration::from_millis(1000));
-
-            // wait for background task and event task to signal startup
-            if wait_for_startup {
-                debug!("Waiting for queue {} to signal startup", id);
-                wait_for_background_task(&event_state)?;
-                wait_for_event_task(&event_state)?;
-            }
-
-            let queue = Py::new(py, bus)?;
-            queues.insert(id.clone(), queue);
+            let queue = Self::initialize_queue(
+                py,
+                id.clone(),
+                drift_profile,
+                config.clone(),
+                &mut queue_state,
+                &mut queue_settings,
+                wait_for_startup,
+            )?;
+            queues.insert(id, queue);
         }
 
         Ok(ScouterQueue {
@@ -502,5 +537,94 @@ impl ScouterQueue {
             queue_state: Arc::new(queue_state),
             settings: queue_settings,
         })
+    }
+
+    #[instrument(skip_all)]
+    pub fn from_profile_rs(
+        py: Python,
+        profiles: HashMap<String, DriftProfile>,
+        transport_config: &Bound<'_, PyAny>,
+        wait_for_startup: bool,
+    ) -> Result<Self, PyEventError> {
+        debug!("Creating ScouterQueue from profiles");
+        let mut queues = HashMap::new();
+        let mut queue_state = HashMap::new();
+        let mut queue_settings = HashMap::new();
+
+        if transport_config.is_none() {
+            return Err(PyEventError::MissingTransportConfig);
+        }
+
+        let config = TransportConfig::from_py_config(transport_config)?;
+
+        for (id, drift_profile) in profiles {
+            let queue = Self::initialize_queue(
+                py,
+                id.clone(),
+                drift_profile,
+                config.clone(),
+                &mut queue_state,
+                &mut queue_settings,
+                wait_for_startup,
+            )?;
+            queues.insert(id, queue);
+        }
+
+        Ok(ScouterQueue {
+            queues,
+            transport_config: config,
+            queue_state: Arc::new(queue_state),
+            settings: queue_settings,
+        })
+    }
+}
+
+/// Extract drift profiles from Python objects into a HashMap
+/// Supports three input formats:
+/// 1. Dict[str, DriftProfile] - Map of aliases to profiles
+/// 2. List[DriftProfile] - List of profiles (each must have alias attribute)
+/// 3. Single DriftProfile - Single profile with alias attribute
+fn extract_drift_profiles(
+    py_profiles: &Bound<'_, PyAny>,
+) -> Result<HashMap<String, DriftProfile>, PyEventError> {
+    if py_profiles.is_instance_of::<PyDict>() {
+        let py_dict = py_profiles.cast::<PyDict>()?;
+        let mut profiles = HashMap::new();
+
+        for (alias, profile) in py_dict.iter() {
+            let alias = alias.extract::<String>()?;
+            let drift_profile = DriftProfile::from_python(&profile)?;
+            profiles.insert(alias, drift_profile);
+        }
+
+        Ok(profiles)
+    } else if py_profiles.is_instance_of::<PyList>() {
+        let py_list = py_profiles.cast::<PyList>()?;
+        let mut profiles = HashMap::new();
+
+        for profile in py_list.iter() {
+            let alias = profile
+                .getattr("alias")?
+                .extract::<Option<String>>()?
+                .ok_or(PyEventError::DriftProfileAliasMustBeSet)?;
+
+            let drift_profile = DriftProfile::from_python(&profile)?;
+            profiles.insert(alias, drift_profile);
+        }
+
+        Ok(profiles)
+    } else if py_profiles.hasattr("alias")? {
+        let alias = py_profiles
+            .getattr("alias")?
+            .extract::<Option<String>>()?
+            .ok_or(PyEventError::DriftProfileAliasMustBeSet)?;
+
+        let drift_profile = DriftProfile::from_python(py_profiles)?;
+        let mut profiles = HashMap::new();
+        profiles.insert(alias, drift_profile);
+
+        Ok(profiles)
+    } else {
+        Err(PyEventError::InvalidDriftProfileFormat)
     }
 }

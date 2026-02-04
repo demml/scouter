@@ -414,6 +414,11 @@ impl SpcDriftProfile {
     pub fn set_uid(&mut self, uid: String) {
         self.config.uid = uid;
     }
+
+    #[getter]
+    pub fn drift_type(&self) -> DriftType {
+        self.config.drift_type.clone()
+    }
 }
 
 impl ProfileBaseArgs for SpcDriftProfile {

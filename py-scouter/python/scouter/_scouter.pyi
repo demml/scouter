@@ -13693,6 +13693,7 @@ class ScouterQueue:
             HttpConfig,
             GrpcConfig,
         ],
+        wait_for_startup: bool = False,
     ) -> "ScouterQueue":
         """Initializes Scouter queue from one or more drift profile paths.
 
@@ -13788,6 +13789,9 @@ class ScouterQueue:
                     • RedisConfig     - Redis pub/sub
                     • HttpConfig      - Direct HTTP to Scouter server
                     • GrpcConfig      - Direct gRPC to Scouter server
+            wait_for_startup (bool):
+                Whether to block until the underlying transport producer is fully started.
+                Default: False
 
         Returns:
             ScouterQueue:
@@ -13835,6 +13839,41 @@ class ScouterQueue:
                 >>> queue["genai_eval"].insert(
                 ...     GenAIEvalRecord(context={"input": "...", "response": "..."})
                 ... )
+        """
+
+    @staticmethod
+    def from_profile(
+        profile: Union[dict, list, SpcDriftProfile, PsiDriftProfile, CustomDriftProfile, GenAIEvalProfile],
+        transport_config: Union[
+            KafkaConfig,
+            RabbitMQConfig,
+            RedisConfig,
+            HttpConfig,
+            GrpcConfig,
+        ],
+        wait_for_startup: bool = False,
+    ) -> "ScouterQueue":
+        """Initializes Scouter queue from a dictionary of drift profiles (string, DriftProfile),
+        list of drift profiles, or a single drift profile.
+
+        Args:
+            profile (Union[dict, list, SpcDriftProfile, PsiDriftProfile, CustomDriftProfile, GenAIEvalProfile]):
+                Drift profile(s) to initialize the queue with. Can be a single profile,
+                a list of profiles, or a dictionary of profiles.
+
+            transport_config (Union[KafkaConfig, RabbitMQConfig, RedisConfig, HttpConfig, GrpcConfig]):
+                Transport configuration for the queue publisher.
+
+                Available transports:
+                    • KafkaConfig     - Apache Kafka message bus
+                    • RabbitMQConfig  - RabbitMQ message broker
+                    • RedisConfig     - Redis pub/sub
+                    • HttpConfig      - Direct HTTP to Scouter server
+                    • GrpcConfig      - Direct gRPC to Scouter server
+
+            wait_for_startup (bool):
+                Whether to block until the underlying transport producer is fully started.
+                Default: False
         """
 
     def __getitem__(self, key: str) -> Queue:

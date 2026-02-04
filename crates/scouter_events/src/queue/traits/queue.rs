@@ -13,10 +13,10 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::task::JoinHandle;
+use tokio::time::timeout;
 use tokio::time::{sleep, Duration};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, info_span, Instrument};
-
 pub trait FeatureQueue: Send + Sync {
     fn create_drift_records_from_batch<T: QueueExt>(
         &self,
@@ -47,6 +47,7 @@ pub trait BackgroundTask: Send + Sync + 'static {
 
             // Set running state immediately
             task_state.set_background_running(true);
+            task_state.notify_background_started();
             debug!("Background task set to running");
 
             // Small delay to ensure state is propagated
@@ -224,39 +225,59 @@ pub trait QueueMethods {
 }
 
 /// Waits for the background loop to start
-pub fn wait_for_background_task(task_state: &TaskState) -> Result<(), EventError> {
-    // Signal confirm start
-    if task_state.has_background_handle() {
-        let mut max_retries = 50;
-        while max_retries > 0 {
-            if task_state.is_background_running() {
-                debug!("Background loop started successfully");
-                return Ok(());
-            }
-            max_retries -= 1;
-            std::thread::sleep(Duration::from_millis(200));
-        }
-        error!("Background task failed to start for {}", task_state.id);
-        Err(EventError::BackgroundTaskFailedToStartError)
-    } else {
+pub async fn wait_for_background_task(task_state: &TaskState) -> Result<(), EventError> {
+    if !task_state.has_background_handle() {
         debug!("No background handle to wait for {}", task_state.id);
-        Ok(())
+        return Ok(());
+    }
+
+    let notify = task_state
+        .background_task
+        .read()
+        .unwrap()
+        .startup_notify
+        .clone();
+
+    match timeout(Duration::from_secs(10), notify.notified()).await {
+        Ok(_) => {
+            if task_state.is_background_running() {
+                debug!("Background task started successfully for {}", task_state.id);
+                Ok(())
+            } else {
+                error!(
+                    "Background task notification received but task not running for {}",
+                    task_state.id
+                );
+                Err(EventError::BackgroundTaskFailedToStartError)
+            }
+        }
+        Err(_) => {
+            error!(
+                "Background task failed to start within timeout for {}",
+                task_state.id
+            );
+            Err(EventError::BackgroundTaskFailedToStartError)
+        }
     }
 }
 
 /// Waits for the event task to start
-pub fn wait_for_event_task(task_state: &TaskState) -> Result<(), EventError> {
-    // Signal confirm start
+pub async fn wait_for_event_task(task_state: &TaskState) -> Result<(), EventError> {
+    let notify = task_state.event_task.read().unwrap().startup_notify.clone();
 
-    let mut max_retries = 50;
-    while max_retries > 0 {
-        if task_state.is_event_running() {
-            debug!("Event task started successfully");
-            return Ok(());
+    match timeout(Duration::from_secs(10), notify.notified()).await {
+        Ok(_) => {
+            if task_state.is_event_running() {
+                debug!("Event task started successfully");
+                Ok(())
+            } else {
+                error!("Event task notification received but task not running");
+                Err(EventError::EventTaskFailedToStartError)
+            }
         }
-        max_retries -= 1;
-        std::thread::sleep(Duration::from_millis(200));
+        Err(_) => {
+            error!("Event task failed to start within timeout");
+            Err(EventError::EventTaskFailedToStartError)
+        }
     }
-    error!("Event task failed to start");
-    Err(EventError::EventTaskFailedToStartError)
 }

@@ -236,6 +236,11 @@ impl CustomDriftProfile {
         Ok(dict.into())
     }
 
+    #[getter]
+    pub fn drift_type(&self) -> DriftType {
+        self.config.drift_type.clone()
+    }
+
     // Convert python dict into a drift profile
     #[pyo3(signature = (path=None))]
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ProfileError> {

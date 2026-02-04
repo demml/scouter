@@ -456,6 +456,10 @@ impl PsiDriftProfile {
         self.config.uid = uid;
     }
 
+    #[getter]
+    pub fn drift_type(&self) -> DriftType {
+        self.config.drift_type.clone()
+    }
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
         PyHelperFuncs::__json__(self)
