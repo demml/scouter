@@ -332,25 +332,29 @@ pub struct GenAIEvalProfile {
     pub workflow: Option<Workflow>,
 
     pub task_ids: BTreeSet<String>,
+
+    pub alias: Option<String>,
 }
 
 #[pymethods]
 impl GenAIEvalProfile {
     #[new]
-    #[pyo3(signature = (config, tasks))]
+    #[pyo3(signature = (tasks, config=None, alias=None))]
     /// Create a new GenAIEvalProfile
     /// GenAI evaluations are run asynchronously on the scouter server.
     /// # Arguments
     /// * `config` - GenAIEvalConfig - The configuration for the GenAI drift profile
     /// * `tasks` - PyList - List of AssertionTask, LLMJudgeTask or ConditionalTask
+    /// * `alias` - Option<String> - Optional alias for the profile
     /// # Returns
     /// * `Result<Self, ProfileError>` - The GenAIEvalProfile
     /// # Errors
     /// * `ProfileError::MissingWorkflowError` - If the workflow is
     #[instrument(skip_all)]
     pub fn new_py(
-        config: GenAIEvalConfig,
         tasks: &Bound<'_, PyList>,
+        config: Option<GenAIEvalConfig>,
+        alias: Option<String>,
     ) -> Result<Self, ProfileError> {
         let tasks = extract_assertion_tasks_from_pylist(tasks)?;
 
@@ -358,11 +362,12 @@ impl GenAIEvalProfile {
             app_state().block_on(async { Self::build_profile(&tasks).await })?;
 
         Ok(Self {
-            config,
+            config: config.unwrap_or_default(),
             tasks,
             scouter_version: scouter_version(),
             workflow,
             task_ids,
+            alias,
         })
     }
 
@@ -402,6 +407,11 @@ impl GenAIEvalProfile {
     #[getter]
     pub fn trace_assertion_tasks(&self) -> Vec<TraceAssertionTask> {
         self.tasks.trace.clone()
+    }
+
+    #[getter]
+    pub fn alias(&self) -> Option<String> {
+        self.alias.clone()
     }
 
     #[getter]
@@ -743,6 +753,7 @@ impl Default for GenAIEvalProfile {
             scouter_version: scouter_version(),
             workflow: None,
             task_ids: BTreeSet::new(),
+            alias: None,
         }
     }
 }
@@ -762,6 +773,7 @@ impl GenAIEvalProfile {
             scouter_version: scouter_version(),
             workflow,
             task_ids,
+            alias: None,
         })
     }
 

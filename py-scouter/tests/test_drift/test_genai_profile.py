@@ -38,7 +38,7 @@ def test_genai_drift_profile_from_task():
             expected_value=3,
         )
 
-        _profile = GenAIEvalProfile(config=GenAIEvalConfig(), tasks=[task])
+        _profile = GenAIEvalProfile(tasks=[task])
 
 
 def test_genai_drifter():
