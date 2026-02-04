@@ -187,10 +187,8 @@ impl DriftProfile {
         }
     }
 
-    pub fn from_python(
-        drift_type: DriftType,
-        profile: &Bound<'_, PyAny>,
-    ) -> Result<Self, ProfileError> {
+    pub fn from_python(profile: &Bound<'_, PyAny>) -> Result<Self, ProfileError> {
+        let drift_type: DriftType = profile.getattr("drift_type")?.extract::<DriftType>()?;
         match drift_type {
             DriftType::Spc => {
                 let profile = profile.extract::<SpcDriftProfile>()?;

@@ -194,8 +194,8 @@ pub enum PyEventError {
     #[error(transparent)]
     EventError(#[from] EventError),
 
-    #[error(transparent)]
-    PyErr(#[from] pyo3::PyErr),
+    #[error("{0}")]
+    Error(String),
 
     #[error(transparent)]
     TypeError(#[from] scouter_types::error::TypeError),
@@ -217,10 +217,28 @@ pub enum PyEventError {
 
     #[error("Failed to clear all queues. Pending events exist")]
     PendingEventsError,
+
+    #[error("Drift profile alias must be set")]
+    DriftProfileAliasMustBeSet,
+
+    #[error("Invalid drift profile format. Expected Dict[str, DriftProfile], List[DriftProfile], or single DriftProfile")]
+    InvalidDriftProfileFormat,
 }
 impl From<PyEventError> for PyErr {
     fn from(err: PyEventError) -> PyErr {
         let msg = err.to_string();
         pyo3::exceptions::PyRuntimeError::new_err(msg)
+    }
+}
+
+impl<'a, 'py> From<pyo3::CastError<'a, 'py>> for PyEventError {
+    fn from(err: pyo3::CastError<'a, 'py>) -> Self {
+        PyEventError::Error(err.to_string())
+    }
+}
+
+impl From<PyErr> for PyEventError {
+    fn from(err: PyErr) -> Self {
+        PyEventError::Error(err.to_string())
     }
 }

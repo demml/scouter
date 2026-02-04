@@ -395,6 +395,11 @@ impl GenAIEvalProfile {
     }
 
     #[getter]
+    pub fn drift_type(&self) -> DriftType {
+        self.config.drift_type.clone()
+    }
+
+    #[getter]
     pub fn assertion_tasks(&self) -> Vec<AssertionTask> {
         self.tasks.assertion.clone()
     }
