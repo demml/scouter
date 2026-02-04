@@ -134,7 +134,7 @@ impl GenAIEvalDataset {
         records: Vec<GenAIEvalRecord>,
         tasks: &Bound<'_, PyList>,
     ) -> Result<Self, EvaluationError> {
-        let profile = GenAIEvalProfile::new_py(tasks, None)?;
+        let profile = GenAIEvalProfile::new_py(tasks, None, None)?;
 
         Ok(Self {
             records: Arc::new(records),

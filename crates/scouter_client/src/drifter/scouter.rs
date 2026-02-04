@@ -135,7 +135,7 @@ impl Drifter {
                 };
 
                 let tasks = data.cast::<PyList>()?;
-                let profile = GenAIEvalProfile::new_py(tasks, Some(config.genai_config()?))?;
+                let profile = GenAIEvalProfile::new_py(tasks, Some(config.genai_config()?), None)?;
                 Ok(DriftProfile::GenAI(profile))
             }
         }
@@ -271,14 +271,15 @@ impl PyDrifter {
 
     // Specific method for creating GenAI drift profiles
     // This is to avoid confusion with the other drifters
-    #[pyo3(signature = (tasks, config=None))]
+    #[pyo3(signature = (tasks, config=None, alias=None))]
     pub fn create_genai_drift_profile<'py>(
         &mut self,
         py: Python<'py>,
         tasks: &Bound<'py, PyList>,
         config: Option<GenAIEvalConfig>,
+        alias: Option<String>,
     ) -> Result<Bound<'py, PyAny>, DriftError> {
-        let profile = GenAIEvalProfile::new_py(tasks, config)?;
+        let profile = GenAIEvalProfile::new_py(tasks, config, alias)?;
         Ok(profile.into_bound_py_any(py)?)
     }
 

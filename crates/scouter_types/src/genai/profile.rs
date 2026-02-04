@@ -332,17 +332,20 @@ pub struct GenAIEvalProfile {
     pub workflow: Option<Workflow>,
 
     pub task_ids: BTreeSet<String>,
+
+    pub alias: Option<String>,
 }
 
 #[pymethods]
 impl GenAIEvalProfile {
     #[new]
-    #[pyo3(signature = (tasks, config=None))]
+    #[pyo3(signature = (tasks, config=None, alias=None))]
     /// Create a new GenAIEvalProfile
     /// GenAI evaluations are run asynchronously on the scouter server.
     /// # Arguments
     /// * `config` - GenAIEvalConfig - The configuration for the GenAI drift profile
     /// * `tasks` - PyList - List of AssertionTask, LLMJudgeTask or ConditionalTask
+    /// * `alias` - Option<String> - Optional alias for the profile
     /// # Returns
     /// * `Result<Self, ProfileError>` - The GenAIEvalProfile
     /// # Errors
@@ -351,6 +354,7 @@ impl GenAIEvalProfile {
     pub fn new_py(
         tasks: &Bound<'_, PyList>,
         config: Option<GenAIEvalConfig>,
+        alias: Option<String>,
     ) -> Result<Self, ProfileError> {
         let tasks = extract_assertion_tasks_from_pylist(tasks)?;
 
@@ -363,6 +367,7 @@ impl GenAIEvalProfile {
             scouter_version: scouter_version(),
             workflow,
             task_ids,
+            alias,
         })
     }
 
@@ -743,6 +748,7 @@ impl Default for GenAIEvalProfile {
             scouter_version: scouter_version(),
             workflow: None,
             task_ids: BTreeSet::new(),
+            alias: None,
         }
     }
 }
@@ -762,6 +768,7 @@ impl GenAIEvalProfile {
             scouter_version: scouter_version(),
             workflow,
             task_ids,
+            alias: None,
         })
     }
 

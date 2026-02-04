@@ -15411,6 +15411,7 @@ class GenAIEvalProfile:
         self,
         tasks: List[Union[AssertionTask, LLMJudgeTask, TraceAssertionTask]],
         config: Optional[GenAIEvalConfig] = None,
+        alias: Optional[str] = None,
     ):
         """Initialize a GenAIEvalProfile for LLM evaluation and drift detection.
 
@@ -15427,6 +15428,8 @@ class GenAIEvalProfile:
                 Configuration for the GenAI drift profile containing space, name,
                 version, sample rate, and alert settings. If not provided,
                 defaults will be used.
+            alias (Optional[str]):
+                Optional alias for the profile.
 
         Returns:
             GenAIEvalProfile: Configured profile ready for GenAI drift monitoring.
@@ -15825,7 +15828,10 @@ class Drifter:
         """
 
     def create_genai_drift_profile(
-        self, config: GenAIEvalConfig, tasks: Sequence[LLMJudgeTask | AssertionTask | TraceAssertionTask]
+        self,
+        config: GenAIEvalConfig,
+        tasks: Sequence[LLMJudgeTask | AssertionTask | TraceAssertionTask],
+        alias: Optional[str] = None,
     ) -> GenAIEvalProfile:
         """Initialize a GenAIEvalProfile for LLM evaluation and drift detection.
 
@@ -15848,6 +15854,8 @@ class Drifter:
                 List of evaluation tasks to include in the profile. Can contain
                 both AssertionTask and LLMJudgeTask instances. At least one task
                 (assertion or LLM judge) is required.
+            alias (Optional[str]):
+                Optional alias for the profile.
 
         Returns:
             GenAIEvalProfile: Configured profile ready for GenAI drift monitoring.
