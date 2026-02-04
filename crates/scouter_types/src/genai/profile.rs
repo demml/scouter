@@ -410,6 +410,11 @@ impl GenAIEvalProfile {
     }
 
     #[getter]
+    pub fn alias(&self) -> Option<String> {
+        self.alias.clone()
+    }
+
+    #[getter]
     pub fn uid(&self) -> String {
         self.config.uid.clone()
     }
