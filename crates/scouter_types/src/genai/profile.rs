@@ -353,17 +353,12 @@ impl GenAIEvalProfile {
         config: Option<GenAIEvalConfig>,
     ) -> Result<Self, ProfileError> {
         let tasks = extract_assertion_tasks_from_pylist(tasks)?;
-        let config = if let Some(cfg) = config {
-            cfg
-        } else {
-            GenAIEvalConfig::default()
-        };
 
         let (workflow, task_ids) =
             app_state().block_on(async { Self::build_profile(&tasks).await })?;
 
         Ok(Self {
-            config,
+            config: config.unwrap_or_default(),
             tasks,
             scouter_version: scouter_version(),
             workflow,

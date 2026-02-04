@@ -2,7 +2,7 @@
 
 import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, overload, Union
+from typing import Any, Dict, List, Optional, Sequence, Union, overload
 
 from .evaluate import (
     AssertionTask,
