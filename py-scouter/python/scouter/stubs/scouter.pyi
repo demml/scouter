@@ -2,7 +2,7 @@
 
 import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, overload
+from typing import Any, Dict, List, Optional, Sequence, overload, Union
 
 from .evaluate import (
     AssertionTask,
@@ -3078,31 +3078,31 @@ class GenAIEvalProfile:
         Tasks are executed based on their dependency graph using topological sort:
 
         ```
-        ╔══════════════════════════════════════════════════════════════╗
-        ║              TASK EXECUTION ARCHITECTURE                     ║
-        ╠══════════════════════════════════════════════════════════════╣
-        ║                                                              ║
-        ║  Level 0: Independent Tasks (no dependencies)                ║
-        ║  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          ║
-        ║  │ Assertion A │  │ Assertion B │  │ LLM Judge X │          ║
-        ║  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘          ║
-        ║         │                │                │                  ║
-        ║         └────────┬───────┴────────┬───────┘                  ║
-        ║                  │                │                          ║
-        ║  Level 1: Tasks depending on Level 0                         ║
-        ║         ┌────────▼────────┐  ┌────▼────────┐                ║
-        ║         │  LLM Judge Y    │  │Assertion C  │                ║
-        ║         │ (depends: A, X) │  │(depends: B) │                ║
-        ║         └────────┬────────┘  └────┬────────┘                ║
-        ║                  │                │                          ║
-        ║  Level 2: Final aggregation tasks                            ║
-        ║                  └────────┬───────┘                          ║
-        ║                  ┌────────▼────────┐                         ║
-        ║                  │  LLM Judge Z    │                         ║
-        ║                  │ (depends: Y, C) │                         ║
-        ║                  └─────────────────┘                         ║
-        ║                                                              ║
-        ╚══════════════════════════════════════════════════════════════╝
+        ╔══════════════════════════════════════════════════════════╗
+        ║              TASK EXECUTION ARCHITECTURE                 ║
+        ╠══════════════════════════════════════════════════════════╣
+        ║                                                          ║
+        ║  Level 0: Independent Tasks (no dependencies)            ║
+        ║  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐       ║
+        ║  │ Assertion A │  │ Assertion B │  │ LLM Judge X │       ║
+        ║  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘       ║
+        ║         │                │                │              ║
+        ║         └────────┬───────┴────────┬───────┘              ║
+        ║                  │                │                      ║
+        ║  Level 1: Tasks depending on Level 0                     ║
+        ║         ┌────────▼────────┐  ┌────▼────────┐             ║
+        ║         │  LLM Judge Y    │  │Assertion C  │             ║
+        ║         │ (depends: A, X) │  │(depends: B) │             ║
+        ║         └────────┬────────┘  └────┬────────┘             ║
+        ║                  │                │                      ║
+        ║  Level 2: Final aggregation tasks                        ║
+        ║                  └────────┬───────┘                      ║
+        ║                  ┌────────▼────────┐                     ║
+        ║                  │  LLM Judge Z    │                     ║
+        ║                  │ (depends: Y, C) │                     ║
+        ║                  └─────────────────┘                     ║
+        ║                                                          ║
+        ╚══════════════════════════════════════════════════════════╝
         ```
 
     Workflow Generation:
@@ -3263,8 +3263,8 @@ class GenAIEvalProfile:
 
     def __init__(
         self,
-        config: GenAIEvalConfig,
-        tasks: List[Union[AssertionTask, LLMJudgeTask]],
+        tasks: List[Union[AssertionTask, LLMJudgeTask, TraceAssertionTask]],
+        config: Optional[GenAIEvalConfig] = None,
     ):
         """Initialize a GenAIEvalProfile for LLM evaluation and drift detection.
 
@@ -3273,13 +3273,14 @@ class GenAIEvalProfile:
         into an internal Workflow for execution on the Scouter server.
 
         Args:
-            config (GenAIEvalConfig):
-                Configuration for the GenAI drift profile containing space, name,
-                version, sample rate, and alert settings.
-            tasks (List[Union[AssertionTask, LLMJudgeTask]]):
+            tasks (List[Union[AssertionTask, LLMJudgeTask, TraceAssertionTask]]):
                 List of evaluation tasks to include in the profile. Can contain
-                both AssertionTask and LLMJudgeTask instances. At least one task
-                (assertion or LLM judge) is required.
+                AssertionTask, LLMJudgeTask, and TraceAssertionTask instances.
+                At least one task (assertion, LLM judge, or trace assertion) is required.
+            config (Optional[GenAIEvalConfig]):
+                Configuration for the GenAI drift profile containing space, name,
+                version, sample rate, and alert settings. If not provided,
+                defaults will be used.
 
         Returns:
             GenAIEvalProfile: Configured profile ready for GenAI drift monitoring.

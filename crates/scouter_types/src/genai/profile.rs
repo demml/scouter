@@ -337,7 +337,7 @@ pub struct GenAIEvalProfile {
 #[pymethods]
 impl GenAIEvalProfile {
     #[new]
-    #[pyo3(signature = (config, tasks))]
+    #[pyo3(signature = (tasks, config=None))]
     /// Create a new GenAIEvalProfile
     /// GenAI evaluations are run asynchronously on the scouter server.
     /// # Arguments
@@ -349,10 +349,15 @@ impl GenAIEvalProfile {
     /// * `ProfileError::MissingWorkflowError` - If the workflow is
     #[instrument(skip_all)]
     pub fn new_py(
-        config: GenAIEvalConfig,
         tasks: &Bound<'_, PyList>,
+        config: Option<GenAIEvalConfig>,
     ) -> Result<Self, ProfileError> {
         let tasks = extract_assertion_tasks_from_pylist(tasks)?;
+        let config = if let Some(cfg) = config {
+            cfg
+        } else {
+            GenAIEvalConfig::default()
+        };
 
         let (workflow, task_ids) =
             app_state().block_on(async { Self::build_profile(&tasks).await })?;

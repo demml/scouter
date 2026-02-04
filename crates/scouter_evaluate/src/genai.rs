@@ -8,9 +8,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyList, PySlice};
 use pyo3::IntoPyObjectExt;
 use scouter_state::app_state;
-use scouter_types::genai::{
-    AssertionTask, GenAIEvalConfig, GenAIEvalProfile, LLMJudgeTask, TraceAssertionTask,
-};
+use scouter_types::genai::{AssertionTask, GenAIEvalProfile, LLMJudgeTask, TraceAssertionTask};
 use scouter_types::GenAIEvalRecord;
 use scouter_types::PyHelperFuncs;
 use serde::{Deserialize, Serialize};
@@ -136,7 +134,7 @@ impl GenAIEvalDataset {
         records: Vec<GenAIEvalRecord>,
         tasks: &Bound<'_, PyList>,
     ) -> Result<Self, EvaluationError> {
-        let profile = GenAIEvalProfile::new_py(GenAIEvalConfig::default(), tasks)?;
+        let profile = GenAIEvalProfile::new_py(tasks, None)?;
 
         Ok(Self {
             records: Arc::new(records),
