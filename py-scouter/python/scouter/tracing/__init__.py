@@ -1,15 +1,20 @@
 # pylint: disable=dangerous-default-value
 import functools
 from typing import (
+    TYPE_CHECKING,
     Any,
     AsyncGenerator,
     Awaitable,
     Callable,
     Generator,
     List,
+    Mapping,
     Optional,
     ParamSpec,
+    Sequence,
+    TypeAlias,
     TypeVar,
+    Union,
     cast,
 )
 
@@ -22,6 +27,7 @@ from .._scouter import (
     HttpSpanExporter,
     OtelExportConfig,
     OtelProtocol,
+    ScouterSpanExporter,
     SpanKind,
     StdoutSpanExporter,
     TestSpanExporter,
@@ -36,8 +42,34 @@ from .._scouter import (
     shutdown_tracer,
 )
 
+SerializedType: TypeAlias = Union[str, int, float, dict, list]
 P = ParamSpec("P")
 R = TypeVar("R")
+
+if TYPE_CHECKING:
+    from opentelemetry.trace import Tracer as _OtelTracer
+    from opentelemetry.trace import TracerProvider as _OtelTracerProvider
+    from opentelemetry.util.types import Attributes
+else:
+
+    class _OtelTracerProvider:
+        pass
+
+    class _OtelTracer:
+        pass
+
+    AttributeValue = Union[
+        str,
+        bool,
+        int,
+        float,
+        Sequence[str],
+        Sequence[bool],
+        Sequence[int],
+        Sequence[float],
+    ]
+
+    Attributes = Optional[Mapping[str, AttributeValue]]
 
 
 def set_output(
@@ -284,6 +316,79 @@ def get_tracer(name: str) -> Tracer:
     return Tracer(name)
 
 
+class TracerProvider(_OtelTracerProvider):
+    """
+    Python wrapper around PyTracerProvider that returns Python Tracer instances.
+
+    This wrapper ensures that get_tracer() returns the Python Tracer class
+    with decorator support, not the Rust BaseTracer.
+    """
+
+    def __init__(
+        self,
+        transport_config: Optional[Any] = None,
+        exporter: Optional[Any] = None,
+        batch_config: Optional[BatchConfig] = None,
+        sample_ratio: Optional[float] = None,
+        scouter_queue: Optional[Any] = None,
+    ):
+        """Initialize TracerProvider and underlying Rust tracer."""
+        # Initialize the global tracer via init_tracer
+
+        self.transport_config = transport_config
+        self.exporter = exporter
+        self.batch_config = batch_config
+        self.sample_ratio = sample_ratio
+        self.scouter_queue = scouter_queue
+
+    def get_tracer(
+        self,
+        instrumenting_module_name: str,
+        instrumenting_library_version: Optional[str] = None,
+        schema_url: Optional[str] = None,
+        attributes: Optional[Attributes] = None,
+    ) -> _OtelTracer:
+        """
+        Get a Python Tracer instance with decorator support.
+
+        This method returns the Python Tracer class that wraps BaseTracer,
+        providing the @tracer.span() decorator functionality.
+
+        Args:
+            instrumenting_module_name: Module name (typically __name__)
+            instrumenting_library_version: Optional version string
+            schema_url: Optional schema URL
+            attributes: Optional attributes dict
+
+        Returns:
+            Tracer: Python Tracer instance with decorator support
+        """
+        # Return the Python Tracer wrapper, not the Rust BaseTracer
+        return cast(
+            _OtelTracer,
+            init_tracer(
+                service_name=instrumenting_module_name,
+                scope=instrumenting_library_version,  # type: ignore
+                transport_config=self.transport_config,
+                exporter=self.exporter,
+                batch_config=self.batch_config,
+                sample_ratio=self.sample_ratio,
+                scouter_queue=self.scouter_queue,
+                schema_url=schema_url,
+                attributes=attributes,  # type: ignore
+            ),
+        )
+
+    def force_flush(self, timeout_millis: int = 30000) -> bool:
+        """Force flush all pending spans."""
+        flush_tracer()
+        return True
+
+    def shutdown(self) -> None:
+        """Shutdown the tracer provider."""
+        shutdown_tracer()
+
+
 __all__ = [
     "Tracer",
     "get_tracer",
@@ -305,4 +410,5 @@ __all__ = [
     "shutdown_tracer",
     "get_tracing_headers_from_current_span",
     "get_current_active_span",
+    "ScouterSpanExporter",
 ]

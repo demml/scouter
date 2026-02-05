@@ -7,6 +7,7 @@ use opentelemetry_sdk::{
     error::{OTelSdkError, OTelSdkResult},
     trace::{SpanData, SpanExporter},
 };
+
 use scouter_events::producer::RustScouterProducer;
 use scouter_events::queue::types::TransportConfig;
 use scouter_state::app_state;
@@ -14,6 +15,7 @@ use scouter_types::{MessageRecord, TraceServerRecord};
 use std::fmt;
 use std::sync::Arc;
 use tracing::{error, instrument};
+
 pub struct ScouterSpanExporter {
     producer: Arc<RustScouterProducer>,
     resource: Resource,

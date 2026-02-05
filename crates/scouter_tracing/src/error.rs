@@ -51,6 +51,9 @@ pub enum TraceError {
 
     #[error("Queue not initialized")]
     QueueNotInitialized,
+
+    #[error("{0}")]
+    ExportError(String),
 }
 
 impl From<TraceError> for PyErr {

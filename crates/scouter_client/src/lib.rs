@@ -94,3 +94,4 @@ pub use scouter_tracing::utils::{
     get_current_active_span, get_function_type, FunctionType, OtelExportConfig, OtelProtocol,
     SpanKind,
 };
+pub use scouter_tracing::wrapper::PyScouterSpanExporter;

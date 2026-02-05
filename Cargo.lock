@@ -6301,6 +6301,7 @@ dependencies = [
  "opentelemetry-stdout",
  "opentelemetry_sdk",
  "potato-head",
+ "prost",
  "pyo3",
  "pyo3-async-runtimes",
  "scouter-events",

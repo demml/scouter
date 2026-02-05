@@ -5,17 +5,35 @@ from datetime import datetime, timedelta
 import pytest
 import requests
 from fastapi import FastAPI, Request
+from opentelemetry import trace
 from pydantic import BaseModel
 from scouter.mock import ScouterTestServer
 from scouter.tracing import (
     BatchConfig,
     GrpcSpanExporter,
     HttpSpanExporter,
+    TracerProvider,
     get_tracer,
     init_tracer,
     shutdown_tracer,
 )
 from scouter.transport import GrpcConfig
+
+
+@pytest.fixture()
+def setup_scouter_trace_provider():
+    """Initialize tracer with grpc exporter for each test."""
+    with ScouterTestServer() as server:
+        provider = TracerProvider(
+            transport_config=GrpcConfig(),
+            batch_config=BatchConfig(scheduled_delay_ms=200),
+        )
+        trace.set_tracer_provider(provider)
+        tracer = trace.get_tracer("scouter_exporter")
+
+        yield tracer, server
+
+        provider.shutdown()
 
 
 @pytest.fixture()

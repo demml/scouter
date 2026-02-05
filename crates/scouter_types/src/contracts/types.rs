@@ -839,3 +839,8 @@ impl TagsResponse {
         PyHelperFuncs::__str__(self)
     }
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TraceReceivedResponse {
+    pub received: bool,
+}
