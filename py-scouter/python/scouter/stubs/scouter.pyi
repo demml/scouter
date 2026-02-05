@@ -2,8 +2,11 @@
 
 import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Union, overload
+from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Union, overload
 
+from .logging import LogLevel
+from .potato import Embedder
+from .header import Context
 from .evaluate import (
     AssertionTask,
     ComparisonOperator,
@@ -11,7 +14,15 @@ from .evaluate import (
     LLMJudgeTask,
     TraceAssertionTask,
 )
-from .tracing import TraceSpan
+from .mock import MockConfig
+from .tracing import (
+    TagRecord,
+    TraceBaggageRecord,
+    TraceFilters,
+    TraceListItem,
+    TraceMetricBucket,
+    TraceSpan,
+)
 
 #### end of imports ####
 

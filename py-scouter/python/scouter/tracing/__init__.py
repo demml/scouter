@@ -16,6 +16,7 @@ from typing import (
     TypeVar,
     Union,
     cast,
+    Collection,
 )
 
 from .._scouter import (
@@ -50,12 +51,17 @@ if TYPE_CHECKING:
     from opentelemetry.trace import Tracer as _OtelTracer
     from opentelemetry.trace import TracerProvider as _OtelTracerProvider
     from opentelemetry.util.types import Attributes
+    from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
+    from opentelemetry.trace import get_tracer_provider, set_tracer_provider
 else:
 
     class _OtelTracerProvider:
         pass
 
     class _OtelTracer:
+        pass
+
+    class BaseInstrumentor:
         pass
 
     AttributeValue = Union[
@@ -70,6 +76,12 @@ else:
     ]
 
     Attributes = Optional[Mapping[str, AttributeValue]]
+
+    def get_tracer_provider() -> _OtelTracerProvider:
+        pass
+
+    def set_tracer_provider(provider: _OtelTracerProvider) -> None:
+        pass
 
 
 def set_output(
@@ -163,7 +175,9 @@ class Tracer(BaseTracer):
             if function_type == FunctionType.AsyncGenerator:
 
                 @functools.wraps(func)
-                async def async_generator_wrapper(*args: P.args, **kwargs: P.kwargs) -> Any:
+                async def async_generator_wrapper(
+                    *args: P.args, **kwargs: P.kwargs
+                ) -> Any:
                     async with self._start_decorated_as_current_span(
                         name=span_name,
                         func=func,
@@ -180,7 +194,9 @@ class Tracer(BaseTracer):
                         func_kwargs=kwargs,
                     ) as span:
                         try:
-                            async_gen_func = cast(Callable[P, AsyncGenerator[Any, None]], func)
+                            async_gen_func = cast(
+                                Callable[P, AsyncGenerator[Any, None]], func
+                            )
                             generator = async_gen_func(*args, **kwargs)
 
                             outputs = []
@@ -222,7 +238,9 @@ class Tracer(BaseTracer):
                         func_kwargs=kwargs,
                     ) as span:
                         try:
-                            gen_func = cast(Callable[P, Generator[Any, None, None]], func)
+                            gen_func = cast(
+                                Callable[P, Generator[Any, None, None]], func
+                            )
                             generator = gen_func(*args, **kwargs)
                             results = []
 
@@ -389,6 +407,158 @@ class TracerProvider(_OtelTracerProvider):
         shutdown_tracer()
 
 
+class ScouterInstrumentor(BaseInstrumentor):
+    """
+    OpenTelemetry-compatible instrumentor for Scouter tracing.
+
+    Provides a standard instrument() interface that integrates with
+    the OpenTelemetry SDK while using Scouter's Rust-based tracer.
+
+    Examples:
+        Basic usage:
+        >>> from scouter.tracing import ScouterInstrumentor
+        >>> from scouter import BatchConfig, OtelExportConfig, OtelProtocol
+        >>>
+        >>> instrumentor = ScouterInstrumentor()
+        >>> instrumentor.instrument(
+        ...     transport_config=OtelExportConfig(
+        ...         endpoint="http://localhost:4318/v1/traces",
+        ...         protocol=OtelProtocol.HttpProtobuf,
+        ...     ),
+        ...     batch_config=BatchConfig(scheduled_delay_ms=200),
+        ... )
+
+        Auto-instrument on import:
+        >>> from scouter.tracing import ScouterInstrumentor
+        >>> ScouterInstrumentor().instrument()
+
+        Cleanup:
+        >>> instrumentor.uninstrument()
+    """
+
+    _instance: Optional["ScouterInstrumentor"] = None
+    _provider: Optional[TracerProvider] = None
+
+    def __new__(cls) -> "ScouterInstrumentor":
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def instrumentation_dependencies(self) -> Collection[str]:
+        """Return list of packages required for instrumentation."""
+        return []
+
+    def _instrument(self, **kwargs) -> None:
+        """
+        Initialize Scouter tracing and set as global provider.
+
+        Args:
+            transport_config: Export configuration (OtelExportConfig, etc.)
+            exporter: Custom span exporter instance
+            batch_config: Batch processing configuration
+            sample_ratio: Sampling ratio (0.0 to 1.0)
+            scouter_queue: Optional ScouterQueue for buffering
+            **kwargs: Additional configuration passed to TracerProvider
+        """
+        if self._provider is not None:
+            return
+
+        # Accept pre-configured provider or build from config
+        tracer_provider = kwargs.pop("tracer_provider", None)
+
+        if tracer_provider is not None:
+            self._provider = tracer_provider
+        else:
+            # Build from individual config parameters
+            self._provider = TracerProvider(
+                transport_config=kwargs.pop("transport_config", None),
+                exporter=kwargs.pop("exporter", None),
+                batch_config=kwargs.pop("batch_config", None),
+                sample_ratio=kwargs.pop("sample_ratio", None),
+                scouter_queue=kwargs.pop("scouter_queue", None),
+            )
+
+        # Set as global provider (bypasses OpenTelemetry's Once guard)
+        from opentelemetry import trace
+
+        trace._TRACER_PROVIDER_SET_ONCE._done = False
+        trace._TRACER_PROVIDER_SET_ONCE._lock = __import__("threading").Lock()
+        set_tracer_provider(self._provider)
+
+    def _uninstrument(self, **kwargs) -> None:
+        """Shutdown Scouter tracing and reset global provider."""
+        if self._provider is None:
+            return
+
+        # Flush and shutdown
+        self._provider.shutdown()
+
+        # Reset global state
+        from opentelemetry import trace
+
+        trace._TRACER_PROVIDER = None
+        trace._TRACER_PROVIDER_SET_ONCE._done = False
+
+        self._provider = None
+
+    @property
+    def is_instrumented(self) -> bool:
+        """Check if instrumentation is active."""
+        return self._provider is not None
+
+
+# Convenience function matching common pattern
+def instrument(
+    transport_config: Optional[Any] = None,
+    exporter: Optional[Any] = None,
+    batch_config: Optional[BatchConfig] = None,
+    sample_ratio: Optional[float] = None,
+    scouter_queue: Optional[Any] = None,
+) -> None:
+    """
+    Convenience function to instrument with Scouter tracing.
+
+    This is equivalent to:
+        ScouterInstrumentor().instrument(**kwargs)
+
+    Args:
+        transport_config: Export configuration (OtelExportConfig, etc.)
+        exporter: Custom span exporter instance
+        batch_config: Batch processing configuration
+        sample_ratio: Sampling ratio (0.0 to 1.0)
+        scouter_queue: Optional ScouterQueue for buffering
+
+    Examples:
+        >>> from scouter.tracing import instrument
+        >>> from scouter import BatchConfig, OtelExportConfig, OtelProtocol
+        >>>
+        >>> instrument(
+        ...     transport_config=OtelExportConfig(
+        ...         endpoint="http://localhost:4318/v1/traces",
+        ...         protocol=OtelProtocol.HttpProtobuf,
+        ...     ),
+        ...     batch_config=BatchConfig(scheduled_delay_ms=200),
+        ... )
+    """
+    ScouterInstrumentor().instrument(
+        transport_config=transport_config,
+        exporter=exporter,
+        batch_config=batch_config,
+        sample_ratio=sample_ratio,
+        scouter_queue=scouter_queue,
+    )
+
+
+def uninstrument() -> None:
+    """
+    Convenience function to uninstrument Scouter tracing.
+
+    This is equivalent to:
+        ScouterInstrumentor().uninstrument()
+    """
+    ScouterInstrumentor().uninstrument()
+
+
 __all__ = [
     "Tracer",
     "get_tracer",
@@ -411,4 +581,7 @@ __all__ = [
     "get_tracing_headers_from_current_span",
     "get_current_active_span",
     "ScouterSpanExporter",
+    "ScouterInstrumentor",
+    "instrument",
+    "uninstrument",
 ]

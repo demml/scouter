@@ -202,44 +202,41 @@ pub fn init_tracer(
     let service_name = service_name.unwrap_or_else(|| "scouter_service".to_string());
     let scope = scope.unwrap_or_else(|| SCOUTER_SCOPE_DEFAULT.to_string());
 
-    let transport_config = match transport_config {
-        Some(config) => TransportConfig::from_py_config(config)?,
-        None => {
-            let config = HttpConfig::default();
-            TransportConfig::Http(config)
-        }
-    };
-
-    let clamped_sample_ratio = match sample_ratio {
-        Some(ratio) if (0.0..=1.0).contains(&ratio) => Some(ratio),
-        Some(ratio) => {
-            info!(
-                "Sample ratio {} is out of bounds [0.0, 1.0]. Clamping to valid range.",
-                ratio
-            );
-            Some(ratio.clamp(0.0, 1.0))
-        }
-        None => None,
-    };
-
-    let batch_config = if let Some(bc) = batch_config {
-        Some(bc.extract::<BatchConfig>(py)?)
-    } else {
-        None
-    };
-
-    // setupt the store provider in different scope to avoid deadlock
-    {
-        debug!("Setting up tracer provider store");
-        let mut store_guard = TRACER_PROVIDER_STORE
-            .write()
+    let provider_exists = {
+        let store_guard = TRACER_PROVIDER_STORE
+            .read()
             .map_err(|e| TraceError::PoisonError(e.to_string()))?;
+        store_guard.is_some()
+    };
 
-        if store_guard.is_some() {
-            return Err(TraceError::InitializationError(
-                "Tracer provider already initialized. Call shutdown_tracer() first.".to_string(),
-            ));
-        }
+    if !provider_exists {
+        debug!("Setting up tracer provider store");
+
+        let transport_config = match transport_config {
+            Some(config) => TransportConfig::from_py_config(config)?,
+            None => {
+                let config = HttpConfig::default();
+                TransportConfig::Http(config)
+            }
+        };
+
+        let clamped_sample_ratio = match sample_ratio {
+            Some(ratio) if (0.0..=1.0).contains(&ratio) => Some(ratio),
+            Some(ratio) => {
+                info!(
+                    "Sample ratio {} is out of bounds [0.0, 1.0]. Clamping to valid range.",
+                    ratio
+                );
+                Some(ratio.clamp(0.0, 1.0))
+            }
+            None => None,
+        };
+
+        let batch_config = if let Some(bc) = batch_config {
+            Some(bc.extract::<BatchConfig>(py)?)
+        } else {
+            None
+        };
 
         let resource = Resource::builder()
             .with_service_name(service_name.clone())
@@ -260,10 +257,17 @@ pub fn init_tracer(
             .build_provider(resource, scouter_export, batch_config)
             .expect("failed to build tracer provider");
 
-        *store_guard = Some(Arc::new(provider));
+        let mut store_guard = TRACER_PROVIDER_STORE
+            .write()
+            .map_err(|e| TraceError::PoisonError(e.to_string()))?;
+
+        if store_guard.is_none() {
+            *store_guard = Some(Arc::new(provider));
+        }
+    } else {
+        debug!("Tracer provider already initialized, skipping setup");
     }
 
-    // BaseTracer accesses store provider internally
     BaseTracer::new(py, service_name, schema_url, attributes, scouter_queue)
 }
 
