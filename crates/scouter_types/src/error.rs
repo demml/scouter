@@ -164,6 +164,12 @@ pub enum TypeError {
 
     #[error("Key not found: {key}")]
     KeyNotFound { key: String },
+
+    #[error("{0}")]
+    InvalidLength(String),
+
+    #[error(transparent)]
+    FromHexError(#[from] hex::FromHexError),
 }
 
 impl From<pythonize::PythonizeError> for TypeError {
@@ -250,6 +256,12 @@ pub enum RecordError {
 
     #[error("Failed to downcast Python object: {0}")]
     DowncastError(String),
+
+    #[error("{0}")]
+    SliceError(String),
+
+    #[error(transparent)]
+    FromHexError(#[from] hex::FromHexError),
 }
 
 impl<'a, 'py> From<pyo3::CastError<'a, 'py>> for RecordError {

@@ -19,7 +19,9 @@ pub struct TraceListItem {
     #[pyo3(get)]
     pub service_name: String,
     #[pyo3(get)]
-    pub scope: String,
+    pub scope_name: String,
+    #[pyo3(get)]
+    pub scope_version: String,
     #[pyo3(get)]
     pub root_operation: String,
     #[pyo3(get)]
@@ -50,7 +52,8 @@ impl FromRow<'_, PgRow> for TraceListItem {
         Ok(TraceListItem {
             trace_id: row.try_get("trace_id")?,
             service_name: row.try_get("service_name")?,
-            scope: row.try_get("scope")?,
+            scope_name: row.try_get("scope_name")?,
+            scope_version: row.try_get("scope_version")?,
             root_operation: row.try_get("root_operation")?,
             start_time: row.try_get("start_time")?,
             end_time: row.try_get("end_time")?,
@@ -298,6 +301,54 @@ impl TraceFilters {
         self.cursor_trace_id = Some(cursor.trace_id.clone());
         self.direction = Some("previous".to_string());
         self
+    }
+
+    /// Convert hex trace_ids directly to byte vectors for PostgreSQL BYTEA binding
+    /// Returns None if no trace_ids are set
+    /// Returns error if any trace_id is invalid hex or wrong length
+    pub fn parsed_trace_ids(&self) -> Result<Option<Vec<Vec<u8>>>, TypeError> {
+        match &self.trace_ids {
+            None => Ok(None),
+            Some(ids) => {
+                let parsed: Result<Vec<Vec<u8>>, _> = ids
+                    .iter()
+                    .map(|hex| {
+                        let bytes = hex::decode(hex)?;
+
+                        if bytes.len() != 16 {
+                            return Err(TypeError::InvalidLength(format!(
+                                "Invalid trace_id length: expected 16 bytes, got {} for '{}'",
+                                bytes.len(),
+                                hex
+                            )));
+                        }
+
+                        Ok(bytes)
+                    })
+                    .collect();
+
+                parsed.map(Some)
+            }
+        }
+    }
+
+    /// Convert hex cursor_trace_id directly to bytes for PostgreSQL BYTEA binding
+    pub fn parsed_cursor_trace_id(&self) -> Result<Option<Vec<u8>>, TypeError> {
+        match &self.cursor_trace_id {
+            None => Ok(None),
+            Some(hex) => {
+                let bytes = hex::decode(hex)?;
+
+                if bytes.len() != 16 {
+                    return Err(TypeError::InvalidLength(format!(
+                        "Invalid cursor_trace_id length: expected 16 bytes, got {}",
+                        bytes.len()
+                    )));
+                }
+
+                Ok(Some(bytes))
+            }
+        }
     }
 }
 

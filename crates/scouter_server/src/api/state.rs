@@ -5,6 +5,7 @@ use axum::Json;
 use flume::Sender;
 use scouter_auth::auth::AuthManager;
 use scouter_settings::ScouterServerConfig;
+use scouter_sql::sql::aggregator::shutdown_trace_cache;
 use scouter_sql::sql::cache::entity_cache;
 use scouter_types::MessageRecord;
 use scouter_types::{contracts::ScouterServerError, DriftType};
@@ -25,6 +26,10 @@ impl AppState {
     pub async fn shutdown(&self) {
         self.task_manager.shutdown().await;
         self.db_pool.close().await;
+        shutdown_trace_cache().await.unwrap_or_else(|e| {
+            error!("Failed to shutdown trace cache: {:?}", e);
+            0
+        });
     }
 
     /// Get profile ID from UID with caching

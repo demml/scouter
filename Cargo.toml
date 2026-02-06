@@ -54,6 +54,7 @@ chrono ={ version = "0.*", features = ["serde"] }
 colored_json = "5.*"
 cron = "0.*"
 crossbeam-queue = "0.*"
+dashmap = "6.*"
 datafusion = { version = "51.*", features = ["parquet"] }
 futures-util = { version = "0.*" }
 flume = "0.11.*"
