@@ -1,4 +1,6 @@
-# pylint: disable=dangerous-default-value
+# pylint: disable=dangerous-default-value,implicit-str-concat
+# mypy: disable-error-code="attr-defined"
+
 import functools
 from typing import (
     TYPE_CHECKING,
@@ -6,6 +8,7 @@ from typing import (
     AsyncGenerator,
     Awaitable,
     Callable,
+    Collection,
     Generator,
     List,
     Mapping,
@@ -16,7 +19,6 @@ from typing import (
     TypeVar,
     Union,
     cast,
-    Collection,
 )
 
 from .._scouter import (
@@ -28,7 +30,6 @@ from .._scouter import (
     HttpSpanExporter,
     OtelExportConfig,
     OtelProtocol,
-    ScouterSpanExporter,
     SpanKind,
     StdoutSpanExporter,
     TestSpanExporter,
@@ -46,22 +47,43 @@ from .._scouter import (
 SerializedType: TypeAlias = Union[str, int, float, dict, list]
 P = ParamSpec("P")
 R = TypeVar("R")
-
+HAS_OPENTELEMETRY = True
 if TYPE_CHECKING:
+    from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
     from opentelemetry.trace import Tracer as _OtelTracer
     from opentelemetry.trace import TracerProvider as _OtelTracerProvider
+    from opentelemetry.trace import set_tracer_provider
     from opentelemetry.util.types import Attributes
-    from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
-    from opentelemetry.trace import get_tracer_provider, set_tracer_provider
 else:
+    # Try to import OpenTelemetry, but provide fallbacks if not available
+    try:
+        from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
+        from opentelemetry.trace import get_tracer_provider, set_tracer_provider
+
+        HAS_OPENTELEMETRY = True
+    except ImportError:
+        HAS_OPENTELEMETRY = False
+
+        # Provide stub base class when OpenTelemetry is not installed
+        class BaseInstrumentor:
+            """Stub base class when OpenTelemetry is not available."""
+
+            def instrument(self, **kwargs):
+                raise ImportError("OpenTelemetry is not installed. Install with: " "pip install opsml[opentelemetry]")
+
+            def uninstrument(self, **kwargs):
+                raise ImportError("OpenTelemetry is not installed. Install with: " "pip install opsml[opentelemetry]")
+
+        def get_tracer_provider():
+            raise ImportError("OpenTelemetry is not installed. Install with: " "pip install opsml[opentelemetry]")
+
+        def set_tracer_provider(provider):
+            raise ImportError("OpenTelemetry is not installed. Install with: " "pip install opsml[opentelemetry]")
 
     class _OtelTracerProvider:
         pass
 
     class _OtelTracer:
-        pass
-
-    class BaseInstrumentor:
         pass
 
     AttributeValue = Union[
@@ -76,12 +98,6 @@ else:
     ]
 
     Attributes = Optional[Mapping[str, AttributeValue]]
-
-    def get_tracer_provider() -> _OtelTracerProvider:
-        pass
-
-    def set_tracer_provider(provider: _OtelTracerProvider) -> None:
-        pass
 
 
 def set_output(
@@ -175,9 +191,7 @@ class Tracer(BaseTracer):
             if function_type == FunctionType.AsyncGenerator:
 
                 @functools.wraps(func)
-                async def async_generator_wrapper(
-                    *args: P.args, **kwargs: P.kwargs
-                ) -> Any:
+                async def async_generator_wrapper(*args: P.args, **kwargs: P.kwargs) -> Any:
                     async with self._start_decorated_as_current_span(
                         name=span_name,
                         func=func,
@@ -194,9 +208,7 @@ class Tracer(BaseTracer):
                         func_kwargs=kwargs,
                     ) as span:
                         try:
-                            async_gen_func = cast(
-                                Callable[P, AsyncGenerator[Any, None]], func
-                            )
+                            async_gen_func = cast(Callable[P, AsyncGenerator[Any, None]], func)
                             generator = async_gen_func(*args, **kwargs)
 
                             outputs = []
@@ -238,9 +250,7 @@ class Tracer(BaseTracer):
                         func_kwargs=kwargs,
                     ) as span:
                         try:
-                            gen_func = cast(
-                                Callable[P, Generator[Any, None, None]], func
-                            )
+                            gen_func = cast(Callable[P, Generator[Any, None, None]], func)
                             generator = gen_func(*args, **kwargs)
                             results = []
 
@@ -351,7 +361,6 @@ class TracerProvider(_OtelTracerProvider):
         scouter_queue: Optional[Any] = None,
     ):
         """Initialize TracerProvider and underlying Rust tracer."""
-        # Initialize the global tracer via init_tracer
 
         self.transport_config = transport_config
         self.exporter = exporter
@@ -382,6 +391,7 @@ class TracerProvider(_OtelTracerProvider):
             Tracer: Python Tracer instance with decorator support
         """
         # Return the Python Tracer wrapper, not the Rust BaseTracer
+
         return cast(
             _OtelTracer,
             init_tracer(
@@ -417,14 +427,11 @@ class ScouterInstrumentor(BaseInstrumentor):
     Examples:
         Basic usage:
         >>> from scouter.tracing import ScouterInstrumentor
-        >>> from scouter import BatchConfig, OtelExportConfig, OtelProtocol
+        >>> from scouter import BatchConfig, GrpcConfig
         >>>
         >>> instrumentor = ScouterInstrumentor()
         >>> instrumentor.instrument(
-        ...     transport_config=OtelExportConfig(
-        ...         endpoint="http://localhost:4318/v1/traces",
-        ...         protocol=OtelProtocol.HttpProtobuf,
-        ...     ),
+        ...     transport_config=GrpcConfig(),
         ...     batch_config=BatchConfig(scheduled_delay_ms=200),
         ... )
 
@@ -449,27 +456,20 @@ class ScouterInstrumentor(BaseInstrumentor):
         return []
 
     def _instrument(self, **kwargs) -> None:
-        """
-        Initialize Scouter tracing and set as global provider.
+        """Initialize Scouter tracing and set as global provider."""
+        if not HAS_OPENTELEMETRY:
+            raise ImportError(
+                "OpenTelemetry is required for instrumentation. " "Install with: pip install opsml[opentelemetry]"
+            )
 
-        Args:
-            transport_config: Export configuration (OtelExportConfig, etc.)
-            exporter: Custom span exporter instance
-            batch_config: Batch processing configuration
-            sample_ratio: Sampling ratio (0.0 to 1.0)
-            scouter_queue: Optional ScouterQueue for buffering
-            **kwargs: Additional configuration passed to TracerProvider
-        """
         if self._provider is not None:
             return
 
-        # Accept pre-configured provider or build from config
         tracer_provider = kwargs.pop("tracer_provider", None)
 
         if tracer_provider is not None:
             self._provider = tracer_provider
         else:
-            # Build from individual config parameters
             self._provider = TracerProvider(
                 transport_config=kwargs.pop("transport_config", None),
                 exporter=kwargs.pop("exporter", None),
@@ -478,26 +478,26 @@ class ScouterInstrumentor(BaseInstrumentor):
                 scouter_queue=kwargs.pop("scouter_queue", None),
             )
 
-        # Set as global provider (bypasses OpenTelemetry's Once guard)
         from opentelemetry import trace
 
-        trace._TRACER_PROVIDER_SET_ONCE._done = False
-        trace._TRACER_PROVIDER_SET_ONCE._lock = __import__("threading").Lock()
+        trace._TRACER_PROVIDER_SET_ONCE._done = False  # pylint: disable=protected-access
+        trace._TRACER_PROVIDER_SET_ONCE._lock = __import__("threading").Lock()  # pylint: disable=protected-access
         set_tracer_provider(self._provider)
 
     def _uninstrument(self, **kwargs) -> None:
         """Shutdown Scouter tracing and reset global provider."""
+        if not HAS_OPENTELEMETRY:
+            return
+
         if self._provider is None:
             return
 
-        # Flush and shutdown
         self._provider.shutdown()
 
-        # Reset global state
         from opentelemetry import trace
 
-        trace._TRACER_PROVIDER = None
-        trace._TRACER_PROVIDER_SET_ONCE._done = False
+        trace._TRACER_PROVIDER = None  # pylint: disable=protected-access
+        trace._TRACER_PROVIDER_SET_ONCE._done = False  # pylint: disable=protected-access
 
         self._provider = None
 
@@ -580,7 +580,6 @@ __all__ = [
     "shutdown_tracer",
     "get_tracing_headers_from_current_span",
     "get_current_active_span",
-    "ScouterSpanExporter",
     "ScouterInstrumentor",
     "instrument",
     "uninstrument",

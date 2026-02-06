@@ -4,9 +4,6 @@ import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Union, overload
 
-from .logging import LogLevel
-from .potato import Embedder
-from .header import Context
 from .evaluate import (
     AssertionTask,
     ComparisonOperator,
@@ -14,7 +11,10 @@ from .evaluate import (
     LLMJudgeTask,
     TraceAssertionTask,
 )
+from .header import Context
+from .logging import LogLevel
 from .mock import MockConfig
+from .potato import Embedder
 from .tracing import (
     TagRecord,
     TraceBaggageRecord,

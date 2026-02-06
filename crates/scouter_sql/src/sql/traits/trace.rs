@@ -295,9 +295,19 @@ pub trait TraceSqlLogic {
         service_name: Option<&str>,
     ) -> Result<Vec<TraceSpan>, SqlError> {
         let query = Queries::GetTraceSpans.get_query();
+        // check if service name is None or empty string, if so we want to bind None to the query, otherwise bind the service name
+        let service_name_param = if let Some(name) = service_name {
+            if name.trim().is_empty() {
+                None
+            } else {
+                Some(name)
+            }
+        } else {
+            None
+        };
         let trace_items: Result<Vec<TraceSpan>, SqlError> = sqlx::query_as(query)
             .bind(trace_id)
-            .bind(service_name)
+            .bind(service_name_param)
             .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError);

@@ -10627,53 +10627,6 @@ class TestSpanExporter:
 def shutdown_tracer() -> None:
     """Shutdown the tracer and flush any remaining spans."""
 
-class ScouterSpanExporter(_SpanExporterBase):
-    """
-    OTLP-compatible span exporter that sends traces to both:
-    1. Scouter internal observability system
-    2. Optional remote OTLP collector
-
-    This exporter maintains full compatibility with OpenTelemetry's
-    SpanExporter interface while providing enhanced correlation with
-    Scouter's model/drift tracking.
-    """
-
-    def __init__(
-        self,
-        service_name: str = "scouter_service",
-        scope: str = "scouter.tracer.{version}",
-        transport_config: Optional[HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig | GrpcConfig] = None,
-    ) -> None:
-        """
-        Initialize the ScouterSpanExporter.
-
-        Args:
-            transport_config: Scouter transport configuration for internal queue
-            resource: OpenTelemetry Resource with service metadata
-            endpoint: Optional OTLP gRPC endpoint (e.g., "http://localhost:8000/v1/traces")
-            headers: Optional HTTP headers for OTLP requests (auth tokens, metadata)
-            timeout_seconds: Request timeout for OTLP exports
-
-        Example:
-            ```python
-            from scouter_tracing import ScouterSpanExporter
-            from opentelemetry.sdk.resources import Resource
-
-            exporter = ScouterSpanExporter(
-                transport_config=transport_config,
-                resource=Resource.create({"service.name": "my-service"}),
-                endpoint="http://localhost:8000/v1/traces",
-                headers={"x-api-key": "secret"},
-            )
-            ```
-        """
-
-    def export(self, spans: Any) -> _SpanExportResult:
-        """Export spans to both Scouter and optional OTLP collector."""
-
-    def shutdown(self) -> None:
-        """Shutdown the exporter and flush remaining spans."""
-
 ### evaluate.pyi ###
 class EvaluationTaskType:
     """Types of evaluation tasks for LLM assessments."""

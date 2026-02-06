@@ -67,6 +67,10 @@ pub async fn get_trace_spans(
     Query(params): Query<TraceRequest>,
 ) -> Result<Json<TraceSpansResponse>, (StatusCode, Json<ScouterServerError>)> {
     // Execute both queries concurrently
+    debug!(
+        "Getting trace spans for trace_id: {}, service_name: {:?}",
+        params.trace_id, params.service_name,
+    );
     let spans = PostgresClient::get_trace_spans(
         &data.db_pool,
         &params.trace_id,
