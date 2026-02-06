@@ -7,6 +7,8 @@ use opentelemetry_otlp::ExportConfig as OtlpExportConfig;
 use pyo3::types::{PyDict, PyModule, PyTuple};
 use pyo3::{prelude::*, IntoPyObjectExt};
 use scouter_events::queue::ScouterQueue;
+use scouter_types::is_pydantic_basemodel;
+use scouter_types::pydict_to_otel_keyvalue;
 use scouter_types::CompressionType;
 use scouter_types::{
     FUNCTION_MODULE, FUNCTION_NAME, FUNCTION_QUALNAME, FUNCTION_STREAMING, FUNCTION_TYPE,
@@ -515,4 +517,29 @@ impl trace::Span for BoxedSpan {
     fn end_with_timestamp(&mut self, timestamp: SystemTime) {
         self.0.end_with_timestamp(timestamp);
     }
+}
+
+pub(crate) fn py_obj_to_otel_keyvalue(
+    py: Python<'_>,
+    attributes: Option<Bound<'_, PyAny>>,
+) -> Result<Vec<KeyValue>, TraceError> {
+    let pairs: Vec<KeyValue> = if let Some(attrs) = attributes {
+        if is_pydantic_basemodel(py, &attrs)? {
+            let dumped = attrs.call_method0("model_dump")?;
+            let dict = dumped
+                .cast::<PyDict>()
+                .map_err(|e| TraceError::DowncastError(e.to_string()))?;
+            pydict_to_otel_keyvalue(dict)?
+        } else if attrs.is_instance_of::<PyDict>() {
+            let dict = attrs
+                .cast::<PyDict>()
+                .map_err(|e| TraceError::DowncastError(e.to_string()))?;
+            pydict_to_otel_keyvalue(dict)?
+        } else {
+            return Err(TraceError::EventMustBeDict);
+        }
+    } else {
+        vec![]
+    };
+    Ok(pairs)
 }

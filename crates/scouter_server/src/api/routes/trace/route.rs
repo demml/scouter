@@ -7,12 +7,13 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+
 use scouter_sql::sql::traits::TraceSqlLogic;
 use scouter_sql::PostgresClient;
 use scouter_types::{
     contracts::ScouterServerError, sql::TraceFilters, SpansFromTagsRequest, TraceBaggageResponse,
-    TraceMetricsRequest, TraceMetricsResponse, TracePaginationResponse, TraceRequest,
-    TraceSpansResponse,
+    TraceMetricsRequest, TraceMetricsResponse, TracePaginationResponse, TraceReceivedResponse,
+    TraceRequest, TraceSpansResponse,
 };
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
@@ -66,6 +67,10 @@ pub async fn get_trace_spans(
     Query(params): Query<TraceRequest>,
 ) -> Result<Json<TraceSpansResponse>, (StatusCode, Json<ScouterServerError>)> {
     // Execute both queries concurrently
+    debug!(
+        "Getting trace spans for trace_id: {}, service_name: {:?}",
+        params.trace_id, params.service_name,
+    );
     let spans = PostgresClient::get_trace_spans(
         &data.db_pool,
         &params.trace_id,
@@ -134,6 +139,16 @@ pub async fn trace_metrics(
     Ok(Json(TraceMetricsResponse { metrics }))
 }
 
+#[instrument(skip_all)]
+pub async fn v1_otel_traces(
+    State(_data): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<TraceReceivedResponse>, (StatusCode, Json<ScouterServerError>)> {
+    debug!("Getting trace metrics for request: {:?}", body);
+
+    Ok(Json(TraceReceivedResponse { received: true }))
+}
+
 pub async fn get_trace_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
     let result = catch_unwind(AssertUnwindSafe(|| {
         Router::new()
@@ -145,6 +160,7 @@ pub async fn get_trace_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
                 post(query_trace_spans_from_tags),
             )
             .route(&format!("{prefix}/trace/metrics"), post(trace_metrics))
+            .route(&format!("{prefix}/v1/traces"), post(v1_otel_traces))
     }));
 
     match result {
