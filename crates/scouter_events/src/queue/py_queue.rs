@@ -435,7 +435,11 @@ impl ScouterQueue {
         };
 
         let (mut event_state, event_rx) = create_event_state(id.clone());
-        let bus = QueueBus::new(event_state.clone(), drift_profile.identifier());
+        let bus = QueueBus::new(
+            event_state.clone(),
+            drift_profile.identifier(),
+            drift_profile.uid().to_string(),
+        );
         queue_state.insert(id.clone(), event_state.clone());
 
         let cancellation_token = CancellationToken::new();

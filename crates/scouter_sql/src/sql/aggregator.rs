@@ -2,14 +2,18 @@ use crate::sql::error::SqlError;
 use crate::sql::query::Queries;
 use chrono::{DateTime, Duration, Timelike, Utc};
 use dashmap::DashMap;
-use scouter_types::{Attribute, TraceId, TraceSpanRecord};
+use scouter_types::{Attribute, TraceId, TraceSpanRecord, SCOUTER_ENTITY};
 use sqlx::PgPool;
+use std::collections::HashSet;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::sync::OnceCell;
 use tokio::time::{interval, Duration as StdDuration};
 use tracing::{error, info, warn};
 
-const DEFAULT_BATCH_SIZE: usize = 500;
+const TRACE_BATCH_SIZE: usize = 1000;
+
+const MAX_TOTAL_SPANS: u64 = 1_000_000;
 
 // Global singleton instance using tokio's OnceCell for async-friendly init
 static TRACE_CACHE: OnceCell<Arc<TraceCache>> = OnceCell::const_new();
@@ -30,6 +34,7 @@ pub struct TraceAggregator {
     pub resource_attributes: Vec<Attribute>,
     pub first_seen: DateTime<Utc>,
     pub last_updated: DateTime<Utc>,
+    pub entity_tags: HashSet<String>,
 }
 
 impl TraceAggregator {
@@ -43,9 +48,25 @@ impl TraceAggregator {
             .unwrap()
     }
 
+    /// Extracts specific entity attributes from span attributes and adds them to the aggregator's entity_tags set
+    /// Arguments:
+    /// - `span`: The TraceSpanRecord from which to extract entity attributes
+    pub fn add_entities(&mut self, span: &TraceSpanRecord) {
+        for attr in &span.attributes {
+            if attr.key.starts_with(SCOUTER_ENTITY) {
+                // Value should be string in the format "{uid}"
+                let entity = match &attr.value {
+                    serde_json::Value::String(s) => s.clone(),
+                    _ => continue, // Skip if not a string
+                };
+                self.entity_tags.insert(entity);
+            }
+        }
+    }
+
     pub fn new_from_span(span: &TraceSpanRecord) -> Self {
         let now = Utc::now();
-        Self {
+        let mut aggregator = Self {
             trace_id: span.trace_id.clone(),
             service_name: span.service_name.clone(),
             scope_name: span.scope_name.clone(),
@@ -64,7 +85,10 @@ impl TraceAggregator {
             resource_attributes: span.resource_attributes.clone(),
             first_seen: now,
             last_updated: now,
-        }
+            entity_tags: HashSet::new(),
+        };
+        aggregator.add_entities(span);
+        aggregator
     }
 
     pub fn update_from_span(&mut self, span: &TraceSpanRecord) {
@@ -97,6 +121,7 @@ impl TraceAggregator {
 
         self.span_count += 1;
         self.last_updated = Utc::now();
+        self.add_entities(span);
     }
 
     pub fn duration_ms(&self) -> Option<i64> {
@@ -110,23 +135,59 @@ impl TraceAggregator {
 }
 
 pub struct TraceCache {
-    traces: DashMap<TraceId, TraceAggregator>,
+    traces: DashMap<TraceId, TraceAggregator>, // dashmap is rwlock internally
     pool: PgPool,
+    max_traces: usize,
+    total_span_count: AtomicU64,
 }
 
 impl TraceCache {
-    fn new(pool: PgPool) -> Self {
+    fn new(pool: PgPool, max_traces: usize) -> Self {
         Self {
             traces: DashMap::new(),
             pool,
+            max_traces,
+            total_span_count: AtomicU64::new(0),
         }
     }
 
-    pub fn update_trace(&self, span: &TraceSpanRecord) {
+    /// Update trace aggregation from a span. Uses Arc<Self> to enable background flushing.
+    pub async fn update_trace(self: &Arc<Self>, span: &TraceSpanRecord) {
+        let current_traces = self.traces.len();
+        let current_spans = self.total_span_count.load(Ordering::Relaxed);
+
+        // Check trace and span pressure
+        let trace_pressure = (current_traces * 100) / self.max_traces;
+        let span_pressure = (current_spans * 100) / MAX_TOTAL_SPANS;
+        let max_pressure = trace_pressure.max(span_pressure as usize);
+
+        // If near capacity, trigger background flush
+        if max_pressure >= 90 {
+            warn!(
+                current_traces,
+                current_spans,
+                max_pressure,
+                "TraceCache high memory pressure, triggering background flush"
+            );
+
+            let cache = Arc::clone(self);
+            tokio::spawn(async move {
+                // Flush traces older than 5 seconds aggressively
+                if let Err(e) = cache.flush_traces(Duration::seconds(5)).await {
+                    error!(error = %e, "Background emergency flush failed");
+                }
+            });
+        }
         self.traces
             .entry(span.trace_id.clone())
-            .and_modify(|agg| agg.update_from_span(span))
-            .or_insert_with(|| TraceAggregator::new_from_span(span));
+            .and_modify(|agg| {
+                agg.update_from_span(span);
+                self.total_span_count.fetch_add(1, Ordering::Relaxed);
+            })
+            .or_insert_with(|| {
+                self.total_span_count.fetch_add(1, Ordering::Relaxed);
+                TraceAggregator::new_from_span(span)
+            });
     }
 
     pub async fn flush_traces(&self, stale_threshold: Duration) -> Result<usize, SqlError> {
@@ -142,14 +203,29 @@ impl TraceCache {
         }
 
         let mut to_flush = Vec::with_capacity(stale_keys.len());
+        let mut spans_freed = 0u64;
+
         for id in stale_keys {
-            if let Some(pair) = self.traces.remove(&id) {
-                to_flush.push(pair);
+            if let Some((_, agg)) = self.traces.remove(&id) {
+                spans_freed += agg.span_count as u64;
+                to_flush.push((id, agg));
             }
         }
 
+        // Decrement by actual span count, not trace count
+        self.total_span_count
+            .fetch_sub(spans_freed, Ordering::Relaxed);
+
         let count = to_flush.len();
-        for chunk in to_flush.chunks(DEFAULT_BATCH_SIZE) {
+        info!(
+            flushed_traces = count,
+            freed_spans = spans_freed,
+            remaining_traces = self.traces.len(),
+            remaining_spans = self.total_span_count.load(Ordering::Relaxed),
+            "Flushed stale traces"
+        );
+
+        for chunk in to_flush.chunks(TRACE_BATCH_SIZE) {
             self.upsert_batch(chunk).await?;
         }
         Ok(count)
@@ -172,6 +248,12 @@ impl TraceCache {
         let mut error_counts = Vec::with_capacity(traces.len());
         let mut resource_attrs = Vec::with_capacity(traces.len());
 
+        // Collect entity tags for batch insert
+        let mut entity_trace_ids = Vec::new();
+        let mut entity_uids = Vec::new();
+        let mut entity_tagged_ats = Vec::new();
+        let now = Utc::now();
+
         for (trace_id, agg) in traces {
             created_ats.push(agg.first_seen);
             bucket_times.push(agg.bucket_time());
@@ -188,8 +270,16 @@ impl TraceCache {
             span_counts.push(agg.span_count);
             error_counts.push(agg.error_count);
             resource_attrs.push(serde_json::to_value(&agg.resource_attributes)?);
+
+            // Collect entity tags for this trace
+            for entity_uid in &agg.entity_tags {
+                entity_trace_ids.push(trace_id.as_bytes());
+                entity_uids.push(entity_uid);
+                entity_tagged_ats.push(now);
+            }
         }
 
+        // 1. Upsert trace aggregations
         sqlx::query(Queries::UpsertTrace.get_query())
             .bind(&bucket_times)
             .bind(&created_ats)
@@ -209,6 +299,16 @@ impl TraceCache {
             .execute(&self.pool)
             .await?;
 
+        // 2. Batch insert all entity tags in one query
+        if !entity_trace_ids.is_empty() {
+            sqlx::query(Queries::InsertTraceEntityTags.get_query())
+                .bind(&entity_trace_ids)
+                .bind(&entity_uids)
+                .bind(&entity_tagged_ats)
+                .execute(&self.pool)
+                .await?;
+        }
+
         Ok(())
     }
 }
@@ -218,9 +318,9 @@ pub async fn init_trace_cache(
     pool: PgPool,
     flush_interval: Duration,
     stale_threshold: Duration,
-    max_cache_size: usize,
+    max_traces: usize,
 ) -> Result<(), SqlError> {
-    let cache = Arc::new(TraceCache::new(pool));
+    let cache = Arc::new(TraceCache::new(pool, max_traces));
 
     if TRACE_CACHE.set(cache.clone()).is_err() {
         return Err(SqlError::TraceCacheError(
@@ -236,9 +336,14 @@ pub async fn init_trace_cache(
         loop {
             ticker.tick().await;
 
-            let current_size = cache.traces.len();
-            let threshold = if current_size > max_cache_size {
-                warn!(current_size, "Emergency flush triggered");
+            let current_traces = cache.traces.len();
+            let current_spans = cache.total_span_count.load(Ordering::Relaxed);
+
+            let threshold = if current_traces > max_traces || current_spans > MAX_TOTAL_SPANS {
+                warn!(
+                    current_traces,
+                    current_spans, "Emergency flush triggered due to memory pressure"
+                );
                 Duration::seconds(0)
             } else {
                 stale_threshold

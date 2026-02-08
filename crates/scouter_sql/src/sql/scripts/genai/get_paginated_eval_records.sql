@@ -5,7 +5,7 @@ SELECT
     entity_id,
     context,
     updated_at,
-     status,
+    status,
     processing_started_at,
     processing_ended_at,
     processing_duration,

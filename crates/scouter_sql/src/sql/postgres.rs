@@ -12,6 +12,7 @@ use scouter_types::{RecordType, ServerRecords, TagRecord, ToDriftRecords, TraceS
 use sqlx::ConnectOptions;
 use sqlx::{postgres::PgConnectOptions, Pool, Postgres};
 use std::result::Result::Ok;
+use std::time::Duration;
 use tokio::try_join;
 use tracing::log::LevelFilter;
 use tracing::{debug, error, info, instrument};
@@ -50,6 +51,17 @@ impl PostgresClient {
 
         let pool = match sqlx::postgres::PgPoolOptions::new()
             .max_connections(database_settings.max_connections)
+            .min_connections(database_settings.min_connections)
+            .acquire_timeout(Duration::from_secs(
+                database_settings.db_acquire_timeout_seconds,
+            ))
+            .idle_timeout(Duration::from_secs(
+                database_settings.db_idle_timeout_seconds,
+            ))
+            .max_lifetime(Duration::from_secs(
+                database_settings.db_max_lifetime_seconds,
+            ))
+            .test_before_acquire(database_settings.db_test_before_acquire)
             .connect_with(opts)
             .await
         {
@@ -1796,7 +1808,7 @@ mod tests {
 
         let baggage = TraceBaggageRecord {
             created_at: Utc::now(),
-            trace_id: trace_record.trace_id.to_hex(),
+            trace_id: trace_record.trace_id.clone(),
             scope: "test_scope".to_string(),
             key: "user_id".to_string(),
             value: "12345".to_string(),
@@ -1809,10 +1821,10 @@ mod tests {
 
         assert_eq!(result.rows_affected(), 1);
 
-        let retrieved_baggage =
-            PostgresClient::get_trace_baggage_records(&pool, &trace_record.trace_id.to_hex())
-                .await
-                .unwrap();
+        let trace_id = trace_record.trace_id.to_hex();
+        let retrieved_baggage = PostgresClient::get_trace_baggage_records(&pool, &trace_id)
+            .await
+            .unwrap();
 
         assert_eq!(retrieved_baggage.len(), 1);
     }

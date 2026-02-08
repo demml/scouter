@@ -2,7 +2,6 @@ use crate::sql::error::SqlError;
 use crate::sql::query::Queries;
 
 use crate::sql::aggregator::get_trace_cache;
-use crate::sql::aggregator::TraceCache;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use itertools::multiunzip;
@@ -56,7 +55,7 @@ pub trait TraceSqlLogic {
         // Single iteration for maximum efficiency
         for span in spans {
             // add to trace cache
-            get_trace_cache().update_trace(span);
+            get_trace_cache().update_trace(span).await;
 
             created_at.push(span.created_at);
             span_id.push(span.span_id.as_bytes());
@@ -127,14 +126,14 @@ pub trait TraceSqlLogic {
 
         let (created_at, trace_id, scope, key, value): (
             Vec<DateTime<Utc>>,
-            Vec<&str>,
+            Vec<&[u8]>,
             Vec<&str>,
             Vec<&str>,
             Vec<&str>,
         ) = multiunzip(baggage.iter().map(|b| {
             (
                 b.created_at,
-                b.trace_id.as_str(),
+                b.trace_id.as_bytes() as &[u8],
                 b.scope.as_str(),
                 b.key.as_str(),
                 b.value.as_str(),

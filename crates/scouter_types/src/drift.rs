@@ -11,6 +11,7 @@ use pyo3::IntoPyObjectExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt::Display;
+use std::ops::Deref;
 use std::path::PathBuf;
 use std::str::FromStr;
 use strum_macros::EnumIter;
@@ -44,6 +45,19 @@ impl DriftType {
             DriftType::Psi => "Psi",
             DriftType::Custom => "Custom",
             DriftType::GenAI => "GenAI",
+        }
+    }
+}
+
+impl Deref for DriftType {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            DriftType::Spc => "spc",
+            DriftType::Psi => "psi",
+            DriftType::Custom => "custom",
+            DriftType::GenAI => "genai",
         }
     }
 }

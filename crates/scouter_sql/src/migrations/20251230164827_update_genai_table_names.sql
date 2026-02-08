@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS scouter.genai_eval_record (
     session_id TEXT,
     retry_count INTEGER DEFAULT 0,
     archived BOOLEAN DEFAULT false,
+    trace_id BYTEA CHECK (octet_length(trace_id) = 16),
     PRIMARY KEY (uid, created_at),
     UNIQUE (created_at, entity_id)
 )
@@ -80,7 +81,7 @@ SELECT scouter.create_parent(
     '1 day'
 );
 
--- Set retention policy to automatically drop old partitions after 60 days
+-- Set retention policy to automatically drop old partitions after 365 days
 UPDATE scouter.part_config
-SET retention = '60 days'
+SET retention = '365 days'
 WHERE parent_table = 'scouter.genai_eval_record';

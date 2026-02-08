@@ -217,16 +217,20 @@ pub struct QueueBus {
 
     #[pyo3(get)]
     pub identifier: String,
+
+    // for tracing purposes
+    pub entity_uid: String,
 }
 
 impl QueueBus {
     #[instrument(skip_all)]
-    pub fn new(task_state: TaskState, identifier: String) -> Self {
+    pub fn new(task_state: TaskState, identifier: String, entity_uid: String) -> Self {
         debug!("Creating unbounded QueueBus for identifier: {}", identifier);
 
         Self {
             task_state,
             identifier,
+            entity_uid,
         }
     }
 
@@ -253,6 +257,7 @@ impl QueueBus {
             "Inserting event into QueueBus for identifier: {}: {:?}",
             self.identifier, item
         );
+
         let event = Event::Task(item);
         self.publish(event)?;
         Ok(())

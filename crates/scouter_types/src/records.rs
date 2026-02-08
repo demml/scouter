@@ -1,7 +1,7 @@
 use crate::error::RecordError;
 use crate::genai::{ComparisonOperator, EvaluationTaskType, ExecutionPlan, TraceAssertion};
 use crate::trace::TraceServerRecord;
-use crate::{depythonize_object_to_value, DriftType, Status};
+use crate::{depythonize_object_to_value, DriftType, Status, TraceId};
 use crate::{EntityType, TagRecord};
 use chrono::DateTime;
 use chrono::Utc;
@@ -219,6 +219,7 @@ pub struct GenAIEvalRecord {
     #[pyo3(get)]
     pub entity_type: EntityType,
     pub retry_count: i32,
+    pub trace_id: Option<TraceId>,
 }
 
 #[pymethods]
@@ -246,6 +247,7 @@ impl GenAIEvalRecord {
             context: context_val,
             record_id: id.unwrap_or_default(),
             session_id: session_id.unwrap_or_else(create_uuid7),
+            trace_id: None,
             ..Default::default()
         })
     }
@@ -261,6 +263,11 @@ impl GenAIEvalRecord {
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
         PyHelperFuncs::__json__(self)
+    }
+
+    #[getter]
+    pub fn get_trace_id(&self) -> Option<String> {
+        self.trace_id.as_ref().map(|tid| tid.to_hex())
     }
 
     #[getter]
@@ -346,6 +353,7 @@ impl GenAIEvalRecord {
             entity_type: EntityType::GenAI,
             session_id: session_id.unwrap_or_else(create_uuid7),
             retry_count: 0,
+            trace_id: None,
         }
     }
 
@@ -374,6 +382,7 @@ impl Default for GenAIEvalRecord {
             entity_type: EntityType::GenAI,
             session_id: create_uuid7(),
             retry_count: 0,
+            trace_id: None,
         }
     }
 }
@@ -386,6 +395,7 @@ impl FromRow<'_, PgRow> for GenAIEvalRecord {
         // load status from string
         let status_string = row.try_get::<String, &str>("status")?;
         let status = Status::from_str(&status_string).unwrap_or(Status::Pending);
+        let trace_id_str = row.try_get::<Option<String>, &str>("trace_id")?;
 
         Ok(GenAIEvalRecord {
             record_id: row.try_get("record_id")?,
@@ -403,6 +413,7 @@ impl FromRow<'_, PgRow> for GenAIEvalRecord {
             status,
             entity_type: EntityType::GenAI,
             retry_count: row.try_get("retry_count")?,
+            trace_id: trace_id_str.and_then(|tid| TraceId::from_hex(&tid).ok()),
         })
     }
 }

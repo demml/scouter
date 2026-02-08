@@ -39,9 +39,9 @@ use scouter_settings::http::HttpConfig;
 
 use scouter_types::{
     pyobject_to_otel_value, pyobject_to_tracing_json, EntityType, BAGGAGE_PREFIX,
-    EXCEPTION_TRACEBACK, SCOUTER_QUEUE_EVENT, SCOUTER_QUEUE_RECORD, SCOUTER_SCOPE,
-    SCOUTER_SCOPE_DEFAULT, SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL,
-    SCOUTER_TRACING_OUTPUT, SPAN_ERROR, TRACE_START_TIME_KEY,
+    EXCEPTION_TRACEBACK, SCOUTER_QUEUE_EVENT, SCOUTER_SCOPE, SCOUTER_SCOPE_DEFAULT,
+    SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL, SCOUTER_TRACING_OUTPUT,
+    SPAN_ERROR, TRACE_START_TIME_KEY,
 };
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock, RwLock};
@@ -277,6 +277,36 @@ fn reset_current_context(py: Python, token: &Py<PyAny>) -> PyResult<()> {
     Ok(())
 }
 
+/// Helper function to create an entity event on a span when adding an item to a queue.
+/// This allows us to correlate spans with queue items in the Scouter backend.
+/// # Arguments
+/// * `queue_item` - The item being added to the queue (must have an entity
+/// type attribute for correlation)
+/// * `inner` - The inner span data to add the event to
+fn add_entity_event_to_span(
+    queue_item: &Bound<'_, PyAny>,
+    inner: &mut ActiveSpanInner,
+) -> Result<(), TraceError> {
+    let mut attributes = vec![];
+    // add entity type as an event attribute for easier correlation in the UI
+    // this allows us to easily query for all spans that interacted with a certain entity type
+    let entity_type_py = queue_item.getattr("entity_type")?;
+    let entity_type = entity_type_py.extract::<EntityType>()?;
+    attributes.push(KeyValue::new("entity", entity_type));
+
+    if let Ok(record_uid) = queue_item.getattr("uid") {
+        let record_uid_str = record_uid.str()?;
+
+        attributes.push(KeyValue::new(
+            "record_uid",
+            record_uid_str.str()?.to_string(),
+        ));
+    };
+
+    inner.span.add_event(SCOUTER_QUEUE_EVENT, attributes);
+    Ok(())
+}
+
 /// ActiveSpan where all the magic happens
 /// The active Span attempts to maintain compatibility with the OpenTelemetry Span API
 #[pyclass]
@@ -384,26 +414,7 @@ impl ActiveSpan {
                     if let Some(queue) = &inner.queue {
                         let bound_queue = queue.bind(py).get_item(&alias)?;
                         bound_queue.call_method1("insert", (item,))?;
-
-                        let entity_type_py = item.getattr("entity_type")?;
-                        let entity_type = entity_type_py.extract::<EntityType>()?;
-
-                        // always record event type for easier correlation
-                        inner
-                            .span
-                            .set_attribute(KeyValue::new(SCOUTER_QUEUE_EVENT, entity_type));
-
-                        // get record_id if available (only available for GenAIEval Records at the moment)
-                        if let Ok(record_uid) = item.getattr("uid") {
-                            let record_uid_str = record_uid.str()?;
-                            // add tag for easier correlation
-                            // We'll use this to lookup records, tasks and eval metrics when rendering a span's details
-                            inner.span.set_attribute(KeyValue::new(
-                                format!("{}.{}", SCOUTER_TAG_PREFIX, SCOUTER_QUEUE_RECORD),
-                                record_uid_str.str()?.to_string(),
-                            ));
-                        };
-
+                        add_entity_event_to_span(item, inner)?;
                         Ok(())
                     } else {
                         warn!(

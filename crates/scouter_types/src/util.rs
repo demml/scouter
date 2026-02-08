@@ -1,4 +1,5 @@
 use crate::error::{ProfileError, TypeError, UtilError};
+use crate::traits::ConfigExt;
 use crate::FeatureMap;
 use crate::{CommonCrons, DriftType};
 use base64::prelude::*;
@@ -604,12 +605,6 @@ pub trait ProfileBaseArgs {
     fn version(&self) -> &str {
         self.config().version()
     }
-}
-
-pub trait ConfigExt {
-    fn space(&self) -> &str;
-    fn name(&self) -> &str;
-    fn version(&self) -> &str;
 }
 
 pub trait ValidateAlertConfig {

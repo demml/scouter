@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS scouter.trace_baggage (
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-    trace_id TEXT NOT NULL,
+    trace_id BYTEA NOT NULL CHECK (octet_length(trace_id) = 16),
     scope TEXT NOT NULL,
     key TEXT NOT NULL,
     value TEXT NOT NULL,
@@ -73,25 +73,11 @@ CREATE TABLE IF NOT EXISTS scouter.spans (
 
 CREATE INDEX idx_spans_trace_lookup ON scouter.spans(trace_id, start_time);
 CREATE INDEX idx_spans_service_time ON scouter.spans(service_id, start_time DESC);
-
-CREATE INDEX idx_spans_root_partitioned
-ON scouter.spans(trace_id, start_time)
-WHERE parent_span_id IS NULL;
-
-CREATE INDEX IF NOT EXISTS idx_spans_service_id_errors ON scouter.spans (service_id, status_code, start_time DESC)
-    WHERE service_id IS NOT NULL AND status_code = 2; -- status code of 2 indicates error in OpenTelemetry
-CREATE INDEX IF NOT EXISTS idx_spans_parent_tree ON scouter.spans (parent_span_id, trace_id)
-    WHERE parent_span_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_spans_service_name_fallback ON scouter.spans (service_name, start_time DESC)
-    WHERE service_name IS NOT NULL;
-
-CREATE INDEX idx_spans_attributes_containment
-ON scouter.spans USING GIN (attributes jsonb_path_ops);
-
-CREATE INDEX idx_spans_tree_traversal
-ON scouter.spans (trace_id, parent_span_id, start_time)
-INCLUDE (span_name, span_kind, duration_ms, status_code);
-
+CREATE INDEX idx_spans_errors ON scouter.spans (start_time DESC, service_id, status_code)
+WHERE status_code = 2;
+CREATE INDEX idx_spans_attributes_hot_attrs ON scouter.spans
+USING GIN (attributes jsonb_path_ops)
+WHERE start_time > NOW() - INTERVAL '7 days';
 
 -- Create partition parents
 
@@ -155,6 +141,11 @@ CREATE TABLE IF NOT EXISTS scouter.traces (
 ) PARTITION BY RANGE (bucket_time);
 
 CREATE INDEX idx_traces_id_lookup ON scouter.traces (trace_id);
+CREATE INDEX idx_traces_service_time ON scouter.traces (service_name, bucket_time DESC)
+WHERE service_name IS NOT NULL;
+CREATE INDEX idx_traces_errors ON scouter.traces (bucket_time DESC, error_count)
+WHERE error_count > 0;
+
 ALTER TABLE scouter.traces SET (fillfactor = 80);
 ALTER TABLE scouter.traces SET (
   autovacuum_vacuum_scale_factor = 0.01,
@@ -298,15 +289,14 @@ $$;
 CREATE OR REPLACE FUNCTION scouter.get_traces_paginated(
     p_service_name TEXT DEFAULT NULL,
     p_has_errors BOOLEAN DEFAULT NULL,
-    p_status_code INTEGER DEFAULT NULL,
-    p_start_time TIMESTAMPTZ DEFAULT NOW() - INTERVAL '24 hours',
-    p_end_time TIMESTAMPTZ DEFAULT NOW(),
+    p_start_time TIMESTAMPTZ DEFAULT NULL,
+    p_end_time TIMESTAMPTZ DEFAULT NULL,
     p_limit INTEGER DEFAULT 50,
     p_cursor_start_time TIMESTAMPTZ DEFAULT NULL,
-    p_cursor_trace_id TEXT DEFAULT NULL,
+    p_cursor_trace_id BYTEA DEFAULT NULL,
     p_direction TEXT DEFAULT 'next',
-    p_trace_ids TEXT[] DEFAULT NULL,
     p_attribute_filters JSONB DEFAULT NULL,
+    p_trace_ids BYTEA[] DEFAULT NULL,
     p_match_all_attributes BOOLEAN DEFAULT FALSE
 )
 RETURNS TABLE (
@@ -323,25 +313,13 @@ RETURNS TABLE (
     span_count BIGINT,
     has_errors BOOLEAN,
     error_count BIGINT,
-    resource_attributes JSONB,
-    attributes JSONB
+    resource_attributes JSONB
 )
 LANGUAGE SQL
 STABLE
 AS $$
-    WITH filtered_trace_ids AS (
-        SELECT DISTINCT s.trace_id
-        FROM scouter.spans s
-        WHERE p_attribute_filters IS NOT NULL
-          AND s.start_time >= p_start_time
-          AND s.start_time <= p_end_time
-          AND scouter.match_span_attributes(
-                s.attributes,
-                p_attribute_filters,
-                p_match_all_attributes
-          )
-    ),
-    base_query AS (
+    -- Primary filtering on traces table (fast!)
+    WITH base_traces AS (
         SELECT
             t.trace_id,
             t.service_name,
@@ -354,67 +332,66 @@ AS $$
             t.status_code,
             t.status_message,
             t.span_count,
-            (t.error_count > 0) as has_errors,
+            t.error_count > 0 AS has_errors,
             t.error_count,
-            t.resource_attributes,
-            -- Root attributes are pulled from spans only for the current page to save IO
-            COALESCE(
-                (SELECT s.attributes FROM scouter.spans s
-                 WHERE s.trace_id = t.trace_id
-                 AND s.parent_span_id IS NULL
-                 AND s.start_time >= t.start_time - INTERVAL '1 minute'
-                 AND s.start_time <= t.start_time + INTERVAL '1 minute'
-                 LIMIT 1),
-                '[]'::JSONB
-            ) as attributes
+            t.resource_attributes
         FROM scouter.traces t
         WHERE
-            -- CRITICAL: Partition Pruning using bucket_time
-            t.bucket_time >= date_trunc('hour', p_start_time)
-            AND t.bucket_time <= date_trunc('hour', p_end_time)
-
-            -- Basic Filters
-            AND (p_trace_ids IS NULL OR t.trace_id = ANY(p_trace_ids::bytea[]))
+            t.bucket_time >= COALESCE(p_start_time, NOW() - INTERVAL '24 hours')
+            AND t.bucket_time <= COALESCE(p_end_time, NOW())
             AND (p_service_name IS NULL OR t.service_name = p_service_name)
-            AND (p_status_code IS NULL OR t.status_code = p_status_code)
-            AND (p_has_errors IS NULL OR (p_has_errors = (t.error_count > 0)))
-            AND (p_attribute_filters IS NULL OR t.trace_id IN (SELECT trace_id FROM filtered_trace_ids))
+            AND (p_has_errors IS NULL OR (p_has_errors AND t.error_count > 0) OR (NOT p_has_errors AND t.error_count = 0))
+            AND (p_trace_ids IS NULL OR t.trace_id = ANY(p_trace_ids))
             AND (
                 CASE
                     WHEN p_direction = 'next' THEN
-                        (p_cursor_start_time IS NULL OR
-                         t.start_time < p_cursor_start_time OR
-                         (t.start_time = p_cursor_start_time AND t.trace_id < decode(p_cursor_trace_id, 'hex')))
+                        (p_cursor_start_time IS NULL) OR
+                        (t.start_time, t.trace_id) < (p_cursor_start_time, p_cursor_trace_id)
                     WHEN p_direction = 'previous' THEN
-                        (p_cursor_start_time IS NULL OR
-                         t.start_time > p_cursor_start_time OR
-                         (t.start_time = p_cursor_start_time AND t.trace_id > decode(p_cursor_trace_id, 'hex')))
+                        (p_cursor_start_time IS NULL) OR
+                        (t.start_time, t.trace_id) > (p_cursor_start_time, p_cursor_trace_id)
+                    ELSE TRUE
                 END
             )
         ORDER BY
-            CASE WHEN p_direction = 'next' THEN t.start_time END DESC,
-            CASE WHEN p_direction = 'next' THEN t.trace_id END DESC,
             CASE WHEN p_direction = 'previous' THEN t.start_time END ASC,
-            CASE WHEN p_direction = 'previous' THEN t.trace_id END ASC
+            CASE WHEN p_direction = 'next' THEN t.start_time END DESC,
+            t.trace_id
         LIMIT p_limit + 1
+    ),
+
+    filtered_traces AS (
+        SELECT bt.*
+        FROM base_traces bt
+        WHERE
+            p_attribute_filters IS NULL
+            OR EXISTS (
+                SELECT 1
+                FROM scouter.spans s
+                WHERE s.trace_id = bt.trace_id
+                  AND s.start_time >= bt.start_time - INTERVAL '1 hour'
+                  AND s.start_time <= bt.start_time + INTERVAL '1 hour'
+                  AND scouter.match_span_attributes(s.attributes, p_attribute_filters, p_match_all_attributes)
+                LIMIT 1
+            )
     )
+
     SELECT
-        encode(bq.trace_id, 'hex'),
-        bq.service_name,
-        bq.scope_name,
-        bq.scope_version,
-        bq.root_operation,
-        bq.start_time,
-        bq.end_time,
-        bq.duration_ms,
-        bq.status_code,
-        bq.status_message,
-        bq.span_count,
-        bq.has_errors,
-        bq.error_count,
-        bq.resource_attributes,
-        bq.attributes
-    FROM base_query bq;
+        encode(ft.trace_id, 'hex') as trace_id,
+        ft.service_name,
+        ft.scope_name,
+        ft.scope_version,
+        ft.root_operation,
+        ft.start_time,
+        ft.end_time,
+        ft.duration_ms,
+        ft.status_code,
+        ft.status_message,
+        ft.span_count,
+        ft.has_errors,
+        ft.error_count,
+        ft.resource_attributes
+    FROM filtered_traces ft;
 $$;
 
 

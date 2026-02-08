@@ -13,7 +13,7 @@ SELECT
     value
 FROM UNNEST(
     $1::timestamptz[],  -- created_at
-    $2::text[], -- trace_id
+    $2::bytea[], -- trace_id
     $3::text[], -- scope
     $4::text[], -- key
     $5::text[] -- value

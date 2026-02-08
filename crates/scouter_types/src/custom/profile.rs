@@ -1,8 +1,9 @@
 #![allow(clippy::useless_conversion)]
 use crate::custom::alert::{CustomMetric, CustomMetricAlertConfig};
 use crate::error::{ProfileError, TypeError};
+use crate::traits::ConfigExt;
 use crate::util::{json_to_pyobject, pyobject_to_json, scouter_version};
-use crate::{ConfigExt, ProfileRequest};
+use crate::ProfileRequest;
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
     PyHelperFuncs, VersionRequest, DEFAULT_VERSION, MISSING,
@@ -54,6 +55,10 @@ impl ConfigExt for CustomMetricDriftConfig {
 
     fn version(&self) -> &str {
         &self.version
+    }
+
+    fn uid(&self) -> &str {
+        &self.uid
     }
 }
 

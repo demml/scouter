@@ -37,6 +37,7 @@ pub const SPAN_ERROR: &str = "span.error";
 pub const EXCEPTION_TRACEBACK: &str = "exception.traceback";
 pub const SCOUTER_QUEUE_RECORD: &str = "scouter.queue.record";
 pub const SCOUTER_QUEUE_EVENT: &str = "scouter.queue.event";
+pub const SCOUTER_ENTITY: &str = "scouter.entity";
 
 // patterns for identifying baggage and tags
 pub const BAGGAGE_PATTERN: &str = "baggage.";
@@ -44,6 +45,13 @@ pub const BAGGAGE_TAG_PATTERN: &str = concat!("baggage", ".", "scouter.tracing.t
 pub const TAG_PATTERN: &str = concat!("scouter.tracing.tag", ".");
 
 type SpanAttributes = (Vec<Attribute>, Vec<TraceBaggageRecord>, Vec<TagRecord>);
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default, PartialEq, Eq, Hash)]
+pub struct ScouterEntityAttribute {
+    pub uid: String,
+    pub r#type: String,
+    pub space: String,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
 pub struct TraceId([u8; 16]);
@@ -405,8 +413,7 @@ impl TraceSpanRecord {
 pub struct TraceBaggageRecord {
     #[pyo3(get)]
     pub created_at: DateTime<Utc>,
-    #[pyo3(get)]
-    pub trace_id: String,
+    pub trace_id: TraceId,
     #[pyo3(get)]
     pub scope: String,
     #[pyo3(get)]
@@ -419,6 +426,11 @@ pub struct TraceBaggageRecord {
 impl TraceBaggageRecord {
     pub fn __str__(&self) -> String {
         PyHelperFuncs::__str__(self)
+    }
+
+    #[getter]
+    pub fn get_trace_id(&self) -> String {
+        self.trace_id.to_hex()
     }
 }
 
@@ -442,8 +454,6 @@ pub trait TraceRecordExt {
         let mut cleaned_attributes = Vec::with_capacity(span_attributes.len());
         let mut baggage_records = Vec::new();
         let mut tags = Vec::new();
-
-        let trace_id_hex = trace_id.to_hex();
         let scope_owned = scope.to_string();
 
         for kv in span_attributes {
@@ -474,7 +484,7 @@ pub trait TraceRecordExt {
                     // Also extract as baggage since it has baggage prefix
                     baggage_records.push(TraceBaggageRecord {
                         created_at,
-                        trace_id: trace_id_hex.clone(),
+                        trace_id: trace_id.clone(),
                         scope: scope_owned.clone(),
                         key: format!("{}.{}", SCOUTER_TAG_PREFIX, tag_key),
                         value: string_value,
@@ -527,7 +537,7 @@ pub trait TraceRecordExt {
 
                 baggage_records.push(TraceBaggageRecord {
                     created_at,
-                    trace_id: trace_id_hex.clone(),
+                    trace_id: trace_id.clone(),
                     scope: scope_owned.clone(),
                     key: clean_key,
                     value: string_value,
@@ -799,7 +809,7 @@ impl TraceServerRecord {
     }
 
     pub fn convert_to_baggage_records(
-        trace_id: &str,
+        trace_id: &TraceId,
         attributes: &Vec<Attribute>,
         scope_name: &str,
     ) -> Vec<TraceBaggageRecord> {
@@ -839,7 +849,7 @@ impl TraceServerRecord {
             .into_iter()
             .map(|(key, value)| TraceBaggageRecord {
                 created_at: Self::get_trace_start_time_attribute(attributes, &Utc::now()),
-                trace_id: trace_id.to_string(),
+                trace_id: trace_id.clone(),
                 scope: scope_name.to_string(),
                 key,
                 value,

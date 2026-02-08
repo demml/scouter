@@ -5,6 +5,11 @@ use serde::Serialize;
 pub struct DatabaseSettings {
     pub connection_uri: String,
     pub max_connections: u32,
+    pub min_connections: u32,
+    pub db_acquire_timeout_seconds: u64,
+    pub db_idle_timeout_seconds: u64,
+    pub db_max_lifetime_seconds: u64,
+    pub db_test_before_acquire: bool,
     pub retention_period: i32,
     pub flush_interval: Duration,
     pub stale_threshold: Duration,
@@ -18,8 +23,33 @@ impl Default for DatabaseSettings {
             .unwrap_or("postgresql://postgres:postgres@localhost:5432/postgres".to_string());
 
         let max_connections = std::env::var("MAX_POOL_SIZE")
-            .unwrap_or_else(|_| "30".to_string())
+            .unwrap_or_else(|_| "200".to_string())
             .parse::<u32>()
+            .unwrap();
+
+        let min_connections = std::env::var("MIN_POOL_SIZE")
+            .unwrap_or_else(|_| "20".to_string())
+            .parse::<u32>()
+            .unwrap();
+
+        let db_acquire_timeout_seconds = std::env::var("DB_ACQUIRE_TIMEOUT_SECONDS")
+            .unwrap_or_else(|_| "10".to_string())
+            .parse::<u64>()
+            .unwrap();
+
+        let db_idle_timeout_seconds = std::env::var("DB_IDLE_TIMEOUT_SECONDS")
+            .unwrap_or_else(|_| "300".to_string())
+            .parse::<u64>()
+            .unwrap();
+
+        let db_max_lifetime_seconds = std::env::var("DB_MAX_LIFETIME_SECONDS")
+            .unwrap_or_else(|_| "1800".to_string())
+            .parse::<u64>()
+            .unwrap();
+
+        let db_test_before_acquire = std::env::var("DB_TEST_BEFORE_ACQUIRE")
+            .unwrap_or_else(|_| "true".to_string())
+            .parse::<bool>()
             .unwrap();
 
         let retention_period = std::env::var("DATA_RETENTION_PERIOD")
@@ -52,6 +82,11 @@ impl Default for DatabaseSettings {
         Self {
             connection_uri,
             max_connections,
+            min_connections,
+            db_acquire_timeout_seconds,
+            db_idle_timeout_seconds,
+            db_max_lifetime_seconds,
+            db_test_before_acquire,
             retention_period,
             flush_interval,
             stale_threshold,
