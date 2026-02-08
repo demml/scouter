@@ -189,6 +189,18 @@ impl SpanId {
     pub fn as_bytes(&self) -> &[u8; 8] {
         &self.0
     }
+
+    pub fn hex_to_bytes(hex: &str) -> Result<Vec<u8>, RecordError> {
+        let bytes = hex::decode(hex)?;
+        if bytes.len() == 8 {
+            Ok(bytes)
+        } else {
+            Err(RecordError::SliceError(format!(
+                "Invalid hex string length: expected 16 or 8 bytes, got {}",
+                bytes.len()
+            )))
+        }
+    }
 }
 
 impl fmt::Display for SpanId {

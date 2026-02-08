@@ -77,3 +77,48 @@ pub enum DataFrameError {
     #[error("Unsupported operation: {0}")]
     UnsupportedOperation(String),
 }
+
+#[derive(Error, Debug)]
+pub enum TraceEngineError {
+    #[error(transparent)]
+    DataTableError(#[from] deltalake::DeltaTableError),
+
+    #[error(transparent)]
+    UrlParseError(#[from] url::ParseError),
+
+    #[error("Dataframe table not initialized")]
+    TableNotInitialized,
+
+    #[error(transparent)]
+    StorageError(#[from] StorageError),
+
+    #[error(transparent)]
+    ArrowError(#[from] arrow::error::ArrowError),
+
+    #[error("Invalid record type provided: {0}")]
+    InvalidRecordTypeError(String),
+
+    #[error("Unsupported operation: {0}")]
+    UnsupportedOperation(String),
+
+    #[error("Invalid timestamp: {0}")]
+    InvalidTimestamp(&'static str),
+
+    #[error("Invalid hex ID '{0}': {1}")]
+    InvalidHexId(String, String),
+
+    #[error("Downcast error: {0}")]
+    DowncastError(&'static str),
+
+    #[error("Failed to acquire lock: {0}")]
+    LockError(#[from] tokio::sync::AcquireError),
+
+    #[error(transparent)]
+    DatafusionError(#[from] datafusion::error::DataFusionError),
+
+    #[error("Channel closed")]
+    ChannelClosed,
+
+    #[error(transparent)]
+    RecordError(#[from] scouter_types::error::RecordError),
+}
