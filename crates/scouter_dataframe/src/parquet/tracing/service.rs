@@ -1,10 +1,12 @@
 use crate::error::TraceEngineError;
 use crate::parquet::tracing::engine::{TableCommand, TraceSpanDBEngine};
+use crate::parquet::tracing::queries::TraceQueries;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::sql::TraceSpan;
 use tokio::sync::mpsc;
 use tokio::time::{interval, Duration};
 use tracing::info;
+
 const BUFFER_SIZE: usize = 10_000;
 const FLUSH_INTERVAL_SECS: u64 = 5;
 
@@ -14,12 +16,14 @@ pub struct TraceSpanService {
     shutdown_tx: mpsc::Sender<()>,
     engine_handle: tokio::task::JoinHandle<()>,
     buffer_handle: tokio::task::JoinHandle<()>,
+    pub query_service: TraceQueries,
 }
 
 impl TraceSpanService {
     pub async fn new(
         storage_settings: &ObjectStorageSettings,
         compaction_interval_hours: u64,
+        flush_interval_secs: Option<u64>,
     ) -> Result<Self, TraceEngineError> {
         let engine = TraceSpanDBEngine::new(storage_settings).await?;
         info!(
@@ -27,11 +31,17 @@ impl TraceSpanService {
             storage_settings.storage_uri
         );
 
+        let ctx = engine.ctx.clone();
         let (engine_tx, engine_handle) = engine.start_actor(compaction_interval_hours);
         let (span_tx, span_rx) = mpsc::channel::<Vec<TraceSpan>>(100);
         let (shutdown_tx, shutdown_rx) = mpsc::channel::<()>(1);
 
-        let buffer_handle = Self::start_buffering_actor(engine_tx.clone(), span_rx, shutdown_rx);
+        let buffer_handle = Self::start_buffering_actor(
+            engine_tx.clone(),
+            span_rx,
+            shutdown_rx,
+            flush_interval_secs,
+        );
 
         Ok(TraceSpanService {
             engine_tx,
@@ -39,6 +49,7 @@ impl TraceSpanService {
             shutdown_tx,
             engine_handle,
             buffer_handle,
+            query_service: TraceQueries::new(ctx),
         })
     }
 
@@ -46,17 +57,19 @@ impl TraceSpanService {
         engine_tx: mpsc::Sender<TableCommand>,
         mut span_rx: mpsc::Receiver<Vec<TraceSpan>>,
         mut shutdown_rx: mpsc::Receiver<()>,
+        flush_interval_secs: Option<u64>,
     ) -> tokio::task::JoinHandle<()> {
         tokio::spawn(async move {
             let mut buffer = Vec::with_capacity(BUFFER_SIZE);
-            let mut flush_ticker = interval(Duration::from_secs(FLUSH_INTERVAL_SECS));
+            let mut flush_ticker = interval(Duration::from_secs(
+                flush_interval_secs.unwrap_or(FLUSH_INTERVAL_SECS),
+            ));
             flush_ticker.tick().await;
 
             loop {
                 tokio::select! {
                     Some(spans) = span_rx.recv() => {
 
-                        println!("Buffering {} spans", spans.len());
                         buffer.extend(spans);
 
                         if buffer.len() >= BUFFER_SIZE {
@@ -167,22 +180,10 @@ impl TraceSpanService {
 mod tests {
 
     use super::*;
-    use crate::parquet::psi::dataframe_to_psi_drift_features;
-    use crate::parquet::spc::dataframe_to_spc_drift_features;
-    use crate::parquet::types::BinnedTableName;
-    use crate::parquet::utils::BinnedMetricsExtractor;
-    use chrono::Utc;
-    use object_store::path::Path;
-    use rand::Rng;
+    use crate::parquet::tracing::span_view::TraceSpanView;
     use scouter_mocks::create_simple_trace;
     use scouter_settings::ObjectStorageSettings;
-    use scouter_types::{
-        BoxedGenAIEvalRecord, GenAIEvalRecord, PsiRecord, ServerRecord, ServerRecords, SpcRecord,
-        Status,
-    };
-    use scouter_types::{CustomMetricRecord, GenAIEvalTaskResult, GenAIEvalWorkflowResult};
-    use serde_json::Map;
-    use serde_json::Value;
+    use scouter_types::TraceId;
     use tracing_subscriber;
 
     fn cleanup() {
@@ -203,7 +204,7 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let service = TraceSpanService::new(&storage_settings, 24).await?;
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2)).await?;
         service.shutdown().await?;
         cleanup();
         Ok(())
@@ -214,18 +215,77 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let service = TraceSpanService::new(&storage_settings, 24).await?;
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2)).await?;
 
         let spans = create_simple_trace();
         info!("Test: writing {} spans", spans.len());
         service.write_spans(spans.clone()).await?;
 
         info!("Test: waiting for flush");
-        tokio::time::sleep(Duration::from_secs(10)).await;
+        tokio::time::sleep(Duration::from_secs(5)).await;
+
+        // get first span to verify to extract trace_id
+        let first_span: &TraceSpan = spans.first().unwrap();
+        // Convert hex string to binary bytes (16 bytes, not 32 bytes of UTF-8)
+        let trace_id_bytes = TraceId::hex_to_bytes(&first_span.trace_id)?;
+
+        info!("Test: querying spans for trace_id {:?}", trace_id_bytes);
+        let records = service
+            .query_service
+            .get_trace_spans(Some(&trace_id_bytes), None, None, None, None)
+            .await?;
+
+        let total_spans: usize = records.iter().map(|batch| batch.len()).sum();
+        println!(
+            "Queried {} spans across {} batches",
+            total_spans,
+            records.len()
+        );
+
+        assert_eq!(
+            total_spans, 3,
+            "Expected to query 3 spans but got {}",
+            total_spans
+        );
+
+        let span_views: Vec<TraceSpanView<'_>> = records
+            .iter() // Iterator over &TraceSpanBatch
+            .flat_map(|batch| batch.iter()) // batch.iter() creates TraceSpanView instances
+            .collect();
+
+        let serialized_spans = serde_json::to_string(&span_views).unwrap();
+
+        // load back at vec<TraceSpan>
+        let deserialized_spans: Vec<TraceSpan> = serde_json::from_str(&serialized_spans).unwrap();
+
+        assert_eq!(
+            deserialized_spans.len(),
+            3,
+            "Expected to deserialize 3 spans but got {}",
+            deserialized_spans.len()
+        );
+
+        let last_span: &TraceSpan = spans.last().unwrap();
+
+        let end_time = last_span.end_time;
+
+        // query with time filter
+        let records = service
+            .query_service
+            .get_trace_spans(None, None, None, Some(&end_time), None)
+            .await?;
+
+        // assert 3
+        let total_spans: usize = records.iter().map(|batch| batch.len()).sum();
+        assert_eq!(
+            total_spans, 3,
+            "Expected to query 3 spans with end_time filter but got {}",
+            total_spans
+        );
 
         info!("Test: shutting down");
         service.shutdown().await?;
-        cleanup();
+        //cleanup();
         Ok(())
     }
 }

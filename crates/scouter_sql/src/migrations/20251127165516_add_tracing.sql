@@ -396,7 +396,7 @@ $$;
 
 
 CREATE OR REPLACE FUNCTION scouter.get_trace_spans(
-    p_trace_id TEXT,
+    p_trace_id BYTEA,
     p_service_name TEXT DEFAULT NULL
 )
 RETURNS TABLE (
@@ -447,12 +447,12 @@ AS $$
             s.links,
             0 as depth,
             ARRAY[s.span_id] as path,
-            s.span_id as root_span_id,
+            encode(s.span_id, 'hex') as root_span_id,
             s.input,
             s.output,
             s.service_name
         FROM scouter.spans s
-        WHERE s.trace_id = decode(p_trace_id, 'hex')
+        WHERE s.trace_id = p_trace_id
           AND s.parent_span_id IS NULL
           AND (p_service_name IS NULL OR s.service_id = (SELECT service_id FROM service_filter))
 
@@ -474,7 +474,7 @@ AS $$
             s.links,
             st.depth + 1,
             st.path || s.span_id,
-            st.root_span_id,
+            encode(st.root_span_id, 'hex') as root_span_id,
             s.input,
             s.output,
             s.service_name

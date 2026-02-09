@@ -16,6 +16,12 @@ pub enum StorageError {
 
     #[error(transparent)]
     Utf8Error(#[from] std::string::FromUtf8Error),
+
+    #[error(transparent)]
+    IoError(#[from] std::io::Error),
+
+    #[error("Invalid URL: {0}")]
+    InvalidUrl(String),
 }
 
 #[derive(Error, Debug)]
@@ -95,6 +101,9 @@ pub enum TraceEngineError {
     #[error(transparent)]
     ArrowError(#[from] arrow::error::ArrowError),
 
+    #[error(transparent)]
+    IoError(#[from] std::io::Error),
+
     #[error("Invalid record type provided: {0}")]
     InvalidRecordTypeError(String),
 
@@ -121,4 +130,7 @@ pub enum TraceEngineError {
 
     #[error(transparent)]
     RecordError(#[from] scouter_types::error::RecordError),
+
+    #[error("Failed to convert RecordBatch to TraceSpanBatch: {0}")]
+    BatchConversion(String),
 }

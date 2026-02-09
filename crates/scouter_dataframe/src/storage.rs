@@ -81,7 +81,24 @@ impl StorageProvider {
         match self {
             StorageProvider::Google(_) => Ok(Url::parse(&storage_settings.storage_uri)?),
             StorageProvider::Aws(_) => Ok(Url::parse(&storage_settings.storage_uri)?),
-            StorageProvider::Local(_) => Ok(Url::parse("file:///")?),
+            StorageProvider::Local(_) => {
+                // Convert relative path to absolute path for local filesystem
+                let storage_path = std::path::PathBuf::from(storage_settings.storage_root());
+                let absolute_path = if storage_path.is_absolute() {
+                    storage_path
+                } else {
+                    std::env::current_dir()?.join(storage_path)
+                };
+
+                // Create file:// URL with absolute path
+                let url = Url::from_file_path(&absolute_path).map_err(|_| {
+                    StorageError::InvalidUrl(format!(
+                        "Failed to create file URL from path: {:?}",
+                        absolute_path
+                    ))
+                })?;
+                Ok(url)
+            }
             StorageProvider::Azure(_) => Ok(Url::parse(&storage_settings.storage_uri)?),
         }
     }

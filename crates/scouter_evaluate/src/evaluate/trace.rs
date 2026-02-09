@@ -98,14 +98,10 @@ impl TraceContextBuilder {
             }
 
             SpanFilter::WithDuration { min_ms, max_ms } => {
-                if let Some(duration) = span.duration_ms {
-                    let duration_f64 = duration as f64;
-                    let min_ok = min_ms.is_none_or(|min| duration_f64 >= min);
-                    let max_ok = max_ms.is_none_or(|max| duration_f64 <= max);
-                    Ok(min_ok && max_ok)
-                } else {
-                    Ok(false)
-                }
+                let duration_f64 = span.duration_ms as f64;
+                let min_ok = min_ms.is_none_or(|min| duration_f64 >= min);
+                let max_ok = max_ms.is_none_or(|max| duration_f64 <= max);
+                Ok(min_ok && max_ok)
             }
 
             SpanFilter::And { filters } => {
@@ -222,10 +218,7 @@ impl TraceContextBuilder {
     fn extract_span_duration(&self, filter: &SpanFilter) -> Result<Value, EvaluationError> {
         let filtered_spans = self.filter_spans(filter)?;
 
-        let durations: Vec<i64> = filtered_spans
-            .iter()
-            .filter_map(|span| span.duration_ms)
-            .collect();
+        let durations: Vec<i64> = filtered_spans.iter().map(|span| span.duration_ms).collect();
 
         if durations.len() == 1 {
             Ok(json!(durations[0]))
@@ -284,11 +277,7 @@ impl TraceContextBuilder {
 
     // Trace-level calculations
     fn calculate_trace_duration(&self) -> i64 {
-        self.spans
-            .iter()
-            .filter_map(|s| s.duration_ms)
-            .max()
-            .unwrap_or(0)
+        self.spans.iter().map(|s| s.duration_ms).max().unwrap_or(0)
     }
 
     fn count_error_spans(&self) -> usize {

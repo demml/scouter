@@ -91,9 +91,9 @@ pub struct TraceSpan {
     #[pyo3(get)]
     pub start_time: DateTime<Utc>,
     #[pyo3(get)]
-    pub end_time: Option<DateTime<Utc>>,
+    pub end_time: DateTime<Utc>,
     #[pyo3(get)]
-    pub duration_ms: Option<i64>,
+    pub duration_ms: i64,
     #[pyo3(get)]
     pub status_code: i32,
     #[pyo3(get)]

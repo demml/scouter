@@ -4,6 +4,27 @@ use deltalake::kernel::{
 };
 use std::sync::Arc;
 
+pub(crate) fn attribute_field() -> Field {
+    Field::new(
+        "attributes",
+        DataType::Map(
+            Arc::new(Field::new(
+                "key_value",
+                DataType::Struct(
+                    vec![
+                        Field::new("key", DataType::Utf8, false),
+                        Field::new("value", DataType::Utf8View, true),
+                    ]
+                    .into(),
+                ),
+                false,
+            )),
+            false,
+        ),
+        false,
+    )
+}
+
 pub trait TraceSchemaExt {
     /// Define the Arrow schema for trace spans
     fn create_schema() -> Schema {
@@ -29,15 +50,15 @@ pub trait TraceSchemaExt {
             // ========== Temporal Data ==========
             Field::new(
                 "start_time",
-                DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".into())),
+                DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".into())),
                 false,
             ),
             Field::new(
                 "end_time",
-                DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".into())),
-                true,
+                DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".into())),
+                false,
             ),
-            Field::new("duration_ms", DataType::Int64, true),
+            Field::new("duration_ms", DataType::Int64, false),
             // ========== Status ==========
             Field::new("status_code", DataType::Int32, false),
             Field::new("status_message", DataType::Utf8, true),
@@ -46,28 +67,12 @@ pub trait TraceSchemaExt {
             Field::new("span_order", DataType::Int32, false),
             Field::new(
                 "path",
-                DataType::List(Arc::new(Field::new("item", DataType::Utf8, false))),
+                DataType::List(Arc::new(Field::new("item", DataType::Utf8, true))),
                 false,
             ),
-            Field::new(
-                "attributes",
-                DataType::Map(
-                    Arc::new(Field::new(
-                        "entries",
-                        DataType::Struct(
-                            vec![
-                                Field::new("key", DataType::Utf8, false),
-                                Field::new("value", DataType::Utf8View, true),
-                            ]
-                            .into(),
-                        ),
-                        false,
-                    )),
-                    false,
-                ),
-                false,
-            ),
+            attribute_field(),
             // ========== Events (Nested) ==========
+            // SpanEvent: all fields non-nullable, attributes Vec can be empty
             Field::new(
                 "events",
                 DataType::List(Arc::new(Field::new(
@@ -77,36 +82,20 @@ pub trait TraceSchemaExt {
                             Field::new("name", DataType::Utf8, false),
                             Field::new(
                                 "timestamp",
-                                DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".into())),
+                                DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".into())),
                                 false,
                             ),
-                            Field::new(
-                                "attributes",
-                                DataType::Map(
-                                    Arc::new(Field::new(
-                                        "entries",
-                                        DataType::Struct(
-                                            vec![
-                                                Field::new("key", DataType::Utf8, false),
-                                                Field::new("value", DataType::Utf8View, true),
-                                            ]
-                                            .into(),
-                                        ),
-                                        false,
-                                    )),
-                                    false,
-                                ),
-                                false,
-                            ),
+                            attribute_field(),
                             Field::new("dropped_attributes_count", DataType::UInt32, false),
                         ]
                         .into(),
                     ),
-                    false,
+                    true,
                 ))),
                 false,
             ),
             // ========== Links (Nested) ==========
+            // SpanLink: all fields non-nullable, attributes Vec can be empty
             Field::new(
                 "links",
                 DataType::List(Arc::new(Field::new(
@@ -115,30 +104,13 @@ pub trait TraceSchemaExt {
                         vec![
                             Field::new("trace_id", DataType::FixedSizeBinary(16), false),
                             Field::new("span_id", DataType::FixedSizeBinary(8), false),
-                            Field::new("trace_state", DataType::Utf8, true),
-                            Field::new(
-                                "attributes",
-                                DataType::Map(
-                                    Arc::new(Field::new(
-                                        "entries",
-                                        DataType::Struct(
-                                            vec![
-                                                Field::new("key", DataType::Utf8, false),
-                                                Field::new("value", DataType::Utf8View, true),
-                                            ]
-                                            .into(),
-                                        ),
-                                        false,
-                                    )),
-                                    false,
-                                ),
-                                false,
-                            ),
+                            Field::new("trace_state", DataType::Utf8, false),
+                            attribute_field(),
                             Field::new("dropped_attributes_count", DataType::UInt32, false),
                         ]
                         .into(),
                     ),
-                    false,
+                    true,
                 ))),
                 false,
             ),

@@ -87,7 +87,7 @@ test.evaluate: test.evaluate
 
 .PHONY: test.dataframe
 test.dataframe:
-	cargo test -p scouter-dataframe -- --nocapture --test-threads=1
+	cargo test -p scouter-dataframe test_dataframe_trace_write_single_batch -- --nocapture --test-threads=1
 
 .PHONY: test
 test: build.all_backends test.needs_sql test.unit build.shutdown

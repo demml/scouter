@@ -8,6 +8,7 @@ chrono = { workspace = true }
 pyo3 = { workspace = true }
 mockito = { workspace = true, optional = true }
 potato-head = { workspace = true , features = ["mock"] }
+rand = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
 scouter-tonic = { workspace = true, optional = true, features = ["all"] }
 scouter-client = { workspace = true }
@@ -29,6 +30,7 @@ server = [
     "scouter-server",
     "scouter-tonic/all",
     "tracing-subscriber",
+    "rand",
 ]
 
 [profile.release]

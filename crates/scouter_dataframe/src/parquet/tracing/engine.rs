@@ -1,5 +1,6 @@
 use crate::error::TraceEngineError;
 use crate::parquet::tracing::traits::arrow_schema_to_delta;
+use crate::parquet::tracing::traits::attribute_field;
 use crate::parquet::tracing::traits::TraceSchemaExt;
 use crate::storage::ObjectStore;
 use arrow::array::*;
@@ -12,15 +13,14 @@ use scouter_settings::ObjectStorageSettings;
 use scouter_types::sql::TraceSpan;
 use scouter_types::SpanId;
 use scouter_types::TraceId;
-use scouter_types::{Attribute, SpanEvent, SpanLink, StorageType};
+use scouter_types::{Attribute, SpanEvent, SpanLink};
 use serde_json::Value;
 use std::sync::Arc;
 use tokio::sync::oneshot;
 use tokio::sync::{mpsc, RwLock as AsyncRwLock};
 use tokio::time::{interval, Duration};
-use tracing::info;
+use tracing::{debug, error, info, instrument};
 use url::Url;
-
 const TRACE_SPAN_TABLE_NAME: &str = "trace_spans";
 
 pub enum TableCommand {
@@ -39,6 +39,7 @@ async fn build_url(object_store: &ObjectStore) -> Result<Url, TraceEngineError> 
     Ok(base_url)
 }
 
+#[instrument(skip_all)]
 async fn create_table(table_url: Url, schema: SchemaRef) -> Result<DeltaTable, TraceEngineError> {
     info!("Creating new Delta table at URL: {}", table_url);
 
@@ -54,6 +55,7 @@ async fn create_table(table_url: Url, schema: SchemaRef) -> Result<DeltaTable, T
         .map_err(Into::into)
 }
 
+#[instrument(skip_all)]
 async fn build_or_create_table(
     object_store: &ObjectStore,
     schema: SchemaRef,
@@ -61,6 +63,16 @@ async fn build_or_create_table(
     let table_url = build_url(object_store).await?;
 
     info!("Attempting to load table at URL: {}", table_url);
+
+    // For local filesystem, ensure directory exists
+    if table_url.scheme() == "file" {
+        if let Ok(path) = table_url.to_file_path() {
+            if !path.exists() {
+                info!("Creating directory for local table: {:?}", path);
+                std::fs::create_dir_all(&path)?;
+            }
+        }
+    }
 
     match DeltaTable::try_from_url(table_url.clone()).await {
         Ok(table) => {
@@ -86,7 +98,7 @@ pub struct TraceSpanDBEngine {
     schema: Arc<Schema>,
     pub object_store: ObjectStore,
     table: Arc<AsyncRwLock<DeltaTable>>,
-    pub ctx: SessionContext,
+    pub ctx: Arc<SessionContext>,
 }
 
 impl TraceSchemaExt for TraceSpanDBEngine {}
@@ -103,27 +115,31 @@ impl TraceSpanDBEngine {
             schema,
             object_store,
             table: Arc::new(AsyncRwLock::new(delta_table)),
-            ctx,
+            ctx: Arc::new(ctx),
         })
     }
 
     /// Build a RecordBatch from a vector of TraceSpan records
     pub fn build_batch(&self, spans: Vec<TraceSpan>) -> Result<RecordBatch, TraceEngineError> {
+        // we need to time the batch building process to identify bottlenecks
+        let start_time = std::time::Instant::now();
         let mut builder = TraceSpanBatchBuilder::new(self.schema.clone());
 
         for span in spans {
             builder.append(&span)?;
         }
 
-        builder.finish()
-    }
+        let record_batch = builder
+            .finish()
+            .inspect_err(|e| error!("Failed to build RecordBatch: {}", e))?;
 
-    fn storage_type(&self) -> StorageType {
-        self.object_store.storage_settings.storage_type.clone()
-    }
-
-    fn get_session_context(&self) -> Result<SessionContext, TraceEngineError> {
-        Ok(self.object_store.get_session()?)
+        let duration = start_time.elapsed();
+        debug!(
+            "Built RecordBatch with {} rows in {:?}",
+            record_batch.num_rows(),
+            duration
+        );
+        Ok(record_batch)
     }
 
     /// Helper to write spans directly to the Delta table
@@ -131,15 +147,20 @@ impl TraceSpanDBEngine {
     async fn write_spans(&self, spans: Vec<TraceSpan>) -> Result<(), TraceEngineError> {
         info!("Engine received write request for {} spans", spans.len());
 
-        let batch = self.build_batch(spans)?;
+        let batch = self
+            .build_batch(spans)
+            .inspect_err(|e| error!("failed to build batch: {:?}", e))?;
         info!("Built batch with {} rows", batch.num_rows());
 
         let mut table_guard = self.table.write().await;
         info!("Acquired table write lock");
 
-        table_guard.update_incremental(None).await?;
+        // Try to update table state, but ignore if table is freshly created
+        if let Err(e) = table_guard.update_incremental(None).await {
+            // If table is new, it won't have log files yet - this is expected
+            info!("Table update skipped (table may be newly created): {}", e);
+        }
 
-        // Clone is cheap - just Arc increments
         let current_table = table_guard.clone();
 
         let updated_table = current_table
@@ -148,6 +169,13 @@ impl TraceSpanDBEngine {
             .await?;
 
         info!("Successfully wrote batch to Delta Lake");
+
+        // Re-register with SessionContext so queries see the new data
+        {
+            self.ctx.deregister_table(TRACE_SPAN_TABLE_NAME)?;
+            self.ctx
+                .register_table(TRACE_SPAN_TABLE_NAME, Arc::new(updated_table.clone()))?;
+        }
 
         *table_guard = updated_table;
 
@@ -168,10 +196,17 @@ impl TraceSpanDBEngine {
             ]))
             .await?;
 
+        // Re-register with SessionContext
+        self.ctx.deregister_table(TRACE_SPAN_TABLE_NAME)?;
+        self.ctx
+            .register_table(TRACE_SPAN_TABLE_NAME, Arc::new(updated_table.clone()))?;
+
         *table_guard = updated_table;
 
         Ok(())
     }
+
+    #[instrument(skip_all, name = "buffering_actor")]
     pub fn start_actor(
         self,
         compaction_interval_hours: u64,
@@ -252,8 +287,8 @@ pub struct TraceSpanBatchBuilder {
     span_kind: StringDictionaryBuilder<Int8Type>,
 
     // Time builders
-    start_time: TimestampNanosecondBuilder,
-    end_time: TimestampNanosecondBuilder,
+    start_time: TimestampMicrosecondBuilder,
+    end_time: TimestampMicrosecondBuilder,
     duration_ms: Int64Builder,
 
     // Status builders
@@ -292,8 +327,8 @@ impl TraceSpanBatchBuilder {
         let span_name = StringBuilder::new();
         let span_kind = StringDictionaryBuilder::<Int8Type>::new();
 
-        let start_time = TimestampNanosecondBuilder::new();
-        let end_time = TimestampNanosecondBuilder::new();
+        let start_time = TimestampMicrosecondBuilder::new().with_timezone("UTC");
+        let end_time = TimestampMicrosecondBuilder::new().with_timezone("UTC");
         let duration_ms = Int64Builder::new();
 
         let status_code = Int32Builder::new();
@@ -303,43 +338,35 @@ impl TraceSpanBatchBuilder {
         let span_order = Int32Builder::new();
         let path = ListBuilder::new(StringBuilder::new());
 
-        // Attributes map builder
-        let attributes = MapBuilder::new(None, StringBuilder::new(), StringViewBuilder::new());
+        let map_field_name = MapFieldNames {
+            entry: "key_value".to_string(),
+            key: "key".to_string(),
+            value: "value".to_string(),
+        };
+        let attributes = MapBuilder::new(
+            Some(map_field_name.clone()),
+            StringBuilder::new(),
+            StringViewBuilder::new(),
+        );
 
-        // Events list builder (complex nested structure)
+        // Events list builder - must match SpanEvent struct
         let event_fields = vec![
             Field::new("name", DataType::Utf8, false),
             Field::new(
                 "timestamp",
-                DataType::Timestamp(TimeUnit::Nanosecond, Some("UTC".into())),
+                DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".into())),
                 false,
             ),
-            Field::new(
-                "attributes",
-                DataType::Map(
-                    Arc::new(Field::new(
-                        "entries",
-                        DataType::Struct(
-                            vec![
-                                Field::new("key", DataType::Utf8, false),
-                                Field::new("value", DataType::Utf8View, true),
-                            ]
-                            .into(),
-                        ),
-                        false,
-                    )),
-                    false,
-                ),
-                false,
-            ),
+            attribute_field(),
             Field::new("dropped_attributes_count", DataType::UInt32, false),
         ];
 
         let event_struct_builders = vec![
             Box::new(StringBuilder::new()) as Box<dyn ArrayBuilder>,
-            Box::new(TimestampNanosecondBuilder::new()) as Box<dyn ArrayBuilder>,
+            Box::new(TimestampMicrosecondBuilder::new().with_timezone("UTC"))
+                as Box<dyn ArrayBuilder>,
             Box::new(MapBuilder::new(
-                None,
+                Some(map_field_name.clone()),
                 StringBuilder::new(),
                 StringViewBuilder::new(),
             )) as Box<dyn ArrayBuilder>,
@@ -349,29 +376,12 @@ impl TraceSpanBatchBuilder {
         let event_struct_builder = StructBuilder::new(event_fields, event_struct_builders);
         let events = ListBuilder::new(event_struct_builder);
 
-        // Links list builder (complex nested structure)
+        // Links list builder - must match SpanLink struct
         let link_fields = vec![
             Field::new("trace_id", DataType::FixedSizeBinary(16), false),
             Field::new("span_id", DataType::FixedSizeBinary(8), false),
-            Field::new("trace_state", DataType::Utf8, true),
-            Field::new(
-                "attributes",
-                DataType::Map(
-                    Arc::new(Field::new(
-                        "entries",
-                        DataType::Struct(
-                            vec![
-                                Field::new("key", DataType::Utf8, false),
-                                Field::new("value", DataType::Utf8View, true),
-                            ]
-                            .into(),
-                        ),
-                        false,
-                    )),
-                    false,
-                ),
-                false,
-            ),
+            Field::new("trace_state", DataType::Utf8, false),
+            attribute_field(),
             Field::new("dropped_attributes_count", DataType::UInt32, false),
         ];
 
@@ -380,7 +390,7 @@ impl TraceSpanBatchBuilder {
             Box::new(FixedSizeBinaryBuilder::new(8)) as Box<dyn ArrayBuilder>,
             Box::new(StringBuilder::new()) as Box<dyn ArrayBuilder>,
             Box::new(MapBuilder::new(
-                None,
+                Some(map_field_name.clone()),
                 StringBuilder::new(),
                 StringViewBuilder::new(),
             )) as Box<dyn ArrayBuilder>,
@@ -423,12 +433,23 @@ impl TraceSpanBatchBuilder {
     /// Append a single TraceSpan to the batch
     pub fn append(&mut self, span: &TraceSpan) -> Result<(), TraceEngineError> {
         // IDs - convert hex strings to binary
-        Self::append_hex_id(&span.trace_id, &mut self.trace_id, 16)?;
-        Self::append_hex_id(&span.span_id, &mut self.span_id, 8)?;
-        Self::append_hex_id(&span.root_span_id, &mut self.root_span_id, 8)?;
+        Self::append_id_as_bytes(&span.trace_id, &mut self.trace_id, 16).inspect_err(|e| {
+            error!("Failed to append trace_id for span {}: {}", span.span_id, e);
+        })?;
+        Self::append_id_as_bytes(&span.span_id, &mut self.span_id, 8).inspect_err(|e| {
+            error!("Failed to append span_id for span {}: {}", span.span_id, e);
+        })?;
+        Self::append_id_as_bytes(&span.root_span_id, &mut self.root_span_id, 8).inspect_err(
+            |e| {
+                error!(
+                    "Failed to append root_span_id for span {}: {}",
+                    span.span_id, e
+                );
+            },
+        )?;
 
         match &span.parent_span_id {
-            Some(pid) => Self::append_hex_id(pid, &mut self.parent_span_id, 8)?,
+            Some(pid) => Self::append_id_as_bytes(pid, &mut self.parent_span_id, 8)?,
             None => self.parent_span_id.append_null(),
         }
 
@@ -442,23 +463,12 @@ impl TraceSpanBatchBuilder {
         }
 
         // Timestamps
-        self.start_time.append_value(
-            span.start_time
-                .timestamp_nanos_opt()
-                .ok_or_else(|| TraceEngineError::InvalidTimestamp("start_time"))?,
-        );
+        self.start_time
+            .append_value(span.start_time.timestamp_micros());
 
-        match span.end_time {
-            Some(t) => {
-                let nanos = t
-                    .timestamp_nanos_opt()
-                    .ok_or_else(|| TraceEngineError::InvalidTimestamp("end_time"))?;
-                self.end_time.append_value(nanos);
-            }
-            None => self.end_time.append_null(),
-        }
+        self.end_time.append_value(span.end_time.timestamp_micros());
 
-        self.duration_ms.append_option(span.duration_ms);
+        self.duration_ms.append_value(span.duration_ms);
 
         // Status
         self.status_code.append_value(span.status_code);
@@ -478,13 +488,22 @@ impl TraceSpanBatchBuilder {
         self.path.append(true);
 
         // Attributes (map)
-        self.append_attributes(&span.attributes)?;
+        self.append_attributes(&span.attributes).inspect_err(|e| {
+            error!(
+                "Failed to append attributes for span {}: {}",
+                span.span_id, e
+            );
+        })?;
 
         // Events (nested list of structs)
-        self.append_events(&span.events)?;
+        self.append_events(&span.events).inspect_err(|e| {
+            error!("Failed to append events for span {}: {}", span.span_id, e);
+        })?;
 
         // Links (nested list of structs)
-        self.append_links(&span.links)?;
+        self.append_links(&span.links).inspect_err(|e| {
+            error!("Failed to append links for span {}: {}", span.span_id, e);
+        })?;
 
         // Payloads (potentially large JSON)
         match &span.input {
@@ -505,7 +524,7 @@ impl TraceSpanBatchBuilder {
     }
 
     /// Convert hex string ID to binary and append
-    fn append_hex_id(
+    fn append_id_as_bytes(
         hex_str: &str,
         builder: &mut FixedSizeBinaryBuilder,
         expected_size: usize,
@@ -529,7 +548,7 @@ impl TraceSpanBatchBuilder {
         Ok(())
     }
 
-    /// Append attributes as a map
+    /// Append attributes as a map (keys must be sorted)
     fn append_attributes(&mut self, attributes: &[Attribute]) -> Result<(), TraceEngineError> {
         for attr in attributes {
             self.attributes.keys().append_value(&attr.key);
@@ -550,7 +569,6 @@ impl TraceSpanBatchBuilder {
     /// Append events as a list of structs
     fn append_events(&mut self, events: &[SpanEvent]) -> Result<(), TraceEngineError> {
         let event_struct = self.events.values();
-
         for event in events {
             // Event name
             let name_builder = event_struct
@@ -560,15 +578,11 @@ impl TraceSpanBatchBuilder {
 
             // Event timestamp
             let time_builder = event_struct
-                .field_builder::<TimestampNanosecondBuilder>(1)
+                .field_builder::<TimestampMicrosecondBuilder>(1)
                 .ok_or_else(|| TraceEngineError::DowncastError("event timestamp builder"))?;
-            let nanos = event
-                .timestamp
-                .timestamp_nanos_opt()
-                .ok_or_else(|| TraceEngineError::InvalidTimestamp("event timestamp"))?;
-            time_builder.append_value(nanos);
+            time_builder.append_value(event.timestamp.timestamp_micros());
 
-            // Event attributes (nested map)
+            // Event attributes (nested map) - must be sorted
             let attr_builder = event_struct
                 .field_builder::<MapBuilder<StringBuilder, StringViewBuilder>>(2)
                 .ok_or_else(|| TraceEngineError::DowncastError("event attributes builder"))?;
@@ -624,17 +638,13 @@ impl TraceSpanBatchBuilder {
                 .map_err(|e| TraceEngineError::InvalidHexId(link.span_id.clone(), e.to_string()))?;
             span_builder.append_value(&span_bytes)?;
 
-            // Link trace_state
+            // Link trace_state - SpanLink.trace_state is String (non-nullable), can be empty
             let state_builder = link_struct
                 .field_builder::<StringBuilder>(2)
                 .ok_or_else(|| TraceEngineError::DowncastError("link trace_state builder"))?;
-            if link.trace_state.is_empty() {
-                state_builder.append_null();
-            } else {
-                state_builder.append_value(&link.trace_state);
-            }
+            state_builder.append_value(&link.trace_state);
 
-            // Link attributes
+            // Link attributes - must be sorted
             let attr_builder = link_struct
                 .field_builder::<MapBuilder<StringBuilder, StringViewBuilder>>(3)
                 .ok_or_else(|| TraceEngineError::DowncastError("link attributes builder"))?;
