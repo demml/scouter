@@ -236,6 +236,7 @@ pub trait TraceSqlLogic {
             .bind(tag_filters_json)
             .bind(trace_id_bytes)
             .bind(false)
+            .bind(filters.entity_uid.as_deref())
             .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError)?;

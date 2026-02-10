@@ -209,6 +209,8 @@ pub struct TraceFilters {
     pub attribute_filters: Option<Vec<String>>,
     #[pyo3(get, set)]
     pub trace_ids: Option<Vec<String>>,
+    #[pyo3(get, set)]
+    pub entity_uid: Option<String>,
 }
 
 #[pymethods]
@@ -225,7 +227,8 @@ impl TraceFilters {
         cursor_start_time=None,
         cursor_trace_id=None,
         attribute_filters=None,
-        trace_ids=None
+        trace_ids=None,
+        entity_uid=None
     ))]
     pub fn new(
         service_name: Option<String>,
@@ -238,6 +241,7 @@ impl TraceFilters {
         cursor_trace_id: Option<String>,
         attribute_filters: Option<Vec<String>>,
         trace_ids: Option<Vec<String>>,
+        entity_uid: Option<String>,
     ) -> Self {
         TraceFilters {
             service_name,
@@ -251,6 +255,7 @@ impl TraceFilters {
             direction: None,
             attribute_filters,
             trace_ids,
+            entity_uid,
         }
     }
 }
@@ -300,6 +305,11 @@ impl TraceFilters {
         self.cursor_start_time = Some(cursor.start_time);
         self.cursor_trace_id = Some(cursor.trace_id.clone());
         self.direction = Some("previous".to_string());
+        self
+    }
+
+    pub fn with_entity_uid(mut self, entity_uid: impl Into<String>) -> Self {
+        self.entity_uid = Some(entity_uid.into());
         self
     }
 

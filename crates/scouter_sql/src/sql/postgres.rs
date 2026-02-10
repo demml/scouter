@@ -342,7 +342,7 @@ mod tests {
         if rng.random_bool(0.3) {
             attributes.push(Attribute {
                 key: SCOUTER_ENTITY.to_string(),
-                value: Value::String(create_uuid7().to_string()),
+                value: Value::String(UID.to_string()),
             });
         } else {
             attributes.push(Attribute {
@@ -456,6 +456,12 @@ mod tests {
 
             DELETE
             FROM scouter.spans;
+
+            DELETE
+            FROM scouter.traces;
+
+            DELETE
+            FROM scouter.trace_entities;
 
             DELETE
             FROM scouter.trace_baggage;
@@ -1898,6 +1904,22 @@ mod tests {
             .unwrap();
 
         assert_eq!(retrieved_baggage.len(), 1);
+
+        // query by entity_uid
+        let trace_filter = TraceFilters {
+            start_time: Some(inserted_created_at - Duration::days(1)),
+            end_time: Some(inserted_created_at + Duration::days(1)),
+            entity_uid: Some(UID.to_string()),
+            ..TraceFilters::default()
+        };
+
+        let traces = PostgresClient::get_paginated_traces(&pool, trace_filter)
+            .await
+            .unwrap();
+
+        println!("Traces {:?}", traces);
+
+        assert!(traces.items.len() > 0);
     }
 
     #[tokio::test]
@@ -1992,7 +2014,7 @@ mod tests {
             ("value".to_string(), "production".to_string()),
         ])];
 
-        let spans = PostgresClient::get_spans_from_tags(&pool, "trace", tag_filters, true)
+        let spans = PostgresClient::get_spans_from_tags(&pool, "trace", tag_filters, true, None)
             .await
             .unwrap();
 

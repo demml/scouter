@@ -131,6 +131,7 @@ const GET_TRACE_BAGGAGE: &str = include_str!("scripts/trace/get_trace_baggage.sq
 const GET_SPANS_BY_TAG: &str = include_str!("scripts/trace/get_spans_from_tags.sql");
 const UPSERT_TRACE: &str = include_str!("scripts/trace/upsert_trace.sql");
 const INSERT_TRACE_ENTITY_TAGS: &str = include_str!("scripts/trace/insert_entity_tags.sql");
+const GET_TRACES_BY_ENTITY: &str = include_str!("scripts/trace/get_traces_by_entity.sql");
 
 // tags
 const INSERT_TAG: &str = include_str!("scripts/tag/insert_tags.sql");
@@ -243,6 +244,7 @@ pub enum Queries {
     GetSpansByTags,
     UpsertTrace,
     InsertTraceEntityTags,
+    GetTracesByEntity,
 
     // tags
     InsertTag,
@@ -346,6 +348,7 @@ impl Queries {
             Queries::GetSpansByTags => GET_SPANS_BY_TAG,
             Queries::UpsertTrace => UPSERT_TRACE,
             Queries::InsertTraceEntityTags => INSERT_TRACE_ENTITY_TAGS,
+            Queries::GetTracesByEntity => GET_TRACES_BY_ENTITY,
 
             // tags
             Queries::InsertTag => INSERT_TAG,
