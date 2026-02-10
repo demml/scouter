@@ -117,7 +117,7 @@ impl GenAIEvalDataFrame {
             ),
             Field::new("processing_duration", DataType::Int32, true),
             Field::new("retry_count", DataType::Int32, false),
-            Field::new("context", DataType::Utf8, false), // Consider LargeUtf8 if contexts are very large
+            Field::new("context", DataType::Utf8, false),
             Field::new("trace_id", DataType::FixedSizeBinary(16), true),
         ]));
 

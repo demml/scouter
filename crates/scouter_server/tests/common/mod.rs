@@ -13,6 +13,7 @@ use ndarray_rand::RandomExt;
 use potato_head::{create_uuid7, mock::create_score_prompt};
 use rand::Rng;
 use scouter_drift::spc::SpcMonitor;
+use scouter_mocks::util::generate_trace_with_spans;
 use scouter_server::api::grpc::start_grpc_server;
 use scouter_server::api::state::AppState;
 use scouter_server::{create_app_state, create_http_router};
@@ -21,6 +22,8 @@ use scouter_settings::ObjectStorageSettings;
 use scouter_settings::{DatabaseSettings, ScouterServerConfig};
 use scouter_sql::sql::traits::AlertSqlLogic;
 use scouter_sql::sql::traits::EntitySqlLogic;
+use scouter_sql::sql::traits::TagSqlLogic;
+use scouter_sql::sql::traits::TraceSqlLogic;
 use scouter_sql::PostgresClient;
 use scouter_tonic::GrpcClient;
 use scouter_types::custom::ComparisonMetricAlert;
@@ -65,9 +68,6 @@ pub async fn cleanup_tables(pool: &Pool<Postgres>) -> Result<(), anyhow::Error> 
         FROM scouter.drift_entities;
 
         DELETE
-        FROM scouter.service_entities;
-
-        DELETE
         FROM scouter.observability_metric;
 
         DELETE
@@ -93,6 +93,9 @@ pub async fn cleanup_tables(pool: &Pool<Postgres>) -> Result<(), anyhow::Error> 
 
         DELETE
         FROM scouter.spans;
+
+        DELETE
+        FROM scouter.traces;
 
         DELETE
         FROM scouter.trace_baggage;
@@ -531,10 +534,15 @@ impl TestHelper {
 
     pub async fn generate_trace_data(&self) -> Result<(), anyhow::Error> {
         //print current dir
-        let script =
-            std::fs::read_to_string("../scouter_sql/src/tests/script/populate_trace.sql").unwrap();
-        sqlx::query(&script).execute(&self.pool).await.unwrap();
-
+        for minute in 0..100 {
+            let (_trace_record, spans, tag_records) = generate_trace_with_spans(20, minute);
+            let _ = PostgresClient::insert_span_batch(&self.pool, &spans)
+                .await
+                .unwrap();
+            let _ = PostgresClient::insert_tag_batch(&self.pool, &tag_records)
+                .await
+                .unwrap();
+        }
         Ok(())
     }
 

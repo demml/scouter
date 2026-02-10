@@ -418,8 +418,6 @@ mod tests {
     pub async fn cleanup(pool: &Pool<Postgres>) {
         sqlx::raw_sql(
             r#"
-            DELETE
-            FROM scouter.service_entities;
 
             DELETE
             FROM scouter.drift_entities;

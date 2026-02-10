@@ -66,14 +66,13 @@ CREATE TABLE IF NOT EXISTS scouter.spans (
     label TEXT,
     archived BOOLEAN DEFAULT FALSE,
     resource_attributes JSONB,
-    service_id INTEGER,
     service_name TEXT,
     PRIMARY KEY (start_time, trace_id, span_id)
 ) PARTITION BY RANGE (start_time);
 
 CREATE INDEX idx_spans_trace_lookup ON scouter.spans(trace_id, start_time);
-CREATE INDEX idx_spans_service_time ON scouter.spans(service_id, start_time DESC);
-CREATE INDEX idx_spans_errors ON scouter.spans (start_time DESC, service_id, status_code)
+CREATE INDEX idx_spans_service_time ON scouter.spans(service_name, start_time DESC);
+CREATE INDEX idx_spans_errors ON scouter.spans (start_time DESC, service_name, status_code)
 WHERE status_code = 2;
 CREATE INDEX idx_spans_attributes_hot_attrs ON scouter.spans
 USING GIN (attributes jsonb_path_ops);
@@ -211,13 +210,7 @@ RETURNS TABLE (
 LANGUAGE SQL
 STABLE
 AS $$
-    WITH service_filter AS (
-        SELECT id as service_id
-        FROM scouter.service_entities
-        WHERE p_service_name IS NULL OR service_name = p_service_name
-    ),
-
-    matching_traces AS (
+    with matching_traces AS (
         SELECT DISTINCT trace_id
         FROM scouter.spans
         WHERE
@@ -251,7 +244,7 @@ AS $$
                 SELECT 1 FROM scouter.spans root
                 WHERE root.trace_id = s.trace_id
                 AND root.parent_span_id IS NULL
-                AND root.service_id IN (SELECT service_id FROM service_filter)
+                AND root.service_name = p_service_name
             )
     ),
     bucketed_metrics AS (
@@ -309,12 +302,7 @@ RETURNS TABLE (
 LANGUAGE SQL
 STABLE
 AS $$
-    WITH RECURSIVE service_filter AS (
-        SELECT id as service_id
-        FROM scouter.service_entities
-        WHERE p_service_name IS NULL OR service_name = p_service_name
-        LIMIT 1
-    ),
+    WITH RECURSIVE 
     span_tree AS (
         SELECT
             s.trace_id,
@@ -339,7 +327,7 @@ AS $$
         FROM scouter.spans s
         WHERE s.trace_id = p_trace_id
           AND s.parent_span_id IS NULL
-          AND (p_service_name IS NULL OR s.service_id = (SELECT service_id FROM service_filter))
+          AND (p_service_name IS NULL OR s.service_name = p_service_name)
 
         UNION ALL
 
@@ -367,7 +355,7 @@ AS $$
         INNER JOIN span_tree st ON s.parent_span_id = st.span_id
         WHERE s.trace_id = p_trace_id
           AND st.depth < 20
-          AND (p_service_name IS NULL OR s.service_id = (SELECT service_id FROM service_filter))
+          AND (p_service_name IS NULL OR s.service_name = p_service_name)
     )
     SELECT
         encode(st.trace_id, 'hex') as trace_id,

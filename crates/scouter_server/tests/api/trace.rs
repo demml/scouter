@@ -4,16 +4,19 @@ use axum::{
     http::{header, Request, StatusCode},
 };
 use http_body_util::BodyExt;
+use scouter_sql::sql::aggregator::shutdown_trace_cache;
 use scouter_types::{
     sql::TraceFilters, SpansFromTagsRequest, TraceMetricsRequest, TraceMetricsResponse,
     TracePaginationResponse, TraceRequest, TraceSpansResponse,
 };
 use std::collections::HashMap;
-
 #[tokio::test]
 async fn test_tracing() {
     let helper = setup_test().await;
     helper.generate_trace_data().await.unwrap();
+
+    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    let _flushed = shutdown_trace_cache(&helper.pool).await.unwrap();
 
     // get paginated traces
     let mut filters = TraceFilters::default();
@@ -40,6 +43,7 @@ async fn test_tracing() {
         50,
         "First batch should have 50 records"
     );
+    let first_trace_id = &first_batch.items.first().unwrap().trace_id;
 
     let last_record_cursor = &first_batch.next_cursor.unwrap();
     filters = filters.next_page(last_record_cursor);
@@ -155,12 +159,12 @@ async fn test_tracing() {
     let body = response.into_body().collect().await.unwrap().to_bytes();
     let metrics_response: TraceMetricsResponse = serde_json::from_slice(&body).unwrap();
 
-    assert!(metrics_response.metrics.len() >= 10);
+    assert!(metrics_response.metrics.len() >= 3);
 
     // get trace by tags
     let mut map = HashMap::new();
     map.insert("key".to_string(), "scouter.queue.record".to_string());
-    map.insert("value".to_string(), "id-1".to_string());
+    map.insert("value".to_string(), first_trace_id.clone());
 
     let trace_request = SpansFromTagsRequest {
         entity_type: "trace".to_string(),

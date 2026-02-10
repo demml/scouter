@@ -1,4 +1,4 @@
--- Updated to accept service_name and resolve to service_id internally
+
 SELECT
     trace_id,
     service_name,

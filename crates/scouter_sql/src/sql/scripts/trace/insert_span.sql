@@ -1,6 +1,5 @@
--- Refactored insert_span.sql (FIXED: entity_id removed, service_id calculation added)
+-- Refactored insert_span.sql
 
--- Insert spans with service_id resolution
 INSERT INTO scouter.spans (
     created_at,
     span_id,

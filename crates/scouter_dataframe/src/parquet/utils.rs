@@ -1,5 +1,6 @@
 use crate::error::DataFrameError;
 use arrow::array::AsArray;
+use arrow::datatypes::UInt32Type;
 use arrow_array::types::Float64Type;
 use arrow_array::types::TimestampNanosecondType;
 use arrow_array::RecordBatch;
@@ -119,18 +120,36 @@ impl BinnedMetricsExtractor {
     fn process_metric_record_batch(batch: &RecordBatch) -> Result<BinnedMetric, DataFrameError> {
         debug!("Processing metric record batch");
 
-        let metric_array = batch
-            .column_by_name("metric")
-            .ok_or_else(|| {
-                error!("Missing 'metric' field in RecordBatch");
-                DataFrameError::MissingFieldError("metric")
-            })?
-            .as_string_view_opt()
-            .ok_or_else(|| {
-                error!("Failed to downcast 'metric' field to StringViewArray");
-                DataFrameError::DowncastError("StringViewArray")
+        let metric_column = batch.column_by_name("metric").ok_or_else(|| {
+            error!("Missing 'metric' field in RecordBatch");
+            DataFrameError::MissingFieldError("metric")
+        })?;
+
+        // Handle both Dictionary and plain string types
+        let metric_name = if let Some(dict_array) = metric_column.as_dictionary_opt::<UInt32Type>()
+        {
+            // Dictionary-encoded string (e.g., from GenAI task_id)
+            let values = dict_array.values();
+            let string_values = values.as_string_opt::<i32>().ok_or_else(|| {
+                error!("Failed to downcast dictionary values to StringArray");
+                DataFrameError::DowncastError("StringArray")
             })?;
-        let metric_name = metric_array.value(0).to_string();
+            let key = dict_array.key(0).ok_or_else(|| {
+                error!("Failed to get key from dictionary array");
+                DataFrameError::MissingFieldError("dictionary key")
+            })?;
+            string_values.value(key as usize).to_string()
+        } else if let Some(string_view_array) = metric_column.as_string_view_opt() {
+            // StringView type
+            string_view_array.value(0).to_string()
+        } else if let Some(string_array) = metric_column.as_string_opt::<i32>() {
+            // Plain string type
+            string_array.value(0).to_string()
+        } else {
+            error!("Failed to downcast 'metric' field to any supported string type");
+            return Err(DataFrameError::DowncastError("String type"));
+        };
+
         let created_at_list = ParquetHelper::extract_created_at(batch)?;
         let stats = Self::extract_stats(batch)?;
 
