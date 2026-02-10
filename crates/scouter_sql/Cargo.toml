@@ -40,6 +40,7 @@ rand = { workspace = true }
 tokio = { workspace = true }
 sqlx-cli = { version = "0.*", default-features = false, features = ["native-tls", "postgres"] }
 tower = { version = "0.*", features = ["util"] }
+scouter-mocks = { workspace = true, features = ["server"] }
 
 [profile.release]
 lto = "fat"

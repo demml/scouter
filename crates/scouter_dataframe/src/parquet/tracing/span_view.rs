@@ -590,7 +590,7 @@ impl<'a> SpanLinkView<'a> {
         let trace_id_array = self
             .array
             .column_by_name("trace_id")
-            .and_then(|col| Some(col.as_fixed_size_binary()))
+            .map(|col| col.as_fixed_size_binary())
             .expect("trace_id should be FixedSizeBinaryArray");
 
         let bytes = trace_id_array.value(self.idx);
@@ -602,7 +602,7 @@ impl<'a> SpanLinkView<'a> {
         let span_id_array = self
             .array
             .column_by_name("span_id")
-            .and_then(|col| Some(col.as_fixed_size_binary()))
+            .map(|col| col.as_fixed_size_binary())
             .expect("span_id should be FixedSizeBinaryArray");
 
         let bytes = span_id_array.value(self.idx);
@@ -614,7 +614,7 @@ impl<'a> SpanLinkView<'a> {
         let trace_state_array = self
             .array
             .column_by_name("trace_state")
-            .and_then(|col| Some(col.as_string::<i32>()))
+            .map(|col| col.as_string::<i32>())
             .expect("trace_state should be StringArray");
 
         if trace_state_array.is_null(self.idx) {

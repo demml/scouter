@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS scouter.trace_entities (
     entity_id INTEGER NOT NULL REFERENCES scouter.drift_entities(id) ON DELETE CASCADE,
     tagged_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (entity_id, tagged_at, trace_id)
-);
+) PARTITION BY RANGE (tagged_at);
 
 -- Create partitioned table using pg_partman (1-day partitions)
 SELECT scouter.create_parent(
@@ -37,12 +37,6 @@ INCLUDE (entity_id);
 -- Comments for context
 COMMENT ON TABLE scouter.trace_entities IS
 'Many-to-many junction table mapping traces to entities (prompts, data sources, services, etc.). Optimized for high-volume queries.';
-
-COMMENT ON COLUMN scouter.trace_entities.entity_type IS
-'Type of entity: prompt, data, service, model, etc. Used for filtering and UI organization.';
-
-COMMENT ON COLUMN scouter.trace_entities.entity_space IS
-'Workspace/tenant identifier for multi-tenant filtering. Denormalized for query performance.';
 
 
 -- Function: Get traces for a single entity (hot path)
@@ -83,7 +77,7 @@ AS $$
     entity_traces AS (
         SELECT DISTINCT te.trace_id
         FROM scouter.trace_entities te
-        WHERE te.entity_uid = p_entity_uid
+        WHERE te.entity_id = (SELECT entity_id FROM entity_lookup)
           AND te.tagged_at >= p_start_time
           AND te.tagged_at <= p_end_time
     )
@@ -144,19 +138,19 @@ AS $$
     entity_traces AS (
         SELECT
             te.trace_id,
-            array_agg(DISTINCT te.entity_uid) as matched_entities,
-            COUNT(DISTINCT te.entity_uid) as match_count
+            array_agg(DISTINCT e.entity_uid) as matched_entities,
+            COUNT(DISTINCT te.entity_id) as match_count
         FROM scouter.trace_entities te
-        WHERE te.entity_uid = ANY(p_entity_uids)
-          AND te.tagged_at >= p_start_time
+        INNER JOIN entity_lookup e ON te.entity_id = e.entity_id
+        WHERE te.tagged_at >= p_start_time
           AND te.tagged_at <= p_end_time
         GROUP BY te.trace_id
         HAVING
             CASE
                 WHEN p_match_all THEN
-                    COUNT(DISTINCT te.entity_uid) = array_length(p_entity_uids, 1)
+                    COUNT(DISTINCT te.entity_id) = array_length(p_entity_uids, 1)
                 ELSE
-                    COUNT(DISTINCT te.entity_uid) > 0
+                    COUNT(DISTINCT te.entity_id) > 0
             END
     )
     SELECT

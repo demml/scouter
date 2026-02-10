@@ -46,6 +46,7 @@ pub trait GenAIDriftSqlLogic {
             .bind(Json(record.record.context))
             .bind(&record.record.record_id)
             .bind(&record.record.session_id)
+            .bind(&record.record.trace_id.map(|t| t.as_bytes().to_vec()))
             .execute(pool)
             .await
             .map_err(SqlError::SqlxError)

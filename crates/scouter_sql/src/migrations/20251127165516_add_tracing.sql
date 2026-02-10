@@ -76,8 +76,7 @@ CREATE INDEX idx_spans_service_time ON scouter.spans(service_id, start_time DESC
 CREATE INDEX idx_spans_errors ON scouter.spans (start_time DESC, service_id, status_code)
 WHERE status_code = 2;
 CREATE INDEX idx_spans_attributes_hot_attrs ON scouter.spans
-USING GIN (attributes jsonb_path_ops)
-WHERE start_time > NOW() - INTERVAL '7 days';
+USING GIN (attributes jsonb_path_ops);
 
 -- Create partition parents
 
@@ -145,13 +144,6 @@ CREATE INDEX idx_traces_service_time ON scouter.traces (service_name, bucket_tim
 WHERE service_name IS NOT NULL;
 CREATE INDEX idx_traces_errors ON scouter.traces (bucket_time DESC, error_count)
 WHERE error_count > 0;
-
-ALTER TABLE scouter.traces SET (fillfactor = 80);
-ALTER TABLE scouter.traces SET (
-  autovacuum_vacuum_scale_factor = 0.01,
-  autovacuum_analyze_scale_factor = 0.005,
-  autovacuum_vacuum_cost_limit = 1000
-);
 
 SELECT scouter.create_parent(
     'scouter.traces',
@@ -252,14 +244,15 @@ AS $$
             AND s.start_time <= p_end_time
             -- Only include traces that have matching spans
             AND (p_attribute_filters IS NULL OR s.trace_id IN (SELECT trace_id FROM matching_traces))
-            -- Apply service filter to root spans
-            AND (p_service_name IS NULL OR EXISTS (
+        GROUP BY s.trace_id
+        -- Apply service filter to root spans after grouping if service_name is specified
+        HAVING p_service_name IS NULL
+            OR EXISTS (
                 SELECT 1 FROM scouter.spans root
                 WHERE root.trace_id = s.trace_id
                 AND root.parent_span_id IS NULL
                 AND root.service_id IN (SELECT service_id FROM service_filter)
-            ))
-        GROUP BY s.trace_id
+            )
     ),
     bucketed_metrics AS (
         SELECT
@@ -432,9 +425,9 @@ AS $$
     ),
     span_tree AS (
         SELECT
-            encode(s.trace_id, 'hex') as trace_id,
-            encode(s.span_id, 'hex') as span_id,
-            encode(s.parent_span_id, 'hex') as parent_span_id,
+            s.trace_id,
+            s.span_id,
+            s.parent_span_id,
             s.span_name,
             s.span_kind,
             s.start_time,
@@ -447,7 +440,7 @@ AS $$
             s.links,
             0 as depth,
             ARRAY[s.span_id] as path,
-            encode(s.span_id, 'hex') as root_span_id,
+            s.span_id as root_span_id,
             s.input,
             s.output,
             s.service_name
@@ -459,9 +452,9 @@ AS $$
         UNION ALL
 
         SELECT
-            encode(s.trace_id, 'hex') as trace_id,
-            encode(s.span_id, 'hex') as span_id,
-            encode(s.parent_span_id, 'hex') as parent_span_id,
+            s.trace_id,
+            s.span_id,
+            s.parent_span_id,
             s.span_name,
             s.span_kind,
             s.start_time,
@@ -474,20 +467,20 @@ AS $$
             s.links,
             st.depth + 1,
             st.path || s.span_id,
-            encode(st.root_span_id, 'hex') as root_span_id,
+            st.root_span_id,
             s.input,
             s.output,
             s.service_name
         FROM scouter.spans s
         INNER JOIN span_tree st ON s.parent_span_id = st.span_id
-        WHERE s.trace_id = decode(p_trace_id, 'hex')
+        WHERE s.trace_id = p_trace_id
           AND st.depth < 20
           AND (p_service_name IS NULL OR s.service_id = (SELECT service_id FROM service_filter))
     )
     SELECT
-        st.trace_id,
-        st.span_id,
-        st.parent_span_id,
+        encode(st.trace_id, 'hex') as trace_id,
+        encode(st.span_id, 'hex') as span_id,
+        encode(st.parent_span_id, 'hex') as parent_span_id,
         st.span_name,
         st.span_kind,
         st.start_time,
@@ -500,7 +493,7 @@ AS $$
         st.links,
         st.depth,
         st.path,
-        st.root_span_id,
+        encode(st.root_span_id, 'hex') as root_span_id,
         st.input,
         st.output,
         st.service_name,

@@ -25,11 +25,13 @@ impl AppState {
     /// Shutdown the application gracefully
     pub async fn shutdown(&self) {
         self.task_manager.shutdown().await;
+        shutdown_trace_cache(&self.db_pool)
+            .await
+            .unwrap_or_else(|e| {
+                error!("Failed to shutdown trace cache: {:?}", e);
+                0
+            });
         self.db_pool.close().await;
-        shutdown_trace_cache().await.unwrap_or_else(|e| {
-            error!("Failed to shutdown trace cache: {:?}", e);
-            0
-        });
     }
 
     /// Get profile ID from UID with caching

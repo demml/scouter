@@ -135,17 +135,15 @@ impl TraceAggregator {
 }
 
 pub struct TraceCache {
-    traces: DashMap<TraceId, TraceAggregator>, // dashmap is rwlock internally
-    pool: PgPool,
+    traces: DashMap<TraceId, TraceAggregator>,
     max_traces: usize,
     total_span_count: AtomicU64,
 }
 
 impl TraceCache {
-    fn new(pool: PgPool, max_traces: usize) -> Self {
+    fn new(max_traces: usize) -> Self {
         Self {
             traces: DashMap::new(),
-            pool,
             max_traces,
             total_span_count: AtomicU64::new(0),
         }
@@ -161,22 +159,14 @@ impl TraceCache {
         let span_pressure = (current_spans * 100) / MAX_TOTAL_SPANS;
         let max_pressure = trace_pressure.max(span_pressure as usize);
 
-        // If near capacity, trigger background flush
+        // If near capacity, log warning (background flush task will handle it)
         if max_pressure >= 90 {
             warn!(
                 current_traces,
                 current_spans,
                 max_pressure,
-                "TraceCache high memory pressure, triggering background flush"
+                "TraceCache high memory pressure, will flush on next interval"
             );
-
-            let cache = Arc::clone(self);
-            tokio::spawn(async move {
-                // Flush traces older than 5 seconds aggressively
-                if let Err(e) = cache.flush_traces(Duration::seconds(5)).await {
-                    error!(error = %e, "Background emergency flush failed");
-                }
-            });
         }
         self.traces
             .entry(span.trace_id.clone())
@@ -190,7 +180,11 @@ impl TraceCache {
             });
     }
 
-    pub async fn flush_traces(&self, stale_threshold: Duration) -> Result<usize, SqlError> {
+    pub async fn flush_traces(
+        &self,
+        pool: &PgPool,
+        stale_threshold: Duration,
+    ) -> Result<usize, SqlError> {
         let stale_keys: Vec<TraceId> = self
             .traces
             .iter()
@@ -226,12 +220,16 @@ impl TraceCache {
         );
 
         for chunk in to_flush.chunks(TRACE_BATCH_SIZE) {
-            self.upsert_batch(chunk).await?;
+            self.upsert_batch(pool, chunk).await?;
         }
         Ok(count)
     }
 
-    async fn upsert_batch(&self, traces: &[(TraceId, TraceAggregator)]) -> Result<(), SqlError> {
+    async fn upsert_batch(
+        &self,
+        pool: &PgPool,
+        traces: &[(TraceId, TraceAggregator)],
+    ) -> Result<(), SqlError> {
         let mut created_ats = Vec::with_capacity(traces.len());
         let mut bucket_times = Vec::with_capacity(traces.len());
         let mut trace_ids = Vec::with_capacity(traces.len());
@@ -296,7 +294,7 @@ impl TraceCache {
             .bind(&span_counts)
             .bind(&error_counts)
             .bind(&resource_attrs)
-            .execute(&self.pool)
+            .execute(pool)
             .await?;
 
         // 2. Batch insert all entity tags in one query
@@ -305,7 +303,7 @@ impl TraceCache {
                 .bind(&entity_trace_ids)
                 .bind(&entity_uids)
                 .bind(&entity_tagged_ats)
-                .execute(&self.pool)
+                .execute(pool)
                 .await?;
         }
 
@@ -320,12 +318,13 @@ pub async fn init_trace_cache(
     stale_threshold: Duration,
     max_traces: usize,
 ) -> Result<(), SqlError> {
-    let cache = Arc::new(TraceCache::new(pool, max_traces));
+    let cache = Arc::new(TraceCache::new(max_traces));
 
     if TRACE_CACHE.set(cache.clone()).is_err() {
-        return Err(SqlError::TraceCacheError(
-            "TraceCache singleton already initialized".to_string(),
-        ));
+        return {
+            warn!("TraceCache was already initialized, skipping re-initialization");
+            Ok(())
+        };
     }
 
     let flush_std_duration = StdDuration::from_secs(flush_interval.num_seconds() as u64);
@@ -349,7 +348,7 @@ pub async fn init_trace_cache(
                 stale_threshold
             };
 
-            if let Err(e) = cache.flush_traces(threshold).await {
+            if let Err(e) = cache.flush_traces(&pool, threshold).await {
                 error!(error = %e, "Flush task failed");
             }
         }
@@ -368,10 +367,10 @@ pub fn get_trace_cache() -> Arc<TraceCache> {
 }
 
 /// Call this during shutdown to flush the final 15s of data
-pub async fn shutdown_trace_cache() -> Result<usize, SqlError> {
+pub async fn shutdown_trace_cache(pool: &PgPool) -> Result<usize, SqlError> {
     if let Some(cache) = TRACE_CACHE.get() {
         info!("Flushing TraceCache for shutdown...");
-        cache.flush_traces(Duration::seconds(-1)).await // Force flush all by setting negative threshold
+        cache.flush_traces(pool, Duration::seconds(-1)).await
     } else {
         Ok(0)
     }

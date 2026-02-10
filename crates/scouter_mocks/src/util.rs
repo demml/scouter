@@ -75,11 +75,8 @@ impl SpanBuilder {
         let end_time = start_time + Duration::milliseconds(duration_ms);
         self.current_time = end_time;
 
-        let parent_span = if let Some(parent_span_id) = parent_span_id {
-            Some(create_span_id_from_str(&parent_span_id))
-        } else {
-            None
-        };
+        let parent_span =
+            parent_span_id.map(|parent_span_id| create_span_id_from_str(&parent_span_id));
 
         let path = if let Some(ref parent) = parent_span {
             vec![parent.to_hex(), next_span.to_hex()]

@@ -227,16 +227,15 @@ pub trait TraceSqlLogic {
         let mut items: Vec<TraceListItem> = sqlx::query_as(query)
             .bind(filters.service_name)
             .bind(filters.has_errors)
-            .bind(filters.status_code)
             .bind(filters.start_time.unwrap_or(default_start))
             .bind(filters.end_time.unwrap_or(default_end))
             .bind(limit)
             .bind(filters.cursor_start_time)
             .bind(cursor_trace_id_bytes)
             .bind(direction)
-            .bind(trace_id_bytes)
             .bind(tag_filters_json)
-            .bind(false) // we dont want to match all attributes for pagination
+            .bind(trace_id_bytes)
+            .bind(false)
             .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError)?;

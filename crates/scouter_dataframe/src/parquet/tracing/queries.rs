@@ -164,7 +164,7 @@ impl TraceQueries {
         }
 
         if let Some(trace_id_bytes) = trace_id_bytes {
-            builder = builder.add_filter(col(TRACE_ID_COL).eq(lit(&trace_id_bytes[..])))?;
+            builder = builder.add_filter(col(TRACE_ID_COL).eq(lit(trace_id_bytes)))?;
         }
 
         if let Some(service) = service_name {
@@ -206,7 +206,7 @@ impl TraceQueries {
             )?;
         }
 
-        df = df.filter(col("trace_id").eq(lit(&trace_id_bytes[..])))?;
+        df = df.filter(col("trace_id").eq(lit(trace_id_bytes)))?;
 
         // Select only needed columns for tree structure
         df = df.select_columns(&[

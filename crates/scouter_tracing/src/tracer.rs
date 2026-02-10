@@ -281,7 +281,7 @@ fn reset_current_context(py: Python, token: &Py<PyAny>) -> PyResult<()> {
 /// This allows us to correlate spans with queue items in the Scouter backend.
 /// # Arguments
 /// * `queue_item` - The item being added to the queue (must have an entity
-/// type attribute for correlation)
+///   type attribute for correlation)
 /// * `inner` - The inner span data to add the event to
 fn add_entity_event_to_span(
     queue_item: &Bound<'_, PyAny>,

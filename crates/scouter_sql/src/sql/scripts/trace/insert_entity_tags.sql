@@ -13,12 +13,12 @@ WITH entity_lookup AS (
 ),
 tag_data AS (
     SELECT
-        decode(trace_id, 'hex') as trace_id,
+        trace_id,        -- Already bytea from UNNEST, no decode needed
         entity_uid,
         tagged_at
     FROM UNNEST(
         $1::bytea[],      -- trace_id as bytea[]
-        $2::text[],      -- entity_uid
+        $2::text[],       -- entity_uid
         $3::timestamptz[] -- tagged_at
     ) AS t(trace_id, entity_uid, tagged_at)
 )
@@ -28,5 +28,5 @@ SELECT
     td.tagged_at
 FROM tag_data td
 INNER JOIN entity_lookup el ON td.entity_uid = el.uid
-ON CONFLICT (trace_id, entity_id) DO UPDATE
+ON CONFLICT (entity_id, tagged_at, trace_id) DO UPDATE
 SET tagged_at = LEAST(EXCLUDED.tagged_at, scouter.trace_entities.tagged_at);

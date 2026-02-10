@@ -18,19 +18,19 @@ INSERT INTO scouter.traces (
 SELECT * FROM UNNEST(
     $1::timestamptz[],
     $2::timestamptz[],
-    $2::bytea[],
-    $3::text[],
+    $3::bytea[],
     $4::text[],
     $5::text[],
     $6::text[],
-    $7::timestamptz[],
+    $7::text[],
     $8::timestamptz[],
-    $9::bigint[],
-    $10::integer[],
-    $11::text[],
-    $12::bigint[],
+    $9::timestamptz[],
+    $10::bigint[],
+    $11::integer[],
+    $12::text[],
     $13::bigint[],
-    $14::jsonb[]
+    $14::bigint[],
+    $15::jsonb[]
 )
 ON CONFLICT (bucket_time, trace_id)
 DO UPDATE SET

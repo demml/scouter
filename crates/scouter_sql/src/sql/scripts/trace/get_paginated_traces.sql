@@ -2,7 +2,8 @@
 SELECT
     trace_id,
     service_name,
-    scope,
+    scope_name,
+    scope_version,
     root_operation,
     start_time,
     end_time,
@@ -16,14 +17,13 @@ SELECT
 FROM scouter.get_traces_paginated(
     $1,  -- p_service_name
     $2,  -- p_has_errors
-    $3,  -- p_status_code
-    $4,  -- p_start_time
-    $5,  -- p_end_time
-    $6,  -- p_limit
-    $7,  -- p_cursor_created_at
-    $8,  -- p_cursor_trace_id
-    $9,  -- p_direction
+    $3,  -- p_start_time
+    $4,  -- p_end_time
+    $5,  -- p_limit
+    $6,  -- p_cursor_start_time
+    $7,  -- p_cursor_trace_id
+    $8,  -- p_direction
+    $9,  -- p_attribute_filters
     $10, -- p_trace_ids
-    $11, -- p_attribute_filters
-    $12  -- p_match_all_attributes
+    $11  -- p_match_all_attributes
 );
