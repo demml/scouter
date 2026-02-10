@@ -479,7 +479,7 @@ pub fn generate_trace_with_spans(num_spans: usize, minutes_offset: i64) -> Trace
         entity_type: "trace".to_string(),
         entity_id: trace_record.trace_id.to_hex(),
         key: "scouter.queue.record".to_string(),
-        value: format!("{}", trace_record.trace_id.to_hex()),
+        value: trace_record.trace_id.to_hex(),
     };
 
     tag_records.push(tag_record);

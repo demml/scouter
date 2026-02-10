@@ -138,7 +138,7 @@ impl BinnedMetricsExtractor {
                 error!("Failed to get key from dictionary array");
                 DataFrameError::MissingFieldError("dictionary key")
             })?;
-            string_values.value(key as usize).to_string()
+            string_values.value(key).to_string()
         } else if let Some(string_view_array) = metric_column.as_string_view_opt() {
             // StringView type
             string_view_array.value(0).to_string()
