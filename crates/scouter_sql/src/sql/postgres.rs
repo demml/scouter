@@ -1917,9 +1917,7 @@ mod tests {
             .await
             .unwrap();
 
-        println!("Traces {:?}", traces);
-
-        assert!(traces.items.len() > 0);
+        assert!(!traces.items.is_empty());
     }
 
     #[tokio::test]
