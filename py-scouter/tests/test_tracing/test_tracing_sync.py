@@ -127,4 +127,3 @@ def test_nested_decorated_functions(tracer, span_exporter):
     assert span_exporter.spans[1].parent_span_id is None
     assert span_exporter.spans[0].span_name == "inner_function"
     assert span_exporter.spans[1].span_name == "outer_function"
-    a

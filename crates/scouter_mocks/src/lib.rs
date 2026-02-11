@@ -1,6 +1,4 @@
 pub mod mock;
-
-#[cfg(feature = "server")]
 pub mod util;
 
 #[cfg(feature = "server")]

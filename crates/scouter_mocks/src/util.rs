@@ -1,18 +1,25 @@
-use chrono::{DateTime, Duration, Utc};
 use pyo3::pyfunction;
-use rand::Rng;
 use scouter_types::sql::TraceSpan;
-use scouter_types::TagRecord;
-use scouter_types::SCOUTER_ENTITY;
-use scouter_types::{trace::Attribute, SpanId, TraceId};
-use scouter_types::{TraceRecord, TraceSpanRecord};
-use serde_json::{json, Value};
 
-type TraceRecords = (TraceRecord, Vec<TraceSpanRecord>, Vec<TagRecord>);
+#[cfg(feature = "server")]
+use {
+    chrono::{DateTime, Duration, Utc},
+    rand::Rng,
+    scouter_types::SCOUTER_ENTITY,
+    scouter_types::{trace::Attribute, SpanId, TagRecord, TraceId, TraceRecord, TraceSpanRecord},
+    serde_json::{json, Value},
+};
 
+#[cfg(feature = "server")]
 const SCOPE: &str = "scope";
+
+#[cfg(feature = "server")]
 const UID: &str = "test";
 
+#[cfg(feature = "server")]
+type TraceRecords = (TraceRecord, Vec<TraceSpanRecord>, Vec<TagRecord>);
+
+#[cfg(feature = "server")]
 fn create_trace_id_from_str(id: &str) -> TraceId {
     let mut bytes = [0u8; 16];
     let id_bytes = id.as_bytes();
@@ -21,6 +28,7 @@ fn create_trace_id_from_str(id: &str) -> TraceId {
     TraceId::from_bytes(bytes)
 }
 
+#[cfg(feature = "server")]
 fn create_span_id_from_str(id: &str) -> SpanId {
     // convert the string to bytes, ensuring it's 8 bytes long (padding or truncating as needed)
     let mut bytes = [0u8; 8];
@@ -30,6 +38,7 @@ fn create_span_id_from_str(id: &str) -> SpanId {
     SpanId::from_bytes(bytes)
 }
 
+#[cfg(feature = "server")]
 pub struct SpanBuilder {
     trace_id: TraceId,
     service_name: String,
@@ -39,6 +48,7 @@ pub struct SpanBuilder {
     next_order: i32,
 }
 
+#[cfg(feature = "server")]
 impl SpanBuilder {
     pub fn new(trace_id: TraceId, service_name: impl Into<String>) -> Self {
         Self {
@@ -132,6 +142,7 @@ impl SpanBuilder {
 }
 
 pub fn create_simple_trace_no_py() -> Vec<TraceSpan> {
+    #[cfg(feature = "server")]
     {
         let trace_id = create_trace_id_from_str("trace_001");
         let mut builder = SpanBuilder::new(trace_id, "test_service");
@@ -162,6 +173,7 @@ pub fn create_simple_trace_no_py() -> Vec<TraceSpan> {
 
 #[pyfunction]
 pub fn create_simple_trace() -> Vec<TraceSpan> {
+    #[cfg(feature = "server")]
     {
         let trace_id = create_trace_id_from_str("trace_001");
         let mut builder = SpanBuilder::new(trace_id, "test_service");
@@ -192,6 +204,7 @@ pub fn create_simple_trace() -> Vec<TraceSpan> {
 
 #[pyfunction]
 pub fn create_nested_trace() -> Vec<TraceSpan> {
+    #[cfg(feature = "server")]
     {
         let mut builder = SpanBuilder::new(create_trace_id_from_str("trace_002"), "nested_service");
 
@@ -213,6 +226,7 @@ pub fn create_nested_trace() -> Vec<TraceSpan> {
 
 #[pyfunction]
 pub fn create_trace_with_errors() -> Vec<TraceSpan> {
+    #[cfg(feature = "server")]
     {
         let mut builder = SpanBuilder::new(create_trace_id_from_str("trace_003"), "error_service");
 
@@ -237,6 +251,7 @@ pub fn create_trace_with_errors() -> Vec<TraceSpan> {
 
 #[pyfunction]
 pub fn create_trace_with_attributes() -> Vec<TraceSpan> {
+    #[cfg(feature = "server")]
     {
         let mut builder =
             SpanBuilder::new(create_trace_id_from_str("trace_004"), "attribute_service");
@@ -266,8 +281,6 @@ pub fn create_trace_with_attributes() -> Vec<TraceSpan> {
 
     #[cfg(not(feature = "server"))]
     {
-        use tracing::warn;
-
         tracing::warn!(
             "create_trace_with_attributes is not available without the 'server' feature enabled."
         );
@@ -277,6 +290,7 @@ pub fn create_trace_with_attributes() -> Vec<TraceSpan> {
 
 #[pyfunction]
 pub fn create_multi_service_trace() -> Vec<TraceSpan> {
+    #[cfg(feature = "server")]
     {
         let mut builder_a = SpanBuilder::new(create_trace_id_from_str("trace_006"), "service_a");
         let mut builder_b = SpanBuilder::new(create_trace_id_from_str("trace_006"), "service_b");
@@ -300,8 +314,6 @@ pub fn create_multi_service_trace() -> Vec<TraceSpan> {
     }
     #[cfg(not(feature = "server"))]
     {
-        use tracing::warn;
-
         tracing::warn!(
             "create_multi_service_trace is not available without the 'server' feature enabled."
         );
@@ -311,6 +323,7 @@ pub fn create_multi_service_trace() -> Vec<TraceSpan> {
 
 #[pyfunction]
 pub fn create_sequence_pattern_trace() -> Vec<TraceSpan> {
+    #[cfg(feature = "server")]
     {
         let mut builder =
             SpanBuilder::new(create_trace_id_from_str("trace_007"), "pattern_service");
@@ -333,6 +346,7 @@ pub fn create_sequence_pattern_trace() -> Vec<TraceSpan> {
     }
 }
 
+#[cfg(feature = "server")]
 fn random_trace_record() -> TraceRecord {
     let mut rng = rand::rng();
     let random_num = rng.random_range(0..1000);
@@ -359,6 +373,7 @@ fn random_trace_record() -> TraceRecord {
     }
 }
 
+#[cfg(feature = "server")]
 fn random_span_record(
     trace_id: &TraceId,
     parent_span_id: Option<&SpanId>,
@@ -432,6 +447,7 @@ fn random_span_record(
     }
 }
 
+#[cfg(feature = "server")]
 pub fn generate_trace_with_spans(num_spans: usize, minutes_offset: i64) -> TraceRecords {
     use scouter_types::TagRecord;
 
