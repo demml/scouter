@@ -7,8 +7,7 @@ use password_auth::generate_hash;
 use rusty_logging::logger::{LogLevel, LoggingConfig, RustyLogger};
 use scouter_auth::util::generate_recovery_codes_with_hashes;
 use scouter_settings::{
-    polling::GenAIPollerSettings, DatabaseSettings, KafkaSettings, PollingSettings,
-    RabbitMQSettings, ScouterServerConfig,
+    polling::GenAIPollerSettings, DatabaseSettings, PollingSettings, ScouterServerConfig,
 };
 use scouter_sql::sql::schema::User;
 use scouter_sql::sql::traits::UserSqlLogic;
@@ -16,6 +15,9 @@ use scouter_sql::PostgresClient;
 use sqlx::{Pool, Postgres};
 use std::str::FromStr;
 use tracing::{debug, info, instrument};
+
+#[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
+use scouter_settings::KafkaSettings;
 
 #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
 use scouter_events::consumer::kafka::{
@@ -26,6 +28,9 @@ use scouter_events::consumer::kafka::{
 use scouter_events::consumer::rabbitmq::{
     consumer::rabbitmq_consumer::create_rabbitmq_consumer, RabbitMQConsumerManager,
 };
+
+#[cfg(feature = "rabbitmq")]
+use scouter_settings::RabbitMQSettings;
 
 #[cfg(feature = "redis_events")]
 use scouter_events::consumer::redis::RedisConsumerManager;

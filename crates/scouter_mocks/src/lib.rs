@@ -1,8 +1,11 @@
 pub mod mock;
+
+#[cfg(feature = "server")]
 pub mod util;
 
 #[cfg(feature = "server")]
 use std::sync::Once;
+
 #[cfg(feature = "server")]
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
