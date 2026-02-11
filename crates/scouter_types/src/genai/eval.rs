@@ -6,12 +6,35 @@ use potato_head::prompt_types::Prompt;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyFloat, PyInt, PyList, PyString};
 use pythonize::{depythonize, pythonize};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::path::PathBuf;
 use std::str::FromStr;
+
+pub fn from_path<T: DeserializeOwned>(path: PathBuf) -> Result<T, TypeError> {
+    let content = std::fs::read_to_string(&path)?;
+
+    let extension = path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .ok_or_else(|| TypeError::Error(format!("Invalid file path: {:?}", path)))?;
+
+    let item = match extension.to_lowercase().as_str() {
+        "json" => serde_json::from_str(&content)?,
+        "yaml" | "yml" => serde_yaml::from_str(&content)?,
+        _ => {
+            return Err(TypeError::Error(format!(
+                "Unsupported file extension '{}'. Expected .json, .yaml, or .yml",
+                extension
+            )))
+        }
+    };
+
+    Ok(item)
+}
 
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -202,31 +225,14 @@ impl AssertionTask {
         let py_value = pythonize(py, &self.expected_value)?;
         Ok(py_value)
     }
-}
 
-impl AssertionTask {
+    #[staticmethod]
     pub fn from_path(path: PathBuf) -> Result<Self, TypeError> {
-        let content = std::fs::read_to_string(&path)?;
-
-        let extension = path
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .ok_or_else(|| TypeError::Error(format!("Invalid file path: {:?}", path)))?;
-
-        let task = match extension.to_lowercase().as_str() {
-            "json" => serde_json::from_str(&content)?,
-            "yaml" | "yml" => serde_yaml::from_str(&content)?,
-            _ => {
-                return Err(TypeError::Error(format!(
-                    "Unsupported file extension '{}'. Expected .json, .yaml, or .yml",
-                    extension
-                )))
-            }
-        };
-
-        Ok(task)
+        from_path(path)
     }
 }
+
+impl AssertionTask {}
 
 impl TaskAccessor for AssertionTask {
     fn field_path(&self) -> Option<&str> {
@@ -300,7 +306,7 @@ impl ValueExt for Value {
 
 /// Primary class for defining an LLM as a Judge in evaluation workflows
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Clone, PartialEq)]
 pub struct LLMJudgeTask {
     #[pyo3(get, set)]
     pub id: String,
@@ -331,6 +337,105 @@ pub struct LLMJudgeTask {
 
     #[pyo3(get, set)]
     pub condition: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum PromptConfig {
+    Path { path: String },
+    Inline(Box<Prompt>),
+}
+
+#[derive(Debug, Deserialize)]
+struct LLMJudgeTaskConfig {
+    pub id: String,
+    pub prompt: PromptConfig,
+    pub expected_value: Value,
+    pub operator: ComparisonOperator,
+    pub field_path: Option<String>,
+    pub description: Option<String>,
+    pub depends_on: Vec<String>,
+    pub max_retries: Option<u32>,
+    pub condition: bool,
+}
+
+impl LLMJudgeTaskConfig {
+    pub fn into_task(self) -> Result<LLMJudgeTask, TypeError> {
+        let prompt = match self.prompt {
+            PromptConfig::Path { path } => {
+                let content = std::fs::read_to_string(&path)?;
+                serde_json::from_str(&content)?
+            }
+            PromptConfig::Inline(prompt) => *prompt,
+        };
+
+        Ok(LLMJudgeTask {
+            id: self.id.to_lowercase(),
+            prompt,
+            expected_value: self.expected_value,
+            operator: self.operator,
+            field_path: self.field_path,
+            description: self.description,
+            depends_on: self.depends_on,
+            max_retries: self.max_retries.or(Some(3)),
+            task_type: EvaluationTaskType::LLMJudge,
+            result: None,
+            condition: self.condition,
+        })
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct LLMJudgeTaskInternal {
+    pub id: String,
+    pub prompt: Prompt,
+    pub field_path: Option<String>,
+    pub expected_value: Value,
+    pub operator: ComparisonOperator,
+    pub task_type: EvaluationTaskType,
+    pub depends_on: Vec<String>,
+    pub max_retries: Option<u32>,
+    pub result: Option<AssertionResult>,
+    pub description: Option<String>,
+    pub condition: bool,
+}
+impl LLMJudgeTaskInternal {
+    pub fn into_task(self) -> LLMJudgeTask {
+        LLMJudgeTask {
+            id: self.id.to_lowercase(),
+            prompt: self.prompt,
+            field_path: self.field_path,
+            expected_value: self.expected_value,
+            operator: self.operator,
+            task_type: self.task_type,
+            depends_on: self.depends_on,
+            max_retries: self.max_retries.or(Some(3)),
+            result: self.result,
+            description: self.description,
+            condition: self.condition,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum LLMJudgeFormat {
+    Full(Box<LLMJudgeTaskInternal>),
+    Generic(LLMJudgeTaskConfig),
+}
+
+impl<'de> Deserialize<'de> for LLMJudgeTask {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let format = LLMJudgeFormat::deserialize(deserializer)?;
+
+        match format {
+            LLMJudgeFormat::Generic(config) => config.into_task().map_err(serde::de::Error::custom),
+            LLMJudgeFormat::Full(internal) => Ok(internal.into_task()),
+        }
+    }
 }
 
 #[pymethods]
@@ -395,30 +500,14 @@ impl LLMJudgeTask {
         let py_value = pythonize(py, &self.expected_value)?;
         Ok(py_value)
     }
+
+    #[staticmethod]
+    pub fn from_path(path: PathBuf) -> Result<Self, TypeError> {
+        from_path(path)
+    }
 }
 
 impl LLMJudgeTask {
-    pub fn from_path(path: PathBuf) -> Result<Self, TypeError> {
-        let content = std::fs::read_to_string(&path)?;
-
-        let extension = path
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .ok_or_else(|| TypeError::Error(format!("Invalid file path: {:?}", path)))?;
-
-        let task = match extension.to_lowercase().as_str() {
-            "json" => serde_json::from_str(&content)?,
-            "yaml" | "yml" => serde_yaml::from_str(&content)?,
-            _ => {
-                return Err(TypeError::Error(format!(
-                    "Unsupported file extension '{}'. Expected .json, .yaml, or .yml",
-                    extension
-                )))
-            }
-        };
-
-        Ok(task)
-    }
     /// Creates a new LLMJudgeTask with Rust types
     /// # Arguments
     /// * `id: The id of the judge task
@@ -891,6 +980,11 @@ impl TraceAssertionTask {
     pub fn get_expected_value<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TypeError> {
         let py_value = pythonize(py, &self.expected_value)?;
         Ok(py_value)
+    }
+
+    #[staticmethod]
+    pub fn from_path(path: PathBuf) -> Result<Self, TypeError> {
+        from_path(path)
     }
 }
 
