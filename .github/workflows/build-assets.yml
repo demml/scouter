@@ -16,6 +16,7 @@ env:
   INTERPRETER: "3.12"
   RUSTFLAGS: "-C debuginfo=0"
   BINARY_NAME: "scouter-server"
+  RUST_BACKTRACE": "1"
 
 jobs:
   generate-matrix:
@@ -294,7 +295,12 @@ jobs:
 
       - name: Build binaries
         run: |
-          # Ensure -p is used for the correct package
+          # Use thin-LTO for ARM64 to reduce memory usage
+          if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]]; then
+            export CARGO_PROFILE_RELEASE_LTO="thin"
+            export CARGO_PROFILE_RELEASE_CODEGEN_UNITS=4
+          fi
+
           cargo build -p scouter-server \
             --release \
             --target ${{ matrix.target }} \
