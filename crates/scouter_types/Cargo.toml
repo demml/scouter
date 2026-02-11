@@ -27,6 +27,7 @@ owo-colors = { workspace = true }
 rayon = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+serde_yaml = { workspace = true }
 potato-head = { workspace = true }
 pyo3 = {workspace = true }
 pythonize = { workspace = true }

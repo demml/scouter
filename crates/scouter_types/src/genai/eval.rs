@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt::Display;
+use std::path::PathBuf;
 use std::str::FromStr;
 
 #[pyclass]
@@ -203,6 +204,30 @@ impl AssertionTask {
     }
 }
 
+impl AssertionTask {
+    pub fn from_path(path: PathBuf) -> Result<Self, TypeError> {
+        let content = std::fs::read_to_string(&path)?;
+
+        let extension = path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .ok_or_else(|| TypeError::Error(format!("Invalid file path: {:?}", path)))?;
+
+        let task = match extension.to_lowercase().as_str() {
+            "json" => serde_json::from_str(&content)?,
+            "yaml" | "yml" => serde_yaml::from_str(&content)?,
+            _ => {
+                return Err(TypeError::Error(format!(
+                    "Unsupported file extension '{}'. Expected .json, .yaml, or .yml",
+                    extension
+                )))
+            }
+        };
+
+        Ok(task)
+    }
+}
+
 impl TaskAccessor for AssertionTask {
     fn field_path(&self) -> Option<&str> {
         self.field_path.as_deref()
@@ -373,6 +398,27 @@ impl LLMJudgeTask {
 }
 
 impl LLMJudgeTask {
+    pub fn from_path(path: PathBuf) -> Result<Self, TypeError> {
+        let content = std::fs::read_to_string(&path)?;
+
+        let extension = path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .ok_or_else(|| TypeError::Error(format!("Invalid file path: {:?}", path)))?;
+
+        let task = match extension.to_lowercase().as_str() {
+            "json" => serde_json::from_str(&content)?,
+            "yaml" | "yml" => serde_yaml::from_str(&content)?,
+            _ => {
+                return Err(TypeError::Error(format!(
+                    "Unsupported file extension '{}'. Expected .json, .yaml, or .yml",
+                    extension
+                )))
+            }
+        };
+
+        Ok(task)
+    }
     /// Creates a new LLMJudgeTask with Rust types
     /// # Arguments
     /// * `id: The id of the judge task
