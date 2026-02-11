@@ -69,20 +69,21 @@ pub fn get_binned_genai_task_values_query(
     SELECT
         date_bin(INTERVAL '{} minute', created_at, TIMESTAMP '1970-01-01') as created_at,
         task_id as metric,
-        value
+        value,
+        passed
     FROM binned_genai_task
     WHERE
-        1=1
-        AND created_at between TIMESTAMP '{}' AND TIMESTAMP '{}'
+        created_at BETWEEN TIMESTAMP '{}' AND TIMESTAMP '{}'
         AND entity_id = {}
-    ),
+),
 
 subquery2 AS (
     SELECT
         created_at,
         metric,
         avg(value) as average,
-        stddev(value) as standard_dev
+        stddev(value) as standard_dev,
+        sum(CASE WHEN passed THEN 1 ELSE 0 END)::FLOAT / count(*)::FLOAT as pass_rate
     FROM subquery1
     GROUP BY
         created_at,
@@ -96,15 +97,16 @@ subquery3 AS (
         struct(
             average as avg,
             average - COALESCE(standard_dev, 0) as lower_bound,
-            average + COALESCE(standard_dev, 0) as upper_bound
+            average + COALESCE(standard_dev, 0) as upper_bound,
+            pass_rate
         ) as stats
     FROM subquery2
 )
 
 SELECT
     metric,
-    array_agg(created_at) as created_at,
-    array_agg(stats) as stats
+    array_agg(created_at ORDER BY created_at) as created_at,
+    array_agg(stats ORDER BY created_at) as stats
 FROM subquery3
 GROUP BY metric;"#,
         bin,

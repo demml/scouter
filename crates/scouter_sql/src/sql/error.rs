@@ -53,4 +53,7 @@ pub enum SqlError {
 
     #[error(transparent)]
     OutOfRangeError(#[from] chrono::OutOfRangeError),
+
+    #[error("{0}")]
+    TraceCacheError(String),
 }

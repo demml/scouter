@@ -13,6 +13,8 @@ permissions:
 env:
   RUSTFLAGS: -C debuginfo=0 # Do not produce debug symbols to keep memory usage down
   PYTHON_VERSION: "3.10"
+  TRACE_STALE_THRESHOLD_SECONDS: "1" # override default trace aggregation threshold for tests. Need to push traces faster.
+  TRACE_FLUSH_INTERVAL_SECONDS: "1"
 
 jobs:
   rust-lints-test:

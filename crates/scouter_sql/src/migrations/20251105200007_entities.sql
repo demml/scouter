@@ -111,45 +111,6 @@ END $$;
 -- 2.5: Add entity_uid to LLM tables
 ALTER TABLE scouter.llm_drift RENAME COLUMN record_uid TO uid;
 
--- service entity table
-CREATE TABLE IF NOT EXISTS scouter.service_entities (
-    id SERIAL PRIMARY KEY,
-    service_name TEXT UNIQUE NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_service_entities_name ON scouter.service_entities (service_name);
-
--- 3.2: Helper function to get or create service_id
-CREATE OR REPLACE FUNCTION scouter.get_or_create_service_id(p_service_name TEXT)
-RETURNS INTEGER
-LANGUAGE plpgsql
-AS $$
-DECLARE
-    v_service_id INTEGER;
-BEGIN
-    IF p_service_name IS NULL THEN
-        RETURN NULL;
-    END IF;
-
-    SELECT id INTO v_service_id
-    FROM scouter.service_entities
-    WHERE service_name = p_service_name;
-
-    IF v_service_id IS NULL THEN
-        INSERT INTO scouter.service_entities (service_name)
-        VALUES (p_service_name)
-        ON CONFLICT (service_name) DO UPDATE
-        SET updated_at = NOW()
-        RETURNING id INTO v_service_id;
-    END IF;
-
-    RETURN v_service_id;
-END;
-$$;
-
--- update entity tables
 
 -- OBSERVABILITY METRIC
 DROP INDEX IF EXISTS scouter.observability_metric_created_at_space_name_version_idx;

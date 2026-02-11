@@ -9,17 +9,18 @@ use crate::error::TraceError;
 use crate::exporter::processor::BatchConfig;
 use crate::exporter::scouter::ScouterSpanExporter;
 use crate::exporter::SpanExporterNum;
+use crate::utils::py_obj_to_otel_keyvalue;
 use crate::utils::BoxedSpan;
 use crate::utils::{
     capture_function_arguments, format_traceback, get_context_store, get_context_var,
     get_current_active_span, get_current_context_id, set_current_span, set_function_attributes,
     set_function_type_attribute, ActiveSpanInner, FunctionType, SpanKind,
 };
-
 use chrono::{DateTime, Utc};
 use opentelemetry::baggage::BaggageExt;
 use opentelemetry::trace::Tracer as OTelTracer;
 use opentelemetry::trace::TracerProvider;
+use opentelemetry::InstrumentationScope;
 use opentelemetry::{
     trace::{Span, SpanContext, Status, TraceContextExt, TraceState},
     Context as OtelContext, KeyValue,
@@ -37,11 +38,10 @@ use scouter_events::queue::ScouterQueue;
 use scouter_settings::http::HttpConfig;
 
 use scouter_types::{
-    is_pydantic_basemodel, pydict_to_otel_keyvalue, pyobject_to_otel_value,
-    pyobject_to_tracing_json, EntityType, BAGGAGE_PREFIX, EXCEPTION_TRACEBACK, SCOUTER_QUEUE_EVENT,
-    SCOUTER_QUEUE_RECORD, SCOUTER_SCOPE, SCOUTER_SCOPE_DEFAULT, SCOUTER_TAG_PREFIX,
-    SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL, SCOUTER_TRACING_OUTPUT, SPAN_ERROR,
-    TRACE_START_TIME_KEY,
+    pyobject_to_otel_value, pyobject_to_tracing_json, EntityType, BAGGAGE_PREFIX,
+    EXCEPTION_TRACEBACK, SCOUTER_QUEUE_EVENT, SCOUTER_SCOPE, SCOUTER_SCOPE_DEFAULT,
+    SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL, SCOUTER_TRACING_OUTPUT,
+    SPAN_ERROR, TRACE_START_TIME_KEY,
 };
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock, RwLock};
@@ -180,58 +180,63 @@ fn get_trace_metadata_store() -> &'static TraceMetadataStore {
     batch_config=None,
     sample_ratio=None,
     scouter_queue=None,
+    schema_url=None,
+    attributes=None,
 ))]
 #[instrument(skip_all)]
 #[allow(clippy::too_many_arguments)]
 pub fn init_tracer(
     py: Python,
-    service_name: String,
-    scope: String,
+    service_name: Option<String>,
+    scope: Option<String>,
     transport_config: Option<&Bound<'_, PyAny>>,
     exporter: Option<&Bound<'_, PyAny>>,
     batch_config: Option<Py<BatchConfig>>,
     sample_ratio: Option<f64>,
     scouter_queue: Option<Py<ScouterQueue>>,
+    schema_url: Option<String>,
+    attributes: Option<Bound<'_, PyAny>>,
 ) -> Result<BaseTracer, TraceError> {
     debug!("Initializing tracer");
-    let transport_config = match transport_config {
-        Some(config) => TransportConfig::from_py_config(config)?,
-        None => {
-            let config = HttpConfig::default();
-            TransportConfig::Http(config)
-        }
-    };
 
-    let clamped_sample_ratio = match sample_ratio {
-        Some(ratio) if (0.0..=1.0).contains(&ratio) => Some(ratio),
-        Some(ratio) => {
-            info!(
-                "Sample ratio {} is out of bounds [0.0, 1.0]. Clamping to valid range.",
-                ratio
-            );
-            Some(ratio.clamp(0.0, 1.0))
-        }
-        None => None,
-    };
+    let service_name = service_name.unwrap_or_else(|| "scouter_service".to_string());
+    let scope = scope.unwrap_or_else(|| SCOUTER_SCOPE_DEFAULT.to_string());
 
-    let batch_config = if let Some(bc) = batch_config {
-        Some(bc.extract::<BatchConfig>(py)?)
-    } else {
-        None
-    };
-
-    // setupt the store provider in different scope to avoid deadlock
-    {
-        debug!("Setting up tracer provider store");
-        let mut store_guard = TRACER_PROVIDER_STORE
-            .write()
+    let provider_exists = {
+        let store_guard = TRACER_PROVIDER_STORE
+            .read()
             .map_err(|e| TraceError::PoisonError(e.to_string()))?;
+        store_guard.is_some()
+    };
 
-        if store_guard.is_some() {
-            return Err(TraceError::InitializationError(
-                "Tracer provider already initialized. Call shutdown_tracer() first.".to_string(),
-            ));
-        }
+    if !provider_exists {
+        debug!("Setting up tracer provider store");
+
+        let transport_config = match transport_config {
+            Some(config) => TransportConfig::from_py_config(config)?,
+            None => {
+                let config = HttpConfig::default();
+                TransportConfig::Http(config)
+            }
+        };
+
+        let clamped_sample_ratio = match sample_ratio {
+            Some(ratio) if (0.0..=1.0).contains(&ratio) => Some(ratio),
+            Some(ratio) => {
+                info!(
+                    "Sample ratio {} is out of bounds [0.0, 1.0]. Clamping to valid range.",
+                    ratio
+                );
+                Some(ratio.clamp(0.0, 1.0))
+            }
+            None => None,
+        };
+
+        let batch_config = if let Some(bc) = batch_config {
+            Some(bc.extract::<BatchConfig>(py)?)
+        } else {
+            None
+        };
 
         let resource = Resource::builder()
             .with_service_name(service_name.clone())
@@ -252,16 +257,53 @@ pub fn init_tracer(
             .build_provider(resource, scouter_export, batch_config)
             .expect("failed to build tracer provider");
 
-        *store_guard = Some(Arc::new(provider));
+        let mut store_guard = TRACER_PROVIDER_STORE
+            .write()
+            .map_err(|e| TraceError::PoisonError(e.to_string()))?;
+
+        if store_guard.is_none() {
+            *store_guard = Some(Arc::new(provider));
+        }
+    } else {
+        debug!("Tracer provider already initialized, skipping setup");
     }
 
-    // BaseTracer accesses store provider internally
-    BaseTracer::new(py, service_name, scouter_queue)
+    BaseTracer::new(py, service_name, schema_url, attributes, scouter_queue)
 }
 
 fn reset_current_context(py: Python, token: &Py<PyAny>) -> PyResult<()> {
     let context_var = get_context_var(py)?;
     context_var.bind(py).call_method1("reset", (token,))?;
+    Ok(())
+}
+
+/// Helper function to create an entity event on a span when adding an item to a queue.
+/// This allows us to correlate spans with queue items in the Scouter backend.
+/// # Arguments
+/// * `queue_item` - The item being added to the queue (must have an entity
+///   type attribute for correlation)
+/// * `inner` - The inner span data to add the event to
+fn add_entity_event_to_span(
+    queue_item: &Bound<'_, PyAny>,
+    inner: &mut ActiveSpanInner,
+) -> Result<(), TraceError> {
+    let mut attributes = vec![];
+    // add entity type as an event attribute for easier correlation in the UI
+    // this allows us to easily query for all spans that interacted with a certain entity type
+    let entity_type_py = queue_item.getattr("entity_type")?;
+    let entity_type = entity_type_py.extract::<EntityType>()?;
+    attributes.push(KeyValue::new("entity", entity_type));
+
+    if let Ok(record_uid) = queue_item.getattr("uid") {
+        let record_uid_str = record_uid.str()?;
+
+        attributes.push(KeyValue::new(
+            "record_uid",
+            record_uid_str.str()?.to_string(),
+        ));
+    };
+
+    inner.span.add_event(SCOUTER_QUEUE_EVENT, attributes);
     Ok(())
 }
 
@@ -324,6 +366,7 @@ impl ActiveSpan {
     /// * `value` - The attribute value
     pub fn set_attribute(&self, key: String, value: Bound<'_, PyAny>) -> Result<(), TraceError> {
         let value = pyobject_to_otel_value(&value)?;
+        println!("Setting attribute {} on span", key);
         self.with_inner_mut(|inner| inner.span.set_attribute(KeyValue::new(key, value)))
     }
 
@@ -348,25 +391,7 @@ impl ActiveSpan {
         name: String,
         attributes: Option<Bound<'_, PyAny>>,
     ) -> Result<(), TraceError> {
-        let pairs: Vec<KeyValue> = if let Some(attrs) = attributes {
-            if is_pydantic_basemodel(py, &attrs)? {
-                let dumped = attrs.call_method0("model_dump")?;
-                let dict = dumped
-                    .cast::<PyDict>()
-                    .map_err(|e| TraceError::DowncastError(e.to_string()))?;
-                pydict_to_otel_keyvalue(dict)?
-            } else if attrs.is_instance_of::<PyDict>() {
-                let dict = attrs
-                    .cast::<PyDict>()
-                    .map_err(|e| TraceError::DowncastError(e.to_string()))?;
-                pydict_to_otel_keyvalue(dict)?
-            } else {
-                return Err(TraceError::EventMustBeDict);
-            }
-        } else {
-            vec![]
-        };
-
+        let pairs: Vec<KeyValue> = py_obj_to_otel_keyvalue(py, attributes)?;
         self.with_inner_mut(|inner| inner.span.add_event(name, pairs))
     }
 
@@ -389,26 +414,7 @@ impl ActiveSpan {
                     if let Some(queue) = &inner.queue {
                         let bound_queue = queue.bind(py).get_item(&alias)?;
                         bound_queue.call_method1("insert", (item,))?;
-
-                        let entity_type_py = item.getattr("entity_type")?;
-                        let entity_type = entity_type_py.extract::<EntityType>()?;
-
-                        // always record event type for easier correlation
-                        inner
-                            .span
-                            .set_attribute(KeyValue::new(SCOUTER_QUEUE_EVENT, entity_type));
-
-                        // get record_id if available (only available for GenAIEval Records at the moment)
-                        if let Ok(record_uid) = item.getattr("uid") {
-                            let record_uid_str = record_uid.str()?;
-                            // add tag for easier correlation
-                            // We'll use this to lookup records, tasks and eval metrics when rendering a span's details
-                            inner.span.set_attribute(KeyValue::new(
-                                format!("{}.{}", SCOUTER_TAG_PREFIX, SCOUTER_QUEUE_RECORD),
-                                record_uid_str.str()?.to_string(),
-                            ));
-                        };
-
+                        add_entity_event_to_span(item, inner)?;
                         Ok(())
                     } else {
                         warn!(
@@ -647,34 +653,51 @@ impl BaseTracer {
 #[pymethods]
 impl BaseTracer {
     #[new]
-    #[pyo3(signature = (name, queue=None))]
+    #[pyo3(signature = (
+    name,
+    schema_url=None,
+    attributes=None,
+    queue=None,
+))]
+    #[instrument(skip_all)]
     fn new(
         py: Python<'_>,
         name: String,
+        schema_url: Option<String>,
+        attributes: Option<Bound<'_, PyAny>>,
         queue: Option<Py<ScouterQueue>>,
     ) -> Result<Self, TraceError> {
         debug!("Creating new BaseTracer instance");
-        let tracer = get_tracer(name)?;
 
-        // if queue is provided, set it on the tracer
-        let mut base_tracer = BaseTracer {
-            tracer,
-            queue: None,
-        };
-        if let Some(queue) = queue {
-            // set queue on the tracer
-            base_tracer.set_scouter_queue(py, queue)?;
-        } else {
-            // check if global queue is set. If set, clone reference
-            let store_guard = SCOUTER_QUEUE_STORE
+        // Determine the queue to use
+        let final_queue = queue.or_else(|| {
+            SCOUTER_QUEUE_STORE
                 .read()
-                .map_err(|e| TraceError::PoisonError(e.to_string()))?;
-            if let Some(global_queue) = &*store_guard {
-                base_tracer.queue = Some(global_queue.clone_ref(py));
-            }
+                .ok()
+                .and_then(|guard| guard.as_ref().map(|q| q.clone_ref(py)))
+        });
+
+        // Convert Python attributes to OpenTelemetry KeyValue pairs
+        let scope_attributes = py_obj_to_otel_keyvalue(py, attributes)?;
+
+        let mut scope_builder =
+            InstrumentationScope::builder(name).with_version(SCOUTER_SCOPE_DEFAULT);
+
+        if let Some(url) = schema_url {
+            scope_builder = scope_builder.with_schema_url(url);
         }
 
-        Ok(base_tracer)
+        if !scope_attributes.is_empty() {
+            scope_builder = scope_builder.with_attributes(scope_attributes);
+        }
+
+        let scope = scope_builder.build();
+        let tracer = get_tracer(scope)?;
+
+        Ok(BaseTracer {
+            tracer,
+            queue: final_queue,
+        })
     }
 
     pub fn set_scouter_queue(
@@ -976,14 +999,14 @@ pub fn shutdown_tracer() -> Result<(), TraceError> {
     Ok(())
 }
 
-fn get_tracer(name: String) -> Result<SdkTracer, TraceError> {
+fn get_tracer(scope: InstrumentationScope) -> Result<SdkTracer, TraceError> {
     let provider_arc = get_tracer_provider()?.ok_or_else(|| {
         TraceError::InitializationError(
             "Tracer provider not initialized or already shut down".to_string(),
         )
     })?;
 
-    Ok(provider_arc.tracer(name))
+    Ok(provider_arc.tracer_with_scope(scope))
 }
 
 #[pyfunction]

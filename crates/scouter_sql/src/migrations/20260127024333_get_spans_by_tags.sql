@@ -32,5 +32,5 @@ STABLE
 AS $$
     SELECT s.*
     FROM scouter.search_entities_by_tags(p_entity_type, p_tag_filters, p_match_all) t
-    CROSS JOIN LATERAL scouter.get_trace_spans(t.entity_id, p_service_name) s;
+    CROSS JOIN LATERAL scouter.get_trace_spans(decode(t.entity_id, 'hex'), p_service_name) s;
 $$;

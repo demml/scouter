@@ -4,7 +4,10 @@ use crate::parquet::traits::ParquetFrame;
 use crate::parquet::types::BinnedTableName;
 use crate::storage::ObjectStore;
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
-use arrow_array::array::{Int32Array, StringArray, TimestampNanosecondArray};
+use arrow_array::array::{
+    DictionaryArray, FixedSizeBinaryArray, Int32Array, Int64Array, StringArray,
+    TimestampNanosecondArray, UInt32Array, UInt8Array,
+};
 use arrow_array::RecordBatch;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -67,22 +70,41 @@ impl ParquetFrame for GenAIEvalDataFrame {
 impl GenAIEvalDataFrame {
     pub fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, DataFrameError> {
         let schema = Arc::new(Schema::new(vec![
+            // Primary keys and identifiers
             Field::new("id", DataType::Int64, false),
-            Field::new("record_id", DataType::Utf8, true),
-            Field::new("session_id", DataType::Utf8, true),
+            Field::new("uid", DataType::Utf8, false),
+            Field::new("entity_id", DataType::Int32, false),
+            Field::new("entity_uid", DataType::Utf8, false),
+            Field::new(
+                "entity_type",
+                DataType::Dictionary(Box::new(DataType::UInt8), Box::new(DataType::Utf8)),
+                false,
+            ),
+            Field::new(
+                "record_id",
+                DataType::Dictionary(Box::new(DataType::UInt32), Box::new(DataType::Utf8)),
+                true,
+            ),
+            Field::new(
+                "session_id",
+                DataType::Dictionary(Box::new(DataType::UInt32), Box::new(DataType::Utf8)),
+                true,
+            ),
+            Field::new(
+                "status",
+                DataType::Dictionary(Box::new(DataType::UInt8), Box::new(DataType::Utf8)),
+                false,
+            ),
             Field::new(
                 "created_at",
                 DataType::Timestamp(TimeUnit::Nanosecond, None),
                 false,
             ),
-            Field::new("uid", DataType::Utf8, false),
-            Field::new("context", DataType::Utf8, false),
             Field::new(
                 "updated_at",
                 DataType::Timestamp(TimeUnit::Nanosecond, None),
                 true,
             ),
-            Field::new("status", DataType::Utf8, false),
             Field::new(
                 "processing_started_at",
                 DataType::Timestamp(TimeUnit::Nanosecond, None),
@@ -94,8 +116,9 @@ impl GenAIEvalDataFrame {
                 true,
             ),
             Field::new("processing_duration", DataType::Int32, true),
-            Field::new("entity_id", DataType::Int32, false),
             Field::new("retry_count", DataType::Int32, false),
+            Field::new("context", DataType::Utf8, false),
+            Field::new("trace_id", DataType::FixedSizeBinary(16), true),
         ]));
 
         let object_store = ObjectStore::new(storage_settings)?;
@@ -110,12 +133,38 @@ impl GenAIEvalDataFrame {
         &self,
         records: Vec<BoxedGenAIEvalRecord>,
     ) -> Result<RecordBatch, DataFrameError> {
-        let id_array =
-            arrow_array::Int64Array::from_iter_values(records.iter().map(|r| r.record.id));
-        let record_id_array =
+        // Build ID and UID arrays
+        let id_array = Int64Array::from_iter_values(records.iter().map(|r| r.record.id));
+        let uid_array =
+            StringArray::from_iter_values(records.iter().map(|r| r.record.uid.as_str()));
+
+        let entity_id_array =
+            Int32Array::from_iter_values(records.iter().map(|r| r.record.entity_id));
+
+        let entity_uid_array =
+            StringArray::from_iter_values(records.iter().map(|r| r.record.entity_uid.as_str()));
+
+        let entity_type_values =
+            StringArray::from_iter_values(records.iter().map(|r| r.record.entity_type.to_string()));
+        let entity_type_keys = UInt8Array::from_iter_values(0..records.len() as u8);
+        let entity_type_array =
+            DictionaryArray::new(entity_type_keys, Arc::new(entity_type_values));
+
+        let record_id_values =
             StringArray::from_iter_values(records.iter().map(|r| r.record.record_id.as_str()));
-        let session_id_array =
+        let record_id_keys = UInt32Array::from_iter_values(0..records.len() as u32);
+        let record_id_array = DictionaryArray::new(record_id_keys, Arc::new(record_id_values));
+
+        let session_id_values =
             StringArray::from_iter_values(records.iter().map(|r| r.record.session_id.as_str()));
+        let session_id_keys = UInt32Array::from_iter_values(0..records.len() as u32);
+        let session_id_array = DictionaryArray::new(session_id_keys, Arc::new(session_id_values));
+
+        let status_values =
+            StringArray::from_iter_values(records.iter().map(|r| r.record.status.to_string()));
+        let status_keys = UInt8Array::from_iter_values(0..records.len() as u8);
+        let status_array = DictionaryArray::new(status_keys, Arc::new(status_values));
+
         let created_at_array =
             TimestampNanosecondArray::from_iter_values(records.iter().map(|r| {
                 r.record
@@ -123,28 +172,17 @@ impl GenAIEvalDataFrame {
                     .timestamp_nanos_opt()
                     .unwrap_or_default()
             }));
-        let uid_array =
-            StringArray::from_iter_values(records.iter().map(|r| r.record.uid.as_str()));
-        let entity_id_array =
-            Int32Array::from_iter_values(records.iter().map(|r| r.record.entity_id));
-        let context_array = StringArray::from_iter_values(records.iter().map(|r| {
-            serde_json::to_string(&r.record.context).unwrap_or_else(|_| "{}".to_string())
-        }));
         let updated_at_array = TimestampNanosecondArray::from_iter(
             records
                 .iter()
                 .map(|r| r.record.updated_at.and_then(|dt| dt.timestamp_nanos_opt())),
         );
-        let status_array =
-            StringArray::from_iter_values(records.iter().map(|r| r.record.status.to_string()));
-
         let processing_started_at_array =
             TimestampNanosecondArray::from_iter(records.iter().map(|r| {
                 r.record
                     .processing_started_at
                     .and_then(|dt| dt.timestamp_nanos_opt())
             }));
-
         let processing_ended_at_array =
             TimestampNanosecondArray::from_iter(records.iter().map(|r| {
                 r.record
@@ -152,29 +190,44 @@ impl GenAIEvalDataFrame {
                     .and_then(|dt| dt.timestamp_nanos_opt())
             }));
 
-        // Calculate processing duration in seconds
         let processing_duration_array =
             Int32Array::from_iter(records.iter().map(|r| r.record.processing_duration));
-
         let retry_count_array =
             Int32Array::from_iter_values(records.iter().map(|r| r.record.retry_count));
+
+        let context_array = StringArray::from_iter_values(records.iter().map(|r| {
+            serde_json::to_string(&r.record.context).unwrap_or_else(|_| "{}".to_string())
+        }));
+
+        let trace_id_array = FixedSizeBinaryArray::try_from_sparse_iter_with_size(
+            records.iter().map(|r| {
+                r.record
+                    .trace_id
+                    .as_ref()
+                    .map(|tid| tid.as_bytes().to_vec())
+            }),
+            16,
+        )?;
 
         let batch = RecordBatch::try_new(
             self.schema.clone(),
             vec![
                 Arc::new(id_array),
+                Arc::new(uid_array),
+                Arc::new(entity_id_array),
+                Arc::new(entity_uid_array),
+                Arc::new(entity_type_array),
                 Arc::new(record_id_array),
                 Arc::new(session_id_array),
-                Arc::new(created_at_array),
-                Arc::new(uid_array),
-                Arc::new(context_array),
-                Arc::new(updated_at_array),
                 Arc::new(status_array),
+                Arc::new(created_at_array),
+                Arc::new(updated_at_array),
                 Arc::new(processing_started_at_array),
                 Arc::new(processing_ended_at_array),
                 Arc::new(processing_duration_array),
-                Arc::new(entity_id_array),
                 Arc::new(retry_count_array),
+                Arc::new(context_array),
+                Arc::new(trace_id_array),
             ],
         )?;
 

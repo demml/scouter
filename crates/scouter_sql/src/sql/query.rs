@@ -121,6 +121,7 @@ const GET_USERS: &str = include_str!("scripts/user/get_users.sql");
 const LAST_ADMIN: &str = include_str!("scripts/user/last_admin.sql");
 const DELETE_USER: &str = include_str!("scripts/user/delete_user.sql");
 
+// trace
 const INSERT_TRACE_SPAN: &str = include_str!("scripts/trace/insert_span.sql");
 const INSERT_TRACE_BAGGAGE: &str = include_str!("scripts/trace/insert_baggage.sql");
 const GET_PAGINATED_TRACES: &str = include_str!("scripts/trace/get_paginated_traces.sql");
@@ -128,6 +129,9 @@ const GET_TRACE_SPANS: &str = include_str!("scripts/trace/get_trace_spans.sql");
 const GET_TRACE_METRICS: &str = include_str!("scripts/trace/get_trace_metrics.sql");
 const GET_TRACE_BAGGAGE: &str = include_str!("scripts/trace/get_trace_baggage.sql");
 const GET_SPANS_BY_TAG: &str = include_str!("scripts/trace/get_spans_from_tags.sql");
+const UPSERT_TRACE: &str = include_str!("scripts/trace/upsert_trace.sql");
+const INSERT_TRACE_ENTITY_TAGS: &str = include_str!("scripts/trace/insert_entity_tags.sql");
+const GET_TRACES_BY_ENTITY: &str = include_str!("scripts/trace/get_traces_by_entity.sql");
 
 // tags
 const INSERT_TAG: &str = include_str!("scripts/tag/insert_tags.sql");
@@ -238,6 +242,9 @@ pub enum Queries {
     GetTraceMetrics,
     GetTraceBaggage,
     GetSpansByTags,
+    UpsertTrace,
+    InsertTraceEntityTags,
+    GetTracesByEntity,
 
     // tags
     InsertTag,
@@ -339,6 +346,9 @@ impl Queries {
             Queries::GetTraceMetrics => GET_TRACE_METRICS,
             Queries::GetTraceBaggage => GET_TRACE_BAGGAGE,
             Queries::GetSpansByTags => GET_SPANS_BY_TAG,
+            Queries::UpsertTrace => UPSERT_TRACE,
+            Queries::InsertTraceEntityTags => INSERT_TRACE_ENTITY_TAGS,
+            Queries::GetTracesByEntity => GET_TRACES_BY_ENTITY,
 
             // tags
             Queries::InsertTag => INSERT_TAG,

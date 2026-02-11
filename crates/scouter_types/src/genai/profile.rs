@@ -4,7 +4,8 @@ use crate::genai::eval::{AssertionTask, EvaluationTask, LLMJudgeTask};
 use crate::genai::traits::{separate_tasks, ProfileExt, TaskAccessor};
 use crate::genai::utils::{extract_assertion_tasks_from_pylist, AssertionTasks};
 use crate::genai::TraceAssertionTask;
-use crate::util::{json_to_pyobject, pyobject_to_json, ConfigExt};
+use crate::traits::ConfigExt;
+use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::{
     scouter_version, GenAIEvalTaskResult, GenAIEvalWorkflowResult, WorkflowResultTableEntry,
 };
@@ -70,6 +71,9 @@ impl ConfigExt for GenAIEvalConfig {
 
     fn version(&self) -> &str {
         &self.version
+    }
+    fn uid(&self) -> &str {
+        &self.uid
     }
 }
 

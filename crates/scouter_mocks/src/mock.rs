@@ -32,11 +32,20 @@ pub enum TestServerError {
 
     #[error("Server feature not enabled")]
     FeatureNotEnabled,
+
+    #[error("{0}")]
+    RuntimeError(String),
 }
 
 impl From<TestServerError> for PyErr {
     fn from(err: TestServerError) -> PyErr {
         pyo3::exceptions::PyRuntimeError::new_err(err.to_string())
+    }
+}
+
+impl From<PyErr> for TestServerError {
+    fn from(err: PyErr) -> TestServerError {
+        TestServerError::RuntimeError(err.to_string())
     }
 }
 
@@ -80,27 +89,25 @@ impl ScouterTestServer {
         }
     }
 
-    pub fn set_env_vars_for_client(&self, http_port: u16, grpc_port: u16) -> PyResult<()> {
-        #[cfg(feature = "server")]
-        {
-            unsafe {
-                std::env::set_var(
-                    "SCOUTER_SERVER_URI",
-                    format!("http://localhost:{http_port}"),
-                );
-                std::env::set_var("SCOUTER_GRPC_URI", format!("http://localhost:{grpc_port}"));
-                std::env::set_var("APP_ENV", "dev_client");
-            }
-            Ok(())
+    #[cfg(feature = "server")]
+    pub fn set_env_vars_for_client(
+        &self,
+        http_port: u16,
+        grpc_port: u16,
+    ) -> Result<(), TestServerError> {
+        unsafe {
+            std::env::set_var(
+                "SCOUTER_SERVER_URI",
+                format!("http://localhost:{http_port}"),
+            );
+            std::env::set_var("SCOUTER_GRPC_URI", format!("http://localhost:{grpc_port}"));
+            std::env::set_var("APP_ENV", "dev_client");
         }
-        #[cfg(not(feature = "server"))]
-        {
-            Err(TestServerError::FeatureNotEnabled.into())
-        }
+        Ok(())
     }
 
     #[instrument(name = "start_mock_server", skip_all)]
-    fn start_server(&mut self) -> PyResult<()> {
+    fn start_server(&mut self) -> Result<(), TestServerError> {
         #[cfg(feature = "server")]
         {
             println!("Starting Scouter Server...");
@@ -219,15 +226,15 @@ impl ScouterTestServer {
                 sleep(Duration::from_millis(100 + (attempts * 20)));
             }
 
-            Err(TestServerError::StartServerError.into())
+            Err(TestServerError::StartServerError)
         }
         #[cfg(not(feature = "server"))]
         {
-            Err(TestServerError::FeatureNotEnabled.into())
+            Err(TestServerError::FeatureNotEnabled)
         }
     }
 
-    fn stop_server(&mut self) -> PyResult<()> {
+    fn stop_server(&mut self) -> Result<(), TestServerError> {
         #[cfg(feature = "server")]
         {
             let handle = self.handle.clone();
@@ -252,7 +259,7 @@ impl ScouterTestServer {
         }
         #[cfg(not(feature = "server"))]
         {
-            Err(TestServerError::FeatureNotEnabled.into())
+            Err(TestServerError::FeatureNotEnabled)
         }
     }
 
@@ -281,7 +288,7 @@ impl ScouterTestServer {
         Ok(())
     }
 
-    fn __enter__(mut self_: PyRefMut<Self>) -> PyResult<PyRefMut<Self>> {
+    fn __enter__(mut self_: PyRefMut<Self>) -> Result<PyRefMut<Self>, TestServerError> {
         self_.start_server()?;
         Ok(self_)
     }
@@ -291,7 +298,7 @@ impl ScouterTestServer {
         _exc_type: Py<PyAny>,
         _exc_value: Py<PyAny>,
         _traceback: Py<PyAny>,
-    ) -> PyResult<()> {
+    ) -> Result<(), TestServerError> {
         self.stop_server()
     }
 }

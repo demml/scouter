@@ -7,6 +7,7 @@ import datetime
 from pathlib import Path
 from types import TracebackType
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -25,6 +26,23 @@ from typing import (
 )
 
 from typing_extensions import TypeVar
+
+if TYPE_CHECKING:
+    from opentelemetry.sdk.trace.export import SpanExporter as _OtelSpanExporter
+    from opentelemetry.sdk.trace.export import SpanExportResult as _OtelSpanExportResult
+
+    _SpanExporterBase = _OtelSpanExporter
+    _SpanExportResult = _OtelSpanExportResult
+else:
+    # Runtime fallback - anything with these methods works
+    class _SpanExporterBase:
+        def export(self, spans: Any) -> Any: ...
+        def shutdown(self) -> None: ...
+        def force_flush(self, timeout_millis: int = 30000) -> bool: ...
+
+    class _SpanExportResult:
+        SUCCESS: 0
+        FAILURE: 1
 
 SerializedType: TypeAlias = Union[str, int, float, dict, list]
 Context: TypeAlias = Union[Dict[str, Any], "BaseModel"]
@@ -9921,7 +9939,10 @@ def init_tracer(
     exporter: Optional[HttpSpanExporter | GrpcSpanExporter | StdoutSpanExporter | TestSpanExporter] = None,
     batch_config: Optional[BatchConfig] = None,
     sample_ratio: Optional[float] = None,
-) -> None:
+    scouter_queue: Optional[ScouterQueue] = None,
+    schema_url: Optional[str] = None,
+    attributes: Optional[Dict[str, SerializedType]] = None,
+) -> "BaseTracer":
     """
     Initialize the tracer for a service with dual export capability.
     ```
@@ -10024,6 +10045,25 @@ def init_tracer(
             Sampling ratio for tracing. A value between 0.0 and 1.0.
             All provided values are clamped between 0.0 and 1.0.
             If None, all spans are sampled (no sampling).
+
+        scouter_queue (ScouterQueue | None):
+            Optional ScouterQueue to associate with the tracer for correlated
+            queue entity export alongside span data.
+
+            This allows queue records (e.g., Features, Metrics, GenAIEvalRecord)
+            to be ingested in conjunction with tracing data for enhanced
+            observability.
+
+            If None, no queue is associated with the tracer.
+
+        schema_url (str | None):
+            Optional URL pointing to the schema that describes the structure of the spans.
+            This can be used by backends to validate and process spans according to a defined schema.
+            This will be included with instrumentation scope.
+
+        attributes (Dict[str, SerializedType] | None):
+            Optional dictionary of attributes to set on the tracer.
+            This will be included with instrumentation scope.
 
     Examples:
         Basic setup (Scouter only via HTTP):
@@ -10204,12 +10244,27 @@ class ActiveSpan:
         """Exit the async span context."""
 
 class BaseTracer:
-    def __init__(self, name: str) -> None:
+    def __init__(
+        self,
+        instrumenting_module_name: str = "scouter_tracer",
+        instrumenting_library_version: str = "{version}",
+        schema_url: Optional[str] = None,
+        attributes: Optional[Dict[str, SerializedType]] = None,
+        scouter_queue: Optional[ScouterQueue] = None,
+    ) -> None:
         """Initialize the BaseTracer with a service name.
 
         Args:
-            name (str):
-                The name of the service for tracing.
+            instrumenting_module_name (str):
+                The name of the instrumenting module.
+            instrumenting_library_version (str):
+                The version of the instrumenting library.
+            schema_url (Optional[str]):
+                Optional URL pointing to the schema that describes the structure of the spans.
+            attributes (Optional[Dict[str, SerializedType]]):
+                Optional dictionary of attributes to set on the tracer.
+            scouter_queue (Optional[ScouterQueue]):
+                Optional ScouterQueue to associate with the tracer.
         """
 
     def set_scouter_queue(self, queue: "ScouterQueue") -> None:

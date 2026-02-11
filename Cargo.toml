@@ -54,6 +54,8 @@ chrono ={ version = "0.*", features = ["serde"] }
 colored_json = "5.*"
 cron = "0.*"
 crossbeam-queue = "0.*"
+dashmap = "6.*"
+deltalake = { version = "0.*", features = ["datafusion"] }
 datafusion = { version = "51.*", features = ["parquet"] }
 futures-util = { version = "0.*" }
 flume = "0.11.*"
@@ -83,8 +85,8 @@ opentelemetry-otlp = { version = "0.31.0", features = ["grpc-tonic", "trace"] }
 owo-colors = "4.*"
 parquet = { version = ">=55.*", features = ["arrow"] }
 password-auth = "1.*"
-potato-head = "0.11.0"
-pyo3 = { version = "0.*", features = ["abi3-py310", "chrono", "anyhow", "extension-module"] }
+potato-head = "0.13.0"
+pyo3 = { version = "0.27.2", features = ["abi3-py310", "chrono", "anyhow", "extension-module"] }
 pyo3-async-runtimes = { version = "0.*", features = ["tokio-runtime"] }
 pythonize = "0.*"
 rand = "0.9.*"

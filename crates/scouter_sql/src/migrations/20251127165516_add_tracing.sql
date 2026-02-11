@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS scouter.trace_baggage (
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-    trace_id TEXT NOT NULL,
+    trace_id BYTEA NOT NULL CHECK (octet_length(trace_id) = 16),
     scope TEXT NOT NULL,
     key TEXT NOT NULL,
     value TEXT NOT NULL,
@@ -44,10 +44,13 @@ WHERE entity_type = 'trace'
 CREATE TABLE IF NOT EXISTS scouter.spans (
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-    span_id TEXT NOT NULL,
-    trace_id TEXT NOT NULL,
-    parent_span_id TEXT,
-    scope TEXT NOT NULL,
+    trace_id BYTEA NOT NULL CHECK (octet_length(trace_id) = 16),
+    span_id BYTEA NOT NULL CHECK (octet_length(span_id) = 8),
+    parent_span_id BYTEA CHECK (parent_span_id IS NULL OR octet_length(parent_span_id) = 8),
+    flags INTEGER DEFAULT 1 NOT NULL,
+    scope_name TEXT NOT NULL,
+    scope_version TEXT,
+    trace_state TEXT,
     span_name TEXT NOT NULL,
     span_kind TEXT NOT NULL DEFAULT 'internal', -- server, client, producer, consumer, internal
     start_time TIMESTAMPTZ NOT NULL,
@@ -63,27 +66,16 @@ CREATE TABLE IF NOT EXISTS scouter.spans (
     label TEXT,
     archived BOOLEAN DEFAULT FALSE,
     resource_attributes JSONB,
-    service_id INTEGER,
     service_name TEXT,
     PRIMARY KEY (start_time, trace_id, span_id)
 ) PARTITION BY RANGE (start_time);
 
-
-
 CREATE INDEX idx_spans_trace_lookup ON scouter.spans(trace_id, start_time);
-CREATE INDEX idx_spans_service_time ON scouter.spans(service_id, start_time DESC);
-CREATE INDEX idx_spans_root ON scouter.spans(trace_id) WHERE parent_span_id IS NULL;
-CREATE INDEX IF NOT EXISTS idx_spans_service_id_errors ON scouter.spans (service_id, status_code, start_time DESC)
-    WHERE service_id IS NOT NULL AND status_code = 2; -- status code of 2 indicates error in OpenTelemetry
-CREATE INDEX IF NOT EXISTS idx_spans_parent_tree ON scouter.spans (parent_span_id, trace_id)
-    WHERE parent_span_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_spans_service_name_fallback ON scouter.spans (service_name, start_time DESC)
-    WHERE service_name IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_spans_attributes_gin
-ON scouter.spans USING GIN (attributes);
-CREATE INDEX IF NOT EXISTS idx_spans_attributes_path
-ON scouter.spans USING GIN (attributes jsonb_path_ops);
-
+CREATE INDEX idx_spans_service_time ON scouter.spans(service_name, start_time DESC);
+CREATE INDEX idx_spans_errors ON scouter.spans (start_time DESC, service_name, status_code)
+WHERE status_code = 2;
+CREATE INDEX idx_spans_attributes_hot_attrs ON scouter.spans
+USING GIN (attributes jsonb_path_ops);
 
 -- Create partition parents
 
@@ -122,6 +114,45 @@ UPDATE scouter.part_config SET retention_keep_table = FALSE WHERE parent_table =
 UPDATE scouter.part_config SET retention_keep_table = FALSE WHERE parent_table = 'scouter.llm_drift';
 UPDATE scouter.part_config SET retention_keep_table = FALSE WHERE parent_table = 'scouter.llm_drift_record';
 
+
+-- trace aggregations
+CREATE TABLE IF NOT EXISTS scouter.traces (
+    -- Truncated start_time (hourly) to act as partition key
+    bucket_time TIMESTAMPTZ NOT NULL, -- need bucket for reconciling distributed traces
+    trace_id BYTEA NOT NULL CHECK (octet_length(trace_id) = 16),
+
+    -- Metadata (Aggregated)
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    service_name TEXT,
+    scope_name TEXT,
+    scope_version TEXT,
+    root_operation TEXT,
+    start_time TIMESTAMPTZ NOT NULL,
+    end_time TIMESTAMPTZ,
+    duration_ms BIGINT,
+    status_code INTEGER DEFAULT 0,
+    status_message TEXT,
+    span_count BIGINT DEFAULT 0,
+    error_count BIGINT DEFAULT 0,
+    resource_attributes JSONB DEFAULT '{}',
+    PRIMARY KEY (bucket_time, trace_id)
+) PARTITION BY RANGE (bucket_time);
+
+CREATE INDEX idx_traces_id_lookup ON scouter.traces (trace_id);
+CREATE INDEX idx_traces_service_time ON scouter.traces (service_name, bucket_time DESC)
+WHERE service_name IS NOT NULL;
+CREATE INDEX idx_traces_errors ON scouter.traces (bucket_time DESC, error_count)
+WHERE error_count > 0;
+
+SELECT scouter.create_parent(
+    'scouter.traces',
+    'bucket_time',
+    '1 day'
+);
+
+UPDATE scouter.part_config
+SET premake = 7, retention = '30 days'
+WHERE parent_table = 'scouter.traces';
 
 CREATE OR REPLACE FUNCTION scouter.match_span_attributes(
     span_attributes JSONB,
@@ -179,13 +210,7 @@ RETURNS TABLE (
 LANGUAGE SQL
 STABLE
 AS $$
-    WITH service_filter AS (
-        SELECT id as service_id
-        FROM scouter.service_entities
-        WHERE p_service_name IS NULL OR service_name = p_service_name
-    ),
-
-    matching_traces AS (
+    with matching_traces AS (
         SELECT DISTINCT trace_id
         FROM scouter.spans
         WHERE
@@ -212,14 +237,15 @@ AS $$
             AND s.start_time <= p_end_time
             -- Only include traces that have matching spans
             AND (p_attribute_filters IS NULL OR s.trace_id IN (SELECT trace_id FROM matching_traces))
-            -- Apply service filter to root spans
-            AND (p_service_name IS NULL OR EXISTS (
+        GROUP BY s.trace_id
+        -- Apply service filter to root spans after grouping if service_name is specified
+        HAVING p_service_name IS NULL
+            OR EXISTS (
                 SELECT 1 FROM scouter.spans root
                 WHERE root.trace_id = s.trace_id
                 AND root.parent_span_id IS NULL
-                AND root.service_id IN (SELECT service_id FROM service_filter)
-            ))
-        GROUP BY s.trace_id
+                AND root.service_name = p_service_name
+            )
     ),
     bucketed_metrics AS (
         SELECT
@@ -246,165 +272,9 @@ AS $$
     ORDER BY bm.bucket_start DESC;
 $$;
 
-CREATE OR REPLACE FUNCTION scouter.get_traces_paginated(
-    p_service_name TEXT DEFAULT NULL,
-    p_has_errors BOOLEAN DEFAULT NULL,
-    p_status_code INTEGER DEFAULT NULL,
-    p_start_time TIMESTAMPTZ DEFAULT NOW() - INTERVAL '24 hours',
-    p_end_time TIMESTAMPTZ DEFAULT NOW(),
-    p_limit INTEGER DEFAULT 50,
-    p_cursor_start_time TIMESTAMPTZ DEFAULT NULL,
-    p_cursor_trace_id TEXT DEFAULT NULL,
-    p_direction TEXT DEFAULT 'next',
-    p_trace_ids TEXT[] DEFAULT NULL,
-    p_attribute_filters JSONB DEFAULT NULL,
-    p_match_all_attributes BOOLEAN DEFAULT FALSE
-)
-RETURNS TABLE (
-    trace_id TEXT,
-    service_name TEXT,
-    scope TEXT,
-    root_operation TEXT,
-    start_time TIMESTAMPTZ,
-    end_time TIMESTAMPTZ,
-    duration_ms BIGINT,
-    status_code INTEGER,
-    status_message TEXT,
-    span_count BIGINT,
-    has_errors BOOLEAN,
-    error_count BIGINT,
-    resource_attributes JSONB,
-    attributes JSONB
-)
-LANGUAGE SQL
-STABLE
-AS $$
-    WITH service_filter AS (
-        SELECT id as service_id
-        FROM scouter.service_entities
-        WHERE p_service_name IS NULL OR service_name = p_service_name
-    ),
-
-    matching_traces AS (
-        SELECT DISTINCT trace_id
-        FROM scouter.spans
-        WHERE
-            (p_trace_ids IS NOT NULL OR (start_time >= p_start_time AND start_time <= p_end_time))
-            AND (p_attribute_filters IS NULL OR
-                scouter.match_span_attributes(
-                    attributes,
-                    p_attribute_filters,
-                    p_match_all_attributes
-                )
-            )
-    ),
-    trace_aggregates AS (
-        SELECT
-            s.trace_id,
-            COALESCE(
-                (SELECT service_name FROM scouter.spans
-                 WHERE trace_id = s.trace_id
-                 AND parent_span_id IS NULL
-                 LIMIT 1),
-                MIN(s.service_name)
-            ) as service_name,
-            COALESCE(
-                (SELECT scope FROM scouter.spans
-                 WHERE trace_id = s.trace_id
-                 AND parent_span_id IS NULL
-                 LIMIT 1),
-                MIN(s.scope)
-            ) as scope,
-            COALESCE(
-                (SELECT span_name FROM scouter.spans
-                 WHERE trace_id = s.trace_id
-                 AND parent_span_id IS NULL
-                 LIMIT 1),
-                'Unknown Operation'
-            ) as root_operation,
-            COALESCE(
-                (SELECT resource_attributes FROM scouter.spans
-                 WHERE trace_id = s.trace_id
-                 AND parent_span_id IS NULL
-                 LIMIT 1),
-                '[]'::JSONB
-            ) as resource_attributes,
-            COALESCE(
-                (SELECT attributes FROM scouter.spans
-                 WHERE trace_id = s.trace_id
-                 AND parent_span_id IS NULL
-                 LIMIT 1),
-                '[]'::JSONB
-            ) as attributes,
-            MIN(s.start_time) as start_time,
-            MAX(s.end_time) as end_time,
-            EXTRACT(EPOCH FROM (MAX(s.end_time) - MIN(s.start_time))) * 1000 as duration_ms,
-            MAX(s.status_code) as status_code,
-            (SELECT status_message FROM scouter.spans
-             WHERE trace_id = s.trace_id
-             AND status_code = 2
-             LIMIT 1) as status_message,
-            COUNT(*) as span_count,
-            COUNT(*) FILTER (WHERE s.status_code = 2) as error_count
-        FROM scouter.spans s
-        WHERE
-            (p_trace_ids IS NOT NULL OR (s.start_time >= p_start_time AND s.start_time <= p_end_time))
-            AND (p_trace_ids IS NULL OR s.trace_id = ANY(p_trace_ids))
-            AND (p_attribute_filters IS NULL OR s.trace_id IN (SELECT trace_id FROM matching_traces))
-            AND (p_service_name IS NULL OR EXISTS (
-                SELECT 1 FROM scouter.spans root
-                WHERE root.trace_id = s.trace_id
-                AND root.parent_span_id IS NULL
-                AND root.service_id IN (SELECT service_id FROM service_filter)
-            ))
-        GROUP BY s.trace_id
-    )
-    SELECT
-        ta.trace_id,
-        ta.service_name,
-        ta.scope,
-        ta.root_operation,
-        ta.start_time,
-        ta.end_time,
-        ta.duration_ms::BIGINT,
-        ta.status_code,
-        ta.status_message,
-        ta.span_count,
-        (ta.error_count > 0) as has_errors,
-        ta.error_count,
-        ta.resource_attributes,
-        ta.attributes
-    FROM trace_aggregates ta
-    WHERE
-        (p_has_errors IS NULL
-            OR (p_has_errors = true AND ta.error_count > 0)
-            OR (p_has_errors = false AND ta.error_count = 0)
-        )
-        AND (p_status_code IS NULL OR ta.status_code = p_status_code)
-        AND (
-            (p_direction = 'next' AND (
-                p_cursor_start_time IS NULL OR
-                ta.start_time < p_cursor_start_time OR
-                (ta.start_time = p_cursor_start_time AND ta.trace_id < p_cursor_trace_id)
-            ))
-            OR
-            (p_direction = 'previous' AND (
-                p_cursor_start_time IS NULL OR
-                ta.start_time > p_cursor_start_time OR
-                (ta.start_time = p_cursor_start_time AND ta.trace_id > p_cursor_trace_id)
-            ))
-        )
-    ORDER BY
-        CASE WHEN p_direction = 'next' THEN ta.start_time END DESC,
-        CASE WHEN p_direction = 'next' THEN ta.trace_id END DESC,
-        CASE WHEN p_direction = 'previous' THEN ta.start_time END ASC,
-        CASE WHEN p_direction = 'previous' THEN ta.trace_id END ASC
-    LIMIT p_limit + 1;
-$$;
-
 
 CREATE OR REPLACE FUNCTION scouter.get_trace_spans(
-    p_trace_id TEXT,
+    p_trace_id BYTEA,
     p_service_name TEXT DEFAULT NULL
 )
 RETURNS TABLE (
@@ -432,16 +302,22 @@ RETURNS TABLE (
 LANGUAGE SQL
 STABLE
 AS $$
-    WITH RECURSIVE service_filter AS (
-        SELECT id as service_id
-        FROM scouter.service_entities
-        WHERE p_service_name IS NULL OR service_name = p_service_name
-        LIMIT 1
-    ),
+    WITH RECURSIVE 
     span_tree AS (
         SELECT
-            s.trace_id, s.span_id, s.parent_span_id, s.span_name, s.span_kind, s.start_time, s.end_time, s.duration_ms,
-            s.status_code, s.status_message, s.attributes, s.events, s.links,
+            s.trace_id,
+            s.span_id,
+            s.parent_span_id,
+            s.span_name,
+            s.span_kind,
+            s.start_time,
+            s.end_time,
+            s.duration_ms,
+            s.status_code,
+            s.status_message,
+            s.attributes,
+            s.events,
+            s.links,
             0 as depth,
             ARRAY[s.span_id] as path,
             s.span_id as root_span_id,
@@ -451,13 +327,24 @@ AS $$
         FROM scouter.spans s
         WHERE s.trace_id = p_trace_id
           AND s.parent_span_id IS NULL
-          AND (p_service_name IS NULL OR s.service_id = (SELECT service_id FROM service_filter))
+          AND (p_service_name IS NULL OR s.service_name = p_service_name)
 
         UNION ALL
 
         SELECT
-            s.trace_id, s.span_id, s.parent_span_id, s.span_name, s.span_kind, s.start_time, s.end_time, s.duration_ms,
-            s.status_code, s.status_message, s.attributes, s.events, s.links,
+            s.trace_id,
+            s.span_id,
+            s.parent_span_id,
+            s.span_name,
+            s.span_kind,
+            s.start_time,
+            s.end_time,
+            s.duration_ms,
+            s.status_code,
+            s.status_message,
+            s.attributes,
+            s.events,
+            s.links,
             st.depth + 1,
             st.path || s.span_id,
             st.root_span_id,
@@ -468,12 +355,28 @@ AS $$
         INNER JOIN span_tree st ON s.parent_span_id = st.span_id
         WHERE s.trace_id = p_trace_id
           AND st.depth < 20
-          AND (p_service_name IS NULL OR s.service_id = (SELECT service_id FROM service_filter))
+          AND (p_service_name IS NULL OR s.service_name = p_service_name)
     )
     SELECT
-        st.trace_id, st.span_id, st.parent_span_id, st.span_name, st.span_kind, st.start_time, st.end_time, st.duration_ms,
-        st.status_code, st.status_message, st.attributes, st.events, st.links,
-        st.depth, st.path, st.root_span_id, st.input, st.output, st.service_name,
+        encode(st.trace_id, 'hex') as trace_id,
+        encode(st.span_id, 'hex') as span_id,
+        encode(st.parent_span_id, 'hex') as parent_span_id,
+        st.span_name,
+        st.span_kind,
+        st.start_time,
+        st.end_time,
+        st.duration_ms,
+        st.status_code,
+        st.status_message,
+        st.attributes,
+        st.events,
+        st.links,
+        st.depth,
+        st.path,
+        encode(st.root_span_id, 'hex') as root_span_id,
+        st.input,
+        st.output,
+        st.service_name,
         ROW_NUMBER() OVER (ORDER BY path) as span_order
     FROM span_tree st
     ORDER BY path;

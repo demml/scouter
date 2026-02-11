@@ -19,7 +19,9 @@ pub struct TraceListItem {
     #[pyo3(get)]
     pub service_name: String,
     #[pyo3(get)]
-    pub scope: String,
+    pub scope_name: String,
+    #[pyo3(get)]
+    pub scope_version: String,
     #[pyo3(get)]
     pub root_operation: String,
     #[pyo3(get)]
@@ -50,7 +52,8 @@ impl FromRow<'_, PgRow> for TraceListItem {
         Ok(TraceListItem {
             trace_id: row.try_get("trace_id")?,
             service_name: row.try_get("service_name")?,
-            scope: row.try_get("scope")?,
+            scope_name: row.try_get("scope_name")?,
+            scope_version: row.try_get("scope_version")?,
             root_operation: row.try_get("root_operation")?,
             start_time: row.try_get("start_time")?,
             end_time: row.try_get("end_time")?,
@@ -88,9 +91,9 @@ pub struct TraceSpan {
     #[pyo3(get)]
     pub start_time: DateTime<Utc>,
     #[pyo3(get)]
-    pub end_time: Option<DateTime<Utc>>,
+    pub end_time: DateTime<Utc>,
     #[pyo3(get)]
-    pub duration_ms: Option<i64>,
+    pub duration_ms: i64,
     #[pyo3(get)]
     pub status_code: i32,
     #[pyo3(get)]
@@ -206,6 +209,8 @@ pub struct TraceFilters {
     pub attribute_filters: Option<Vec<String>>,
     #[pyo3(get, set)]
     pub trace_ids: Option<Vec<String>>,
+    #[pyo3(get, set)]
+    pub entity_uid: Option<String>,
 }
 
 #[pymethods]
@@ -222,7 +227,8 @@ impl TraceFilters {
         cursor_start_time=None,
         cursor_trace_id=None,
         attribute_filters=None,
-        trace_ids=None
+        trace_ids=None,
+        entity_uid=None
     ))]
     pub fn new(
         service_name: Option<String>,
@@ -235,6 +241,7 @@ impl TraceFilters {
         cursor_trace_id: Option<String>,
         attribute_filters: Option<Vec<String>>,
         trace_ids: Option<Vec<String>>,
+        entity_uid: Option<String>,
     ) -> Self {
         TraceFilters {
             service_name,
@@ -248,6 +255,7 @@ impl TraceFilters {
             direction: None,
             attribute_filters,
             trace_ids,
+            entity_uid,
         }
     }
 }
@@ -298,6 +306,59 @@ impl TraceFilters {
         self.cursor_trace_id = Some(cursor.trace_id.clone());
         self.direction = Some("previous".to_string());
         self
+    }
+
+    pub fn with_entity_uid(mut self, entity_uid: impl Into<String>) -> Self {
+        self.entity_uid = Some(entity_uid.into());
+        self
+    }
+
+    /// Convert hex trace_ids directly to byte vectors for PostgreSQL BYTEA binding
+    /// Returns None if no trace_ids are set
+    /// Returns error if any trace_id is invalid hex or wrong length
+    pub fn parsed_trace_ids(&self) -> Result<Option<Vec<Vec<u8>>>, TypeError> {
+        match &self.trace_ids {
+            None => Ok(None),
+            Some(ids) => {
+                let parsed: Result<Vec<Vec<u8>>, _> = ids
+                    .iter()
+                    .map(|hex| {
+                        let bytes = hex::decode(hex)?;
+
+                        if bytes.len() != 16 {
+                            return Err(TypeError::InvalidLength(format!(
+                                "Invalid trace_id length: expected 16 bytes, got {} for '{}'",
+                                bytes.len(),
+                                hex
+                            )));
+                        }
+
+                        Ok(bytes)
+                    })
+                    .collect();
+
+                parsed.map(Some)
+            }
+        }
+    }
+
+    /// Convert hex cursor_trace_id directly to bytes for PostgreSQL BYTEA binding
+    pub fn parsed_cursor_trace_id(&self) -> Result<Option<Vec<u8>>, TypeError> {
+        match &self.cursor_trace_id {
+            None => Ok(None),
+            Some(hex) => {
+                let bytes = hex::decode(hex)?;
+
+                if bytes.len() != 16 {
+                    return Err(TypeError::InvalidLength(format!(
+                        "Invalid cursor_trace_id length: expected 16 bytes, got {}",
+                        bytes.len()
+                    )));
+                }
+
+                Ok(Some(bytes))
+            }
+        }
     }
 }
 

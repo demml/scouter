@@ -5,13 +5,14 @@ SELECT
     entity_id,
     context,
     updated_at,
-     status,
+    status,
     processing_started_at,
     processing_ended_at,
     processing_duration,
     record_id,
     session_id,
-    retry_count
+    retry_count,
+    trace_id
 FROM scouter.genai_eval_record
 WHERE entity_id = $1
   AND ($2::VARCHAR IS NULL OR status = $2)

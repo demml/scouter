@@ -12,14 +12,12 @@ use opentelemetry_proto::tonic::common::v1::KeyValue;
 use opentelemetry_proto::tonic::trace::v1::span::Event;
 use opentelemetry_proto::tonic::trace::v1::span::Link;
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind;
-use opentelemetry_proto::tonic::trace::v1::Span;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::cmp::{max, min};
-use std::collections::HashMap;
 use std::collections::HashSet;
+use std::fmt;
 
 pub const FUNCTION_TYPE: &str = "function.type";
 pub const FUNCTION_STREAMING: &str = "function.streaming";
@@ -39,6 +37,7 @@ pub const SPAN_ERROR: &str = "span.error";
 pub const EXCEPTION_TRACEBACK: &str = "exception.traceback";
 pub const SCOUTER_QUEUE_RECORD: &str = "scouter.queue.record";
 pub const SCOUTER_QUEUE_EVENT: &str = "scouter.queue.event";
+pub const SCOUTER_ENTITY: &str = "scouter.entity";
 
 // patterns for identifying baggage and tags
 pub const BAGGAGE_PATTERN: &str = "baggage.";
@@ -47,17 +46,230 @@ pub const TAG_PATTERN: &str = concat!("scouter.tracing.tag", ".");
 
 type SpanAttributes = (Vec<Attribute>, Vec<TraceBaggageRecord>, Vec<TagRecord>);
 
+#[derive(Clone, Debug, Serialize, Deserialize, Default, PartialEq, Eq, Hash)]
+pub struct ScouterEntityAttribute {
+    pub uid: String,
+    pub r#type: String,
+    pub space: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
+pub struct TraceId([u8; 16]);
+
+impl TraceId {
+    pub fn from_hex(hex: &str) -> Result<Self, hex::FromHexError> {
+        let mut bytes = [0u8; 16];
+        hex::decode_to_slice(hex, &mut bytes)?;
+        Ok(Self(bytes))
+    }
+
+    pub fn from_bytes(bytes: [u8; 16]) -> Self {
+        Self(bytes)
+    }
+
+    pub fn from_slice(slice: &[u8]) -> Result<Self, RecordError> {
+        if slice.len() != 16 {
+            return Err(RecordError::SliceError(format!(
+                "Invalid trace_id length: expected 16 bytes, got {}",
+                slice.len()
+            )));
+        }
+        let mut bytes = [0u8; 16];
+        bytes.copy_from_slice(slice);
+        Ok(Self(bytes))
+    }
+
+    pub fn to_hex(&self) -> String {
+        hex::encode(self.0)
+    }
+
+    pub fn as_bytes(&self) -> &[u8; 16] {
+        &self.0
+    }
+
+    pub fn hex_to_bytes(hex: &str) -> Result<Vec<u8>, RecordError> {
+        let bytes = hex::decode(hex)?;
+        // validate length for trace_id (16 bytes) or span_id (8 bytes)
+        if bytes.len() == 16 {
+            Ok(bytes)
+        } else {
+            Err(RecordError::SliceError(format!(
+                "Invalid hex string length: expected 16 or 8 bytes, got {}",
+                bytes.len()
+            )))
+        }
+    }
+}
+
+impl fmt::Display for TraceId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.to_hex())
+    }
+}
+
+impl Serialize for TraceId {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.to_hex())
+    }
+}
+
+impl<'de> Deserialize<'de> for TraceId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let hex = String::deserialize(deserializer)?;
+        TraceId::from_hex(&hex).map_err(serde::de::Error::custom)
+    }
+}
+
+#[cfg(feature = "server")]
+impl<'r> sqlx::Decode<'r, sqlx::Postgres> for TraceId {
+    fn decode(value: sqlx::postgres::PgValueRef<'r>) -> Result<Self, sqlx::error::BoxDynError> {
+        let bytes = <&[u8] as sqlx::Decode<sqlx::Postgres>>::decode(value)?;
+        if bytes.len() != 16 {
+            return Err("TraceId must be exactly 16 bytes".into());
+        }
+        let mut array = [0u8; 16];
+        array.copy_from_slice(bytes);
+        Ok(TraceId(array))
+    }
+}
+
+#[cfg(feature = "server")]
+impl sqlx::Type<sqlx::Postgres> for TraceId {
+    fn type_info() -> sqlx::postgres::PgTypeInfo {
+        <Vec<u8> as sqlx::Type<sqlx::Postgres>>::type_info()
+    }
+}
+
+#[cfg(feature = "server")]
+impl sqlx::Encode<'_, sqlx::Postgres> for TraceId {
+    fn encode_by_ref(
+        &self,
+        buf: &mut sqlx::postgres::PgArgumentBuffer,
+    ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
+        <&[u8] as sqlx::Encode<sqlx::Postgres>>::encode(&self.0[..], buf)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
+pub struct SpanId([u8; 8]);
+
+impl SpanId {
+    pub fn from_hex(hex: &str) -> Result<Self, hex::FromHexError> {
+        let mut bytes = [0u8; 8];
+        hex::decode_to_slice(hex, &mut bytes)?;
+        Ok(Self(bytes))
+    }
+
+    pub fn from_bytes(bytes: [u8; 8]) -> Self {
+        Self(bytes)
+    }
+
+    pub fn from_slice(slice: &[u8]) -> Result<Self, RecordError> {
+        if slice.len() != 8 {
+            return Err(RecordError::SliceError(format!(
+                "Invalid trace_id length: expected 8 bytes, got {}",
+                slice.len()
+            )));
+        }
+        let mut bytes = [0u8; 8];
+        bytes.copy_from_slice(slice);
+        Ok(Self(bytes))
+    }
+
+    pub fn to_hex(&self) -> String {
+        hex::encode(self.0)
+    }
+
+    pub fn as_bytes(&self) -> &[u8; 8] {
+        &self.0
+    }
+
+    pub fn hex_to_bytes(hex: &str) -> Result<Vec<u8>, RecordError> {
+        let bytes = hex::decode(hex)?;
+        if bytes.len() == 8 {
+            Ok(bytes)
+        } else {
+            Err(RecordError::SliceError(format!(
+                "Invalid hex string length: expected 16 or 8 bytes, got {}",
+                bytes.len()
+            )))
+        }
+    }
+}
+
+impl fmt::Display for SpanId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.to_hex())
+    }
+}
+
+impl Serialize for SpanId {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.to_hex())
+    }
+}
+
+impl<'de> Deserialize<'de> for SpanId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let hex = String::deserialize(deserializer)?;
+        SpanId::from_hex(&hex).map_err(serde::de::Error::custom)
+    }
+}
+
+#[cfg(feature = "server")]
+impl<'r> sqlx::Decode<'r, sqlx::Postgres> for SpanId {
+    fn decode(value: sqlx::postgres::PgValueRef<'r>) -> Result<Self, sqlx::error::BoxDynError> {
+        let bytes = <&[u8] as sqlx::Decode<sqlx::Postgres>>::decode(value)?;
+        if bytes.len() != 8 {
+            return Err("SpanId must be exactly 8 bytes".into());
+        }
+        let mut array = [0u8; 8];
+        array.copy_from_slice(bytes);
+        Ok(SpanId(array))
+    }
+}
+
+#[cfg(feature = "server")]
+impl sqlx::Type<sqlx::Postgres> for SpanId {
+    fn type_info() -> sqlx::postgres::PgTypeInfo {
+        <Vec<u8> as sqlx::Type<sqlx::Postgres>>::type_info()
+    }
+}
+
+#[cfg(feature = "server")]
+impl sqlx::Encode<'_, sqlx::Postgres> for SpanId {
+    fn encode_by_ref(
+        &self,
+        buf: &mut sqlx::postgres::PgArgumentBuffer,
+    ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
+        <&[u8] as sqlx::Encode<sqlx::Postgres>>::encode(&self.0[..], buf)
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[pyclass]
 pub struct TraceRecord {
     #[pyo3(get)]
     pub created_at: DateTime<Utc>,
-    #[pyo3(get)]
-    pub trace_id: String,
+    pub trace_id: TraceId,
     #[pyo3(get)]
     pub service_name: String,
     #[pyo3(get)]
-    pub scope: String,
+    pub scope_name: String,
+    #[pyo3(get)]
+    pub scope_version: Option<String>,
     #[pyo3(get)]
     pub trace_state: String,
     #[pyo3(get)]
@@ -70,8 +282,7 @@ pub struct TraceRecord {
     pub status_code: i32,
     #[pyo3(get)]
     pub status_message: String,
-    #[pyo3(get)]
-    pub root_span_id: String,
+    pub root_span_id: SpanId,
     #[pyo3(get)]
     pub span_count: i32,
     #[pyo3(get)]
@@ -85,82 +296,16 @@ impl TraceRecord {
     pub fn __str__(&self) -> String {
         PyHelperFuncs::__str__(self)
     }
-}
 
-impl TraceRecord {
-    /// Merges data from another TraceRecord belonging to the same trace.
-    /// This is crucial for updating a trace record as more spans arrive.
-    pub fn merge(&mut self, other: &TraceRecord) {
-        // 1. Update the overall trace time bounds
-        self.start_time = min(self.start_time, other.start_time);
-        self.end_time = max(self.end_time, other.end_time);
-
-        // 2. Recalculate duration based on new time bounds
-        if self.end_time > self.start_time {
-            self.duration_ms = (self.end_time - self.start_time).num_milliseconds();
-        } else {
-            // Handle edge case where end_time may not be set yet (duration = 0)
-            self.duration_ms = 0;
-        }
-
-        if self.status_code != 2 && other.status_code == 2 {
-            self.status_code = 2;
-        }
-
-        self.span_count += other.span_count;
-
-        let mut existing_tag_keys: std::collections::HashSet<String> =
-            self.tags.iter().map(|t| t.key.clone()).collect();
-
-        for tag in &other.tags {
-            if !existing_tag_keys.contains(&tag.key) {
-                self.tags.push(tag.clone());
-                existing_tag_keys.insert(tag.key.clone());
-            }
-        }
-
-        // 3. Merge process attributes, avoiding duplicates
-        let mut existing_attr_keys: std::collections::HashSet<String> = self
-            .process_attributes
-            .iter()
-            .map(|a| a.key.clone())
-            .collect();
-
-        for attr in &other.process_attributes {
-            if !existing_attr_keys.contains(&attr.key) {
-                self.process_attributes.push(attr.clone());
-                existing_attr_keys.insert(attr.key.clone());
-            }
-        }
-    }
-}
-
-#[derive(Hash, Eq, PartialEq, Clone)]
-struct TraceKey {
-    created_at: chrono::DateTime<chrono::Utc>, // Or whatever your created_at type is
-    trace_id: String,
-    scope: String,
-}
-
-pub fn deduplicate_and_merge_traces(raw_traces: Vec<TraceRecord>) -> Vec<TraceRecord> {
-    let mut merged_traces: HashMap<TraceKey, TraceRecord> = HashMap::new();
-
-    for trace in raw_traces {
-        let key = TraceKey {
-            created_at: trace.created_at,
-            trace_id: trace.trace_id.clone(),
-            scope: trace.scope.clone(),
-        };
-
-        merged_traces
-            .entry(key)
-            .and_modify(|existing_trace| {
-                existing_trace.merge(&trace);
-            })
-            .or_insert(trace);
+    #[getter]
+    pub fn get_trace_id(&self) -> String {
+        self.trace_id.to_hex()
     }
 
-    merged_traces.into_values().collect()
+    #[getter]
+    pub fn get_root_span_id(&self) -> String {
+        self.root_span_id.to_hex()
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -168,38 +313,59 @@ pub fn deduplicate_and_merge_traces(raw_traces: Vec<TraceRecord>) -> Vec<TraceRe
 pub struct TraceSpanRecord {
     #[pyo3(get)]
     pub created_at: chrono::DateTime<Utc>,
+
+    // core identifiers
+    pub trace_id: TraceId,
+    pub span_id: SpanId,
+    pub parent_span_id: Option<SpanId>,
+
+    // W3C Trace Context fields
     #[pyo3(get)]
-    pub span_id: String,
+    pub flags: i32,
     #[pyo3(get)]
-    pub trace_id: String,
+    pub trace_state: String,
+
+    // instrumentation
     #[pyo3(get)]
-    pub parent_span_id: Option<String>,
+    pub scope_name: String,
     #[pyo3(get)]
-    pub scope: String,
+    pub scope_version: Option<String>,
+
+    // Span metadata
     #[pyo3(get)]
     pub span_name: String,
     #[pyo3(get)]
     pub span_kind: String,
+
+    // Temporal data
     #[pyo3(get)]
     pub start_time: chrono::DateTime<Utc>,
     #[pyo3(get)]
     pub end_time: chrono::DateTime<Utc>,
     #[pyo3(get)]
     pub duration_ms: i64,
+
+    // Status
     #[pyo3(get)]
     pub status_code: i32,
     #[pyo3(get)]
     pub status_message: String,
+
+    // Semi-structured data
     #[pyo3(get)]
     pub attributes: Vec<Attribute>,
     #[pyo3(get)]
     pub events: Vec<SpanEvent>,
     #[pyo3(get)]
     pub links: Vec<SpanLink>,
+
+    // Scouter-specific fields
     #[pyo3(get)]
     pub label: Option<String>,
     pub input: Value,
     pub output: Value,
+
+    // Service reference (denormalized for query performance)
     #[pyo3(get)]
     pub service_name: String,
     #[pyo3(get)]
@@ -208,6 +374,21 @@ pub struct TraceSpanRecord {
 
 #[pymethods]
 impl TraceSpanRecord {
+    #[getter]
+    pub fn get_trace_id(&self) -> String {
+        self.trace_id.to_hex()
+    }
+
+    #[getter]
+    pub fn get_span_id(&self) -> String {
+        self.span_id.to_hex()
+    }
+
+    #[getter]
+    pub fn get_parent_span_id(&self) -> Option<String> {
+        self.parent_span_id.as_ref().map(|id| id.to_hex())
+    }
+
     #[getter]
     pub fn get_input<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyDict>, RecordError> {
         let dict = PyDict::new(py);
@@ -244,8 +425,7 @@ impl TraceSpanRecord {
 pub struct TraceBaggageRecord {
     #[pyo3(get)]
     pub created_at: DateTime<Utc>,
-    #[pyo3(get)]
-    pub trace_id: String,
+    pub trace_id: TraceId,
     #[pyo3(get)]
     pub scope: String,
     #[pyo3(get)]
@@ -258,6 +438,11 @@ pub struct TraceBaggageRecord {
 impl TraceBaggageRecord {
     pub fn __str__(&self) -> String {
         PyHelperFuncs::__str__(self)
+    }
+
+    #[getter]
+    pub fn get_trace_id(&self) -> String {
+        self.trace_id.to_hex()
     }
 }
 
@@ -273,7 +458,7 @@ pub trait TraceRecordExt {
     }
 
     fn process_attributes(
-        trace_id: &str,
+        trace_id: &TraceId,
         span_attributes: &[KeyValue],
         scope: &str,
         created_at: DateTime<Utc>,
@@ -281,10 +466,7 @@ pub trait TraceRecordExt {
         let mut cleaned_attributes = Vec::with_capacity(span_attributes.len());
         let mut baggage_records = Vec::new();
         let mut tags = Vec::new();
-
-        let trace_id_owned = trace_id.to_string();
         let scope_owned = scope.to_string();
-        let entity_type = "trace".to_string();
 
         for kv in span_attributes {
             let key = &kv.key;
@@ -292,32 +474,32 @@ pub trait TraceRecordExt {
             // Check if this is a baggage-prefixed tag
             if let Some(tag_key) = key.strip_prefix(BAGGAGE_TAG_PATTERN) {
                 if !tag_key.is_empty() {
-                    let value = match &kv.value {
+                    // tag values are stored as strings for tag table
+                    let string_value = match &kv.value {
                         Some(v) => Self::otel_value_to_string(v),
                         None => "null".to_string(),
                     };
 
                     // Extract as a tag
-                    tags.push(TagRecord {
-                        entity_type: entity_type.clone(),
-                        entity_id: trace_id_owned.clone(),
-                        key: tag_key.to_string(),
-                        value: value.clone(),
-                    });
+                    tags.push(TagRecord::from_trace(
+                        trace_id,
+                        tag_key.to_string(),
+                        string_value.clone(),
+                    ));
 
                     // Store cleaned attribute with stripped key
                     cleaned_attributes.push(Attribute {
                         key: tag_key.to_string(),
-                        value: Value::String(value.clone()),
+                        value: Value::String(string_value.clone()),
                     });
 
                     // Also extract as baggage since it has baggage prefix
                     baggage_records.push(TraceBaggageRecord {
                         created_at,
-                        trace_id: trace_id_owned.clone(),
+                        trace_id: trace_id.clone(),
                         scope: scope_owned.clone(),
                         key: format!("{}.{}", SCOUTER_TAG_PREFIX, tag_key),
-                        value,
+                        value: string_value,
                     });
                 } else {
                     tracing::warn!(
@@ -328,22 +510,22 @@ pub trait TraceRecordExt {
             }
             // Check for non-baggage tags
             else if let Some(tag_key) = key.strip_prefix(TAG_PATTERN) {
+                // tag values are stored as strings for tag table
                 if !tag_key.is_empty() {
-                    let value = match &kv.value {
+                    let string_value = match &kv.value {
                         Some(v) => Self::otel_value_to_string(v),
                         None => "null".to_string(),
                     };
 
-                    tags.push(TagRecord {
-                        entity_type: entity_type.clone(),
-                        entity_id: trace_id_owned.clone(),
-                        key: tag_key.to_string(),
-                        value: value.clone(),
-                    });
+                    tags.push(TagRecord::from_trace(
+                        trace_id,
+                        tag_key.to_string(),
+                        string_value.clone(),
+                    ));
 
                     cleaned_attributes.push(Attribute {
                         key: tag_key.to_string(),
-                        value: Value::String(value),
+                        value: Value::String(string_value.clone()),
                     });
                 } else {
                     tracing::warn!(
@@ -360,17 +542,17 @@ pub trait TraceRecordExt {
                     .trim()
                     .to_string();
 
-                let value_string = match &kv.value {
+                let string_value = match &kv.value {
                     Some(v) => Self::otel_value_to_string(v),
                     None => "null".to_string(),
                 };
 
                 baggage_records.push(TraceBaggageRecord {
                     created_at,
-                    trace_id: trace_id_owned.clone(),
+                    trace_id: trace_id.clone(),
                     scope: scope_owned.clone(),
                     key: clean_key,
-                    value: value_string,
+                    value: string_value,
                 });
             }
             // Regular attribute
@@ -470,6 +652,28 @@ pub struct TraceServerRecord {
 impl TraceRecordExt for TraceServerRecord {}
 
 impl TraceServerRecord {
+    /// Extract InstrumentationScope name and version from ScopeSpan
+    fn get_scope_info(
+        scope_span: &opentelemetry_proto::tonic::trace::v1::ScopeSpans,
+    ) -> (String, Option<String>) {
+        let scope_name = scope_span
+            .scope
+            .as_ref()
+            .map(|s| s.name.clone())
+            .filter(|n| !n.is_empty())
+            .unwrap_or_else(|| "unknown".to_string());
+
+        let scope_version = scope_span.scope.as_ref().and_then(|s| {
+            if s.version.is_empty() {
+                None
+            } else {
+                Some(s.version.clone())
+            }
+        });
+
+        (scope_name, scope_version)
+    }
+
     /// Safely convert OpenTelemetry timestamps to DateTime<Utc> and calculate duration
     ///
     /// # Arguments
@@ -566,28 +770,6 @@ impl TraceServerRecord {
         (input, output)
     }
 
-    fn get_scope_from_resource(
-        resource: &Option<opentelemetry_proto::tonic::resource::v1::Resource>,
-        default: &str,
-    ) -> String {
-        resource
-            .as_ref()
-            .and_then(|r| r.attributes.iter().find(|attr| attr.key == SCOUTER_SCOPE))
-            .and_then(|attr| {
-                attr.value.as_ref().and_then(|v| {
-                    if let Some(
-                        opentelemetry_proto::tonic::common::v1::any_value::Value::StringValue(s),
-                    ) = &v.value
-                    {
-                        Some(s.clone())
-                    } else {
-                        None
-                    }
-                })
-            })
-            .unwrap_or_else(|| default.to_string())
-    }
-
     fn get_service_name_from_resource(
         resource: &Option<opentelemetry_proto::tonic::resource::v1::Resource>,
         default: &str,
@@ -639,7 +821,7 @@ impl TraceServerRecord {
     }
 
     pub fn convert_to_baggage_records(
-        trace_id: &str,
+        trace_id: &TraceId,
         attributes: &Vec<Attribute>,
         scope_name: &str,
     ) -> Vec<TraceBaggageRecord> {
@@ -679,63 +861,12 @@ impl TraceServerRecord {
             .into_iter()
             .map(|(key, value)| TraceBaggageRecord {
                 created_at: Self::get_trace_start_time_attribute(attributes, &Utc::now()),
-                trace_id: trace_id.to_string(),
+                trace_id: trace_id.clone(),
                 scope: scope_name.to_string(),
                 key,
                 value,
             })
             .collect()
-    }
-
-    /// Convert to TraceRecord
-    #[allow(clippy::too_many_arguments)]
-    pub fn convert_to_span_record(
-        trace_id: &str,
-        span_id: &str,
-        span: &Span,
-        attributes: &Vec<Attribute>,
-        scope_name: &str,
-        start_time: DateTime<Utc>,
-        end_time: DateTime<Utc>,
-        duration_ms: i64,
-        service_name: String,
-        resource_attributes: &[Attribute],
-    ) -> Result<TraceSpanRecord, RecordError> {
-        // get parent span id (can be empty)
-        let parent_span_id = if !span.parent_span_id.is_empty() {
-            Some(hex::encode(&span.parent_span_id))
-        } else {
-            None
-        };
-
-        let (input, output) = Self::extract_input_output(attributes);
-
-        Ok(TraceSpanRecord {
-            created_at: start_time,
-            trace_id: trace_id.to_string(),
-            span_id: span_id.to_string(),
-            parent_span_id,
-            start_time,
-            end_time,
-            duration_ms,
-            service_name,
-            scope: scope_name.to_string(),
-            span_name: span.name.clone(),
-            span_kind: Self::span_kind_to_string(span.kind),
-            status_code: span.status.as_ref().map(|s| s.code).unwrap_or_else(|| 0),
-            status_message: span
-                .status
-                .as_ref()
-                .map(|s| s.message.clone())
-                .unwrap_or_default(),
-            attributes: attributes.to_owned(),
-            events: Self::events_to_json_array(&span.events)?,
-            links: Self::links_to_json_array(&span.links)?,
-            label: None,
-            input,
-            output,
-            resource_attributes: resource_attributes.to_owned(),
-        })
     }
 
     pub fn to_records(self) -> Result<TraceRecords, RecordError> {
@@ -760,39 +891,67 @@ impl TraceServerRecord {
             // process metadata only once per resource span
             let service_name =
                 Self::get_service_name_from_resource(&resource_span.resource, "unknown");
-            let scope = Self::get_scope_from_resource(&resource_span.resource, "unknown");
             let resource_attributes = Attribute::from_resources(&resource_span.resource);
 
             for scope_span in &resource_span.scope_spans {
+                let (scope_name, scope_version) = Self::get_scope_info(scope_span);
+
                 for span in &scope_span.spans {
-                    // base attributes
-                    let trace_id = hex::encode(&span.trace_id);
-                    let span_id = hex::encode(&span.span_id);
-                    let service_name = service_name.clone();
+                    // Core identifiers
+                    let trace_id = TraceId::from_slice(span.trace_id.as_slice())?;
+                    let span_id = SpanId::from_slice(span.span_id.as_slice())?;
+                    let parent_span_id = if !span.parent_span_id.is_empty() {
+                        Some(SpanId::from_slice(span.parent_span_id.as_slice())?)
+                    } else {
+                        None
+                    };
 
                     let (start_time, end_time, duration_ms) =
                         Self::extract_time(span.start_time_unix_nano, span.end_time_unix_nano);
 
-                    let (cleaned_attributes, span_baggage, span_tags) =
-                        Self::process_attributes(&trace_id, &span.attributes, &scope, start_time)?;
+                    let (cleaned_attributes, span_baggage, span_tags) = Self::process_attributes(
+                        &trace_id,
+                        &span.attributes,
+                        &scope_name,
+                        start_time,
+                    )?;
 
                     // Add to collections
                     baggage_records.extend(span_baggage);
                     tags.extend(span_tags);
 
+                    let (input, output) = Self::extract_input_output(&cleaned_attributes);
+
                     // SpanRecord for insert
-                    span_records.push(Self::convert_to_span_record(
-                        &trace_id,
-                        &span_id,
-                        span,
-                        &cleaned_attributes,
-                        &scope,
+                    span_records.push(TraceSpanRecord {
+                        created_at: start_time,
+                        trace_id,
+                        span_id,
+                        parent_span_id,
+                        flags: span.flags as i32,
+                        trace_state: span.trace_state.clone(),
+                        scope_name: scope_name.clone(),
+                        scope_version: scope_version.clone(),
+                        span_name: span.name.clone(),
+                        span_kind: Self::span_kind_to_string(span.kind),
                         start_time,
                         end_time,
                         duration_ms,
-                        service_name,
-                        &resource_attributes,
-                    )?);
+                        status_code: span.status.as_ref().map(|s| s.code).unwrap_or(0),
+                        status_message: span
+                            .status
+                            .as_ref()
+                            .map(|s| s.message.clone())
+                            .unwrap_or_default(),
+                        attributes: cleaned_attributes,
+                        events: Self::events_to_json_array(&span.events)?,
+                        links: Self::links_to_json_array(&span.links)?,
+                        label: None,
+                        input,
+                        output,
+                        service_name: service_name.clone(),
+                        resource_attributes: resource_attributes.clone(),
+                    });
                 }
             }
         }
@@ -914,6 +1073,18 @@ pub struct TagRecord {
     pub key: String,
     #[pyo3(get)]
     pub value: String,
+}
+
+impl TagRecord {
+    /// Create a tag record from a TraceId
+    pub fn from_trace(trace_id: &TraceId, key: String, value: String) -> Self {
+        Self {
+            entity_type: "trace".to_string(),
+            entity_id: trace_id.to_hex(),
+            key,
+            value,
+        }
+    }
 }
 
 #[pymethods]

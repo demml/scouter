@@ -1,7 +1,8 @@
 #![allow(clippy::useless_conversion)]
 use crate::error::{ProfileError, TypeError};
 use crate::spc::alert::SpcAlertConfig;
-use crate::util::{json_to_pyobject, pyobject_to_json, scouter_version, ConfigExt};
+use crate::traits::ConfigExt;
+use crate::util::{json_to_pyobject, pyobject_to_json, scouter_version};
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FeatureMap, FileName, ProfileArgs, ProfileBaseArgs,
     ProfileRequest, PyHelperFuncs, MISSING,
@@ -117,6 +118,9 @@ impl ConfigExt for SpcDriftConfig {
 
     fn version(&self) -> &str {
         &self.version
+    }
+    fn uid(&self) -> &str {
+        &self.uid
     }
 }
 

@@ -29,6 +29,16 @@ impl From<EntityType> for opentelemetry::Value {
     }
 }
 
+impl Display for EntityType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            EntityType::Feature => write!(f, "Feature"),
+            EntityType::Metric => write!(f, "Metric"),
+            EntityType::GenAI => write!(f, "GenAI"),
+        }
+    }
+}
+
 #[pyclass]
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct IntFeature {

@@ -4,7 +4,8 @@ use crate::binning::quantile::QuantileBinning;
 use crate::binning::strategy::BinningStrategy;
 use crate::error::{ProfileError, TypeError};
 use crate::psi::alert::PsiAlertConfig;
-use crate::util::{json_to_pyobject, pyobject_to_json, scouter_version, ConfigExt};
+use crate::traits::ConfigExt;
+use crate::util::{json_to_pyobject, pyobject_to_json, scouter_version};
 use crate::ProfileRequest;
 use crate::VersionRequest;
 use crate::{
@@ -75,6 +76,9 @@ impl ConfigExt for PsiDriftConfig {
 
     fn version(&self) -> &str {
         &self.version
+    }
+    fn uid(&self) -> &str {
+        &self.uid
     }
 }
 

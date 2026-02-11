@@ -1,11 +1,14 @@
 use crate::sql::error::SqlError;
 use crate::sql::query::Queries;
 
+use crate::sql::aggregator::get_trace_cache;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use itertools::multiunzip;
 use scouter_types::sql::{TraceFilters, TraceListItem, TraceMetricBucket, TraceSpan};
-use scouter_types::{TraceBaggageRecord, TraceCursor, TracePaginationResponse, TraceSpanRecord};
+use scouter_types::{
+    TraceBaggageRecord, TraceCursor, TraceId, TracePaginationResponse, TraceSpanRecord,
+};
 use sqlx::{postgres::PgQueryResult, types::Json, Pool, Postgres};
 use std::collections::HashMap;
 use tracing::{error, instrument};
@@ -29,7 +32,10 @@ pub trait TraceSqlLogic {
         let mut span_id = Vec::with_capacity(capacity);
         let mut trace_id = Vec::with_capacity(capacity);
         let mut parent_span_id = Vec::with_capacity(capacity);
-        let mut scope = Vec::with_capacity(capacity);
+        let mut flags = Vec::with_capacity(capacity);
+        let mut trace_state = Vec::with_capacity(capacity);
+        let mut scope_name = Vec::with_capacity(capacity);
+        let mut scope_version = Vec::with_capacity(capacity);
         let mut span_name = Vec::with_capacity(capacity);
         let mut span_kind = Vec::with_capacity(capacity);
         let mut start_time = Vec::with_capacity(capacity);
@@ -48,11 +54,17 @@ pub trait TraceSqlLogic {
 
         // Single iteration for maximum efficiency
         for span in spans {
+            // add to trace cache
+            get_trace_cache().await.update_trace(span).await;
+
             created_at.push(span.created_at);
-            span_id.push(span.span_id.as_str());
-            trace_id.push(span.trace_id.as_str());
-            parent_span_id.push(span.parent_span_id.as_deref());
-            scope.push(span.scope.as_str());
+            span_id.push(span.span_id.as_bytes());
+            trace_id.push(span.trace_id.as_bytes());
+            parent_span_id.push(span.parent_span_id.as_ref().map(|id| id.as_bytes()));
+            flags.push(span.flags);
+            trace_state.push(span.trace_state.as_str());
+            scope_name.push(span.scope_name.as_str());
+            scope_version.push(span.scope_version.as_deref());
             span_name.push(span.span_name.as_str());
             span_kind.push(span.span_kind.as_str());
             start_time.push(span.start_time);
@@ -75,7 +87,10 @@ pub trait TraceSqlLogic {
             .bind(span_id)
             .bind(trace_id)
             .bind(parent_span_id)
-            .bind(scope)
+            .bind(flags)
+            .bind(trace_state)
+            .bind(scope_name)
+            .bind(scope_version)
             .bind(span_name)
             .bind(span_kind)
             .bind(start_time)
@@ -111,14 +126,14 @@ pub trait TraceSqlLogic {
 
         let (created_at, trace_id, scope, key, value): (
             Vec<DateTime<Utc>>,
-            Vec<&str>,
+            Vec<&[u8]>,
             Vec<&str>,
             Vec<&str>,
             Vec<&str>,
         ) = multiunzip(baggage.iter().map(|b| {
             (
                 b.created_at,
-                b.trace_id.as_str(),
+                b.trace_id.as_bytes() as &[u8],
                 b.scope.as_str(),
                 b.key.as_str(),
                 b.value.as_str(),
@@ -138,14 +153,22 @@ pub trait TraceSqlLogic {
         Ok(query_result)
     }
 
+    /// Attempts to retrieve trace baggage records for a given trace ID.
+    /// # Arguments
+    /// * `pool` - The database connection pool
+    /// * `trace_id` - The trace ID to retrieve baggage for. This is always the hex encoded id
+    /// # Returns
+    /// * A vector of `TraceBaggageRecord` associated with the trace ID
     async fn get_trace_baggage_records(
         pool: &Pool<Postgres>,
         trace_id: &str,
     ) -> Result<Vec<TraceBaggageRecord>, SqlError> {
+        let bytes = TraceId::hex_to_bytes(trace_id)?;
+
         let query = Queries::GetTraceBaggage.get_query();
 
         let baggage_items: Result<Vec<TraceBaggageRecord>, SqlError> = sqlx::query_as(query)
-            .bind(trace_id)
+            .bind(bytes.as_slice())
             .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError);
@@ -168,6 +191,8 @@ pub trait TraceSqlLogic {
         let default_end = Utc::now();
         let limit = filters.limit.unwrap_or(50);
         let direction = filters.direction.as_deref().unwrap_or("next");
+        let trace_id_bytes = filters.parsed_trace_ids()?;
+        let cursor_trace_id_bytes = filters.parsed_cursor_trace_id()?;
 
         let query = Queries::GetPaginatedTraces.get_query();
 
@@ -202,16 +227,16 @@ pub trait TraceSqlLogic {
         let mut items: Vec<TraceListItem> = sqlx::query_as(query)
             .bind(filters.service_name)
             .bind(filters.has_errors)
-            .bind(filters.status_code)
             .bind(filters.start_time.unwrap_or(default_start))
             .bind(filters.end_time.unwrap_or(default_end))
             .bind(limit)
             .bind(filters.cursor_start_time)
-            .bind(filters.cursor_trace_id)
+            .bind(cursor_trace_id_bytes)
             .bind(direction)
-            .bind(filters.trace_ids)
             .bind(tag_filters_json)
-            .bind(false) // we dont want to match all attributes for pagination
+            .bind(trace_id_bytes)
+            .bind(false)
+            .bind(filters.entity_uid.as_deref())
             .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError)?;
@@ -295,9 +320,12 @@ pub trait TraceSqlLogic {
         service_name: Option<&str>,
     ) -> Result<Vec<TraceSpan>, SqlError> {
         let query = Queries::GetTraceSpans.get_query();
+        // check if service name is None or empty string, if so we want to bind None to the query, otherwise bind the service name
+        let service_name_param = service_name.filter(|&name| !name.trim().is_empty());
+        let trace_id_bytes = TraceId::hex_to_bytes(trace_id)?;
         let trace_items: Result<Vec<TraceSpan>, SqlError> = sqlx::query_as(query)
-            .bind(trace_id)
-            .bind(service_name)
+            .bind(trace_id_bytes)
+            .bind(service_name_param)
             .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError);
