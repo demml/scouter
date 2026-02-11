@@ -13,10 +13,10 @@ pub use scouter_types::{
     cron::*,
     custom::{CustomDriftProfile, CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig},
     genai::{
-        AggregationType, AssertionResult, AssertionResults, AssertionTask, ComparisonOperator,
-        EvaluationTaskType, GenAIAlertConfig, GenAIEvalConfig, GenAIEvalProfile,
-        GenAIEvalResultSet, GenAIEvalSet, LLMJudgeTask, SpanFilter, SpanStatus, TasksFile,
-        TraceAssertion, TraceAssertionTask,
+        utils::AssertionTasks, AggregationType, AssertionResult, AssertionResults, AssertionTask,
+        ComparisonOperator, EvaluationTaskType, GenAIAlertConfig, GenAIEvalConfig,
+        GenAIEvalProfile, GenAIEvalResultSet, GenAIEvalSet, LLMJudgeTask, SpanFilter, SpanStatus,
+        TasksFile, TraceAssertion, TraceAssertionTask,
     },
     psi::{
         Bin, BinnedPsiFeatureMetrics, BinnedPsiMetric, PsiAlertConfig, PsiChiSquareThreshold,
