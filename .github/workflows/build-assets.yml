@@ -213,19 +213,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Free Disk Space (Ubuntu)
-        uses: jlumbroso/free-disk-space@main
-        with:
-          # this might remove tools that are actually needed,
-          # if set to "true" but frees about 6 GB
-          #tool-cache: false
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: true
-          docker-images: true
-          swap-storage: true
-
       - name: Install Rocky Deps ARM64
         if: matrix.container_image == 'rockylinux:9' && contains(matrix.os, 'ubuntu-22.04-arm')
         run: |
@@ -308,6 +295,12 @@ jobs:
 
       - name: Build binaries
         run: |
+          # Use thin-LTO for ARM64 to reduce memory usage
+          if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]]; then
+            export CARGO_PROFILE_RELEASE_LTO="thin"
+            export CARGO_PROFILE_RELEASE_CODEGEN_UNITS=4
+          fi
+
           cargo build -p scouter-server \
             --release \
             --target ${{ matrix.target }} \
