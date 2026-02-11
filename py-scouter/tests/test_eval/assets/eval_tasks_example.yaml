@@ -65,7 +65,7 @@ tasks:
     max_retries: 3
     condition: false
     prompt:
-      path: "./prompts/sentiment_judge.json"
+      path: "tests/test_eval/assets/prompts/sentiment_judge.yaml"
 
   # Example 7: Trace assertion - check span sequence
   - task_type: TraceAssertion

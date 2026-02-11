@@ -179,6 +179,15 @@ pub enum TypeError {
 
     #[error(transparent)]
     SerdeYamlError(#[from] serde_yaml::Error),
+
+    #[error("Array {index} out of bounds for length {length}")]
+    IndexOutOfBounds { index: isize, length: usize },
+
+    #[error("Expected an integer index or a slice")]
+    IndexOrSliceExpected,
+
+    #[error(transparent)]
+    PotatoTypeError(#[from] potato_head::TypeError),
 }
 
 impl From<pythonize::PythonizeError> for TypeError {

@@ -1,0 +1,26 @@
+{
+    "tasks": [
+        {
+            "task_type": "Assertion",
+            "id": "validate_email",
+            "field_path": "user.email",
+            "operator": "IsEmail",
+            "expected_value": true,
+            "description": "Validate email format",
+            "depends_on": [],
+            "condition": false
+        },
+        {
+            "task_type": "Assertion",
+            "id": "check_password_strength",
+            "field_path": "user.password",
+            "operator": "HasLengthGreaterThanOrEqual",
+            "expected_value": 8,
+            "description": "Password must be at least 8 characters",
+            "depends_on": [
+                "validate_email"
+            ],
+            "condition": false
+        }
+    ]
+}

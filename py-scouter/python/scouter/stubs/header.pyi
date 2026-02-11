@@ -9,6 +9,7 @@ from typing import (
     Callable,
     Dict,
     Generic,
+    Iterator,
     List,
     Literal,
     Optional,

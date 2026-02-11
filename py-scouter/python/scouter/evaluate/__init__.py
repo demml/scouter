@@ -6,6 +6,7 @@ from .._scouter import (
     AssertionTask,
     ComparisonOperator,
     EvaluationConfig,
+    EvaluationTaskType,
     GenAIEvalDataset,
     GenAIEvalRecord,
     GenAIEvalResults,
@@ -15,6 +16,7 @@ from .._scouter import (
     LLMJudgeTask,
     SpanFilter,
     SpanStatus,
+    TasksFile,
     TraceAssertion,
     TraceAssertionTask,
     execute_trace_assertion_tasks,
@@ -38,4 +40,6 @@ __all__ = [
     "AggregationType",
     "SpanFilter",
     "execute_trace_assertion_tasks",
+    "TasksFile",
+    "EvaluationTaskType",
 ]
