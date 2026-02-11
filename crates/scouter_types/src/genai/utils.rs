@@ -1,5 +1,5 @@
 use crate::error::TypeError;
-use crate::genai::{AssertionTask, LLMJudgeTask, TraceAssertionTask};
+use crate::genai::{AssertionTask, LLMJudgeTask, TaskConfig, TasksFile, TraceAssertionTask};
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 use serde::{Deserialize, Serialize};
@@ -40,6 +40,27 @@ impl AssertionTasks {
         }
 
         Ok(task_ids)
+    }
+
+    /// this is meant to consume the tasks from TasksFile and convert them into AssertionTasks, separating them into assertion, judge, and trace tasks. It also validates that there are no duplicate task IDs across all tasks.
+    pub fn from_tasks_file(tasks: TasksFile) -> Self {
+        let mut assertion = Vec::new();
+        let mut judge = Vec::new();
+        let mut trace = Vec::new();
+
+        for task in tasks.tasks {
+            match task {
+                TaskConfig::Assertion(t) => assertion.push(t),
+                TaskConfig::LLMJudge(t) => judge.push(*t),
+                TaskConfig::TraceAssertion(t) => trace.push(t),
+            }
+        }
+
+        AssertionTasks {
+            assertion,
+            judge,
+            trace,
+        }
     }
 }
 

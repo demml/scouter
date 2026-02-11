@@ -34,25 +34,59 @@ use std::sync::Arc;
 
 use tracing::instrument;
 
+fn default_sample_ratio() -> f64 {
+    1.0
+}
+
+fn default_space() -> String {
+    MISSING.to_string()
+}
+
+fn default_name() -> String {
+    MISSING.to_string()
+}
+
+fn default_version() -> String {
+    DEFAULT_VERSION.to_string()
+}
+
+fn default_uid() -> String {
+    create_uuid7()
+}
+
+fn default_drift_type() -> DriftType {
+    DriftType::GenAI
+}
+
+fn default_alert_config() -> GenAIAlertConfig {
+    GenAIAlertConfig::default()
+}
+
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct GenAIEvalConfig {
     #[pyo3(get, set)]
+    #[serde(default = "default_sample_ratio")]
     pub sample_ratio: f64,
 
     #[pyo3(get, set)]
+    #[serde(default = "default_space")]
     pub space: String,
 
     #[pyo3(get, set)]
+    #[serde(default = "default_name")]
     pub name: String,
 
     #[pyo3(get, set)]
+    #[serde(default = "default_version")]
     pub version: String,
 
     #[pyo3(get, set)]
+    #[serde(default = "default_uid")]
     pub uid: String,
 
     #[pyo3(get, set)]
+    #[serde(default = "default_alert_config")]
     pub alert_config: GenAIAlertConfig,
 
     #[pyo3(get, set)]
@@ -75,10 +109,6 @@ impl ConfigExt for GenAIEvalConfig {
     fn uid(&self) -> &str {
         &self.uid
     }
-}
-
-fn default_drift_type() -> DriftType {
-    DriftType::GenAI
 }
 
 impl DispatchDriftConfig for GenAIEvalConfig {
@@ -768,6 +798,25 @@ impl Default for GenAIEvalProfile {
 }
 
 impl GenAIEvalProfile {
+    /// Helper method to build profile from given tasks
+    pub fn build_from_parts(
+        config: GenAIEvalConfig,
+        tasks: AssertionTasks,
+        alias: Option<String>,
+    ) -> Result<GenAIEvalProfile, ProfileError> {
+        let (workflow, task_ids) =
+            app_state().block_on(async { GenAIEvalProfile::build_profile(&tasks).await })?;
+
+        Ok(GenAIEvalProfile {
+            config,
+            tasks,
+            scouter_version: scouter_version(),
+            workflow,
+            task_ids,
+            alias,
+        })
+    }
+
     #[instrument(skip_all)]
     pub async fn new(
         config: GenAIEvalConfig,

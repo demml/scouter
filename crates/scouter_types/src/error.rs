@@ -31,6 +31,9 @@ impl From<UtilError> for PyErr {
 
 #[derive(Error, Debug)]
 pub enum TypeError {
+    #[error("{0}")]
+    Error(String),
+
     #[error("Start time must be before end time")]
     StartTimeError,
 
@@ -170,6 +173,21 @@ pub enum TypeError {
 
     #[error(transparent)]
     FromHexError(#[from] hex::FromHexError),
+
+    #[error(transparent)]
+    StdIOError(#[from] std::io::Error),
+
+    #[error(transparent)]
+    SerdeYamlError(#[from] serde_yaml::Error),
+
+    #[error("Array {index} out of bounds for length {length}")]
+    IndexOutOfBounds { index: isize, length: usize },
+
+    #[error("Expected an integer index or a slice")]
+    IndexOrSliceExpected,
+
+    #[error(transparent)]
+    PotatoTypeError(#[from] potato_head::TypeError),
 }
 
 impl From<pythonize::PythonizeError> for TypeError {

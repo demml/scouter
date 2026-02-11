@@ -4,13 +4,48 @@ use crate::PyHelperFuncs;
 use core::fmt::Debug;
 use potato_head::prompt_types::Prompt;
 use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyFloat, PyInt, PyList, PyString};
+use pyo3::types::{PyBool, PyFloat, PyInt, PyList, PySlice, PyString};
+use pyo3::IntoPyObjectExt;
 use pythonize::{depythonize, pythonize};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt::Display;
+use std::path::PathBuf;
 use std::str::FromStr;
+use tracing::error;
+
+pub fn deserialize_from_path<T: DeserializeOwned>(path: PathBuf) -> Result<T, TypeError> {
+    let content = std::fs::read_to_string(&path)?;
+
+    let extension = path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .ok_or_else(|| TypeError::Error(format!("Invalid file path: {:?}", path)))?;
+
+    let item = match extension.to_lowercase().as_str() {
+        "json" => serde_json::from_str(&content)?,
+        "yaml" | "yml" => serde_yaml::from_str(&content)?,
+        _ => {
+            return Err(TypeError::Error(format!(
+                "Unsupported file extension '{}'. Expected .json, .yaml, or .yml",
+                extension
+            )))
+        }
+    };
+
+    Ok(item)
+}
+
+// Default functions for task types during deserialization
+fn default_assertion_task_type() -> EvaluationTaskType {
+    EvaluationTaskType::Assertion
+}
+
+fn default_trace_assertion_task_type() -> EvaluationTaskType {
+    EvaluationTaskType::TraceAssertion
+}
 
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -93,6 +128,7 @@ pub struct AssertionTask {
     pub id: String,
 
     #[pyo3(get, set)]
+    #[serde(default)]
     pub field_path: Option<String>,
 
     #[pyo3(get, set)]
@@ -101,16 +137,21 @@ pub struct AssertionTask {
     pub expected_value: Value,
 
     #[pyo3(get, set)]
+    #[serde(default)]
     pub description: Option<String>,
 
     #[pyo3(get, set)]
+    #[serde(default)]
     pub depends_on: Vec<String>,
 
+    #[serde(skip, default = "default_assertion_task_type")]
+    #[pyo3(get)]
     pub task_type: EvaluationTaskType,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<AssertionResult>,
 
+    #[serde(default)]
     pub condition: bool,
 }
 
@@ -201,7 +242,14 @@ impl AssertionTask {
         let py_value = pythonize(py, &self.expected_value)?;
         Ok(py_value)
     }
+
+    #[staticmethod]
+    pub fn from_path(path: PathBuf) -> Result<Self, TypeError> {
+        deserialize_from_path(path)
+    }
 }
+
+impl AssertionTask {}
 
 impl TaskAccessor for AssertionTask {
     fn field_path(&self) -> Option<&str> {
@@ -275,7 +323,7 @@ impl ValueExt for Value {
 
 /// Primary class for defining an LLM as a Judge in evaluation workflows
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Clone, PartialEq)]
 pub struct LLMJudgeTask {
     #[pyo3(get, set)]
     pub id: String,
@@ -284,6 +332,7 @@ pub struct LLMJudgeTask {
     pub prompt: Prompt,
 
     #[pyo3(get)]
+    #[serde(default)]
     pub field_path: Option<String>,
 
     pub expected_value: Value,
@@ -291,21 +340,127 @@ pub struct LLMJudgeTask {
     #[pyo3(get)]
     pub operator: ComparisonOperator,
 
+    #[serde(skip)]
+    #[pyo3(get)]
     pub task_type: EvaluationTaskType,
 
     #[pyo3(get, set)]
+    #[serde(default)]
     pub depends_on: Vec<String>,
 
     #[pyo3(get, set)]
+    #[serde(default)]
     pub max_retries: Option<u32>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<AssertionResult>,
 
+    #[serde(default)]
     pub description: Option<String>,
 
     #[pyo3(get, set)]
+    #[serde(default)]
     pub condition: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum PromptConfig {
+    Path { path: String },
+    Inline(Box<Prompt>),
+}
+
+#[derive(Debug, Deserialize)]
+struct LLMJudgeTaskConfig {
+    pub id: String,
+    pub prompt: PromptConfig,
+    pub expected_value: Value,
+    pub operator: ComparisonOperator,
+    pub field_path: Option<String>,
+    pub description: Option<String>,
+    pub depends_on: Vec<String>,
+    pub max_retries: Option<u32>,
+    pub condition: bool,
+}
+
+impl LLMJudgeTaskConfig {
+    pub fn into_task(self) -> Result<LLMJudgeTask, TypeError> {
+        let prompt = match self.prompt {
+            PromptConfig::Path { path } => {
+                Prompt::from_path(PathBuf::from(path)).inspect_err(|e| {
+                    error!("Failed to deserialize Prompt from path: {}", e);
+                })?
+            }
+            PromptConfig::Inline(prompt) => *prompt,
+        };
+
+        Ok(LLMJudgeTask {
+            id: self.id.to_lowercase(),
+            prompt,
+            expected_value: self.expected_value,
+            operator: self.operator,
+            field_path: self.field_path,
+            description: self.description,
+            depends_on: self.depends_on,
+            max_retries: self.max_retries.or(Some(3)),
+            task_type: EvaluationTaskType::LLMJudge,
+            result: None,
+            condition: self.condition,
+        })
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct LLMJudgeTaskInternal {
+    pub id: String,
+    pub prompt: Prompt,
+    pub field_path: Option<String>,
+    pub expected_value: Value,
+    pub operator: ComparisonOperator,
+    pub task_type: EvaluationTaskType,
+    pub depends_on: Vec<String>,
+    pub max_retries: Option<u32>,
+    pub result: Option<AssertionResult>,
+    pub description: Option<String>,
+    pub condition: bool,
+}
+impl LLMJudgeTaskInternal {
+    pub fn into_task(self) -> LLMJudgeTask {
+        LLMJudgeTask {
+            id: self.id.to_lowercase(),
+            prompt: self.prompt,
+            field_path: self.field_path,
+            expected_value: self.expected_value,
+            operator: self.operator,
+            task_type: self.task_type,
+            depends_on: self.depends_on,
+            max_retries: self.max_retries.or(Some(3)),
+            result: self.result,
+            description: self.description,
+            condition: self.condition,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum LLMJudgeFormat {
+    Full(Box<LLMJudgeTaskInternal>),
+    Generic(LLMJudgeTaskConfig),
+}
+
+impl<'de> Deserialize<'de> for LLMJudgeTask {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let format = LLMJudgeFormat::deserialize(deserializer)?;
+
+        match format {
+            LLMJudgeFormat::Generic(config) => config.into_task().map_err(serde::de::Error::custom),
+            LLMJudgeFormat::Full(internal) => Ok(internal.into_task()),
+        }
+    }
 }
 
 #[pymethods]
@@ -369,6 +524,11 @@ impl LLMJudgeTask {
     pub fn get_expected_value<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TypeError> {
         let py_value = pythonize(py, &self.expected_value)?;
         Ok(py_value)
+    }
+
+    #[staticmethod]
+    pub fn from_path(path: PathBuf) -> Result<Self, TypeError> {
+        deserialize_from_path(path)
     }
 }
 
@@ -587,7 +747,7 @@ pub enum AggregationType {
 }
 
 /// Unified assertion target that can operate on traces or filtered spans
-#[pyclass]
+#[pyclass(eq)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum TraceAssertion {
     /// Check if spans exist in a specific order
@@ -744,17 +904,22 @@ pub struct TraceAssertionTask {
     pub expected_value: Value,
 
     #[pyo3(get, set)]
+    #[serde(default)]
     pub description: Option<String>,
 
     #[pyo3(get, set)]
+    #[serde(default)]
     pub depends_on: Vec<String>,
 
+    #[serde(skip, default = "default_trace_assertion_task_type")]
+    #[pyo3(get)]
     pub task_type: EvaluationTaskType,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<AssertionResult>,
 
     #[pyo3(get, set)]
+    #[serde(default)]
     pub condition: bool,
 }
 
@@ -845,6 +1010,11 @@ impl TraceAssertionTask {
     pub fn get_expected_value<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TypeError> {
         let py_value = pythonize(py, &self.expected_value)?;
         Ok(py_value)
+    }
+
+    #[staticmethod]
+    pub fn from_path(path: PathBuf) -> Result<Self, TypeError> {
+        deserialize_from_path(path)
     }
 }
 
@@ -1277,7 +1447,7 @@ pub fn assertion_value_from_py(value: &Bound<'_, PyAny>) -> Result<AssertionValu
     ))
 }
 
-#[pyclass]
+#[pyclass(eq, eq_int)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum EvaluationTaskType {
     Assertion,
@@ -1324,5 +1494,165 @@ impl EvaluationTaskType {
             EvaluationTaskType::HumanValidation => "HumanValidation",
             EvaluationTaskType::TraceAssertion => "TraceAssertion",
         }
+    }
+}
+
+#[pyclass]
+#[derive(Debug, Serialize)]
+pub struct TasksFile {
+    pub tasks: Vec<TaskConfig>,
+
+    #[serde(default)]
+    index: usize,
+}
+
+#[pymethods]
+impl TasksFile {
+    #[staticmethod]
+    pub fn from_path(path: PathBuf) -> Result<Self, TypeError> {
+        let tasks_file: TasksFile = deserialize_from_path(path)?;
+        Ok(tasks_file)
+    }
+
+    pub fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    pub fn __next__<'py>(
+        mut slf: PyRefMut<'py, Self>,
+    ) -> Result<Option<Bound<'py, PyAny>>, TypeError> {
+        let py = slf.py();
+        if slf.index < slf.tasks.len() {
+            let task = slf.tasks[slf.index].clone().into_bound_py_any(py)?;
+            slf.index += 1;
+            Ok(Some(task))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn __getitem__<'py>(
+        &self,
+        py: Python<'py>,
+        index: &Bound<'py, PyAny>,
+    ) -> Result<Bound<'py, PyAny>, TypeError> {
+        if let Ok(i) = index.extract::<isize>() {
+            let len = self.tasks.len() as isize;
+            let actual_index = if i < 0 { len + i } else { i };
+
+            if actual_index < 0 || actual_index >= len {
+                return Err(TypeError::IndexOutOfBounds {
+                    index: i,
+                    length: self.tasks.len(),
+                });
+            }
+
+            Ok(self.tasks[actual_index as usize]
+                .clone()
+                .into_bound_py_any(py)?)
+        } else if let Ok(slice) = index.cast::<PySlice>() {
+            let indices = slice.indices(self.tasks.len() as isize)?;
+            let result = PyList::empty(py);
+
+            let mut i = indices.start;
+            while (indices.step > 0 && i < indices.stop) || (indices.step < 0 && i > indices.stop) {
+                result.append(self.tasks[i as usize].clone().into_bound_py_any(py)?)?;
+                i += indices.step;
+            }
+
+            Ok(result.into_bound_py_any(py)?)
+        } else {
+            Err(TypeError::IndexOrSliceExpected)
+        }
+    }
+
+    fn __len__(&self) -> usize {
+        self.tasks.len()
+    }
+
+    fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub enum TaskConfig {
+    Assertion(AssertionTask),
+    #[serde(rename = "LLMJudge")]
+    LLMJudge(Box<LLMJudgeTask>),
+    TraceAssertion(TraceAssertionTask),
+}
+
+impl TaskConfig {
+    fn into_bound_py_any<'py>(self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TypeError> {
+        match self {
+            TaskConfig::Assertion(task) => Ok(task.into_bound_py_any(py)?),
+            TaskConfig::LLMJudge(task) => Ok(task.into_bound_py_any(py)?),
+            TaskConfig::TraceAssertion(task) => Ok(task.into_bound_py_any(py)?),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for TasksFile {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct TasksFileRaw {
+            tasks: Vec<TaskConfigRaw>,
+        }
+
+        #[derive(Deserialize)]
+        struct TaskConfigRaw {
+            task_type: EvaluationTaskType,
+            #[serde(flatten)]
+            data: Value,
+        }
+
+        let raw = TasksFileRaw::deserialize(deserializer)?;
+
+        let mut tasks = Vec::new();
+
+        for task_raw in raw.tasks {
+            let task_config = match task_raw.task_type {
+                EvaluationTaskType::Assertion => {
+                    let mut task: AssertionTask =
+                        serde_json::from_value(task_raw.data).map_err(|e| {
+                            error!("Failed to deserialize AssertionTask: {}", e);
+                            serde::de::Error::custom(e.to_string())
+                        })?;
+                    task.task_type = EvaluationTaskType::Assertion;
+                    TaskConfig::Assertion(task)
+                }
+                EvaluationTaskType::LLMJudge => {
+                    let mut task: LLMJudgeTask =
+                        serde_json::from_value(task_raw.data).map_err(|e| {
+                            error!("Failed to deserialize LLMJudgeTask: {}", e);
+                            serde::de::Error::custom(e.to_string())
+                        })?;
+                    task.task_type = EvaluationTaskType::LLMJudge;
+                    TaskConfig::LLMJudge(Box::new(task))
+                }
+                EvaluationTaskType::TraceAssertion => {
+                    let mut task: TraceAssertionTask = serde_json::from_value(task_raw.data)
+                        .map_err(|e| {
+                            error!("Failed to deserialize TraceAssertionTask: {}", e);
+                            serde::de::Error::custom(e.to_string())
+                        })?;
+                    task.task_type = EvaluationTaskType::TraceAssertion;
+                    TaskConfig::TraceAssertion(task)
+                }
+                _ => {
+                    return Err(serde::de::Error::custom(format!(
+                        "Unknown task_type: {}",
+                        task_raw.task_type
+                    )))
+                }
+            };
+            tasks.push(task_config);
+        }
+
+        Ok(TasksFile { tasks, index: 0 })
     }
 }

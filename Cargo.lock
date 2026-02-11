@@ -828,9 +828,9 @@ dependencies = [
 
 [[package]]
 name = "baked-potato"
-version = "0.13.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2201c1c2cb6d975d04f0d8a24ec61587618b67283da8c72787548c0593ce690b"
+checksum = "71ad2ffb12af157ca117258d6b429d54cd47399067a90df8253e440583bc9629"
 dependencies = [
  "mockito",
  "potato-agent",
@@ -1195,9 +1195,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.5.57"
+version = "4.5.58"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6899ea499e3fb9305a65d5ebf6e3d2248c5fab291f300ad0a704fbe142eae31a"
+checksum = "63be97961acde393029492ce0be7a1af7e323e6bae9511ebfac33751be5e6806"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -1205,9 +1205,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.5.57"
+version = "4.5.58"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b12c8b680195a62a8364d16b8447b01b6c2c8f9aaf68bee653be34d4245e238"
+checksum = "7f13174bda5dfd69d7e947827e5af4b0f2f94a4a3ee92912fba07a66150f21e2"
 dependencies = [
  "anstream",
  "anstyle",
@@ -1230,9 +1230,9 @@ dependencies = [
 
 [[package]]
 name = "clap_lex"
-version = "0.7.7"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3e64b0cc0439b12df2fa678eae89a1c56a529fd067a9115f7827f1fffd22b32"
+checksum = "3a822ea5bc7590f9d40f1ba12c0dc3c2760f3482c6984db1573ad11031420831"
 
 [[package]]
 name = "cmake"
@@ -2549,9 +2549,9 @@ dependencies = [
 
 [[package]]
 name = "deranged"
-version = "0.5.5"
+version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ececcb659e7ba858fb4f10388c250a7252eb0a27373f1a72b8748afdd248e587"
+checksum = "cc3dc5ad92c2e2d1c193bbbbdf2ea477cb81331de4f3103f267ca18368b988c4"
 dependencies = [
  "powerfmt",
 ]
@@ -5119,9 +5119,9 @@ dependencies = [
 
 [[package]]
 name = "potato-agent"
-version = "0.13.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f178102ec772a97df4823a6bb7653db87c7af022858945fe4a8906411337ec7a"
+checksum = "f55306b56f7f12f69b318ecd2e5aba8a8a0a2ead26ca72fd216e8647413e7ffc"
 dependencies = [
  "base64",
  "gcloud-auth",
@@ -5143,9 +5143,9 @@ dependencies = [
 
 [[package]]
 name = "potato-head"
-version = "0.13.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9281f71c1e87d73f4983506cdbc110d3fbe46b7a0f0483f6e90dab9a76ea8da6"
+checksum = "0aefc62119ede0d86b8db3596e469a0ae1513a826701d7cba88a242bacc72a32"
 dependencies = [
  "baked-potato",
  "potato-agent",
@@ -5157,9 +5157,9 @@ dependencies = [
 
 [[package]]
 name = "potato-provider"
-version = "0.13.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db8399b2d365429f8004b9b7ee8c8d080c6bef7b8993a850ff167b7c4d879c3a"
+checksum = "6f911f2b3330867f159d4d853e27ad95bf42a4e6b59097f2208528c0e7b56b93"
 dependencies = [
  "base64",
  "gcloud-auth",
@@ -5180,9 +5180,9 @@ dependencies = [
 
 [[package]]
 name = "potato-state"
-version = "0.13.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "661915aaf65411a54e3147ae216f7393ee95e02fdb8d8ed7a27e9017e9ccb4d0"
+checksum = "21c3da7155cf0522a2d3d342f0ac45b0541c2f8798b4a006c6d3dd083cff510c"
 dependencies = [
  "thiserror 2.0.18",
  "tokio",
@@ -5191,9 +5191,9 @@ dependencies = [
 
 [[package]]
 name = "potato-type"
-version = "0.13.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "580da8d6e7a1f142304d7125694fd64e3de78d636bb90705c3829978879628e7"
+checksum = "878dd8ac590910ae51a78de1c8ad0a734bd4848c8af91dacdf2d0a12d556b514"
 dependencies = [
  "potato-util",
  "potatohead-macro",
@@ -5210,9 +5210,9 @@ dependencies = [
 
 [[package]]
 name = "potato-util"
-version = "0.13.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85f0b26a4c0e03eba3ebfddd00d1bdd877c26d4fb67facf3b7cbbbb057f534c1"
+checksum = "a87c1a6805672b60b69b4fe24c7b46670eceaf24dd98b92be521de2d33309116"
 dependencies = [
  "colored_json",
  "pyo3",
@@ -5227,9 +5227,9 @@ dependencies = [
 
 [[package]]
 name = "potato-workflow"
-version = "0.13.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c0b8fc0b014de06b56c94e8c4f96c422a21e0be619f2e4162104a08c997f85c"
+checksum = "fc421df31ef2473895947a644d75f8e44aeb4395f764fcb60f174c080880cd24"
 dependencies = [
  "chrono",
  "potato-agent",
@@ -5248,9 +5248,9 @@ dependencies = [
 
 [[package]]
 name = "potatohead-macro"
-version = "0.13.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "effa08afa089be457d131ed8d63dcb22740397d03e024f29169056db31951c8b"
+checksum = "07185eb3419e90be99816fae1ef23b006acdf69b400c0f4b08646fb08864cdbd"
 dependencies = [
  "thiserror 2.0.18",
 ]
@@ -6842,6 +6842,7 @@ dependencies = [
  "scouter-state",
  "serde",
  "serde_json",
+ "serde_yaml",
  "sqlx",
  "statrs",
  "strum",
