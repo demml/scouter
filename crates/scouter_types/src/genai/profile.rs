@@ -798,6 +798,25 @@ impl Default for GenAIEvalProfile {
 }
 
 impl GenAIEvalProfile {
+    /// Helper method to build profile from given tasks
+    pub fn build_from_parts(
+        config: GenAIEvalConfig,
+        tasks: AssertionTasks,
+        alias: Option<String>,
+    ) -> Result<GenAIEvalProfile, ProfileError> {
+        let (workflow, task_ids) =
+            app_state().block_on(async { GenAIEvalProfile::build_profile(&tasks).await })?;
+
+        Ok(GenAIEvalProfile {
+            config,
+            tasks,
+            scouter_version: scouter_version(),
+            workflow,
+            task_ids,
+            alias,
+        })
+    }
+
     #[instrument(skip_all)]
     pub async fn new(
         config: GenAIEvalConfig,
