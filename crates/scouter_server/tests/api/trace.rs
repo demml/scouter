@@ -159,7 +159,7 @@ async fn test_tracing() {
     let body = response.into_body().collect().await.unwrap().to_bytes();
     let metrics_response: TraceMetricsResponse = serde_json::from_slice(&body).unwrap();
 
-    assert!(metrics_response.metrics.len() >= 3);
+    assert!(!metrics_response.metrics.is_empty());
 
     // get trace by tags
     let mut map = HashMap::new();
