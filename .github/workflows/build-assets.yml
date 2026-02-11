@@ -16,6 +16,7 @@ env:
   INTERPRETER: "3.12"
   RUSTFLAGS: "-C debuginfo=0"
   BINARY_NAME: "scouter-server"
+  RUST_BACKTRACE": "1"
 
 jobs:
   generate-matrix:
@@ -212,6 +213,19 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          # this might remove tools that are actually needed,
+          # if set to "true" but frees about 6 GB
+          #tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
       - name: Install Rocky Deps ARM64
         if: matrix.container_image == 'rockylinux:9' && contains(matrix.os, 'ubuntu-22.04-arm')
         run: |
@@ -294,7 +308,6 @@ jobs:
 
       - name: Build binaries
         run: |
-          # Ensure -p is used for the correct package
           cargo build -p scouter-server \
             --release \
             --target ${{ matrix.target }} \
