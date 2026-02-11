@@ -1500,7 +1500,7 @@ impl EvaluationTaskType {
 #[pyclass]
 #[derive(Debug, Serialize)]
 pub struct TasksFile {
-    tasks: Vec<TaskConfig>,
+    pub tasks: Vec<TaskConfig>,
 
     #[serde(default)]
     index: usize,
@@ -1576,7 +1576,7 @@ impl TasksFile {
 }
 
 #[derive(Debug, Serialize, Clone)]
-enum TaskConfig {
+pub enum TaskConfig {
     Assertion(AssertionTask),
     #[serde(rename = "LLMJudge")]
     LLMJudge(Box<LLMJudgeTask>),
