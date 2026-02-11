@@ -5,9 +5,9 @@ use dashmap::DashMap;
 use scouter_types::{Attribute, TraceId, TraceSpanRecord, SCOUTER_ENTITY};
 use sqlx::PgPool;
 use std::collections::HashSet;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
-use tokio::sync::OnceCell;
+use tokio::sync::RwLock;
 use tokio::time::{interval, Duration as StdDuration};
 use tracing::{error, info, warn};
 
@@ -15,8 +15,13 @@ const TRACE_BATCH_SIZE: usize = 1000;
 
 const MAX_TOTAL_SPANS: u64 = 1_000_000;
 
-// Global singleton instance using tokio's OnceCell for async-friendly init
-static TRACE_CACHE: OnceCell<Arc<TraceCache>> = OnceCell::const_new();
+/// Cache handle to manage trace aggregations
+struct TraceCacheHandle {
+    cache: Arc<TraceCache>,
+    shutdown_flag: Arc<AtomicBool>,
+}
+
+static TRACE_CACHE: RwLock<Option<TraceCacheHandle>> = RwLock::const_new(None);
 
 #[derive(Debug, Clone)]
 pub struct TraceAggregator {
@@ -311,29 +316,55 @@ impl TraceCache {
     }
 }
 
-/// Initialize the global TraceCache singleton
+/// Initialize the TraceCache, replacing any previous instance.
+/// The old background flush task is signaled to stop and any remaining
+/// traces are flushed with the NEW pool before the cache is swapped.
 pub async fn init_trace_cache(
     pool: PgPool,
     flush_interval: Duration,
     stale_threshold: Duration,
     max_traces: usize,
 ) -> Result<(), SqlError> {
-    let cache = Arc::new(TraceCache::new(max_traces));
+    // Shut down any existing cache first
+    let old_cache = {
+        let guard = TRACE_CACHE.read().await;
+        guard.as_ref().map(|handle| {
+            handle.shutdown_flag.store(true, Ordering::SeqCst);
+            handle.cache.clone()
+        })
+    };
 
-    if TRACE_CACHE.set(cache.clone()).is_err() {
-        return {
-            warn!("TraceCache was already initialized, skipping re-initialization");
-            Ok(())
-        };
+    // Flush outside so we dont hold the lock
+    if let Some(cache) = old_cache {
+        info!("Flushing previous TraceCache before re-initialization...");
+        if let Err(e) = cache.flush_traces(&pool, Duration::seconds(-1)).await {
+            error!(error = %e, "Failed to flush previous TraceCache");
+        }
+    }
+
+    let cache = Arc::new(TraceCache::new(max_traces));
+    let shutdown_flag = Arc::new(AtomicBool::new(false));
+
+    {
+        let mut guard = TRACE_CACHE.write().await;
+        *guard = Some(TraceCacheHandle {
+            cache: cache.clone(),
+            shutdown_flag: shutdown_flag.clone(),
+        });
     }
 
     let flush_std_duration = StdDuration::from_secs(flush_interval.num_seconds() as u64);
+    let task_shutdown = shutdown_flag.clone();
 
-    // Spawn the background worker
     tokio::spawn(async move {
         let mut ticker = interval(flush_std_duration);
         loop {
             ticker.tick().await;
+
+            if task_shutdown.load(Ordering::SeqCst) {
+                info!("TraceCache background flush task shutting down");
+                break;
+            }
 
             let current_traces = cache.traces.len();
             let current_spans = cache.total_span_count.load(Ordering::Relaxed);
@@ -354,21 +385,32 @@ pub async fn init_trace_cache(
         }
     });
 
-    info!("TraceCache singleton initialized");
+    info!("TraceCache initialized");
     Ok(())
 }
 
-/// Get access to the singleton
-pub fn get_trace_cache() -> Arc<TraceCache> {
+/// Get access to the current TraceCache
+pub async fn get_trace_cache() -> Arc<TraceCache> {
     TRACE_CACHE
-        .get()
-        .cloned()
+        .read()
+        .await
+        .as_ref()
         .expect("TraceCache not initialized")
+        .cache
+        .clone()
 }
 
-/// Call this during shutdown to flush the final 15s of data
+/// Flush all remaining traces during shutdown
 pub async fn shutdown_trace_cache(pool: &PgPool) -> Result<usize, SqlError> {
-    if let Some(cache) = TRACE_CACHE.get() {
+    let cache_to_flush = {
+        let guard = TRACE_CACHE.read().await;
+        guard.as_ref().map(|handle| {
+            handle.shutdown_flag.store(true, Ordering::SeqCst);
+            handle.cache.clone()
+        })
+    };
+
+    if let Some(cache) = cache_to_flush {
         info!("Flushing TraceCache for shutdown...");
         cache.flush_traces(pool, Duration::seconds(-1)).await
     } else {

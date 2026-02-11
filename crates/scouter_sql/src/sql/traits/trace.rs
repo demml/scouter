@@ -55,7 +55,7 @@ pub trait TraceSqlLogic {
         // Single iteration for maximum efficiency
         for span in spans {
             // add to trace cache
-            get_trace_cache().update_trace(span).await;
+            get_trace_cache().await.update_trace(span).await;
 
             created_at.push(span.created_at);
             span_id.push(span.span_id.as_bytes());
