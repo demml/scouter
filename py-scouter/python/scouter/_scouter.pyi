@@ -15337,13 +15337,13 @@ class GenAIEvalConfig:
 class GenAIEvalProfile:
     """Profile for LLM evaluation and drift detection.
 
-    GenAIEvalProfile combines assertion tasks and LLM judge tasks into a unified
-    evaluation framework for monitoring LLM performance. Evaluations run asynchronously
-    on the Scouter server, enabling scalable drift detection without blocking your
-    application.
+    GenAIEvalProfile combines assertion tasks, LLM judge tasks, and trace assertion
+    tasks into a unified evaluation framework for monitoring LLM performance. Evaluations
+    run asynchronously on the Scouter server, enabling scalable drift detection without
+    blocking your application.
 
     Architecture:
-        The profile automatically orchestrates two types of evaluation tasks:
+        The profile automatically orchestrates three types of evaluation tasks:
 
         1. **Assertion Tasks**: Fast, deterministic rule-based validations
            - Execute locally without additional LLM calls
@@ -15355,6 +15355,12 @@ class GenAIEvalProfile:
            - Automatically compiled into an internal Workflow for execution
            - Support dependencies to chain evaluations and pass results
            - Ideal for semantic similarity, quality assessment, factuality checks
+
+        3. **Trace Assertion Tasks**: Behavioral validation via distributed traces
+           - Analyze execution traces without additional LLM calls
+           - Validate workflow ordering, performance SLAs, and error patterns
+           - Verify span attributes, service interactions, and execution depth
+           - Ideal for agent workflow validation, latency monitoring, behavioral checks
 
     Task Execution Order:
         Tasks are executed based on their dependency graph using topological sort:
@@ -15399,6 +15405,10 @@ class GenAIEvalProfile:
         - Hybrid assertion + LLM judge pipelines (fast checks, then deep analysis)
         - Dependent evaluations (use upstream results in downstream prompts)
         - Cost-optimized monitoring (assertions for 90%, LLM judges for 10%)
+        - Agent workflow validation (verify execution order and completeness)
+        - Performance SLA enforcement (monitor latency and resource usage)
+        - Behavioral drift detection (track changes in execution patterns)
+        - Multi-modal evaluation (response quality + execution behavior)
 
     Examples:
         Pure assertion-based monitoring (no LLM calls):
@@ -15534,13 +15544,93 @@ class GenAIEvalProfile:
         ...     tasks=[relevance_task, toxicity_task, quality_task]
         ... )
 
+        Trace assertion for behavioral validation:
+
+        >>> # Verify agent workflow execution order
+        >>> workflow_task = TraceAssertionTask(
+        ...     id="workflow_order",
+        ...     assertion=TraceAssertion.span_sequence([
+        ...         "validate_input",
+        ...         "call_llm",
+        ...         "process_output"
+        ...     ]),
+        ...     operator=ComparisonOperator.SequenceMatches,
+        ...     expected_value=True,
+        ...     description="Verify correct execution order"
+        ... )
+        >>>
+        >>> # Enforce performance SLA
+        >>> perf_task = TraceAssertionTask(
+        ...     id="performance_sla",
+        ...     assertion=TraceAssertion.trace_duration(),
+        ...     operator=ComparisonOperator.LessThan,
+        ...     expected_value=5000.0,  # 5 seconds
+        ...     description="Ensure response within 5s"
+        ... )
+        >>>
+        >>> # Verify no errors occurred
+        >>> error_task = TraceAssertionTask(
+        ...     id="no_errors",
+        ...     assertion=TraceAssertion.trace_error_count(),
+        ...     operator=ComparisonOperator.Equals,
+        ...     expected_value=0,
+        ...     description="Ensure error-free execution"
+        ... )
+        >>>
+        >>> profile = GenAIEvalProfile(
+        ...     config=config,
+        ...     tasks=[workflow_task, perf_task, error_task]
+        ... )
+
+        Combining all three task types:
+
+        >>> # Fast assertions first
+        >>> response_check = AssertionTask(
+        ...     id="not_empty",
+        ...     field_path="response",
+        ...     operator=ComparisonOperator.IsNotEmpty,
+        ...     expected_value=True,
+        ...     description="Response must not be empty"
+        ... )
+        >>>
+        >>> # Trace validation for execution behavior
+        >>> trace_check = TraceAssertionTask(
+        ...     id="verify_workflow",
+        ...     assertion=TraceAssertion.span_set([
+        ...         "validate_input",
+        ...         "call_llm",
+        ...         "process_output"
+        ...     ]),
+        ...     operator=ComparisonOperator.ContainsAll,
+        ...     expected_value=True,
+        ...     depends_on=["not_empty"],
+        ...     description="Ensure all workflow steps executed"
+        ... )
+        >>>
+        >>> # Deep LLM judge only if basic checks pass
+        >>> quality_judge = LLMJudgeTask(
+        ...     id="quality",
+        ...     prompt=quality_prompt,
+        ...     expected_value=8,
+        ...     field_path="score",
+        ...     operator=ComparisonOperator.GreaterThanOrEqual,
+        ...     depends_on=["not_empty", "verify_workflow"],
+        ...     description="Quality assessment after validation"
+        ... )
+        >>>
+        >>> profile = GenAIEvalProfile(
+        ...     config=config,
+        ...     tasks=[response_check, trace_check, quality_judge]
+        ... )
+
     Note:
-        - At least one task (assertion or LLM judge) is required
+        - At least one task (assertion, LLM judge, or trace assertion) is required
         - LLM judge tasks are automatically compiled into an internal Workflow
         - Task dependencies must form a valid DAG (no circular dependencies)
         - Execution order is optimized via topological sort
         - Independent tasks at the same level can execute in parallel
         - Failed tasks halt execution of dependent downstream tasks
+        - Trace assertions require traces to be available before evaluation
     """
 
     def __init__(
@@ -15551,9 +15641,10 @@ class GenAIEvalProfile:
     ):
         """Initialize a GenAIEvalProfile for LLM evaluation and drift detection.
 
-        Creates a profile that combines assertion tasks and LLM judge tasks into
-        a unified evaluation framework. LLM judge tasks are automatically compiled
-        into an internal Workflow for execution on the Scouter server.
+        Creates a profile that combines assertion tasks, LLM judge tasks, and
+        trace assertion tasks into a unified evaluation framework. LLM judge tasks
+        are automatically compiled into an internal Workflow for execution on the
+        Scouter server.
 
         Args:
             tasks (List[Union[AssertionTask, LLMJudgeTask, TraceAssertionTask]]):
@@ -15572,7 +15663,7 @@ class GenAIEvalProfile:
 
         Raises:
             ProfileError: If validation fails due to:
-                - Empty task lists (both assertion_tasks and llm_judge_tasks are None/empty)
+                - Empty task list (no tasks provided)
                 - Circular dependencies in task dependency graph
                 - Invalid task configurations (malformed prompts, missing fields, etc.)
 
@@ -15594,11 +15685,29 @@ class GenAIEvalProfile:
             ... ]
             >>> profile = GenAIEvalProfile(config, tasks=judges)
 
+            Trace assertion-only profile:
+
+            >>> trace_tasks = [
+            ...     TraceAssertionTask(
+            ...         id="workflow_order",
+            ...         assertion=TraceAssertion.span_sequence([...]),
+            ...         operator=ComparisonOperator.SequenceMatches,
+            ...         expected_value=True
+            ...     ),
+            ...     TraceAssertionTask(
+            ...         id="performance",
+            ...         assertion=TraceAssertion.trace_duration(),
+            ...         operator=ComparisonOperator.LessThan,
+            ...         expected_value=5000.0
+            ...     )
+            ... ]
+            >>> profile = GenAIEvalProfile(config, tasks=trace_tasks)
+
             Hybrid profile:
 
             >>> profile = GenAIEvalProfile(
             ...     config=config,
-            ...     tasks=assertions + judges
+            ...     tasks=assertions + judges + trace_tasks
             ... )
         """
 
@@ -15640,6 +15749,16 @@ class GenAIEvalProfile:
         """
 
     @property
+    def trace_assertion_tasks(self) -> List[TraceAssertionTask]:
+        """List of trace assertion tasks for behavioral validation.
+
+        Trace assertions analyze distributed traces to validate execution behavior,
+        performance characteristics, and service interactions. They operate on
+        span-level properties (ordering, timing, attributes) without additional
+        LLM calls, providing efficient behavioral monitoring.
+        """
+
+    @property
     def scouter_version(self) -> str:
         """Scouter version used to create this profile.
 
@@ -15666,6 +15785,17 @@ class GenAIEvalProfile:
         Example:
             >>> if profile.has_assertions():
             ...     print("Profile includes fast assertion checks")
+        """
+
+    def has_trace_assertions(self) -> bool:
+        """Check if profile contains trace assertion tasks.
+
+        Returns:
+            bool: True if trace_assertion_tasks is non-empty, False otherwise.
+
+        Example:
+            >>> if profile.has_trace_assertions():
+            ...     print("Profile includes trace-based behavioral validation")
         """
 
     def get_execution_plan(self) -> List[List[str]]:
@@ -15836,6 +15966,10 @@ class GenAIEvalProfile:
             ...     alert_config=GenAIAlertConfig(schedule="0 */6 * * *")
             ... )
         """
+
+    @property
+    def alias(self) -> Optional[str]:
+        """Optional alias for the profile"""
 
 class Drifter:
     def __init__(self) -> None:
