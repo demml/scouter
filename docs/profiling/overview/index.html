@@ -1,0 +1,2121 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://docs.demml.io/scouter/docs/profiling/overview/">
+      
+      
+        <link rel="prev" href="../../tracing/overview/">
+      
+      
+        <link rel="next" href="../../specs/Readme/">
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.9">
+    
+    
+      
+        <title>Data Profile - Scouter</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.4af4bdda.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../css/custom.css">
+    
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
+      <link rel="stylesheet" href="../../css/termynal.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="stylesheets/extra.css" data-md-color-accent="stylesheets/extra.css">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#supported-data-types" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Scouter" class="md-header__button md-logo" aria-label="Scouter" data-md-component="logo">
+      
+  <img src="../../images/scouter-icon.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Scouter
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Data Profile
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="stylesheets/extra.css" data-md-color-accent="stylesheets/extra.css"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="scouter-light" data-md-color-primary="stylesheets/extra.css" data-md-color-accent="stylesheets/extra.css"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="scouter-dark" data-md-color-primary="stylesheets/extra.css" data-md-color-accent="stylesheets/extra.css"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/demml/scouter" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    scouter
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../.." class="md-tabs__link">
+        
+  
+    
+  
+  Overview
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../installation/" class="md-tabs__link">
+        
+  
+    
+  
+  Installation
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../server/" class="md-tabs__link">
+          
+  
+  Server
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../monitoring/" class="md-tabs__link">
+          
+  
+  Monitoring
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../tracing/overview/" class="md-tabs__link">
+          
+  
+  Tracing
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
+          
+  
+  Profiling
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../specs/Readme/" class="md-tabs__link">
+          
+  
+  Tech Specs
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../api/stubs/" class="md-tabs__link">
+          
+  
+  API Documentation
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Scouter" class="md-nav__button md-logo" aria-label="Scouter" data-md-component="logo">
+      
+  <img src="../../images/scouter-icon.svg" alt="logo">
+
+    </a>
+    Scouter
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/demml/scouter" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    scouter
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Installation
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Server
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Server
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../server/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../server/postgres/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Postgres
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Monitoring
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Monitoring
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    PSI
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            PSI
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/psi/quickstart/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Quickstart
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/psi/drift_config/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Drift Config
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/psi/drift_profile/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Drift Profile
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/psi/theory/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Theory
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    SPC
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            SPC
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/spc/quickstart/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Quickstart
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/spc/drift_config/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Drift Config
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/spc/drift_profile/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Drift Profile
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/spc/theory/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Theory
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_4" id="__nav_4_4_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Custom Metric
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_4">
+            <span class="md-nav__icon md-icon"></span>
+            Custom Metric
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/custom/quickstart/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_5" id="__nav_4_5_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    GenAI
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_5">
+            <span class="md-nav__icon md-icon"></span>
+            GenAI
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/genai/overview/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/genai/tasks/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Assertion Tasks
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/genai/gates/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Assertion Gates
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/genai/offline-evaluation/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Offline
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/genai/online-evaluation/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Online
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_6" id="__nav_4_6_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Get to the Queue!
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_6">
+            <span class="md-nav__icon md-icon"></span>
+            Get to the Queue!
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/inference/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Inference
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Tracing
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            Tracing
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tracing/overview/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Profiling
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            Profiling
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Data Profile
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    Data Profile
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+  
+
+<nav class="md-nav md-nav--secondary" aria-label="Page contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Page contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#supported-data-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      Supported Data Types
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#create-a-profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      Create a Profile
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Tech Specs
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            Tech Specs
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../specs/Readme/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../specs/ts-component-data-archive/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Archive
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../specs/ts-component-scouter-queue/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Queue
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../specs/ts-component-scouter-grpc/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    gRPC
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    API Documentation
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            API Documentation
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/stubs/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    API
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+  
+
+<nav class="md-nav md-nav--secondary" aria-label="Page contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Page contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#supported-data-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      Supported Data Types
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#create-a-profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      Create a Profile
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+  <h1>Data Profile</h1>
+
+<p>In addition to monitoring, <code>Scouter</code> also provides data profiling tools to create feature distribution profiles to associate with your data.</p>
+<h2 id="supported-data-types">Supported Data Types<a class="headerlink" href="#supported-data-types" title="Permanent link">&para;</a></h2>
+<p>Scouter supports a variety of data types, including:</p>
+<ul>
+<li><span class="text-primary"><strong>Pandas DataFrames</strong></span>: Scouter can handle Pandas DataFrames, making it easy to integrate with existing data processing pipelines.</li>
+<li><span class="text-primary"><strong>Numpy Arrays</strong></span>: Out of the box support for 2D arrays.</li>
+<li><span class="text-primary"><strong>Polars DataFrames</strong></span>: For users who prefer Polars, Scouter supports this data format as well, allowing for efficient data processing and analysis.</li>
+</ul>
+<h2 id="create-a-profile">Create a Profile<a class="headerlink" href="#create-a-profile" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">scouter</span><span class="w"> </span><span class="kn">import</span> <span class="n">DataProfile</span><span class="p">,</span> <span class="n">DataProfiler</span>  <span class="c1"># type: ignore[attr-defined]</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="k">def</span><span class="w"> </span><span class="nf">generate_data</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a fake data frame for testing&quot;&quot;&quot;</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">n</span> <span class="o">=</span> <span class="mi">10_000</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">X_train</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="o">-</span><span class="mi">4</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="mi">4</span><span class="p">))</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">col_names</span> <span class="o">=</span> <span class="p">[]</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">X_train</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>        <span class="n">col_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;feature_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">X</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">col_names</span><span class="p">)</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="c1"># create string column (with 10 unique values)</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">X</span><span class="p">[</span><span class="s2">&quot;categorical_feature&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>        <span class="p">[</span><span class="s2">&quot;a&quot;</span><span class="p">,</span> <span class="s2">&quot;b&quot;</span><span class="p">,</span> <span class="s2">&quot;c&quot;</span><span class="p">,</span> <span class="s2">&quot;d&quot;</span><span class="p">,</span> <span class="s2">&quot;e&quot;</span><span class="p">,</span> <span class="s2">&quot;f&quot;</span><span class="p">,</span> <span class="s2">&quot;g&quot;</span><span class="p">,</span> <span class="s2">&quot;h&quot;</span><span class="p">,</span> <span class="s2">&quot;i&quot;</span><span class="p">,</span> <span class="s2">&quot;j&quot;</span><span class="p">],</span> <span class="n">size</span><span class="o">=</span><span class="n">n</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="p">)</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>    <span class="k">return</span> <span class="n">X</span>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="n">data</span> <span class="o">=</span> <span class="n">generate_data</span><span class="p">()</span>
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="c1"># create data profiler</span>
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="n">profiler</span> <span class="o">=</span> <span class="n">DataProfiler</span><span class="p">()</span>
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a><span class="c1"># create data profile</span>
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a><span class="n">profile</span><span class="p">:</span> <span class="n">DataProfile</span> <span class="o">=</span> <span class="n">profiler</span><span class="o">.</span><span class="n">create_data_profile</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>
+<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a><span class="c1"># Save (provide a path or leave blank)</span>
+<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a><span class="n">profile</span><span class="o">.</span><span class="n">save_to_json</span><span class="p">()</span>
+<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a>
+<a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a><span class="nb">print</span><span class="p">(</span><span class="n">profile</span><span class="p">)</span>
+</code></pre></div>
+<details class="success">
+<summary>Output</summary>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span><span class="nt">&quot;features&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">        </span><span class="nt">&quot;categorical_feature&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">        </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;categorical_feature&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">        </span><span class="nt">&quot;numeric_stats&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">        </span><span class="nt">&quot;string_stats&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">            </span><span class="nt">&quot;distinct&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">            </span><span class="nt">&quot;count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">            </span><span class="nt">&quot;percent&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.1</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">            </span><span class="p">},</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">            </span><span class="nt">&quot;char_stats&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">            </span><span class="nt">&quot;min_length&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">            </span><span class="nt">&quot;max_length&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">            </span><span class="nt">&quot;median_length&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">            </span><span class="nt">&quot;mean_length&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1.0</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">            </span><span class="p">},</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">            </span><span class="nt">&quot;word_stats&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="w">            </span><span class="nt">&quot;words&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="w">                </span><span class="nt">&quot;d&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="w">                </span><span class="nt">&quot;count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1021</span><span class="p">,</span>
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="w">                </span><span class="nt">&quot;percent&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.1021</span>
+<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="w">                </span><span class="p">},</span>
+<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="w">                </span><span class="nt">&quot;b&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a><span class="w">                </span><span class="nt">&quot;count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">998</span><span class="p">,</span>
+<a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a><span class="w">                </span><span class="nt">&quot;percent&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.0998</span>
+<a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a><span class="w">                </span><span class="p">},</span>
+<a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a><span class="w">                </span><span class="nt">&quot;i&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a><span class="w">                </span><span class="nt">&quot;count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">989</span><span class="p">,</span>
+<a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a><span class="w">                </span><span class="nt">&quot;percent&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.0989</span>
+<a id="__codelineno-1-30" name="__codelineno-1-30" href="#__codelineno-1-30"></a><span class="w">                </span><span class="p">},</span>
+<a id="__codelineno-1-31" name="__codelineno-1-31" href="#__codelineno-1-31"></a><span class="w">                </span><span class="nt">&quot;c&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-32" name="__codelineno-1-32" href="#__codelineno-1-32"></a><span class="w">                </span><span class="nt">&quot;count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1015</span><span class="p">,</span>
+<a id="__codelineno-1-33" name="__codelineno-1-33" href="#__codelineno-1-33"></a><span class="w">                </span><span class="nt">&quot;percent&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.1015</span>
+<a id="__codelineno-1-34" name="__codelineno-1-34" href="#__codelineno-1-34"></a><span class="w">                </span><span class="p">},</span>
+<a id="__codelineno-1-35" name="__codelineno-1-35" href="#__codelineno-1-35"></a><span class="w">                </span><span class="nt">&quot;f&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-36" name="__codelineno-1-36" href="#__codelineno-1-36"></a><span class="w">                </span><span class="nt">&quot;count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1007</span><span class="p">,</span>
+<a id="__codelineno-1-37" name="__codelineno-1-37" href="#__codelineno-1-37"></a><span class="w">                </span><span class="nt">&quot;percent&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.1007</span>
+<a id="__codelineno-1-38" name="__codelineno-1-38" href="#__codelineno-1-38"></a><span class="w">                </span><span class="p">},</span>
+<a id="__codelineno-1-39" name="__codelineno-1-39" href="#__codelineno-1-39"></a><span class="w">                </span><span class="nt">&quot;a&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-40" name="__codelineno-1-40" href="#__codelineno-1-40"></a><span class="w">                </span><span class="nt">&quot;count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">987</span><span class="p">,</span>
+<a id="__codelineno-1-41" name="__codelineno-1-41" href="#__codelineno-1-41"></a><span class="w">                </span><span class="nt">&quot;percent&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.0987</span>
+<a id="__codelineno-1-42" name="__codelineno-1-42" href="#__codelineno-1-42"></a><span class="w">                </span><span class="p">},</span>
+<a id="__codelineno-1-43" name="__codelineno-1-43" href="#__codelineno-1-43"></a><span class="w">                </span><span class="nt">&quot;h&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-44" name="__codelineno-1-44" href="#__codelineno-1-44"></a><span class="w">                </span><span class="nt">&quot;count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">982</span><span class="p">,</span>
+<a id="__codelineno-1-45" name="__codelineno-1-45" href="#__codelineno-1-45"></a><span class="w">                </span><span class="nt">&quot;percent&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.0982</span>
+<a id="__codelineno-1-46" name="__codelineno-1-46" href="#__codelineno-1-46"></a><span class="w">                </span><span class="p">},</span>
+<a id="__codelineno-1-47" name="__codelineno-1-47" href="#__codelineno-1-47"></a><span class="w">                </span><span class="nt">&quot;g&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-48" name="__codelineno-1-48" href="#__codelineno-1-48"></a><span class="w">                </span><span class="nt">&quot;count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">988</span><span class="p">,</span>
+<a id="__codelineno-1-49" name="__codelineno-1-49" href="#__codelineno-1-49"></a><span class="w">                </span><span class="nt">&quot;percent&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.0988</span>
+<a id="__codelineno-1-50" name="__codelineno-1-50" href="#__codelineno-1-50"></a><span class="w">                </span><span class="p">},</span>
+<a id="__codelineno-1-51" name="__codelineno-1-51" href="#__codelineno-1-51"></a><span class="w">                </span><span class="nt">&quot;j&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-52" name="__codelineno-1-52" href="#__codelineno-1-52"></a><span class="w">                </span><span class="nt">&quot;count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1020</span><span class="p">,</span>
+<a id="__codelineno-1-53" name="__codelineno-1-53" href="#__codelineno-1-53"></a><span class="w">                </span><span class="nt">&quot;percent&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.102</span>
+<a id="__codelineno-1-54" name="__codelineno-1-54" href="#__codelineno-1-54"></a><span class="w">                </span><span class="p">},</span>
+<a id="__codelineno-1-55" name="__codelineno-1-55" href="#__codelineno-1-55"></a><span class="w">                </span><span class="nt">&quot;e&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-56" name="__codelineno-1-56" href="#__codelineno-1-56"></a><span class="w">                </span><span class="nt">&quot;count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">993</span><span class="p">,</span>
+<a id="__codelineno-1-57" name="__codelineno-1-57" href="#__codelineno-1-57"></a><span class="w">                </span><span class="nt">&quot;percent&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.0993</span>
+<a id="__codelineno-1-58" name="__codelineno-1-58" href="#__codelineno-1-58"></a><span class="w">                </span><span class="p">}</span>
+<a id="__codelineno-1-59" name="__codelineno-1-59" href="#__codelineno-1-59"></a><span class="w">            </span><span class="p">}</span>
+<a id="__codelineno-1-60" name="__codelineno-1-60" href="#__codelineno-1-60"></a><span class="w">            </span><span class="p">}</span>
+<a id="__codelineno-1-61" name="__codelineno-1-61" href="#__codelineno-1-61"></a><span class="w">        </span><span class="p">},</span>
+<a id="__codelineno-1-62" name="__codelineno-1-62" href="#__codelineno-1-62"></a><span class="w">        </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2025-04-28T18:19:33.987594Z&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-63" name="__codelineno-1-63" href="#__codelineno-1-63"></a><span class="w">        </span><span class="nt">&quot;correlations&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span>
+<a id="__codelineno-1-64" name="__codelineno-1-64" href="#__codelineno-1-64"></a><span class="w">        </span><span class="p">},</span>
+<a id="__codelineno-1-65" name="__codelineno-1-65" href="#__codelineno-1-65"></a><span class="w">        </span><span class="nt">&quot;feature_0&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-66" name="__codelineno-1-66" href="#__codelineno-1-66"></a><span class="w">        </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;feature_0&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-67" name="__codelineno-1-67" href="#__codelineno-1-67"></a><span class="w">        </span><span class="nt">&quot;numeric_stats&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-68" name="__codelineno-1-68" href="#__codelineno-1-68"></a><span class="w">            </span><span class="nt">&quot;mean&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">-4.003965640199899</span><span class="p">,</span>
+<a id="__codelineno-1-69" name="__codelineno-1-69" href="#__codelineno-1-69"></a><span class="w">            </span><span class="nt">&quot;stddev&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">2.0178515177174448</span><span class="p">,</span>
+<a id="__codelineno-1-70" name="__codelineno-1-70" href="#__codelineno-1-70"></a><span class="w">            </span><span class="nt">&quot;min&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">-11.084430177884318</span><span class="p">,</span>
+<a id="__codelineno-1-71" name="__codelineno-1-71" href="#__codelineno-1-71"></a><span class="w">            </span><span class="nt">&quot;max&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">3.375571168173134</span><span class="p">,</span>
+<a id="__codelineno-1-72" name="__codelineno-1-72" href="#__codelineno-1-72"></a><span class="w">            </span><span class="nt">&quot;distinct&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-73" name="__codelineno-1-73" href="#__codelineno-1-73"></a><span class="w">            </span><span class="nt">&quot;count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10000</span><span class="p">,</span>
+<a id="__codelineno-1-74" name="__codelineno-1-74" href="#__codelineno-1-74"></a><span class="w">            </span><span class="nt">&quot;percent&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1.0</span>
+<a id="__codelineno-1-75" name="__codelineno-1-75" href="#__codelineno-1-75"></a><span class="w">            </span><span class="p">},</span>
+<a id="__codelineno-1-76" name="__codelineno-1-76" href="#__codelineno-1-76"></a><span class="w">            </span><span class="nt">&quot;quantiles&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-77" name="__codelineno-1-77" href="#__codelineno-1-77"></a><span class="w">            </span><span class="nt">&quot;q25&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">-5.348060765665304</span><span class="p">,</span>
+<a id="__codelineno-1-78" name="__codelineno-1-78" href="#__codelineno-1-78"></a><span class="w">            </span><span class="nt">&quot;q50&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">-3.9960621892367625</span><span class="p">,</span>
+<a id="__codelineno-1-79" name="__codelineno-1-79" href="#__codelineno-1-79"></a><span class="w">            </span><span class="nt">&quot;q75&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">-2.6379431350112723</span><span class="p">,</span>
+<a id="__codelineno-1-80" name="__codelineno-1-80" href="#__codelineno-1-80"></a><span class="w">            </span><span class="nt">&quot;q99&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.7695557247479057</span>
+<a id="__codelineno-1-81" name="__codelineno-1-81" href="#__codelineno-1-81"></a><span class="w">            </span><span class="p">},</span>
+<a id="__codelineno-1-82" name="__codelineno-1-82" href="#__codelineno-1-82"></a><span class="w">            </span><span class="nt">&quot;histogram&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-83" name="__codelineno-1-83" href="#__codelineno-1-83"></a><span class="w">            </span><span class="nt">&quot;bins&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-1-84" name="__codelineno-1-84" href="#__codelineno-1-84"></a><span class="w">                </span><span class="mf">-11.084430177884318</span><span class="p">,</span>
+<a id="__codelineno-1-85" name="__codelineno-1-85" href="#__codelineno-1-85"></a><span class="w">                </span><span class="mf">-10.361430110581445</span><span class="p">,</span>
+<a id="__codelineno-1-86" name="__codelineno-1-86" href="#__codelineno-1-86"></a><span class="w">                </span><span class="mf">-9.638430043278573</span><span class="p">,</span>
+<a id="__codelineno-1-87" name="__codelineno-1-87" href="#__codelineno-1-87"></a><span class="w">                </span><span class="mf">-8.9154299759757</span><span class="p">,</span>
+<a id="__codelineno-1-88" name="__codelineno-1-88" href="#__codelineno-1-88"></a><span class="w">                </span><span class="mf">-8.192429908672828</span><span class="p">,</span>
+<a id="__codelineno-1-89" name="__codelineno-1-89" href="#__codelineno-1-89"></a><span class="w">                </span><span class="mf">-7.469429841369955</span><span class="p">,</span>
+<a id="__codelineno-1-90" name="__codelineno-1-90" href="#__codelineno-1-90"></a><span class="w">                </span><span class="mf">-6.7464297740670816</span><span class="p">,</span>
+<a id="__codelineno-1-91" name="__codelineno-1-91" href="#__codelineno-1-91"></a><span class="w">                </span><span class="mf">-6.023429706764209</span><span class="p">,</span>
+<a id="__codelineno-1-92" name="__codelineno-1-92" href="#__codelineno-1-92"></a><span class="w">                </span><span class="mf">-5.300429639461337</span><span class="p">,</span>
+<a id="__codelineno-1-93" name="__codelineno-1-93" href="#__codelineno-1-93"></a><span class="w">                </span><span class="mf">-4.577429572158464</span><span class="p">,</span>
+<a id="__codelineno-1-94" name="__codelineno-1-94" href="#__codelineno-1-94"></a><span class="w">                </span><span class="mf">-3.8544295048555917</span><span class="p">,</span>
+<a id="__codelineno-1-95" name="__codelineno-1-95" href="#__codelineno-1-95"></a><span class="w">                </span><span class="mf">-3.1314294375527183</span><span class="p">,</span>
+<a id="__codelineno-1-96" name="__codelineno-1-96" href="#__codelineno-1-96"></a><span class="w">                </span><span class="mf">-2.408429370249845</span><span class="p">,</span>
+<a id="__codelineno-1-97" name="__codelineno-1-97" href="#__codelineno-1-97"></a><span class="w">                </span><span class="mf">-1.6854293029469734</span><span class="p">,</span>
+<a id="__codelineno-1-98" name="__codelineno-1-98" href="#__codelineno-1-98"></a><span class="w">                </span><span class="mf">-0.9624292356441</span><span class="p">,</span>
+<a id="__codelineno-1-99" name="__codelineno-1-99" href="#__codelineno-1-99"></a><span class="w">                </span><span class="mf">-0.2394291683412284</span><span class="p">,</span>
+<a id="__codelineno-1-100" name="__codelineno-1-100" href="#__codelineno-1-100"></a><span class="w">                </span><span class="mf">0.48357089896164496</span><span class="p">,</span>
+<a id="__codelineno-1-101" name="__codelineno-1-101" href="#__codelineno-1-101"></a><span class="w">                </span><span class="mf">1.2065709662645183</span><span class="p">,</span>
+<a id="__codelineno-1-102" name="__codelineno-1-102" href="#__codelineno-1-102"></a><span class="w">                </span><span class="mf">1.92957103356739</span><span class="p">,</span>
+<a id="__codelineno-1-103" name="__codelineno-1-103" href="#__codelineno-1-103"></a><span class="w">                </span><span class="mf">2.6525711008702633</span>
+<a id="__codelineno-1-104" name="__codelineno-1-104" href="#__codelineno-1-104"></a><span class="w">            </span><span class="p">],</span>
+<a id="__codelineno-1-105" name="__codelineno-1-105" href="#__codelineno-1-105"></a><span class="w">            </span><span class="nt">&quot;bin_counts&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-1-106" name="__codelineno-1-106" href="#__codelineno-1-106"></a><span class="w">                </span><span class="mi">8</span><span class="p">,</span>
+<a id="__codelineno-1-107" name="__codelineno-1-107" href="#__codelineno-1-107"></a><span class="w">                </span><span class="mi">14</span><span class="p">,</span>
+<a id="__codelineno-1-108" name="__codelineno-1-108" href="#__codelineno-1-108"></a><span class="w">                </span><span class="mi">53</span><span class="p">,</span>
+<a id="__codelineno-1-109" name="__codelineno-1-109" href="#__codelineno-1-109"></a><span class="w">                </span><span class="mi">120</span><span class="p">,</span>
+<a id="__codelineno-1-110" name="__codelineno-1-110" href="#__codelineno-1-110"></a><span class="w">                </span><span class="mi">228</span><span class="p">,</span>
+<a id="__codelineno-1-111" name="__codelineno-1-111" href="#__codelineno-1-111"></a><span class="w">                </span><span class="mi">444</span><span class="p">,</span>
+<a id="__codelineno-1-112" name="__codelineno-1-112" href="#__codelineno-1-112"></a><span class="w">                </span><span class="mi">706</span><span class="p">,</span>
+<a id="__codelineno-1-113" name="__codelineno-1-113" href="#__codelineno-1-113"></a><span class="w">                </span><span class="mi">1006</span><span class="p">,</span>
+<a id="__codelineno-1-114" name="__codelineno-1-114" href="#__codelineno-1-114"></a><span class="w">                </span><span class="mi">1300</span><span class="p">,</span>
+<a id="__codelineno-1-115" name="__codelineno-1-115" href="#__codelineno-1-115"></a><span class="w">                </span><span class="mi">1399</span><span class="p">,</span>
+<a id="__codelineno-1-116" name="__codelineno-1-116" href="#__codelineno-1-116"></a><span class="w">                </span><span class="mi">1404</span><span class="p">,</span>
+<a id="__codelineno-1-117" name="__codelineno-1-117" href="#__codelineno-1-117"></a><span class="w">                </span><span class="mi">1159</span><span class="p">,</span>
+<a id="__codelineno-1-118" name="__codelineno-1-118" href="#__codelineno-1-118"></a><span class="w">                </span><span class="mi">914</span><span class="p">,</span>
+<a id="__codelineno-1-119" name="__codelineno-1-119" href="#__codelineno-1-119"></a><span class="w">                </span><span class="mi">599</span><span class="p">,</span>
+<a id="__codelineno-1-120" name="__codelineno-1-120" href="#__codelineno-1-120"></a><span class="w">                </span><span class="mi">352</span><span class="p">,</span>
+<a id="__codelineno-1-121" name="__codelineno-1-121" href="#__codelineno-1-121"></a><span class="w">                </span><span class="mi">153</span><span class="p">,</span>
+<a id="__codelineno-1-122" name="__codelineno-1-122" href="#__codelineno-1-122"></a><span class="w">                </span><span class="mi">81</span><span class="p">,</span>
+<a id="__codelineno-1-123" name="__codelineno-1-123" href="#__codelineno-1-123"></a><span class="w">                </span><span class="mi">39</span><span class="p">,</span>
+<a id="__codelineno-1-124" name="__codelineno-1-124" href="#__codelineno-1-124"></a><span class="w">                </span><span class="mi">17</span><span class="p">,</span>
+<a id="__codelineno-1-125" name="__codelineno-1-125" href="#__codelineno-1-125"></a><span class="w">                </span><span class="mi">4</span>
+<a id="__codelineno-1-126" name="__codelineno-1-126" href="#__codelineno-1-126"></a><span class="w">            </span><span class="p">]</span>
+<a id="__codelineno-1-127" name="__codelineno-1-127" href="#__codelineno-1-127"></a><span class="w">            </span><span class="p">}</span>
+<a id="__codelineno-1-128" name="__codelineno-1-128" href="#__codelineno-1-128"></a><span class="w">        </span><span class="p">},</span>
+<a id="__codelineno-1-129" name="__codelineno-1-129" href="#__codelineno-1-129"></a><span class="w">        </span><span class="nt">&quot;string_stats&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<a id="__codelineno-1-130" name="__codelineno-1-130" href="#__codelineno-1-130"></a><span class="w">        </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2025-04-28T18:19:34.035699Z&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-131" name="__codelineno-1-131" href="#__codelineno-1-131"></a><span class="w">        </span><span class="nt">&quot;correlations&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span>
+<a id="__codelineno-1-132" name="__codelineno-1-132" href="#__codelineno-1-132"></a><span class="w">        </span><span class="p">},</span>
+<a id="__codelineno-1-133" name="__codelineno-1-133" href="#__codelineno-1-133"></a><span class="w">        </span><span class="nt">&quot;feature_1&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-134" name="__codelineno-1-134" href="#__codelineno-1-134"></a><span class="w">        </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;feature_1&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-135" name="__codelineno-1-135" href="#__codelineno-1-135"></a><span class="w">        </span><span class="nt">&quot;numeric_stats&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-136" name="__codelineno-1-136" href="#__codelineno-1-136"></a><span class="w">            </span><span class="nt">&quot;mean&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">-3.997238711617275</span><span class="p">,</span>
+<a id="__codelineno-1-137" name="__codelineno-1-137" href="#__codelineno-1-137"></a><span class="w">            </span><span class="nt">&quot;stddev&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1.9969030204031852</span><span class="p">,</span>
+<a id="__codelineno-1-138" name="__codelineno-1-138" href="#__codelineno-1-138"></a><span class="w">            </span><span class="nt">&quot;min&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">-11.2143596931969</span><span class="p">,</span>
+<a id="__codelineno-1-139" name="__codelineno-1-139" href="#__codelineno-1-139"></a><span class="w">            </span><span class="nt">&quot;max&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">3.5233542660216592</span><span class="p">,</span>
+<a id="__codelineno-1-140" name="__codelineno-1-140" href="#__codelineno-1-140"></a><span class="w">            </span><span class="nt">&quot;distinct&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-141" name="__codelineno-1-141" href="#__codelineno-1-141"></a><span class="w">            </span><span class="nt">&quot;count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10000</span><span class="p">,</span>
+<a id="__codelineno-1-142" name="__codelineno-1-142" href="#__codelineno-1-142"></a><span class="w">            </span><span class="nt">&quot;percent&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1.0</span>
+<a id="__codelineno-1-143" name="__codelineno-1-143" href="#__codelineno-1-143"></a><span class="w">            </span><span class="p">},</span>
+<a id="__codelineno-1-144" name="__codelineno-1-144" href="#__codelineno-1-144"></a><span class="w">            </span><span class="nt">&quot;quantiles&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-145" name="__codelineno-1-145" href="#__codelineno-1-145"></a><span class="w">            </span><span class="nt">&quot;q25&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">-5.331856994963132</span><span class="p">,</span>
+<a id="__codelineno-1-146" name="__codelineno-1-146" href="#__codelineno-1-146"></a><span class="w">            </span><span class="nt">&quot;q50&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">-3.9985892307105217</span><span class="p">,</span>
+<a id="__codelineno-1-147" name="__codelineno-1-147" href="#__codelineno-1-147"></a><span class="w">            </span><span class="nt">&quot;q75&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">-2.6720412739258803</span><span class="p">,</span>
+<a id="__codelineno-1-148" name="__codelineno-1-148" href="#__codelineno-1-148"></a><span class="w">            </span><span class="nt">&quot;q99&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.7018279512701495</span>
+<a id="__codelineno-1-149" name="__codelineno-1-149" href="#__codelineno-1-149"></a><span class="w">            </span><span class="p">},</span>
+<a id="__codelineno-1-150" name="__codelineno-1-150" href="#__codelineno-1-150"></a><span class="w">            </span><span class="nt">&quot;histogram&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-151" name="__codelineno-1-151" href="#__codelineno-1-151"></a><span class="w">            </span><span class="nt">&quot;bins&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-1-152" name="__codelineno-1-152" href="#__codelineno-1-152"></a><span class="w">                </span><span class="mf">-11.2143596931969</span><span class="p">,</span>
+<a id="__codelineno-1-153" name="__codelineno-1-153" href="#__codelineno-1-153"></a><span class="w">                </span><span class="mf">-10.477473995235973</span><span class="p">,</span>
+<a id="__codelineno-1-154" name="__codelineno-1-154" href="#__codelineno-1-154"></a><span class="w">                </span><span class="mf">-9.740588297275044</span><span class="p">,</span>
+<a id="__codelineno-1-155" name="__codelineno-1-155" href="#__codelineno-1-155"></a><span class="w">                </span><span class="mf">-9.003702599314117</span><span class="p">,</span>
+<a id="__codelineno-1-156" name="__codelineno-1-156" href="#__codelineno-1-156"></a><span class="w">                </span><span class="mf">-8.266816901353188</span><span class="p">,</span>
+<a id="__codelineno-1-157" name="__codelineno-1-157" href="#__codelineno-1-157"></a><span class="w">                </span><span class="mf">-7.529931203392261</span><span class="p">,</span>
+<a id="__codelineno-1-158" name="__codelineno-1-158" href="#__codelineno-1-158"></a><span class="w">                </span><span class="mf">-6.7930455054313335</span><span class="p">,</span>
+<a id="__codelineno-1-159" name="__codelineno-1-159" href="#__codelineno-1-159"></a><span class="w">                </span><span class="mf">-6.056159807470405</span><span class="p">,</span>
+<a id="__codelineno-1-160" name="__codelineno-1-160" href="#__codelineno-1-160"></a><span class="w">                </span><span class="mf">-5.319274109509477</span><span class="p">,</span>
+<a id="__codelineno-1-161" name="__codelineno-1-161" href="#__codelineno-1-161"></a><span class="w">                </span><span class="mf">-4.582388411548549</span><span class="p">,</span>
+<a id="__codelineno-1-162" name="__codelineno-1-162" href="#__codelineno-1-162"></a><span class="w">                </span><span class="mf">-3.8455027135876207</span><span class="p">,</span>
+<a id="__codelineno-1-163" name="__codelineno-1-163" href="#__codelineno-1-163"></a><span class="w">                </span><span class="mf">-3.1086170156266935</span><span class="p">,</span>
+<a id="__codelineno-1-164" name="__codelineno-1-164" href="#__codelineno-1-164"></a><span class="w">                </span><span class="mf">-2.371731317665766</span><span class="p">,</span>
+<a id="__codelineno-1-165" name="__codelineno-1-165" href="#__codelineno-1-165"></a><span class="w">                </span><span class="mf">-1.634845619704837</span><span class="p">,</span>
+<a id="__codelineno-1-166" name="__codelineno-1-166" href="#__codelineno-1-166"></a><span class="w">                </span><span class="mf">-0.8979599217439098</span><span class="p">,</span>
+<a id="__codelineno-1-167" name="__codelineno-1-167" href="#__codelineno-1-167"></a><span class="w">                </span><span class="mf">-0.16107422378298075</span><span class="p">,</span>
+<a id="__codelineno-1-168" name="__codelineno-1-168" href="#__codelineno-1-168"></a><span class="w">                </span><span class="mf">0.5758114741779465</span><span class="p">,</span>
+<a id="__codelineno-1-169" name="__codelineno-1-169" href="#__codelineno-1-169"></a><span class="w">                </span><span class="mf">1.3126971721388738</span><span class="p">,</span>
+<a id="__codelineno-1-170" name="__codelineno-1-170" href="#__codelineno-1-170"></a><span class="w">                </span><span class="mf">2.049582870099803</span><span class="p">,</span>
+<a id="__codelineno-1-171" name="__codelineno-1-171" href="#__codelineno-1-171"></a><span class="w">                </span><span class="mf">2.78646856806073</span>
+<a id="__codelineno-1-172" name="__codelineno-1-172" href="#__codelineno-1-172"></a><span class="w">            </span><span class="p">],</span>
+<a id="__codelineno-1-173" name="__codelineno-1-173" href="#__codelineno-1-173"></a><span class="w">            </span><span class="nt">&quot;bin_counts&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-1-174" name="__codelineno-1-174" href="#__codelineno-1-174"></a><span class="w">                </span><span class="mi">7</span><span class="p">,</span>
+<a id="__codelineno-1-175" name="__codelineno-1-175" href="#__codelineno-1-175"></a><span class="w">                </span><span class="mi">18</span><span class="p">,</span>
+<a id="__codelineno-1-176" name="__codelineno-1-176" href="#__codelineno-1-176"></a><span class="w">                </span><span class="mi">42</span><span class="p">,</span>
+<a id="__codelineno-1-177" name="__codelineno-1-177" href="#__codelineno-1-177"></a><span class="w">                </span><span class="mi">93</span><span class="p">,</span>
+<a id="__codelineno-1-178" name="__codelineno-1-178" href="#__codelineno-1-178"></a><span class="w">                </span><span class="mi">218</span><span class="p">,</span>
+<a id="__codelineno-1-179" name="__codelineno-1-179" href="#__codelineno-1-179"></a><span class="w">                </span><span class="mi">425</span><span class="p">,</span>
+<a id="__codelineno-1-180" name="__codelineno-1-180" href="#__codelineno-1-180"></a><span class="w">                </span><span class="mi">706</span><span class="p">,</span>
+<a id="__codelineno-1-181" name="__codelineno-1-181" href="#__codelineno-1-181"></a><span class="w">                </span><span class="mi">1015</span><span class="p">,</span>
+<a id="__codelineno-1-182" name="__codelineno-1-182" href="#__codelineno-1-182"></a><span class="w">                </span><span class="mi">1345</span><span class="p">,</span>
+<a id="__codelineno-1-183" name="__codelineno-1-183" href="#__codelineno-1-183"></a><span class="w">                </span><span class="mi">1431</span><span class="p">,</span>
+<a id="__codelineno-1-184" name="__codelineno-1-184" href="#__codelineno-1-184"></a><span class="w">                </span><span class="mi">1430</span><span class="p">,</span>
+<a id="__codelineno-1-185" name="__codelineno-1-185" href="#__codelineno-1-185"></a><span class="w">                </span><span class="mi">1216</span><span class="p">,</span>
+<a id="__codelineno-1-186" name="__codelineno-1-186" href="#__codelineno-1-186"></a><span class="w">                </span><span class="mi">866</span><span class="p">,</span>
+<a id="__codelineno-1-187" name="__codelineno-1-187" href="#__codelineno-1-187"></a><span class="w">                </span><span class="mi">580</span><span class="p">,</span>
+<a id="__codelineno-1-188" name="__codelineno-1-188" href="#__codelineno-1-188"></a><span class="w">                </span><span class="mi">340</span><span class="p">,</span>
+<a id="__codelineno-1-189" name="__codelineno-1-189" href="#__codelineno-1-189"></a><span class="w">                </span><span class="mi">158</span><span class="p">,</span>
+<a id="__codelineno-1-190" name="__codelineno-1-190" href="#__codelineno-1-190"></a><span class="w">                </span><span class="mi">72</span><span class="p">,</span>
+<a id="__codelineno-1-191" name="__codelineno-1-191" href="#__codelineno-1-191"></a><span class="w">                </span><span class="mi">20</span><span class="p">,</span>
+<a id="__codelineno-1-192" name="__codelineno-1-192" href="#__codelineno-1-192"></a><span class="w">                </span><span class="mi">13</span><span class="p">,</span>
+<a id="__codelineno-1-193" name="__codelineno-1-193" href="#__codelineno-1-193"></a><span class="w">                </span><span class="mi">5</span>
+<a id="__codelineno-1-194" name="__codelineno-1-194" href="#__codelineno-1-194"></a><span class="w">            </span><span class="p">]</span>
+<a id="__codelineno-1-195" name="__codelineno-1-195" href="#__codelineno-1-195"></a><span class="w">            </span><span class="p">}</span>
+<a id="__codelineno-1-196" name="__codelineno-1-196" href="#__codelineno-1-196"></a><span class="w">        </span><span class="p">},</span>
+<a id="__codelineno-1-197" name="__codelineno-1-197" href="#__codelineno-1-197"></a><span class="w">        </span><span class="nt">&quot;string_stats&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<a id="__codelineno-1-198" name="__codelineno-1-198" href="#__codelineno-1-198"></a><span class="w">        </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2025-04-28T18:19:34.035702Z&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-199" name="__codelineno-1-199" href="#__codelineno-1-199"></a><span class="w">        </span><span class="nt">&quot;correlations&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span>
+<a id="__codelineno-1-200" name="__codelineno-1-200" href="#__codelineno-1-200"></a><span class="w">        </span><span class="p">},</span>
+<a id="__codelineno-1-201" name="__codelineno-1-201" href="#__codelineno-1-201"></a><span class="w">        </span><span class="nt">&quot;feature_2&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-202" name="__codelineno-1-202" href="#__codelineno-1-202"></a><span class="w">        </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;feature_2&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-203" name="__codelineno-1-203" href="#__codelineno-1-203"></a><span class="w">        </span><span class="nt">&quot;numeric_stats&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-204" name="__codelineno-1-204" href="#__codelineno-1-204"></a><span class="w">            </span><span class="nt">&quot;mean&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">-3.9985933460650362</span><span class="p">,</span>
+<a id="__codelineno-1-205" name="__codelineno-1-205" href="#__codelineno-1-205"></a><span class="w">            </span><span class="nt">&quot;stddev&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1.9872554303247896</span><span class="p">,</span>
+<a id="__codelineno-1-206" name="__codelineno-1-206" href="#__codelineno-1-206"></a><span class="w">            </span><span class="nt">&quot;min&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">-11.298088188584437</span><span class="p">,</span>
+<a id="__codelineno-1-207" name="__codelineno-1-207" href="#__codelineno-1-207"></a><span class="w">            </span><span class="nt">&quot;max&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">3.7792120832159224</span><span class="p">,</span>
+<a id="__codelineno-1-208" name="__codelineno-1-208" href="#__codelineno-1-208"></a><span class="w">            </span><span class="nt">&quot;distinct&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-209" name="__codelineno-1-209" href="#__codelineno-1-209"></a><span class="w">            </span><span class="nt">&quot;count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10000</span><span class="p">,</span>
+<a id="__codelineno-1-210" name="__codelineno-1-210" href="#__codelineno-1-210"></a><span class="w">            </span><span class="nt">&quot;percent&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1.0</span>
+<a id="__codelineno-1-211" name="__codelineno-1-211" href="#__codelineno-1-211"></a><span class="w">            </span><span class="p">},</span>
+<a id="__codelineno-1-212" name="__codelineno-1-212" href="#__codelineno-1-212"></a><span class="w">            </span><span class="nt">&quot;quantiles&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-213" name="__codelineno-1-213" href="#__codelineno-1-213"></a><span class="w">            </span><span class="nt">&quot;q25&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">-5.3669588658728955</span><span class="p">,</span>
+<a id="__codelineno-1-214" name="__codelineno-1-214" href="#__codelineno-1-214"></a><span class="w">            </span><span class="nt">&quot;q50&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">-3.991356640189083</span><span class="p">,</span>
+<a id="__codelineno-1-215" name="__codelineno-1-215" href="#__codelineno-1-215"></a><span class="w">            </span><span class="nt">&quot;q75&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">-2.6604527797988693</span><span class="p">,</span>
+<a id="__codelineno-1-216" name="__codelineno-1-216" href="#__codelineno-1-216"></a><span class="w">            </span><span class="nt">&quot;q99&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.716291352460563</span>
+<a id="__codelineno-1-217" name="__codelineno-1-217" href="#__codelineno-1-217"></a><span class="w">            </span><span class="p">},</span>
+<a id="__codelineno-1-218" name="__codelineno-1-218" href="#__codelineno-1-218"></a><span class="w">            </span><span class="nt">&quot;histogram&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-219" name="__codelineno-1-219" href="#__codelineno-1-219"></a><span class="w">            </span><span class="nt">&quot;bins&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-1-220" name="__codelineno-1-220" href="#__codelineno-1-220"></a><span class="w">                </span><span class="mf">-11.298088188584437</span><span class="p">,</span>
+<a id="__codelineno-1-221" name="__codelineno-1-221" href="#__codelineno-1-221"></a><span class="w">                </span><span class="mf">-10.54422317499442</span><span class="p">,</span>
+<a id="__codelineno-1-222" name="__codelineno-1-222" href="#__codelineno-1-222"></a><span class="w">                </span><span class="mf">-9.7903581614044</span><span class="p">,</span>
+<a id="__codelineno-1-223" name="__codelineno-1-223" href="#__codelineno-1-223"></a><span class="w">                </span><span class="mf">-9.036493147814383</span><span class="p">,</span>
+<a id="__codelineno-1-224" name="__codelineno-1-224" href="#__codelineno-1-224"></a><span class="w">                </span><span class="mf">-8.282628134224364</span><span class="p">,</span>
+<a id="__codelineno-1-225" name="__codelineno-1-225" href="#__codelineno-1-225"></a><span class="w">                </span><span class="mf">-7.528763120634347</span><span class="p">,</span>
+<a id="__codelineno-1-226" name="__codelineno-1-226" href="#__codelineno-1-226"></a><span class="w">                </span><span class="mf">-6.774898107044329</span><span class="p">,</span>
+<a id="__codelineno-1-227" name="__codelineno-1-227" href="#__codelineno-1-227"></a><span class="w">                </span><span class="mf">-6.021033093454311</span><span class="p">,</span>
+<a id="__codelineno-1-228" name="__codelineno-1-228" href="#__codelineno-1-228"></a><span class="w">                </span><span class="mf">-5.267168079864293</span><span class="p">,</span>
+<a id="__codelineno-1-229" name="__codelineno-1-229" href="#__codelineno-1-229"></a><span class="w">                </span><span class="mf">-4.513303066274275</span><span class="p">,</span>
+<a id="__codelineno-1-230" name="__codelineno-1-230" href="#__codelineno-1-230"></a><span class="w">                </span><span class="mf">-3.7594380526842563</span><span class="p">,</span>
+<a id="__codelineno-1-231" name="__codelineno-1-231" href="#__codelineno-1-231"></a><span class="w">                </span><span class="mf">-3.005573039094239</span><span class="p">,</span>
+<a id="__codelineno-1-232" name="__codelineno-1-232" href="#__codelineno-1-232"></a><span class="w">                </span><span class="mf">-2.2517080255042217</span><span class="p">,</span>
+<a id="__codelineno-1-233" name="__codelineno-1-233" href="#__codelineno-1-233"></a><span class="w">                </span><span class="mf">-1.4978430119142025</span><span class="p">,</span>
+<a id="__codelineno-1-234" name="__codelineno-1-234" href="#__codelineno-1-234"></a><span class="w">                </span><span class="mf">-0.7439779983241852</span><span class="p">,</span>
+<a id="__codelineno-1-235" name="__codelineno-1-235" href="#__codelineno-1-235"></a><span class="w">                </span><span class="mf">0.00988701526583391</span><span class="p">,</span>
+<a id="__codelineno-1-236" name="__codelineno-1-236" href="#__codelineno-1-236"></a><span class="w">                </span><span class="mf">0.7637520288558513</span><span class="p">,</span>
+<a id="__codelineno-1-237" name="__codelineno-1-237" href="#__codelineno-1-237"></a><span class="w">                </span><span class="mf">1.5176170424458686</span><span class="p">,</span>
+<a id="__codelineno-1-238" name="__codelineno-1-238" href="#__codelineno-1-238"></a><span class="w">                </span><span class="mf">2.2714820560358877</span><span class="p">,</span>
+<a id="__codelineno-1-239" name="__codelineno-1-239" href="#__codelineno-1-239"></a><span class="w">                </span><span class="mf">3.025347069625905</span>
+<a id="__codelineno-1-240" name="__codelineno-1-240" href="#__codelineno-1-240"></a><span class="w">            </span><span class="p">],</span>
+<a id="__codelineno-1-241" name="__codelineno-1-241" href="#__codelineno-1-241"></a><span class="w">            </span><span class="nt">&quot;bin_counts&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-1-242" name="__codelineno-1-242" href="#__codelineno-1-242"></a><span class="w">                </span><span class="mi">3</span><span class="p">,</span>
+<a id="__codelineno-1-243" name="__codelineno-1-243" href="#__codelineno-1-243"></a><span class="w">                </span><span class="mi">11</span><span class="p">,</span>
+<a id="__codelineno-1-244" name="__codelineno-1-244" href="#__codelineno-1-244"></a><span class="w">                </span><span class="mi">36</span><span class="p">,</span>
+<a id="__codelineno-1-245" name="__codelineno-1-245" href="#__codelineno-1-245"></a><span class="w">                </span><span class="mi">109</span><span class="p">,</span>
+<a id="__codelineno-1-246" name="__codelineno-1-246" href="#__codelineno-1-246"></a><span class="w">                </span><span class="mi">222</span><span class="p">,</span>
+<a id="__codelineno-1-247" name="__codelineno-1-247" href="#__codelineno-1-247"></a><span class="w">                </span><span class="mi">423</span><span class="p">,</span>
+<a id="__codelineno-1-248" name="__codelineno-1-248" href="#__codelineno-1-248"></a><span class="w">                </span><span class="mi">744</span><span class="p">,</span>
+<a id="__codelineno-1-249" name="__codelineno-1-249" href="#__codelineno-1-249"></a><span class="w">                </span><span class="mi">1114</span><span class="p">,</span>
+<a id="__codelineno-1-250" name="__codelineno-1-250" href="#__codelineno-1-250"></a><span class="w">                </span><span class="mi">1321</span><span class="p">,</span>
+<a id="__codelineno-1-251" name="__codelineno-1-251" href="#__codelineno-1-251"></a><span class="w">                </span><span class="mi">1487</span><span class="p">,</span>
+<a id="__codelineno-1-252" name="__codelineno-1-252" href="#__codelineno-1-252"></a><span class="w">                </span><span class="mi">1454</span><span class="p">,</span>
+<a id="__codelineno-1-253" name="__codelineno-1-253" href="#__codelineno-1-253"></a><span class="w">                </span><span class="mi">1193</span><span class="p">,</span>
+<a id="__codelineno-1-254" name="__codelineno-1-254" href="#__codelineno-1-254"></a><span class="w">                </span><span class="mi">853</span><span class="p">,</span>
+<a id="__codelineno-1-255" name="__codelineno-1-255" href="#__codelineno-1-255"></a><span class="w">                </span><span class="mi">530</span><span class="p">,</span>
+<a id="__codelineno-1-256" name="__codelineno-1-256" href="#__codelineno-1-256"></a><span class="w">                </span><span class="mi">284</span><span class="p">,</span>
+<a id="__codelineno-1-257" name="__codelineno-1-257" href="#__codelineno-1-257"></a><span class="w">                </span><span class="mi">120</span><span class="p">,</span>
+<a id="__codelineno-1-258" name="__codelineno-1-258" href="#__codelineno-1-258"></a><span class="w">                </span><span class="mi">52</span><span class="p">,</span>
+<a id="__codelineno-1-259" name="__codelineno-1-259" href="#__codelineno-1-259"></a><span class="w">                </span><span class="mi">29</span><span class="p">,</span>
+<a id="__codelineno-1-260" name="__codelineno-1-260" href="#__codelineno-1-260"></a><span class="w">                </span><span class="mi">13</span><span class="p">,</span>
+<a id="__codelineno-1-261" name="__codelineno-1-261" href="#__codelineno-1-261"></a><span class="w">                </span><span class="mi">2</span>
+<a id="__codelineno-1-262" name="__codelineno-1-262" href="#__codelineno-1-262"></a><span class="w">            </span><span class="p">]</span>
+<a id="__codelineno-1-263" name="__codelineno-1-263" href="#__codelineno-1-263"></a><span class="w">            </span><span class="p">}</span>
+<a id="__codelineno-1-264" name="__codelineno-1-264" href="#__codelineno-1-264"></a><span class="w">        </span><span class="p">},</span>
+<a id="__codelineno-1-265" name="__codelineno-1-265" href="#__codelineno-1-265"></a><span class="w">        </span><span class="nt">&quot;string_stats&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<a id="__codelineno-1-266" name="__codelineno-1-266" href="#__codelineno-1-266"></a><span class="w">        </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2025-04-28T18:19:34.035703Z&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-267" name="__codelineno-1-267" href="#__codelineno-1-267"></a><span class="w">        </span><span class="nt">&quot;correlations&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span>
+<a id="__codelineno-1-268" name="__codelineno-1-268" href="#__codelineno-1-268"></a><span class="w">        </span><span class="p">},</span>
+<a id="__codelineno-1-269" name="__codelineno-1-269" href="#__codelineno-1-269"></a><span class="w">        </span><span class="nt">&quot;feature_3&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-270" name="__codelineno-1-270" href="#__codelineno-1-270"></a><span class="w">        </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;feature_3&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-271" name="__codelineno-1-271" href="#__codelineno-1-271"></a><span class="w">        </span><span class="nt">&quot;numeric_stats&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-272" name="__codelineno-1-272" href="#__codelineno-1-272"></a><span class="w">            </span><span class="nt">&quot;mean&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">-3.996914164800711</span><span class="p">,</span>
+<a id="__codelineno-1-273" name="__codelineno-1-273" href="#__codelineno-1-273"></a><span class="w">            </span><span class="nt">&quot;stddev&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1.9930422779448296</span><span class="p">,</span>
+<a id="__codelineno-1-274" name="__codelineno-1-274" href="#__codelineno-1-274"></a><span class="w">            </span><span class="nt">&quot;min&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">-11.140741264279484</span><span class="p">,</span>
+<a id="__codelineno-1-275" name="__codelineno-1-275" href="#__codelineno-1-275"></a><span class="w">            </span><span class="nt">&quot;max&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">2.876859924322919</span><span class="p">,</span>
+<a id="__codelineno-1-276" name="__codelineno-1-276" href="#__codelineno-1-276"></a><span class="w">            </span><span class="nt">&quot;distinct&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-277" name="__codelineno-1-277" href="#__codelineno-1-277"></a><span class="w">            </span><span class="nt">&quot;count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10000</span><span class="p">,</span>
+<a id="__codelineno-1-278" name="__codelineno-1-278" href="#__codelineno-1-278"></a><span class="w">            </span><span class="nt">&quot;percent&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1.0</span>
+<a id="__codelineno-1-279" name="__codelineno-1-279" href="#__codelineno-1-279"></a><span class="w">            </span><span class="p">},</span>
+<a id="__codelineno-1-280" name="__codelineno-1-280" href="#__codelineno-1-280"></a><span class="w">            </span><span class="nt">&quot;quantiles&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-281" name="__codelineno-1-281" href="#__codelineno-1-281"></a><span class="w">            </span><span class="nt">&quot;q25&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">-5.332108894837108</span><span class="p">,</span>
+<a id="__codelineno-1-282" name="__codelineno-1-282" href="#__codelineno-1-282"></a><span class="w">            </span><span class="nt">&quot;q50&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">-3.9894123025713193</span><span class="p">,</span>
+<a id="__codelineno-1-283" name="__codelineno-1-283" href="#__codelineno-1-283"></a><span class="w">            </span><span class="nt">&quot;q75&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">-2.639771809727505</span><span class="p">,</span>
+<a id="__codelineno-1-284" name="__codelineno-1-284" href="#__codelineno-1-284"></a><span class="w">            </span><span class="nt">&quot;q99&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.531352688455816</span>
+<a id="__codelineno-1-285" name="__codelineno-1-285" href="#__codelineno-1-285"></a><span class="w">            </span><span class="p">},</span>
+<a id="__codelineno-1-286" name="__codelineno-1-286" href="#__codelineno-1-286"></a><span class="w">            </span><span class="nt">&quot;histogram&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-287" name="__codelineno-1-287" href="#__codelineno-1-287"></a><span class="w">            </span><span class="nt">&quot;bins&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-1-288" name="__codelineno-1-288" href="#__codelineno-1-288"></a><span class="w">                </span><span class="mf">-11.140741264279484</span><span class="p">,</span>
+<a id="__codelineno-1-289" name="__codelineno-1-289" href="#__codelineno-1-289"></a><span class="w">                </span><span class="mf">-10.439861204849365</span><span class="p">,</span>
+<a id="__codelineno-1-290" name="__codelineno-1-290" href="#__codelineno-1-290"></a><span class="w">                </span><span class="mf">-9.738981145419244</span><span class="p">,</span>
+<a id="__codelineno-1-291" name="__codelineno-1-291" href="#__codelineno-1-291"></a><span class="w">                </span><span class="mf">-9.038101085989123</span><span class="p">,</span>
+<a id="__codelineno-1-292" name="__codelineno-1-292" href="#__codelineno-1-292"></a><span class="w">                </span><span class="mf">-8.337221026559003</span><span class="p">,</span>
+<a id="__codelineno-1-293" name="__codelineno-1-293" href="#__codelineno-1-293"></a><span class="w">                </span><span class="mf">-7.636340967128883</span><span class="p">,</span>
+<a id="__codelineno-1-294" name="__codelineno-1-294" href="#__codelineno-1-294"></a><span class="w">                </span><span class="mf">-6.935460907698763</span><span class="p">,</span>
+<a id="__codelineno-1-295" name="__codelineno-1-295" href="#__codelineno-1-295"></a><span class="w">                </span><span class="mf">-6.234580848268643</span><span class="p">,</span>
+<a id="__codelineno-1-296" name="__codelineno-1-296" href="#__codelineno-1-296"></a><span class="w">                </span><span class="mf">-5.533700788838523</span><span class="p">,</span>
+<a id="__codelineno-1-297" name="__codelineno-1-297" href="#__codelineno-1-297"></a><span class="w">                </span><span class="mf">-4.832820729408403</span><span class="p">,</span>
+<a id="__codelineno-1-298" name="__codelineno-1-298" href="#__codelineno-1-298"></a><span class="w">                </span><span class="mf">-4.131940669978283</span><span class="p">,</span>
+<a id="__codelineno-1-299" name="__codelineno-1-299" href="#__codelineno-1-299"></a><span class="w">                </span><span class="mf">-3.4310606105481627</span><span class="p">,</span>
+<a id="__codelineno-1-300" name="__codelineno-1-300" href="#__codelineno-1-300"></a><span class="w">                </span><span class="mf">-2.7301805511180426</span><span class="p">,</span>
+<a id="__codelineno-1-301" name="__codelineno-1-301" href="#__codelineno-1-301"></a><span class="w">                </span><span class="mf">-2.0293004916879234</span><span class="p">,</span>
+<a id="__codelineno-1-302" name="__codelineno-1-302" href="#__codelineno-1-302"></a><span class="w">                </span><span class="mf">-1.3284204322578024</span><span class="p">,</span>
+<a id="__codelineno-1-303" name="__codelineno-1-303" href="#__codelineno-1-303"></a><span class="w">                </span><span class="mf">-0.6275403728276814</span><span class="p">,</span>
+<a id="__codelineno-1-304" name="__codelineno-1-304" href="#__codelineno-1-304"></a><span class="w">                </span><span class="mf">0.07333968660243784</span><span class="p">,</span>
+<a id="__codelineno-1-305" name="__codelineno-1-305" href="#__codelineno-1-305"></a><span class="w">                </span><span class="mf">0.774219746032557</span><span class="p">,</span>
+<a id="__codelineno-1-306" name="__codelineno-1-306" href="#__codelineno-1-306"></a><span class="w">                </span><span class="mf">1.475099805462678</span><span class="p">,</span>
+<a id="__codelineno-1-307" name="__codelineno-1-307" href="#__codelineno-1-307"></a><span class="w">                </span><span class="mf">2.175979864892799</span>
+<a id="__codelineno-1-308" name="__codelineno-1-308" href="#__codelineno-1-308"></a><span class="w">            </span><span class="p">],</span>
+<a id="__codelineno-1-309" name="__codelineno-1-309" href="#__codelineno-1-309"></a><span class="w">            </span><span class="nt">&quot;bin_counts&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-1-310" name="__codelineno-1-310" href="#__codelineno-1-310"></a><span class="w">                </span><span class="mi">3</span><span class="p">,</span>
+<a id="__codelineno-1-311" name="__codelineno-1-311" href="#__codelineno-1-311"></a><span class="w">                </span><span class="mi">22</span><span class="p">,</span>
+<a id="__codelineno-1-312" name="__codelineno-1-312" href="#__codelineno-1-312"></a><span class="w">                </span><span class="mi">37</span><span class="p">,</span>
+<a id="__codelineno-1-313" name="__codelineno-1-313" href="#__codelineno-1-313"></a><span class="w">                </span><span class="mi">79</span><span class="p">,</span>
+<a id="__codelineno-1-314" name="__codelineno-1-314" href="#__codelineno-1-314"></a><span class="w">                </span><span class="mi">218</span><span class="p">,</span>
+<a id="__codelineno-1-315" name="__codelineno-1-315" href="#__codelineno-1-315"></a><span class="w">                </span><span class="mi">385</span><span class="p">,</span>
+<a id="__codelineno-1-316" name="__codelineno-1-316" href="#__codelineno-1-316"></a><span class="w">                </span><span class="mi">557</span><span class="p">,</span>
+<a id="__codelineno-1-317" name="__codelineno-1-317" href="#__codelineno-1-317"></a><span class="w">                </span><span class="mi">870</span><span class="p">,</span>
+<a id="__codelineno-1-318" name="__codelineno-1-318" href="#__codelineno-1-318"></a><span class="w">                </span><span class="mi">1214</span><span class="p">,</span>
+<a id="__codelineno-1-319" name="__codelineno-1-319" href="#__codelineno-1-319"></a><span class="w">                </span><span class="mi">1333</span><span class="p">,</span>
+<a id="__codelineno-1-320" name="__codelineno-1-320" href="#__codelineno-1-320"></a><span class="w">                </span><span class="mi">1422</span><span class="p">,</span>
+<a id="__codelineno-1-321" name="__codelineno-1-321" href="#__codelineno-1-321"></a><span class="w">                </span><span class="mi">1216</span><span class="p">,</span>
+<a id="__codelineno-1-322" name="__codelineno-1-322" href="#__codelineno-1-322"></a><span class="w">                </span><span class="mi">1002</span><span class="p">,</span>
+<a id="__codelineno-1-323" name="__codelineno-1-323" href="#__codelineno-1-323"></a><span class="w">                </span><span class="mi">759</span><span class="p">,</span>
+<a id="__codelineno-1-324" name="__codelineno-1-324" href="#__codelineno-1-324"></a><span class="w">                </span><span class="mi">422</span><span class="p">,</span>
+<a id="__codelineno-1-325" name="__codelineno-1-325" href="#__codelineno-1-325"></a><span class="w">                </span><span class="mi">251</span><span class="p">,</span>
+<a id="__codelineno-1-326" name="__codelineno-1-326" href="#__codelineno-1-326"></a><span class="w">                </span><span class="mi">146</span><span class="p">,</span>
+<a id="__codelineno-1-327" name="__codelineno-1-327" href="#__codelineno-1-327"></a><span class="w">                </span><span class="mi">42</span><span class="p">,</span>
+<a id="__codelineno-1-328" name="__codelineno-1-328" href="#__codelineno-1-328"></a><span class="w">                </span><span class="mi">16</span><span class="p">,</span>
+<a id="__codelineno-1-329" name="__codelineno-1-329" href="#__codelineno-1-329"></a><span class="w">                </span><span class="mi">6</span>
+<a id="__codelineno-1-330" name="__codelineno-1-330" href="#__codelineno-1-330"></a><span class="w">            </span><span class="p">]</span>
+<a id="__codelineno-1-331" name="__codelineno-1-331" href="#__codelineno-1-331"></a><span class="w">            </span><span class="p">}</span>
+<a id="__codelineno-1-332" name="__codelineno-1-332" href="#__codelineno-1-332"></a><span class="w">        </span><span class="p">},</span>
+<a id="__codelineno-1-333" name="__codelineno-1-333" href="#__codelineno-1-333"></a><span class="w">        </span><span class="nt">&quot;string_stats&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<a id="__codelineno-1-334" name="__codelineno-1-334" href="#__codelineno-1-334"></a><span class="w">        </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2025-04-28T18:19:34.035704Z&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-335" name="__codelineno-1-335" href="#__codelineno-1-335"></a><span class="w">        </span><span class="nt">&quot;correlations&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span>
+<a id="__codelineno-1-336" name="__codelineno-1-336" href="#__codelineno-1-336"></a><span class="w">        </span><span class="p">}</span>
+<a id="__codelineno-1-337" name="__codelineno-1-337" href="#__codelineno-1-337"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-1-338" name="__codelineno-1-338" href="#__codelineno-1-338"></a><span class="p">}</span>
+</code></pre></div>
+</details>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "../../..", "features": ["content.code.annotate", "content.code.copy", "announce.dismiss", "navigation.path", "navigation.sections", "navigation.top", "navigation.tabs", "navigation.tracking", "search.suggest", "toc.follow"], "search": "../../../assets/javascripts/workers/search.f8cc74c7.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.c8b220af.min.js"></script>
+      
+        <script src="../../../javascripts/mathjax.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>
