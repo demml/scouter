@@ -1,0 +1,173 @@
+# Example YAML file with a list of evaluation tasks
+# This demonstrates all three task types: AssertionTask, LLMJudgeTask, and TraceAssertionTask
+
+# Example 1: Simple assertion checking user age
+- task_type: Assertion
+  id: check_user_age
+  field_path: user.age
+  operator: GreaterThan
+  expected_value: 18
+  description: Verify user is an adult
+  depends_on: []
+  condition: false
+
+# Example 2: Email format validation
+- task_type: Assertion
+  id: validate_email
+  field_path: user.email
+  operator: IsEmail
+  expected_value: true
+  description: Validate email format
+  depends_on: []
+  condition: false
+
+# Example 3: Password strength check
+- task_type: Assertion
+  id: check_password_strength
+  field_path: user.password
+  operator: HasLengthGreaterThanOrEqual
+  expected_value: 8
+  description: Password must be at least 8 characters
+  depends_on:
+    - validate_email
+  condition: false
+
+# Example 4: Response array length check
+- task_type: Assertion
+  id: validate_response_items
+  field_path: response.data.items
+  operator: HasLengthGreaterThan
+  expected_value: 0
+  description: Ensure response contains items
+  depends_on: []
+  condition: false
+
+# Example 5: String contains check
+- task_type: Assertion
+  id: check_sentiment
+  field_path: analysis.sentiment
+  operator: Contains
+  expected_value: positive
+  description: Check for positive sentiment
+  depends_on: []
+  condition: false
+
+# Example 6: LLM Judge task with inline prompt (simplified for example)
+- task_type: LLMJudge
+  id: sentiment_judge
+  field_path: response.text
+  operator: Equals
+  expected_value: Positive
+  description: Judge sentiment using LLM
+  depends_on:
+    - check_sentiment
+  max_retries: 3
+  condition: false
+  prompt:
+    path: "tests/test_eval/assets/prompts/sentiment_judge.yaml"
+
+# Example 7: Trace assertion - check span sequence
+- task_type: TraceAssertion
+  id: verify_agent_workflow
+  operator: SequenceMatches
+  expected_value: true
+  description: Verify agent workflow execution order
+  depends_on: []
+  condition: false
+  assertion:
+    SpanSequence:
+      span_names:
+        - call_tool
+        - run_agent
+        - double_check
+
+# Example 8: Trace assertion - check span count
+- task_type: TraceAssertion
+  id: verify_retry_count
+  operator: LessThanOrEqual
+  expected_value: 3
+  description: Ensure retries are within limit
+  depends_on: []
+  condition: false
+  assertion:
+    SpanCount:
+      filter:
+        ByName:
+          name: retry_operation
+
+# Example 9: Trace assertion - check trace duration
+- task_type: TraceAssertion
+  id: verify_performance
+  operator: LessThan
+  expected_value: 5000.0
+  description: Ensure trace completes within 5 seconds
+  depends_on: []
+  condition: false
+  assertion:
+    TraceDuration: {}
+
+# Example 10: Trace assertion - check span attribute
+- task_type: TraceAssertion
+  id: verify_model_used
+  operator: Equals
+  expected_value: gpt-4
+  description: Verify correct model was used
+  depends_on:
+    - verify_agent_workflow
+  condition: false
+  assertion:
+    SpanAttribute:
+      filter:
+        ByName:
+          name: llm.generate
+      attribute_key: model
+
+# Example 11: Complex span filter with AND logic
+- task_type: TraceAssertion
+  id: verify_error_handling
+  operator: Equals
+  expected_value: true
+  description: Check error spans exist with proper attributes
+  depends_on: []
+  condition: false
+  assertion:
+    SpanExists:
+      filter:
+        And:
+          filters:
+            - WithStatus:
+                status: Error
+            - WithAttribute:
+                key: error.type
+
+# Example 12: Trace assertion - check span duration range
+- task_type: TraceAssertion
+  id: verify_span_duration
+  operator: Equals
+  expected_value: true
+  description: Ensure specific span duration is within acceptable range
+  depends_on: []
+  condition: false
+  assertion:
+    SpanDuration:
+      filter:
+        And:
+          filters:
+            - ByName:
+                name: database_query
+            - WithDuration:
+                min_ms: 10.0
+                max_ms: 1000.0
+
+# Example 13: Conditional task (only runs if previous tasks pass)
+- task_type: Assertion
+  id: final_validation
+  field_path: status
+  operator: Equals
+  expected_value: success
+  description: Final validation that only runs if all dependencies pass
+  depends_on:
+    - check_user_age
+    - validate_email
+    - check_password_strength
+  condition: true

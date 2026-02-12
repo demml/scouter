@@ -1599,8 +1599,10 @@ impl<'de> Deserialize<'de> for TasksFile {
         D: serde::Deserializer<'de>,
     {
         #[derive(Deserialize)]
-        struct TasksFileRaw {
-            tasks: Vec<TaskConfigRaw>,
+        #[serde(untagged)]
+        enum TasksFileRaw {
+            Direct(Vec<TaskConfigRaw>),
+            Wrapped { tasks: Vec<TaskConfigRaw> },
         }
 
         #[derive(Deserialize)]
@@ -1611,10 +1613,14 @@ impl<'de> Deserialize<'de> for TasksFile {
         }
 
         let raw = TasksFileRaw::deserialize(deserializer)?;
+        let raw_tasks = match raw {
+            TasksFileRaw::Direct(tasks) => tasks,
+            TasksFileRaw::Wrapped { tasks } => tasks,
+        };
 
         let mut tasks = Vec::new();
 
-        for task_raw in raw.tasks {
+        for task_raw in raw_tasks {
             let task_config = match task_raw.task_type {
                 EvaluationTaskType::Assertion => {
                     let mut task: AssertionTask =

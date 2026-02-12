@@ -5,6 +5,7 @@ from .._scouter import (
     AlignedEvalResult,
     AssertionTask,
     ComparisonOperator,
+    GenAIEvalConfig,
     EvaluationConfig,
     EvaluationTaskType,
     GenAIEvalDataset,
@@ -23,6 +24,7 @@ from .._scouter import (
 )
 
 __all__ = [
+    "GenAIEvalConfig",
     "GenAIEvalResults",
     "EvaluationConfig",
     "GenAIEvalDataset",
