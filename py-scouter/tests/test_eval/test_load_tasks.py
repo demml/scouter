@@ -185,3 +185,9 @@ def test_load_all_tasks_from_file_json():
     assert task1.field_path == "user.email"
     assert task1.operator == ComparisonOperator.IsEmail
     assert task1.expected_value is True
+
+
+def test_load_task_array_from_file():
+    """Verify all 13 tasks are loaded with correct types and properties."""
+    file_path = Path(__file__).parent / "assets" / "tasks_example.yaml"
+    _tasks = TasksFile.from_path(file_path)
