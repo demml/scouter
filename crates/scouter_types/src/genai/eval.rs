@@ -1601,9 +1601,7 @@ impl<'de> Deserialize<'de> for TasksFile {
         #[derive(Deserialize)]
         #[serde(untagged)]
         enum TasksFileRaw {
-            // Direct array format (preferred)
             Direct(Vec<TaskConfigRaw>),
-            // Wrapped format for backward compatibility
             Wrapped { tasks: Vec<TaskConfigRaw> },
         }
 
