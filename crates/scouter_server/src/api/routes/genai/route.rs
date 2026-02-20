@@ -51,8 +51,17 @@ pub async fn query_genai_eval_records(
         Err(e) => {
             error!("Failed to query drift records: {:?}", e);
 
+            let status_code = if let scouter_sql::sql::error::SqlError::SqlxError(
+                sqlx::Error::RowNotFound,
+            ) = &e
+            {
+                StatusCode::NOT_FOUND
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            };
+
             Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
+                status_code,
                 Json(ScouterServerError::query_records_error(e)),
             ))
         }
@@ -81,10 +90,19 @@ pub async fn query_genai_eval_workflow(
     match metrics {
         Ok(metrics) => Ok(Json(metrics)),
         Err(e) => {
+            // match if sqlerror is sqlx::Error::RowNotFound, if so return not found, else return internal server error
+            let status_code = if let scouter_sql::sql::error::SqlError::SqlxError(
+                sqlx::Error::RowNotFound,
+            ) = &e
+            {
+                StatusCode::NOT_FOUND
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            };
             error!("Failed to query drift records: {:?}", e);
 
             Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
+                status_code,
                 Json(ScouterServerError::query_records_error(e)),
             ))
         }
@@ -105,8 +123,17 @@ pub async fn get_genai_tasks(
         Err(e) => {
             error!("Failed to query genai eval task metrics: {:?}", e);
 
+            let status_code = if let scouter_sql::sql::error::SqlError::SqlxError(
+                sqlx::Error::RowNotFound,
+            ) = &e
+            {
+                StatusCode::NOT_FOUND
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            };
+
             Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
+                status_code,
                 Json(ScouterServerError::query_records_error(e)),
             ))
         }
