@@ -47,6 +47,10 @@ fn default_trace_assertion_task_type() -> EvaluationTaskType {
     EvaluationTaskType::TraceAssertion
 }
 
+fn default_llm_judge_task_type() -> EvaluationTaskType {
+    EvaluationTaskType::LLMJudge
+}
+
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AssertionResult {
@@ -144,7 +148,7 @@ pub struct AssertionTask {
     #[serde(default)]
     pub depends_on: Vec<String>,
 
-    #[serde(skip, default = "default_assertion_task_type")]
+    #[serde(default = "default_assertion_task_type")]
     #[pyo3(get)]
     pub task_type: EvaluationTaskType,
 
@@ -340,7 +344,7 @@ pub struct LLMJudgeTask {
     #[pyo3(get)]
     pub operator: ComparisonOperator,
 
-    #[serde(skip)]
+    #[serde(default = "default_llm_judge_task_type")]
     #[pyo3(get)]
     pub task_type: EvaluationTaskType,
 
@@ -911,7 +915,7 @@ pub struct TraceAssertionTask {
     #[serde(default)]
     pub depends_on: Vec<String>,
 
-    #[serde(skip, default = "default_trace_assertion_task_type")]
+    #[serde(default = "default_trace_assertion_task_type")]
     #[pyo3(get)]
     pub task_type: EvaluationTaskType,
 
