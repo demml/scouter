@@ -154,7 +154,7 @@ def create_and_register_genai_drift_profile(
         AssertionTask(
             id="response_time",
             expected_value=10,
-            field_path="assertion",
+            context_path="assertion",
             operator=ComparisonOperator.GreaterThanOrEqual,
             description="Ensure response time is within acceptable limits",
         ),
@@ -162,7 +162,7 @@ def create_and_register_genai_drift_profile(
             id="coherence",
             expected_value=4,
             prompt=create_coherence_evaluation_prompt(),
-            field_path="score",
+            context_path="score",
             operator=ComparisonOperator.GreaterThanOrEqual,
             description="Evaluate text coherence",
         ),

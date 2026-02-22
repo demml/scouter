@@ -193,8 +193,8 @@ def test_array_of_objects_not_empty_pass() -> None:
     )
     task = AssertionTask(
         id="responses_not_empty",
-        field_path="responses",
-        item_field_path="text",
+        context_path="responses",
+        item_context_path="text",
         operator=ComparisonOperator.IsNotEmpty,
         expected_value=True,
         description="Responses array must have at least one entry",
@@ -212,7 +212,7 @@ def test_array_of_objects_not_empty_fail() -> None:
     )
     task = AssertionTask(
         id="responses_not_empty",
-        field_path="responses",
+        context_path="responses",
         operator=ComparisonOperator.IsNotEmpty,
         expected_value=True,
         description="Responses array must have at least one entry",
@@ -230,7 +230,7 @@ def test_array_items_greater_than_pass() -> None:
     )
     task = AssertionTask(
         id="score_gte_5",
-        field_path="scores",
+        context_path="scores",
         operator=ComparisonOperator.GreaterThanOrEqual,
         expected_value=5,
         description="Every score must be >= 5",
@@ -248,7 +248,7 @@ def test_array_items_greater_than_fail() -> None:
     )
     task = AssertionTask(
         id="score_gte_5",
-        field_path="scores",
+        context_path="scores",
         operator=ComparisonOperator.GreaterThanOrEqual,
         expected_value=5,
         description="Every score must be >= 5",
@@ -266,7 +266,7 @@ def test_array_items_less_than_pass() -> None:
     )
     task = AssertionTask(
         id="latency_lt_500",
-        field_path="latencies",
+        context_path="latencies",
         operator=ComparisonOperator.LessThan,
         expected_value=500,
         description="Every latency must be < 500ms",
@@ -284,7 +284,7 @@ def test_array_items_less_than_fail() -> None:
     )
     task = AssertionTask(
         id="latency_lt_500",
-        field_path="latencies",
+        context_path="latencies",
         operator=ComparisonOperator.LessThan,
         expected_value=500,
         description="Every latency must be < 500ms",
@@ -302,7 +302,7 @@ def test_array_of_scalars_greater_than_pass() -> None:
     )
     task = AssertionTask(
         id="scores_positive",
-        field_path="scores",
+        context_path="scores",
         operator=ComparisonOperator.GreaterThan,
         expected_value=0,
         description="Every score must be positive",
@@ -320,7 +320,7 @@ def test_array_of_scalars_greater_than_fail() -> None:
     )
     task = AssertionTask(
         id="scores_positive",
-        field_path="scores",
+        context_path="scores",
         operator=ComparisonOperator.GreaterThan,
         expected_value=0,
         description="Every score must be positive",
@@ -338,7 +338,7 @@ def test_array_of_scalars_less_than_pass() -> None:
     )
     task = AssertionTask(
         id="pct_lt_100",
-        field_path="percentages",
+        context_path="percentages",
         operator=ComparisonOperator.LessThan,
         expected_value=100,
         description="Every percentage must be < 100",
@@ -356,7 +356,7 @@ def test_array_of_scalars_less_than_fail() -> None:
     )
     task = AssertionTask(
         id="pct_lt_100",
-        field_path="percentages",
+        context_path="percentages",
         operator=ComparisonOperator.LessThan,
         expected_value=100,
         description="Every percentage must be < 100",
@@ -374,7 +374,7 @@ def test_array_native_has_length_unaffected() -> None:
     )
     task = AssertionTask(
         id="tags_length",
-        field_path="tags",
+        context_path="tags",
         operator=ComparisonOperator.HasLengthEqual,
         expected_value=3,
         description="Array must have exactly 3 items",
@@ -390,7 +390,7 @@ def test_genai_conditional_assertions():
     stage_1_tasks = [
         AssertionTask(
             id="is_foo",
-            field_path="input",
+            context_path="input",
             operator=ComparisonOperator.Equals,
             expected_value="foo",
             description="Check if input is 'foo'",
@@ -398,7 +398,7 @@ def test_genai_conditional_assertions():
         ),
         AssertionTask(
             id="is_bar",
-            field_path="input",
+            context_path="input",
             operator=ComparisonOperator.Equals,
             expected_value="bar",
             description="Check if input is 'bar'",
@@ -406,7 +406,7 @@ def test_genai_conditional_assertions():
         ),
         AssertionTask(
             id="is_baz",
-            field_path="input",
+            context_path="input",
             operator=ComparisonOperator.Equals,
             expected_value="baz",
             description="Check if input is 'baz'",
@@ -417,7 +417,7 @@ def test_genai_conditional_assertions():
     stage_2_task = [
         AssertionTask(
             id="is_foo_foo",
-            field_path="response",
+            context_path="response",
             operator=ComparisonOperator.Equals,
             expected_value="foo_foo",
             description="Check if response is 'foo_foo'",
@@ -425,7 +425,7 @@ def test_genai_conditional_assertions():
         ),
         AssertionTask(
             id="is_bar_bar",
-            field_path="response",
+            context_path="response",
             operator=ComparisonOperator.Equals,
             expected_value="bar_bar",
             description="Check if response is 'bar_bar'",
@@ -433,7 +433,7 @@ def test_genai_conditional_assertions():
         ),
         AssertionTask(
             id="is_baz_baz",
-            field_path="response",
+            context_path="response",
             operator=ComparisonOperator.Equals,
             expected_value="baz_baz",
             description="Check if response is 'baz_baz'",
@@ -455,9 +455,9 @@ def test_genai_conditional_assertions():
 
     results.as_table()
 
-    assert results["test_conditional_1"].task_count == 4, (
-        f"Expected 2 tasks to run, got {results['test_conditional_1'].task_count}"
-    )
-    assert results["test_conditional_1"].eval_set.records[0].task_id == "is_foo", (
-        f"Expected first task to be 'is_bar', got {results['test_conditional_1'].eval_set.records[0].task_id}"
-    )
+    assert (
+        results["test_conditional_1"].task_count == 4
+    ), f"Expected 2 tasks to run, got {results['test_conditional_1'].task_count}"
+    assert (
+        results["test_conditional_1"].eval_set.records[0].task_id == "is_foo"
+    ), f"Expected first task to be 'is_bar', got {results['test_conditional_1'].eval_set.records[0].task_id}"

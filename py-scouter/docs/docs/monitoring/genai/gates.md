@@ -35,7 +35,7 @@ empathy_assessment = LLMJudgeTask(
 
 empathy_score_threshold = AssertionTask(
     id="empathy_score_threshold",
-    field_path="empathy_assessment.score",
+    context_path="empathy_assessment.score",
     operator=ComparisonOperator.GreaterThanOrEqual,
     expected_value=5,
     depends_on=["empathy_assessment"],
@@ -74,7 +74,7 @@ flowchart LR
 ```python
 input_validation = AssertionTask(
     id="input_validation",
-    field_path="input.query",
+    context_path="input.query",
     operator=ComparisonOperator.IsNotEmpty,
     expected_value=True,
     condition=True
@@ -162,7 +162,7 @@ technical_accuracy = LLMJudgeTask(
 
 empathy_score_threshold = AssertionTask(
     id="empathy_score_threshold",
-    field_path="empathy_assessment.score",
+    context_path="empathy_assessment.score",
     operator=ComparisonOperator.GreaterThanOrEqual,
     expected_value=5,
     depends_on=["empathy_assessment"],
@@ -170,7 +170,7 @@ empathy_score_threshold = AssertionTask(
 
 accuracy_gate = AssertionTask(
     id="accuracy_gate",
-    field_path="technical_accuracy.is_accurate",
+    context_path="technical_accuracy.is_accurate",
     operator=ComparisonOperator.Equals,
     expected_value=True,
     depends_on=["technical_accuracy"],

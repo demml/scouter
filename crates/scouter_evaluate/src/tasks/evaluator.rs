@@ -14,18 +14,18 @@ pub struct FieldEvaluator;
 /// Utility for extracting field values from JSON-like structures
 /// Supports: "field", "field.subfield", "field[0]", "field[0].subfield"
 impl FieldEvaluator {
-    /// Extracts the value at the specified field path from the given JSON value
+    /// Extracts the value at the specified context path from the given JSON value
     /// # Arguments
     /// * `json` - The JSON value to extract from
-    /// * `field_path` - The dot/bracket notation path to the desired field
+    /// * `context_path` - The dot/bracket notation path to the desired field
     /// # Returns
     /// The extracted JSON value or an EvaluationError if the path is invalid
     #[instrument(skip_all)]
     pub fn extract_field_value<'a>(
         json: &'a Value,
-        field_path: &str,
+        context_path: &str,
     ) -> Result<&'a Value, EvaluationError> {
-        let path_segments = Self::parse_field_path(field_path)?;
+        let path_segments = Self::parse_field_path(context_path)?;
         let mut current_value = json;
 
         for segment in path_segments {
@@ -42,9 +42,9 @@ impl FieldEvaluator {
         Ok(current_value)
     }
 
-    /// Parses a field path string into segments for navigation
+    /// Parses a context path string into segments for navigation
     /// # Arguments
-    /// * `path` - The field path string
+    /// * `path` - The context path string
     /// # Returns
     /// A vector of PathSegment enums representing the parsed path
     fn parse_field_path(path: &str) -> Result<Vec<PathSegment>, EvaluationError> {
@@ -99,16 +99,16 @@ impl AssertionEvaluator {
         json_value: &Value,
         assertion: &T,
     ) -> Result<AssertionResult, EvaluationError> {
-        // if value is array and field path is provider, it is assumed that user
+        // if value is array and context path is provider, it is assumed that user
         // wants to evaluate each element of array
         if let Value::Array(items) = json_value {
-            if assertion.field_path().is_some() {
-                return Self::evaluate_over_array_items(items, assertion, assertion.field_path());
+            if assertion.context_path().is_some() {
+                return Self::evaluate_over_array_items(items, assertion, assertion.context_path());
             }
         }
 
-        let actual_value: &Value = if let Some(field_path) = assertion.field_path() {
-            FieldEvaluator::extract_field_value(json_value, field_path)?
+        let actual_value: &Value = if let Some(context_path) = assertion.context_path() {
+            FieldEvaluator::extract_field_value(json_value, context_path)?
         } else {
             json_value
         };
@@ -119,7 +119,7 @@ impl AssertionEvaluator {
                 return Self::evaluate_over_array_items(
                     items,
                     assertion,
-                    assertion.item_field_path(),
+                    assertion.item_context_path(),
                 );
             }
         }
@@ -168,9 +168,9 @@ impl AssertionEvaluator {
     ) -> Result<&'a Value, EvaluationError> {
         match expected {
             Value::String(s) if s.starts_with("${") && s.ends_with("}") => {
-                // Extract field path from template: "${field.path}" -> "field.path"
-                let field_path = &s[2..s.len() - 1];
-                let resolved = FieldEvaluator::extract_field_value(context, field_path)?;
+                // Extract context path from template: "${field.path}" -> "field.path"
+                let context_path = &s[2..s.len() - 1];
+                let resolved = FieldEvaluator::extract_field_value(context, context_path)?;
                 Ok(resolved)
             }
             _ => Ok(expected),
@@ -687,22 +687,22 @@ impl AssertionEvaluator {
 
     /// Evaluates an assertion against every item in `items`.
     ///
-    /// * When `field_path` is `Some`, each item is expected to be a JSON object and the
+    /// * When `context_path` is `Some`, each item is expected to be a JSON object and the
     ///   specified field is extracted before comparison.
-    /// * When `field_path` is `None`, the item itself is compared directly.
+    /// * When `context_path` is `None`, the item itself is compared directly.
     ///
     /// The assertion fails as soon as any item fails; all items must pass for success.
     #[instrument(skip_all)]
     fn evaluate_over_array_items<T: TaskAccessor>(
         items: &[Value],
         assertion: &T,
-        field_path: Option<&str>,
+        context_path: Option<&str>,
     ) -> Result<AssertionResult, EvaluationError> {
         let expected = assertion.expected_value();
         let array_value = Value::Array(items.to_vec());
 
         for (idx, item) in items.iter().enumerate() {
-            let actual_item: &Value = match field_path {
+            let actual_item: &Value = match context_path {
                 Some(fp) => match FieldEvaluator::extract_field_value(item, fp) {
                     Ok(v) => v,
                     Err(err) => {
@@ -827,13 +827,13 @@ mod tests {
     fn priority_assertion() -> AssertionTask {
         AssertionTask {
             id: "priority_check".to_string(),
-            field_path: Some("metadata.priority".to_string()),
+            context_path: Some("metadata.priority".to_string()),
             operator: ComparisonOperator::Equals,
             expected_value: Value::String("high".to_string()),
             description: Some("Check if priority is high".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         }
@@ -842,13 +842,13 @@ mod tests {
     fn match_assertion() -> AssertionTask {
         AssertionTask {
             id: "status_match".to_string(),
-            field_path: Some("status".to_string()),
+            context_path: Some("status".to_string()),
             operator: ComparisonOperator::Matches,
             expected_value: Value::String(r"^in_.*$".to_string()),
             description: Some("Status should start with 'in_'".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         }
@@ -857,13 +857,13 @@ mod tests {
     fn length_assertion() -> AssertionTask {
         AssertionTask {
             id: "tasks_length".to_string(),
-            field_path: Some("tasks".to_string()),
+            context_path: Some("tasks".to_string()),
             operator: ComparisonOperator::HasLengthEqual,
             expected_value: Value::Number(3.into()),
             description: Some("There should be 3 tasks".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         }
@@ -872,13 +872,13 @@ mod tests {
     fn length_assertion_greater() -> AssertionTask {
         AssertionTask {
             id: "tasks_length_gte".to_string(),
-            field_path: Some("tasks".to_string()),
+            context_path: Some("tasks".to_string()),
             operator: ComparisonOperator::HasLengthGreaterThanOrEqual,
             expected_value: Value::Number(2.into()),
             description: Some("There should be more than 2 tasks".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         }
@@ -887,13 +887,13 @@ mod tests {
     fn length_assertion_less() -> AssertionTask {
         AssertionTask {
             id: "tasks_length_lte".to_string(),
-            field_path: Some("tasks".to_string()),
+            context_path: Some("tasks".to_string()),
             operator: ComparisonOperator::HasLengthLessThanOrEqual,
             expected_value: Value::Number(5.into()),
             description: Some("There should be less than 5 tasks".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         }
@@ -902,13 +902,13 @@ mod tests {
     fn contains_assertion() -> AssertionTask {
         AssertionTask {
             id: "tags_contains".to_string(),
-            field_path: Some("metadata.tags".to_string()),
+            context_path: Some("metadata.tags".to_string()),
             operator: ComparisonOperator::Contains,
             expected_value: Value::String("backend".to_string()),
             description: Some("Tags should contain 'backend'".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         }
@@ -917,13 +917,13 @@ mod tests {
     fn not_equal_assertion() -> AssertionTask {
         AssertionTask {
             id: "status_not_equal".to_string(),
-            field_path: Some("status".to_string()),
+            context_path: Some("status".to_string()),
             operator: ComparisonOperator::NotEqual,
             expected_value: Value::String("completed".to_string()),
             description: Some("Status should not be completed".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         }
@@ -932,13 +932,13 @@ mod tests {
     fn greater_than_assertion() -> AssertionTask {
         AssertionTask {
             id: "total_greater".to_string(),
-            field_path: Some("counts.total".to_string()),
+            context_path: Some("counts.total".to_string()),
             operator: ComparisonOperator::GreaterThan,
             expected_value: Value::Number(40.into()),
             description: Some("Total should be greater than 40".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         }
@@ -947,13 +947,13 @@ mod tests {
     fn less_than_assertion() -> AssertionTask {
         AssertionTask {
             id: "completed_less".to_string(),
-            field_path: Some("counts.completed".to_string()),
+            context_path: Some("counts.completed".to_string()),
             operator: ComparisonOperator::LessThan,
             expected_value: Value::Number(20.into()),
             description: Some("Completed should be less than 20".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         }
@@ -962,13 +962,13 @@ mod tests {
     fn not_contains_assertion() -> AssertionTask {
         AssertionTask {
             id: "tags_not_contains".to_string(),
-            field_path: Some("metadata.tags".to_string()),
+            context_path: Some("metadata.tags".to_string()),
             operator: ComparisonOperator::NotContains,
             expected_value: Value::String("frontend".to_string()),
             description: Some("Tags should not contain 'frontend'".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         }
@@ -977,13 +977,13 @@ mod tests {
     fn starts_with_assertion() -> AssertionTask {
         AssertionTask {
             id: "status_starts_with".to_string(),
-            field_path: Some("status".to_string()),
+            context_path: Some("status".to_string()),
             operator: ComparisonOperator::StartsWith,
             expected_value: Value::String("in_".to_string()),
             description: Some("Status should start with 'in_'".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         }
@@ -992,13 +992,13 @@ mod tests {
     fn ends_with_assertion() -> AssertionTask {
         AssertionTask {
             id: "status_ends_with".to_string(),
-            field_path: Some("status".to_string()),
+            context_path: Some("status".to_string()),
             operator: ComparisonOperator::EndsWith,
             expected_value: Value::String("_progress".to_string()),
             description: Some("Status should end with '_progress'".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         }
@@ -1071,7 +1071,10 @@ mod tests {
     fn test_parse_field_path_empty_string() {
         let result = FieldEvaluator::parse_field_path("");
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Empty field path"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Empty context path"));
     }
 
     #[test]
@@ -1426,13 +1429,13 @@ mod tests {
         let json = json!({"name": "test_user"});
         let assertion = AssertionTask {
             id: "name_length".to_string(),
-            field_path: Some("name".to_string()),
+            context_path: Some("name".to_string()),
             operator: ComparisonOperator::HasLengthEqual,
             expected_value: Value::Number(9.into()),
             description: Some("Name should have 9 characters".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -1467,13 +1470,13 @@ mod tests {
         let json = get_test_json();
         let assertion = AssertionTask {
             id: "status_contains_prog".to_string(),
-            field_path: Some("status".to_string()),
+            context_path: Some("status".to_string()),
             operator: ComparisonOperator::Contains,
             expected_value: Value::String("progress".to_string()),
             description: Some("Status should contain 'progress'".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -1568,13 +1571,13 @@ mod tests {
         let json = get_test_json();
         let assertion = AssertionTask {
             id: "user_format".to_string(),
-            field_path: Some("metadata.created_by".to_string()),
+            context_path: Some("metadata.created_by".to_string()),
             operator: ComparisonOperator::Matches,
             expected_value: Value::String(r"^user_\d+$".to_string()),
             description: Some("User ID should match format user_###".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -1589,7 +1592,7 @@ mod tests {
         let json = json!({"status": "active"});
         let assertion = AssertionTask {
             id: "root_check".to_string(),
-            field_path: None,
+            context_path: None,
             operator: ComparisonOperator::Equals,
             expected_value: json!({"status": "active"}),
             description: Some("Check entire root object".to_string()),
@@ -1597,7 +1600,7 @@ mod tests {
             depends_on: vec![],
             result: None,
             condition: false,
-            item_field_path: None,
+            item_context_path: None,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1610,13 +1613,13 @@ mod tests {
         let json = get_test_json();
         let assertion = AssertionTask {
             id: "empty_array_length".to_string(),
-            field_path: Some("empty_array".to_string()),
+            context_path: Some("empty_array".to_string()),
             operator: ComparisonOperator::HasLengthEqual,
             expected_value: Value::Number(0.into()),
             description: Some("Empty array should have length 0".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -1631,13 +1634,13 @@ mod tests {
         let json = json!({"score": 85.5});
         let assertion = AssertionTask {
             id: "score_check".to_string(),
-            field_path: Some("score".to_string()),
+            context_path: Some("score".to_string()),
             operator: ComparisonOperator::GreaterThanOrEqual,
             expected_value: json!(85.0),
             description: Some("Score should be at least 85".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -1652,13 +1655,13 @@ mod tests {
         let json = get_test_json();
         let assertion = AssertionTask {
             id: "missing_field".to_string(),
-            field_path: Some("nonexistent.field".to_string()),
+            context_path: Some("nonexistent.field".to_string()),
             operator: ComparisonOperator::Equals,
             expected_value: Value::String("value".to_string()),
             description: Some("Should fail with field not found".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -1674,13 +1677,13 @@ mod tests {
         let json = get_test_json();
         let assertion = AssertionTask {
             id: "bad_regex".to_string(),
-            field_path: Some("status".to_string()),
+            context_path: Some("status".to_string()),
             operator: ComparisonOperator::Matches,
             expected_value: Value::String("[invalid(".to_string()),
             description: Some("Invalid regex pattern".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -1695,13 +1698,13 @@ mod tests {
         let json = get_test_json();
         let assertion = AssertionTask {
             id: "type_mismatch".to_string(),
-            field_path: Some("counts.total".to_string()),
+            context_path: Some("counts.total".to_string()),
             operator: ComparisonOperator::StartsWith,
             expected_value: Value::String("4".to_string()),
             description: Some("Cannot use StartsWith on number".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -1716,13 +1719,13 @@ mod tests {
         let json = json!({"value": "not_a_number"});
         let assertion = AssertionTask {
             id: "numeric_on_string".to_string(),
-            field_path: Some("value".to_string()),
+            context_path: Some("value".to_string()),
             operator: ComparisonOperator::GreaterThan,
             expected_value: Value::Number(10.into()),
             description: Some("Cannot compare string with number".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -1736,13 +1739,13 @@ mod tests {
         let json = json!({"value": 42});
         let assertion = AssertionTask {
             id: "type_check".to_string(),
-            field_path: Some("value".to_string()),
+            context_path: Some("value".to_string()),
             operator: ComparisonOperator::IsNumeric,
             expected_value: Value::Bool(true),
             description: Some("Value should be numeric".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -1756,13 +1759,13 @@ mod tests {
         let json = json!({"value": "hello"});
         let assertion = AssertionTask {
             id: "type_check".to_string(),
-            field_path: Some("value".to_string()),
+            context_path: Some("value".to_string()),
             operator: ComparisonOperator::IsString,
             expected_value: Value::Bool(true),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -1776,13 +1779,13 @@ mod tests {
         let json = json!({"value": [1, 2, 3]});
         let assertion = AssertionTask {
             id: "type_check".to_string(),
-            field_path: Some("value".to_string()),
+            context_path: Some("value".to_string()),
             operator: ComparisonOperator::IsArray,
             expected_value: Value::Bool(true),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -1797,13 +1800,13 @@ mod tests {
         let json = json!({"email": "user@example.com"});
         let assertion = AssertionTask {
             id: "email_check".to_string(),
-            field_path: Some("email".to_string()),
+            context_path: Some("email".to_string()),
             operator: ComparisonOperator::IsEmail,
             expected_value: Value::Bool(true),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -1817,13 +1820,13 @@ mod tests {
         let json = json!({"email": "not-an-email"});
         let assertion = AssertionTask {
             id: "email_check".to_string(),
-            field_path: Some("email".to_string()),
+            context_path: Some("email".to_string()),
             operator: ComparisonOperator::IsEmail,
             expected_value: Value::Bool(true),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -1837,13 +1840,13 @@ mod tests {
         let json = json!({"url": "https://example.com"});
         let assertion = AssertionTask {
             id: "url_check".to_string(),
-            field_path: Some("url".to_string()),
+            context_path: Some("url".to_string()),
             operator: ComparisonOperator::IsUrl,
             expected_value: Value::Bool(true),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -1857,13 +1860,13 @@ mod tests {
         let json = json!({"id": "550e8400-e29b-41d4-a716-446655440000"});
         let assertion = AssertionTask {
             id: "uuid_check".to_string(),
-            field_path: Some("id".to_string()),
+            context_path: Some("id".to_string()),
             operator: ComparisonOperator::IsUuid,
             expected_value: Value::Bool(true),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -1877,13 +1880,13 @@ mod tests {
         let json = json!({"timestamp": "2024-01-05T10:30:00Z"});
         let assertion = AssertionTask {
             id: "iso_check".to_string(),
-            field_path: Some("timestamp".to_string()),
+            context_path: Some("timestamp".to_string()),
             operator: ComparisonOperator::IsIso8601,
             expected_value: Value::Bool(true),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -1897,13 +1900,13 @@ mod tests {
         let json = json!({"data": r#"{"key": "value"}"#});
         let assertion = AssertionTask {
             id: "json_check".to_string(),
-            field_path: Some("data".to_string()),
+            context_path: Some("data".to_string()),
             operator: ComparisonOperator::IsJson,
             expected_value: Value::Bool(true),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -1918,13 +1921,13 @@ mod tests {
         let json = json!({"score": 75});
         let assertion = AssertionTask {
             id: "range_check".to_string(),
-            field_path: Some("score".to_string()),
+            context_path: Some("score".to_string()),
             operator: ComparisonOperator::InRange,
             expected_value: json!([0, 100]),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -1938,13 +1941,13 @@ mod tests {
         let json = json!({"score": 150});
         let assertion = AssertionTask {
             id: "range_check".to_string(),
-            field_path: Some("score".to_string()),
+            context_path: Some("score".to_string()),
             operator: ComparisonOperator::InRange,
             expected_value: json!([0, 100]),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -1958,13 +1961,13 @@ mod tests {
         let json = json!({"value": 42});
         let assertion = AssertionTask {
             id: "positive_check".to_string(),
-            field_path: Some("value".to_string()),
+            context_path: Some("value".to_string()),
             operator: ComparisonOperator::IsPositive,
             expected_value: Value::Bool(true),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -1978,13 +1981,13 @@ mod tests {
         let json = json!({"value": -42});
         let assertion = AssertionTask {
             id: "negative_check".to_string(),
-            field_path: Some("value".to_string()),
+            context_path: Some("value".to_string()),
             operator: ComparisonOperator::IsNegative,
             expected_value: Value::Bool(true),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -1999,13 +2002,13 @@ mod tests {
         let json = json!({"tags": ["rust", "python", "javascript", "go"]});
         let assertion = AssertionTask {
             id: "contains_all_check".to_string(),
-            field_path: Some("tags".to_string()),
+            context_path: Some("tags".to_string()),
             operator: ComparisonOperator::ContainsAll,
             expected_value: json!(["rust", "python"]),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -2019,13 +2022,13 @@ mod tests {
         let json = json!({"tags": ["rust", "python"]});
         let assertion = AssertionTask {
             id: "contains_any_check".to_string(),
-            field_path: Some("tags".to_string()),
+            context_path: Some("tags".to_string()),
             operator: ComparisonOperator::ContainsAny,
             expected_value: json!(["python", "java", "c++"]),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -2039,13 +2042,13 @@ mod tests {
         let json = json!({"list": []});
         let assertion = AssertionTask {
             id: "empty_check".to_string(),
-            field_path: Some("list".to_string()),
+            context_path: Some("list".to_string()),
             operator: ComparisonOperator::IsEmpty,
             expected_value: Value::Bool(true),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -2059,13 +2062,13 @@ mod tests {
         let json = json!({"items": [1, 2, 3, 4]});
         let assertion = AssertionTask {
             id: "unique_check".to_string(),
-            field_path: Some("items".to_string()),
+            context_path: Some("items".to_string()),
             operator: ComparisonOperator::HasUniqueItems,
             expected_value: Value::Bool(true),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -2079,13 +2082,13 @@ mod tests {
         let json = json!({"items": [1, 2, 2, 3]});
         let assertion = AssertionTask {
             id: "unique_check".to_string(),
-            field_path: Some("items".to_string()),
+            context_path: Some("items".to_string()),
             operator: ComparisonOperator::HasUniqueItems,
             expected_value: Value::Bool(true),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -2100,13 +2103,13 @@ mod tests {
         let json = json!({"text": "HelloWorld"});
         let assertion = AssertionTask {
             id: "alpha_check".to_string(),
-            field_path: Some("text".to_string()),
+            context_path: Some("text".to_string()),
             operator: ComparisonOperator::IsAlphabetic,
             expected_value: Value::Bool(true),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -2120,13 +2123,13 @@ mod tests {
         let json = json!({"text": "Hello123"});
         let assertion = AssertionTask {
             id: "alphanum_check".to_string(),
-            field_path: Some("text".to_string()),
+            context_path: Some("text".to_string()),
             operator: ComparisonOperator::IsAlphanumeric,
             expected_value: Value::Bool(true),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -2140,13 +2143,13 @@ mod tests {
         let json = json!({"text": "hello world"});
         let assertion = AssertionTask {
             id: "lowercase_check".to_string(),
-            field_path: Some("text".to_string()),
+            context_path: Some("text".to_string()),
             operator: ComparisonOperator::IsLowerCase,
             expected_value: Value::Bool(true),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -2160,13 +2163,13 @@ mod tests {
         let json = json!({"text": "HELLO WORLD"});
         let assertion = AssertionTask {
             id: "uppercase_check".to_string(),
-            field_path: Some("text".to_string()),
+            context_path: Some("text".to_string()),
             operator: ComparisonOperator::IsUpperCase,
             expected_value: Value::Bool(true),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -2180,13 +2183,13 @@ mod tests {
         let json = json!({"text": "The quick brown fox"});
         let assertion = AssertionTask {
             id: "word_check".to_string(),
-            field_path: Some("text".to_string()),
+            context_path: Some("text".to_string()),
             operator: ComparisonOperator::ContainsWord,
             expected_value: Value::String("quick".to_string()),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -2200,13 +2203,13 @@ mod tests {
         let json = json!({"text": "The quickly brown fox"});
         let assertion = AssertionTask {
             id: "word_check".to_string(),
-            field_path: Some("text".to_string()),
+            context_path: Some("text".to_string()),
             operator: ComparisonOperator::ContainsWord,
             expected_value: Value::String("quick".to_string()),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -2221,13 +2224,13 @@ mod tests {
         let json = json!({"value": 100.5});
         let assertion = AssertionTask {
             id: "approx_check".to_string(),
-            field_path: Some("value".to_string()),
+            context_path: Some("value".to_string()),
             operator: ComparisonOperator::ApproximatelyEquals,
             expected_value: json!([100.0, 1.0]),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -2241,13 +2244,13 @@ mod tests {
         let json = json!({"value": 102.0});
         let assertion = AssertionTask {
             id: "approx_check".to_string(),
-            field_path: Some("value".to_string()),
+            context_path: Some("value".to_string()),
             operator: ComparisonOperator::ApproximatelyEquals,
             expected_value: json!([100.0, 1.0]),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -2258,20 +2261,20 @@ mod tests {
 
     // ── Array iteration tests ────────────────────────────────────────────────
 
-    /// Root is an array of objects; field_path extracts a numeric field from each item.
+    /// Root is an array of objects; context_path extracts a numeric field from each item.
     /// All items satisfy the condition → PASS.
     #[test]
     fn test_array_of_objects_field_path_all_pass() {
         let json = json!([{"my_key": 10}, {"my_key": 7}]);
         let assertion = AssertionTask {
             id: "array_field_gte".to_string(),
-            field_path: Some("my_key".to_string()),
+            context_path: Some("my_key".to_string()),
             operator: ComparisonOperator::GreaterThanOrEqual,
             expected_value: json!(5),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -2286,13 +2289,13 @@ mod tests {
         let json = json!([{"my_key": 10}, {"my_key": 3}]);
         let assertion = AssertionTask {
             id: "array_field_gte_fail".to_string(),
-            field_path: Some("my_key".to_string()),
+            context_path: Some("my_key".to_string()),
             operator: ComparisonOperator::GreaterThanOrEqual,
             expected_value: json!(5),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -2307,13 +2310,13 @@ mod tests {
         let json = json!([{"my_key": 10}, {"other": 3}]);
         let assertion = AssertionTask {
             id: "missing_field".to_string(),
-            field_path: Some("my_key".to_string()),
+            context_path: Some("my_key".to_string()),
             operator: ComparisonOperator::GreaterThanOrEqual,
             expected_value: json!(5),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -2322,19 +2325,19 @@ mod tests {
         assert!(!result.passed);
     }
 
-    /// Root is an array of scalars; no field_path; value operator iterates each item.
+    /// Root is an array of scalars; no context_path; value operator iterates each item.
     #[test]
     fn test_array_of_scalars_no_field_path_all_pass() {
         let json = json!([10, 20, 30]);
         let assertion = AssertionTask {
             id: "scalar_gt".to_string(),
-            field_path: None,
+            context_path: None,
             operator: ComparisonOperator::GreaterThan,
             expected_value: json!(5),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -2349,13 +2352,13 @@ mod tests {
         let json = json!([10, 3, 30]);
         let assertion = AssertionTask {
             id: "scalar_gt_fail".to_string(),
-            field_path: None,
+            context_path: None,
             operator: ComparisonOperator::GreaterThan,
             expected_value: json!(5),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -2370,13 +2373,13 @@ mod tests {
         let json = json!(["alice@example.com", "bob@example.org"]);
         let assertion = AssertionTask {
             id: "email_check".to_string(),
-            field_path: None,
+            context_path: None,
             operator: ComparisonOperator::IsEmail,
             expected_value: json!(null),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -2391,13 +2394,13 @@ mod tests {
         let json = json!([5, 10]);
         let assertion = AssertionTask {
             id: "is_numeric_on_array".to_string(),
-            field_path: None,
+            context_path: None,
             operator: ComparisonOperator::IsNumeric,
             expected_value: json!(null),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -2412,13 +2415,13 @@ mod tests {
         let json = json!([1, 2, 3]);
         let assertion = AssertionTask {
             id: "has_length".to_string(),
-            field_path: None,
+            context_path: None,
             operator: ComparisonOperator::HasLengthEqual,
             expected_value: json!(3),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -2427,19 +2430,19 @@ mod tests {
         assert!(result.passed);
     }
 
-    /// field_path resolves to an array of scalars at a nested key; iteration applies.
+    /// context_path resolves to an array of scalars at a nested key; iteration applies.
     #[test]
     fn test_nested_array_via_field_path_iterates() {
         let json = json!({"scores": [8, 9, 7]});
         let assertion = AssertionTask {
             id: "nested_scores".to_string(),
-            field_path: Some("scores".to_string()),
+            context_path: Some("scores".to_string()),
             operator: ComparisonOperator::GreaterThan,
             expected_value: json!(5),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };
@@ -2454,13 +2457,13 @@ mod tests {
         let json = json!([{"my_key": 10}]);
         let assertion = AssertionTask {
             id: "req_example".to_string(),
-            field_path: Some("my_key".to_string()),
+            context_path: Some("my_key".to_string()),
             operator: ComparisonOperator::GreaterThanOrEqual,
             expected_value: json!(5),
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
-            item_field_path: None,
+            item_context_path: None,
             result: None,
             condition: false,
         };

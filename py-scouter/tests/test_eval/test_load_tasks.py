@@ -25,7 +25,7 @@ def test_load_all_tasks_from_file_yaml():
     assert isinstance(task1, AssertionTask)
     assert task1.task_type == EvaluationTaskType.Assertion
     assert task1.id == "check_user_age"
-    assert task1.field_path == "user.age"
+    assert task1.context_path == "user.age"
     assert task1.operator == ComparisonOperator.GreaterThan
     assert task1.expected_value == 18
     assert task1.description == "Verify user is an adult"
@@ -35,7 +35,7 @@ def test_load_all_tasks_from_file_yaml():
     task2 = tasks[1]
     assert isinstance(task2, AssertionTask)
     assert task2.id == "validate_email"
-    assert task2.field_path == "user.email"
+    assert task2.context_path == "user.email"
     assert task2.operator == ComparisonOperator.IsEmail
     assert task2.expected_value is True
 
@@ -43,7 +43,7 @@ def test_load_all_tasks_from_file_yaml():
     task3 = tasks[2]
     assert isinstance(task3, AssertionTask)
     assert task3.id == "check_password_strength"
-    assert task3.field_path == "user.password"
+    assert task3.context_path == "user.password"
     assert task3.operator == ComparisonOperator.HasLengthGreaterThanOrEqual
     assert task3.expected_value == 8
     assert task3.depends_on == ["validate_email"]
@@ -52,7 +52,7 @@ def test_load_all_tasks_from_file_yaml():
     task4 = tasks[3]
     assert isinstance(task4, AssertionTask)
     assert task4.id == "validate_response_items"
-    assert task4.field_path == "response.data.items"
+    assert task4.context_path == "response.data.items"
     assert task4.operator == ComparisonOperator.HasLengthGreaterThan
     assert task4.expected_value == 0
 
@@ -60,7 +60,7 @@ def test_load_all_tasks_from_file_yaml():
     task5 = tasks[4]
     assert isinstance(task5, AssertionTask)
     assert task5.id == "check_sentiment"
-    assert task5.field_path == "analysis.sentiment"
+    assert task5.context_path == "analysis.sentiment"
     assert task5.operator == ComparisonOperator.Contains
     assert task5.expected_value == "positive"
 
@@ -69,7 +69,7 @@ def test_load_all_tasks_from_file_yaml():
     assert isinstance(task6, LLMJudgeTask)
     assert task6.task_type == EvaluationTaskType.LLMJudge
     assert task6.id == "sentiment_judge"
-    assert task6.field_path == "response.text"
+    assert task6.context_path == "response.text"
     assert task6.operator == ComparisonOperator.Equals
     assert task6.expected_value == "Positive"
     assert task6.depends_on == ["check_sentiment"]
@@ -130,7 +130,7 @@ def test_load_all_tasks_from_file_yaml():
     task13 = tasks[12]
     assert isinstance(task13, AssertionTask)
     assert task13.id == "final_validation"
-    assert task13.field_path == "status"
+    assert task13.context_path == "status"
     assert task13.operator == ComparisonOperator.Equals
     assert task13.expected_value == "success"
     assert set(task13.depends_on) == {
@@ -182,7 +182,7 @@ def test_load_all_tasks_from_file_json():
     task1 = tasks[0]
     assert isinstance(task1, AssertionTask)
     assert task1.id == "validate_email"
-    assert task1.field_path == "user.email"
+    assert task1.context_path == "user.email"
     assert task1.operator == ComparisonOperator.IsEmail
     assert task1.expected_value is True
 

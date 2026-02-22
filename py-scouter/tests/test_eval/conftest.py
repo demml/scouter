@@ -13,7 +13,7 @@ from scouter.genai.openai import ChatMessage
 def assertion_task_foo() -> AssertionTask:
     return AssertionTask(
         id="input_foo_check",
-        field_path="input.foo",
+        context_path="input.foo",
         operator=ComparisonOperator.Equals,
         expected_value="bar",
         description="Check that input.foo equals 'bar'",
@@ -24,7 +24,7 @@ def assertion_task_foo() -> AssertionTask:
 def assertion_task_bar() -> AssertionTask:
     return AssertionTask(
         id="input_bar_check",
-        field_path="input.bar",
+        context_path="input.bar",
         operator=ComparisonOperator.IsNumeric,
         expected_value=True,
         description="Check that input.bar is numeric",
@@ -35,7 +35,7 @@ def assertion_task_bar() -> AssertionTask:
 def assertion_task_baz() -> AssertionTask:
     return AssertionTask(
         id="input_baz_check",
-        field_path="input.baz",
+        context_path="input.baz",
         operator=ComparisonOperator.HasLengthEqual,
         expected_value=3,
         description="Check that input.baz has length equal to 3",
@@ -59,7 +59,7 @@ def llm_judge_query_relevance() -> LLMJudgeTask:
     )
     return LLMJudgeTask(
         id="query_relevance",
-        field_path="score",
+        context_path="score",
         prompt=prompt,
         operator=ComparisonOperator.GreaterThanOrEqual,
         expected_value=3,
@@ -71,7 +71,7 @@ def llm_judge_query_relevance() -> LLMJudgeTask:
 def query_relevance_score_assertion_task() -> AssertionTask:
     return AssertionTask(
         id="assert_score",
-        field_path="query_relevance.score",
+        context_path="query_relevance.score",
         operator=ComparisonOperator.IsNumeric,
         expected_value=True,
         description="Check that score is numeric",
@@ -83,7 +83,7 @@ def query_relevance_score_assertion_task() -> AssertionTask:
 def query_relevance_reason_assertion_task() -> AssertionTask:
     return AssertionTask(
         id="assert_reason",
-        field_path="query_relevance.reason",
+        context_path="query_relevance.reason",
         operator=ComparisonOperator.IsString,
         expected_value=True,
         description="Check that reason is alphabetic",
@@ -97,28 +97,28 @@ def base_assertion_tasks():
     return [
         AssertionTask(
             id="quality_check",
-            field_path="metrics.quality_score",
+            context_path="metrics.quality_score",
             operator=ComparisonOperator.GreaterThanOrEqual,
             expected_value=7,
             description="Quality score must be at least 7/10",
         ),
         AssertionTask(
             id="accuracy_check",
-            field_path="metrics.accuracy_score",
+            context_path="metrics.accuracy_score",
             operator=ComparisonOperator.GreaterThanOrEqual,
             expected_value=8,
             description="Accuracy score must be at least 8/10",
         ),
         AssertionTask(
             id="provides_solution",
-            field_path="response.provides_solution",
+            context_path="response.provides_solution",
             operator=ComparisonOperator.Equals,
             expected_value=True,
             description="Response must provide a solution",
         ),
         AssertionTask(
             id="acknowledges_concern",
-            field_path="response.acknowledges_concern",
+            context_path="response.acknowledges_concern",
             operator=ComparisonOperator.Equals,
             expected_value=True,
             description="Response must acknowledge concern",

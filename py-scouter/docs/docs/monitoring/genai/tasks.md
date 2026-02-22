@@ -14,7 +14,7 @@ Scouter provides two types of evaluation tasks:
 Both task types support:
 - **Dependencies**: Chain tasks to build on previous results
 - **Conditional execution**: Use tasks as gates to control downstream evaluation
-- **Field path extraction**: Access nested values in context or upstream outputs
+- **context path extraction**: Access nested values in context or upstream outputs
 
 ## AssertionTask
 
@@ -27,7 +27,7 @@ AssertionTask(
     id: str,
     expected_value: Any,
     operator: ComparisonOperator,
-    field_path: Optional[str] = None,
+    context_path: Optional[str] = None,
     description: Optional[str] = None,
     depends_on: Optional[List[str]] = None,
     condition: bool = False,
@@ -39,7 +39,7 @@ AssertionTask(
 | `id` | `str` | Yes | Unique identifier (converted to lowercase). Used in dependencies and results. |
 | `expected_value` | `Any` | Yes | Value to compare against. Supports static values (str, int, float, bool, list, dict, None) or template references to context fields using `${field.path}` syntax. |
 | `operator` | `ComparisonOperator` | Yes | Comparison operator to use for evaluation. |
-| `field_path` | `str` | No | Dot-notation path to extract value from context (e.g., `"response.confidence"`). If `None`, uses entire context. |
+| `context_path` | `str` | No | Dot-notation path to extract value from context (e.g., `"response.confidence"`). If `None`, uses entire context. |
 | `description` | `str` | No | Human-readable description for understanding results. |
 | `depends_on` | `List[str]` | No | Task IDs that must complete before this task executes. Outputs from dependencies are added to context. |
 | `condition` | `bool` | No | If `True`, acts as conditional gate. Failed conditions skip dependent tasks and exclude this task from final results. |
@@ -66,7 +66,7 @@ The `expected_value` parameter supports **template variable substitution** to re
 ```python
 AssertionTask(
     id="confidence_check",
-    field_path="model_output.confidence",
+    context_path="model_output.confidence",
     operator=ComparisonOperator.GreaterThanOrEqual,
     expected_value=0.85,
     description="Require confidence >= 85%"
@@ -79,7 +79,7 @@ AssertionTask(
 # Context: {"prediction": "electronics", "ground_truth": "electronics"}
 AssertionTask(
     id="correct_category",
-    field_path="prediction",
+    context_path="prediction",
     operator=ComparisonOperator.Equals,
     expected_value="${ground_truth}",  # Template reference
     description="Verify prediction matches ground truth"
@@ -95,7 +95,7 @@ AssertionTask(
 # }
 AssertionTask(
     id="validate_category",
-    field_path="agent_classification.category",
+    context_path="agent_classification.category",
     operator=ComparisonOperator.Equals,
     expected_value="${ground_truth.category}",  # Nested template
     description="Compare against nested ground truth"
@@ -111,7 +111,7 @@ AssertionTask(
 # }
 AssertionTask(
     id="score_threshold",
-    field_path="score",
+    context_path="score",
     operator=ComparisonOperator.GreaterThanOrEqual,
     expected_value="${thresholds.min_score}",  # Dynamic threshold
     description="Score must exceed dynamic threshold"
@@ -127,7 +127,7 @@ AssertionTask(
 # }
 AssertionTask(
     id="validate_products",
-    field_path="recommended_products",
+    context_path="recommended_products",
     operator=ComparisonOperator.ContainsAny,
     expected_value="${ground_truth.expected_brands}",
     description="Recommendations must include expected brands"
@@ -139,7 +139,7 @@ AssertionTask(
 ```python
 AssertionTask(
     id="has_required_fields",
-    field_path="response",
+    context_path="response",
     operator=ComparisonOperator.ContainsAll,
     expected_value=["answer", "sources", "confidence"],
     description="Ensure response has all required fields"
@@ -151,7 +151,7 @@ AssertionTask(
 ```python
 AssertionTask(
     id="is_production_ready",
-    field_path="metadata.environment",
+    context_path="metadata.environment",
     operator=ComparisonOperator.Equals,
     expected_value="production",
     condition=True,  # Downstream tasks only run if this passes
@@ -165,7 +165,7 @@ AssertionTask(
 # Depends on upstream LLMJudgeTask that adds output to context
 AssertionTask(
     id="technical_score_high",
-    field_path="expert_validation.technical_score",
+    context_path="expert_validation.technical_score",
     operator=ComparisonOperator.GreaterThan,
     expected_value="${quality_thresholds.technical}",  # Template from context
     depends_on=["expert_validation"],
@@ -183,7 +183,7 @@ If a template variable cannot be resolved it will raise an error
 
 AssertionTask(
     id="correct_category",
-    field_path="prediction",
+    context_path="prediction",
     operator=ComparisonOperator.Equals,
     expected_value="${ground_truth}",  # Will fail
 )
@@ -207,7 +207,7 @@ LLMJudgeTask(
     id: str,
     prompt: Prompt,
     expected_value: Any,
-    field_path: Optional[str],
+    context_path: Optional[str],
     operator: ComparisonOperator,
     description: Optional[str] = None,
     depends_on: Optional[List[str]] = None,
@@ -221,7 +221,7 @@ LLMJudgeTask(
 | `id` | `str` | Yes | Unique identifier (converted to lowercase). |
 | `prompt` | `Prompt` | Yes | Prompt configuration defining the LLM evaluation. Must use parameter binding (e.g., `${user_query}`). |
 | `expected_value` | `Any` | Yes | Value to compare against LLM response. Type depends on prompt's `output_type`. |
-| `field_path` | `str` | No | Dot-notation path to extract from LLM response (e.g., `"score"`). If `None`, uses entire response. |
+| `context_path` | `str` | No | Dot-notation path to extract from LLM response (e.g., `"score"`). If `None`, uses entire response. |
 | `operator` | `ComparisonOperator` | Yes | Comparison operator for evaluating LLM response against expected value. |
 | `description` | `str` | No | Human-readable description of evaluation purpose. |
 | `depends_on` | `List[str]` | No | Task IDs that must complete first. Dependency outputs are added to context and available in prompt. |
@@ -251,7 +251,7 @@ LLMJudgeTask(
     id="quality_assessment",
     prompt=quality_prompt,
     expected_value=4,
-    field_path="score",
+    context_path="score",
     operator=ComparisonOperator.GreaterThanOrEqual,
     description="Quality must be >= 4"
 )
@@ -276,7 +276,7 @@ LLMJudgeTask(
     id="semantic_similarity",
     prompt=similarity_prompt,
     expected_value=7,
-    field_path="score",
+    context_path="score",
     operator=ComparisonOperator.GreaterThanOrEqual,
     description="Semantic similarity >= 7"
 )
@@ -297,7 +297,7 @@ LLMJudgeTask(
     id="toxicity_check",
     prompt=toxicity_prompt,
     expected_value=2,
-    field_path="score",
+    context_path="score",
     operator=ComparisonOperator.LessThanOrEqual,
     depends_on=["length_check"],  # Only runs if length_check passes
     description="Toxicity must be <= 2"
@@ -312,7 +312,7 @@ relevance_task = LLMJudgeTask(
     id="relevance",
     prompt=relevance_prompt,
     expected_value=7,
-    field_path="score",
+    context_path="score",
     operator=ComparisonOperator.GreaterThanOrEqual
 )
 
@@ -321,7 +321,7 @@ factuality_task = LLMJudgeTask(
     id="factuality",
     prompt=factuality_prompt,
     expected_value=8,
-    field_path="score",
+    context_path="score",
     operator=ComparisonOperator.GreaterThanOrEqual,
     depends_on=["relevance"],
     description="Factuality check after relevance validation"

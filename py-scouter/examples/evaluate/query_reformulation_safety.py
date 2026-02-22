@@ -113,7 +113,7 @@ def build_eval_dataset(user_query: str, response: str) -> GenAIEvalDataset:
                 prompt=eval_prompt,
                 expected_value=3,
                 operator=ComparisonOperator.GreaterThanOrEqual,
-                field_path="score",
+                context_path="score",
                 description="Evaluate the quality of the query reformulation",
             ),
             LLMJudgeTask(
@@ -121,7 +121,7 @@ def build_eval_dataset(user_query: str, response: str) -> GenAIEvalDataset:
                 prompt=create_query_harmfulness_prompt(),
                 expected_value=False,
                 operator=ComparisonOperator.Equals,
-                field_path="is_harmful",
+                context_path="is_harmful",
                 description="Evaluate whether the query reformulation is harmful",
             ),
         ],

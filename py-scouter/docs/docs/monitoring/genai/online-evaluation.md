@@ -49,7 +49,7 @@ relevance_task = LLMJudgeTask(
     id="relevance_check",
     prompt=relevance_prompt,
     expected_value=4,
-    field_path="score",
+    context_path="score",
     operator=ComparisonOperator.GreaterThanOrEqual,
     description="Ensure relevance score >= 4"
 )
@@ -63,7 +63,7 @@ from scouter.evaluate import AssertionTask
 # Fast assertion check
 length_check = AssertionTask(
     id="response_not_empty",
-    field_path="response",
+    context_path="response",
     operator=ComparisonOperator.HasLengthGreaterThan,
     expected_value=10,
     description="Response must have meaningful length"
@@ -86,7 +86,7 @@ quality_task = LLMJudgeTask(
     id="quality_check",
     prompt=quality_prompt,
     expected_value=4,
-    field_path="score",
+    context_path="score",
     operator=ComparisonOperator.GreaterThanOrEqual,
     depends_on=["response_not_empty"],
     description="Quality must be >= 4"
@@ -114,7 +114,7 @@ category_task = LLMJudgeTask(
     id="category_classification",
     prompt=category_prompt,
     expected_value=None,
-    field_path="category",
+    context_path="category",
     operator=ComparisonOperator.IsNotEmpty,
     description="Classify query category"
 )
@@ -122,7 +122,7 @@ category_task = LLMJudgeTask(
 # Stage 2: Technical accuracy (only for technical queries)
 technical_check = AssertionTask(
     id="is_technical",
-    field_path="category_classification.category",
+    context_path="category_classification.category",
     operator=ComparisonOperator.Equals,
     expected_value="technical",
     depends_on=["category_classification"],
@@ -133,7 +133,7 @@ technical_quality_task = LLMJudgeTask(
     id="technical_quality",
     prompt=technical_quality_prompt,
     expected_value=4,
-    field_path="score",
+    context_path="score",
     operator=ComparisonOperator.GreaterThanOrEqual,
     depends_on=["is_technical"],
     description="Technical accuracy >= 4"
@@ -362,7 +362,7 @@ category_task = LLMJudgeTask(
     id="classify_category",
     prompt=category_prompt,
     expected_value=None,
-    field_path="category",
+    context_path="category",
     operator=ComparisonOperator.IsNotEmpty,
     condition=True
 )
@@ -370,7 +370,7 @@ category_task = LLMJudgeTask(
 # 2. Technical quality path
 technical_gate = AssertionTask(
     id="is_technical",
-    field_path="classify_category.category",
+    context_path="classify_category.category",
     operator=ComparisonOperator.Equals,
     expected_value="technical",
     depends_on=["classify_category"],
@@ -381,7 +381,7 @@ technical_quality = LLMJudgeTask(
     id="technical_quality",
     prompt=technical_eval_prompt,
     expected_value=4,
-    field_path="score",
+    context_path="score",
     operator=ComparisonOperator.GreaterThanOrEqual,
     depends_on=["is_technical"]
 )

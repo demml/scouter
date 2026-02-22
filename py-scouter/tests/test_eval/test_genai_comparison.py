@@ -133,7 +133,7 @@ def test_comparison_with_conditional_tasks():
     conditional_tasks = [
         AssertionTask(
             id="is_premium",
-            field_path="customer.tier",
+            context_path="customer.tier",
             operator=ComparisonOperator.Equals,
             expected_value="premium",
             description="Check if customer is premium",
@@ -141,7 +141,7 @@ def test_comparison_with_conditional_tasks():
         ),
         AssertionTask(
             id="premium_response_quality",
-            field_path="metrics.quality_score",
+            context_path="metrics.quality_score",
             operator=ComparisonOperator.GreaterThanOrEqual,
             expected_value=9,
             description="Premium customers require quality >= 9",
@@ -149,7 +149,7 @@ def test_comparison_with_conditional_tasks():
         ),
         AssertionTask(
             id="is_standard",
-            field_path="customer.tier",
+            context_path="customer.tier",
             operator=ComparisonOperator.Equals,
             expected_value="standard",
             description="Check if customer is standard",
@@ -157,7 +157,7 @@ def test_comparison_with_conditional_tasks():
         ),
         AssertionTask(
             id="standard_response_quality",
-            field_path="metrics.quality_score",
+            context_path="metrics.quality_score",
             operator=ComparisonOperator.GreaterThanOrEqual,
             expected_value=7,
             description="Standard customers require quality >= 7",
@@ -219,7 +219,7 @@ def test_comparison_mixed_results():
     tasks = [
         AssertionTask(
             id="quality_check",
-            field_path="score",
+            context_path="score",
             operator=ComparisonOperator.GreaterThanOrEqual,
             expected_value=7,
             description="Score must be >= 7",

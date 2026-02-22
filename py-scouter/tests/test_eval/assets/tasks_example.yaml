@@ -4,7 +4,7 @@
 # Example 1: Simple assertion checking user age
 - task_type: Assertion
   id: check_user_age
-  field_path: user.age
+  context_path: user.age
   operator: GreaterThan
   expected_value: 18
   description: Verify user is an adult
@@ -14,7 +14,7 @@
 # Example 2: Email format validation
 - task_type: Assertion
   id: validate_email
-  field_path: user.email
+  context_path: user.email
   operator: IsEmail
   expected_value: true
   description: Validate email format
@@ -24,7 +24,7 @@
 # Example 3: Password strength check
 - task_type: Assertion
   id: check_password_strength
-  field_path: user.password
+  context_path: user.password
   operator: HasLengthGreaterThanOrEqual
   expected_value: 8
   description: Password must be at least 8 characters
@@ -35,7 +35,7 @@
 # Example 4: Response array length check
 - task_type: Assertion
   id: validate_response_items
-  field_path: response.data.items
+  context_path: response.data.items
   operator: HasLengthGreaterThan
   expected_value: 0
   description: Ensure response contains items
@@ -45,7 +45,7 @@
 # Example 5: String contains check
 - task_type: Assertion
   id: check_sentiment
-  field_path: analysis.sentiment
+  context_path: analysis.sentiment
   operator: Contains
   expected_value: positive
   description: Check for positive sentiment
@@ -55,7 +55,7 @@
 # Example 6: LLM Judge task with inline prompt (simplified for example)
 - task_type: LLMJudge
   id: sentiment_judge
-  field_path: response.text
+  context_path: response.text
   operator: Equals
   expected_value: Positive
   description: Judge sentiment using LLM
@@ -162,7 +162,7 @@
 # Example 13: Conditional task (only runs if previous tasks pass)
 - task_type: Assertion
   id: final_validation
-  field_path: status
+  context_path: status
   operator: Equals
   expected_value: success
   description: Final validation that only runs if all dependencies pass

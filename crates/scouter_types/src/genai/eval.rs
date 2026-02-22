@@ -129,11 +129,11 @@ pub struct AssertionTask {
 
     #[pyo3(get, set)]
     #[serde(default)]
-    pub field_path: Option<String>,
+    pub context_path: Option<String>,
 
     #[pyo3(get, set)]
     #[serde(default)]
-    pub item_field_path: Option<String>,
+    pub item_context_path: Option<String>,
 
     #[pyo3(get, set)]
     pub operator: ComparisonOperator,
@@ -177,7 +177,7 @@ impl AssertionTask {
     ///
     /// task = AssertionTask(
     ///     id="Check User Age",
-    ///     field_path="response.user.age",
+    ///     context_path="response.user.age",
     ///     operator=ComparisonOperator.GREATER_THAN,
     ///     expected_value=18,
     ///     description="Check if user is an adult"
@@ -192,7 +192,7 @@ impl AssertionTask {
     ///
     /// task = AssertionTask(
     ///     id="Check User Age",
-    ///     field_path="user.age",
+    ///     context_path="user.age",
     ///     operator=ComparisonOperator.GREATER_THAN,
     ///     expected_value=18,
     ///     description="Check if user is an adult"
@@ -209,20 +209,20 @@ impl AssertionTask {
     /// )
     /// ```
     /// # Arguments
-    /// * `field_path`: The path to the field to be asserted
+    /// * `context_path`: The path to the field to be asserted
     /// * `operator`: The comparison operator to use
     /// * `expected_value`: The expected value for the assertion
     /// * `description`: Optional description for the assertion
     /// # Returns
     /// A new AssertionTask object
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (id, field_path, expected_value, operator, item_field_path=None, description=None, depends_on=None, condition=None))]
+    #[pyo3(signature = (id, context_path, expected_value, operator, item_context_path=None, description=None, depends_on=None, condition=None))]
     pub fn new(
         id: String,
-        field_path: Option<String>,
+        context_path: Option<String>,
         expected_value: &Bound<'_, PyAny>,
         operator: ComparisonOperator,
-        item_field_path: Option<String>,
+        item_context_path: Option<String>,
         description: Option<String>,
         depends_on: Option<Vec<String>>,
         condition: Option<bool>,
@@ -232,8 +232,8 @@ impl AssertionTask {
 
         Ok(Self {
             id: id.to_lowercase(),
-            field_path,
-            item_field_path,
+            context_path,
+            item_context_path,
             operator,
             expected_value,
             description,
@@ -259,12 +259,12 @@ impl AssertionTask {
 impl AssertionTask {}
 
 impl TaskAccessor for AssertionTask {
-    fn field_path(&self) -> Option<&str> {
-        self.field_path.as_deref()
+    fn context_path(&self) -> Option<&str> {
+        self.context_path.as_deref()
     }
 
-    fn item_field_path(&self) -> Option<&str> {
-        self.item_field_path.as_deref()
+    fn item_context_path(&self) -> Option<&str> {
+        self.item_context_path.as_deref()
     }
 
     fn id(&self) -> &str {
@@ -344,7 +344,7 @@ pub struct LLMJudgeTask {
 
     #[pyo3(get)]
     #[serde(default)]
-    pub field_path: Option<String>,
+    pub context_path: Option<String>,
 
     pub expected_value: Value,
 
@@ -386,7 +386,7 @@ struct LLMJudgeTaskConfig {
     pub prompt: PromptConfig,
     pub expected_value: Value,
     pub operator: ComparisonOperator,
-    pub field_path: Option<String>,
+    pub context_path: Option<String>,
     pub description: Option<String>,
     pub depends_on: Vec<String>,
     pub max_retries: Option<u32>,
@@ -409,7 +409,7 @@ impl LLMJudgeTaskConfig {
             prompt,
             expected_value: self.expected_value,
             operator: self.operator,
-            field_path: self.field_path,
+            context_path: self.context_path,
             description: self.description,
             depends_on: self.depends_on,
             max_retries: self.max_retries.or(Some(3)),
@@ -424,7 +424,7 @@ impl LLMJudgeTaskConfig {
 struct LLMJudgeTaskInternal {
     pub id: String,
     pub prompt: Prompt,
-    pub field_path: Option<String>,
+    pub context_path: Option<String>,
     pub expected_value: Value,
     pub operator: ComparisonOperator,
     pub task_type: EvaluationTaskType,
@@ -439,7 +439,7 @@ impl LLMJudgeTaskInternal {
         LLMJudgeTask {
             id: self.id.to_lowercase(),
             prompt: self.prompt,
-            field_path: self.field_path,
+            context_path: self.context_path,
             expected_value: self.expected_value,
             operator: self.operator,
             task_type: self.task_type,
@@ -488,20 +488,20 @@ impl LLMJudgeTask {
     /// * `id: The id of the judge task
     /// * `prompt`: The prompt object to be used for evaluation
     /// * `expected_value`: The expected value for the judgement
-    /// * `field_path`: Optional field path to extract from the context for evaluation
+    /// * `context_path`: Optional context path to extract from the context for evaluation
     /// * `operator`: The comparison operator to use
     /// * `depends_on`: Optional list of task IDs this task depends on
     /// * `max_retries`: Optional maximum number of retries for this task (defaults to 3 if not provided)
     /// # Returns
     /// A new LLMJudgeTask object
     #[new]
-    #[pyo3(signature = (id, prompt, expected_value,  field_path,operator, description=None, depends_on=None, max_retries=None, condition=None))]
+    #[pyo3(signature = (id, prompt, expected_value,  context_path,operator, description=None, depends_on=None, max_retries=None, condition=None))]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: &str,
         prompt: Prompt,
         expected_value: &Bound<'_, PyAny>,
-        field_path: Option<String>,
+        context_path: Option<String>,
         operator: ComparisonOperator,
         description: Option<String>,
         depends_on: Option<Vec<String>>,
@@ -518,7 +518,7 @@ impl LLMJudgeTask {
             task_type: EvaluationTaskType::LLMJudge,
             depends_on: depends_on.unwrap_or_default(),
             max_retries: max_retries.or(Some(3)),
-            field_path,
+            context_path,
             result: None,
             description,
             condition: condition.unwrap_or(false),
@@ -548,7 +548,7 @@ impl LLMJudgeTask {
     /// * `id: The id of the judge task
     /// * `prompt`: The prompt object to be used for evaluation
     /// * `expected_value`: The expected value for the judgement
-    /// * `field_path`: Optional field path to extract from the context for evaluation
+    /// * `context_path`: Optional context path to extract from the context for evaluation
     /// * `operator`: The comparison operator to use
     /// * `depends_on`: Optional list of task IDs this task depends on
     /// * `max_retries`: Optional maximum number of retries for this task (defaults to 3 if not provided)
@@ -559,7 +559,7 @@ impl LLMJudgeTask {
         id: &str,
         prompt: Prompt,
         expected_value: Value,
-        field_path: Option<String>,
+        context_path: Option<String>,
         operator: ComparisonOperator,
         depends_on: Option<Vec<String>>,
         max_retries: Option<u32>,
@@ -574,7 +574,7 @@ impl LLMJudgeTask {
             task_type: EvaluationTaskType::LLMJudge,
             depends_on: depends_on.unwrap_or_default(),
             max_retries: max_retries.or(Some(3)),
-            field_path,
+            context_path,
             result: None,
             description,
             condition: condition.unwrap_or(false),
@@ -583,11 +583,11 @@ impl LLMJudgeTask {
 }
 
 impl TaskAccessor for LLMJudgeTask {
-    fn field_path(&self) -> Option<&str> {
-        self.field_path.as_deref()
+    fn context_path(&self) -> Option<&str> {
+        self.context_path.as_deref()
     }
 
-    fn item_field_path(&self) -> Option<&str> {
+    fn item_context_path(&self) -> Option<&str> {
         None
     }
 
@@ -1033,11 +1033,11 @@ impl TraceAssertionTask {
 }
 
 impl TaskAccessor for TraceAssertionTask {
-    fn field_path(&self) -> Option<&str> {
+    fn context_path(&self) -> Option<&str> {
         None
     }
 
-    fn item_field_path(&self) -> Option<&str> {
+    fn item_context_path(&self) -> Option<&str> {
         None
     }
 
@@ -1074,19 +1074,19 @@ pub enum EvaluationTask {
 }
 
 impl TaskAccessor for EvaluationTask {
-    fn field_path(&self) -> Option<&str> {
+    fn context_path(&self) -> Option<&str> {
         match self {
-            EvaluationTask::Assertion(t) => t.field_path(),
-            EvaluationTask::LLMJudge(t) => t.field_path(),
-            EvaluationTask::TraceAssertion(t) => t.field_path(),
+            EvaluationTask::Assertion(t) => t.context_path(),
+            EvaluationTask::LLMJudge(t) => t.context_path(),
+            EvaluationTask::TraceAssertion(t) => t.context_path(),
         }
     }
 
-    fn item_field_path(&self) -> Option<&str> {
+    fn item_context_path(&self) -> Option<&str> {
         match self {
-            EvaluationTask::Assertion(t) => t.item_field_path(),
-            EvaluationTask::LLMJudge(t) => t.item_field_path(),
-            EvaluationTask::TraceAssertion(t) => t.item_field_path(),
+            EvaluationTask::Assertion(t) => t.item_context_path(),
+            EvaluationTask::LLMJudge(t) => t.item_context_path(),
+            EvaluationTask::TraceAssertion(t) => t.item_context_path(),
         }
     }
 
