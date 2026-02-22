@@ -97,11 +97,25 @@ impl AssertionEvaluator {
         json_value: &Value,
         assertion: &T,
     ) -> Result<AssertionResult, EvaluationError> {
+        if let Value::Array(items) = json_value {
+            if assertion.field_path().is_some()
+                && !Self::is_array_native_operator(assertion.operator())
+            {
+                return Self::evaluate_over_array_items(items, assertion, assertion.field_path());
+            }
+        }
+
         let actual_value: &Value = if let Some(field_path) = assertion.field_path() {
             FieldEvaluator::extract_field_value(json_value, field_path)?
         } else {
             json_value
         };
+
+        if let Value::Array(items) = actual_value {
+            if !Self::is_array_native_operator(assertion.operator()) {
+                return Self::evaluate_over_array_items(items, assertion, None);
+            }
+        }
 
         let expected = Self::resolve_expected_value(json_value, assertion.expected_value())?;
 
@@ -632,6 +646,120 @@ impl AssertionEvaluator {
             }
             _ => Err(EvaluationError::InvalidContainsWordOperation),
         }
+    }
+
+    /// Returns true for operators that should work on an array as a whole,
+    /// rather than iterating over its items.
+    fn is_array_native_operator(operator: &ComparisonOperator) -> bool {
+        matches!(
+            operator,
+            // Array-aggregate operators
+            ComparisonOperator::HasLengthEqual
+                | ComparisonOperator::HasLengthGreaterThan
+                | ComparisonOperator::HasLengthLessThan
+                | ComparisonOperator::HasLengthGreaterThanOrEqual
+                | ComparisonOperator::HasLengthLessThanOrEqual
+                | ComparisonOperator::ContainsAll
+                | ComparisonOperator::ContainsAny
+                | ComparisonOperator::ContainsNone
+                | ComparisonOperator::IsEmpty
+                | ComparisonOperator::IsNotEmpty
+                | ComparisonOperator::HasUniqueItems
+                | ComparisonOperator::SequenceMatches
+                // Contains on arrays means "array contains element" — preserve that behaviour
+                | ComparisonOperator::Contains
+                // Type-identity operators check what the value IS, not its contents
+                | ComparisonOperator::IsNumeric
+                | ComparisonOperator::IsString
+                | ComparisonOperator::IsBoolean
+                | ComparisonOperator::IsNull
+                | ComparisonOperator::IsArray
+                | ComparisonOperator::IsObject
+        )
+    }
+
+    /// Evaluates an assertion against every item in `items`.
+    ///
+    /// * When `field_path` is `Some`, each item is expected to be a JSON object and the
+    ///   specified field is extracted before comparison.
+    /// * When `field_path` is `None`, the item itself is compared directly.
+    ///
+    /// The assertion fails as soon as any item fails; all items must pass for success.
+    fn evaluate_over_array_items<T: TaskAccessor>(
+        items: &[Value],
+        assertion: &T,
+        field_path: Option<&str>,
+    ) -> Result<AssertionResult, EvaluationError> {
+        let expected = assertion.expected_value();
+        let array_value = Value::Array(items.to_vec());
+
+        for (idx, item) in items.iter().enumerate() {
+            let actual_item: &Value = match field_path {
+                Some(fp) => match FieldEvaluator::extract_field_value(item, fp) {
+                    Ok(v) => v,
+                    Err(err) => {
+                        return Ok(AssertionResult::new(
+                            false,
+                            array_value,
+                            format!(
+                                "✗ Assertion '{}' failed: item[{}] missing field '{}': {}",
+                                assertion.id(),
+                                idx,
+                                fp,
+                                err
+                            ),
+                            expected.clone(),
+                        ));
+                    }
+                },
+                None => item,
+            };
+
+            let comparable = match Self::transform_for_comparison(actual_item, assertion.operator())
+            {
+                Ok(v) => v,
+                Err(err) => {
+                    return Ok(AssertionResult::new(
+                        false,
+                        array_value,
+                        format!(
+                            "✗ Assertion '{}' failed at item[{}] during transformation: {}",
+                            assertion.id(),
+                            idx,
+                            err
+                        ),
+                        expected.clone(),
+                    ));
+                }
+            };
+
+            let passed = Self::compare_values(&comparable, assertion.operator(), expected)?;
+            if !passed {
+                return Ok(AssertionResult::new(
+                    false,
+                    array_value,
+                    format!(
+                        "✗ Assertion '{}' failed at item[{}]: expected {}, got {}",
+                        assertion.id(),
+                        idx,
+                        serde_json::to_string(expected).unwrap_or_default(),
+                        serde_json::to_string(&comparable).unwrap_or_default()
+                    ),
+                    expected.clone(),
+                ));
+            }
+        }
+
+        Ok(AssertionResult::new(
+            true,
+            array_value,
+            format!(
+                "✓ Assertion '{}' passed for all {} item(s)",
+                assertion.id(),
+                items.len()
+            ),
+            expected.clone(),
+        ))
     }
 
     // Tolerance Comparison Helper
@@ -2070,5 +2198,208 @@ mod tests {
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
         assert!(!result.passed);
+    }
+
+    // ── Array iteration tests ────────────────────────────────────────────────
+
+    /// Root is an array of objects; field_path extracts a numeric field from each item.
+    /// All items satisfy the condition → PASS.
+    #[test]
+    fn test_array_of_objects_field_path_all_pass() {
+        let json = json!([{"my_key": 10}, {"my_key": 7}]);
+        let assertion = AssertionTask {
+            id: "array_field_gte".to_string(),
+            field_path: Some("my_key".to_string()),
+            operator: ComparisonOperator::GreaterThanOrEqual,
+            expected_value: json!(5),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+            condition: false,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(result.passed);
+    }
+
+    /// One item fails the comparison → overall FAIL.
+    #[test]
+    fn test_array_of_objects_field_path_one_fails() {
+        let json = json!([{"my_key": 10}, {"my_key": 3}]);
+        let assertion = AssertionTask {
+            id: "array_field_gte_fail".to_string(),
+            field_path: Some("my_key".to_string()),
+            operator: ComparisonOperator::GreaterThanOrEqual,
+            expected_value: json!(5),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+            condition: false,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(!result.passed);
+    }
+
+    /// Field is missing in one of the items → FAIL.
+    #[test]
+    fn test_array_of_objects_missing_field_fails() {
+        let json = json!([{"my_key": 10}, {"other": 3}]);
+        let assertion = AssertionTask {
+            id: "missing_field".to_string(),
+            field_path: Some("my_key".to_string()),
+            operator: ComparisonOperator::GreaterThanOrEqual,
+            expected_value: json!(5),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+            condition: false,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(!result.passed);
+    }
+
+    /// Root is an array of scalars; no field_path; value operator iterates each item.
+    #[test]
+    fn test_array_of_scalars_no_field_path_all_pass() {
+        let json = json!([10, 20, 30]);
+        let assertion = AssertionTask {
+            id: "scalar_gt".to_string(),
+            field_path: None,
+            operator: ComparisonOperator::GreaterThan,
+            expected_value: json!(5),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+            condition: false,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(result.passed);
+    }
+
+    /// Root is an array of scalars; one item fails → overall FAIL.
+    #[test]
+    fn test_array_of_scalars_no_field_path_one_fails() {
+        let json = json!([10, 3, 30]);
+        let assertion = AssertionTask {
+            id: "scalar_gt_fail".to_string(),
+            field_path: None,
+            operator: ComparisonOperator::GreaterThan,
+            expected_value: json!(5),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+            condition: false,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(!result.passed);
+    }
+
+    /// Array of strings; IsEmail iterates and validates each item.
+    #[test]
+    fn test_array_of_strings_is_email_all_pass() {
+        let json = json!(["alice@example.com", "bob@example.org"]);
+        let assertion = AssertionTask {
+            id: "email_check".to_string(),
+            field_path: None,
+            operator: ComparisonOperator::IsEmail,
+            expected_value: json!(null),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+            condition: false,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(result.passed);
+    }
+
+    /// IsNumeric is array-native (type-identity check): an array itself is not numeric → FAIL.
+    #[test]
+    fn test_array_of_numbers_is_numeric_fails() {
+        let json = json!([5, 10]);
+        let assertion = AssertionTask {
+            id: "is_numeric_on_array".to_string(),
+            field_path: None,
+            operator: ComparisonOperator::IsNumeric,
+            expected_value: json!(null),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+            condition: false,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(!result.passed);
+    }
+
+    /// HasLength is array-native: operates on the array as a whole, not its items.
+    #[test]
+    fn test_array_has_length_native() {
+        let json = json!([1, 2, 3]);
+        let assertion = AssertionTask {
+            id: "has_length".to_string(),
+            field_path: None,
+            operator: ComparisonOperator::HasLengthEqual,
+            expected_value: json!(3),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+            condition: false,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(result.passed);
+    }
+
+    /// field_path resolves to an array of scalars at a nested key; iteration applies.
+    #[test]
+    fn test_nested_array_via_field_path_iterates() {
+        let json = json!({"scores": [8, 9, 7]});
+        let assertion = AssertionTask {
+            id: "nested_scores".to_string(),
+            field_path: Some("scores".to_string()),
+            operator: ComparisonOperator::GreaterThan,
+            expected_value: json!(5),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+            condition: false,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(result.passed);
+    }
+
+    /// Verify the exact passing scenario from the requirements.
+    #[test]
+    fn test_requirements_passing_example() {
+        let json = json!([{"my_key": 10}]);
+        let assertion = AssertionTask {
+            id: "req_example".to_string(),
+            field_path: Some("my_key".to_string()),
+            operator: ComparisonOperator::GreaterThanOrEqual,
+            expected_value: json!(5),
+            description: None,
+            task_type: EvaluationTaskType::Assertion,
+            depends_on: vec![],
+            result: None,
+            condition: false,
+        };
+
+        let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
+        assert!(result.passed);
     }
 }

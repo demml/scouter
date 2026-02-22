@@ -346,7 +346,10 @@ mod tests {
         assert_eq!(spans.len(), 3);
         assert_eq!(spans[0].span_name, "root");
         assert_eq!(spans[0].depth, 0);
-        assert_eq!(spans[1].parent_span_id, Some("span_0".to_string()));
+        assert_eq!(
+            spans[1].parent_span_id,
+            Some("7370616e5f300000".to_string()) // span_0 as hex from span_id
+        );
     }
 
     #[test]
