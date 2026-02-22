@@ -732,6 +732,7 @@ mod tests {
             depends_on: vec![],
             result: None,
             condition: false,
+            item_field_path: None,
         };
 
         let judge_task_level_1 = LLMJudgeTask::new_rs(
@@ -756,6 +757,7 @@ mod tests {
             description: Some("Check that score is numeric".to_string()),
             result: None,
             condition: false,
+            item_field_path: None,
         };
 
         let assert_query_reason = AssertionTask {
@@ -768,6 +770,7 @@ mod tests {
             description: Some("Check that reason is alphabetic".to_string()),
             result: None,
             condition: false,
+            item_field_path: None,
         };
 
         let tasks = EvaluationTasks::new()
@@ -796,6 +799,7 @@ mod tests {
             depends_on: vec![],
             result: None,
             condition: false,
+            item_field_path: None,
         };
         let assert2 = AssertionTask {
             id: "input_bar_check".to_string(),
@@ -807,6 +811,7 @@ mod tests {
             description: Some("Check that bar is numeric".to_string()),
             result: None,
             condition: false,
+            item_field_path: None,
         };
 
         let assert3 = AssertionTask {
@@ -819,6 +824,7 @@ mod tests {
             description: Some("Check that baz has length 3".to_string()),
             result: None,
             condition: false,
+            item_field_path: None,
         };
 
         let tasks = EvaluationTasks::new()
@@ -1396,6 +1402,7 @@ mod tests {
             depends_on: vec![],
             result: None,
             condition: false,
+            item_field_path: None,
         };
 
         let tasks = EvaluationTasks::new()

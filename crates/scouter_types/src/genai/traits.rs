@@ -9,6 +9,10 @@ pub trait TaskAccessor {
     /// Returns optional field path - avoids `&Option<String>` pattern
     fn field_path(&self) -> Option<&str>;
 
+    /// When `field_path` resolves to an array of objects, this path is applied to
+    /// each element to extract the value before the operator is evaluated.
+    fn item_field_path(&self) -> Option<&str>;
+
     /// Returns assertion ID as string slice
     fn id(&self) -> &str;
 

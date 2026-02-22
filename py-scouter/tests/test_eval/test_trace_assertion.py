@@ -234,9 +234,7 @@ def test_span_duration_assertion():
 def test_span_aggregation_assertion():
     """Test span aggregation assertion."""
     filter = SpanFilter.by_name_pattern("llm.*")
-    assertion = TraceAssertion.span_aggregation(
-        filter, "token_count", AggregationType.Sum
-    )
+    assertion = TraceAssertion.span_aggregation(filter, "token_count", AggregationType.Sum)
 
     assert isinstance(assertion, TraceAssertion.SpanAggregation)
     assert assertion.attribute_key == "token_count"
@@ -467,9 +465,7 @@ def test_model_validation_check():
 def test_token_budget_check():
     """Test limiting total token usage."""
     filter = SpanFilter.by_name_pattern("llm.*")
-    assertion = TraceAssertion.span_aggregation(
-        filter, "token_count", AggregationType.Sum
-    )
+    assertion = TraceAssertion.span_aggregation(filter, "token_count", AggregationType.Sum)
 
     task = TraceAssertionTask(
         id="token_budget",

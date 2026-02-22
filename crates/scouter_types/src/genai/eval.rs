@@ -132,6 +132,10 @@ pub struct AssertionTask {
     pub field_path: Option<String>,
 
     #[pyo3(get, set)]
+    #[serde(default)]
+    pub item_field_path: Option<String>,
+
+    #[pyo3(get, set)]
     pub operator: ComparisonOperator,
 
     pub expected_value: Value,
@@ -211,12 +215,14 @@ impl AssertionTask {
     /// * `description`: Optional description for the assertion
     /// # Returns
     /// A new AssertionTask object
-    #[pyo3(signature = (id, field_path, expected_value, operator, description=None, depends_on=None, condition=None))]
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (id, field_path, expected_value, operator, item_field_path=None, description=None, depends_on=None, condition=None))]
     pub fn new(
         id: String,
         field_path: Option<String>,
         expected_value: &Bound<'_, PyAny>,
         operator: ComparisonOperator,
+        item_field_path: Option<String>,
         description: Option<String>,
         depends_on: Option<Vec<String>>,
         condition: Option<bool>,
@@ -227,6 +233,7 @@ impl AssertionTask {
         Ok(Self {
             id: id.to_lowercase(),
             field_path,
+            item_field_path,
             operator,
             expected_value,
             description,
@@ -254,6 +261,10 @@ impl AssertionTask {}
 impl TaskAccessor for AssertionTask {
     fn field_path(&self) -> Option<&str> {
         self.field_path.as_deref()
+    }
+
+    fn item_field_path(&self) -> Option<&str> {
+        self.item_field_path.as_deref()
     }
 
     fn id(&self) -> &str {
@@ -574,6 +585,10 @@ impl LLMJudgeTask {
 impl TaskAccessor for LLMJudgeTask {
     fn field_path(&self) -> Option<&str> {
         self.field_path.as_deref()
+    }
+
+    fn item_field_path(&self) -> Option<&str> {
+        None
     }
 
     fn id(&self) -> &str {
@@ -1022,6 +1037,10 @@ impl TaskAccessor for TraceAssertionTask {
         None
     }
 
+    fn item_field_path(&self) -> Option<&str> {
+        None
+    }
+
     fn id(&self) -> &str {
         &self.id
     }
@@ -1060,6 +1079,14 @@ impl TaskAccessor for EvaluationTask {
             EvaluationTask::Assertion(t) => t.field_path(),
             EvaluationTask::LLMJudge(t) => t.field_path(),
             EvaluationTask::TraceAssertion(t) => t.field_path(),
+        }
+    }
+
+    fn item_field_path(&self) -> Option<&str> {
+        match self {
+            EvaluationTask::Assertion(t) => t.item_field_path(),
+            EvaluationTask::LLMJudge(t) => t.item_field_path(),
+            EvaluationTask::TraceAssertion(t) => t.item_field_path(),
         }
     }
 

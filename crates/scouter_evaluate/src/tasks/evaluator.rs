@@ -4,6 +4,7 @@ use scouter_types::genai::ValueExt;
 use scouter_types::genai::{traits::TaskAccessor, AssertionResult, ComparisonOperator};
 use serde_json::Value;
 use std::sync::OnceLock;
+use tracing::instrument;
 
 const REGEX_FIELD_PARSE_PATTERN: &str = r"[a-zA-Z_][a-zA-Z0-9_]*|\[[0-9]+\]";
 static PATH_REGEX: OnceLock<Regex> = OnceLock::new();
@@ -19,6 +20,7 @@ impl FieldEvaluator {
     /// * `field_path` - The dot/bracket notation path to the desired field
     /// # Returns
     /// The extracted JSON value or an EvaluationError if the path is invalid
+    #[instrument(skip_all)]
     pub fn extract_field_value<'a>(
         json: &'a Value,
         field_path: &str,
@@ -97,10 +99,10 @@ impl AssertionEvaluator {
         json_value: &Value,
         assertion: &T,
     ) -> Result<AssertionResult, EvaluationError> {
+        // if value is array and field path is provider, it is assumed that user
+        // wants to evaluate each element of array
         if let Value::Array(items) = json_value {
-            if assertion.field_path().is_some()
-                && !Self::is_array_native_operator(assertion.operator())
-            {
+            if assertion.field_path().is_some() {
                 return Self::evaluate_over_array_items(items, assertion, assertion.field_path());
             }
         }
@@ -111,9 +113,14 @@ impl AssertionEvaluator {
             json_value
         };
 
+        // if actual value is array and operator is not a native array operator, evaluate assertion over each item in array and aggregate results
         if let Value::Array(items) = actual_value {
             if !Self::is_array_native_operator(assertion.operator()) {
-                return Self::evaluate_over_array_items(items, assertion, None);
+                return Self::evaluate_over_array_items(
+                    items,
+                    assertion,
+                    assertion.item_field_path(),
+                );
             }
         }
 
@@ -685,6 +692,7 @@ impl AssertionEvaluator {
     /// * When `field_path` is `None`, the item itself is compared directly.
     ///
     /// The assertion fails as soon as any item fails; all items must pass for success.
+    #[instrument(skip_all)]
     fn evaluate_over_array_items<T: TaskAccessor>(
         items: &[Value],
         assertion: &T,
@@ -825,6 +833,7 @@ mod tests {
             description: Some("Check if priority is high".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         }
@@ -839,6 +848,7 @@ mod tests {
             description: Some("Status should start with 'in_'".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         }
@@ -853,6 +863,7 @@ mod tests {
             description: Some("There should be 3 tasks".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         }
@@ -867,6 +878,7 @@ mod tests {
             description: Some("There should be more than 2 tasks".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         }
@@ -881,6 +893,7 @@ mod tests {
             description: Some("There should be less than 5 tasks".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         }
@@ -895,6 +908,7 @@ mod tests {
             description: Some("Tags should contain 'backend'".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         }
@@ -909,6 +923,7 @@ mod tests {
             description: Some("Status should not be completed".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         }
@@ -923,6 +938,7 @@ mod tests {
             description: Some("Total should be greater than 40".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         }
@@ -937,6 +953,7 @@ mod tests {
             description: Some("Completed should be less than 20".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         }
@@ -951,6 +968,7 @@ mod tests {
             description: Some("Tags should not contain 'frontend'".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         }
@@ -965,6 +983,7 @@ mod tests {
             description: Some("Status should start with 'in_'".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         }
@@ -979,6 +998,7 @@ mod tests {
             description: Some("Status should end with '_progress'".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         }
@@ -1412,6 +1432,7 @@ mod tests {
             description: Some("Name should have 9 characters".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -1452,6 +1473,7 @@ mod tests {
             description: Some("Status should contain 'progress'".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -1552,6 +1574,7 @@ mod tests {
             description: Some("User ID should match format user_###".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -1574,6 +1597,7 @@ mod tests {
             depends_on: vec![],
             result: None,
             condition: false,
+            item_field_path: None,
         };
 
         let result = AssertionEvaluator::evaluate_assertion(&json, &assertion).unwrap();
@@ -1592,6 +1616,7 @@ mod tests {
             description: Some("Empty array should have length 0".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -1612,6 +1637,7 @@ mod tests {
             description: Some("Score should be at least 85".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -1632,6 +1658,7 @@ mod tests {
             description: Some("Should fail with field not found".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -1653,6 +1680,7 @@ mod tests {
             description: Some("Invalid regex pattern".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -1673,6 +1701,7 @@ mod tests {
             description: Some("Cannot use StartsWith on number".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -1693,6 +1722,7 @@ mod tests {
             description: Some("Cannot compare string with number".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -1712,6 +1742,7 @@ mod tests {
             description: Some("Value should be numeric".to_string()),
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -1731,6 +1762,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -1750,6 +1782,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -1770,6 +1803,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -1789,6 +1823,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -1808,6 +1843,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -1827,6 +1863,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -1846,6 +1883,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -1865,6 +1903,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -1885,6 +1924,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -1904,6 +1944,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -1923,6 +1964,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -1942,6 +1984,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -1962,6 +2005,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -1981,6 +2025,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -2000,6 +2045,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -2019,6 +2065,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -2038,6 +2085,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -2058,6 +2106,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -2077,6 +2126,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -2096,6 +2146,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -2115,6 +2166,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -2134,6 +2186,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -2153,6 +2206,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -2173,6 +2227,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -2192,6 +2247,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -2215,6 +2271,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -2235,6 +2292,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -2255,6 +2313,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -2275,6 +2334,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -2295,6 +2355,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -2315,6 +2376,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -2335,6 +2397,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -2355,6 +2418,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -2375,6 +2439,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };
@@ -2395,6 +2460,7 @@ mod tests {
             description: None,
             task_type: EvaluationTaskType::Assertion,
             depends_on: vec![],
+            item_field_path: None,
             result: None,
             condition: false,
         };

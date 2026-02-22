@@ -10887,6 +10887,7 @@ class AssertionTask:
         expected_value: Any,
         operator: ComparisonOperator,
         field_path: Optional[str] = None,
+        item_field_path: Optional[str] = None,
         description: Optional[str] = None,
         depends_on: Optional[Sequence[str]] = None,
         condition: bool = False,
@@ -10907,6 +10908,13 @@ class AssertionTask:
                 Optional dot-notation path to extract value from context
                 (e.g., "response.user.age"). If None, the entire context
                 is used as the comparison value.
+            item_field_path:
+                Optional dot-notation path applied to each element when
+                `field_path` resolves to an array of objects. For example,
+                if `field_path="responses"` yields
+                `[{"text": "hello"}, {"text": "world"}]`, setting
+                `item_field_path="text"` causes the operator to be evaluated
+                against the `"text"` value of every element.
             description:
                 Optional human-readable description of what this assertion validates.
                 Useful for understanding evaluation results.
@@ -10938,6 +10946,14 @@ class AssertionTask:
     @field_path.setter
     def field_path(self, field_path: Optional[str]) -> None:
         """Set field path for value extraction."""
+
+    @property
+    def item_field_path(self) -> Optional[str]:
+        """Dot-notation path applied to each array element when field_path resolves to an array of objects."""
+
+    @item_field_path.setter
+    def item_field_path(self, item_field_path: Optional[str]) -> None:
+        """Set item field path for per-element extraction during array evaluation."""
 
     @property
     def operator(self) -> ComparisonOperator:
