@@ -595,7 +595,7 @@ mod tests {
 
         let assertion_level_1 = AssertionTask {
             id: "input_check".to_string(),
-            field_path: Some("input.foo".to_string()),
+            context_path: Some("input.foo".to_string()),
             operator: ComparisonOperator::Equals,
             expected_value: Value::String("bar".to_string()),
             description: Some("Check if input.foo is bar".to_string()),
@@ -603,6 +603,7 @@ mod tests {
             depends_on: vec![],
             result: None,
             condition: false,
+            item_context_path: None,
         };
 
         let judge_task = LLMJudgeTask::new_rs(
@@ -619,7 +620,7 @@ mod tests {
 
         let assert_query_score = AssertionTask {
             id: "assert_score".to_string(),
-            field_path: Some("query_relevance.score".to_string()),
+            context_path: Some("query_relevance.score".to_string()),
             operator: ComparisonOperator::IsNumeric,
             expected_value: Value::Bool(true),
             depends_on: vec!["query_relevance".to_string()],
@@ -627,6 +628,7 @@ mod tests {
             description: Some("Check that score is numeric".to_string()),
             result: None,
             condition: false,
+            item_context_path: None,
         };
 
         let tasks = EvaluationTasks::new()

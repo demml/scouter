@@ -32,7 +32,7 @@ def test_genai_drift_profile_from_task():
 
         task = LLMJudgeTask(
             id="query_relevance",
-            field_path="score",
+            context_path="score",
             prompt=prompt,
             operator=ComparisonOperator.GreaterThanOrEqual,
             expected_value=3,
@@ -61,7 +61,7 @@ def test_genai_drifter():
 
         task = LLMJudgeTask(
             id="query_relevance",
-            field_path="score",
+            context_path="score",
             prompt=eval_prompt,
             operator=ComparisonOperator.GreaterThanOrEqual,
             expected_value=3,

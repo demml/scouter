@@ -517,7 +517,7 @@ impl ResultCollector {
                     task_type: assertion.task_type.clone(),
                     passed: result.passed,
                     value: result.to_metric_value(),
-                    assertion: Assertion::FieldPath(assertion.field_path.clone()),
+                    assertion: Assertion::FieldPath(assertion.context_path.clone()),
                     expected: result.expected.clone(),
                     actual: result.actual.clone(),
                     message: result.message.clone(),
@@ -551,7 +551,7 @@ impl ResultCollector {
                     task_type: judge.task_type.clone(),
                     passed: result.passed,
                     value: result.to_metric_value(),
-                    assertion: Assertion::FieldPath(judge.field_path.clone()),
+                    assertion: Assertion::FieldPath(judge.context_path.clone()),
                     expected: judge.expected_value.clone(),
                     actual: result.actual.clone(),
                     message: result.message.clone(),
@@ -724,7 +724,7 @@ mod tests {
 
         let assertion_level_1 = AssertionTask {
             id: "input_check".to_string(),
-            field_path: Some("input.foo".to_string()),
+            context_path: Some("input.foo".to_string()),
             operator: ComparisonOperator::Equals,
             expected_value: Value::String("bar".to_string()),
             description: Some("Check if input.foo is bar".to_string()),
@@ -732,6 +732,7 @@ mod tests {
             depends_on: vec![],
             result: None,
             condition: false,
+            item_context_path: None,
         };
 
         let judge_task_level_1 = LLMJudgeTask::new_rs(
@@ -748,7 +749,7 @@ mod tests {
 
         let assert_query_score = AssertionTask {
             id: "assert_score".to_string(),
-            field_path: Some("query_relevance.score".to_string()),
+            context_path: Some("query_relevance.score".to_string()),
             operator: ComparisonOperator::IsNumeric,
             expected_value: Value::Bool(true),
             depends_on: vec!["query_relevance".to_string()],
@@ -756,11 +757,12 @@ mod tests {
             description: Some("Check that score is numeric".to_string()),
             result: None,
             condition: false,
+            item_context_path: None,
         };
 
         let assert_query_reason = AssertionTask {
             id: "assert_reason".to_string(),
-            field_path: Some("query_relevance.reason".to_string()),
+            context_path: Some("query_relevance.reason".to_string()),
             operator: ComparisonOperator::IsString,
             expected_value: Value::Bool(true),
             depends_on: vec!["query_relevance".to_string()],
@@ -768,6 +770,7 @@ mod tests {
             description: Some("Check that reason is alphabetic".to_string()),
             result: None,
             condition: false,
+            item_context_path: None,
         };
 
         let tasks = EvaluationTasks::new()
@@ -788,7 +791,7 @@ mod tests {
     async fn create_assert_profile() -> GenAIEvalProfile {
         let assert1 = AssertionTask {
             id: "input_foo_check".to_string(),
-            field_path: Some("input.foo".to_string()),
+            context_path: Some("input.foo".to_string()),
             operator: ComparisonOperator::Equals,
             expected_value: Value::String("bar".to_string()),
             description: Some("Check if input.foo is bar".to_string()),
@@ -796,10 +799,11 @@ mod tests {
             depends_on: vec![],
             result: None,
             condition: false,
+            item_context_path: None,
         };
         let assert2 = AssertionTask {
             id: "input_bar_check".to_string(),
-            field_path: Some("input.bar".to_string()),
+            context_path: Some("input.bar".to_string()),
             operator: ComparisonOperator::IsNumeric,
             expected_value: Value::Bool(true),
             depends_on: vec![],
@@ -807,11 +811,12 @@ mod tests {
             description: Some("Check that bar is numeric".to_string()),
             result: None,
             condition: false,
+            item_context_path: None,
         };
 
         let assert3 = AssertionTask {
             id: "input_baz_check".to_string(),
-            field_path: Some("input.baz".to_string()),
+            context_path: Some("input.baz".to_string()),
             operator: ComparisonOperator::HasLengthEqual,
             expected_value: Value::Number(3.into()),
             depends_on: vec![],
@@ -819,6 +824,7 @@ mod tests {
             description: Some("Check that baz has length 3".to_string()),
             result: None,
             condition: false,
+            item_context_path: None,
         };
 
         let tasks = EvaluationTasks::new()
@@ -1388,7 +1394,7 @@ mod tests {
 
         let regular_assertion = AssertionTask {
             id: "check_context".to_string(),
-            field_path: Some("metadata.version".to_string()),
+            context_path: Some("metadata.version".to_string()),
             operator: ComparisonOperator::Equals,
             expected_value: Value::String("1.0.0".to_string()),
             description: Some("Verify version".to_string()),
@@ -1396,6 +1402,7 @@ mod tests {
             depends_on: vec![],
             result: None,
             condition: false,
+            item_context_path: None,
         };
 
         let tasks = EvaluationTasks::new()

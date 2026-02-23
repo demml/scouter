@@ -182,13 +182,215 @@ def test_genai_eval_embedding_all_assertion(
             print(f"Histogram for {field}: {histogram}")
 
 
+# ── Array evaluation tests ────────────────────────────────────────────────────
+
+
+def test_array_of_objects_not_empty_pass() -> None:
+    """Array of objects is non-empty → PASS."""
+    record = GenAIEvalRecord(
+        context={"responses": [{"text": "hello"}, {"text": "world"}, {"text": "foo"}]},
+        id="array_obj_not_empty_pass",
+    )
+    task = AssertionTask(
+        id="responses_not_empty",
+        context_path="responses",
+        item_context_path="text",
+        operator=ComparisonOperator.IsNotEmpty,
+        expected_value=True,
+        description="Responses array must have at least one entry",
+    )
+    dataset = GenAIEvalDataset(records=[record], tasks=[task])
+    results = dataset.evaluate()
+    assert results["array_obj_not_empty_pass"].eval_set.failed_tasks == 0
+
+
+def test_array_of_objects_not_empty_fail() -> None:
+    """Array of objects is empty (no items) → FAIL."""
+    record = GenAIEvalRecord(
+        context={"responses": []},
+        id="array_obj_not_empty_fail",
+    )
+    task = AssertionTask(
+        id="responses_not_empty",
+        context_path="responses",
+        operator=ComparisonOperator.IsNotEmpty,
+        expected_value=True,
+        description="Responses array must have at least one entry",
+    )
+    dataset = GenAIEvalDataset(records=[record], tasks=[task])
+    results = dataset.evaluate()
+    assert results["array_obj_not_empty_fail"].eval_set.failed_tasks > 0
+
+
+def test_array_items_greater_than_pass() -> None:
+    """All numeric values in the array are >= 5 → PASS."""
+    record = GenAIEvalRecord(
+        context={"scores": [8, 6, 10]},
+        id="attr_gte_pass",
+    )
+    task = AssertionTask(
+        id="score_gte_5",
+        context_path="scores",
+        operator=ComparisonOperator.GreaterThanOrEqual,
+        expected_value=5,
+        description="Every score must be >= 5",
+    )
+    dataset = GenAIEvalDataset(records=[record], tasks=[task])
+    results = dataset.evaluate()
+    assert results["attr_gte_pass"].eval_set.failed_tasks == 0
+
+
+def test_array_items_greater_than_fail() -> None:
+    """One numeric value in the array is < 5 → FAIL."""
+    record = GenAIEvalRecord(
+        context={"scores": [8, 3, 10]},
+        id="attr_gte_fail",
+    )
+    task = AssertionTask(
+        id="score_gte_5",
+        context_path="scores",
+        operator=ComparisonOperator.GreaterThanOrEqual,
+        expected_value=5,
+        description="Every score must be >= 5",
+    )
+    dataset = GenAIEvalDataset(records=[record], tasks=[task])
+    results = dataset.evaluate()
+    assert results["attr_gte_fail"].eval_set.failed_tasks > 0
+
+
+def test_array_items_less_than_pass() -> None:
+    """All numeric values in the array are < 500 → PASS."""
+    record = GenAIEvalRecord(
+        context={"latencies": [120, 200, 450]},
+        id="attr_lt_pass",
+    )
+    task = AssertionTask(
+        id="latency_lt_500",
+        context_path="latencies",
+        operator=ComparisonOperator.LessThan,
+        expected_value=500,
+        description="Every latency must be < 500ms",
+    )
+    dataset = GenAIEvalDataset(records=[record], tasks=[task])
+    results = dataset.evaluate()
+    assert results["attr_lt_pass"].eval_set.failed_tasks == 0
+
+
+def test_array_items_less_than_fail() -> None:
+    """One numeric value in the array is >= 500 → FAIL."""
+    record = GenAIEvalRecord(
+        context={"latencies": [120, 600, 450]},
+        id="attr_lt_fail",
+    )
+    task = AssertionTask(
+        id="latency_lt_500",
+        context_path="latencies",
+        operator=ComparisonOperator.LessThan,
+        expected_value=500,
+        description="Every latency must be < 500ms",
+    )
+    dataset = GenAIEvalDataset(records=[record], tasks=[task])
+    results = dataset.evaluate()
+    assert results["attr_lt_fail"].eval_set.failed_tasks > 0
+
+
+def test_array_of_scalars_greater_than_pass() -> None:
+    """All scalar values in the array are > 0 → PASS."""
+    record = GenAIEvalRecord(
+        context={"scores": [5, 8, 10, 7]},
+        id="scalar_gt_pass",
+    )
+    task = AssertionTask(
+        id="scores_positive",
+        context_path="scores",
+        operator=ComparisonOperator.GreaterThan,
+        expected_value=0,
+        description="Every score must be positive",
+    )
+    dataset = GenAIEvalDataset(records=[record], tasks=[task])
+    results = dataset.evaluate()
+    assert results["scalar_gt_pass"].eval_set.failed_tasks == 0
+
+
+def test_array_of_scalars_greater_than_fail() -> None:
+    """One scalar value is not > 0 → FAIL."""
+    record = GenAIEvalRecord(
+        context={"scores": [5, 8, -1, 7]},
+        id="scalar_gt_fail",
+    )
+    task = AssertionTask(
+        id="scores_positive",
+        context_path="scores",
+        operator=ComparisonOperator.GreaterThan,
+        expected_value=0,
+        description="Every score must be positive",
+    )
+    dataset = GenAIEvalDataset(records=[record], tasks=[task])
+    results = dataset.evaluate()
+    assert results["scalar_gt_fail"].eval_set.failed_tasks > 0
+
+
+def test_array_of_scalars_less_than_pass() -> None:
+    """All scalar values are < 100 → PASS."""
+    record = GenAIEvalRecord(
+        context={"percentages": [10, 45, 99, 72]},
+        id="scalar_lt_pass",
+    )
+    task = AssertionTask(
+        id="pct_lt_100",
+        context_path="percentages",
+        operator=ComparisonOperator.LessThan,
+        expected_value=100,
+        description="Every percentage must be < 100",
+    )
+    dataset = GenAIEvalDataset(records=[record], tasks=[task])
+    results = dataset.evaluate()
+    assert results["scalar_lt_pass"].eval_set.failed_tasks == 0
+
+
+def test_array_of_scalars_less_than_fail() -> None:
+    """One scalar value is >= 100 → FAIL."""
+    record = GenAIEvalRecord(
+        context={"percentages": [10, 45, 100, 72]},
+        id="scalar_lt_fail",
+    )
+    task = AssertionTask(
+        id="pct_lt_100",
+        context_path="percentages",
+        operator=ComparisonOperator.LessThan,
+        expected_value=100,
+        description="Every percentage must be < 100",
+    )
+    dataset = GenAIEvalDataset(records=[record], tasks=[task])
+    results = dataset.evaluate()
+    assert results["scalar_lt_fail"].eval_set.failed_tasks > 0
+
+
+def test_array_native_has_length_unaffected() -> None:
+    """HasLengthEqual operates on the array as a whole, not its items."""
+    record = GenAIEvalRecord(
+        context={"tags": ["a", "b", "c"]},
+        id="has_length_native",
+    )
+    task = AssertionTask(
+        id="tags_length",
+        context_path="tags",
+        operator=ComparisonOperator.HasLengthEqual,
+        expected_value=3,
+        description="Array must have exactly 3 items",
+    )
+    dataset = GenAIEvalDataset(records=[record], tasks=[task])
+    results = dataset.evaluate()
+    assert results["has_length_native"].eval_set.failed_tasks == 0
+
+
 def test_genai_conditional_assertions():
     """Main goal of this test is to ensure that conditional assertions work as expected."""
 
     stage_1_tasks = [
         AssertionTask(
             id="is_foo",
-            field_path="input",
+            context_path="input",
             operator=ComparisonOperator.Equals,
             expected_value="foo",
             description="Check if input is 'foo'",
@@ -196,7 +398,7 @@ def test_genai_conditional_assertions():
         ),
         AssertionTask(
             id="is_bar",
-            field_path="input",
+            context_path="input",
             operator=ComparisonOperator.Equals,
             expected_value="bar",
             description="Check if input is 'bar'",
@@ -204,7 +406,7 @@ def test_genai_conditional_assertions():
         ),
         AssertionTask(
             id="is_baz",
-            field_path="input",
+            context_path="input",
             operator=ComparisonOperator.Equals,
             expected_value="baz",
             description="Check if input is 'baz'",
@@ -215,7 +417,7 @@ def test_genai_conditional_assertions():
     stage_2_task = [
         AssertionTask(
             id="is_foo_foo",
-            field_path="response",
+            context_path="response",
             operator=ComparisonOperator.Equals,
             expected_value="foo_foo",
             description="Check if response is 'foo_foo'",
@@ -223,7 +425,7 @@ def test_genai_conditional_assertions():
         ),
         AssertionTask(
             id="is_bar_bar",
-            field_path="response",
+            context_path="response",
             operator=ComparisonOperator.Equals,
             expected_value="bar_bar",
             description="Check if response is 'bar_bar'",
@@ -231,7 +433,7 @@ def test_genai_conditional_assertions():
         ),
         AssertionTask(
             id="is_baz_baz",
-            field_path="response",
+            context_path="response",
             operator=ComparisonOperator.Equals,
             expected_value="baz_baz",
             description="Check if response is 'baz_baz'",

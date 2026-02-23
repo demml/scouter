@@ -57,7 +57,7 @@ pub enum EvaluationError {
     #[error("Invalid array index: {0}")]
     InvalidArrayIndex(String),
 
-    #[error("Empty field path provided")]
+    #[error("Empty context path provided")]
     EmptyFieldPath,
 
     #[error("{0}")]

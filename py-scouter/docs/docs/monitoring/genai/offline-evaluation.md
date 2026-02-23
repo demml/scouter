@@ -231,7 +231,7 @@ classification_judge_task = LLMJudgeTask(
     prompt=create_category_classification_prompt(),
     expected_value=None,
     operator=ComparisonOperator.IsNotEmpty,
-    field_path="category",
+    context_path="category",
     description="Classify the appliance category"
 )
 ```
@@ -290,7 +290,7 @@ def kitchen_category_tasks() -> List[LLMJudgeTask | AssertionTask]:
         # Conditional check - only proceed if category is "kitchen"
         AssertionTask(
             id="is_kitchen_category",
-            field_path="category_classification.category",
+            context_path="category_classification.category",
             operator=ComparisonOperator.Equals,
             expected_value="kitchen",
             description="Check if categorized as kitchen",
@@ -303,14 +303,14 @@ def kitchen_category_tasks() -> List[LLMJudgeTask | AssertionTask]:
             prompt=create_kitchen_expert_prompt(),
             expected_value=True,
             operator=ComparisonOperator.Equals,
-            field_path="is_suitable",
+            context_path="is_suitable",
             description="Kitchen expert validates response quality",
             depends_on=["is_kitchen_category"],
         ),
         # Technical accuracy check
         AssertionTask(
             id="kitchen_technical_score",
-            field_path="kitchen_expert_validation.technical_accuracy_score",
+            context_path="kitchen_expert_validation.technical_accuracy_score",
             operator=ComparisonOperator.GreaterThanOrEqual,
             expected_value=7,
             description="Technical accuracy must be ≥7/10",
@@ -364,7 +364,7 @@ def bath_category_tasks() -> List[LLMJudgeTask | AssertionTask]:
     return [
         AssertionTask(
             id="is_bath_category",
-            field_path="category_classification.category",
+            context_path="category_classification.category",
             operator=ComparisonOperator.Equals,
             expected_value="bath",
             description="Check if categorized as bath",
@@ -376,13 +376,13 @@ def bath_category_tasks() -> List[LLMJudgeTask | AssertionTask]:
             prompt=create_bath_expert_prompt(),
             expected_value=True,
             operator=ComparisonOperator.Equals,
-            field_path="is_suitable",
+            context_path="is_suitable",
             description="Bath expert validates response quality and safety",
             depends_on=["is_bath_category"],
         ),
         AssertionTask(
             id="bath_installation_score",
-            field_path="bath_expert_validation.installation_guidance_score",
+            context_path="bath_expert_validation.installation_guidance_score",
             operator=ComparisonOperator.GreaterThanOrEqual,
             expected_value=7,
             description="Verify bath installation guidance score is at least 7/10",
@@ -437,7 +437,7 @@ def outdoor_category_tasks() -> List[LLMJudgeTask | AssertionTask]:
     return [
         AssertionTask(
             id="is_outdoor_category",
-            field_path="category_classification.category",  # reference upstream field value
+            context_path="category_classification.category",  # reference upstream field value
             operator=ComparisonOperator.Equals,
             expected_value="outdoor",
             description="Check if categorized as outdoor",
@@ -449,13 +449,13 @@ def outdoor_category_tasks() -> List[LLMJudgeTask | AssertionTask]:
             prompt=create_outdoor_expert_prompt(),
             expected_value=True,
             operator=ComparisonOperator.Equals,
-            field_path="is_suitable",
+            context_path="is_suitable",
             description="Outdoor expert validates response quality and safety",
             depends_on=["is_outdoor_category"],
         ),
         AssertionTask(
             id="outdoor_durability_score",
-            field_path="outdoor_expert_validation.durability_assessment_score",
+            context_path="outdoor_expert_validation.durability_assessment_score",
             operator=ComparisonOperator.GreaterThanOrEqual,
             expected_value=7,
             description="Verify outdoor durability assessment score is at least 7/10",
@@ -656,14 +656,14 @@ Note: is_outdoor_category and category_classification
 Output: True
 ```
 
-**Field Path Resolution**
+**context path Resolution**
 
-When a task uses `field_path` to reference upstream data, it's reading from the reconstructed context:
+When a task uses `context_path` to reference upstream data, it's reading from the reconstructed context:
 
 ```python
 AssertionTask(
     id="outdoor_durability_score",
-    field_path="outdoor_expert_validation.durability_assessment_score",
+    context_path="outdoor_expert_validation.durability_assessment_score",
     #          ^^^^^^^^^^^^^^^^^^^^^^^^ ^^^^^^^^^^^^^^^^^^^^^^^^^^^
     #          Dependency task ID       Field in that task's output
     operator=ComparisonOperator.GreaterThanOrEqual,
