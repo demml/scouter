@@ -171,6 +171,9 @@ fn get_trace_metadata_store() -> &'static TraceMetadataStore {
 /// * `batch_config` - Optional batch configuration for span exporting
 /// * `sample_ratio` - Optional sampling ratio between 0.0 and 1.0
 /// * `scouter_queue` - Optional ScouterQueue to associate with the tracer for span queueing
+/// * `schema_url` - Optional schema URL for the tracer's instrumentation scope
+/// * `scope_attributes` - Optional attributes to set on the tracer's instrumentation scope
+/// * `default_attributes` - Optional attributes to set on every span created by this tracer
 #[pyfunction]
 #[pyo3(signature = (
     service_name="scouter_service".to_string(),
@@ -181,7 +184,8 @@ fn get_trace_metadata_store() -> &'static TraceMetadataStore {
     sample_ratio=None,
     scouter_queue=None,
     schema_url=None,
-    attributes=None,
+    scope_attributes=None,
+    default_attributes=None,
 ))]
 #[instrument(skip_all)]
 #[allow(clippy::too_many_arguments)]
@@ -195,7 +199,8 @@ pub fn init_tracer(
     sample_ratio: Option<f64>,
     scouter_queue: Option<Py<ScouterQueue>>,
     schema_url: Option<String>,
-    attributes: Option<Bound<'_, PyAny>>,
+    scope_attributes: Option<Bound<'_, PyAny>>,
+    default_attributes: Option<Bound<'_, PyAny>>,
 ) -> Result<BaseTracer, TraceError> {
     debug!("Initializing tracer");
 
@@ -268,7 +273,14 @@ pub fn init_tracer(
         debug!("Tracer provider already initialized, skipping setup");
     }
 
-    BaseTracer::new(py, service_name, schema_url, attributes, scouter_queue)
+    BaseTracer::new(
+        py,
+        service_name,
+        schema_url,
+        default_attributes,
+        scope_attributes,
+        scouter_queue,
+    )
 }
 
 fn reset_current_context(py: Python, token: &Py<PyAny>) -> PyResult<()> {
@@ -350,7 +362,6 @@ impl ActiveSpan {
     #[pyo3(signature = (output, max_length=1000))]
     #[instrument(skip_all)]
     fn set_output(&self, output: &Bound<'_, PyAny>, max_length: usize) -> Result<(), TraceError> {
-        debug!("Setting output on span");
         let value = pyobject_to_tracing_json(output, &max_length)?;
         self.with_inner_mut(|inner| {
             inner.span.set_attribute(KeyValue::new(
@@ -581,6 +592,7 @@ impl ActiveSpan {
 pub struct BaseTracer {
     tracer: SdkTracer,
     queue: Option<Py<ScouterQueue>>,
+    default_attributes: Vec<KeyValue>,
 }
 
 impl BaseTracer {
@@ -655,7 +667,10 @@ impl BaseTracer {
     #[pyo3(signature = (
     name,
     schema_url=None,
-    attributes=None,
+    // default span attributes that are applied to every span created by this tracer
+    default_attributes=None,
+    // scope attributes that are applied to the tracer's instrumentation scope
+    scope_attributes=None,
     queue=None,
 ))]
     #[instrument(skip_all)]
@@ -663,7 +678,8 @@ impl BaseTracer {
         py: Python<'_>,
         name: String,
         schema_url: Option<String>,
-        attributes: Option<Bound<'_, PyAny>>,
+        default_attributes: Option<Bound<'_, PyAny>>,
+        scope_attributes: Option<Bound<'_, PyAny>>,
         queue: Option<Py<ScouterQueue>>,
     ) -> Result<Self, TraceError> {
         debug!("Creating new BaseTracer instance");
@@ -677,7 +693,8 @@ impl BaseTracer {
         });
 
         // Convert Python attributes to OpenTelemetry KeyValue pairs
-        let scope_attributes = py_obj_to_otel_keyvalue(py, attributes)?;
+        let scope_attributes = py_obj_to_otel_keyvalue(py, scope_attributes)?;
+        let default_attributes = py_obj_to_otel_keyvalue(py, default_attributes)?;
 
         let mut scope_builder =
             InstrumentationScope::builder(name).with_version(SCOUTER_SCOPE_DEFAULT);
@@ -696,6 +713,7 @@ impl BaseTracer {
         Ok(BaseTracer {
             tracer,
             queue: final_queue,
+            default_attributes,
         })
     }
 
@@ -805,6 +823,11 @@ impl BaseTracer {
             attr_map.iter().for_each(|(k, v)| {
                 span.set_attribute(KeyValue::new(k.clone(), v.clone()));
             });
+        });
+
+        // set default attributes from tracer configuration
+        self.default_attributes.iter().for_each(|kv| {
+            span.set_attribute(kv.clone());
         });
 
         if let Some(label) = label {
