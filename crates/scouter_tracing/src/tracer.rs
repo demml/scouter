@@ -366,7 +366,6 @@ impl ActiveSpan {
     /// * `value` - The attribute value
     pub fn set_attribute(&self, key: String, value: Bound<'_, PyAny>) -> Result<(), TraceError> {
         let value = pyobject_to_otel_value(&value)?;
-        println!("Setting attribute {} on span", key);
         self.with_inner_mut(|inner| inner.span.set_attribute(KeyValue::new(key, value)))
     }
 
