@@ -18,6 +18,7 @@ pub use scouter_types::{
         GenAIEvalProfile, GenAIEvalResultSet, GenAIEvalSet, LLMJudgeTask, SpanFilter, SpanStatus,
         TasksFile, TraceAssertion, TraceAssertionTask,
     },
+    is_pydantic_basemodel,
     psi::{
         Bin, BinnedPsiFeatureMetrics, BinnedPsiMetric, PsiAlertConfig, PsiChiSquareThreshold,
         PsiDriftConfig, PsiDriftMap, PsiDriftProfile, PsiFeatureDriftProfile, PsiFixedThreshold,

@@ -248,8 +248,10 @@ pub fn init_tracer(
             .with_attributes([KeyValue::new(SCOUTER_SCOPE, scope.clone())])
             .build();
 
+        // Primary exporter for sending spans to Scouter backend
         let scouter_export = ScouterSpanExporter::new(transport_config, &resource)?;
 
+        // Optional secondary exporter for sending spans to OTLP collector
         let mut span_exporter = if let Some(exporter) = exporter {
             SpanExporterNum::from_pyobject(exporter).expect("failed to convert exporter")
         } else {
