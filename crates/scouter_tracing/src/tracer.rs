@@ -742,6 +742,53 @@ impl BaseTracer {
         Ok(())
     }
 
+    fn parse_span_kind(&self, kind: Option<&Bound<'_, PyAny>>) -> Result<SpanKind, TraceError> {
+        // if kind is not provided, default to internal
+        let kind = match kind {
+            Some(k) => k,
+            None => return Ok(SpanKind::Internal),
+        };
+        // Try to parse as SpanKind enum first
+        if kind.is_instance_of::<SpanKind>() {
+            let span_kind = kind.extract::<SpanKind>()?;
+            return Ok(span_kind);
+        }
+
+        // If that fails, try to parse as OpenTelemetry SpanKind object
+        if let Ok(value) = kind.getattr("value").and_then(|v| v.extract::<i32>()) {
+            return match value {
+                0 => Ok(SpanKind::Internal),
+                1 => Ok(SpanKind::Server),
+                2 => Ok(SpanKind::Client),
+                3 => Ok(SpanKind::Producer),
+                4 => Ok(SpanKind::Consumer),
+                _ => Err(TraceError::InvalidSpanKind(format!(
+                    "Unknown span kind value: {}",
+                    value
+                ))),
+            };
+        }
+
+        // Fallback: try direct integer extraction
+        if let Ok(value) = kind.extract::<i32>() {
+            return match value {
+                0 => Ok(SpanKind::Internal),
+                1 => Ok(SpanKind::Server),
+                2 => Ok(SpanKind::Client),
+                3 => Ok(SpanKind::Producer),
+                4 => Ok(SpanKind::Consumer),
+                _ => Err(TraceError::InvalidSpanKind(format!(
+                    "Unknown span kind value: {}",
+                    value
+                ))),
+            };
+        }
+
+        Err(TraceError::InvalidSpanKind(
+            "Could not extract span kind value".to_string(),
+        ))
+    }
+
     /// Start a span and set it as the current span
     /// # Arguments
     /// * `name` - The name of the span
@@ -752,14 +799,14 @@ impl BaseTracer {
     /// * `baggage` - Optional baggage items as a dictionary
     /// * `tags` - Optional tags to prefix baggage items with as a dictionary
     /// * `parent_context_id` - Optional parent context ID to link the span to (this is automatically set if not provided)
-    #[pyo3(signature = (name, kind=SpanKind::Internal, attributes=vec![], baggage=vec![], tags=vec![], label=None,  parent_context_id=None, trace_id=None, span_id=None, remote_sampled=None))]
+    #[pyo3(signature = (name, kind, attributes=vec![], baggage=vec![], tags=vec![], label=None,  parent_context_id=None, trace_id=None, span_id=None, remote_sampled=None))]
     #[allow(clippy::too_many_arguments)]
     #[instrument(skip_all)]
     fn start_as_current_span(
         &self,
         py: Python<'_>,
         name: String,
-        kind: SpanKind,
+        kind: Option<&Bound<'_, PyAny>>, // can be either SpanKind enum or otel span kind object
         attributes: Vec<HashMap<String, String>>,
         baggage: Vec<HashMap<String, String>>,
         tags: Vec<HashMap<String, String>>,
@@ -769,6 +816,7 @@ impl BaseTracer {
         span_id: Option<String>,
         remote_sampled: Option<bool>, // only used if both trace_id and span_id are provided (remote parent case)
     ) -> Result<ActiveSpan, TraceError> {
+        let kind = self.parse_span_kind(kind)?;
         // Get parent context if available
         let parent_id = parent_context_id.or_else(|| get_current_context_id(py).ok().flatten());
 
@@ -869,7 +917,7 @@ impl BaseTracer {
         name,
         func,
         func_args,
-        kind=SpanKind::Internal,
+        kind=None,
         attributes=vec![],
         baggage=vec![],
         tags=vec![],
@@ -889,7 +937,7 @@ impl BaseTracer {
         name: String,
         func: &Bound<'py, PyAny>,
         func_args: &Bound<'_, PyTuple>,
-        kind: SpanKind,
+        kind: Option<&Bound<'_, PyAny>>,
         attributes: Vec<HashMap<String, String>>,
         baggage: Vec<HashMap<String, String>>,
         tags: Vec<HashMap<String, String>>,

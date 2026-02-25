@@ -54,6 +54,9 @@ pub enum TraceError {
 
     #[error("{0}")]
     ExportError(String),
+
+    #[error("{0}")]
+    InvalidSpanKind(String),
 }
 
 impl From<TraceError> for PyErr {
