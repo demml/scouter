@@ -13,8 +13,9 @@ use crate::utils::py_obj_to_otel_keyvalue;
 use crate::utils::BoxedSpan;
 use crate::utils::{
     capture_function_arguments, format_traceback, get_context_store, get_context_var,
-    get_current_active_span, get_current_context_id, set_current_span, set_function_attributes,
-    set_function_type_attribute, ActiveSpanInner, FunctionType, SpanContextExt, SpanKind,
+    get_current_active_span, get_current_context_id, parse_span_kind, parse_status,
+    set_current_span, set_function_attributes, set_function_type_attribute, ActiveSpanInner,
+    FunctionType, SpanContextExt,
 };
 
 use chrono::{DateTime, Utc};
@@ -464,13 +465,12 @@ impl ActiveSpan {
     /// # Arguments
     /// * `status` - The status string ("ok", "error", or "unset")
     /// * `description` - Optional description for the status (typically used with error)
-    fn set_status(&self, status: String, description: Option<String>) -> Result<(), TraceError> {
-        let otel_status = match status.to_lowercase().as_str() {
-            "ok" => Status::Ok,
-            "error" => Status::error(description.unwrap_or_default()),
-            _ => Status::Unset,
-        };
-
+    fn set_status(
+        &self,
+        status: &Bound<'_, PyAny>,
+        description: Option<String>,
+    ) -> Result<(), TraceError> {
+        let otel_status = parse_status(status, description);
         self.with_inner_mut(|inner| inner.span.set_status(otel_status))
     }
 
@@ -901,53 +901,6 @@ impl BaseTracer {
         Ok(())
     }
 
-    fn parse_span_kind(&self, kind: Option<&Bound<'_, PyAny>>) -> Result<SpanKind, TraceError> {
-        // if kind is not provided, default to internal
-        let kind = match kind {
-            Some(k) => k,
-            None => return Ok(SpanKind::Internal),
-        };
-        // Try to parse as SpanKind enum first
-        if kind.is_instance_of::<SpanKind>() {
-            let span_kind = kind.extract::<SpanKind>()?;
-            return Ok(span_kind);
-        }
-
-        // If that fails, try to parse as OpenTelemetry SpanKind object
-        if let Ok(value) = kind.getattr("value").and_then(|v| v.extract::<i32>()) {
-            return match value {
-                0 => Ok(SpanKind::Internal),
-                1 => Ok(SpanKind::Server),
-                2 => Ok(SpanKind::Client),
-                3 => Ok(SpanKind::Producer),
-                4 => Ok(SpanKind::Consumer),
-                _ => Err(TraceError::InvalidSpanKind(format!(
-                    "Unknown span kind value: {}",
-                    value
-                ))),
-            };
-        }
-
-        // Fallback: try direct integer extraction
-        if let Ok(value) = kind.extract::<i32>() {
-            return match value {
-                0 => Ok(SpanKind::Internal),
-                1 => Ok(SpanKind::Server),
-                2 => Ok(SpanKind::Client),
-                3 => Ok(SpanKind::Producer),
-                4 => Ok(SpanKind::Consumer),
-                _ => Err(TraceError::InvalidSpanKind(format!(
-                    "Unknown span kind value: {}",
-                    value
-                ))),
-            };
-        }
-
-        Err(TraceError::InvalidSpanKind(
-            "Could not extract span kind value".to_string(),
-        ))
-    }
-
     /// Start a span and set it as the current span
     /// # Arguments
     /// * `name` - The name of the span
@@ -975,7 +928,7 @@ impl BaseTracer {
         span_id: Option<String>,
         remote_sampled: Option<bool>, // only used if both trace_id and span_id are provided (remote parent case)
     ) -> Result<ActiveSpan, TraceError> {
-        let kind = self.parse_span_kind(kind)?;
+        let kind = parse_span_kind(kind)?;
         // Get parent context if available
         let parent_id = parent_context_id.or_else(|| get_current_context_id(py).ok().flatten());
 
@@ -1090,7 +1043,7 @@ impl BaseTracer {
         span_id: Option<String>,
         remote_sampled: Option<bool>,
     ) -> Result<ActiveSpan, TraceError> {
-        let kind = self.parse_span_kind(kind)?;
+        let kind = parse_span_kind(kind)?;
         let parent_id = parent_context_id.or_else(|| get_current_context_id(py).ok().flatten());
 
         let base_ctx = if let (Some(tid), Some(sid)) = (&trace_id, &span_id) {
