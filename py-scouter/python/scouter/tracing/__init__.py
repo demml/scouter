@@ -58,8 +58,8 @@ else:
     # Try to import OpenTelemetry, but provide fallbacks if not available
     try:
         from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
-        from opentelemetry.trace import get_tracer_provider, set_tracer_provider
         from opentelemetry.trace import Tracer as _OtelTracer
+        from opentelemetry.trace import get_tracer_provider, set_tracer_provider
 
         HAS_OPENTELEMETRY = True
     except ImportError:
@@ -70,28 +70,16 @@ else:
             """Stub base class when OpenTelemetry is not available."""
 
             def instrument(self, **kwargs):
-                raise ImportError(
-                    "OpenTelemetry is not installed. Install with: "
-                    "pip install opsml[opentelemetry]"
-                )
+                raise ImportError("OpenTelemetry is not installed. Install with: " "pip install opsml[opentelemetry]")
 
             def uninstrument(self, **kwargs):
-                raise ImportError(
-                    "OpenTelemetry is not installed. Install with: "
-                    "pip install opsml[opentelemetry]"
-                )
+                raise ImportError("OpenTelemetry is not installed. Install with: " "pip install opsml[opentelemetry]")
 
         def get_tracer_provider():
-            raise ImportError(
-                "OpenTelemetry is not installed. Install with: "
-                "pip install opsml[opentelemetry]"
-            )
+            raise ImportError("OpenTelemetry is not installed. Install with: " "pip install opsml[opentelemetry]")
 
         def set_tracer_provider(provider):
-            raise ImportError(
-                "OpenTelemetry is not installed. Install with: "
-                "pip install opsml[opentelemetry]"
-            )
+            raise ImportError("OpenTelemetry is not installed. Install with: " "pip install opsml[opentelemetry]")
 
     class _OtelTracerProvider:
         pass
@@ -204,9 +192,7 @@ class Tracer(BaseTracer):
             if function_type == FunctionType.AsyncGenerator:
 
                 @functools.wraps(func)
-                async def async_generator_wrapper(
-                    *args: P.args, **kwargs: P.kwargs
-                ) -> Any:
+                async def async_generator_wrapper(*args: P.args, **kwargs: P.kwargs) -> Any:
                     async with self._start_decorated_as_current_span(
                         name=span_name,
                         func=func,
@@ -223,9 +209,7 @@ class Tracer(BaseTracer):
                         func_kwargs=kwargs,
                     ) as span:
                         try:
-                            async_gen_func = cast(
-                                Callable[P, AsyncGenerator[Any, None]], func
-                            )
+                            async_gen_func = cast(Callable[P, AsyncGenerator[Any, None]], func)
                             generator = async_gen_func(*args, **kwargs)
 
                             outputs = []
@@ -267,9 +251,7 @@ class Tracer(BaseTracer):
                         func_kwargs=kwargs,
                     ) as span:
                         try:
-                            gen_func = cast(
-                                Callable[P, Generator[Any, None, None]], func
-                            )
+                            gen_func = cast(Callable[P, Generator[Any, None, None]], func)
                             generator = gen_func(*args, **kwargs)
                             results = []
 
@@ -484,8 +466,7 @@ class ScouterInstrumentor(BaseInstrumentor):
         """Initialize Scouter tracing and set as global provider."""
         if not HAS_OPENTELEMETRY:
             raise ImportError(
-                "OpenTelemetry is required for instrumentation. "
-                "Install with: pip install opsml[opentelemetry]"
+                "OpenTelemetry is required for instrumentation. " "Install with: pip install opsml[opentelemetry]"
             )
 
         if self._provider is not None:
@@ -537,6 +518,8 @@ class ScouterInstrumentor(BaseInstrumentor):
                 Optional ScouterQueue for buffering
             attributes (Optional[Attributes]):
                 Optional attributes to set on every span created by this tracer
+            **kwargs:
+                Additional keyword arguments for TracerProvider initialization
 
         """
         super().instrument(
@@ -558,14 +541,13 @@ class ScouterInstrumentor(BaseInstrumentor):
             self._provider.shutdown()
             self._provider = None
         else:
-            # Even if _provider is None, we should still attempt to flush/shutdown in case the global provider was set without using this instrumentor instance
             try:
                 flush_tracer()
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001 pylint: disable=broad-except
                 pass
             try:
                 shutdown_tracer()
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001 pylint: disable=broad-except
                 pass
 
         from opentelemetry import trace
@@ -576,9 +558,7 @@ class ScouterInstrumentor(BaseInstrumentor):
         # Reset the singleton
         ScouterInstrumentor._instance = None
 
-        assert self._provider is None, (
-            "Expected provider to be None after uninstrument()"
-        )
+        assert self._provider is None, "Expected provider to be None after uninstrument()"
 
     @property
     def is_instrumented(self) -> bool:
