@@ -465,6 +465,7 @@ impl ActiveSpan {
     /// # Arguments
     /// * `status` - The status string ("ok", "error", or "unset")
     /// * `description` - Optional description for the status (typically used with error)
+    #[pyo3(signature = (status, description=None))]
     fn set_status(
         &self,
         status: &Bound<'_, PyAny>,
@@ -696,6 +697,7 @@ impl ActiveSpan {
     /// Adds a link to another span (OTel-compatible no-op placeholder).
     /// Full cross-process link support is not yet implemented; this method is provided
     /// so that code written against the OTel Span ABC compiles without errors.
+    #[pyo3(signature = (context, attributes=None))]
     fn add_link(
         &self,
         py: Python<'_>,
