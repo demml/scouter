@@ -913,14 +913,16 @@ impl BaseTracer {
     /// * `baggage` - Optional baggage items as a dictionary
     /// * `tags` - Optional tags to prefix baggage items with as a dictionary
     /// * `parent_context_id` - Optional parent context ID to link the span to (this is automatically set if not provided)
-    #[pyo3(signature = (name, kind=None, attributes=vec![], baggage=vec![], tags=vec![], label=None,  parent_context_id=None, trace_id=None, span_id=None, remote_sampled=None))]
+    #[pyo3(signature = (name, context=None, kind=None, attributes=vec![], baggage=vec![], tags=vec![], label=None,  parent_context_id=None, trace_id=None, span_id=None, remote_sampled=None))]
     #[allow(clippy::too_many_arguments)]
     #[instrument(skip_all)]
+    #[allow(unused_variables)]
     fn start_as_current_span(
         &self,
         py: Python<'_>,
         name: String,
-        kind: Option<&Bound<'_, PyAny>>, // can be either SpanKind enum or otel span kind object
+        context: Option<&Bound<'_, PyAny>>, // not used. Needed for otel compliance
+        kind: Option<&Bound<'_, PyAny>>,    // can be either SpanKind enum or otel span kind object
         attributes: Vec<HashMap<String, String>>,
         baggage: Vec<HashMap<String, String>>,
         tags: Vec<HashMap<String, String>>,
@@ -1168,6 +1170,7 @@ impl BaseTracer {
         let mut span = self.start_as_current_span(
             py,
             name,
+            None,
             kind,
             attributes,
             baggage,
