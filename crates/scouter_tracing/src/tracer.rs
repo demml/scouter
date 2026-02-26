@@ -913,7 +913,7 @@ impl BaseTracer {
     /// * `baggage` - Optional baggage items as a dictionary
     /// * `tags` - Optional tags to prefix baggage items with as a dictionary
     /// * `parent_context_id` - Optional parent context ID to link the span to (this is automatically set if not provided)
-    #[pyo3(signature = (name, kind, attributes=vec![], baggage=vec![], tags=vec![], label=None,  parent_context_id=None, trace_id=None, span_id=None, remote_sampled=None))]
+    #[pyo3(signature = (name, kind=None, attributes=vec![], baggage=vec![], tags=vec![], label=None,  parent_context_id=None, trace_id=None, span_id=None, remote_sampled=None))]
     #[allow(clippy::too_many_arguments)]
     #[instrument(skip_all)]
     fn start_as_current_span(
