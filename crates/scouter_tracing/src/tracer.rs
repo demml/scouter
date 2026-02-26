@@ -14,8 +14,9 @@ use crate::utils::BoxedSpan;
 use crate::utils::{
     capture_function_arguments, format_traceback, get_context_store, get_context_var,
     get_current_active_span, get_current_context_id, set_current_span, set_function_attributes,
-    set_function_type_attribute, ActiveSpanInner, FunctionType, SpanKind,
+    set_function_type_attribute, ActiveSpanInner, FunctionType, SpanContextExt, SpanKind,
 };
+
 use chrono::{DateTime, Utc};
 use opentelemetry::baggage::BaggageExt;
 use opentelemetry::trace::Tracer as OTelTracer;
@@ -697,11 +698,16 @@ impl ActiveSpan {
     /// so that code written against the OTel Span ABC compiles without errors.
     fn add_link(
         &self,
-        _context: &Bound<'_, PyAny>,
-        _attributes: Option<Bound<'_, PyAny>>,
+        py: Python<'_>,
+        context: &Bound<'_, PyAny>,
+        attributes: Option<Bound<'_, PyAny>>,
     ) -> Result<(), TraceError> {
-        warn!("ActiveSpan.add_link() is not yet fully implemented and will be a no-op");
-        Ok(())
+        let span_context = SpanContext::from_py_span_context(context)?;
+        let attributes = py_obj_to_otel_keyvalue(py, attributes)?;
+
+        self.with_inner_mut(|inner| {
+            inner.span.add_link(span_context, attributes);
+        })
     }
 }
 

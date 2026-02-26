@@ -57,6 +57,9 @@ pub enum TraceError {
 
     #[error("{0}")]
     InvalidSpanKind(String),
+
+    #[error("{0}")]
+    TraceStateError(String),
 }
 
 impl From<TraceError> for PyErr {
@@ -75,5 +78,11 @@ impl From<PyErr> for TraceError {
 impl<'a, 'py> From<PyClassGuardError<'a, 'py>> for TraceError {
     fn from(err: PyClassGuardError<'a, 'py>) -> Self {
         TraceError::PyError(err.to_string())
+    }
+}
+
+impl<'a, 'py> From<pyo3::CastError<'a, 'py>> for TraceError {
+    fn from(err: pyo3::CastError<'a, 'py>) -> Self {
+        TraceError::DowncastError(err.to_string())
     }
 }

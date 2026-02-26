@@ -1,8 +1,8 @@
 use crate::error::TraceError;
 use crate::tracer::ActiveSpan;
 use opentelemetry::global::ObjectSafeSpan;
-use opentelemetry::trace::SpanContext;
-use opentelemetry::{trace, KeyValue};
+use opentelemetry::trace::{SpanContext, TraceState};
+use opentelemetry::{trace, KeyValue, SpanId, TraceFlags, TraceId};
 use opentelemetry_otlp::ExportConfig as OtlpExportConfig;
 use pyo3::types::{PyDict, PyModule, PyTuple};
 use pyo3::{prelude::*, IntoPyObjectExt};
@@ -35,6 +35,51 @@ static PY_IMPORTS: OnceLock<HelperImports> = OnceLock::new();
 const ASYNCIO_MODULE: &str = "asyncio";
 const INSPECT_MODULE: &str = "inspect";
 const CONTEXTVARS_MODULE: &str = "contextvars";
+
+pub trait SpanContextExt {
+    fn from_py_span_context(py_ctx: &Bound<'_, PyAny>) -> Result<SpanContext, TraceError>;
+}
+
+impl SpanContextExt for SpanContext {
+    /// This is hacky for now
+    fn from_py_span_context(py_ctx: &Bound<'_, PyAny>) -> Result<SpanContext, TraceError> {
+        let trace_id = py_ctx
+            .getattr("trace_id")?
+            .extract::<String>()
+            .map_err(|e| TraceError::DowncastError(e.to_string()))?;
+
+        let span_id = py_ctx
+            .getattr("span_id")?
+            .extract::<String>()
+            .map_err(|e| TraceError::DowncastError(e.to_string()))?;
+
+        let trace_flags = py_ctx
+            .getattr("trace_flags")?
+            .extract::<u8>()
+            .map_err(|e| TraceError::DowncastError(e.to_string()))?;
+
+        // convert to VecDeque
+
+        let trace_state = py_ctx.getattr("trace_state")?.cast::<PyDict>()?.clone();
+        let trace_state_vec: Vec<(String, String)> = trace_state
+            .iter()
+            .map(|(k, v)| {
+                let key = k.extract::<String>()?;
+                let value = v.extract::<String>()?;
+                Ok((key, value))
+            })
+            .collect::<Result<Vec<(String, String)>, PyErr>>()?;
+
+        Ok(SpanContext::new(
+            TraceId::from_hex(&trace_id)?,
+            SpanId::from_hex(&span_id)?,
+            TraceFlags::new(trace_flags),
+            false,
+            TraceState::from_key_value(trace_state_vec)
+                .map_err(|e| TraceError::TraceStateError(e.to_string()))?,
+        ))
+    }
+}
 
 #[pyclass(eq)]
 #[derive(PartialEq, Clone, Debug)]

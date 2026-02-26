@@ -28,6 +28,7 @@ from typing_extensions import TypeVar
 if TYPE_CHECKING:
     from opentelemetry.sdk.trace.export import SpanExporter as _OtelSpanExporter
     from opentelemetry.sdk.trace.export import SpanExportResult as _OtelSpanExportResult
+    from opentelemetry.trace import SpanContext
 
     _SpanExporterBase = _OtelSpanExporter
     _SpanExportResult = _OtelSpanExportResult
@@ -41,6 +42,9 @@ else:
     class _SpanExportResult:
         SUCCESS: 0
         FAILURE: 1
+        
+    class SpanContext:
+        pass
 
 SerializedType: TypeAlias = Union[str, int, float, dict, list]
 Context: TypeAlias = Union[Dict[str, Any], "BaseModel"]

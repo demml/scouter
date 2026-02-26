@@ -59,6 +59,7 @@ else:
     try:
         from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
         from opentelemetry.trace import get_tracer_provider, set_tracer_provider
+        from opentelemetry.trace import Tracer as _OtelTracer
 
         HAS_OPENTELEMETRY = True
     except ImportError:
