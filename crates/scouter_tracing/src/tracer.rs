@@ -37,7 +37,7 @@ use pyo3::types::{PyDict, PyTuple};
 use pyo3::IntoPyObjectExt;
 use scouter_events::queue::types::TransportConfig;
 use scouter_events::queue::ScouterQueue;
-use scouter_settings::http::HttpConfig;
+use scouter_settings::grpc::GrpcConfig;
 
 use scouter_types::{
     pyobject_to_otel_value, pyobject_to_tracing_json, EntityType, BAGGAGE_PREFIX,
@@ -224,8 +224,8 @@ pub fn init_tracer(
         let transport_config = match transport_config {
             Some(config) => TransportConfig::from_py_config(config)?,
             None => {
-                let config = HttpConfig::default();
-                TransportConfig::Http(config)
+                let config = GrpcConfig::default();
+                TransportConfig::Grpc(config)
             }
         };
 
