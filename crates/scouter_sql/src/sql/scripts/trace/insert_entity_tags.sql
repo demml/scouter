@@ -7,7 +7,7 @@ INSERT INTO scouter.trace_entities (
 WITH tag_data AS (
     SELECT
         trace_id,
-        entity_uuid,
+        entity_uid,
         tagged_at
     FROM UNNEST(
         $1::bytea[],
@@ -17,7 +17,7 @@ WITH tag_data AS (
 )
 SELECT
     td.trace_id,
-    td.entity_uuid,
+    td.entity_uid,
     td.tagged_at
 FROM tag_data td
 ON CONFLICT (entity_uid, tagged_at, trace_id) DO UPDATE
