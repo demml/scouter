@@ -387,6 +387,17 @@ impl ActiveSpan {
         self.with_inner_mut(|inner| inner.span.set_attribute(KeyValue::new(key, value)))
     }
 
+    /// Set the entity associated with this span for correlation in Scouter
+    /// # Arguments
+    /// * `entity_id` - The ID of the entity to associate with this span (e.g. a record UID)
+    pub fn set_entity(&self, entity_id: String) -> Result<(), TraceError> {
+        self.with_inner_mut(|inner| {
+            inner
+                .span
+                .set_attribute(KeyValue::new(SCOUTER_ENTITY, entity_id))
+        })
+    }
+
     /// Set a tag on the span (alias for set_attribute)
     /// Tags are slightly different in that they are often used for indexing and searching
     /// On export, tags are exported and stored in a separate table in Scouter for easier

@@ -151,8 +151,6 @@ pub trait QueueMethods {
 
     /// Insert an item into the queue
     async fn insert(&mut self, item: Self::ItemType) -> Result<(), EventError> {
-        debug!("Inserting item into queue: {:?}", item);
-
         self.insert_with_backpressure(item).await?;
 
         let queue = self.queue();
