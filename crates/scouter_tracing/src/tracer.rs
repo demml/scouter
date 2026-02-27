@@ -41,7 +41,7 @@ use scouter_settings::grpc::GrpcConfig;
 
 use scouter_types::{
     pyobject_to_otel_value, pyobject_to_tracing_json, EntityType, BAGGAGE_PREFIX,
-    EXCEPTION_TRACEBACK, SCOUTER_QUEUE_EVENT, SCOUTER_SCOPE, SCOUTER_SCOPE_DEFAULT,
+    EXCEPTION_TRACEBACK, SCOUTER_ENTITY, SCOUTER_QUEUE_EVENT, SCOUTER_SCOPE, SCOUTER_SCOPE_DEFAULT,
     SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL, SCOUTER_TRACING_OUTPUT,
     SPAN_ERROR, TRACE_START_TIME_KEY,
 };
@@ -306,22 +306,23 @@ fn add_entity_event_to_span(
     inner: &mut ActiveSpanInner,
 ) -> Result<(), TraceError> {
     let mut attributes = vec![];
-    // add entity type as an event attribute for easier correlation in the UI
-    // this allows us to easily query for all spans that interacted with a certain entity type
-    let entity_type_py = queue_item.getattr("entity_type")?;
-    let entity_type = entity_type_py.extract::<EntityType>()?;
-    attributes.push(KeyValue::new("entity", entity_type));
 
     if let Ok(record_uid) = queue_item.getattr("uid") {
-        let record_uid_str = record_uid.str()?;
+        let entity_type_py = queue_item.getattr("entity_type")?;
+        let entity_type = entity_type_py.extract::<EntityType>()?;
+        let record_uid_str = record_uid.str()?.to_string();
 
-        attributes.push(KeyValue::new(
-            "record_uid",
-            record_uid_str.str()?.to_string(),
-        ));
+        // set attributes for events
+        attributes.push(KeyValue::new("record_uid", record_uid_str.clone()));
+        attributes.push(KeyValue::new("entity", entity_type));
+        inner.span.add_event(SCOUTER_QUEUE_EVENT, attributes);
+
+        // add entity tag so we can pull all traces associated with this entity in the ui
+        inner
+            .span
+            .set_attribute(KeyValue::new(SCOUTER_ENTITY, record_uid_str));
     };
 
-    inner.span.add_event(SCOUTER_QUEUE_EVENT, attributes);
     Ok(())
 }
 
