@@ -320,6 +320,7 @@ mod tests {
         parent_span_id: Option<&SpanId>,
         service_name: &str,
         minutes_offset: i64,
+        uid: Option<String>,
     ) -> TraceSpanRecord {
         let mut rng = rand::rng();
         let span_id = SpanId::from_bytes(rng.random::<[u8; 8]>());
@@ -345,7 +346,7 @@ mod tests {
 
         attributes.push(Attribute {
             key: SCOUTER_ENTITY.to_string(),
-            value: Value::String(create_uuid7()),
+            value: Value::String(uid.unwrap_or(create_uuid7())),
         });
 
         if rng.random_bool(0.1) {
@@ -405,6 +406,7 @@ mod tests {
                 parent_span_id,
                 &trace_record.service_name,
                 minutes_offset,
+                None,
             );
             spans.push(span_record);
         }
@@ -1840,14 +1842,22 @@ mod tests {
         // create parent trace
         let mut trace_record = random_trace_record();
         let trace_id = trace_record.trace_id.clone();
+        let uid = create_uuid7();
 
         // create spans
-        let root_span = random_span_record(&trace_id, None, &trace_record.service_name, 0_i64);
+        let root_span = random_span_record(
+            &trace_id,
+            None,
+            &trace_record.service_name,
+            0_i64,
+            Some(uid.clone()),
+        );
         let child_span = random_span_record(
             &trace_id,
             Some(&root_span.span_id),
             &root_span.service_name,
             0_i64,
+            None,
         );
 
         // set root span id in trace record
@@ -1911,7 +1921,7 @@ mod tests {
         let trace_filter = TraceFilters {
             start_time: Some(inserted_created_at - Duration::days(1)),
             end_time: Some(inserted_created_at + Duration::days(1)),
-            entity_uid: Some(create_uuid7()),
+            entity_uid: Some(uid),
             ..TraceFilters::default()
         };
 
@@ -1974,12 +1984,14 @@ mod tests {
         let trace_id = trace_record.trace_id.clone();
 
         // create spans
-        let root_span = random_span_record(&trace_id, None, &trace_record.service_name, 0_i64);
+        let root_span =
+            random_span_record(&trace_id, None, &trace_record.service_name, 0_i64, None);
         let child_span = random_span_record(
             &trace_id,
             Some(&root_span.span_id),
             &root_span.service_name,
             0_i64,
+            None,
         );
 
         // set root span id in trace record
