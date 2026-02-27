@@ -144,6 +144,7 @@ async fn test_tracing() {
         end_time,
         bucket_interval: "60 minutes".to_string(),
         attribute_filters: None,
+        entity_uid: None,
     };
 
     let request = Request::builder()

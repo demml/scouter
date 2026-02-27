@@ -346,6 +346,7 @@ pub trait TraceSqlLogic {
         end_time: DateTime<Utc>,
         bucket_interval_str: &str,
         attribute_filters: Option<Vec<String>>,
+        entity_uid: Option<String>,
     ) -> Result<Vec<TraceMetricBucket>, SqlError> {
         let tag_filters_json = attribute_filters.as_ref().and_then(|tags| {
             if tags.is_empty() {
@@ -383,6 +384,7 @@ pub trait TraceSqlLogic {
             .bind(bucket_interval_str)
             .bind(tag_filters_json)
             .bind(false)
+            .bind(entity_uid)
             .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError);

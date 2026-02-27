@@ -13,4 +13,5 @@ FROM scouter.get_trace_metrics(
     $4::INTERVAL, -- p_bucket_interval: INTERVAL DEFAULT '5 minutes'
     $5::JSONB, -- p_attribute_filters: JSONB DEFAULT NULL
     $6::BOOLEAN -- p_match_all_attributes: BOOLEAN DEFAULT TRUE
+    $7 -- p_entity_uid: TEXT DEFAULT NULL
 )

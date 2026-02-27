@@ -1807,10 +1807,17 @@ mod tests {
         let end_time = filtered_record.start_time + chrono::Duration::minutes(5);
 
         // make request for trace metrics
-        let trace_metrics =
-            PostgresClient::get_trace_metrics(&pool, None, start_time, end_time, "5 minutes", None)
-                .await
-                .unwrap();
+        let trace_metrics = PostgresClient::get_trace_metrics(
+            &pool,
+            None,
+            start_time,
+            end_time,
+            "5 minutes",
+            None,
+            None,
+        )
+        .await
+        .unwrap();
 
         // assert we have data points (all traces fall within ~1 second, so 1-2 buckets expected)
         assert!(

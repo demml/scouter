@@ -126,10 +126,11 @@ pub async fn trace_metrics(
         body.end_time,
         &body.bucket_interval,
         body.attribute_filters,
+        body.entity_uid,
     )
     .await
     .map_err(|e| {
-        error!("Failed to get trace spans: {:?}", e);
+        error!("Failed to get trace metrics: {:?}", e);
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ScouterServerError::get_trace_metrics_error(e)),
