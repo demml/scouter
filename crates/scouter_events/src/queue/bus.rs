@@ -219,6 +219,7 @@ pub struct QueueBus {
     pub identifier: String,
 
     // for tracing purposes
+    #[pyo3(get)]
     pub entity_uid: String,
 }
 

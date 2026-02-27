@@ -459,9 +459,9 @@ class ActiveSpan:
             value (SerializedType):
                 The attribute value.
         """
-    
-    def set_entity_tag(self, entity_id: str) -> None:
-        """Convenience method to set tags on the active span for a specific entity.
+
+    def set_entity(self, entity_id: str) -> None:
+        """Convenience method to set attributes on the active span for a specific entity.
         This allows for easy indexing and querying of spans associated with specific entities in the backend.
 
         Args:

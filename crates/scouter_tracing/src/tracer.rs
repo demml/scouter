@@ -316,12 +316,20 @@ fn add_entity_event_to_span(
         attributes.push(KeyValue::new("record_uid", record_uid_str.clone()));
         attributes.push(KeyValue::new("entity", entity_type));
         inner.span.add_event(SCOUTER_QUEUE_EVENT, attributes);
-
-        // add entity tag so we can pull all traces associated with this entity in the ui
-        inner
-            .span
-            .set_attribute(KeyValue::new(SCOUTER_ENTITY, record_uid_str));
     };
+
+    Ok(())
+}
+
+fn add_entity_attribute(
+    inner: &mut ActiveSpanInner,
+    queue_bus: &Bound<'_, PyAny>,
+) -> Result<(), TraceError> {
+    // add entity tag so we can pull all traces associated with this entity in the ui
+    let entity_uid = queue_bus.getattr("entity_uid")?.str()?.to_string();
+    inner
+        .span
+        .set_attribute(KeyValue::new(SCOUTER_ENTITY, entity_uid.clone()));
 
     Ok(())
 }
@@ -459,8 +467,15 @@ impl ActiveSpan {
                 true => {
                     if let Some(queue) = &inner.queue {
                         let bound_queue = queue.bind(py).get_item(&alias)?;
+
+                        // insert into queue
                         bound_queue.call_method1("insert", (item,))?;
+
+                        // add event
                         add_entity_event_to_span(item, inner)?;
+
+                        // associate span with entity for easier searching in the backend
+                        add_entity_attribute(inner, &bound_queue)?;
                         Ok(())
                     } else {
                         warn!(
