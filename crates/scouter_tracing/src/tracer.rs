@@ -437,6 +437,11 @@ impl ActiveSpan {
         item: &Bound<'_, PyAny>,
     ) -> Result<(), TraceError> {
         // check if sampling allows for this span to be sent
+        debug!(
+            "Attempting to add item to queue '{}' for span {}",
+            alias,
+            self.context_id()?
+        );
         self.with_inner_mut(
             |inner| match &inner.span.span_context().trace_flags().is_sampled() {
                 true => {
