@@ -260,7 +260,6 @@ AS $$
           AND te.tagged_at >= COALESCE(p_start_time, NOW() - INTERVAL '24 hours')
           AND te.tagged_at <= COALESCE(p_end_time, NOW())
     ),
-    
     -- Primary filtering on traces table (fast!)
     base_traces AS (
         SELECT

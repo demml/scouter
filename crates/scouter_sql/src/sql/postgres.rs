@@ -339,17 +339,15 @@ mod tests {
         let mut attributes = vec![];
 
         // randomly add SCOUTER_ENTITY to attributes based on 30% chance
-        if rng.random_bool(0.3) {
-            attributes.push(Attribute {
-                key: SCOUTER_ENTITY.to_string(),
-                value: Value::String(UID.to_string()),
-            });
-        } else {
-            attributes.push(Attribute {
-                key: "random_attribute".to_string(),
-                value: Value::String(format!("value_{}", rng.random_range(0..100))),
-            });
-        }
+        attributes.push(Attribute {
+            key: "random_attribute".to_string(),
+            value: Value::String(format!("value_{}", rng.random_range(0..100))),
+        });
+
+        attributes.push(Attribute {
+            key: SCOUTER_ENTITY.to_string(),
+            value: Value::String(UID.to_string()),
+        });
 
         if rng.random_bool(0.1) {
             attributes.push(Attribute {
@@ -1839,6 +1837,20 @@ mod tests {
     #[tokio::test]
     async fn test_postgres_tracing_insert() {
         let pool = db_pool().await;
+
+        // add uid to drift entity table so it exists for later lookups
+        sqlx::query(
+            "INSERT INTO scouter.drift_entities (uid, space, name, version, drift_type) VALUES ($1, $2, $3, $4, $5);"
+
+        )
+        .bind(UID.to_string())
+        .bind(SPACE.to_string())
+        .bind(NAME.to_string())
+        .bind(VERSION.to_string())
+        .bind(DriftType::GenAI.to_string())
+        .execute(&pool)
+        .await
+        .unwrap();
 
         // create parent trace
         let mut trace_record = random_trace_record();
