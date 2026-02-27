@@ -1,4 +1,14 @@
--- Add migration script here
+-- Drop old function first
+
+DROP FUNCTION IF EXISTS scouter.get_trace_metrics(
+    p_service_name TEXT,
+    p_start_time TIMESTAMPTZ,
+    p_end_time TIMESTAMPTZ,
+    p_bucket_interval INTERVAL,
+    p_attribute_filters JSONB,
+    p_match_all_attributes BOOLEAN
+);
+
 CREATE OR REPLACE FUNCTION scouter.get_trace_metrics(
     p_service_name TEXT DEFAULT NULL,
     p_start_time TIMESTAMPTZ DEFAULT NOW() - INTERVAL '1 hour',
