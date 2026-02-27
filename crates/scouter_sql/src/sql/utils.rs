@@ -1,11 +1,12 @@
 use crate::sql::error::SqlError;
 use chrono::{DateTime, Utc};
-use sqlx::postgres::PgRow;
-
 use scouter_types::{
     CustomMetricRecord, GenAIEvalRecord, GenAIEvalTaskResult, GenAIEvalWorkflowResult,
     IntoServerRecord, PsiRecord, RecordType, ServerRecords, SpcRecord,
 };
+use sqlx::postgres::PgRow;
+use std::str::FromStr;
+use uuid::Uuid;
 /// Generic function to deserialize PgRows into ServerRecords
 pub fn pg_rows_to_server_records<T>(
     rows: &[PgRow],
@@ -178,5 +179,19 @@ mod tests {
             retention_period,
         );
         assert!(result.is_err());
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct EntityBytea(pub [u8; 16]);
+
+impl EntityBytea {
+    pub fn from_uuid(uid_str: &str) -> Result<Self, SqlError> {
+        let uuid = Uuid::from_str(uid_str)?;
+        Ok(Self(*uuid.as_bytes()))
+    }
+
+    pub fn as_bytes(&self) -> &[u8; 16] {
+        &self.0
     }
 }

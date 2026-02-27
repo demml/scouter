@@ -16,7 +16,7 @@ CREATE OR REPLACE FUNCTION scouter.get_trace_metrics(
     p_bucket_interval INTERVAL DEFAULT '5 minutes',
     p_attribute_filters JSONB DEFAULT NULL,
     p_match_all_attributes BOOLEAN DEFAULT FALSE,
-    p_entity_uid TEXT DEFAULT NULL
+    p_entity_uid BYTEA DEFAULT NULL
 )
 RETURNS TABLE (
     bucket_start TIMESTAMPTZ,
@@ -47,8 +47,7 @@ AS $$
     entity_filter AS (
         SELECT te.trace_id
         FROM scouter.trace_entities te
-        INNER JOIN scouter.drift_entities de ON te.entity_id = de.id
-        WHERE de.uid = p_entity_uid
+        WHERE te.entity_uid = p_entity_uid
           AND te.tagged_at >= COALESCE(p_start_time, NOW() - INTERVAL '24 hours')
           AND te.tagged_at <= COALESCE(p_end_time, NOW())
     ),

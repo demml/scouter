@@ -39,6 +39,9 @@ pub enum SqlError {
     #[error(transparent)]
     CronError(#[from] cron::error::Error),
 
+    #[error(transparent)]
+    UuidError(#[from] uuid::Error),
+
     #[error("Failed to get next run for cron schedule")]
     GetNextRunError,
 

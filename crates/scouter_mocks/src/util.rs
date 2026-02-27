@@ -1,13 +1,13 @@
+use potato_head::create_uuid7;
 use pyo3::pyfunction;
 use scouter_types::sql::TraceSpan;
+#[cfg(feature = "server")]
+use scouter_types::{TagRecord, TraceRecord, TraceSpanRecord};
 use {
     chrono::{DateTime, Duration, Utc},
     scouter_types::{trace::Attribute, SpanId, TraceId},
     serde_json::{json, Value},
 };
-
-#[cfg(feature = "server")]
-use scouter_types::{TagRecord, TraceRecord, TraceSpanRecord};
 
 #[cfg(feature = "server")]
 use rand::Rng;
@@ -17,9 +17,6 @@ use scouter_types::SCOUTER_ENTITY;
 
 #[cfg(feature = "server")]
 const SCOPE: &str = "scope";
-
-#[cfg(feature = "server")]
-const UID: &str = "test";
 
 #[cfg(feature = "server")]
 type TraceRecords = (TraceRecord, Vec<TraceSpanRecord>, Vec<TagRecord>);
@@ -307,7 +304,7 @@ fn random_span_record(
     if rng.random_bool(0.3) {
         attributes.push(Attribute {
             key: SCOUTER_ENTITY.to_string(),
-            value: Value::String(UID.to_string()),
+            value: Value::String(create_uuid7()),
         });
     } else {
         attributes.push(Attribute {

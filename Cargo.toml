@@ -114,6 +114,7 @@ tower-http = { version = "0.*", features = ["cors"] }
 tokio-util = "0.*"
 tracing = "0.*"
 tracing-subscriber = {version = "0.*", features = ["json", "time", "env-filter"] }
+uuid = { version = "1.*", features = ["v7"] }
 url = "2.*"
 statrs = "0.18.0"
 

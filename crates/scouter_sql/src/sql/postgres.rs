@@ -287,7 +287,6 @@ mod tests {
     const NAME: &str = "name";
     const VERSION: &str = "1.0.0";
     const SCOPE: &str = "scope";
-    const UID: &str = "test";
     const ENTITY_ID: i32 = 9999;
 
     fn random_trace_record() -> TraceRecord {
@@ -346,7 +345,7 @@ mod tests {
 
         attributes.push(Attribute {
             key: SCOUTER_ENTITY.to_string(),
-            value: Value::String(UID.to_string()),
+            value: Value::String(create_uuid7()),
         });
 
         if rng.random_bool(0.1) {
@@ -542,7 +541,7 @@ mod tests {
 
         // Test 1: Get first page with default limit (50)
         let request = DriftAlertPaginationRequest {
-            uid: UID.to_string(),
+            uid: create_uuid7(),
             active: Some(true),
             limit: Some(50),
             ..Default::default()
@@ -560,7 +559,7 @@ mod tests {
 
         // Test 2: Paginate with limit of 3 - forward direction
         let request = DriftAlertPaginationRequest {
-            uid: UID.to_string(),
+            uid: create_uuid7(),
             active: Some(true),
             limit: Some(3),
             direction: Some("next".to_string()),
@@ -580,7 +579,7 @@ mod tests {
         // Test 3: Get second page using next cursor
         let next_cursor = page1.next_cursor.unwrap();
         let request = DriftAlertPaginationRequest {
-            uid: UID.to_string(),
+            uid: create_uuid7(),
             active: Some(true),
             limit: Some(3),
             cursor_created_at: Some(next_cursor.created_at),
@@ -608,7 +607,7 @@ mod tests {
         // Test 4: Navigate backward using previous cursor
         let prev_cursor = page2.previous_cursor.unwrap();
         let request = DriftAlertPaginationRequest {
-            uid: UID.to_string(),
+            uid: create_uuid7(),
             active: Some(true),
             limit: Some(3),
             cursor_created_at: Some(prev_cursor.created_at),
@@ -645,7 +644,7 @@ mod tests {
 
         // Query only active alerts
         let request = DriftAlertPaginationRequest {
-            uid: UID.to_string(),
+            uid: create_uuid7(),
             active: Some(true),
             limit: Some(50),
             ..Default::default()
@@ -660,7 +659,7 @@ mod tests {
 
         // Query only inactive alerts
         let request = DriftAlertPaginationRequest {
-            uid: UID.to_string(),
+            uid: create_uuid7(),
             active: Some(false),
             limit: Some(50),
             ..Default::default()
@@ -676,7 +675,7 @@ mod tests {
 
         // Test 6: Query all alerts (active and inactive)
         let request = DriftAlertPaginationRequest {
-            uid: UID.to_string(),
+            uid: create_uuid7(),
             active: None, // No filter
             limit: Some(50),
             ..Default::default()
@@ -690,7 +689,7 @@ mod tests {
 
         // Test 7: Empty result set
         let request = DriftAlertPaginationRequest {
-            uid: UID.to_string(),
+            uid: create_uuid7(),
             active: Some(true),
             limit: Some(3),
             ..Default::default()
@@ -713,7 +712,7 @@ mod tests {
 
         let record1 = SpcRecord {
             created_at: Utc::now(),
-            uid: UID.to_string(),
+            uid: create_uuid7(),
             feature: "test".to_string(),
             value: 1.0,
             entity_id: 0,
@@ -721,7 +720,7 @@ mod tests {
 
         let record2 = SpcRecord {
             created_at: Utc::now(),
-            uid: UID.to_string(),
+            uid: create_uuid7(),
             feature: "test2".to_string(),
             value: 2.0,
             entity_id: 0,
@@ -741,7 +740,7 @@ mod tests {
 
         let record1 = PsiRecord {
             created_at: Utc::now(),
-            uid: UID.to_string(),
+            uid: create_uuid7(),
             feature: "test".to_string(),
             bin_id: 1,
             bin_count: 1,
@@ -750,7 +749,7 @@ mod tests {
 
         let record2 = PsiRecord {
             created_at: Utc::now(),
-            uid: UID.to_string(),
+            uid: create_uuid7(),
             feature: "test2".to_string(),
             bin_id: 2,
             bin_count: 2,
@@ -837,7 +836,7 @@ mod tests {
             for j in 0..10 {
                 let record = SpcRecord {
                     created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
-                    uid: UID.to_string(),
+                    uid: create_uuid7(),
                     feature: format!("test{j}"),
                     value: j as f64,
                     entity_id: ENTITY_ID,
@@ -868,7 +867,7 @@ mod tests {
         let binned_records = PostgresClient::get_binned_spc_drift_records(
             &pool,
             &DriftRequest {
-                uid: UID.to_string(),
+                uid: create_uuid7(),
                 time_interval: TimeInterval::FifteenMinutes,
                 max_data_points: 10,
                 ..Default::default()
@@ -933,7 +932,7 @@ mod tests {
                 for j in 0..=100 {
                     let record = PsiRecord {
                         created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
-                        uid: uid.to_string(),
+                        uid: create_uuid7(),
                         feature: format!("feature{feature}"),
                         bin_id: bin,
                         bin_count: rand::rng().random_range(0..10) as i32,
@@ -971,7 +970,7 @@ mod tests {
         let binned_records = PostgresClient::get_binned_psi_drift_records(
             &pool,
             &DriftRequest {
-                uid: UID.to_string(),
+                uid: create_uuid7(),
                 time_interval: TimeInterval::OneHour,
                 max_data_points: 1000,
                 ..Default::default()
@@ -1838,20 +1837,6 @@ mod tests {
     async fn test_postgres_tracing_insert() {
         let pool = db_pool().await;
 
-        // add uid to drift entity table so it exists for later lookups
-        sqlx::query(
-            "INSERT INTO scouter.drift_entities (uid, space, name, version, drift_type) VALUES ($1, $2, $3, $4, $5);"
-
-        )
-        .bind(UID.to_string())
-        .bind(SPACE.to_string())
-        .bind(NAME.to_string())
-        .bind(VERSION.to_string())
-        .bind(DriftType::GenAI.to_string())
-        .execute(&pool)
-        .await
-        .unwrap();
-
         // create parent trace
         let mut trace_record = random_trace_record();
         let trace_id = trace_record.trace_id.clone();
@@ -1926,7 +1911,7 @@ mod tests {
         let trace_filter = TraceFilters {
             start_time: Some(inserted_created_at - Duration::days(1)),
             end_time: Some(inserted_created_at + Duration::days(1)),
-            entity_uid: Some(UID.to_string()),
+            entity_uid: Some(create_uuid7()),
             ..TraceFilters::default()
         };
 
