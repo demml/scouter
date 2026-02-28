@@ -157,7 +157,7 @@ impl AssertionEvaluator {
         };
 
         let assertion_result =
-            AssertionResult::new(passed, (*actual_value).clone(), messages, expected.clone());
+            AssertionResult::new(passed, comparable_actual, messages, expected.clone());
 
         Ok(assertion_result)
     }
@@ -743,16 +743,17 @@ impl AssertionEvaluator {
 
             let passed = Self::compare_values(&comparable, assertion.operator(), expected)?;
             if !passed {
+                let msg = format!(
+                    "✗ Assertion '{}' failed at item[{}]: expected {}, got {}",
+                    assertion.id(),
+                    idx,
+                    serde_json::to_string(expected).unwrap_or_default(),
+                    serde_json::to_string(&comparable).unwrap_or_default()
+                );
                 return Ok(AssertionResult::new(
                     false,
-                    array_value,
-                    format!(
-                        "✗ Assertion '{}' failed at item[{}]: expected {}, got {}",
-                        assertion.id(),
-                        idx,
-                        serde_json::to_string(expected).unwrap_or_default(),
-                        serde_json::to_string(&comparable).unwrap_or_default()
-                    ),
+                    comparable,
+                    msg,
                     expected.clone(),
                 ));
             }
