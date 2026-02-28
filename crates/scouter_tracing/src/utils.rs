@@ -1,9 +1,11 @@
 use crate::error::TraceError;
 use crate::tracer::ActiveSpan;
 use opentelemetry::global::ObjectSafeSpan;
-use opentelemetry::trace::SpanContext;
-use opentelemetry::{trace, KeyValue};
+use opentelemetry::trace::Status;
+use opentelemetry::trace::{SpanContext, TraceState};
+use opentelemetry::{trace, KeyValue, SpanId, TraceFlags, TraceId};
 use opentelemetry_otlp::ExportConfig as OtlpExportConfig;
+use pyo3::types::PyString;
 use pyo3::types::{PyDict, PyModule, PyTuple};
 use pyo3::{prelude::*, IntoPyObjectExt};
 use scouter_events::queue::ScouterQueue;
@@ -35,6 +37,51 @@ static PY_IMPORTS: OnceLock<HelperImports> = OnceLock::new();
 const ASYNCIO_MODULE: &str = "asyncio";
 const INSPECT_MODULE: &str = "inspect";
 const CONTEXTVARS_MODULE: &str = "contextvars";
+
+pub trait SpanContextExt {
+    fn from_py_span_context(py_ctx: &Bound<'_, PyAny>) -> Result<SpanContext, TraceError>;
+}
+
+impl SpanContextExt for SpanContext {
+    /// This is hacky for now
+    fn from_py_span_context(py_ctx: &Bound<'_, PyAny>) -> Result<SpanContext, TraceError> {
+        let trace_id = py_ctx
+            .getattr("trace_id")?
+            .extract::<String>()
+            .map_err(|e| TraceError::DowncastError(e.to_string()))?;
+
+        let span_id = py_ctx
+            .getattr("span_id")?
+            .extract::<String>()
+            .map_err(|e| TraceError::DowncastError(e.to_string()))?;
+
+        let trace_flags = py_ctx
+            .getattr("trace_flags")?
+            .extract::<u8>()
+            .map_err(|e| TraceError::DowncastError(e.to_string()))?;
+
+        // convert to VecDeque
+
+        let trace_state = py_ctx.getattr("trace_state")?.cast::<PyDict>()?.clone();
+        let trace_state_vec: Vec<(String, String)> = trace_state
+            .iter()
+            .map(|(k, v)| {
+                let key = k.extract::<String>()?;
+                let value = v.extract::<String>()?;
+                Ok((key, value))
+            })
+            .collect::<Result<Vec<(String, String)>, PyErr>>()?;
+
+        Ok(SpanContext::new(
+            TraceId::from_hex(&trace_id)?,
+            SpanId::from_hex(&span_id)?,
+            TraceFlags::new(trace_flags),
+            false,
+            TraceState::from_key_value(trace_state_vec)
+                .map_err(|e| TraceError::TraceStateError(e.to_string()))?,
+        ))
+    }
+}
 
 #[pyclass(eq)]
 #[derive(PartialEq, Clone, Debug)]
@@ -542,4 +589,75 @@ pub(crate) fn py_obj_to_otel_keyvalue(
         vec![]
     };
     Ok(pairs)
+}
+
+pub(crate) fn parse_status(status: &Bound<'_, PyAny>, description: Option<String>) -> Status {
+    // if string, convert to Status (check isinstace)
+    if status.is_instance_of::<PyString>() {
+        let status_str = status.extract::<String>().unwrap_or_default();
+        match status_str.to_lowercase().as_str() {
+            "ok" => Status::Ok,
+            "error" => Status::error(description.unwrap_or_default()),
+            _ => Status::Unset,
+        }
+    } else {
+        // default to Unset if not a string
+        if let Ok(value) = status.getattr("value").and_then(|v| v.extract::<i32>()) {
+            match value {
+                0 => Status::Unset,
+                1 => Status::Ok,
+                2 => Status::error("Error status set"),
+                _ => Status::Unset,
+            }
+        } else {
+            Status::Unset
+        }
+    }
+}
+
+pub(crate) fn parse_span_kind(kind: Option<&Bound<'_, PyAny>>) -> Result<SpanKind, TraceError> {
+    // if kind is not provided, default to internal
+    let kind = match kind {
+        Some(k) => k,
+        None => return Ok(SpanKind::Internal),
+    };
+    // Try to parse as SpanKind enum first
+    if kind.is_instance_of::<SpanKind>() {
+        let span_kind = kind.extract::<SpanKind>()?;
+        return Ok(span_kind);
+    }
+
+    // If that fails, try to parse as OpenTelemetry SpanKind object
+    if let Ok(value) = kind.getattr("value").and_then(|v| v.extract::<i32>()) {
+        return match value {
+            0 => Ok(SpanKind::Internal),
+            1 => Ok(SpanKind::Server),
+            2 => Ok(SpanKind::Client),
+            3 => Ok(SpanKind::Producer),
+            4 => Ok(SpanKind::Consumer),
+            _ => Err(TraceError::InvalidSpanKind(format!(
+                "Unknown span kind value: {}",
+                value
+            ))),
+        };
+    }
+
+    // Fallback: try direct integer extraction
+    if let Ok(value) = kind.extract::<i32>() {
+        return match value {
+            0 => Ok(SpanKind::Internal),
+            1 => Ok(SpanKind::Server),
+            2 => Ok(SpanKind::Client),
+            3 => Ok(SpanKind::Producer),
+            4 => Ok(SpanKind::Consumer),
+            _ => Err(TraceError::InvalidSpanKind(format!(
+                "Unknown span kind value: {}",
+                value
+            ))),
+        };
+    }
+
+    Err(TraceError::InvalidSpanKind(
+        "Could not extract span kind value".to_string(),
+    ))
 }

@@ -25,5 +25,6 @@ FROM scouter.get_traces_paginated(
     $8,  -- p_direction
     $9,  -- p_attribute_filters
     $10, -- p_trace_ids
-    $11  -- p_match_all_attributes
+    $11,  -- p_match_all_attributes
+    $12  -- p_entity_uid
 );

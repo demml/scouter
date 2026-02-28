@@ -13,9 +13,11 @@ use crate::utils::py_obj_to_otel_keyvalue;
 use crate::utils::BoxedSpan;
 use crate::utils::{
     capture_function_arguments, format_traceback, get_context_store, get_context_var,
-    get_current_active_span, get_current_context_id, set_current_span, set_function_attributes,
-    set_function_type_attribute, ActiveSpanInner, FunctionType, SpanKind,
+    get_current_active_span, get_current_context_id, parse_span_kind, parse_status,
+    set_current_span, set_function_attributes, set_function_type_attribute, ActiveSpanInner,
+    FunctionType, SpanContextExt,
 };
+
 use chrono::{DateTime, Utc};
 use opentelemetry::baggage::BaggageExt;
 use opentelemetry::trace::Tracer as OTelTracer;
@@ -35,16 +37,18 @@ use pyo3::types::{PyDict, PyTuple};
 use pyo3::IntoPyObjectExt;
 use scouter_events::queue::types::TransportConfig;
 use scouter_events::queue::ScouterQueue;
-use scouter_settings::http::HttpConfig;
+use scouter_settings::grpc::GrpcConfig;
 
 use scouter_types::{
     pyobject_to_otel_value, pyobject_to_tracing_json, EntityType, BAGGAGE_PREFIX,
-    EXCEPTION_TRACEBACK, SCOUTER_QUEUE_EVENT, SCOUTER_SCOPE, SCOUTER_SCOPE_DEFAULT,
+    EXCEPTION_TRACEBACK, SCOUTER_ENTITY, SCOUTER_QUEUE_EVENT, SCOUTER_SCOPE, SCOUTER_SCOPE_DEFAULT,
     SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL, SCOUTER_TRACING_OUTPUT,
     SPAN_ERROR, TRACE_START_TIME_KEY,
 };
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock, RwLock};
+use std::time::SystemTime;
 use tracing::{debug, info, instrument, warn};
 
 /// Global static instance of the tracer provider.
@@ -171,6 +175,9 @@ fn get_trace_metadata_store() -> &'static TraceMetadataStore {
 /// * `batch_config` - Optional batch configuration for span exporting
 /// * `sample_ratio` - Optional sampling ratio between 0.0 and 1.0
 /// * `scouter_queue` - Optional ScouterQueue to associate with the tracer for span queueing
+/// * `schema_url` - Optional schema URL for the tracer's instrumentation scope
+/// * `scope_attributes` - Optional attributes to set on the tracer's instrumentation scope
+/// * `default_attributes` - Optional attributes to set on every span created by this tracer
 #[pyfunction]
 #[pyo3(signature = (
     service_name="scouter_service".to_string(),
@@ -181,7 +188,8 @@ fn get_trace_metadata_store() -> &'static TraceMetadataStore {
     sample_ratio=None,
     scouter_queue=None,
     schema_url=None,
-    attributes=None,
+    scope_attributes=None,
+    default_attributes=None,
 ))]
 #[instrument(skip_all)]
 #[allow(clippy::too_many_arguments)]
@@ -195,7 +203,8 @@ pub fn init_tracer(
     sample_ratio: Option<f64>,
     scouter_queue: Option<Py<ScouterQueue>>,
     schema_url: Option<String>,
-    attributes: Option<Bound<'_, PyAny>>,
+    scope_attributes: Option<Bound<'_, PyAny>>,
+    default_attributes: Option<Bound<'_, PyAny>>,
 ) -> Result<BaseTracer, TraceError> {
     debug!("Initializing tracer");
 
@@ -215,8 +224,8 @@ pub fn init_tracer(
         let transport_config = match transport_config {
             Some(config) => TransportConfig::from_py_config(config)?,
             None => {
-                let config = HttpConfig::default();
-                TransportConfig::Http(config)
+                let config = GrpcConfig::default();
+                TransportConfig::Grpc(config)
             }
         };
 
@@ -243,8 +252,10 @@ pub fn init_tracer(
             .with_attributes([KeyValue::new(SCOUTER_SCOPE, scope.clone())])
             .build();
 
+        // Primary exporter for sending spans to Scouter backend
         let scouter_export = ScouterSpanExporter::new(transport_config, &resource)?;
 
+        // Optional secondary exporter for sending spans to OTLP collector
         let mut span_exporter = if let Some(exporter) = exporter {
             SpanExporterNum::from_pyobject(exporter).expect("failed to convert exporter")
         } else {
@@ -268,7 +279,14 @@ pub fn init_tracer(
         debug!("Tracer provider already initialized, skipping setup");
     }
 
-    BaseTracer::new(py, service_name, schema_url, attributes, scouter_queue)
+    BaseTracer::new(
+        py,
+        service_name,
+        schema_url,
+        default_attributes,
+        scope_attributes,
+        scouter_queue,
+    )
 }
 
 fn reset_current_context(py: Python, token: &Py<PyAny>) -> PyResult<()> {
@@ -288,22 +306,31 @@ fn add_entity_event_to_span(
     inner: &mut ActiveSpanInner,
 ) -> Result<(), TraceError> {
     let mut attributes = vec![];
-    // add entity type as an event attribute for easier correlation in the UI
-    // this allows us to easily query for all spans that interacted with a certain entity type
-    let entity_type_py = queue_item.getattr("entity_type")?;
-    let entity_type = entity_type_py.extract::<EntityType>()?;
-    attributes.push(KeyValue::new("entity", entity_type));
 
     if let Ok(record_uid) = queue_item.getattr("uid") {
-        let record_uid_str = record_uid.str()?;
+        let entity_type_py = queue_item.getattr("entity_type")?;
+        let entity_type = entity_type_py.extract::<EntityType>()?;
+        let record_uid_str = record_uid.str()?.to_string();
 
-        attributes.push(KeyValue::new(
-            "record_uid",
-            record_uid_str.str()?.to_string(),
-        ));
+        // set attributes for events
+        attributes.push(KeyValue::new("record_uid", record_uid_str.clone()));
+        attributes.push(KeyValue::new("entity", entity_type));
+        inner.span.add_event(SCOUTER_QUEUE_EVENT, attributes);
     };
 
-    inner.span.add_event(SCOUTER_QUEUE_EVENT, attributes);
+    Ok(())
+}
+
+fn add_entity_attribute(
+    inner: &mut ActiveSpanInner,
+    queue_bus: &Bound<'_, PyAny>,
+) -> Result<(), TraceError> {
+    // add entity tag so we can pull all traces associated with this entity in the ui
+    let entity_uid = queue_bus.getattr("entity_uid")?.str()?.to_string();
+    inner
+        .span
+        .set_attribute(KeyValue::new(SCOUTER_ENTITY, entity_uid.clone()));
+
     Ok(())
 }
 
@@ -350,7 +377,6 @@ impl ActiveSpan {
     #[pyo3(signature = (output, max_length=1000))]
     #[instrument(skip_all)]
     fn set_output(&self, output: &Bound<'_, PyAny>, max_length: usize) -> Result<(), TraceError> {
-        debug!("Setting output on span");
         let value = pyobject_to_tracing_json(output, &max_length)?;
         self.with_inner_mut(|inner| {
             inner.span.set_attribute(KeyValue::new(
@@ -366,8 +392,18 @@ impl ActiveSpan {
     /// * `value` - The attribute value
     pub fn set_attribute(&self, key: String, value: Bound<'_, PyAny>) -> Result<(), TraceError> {
         let value = pyobject_to_otel_value(&value)?;
-        println!("Setting attribute {} on span", key);
         self.with_inner_mut(|inner| inner.span.set_attribute(KeyValue::new(key, value)))
+    }
+
+    /// Set the entity associated with this span for correlation in Scouter
+    /// # Arguments
+    /// * `entity_id` - The ID of the entity to associate with this span (e.g. a record UID)
+    pub fn set_entity(&self, entity_id: String) -> Result<(), TraceError> {
+        self.with_inner_mut(|inner| {
+            inner
+                .span
+                .set_attribute(KeyValue::new(SCOUTER_ENTITY, entity_id))
+        })
     }
 
     /// Set a tag on the span (alias for set_attribute)
@@ -385,14 +421,27 @@ impl ActiveSpan {
     /// # Arguments
     /// * `name` - The event name
     /// * `attributes` - The event attributes as a dictionary or pydantic BaseModel
+    /// * `timestamp` - Optional timestamp in nanoseconds since Unix epoch (OTel compatible)
+    #[pyo3(signature = (name, attributes=None, timestamp=None))]
     fn add_event(
         &self,
         py: Python,
         name: String,
         attributes: Option<Bound<'_, PyAny>>,
+        timestamp: Option<i64>,
     ) -> Result<(), TraceError> {
         let pairs: Vec<KeyValue> = py_obj_to_otel_keyvalue(py, attributes)?;
-        self.with_inner_mut(|inner| inner.span.add_event(name, pairs))
+        self.with_inner_mut(|inner| {
+            if let Some(ts) = timestamp {
+                let system_time =
+                    SystemTime::UNIX_EPOCH + std::time::Duration::from_nanos(ts as u64);
+                inner
+                    .span
+                    .add_event_with_timestamp(name, system_time, pairs);
+            } else {
+                inner.span.add_event(name, pairs);
+            }
+        })
     }
 
     /// Add an entity into the Scouter queue associated with this span
@@ -408,13 +457,25 @@ impl ActiveSpan {
         item: &Bound<'_, PyAny>,
     ) -> Result<(), TraceError> {
         // check if sampling allows for this span to be sent
+        debug!(
+            "Attempting to add item to queue '{}' for span {}",
+            alias,
+            self.context_id()?
+        );
         self.with_inner_mut(
             |inner| match &inner.span.span_context().trace_flags().is_sampled() {
                 true => {
                     if let Some(queue) = &inner.queue {
                         let bound_queue = queue.bind(py).get_item(&alias)?;
+
+                        // insert into queue
                         bound_queue.call_method1("insert", (item,))?;
+
+                        // add event
                         add_entity_event_to_span(item, inner)?;
+
+                        // associate span with entity for easier searching in the backend
+                        add_entity_attribute(inner, &bound_queue)?;
                         Ok(())
                     } else {
                         warn!(
@@ -436,13 +497,13 @@ impl ActiveSpan {
     /// # Arguments
     /// * `status` - The status string ("ok", "error", or "unset")
     /// * `description` - Optional description for the status (typically used with error)
-    fn set_status(&self, status: String, description: Option<String>) -> Result<(), TraceError> {
-        let otel_status = match status.to_lowercase().as_str() {
-            "ok" => Status::Ok,
-            "error" => Status::error(description.unwrap_or_default()),
-            _ => Status::Unset,
-        };
-
+    #[pyo3(signature = (status, description=None))]
+    fn set_status(
+        &self,
+        status: &Bound<'_, PyAny>,
+        description: Option<String>,
+    ) -> Result<(), TraceError> {
+        let otel_status = parse_status(status, description);
         self.with_inner_mut(|inner| inner.span.set_status(otel_status))
     }
 
@@ -538,6 +599,150 @@ impl ActiveSpan {
         // We need to return a Future that resolves to py_result (__aexit__ is expected to return an awaitable)
         pyo3_async_runtimes::tokio::future_into_py(py, async move { Ok(py_result) })
     }
+
+    fn end(&self, end_time: Option<i64>) -> Result<(), TraceError> {
+        self.with_inner_mut(|inner| {
+            if let Some(ts) = end_time {
+                let system_time =
+                    SystemTime::UNIX_EPOCH + std::time::Duration::from_nanos(ts as u64);
+                inner.span.end_with_timestamp(system_time);
+            } else {
+                inner.span.end();
+            }
+        })
+    }
+
+    /// Returns an OTel-compatible SpanContext for this span.
+    /// The returned object is a `opentelemetry.trace.SpanContext` namedtuple with integer
+    /// trace_id and span_id, suitable for interop with other OTel instrumentation.
+    fn get_span_context<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TraceError> {
+        let span_ctx = self.with_inner(|inner| inner.span.span_context().clone())?;
+
+        let trace_id_int = u128::from_be_bytes(span_ctx.trace_id().to_bytes());
+        let span_id_int = u64::from_be_bytes(span_ctx.span_id().to_bytes());
+        let is_remote = span_ctx.is_remote();
+        let trace_flags_u8 = span_ctx.trace_flags().to_u8();
+
+        let otel_trace = py.import("opentelemetry.trace")?;
+        let trace_flags_cls = otel_trace.getattr("TraceFlags")?;
+        let trace_state_cls = otel_trace.getattr("TraceState")?;
+        let span_ctx_cls = otel_trace.getattr("SpanContext")?;
+
+        let py_trace_flags = trace_flags_cls.call1((trace_flags_u8,))?;
+        let py_trace_state = trace_state_cls.call0()?;
+
+        let ctx = span_ctx_cls.call1((
+            trace_id_int,
+            span_id_int,
+            is_remote,
+            py_trace_flags,
+            py_trace_state,
+        ))?;
+
+        Ok(ctx)
+    }
+
+    /// Sets multiple attributes on the span from a dict (OTel-compatible bulk setter).
+    fn set_attributes(&self, attributes: &Bound<'_, PyAny>) -> Result<(), TraceError> {
+        if let Ok(dict) = attributes.cast::<pyo3::types::PyDict>() {
+            for (key, value) in dict.iter() {
+                let key_str = key.extract::<String>()?;
+                self.set_attribute(key_str, value)?
+            }
+        }
+        Ok(())
+    }
+
+    /// Updates the span name (OTel-compatible).
+    fn update_name(&self, name: String) -> Result<(), TraceError> {
+        self.with_inner_mut(|inner| inner.span.update_name(Cow::Owned(name)))
+    }
+
+    /// Returns true if this span is active and recording (OTel-compatible).
+    fn is_recording(&self) -> Result<bool, TraceError> {
+        self.with_inner(|inner| inner.span.is_recording())
+    }
+
+    /// Records an exception as a span event following OTel semantic conventions.
+    /// # Arguments
+    /// * `exception` - The Python exception to record
+    /// * `attributes` - Optional extra attributes dict
+    /// * `timestamp` - Optional timestamp in nanoseconds since Unix epoch
+    /// * `escaped` - Whether the exception escaped the span's scope
+    #[pyo3(signature = (exception, attributes=None, timestamp=None, escaped=false))]
+    fn record_exception(
+        &self,
+        py: Python<'_>,
+        exception: &Bound<'_, PyAny>,
+        attributes: Option<Bound<'_, PyAny>>,
+        timestamp: Option<i64>,
+        escaped: bool,
+    ) -> Result<(), TraceError> {
+        let exc_type = exception.get_type();
+        let module = exc_type
+            .getattr("__module__")
+            .ok()
+            .and_then(|m| m.extract::<String>().ok());
+        let qualname = exc_type
+            .getattr("__qualname__")
+            .ok()
+            .and_then(|q| q.extract::<String>().ok());
+        let type_name = match (module, qualname) {
+            (Some(m), Some(q)) if m != "builtins" => format!("{}.{}", m, q),
+            (_, Some(q)) => q,
+            _ => "UnknownException".to_string(),
+        };
+
+        let message = exception.str()?.to_string();
+
+        let mut event_attrs = vec![
+            KeyValue::new("exception.type", type_name),
+            KeyValue::new("exception.message", message),
+            KeyValue::new("exception.escaped", escaped.to_string()),
+        ];
+
+        if let Ok(tb_py) = exception.getattr("__traceback__") {
+            if !tb_py.is_none() {
+                let tb_unbound: Py<PyAny> = tb_py.unbind();
+                if let Ok(stacktrace) = format_traceback(py, &tb_unbound) {
+                    event_attrs.push(KeyValue::new("exception.stacktrace", stacktrace));
+                }
+            }
+        }
+
+        let extra_attrs = py_obj_to_otel_keyvalue(py, attributes)?;
+        event_attrs.extend(extra_attrs);
+
+        self.with_inner_mut(|inner| {
+            if let Some(ts) = timestamp {
+                let system_time =
+                    SystemTime::UNIX_EPOCH + std::time::Duration::from_nanos(ts as u64);
+                inner
+                    .span
+                    .add_event_with_timestamp("exception", system_time, event_attrs);
+            } else {
+                inner.span.add_event("exception", event_attrs);
+            }
+        })
+    }
+
+    /// Adds a link to another span (OTel-compatible no-op placeholder).
+    /// Full cross-process link support is not yet implemented; this method is provided
+    /// so that code written against the OTel Span ABC compiles without errors.
+    #[pyo3(signature = (context, attributes=None))]
+    fn add_link(
+        &self,
+        py: Python<'_>,
+        context: &Bound<'_, PyAny>,
+        attributes: Option<Bound<'_, PyAny>>,
+    ) -> Result<(), TraceError> {
+        let span_context = SpanContext::from_py_span_context(context)?;
+        let attributes = py_obj_to_otel_keyvalue(py, attributes)?;
+
+        self.with_inner_mut(|inner| {
+            inner.span.add_link(span_context, attributes);
+        })
+    }
 }
 
 impl ActiveSpan {
@@ -582,6 +787,7 @@ impl ActiveSpan {
 pub struct BaseTracer {
     tracer: SdkTracer,
     queue: Option<Py<ScouterQueue>>,
+    default_attributes: Vec<KeyValue>,
 }
 
 impl BaseTracer {
@@ -656,7 +862,10 @@ impl BaseTracer {
     #[pyo3(signature = (
     name,
     schema_url=None,
-    attributes=None,
+    // default span attributes that are applied to every span created by this tracer
+    default_attributes=None,
+    // scope attributes that are applied to the tracer's instrumentation scope
+    scope_attributes=None,
     queue=None,
 ))]
     #[instrument(skip_all)]
@@ -664,7 +873,8 @@ impl BaseTracer {
         py: Python<'_>,
         name: String,
         schema_url: Option<String>,
-        attributes: Option<Bound<'_, PyAny>>,
+        default_attributes: Option<Bound<'_, PyAny>>,
+        scope_attributes: Option<Bound<'_, PyAny>>,
         queue: Option<Py<ScouterQueue>>,
     ) -> Result<Self, TraceError> {
         debug!("Creating new BaseTracer instance");
@@ -678,7 +888,8 @@ impl BaseTracer {
         });
 
         // Convert Python attributes to OpenTelemetry KeyValue pairs
-        let scope_attributes = py_obj_to_otel_keyvalue(py, attributes)?;
+        let scope_attributes = py_obj_to_otel_keyvalue(py, scope_attributes)?;
+        let default_attributes = py_obj_to_otel_keyvalue(py, default_attributes)?;
 
         let mut scope_builder =
             InstrumentationScope::builder(name).with_version(SCOUTER_SCOPE_DEFAULT);
@@ -697,6 +908,7 @@ impl BaseTracer {
         Ok(BaseTracer {
             tracer,
             queue: final_queue,
+            default_attributes,
         })
     }
 
@@ -733,14 +945,16 @@ impl BaseTracer {
     /// * `baggage` - Optional baggage items as a dictionary
     /// * `tags` - Optional tags to prefix baggage items with as a dictionary
     /// * `parent_context_id` - Optional parent context ID to link the span to (this is automatically set if not provided)
-    #[pyo3(signature = (name, kind=SpanKind::Internal, attributes=vec![], baggage=vec![], tags=vec![], label=None,  parent_context_id=None, trace_id=None, span_id=None, remote_sampled=None))]
+    #[pyo3(signature = (name, context=None, kind=None, attributes=vec![], baggage=vec![], tags=vec![], label=None,  parent_context_id=None, trace_id=None, span_id=None, remote_sampled=None))]
     #[allow(clippy::too_many_arguments)]
     #[instrument(skip_all)]
+    #[allow(unused_variables)]
     fn start_as_current_span(
         &self,
         py: Python<'_>,
         name: String,
-        kind: SpanKind,
+        context: Option<&Bound<'_, PyAny>>, // not used. Needed for otel compliance
+        kind: Option<&Bound<'_, PyAny>>,    // can be either SpanKind enum or otel span kind object
         attributes: Vec<HashMap<String, String>>,
         baggage: Vec<HashMap<String, String>>,
         tags: Vec<HashMap<String, String>>,
@@ -750,6 +964,7 @@ impl BaseTracer {
         span_id: Option<String>,
         remote_sampled: Option<bool>, // only used if both trace_id and span_id are provided (remote parent case)
     ) -> Result<ActiveSpan, TraceError> {
+        let kind = parse_span_kind(kind)?;
         // Get parent context if available
         let parent_id = parent_context_id.or_else(|| get_current_context_id(py).ok().flatten());
 
@@ -808,6 +1023,11 @@ impl BaseTracer {
             });
         });
 
+        // set default attributes from tracer configuration
+        self.default_attributes.iter().for_each(|kv| {
+            span.set_attribute(kv.clone());
+        });
+
         if let Some(label) = label {
             span.set_attribute(KeyValue::new(SCOUTER_TRACING_LABEL, label));
         }
@@ -823,6 +1043,107 @@ impl BaseTracer {
 
         // set as current span
         self.set_current_span(py, &inner)?;
+
+        Ok(ActiveSpan { inner })
+    }
+
+    /// Start a span without setting it as the current context span (OTel-compatible).
+    ///
+    /// Unlike `start_as_current_span`, this does **not** push the span onto the context
+    /// stack. Use the returned `ActiveSpan` directly as a context manager or call
+    /// `end()` manually.
+    #[pyo3(signature = (
+        name,
+        kind=None,
+        attributes=vec![],
+        baggage=vec![],
+        tags=vec![],
+        label=None,
+        parent_context_id=None,
+        trace_id=None,
+        span_id=None,
+        remote_sampled=None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn start_span(
+        &self,
+        py: Python<'_>,
+        name: String,
+        kind: Option<&Bound<'_, PyAny>>,
+        attributes: Vec<HashMap<String, String>>,
+        baggage: Vec<HashMap<String, String>>,
+        tags: Vec<HashMap<String, String>>,
+        label: Option<String>,
+        parent_context_id: Option<String>,
+        trace_id: Option<String>,
+        span_id: Option<String>,
+        remote_sampled: Option<bool>,
+    ) -> Result<ActiveSpan, TraceError> {
+        let kind = parse_span_kind(kind)?;
+        let parent_id = parent_context_id.or_else(|| get_current_context_id(py).ok().flatten());
+
+        let base_ctx = if let (Some(tid), Some(sid)) = (&trace_id, &span_id) {
+            let parsed_trace_id = TraceId::from_hex(tid)?;
+            let parsed_span_id = SpanId::from_hex(sid)?;
+            let remote_span_context = SpanContext::new(
+                parsed_trace_id,
+                parsed_span_id,
+                remote_sampled.map_or(TraceFlags::default(), |sampled| {
+                    if sampled {
+                        TraceFlags::SAMPLED
+                    } else {
+                        TraceFlags::NOT_SAMPLED
+                    }
+                }),
+                true,
+                TraceState::default(),
+            );
+            OtelContext::current().with_remote_span_context(remote_span_context)
+        } else if let Some(parent_id) = parent_id {
+            get_context_store()
+                .get(&parent_id)?
+                .map(|parent_ctx| OtelContext::current().with_remote_span_context(parent_ctx))
+                .unwrap_or_else(OtelContext::current)
+        } else {
+            OtelContext::current()
+        };
+
+        let baggage_items = Self::create_baggage_items(&baggage, &tags);
+        let final_ctx = if !baggage_items.is_empty() {
+            base_ctx.with_baggage(baggage_items)
+        } else {
+            base_ctx
+        };
+
+        let span_builder = self
+            .tracer
+            .span_builder(name)
+            .with_kind(kind.to_otel_span_kind());
+
+        let mut span = BoxedSpan::new(span_builder.start_with_context(&self.tracer, &final_ctx));
+
+        attributes.iter().for_each(|attr_map| {
+            attr_map.iter().for_each(|(k, v)| {
+                span.set_attribute(KeyValue::new(k.clone(), v.clone()));
+            });
+        });
+
+        self.default_attributes.iter().for_each(|kv| {
+            span.set_attribute(kv.clone());
+        });
+
+        if let Some(label) = label {
+            span.set_attribute(KeyValue::new(SCOUTER_TRACING_LABEL, label));
+        }
+
+        let context_id = Self::set_context_id(self, &mut span)?;
+
+        let inner = Arc::new(RwLock::new(ActiveSpanInner {
+            context_id,
+            span,
+            context_token: None, // not pushed onto the context stack
+            queue: self.queue.as_ref().map(|q| q.clone_ref(py)),
+        }));
 
         Ok(ActiveSpan { inner })
     }
@@ -845,7 +1166,7 @@ impl BaseTracer {
         name,
         func,
         func_args,
-        kind=SpanKind::Internal,
+        kind=None,
         attributes=vec![],
         baggage=vec![],
         tags=vec![],
@@ -865,7 +1186,7 @@ impl BaseTracer {
         name: String,
         func: &Bound<'py, PyAny>,
         func_args: &Bound<'_, PyTuple>,
-        kind: SpanKind,
+        kind: Option<&Bound<'_, PyAny>>,
         attributes: Vec<HashMap<String, String>>,
         baggage: Vec<HashMap<String, String>>,
         tags: Vec<HashMap<String, String>>,
@@ -881,6 +1202,7 @@ impl BaseTracer {
         let mut span = self.start_as_current_span(
             py,
             name,
+            None,
             kind,
             attributes,
             baggage,

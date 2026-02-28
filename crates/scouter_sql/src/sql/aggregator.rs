@@ -1,5 +1,6 @@
 use crate::sql::error::SqlError;
 use crate::sql::query::Queries;
+use crate::sql::utils::EntityBytea;
 use chrono::{DateTime, Duration, Timelike, Utc};
 use dashmap::DashMap;
 use scouter_types::{Attribute, TraceId, TraceSpanRecord, SCOUTER_ENTITY};
@@ -10,7 +11,6 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tokio::time::{interval, Duration as StdDuration};
 use tracing::{error, info, warn};
-
 const TRACE_BATCH_SIZE: usize = 1000;
 
 const MAX_TOTAL_SPANS: u64 = 1_000_000;
@@ -39,7 +39,7 @@ pub struct TraceAggregator {
     pub resource_attributes: Vec<Attribute>,
     pub first_seen: DateTime<Utc>,
     pub last_updated: DateTime<Utc>,
-    pub entity_tags: HashSet<String>,
+    pub entity_tags: HashSet<EntityBytea>,
 }
 
 impl TraceAggregator {
@@ -64,7 +64,14 @@ impl TraceAggregator {
                     serde_json::Value::String(s) => s.clone(),
                     _ => continue, // Skip if not a string
                 };
-                self.entity_tags.insert(entity);
+                match EntityBytea::from_uuid(&entity) {
+                    Ok(uid) => {
+                        self.entity_tags.insert(uid);
+                    }
+                    Err(e) => {
+                        warn!(%entity, "Failed to parse entity UID from attribute value in span {}: {}", span.span_id, e);
+                    }
+                }
             }
         }
     }
@@ -277,7 +284,7 @@ impl TraceCache {
             // Collect entity tags for this trace
             for entity_uid in &agg.entity_tags {
                 entity_trace_ids.push(trace_id.as_bytes());
-                entity_uids.push(entity_uid);
+                entity_uids.push(entity_uid.as_bytes());
                 entity_tagged_ats.push(now);
             }
         }

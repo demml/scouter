@@ -3,9 +3,9 @@
 
 CREATE TABLE IF NOT EXISTS scouter.trace_entities (
     trace_id BYTEA NOT NULL CHECK (octet_length(trace_id) = 16),
-    entity_id INTEGER NOT NULL REFERENCES scouter.drift_entities(id) ON DELETE CASCADE,
+    entity_uid BYTEA NOT NULL CHECK (octet_length(entity_uid) = 16),
     tagged_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (entity_id, tagged_at, trace_id)
+    PRIMARY KEY (entity_uid, tagged_at, trace_id)
 ) PARTITION BY RANGE (tagged_at);
 
 -- Create partitioned table using pg_partman (1-day partitions)
@@ -22,17 +22,17 @@ UPDATE scouter.part_config
     retention_keep_table = FALSE
 WHERE parent_table = 'scouter.trace_entities';
 
--- Hot path index: lookup trace_ids by entity_id
+-- Hot path index: lookup trace_ids by entity_uid
 -- This index is automatically created on each partition by pg_partman
 -- Ordering by tagged_at DESC supports time-bounded queries efficiently
 CREATE INDEX idx_trace_entities_entity_lookup
-ON scouter.trace_entities (entity_id, tagged_at DESC)
+ON scouter.trace_entities (entity_uid, tagged_at DESC)
 INCLUDE (trace_id);
 
 -- Secondary index: reverse lookup (trace -> entities), useful for some analytics
 CREATE INDEX idx_trace_entities_trace_lookup
 ON scouter.trace_entities (trace_id, tagged_at DESC)
-INCLUDE (entity_id);
+INCLUDE (entity_uid);
 
 -- Comments for context
 COMMENT ON TABLE scouter.trace_entities IS
@@ -41,7 +41,7 @@ COMMENT ON TABLE scouter.trace_entities IS
 
 -- Function: Get traces for a single entity (hot path)
 CREATE OR REPLACE FUNCTION scouter.get_traces_by_entity(
-    p_entity_uid TEXT,
+    p_entity_uid BYTEA, -- Expecting 16-byte binary UUID
     p_start_time TIMESTAMPTZ DEFAULT NOW() - INTERVAL '24 hours',
     p_end_time TIMESTAMPTZ DEFAULT NOW(),
     p_limit INTEGER DEFAULT 50,
@@ -68,16 +68,10 @@ LANGUAGE SQL
 STABLE
 AS $$
 
-    WITH entity_lookup AS (
-        SELECT id as entity_id
-        FROM scouter.drift_entities
-        WHERE uid = p_entity_uid
-        LIMIT 1
-    ),
-    entity_traces AS (
+    WITH entity_traces AS (
         SELECT DISTINCT te.trace_id
         FROM scouter.trace_entities te
-        WHERE te.entity_id = (SELECT entity_id FROM entity_lookup)
+        WHERE te.entity_uid = p_entity_uid
           AND te.tagged_at >= p_start_time
           AND te.tagged_at <= p_end_time
     )
@@ -111,7 +105,7 @@ $$;
 
 -- Function: Get traces matching ALL entities (service view with multiple filters)
 CREATE OR REPLACE FUNCTION scouter.get_traces_by_multiple_entities(
-    p_entity_uids TEXT[],
+    p_entity_uids BYTEA[],
     p_match_all BOOLEAN DEFAULT TRUE,
     p_start_time TIMESTAMPTZ DEFAULT NOW() - INTERVAL '24 hours',
     p_end_time TIMESTAMPTZ DEFAULT NOW(),
@@ -130,27 +124,26 @@ LANGUAGE SQL
 STABLE
 AS $$
 
-    WITH entity_lookup AS (
-        SELECT id as entity_id, uid as entity_uid
-        FROM scouter.drift_entities
-        WHERE uid = ANY(p_entity_uids)
+    WITH entity_uid_bytes AS (
+        SELECT uid as entity_uid_byte, uid
+        FROM unnest(p_entity_uids) AS uid
     ),
     entity_traces AS (
         SELECT
             te.trace_id,
-            array_agg(DISTINCT e.entity_uid) as matched_entities,
-            COUNT(DISTINCT te.entity_id) as match_count
+            array_agg(DISTINCT eub.uid) as matched_entities,
+            COUNT(DISTINCT te.entity_uid) as match_count
         FROM scouter.trace_entities te
-        INNER JOIN entity_lookup e ON te.entity_id = e.entity_id
+        INNER JOIN entity_uid_bytes eub ON te.entity_uid = eub.entity_uid_byte
         WHERE te.tagged_at >= p_start_time
           AND te.tagged_at <= p_end_time
         GROUP BY te.trace_id
         HAVING
             CASE
                 WHEN p_match_all THEN
-                    COUNT(DISTINCT te.entity_id) = array_length(p_entity_uids, 1)
+                    COUNT(DISTINCT te.entity_uid) = array_length(p_entity_uids, 1)
                 ELSE
-                    COUNT(DISTINCT te.entity_id) > 0
+                    COUNT(DISTINCT te.entity_uid) > 0
             END
     )
     SELECT
@@ -169,55 +162,6 @@ AS $$
     LIMIT p_limit;
 $$;
 
-
--- Function: Get trace metrics grouped by entity (for analytics)
-CREATE OR REPLACE FUNCTION scouter.get_entity_trace_metrics(
-    p_entity_uids TEXT[],
-    p_start_time TIMESTAMPTZ DEFAULT NOW() - INTERVAL '24 hours',
-    p_end_time TIMESTAMPTZ DEFAULT NOW()
-)
-RETURNS TABLE (
-    entity_uid TEXT,
-    entity_space TEXT,
-    entity_name TEXT,
-    entity_version TEXT,
-    drift_type TEXT,
-    trace_count BIGINT,
-    avg_duration_ms FLOAT8,
-    error_rate FLOAT8,
-    p95_duration_ms FLOAT8
-)
-LANGUAGE SQL
-STABLE
-AS $$
-    -- Join to drift_entities to get entity metadata
-    WITH entity_lookup AS (
-        SELECT id, uid, space, name, version, drift_type
-        FROM scouter.drift_entities
-        WHERE uid = ANY(p_entity_uids)
-    )
-    SELECT
-        e.uid as entity_uid,
-        e.space as entity_space,
-        e.name as entity_name,
-        e.version as entity_version,
-        e.drift_type,
-        COUNT(DISTINCT t.trace_id) as trace_count,
-        AVG(t.duration_ms)::FLOAT8 as avg_duration_ms,
-        (SUM(CASE WHEN t.error_count > 0 THEN 1 ELSE 0 END)::FLOAT8 /
-         NULLIF(COUNT(*), 0) * 100)::FLOAT8 as error_rate,
-        PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY t.duration_ms)::FLOAT8 as p95_duration_ms
-    FROM scouter.trace_entities te
-    INNER JOIN entity_lookup e ON te.entity_id = e.id
-    INNER JOIN scouter.traces t ON te.trace_id = t.trace_id
-    WHERE te.tagged_at >= p_start_time
-      AND te.tagged_at <= p_end_time
-      AND t.bucket_time >= p_start_time
-      AND t.bucket_time <= p_end_time
-    GROUP BY e.uid, e.space, e.name, e.version, e.drift_type
-    ORDER BY trace_count DESC;
-$$;
-
 CREATE OR REPLACE FUNCTION scouter.get_traces_paginated(
     p_service_name TEXT DEFAULT NULL,
     p_has_errors BOOLEAN DEFAULT NULL,
@@ -230,7 +174,7 @@ CREATE OR REPLACE FUNCTION scouter.get_traces_paginated(
     p_attribute_filters JSONB DEFAULT NULL,
     p_trace_ids BYTEA[] DEFAULT NULL,
     p_match_all_attributes BOOLEAN DEFAULT FALSE,
-    p_entity_uid TEXT DEFAULT NULL
+    p_entity_uid BYTEA DEFAULT NULL
 )
 RETURNS TABLE (
     trace_id TEXT,
@@ -255,12 +199,10 @@ AS $$
     WITH entity_filter AS (
         SELECT te.trace_id
         FROM scouter.trace_entities te
-        INNER JOIN scouter.drift_entities de ON te.entity_id = de.id
-        WHERE de.uid = p_entity_uid
+        WHERE te.entity_uid = p_entity_uid
           AND te.tagged_at >= COALESCE(p_start_time, NOW() - INTERVAL '24 hours')
           AND te.tagged_at <= COALESCE(p_end_time, NOW())
     ),
-    
     -- Primary filtering on traces table (fast!)
     base_traces AS (
         SELECT

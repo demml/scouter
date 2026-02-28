@@ -2,6 +2,7 @@ use crate::sql::error::SqlError;
 use crate::sql::query::Queries;
 
 use crate::sql::aggregator::get_trace_cache;
+use crate::sql::utils::EntityBytea;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use itertools::multiunzip;
@@ -224,6 +225,11 @@ pub trait TraceSqlLogic {
             }
         });
 
+        let entity_bytea = match filters.entity_uid {
+            Some(ref uid) => Some(EntityBytea::from_uuid(uid)?.0), // consume the uid
+            None => None,
+        };
+
         let mut items: Vec<TraceListItem> = sqlx::query_as(query)
             .bind(filters.service_name)
             .bind(filters.has_errors)
@@ -236,7 +242,7 @@ pub trait TraceSqlLogic {
             .bind(tag_filters_json)
             .bind(trace_id_bytes)
             .bind(false)
-            .bind(filters.entity_uid.as_deref())
+            .bind(entity_bytea)
             .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError)?;
@@ -346,6 +352,7 @@ pub trait TraceSqlLogic {
         end_time: DateTime<Utc>,
         bucket_interval_str: &str,
         attribute_filters: Option<Vec<String>>,
+        entity_uid: Option<String>,
     ) -> Result<Vec<TraceMetricBucket>, SqlError> {
         let tag_filters_json = attribute_filters.as_ref().and_then(|tags| {
             if tags.is_empty() {
@@ -375,6 +382,11 @@ pub trait TraceSqlLogic {
             }
         });
 
+        let entity_bytea = match entity_uid {
+            Some(uid) => Some(EntityBytea::from_uuid(&uid)?.0), // consume the uid
+            None => None,
+        };
+
         let query = Queries::GetTraceMetrics.get_query();
         let trace_items: Result<Vec<TraceMetricBucket>, SqlError> = sqlx::query_as(query)
             .bind(service_name)
@@ -383,6 +395,7 @@ pub trait TraceSqlLogic {
             .bind(bucket_interval_str)
             .bind(tag_filters_json)
             .bind(false)
+            .bind(entity_bytea)
             .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError);

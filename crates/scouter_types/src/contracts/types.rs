@@ -706,18 +706,20 @@ pub struct TraceMetricsRequest {
     pub end_time: DateTime<Utc>,
     pub bucket_interval: String,
     pub attribute_filters: Option<Vec<String>>,
+    pub entity_uid: Option<String>,
 }
 
 #[pymethods]
 impl TraceMetricsRequest {
     #[new]
-    #[pyo3(signature = (start_time, end_time, bucket_interval,service_name=None, attribute_filters=None))]
+    #[pyo3(signature = (start_time, end_time, bucket_interval,service_name=None, attribute_filters=None, entity_uid=None))]
     pub fn new(
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
         bucket_interval: String,
         service_name: Option<String>,
         attribute_filters: Option<Vec<String>>,
+        entity_uid: Option<String>,
     ) -> Self {
         TraceMetricsRequest {
             service_name,
@@ -725,6 +727,7 @@ impl TraceMetricsRequest {
             end_time,
             bucket_interval,
             attribute_filters,
+            entity_uid,
         }
     }
 }

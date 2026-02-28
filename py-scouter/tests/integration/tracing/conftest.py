@@ -12,6 +12,7 @@ from scouter.tracing import (
     BatchConfig,
     GrpcSpanExporter,
     HttpSpanExporter,
+    ScouterInstrumentor,
     TracerProvider,
     get_tracer,
     init_tracer,
@@ -148,6 +149,54 @@ def get_trace_by_id(trace_id: str):
 
     # Return the first trace (should only be one for a specific trace ID)
     return traces[0] if traces else None
+
+
+INSTRUMENTOR_HTTP_SERVICE = "scouter-instrumentor-http"
+INSTRUMENTOR_ATTRS_SERVICE = "scouter-instrumentor-attrs"
+DEFAULT_TEST_ATTRIBUTES = {"env": "test", "provider": "scouter", "version": "1.0"}
+
+
+@pytest.fixture()
+def setup_instrumentor_http():
+    """Set up ScouterInstrumentor with HTTP transport (no external OTLP exporter).
+
+    This exercises the full instrument() -> trace -> uninstrument() path
+    and ensures the Scouter provider is registered as the global OTel provider.
+    """
+    # Ensure no singleton state leaks in from a previous test.
+    ScouterInstrumentor._instance = None
+    with ScouterTestServer() as server:
+        instrumentor = ScouterInstrumentor()
+        instrumentor.instrument(
+            transport_config=GrpcConfig(),
+            batch_config=BatchConfig(scheduled_delay_ms=200),
+        )
+        tracer = trace.get_tracer(INSTRUMENTOR_HTTP_SERVICE)
+        yield tracer, server, instrumentor
+        instrumentor.uninstrument()
+    # Belt-and-suspenders: drop the singleton so the next fixture starts fresh.
+    ScouterInstrumentor._instance = None
+
+
+@pytest.fixture()
+def setup_instrumentor_with_default_attrs():
+    """Set up ScouterInstrumentor with default attributes and gRPC transport.
+
+    Exercises default_attributes propagation: every span created through this
+    provider must carry the declared key-value pairs as span attributes.
+    """
+    ScouterInstrumentor._instance = None
+    with ScouterTestServer() as server:
+        instrumentor = ScouterInstrumentor()
+        instrumentor.instrument(
+            transport_config=GrpcConfig(),
+            batch_config=BatchConfig(scheduled_delay_ms=200),
+            attributes=DEFAULT_TEST_ATTRIBUTES,
+        )
+        tracer = trace.get_tracer(INSTRUMENTOR_ATTRS_SERVICE)
+        yield tracer, server, instrumentor
+        instrumentor.uninstrument()
+    ScouterInstrumentor._instance = None
 
 
 class ServiceARequest(BaseModel):

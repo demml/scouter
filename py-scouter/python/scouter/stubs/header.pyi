@@ -26,21 +26,10 @@ from typing import (
 from typing_extensions import TypeVar
 
 if TYPE_CHECKING:
-    from opentelemetry.sdk.trace.export import SpanExporter as _OtelSpanExporter
-    from opentelemetry.sdk.trace.export import SpanExportResult as _OtelSpanExportResult
-
-    _SpanExporterBase = _OtelSpanExporter
-    _SpanExportResult = _OtelSpanExportResult
+    from opentelemetry.trace import SpanContext
 else:
-    # Runtime fallback - anything with these methods works
-    class _SpanExporterBase:
-        def export(self, spans: Any) -> Any: ...
-        def shutdown(self) -> None: ...
-        def force_flush(self, timeout_millis: int = 30000) -> bool: ...
-
-    class _SpanExportResult:
-        SUCCESS: 0
-        FAILURE: 1
+    class SpanContext:
+        pass
 
 SerializedType: TypeAlias = Union[str, int, float, dict, list]
 Context: TypeAlias = Union[Dict[str, Any], "BaseModel"]
