@@ -3,7 +3,7 @@
 ## Overview
 The data archive component and architecture is meant to provide a way to maintain database performance, while retaining data in a long-term storage solution.  Importantly, Scouter focuses on providing real-time monitoring capabilities and alerting. And while most of this relies on having short-term data (defined as 60 days), there are some use cases where a user may want to visualize or audit data from longer periods of time.  This component is meant to provide a way to do that.
 
-TLDR: Scouter deletes all records > 60 days old in order to maintain database performance, so we need a retention strategy for expired data in the event a user needs access to it.
+TLDR: Scouter deletes records older than the configured retention period (default: 30 days) in order to maintain database performance, so we need a retention strategy for expired data in the event a user needs access to it.
 
 
 ## How it works
@@ -27,7 +27,7 @@ Accepted environment variables are:
 
 - `AWS_REGION`: The AWS region for the object storage provider. This is only required if the `SCOUTER_STORAGE_URI` is set to `s3://<bucket-name>`. It defaults to `us-east-1` if not set.
 
-In addition to `ObjectStorageSettings`, `DatabaseSettings` now takes on an additional environment variable `DATA_RETENTION_PERIOD` which indicates how long data should be retained in the database before moving it to long-term storage. Note this is only for **copying** data to long-term storage. The actual deletion of data is still handled by `pgCron`. The default value is 60 days.
+In addition to `ObjectStorageSettings`, `DatabaseSettings` now takes on an additional environment variable `DATA_RETENTION_PERIOD` which indicates how long data should be retained in the database before moving it to long-term storage. Note this is only for **copying** data to long-term storage. The actual deletion of data is still handled by `pgCron`. The default value is **30 days**.
 
 ## Component Architecture
 
