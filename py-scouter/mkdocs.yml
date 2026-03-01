@@ -71,7 +71,7 @@ nav:
           - Overview: "docs/monitoring/custom/quickstart.md"
       - GenAI:
           - Overview: "docs/monitoring/genai/overview.md"
-          - Assertion Tasks: "docs/monitoring/genai/tasks.md"
+          - Evaluation Tasks: "docs/monitoring/genai/tasks.md"
           - Assertion Gates: "docs/monitoring/genai/gates.md"
           - Offline: "docs/monitoring/genai/offline-evaluation.md"
           - Online: "docs/monitoring/genai/online-evaluation.md"
