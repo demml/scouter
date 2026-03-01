@@ -4,14 +4,15 @@ Evaluation tasks are the core building blocks of Scouter's GenAI evaluation fram
 
 ## Task Types
 
-Scouter provides two types of evaluation tasks:
+Scouter provides three types of evaluation tasks:
 
 | Task Type | Evaluation Method | Use Cases | Cost/Latency |
 |-----------|------------------|-----------|--------------|
 | **AssertionTask** | Deterministic rule-based validation | Structure validation, threshold checks, pattern matching | Zero cost, minimal latency |
 | **LLMJudgeTask** | LLM-powered reasoning | Semantic similarity, quality assessment, complex criteria | Additional LLM call cost and latency |
+| **TraceAssertionTask** | Trace/span property validation | Execution order, retry counts, token budgets, SLA enforcement | Zero cost, minimal latency |
 
-Both task types support:
+All task types support:
 - **Dependencies**: Chain tasks to build on previous results
 - **Conditional execution**: Use tasks as gates to control downstream evaluation
 - **context path extraction**: Access nested values in context or upstream outputs
@@ -328,6 +329,347 @@ factuality_task = LLMJudgeTask(
 )
 ```
 
+## TraceAssertionTask
+
+`TraceAssertionTask` validates properties of distributed traces — span execution order, span counts, attribute values, durations, and numeric aggregations. Unlike `AssertionTask`, which evaluates values from a flat evaluation context, `TraceAssertionTask` operates directly on trace data captured by Scouter's tracing system.
+
+Use it when you need to verify *how* an agent or pipeline executed, not just *what* it returned.
+
+### Parameters
+
+```python
+TraceAssertionTask(
+    id: str,
+    assertion: TraceAssertion,
+    expected_value: Any,
+    operator: ComparisonOperator,
+    description: Optional[str] = None,
+    depends_on: Optional[List[str]] = None,
+    condition: bool = False,
+)
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | `str` | Yes | Unique identifier (converted to lowercase). |
+| `assertion` | `TraceAssertion` | Yes | What to extract or measure from the trace. |
+| `expected_value` | `Any` | Yes | Value to compare against the assertion result. |
+| `operator` | `ComparisonOperator` | Yes | How to compare the extracted value against `expected_value`. |
+| `description` | `str` | No | Human-readable description for understanding results. |
+| `depends_on` | `List[str]` | No | Task IDs that must complete before this task executes. |
+| `condition` | `bool` | No | If `True`, acts as a conditional gate. Failed conditions skip dependent tasks. |
+
+### TraceAssertion
+
+`TraceAssertion` defines what to extract from a trace. Assertions fall into two categories: **span-level** (operate on a filtered subset of spans) and **trace-level** (aggregate over the full trace).
+
+**Span-level assertions** — require a `SpanFilter`:
+
+| Assertion | Returns | Use case |
+|-----------|---------|----------|
+| `TraceAssertion.span_exists(filter)` | `bool` | Check a matching span exists |
+| `TraceAssertion.span_count(filter)` | `int` | Count matching spans |
+| `TraceAssertion.span_duration(filter)` | `float` (ms) | Duration of the first matching span |
+| `TraceAssertion.span_attribute(filter, attribute_key)` | `Any` | Attribute value from the first matching span |
+| `TraceAssertion.span_aggregation(filter, attribute_key, aggregation)` | `float` | Aggregate a numeric attribute across matching spans |
+| `TraceAssertion.span_sequence(names)` | `bool` | Verify spans executed in the given order |
+| `TraceAssertion.span_set(names)` | `bool` | Verify all named spans exist (any order) |
+
+**Trace-level assertions** — no filter required:
+
+| Assertion | Returns | Use case |
+|-----------|---------|----------|
+| `TraceAssertion.trace_duration()` | `float` (ms) | Total trace wall-clock time |
+| `TraceAssertion.trace_span_count()` | `int` | Total number of spans in the trace |
+| `TraceAssertion.trace_error_count()` | `int` | Number of spans with ERROR status |
+| `TraceAssertion.trace_service_count()` | `int` | Number of unique services in the trace |
+| `TraceAssertion.trace_max_depth()` | `int` | Maximum span nesting depth |
+| `TraceAssertion.trace_attribute(attribute_key)` | `Any` | Attribute value from the root span |
+
+### SpanFilter
+
+`SpanFilter` selects which spans a span-level assertion targets. Filters compose with `.and_()` and `.or_()`.
+
+| Filter | Description |
+|--------|-------------|
+| `SpanFilter.by_name(name)` | Exact span name match |
+| `SpanFilter.by_name_pattern(pattern)` | Regex match against span name |
+| `SpanFilter.with_attribute(key)` | Has attribute with the given key |
+| `SpanFilter.with_attribute_value(key, value)` | Attribute key equals value |
+| `SpanFilter.with_status(status)` | Match span status (`SpanStatus.Ok`, `Error`, or `Unset`) |
+| `SpanFilter.with_duration(min_ms, max_ms)` | Duration within range (either bound is optional) |
+| `SpanFilter.sequence(names)` | Matches spans that form part of a named sequence |
+
+**Combining filters:**
+
+```python
+# Spans named "llm.generate" that completed successfully
+SpanFilter.by_name("llm.generate").and_(SpanFilter.with_status(SpanStatus.Ok))
+
+# Spans with a POST method or the "gpt-4" model attribute
+SpanFilter.with_attribute_value("http.method", "POST").or_(
+    SpanFilter.with_attribute_value("model", "gpt-4")
+)
+
+# (pattern match AND has attribute) OR error status
+SpanFilter.by_name_pattern(r"llm\..*").and_(
+    SpanFilter.with_attribute("model")
+).or_(SpanFilter.with_status(SpanStatus.Error))
+```
+
+### AggregationType
+
+Used with `TraceAssertion.span_aggregation()` to compute a value over a numeric attribute across multiple matching spans.
+
+| Value | Description |
+|-------|-------------|
+| `AggregationType.Count` | Number of matching spans |
+| `AggregationType.Sum` | Sum of attribute values across spans |
+| `AggregationType.Average` | Mean of attribute values |
+| `AggregationType.Min` | Minimum attribute value |
+| `AggregationType.Max` | Maximum attribute value |
+| `AggregationType.First` | Value from the first matching span |
+| `AggregationType.Last` | Value from the last matching span |
+
+### Common Patterns
+
+**Verify agent execution order:**
+
+```python
+from scouter.evaluate import TraceAssertionTask, TraceAssertion, ComparisonOperator
+
+TraceAssertionTask(
+    id="verify_workflow",
+    assertion=TraceAssertion.span_sequence(["call_tool", "run_agent", "double_check"]),
+    operator=ComparisonOperator.Equals,
+    expected_value=True,
+    description="Verify correct agent execution order",
+)
+```
+
+**Enforce retry limits:**
+
+```python
+TraceAssertionTask(
+    id="limit_retries",
+    assertion=TraceAssertion.span_count(SpanFilter.by_name("retry_operation")),
+    operator=ComparisonOperator.LessThanOrEqual,
+    expected_value=3,
+    description="No more than 3 retry attempts",
+)
+```
+
+**Verify correct model was used:**
+
+```python
+TraceAssertionTask(
+    id="verify_model",
+    assertion=TraceAssertion.span_attribute(
+        filter=SpanFilter.by_name("llm.generate"),
+        attribute_key="model",
+    ),
+    operator=ComparisonOperator.Equals,
+    expected_value="gpt-4",
+    description="Verify gpt-4 was used for generation",
+)
+```
+
+**Enforce token budget across all LLM calls:**
+
+```python
+TraceAssertionTask(
+    id="token_budget",
+    assertion=TraceAssertion.span_aggregation(
+        filter=SpanFilter.by_name_pattern(r"llm\..*"),
+        attribute_key="token_count",
+        aggregation=AggregationType.Sum,
+    ),
+    operator=ComparisonOperator.LessThan,
+    expected_value=10000,
+    description="Total tokens must stay under budget",
+)
+```
+
+**Enforce performance SLA:**
+
+```python
+TraceAssertionTask(
+    id="performance_sla",
+    assertion=TraceAssertion.trace_duration(),
+    operator=ComparisonOperator.LessThan,
+    expected_value=5000.0,  # 5 seconds in ms
+    description="Execution must complete within 5 seconds",
+)
+```
+
+**Error-free execution:**
+
+```python
+TraceAssertionTask(
+    id="no_errors",
+    assertion=TraceAssertion.trace_error_count(),
+    operator=ComparisonOperator.Equals,
+    expected_value=0,
+    description="Verify error-free execution",
+)
+```
+
+**Chained assertions with conditional gate:**
+
+```python
+# Step 1: verify execution order — gate for downstream tasks
+workflow_task = TraceAssertionTask(
+    id="workflow_check",
+    assertion=TraceAssertion.span_sequence(["validate", "process", "output"]),
+    operator=ComparisonOperator.Equals,
+    expected_value=True,
+    condition=True,  # Skip downstream tasks if order is wrong
+)
+
+# Step 2: check performance only if workflow passed
+perf_task = TraceAssertionTask(
+    id="performance_check",
+    assertion=TraceAssertion.trace_duration(),
+    operator=ComparisonOperator.LessThan,
+    expected_value=3000.0,
+    depends_on=["workflow_check"],
+)
+
+# Step 3: check for errors only after both above pass
+error_task = TraceAssertionTask(
+    id="error_check",
+    assertion=TraceAssertion.trace_error_count(),
+    operator=ComparisonOperator.Equals,
+    expected_value=0,
+    depends_on=["workflow_check", "performance_check"],
+)
+```
+
+### Offline Evaluation
+
+For batch offline evaluation against captured spans, use `execute_trace_assertion_tasks`:
+
+```python
+from scouter.evaluate import (
+    execute_trace_assertion_tasks,
+    TraceAssertionTask,
+    TraceAssertion,
+    SpanFilter,
+    ComparisonOperator,
+)
+
+results = execute_trace_assertion_tasks(
+    tasks=[
+        TraceAssertionTask(
+            id="check_span_exists",
+            assertion=TraceAssertion.span_exists(
+                filter=SpanFilter.by_name("child_1"),
+            ),
+            operator=ComparisonOperator.Equals,
+            expected_value=True,
+        ),
+        TraceAssertionTask(
+            id="check_pattern_count",
+            assertion=TraceAssertion.span_count(
+                filter=SpanFilter.by_name_pattern(r"^child_.*"),
+            ),
+            operator=ComparisonOperator.Equals,
+            expected_value=2,
+        ),
+    ],
+    spans=captured_spans,  # list of spans from a trace
+)
+
+for task_id, result in results.items():
+    print(f"{task_id}: {'PASS' if result.passed else 'FAIL'} (actual={result.actual})")
+```
+
+---
+
+## Task Interplay
+
+The three task types are complementary and designed to work together in layered evaluation pipelines.
+
+```
+AssertionTask        — validates what the model returned (context values, structure, thresholds)
+LLMJudgeTask         — evaluates quality of what the model returned (semantics, reasoning, tone)
+TraceAssertionTask   — validates how the model produced it (span sequence, retries, latency, tokens)
+```
+
+A typical evaluation pipeline uses all three layers:
+
+```python
+from scouter.evaluate import (
+    AssertionTask,
+    LLMJudgeTask,
+    TraceAssertionTask,
+    TraceAssertion,
+    SpanFilter,
+    AggregationType,
+    ComparisonOperator,
+)
+
+tasks = [
+    # Layer 1 — structural gate: only proceed if the response has the required shape
+    AssertionTask(
+        id="has_required_fields",
+        context_path="response",
+        operator=ComparisonOperator.ContainsAll,
+        expected_value=["answer", "sources", "confidence"],
+        condition=True,  # Gate: skip all downstream if structure is wrong
+    ),
+
+    # Layer 2 — trace gate: only proceed if the agent executed in the correct order
+    TraceAssertionTask(
+        id="correct_execution_order",
+        assertion=TraceAssertion.span_sequence(["retrieve", "rerank", "generate"]),
+        operator=ComparisonOperator.Equals,
+        expected_value=True,
+        condition=True,  # Gate: skip quality check if pipeline ran out of order
+    ),
+
+    # Layer 3 — quality: run LLM judge only if structure and execution are valid
+    LLMJudgeTask(
+        id="relevance_check",
+        prompt=relevance_prompt,
+        expected_value=7,
+        context_path="score",
+        operator=ComparisonOperator.GreaterThanOrEqual,
+        depends_on=["has_required_fields", "correct_execution_order"],
+        description="Check answer relevance after structural and execution validation",
+    ),
+
+    # Layer 3 — resource check: runs alongside quality check, independent
+    TraceAssertionTask(
+        id="token_budget",
+        assertion=TraceAssertion.span_aggregation(
+            filter=SpanFilter.by_name_pattern(r"llm\..*"),
+            attribute_key="token_count",
+            aggregation=AggregationType.Sum,
+        ),
+        operator=ComparisonOperator.LessThan,
+        expected_value=5000,
+        description="Ensure total token usage stays within budget",
+    ),
+]
+```
+
+**When to use each task type:**
+
+| Question | Task type |
+|----------|-----------|
+| Did the response contain the right fields? | `AssertionTask` |
+| Is the response numerically within threshold? | `AssertionTask` |
+| Did the agent call the right tools in order? | `TraceAssertionTask` |
+| Did the agent retry more than N times? | `TraceAssertionTask` |
+| Did total latency exceed the SLA? | `TraceAssertionTask` |
+| Did total token usage exceed the budget? | `TraceAssertionTask` |
+| Is the response semantically relevant? | `LLMJudgeTask` |
+| Does the response contain hallucinations? | `LLMJudgeTask` |
+| Is the tone appropriate for the audience? | `LLMJudgeTask` |
+
+---
+
 ## ComparisonOperator
 
 `ComparisonOperator` defines how task outputs are compared against expected values. Operators are grouped into categories for different data types and validation needs.
@@ -472,17 +814,28 @@ client.register_profile(profile, set_active=True)
 - **Factuality checking**: Hallucination detection, source verification
 - **Style/tone analysis**: Appropriate language for audience
 
+### When to Use TraceAssertionTask
+
+- **Execution order**: Verify spans ran in the correct sequence
+- **Retry enforcement**: Limit retry attempts to prevent runaway agents
+- **Token budgets**: Sum token usage across all LLM calls
+- **Latency SLAs**: Assert total trace or individual span duration
+- **Error detection**: Count spans with ERROR status
+- **Model verification**: Check which model was used in a specific span
+
 ### Optimization Tips
 
-1. **Assertions first**: Use `AssertionTask` for fast validation before expensive LLM calls
-2. **Conditional gates**: Use `condition=True` to prevent unnecessary downstream evaluation
-3. **Minimize dependencies**: Only depend on tasks whose outputs you actually need
-4. **Appropriate operators**: Choose the most specific operator for your validation
-5. **Clear field paths**: Use explicit paths to access nested data (`"response.metadata.score"`)
+1. **Assertions first**: Use `AssertionTask` for fast structural validation before expensive LLM calls
+2. **Trace gates early**: Use `TraceAssertionTask` with `condition=True` to skip quality evaluation when execution was invalid
+3. **Conditional gates**: Use `condition=True` to prevent unnecessary downstream evaluation
+4. **Minimize dependencies**: Only depend on tasks whose outputs you actually need
+5. **Appropriate operators**: Choose the most specific operator for your validation
+6. **Clear field paths**: Use explicit paths to access nested data (`"response.metadata.score"`)
 
 ### Error Handling
 
 - **AssertionTask**: Fails immediately on type mismatch or missing fields
+- **TraceAssertionTask**: Fails if no spans match the filter (for span-level assertions)
 - **LLMJudgeTask**: Respects `max_retries` for transient failures (network, rate limits)
 - **Conditional tasks**: Failed conditions skip dependent tasks without failing the workflow
 - **Field paths**: Invalid paths cause task failure with clear error messages
@@ -493,3 +846,4 @@ Now that you understand evaluation tasks, explore how to build complete GenAI ev
 
 - [Offline Evaluation](/scouter/docs/monitoring/genai/offline-evaluation/) - Batch evaluation with complex task chains
 - [Online Monitoring](/scouter/docs/monitoring/genai/online-evaluation/) - Production monitoring setup
+- [Distributed Tracing](/scouter/docs/tracing/overview/) - Capture trace data that `TraceAssertionTask` evaluates

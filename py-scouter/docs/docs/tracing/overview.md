@@ -1,6 +1,8 @@
 # Distributed Tracing
 
-Scouter provides production-grade, OpenTelemetry-compatible distributed tracing built on Rust for performance with seamless Python integration. The system supports synchronous and asynchronous code, automatic context propagation, and dual-export capabilities to Scouter's backend and external OTEL collectors.
+Scouter provides OpenTelemetry-compatible distributed tracing built on Rust with a Python interface. The system supports synchronous and asynchronous code, automatic context propagation, and dual-export to Scouter's backend and external OTEL collectors.
+
+Traces captured by Scouter can be evaluated offline or in production using [`TraceAssertionTask`](/scouter/docs/monitoring/genai/tasks/#traceassertionask) — validating span execution order, latency SLAs, token budgets, and more.
 
 ## Architecture
 
@@ -107,6 +109,103 @@ sequenceDiagram
 
     App->>Tracer: shutdown_tracer()
     Tracer->>Exp: Flush & shutdown
+```
+
+## OpenTelemetry Compatibility
+
+Scouter's tracing layer is built on top of the OpenTelemetry SDK. You can use Scouter as a drop-in `TracerProvider` in any OTEL-instrumented application.
+
+### ScouterInstrumentor
+
+`ScouterInstrumentor` implements the standard OpenTelemetry `BaseInstrumentor` interface. It registers Scouter's `TracerProvider` as the global OTEL provider, so any library that calls `opentelemetry.trace.get_tracer()` will route spans through Scouter automatically.
+
+`ScouterInstrumentor` is a singleton — calling it multiple times returns the same instance.
+
+```python
+from scouter.tracing import ScouterInstrumentor
+
+instrumentor = ScouterInstrumentor()
+instrumentor.instrument()
+```
+
+This is equivalent to calling the convenience function:
+
+```python
+from scouter.tracing import instrument
+
+instrument()
+```
+
+**With transport and batch configuration:**
+
+```python
+from scouter.tracing import ScouterInstrumentor
+from scouter import GrpcConfig, BatchConfig
+
+ScouterInstrumentor().instrument(
+    transport_config=GrpcConfig(),
+    batch_config=BatchConfig(scheduled_delay_ms=200),
+)
+```
+
+**With an external OTEL collector:**
+
+```python
+from scouter.tracing import ScouterInstrumentor, HttpSpanExporter, OtelExportConfig
+
+ScouterInstrumentor().instrument(
+    transport_config=GrpcConfig(),
+    exporter=HttpSpanExporter(
+        export_config=OtelExportConfig(endpoint="http://otel-collector:4318")
+    ),
+)
+```
+
+**Check instrumentation status:**
+
+```python
+instrumentor = ScouterInstrumentor()
+print(instrumentor.is_instrumented)  # True / False
+```
+
+**Tear down instrumentation:**
+
+```python
+ScouterInstrumentor().uninstrument()
+```
+
+`uninstrument()` flushes pending spans, shuts down the provider, and resets the global OTEL tracer provider. The singleton is also reset, so the next call to `ScouterInstrumentor()` creates a fresh instance.
+
+### ScouterInstrumentor vs init_tracer
+
+Both paths initialize Scouter tracing and produce identical span output. The difference is integration scope:
+
+| | `init_tracer()` | `ScouterInstrumentor` |
+|--|-----------------|----------------------|
+| Registers global OTEL provider | No | Yes |
+| Works with OTEL auto-instrumentation libraries | No | Yes |
+| Idiomatic for greenfield Scouter-only code | Yes | No |
+| Follows OTel `BaseInstrumentor` lifecycle | No | Yes |
+
+Use `ScouterInstrumentor` when your application uses OTEL auto-instrumentation libraries (e.g., `opentelemetry-instrumentation-fastapi`, `opentelemetry-instrumentation-httpx`) and you want their spans to flow through Scouter. Use `init_tracer()` for simpler setups where you instrument everything manually.
+
+### Using Scouter as a TracerProvider
+
+You can construct a `TracerProvider` directly and set it as the global provider:
+
+```python
+from opentelemetry import trace
+from opentelemetry.sdk.trace.export import set_tracer_provider
+from scouter.tracing import TracerProvider
+from scouter import GrpcConfig
+
+provider = TracerProvider(transport_config=GrpcConfig())
+set_tracer_provider(provider)
+
+# Any OTEL-instrumented library now routes spans through Scouter
+tracer = trace.get_tracer(__name__)
+with tracer.start_as_current_span("my-span") as span:
+    span.set_attribute("key", "value")
 ```
 
 ## Synchronous vs Asynchronous
