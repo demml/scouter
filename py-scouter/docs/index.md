@@ -6,6 +6,22 @@
 
 <h2 align="center"><b>Developer-First ML Monitoring, Observability, and GenAI Evaluation</b></h2>
 
+## Table of Contents
+
+- [What is it?](#what-is-it)
+- [Why Use It?](#why-use-it)
+- [Developer-First Experience](#developer-first-experience)
+- [Production Ready](#production-ready)
+- [Quick Start](#quick-start)
+  - [Traditional Monitoring](#traditional-monitoring)
+  - [Distributed Tracing](#distributed-tracing)
+  - [GenAI Evaluation](#genai-evaluation)
+    - [Offline Evaluation](#offline-evaluation--regression-testing-before-you-ship)
+    - [Online Evaluation](#online-evaluation--continuous-production-monitoring)
+- [Supported Data Types](#supported-data-types)
+
+---
+
 ## **What is it?**
 
 `Scouter` is a developer-first monitoring and observability toolkit for ML and AI workflows. It covers the full spectrum of production AI observability — from traditional data and model drift detection, to distributed tracing, to online and offline GenAI evaluation. Built entirely in `Rust` with `Postgres` as its primary data store, and exposed to Python via PyO3-generated stubs.
@@ -277,9 +293,16 @@ trace_tasks = [
 ]
 ```
 
-![Offline Evaluation Results](https://github.com/demml/scouter/blob/main/images/offline_evaluation.png?raw=true)
-
-![Regression Testing](https://github.com/demml/scouter/blob/main/images/regression_testing.png?raw=true)
+<table>
+  <tr>
+    <td align="center"><b>Offline Evaluation</b></td>
+    <td align="center"><b>Regression Testing (Comparison)</b></td>
+  </tr>
+  <tr>
+    <td><img src="https://github.com/demml/scouter/blob/main/images/offline_evaluation.png?raw=true" alt="Offline Evaluation"/></td>
+    <td><img src="https://github.com/demml/scouter/blob/main/images/regression_testing.png?raw=true" alt="Regression Testing"/></td>
+  </tr>
+</table>
 
 ### Online Evaluation — Continuous Production Monitoring
 
