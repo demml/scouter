@@ -24,6 +24,7 @@ scouter-tonic = { workspace = true, features = ["server"] }
 
 
 anyhow = {workspace = true}
+clap = { workspace = true }
 axum = {workspace = true}
 axum-extra = { workspace = true, version = "0.*", features = ["cookie"] }
 chrono = { workspace = true }
@@ -52,6 +53,7 @@ tracing = { workspace = true }
 tonic = { workspace = true }
 tonic-health = { workspace = true }
 tonic-middleware = { workspace = true } # need for async interceptors
+tonic-reflection = { workspace = true }
 
 [dev-dependencies]
 approx = "0.*"

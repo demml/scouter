@@ -5439,7 +5439,7 @@ dependencies = [
 
 [[package]]
 name = "py-scouter"
-version = "0.17.1"
+version = "0.18.0"
 dependencies = [
  "ndarray-stats",
  "num-traits",
@@ -6389,7 +6389,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "scouter-auth"
-version = "0.17.1"
+version = "0.18.0"
 dependencies = [
  "jsonwebtoken 9.3.1",
  "password-auth",
@@ -6403,7 +6403,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-client"
-version = "0.17.1"
+version = "0.18.0"
 dependencies = [
  "chrono",
  "ndarray",
@@ -6434,7 +6434,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-dataframe"
-version = "0.17.1"
+version = "0.18.0"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -6464,7 +6464,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-dispatch"
-version = "0.17.1"
+version = "0.18.0"
 dependencies = [
  "futures",
  "mockito",
@@ -6480,7 +6480,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-drift"
-version = "0.17.1"
+version = "0.18.0"
 dependencies = [
  "approx",
  "chrono",
@@ -6511,7 +6511,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-evaluate"
-version = "0.17.1"
+version = "0.18.0"
 dependencies = [
  "chrono",
  "itertools 0.13.0",
@@ -6538,7 +6538,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-events"
-version = "0.17.1"
+version = "0.18.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -6577,7 +6577,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-http"
-version = "0.17.1"
+version = "0.18.0"
 dependencies = [
  "pyo3",
  "reqwest 0.12.28",
@@ -6591,14 +6591,14 @@ dependencies = [
 
 [[package]]
 name = "scouter-macro"
-version = "0.17.1"
+version = "0.18.0"
 dependencies = [
  "thiserror 2.0.18",
 ]
 
 [[package]]
 name = "scouter-mocks"
-version = "0.17.1"
+version = "0.18.0"
 dependencies = [
  "chrono",
  "mockito",
@@ -6619,7 +6619,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-observability"
-version = "0.17.1"
+version = "0.18.0"
 dependencies = [
  "itertools 0.13.0",
  "ndarray",
@@ -6636,7 +6636,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-profile"
-version = "0.17.1"
+version = "0.18.0"
 dependencies = [
  "approx",
  "chrono",
@@ -6660,7 +6660,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-semver"
-version = "0.17.1"
+version = "0.18.0"
 dependencies = [
  "pyo3",
  "semver",
@@ -6670,13 +6670,14 @@ dependencies = [
 
 [[package]]
 name = "scouter-server"
-version = "0.17.1"
+version = "0.18.0"
 dependencies = [
  "anyhow",
  "approx",
  "axum",
  "axum-extra",
  "chrono",
+ "clap",
  "flume",
  "futures",
  "http-body-util",
@@ -6715,6 +6716,7 @@ dependencies = [
  "tonic",
  "tonic-health",
  "tonic-middleware",
+ "tonic-reflection",
  "tower",
  "tower-http",
  "tracing",
@@ -6723,7 +6725,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-settings"
-version = "0.17.1"
+version = "0.18.0"
 dependencies = [
  "base64",
  "chrono",
@@ -6736,7 +6738,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-sql"
-version = "0.17.1"
+version = "0.18.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6766,7 +6768,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-state"
-version = "0.17.1"
+version = "0.18.0"
 dependencies = [
  "thiserror 2.0.18",
  "tokio",
@@ -6775,7 +6777,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-tonic"
-version = "0.17.1"
+version = "0.18.0"
 dependencies = [
  "prost",
  "prost-types",
@@ -6793,7 +6795,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-tracing"
-version = "0.17.1"
+version = "0.18.0"
 dependencies = [
  "chrono",
  "opentelemetry",
@@ -6818,7 +6820,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-types"
-version = "0.17.1"
+version = "0.18.0"
 dependencies = [
  "approx",
  "base64",
@@ -8000,6 +8002,20 @@ dependencies = [
  "syn",
  "tempfile",
  "tonic-build",
+]
+
+[[package]]
+name = "tonic-reflection"
+version = "0.14.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aaf0685a51e6d02b502ba0764002e766b7f3042aed13d9234925b6ffbfa3fca7"
+dependencies = [
+ "prost",
+ "prost-types",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tonic-prost",
 ]
 
 [[package]]

@@ -1,9 +1,26 @@
-/// Primary build script for the scouter_tonic crate.
-/// This script configures the tonic_prost_build to generate gRPC client and server code
+use std::{env, path::PathBuf};
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let proto_root = PathBuf::from("proto");
+    let protos = &[proto_root.join("grpc.v1.proto")];
+
+    let missing: Vec<_> = protos.iter().filter(|p| !p.exists()).collect();
+    if !missing.is_empty() {
+        panic!(
+            "Proto files not found:\n{}",
+            missing
+                .iter()
+                .map(|p| format!("  - {p:?}"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+    }
+
+    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let descriptor_path = out_dir.join("scouter_descriptor.bin");
+
     let mut config = tonic_prost_build::configure();
 
-    // Only generate server code if the "server" feature is enabled
     #[cfg(feature = "server")]
     {
         config = config.build_server(true);
@@ -13,7 +30,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         config = config.build_server(false);
     }
 
-    // Only generate client code if the "client" feature is enabled
     #[cfg(feature = "client")]
     {
         config = config.build_client(true);
@@ -24,8 +40,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     config
+        .file_descriptor_set_path(&descriptor_path)
         .out_dir("src/generated")
-        .compile_protos(&["proto/grpc.v1.proto"], &["proto"])?;
+        .compile_protos(protos, std::slice::from_ref(&proto_root))?;
+
+    println!("cargo:rerun-if-changed={}", proto_root.display());
 
     Ok(())
 }
