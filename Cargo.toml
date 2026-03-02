@@ -51,6 +51,7 @@ arrow-array = { version = "57.*" }
 async-trait = ">=0.1"
 base64 = ">=0.22"
 chrono ={ version = "0.*", features = ["serde"] }
+clap = { version = "4.*", features = ["derive"] }
 colored_json = "5.*"
 cron = "0.*"
 crossbeam-queue = "0.*"
@@ -123,6 +124,7 @@ tonic = { version = "0.*" }
 tonic-health = { version = "0.*" }
 tonic-middleware = { version = "0.*" } # need for async interceptors
 tonic-prost = { version = "0.*" }
+tonic-reflection = { version = "0.*" }
 prost = { version = "0.*" }
 prost-types = { version = "0.*" }
 

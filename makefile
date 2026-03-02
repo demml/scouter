@@ -110,9 +110,26 @@ start.server: stop.server build.all_backends
 build.shutdown:
 	docker compose down -v
 
+.PHONY: start.server.http
+start.server.http: stop.server build.all_backends
+	export KAFKA_BROKERS=localhost:9092 && \
+	export RABBITMQ_ADDR=amqp://guest:guest@127.0.0.1:5672/%2f && \
+	export REDIS_ADDR=redis://127.0.0.1:6379 && \
+	cargo build -p scouter-server --all-features && \
+	./target/debug/scouter-server --mode http &
+
+.PHONY: start.server.grpc
+start.server.grpc: stop.server build.all_backends
+	export KAFKA_BROKERS=localhost:9092 && \
+	export RABBITMQ_ADDR=amqp://guest:guest@127.0.0.1:5672/%2f && \
+	export REDIS_ADDR=redis://127.0.0.1:6379 && \
+	cargo build -p scouter-server --all-features && \
+	./target/debug/scouter-server --mode grpc &
+
 .PHONE: stop.server
 stop.server:
 	-lsof -ti:8000 | xargs kill -9 2>/dev/null || true
+	-lsof -ti:50051 | xargs kill -9 2>/dev/null || true
 
 .PHONY: changelog
 prepend.changelog:

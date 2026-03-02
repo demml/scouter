@@ -6,11 +6,23 @@ use crate::api::state::AppState;
 use anyhow::Context;
 use api::router::create_router;
 use axum::Router;
+use clap::ValueEnum;
 use scouter_auth::auth::AuthManager;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tracing::{error, info, instrument, warn};
+
+#[derive(Clone, Debug, Default, ValueEnum)]
+pub enum ServeMode {
+    /// Run both HTTP and gRPC servers (default)
+    #[default]
+    Both,
+    /// Run only the HTTP server
+    Http,
+    /// Run only the gRPC server
+    Grpc,
+}
 
 /// Create shared application state
 ///
@@ -67,38 +79,45 @@ pub async fn start_http_server_with_state(app_state: Arc<AppState>) -> Result<()
     Ok(())
 }
 
-/// Start both HTTP and gRPC servers with shared state
 #[instrument(skip_all)]
-pub async fn start_server() -> Result<(), anyhow::Error> {
-    // Create shared app state once
+pub async fn start_server_with_mode(mode: ServeMode) -> Result<(), anyhow::Error> {
     let app_state = create_app_state().await?;
 
-    // Clone Arc for each server (cheap operation)
-    let http_state = Arc::clone(&app_state);
-    let grpc_state = Arc::clone(&app_state);
+    match mode {
+        ServeMode::Http => {
+            start_http_server_with_state(app_state).await?;
+            info!("HTTP server shut down gracefully");
+        }
+        ServeMode::Grpc => {
+            start_grpc_server(app_state).await?;
+            info!("gRPC server shut down gracefully");
+        }
+        ServeMode::Both => {
+            let (http_result, grpc_result) = tokio::join!(
+                start_http_server_with_state(Arc::clone(&app_state)),
+                start_grpc_server(Arc::clone(&app_state))
+            );
 
-    // Start both servers concurrently
-    let (http_result, grpc_result) = tokio::join!(
-        start_http_server_with_state(http_state),
-        start_grpc_server(grpc_state)
-    );
+            match &http_result {
+                Ok(_) => info!("HTTP server shut down gracefully"),
+                Err(e) => error!("HTTP server error: {}", e),
+            }
+            match &grpc_result {
+                Ok(_) => info!("gRPC server shut down gracefully"),
+                Err(e) => error!("gRPC server error: {}", e),
+            }
 
-    // Log results - both should shut down gracefully
-    match &http_result {
-        Ok(_) => info!("HTTP server shut down gracefully"),
-        Err(e) => error!("HTTP server error: {}", e),
+            http_result?;
+            grpc_result?;
+        }
     }
-
-    match &grpc_result {
-        Ok(_) => info!("gRPC server shut down gracefully"),
-        Err(e) => error!("gRPC server error: {}", e),
-    }
-
-    // Return error if either failed
-    http_result?;
-    grpc_result?;
 
     Ok(())
+}
+
+#[instrument(skip_all)]
+pub async fn start_server() -> Result<(), anyhow::Error> {
+    start_server_with_mode(ServeMode::Both).await
 }
 
 /// Start server in background with handle for management

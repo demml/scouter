@@ -6486,7 +6486,7 @@ dependencies = [
  "chrono",
  "futures",
  "indicatif",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "ndarray",
  "ndarray-rand",
  "num-traits",
@@ -6514,7 +6514,7 @@ name = "scouter-evaluate"
 version = "0.17.1"
 dependencies = [
  "chrono",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "ndarray",
  "num-traits",
  "owo-colors",
@@ -6621,7 +6621,7 @@ dependencies = [
 name = "scouter-observability"
 version = "0.17.1"
 dependencies = [
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "ndarray",
  "ndarray-stats",
  "noisy_float",
@@ -6641,7 +6641,7 @@ dependencies = [
  "approx",
  "chrono",
  "indicatif",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "ndarray",
  "ndarray-rand",
  "ndarray-stats",
@@ -6677,6 +6677,7 @@ dependencies = [
  "axum",
  "axum-extra",
  "chrono",
+ "clap",
  "flume",
  "futures",
  "http-body-util",
@@ -6715,6 +6716,7 @@ dependencies = [
  "tonic",
  "tonic-health",
  "tonic-middleware",
+ "tonic-reflection",
  "tower",
  "tower-http",
  "tracing",
@@ -6743,7 +6745,7 @@ dependencies = [
  "chrono",
  "cron",
  "dashmap 6.1.0",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "mini-moka",
  "potato-head",
  "rand 0.9.2",
@@ -8000,6 +8002,20 @@ dependencies = [
  "syn",
  "tempfile",
  "tonic-build",
+]
+
+[[package]]
+name = "tonic-reflection"
+version = "0.14.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aaf0685a51e6d02b502ba0764002e766b7f3042aed13d9234925b6ffbfa3fca7"
+dependencies = [
+ "prost",
+ "prost-types",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tonic-prost",
 ]
 
 [[package]]
