@@ -198,6 +198,11 @@ impl ScouterTestServer {
                         Some(format!("http://127.0.0.1:{grpc_port}")),
                         Some("guest".to_string()),
                         Some("guest".to_string()),
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
                     );
 
                     // Use the health check method
