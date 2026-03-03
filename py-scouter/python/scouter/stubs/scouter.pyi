@@ -552,18 +552,29 @@ class GrpcConfig:
     server_uri: str
     username: str
     password: str
+    timeout_secs: Optional[int]
+    connect_timeout_secs: Optional[int]
+    keep_alive_interval_secs: Optional[int]
+    keep_alive_timeout_secs: Optional[int]
+    keep_alive_while_idle: Optional[bool]
 
     def __init__(
         self,
         server_uri: Optional[str] = None,
         username: Optional[str] = None,
         password: Optional[str] = None,
+        timeout_secs: Optional[int] = None,
+        connect_timeout_secs: Optional[int] = None,
+        keep_alive_interval_secs: Optional[int] = None,
+        keep_alive_timeout_secs: Optional[int] = None,
+        keep_alive_while_idle: Optional[bool] = None,
     ) -> None:
         """gRPC configuration to use with the GrpcProducer.
 
         Args:
             server_uri:
                 URL of the gRPC server to publish messages to.
+                Use ``http://`` for plaintext or ``https://`` for TLS.
                 If not provided, the value of the SCOUTER_GRPC_URI environment variable is used.
 
             username:
@@ -573,6 +584,26 @@ class GrpcConfig:
             password:
                 Password for basic authentication.
                 If not provided, the value of the SCOUTER_PASSWORD environment variable is used.
+
+            timeout_secs:
+                Maximum time in seconds to wait for a response before the request is cancelled.
+                If not provided, requests will wait indefinitely.
+
+            connect_timeout_secs:
+                Maximum time in seconds to wait for the initial connection to be established.
+                If not provided, connection attempts will wait indefinitely.
+
+            keep_alive_interval_secs:
+                Interval in seconds between HTTP/2 keepalive pings sent to the server.
+                Recommended for long-lived connections behind load balancers or NAT.
+
+            keep_alive_timeout_secs:
+                Time in seconds to wait for a keepalive ping response before closing the connection.
+                Only applies when ``keep_alive_interval_secs`` is set.
+
+            keep_alive_while_idle:
+                If ``True``, keepalive pings are sent even when there are no active streams.
+                Only applies when ``keep_alive_interval_secs`` is set.
         """
 
     def __str__(self): ...

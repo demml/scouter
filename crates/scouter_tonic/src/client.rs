@@ -5,6 +5,7 @@ use crate::{
 };
 use scouter_settings::grpc::GrpcConfig;
 use std::sync::{Arc, RwLock};
+use std::time::Duration;
 use tonic::metadata::MetadataValue;
 use tonic::transport::Channel;
 use tonic::Request;
@@ -24,11 +25,27 @@ pub struct GrpcClient {
     config: GrpcConfig,
 }
 
-async fn build_channel(uri: &str) -> Result<Channel, ClientError> {
-    let endpoint = Channel::from_shared(uri.to_string())
+async fn build_channel(config: &GrpcConfig) -> Result<Channel, ClientError> {
+    let mut endpoint = Channel::from_shared(config.server_uri.clone())
         .map_err(|e| ClientError::GrpcError(format!("Invalid URI: {}", e)))?;
 
-    if uri.starts_with("https://") {
+    if let Some(secs) = config.timeout_secs {
+        endpoint = endpoint.timeout(Duration::from_secs(secs));
+    }
+    if let Some(secs) = config.connect_timeout_secs {
+        endpoint = endpoint.connect_timeout(Duration::from_secs(secs));
+    }
+    if let Some(secs) = config.keep_alive_interval_secs {
+        endpoint = endpoint.http2_keep_alive_interval(Duration::from_secs(secs));
+    }
+    if let Some(secs) = config.keep_alive_timeout_secs {
+        endpoint = endpoint.keep_alive_timeout(Duration::from_secs(secs));
+    }
+    if let Some(enabled) = config.keep_alive_while_idle {
+        endpoint = endpoint.keep_alive_while_idle(enabled);
+    }
+
+    if config.server_uri.starts_with("https://") {
         endpoint
             .tls_config(tonic::transport::ClientTlsConfig::new().with_native_roots())
             .map_err(|e| ClientError::GrpcError(format!("TLS config failed: {}", e)))?
@@ -45,7 +62,7 @@ async fn build_channel(uri: &str) -> Result<Channel, ClientError> {
 
 impl GrpcClient {
     pub async fn new(config: GrpcConfig) -> Result<Self, ClientError> {
-        let channel = build_channel(&config.server_uri).await.map_err(|e| {
+        let channel = build_channel(&config).await.map_err(|e| {
             error!("Failed to connect to gRPC server: {}", e);
             e
         })?;
