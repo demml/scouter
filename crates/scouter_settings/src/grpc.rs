@@ -15,6 +15,21 @@ pub struct GrpcConfig {
     #[pyo3(get, set)]
     pub password: String,
 
+    #[pyo3(get, set)]
+    pub timeout_secs: Option<u64>,
+
+    #[pyo3(get, set)]
+    pub connect_timeout_secs: Option<u64>,
+
+    #[pyo3(get, set)]
+    pub keep_alive_interval_secs: Option<u64>,
+
+    #[pyo3(get, set)]
+    pub keep_alive_timeout_secs: Option<u64>,
+
+    #[pyo3(get, set)]
+    pub keep_alive_while_idle: Option<bool>,
+
     #[pyo3(get)]
     pub transport_type: TransportType,
 }
@@ -26,11 +41,22 @@ impl GrpcConfig {
         server_uri=None,
         username=None,
         password=None,
+        timeout_secs=None,
+        connect_timeout_secs=None,
+        keep_alive_interval_secs=None,
+        keep_alive_timeout_secs=None,
+        keep_alive_while_idle=None,
     ))]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         server_uri: Option<String>,
         username: Option<String>,
         password: Option<String>,
+        timeout_secs: Option<u64>,
+        connect_timeout_secs: Option<u64>,
+        keep_alive_interval_secs: Option<u64>,
+        keep_alive_timeout_secs: Option<u64>,
+        keep_alive_while_idle: Option<bool>,
     ) -> Self {
         let server_uri = server_uri.unwrap_or_else(|| {
             std::env::var("SCOUTER_GRPC_URI")
@@ -49,6 +75,11 @@ impl GrpcConfig {
             server_uri,
             username,
             password,
+            timeout_secs,
+            connect_timeout_secs,
+            keep_alive_interval_secs,
+            keep_alive_timeout_secs,
+            keep_alive_while_idle,
             transport_type: TransportType::Grpc,
         }
     }
@@ -60,6 +91,6 @@ impl GrpcConfig {
 
 impl Default for GrpcConfig {
     fn default() -> Self {
-        Self::new(None, None, None)
+        Self::new(None, None, None, None, None, None, None, None)
     }
 }
