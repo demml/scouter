@@ -26,7 +26,7 @@ prost-types = { workspace = true }
 
 [features]
 default = []
-client = ["tonic/channel"]
+client = ["tonic/channel", "tonic/tls-aws-lc", "tonic/tls-native-roots"]
 server = ["tonic/server"]
 all = ["client", "server"]
 

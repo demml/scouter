@@ -17,30 +17,44 @@ pub const AUTHORIZATION: &str = "authorization";
 
 #[derive(Clone, Debug)]
 pub struct GrpcClient {
+    channel: Channel,
     message_client: MessageServiceClient<Channel>,
     auth_client: AuthServiceClient<Channel>,
     auth_token: Arc<RwLock<String>>,
     config: GrpcConfig,
 }
 
-impl GrpcClient {
-    pub async fn new(config: GrpcConfig) -> Result<Self, ClientError> {
-        let channel = Channel::from_shared(config.server_uri.clone())
-            .map_err(|e| {
-                error!("Failed to create gRPC channel: {}", e);
-                ClientError::GrpcError(e.to_string())
-            })?
+async fn build_channel(uri: &str) -> Result<Channel, ClientError> {
+    let endpoint = Channel::from_shared(uri.to_string())
+        .map_err(|e| ClientError::GrpcError(format!("Invalid URI: {}", e)))?;
+
+    if uri.starts_with("https://") {
+        endpoint
+            .tls_config(tonic::transport::ClientTlsConfig::new().with_native_roots())
+            .map_err(|e| ClientError::GrpcError(format!("TLS config failed: {}", e)))?
             .connect()
             .await
-            .map_err(|e| {
-                error!("Failed to connect to gRPC server: {}", e);
-                ClientError::GrpcError(e.to_string())
-            })?;
+            .map_err(|e| ClientError::GrpcError(format!("Failed to connect (TLS): {}", e)))
+    } else {
+        endpoint
+            .connect()
+            .await
+            .map_err(|e| ClientError::GrpcError(format!("Failed to connect: {}", e)))
+    }
+}
+
+impl GrpcClient {
+    pub async fn new(config: GrpcConfig) -> Result<Self, ClientError> {
+        let channel = build_channel(&config.server_uri).await.map_err(|e| {
+            error!("Failed to connect to gRPC server: {}", e);
+            e
+        })?;
 
         let message_client = MessageServiceClient::new(channel.clone());
-        let auth_client = AuthServiceClient::new(channel);
+        let auth_client = AuthServiceClient::new(channel.clone());
 
         let mut grpc_client = Self {
+            channel,
             message_client,
             auth_client,
             auth_token: Arc::new(RwLock::new(String::new())),
@@ -206,13 +220,7 @@ impl GrpcClient {
     }
 
     pub async fn health_check(&self) -> Result<bool, ClientError> {
-        let channel = Channel::from_shared(self.config.server_uri.clone())
-            .map_err(|e| ClientError::GrpcError(format!("Invalid URI: {}", e)))?
-            .connect()
-            .await
-            .map_err(|e| ClientError::GrpcError(format!("Connection failed: {}", e)))?;
-
-        let mut health_client = HealthClient::new(channel);
+        let mut health_client = HealthClient::new(self.channel.clone());
 
         // Check health of MessageService
         let request = HealthCheckRequest {
