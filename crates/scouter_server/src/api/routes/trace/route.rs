@@ -12,13 +12,47 @@ use scouter_sql::sql::traits::TraceSqlLogic;
 use scouter_sql::PostgresClient;
 use scouter_types::{
     contracts::ScouterServerError, sql::TraceFilters, SpansFromTagsRequest, TraceBaggageResponse,
-    TraceMetricsRequest, TraceMetricsResponse, TracePaginationResponse, TraceReceivedResponse,
-    TraceRequest, TraceSpansResponse,
+    TraceId, TraceMetricsRequest, TraceMetricsResponse, TracePaginationResponse,
+    TraceReceivedResponse, TraceRequest, TraceSpansResponse,
 };
+use sqlx::Pool;
+use sqlx::Postgres;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 use tracing::instrument;
 use tracing::{debug, error};
+
+/// Look up all trace IDs (as raw 16-byte `Vec<u8>`) stored in `scouter.trace_entities`
+/// for a given `entity_uid` (UUID string). Returns an empty vec when `entity_uid` is `None`.
+async fn resolve_entity_trace_ids(
+    pool: &Pool<Postgres>,
+    entity_uid: Option<&str>,
+) -> Vec<Vec<u8>> {
+    let Some(uid_str) = entity_uid else {
+        return Vec::new();
+    };
+    let uuid: uuid::Uuid = match uid_str.parse() {
+        Ok(u) => u,
+        Err(e) => {
+            error!("Invalid entity_uid '{}': {:?}", uid_str, e);
+            return Vec::new();
+        }
+    };
+    let uid_bytes: &[u8] = uuid.as_bytes();
+    match sqlx::query_scalar::<_, Vec<u8>>(
+        "SELECT trace_id FROM scouter.trace_entities WHERE entity_uid = $1",
+    )
+    .bind(uid_bytes)
+    .fetch_all(pool)
+    .await
+    {
+        Ok(ids) => ids,
+        Err(e) => {
+            error!("Failed to resolve entity_uid trace IDs: {:?}", e);
+            Vec::new()
+        }
+    }
+}
 
 pub async fn get_trace_baggage(
     State(data): State<Arc<AppState>>,
@@ -40,10 +74,29 @@ pub async fn get_trace_baggage(
 #[instrument(skip_all)]
 pub async fn paginated_traces(
     State(data): State<Arc<AppState>>,
-    Json(body): Json<TraceFilters>,
+    Json(mut body): Json<TraceFilters>,
 ) -> Result<Json<TracePaginationResponse>, (StatusCode, Json<ScouterServerError>)> {
     debug!("Getting paginated traces with filters: {:?}", body);
-    let pagination_response = PostgresClient::get_paginated_traces(&data.db_pool, body.clone())
+
+    // ── Resolve entity_uid → trace_ids via Postgres trace_entities ───────────
+    // attribute_filters are handled inside get_paginated_traces via JOIN with trace_spans.
+    let entity_trace_ids =
+        resolve_entity_trace_ids(&data.db_pool, body.entity_uid.as_deref()).await;
+
+    if !entity_trace_ids.is_empty() {
+        let hex_ids: Vec<String> = entity_trace_ids.iter().map(hex::encode).collect();
+        body.trace_ids = Some(match body.trace_ids {
+            Some(existing) if !existing.is_empty() => {
+                existing.into_iter().filter(|id| hex_ids.contains(id)).collect()
+            }
+            _ => hex_ids,
+        });
+    }
+
+    let pagination_response = data
+        .trace_summary_service
+        .query_service
+        .get_paginated_traces(&body)
         .await
         .map_err(|e| {
             error!("Failed to get paginated traces: {:?}", e);
@@ -66,24 +119,37 @@ pub async fn get_trace_spans(
     State(data): State<Arc<AppState>>,
     Query(params): Query<TraceRequest>,
 ) -> Result<Json<TraceSpansResponse>, (StatusCode, Json<ScouterServerError>)> {
-    // Execute both queries concurrently
     debug!(
         "Getting trace spans for trace_id: {}, service_name: {:?}",
         params.trace_id, params.service_name,
     );
-    let spans = PostgresClient::get_trace_spans(
-        &data.db_pool,
-        &params.trace_id,
-        params.service_name.as_deref(),
-    )
-    .await
-    .map_err(|e| {
-        error!("Failed to get trace spans: {:?}", e);
+
+    let trace_id_bytes = TraceId::hex_to_bytes(&params.trace_id).map_err(|e| {
+        error!("Invalid trace_id hex: {:?}", e);
         (
-            StatusCode::INTERNAL_SERVER_ERROR,
+            StatusCode::BAD_REQUEST,
             Json(ScouterServerError::get_trace_spans_error(e)),
         )
     })?;
+
+    let spans = data
+        .trace_service
+        .query_service
+        .get_trace_spans(
+            Some(trace_id_bytes.as_slice()),
+            params.service_name.as_deref(),
+            None,
+            None,
+            None,
+        )
+        .await
+        .map_err(|e| {
+            error!("Failed to get trace spans: {:?}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::get_trace_spans_error(e)),
+            )
+        })?;
 
     Ok(Json(TraceSpansResponse { spans }))
 }
@@ -119,23 +185,41 @@ pub async fn trace_metrics(
     Json(body): Json<TraceMetricsRequest>,
 ) -> Result<Json<TraceMetricsResponse>, (StatusCode, Json<ScouterServerError>)> {
     debug!("Getting trace metrics for request: {:?}", body);
-    let metrics = PostgresClient::get_trace_metrics(
-        &data.db_pool,
-        body.service_name.as_deref(),
-        body.start_time,
-        body.end_time,
-        &body.bucket_interval,
-        body.attribute_filters,
-        body.entity_uid,
-    )
-    .await
-    .map_err(|e| {
-        error!("Failed to get trace metrics: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ScouterServerError::get_trace_metrics_error(e)),
+
+    // ── Resolve entity_uid → raw trace_id bytes via Postgres trace_entities ──
+    let entity_trace_ids =
+        resolve_entity_trace_ids(&data.db_pool, body.entity_uid.as_deref()).await;
+
+    let entity_ids_ref: Option<&[Vec<u8>]> = if entity_trace_ids.is_empty() {
+        None
+    } else {
+        Some(&entity_trace_ids)
+    };
+
+    let attr_filters_ref: Option<&[String]> = body
+        .attribute_filters
+        .as_deref()
+        .filter(|f| !f.is_empty());
+
+    let metrics = data
+        .trace_service
+        .query_service
+        .get_trace_metrics(
+            body.service_name.as_deref(),
+            body.start_time,
+            body.end_time,
+            &body.bucket_interval,
+            attr_filters_ref,
+            entity_ids_ref,
         )
-    })?;
+        .await
+        .map_err(|e| {
+            error!("Failed to get trace metrics: {:?}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::get_trace_metrics_error(e)),
+            )
+        })?;
 
     Ok(Json(TraceMetricsResponse { metrics }))
 }

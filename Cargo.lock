@@ -6569,6 +6569,7 @@ dependencies = [
  "datafusion",
  "deltalake",
  "futures",
+ "hex",
  "object_store",
  "parquet 58.0.0",
  "potato-head",
@@ -6804,6 +6805,7 @@ dependencies = [
  "clap",
  "flume",
  "futures",
+ "hex",
  "http-body-util",
  "jsonwebtoken 9.3.1",
  "metrics",
@@ -6845,6 +6847,7 @@ dependencies = [
  "tower-http",
  "tracing",
  "url",
+ "uuid",
 ]
 
 [[package]]

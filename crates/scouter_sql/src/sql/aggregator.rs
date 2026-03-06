@@ -3,7 +3,8 @@ use crate::sql::query::Queries;
 use crate::sql::utils::EntityBytea;
 use chrono::{DateTime, Duration, Timelike, Utc};
 use dashmap::DashMap;
-use scouter_types::{Attribute, TraceId, TraceSpanRecord, SCOUTER_ENTITY};
+use scouter_dataframe::parquet::tracing::summary::TraceSummaryService;
+use scouter_types::{Attribute, TraceId, TraceSpanRecord, TraceSummaryRecord, SCOUTER_ENTITY};
 use sqlx::PgPool;
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -12,6 +13,24 @@ use tokio::sync::RwLock;
 use tokio::time::{interval, Duration as StdDuration};
 use tracing::{error, info, warn};
 const TRACE_BATCH_SIZE: usize = 1000;
+
+// ── Global TraceSummaryService singleton ─────────────────────────────────────
+static TRACE_SUMMARY_SERVICE: std::sync::OnceLock<Arc<TraceSummaryService>> =
+    std::sync::OnceLock::new();
+
+/// Register the global TraceSummaryService. Called once during server startup.
+pub fn init_trace_summary_service(service: Arc<TraceSummaryService>) -> Result<(), SqlError> {
+    TRACE_SUMMARY_SERVICE.set(service).map_err(|_| {
+        SqlError::TraceCacheError("TraceSummaryService already initialized".to_string())
+    })?;
+    info!("TraceSummaryService global singleton registered in aggregator");
+    Ok(())
+}
+
+/// Retrieve the global TraceSummaryService (if initialized).
+pub fn get_trace_summary_service() -> Option<Arc<TraceSummaryService>> {
+    TRACE_SUMMARY_SERVICE.get().cloned()
+}
 
 const MAX_TOTAL_SPANS: u64 = 1_000_000;
 
@@ -144,6 +163,24 @@ impl TraceAggregator {
     pub fn is_stale(&self, stale_duration: Duration) -> bool {
         (Utc::now() - self.last_updated) >= stale_duration
     }
+
+    /// Convert to the lightweight `TraceSummaryRecord` for Delta Lake writes.
+    pub fn to_summary_record(&self) -> TraceSummaryRecord {
+        TraceSummaryRecord {
+            trace_id: self.trace_id.clone(),
+            service_name: self.service_name.clone(),
+            scope_name: self.scope_name.clone(),
+            scope_version: self.scope_version.clone(),
+            root_operation: self.root_operation.clone(),
+            start_time: self.start_time,
+            end_time: self.end_time,
+            status_code: self.status_code,
+            status_message: self.status_message.clone(),
+            span_count: self.span_count,
+            error_count: self.error_count,
+            resource_attributes: self.resource_attributes.clone(),
+        }
+    }
 }
 
 pub struct TraceCache {
@@ -218,7 +255,6 @@ impl TraceCache {
             }
         }
 
-        // Decrement by actual span count, not trace count
         self.total_span_count
             .fetch_sub(spans_freed, Ordering::Relaxed);
 
@@ -237,51 +273,33 @@ impl TraceCache {
         Ok(count)
     }
 
+    /// Write a batch of trace aggregations.
+    ///
+    /// Primary: Delta Lake via `TraceSummaryService` (span counts, timing, error rates).
+    /// Secondary: Postgres for entity tag associations only (unchanged).
     async fn upsert_batch(
         &self,
         pool: &PgPool,
         traces: &[(TraceId, TraceAggregator)],
     ) -> Result<(), SqlError> {
-        let mut created_ats = Vec::with_capacity(traces.len());
-        let mut bucket_times = Vec::with_capacity(traces.len());
-        let mut trace_ids = Vec::with_capacity(traces.len());
-        let mut service_names = Vec::with_capacity(traces.len());
-        let mut scope_names = Vec::with_capacity(traces.len());
-        let mut scope_versions = Vec::with_capacity(traces.len());
-        let mut root_operations = Vec::with_capacity(traces.len());
-        let mut start_times = Vec::with_capacity(traces.len());
-        let mut end_times = Vec::with_capacity(traces.len());
-        let mut durations_ms = Vec::with_capacity(traces.len());
-        let mut status_codes = Vec::with_capacity(traces.len());
-        let mut status_messages = Vec::with_capacity(traces.len());
-        let mut span_counts = Vec::with_capacity(traces.len());
-        let mut error_counts = Vec::with_capacity(traces.len());
-        let mut resource_attrs = Vec::with_capacity(traces.len());
+        // ── Delta Lake: write summary records ────────────────────────────────
+        if let Some(summary_service) = get_trace_summary_service() {
+            let records: Vec<TraceSummaryRecord> = traces
+                .iter()
+                .map(|(_, agg)| agg.to_summary_record())
+                .collect();
+            if let Err(e) = summary_service.write_summaries(records).await {
+                error!("Failed to write trace summaries to Delta Lake: {:?}", e);
+            }
+        }
 
-        // Collect entity tags for batch insert
+        // ── Postgres: entity tag associations only ────────────────────────────
         let mut entity_trace_ids = Vec::new();
         let mut entity_uids = Vec::new();
         let mut entity_tagged_ats = Vec::new();
         let now = Utc::now();
 
         for (trace_id, agg) in traces {
-            created_ats.push(agg.first_seen);
-            bucket_times.push(agg.bucket_time());
-            trace_ids.push(trace_id.as_bytes());
-            service_names.push(&agg.service_name);
-            scope_names.push(&agg.scope_name);
-            scope_versions.push(&agg.scope_version);
-            root_operations.push(&agg.root_operation);
-            start_times.push(agg.start_time);
-            end_times.push(agg.end_time.unwrap_or(agg.start_time));
-            durations_ms.push(agg.duration_ms().unwrap_or(0));
-            status_codes.push(agg.status_code);
-            status_messages.push(&agg.status_message);
-            span_counts.push(agg.span_count);
-            error_counts.push(agg.error_count);
-            resource_attrs.push(serde_json::to_value(&agg.resource_attributes)?);
-
-            // Collect entity tags for this trace
             for entity_uid in &agg.entity_tags {
                 entity_trace_ids.push(trace_id.as_bytes());
                 entity_uids.push(entity_uid.as_bytes());
@@ -289,27 +307,6 @@ impl TraceCache {
             }
         }
 
-        // 1. Upsert trace aggregations
-        sqlx::query(Queries::UpsertTrace.get_query())
-            .bind(&bucket_times)
-            .bind(&created_ats)
-            .bind(&trace_ids)
-            .bind(&service_names as &[&String])
-            .bind(&scope_names as &[&String])
-            .bind(&scope_versions as &[&String])
-            .bind(&root_operations as &[&String])
-            .bind(&start_times)
-            .bind(&end_times)
-            .bind(&durations_ms)
-            .bind(&status_codes)
-            .bind(&status_messages as &[&String])
-            .bind(&span_counts)
-            .bind(&error_counts)
-            .bind(&resource_attrs)
-            .execute(pool)
-            .await?;
-
-        // 2. Batch insert all entity tags in one query
         if !entity_trace_ids.is_empty() {
             sqlx::query(Queries::InsertTraceEntityTags.get_query())
                 .bind(&entity_trace_ids)

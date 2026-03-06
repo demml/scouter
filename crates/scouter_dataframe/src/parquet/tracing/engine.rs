@@ -10,9 +10,9 @@ use datafusion::prelude::SessionContext;
 use deltalake::operations::optimize::OptimizeType;
 use deltalake::DeltaTable;
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::sql::TraceSpan;
 use scouter_types::SpanId;
 use scouter_types::TraceId;
+use scouter_types::TraceSpanRecord;
 use scouter_types::{Attribute, SpanEvent, SpanLink};
 use serde_json::Value;
 use std::sync::Arc;
@@ -21,21 +21,26 @@ use tokio::sync::{mpsc, RwLock as AsyncRwLock};
 use tokio::time::{interval, Duration};
 use tracing::{debug, error, info, instrument};
 use url::Url;
+
 const TRACE_SPAN_TABLE_NAME: &str = "trace_spans";
 
 pub enum TableCommand {
     Write {
-        spans: Vec<TraceSpan>,
+        spans: Vec<TraceSpanRecord>,
         respond_to: oneshot::Sender<Result<(), TraceEngineError>>,
     },
     Optimize {
+        respond_to: oneshot::Sender<Result<(), TraceEngineError>>,
+    },
+    Vacuum {
+        retention_hours: u64,
         respond_to: oneshot::Sender<Result<(), TraceEngineError>>,
     },
     Shutdown,
 }
 
 async fn build_url(object_store: &ObjectStore) -> Result<Url, TraceEngineError> {
-    let base_url = object_store.get_base_url()?; // Use existing method
+    let base_url = object_store.get_base_url()?;
     Ok(base_url)
 }
 
@@ -64,7 +69,6 @@ async fn build_or_create_table(
 
     info!("Attempting to load table at URL: {}", table_url);
 
-    // For local filesystem, ensure directory exists
     if table_url.scheme() == "file" {
         if let Ok(path) = table_url.to_file_path() {
             if !path.exists() {
@@ -86,14 +90,12 @@ async fn build_or_create_table(
         Err(e) => Err(e.into()),
     }
 }
-/// Core trace span dataframe for high-throughput observability workloads
+
+/// Core trace span engine for high-throughput observability workloads.
 ///
-/// Design decisions:
-/// - Dictionary encoding for service_name, span_kind (high cardinality, high repetition)
-/// - FixedSizeBinary for IDs (compact representation vs hex strings)
-/// - Nested structures for events/links to maintain relational integrity
-/// - Search blob for full-text queries without parsing JSON
-/// - Attribute shredding foundation for future optimization
+/// Hierarchy fields (depth, span_order, path, root_span_id) are NOT stored — they are
+/// computed at query time via Rust DFS traversal. This matches how Jaeger/Zipkin operate and
+/// avoids ordering dependencies during ingest (spans may arrive out-of-order within a batch).
 pub struct TraceSpanDBEngine {
     schema: Arc<Schema>,
     pub object_store: ObjectStore,
@@ -119,9 +121,11 @@ impl TraceSpanDBEngine {
         })
     }
 
-    /// Build a RecordBatch from a vector of TraceSpan records
-    pub fn build_batch(&self, spans: Vec<TraceSpan>) -> Result<RecordBatch, TraceEngineError> {
-        // we need to time the batch building process to identify bottlenecks
+    /// Build a RecordBatch from a vector of TraceSpanRecord (raw ingest type, no hierarchy).
+    pub fn build_batch(
+        &self,
+        spans: Vec<TraceSpanRecord>,
+    ) -> Result<RecordBatch, TraceEngineError> {
         let start_time = std::time::Instant::now();
         let mut builder = TraceSpanBatchBuilder::new(self.schema.clone());
 
@@ -142,9 +146,8 @@ impl TraceSpanDBEngine {
         Ok(record_batch)
     }
 
-    /// Helper to write spans directly to the Delta table
-    /// Write will consume current table state and return updated table
-    async fn write_spans(&self, spans: Vec<TraceSpan>) -> Result<(), TraceEngineError> {
+    /// Write spans to the Delta table (single-writer invariant via actor channel).
+    async fn write_spans(&self, spans: Vec<TraceSpanRecord>) -> Result<(), TraceEngineError> {
         info!("Engine received write request for {} spans", spans.len());
 
         let batch = self
@@ -155,9 +158,7 @@ impl TraceSpanDBEngine {
         let mut table_guard = self.table.write().await;
         info!("Acquired table write lock");
 
-        // Try to update table state, but ignore if table is freshly created
         if let Err(e) = table_guard.update_incremental(None).await {
-            // If table is new, it won't have log files yet - this is expected
             info!("Table update skipped (table may be newly created): {}", e);
         }
 
@@ -170,12 +171,9 @@ impl TraceSpanDBEngine {
 
         info!("Successfully wrote batch to Delta Lake");
 
-        // Re-register with SessionContext so queries see the new data
-        {
-            self.ctx.deregister_table(TRACE_SPAN_TABLE_NAME)?;
-            self.ctx
-                .register_table(TRACE_SPAN_TABLE_NAME, Arc::new(updated_table.clone()))?;
-        }
+        self.ctx.deregister_table(TRACE_SPAN_TABLE_NAME)?;
+        self.ctx
+            .register_table(TRACE_SPAN_TABLE_NAME, Arc::new(updated_table.clone()))?;
 
         *table_guard = updated_table;
 
@@ -196,7 +194,6 @@ impl TraceSpanDBEngine {
             ]))
             .await?;
 
-        // Re-register with SessionContext
         self.ctx.deregister_table(TRACE_SPAN_TABLE_NAME)?;
         self.ctx
             .register_table(TRACE_SPAN_TABLE_NAME, Arc::new(updated_table.clone()))?;
@@ -206,7 +203,26 @@ impl TraceSpanDBEngine {
         Ok(())
     }
 
-    #[instrument(skip_all, name = "buffering_actor")]
+    async fn vacuum_table(&self, retention_hours: u64) -> Result<(), TraceEngineError> {
+        let mut table_guard = self.table.write().await;
+
+        let (updated_table, _metrics) = table_guard
+            .clone()
+            .vacuum()
+            .with_retention_period(chrono::Duration::hours(retention_hours as i64))
+            .with_enforce_retention_duration(false)
+            .await?;
+
+        self.ctx.deregister_table(TRACE_SPAN_TABLE_NAME)?;
+        self.ctx
+            .register_table(TRACE_SPAN_TABLE_NAME, Arc::new(updated_table.clone()))?;
+
+        *table_guard = updated_table;
+
+        Ok(())
+    }
+
+    #[instrument(skip_all, name = "trace_engine_actor")]
     pub fn start_actor(
         self,
         compaction_interval_hours: u64,
@@ -224,9 +240,7 @@ impl TraceSpanDBEngine {
                         match cmd {
                             TableCommand::Write { spans, respond_to } => {
                                 match self.write_spans(spans).await {
-                                    Ok(_) => {
-                                        let _ = respond_to.send(Ok(()));
-                                    }
+                                    Ok(_) => { let _ = respond_to.send(Ok(())); }
                                     Err(e) => {
                                         tracing::error!("Write failed: {}", e);
                                         let _ = respond_to.send(Err(e));
@@ -241,6 +255,18 @@ impl TraceSpanDBEngine {
                                     }
                                     Err(e) => {
                                         tracing::error!("Compaction failed: {}", e);
+                                        let _ = respond_to.send(Err(e));
+                                    }
+                                }
+                            }
+                            TableCommand::Vacuum { retention_hours, respond_to } => {
+                                match self.vacuum_table(retention_hours).await {
+                                    Ok(_) => {
+                                        tracing::info!("Vacuum completed");
+                                        let _ = respond_to.send(Ok(()));
+                                    }
+                                    Err(e) => {
+                                        tracing::error!("Vacuum failed: {}", e);
                                         let _ = respond_to.send(Err(e));
                                     }
                                 }
@@ -266,12 +292,10 @@ impl TraceSpanDBEngine {
     }
 }
 
-/// Efficient builder for converting TraceSpan records into Arrow RecordBatch
+/// Efficient builder for converting `TraceSpanRecord` (ingest type) into Arrow `RecordBatch`.
 ///
-/// Design notes:
-/// - Pre-allocates builders to minimize reallocations
-/// - Uses type-safe builders to catch schema mismatches at compile time
-/// - Handles null values properly for optional fields
+/// Hierarchy fields (depth, span_order, path, root_span_id) are NOT included — they are
+/// computed at query time from the flat span data stored here.
 pub struct TraceSpanBatchBuilder {
     schema: SchemaRef,
 
@@ -279,7 +303,14 @@ pub struct TraceSpanBatchBuilder {
     trace_id: FixedSizeBinaryBuilder,
     span_id: FixedSizeBinaryBuilder,
     parent_span_id: FixedSizeBinaryBuilder,
-    root_span_id: FixedSizeBinaryBuilder,
+
+    // W3C Trace Context
+    flags: Int32Builder,
+    trace_state: StringBuilder,
+
+    // Instrumentation scope
+    scope_name: StringBuilder,
+    scope_version: StringBuilder,
 
     // Metadata builders
     service_name: StringDictionaryBuilder<Int32Type>,
@@ -295,13 +326,12 @@ pub struct TraceSpanBatchBuilder {
     status_code: Int32Builder,
     status_message: StringBuilder,
 
-    // Hierarchy builders
-    depth: Int32Builder,
-    span_order: Int32Builder,
-    path: ListBuilder<StringBuilder>,
+    // Scouter-specific
+    label: StringBuilder,
 
     // Attribute builders
     attributes: MapBuilder<StringBuilder, StringViewBuilder>,
+    resource_attributes: MapBuilder<StringBuilder, StringViewBuilder>,
 
     // Nested structure builders
     events: ListBuilder<StructBuilder>,
@@ -317,11 +347,15 @@ pub struct TraceSpanBatchBuilder {
 
 impl TraceSpanBatchBuilder {
     pub fn new(schema: SchemaRef) -> Self {
-        // Initialize all builders
         let trace_id = FixedSizeBinaryBuilder::new(16);
         let span_id = FixedSizeBinaryBuilder::new(8);
         let parent_span_id = FixedSizeBinaryBuilder::new(8);
-        let root_span_id = FixedSizeBinaryBuilder::new(8);
+
+        let flags = Int32Builder::new();
+        let trace_state = StringBuilder::new();
+
+        let scope_name = StringBuilder::new();
+        let scope_version = StringBuilder::new();
 
         let service_name = StringDictionaryBuilder::<Int32Type>::new();
         let span_name = StringBuilder::new();
@@ -334,9 +368,7 @@ impl TraceSpanBatchBuilder {
         let status_code = Int32Builder::new();
         let status_message = StringBuilder::new();
 
-        let depth = Int32Builder::new();
-        let span_order = Int32Builder::new();
-        let path = ListBuilder::new(StringBuilder::new());
+        let label = StringBuilder::new();
 
         let map_field_name = MapFieldNames {
             entry: "key_value".to_string(),
@@ -348,8 +380,12 @@ impl TraceSpanBatchBuilder {
             StringBuilder::new(),
             StringViewBuilder::new(),
         );
+        let resource_attributes = MapBuilder::new(
+            Some(map_field_name.clone()),
+            StringBuilder::new(),
+            StringViewBuilder::new(),
+        );
 
-        // Events list builder - must match SpanEvent struct
         let event_fields = vec![
             Field::new("name", DataType::Utf8, false),
             Field::new(
@@ -376,7 +412,6 @@ impl TraceSpanBatchBuilder {
         let event_struct_builder = StructBuilder::new(event_fields, event_struct_builders);
         let events = ListBuilder::new(event_struct_builder);
 
-        // Links list builder - must match SpanLink struct
         let link_fields = vec![
             Field::new("trace_id", DataType::FixedSizeBinary(16), false),
             Field::new("span_id", DataType::FixedSizeBinary(8), false),
@@ -409,7 +444,10 @@ impl TraceSpanBatchBuilder {
             trace_id,
             span_id,
             parent_span_id,
-            root_span_id,
+            flags,
+            trace_state,
+            scope_name,
+            scope_version,
             service_name,
             span_name,
             span_kind,
@@ -418,10 +456,9 @@ impl TraceSpanBatchBuilder {
             duration_ms,
             status_code,
             status_message,
-            depth,
-            span_order,
-            path,
+            label,
             attributes,
+            resource_attributes,
             events,
             links,
             input,
@@ -430,159 +467,159 @@ impl TraceSpanBatchBuilder {
         }
     }
 
-    /// Append a single TraceSpan to the batch
-    pub fn append(&mut self, span: &TraceSpan) -> Result<(), TraceEngineError> {
-        // IDs - convert hex strings to binary
-        Self::append_id_as_bytes(&span.trace_id, &mut self.trace_id, 16).inspect_err(|e| {
-            error!("Failed to append trace_id for span {}: {}", span.span_id, e);
-        })?;
-        Self::append_id_as_bytes(&span.span_id, &mut self.span_id, 8).inspect_err(|e| {
-            error!("Failed to append span_id for span {}: {}", span.span_id, e);
-        })?;
-        Self::append_id_as_bytes(&span.root_span_id, &mut self.root_span_id, 8).inspect_err(
-            |e| {
-                error!(
-                    "Failed to append root_span_id for span {}: {}",
-                    span.span_id, e
-                );
-            },
-        )?;
+    /// Append a single `TraceSpanRecord` to the batch.
+    pub fn append(&mut self, span: &TraceSpanRecord) -> Result<(), TraceEngineError> {
+        // IDs
+        let trace_bytes = span.trace_id.as_bytes();
+        self.trace_id
+            .append_value(trace_bytes)
+            .map_err(TraceEngineError::ArrowError)?;
+
+        let span_bytes = span.span_id.as_bytes();
+        self.span_id
+            .append_value(span_bytes)
+            .map_err(TraceEngineError::ArrowError)?;
 
         match &span.parent_span_id {
-            Some(pid) => Self::append_id_as_bytes(pid, &mut self.parent_span_id, 8)?,
+            Some(pid) => {
+                self.parent_span_id
+                    .append_value(pid.as_bytes())
+                    .map_err(TraceEngineError::ArrowError)?;
+            }
             None => self.parent_span_id.append_null(),
+        }
+
+        // W3C Trace Context
+        self.flags.append_value(span.flags);
+        self.trace_state.append_value(&span.trace_state);
+
+        // Instrumentation scope
+        self.scope_name.append_value(&span.scope_name);
+        match &span.scope_version {
+            Some(v) => self.scope_version.append_value(v),
+            None => self.scope_version.append_null(),
         }
 
         // Metadata
         self.service_name.append_value(&span.service_name);
         self.span_name.append_value(&span.span_name);
-
-        match &span.span_kind {
-            Some(kind) => self.span_kind.append_value(kind),
-            None => self.span_kind.append_null(),
+        // span_kind is a non-empty string in TraceSpanRecord — store as non-null
+        if span.span_kind.is_empty() {
+            self.span_kind.append_null();
+        } else {
+            self.span_kind.append_value(&span.span_kind);
         }
 
         // Timestamps
         self.start_time
             .append_value(span.start_time.timestamp_micros());
-
         self.end_time.append_value(span.end_time.timestamp_micros());
-
         self.duration_ms.append_value(span.duration_ms);
 
         // Status
         self.status_code.append_value(span.status_code);
-        match &span.status_message {
-            Some(msg) => self.status_message.append_value(msg),
-            None => self.status_message.append_null(),
+        if span.status_message.is_empty() {
+            self.status_message.append_null();
+        } else {
+            self.status_message.append_value(&span.status_message);
         }
 
-        // Hierarchy
-        self.depth.append_value(span.depth);
-        self.span_order.append_value(span.span_order);
-
-        // Path (list of strings)
-        for path_segment in &span.path {
-            self.path.values().append_value(path_segment);
+        // Scouter-specific
+        match &span.label {
+            Some(l) => self.label.append_value(l),
+            None => self.label.append_null(),
         }
-        self.path.append(true);
 
-        // Attributes (map)
+        // Attributes
         self.append_attributes(&span.attributes).inspect_err(|e| {
             error!(
                 "Failed to append attributes for span {}: {}",
                 span.span_id, e
-            );
+            )
         })?;
 
-        // Events (nested list of structs)
-        self.append_events(&span.events).inspect_err(|e| {
-            error!("Failed to append events for span {}: {}", span.span_id, e);
-        })?;
+        // Resource attributes
+        self.append_resource_attributes(&span.resource_attributes)
+            .inspect_err(|e| {
+                error!(
+                    "Failed to append resource_attributes for span {}: {}",
+                    span.span_id, e
+                )
+            })?;
 
-        // Links (nested list of structs)
-        self.append_links(&span.links).inspect_err(|e| {
-            error!("Failed to append links for span {}: {}", span.span_id, e);
-        })?;
+        // Events
+        self.append_events(&span.events)
+            .inspect_err(|e| error!("Failed to append events for span {}: {}", span.span_id, e))?;
 
-        // Payloads (potentially large JSON)
+        // Links
+        self.append_links(&span.links)
+            .inspect_err(|e| error!("Failed to append links for span {}: {}", span.span_id, e))?;
+
+        // Payloads
         match &span.input {
-            Some(v) => self.input.append_value(v.to_string()),
-            None => self.input.append_null(),
+            Value::Null => self.input.append_null(),
+            v => self.input.append_value(v.to_string()),
         }
-
         match &span.output {
-            Some(v) => self.output.append_value(v.to_string()),
-            None => self.output.append_null(),
+            Value::Null => self.output.append_null(),
+            v => self.output.append_value(v.to_string()),
         }
 
-        // Search blob - concatenate searchable fields
-        let search_text = self.build_search_blob(span);
+        // Search blob
+        let search_text = Self::build_search_blob(span);
         self.search_blob.append_value(search_text);
 
         Ok(())
     }
 
-    /// Convert hex string ID to binary and append
-    fn append_id_as_bytes(
-        hex_str: &str,
-        builder: &mut FixedSizeBinaryBuilder,
-        expected_size: usize,
-    ) -> Result<(), TraceEngineError> {
-        match expected_size {
-            16 => {
-                let bytes = TraceId::hex_to_bytes(hex_str)?;
-                builder.append_value(&bytes)?;
-            }
-            8 => {
-                let bytes = SpanId::hex_to_bytes(hex_str)?;
-                builder.append_value(&bytes)?;
-            }
-            _ => {
-                return Err(TraceEngineError::InvalidHexId(
-                    hex_str.to_string(),
-                    "Unsupported ID size".to_string(),
-                ))
-            }
-        }
-        Ok(())
-    }
-
-    /// Append attributes as a map (keys must be sorted)
     fn append_attributes(&mut self, attributes: &[Attribute]) -> Result<(), TraceEngineError> {
         for attr in attributes {
             self.attributes.keys().append_value(&attr.key);
-
-            // Convert serde_json::Value to string for storage
             let value_str = match &attr.value {
                 Value::String(s) => s.clone(),
                 Value::Null => String::new(),
                 other => other.to_string(),
             };
-
             self.attributes.values().append_value(value_str);
         }
         self.attributes.append(true)?;
         Ok(())
     }
 
-    /// Append events as a list of structs
+    fn append_resource_attributes(
+        &mut self,
+        attributes: &[Attribute],
+    ) -> Result<(), TraceEngineError> {
+        if attributes.is_empty() {
+            self.resource_attributes.append(false)?; // null map
+        } else {
+            for attr in attributes {
+                self.resource_attributes.keys().append_value(&attr.key);
+                let value_str = match &attr.value {
+                    Value::String(s) => s.clone(),
+                    Value::Null => String::new(),
+                    other => other.to_string(),
+                };
+                self.resource_attributes.values().append_value(value_str);
+            }
+            self.resource_attributes.append(true)?;
+        }
+        Ok(())
+    }
+
     fn append_events(&mut self, events: &[SpanEvent]) -> Result<(), TraceEngineError> {
         let event_struct = self.events.values();
         for event in events {
-            // Event name
             let name_builder = event_struct
                 .field_builder::<StringBuilder>(0)
                 .ok_or_else(|| TraceEngineError::DowncastError("event name builder"))?;
             name_builder.append_value(&event.name);
 
-            // Event timestamp
             let time_builder = event_struct
                 .field_builder::<TimestampMicrosecondBuilder>(1)
                 .ok_or_else(|| TraceEngineError::DowncastError("event timestamp builder"))?;
             time_builder.append_value(event.timestamp.timestamp_micros());
 
-            // Event attributes (nested map) - must be sorted
             let attr_builder = event_struct
                 .field_builder::<MapBuilder<StringBuilder, StringViewBuilder>>(2)
                 .ok_or_else(|| TraceEngineError::DowncastError("event attributes builder"))?;
@@ -598,7 +635,6 @@ impl TraceSpanBatchBuilder {
             }
             attr_builder.append(true)?;
 
-            // Dropped attributes count
             let dropped_builder =
                 event_struct
                     .field_builder::<UInt32Builder>(3)
@@ -614,12 +650,10 @@ impl TraceSpanBatchBuilder {
         Ok(())
     }
 
-    /// Append links as a list of structs
     fn append_links(&mut self, links: &[SpanLink]) -> Result<(), TraceEngineError> {
         let link_struct = self.links.values();
 
         for link in links {
-            // Link trace_id
             let trace_builder = link_struct
                 .field_builder::<FixedSizeBinaryBuilder>(0)
                 .ok_or_else(|| TraceEngineError::DowncastError("link trace_id builder"))?;
@@ -629,7 +663,6 @@ impl TraceSpanBatchBuilder {
             })?;
             trace_builder.append_value(&trace_bytes)?;
 
-            // Link span_id
             let span_builder = link_struct
                 .field_builder::<FixedSizeBinaryBuilder>(1)
                 .ok_or_else(|| TraceEngineError::DowncastError("link span_id builder"))?;
@@ -638,13 +671,11 @@ impl TraceSpanBatchBuilder {
                 .map_err(|e| TraceEngineError::InvalidHexId(link.span_id.clone(), e.to_string()))?;
             span_builder.append_value(&span_bytes)?;
 
-            // Link trace_state - SpanLink.trace_state is String (non-nullable), can be empty
             let state_builder = link_struct
                 .field_builder::<StringBuilder>(2)
                 .ok_or_else(|| TraceEngineError::DowncastError("link trace_state builder"))?;
             state_builder.append_value(&link.trace_state);
 
-            // Link attributes - must be sorted
             let attr_builder = link_struct
                 .field_builder::<MapBuilder<StringBuilder, StringViewBuilder>>(3)
                 .ok_or_else(|| TraceEngineError::DowncastError("link attributes builder"))?;
@@ -660,7 +691,6 @@ impl TraceSpanBatchBuilder {
             }
             attr_builder.append(true)?;
 
-            // Dropped attributes count
             let dropped_builder =
                 link_struct
                     .field_builder::<UInt32Builder>(4)
@@ -676,51 +706,48 @@ impl TraceSpanBatchBuilder {
         Ok(())
     }
 
-    /// Build a concatenated search string for full-text queries
-    ///
-    /// This avoids parsing JSON during queries by pre-computing searchable text
-    fn build_search_blob(&self, span: &TraceSpan) -> String {
+    /// Build a concatenated search string from `TraceSpanRecord` for full-text queries.
+    fn build_search_blob(span: &TraceSpanRecord) -> String {
         let mut search = String::with_capacity(512);
 
-        // Service and span name
         search.push_str(&span.service_name);
         search.push(' ');
         search.push_str(&span.span_name);
         search.push(' ');
+        search.push_str(&span.scope_name);
+        search.push(' ');
 
-        // Status message
-        if let Some(msg) = &span.status_message {
-            search.push_str(msg);
+        if !span.status_message.is_empty() {
+            search.push_str(&span.status_message);
             search.push(' ');
         }
 
-        // Attributes (key:value pairs)
         for attr in &span.attributes {
             search.push_str(&attr.key);
             search.push(':');
-
             let value_str = match &attr.value {
-                Value::String(s) => s.as_str(),
+                Value::String(s) => {
+                    search.push_str(s);
+                    search.push(' ');
+                    continue;
+                }
                 Value::Number(n) => {
                     search.push_str(&n.to_string());
+                    search.push(' ');
                     continue;
                 }
                 Value::Bool(b) => {
                     search.push_str(&b.to_string());
+                    search.push(' ');
                     continue;
                 }
                 Value::Null => continue,
-                _ => {
-                    search.push_str(&attr.value.to_string());
-                    continue;
-                }
+                other => other.to_string(),
             };
-
-            search.push_str(value_str);
+            search.push_str(&value_str);
             search.push(' ');
         }
 
-        // Event names (for searchability)
         for event in &span.events {
             search.push_str(&event.name);
             search.push(' ');
@@ -729,7 +756,7 @@ impl TraceSpanBatchBuilder {
         search
     }
 
-    /// Finalize and build the RecordBatch
+    /// Finalize and build the RecordBatch. Column order must match `create_schema()`.
     pub fn finish(mut self) -> Result<RecordBatch, TraceEngineError> {
         let batch = RecordBatch::try_new(
             self.schema.clone(),
@@ -737,7 +764,10 @@ impl TraceSpanBatchBuilder {
                 Arc::new(self.trace_id.finish()),
                 Arc::new(self.span_id.finish()),
                 Arc::new(self.parent_span_id.finish()),
-                Arc::new(self.root_span_id.finish()),
+                Arc::new(self.flags.finish()),
+                Arc::new(self.trace_state.finish()),
+                Arc::new(self.scope_name.finish()),
+                Arc::new(self.scope_version.finish()),
                 Arc::new(self.service_name.finish()),
                 Arc::new(self.span_name.finish()),
                 Arc::new(self.span_kind.finish()),
@@ -746,10 +776,9 @@ impl TraceSpanBatchBuilder {
                 Arc::new(self.duration_ms.finish()),
                 Arc::new(self.status_code.finish()),
                 Arc::new(self.status_message.finish()),
-                Arc::new(self.depth.finish()),
-                Arc::new(self.span_order.finish()),
-                Arc::new(self.path.finish()),
+                Arc::new(self.label.finish()),
                 Arc::new(self.attributes.finish()),
+                Arc::new(self.resource_attributes.finish()),
                 Arc::new(self.events.finish()),
                 Arc::new(self.links.finish()),
                 Arc::new(self.input.finish()),

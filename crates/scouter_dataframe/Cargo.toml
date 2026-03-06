@@ -16,6 +16,7 @@ scouter-settings = { workspace = true }
 scouter-types = { workspace = true }
 
 arrow = { workspace = true }
+hex = { workspace = true }
 arrow-array  = { workspace = true }
 async-trait = { workspace = true }
 base64 = { workspace = true }

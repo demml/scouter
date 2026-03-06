@@ -1,23 +1,18 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use scouter_dataframe::parquet::tracing::service::TraceSpanService;
-use scouter_mocks::create_simple_trace;
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::sql::TraceSpan;
+use scouter_types::TraceSpanRecord;
 use std::hint::black_box;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::runtime::Runtime;
 
-fn generate_trace_batch(num_traces: usize, spans_per_trace: usize) -> Vec<TraceSpan> {
+fn generate_trace_batch(num_traces: usize, spans_per_trace: usize) -> Vec<TraceSpanRecord> {
+    use scouter_mocks::generate_trace_with_spans;
     (0..num_traces)
         .flat_map(|_| {
-            let mut trace = create_simple_trace();
-            // Duplicate trace pattern to create more spans
-            let base_spans = trace.clone();
-            for _ in 1..spans_per_trace / 3 {
-                trace.extend(base_spans.clone());
-            }
-            trace
+            let (_record, spans, _tags) = generate_trace_with_spans(spans_per_trace, 0);
+            spans
         })
         .collect()
 }
@@ -79,7 +74,7 @@ fn bench_concurrent_writes(c: &mut Criterion) {
                         let service_clone = service.clone();
                         let handle = tokio::spawn(async move {
                             for _ in 0..100 {
-                                let spans = create_simple_trace();
+                                let spans = generate_trace_batch(1, 3);
                                 service_clone.write_spans(spans).await.unwrap();
                             }
                         });
@@ -117,7 +112,7 @@ fn bench_query_performance(c: &mut Criterion) {
                         .unwrap();
 
                     let spans = generate_trace_batch(size / 3, 3);
-                    let trace_id = spans[0].trace_id.clone();
+                    let trace_id = spans[0].trace_id.to_hex();
 
                     service.write_spans(spans).await.unwrap();
                     tokio::time::sleep(Duration::from_secs(3)).await;

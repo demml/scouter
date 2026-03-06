@@ -25,15 +25,47 @@ pub(crate) fn attribute_field() -> Field {
     )
 }
 
+/// Map field for resource_attributes (nullable map, matching attribute_field structure)
+pub(crate) fn resource_attribute_field() -> Field {
+    Field::new(
+        "resource_attributes",
+        DataType::Map(
+            Arc::new(Field::new(
+                "key_value",
+                DataType::Struct(
+                    vec![
+                        Field::new("key", DataType::Utf8, false),
+                        Field::new("value", DataType::Utf8View, true),
+                    ]
+                    .into(),
+                ),
+                false,
+            )),
+            false,
+        ),
+        true, // nullable: a span may have no resource attributes
+    )
+}
+
 pub trait TraceSchemaExt {
-    /// Define the Arrow schema for trace spans
+    /// Define the Arrow schema for trace spans.
+    ///
+    /// Hierarchy fields (depth, span_order, path, root_span_id) are NOT stored —
+    /// they are computed at query time via Rust DFS traversal, matching how Jaeger/Zipkin operate.
+    ///
+    /// Fields align 1:1 with `TraceSpanRecord` (the ingest type), enabling zero-transform writes.
     fn create_schema() -> Schema {
         Schema::new(vec![
             // ========== Core Identifiers ==========
             Field::new("trace_id", DataType::FixedSizeBinary(16), false),
             Field::new("span_id", DataType::FixedSizeBinary(8), false),
             Field::new("parent_span_id", DataType::FixedSizeBinary(8), true),
-            Field::new("root_span_id", DataType::FixedSizeBinary(8), false),
+            // ========== W3C Trace Context ==========
+            Field::new("flags", DataType::Int32, false),
+            Field::new("trace_state", DataType::Utf8, false),
+            // ========== Instrumentation Scope ==========
+            Field::new("scope_name", DataType::Utf8, false),
+            Field::new("scope_version", DataType::Utf8, true),
             // ========== Metadata ==========
             // Dictionary encoding for high-repetition string fields
             Field::new(
@@ -62,15 +94,11 @@ pub trait TraceSchemaExt {
             // ========== Status ==========
             Field::new("status_code", DataType::Int32, false),
             Field::new("status_message", DataType::Utf8, true),
-            // ========== Hierarchy/Navigation ==========
-            Field::new("depth", DataType::Int32, false),
-            Field::new("span_order", DataType::Int32, false),
-            Field::new(
-                "path",
-                DataType::List(Arc::new(Field::new("item", DataType::Utf8, true))),
-                false,
-            ),
+            // ========== Scouter-specific ==========
+            Field::new("label", DataType::Utf8, true),
+            // ========== Attributes ==========
             attribute_field(),
+            resource_attribute_field(),
             // ========== Events (Nested) ==========
             // SpanEvent: all fields non-nullable, attributes Vec can be empty
             Field::new(
@@ -95,7 +123,6 @@ pub trait TraceSchemaExt {
                 false,
             ),
             // ========== Links (Nested) ==========
-            // SpanLink: all fields non-nullable, attributes Vec can be empty
             Field::new(
                 "links",
                 DataType::List(Arc::new(Field::new(
@@ -115,11 +142,10 @@ pub trait TraceSchemaExt {
                 false,
             ),
             // ========== Payload (Large JSON) ==========
-            // Use Utf8View for potentially very large input/output values
             Field::new("input", DataType::Utf8View, true),
             Field::new("output", DataType::Utf8View, true),
             // ========== Full-Text Search Optimization ==========
-            // Pre-computed concatenated search string to avoid JSON parsing
+            // Pre-computed concatenated search string to avoid JSON parsing at query time
             Field::new("search_blob", DataType::Utf8View, false),
         ])
     }
@@ -149,6 +175,10 @@ fn arrow_type_to_delta(arrow_type: &DataType) -> DeltaDataType {
         DataType::Int16 => DeltaDataType::Primitive(PrimitiveType::Short),
         DataType::Int32 => DeltaDataType::Primitive(PrimitiveType::Integer),
         DataType::Int64 => DeltaDataType::Primitive(PrimitiveType::Long),
+        // Unsigned int types — Delta Lake has no native unsigned; map to next-larger signed type
+        DataType::UInt8 | DataType::UInt16 => DeltaDataType::Primitive(PrimitiveType::Short),
+        DataType::UInt32 => DeltaDataType::Primitive(PrimitiveType::Integer),
+        DataType::UInt64 => DeltaDataType::Primitive(PrimitiveType::Long),
         DataType::Float32 => DeltaDataType::Primitive(PrimitiveType::Float),
         DataType::Float64 => DeltaDataType::Primitive(PrimitiveType::Double),
 
@@ -198,7 +228,6 @@ fn arrow_type_to_delta(arrow_type: &DataType) -> DeltaDataType {
                     map_fields[1].is_nullable(),
                 )))
             } else {
-                // Fallback
                 DeltaDataType::Primitive(PrimitiveType::String)
             }
         }
@@ -210,170 +239,3 @@ fn arrow_type_to_delta(arrow_type: &DataType) -> DeltaDataType {
         _ => DeltaDataType::Primitive(PrimitiveType::String),
     }
 }
-
-//#[async_trait]
-//pub trait TraceWriterExt: DeltaTableExt {
-//    /// Background task: compact small files every hour
-//    ///
-//    /// This handles the small files created by frequent flushes
-//    pub async fn start_auto_compaction(
-//        self: Arc<Self>,
-//        interval_minutes: u64,
-//    ) -> Result<(), DataFrameError> {
-//        let mut ticker = interval(Duration::from_secs(interval_minutes * 60));
-//
-//        loop {
-//            ticker.tick().await;
-//
-//            if let Err(e) = self.optimize_table().await {
-//                tracing::warn!("Auto-compaction failed: {}", e);
-//            }
-//        }
-//    }
-//
-//    /// Compact small files + apply Z-ORDER
-//    pub async fn optimize_table(&self) -> Result<(), DataFrameError> {
-//        let table = self.table();
-//        table.update_state().await?;
-//        table
-//            .optimize()
-//            .with_target_size(128 * 1024 * 1024)
-//            .with_type(OptimizeType::ZOrder(vec![
-//                "start_time".to_string(),
-//                "service_name".to_string(),
-//                "trace_id".to_string(),
-//            ])).await?;
-//
-//        Ok(())
-//    }
-//
-//    /// High-throughput streaming writer with real-time query support
-//    ///
-//    /// Strategy:
-//    /// - Flush every 5 seconds (configurable) for query latency
-//    /// - OR flush at 10K spans (smaller batches for responsiveness)
-//    /// - Delta Lake handles small file compaction via auto-optimize
-//    pub async fn start_streaming_writer(
-//        self: Arc<Self>,
-//        rx: mpsc::Receiver<Vec<TraceSpan>>,
-//        flush_interval_secs: u64,
-//        max_batch_size: usize,
-//    ) -> Result<(), DataFrameError> {
-//        let table_url = Url::parse(&format!("{}/{}", self.storage_root(), self.table_name()))?;
-//
-//        let mut table = DeltaTableBuilder::from_url(table_url)?.build()?;
-//
-//        table
-//            .optimize()
-//            .with_target_size(128 * 1024 * 1024)
-//            .with_type(OptimizeType::ZOrder(vec![
-//                "start_time".to_string(),
-//                "service_name".to_string(),
-//                "trace_id".to_string(),
-//            ]))
-//            .await?;
-//
-//        self.streaming_write_loop(
-//            rx,
-//            &mut table,
-//            &mut writer,
-//            flush_interval_secs,
-//            max_batch_size,
-//        )
-//        .await
-//    }
-//
-//    async fn streaming_write_loop(
-//        &self,
-//        mut rx: mpsc::Receiver<Vec<TraceSpan>>,
-//        table: &mut deltalake::DeltaTable,
-//        writer: &mut DeltaWriter,
-//        flush_interval_secs: u64,
-//        max_batch_size: usize,
-//    ) -> Result<(), DataFrameError> {
-//        let mut buffer = Vec::with_capacity(max_batch_size);
-//        let mut flush_timer = interval(Duration::from_secs(flush_interval_secs));
-//        let mut last_flush = Instant::now();
-//
-//        loop {
-//            tokio::select! {
-//                // Receive incoming spans
-//                Some(spans) = rx.recv() => {
-//                    buffer.extend(spans);
-//
-//                    // Flush if buffer reaches threshold
-//                    if buffer.len() >= max_batch_size {
-//                        self.flush_buffer(&mut buffer, writer, table).await?;
-//                        last_flush = Instant::now();
-//                    }
-//                }
-//
-//                // Time-based flush for low-volume periods
-//                _ = flush_timer.tick() => {
-//                    if !buffer.is_empty() && last_flush.elapsed().as_secs() >= flush_interval_secs {
-//                        self.flush_buffer(&mut buffer, writer, table).await?;
-//                        last_flush = Instant::now();
-//                    }
-//                }
-//
-//                // Channel closed - final flush
-//                else => {
-//                    if !buffer.is_empty() {
-//                        self.flush_buffer(&mut buffer, writer, table).await?;
-//                    }
-//                    break;
-//                }
-//            }
-//        }
-//
-//        Ok(())
-//    }
-//
-//    async fn flush_buffer(
-//        &self,
-//        buffer: &mut Vec<TraceSpan>,
-//        table: &mut DeltaTable,
-//    ) -> Result<(), DataFrameError> {
-//        if buffer.is_empty() {
-//            return Ok(());
-//        }
-//
-//        let batch = self.build_batch(std::mem::take(buffer))?;
-//
-//        let properties = WriterProperties::builder()
-//                    .set_compression(Compression::SNAPPY)
-//                    .build();
-//
-//        let builder  = table.clone().write(vec![batch]).with_writer_properties(
-//                WriterProperties::builder()
-//                    .set_compression(Compression::SNAPPY)
-//                    .build(),
-//            )
-//            .await?;
-//
-//        WriteBuilder
-//
-//
-//
-//        deltalake::operations::DeltaOps::from(table.clone())
-//            .write(vec![batch])
-//            .with_writer_properties(
-//                WriterProperties::builder()
-//                    .set_compression(Compression::SNAPPY)
-//                    .build(),
-//            )
-//            .await?;
-//
-//        // Reload table metadata for next write
-//        *table = DeltaTableBuilder::from_url(Url::parse(&format!(
-//            "{}/{}",
-//            self.storage_root(),
-//            self.table_name()
-//        ))?)?
-//        .build()?;
-//
-//        Ok(())
-//    }
-//}
-//
-//}

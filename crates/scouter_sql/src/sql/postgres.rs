@@ -222,20 +222,38 @@ impl MessageHandler {
         records: TraceServerRecord,
     ) -> Result<(), SqlError> {
         let (span_batch, baggage_batch, tag_records) = records.to_records()?;
+        let span_count = span_batch.len();
 
-        let (span_result, baggage_result, tag_result) = try_join!(
-            PostgresClient::insert_span_batch(pool, &span_batch),
+        // ── Update TraceCache for summary aggregation ─────────────────────────
+        // TraceCache accumulates span stats in memory; flush target is TraceSummaryService.
+        let trace_cache = crate::sql::aggregator::get_trace_cache().await;
+        for span in &span_batch {
+            trace_cache.update_trace(span).await;
+        }
+
+        // ── Write spans to Delta Lake (primary trace store) ──────────────────
+        if let Some(trace_service) =
+            scouter_dataframe::parquet::tracing::service::get_trace_span_service()
+        {
+            if let Err(e) = trace_service.write_spans(span_batch).await {
+                error!("Failed to write spans to Delta Lake: {:?}", e);
+            }
+        } else {
+            error!("TraceSpanService not initialized — spans will be lost");
+        }
+
+        // ── Baggage and tags remain in Postgres ───────────────────────────────
+        let (baggage_result, tag_result) = try_join!(
             PostgresClient::insert_trace_baggage_batch(pool, &baggage_batch),
             PostgresClient::insert_tag_batch(pool, &tag_records),
         )?;
 
         debug!(
-            span_rows = span_result.rows_affected(),
+            span_count,
             baggage_rows = baggage_result.rows_affected(),
-            total_spans = span_batch.len(),
             total_baggage = baggage_batch.len(),
             tag_rows = tag_result.rows_affected(),
-            "Successfully inserted trace server records"
+            "Successfully processed trace server records"
         );
         Ok(())
     }

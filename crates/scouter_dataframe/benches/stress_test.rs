@@ -91,7 +91,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .get_trace_spans(None, None, None, None, Some(1000))
         .await?;
 
-    let total_queried: usize = results.iter().map(|batch| batch.len()).sum();
+    let total_queried: usize = results.len();
     let query_duration = query_start.elapsed();
 
     println!(

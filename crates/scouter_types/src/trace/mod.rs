@@ -1093,3 +1093,23 @@ impl TagRecord {
         PyHelperFuncs::__str__(self)
     }
 }
+
+/// Lightweight trace summary record written to the Delta Lake `trace_summaries` table.
+///
+/// Produced by converting a `TraceAggregator` (in `scouter_sql`) after the in-memory
+/// aggregation phase. Entity tags are written separately to Postgres and are not included here.
+#[derive(Clone, Debug)]
+pub struct TraceSummaryRecord {
+    pub trace_id: TraceId,
+    pub service_name: String,
+    pub scope_name: String,
+    pub scope_version: String,
+    pub root_operation: String,
+    pub start_time: DateTime<Utc>,
+    pub end_time: Option<DateTime<Utc>>,
+    pub status_code: i32,
+    pub status_message: String,
+    pub span_count: i64,
+    pub error_count: i64,
+    pub resource_attributes: Vec<Attribute>,
+}
