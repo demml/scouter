@@ -390,13 +390,16 @@ mod tests {
             .await
             .unwrap();
 
-        //read_df.show().await.unwrap();
-
         let binned_metrics = BinnedMetricsExtractor::dataframe_to_binned_metrics(read_df)
             .await
             .unwrap();
 
-        assert_eq!(binned_metrics.metrics.len(), 3);
+        // should be workflow metric
+        assert_eq!(binned_metrics.metrics.len(), 1);
+
+        let workflow_metrics = &binned_metrics.metrics["workflow"];
+        assert_eq!(workflow_metrics.created_at.len(), 3);
+        assert_eq!(workflow_metrics.stats.len(), 3);
 
         //// delete the file
         for file in files.iter() {

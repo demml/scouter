@@ -438,4 +438,21 @@ pub trait TraceSqlLogic {
             .await
             .map_err(SqlError::SqlxError)
     }
+
+    /// Resolve `entity_uid` (UUID string) to raw 16-byte trace IDs via `scouter.trace_entities`.
+    /// Returns empty `Vec` when `entity_uid` is invalid or no rows match.
+    async fn get_trace_ids_for_entity(
+        pool: &Pool<Postgres>,
+        entity_uid: &str,
+    ) -> Result<Vec<Vec<u8>>, SqlError> {
+        let uuid: uuid::Uuid = entity_uid.parse().map_err(SqlError::UuidError)?;
+        let uid_bytes = uuid.as_bytes().to_vec();
+        sqlx::query_scalar::<_, Vec<u8>>(
+            "SELECT trace_id FROM scouter.trace_entities WHERE entity_uid = $1",
+        )
+        .bind(uid_bytes)
+        .fetch_all(pool)
+        .await
+        .map_err(SqlError::SqlxError)
+    }
 }

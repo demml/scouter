@@ -340,9 +340,8 @@ mod tests {
             .await?;
 
         assert!(
-            result_spans.len() >= 1,
-            "Expected at least 1 span but got {}",
-            result_spans.len()
+            !result_spans.is_empty(),
+            "Expected at least 1 span but got 0"
         );
 
         service.shutdown().await?;
@@ -605,71 +604,6 @@ mod tests {
             "Unfiltered count ({}) should be >= filtered count ({})",
             unfiltered_count,
             filtered_count
-        );
-
-        service.shutdown().await?;
-        cleanup();
-        Ok(())
-    }
-
-    /// Verify `get_trace_ids_matching_attributes` returns correct trace IDs.
-    #[tokio::test]
-    async fn test_get_trace_ids_matching_attributes() -> Result<(), TraceEngineError> {
-        cleanup();
-
-        let storage_settings = ObjectStorageSettings::default();
-        let service = TraceSpanService::new(&storage_settings, 24, Some(2)).await?;
-
-        let trace_with_attr = TraceId::from_bytes([50u8; 16]);
-        let trace_without_attr = TraceId::from_bytes([60u8; 16]);
-
-        let span_with = make_span(
-            &trace_with_attr,
-            SpanId::from_bytes([50u8; 8]),
-            None,
-            "svc",
-            "op",
-            vec![Attribute {
-                key: "env".to_string(),
-                value: Value::String("production".to_string()),
-            }],
-        );
-        let span_without = make_span(
-            &trace_without_attr,
-            SpanId::from_bytes([60u8; 8]),
-            None,
-            "svc",
-            "op",
-            vec![],
-        );
-
-        service.write_spans(vec![span_with, span_without]).await?;
-        tokio::time::sleep(Duration::from_secs(4)).await;
-
-        let start = Utc::now() - chrono::Duration::hours(1);
-        let end = Utc::now() + chrono::Duration::hours(1);
-
-        let matched = service
-            .query_service
-            .get_trace_ids_matching_attributes(
-                &["env:production".to_string()],
-                Some(start),
-                Some(end),
-            )
-            .await?;
-
-        assert!(
-            !matched.is_empty(),
-            "Expected at least one matched trace_id"
-        );
-        assert!(
-            matched.contains(&trace_with_attr.to_hex()),
-            "Expected trace_with_attr in results, got {:?}",
-            matched
-        );
-        assert!(
-            !matched.contains(&trace_without_attr.to_hex()),
-            "Expected trace_without_attr NOT in results"
         );
 
         service.shutdown().await?;

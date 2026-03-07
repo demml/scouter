@@ -643,69 +643,6 @@ impl TraceQueries {
         Ok(trace_spans)
     }
 
-    /// Resolve attribute filter strings (`"key:value"`) to matching trace_id hex strings
-    /// via `search_blob LIKE '%key:value%'` on the spans table.
-    ///
-    /// Returns an empty vec when no filters are provided.
-    #[instrument(skip_all)]
-    pub async fn get_trace_ids_matching_attributes(
-        &self,
-        attribute_filters: &[String],
-        start_time: Option<DateTime<Utc>>,
-        end_time: Option<DateTime<Utc>>,
-    ) -> Result<Vec<String>, TraceEngineError> {
-        if attribute_filters.is_empty() {
-            return Ok(Vec::new());
-        }
-
-        let mut builder =
-            TraceQueryBuilder::set_table(self.ctx.clone(), SPAN_TABLE_NAME).await?;
-        builder = builder.select_columns(&[TRACE_ID_COL, START_TIME_COL, SEARCH_BLOB_COL])?;
-
-        // Time predicates FIRST for partition pruning
-        if let Some(start) = start_time {
-            builder =
-                builder.add_filter(col(START_TIME_COL).gt_eq(lit(start.to_rfc3339())))?;
-        }
-        if let Some(end) = end_time {
-            builder = builder.add_filter(col(START_TIME_COL).lt(lit(end.to_rfc3339())))?;
-        }
-
-        // OR-match each "key:value" filter against search_blob (match_all is always false)
-        let mut attr_expr: Option<Expr> = None;
-        for filter in attribute_filters {
-            let pattern = format!("%{}%", filter.replace('\'', "''"));
-            let cond = col(SEARCH_BLOB_COL).like(lit(pattern));
-            attr_expr = Some(match attr_expr {
-                None => cond,
-                Some(existing) => existing.or(cond),
-            });
-        }
-        if let Some(expr) = attr_expr {
-            builder = builder.add_filter(expr)?;
-        }
-
-        let batches = builder.execute().await?;
-
-        let mut trace_ids = Vec::new();
-        for batch in &batches {
-            let col_arr = batch
-                .column_by_name(TRACE_ID_COL)
-                .and_then(|c| c.as_any().downcast_ref::<BinaryArray>())
-                .ok_or_else(|| {
-                    TraceEngineError::BatchConversion("trace_id not BinaryArray".into())
-                })?;
-            for i in 0..batch.num_rows() {
-                let hex = hex::encode(col_arr.value(i));
-                if !trace_ids.contains(&hex) {
-                    trace_ids.push(hex);
-                }
-            }
-        }
-
-        Ok(trace_ids)
-    }
-
     /// Get trace metrics over a time range, bucketed by the given interval string.
     ///
     /// `bucket_interval` must be a valid DataFusion `DATE_TRUNC` precision unit:
@@ -758,8 +695,7 @@ impl TraceQueries {
                     end = end_rfc,
                     attr_cond = clauses.join(" OR "),
                 );
-                let clause =
-                    "AND trace_id IN (SELECT trace_id FROM matching_traces)".to_string();
+                let clause = "AND trace_id IN (SELECT trace_id FROM matching_traces)".to_string();
                 (cte, clause)
             }
             _ => (String::new(), String::new()),
@@ -768,8 +704,10 @@ impl TraceQueries {
         // entity trace_ids IN filter
         let entity_filter_clause = match entity_trace_ids {
             Some(ids) if !ids.is_empty() => {
-                let hex_list: Vec<String> =
-                    ids.iter().map(|b| format!("X'{}'", hex::encode(b))).collect();
+                let hex_list: Vec<String> = ids
+                    .iter()
+                    .map(|b| format!("X'{}'", hex::encode(b)))
+                    .collect();
                 format!("AND trace_id IN ({})", hex_list.join(", "))
             }
             _ => String::new(),
@@ -777,10 +715,7 @@ impl TraceQueries {
 
         // Service filter on root span (parent_span_id IS NULL) — matches Postgres logic
         let service_filter_clause = match service_name {
-            Some(svc) => format!(
-                "root_service = '{}'",
-                svc.replace('\'', "''")
-            ),
+            Some(svc) => format!("root_service = '{}'", svc.replace('\'', "''")),
             None => "TRUE".to_string(),
         };
 
@@ -863,7 +798,9 @@ impl TraceQueries {
             // Cast to Int64 (microseconds since epoch) for uniform handling.
             let raw_bucket = batch.column(schema.index_of("bucket_start").unwrap());
             let bucket_i64 = arrow::compute::cast(raw_bucket, &arrow::datatypes::DataType::Int64)
-                .map_err(|e| TraceEngineError::BatchConversion(format!("bucket_start cast: {}", e)))?;
+                .map_err(|e| {
+                TraceEngineError::BatchConversion(format!("bucket_start cast: {}", e))
+            })?;
             let bucket_col = bucket_i64
                 .as_any()
                 .downcast_ref::<Int64Array>()

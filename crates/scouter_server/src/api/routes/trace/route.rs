@@ -15,44 +15,10 @@ use scouter_types::{
     TraceId, TraceMetricsRequest, TraceMetricsResponse, TracePaginationResponse,
     TraceReceivedResponse, TraceRequest, TraceSpansResponse,
 };
-use sqlx::Pool;
-use sqlx::Postgres;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 use tracing::instrument;
 use tracing::{debug, error};
-
-/// Look up all trace IDs (as raw 16-byte `Vec<u8>`) stored in `scouter.trace_entities`
-/// for a given `entity_uid` (UUID string). Returns an empty vec when `entity_uid` is `None`.
-async fn resolve_entity_trace_ids(
-    pool: &Pool<Postgres>,
-    entity_uid: Option<&str>,
-) -> Vec<Vec<u8>> {
-    let Some(uid_str) = entity_uid else {
-        return Vec::new();
-    };
-    let uuid: uuid::Uuid = match uid_str.parse() {
-        Ok(u) => u,
-        Err(e) => {
-            error!("Invalid entity_uid '{}': {:?}", uid_str, e);
-            return Vec::new();
-        }
-    };
-    let uid_bytes: &[u8] = uuid.as_bytes();
-    match sqlx::query_scalar::<_, Vec<u8>>(
-        "SELECT trace_id FROM scouter.trace_entities WHERE entity_uid = $1",
-    )
-    .bind(uid_bytes)
-    .fetch_all(pool)
-    .await
-    {
-        Ok(ids) => ids,
-        Err(e) => {
-            error!("Failed to resolve entity_uid trace IDs: {:?}", e);
-            Vec::new()
-        }
-    }
-}
 
 pub async fn get_trace_baggage(
     State(data): State<Arc<AppState>>,
@@ -80,15 +46,24 @@ pub async fn paginated_traces(
 
     // ── Resolve entity_uid → trace_ids via Postgres trace_entities ───────────
     // attribute_filters are handled inside get_paginated_traces via JOIN with trace_spans.
-    let entity_trace_ids =
-        resolve_entity_trace_ids(&data.db_pool, body.entity_uid.as_deref()).await;
+    let entity_trace_ids = if let Some(ref uid) = body.entity_uid {
+        PostgresClient::get_trace_ids_for_entity(&data.db_pool, uid)
+            .await
+            .unwrap_or_else(|e| {
+                error!("Failed to resolve entity_uid trace IDs: {:?}", e);
+                Vec::new()
+            })
+    } else {
+        Vec::new()
+    };
 
     if !entity_trace_ids.is_empty() {
         let hex_ids: Vec<String> = entity_trace_ids.iter().map(hex::encode).collect();
         body.trace_ids = Some(match body.trace_ids {
-            Some(existing) if !existing.is_empty() => {
-                existing.into_iter().filter(|id| hex_ids.contains(id)).collect()
-            }
+            Some(existing) if !existing.is_empty() => existing
+                .into_iter()
+                .filter(|id| hex_ids.contains(id))
+                .collect(),
             _ => hex_ids,
         });
     }
@@ -187,8 +162,16 @@ pub async fn trace_metrics(
     debug!("Getting trace metrics for request: {:?}", body);
 
     // ── Resolve entity_uid → raw trace_id bytes via Postgres trace_entities ──
-    let entity_trace_ids =
-        resolve_entity_trace_ids(&data.db_pool, body.entity_uid.as_deref()).await;
+    let entity_trace_ids = if let Some(ref uid) = body.entity_uid {
+        PostgresClient::get_trace_ids_for_entity(&data.db_pool, uid)
+            .await
+            .unwrap_or_else(|e| {
+                error!("Failed to resolve entity_uid trace IDs: {:?}", e);
+                Vec::new()
+            })
+    } else {
+        Vec::new()
+    };
 
     let entity_ids_ref: Option<&[Vec<u8>]> = if entity_trace_ids.is_empty() {
         None
@@ -196,10 +179,8 @@ pub async fn trace_metrics(
         Some(&entity_trace_ids)
     };
 
-    let attr_filters_ref: Option<&[String]> = body
-        .attribute_filters
-        .as_deref()
-        .filter(|f| !f.is_empty());
+    let attr_filters_ref: Option<&[String]> =
+        body.attribute_filters.as_deref().filter(|f| !f.is_empty());
 
     let metrics = data
         .trace_service

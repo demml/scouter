@@ -1,6 +1,7 @@
 import time
+from datetime import datetime, timedelta, timezone
 
-from scouter.client import ScouterClient
+from scouter.client import ScouterClient, TraceMetricsRequest
 
 
 def test_scouter_span_exporter(setup_scouter_trace_provider):
@@ -16,6 +17,18 @@ def test_scouter_span_exporter(setup_scouter_trace_provider):
 
     time.sleep(0.3)
     scouter_client = ScouterClient()
-    trace_spans = scouter_client.get_trace_spans(trace_id)
 
+    # Get spans for specific trace
+    trace_spans = scouter_client.get_trace_spans(trace_id)
     assert len(trace_spans.spans) > 0
+
+    # Trace metrics (soft assert — summary table may be empty if archiver hasn't run)
+    now = datetime.now(timezone.utc)
+    metrics = scouter_client.get_trace_metrics(
+        TraceMetricsRequest(
+            start_time=now - timedelta(hours=1),
+            end_time=now + timedelta(hours=1),
+            bucket_interval="1 minutes",
+        )
+    )
+    assert metrics is not None

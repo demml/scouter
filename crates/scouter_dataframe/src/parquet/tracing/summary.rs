@@ -7,7 +7,6 @@ use arrow::datatypes::*;
 use arrow_array::Array;
 use arrow_array::RecordBatch;
 use chrono::{DateTime, TimeZone, Utc};
-use datafusion::common::JoinType;
 use datafusion::logical_expr::{col, lit};
 use datafusion::prelude::*;
 use datafusion::scalar::ScalarValue;
@@ -628,10 +627,11 @@ impl TraceSummaryQueries {
             }
         }
 
-        // ── Attribute filters via JOIN with trace_spans ──────────────────────
+        // ── Attribute filters via span lookup → IN list ──────────────────────
         // Requires shared SessionContext (trace_spans must be registered in self.ctx).
-        // Each "key:value" filter is OR-matched against search_blob, matching Postgres
-        // match_span_attributes behavior for simple string values.
+        // We execute the span query eagerly to collect matching trace IDs, then filter
+        // the summaries DataFrame with an IN-list predicate. This avoids a cross-table
+        // JOIN that causes DataFusion to report ambiguous `trace_id` column references.
         if let Some(ref attr_filters) = filters.attribute_filters {
             if !attr_filters.is_empty() {
                 let mut spans_df = self.ctx.table("trace_spans").await?.select_columns(&[
@@ -672,15 +672,30 @@ impl TraceSummaryQueries {
                     spans_df = spans_df.filter(expr)?;
                 }
 
-                let matching_spans = spans_df.select_columns(&[TRACE_ID_COL])?.distinct()?;
+                // Collect matching trace IDs eagerly, then apply as IN-list filter
+                let span_batches = spans_df.select_columns(&[TRACE_ID_COL])?.collect().await?;
+                let mut binary_ids: Vec<Expr> = Vec::new();
+                for batch in &span_batches {
+                    if let Some(col_arr) = batch
+                        .column_by_name(TRACE_ID_COL)
+                        .and_then(|c| c.as_any().downcast_ref::<BinaryArray>())
+                    {
+                        for i in 0..batch.num_rows() {
+                            let id_bytes = col_arr.value(i).to_vec();
+                            let expr = lit(ScalarValue::Binary(Some(id_bytes)));
+                            if !binary_ids.contains(&expr) {
+                                binary_ids.push(expr);
+                            }
+                        }
+                    }
+                }
 
-                df = df.join(
-                    matching_spans,
-                    JoinType::Inner,
-                    &[TRACE_ID_COL],
-                    &[TRACE_ID_COL],
-                    None,
-                )?;
+                if !binary_ids.is_empty() {
+                    df = df.filter(col(TRACE_ID_COL).in_list(binary_ids, false))?;
+                } else {
+                    // No matching spans → return empty result
+                    df = df.filter(lit(false))?;
+                }
             }
         }
 
@@ -907,7 +922,7 @@ mod tests {
     use crate::storage::ObjectStore;
     use scouter_settings::ObjectStorageSettings;
     use scouter_types::sql::TraceFilters;
-    use scouter_types::{Attribute, TraceId};
+    use scouter_types::{Attribute, SpanId, TraceId, TraceSpanRecord};
     use tracing_subscriber;
 
     fn cleanup() {
@@ -1184,6 +1199,181 @@ mod tests {
         service.shutdown().await?;
         cleanup();
         Ok(())
+    }
+
+    /// Cursor pagination: first page → next → previous all return correct item counts.
+    #[tokio::test]
+    async fn test_summary_cursor_pagination() -> Result<(), TraceEngineError> {
+        cleanup();
+        let storage_settings = ObjectStorageSettings::default();
+        let ctx = make_test_ctx(&storage_settings);
+        let service = TraceSummaryService::new(&storage_settings, 24, ctx).await?;
+
+        let now = Utc::now();
+        let summaries: Vec<TraceSummaryRecord> = (0u8..100)
+            .map(|i| {
+                let mut s = make_summary([i; 16], "svc", 0, vec![]);
+                s.start_time = now - chrono::Duration::minutes(i as i64);
+                s
+            })
+            .collect();
+        service.write_summaries(summaries).await?;
+        tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+
+        let mut filters = TraceFilters {
+            start_time: Some(now - chrono::Duration::hours(2)),
+            end_time: Some(now + chrono::Duration::hours(1)),
+            limit: Some(50),
+            ..Default::default()
+        };
+
+        // First page
+        let first = service.query_service.get_paginated_traces(&filters).await?;
+        assert_eq!(first.items.len(), 50, "first page: 50 items");
+        assert!(
+            first.next_cursor.is_some(),
+            "first page: should have next_cursor"
+        );
+
+        // Next page
+        let next_cur = first.next_cursor.clone().unwrap();
+        filters.cursor_start_time = Some(next_cur.start_time);
+        filters.cursor_trace_id = Some(next_cur.trace_id.clone());
+        filters.direction = Some("next".to_string());
+        let second = service.query_service.get_paginated_traces(&filters).await?;
+        assert_eq!(second.items.len(), 50, "second page: 50 items");
+        assert!(
+            second.items[0].start_time <= next_cur.start_time,
+            "second page first item must be <= cursor"
+        );
+        assert!(second.previous_cursor.is_some());
+
+        // Previous page
+        let prev_cur = second.previous_cursor.unwrap();
+        filters.cursor_start_time = Some(prev_cur.start_time);
+        filters.cursor_trace_id = Some(prev_cur.trace_id.clone());
+        filters.direction = Some("previous".to_string());
+        let prev = service.query_service.get_paginated_traces(&filters).await?;
+        assert_eq!(prev.items.len(), 50, "previous page: 50 items");
+
+        service.shutdown().await?;
+        cleanup();
+        Ok(())
+    }
+
+    /// Attribute-filter JOIN path: only traces with matching span attributes are returned.
+    #[tokio::test]
+    async fn test_summary_attribute_filter_via_join() -> Result<(), TraceEngineError> {
+        use crate::parquet::tracing::service::TraceSpanService;
+
+        cleanup();
+        let storage_settings = ObjectStorageSettings::default();
+
+        // TraceSpanService owns the SessionContext (trace_spans registered in it)
+        let span_service = TraceSpanService::new(&storage_settings, 24, Some(2)).await?;
+        let shared_ctx = span_service.ctx.clone();
+
+        // TraceSummaryService shares the same ctx — JOIN to trace_spans will work
+        let summary_service = TraceSummaryService::new(&storage_settings, 24, shared_ctx).await?;
+
+        let now = Utc::now();
+        let kafka_trace = TraceId::from_bytes([70u8; 16]);
+        let plain_trace = TraceId::from_bytes([80u8; 16]);
+
+        let kafka_span = make_span_record(
+            &kafka_trace,
+            SpanId::from_bytes([70u8; 8]),
+            "svc",
+            vec![Attribute {
+                key: "component".to_string(),
+                value: serde_json::Value::String("kafka".to_string()),
+            }],
+        );
+        let plain_span =
+            make_span_record(&plain_trace, SpanId::from_bytes([80u8; 8]), "svc", vec![]);
+        span_service
+            .write_spans(vec![kafka_span, plain_span])
+            .await?;
+
+        let mut kafka_summary = make_summary([70u8; 16], "svc", 0, vec![]);
+        kafka_summary.start_time = now;
+        let mut plain_summary = make_summary([80u8; 16], "svc", 0, vec![]);
+        plain_summary.start_time = now;
+        summary_service
+            .write_summaries(vec![kafka_summary, plain_summary])
+            .await?;
+
+        tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+
+        let filters = TraceFilters {
+            start_time: Some(now - chrono::Duration::hours(1)),
+            end_time: Some(now + chrono::Duration::hours(1)),
+            attribute_filters: Some(vec!["component:kafka".to_string()]),
+            limit: Some(25),
+            ..Default::default()
+        };
+
+        let response = summary_service
+            .query_service
+            .get_paginated_traces(&filters)
+            .await?;
+
+        assert!(
+            !response.items.is_empty(),
+            "attribute filter must return results"
+        );
+        assert!(
+            response
+                .items
+                .iter()
+                .all(|i| i.trace_id == kafka_trace.to_hex()),
+            "only kafka trace should appear; got {:?}",
+            response
+                .items
+                .iter()
+                .map(|i| &i.trace_id)
+                .collect::<Vec<_>>()
+        );
+
+        span_service.shutdown().await?;
+        summary_service.shutdown().await?;
+        cleanup();
+        Ok(())
+    }
+
+    /// Build a deterministic `TraceSpanRecord` for use in summary tests.
+    fn make_span_record(
+        trace_id: &TraceId,
+        span_id: SpanId,
+        service_name: &str,
+        attributes: Vec<Attribute>,
+    ) -> TraceSpanRecord {
+        let now = Utc::now();
+        TraceSpanRecord {
+            created_at: now,
+            trace_id: trace_id.clone(),
+            span_id,
+            parent_span_id: None,
+            flags: 1,
+            trace_state: String::new(),
+            scope_name: "test.scope".to_string(),
+            scope_version: None,
+            span_name: "op".to_string(),
+            span_kind: "INTERNAL".to_string(),
+            start_time: now,
+            end_time: now + chrono::Duration::milliseconds(100),
+            duration_ms: 100,
+            status_code: 0,
+            status_message: "OK".to_string(),
+            attributes,
+            events: vec![],
+            links: vec![],
+            label: None,
+            input: serde_json::Value::Null,
+            output: serde_json::Value::Null,
+            service_name: service_name.to_string(),
+            resource_attributes: vec![],
+        }
     }
 
     /// `resource_attributes` survive a write → read round-trip.

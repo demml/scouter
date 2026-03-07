@@ -189,4 +189,43 @@ async fn test_tracing() {
         !spans_response.spans.is_empty(),
         "Should return spans for the specified tags"
     );
+
+    // Previous page: navigate back from second batch cursor
+    let prev_filters = TraceFilters {
+        cursor_start_time: Some(last_record_cursor.start_time),
+        cursor_trace_id: Some(last_record_cursor.trace_id.clone()),
+        direction: Some("previous".to_string()),
+        ..Default::default()
+    };
+    let body = serde_json::to_string(&prev_filters).unwrap();
+    let request = Request::builder()
+        .uri("/scouter/trace/paginated")
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body))
+        .unwrap();
+    let response = helper.send_oneshot(request).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let prev_batch: TracePaginationResponse = serde_json::from_slice(&body).unwrap();
+    assert_eq!(
+        prev_batch.items.len(),
+        50,
+        "Previous batch should have 50 records"
+    );
+
+    // Attribute filter: tests the DataFusion JOIN path (component=kafka spans)
+    let attr_filters = TraceFilters {
+        attribute_filters: Some(vec!["component=kafka".to_string()]),
+        ..Default::default()
+    };
+    let body = serde_json::to_string(&attr_filters).unwrap();
+    let request = Request::builder()
+        .uri("/scouter/trace/paginated")
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body))
+        .unwrap();
+    let response = helper.send_oneshot(request).await;
+    assert_eq!(response.status(), StatusCode::OK);
 }
