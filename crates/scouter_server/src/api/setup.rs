@@ -130,6 +130,14 @@ impl ScouterSetupComponents {
         // Initialize Delta Lake trace services
         let (trace_service, trace_summary_service) = Self::start_trace_services(&config).await?;
 
+        // Wire partition-level retention for trace spans
+        Self::setup_trace_retention_worker(
+            Arc::clone(&trace_service),
+            Arc::clone(&config),
+            &mut task_manager,
+        )
+        .await?;
+
         Ok(Self {
             server_config: config,
             db_pool,
@@ -453,16 +461,44 @@ impl ScouterSetupComponents {
         Ok(())
     }
 
-    /// Helper to setup the redis consumer
-    /// This worker will continually run and check for redis events
+    /// Wire a nightly background task that deletes trace spans older than `retention_period`
+    /// days and vacuums orphaned Parquet files from storage.
     ///
-    /// Arguments:
-    /// * `settings` - The redis settings to use for the consumer
-    /// * `db_pool` - The database client to use for the worker
-    /// * `shutdown_rx` - The shutdown receiver to use for the worker
-    ///
-    /// Returns:
-    /// * `AnyhowResult<()>` - The result of the setup
+    /// Uses `TraceSpanService::expire()` which performs DELETE then VACUUM in the correct order.
+    async fn setup_trace_retention_worker(
+        trace_service: Arc<TraceSpanService>,
+        config: Arc<ScouterServerConfig>,
+        task_manager: &mut TaskManager,
+    ) -> AnyhowResult<()> {
+        let mut shutdown_rx = task_manager.get_shutdown_receiver();
+        let retention_days = config.database_settings.retention_period as u32;
+
+        task_manager.spawn(async move {
+            // Run nightly. Skip first tick so the server starts cleanly.
+            let mut ticker =
+                tokio::time::interval(std::time::Duration::from_secs(24 * 3600));
+            ticker.tick().await;
+
+            loop {
+                tokio::select! {
+                    _ = shutdown_rx.changed() => {
+                        tracing::info!("Trace retention worker shutting down");
+                        break;
+                    }
+                    _ = ticker.tick() => {
+                        tracing::info!("Running trace retention ({}d)", retention_days);
+                        if let Err(e) = trace_service.expire(retention_days).await {
+                            tracing::error!("Trace expiration failed: {}", e);
+                        }
+                    }
+                }
+            }
+        });
+
+        info!("✅ Started trace retention worker (retention={}d)", retention_days);
+        Ok(())
+    }
+
     #[cfg(feature = "redis_events")]
     #[instrument(skip_all)]
     pub async fn setup_redis(

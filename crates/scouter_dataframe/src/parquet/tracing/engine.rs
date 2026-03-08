@@ -6,6 +6,7 @@ use crate::storage::ObjectStore;
 use arrow::array::*;
 use arrow::datatypes::*;
 use arrow_array::RecordBatch;
+use chrono::Datelike;
 use datafusion::prelude::SessionContext;
 use deltalake::datafusion::parquet::basic::{Compression, Encoding, ZstdLevel};
 use deltalake::datafusion::parquet::file::properties::{EnabledStatistics, WriterProperties};
@@ -27,6 +28,10 @@ use url::Url;
 
 const TRACE_SPAN_TABLE_NAME: &str = "trace_spans";
 
+/// Days from year-0001 to Unix epoch (1970-01-01), used to convert chrono → Arrow Date32.
+/// Equivalent to `NaiveDate::from_ymd_opt(1970, 1, 1).unwrap().num_days_from_ce()`.
+const UNIX_EPOCH_DAYS: i32 = 719_163;
+
 pub enum TableCommand {
     Write {
         spans: Vec<TraceSpanRecord>,
@@ -37,6 +42,10 @@ pub enum TableCommand {
     },
     Vacuum {
         retention_hours: u64,
+        respond_to: oneshot::Sender<Result<(), TraceEngineError>>,
+    },
+    Expire {
+        cutoff_date: chrono::NaiveDate,
         respond_to: oneshot::Sender<Result<(), TraceEngineError>>,
     },
     Shutdown,
@@ -59,6 +68,7 @@ async fn create_table(table_url: Url, schema: SchemaRef) -> Result<DeltaTable, T
         .create()
         .with_table_name(TRACE_SPAN_TABLE_NAME)
         .with_columns(delta_fields)
+        .with_partition_columns(vec!["partition_date".to_string()])
         .await
         .map_err(Into::into)
 }
@@ -72,25 +82,35 @@ async fn build_or_create_table(
 
     info!("Attempting to load table at URL: {}", table_url);
 
-    if table_url.scheme() == "file" {
+    // DeltaTable::try_from_url is lazy — it always returns Ok regardless of whether
+    // the path is an actual Delta table. The Err(NotATable) branch is never reached.
+    // We must check for _delta_log explicitly to determine whether to create or load.
+    let is_delta_table = if table_url.scheme() == "file" {
         if let Ok(path) = table_url.to_file_path() {
             if !path.exists() {
                 info!("Creating directory for local table: {:?}", path);
                 std::fs::create_dir_all(&path)?;
             }
+            path.join("_delta_log").exists()
+        } else {
+            false
         }
-    }
+    } else {
+        // For remote stores (S3, GCS, Azure), fall back to try_from_url + load.
+        match DeltaTable::try_from_url(table_url.clone()).await {
+            Ok(mut t) => t.load().await.is_ok(),
+            Err(_) => false,
+        }
+    };
 
-    match DeltaTable::try_from_url(table_url.clone()).await {
-        Ok(table) => {
-            info!("Loaded existing Delta table");
-            Ok(table)
-        }
-        Err(deltalake::DeltaTableError::NotATable(_)) => {
-            info!("Table does not exist, creating new table");
-            create_table(table_url, schema).await
-        }
-        Err(e) => Err(e.into()),
+    if is_delta_table {
+        info!("Loading existing Delta table");
+        let mut table = DeltaTable::try_from_url(table_url).await?;
+        table.load().await?;
+        Ok(table)
+    } else {
+        info!("Table does not exist, creating new table");
+        create_table(table_url, schema).await
     }
 }
 
@@ -225,9 +245,15 @@ impl TraceSpanDBEngine {
         let mut table_guard = self.table.write().await;
         info!("Acquired table write lock");
 
-        if let Err(e) = table_guard.update_incremental(None).await {
-            info!("Table update skipped (table may be newly created): {}", e);
-        }
+        // update_incremental is intentionally omitted here.
+        //
+        // This engine runs as a single-writer actor — no other process commits to this
+        // Delta table, so the in-memory state is always current. Calling update_incremental
+        // on a freshly-created empty table (version 0, no data files) causes the Delta
+        // Kernel to emit "Not a Delta table: No files in log segment", which mutates
+        // table_guard into a corrupted intermediate state before the error propagates.
+        // That corrupted clone then has no partition column metadata, producing unpartitioned
+        // flat Parquet files instead of partition_date=YYYY-MM-DD/ hive directories.
 
         let current_table = table_guard.clone();
 
@@ -235,6 +261,9 @@ impl TraceSpanDBEngine {
             .write(vec![batch])
             .with_save_mode(deltalake::protocol::SaveMode::Append)
             .with_writer_properties(Self::build_writer_props())
+            // Always declare partition columns explicitly — do not rely solely on the
+            // in-memory snapshot, which can be stale after a failed update_incremental.
+            .with_partition_columns(vec!["partition_date".to_string()])
             .await?;
 
         info!("Successfully wrote batch to Delta Lake");
@@ -295,6 +324,40 @@ impl TraceSpanDBEngine {
         Ok(())
     }
 
+    /// Delete all rows with `partition_date` older than `cutoff_date`.
+    ///
+    /// This is a logical delete — it writes a new Delta log entry marking the rows as removed.
+    /// Physical disk space is not reclaimed until `vacuum_table()` runs afterwards.
+    async fn expire_table(&self, cutoff_date: chrono::NaiveDate) -> Result<(), TraceEngineError> {
+        let mut table_guard = self.table.write().await;
+
+        // CAST('YYYY-MM-DD' AS DATE) produces a Date32 that matches the partition column type,
+        // which allows Delta Lake to translate this into a partition directory filter.
+        let predicate = format!(
+            "partition_date < CAST('{}' AS DATE)",
+            cutoff_date.format("%Y-%m-%d")
+        );
+
+        let (updated_table, metrics) = table_guard
+            .clone()
+            .delete()
+            .with_predicate(predicate)
+            .await?;
+
+        info!(
+            "Expired {} rows older than {}",
+            metrics.num_deleted_rows, cutoff_date
+        );
+
+        self.ctx.deregister_table(TRACE_SPAN_TABLE_NAME)?;
+        self.ctx
+            .register_table(TRACE_SPAN_TABLE_NAME, updated_table.table_provider().await?)?;
+
+        *table_guard = updated_table;
+
+        Ok(())
+    }
+
     #[instrument(skip_all, name = "trace_engine_actor")]
     pub fn start_actor(
         self,
@@ -340,6 +403,18 @@ impl TraceSpanDBEngine {
                                     }
                                     Err(e) => {
                                         tracing::error!("Vacuum failed: {}", e);
+                                        let _ = respond_to.send(Err(e));
+                                    }
+                                }
+                            }
+                            TableCommand::Expire { cutoff_date, respond_to } => {
+                                match self.expire_table(cutoff_date).await {
+                                    Ok(_) => {
+                                        tracing::info!("Partition expiration completed up to {}", cutoff_date);
+                                        let _ = respond_to.send(Ok(()));
+                                    }
+                                    Err(e) => {
+                                        tracing::error!("Partition expiration failed: {}", e);
                                         let _ = respond_to.send(Err(e));
                                     }
                                 }
@@ -417,6 +492,9 @@ pub struct TraceSpanBatchBuilder {
 
     // Search optimizer
     search_blob: StringViewBuilder,
+
+    // Partition key (days since Unix epoch)
+    partition_date: Date32Builder,
 }
 
 impl TraceSpanBatchBuilder {
@@ -513,6 +591,7 @@ impl TraceSpanBatchBuilder {
         let input = StringViewBuilder::new();
         let output = StringViewBuilder::new();
         let search_blob = StringViewBuilder::new();
+        let partition_date = Date32Builder::new();
 
         Self {
             schema,
@@ -540,6 +619,7 @@ impl TraceSpanBatchBuilder {
             input,
             output,
             search_blob,
+            partition_date,
         }
     }
 
@@ -655,6 +735,10 @@ impl TraceSpanBatchBuilder {
         // Search blob
         let search_text = Self::build_search_blob(span);
         self.search_blob.append_value(search_text);
+
+        // Partition key — days since Unix epoch, derived from span start date
+        let days = span.start_time.date_naive().num_days_from_ce() - UNIX_EPOCH_DAYS;
+        self.partition_date.append_value(days);
 
         Ok(())
     }
@@ -870,6 +954,7 @@ impl TraceSpanBatchBuilder {
                 Arc::new(self.input.finish()),
                 Arc::new(self.output.finish()),
                 Arc::new(self.search_blob.finish()),
+                Arc::new(self.partition_date.finish()),
             ],
         )?;
 

@@ -50,11 +50,11 @@ impl ObjectStorageSettings {
         match self.storage_type {
             StorageType::Google | StorageType::Aws | StorageType::Azure => {
                 if let Some(stripped) = self.storage_uri.strip_prefix("gs://") {
-                    stripped.to_string()
+                    stripped.split('/').next().unwrap_or(stripped).to_string()
                 } else if let Some(stripped) = self.storage_uri.strip_prefix("s3://") {
-                    stripped.to_string()
+                    stripped.split('/').next().unwrap_or(stripped).to_string()
                 } else if let Some(stripped) = self.storage_uri.strip_prefix("az://") {
-                    stripped.to_string()
+                    stripped.split('/').next().unwrap_or(stripped).to_string()
                 } else {
                     self.storage_uri.clone()
                 }

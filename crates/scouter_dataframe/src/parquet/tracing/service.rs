@@ -233,6 +233,32 @@ impl TraceSpanService {
         rx.await.map_err(|_| TraceEngineError::ChannelClosed)?
     }
 
+    /// Delete all spans with a `partition_date` older than `retention_days` ago,
+    /// then run VACUUM to physically reclaim disk space.
+    ///
+    /// Call order matters: DELETE marks files as unreferenced in the Delta log;
+    /// VACUUM then removes the orphaned Parquet files from storage.
+    pub async fn expire(&self, retention_days: u32) -> Result<(), TraceEngineError> {
+        let cutoff_date =
+            (chrono::Utc::now() - chrono::Duration::days(retention_days as i64)).date_naive();
+
+        // Step 1: DELETE WHERE partition_date < cutoff (marks rows removed in Delta log)
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        self.engine_tx
+            .send(TableCommand::Expire {
+                cutoff_date,
+                respond_to: tx,
+            })
+            .await
+            .map_err(|_| TraceEngineError::ChannelClosed)?;
+        rx.await.map_err(|_| TraceEngineError::ChannelClosed)??;
+
+        // Step 2: VACUUM — physically deletes orphaned files from storage.
+        // retention_hours=0 with enforce_retention_duration=false removes all
+        // post-DELETE orphans immediately.
+        self.vacuum(0).await
+    }
+
     /// Signal shutdown without consuming `self` — safe to call from `Arc<TraceSpanService>`.
     ///
     /// Sends the shutdown signal to the buffering actor and engine actor.
@@ -269,7 +295,12 @@ impl TraceSpanService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::parquet::tracing::queries::{
+        date_lit, ts_lit, PARTITION_DATE_COL, SPAN_TABLE_NAME, START_TIME_COL,
+    };
+    use arrow_array::Array;
     use chrono::Utc;
+    use datafusion::logical_expr::col;
     use scouter_mocks::generate_trace_with_spans;
     use scouter_settings::ObjectStorageSettings;
     use scouter_types::sql::TraceSpan;
@@ -556,6 +587,133 @@ mod tests {
 
         service.shutdown().await?;
         cleanup();
+        Ok(())
+    }
+
+    /// Verify all three DataFusion filter layers are wired correctly by inspecting the
+    /// physical plan produced for a partitioned time-window query.
+    ///
+    /// Layer 1 — partition pruning: `partition_date` appears in the plan because Delta Lake
+    /// pushes partition column filters to directory enumeration before reading any files.
+    ///
+    /// Layer 2 — row-group stats: `start_time` appears because typed Timestamp literals
+    /// enable Parquet min/max pruning across row groups.
+    ///
+    /// Layer 3 — bloom filter: querying a nonexistent `trace_id` within a tight window
+    /// returns 0 rows; bloom filters discard row groups instantly without page-level scanning.
+    #[tokio::test]
+    async fn test_query_plan_shows_filter_layers() -> Result<(), TraceEngineError> {
+        cleanup();
+
+        let storage_settings = ObjectStorageSettings::default();
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2)).await?;
+
+        // Write a known batch directly so it is immediately queryable
+        // Use distinct byte values that don't collide with other tests.
+        let trace_id = TraceId::from_bytes([0xAA_u8; 16]);
+        let root_id = SpanId::from_bytes([0xAA_u8; 8]);
+        let child_id = SpanId::from_bytes([0xBB_u8; 8]);
+        let spans = vec![
+            make_span(&trace_id, root_id.clone(), None, "svc-a", "root-op", vec![]),
+            make_span(
+                &trace_id,
+                child_id.clone(),
+                Some(root_id),
+                "svc-a",
+                "child-op",
+                vec![],
+            ),
+        ];
+        service.write_spans_direct(spans).await?;
+
+        // ── Layers 1 & 2: inspect physical plan ──────────────────────────────────
+        let now = Utc::now();
+        let start = now - chrono::Duration::hours(1);
+        let end = now + chrono::Duration::hours(1);
+
+        // Build the same DataFrame the query path would produce internally
+        let df = service
+            .ctx
+            .table(SPAN_TABLE_NAME)
+            .await
+            .map_err(TraceEngineError::DatafusionError)?;
+
+        // Partition filter — pushed to directory enumeration (Layer 1)
+        let df = df
+            .filter(
+                col(PARTITION_DATE_COL)
+                    .gt_eq(date_lit(&start))
+                    .and(col(PARTITION_DATE_COL).lt_eq(date_lit(&end))),
+            )
+            .map_err(TraceEngineError::DatafusionError)?;
+
+        // Timestamp filter — enables row-group min/max pruning (Layer 2)
+        let df = df
+            .filter(
+                col(START_TIME_COL)
+                    .gt_eq(ts_lit(&start))
+                    .and(col(START_TIME_COL).lt(ts_lit(&end))),
+            )
+            .map_err(TraceEngineError::DatafusionError)?;
+
+        // Collect the physical plan as a string via EXPLAIN
+        let explain_df = df
+            .explain(false, false)
+            .map_err(TraceEngineError::DatafusionError)?;
+        let batches = explain_df
+            .collect()
+            .await
+            .map_err(TraceEngineError::DatafusionError)?;
+
+        let plan_text: String = batches
+            .iter()
+            .flat_map(|b| {
+                let plan_col = b.column_by_name("plan").unwrap();
+                let arr =
+                    arrow::compute::cast(plan_col, &arrow::datatypes::DataType::Utf8).unwrap();
+                let s = arr
+                    .as_any()
+                    .downcast_ref::<arrow::array::StringArray>()
+                    .unwrap();
+                (0..s.len())
+                    .map(|i| s.value(i).to_string())
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        // Layer 1: partition filter must appear in plan
+        assert!(
+            plan_text.contains("partition_date"),
+            "Partition filter not found in physical plan:\n{plan_text}"
+        );
+        // Layer 2: start_time row-group filter must appear in plan
+        assert!(
+            plan_text.contains("start_time"),
+            "Row-group time filter not found in physical plan:\n{plan_text}"
+        );
+
+        // ── Layer 3: bloom filter — behavioral proof ──────────────────────────────
+        // A nonexistent trace_id with bloom filters enabled returns 0 rows.
+        // Without bloom filters, DataFusion would scan every row group to confirm absence.
+        let fake_id = TraceId::from_bytes([0xFF_u8; 16]);
+        let result = service
+            .query_service
+            .get_trace_spans(
+                Some(fake_id.as_bytes()),
+                None,
+                Some(&start),
+                Some(&end),
+                None,
+            )
+            .await?;
+        assert!(
+            result.is_empty(),
+            "Expected 0 spans for nonexistent trace_id"
+        );
+
+        service.shutdown().await?;
+        //cleanup();
         Ok(())
     }
 

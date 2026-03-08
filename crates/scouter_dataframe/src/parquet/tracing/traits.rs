@@ -150,6 +150,9 @@ pub trait TraceSchemaExt {
             // ========== Full-Text Search Optimization ==========
             // Pre-computed concatenated search string to avoid JSON parsing at query time
             Field::new("search_blob", DataType::Utf8View, false),
+            // ========== Partitioning ==========
+            // Hive-style date partition key derived from start_time — lets DataFusion skip
+            Field::new("partition_date", DataType::Date32, false),
         ])
     }
 }

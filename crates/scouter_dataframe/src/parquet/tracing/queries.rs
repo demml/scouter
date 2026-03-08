@@ -7,7 +7,7 @@ use arrow::array::{
 use arrow::compute::cast;
 use arrow::datatypes::DataType;
 use arrow_array::Array;
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, Datelike, TimeZone, Utc};
 use datafusion::logical_expr::{col, lit, SortExpr};
 use datafusion::prelude::*;
 use datafusion::scalar::ScalarValue;
@@ -20,20 +20,34 @@ use std::sync::Arc;
 use std::time::Duration;
 use tracing::{error, info, instrument};
 
+/// Days from year-0001 to Unix epoch (1970-01-01), used to convert chrono → Arrow Date32.
+const UNIX_EPOCH_DAYS: i32 = 719_163;
+
 /// Build a typed `Timestamp(Microsecond, UTC)` literal for DataFusion predicates.
 ///
 /// Using this instead of `lit(dt.to_rfc3339())` ensures the predicate type matches
 /// the column type exactly, enabling Parquet row-group min/max pruning.
 #[inline]
-fn ts_lit(dt: &DateTime<Utc>) -> Expr {
+pub(crate) fn ts_lit(dt: &DateTime<Utc>) -> Expr {
     lit(ScalarValue::TimestampMicrosecond(
         Some(dt.timestamp_micros()),
         Some("UTC".into()),
     ))
 }
 
+/// Build a typed `Date32` literal for DataFusion partition pruning predicates.
+///
+/// Partition-level filters are evaluated at directory granularity — DataFusion skips
+/// entire `partition_date=YYYY-MM-DD/` directories before reading any file statistics.
+#[inline]
+pub(crate) fn date_lit(dt: &DateTime<Utc>) -> Expr {
+    let days = dt.date_naive().num_days_from_ce() - UNIX_EPOCH_DAYS;
+    lit(ScalarValue::Date32(Some(days)))
+}
+
 // Column name constants
 pub const START_TIME_COL: &str = "start_time";
+pub const PARTITION_DATE_COL: &str = "partition_date";
 pub const END_TIME_COL: &str = "end_time";
 pub const SERVICE_NAME_COL: &str = "service_name";
 pub const TRACE_ID_COL: &str = "trace_id";
@@ -790,7 +804,18 @@ impl TraceQueries {
         let mut builder = TraceQueryBuilder::set_table(self.ctx.clone(), SPAN_TABLE_NAME).await?;
 
         // All filters BEFORE select_columns so entity_id (not in SPAN_COLUMNS) stays in scope.
-        // Time predicates FIRST — typed literals enable Parquet row-group pruning.
+        // Partition filters FIRST — eliminates whole partition_date=YYYY-MM-DD/ directories
+        // at directory level before any file metadata or Parquet statistics are read.
+        if let Some(start) = start_time {
+            builder =
+                builder.add_filter(col(PARTITION_DATE_COL).gt_eq(date_lit(start)))?;
+        }
+        if let Some(end) = end_time {
+            builder = builder.add_filter(col(PARTITION_DATE_COL).lt_eq(date_lit(end)))?;
+        }
+
+        // Row-group level pruning — typed Timestamp literals enable Parquet min/max pruning
+        // within the partition directories that survived the directory-level filter above.
         if let Some(start) = start_time {
             builder = builder.add_filter(col(START_TIME_COL).gt_eq(ts_lit(start)))?;
         }

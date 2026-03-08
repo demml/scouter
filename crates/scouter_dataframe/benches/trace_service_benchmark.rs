@@ -792,6 +792,177 @@ fn bench_at_scale_1m(c: &mut Criterion) {
     group.finish();
 }
 
+/// Criterion counterpart of `bench_at_scale_1m` — seeds 10M spans across 24 hourly batches
+/// using 50K-span sub-batches to bound peak memory, runs Z-ORDER compaction, then benchmarks
+/// three query patterns that prove bloom filter + Z-ORDER holds at production scale.
+///
+/// The dataset is seeded ONCE and shared across all three sub-benchmarks to avoid the ~3×
+/// compaction cost that would result from independent seeding per sub-bench.
+///
+/// Results are stored in `target/criterion/at_scale_10m/` and tracked across commits.
+/// Run with: `cargo bench -p scouter-dataframe --bench trace_service_benchmark at_scale_10m`
+fn bench_at_scale_10m(c: &mut Criterion) {
+    use chrono::Utc;
+    use scouter_mocks::generate_trace_with_spans;
+    use scouter_types::StorageType;
+
+    const TOTAL_SPANS: usize = 10_000_000;
+    const HOURS: usize = 24;
+    const SPANS_PER_HOUR: usize = TOTAL_SPANS / HOURS; // 416_666
+    const TRACES_PER_HOUR: usize = SPANS_PER_HOUR / 5; // 83_333
+    const WRITE_CHUNK_SIZE: usize = 50_000;
+    const TARGET_ENTITY_UID: &str = "scale10m-entity-abc123";
+    const ENTITY_TRACES: usize = 50;
+    const IDS_PER_HOUR: usize = 500;
+
+    // ── Seed ONCE — shared across all three sub-benchmarks ───────────────
+    let rt = Runtime::new().unwrap();
+    let tmp_dir = tempfile::tempdir().unwrap();
+    let storage_settings = ObjectStorageSettings {
+        storage_uri: tmp_dir.path().to_str().unwrap().to_string(),
+        storage_type: StorageType::Local,
+        region: "us-east-1".to_string(),
+        trace_compaction_interval_hours: 999,
+        trace_flush_interval_secs: 1,
+    };
+
+    let (service, all_ids) = rt.block_on(async {
+        let service = TraceSpanService::new(&storage_settings, 999, Some(1))
+            .await
+            .unwrap();
+        let mut all_ids: Vec<(Vec<u8>, usize)> = Vec::with_capacity(HOURS * IDS_PER_HOUR);
+
+        for hour in 0..HOURS {
+            let minutes_offset = (hour as i64) * 60;
+            let mut chunk: Vec<TraceSpanRecord> = Vec::with_capacity(WRITE_CHUNK_SIZE);
+
+            for _ in 0..TRACES_PER_HOUR {
+                let (_r, spans, _t) = generate_trace_with_spans(5, minutes_offset);
+                if all_ids.len() < HOURS * IDS_PER_HOUR {
+                    if let Ok(id) = TraceId::hex_to_bytes(&spans[0].trace_id.to_hex()) {
+                        all_ids.push((id, hour));
+                    }
+                }
+                chunk.extend(spans);
+                if chunk.len() >= WRITE_CHUNK_SIZE {
+                    let batch =
+                        std::mem::replace(&mut chunk, Vec::with_capacity(WRITE_CHUNK_SIZE));
+                    service.write_spans_direct(batch).await.unwrap();
+                }
+            }
+            // flush remainder
+            if !chunk.is_empty() {
+                service.write_spans_direct(chunk).await.unwrap();
+            }
+        }
+
+        // Entity spans at hour 0 (current time) — within the 1h query window.
+        let entity_spans: Vec<_> = (0..ENTITY_TRACES)
+            .flat_map(|_| {
+                let (_r, spans, _t) =
+                    scouter_mocks::generate_trace_with_entity(5, TARGET_ENTITY_UID, 0);
+                spans
+            })
+            .collect();
+        service.write_spans_direct(entity_spans).await.unwrap();
+        service.optimize().await.unwrap();
+        (Arc::new(service), Arc::new(all_ids))
+    });
+
+    let mut group = c.benchmark_group("at_scale_10m");
+    group.sample_size(10);
+    group.measurement_time(Duration::from_secs(60));
+
+    // ── 1a: trace_id lookup — no time bounds ─────────────────────────────
+    group.bench_function("trace_id_no_bounds", |b| {
+        b.to_async(&rt).iter_custom(|iters| {
+            let svc = service.clone();
+            let ids = all_ids.clone();
+            async move {
+                let t = Instant::now();
+                for i in 0..iters {
+                    let (id, _hour) = &ids[i as usize % ids.len()];
+                    let _ = black_box(
+                        svc.query_service
+                            .query_spans(Some(id), None, None, None, None, None)
+                            .await
+                            .unwrap(),
+                    );
+                }
+                t.elapsed()
+            }
+        });
+    });
+
+    // ── 1b: trace_id + 1h time bound — validates file-level pruning ───────
+    group.bench_function("trace_id_1h_bound", |b| {
+        b.to_async(&rt).iter_custom(|iters| {
+            let svc = service.clone();
+            let ids = all_ids.clone();
+            async move {
+                let now = Utc::now();
+                let t = Instant::now();
+                for i in 0..iters {
+                    let (id, hour) = &ids[i as usize % ids.len()];
+                    let start_t = now - chrono::Duration::hours((*hour as i64) + 1);
+                    let end_t = now - chrono::Duration::hours(*hour as i64);
+                    let _ = black_box(
+                        svc.query_service
+                            .query_spans(
+                                Some(id),
+                                None,
+                                Some(&start_t),
+                                Some(&end_t),
+                                None,
+                                None,
+                            )
+                            .await
+                            .unwrap(),
+                    );
+                }
+                t.elapsed()
+            }
+        });
+    });
+
+    // ── 1c: entity_uid + 1h time bound — validates entity bloom filter ────
+    group.bench_function("entity_uid_1h_bound", |b| {
+        b.to_async(&rt).iter_custom(|iters| {
+            let svc = service.clone();
+            async move {
+                let now = Utc::now();
+                let start_t = now - chrono::Duration::hours(1);
+                let end_t = now + chrono::Duration::minutes(5);
+                let t = Instant::now();
+                for _ in 0..iters {
+                    let _ = black_box(
+                        svc.query_service
+                            .query_spans(
+                                None,
+                                None,
+                                Some(&start_t),
+                                Some(&end_t),
+                                None,
+                                Some(TARGET_ENTITY_UID),
+                            )
+                            .await
+                            .unwrap(),
+                    );
+                }
+                t.elapsed()
+            }
+        });
+    });
+
+    group.finish();
+
+    // ── Single teardown ───────────────────────────────────────────────────
+    let service =
+        Arc::try_unwrap(service).unwrap_or_else(|_| panic!("Arc still has multiple owners"));
+    rt.block_on(async { service.shutdown().await.unwrap() });
+    drop(tmp_dir);
+}
+
 criterion_group!(
     benches,
     bench_write_throughput,
@@ -801,5 +972,6 @@ criterion_group!(
     bench_query_at_scale,
     bench_cold_query,
     bench_at_scale_1m,
+    bench_at_scale_10m,
 );
 criterion_main!(benches);
