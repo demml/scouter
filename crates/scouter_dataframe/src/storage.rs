@@ -1,6 +1,6 @@
 use crate::error::StorageError;
 use base64::prelude::*;
-use datafusion::prelude::SessionContext;
+use datafusion::prelude::{SessionConfig, SessionContext};
 use futures::TryStreamExt;
 use object_store::aws::{AmazonS3, AmazonS3Builder};
 use object_store::azure::{MicrosoftAzure, MicrosoftAzureBuilder};
@@ -107,7 +107,17 @@ impl StorageProvider {
         &self,
         storage_settings: &ObjectStorageSettings,
     ) -> Result<SessionContext, StorageError> {
-        let ctx = SessionContext::new();
+        let config = SessionConfig::new()
+            .with_target_partitions(
+                std::thread::available_parallelism()
+                    .map(|n| n.get())
+                    .unwrap_or(4),
+            )
+            .with_batch_size(8192)
+            .with_prefer_existing_sort(true)
+            .with_parquet_pruning(true)
+            .with_collect_statistics(true);
+        let ctx = SessionContext::new_with_config(config);
         let base_url = self.get_base_url(storage_settings)?;
 
         match self {

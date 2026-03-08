@@ -4,15 +4,33 @@ use arrow::array::{
     BinaryArray, Int32Array, Int64Array, ListArray, MapArray, StringArray,
     TimestampMicrosecondArray,
 };
+use arrow::compute::cast;
+use arrow::datatypes::DataType;
 use arrow_array::Array;
 use chrono::{DateTime, TimeZone, Utc};
 use datafusion::logical_expr::{col, lit, SortExpr};
 use datafusion::prelude::*;
+use datafusion::scalar::ScalarValue;
+use mini_moka::sync::Cache;
 use scouter_types::sql::{TraceMetricBucket, TraceSpan};
 use scouter_types::{Attribute, SpanEvent, SpanId, SpanLink, TraceId};
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
+use std::time::Duration;
 use tracing::{error, info, instrument};
+
+/// Build a typed `Timestamp(Microsecond, UTC)` literal for DataFusion predicates.
+///
+/// Using this instead of `lit(dt.to_rfc3339())` ensures the predicate type matches
+/// the column type exactly, enabling Parquet row-group min/max pruning.
+#[inline]
+fn ts_lit(dt: &DateTime<Utc>) -> Expr {
+    lit(ScalarValue::TimestampMicrosecond(
+        Some(dt.timestamp_micros()),
+        Some("UTC".into()),
+    ))
+}
 
 // Column name constants
 pub const START_TIME_COL: &str = "start_time";
@@ -32,6 +50,7 @@ pub const LINKS_COL: &str = "links";
 pub const INPUT_COL: &str = "input";
 pub const OUTPUT_COL: &str = "output";
 pub const SEARCH_BLOB_COL: &str = "search_blob";
+pub const ENTITY_ID_COL: &str = "entity_id";
 pub const SPAN_TABLE_NAME: &str = "trace_spans";
 
 /// Columns needed to reconstruct a `TraceSpan` (all fields except search_blob).
@@ -131,16 +150,10 @@ fn extract_attributes(map_array: &MapArray, row_idx: usize) -> Vec<Attribute> {
         .as_any()
         .downcast_ref::<arrow::array::StructArray>()
         .unwrap();
-    let keys = struct_array
-        .column(0)
-        .as_any()
-        .downcast_ref::<StringArray>()
-        .unwrap();
-    let values = struct_array
-        .column(1)
-        .as_any()
-        .downcast_ref::<StringArray>()
-        .unwrap();
+    let keys_arr = cast(struct_array.column(0).as_ref(), &DataType::Utf8).unwrap();
+    let keys = keys_arr.as_any().downcast_ref::<StringArray>().unwrap();
+    let values_arr = cast(struct_array.column(1).as_ref(), &DataType::Utf8).unwrap();
+    let values = values_arr.as_any().downcast_ref::<StringArray>().unwrap();
 
     (0..struct_array.len())
         .map(|i| Attribute {
@@ -161,10 +174,18 @@ fn extract_events(list_array: &ListArray, row_idx: usize) -> Vec<SpanEvent> {
         .downcast_ref::<arrow::array::StructArray>()
         .unwrap();
 
-    let names = struct_array
-        .column_by_name("name")
-        .and_then(|c| c.as_any().downcast_ref::<StringArray>())
-        .expect("event name should be StringArray");
+    let names_arr = cast(
+        struct_array
+            .column_by_name("name")
+            .expect("event name col")
+            .as_ref(),
+        &DataType::Utf8,
+    )
+    .expect("event name cast");
+    let names = names_arr
+        .as_any()
+        .downcast_ref::<StringArray>()
+        .expect("event name StringArray");
     let timestamps = struct_array
         .column_by_name("timestamp")
         .and_then(|c| c.as_any().downcast_ref::<TimestampMicrosecondArray>())
@@ -206,19 +227,43 @@ fn extract_links(list_array: &ListArray, row_idx: usize) -> Vec<SpanLink> {
         .downcast_ref::<arrow::array::StructArray>()
         .unwrap();
 
-    // Delta Lake maps FixedSizeBinary → Binary; DataFusion returns BinaryArray for nested fields.
-    let trace_ids = struct_array
-        .column_by_name("trace_id")
-        .and_then(|c| c.as_any().downcast_ref::<BinaryArray>())
-        .expect("link trace_id should be BinaryArray");
-    let span_ids = struct_array
-        .column_by_name("span_id")
-        .and_then(|c| c.as_any().downcast_ref::<BinaryArray>())
-        .expect("link span_id should be BinaryArray");
-    let trace_states = struct_array
-        .column_by_name("trace_state")
-        .and_then(|c| c.as_any().downcast_ref::<StringArray>())
-        .expect("link trace_state should be StringArray");
+    // Cast FixedSizeBinary → Binary and any string variant → Utf8 for type-stable access.
+    let trace_id_arr = cast(
+        struct_array
+            .column_by_name("trace_id")
+            .expect("link trace_id col")
+            .as_ref(),
+        &DataType::Binary,
+    )
+    .expect("link trace_id cast");
+    let trace_ids = trace_id_arr
+        .as_any()
+        .downcast_ref::<BinaryArray>()
+        .expect("link trace_id BinaryArray");
+    let span_id_arr = cast(
+        struct_array
+            .column_by_name("span_id")
+            .expect("link span_id col")
+            .as_ref(),
+        &DataType::Binary,
+    )
+    .expect("link span_id cast");
+    let span_ids = span_id_arr
+        .as_any()
+        .downcast_ref::<BinaryArray>()
+        .expect("link span_id BinaryArray");
+    let trace_state_arr = cast(
+        struct_array
+            .column_by_name("trace_state")
+            .expect("link trace_state col")
+            .as_ref(),
+        &DataType::Utf8,
+    )
+    .expect("link trace_state cast");
+    let trace_states = trace_state_arr
+        .as_any()
+        .downcast_ref::<StringArray>()
+        .expect("link trace_state StringArray");
     let attrs = struct_array
         .column_by_name("attributes")
         .and_then(|c| c.as_any().downcast_ref::<MapArray>())
@@ -259,37 +304,68 @@ fn batches_to_flat_spans(batches: Vec<RecordBatch>) -> Result<Vec<FlatSpan>, Tra
             };
         }
 
-        let trace_id_col = batch
-            .column(col_idx!("trace_id"))
+        // Cast FixedSizeBinary → Binary: table_provider() may return either type depending
+        // on whether DataFusion resolves the Delta schema or the Arrow Parquet file metadata.
+        // cast() is zero-copy for fixed-size → variable-length binary reinterpretation.
+        let trace_id_arr = cast(
+            batch.column(col_idx!("trace_id")).as_ref(),
+            &DataType::Binary,
+        )
+        .map_err(|e| TraceEngineError::BatchConversion(format!("trace_id cast: {e}")))?;
+        let trace_id_col = trace_id_arr
             .as_any()
             .downcast_ref::<BinaryArray>()
             .ok_or_else(|| TraceEngineError::BatchConversion("trace_id not BinaryArray".into()))?;
-        let span_id_col = batch
-            .column(col_idx!("span_id"))
+
+        let span_id_arr = cast(
+            batch.column(col_idx!("span_id")).as_ref(),
+            &DataType::Binary,
+        )
+        .map_err(|e| TraceEngineError::BatchConversion(format!("span_id cast: {e}")))?;
+        let span_id_col = span_id_arr
             .as_any()
             .downcast_ref::<BinaryArray>()
             .ok_or_else(|| TraceEngineError::BatchConversion("span_id not BinaryArray".into()))?;
-        let parent_id_col = batch
-            .column(col_idx!("parent_span_id"))
+
+        let parent_id_arr = cast(
+            batch.column(col_idx!("parent_span_id")).as_ref(),
+            &DataType::Binary,
+        )
+        .map_err(|e| TraceEngineError::BatchConversion(format!("parent_span_id cast: {e}")))?;
+        let parent_id_col = parent_id_arr
             .as_any()
             .downcast_ref::<BinaryArray>()
             .ok_or_else(|| {
                 TraceEngineError::BatchConversion("parent_span_id not BinaryArray".into())
             })?;
-        let svc_col = batch
-            .column(col_idx!("service_name"))
+        // Dictionary(Int32/Int8, Utf8) comes back as DictionaryArray from Parquet schema path;
+        // cast to Utf8 normalizes to StringArray regardless of schema path.
+        let svc_arr = cast(
+            batch.column(col_idx!("service_name")).as_ref(),
+            &DataType::Utf8,
+        )
+        .map_err(|e| TraceEngineError::BatchConversion(format!("service_name cast: {e}")))?;
+        let svc_col = svc_arr
             .as_any()
             .downcast_ref::<StringArray>()
             .ok_or_else(|| {
                 TraceEngineError::BatchConversion("service_name not StringArray".into())
             })?;
-        let span_name_col = batch
-            .column(col_idx!("span_name"))
+        let span_name_arr = cast(
+            batch.column(col_idx!("span_name")).as_ref(),
+            &DataType::Utf8,
+        )
+        .map_err(|e| TraceEngineError::BatchConversion(format!("span_name cast: {e}")))?;
+        let span_name_col = span_name_arr
             .as_any()
             .downcast_ref::<StringArray>()
             .ok_or_else(|| TraceEngineError::BatchConversion("span_name not StringArray".into()))?;
-        let span_kind_col = batch
-            .column(col_idx!("span_kind"))
+        let span_kind_arr = cast(
+            batch.column(col_idx!("span_kind")).as_ref(),
+            &DataType::Utf8,
+        )
+        .map_err(|e| TraceEngineError::BatchConversion(format!("span_kind cast: {e}")))?;
+        let span_kind_col = span_kind_arr
             .as_any()
             .downcast_ref::<StringArray>()
             .ok_or_else(|| TraceEngineError::BatchConversion("span_kind not StringArray".into()))?;
@@ -313,8 +389,12 @@ fn batches_to_flat_spans(batches: Vec<RecordBatch>) -> Result<Vec<FlatSpan>, Tra
             .as_any()
             .downcast_ref::<Int32Array>()
             .ok_or_else(|| TraceEngineError::BatchConversion("status_code not Int32".into()))?;
-        let sm_col = batch
-            .column(col_idx!("status_message"))
+        let sm_arr = cast(
+            batch.column(col_idx!("status_message")).as_ref(),
+            &DataType::Utf8,
+        )
+        .map_err(|e| TraceEngineError::BatchConversion(format!("status_message cast: {e}")))?;
+        let sm_col = sm_arr
             .as_any()
             .downcast_ref::<StringArray>()
             .ok_or_else(|| {
@@ -335,13 +415,16 @@ fn batches_to_flat_spans(batches: Vec<RecordBatch>) -> Result<Vec<FlatSpan>, Tra
             .as_any()
             .downcast_ref::<ListArray>()
             .ok_or_else(|| TraceEngineError::BatchConversion("links not ListArray".into()))?;
-        let input_col = batch
-            .column(col_idx!("input"))
+        // Utf8View stored in Parquet may come back as StringViewArray; cast to Utf8 normalizes.
+        let input_arr = cast(batch.column(col_idx!("input")).as_ref(), &DataType::Utf8)
+            .map_err(|e| TraceEngineError::BatchConversion(format!("input cast: {e}")))?;
+        let input_col = input_arr
             .as_any()
             .downcast_ref::<StringArray>()
             .ok_or_else(|| TraceEngineError::BatchConversion("input not StringArray".into()))?;
-        let output_col = batch
-            .column(col_idx!("output"))
+        let output_arr = cast(batch.column(col_idx!("output")).as_ref(), &DataType::Utf8)
+            .map_err(|e| TraceEngineError::BatchConversion(format!("output cast: {e}")))?;
+        let output_col = output_arr
             .as_any()
             .downcast_ref::<StringArray>()
             .ok_or_else(|| TraceEngineError::BatchConversion("output not StringArray".into()))?;
@@ -577,16 +660,70 @@ fn flat_to_trace_span(
     }
 }
 
+/// Normalize an attribute filter string for search_blob LIKE matching.
+///
+/// Converts `key:value` separator to `key=value` (standardized format) so filters match
+/// the pipe-bounded `|key=value|` blob written by `build_search_blob()`.
+///
+/// Note: URL-like patterns (`http://`) are left unchanged to avoid breaking URL values.
+pub(crate) fn normalize_attr_filter(filter: &str) -> String {
+    let normalized = match filter.find(':') {
+        Some(pos) if !filter[pos..].starts_with("://") => {
+            format!("{}={}", &filter[..pos], &filter[pos + 1..])
+        }
+        _ => filter.to_string(),
+    };
+    format!("%{}%", normalized)
+}
+
 /// High-performance query patterns for Delta Lake trace storage.
 ///
 /// Time predicates are always applied FIRST to enable Delta Lake partition pruning.
+/// `span_cache` provides sub-millisecond repeat reads for trace detail clicks.
+/// `metrics_cache` provides sub-millisecond repeat reads for dashboard metric charts.
 pub struct TraceQueries {
     ctx: Arc<SessionContext>,
+    /// LRU cache keyed by 16-byte trace ID. TTL=5 min — archived span data is immutable.
+    span_cache: Cache<[u8; 16], Arc<Vec<TraceSpan>>>,
+    /// LRU cache keyed by hash of (service, start, end, interval, filters, entity).
+    /// TTL=60s — short enough to reflect new archive writes, long enough to absorb UI refreshes.
+    metrics_cache: Cache<u64, Arc<Vec<TraceMetricBucket>>>,
+}
+
+/// Compute a stable u64 cache key from all `get_trace_metrics` parameters.
+fn metrics_cache_key(
+    service_name: Option<&str>,
+    start_time: &DateTime<Utc>,
+    end_time: &DateTime<Utc>,
+    bucket_interval: &str,
+    attribute_filters: Option<&[String]>,
+    entity_uid: Option<&str>,
+) -> u64 {
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    service_name.hash(&mut h);
+    start_time.timestamp_micros().hash(&mut h);
+    end_time.timestamp_micros().hash(&mut h);
+    bucket_interval.hash(&mut h);
+    attribute_filters.hash(&mut h);
+    entity_uid.hash(&mut h);
+    h.finish()
 }
 
 impl TraceQueries {
     pub fn new(ctx: Arc<SessionContext>) -> Self {
-        Self { ctx }
+        let span_cache = Cache::builder()
+            .max_capacity(1_000)
+            .time_to_live(Duration::from_secs(300))
+            .build();
+        let metrics_cache = Cache::builder()
+            .max_capacity(500)
+            .time_to_live(Duration::from_secs(60))
+            .build();
+        Self {
+            ctx,
+            span_cache,
+            metrics_cache,
+        }
     }
 
     /// Get all spans for a trace, reconstructed as a tree with hierarchy fields populated.
@@ -597,6 +734,9 @@ impl TraceQueries {
     /// * `start_time` - Optional lower time bound (applied FIRST for partition pruning)
     /// * `end_time` - Optional upper time bound
     /// * `limit` - Optional row limit
+    ///
+    /// When `trace_id_bytes` is 16 bytes, results are cached for 5 minutes — repeat detail
+    /// clicks (common in the UI) return in <1µs without hitting Delta Lake.
     #[instrument(skip_all)]
     pub async fn get_trace_spans(
         &self,
@@ -606,15 +746,56 @@ impl TraceQueries {
         end_time: Option<&DateTime<Utc>>,
         limit: Option<usize>,
     ) -> Result<Vec<TraceSpan>, TraceEngineError> {
-        let mut builder = TraceQueryBuilder::set_table(self.ctx.clone(), SPAN_TABLE_NAME).await?;
-        builder = builder.select_columns(SPAN_COLUMNS)?;
+        // Cache lookup for by-id trace detail queries (the hot interactive path).
+        if let Some(tid) = trace_id_bytes {
+            if let Ok(key) = <[u8; 16]>::try_from(tid) {
+                if let Some(cached) = self.span_cache.get(&key) {
+                    return Ok((*cached).clone());
+                }
 
-        // Time predicates FIRST — enables Delta Lake partition pruning
+                let result = self
+                    .query_spans(Some(tid), service_name, start_time, end_time, limit, None)
+                    .await?;
+                self.span_cache.insert(key, Arc::new(result.clone()));
+                return Ok(result);
+            }
+        }
+
+        // No trace_id or non-16-byte ID — uncached scan path (time/service/attribute queries).
+        self.query_spans(
+            trace_id_bytes,
+            service_name,
+            start_time,
+            end_time,
+            limit,
+            None,
+        )
+        .await
+    }
+
+    /// Execute the actual DataFusion query without cache logic.
+    ///
+    /// `entity_uid` filters on the top-level `entity_id` column (extracted from
+    /// the `scouter.entity` attribute at ingest time). Filtering is applied before
+    /// column projection so `entity_id` remains in scope.
+    pub async fn query_spans(
+        &self,
+        trace_id_bytes: Option<&[u8]>,
+        service_name: Option<&str>,
+        start_time: Option<&DateTime<Utc>>,
+        end_time: Option<&DateTime<Utc>>,
+        limit: Option<usize>,
+        entity_uid: Option<&str>,
+    ) -> Result<Vec<TraceSpan>, TraceEngineError> {
+        let mut builder = TraceQueryBuilder::set_table(self.ctx.clone(), SPAN_TABLE_NAME).await?;
+
+        // All filters BEFORE select_columns so entity_id (not in SPAN_COLUMNS) stays in scope.
+        // Time predicates FIRST — typed literals enable Parquet row-group pruning.
         if let Some(start) = start_time {
-            builder = builder.add_filter(col(START_TIME_COL).gt_eq(lit(start.to_rfc3339())))?;
+            builder = builder.add_filter(col(START_TIME_COL).gt_eq(ts_lit(start)))?;
         }
         if let Some(end) = end_time {
-            builder = builder.add_filter(col(START_TIME_COL).lt(lit(end.to_rfc3339())))?;
+            builder = builder.add_filter(col(START_TIME_COL).lt(ts_lit(end)))?;
         }
 
         if let Some(tid) = trace_id_bytes {
@@ -624,6 +805,15 @@ impl TraceQueries {
         if let Some(svc) = service_name {
             builder = builder.add_filter(col(SERVICE_NAME_COL).eq(lit(svc)))?;
         }
+
+        if let Some(uid) = entity_uid {
+            // IS NOT NULL first — stats-only check lets DataFusion skip all-NULL files
+            // before the equality filter is evaluated at the row level.
+            builder = builder.add_filter(col(ENTITY_ID_COL).is_not_null())?;
+            builder = builder.add_filter(col(ENTITY_ID_COL).eq(lit(uid)))?;
+        }
+
+        builder = builder.select_columns(SPAN_COLUMNS)?;
 
         // Sort by start_time for stable DFS input; tree builder assigns span_order
         builder = builder.add_sort(vec![col(START_TIME_COL).sort(true, true)])?;
@@ -638,9 +828,7 @@ impl TraceQueries {
         );
 
         let flat_spans = batches_to_flat_spans(batches)?;
-        let trace_spans = build_span_tree(flat_spans);
-
-        Ok(trace_spans)
+        Ok(build_span_tree(flat_spans))
     }
 
     /// Get trace metrics over a time range, bucketed by the given interval string.
@@ -662,8 +850,21 @@ impl TraceQueries {
         end_time: DateTime<Utc>,
         bucket_interval: &str,
         attribute_filters: Option<&[String]>,
-        entity_trace_ids: Option<&[Vec<u8>]>,
+        entity_uid: Option<&str>,
     ) -> Result<Vec<TraceMetricBucket>, TraceEngineError> {
+        // Cache hit: return immediately without touching Delta Lake.
+        let cache_key = metrics_cache_key(
+            service_name,
+            &start_time,
+            &end_time,
+            bucket_interval,
+            attribute_filters,
+            entity_uid,
+        );
+        if let Some(cached) = self.metrics_cache.get(&cache_key) {
+            return Ok((*cached).clone());
+        }
+
         const VALID_INTERVALS: &[&str] =
             &["second", "minute", "hour", "day", "week", "month", "year"];
         if !VALID_INTERVALS.contains(&bucket_interval) {
@@ -677,40 +878,34 @@ impl TraceQueries {
         let start_rfc = start_time.to_rfc3339();
         let end_rfc = end_time.to_rfc3339();
 
-        // matching_traces CTE — only emitted when attribute_filters is non-empty
-        let (matching_traces_cte, attr_trace_clause) = match attribute_filters {
+        // Single-pass attribute filter: fold match into trace_level aggregation with HAVING.
+        let (attr_match_select, attr_having) = match attribute_filters {
             Some(filters) if !filters.is_empty() => {
                 let clauses: Vec<String> = filters
                     .iter()
-                    .map(|f| format!("search_blob LIKE '%{}%'", f.replace('\'', "''")))
+                    .map(|f| {
+                        let pattern = normalize_attr_filter(f);
+                        // Strip the outer % wrappers — they're added back in the LIKE expression
+                        let inner = pattern.trim_matches('%');
+                        format!("search_blob LIKE '%{}%'", inner.replace('\'', "''"))
+                    })
                     .collect();
-                let cte = format!(
-                    "matching_traces AS (\
-                        SELECT DISTINCT trace_id FROM {table} \
-                        WHERE start_time >= '{start}' AND start_time < '{end}' \
-                        AND ({attr_cond})\
-                    ),",
-                    table = SPAN_TABLE_NAME,
-                    start = start_rfc,
-                    end = end_rfc,
-                    attr_cond = clauses.join(" OR "),
+                let match_expr = format!(
+                    ", MAX(CASE WHEN {} THEN 1 ELSE 0 END) AS attr_match",
+                    clauses.join(" OR ")
                 );
-                let clause = "AND trace_id IN (SELECT trace_id FROM matching_traces)".to_string();
-                (cte, clause)
+                (match_expr, "HAVING attr_match = 1".to_string())
             }
             _ => (String::new(), String::new()),
         };
 
-        // entity trace_ids IN filter
-        let entity_filter_clause = match entity_trace_ids {
-            Some(ids) if !ids.is_empty() => {
-                let hex_list: Vec<String> = ids
-                    .iter()
-                    .map(|b| format!("X'{}'", hex::encode(b)))
-                    .collect();
-                format!("AND trace_id IN ({})", hex_list.join(", "))
-            }
-            _ => String::new(),
+        // entity_id direct column predicate — avoids IN-list and enables file-level skipping
+        let entity_filter_clause = match entity_uid {
+            Some(uid) => format!(
+                "AND entity_id IS NOT NULL AND entity_id = '{}'",
+                uid.replace('\'', "''")
+            ),
+            None => String::new(),
         };
 
         // Service filter on root span (parent_span_id IS NULL) — matches Postgres logic
@@ -723,8 +918,9 @@ impl TraceQueries {
         // trace_level aggregates per-trace; service_filtered computes duration from the
         // already-aggregated trace_start/trace_end to avoid duplicate aggregate expressions
         // in the same SELECT (which DataFusion rejects).
+        // attr_match_select + attr_having fold attribute filtering into the single scan.
         let sql = format!(
-            "WITH {matching_traces_cte}\
+            "WITH \
             trace_level AS (\
                 SELECT \
                     s.trace_id, \
@@ -732,12 +928,13 @@ impl TraceQueries {
                     MAX(s.end_time)   AS trace_end, \
                     MAX(CASE WHEN s.parent_span_id IS NULL \
                              THEN CAST(s.service_name AS VARCHAR) END) AS root_service, \
-                    MAX(s.status_code) AS status_code \
+                    MAX(s.status_code) AS status_code\
+                    {attr_match_select} \
                 FROM {table} s \
                 WHERE s.start_time >= '{start}' AND s.start_time < '{end}' \
                 {entity_filter} \
-                {attr_trace} \
                 GROUP BY s.trace_id \
+                {attr_having} \
             ), \
             service_filtered AS (\
                 SELECT \
@@ -769,12 +966,12 @@ impl TraceQueries {
             FROM bucketed \
             GROUP BY bucket_start \
             ORDER BY bucket_start ASC",
-            matching_traces_cte = matching_traces_cte,
             table = SPAN_TABLE_NAME,
             start = start_rfc,
             end = end_rfc,
             entity_filter = entity_filter_clause,
-            attr_trace = attr_trace_clause,
+            attr_match_select = attr_match_select,
+            attr_having = attr_having,
             svc_filter = service_filter_clause,
             interval = bucket_interval,
         );
@@ -866,6 +1063,8 @@ impl TraceQueries {
             }
         }
 
+        self.metrics_cache
+            .insert(cache_key, Arc::new(metrics.clone()));
         Ok(metrics)
     }
 }

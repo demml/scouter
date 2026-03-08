@@ -1,3 +1,4 @@
+#[cfg(feature = "python")]
 pub mod mock;
 pub mod util;
 
@@ -35,10 +36,14 @@ pub fn init_tracing() {
     });
 }
 
+#[cfg(feature = "python")]
 pub use mock::ScouterTestServer;
+#[cfg(feature = "python")]
 pub use potato_head::mock::LLMTestServer;
 pub use util::{
     create_multi_service_trace, create_nested_trace, create_sequence_pattern_trace,
     create_simple_trace, create_trace_with_attributes, create_trace_with_errors,
     generate_trace_with_spans,
 };
+#[cfg(feature = "server")]
+pub use util::generate_trace_with_entity;

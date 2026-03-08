@@ -1,123 +1,169 @@
 mod utils;
 
+use chrono::Utc;
 use scouter_dataframe::parquet::tracing::service::TraceSpanService;
 use scouter_settings::ObjectStorageSettings;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
-use tokio::sync::Semaphore;
+use scouter_types::TraceId;
+use std::time::Instant;
+
+const TOTAL_SPANS: usize = 1_000_000;
+const HOURS: usize = 24;
+const SPANS_PER_HOUR: usize = TOTAL_SPANS / HOURS; // ~41,667
+const TRACES_PER_HOUR: usize = SPANS_PER_HOUR / 5; // ~8,333 (5 spans/trace)
+const QUERY_ITERS: usize = 500;
+const TARGET_ENTITY_UID: &str = "stress-entity-abc123";
+const ENTITY_TRACES: usize = 50;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
+        .with_max_level(tracing::Level::WARN)
         .init();
 
-    println!("🚀 Starting TraceSpanService Stress Test");
-    println!("=========================================\n");
+    // Clean up previous run's storage so each run starts fresh.
+    std::fs::remove_dir_all("./scouter_storage").ok();
 
-    // Test configuration
+    println!("=== Delta Lake At-Scale Stress Benchmark ===\n");
+    println!(
+        "Config: {} total spans, {} hourly batches (~{} spans/batch), {} query iters\n",
+        TOTAL_SPANS, HOURS, SPANS_PER_HOUR, QUERY_ITERS
+    );
+
+    // compaction_interval_hours=999 disables auto-compaction; flush every 5s (unused for direct writes).
     let storage_settings = ObjectStorageSettings::default();
-    let service = Arc::new(TraceSpanService::new(&storage_settings, 24, Some(5)).await?);
+    let service = TraceSpanService::new(&storage_settings, 999, Some(5)).await?;
 
-    // Target: 20M spans/day = ~231 spans/second
-    let target_spans_per_sec = 231;
-    let test_duration_secs = 60;
-    let concurrent_writers = 8;
+    // ── Phase 1: Seed ──────────────────────────────────────────────────────
+    println!("Phase 1: Seeding {} spans via direct writes ({} hourly batches)...", TOTAL_SPANS, HOURS);
+    let seed_start = Instant::now();
 
-    println!("Configuration:");
-    println!("  - Target: {} spans/second", target_spans_per_sec);
-    println!("  - Test Duration: {} seconds", test_duration_secs);
-    println!("  - Concurrent Writers: {}", concurrent_writers);
-    println!("  - Buffer Size: 10,000 spans");
-    println!("  - Flush Interval: 5 seconds\n");
+    // Collect one trace_id per hour for later query benchmarks.
+    let mut all_ids: Vec<(usize, Vec<Vec<u8>>)> = Vec::with_capacity(HOURS);
 
-    let semaphore = Arc::new(Semaphore::new(concurrent_writers));
-    let start_time = Instant::now();
-    let mut total_spans_written = 0;
-    let mut tasks = vec![];
+    for hour in 0..HOURS {
+        let minutes_offset = (hour as i64) * 60;
+        let mut hour_spans = Vec::with_capacity(SPANS_PER_HOUR);
+        let mut hour_ids: Vec<Vec<u8>> = Vec::new();
 
-    println!("📊 Writing spans...");
-
-    while start_time.elapsed().as_secs() < test_duration_secs {
-        let permit = semaphore.clone().acquire_owned().await?;
-        let service_clone = service.clone();
-
-        let task = tokio::spawn(async move {
-            let spans = utils::create_simple_trace();
-            let span_count = spans.len();
-
-            if let Err(e) = service_clone.write_spans(spans).await {
-                eprintln!("Write error: {}", e);
-                return 0;
+        for _ in 0..TRACES_PER_HOUR {
+            let (_r, spans, _t) =
+                scouter_mocks::generate_trace_with_spans(5, minutes_offset);
+            if hour_ids.len() < 500 {
+                let id_bytes = TraceId::hex_to_bytes(&spans[0].trace_id.to_hex())?;
+                hour_ids.push(id_bytes);
             }
+            hour_spans.extend(spans);
+        }
 
-            drop(permit);
-            span_count
-        });
+        service.write_spans_direct(hour_spans).await?;
+        all_ids.push((hour, hour_ids));
 
-        tasks.push(task);
-
-        // Rate limiting to hit target throughput
-        let target_interval = Duration::from_micros(1_000_000 / target_spans_per_sec as u64 * 3);
-        tokio::time::sleep(target_interval).await;
-    }
-
-    println!("⏳ Waiting for all writes to complete...");
-
-    for task in tasks {
-        if let Ok(count) = task.await {
-            total_spans_written += count;
+        if hour % 6 == 5 {
+            println!(
+                "  hour {}/{} seeded ({:.1}s elapsed)",
+                hour + 1,
+                HOURS,
+                seed_start.elapsed().as_secs_f64()
+            );
         }
     }
 
-    let elapsed = start_time.elapsed();
-    let actual_rate = total_spans_written as f64 / elapsed.as_secs_f64();
-
-    println!("\n✅ Write Phase Complete");
-    println!("  - Total Spans Written: {}", total_spans_written);
-    println!("  - Elapsed Time: {:.2}s", elapsed.as_secs_f64());
-    println!("  - Actual Rate: {:.2} spans/second", actual_rate);
-    println!("  - Target Rate: {} spans/second", target_spans_per_sec);
-    println!(
-        "  - Efficiency: {:.1}%",
-        (actual_rate / target_spans_per_sec as f64) * 100.0
-    );
-
-    println!("\n🔍 Running Query Performance Test...");
-
-    let query_start = Instant::now();
-    let results = service
-        .query_service
-        .get_trace_spans(None, None, None, None, Some(1000))
-        .await?;
-
-    let total_queried: usize = results.len();
-    let query_duration = query_start.elapsed();
+    // Seed entity spans at hour 0 (now - 0 minutes offset).
+    {
+        let entity_spans = utils::create_entity_trace_batch(ENTITY_TRACES, TARGET_ENTITY_UID);
+        service.write_spans_direct(entity_spans).await?;
+    }
 
     println!(
-        "  - Queried {} spans in {:.2}ms",
-        total_queried,
-        query_duration.as_millis()
-    );
-    println!(
-        "  - Query Rate: {:.2} spans/ms",
-        total_queried as f64 / query_duration.as_millis() as f64
+        "  Seeded {} spans in {:.2}s ({:.0} spans/sec)\n",
+        TOTAL_SPANS,
+        seed_start.elapsed().as_secs_f64(),
+        TOTAL_SPANS as f64 / seed_start.elapsed().as_secs_f64()
     );
 
-    println!("\n🔧 Running Optimization...");
-    let optimize_start = Instant::now();
+    // ── Phase 2: Z-ORDER compaction ────────────────────────────────────────
+    println!("Phase 2: Z-ORDER compaction on {} spans...", TOTAL_SPANS);
+    let opt_start = Instant::now();
     service.optimize().await?;
+    println!("  Compaction: {:.2}s\n", opt_start.elapsed().as_secs_f64());
+
+    // ── Phase 3: Query benchmarks ──────────────────────────────────────────
+    println!("Phase 3: Query benchmarks ({} iterations each)...", QUERY_ITERS);
+
+    // 3a. trace_id lookup — no time bounds (full scan baseline).
+    {
+        let mut timings = Vec::with_capacity(QUERY_ITERS);
+        for i in 0..QUERY_ITERS {
+            let (_, ids) = &all_ids[i % HOURS];
+            let id = &ids[i % ids.len()];
+            let t = Instant::now();
+            let _ = service
+                .query_service
+                .query_spans(Some(id), None, None, None, None, None)
+                .await?;
+            timings.push(t.elapsed());
+        }
+        utils::print_percentiles(
+            "query_spans (by trace_id, no time bounds)",
+            &utils::compute_percentiles(timings),
+        );
+    }
+
+    // 3b. trace_id + 1h time bound — validates Parquet row-group pruning.
+    {
+        let now = Utc::now();
+        let mut timings = Vec::with_capacity(QUERY_ITERS);
+        for i in 0..QUERY_ITERS {
+            let hour = i % HOURS;
+            let (_, ids) = &all_ids[hour];
+            let id = &ids[i % ids.len()];
+            let start_t = now - chrono::Duration::hours((hour as i64) + 1);
+            let end_t = now - chrono::Duration::hours(hour as i64);
+            let t = Instant::now();
+            let _ = service
+                .query_service
+                .query_spans(Some(id), None, Some(&start_t), Some(&end_t), None, None)
+                .await?;
+            timings.push(t.elapsed());
+        }
+        utils::print_percentiles(
+            "query_spans (by trace_id, 1h time bound)",
+            &utils::compute_percentiles(timings),
+        );
+    }
+
+    // 3c. entity_uid + 1h time bound — validates entity_id column pruning.
+    {
+        let now = Utc::now();
+        let start_t = now - chrono::Duration::hours(1);
+        let end_t = now + chrono::Duration::minutes(5);
+        let mut timings = Vec::with_capacity(QUERY_ITERS);
+        for _ in 0..QUERY_ITERS {
+            let t = Instant::now();
+            let _ = service
+                .query_service
+                .query_spans(
+                    None,
+                    None,
+                    Some(&start_t),
+                    Some(&end_t),
+                    None,
+                    Some(TARGET_ENTITY_UID),
+                )
+                .await?;
+            timings.push(t.elapsed());
+        }
+        utils::print_percentiles(
+            "query_spans (by entity_uid, 1h time bound)",
+            &utils::compute_percentiles(timings),
+        );
+    }
+
+    println!("\n=== Stress Benchmark Complete ===");
     println!(
-        "  - Optimization completed in {:.2}s",
-        optimize_start.elapsed().as_secs_f64()
+        "Pruning proof: compare p50 of '1h time bound' vs 'no time bounds'.");
+    println!(
+        "If the bounded query is >20% faster, Parquet file-level min/max pruning is working.\n"
     );
-
-    println!("\n🛑 Shutting down service...");
-    // Drop the Arc to allow shutdown. Since all tasks are complete,
-    // this is the last reference and will trigger cleanup.
-    drop(service);
-
-    println!("\n✨ Stress Test Complete!\n");
-
     Ok(())
 }

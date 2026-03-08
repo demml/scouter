@@ -166,6 +166,11 @@ impl TraceAggregator {
 
     /// Convert to the lightweight `TraceSummaryRecord` for Delta Lake writes.
     pub fn to_summary_record(&self) -> TraceSummaryRecord {
+        let entity_id = self
+            .entity_tags
+            .iter()
+            .next()
+            .map(|e| uuid::Uuid::from_bytes(e.0).to_string());
         TraceSummaryRecord {
             trace_id: self.trace_id.clone(),
             service_name: self.service_name.clone(),
@@ -179,6 +184,7 @@ impl TraceAggregator {
             span_count: self.span_count,
             error_count: self.error_count,
             resource_attributes: self.resource_attributes.clone(),
+            entity_id,
         }
     }
 }

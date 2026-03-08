@@ -81,4 +81,4 @@ postgres-data/
 # Dont want to show auto-generated doc files
 py-scouter/python/scouter/stubs.pyi
 /.github/instructions
-docs/
+dev/

@@ -7,13 +7,16 @@ use arrow::array::*;
 use arrow::datatypes::*;
 use arrow_array::RecordBatch;
 use datafusion::prelude::SessionContext;
+use deltalake::datafusion::parquet::basic::{Compression, Encoding, ZstdLevel};
+use deltalake::datafusion::parquet::file::properties::{EnabledStatistics, WriterProperties};
+use deltalake::datafusion::parquet::schema::types::ColumnPath;
 use deltalake::operations::optimize::OptimizeType;
 use deltalake::DeltaTable;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::SpanId;
 use scouter_types::TraceId;
 use scouter_types::TraceSpanRecord;
-use scouter_types::{Attribute, SpanEvent, SpanLink};
+use scouter_types::{Attribute, SpanEvent, SpanLink, SCOUTER_ENTITY};
 use serde_json::Value;
 use std::sync::Arc;
 use tokio::sync::oneshot;
@@ -111,8 +114,14 @@ impl TraceSpanDBEngine {
         let schema = Arc::new(Self::create_schema());
         let delta_table = build_or_create_table(&object_store, schema.clone()).await?;
         let ctx = object_store.get_session()?;
-        ctx.register_table(TRACE_SPAN_TABLE_NAME, Arc::new(delta_table.clone()))?;
-
+        // A freshly-created table has no committed Parquet files yet — table_provider()
+        // returns a DataFusionError(External(NotATable)) in that case.
+        // Defer registration until the first write populates the log.
+        if let Ok(provider) = delta_table.table_provider().await {
+            ctx.register_table(TRACE_SPAN_TABLE_NAME, provider)?;
+        } else {
+            info!("Empty table at init — deferring SessionContext registration until first write");
+        }
         Ok(TraceSpanDBEngine {
             schema,
             object_store,
@@ -146,6 +155,64 @@ impl TraceSpanDBEngine {
         Ok(record_batch)
     }
 
+    /// Build the shared `WriterProperties` used for both ingest writes and Z-ORDER compaction.
+    ///
+    /// Must be applied to BOTH `write_spans()` and `optimize_table()` — compaction rewrites
+    /// all Parquet files, so bloom filters configured only on write are discarded after the
+    /// first compaction cycle.
+    fn build_writer_props() -> WriterProperties {
+        WriterProperties::builder()
+            // Row group size: creates ~4 groups per 128MB file so bloom + page stats
+            // prune within files, not just across files.
+            .set_max_row_group_size(32_768)
+            // Bloom filter on trace_id: skips ~99% of row groups for trace_id equality lookups.
+            .set_column_bloom_filter_enabled(ColumnPath::new(vec!["trace_id".to_string()]), true)
+            .set_column_bloom_filter_fpp(ColumnPath::new(vec!["trace_id".to_string()]), 0.01)
+            .set_column_bloom_filter_ndv(ColumnPath::new(vec!["trace_id".to_string()]), 32_768)
+            // entity_id: high cardinality (UUIDs), very hot equality predicate
+            .set_column_bloom_filter_enabled(ColumnPath::new(vec!["entity_id".to_string()]), true)
+            .set_column_bloom_filter_fpp(ColumnPath::new(vec!["entity_id".to_string()]), 0.01)
+            .set_column_bloom_filter_ndv(ColumnPath::new(vec!["entity_id".to_string()]), 32_768)
+            // service_name: low cardinality but hot lookup path — bloom skips row groups fast
+            .set_column_bloom_filter_enabled(
+                ColumnPath::new(vec!["service_name".to_string()]),
+                true,
+            )
+            .set_column_bloom_filter_fpp(ColumnPath::new(vec!["service_name".to_string()]), 0.01)
+            .set_column_bloom_filter_ndv(ColumnPath::new(vec!["service_name".to_string()]), 256)
+            // span_name: high cardinality equality queries (e.g. "grpc.unary/method")
+            .set_column_bloom_filter_enabled(ColumnPath::new(vec!["span_name".to_string()]), true)
+            .set_column_bloom_filter_fpp(ColumnPath::new(vec!["span_name".to_string()]), 0.01)
+            .set_column_bloom_filter_ndv(ColumnPath::new(vec!["span_name".to_string()]), 32_768)
+            // Page-level stats on start_time: finest-grained time pruning within row groups.
+            .set_column_statistics_enabled(
+                ColumnPath::new(vec!["start_time".to_string()]),
+                EnabledStatistics::Page,
+            )
+            // status_code: page-level min/max prunes pages for error-only queries.
+            // Do NOT use bloom filter: only 3 possible values (0/1/2), overhead > benefit.
+            .set_column_statistics_enabled(
+                ColumnPath::new(vec!["status_code".to_string()]),
+                EnabledStatistics::Page,
+            )
+            // Delta encoding on near-sorted integer columns: 4-8x compression on timestamps
+            // after Z-ORDER compaction; 2-4x on durations within a service.
+            .set_column_encoding(
+                ColumnPath::new(vec!["start_time".to_string()]),
+                Encoding::DELTA_BINARY_PACKED,
+            )
+            .set_column_encoding(
+                ColumnPath::new(vec!["duration_ms".to_string()]),
+                Encoding::DELTA_BINARY_PACKED,
+            )
+            // ZSTD level 3: ~40% better compression than SNAPPY on text columns;
+            // marginal decompression overhead is offset by reduced I/O.
+            .set_compression(Compression::ZSTD(ZstdLevel::try_new(3).unwrap()))
+            // Dictionary hint on span_name: high repetition similar to service_name.
+            .set_column_dictionary_enabled(ColumnPath::new(vec!["span_name".to_string()]), true)
+            .build()
+    }
+
     /// Write spans to the Delta table (single-writer invariant via actor channel).
     async fn write_spans(&self, spans: Vec<TraceSpanRecord>) -> Result<(), TraceEngineError> {
         info!("Engine received write request for {} spans", spans.len());
@@ -167,13 +234,14 @@ impl TraceSpanDBEngine {
         let updated_table = current_table
             .write(vec![batch])
             .with_save_mode(deltalake::protocol::SaveMode::Append)
+            .with_writer_properties(Self::build_writer_props())
             .await?;
 
         info!("Successfully wrote batch to Delta Lake");
 
         self.ctx.deregister_table(TRACE_SPAN_TABLE_NAME)?;
         self.ctx
-            .register_table(TRACE_SPAN_TABLE_NAME, Arc::new(updated_table.clone()))?;
+            .register_table(TRACE_SPAN_TABLE_NAME, updated_table.table_provider().await?)?;
 
         *table_guard = updated_table;
 
@@ -189,14 +257,19 @@ impl TraceSpanDBEngine {
             .optimize()
             .with_target_size(128 * 1024 * 1024)
             .with_type(OptimizeType::ZOrder(vec![
-                "start_time".to_string(),
-                "service_name".to_string(),
+                "start_time".to_string(),   // PRIMARY — always present, dominant pruning key
+                "entity_id".to_string(),    // SECONDARY — primary scouter query dimension
+                "service_name".to_string(), // TERTIARY — service-level filter bonus
             ]))
+            // Bloom filters must be re-specified here — compaction rewrites all Parquet files
+            // from scratch using these properties. Without this, every compaction cycle
+            // silently discards all bloom filters on the rewritten files.
+            .with_writer_properties(Self::build_writer_props())
             .await?;
 
         self.ctx.deregister_table(TRACE_SPAN_TABLE_NAME)?;
         self.ctx
-            .register_table(TRACE_SPAN_TABLE_NAME, Arc::new(updated_table.clone()))?;
+            .register_table(TRACE_SPAN_TABLE_NAME, updated_table.table_provider().await?)?;
 
         *table_guard = updated_table;
 
@@ -215,7 +288,7 @@ impl TraceSpanDBEngine {
 
         self.ctx.deregister_table(TRACE_SPAN_TABLE_NAME)?;
         self.ctx
-            .register_table(TRACE_SPAN_TABLE_NAME, Arc::new(updated_table.clone()))?;
+            .register_table(TRACE_SPAN_TABLE_NAME, updated_table.table_provider().await?)?;
 
         *table_guard = updated_table;
 
@@ -328,6 +401,7 @@ pub struct TraceSpanBatchBuilder {
 
     // Scouter-specific
     label: StringBuilder,
+    entity_id: StringBuilder,
 
     // Attribute builders
     attributes: MapBuilder<StringBuilder, StringViewBuilder>,
@@ -369,6 +443,7 @@ impl TraceSpanBatchBuilder {
         let status_message = StringBuilder::new();
 
         let label = StringBuilder::new();
+        let entity_id = StringBuilder::new();
 
         let map_field_name = MapFieldNames {
             entry: "key_value".to_string(),
@@ -457,6 +532,7 @@ impl TraceSpanBatchBuilder {
             status_code,
             status_message,
             label,
+            entity_id,
             attributes,
             resource_attributes,
             events,
@@ -528,6 +604,17 @@ impl TraceSpanBatchBuilder {
         match &span.label {
             Some(l) => self.label.append_value(l),
             None => self.label.append_null(),
+        }
+
+        // Entity ID — extracted from the scouter.entity span attribute
+        let entity_id = span
+            .attributes
+            .iter()
+            .find(|a| a.key == SCOUTER_ENTITY)
+            .and_then(|a| a.value.as_str());
+        match entity_id {
+            Some(uid) => self.entity_id.append_value(uid),
+            None => self.entity_id.append_null(),
         }
 
         // Attributes
@@ -707,50 +794,48 @@ impl TraceSpanBatchBuilder {
     }
 
     /// Build a concatenated search string from `TraceSpanRecord` for full-text queries.
+    ///
+    /// Uses pipe-bounded tokens (`|key=value|`) to prevent false-positive substring matches
+    /// where a value contains something that looks like a different attribute key or value.
+    /// Queries use `%key=value%` patterns which match both old `key:value` archive data
+    /// and the new `|key=value|` format.
     fn build_search_blob(span: &TraceSpanRecord) -> String {
         let mut search = String::with_capacity(512);
 
+        // Pipe-bounded bare tokens for full-text (service, span, scope)
+        search.push('|');
         search.push_str(&span.service_name);
-        search.push(' ');
+        search.push_str("| |");
         search.push_str(&span.span_name);
-        search.push(' ');
+        search.push_str("| |");
         search.push_str(&span.scope_name);
-        search.push(' ');
+        search.push('|');
 
         if !span.status_message.is_empty() {
+            search.push_str(" |");
             search.push_str(&span.status_message);
-            search.push(' ');
+            search.push('|');
         }
 
+        // Pipe-bounded key=value tokens — standardize on `=` separator
         for attr in &span.attributes {
+            search.push_str(" |");
             search.push_str(&attr.key);
-            search.push(':');
-            let value_str = match &attr.value {
-                Value::String(s) => {
-                    search.push_str(s);
-                    search.push(' ');
-                    continue;
-                }
-                Value::Number(n) => {
-                    search.push_str(&n.to_string());
-                    search.push(' ');
-                    continue;
-                }
-                Value::Bool(b) => {
-                    search.push_str(&b.to_string());
-                    search.push(' ');
-                    continue;
-                }
-                Value::Null => continue,
-                other => other.to_string(),
-            };
-            search.push_str(&value_str);
-            search.push(' ');
+            search.push('=');
+            match &attr.value {
+                Value::String(s) => search.push_str(s),
+                Value::Number(n) => search.push_str(&n.to_string()),
+                Value::Bool(b) => search.push_str(&b.to_string()),
+                Value::Null => {}
+                other => search.push_str(&other.to_string()),
+            }
+            search.push('|');
         }
 
         for event in &span.events {
+            search.push_str(" |");
             search.push_str(&event.name);
-            search.push(' ');
+            search.push('|');
         }
 
         search
@@ -777,6 +862,7 @@ impl TraceSpanBatchBuilder {
                 Arc::new(self.status_code.finish()),
                 Arc::new(self.status_message.finish()),
                 Arc::new(self.label.finish()),
+                Arc::new(self.entity_id.finish()),
                 Arc::new(self.attributes.finish()),
                 Arc::new(self.resource_attributes.finish()),
                 Arc::new(self.events.finish()),

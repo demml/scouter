@@ -25,7 +25,7 @@ deltalake = { workspace = true }
 datafusion = { workspace = true }
 futures = { workspace = true }
 object_store = { workspace = true }
-parquet = { workspace = true }
+mini-moka = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

@@ -105,6 +105,8 @@ async fn test_tracing() {
     let params = TraceRequest {
         trace_id: filtered_batch.items.first().unwrap().trace_id.clone(),
         service_name: None,
+        start_time: None,
+        end_time: None,
     };
 
     let query_string = serde_qs::to_string(&params).unwrap();

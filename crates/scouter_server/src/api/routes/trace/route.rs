@@ -40,34 +40,12 @@ pub async fn get_trace_baggage(
 #[instrument(skip_all)]
 pub async fn paginated_traces(
     State(data): State<Arc<AppState>>,
-    Json(mut body): Json<TraceFilters>,
+    Json(body): Json<TraceFilters>,
 ) -> Result<Json<TracePaginationResponse>, (StatusCode, Json<ScouterServerError>)> {
     debug!("Getting paginated traces with filters: {:?}", body);
 
-    // ── Resolve entity_uid → trace_ids via Postgres trace_entities ───────────
-    // attribute_filters are handled inside get_paginated_traces via JOIN with trace_spans.
-    let entity_trace_ids = if let Some(ref uid) = body.entity_uid {
-        PostgresClient::get_trace_ids_for_entity(&data.db_pool, uid)
-            .await
-            .unwrap_or_else(|e| {
-                error!("Failed to resolve entity_uid trace IDs: {:?}", e);
-                Vec::new()
-            })
-    } else {
-        Vec::new()
-    };
-
-    if !entity_trace_ids.is_empty() {
-        let hex_ids: Vec<String> = entity_trace_ids.iter().map(hex::encode).collect();
-        body.trace_ids = Some(match body.trace_ids {
-            Some(existing) if !existing.is_empty() => existing
-                .into_iter()
-                .filter(|id| hex_ids.contains(id))
-                .collect(),
-            _ => hex_ids,
-        });
-    }
-
+    // entity_uid is passed directly to the Delta Lake query where it is applied as a
+    // column predicate on the `entity_id` column, enabling file-level Z-ORDER skipping.
     let pagination_response = data
         .trace_summary_service
         .query_service
@@ -107,14 +85,29 @@ pub async fn get_trace_spans(
         )
     })?;
 
+    // Parse caller-supplied time bounds or default to a ±24h window.
+    // Time-first predicates narrow the Delta Lake file scan before the trace_id filter.
+    let end_time = params
+        .end_time
+        .as_deref()
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.with_timezone(&chrono::Utc))
+        .unwrap_or_else(chrono::Utc::now);
+    let start_time = params
+        .start_time
+        .as_deref()
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.with_timezone(&chrono::Utc))
+        .unwrap_or_else(|| end_time - chrono::Duration::hours(24));
+
     let spans = data
         .trace_service
         .query_service
         .get_trace_spans(
             Some(trace_id_bytes.as_slice()),
             params.service_name.as_deref(),
-            None,
-            None,
+            Some(&start_time),
+            Some(&end_time),
             None,
         )
         .await
@@ -161,27 +154,11 @@ pub async fn trace_metrics(
 ) -> Result<Json<TraceMetricsResponse>, (StatusCode, Json<ScouterServerError>)> {
     debug!("Getting trace metrics for request: {:?}", body);
 
-    // ── Resolve entity_uid → raw trace_id bytes via Postgres trace_entities ──
-    let entity_trace_ids = if let Some(ref uid) = body.entity_uid {
-        PostgresClient::get_trace_ids_for_entity(&data.db_pool, uid)
-            .await
-            .unwrap_or_else(|e| {
-                error!("Failed to resolve entity_uid trace IDs: {:?}", e);
-                Vec::new()
-            })
-    } else {
-        Vec::new()
-    };
-
-    let entity_ids_ref: Option<&[Vec<u8>]> = if entity_trace_ids.is_empty() {
-        None
-    } else {
-        Some(&entity_trace_ids)
-    };
-
     let attr_filters_ref: Option<&[String]> =
         body.attribute_filters.as_deref().filter(|f| !f.is_empty());
 
+    // entity_uid is applied as a direct column predicate on `entity_id` inside DataFusion,
+    // enabling Z-ORDER file skipping without a Postgres trace_id lookup round-trip.
     let metrics = data
         .trace_service
         .query_service
@@ -191,7 +168,7 @@ pub async fn trace_metrics(
             body.end_time,
             &body.bucket_interval,
             attr_filters_ref,
-            entity_ids_ref,
+            body.entity_uid.as_deref(),
         )
         .await
         .map_err(|e| {

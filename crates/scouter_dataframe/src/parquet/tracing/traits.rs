@@ -96,6 +96,9 @@ pub trait TraceSchemaExt {
             Field::new("status_message", DataType::Utf8, true),
             // ========== Scouter-specific ==========
             Field::new("label", DataType::Utf8, true),
+            // Entity UID from the `scouter.entity` attribute — nullable for spans without entity context.
+            // Stored as a top-level column so DataFusion can use min/max statistics for file skipping.
+            Field::new("entity_id", DataType::Utf8, true),
             // ========== Attributes ==========
             attribute_field(),
             resource_attribute_field(),

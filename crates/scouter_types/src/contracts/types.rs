@@ -687,6 +687,10 @@ pub struct InsertTagsRequest {
 pub struct TraceRequest {
     pub trace_id: String,
     pub service_name: Option<String>,
+    /// ISO 8601 lower bound — enables Delta Lake time pruning when supplied by the UI.
+    pub start_time: Option<String>,
+    /// ISO 8601 upper bound — enables Delta Lake time pruning when supplied by the UI.
+    pub end_time: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

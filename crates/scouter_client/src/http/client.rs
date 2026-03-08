@@ -189,6 +189,8 @@ impl ScouterClient {
         let trace_request = TraceRequest {
             trace_id: trace_id.to_string(),
             service_name: service_name.map(|s| s.to_string()),
+            start_time: None,
+            end_time: None,
         };
 
         let query_string = serde_qs::to_string(&trace_request)?;
@@ -288,6 +290,8 @@ impl ScouterClient {
         let trace_request = TraceRequest {
             trace_id: trace_id.to_string(),
             service_name: None,
+            start_time: None,
+            end_time: None,
         };
         let query_string = serde_qs::to_string(&trace_request)?;
         let response = self.client.request(

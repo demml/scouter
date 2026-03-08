@@ -187,6 +187,27 @@ impl TraceSpanService {
         Ok(())
     }
 
+    /// Write spans directly to the engine actor, bypassing the buffer.
+    ///
+    /// Unlike `write_spans()`, this method sends a single large batch as one
+    /// Delta Lake commit and awaits the result. Use for bulk seeding/migration
+    /// where you need deterministic commit boundaries and maximum throughput.
+    /// This is used in benchmarks and stress tests to simulate high-volume writes without caching effects
+    pub async fn write_spans_direct(
+        &self,
+        spans: Vec<TraceSpanRecord>,
+    ) -> Result<(), TraceEngineError> {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        self.engine_tx
+            .send(TableCommand::Write {
+                spans,
+                respond_to: tx,
+            })
+            .await
+            .map_err(|_| TraceEngineError::ChannelClosed)?;
+        rx.await.map_err(|_| TraceEngineError::ChannelClosed)?
+    }
+
     pub async fn optimize(&self) -> Result<(), TraceEngineError> {
         let (tx, rx) = tokio::sync::oneshot::channel();
 
