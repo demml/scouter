@@ -34,7 +34,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let service = TraceSpanService::new(&storage_settings, 999, Some(5)).await?;
 
     // ── Phase 1: Seed ──────────────────────────────────────────────────────
-    println!("Phase 1: Seeding {} spans via direct writes ({} hourly batches)...", TOTAL_SPANS, HOURS);
+    println!(
+        "Phase 1: Seeding {} spans via direct writes ({} hourly batches)...",
+        TOTAL_SPANS, HOURS
+    );
     let seed_start = Instant::now();
 
     // Collect one trace_id per hour for later query benchmarks.
@@ -46,8 +49,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut hour_ids: Vec<Vec<u8>> = Vec::new();
 
         for _ in 0..TRACES_PER_HOUR {
-            let (_r, spans, _t) =
-                scouter_mocks::generate_trace_with_spans(5, minutes_offset);
+            let (_r, spans, _t) = scouter_mocks::generate_trace_with_spans(5, minutes_offset);
             if hour_ids.len() < 500 {
                 let id_bytes = TraceId::hex_to_bytes(&spans[0].trace_id.to_hex())?;
                 hour_ids.push(id_bytes);
@@ -88,7 +90,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Compaction: {:.2}s\n", opt_start.elapsed().as_secs_f64());
 
     // ── Phase 3: Query benchmarks ──────────────────────────────────────────
-    println!("Phase 3: Query benchmarks ({} iterations each)...", QUERY_ITERS);
+    println!(
+        "Phase 3: Query benchmarks ({} iterations each)...",
+        QUERY_ITERS
+    );
 
     // 3a. trace_id lookup — no time bounds (full scan baseline).
     {
@@ -160,8 +165,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     println!("\n=== Stress Benchmark Complete ===");
-    println!(
-        "Pruning proof: compare p50 of '1h time bound' vs 'no time bounds'.");
+    println!("Pruning proof: compare p50 of '1h time bound' vs 'no time bounds'.");
     println!(
         "If the bounded query is >20% faster, Parquet file-level min/max pruning is working.\n"
     );

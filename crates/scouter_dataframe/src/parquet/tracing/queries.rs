@@ -807,8 +807,7 @@ impl TraceQueries {
         // Partition filters FIRST — eliminates whole partition_date=YYYY-MM-DD/ directories
         // at directory level before any file metadata or Parquet statistics are read.
         if let Some(start) = start_time {
-            builder =
-                builder.add_filter(col(PARTITION_DATE_COL).gt_eq(date_lit(start)))?;
+            builder = builder.add_filter(col(PARTITION_DATE_COL).gt_eq(date_lit(start)))?;
         }
         if let Some(end) = end_time {
             builder = builder.add_filter(col(PARTITION_DATE_COL).lt_eq(date_lit(end)))?;

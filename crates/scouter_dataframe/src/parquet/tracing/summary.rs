@@ -680,8 +680,7 @@ impl TraceSummaryQueries {
                 // pattern matches the new pipe-bounded `|key=value|` blob format.
                 let mut attr_expr: Option<Expr> = None;
                 for f in attr_filters {
-                    let pattern =
-                        crate::parquet::tracing::queries::normalize_attr_filter(f);
+                    let pattern = crate::parquet::tracing::queries::normalize_attr_filter(f);
                     let cond = col(SEARCH_BLOB_COL).like(lit(pattern));
                     attr_expr = Some(match attr_expr {
                         None => cond,

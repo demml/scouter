@@ -488,14 +488,7 @@ fn bench_cold_query(c: &mut Criterion) {
                     let end_t = now - chrono::Duration::hours(*hour as i64);
                     let _ = black_box(
                         svc.query_service
-                            .query_spans(
-                                Some(id),
-                                None,
-                                Some(&start_t),
-                                Some(&end_t),
-                                None,
-                                None,
-                            )
+                            .query_spans(Some(id), None, Some(&start_t), Some(&end_t), None, None)
                             .await
                             .unwrap(),
                     );
@@ -544,8 +537,7 @@ fn bench_cold_query(c: &mut Criterion) {
             // Entity traces all at hour 0 (most recent) so the 1-hour window hits only them.
             let mut entity_spans: Vec<TraceSpanRecord> = Vec::new();
             for _ in 0..10 {
-                let (_r, spans, _t) =
-                    generate_trace_with_entity(5, TARGET_ENTITY_UID, 0);
+                let (_r, spans, _t) = generate_trace_with_entity(5, TARGET_ENTITY_UID, 0);
                 entity_spans.extend(spans);
             }
             service.write_spans(entity_spans).await.unwrap();
@@ -622,8 +614,7 @@ fn bench_at_scale_1m(c: &mut Criterion) {
         let service = TraceSpanService::new(storage_settings, 999, Some(1))
             .await
             .unwrap();
-        let mut all_ids: Vec<(Vec<u8>, usize)> =
-            Vec::with_capacity(HOURS * IDS_PER_HOUR);
+        let mut all_ids: Vec<(Vec<u8>, usize)> = Vec::with_capacity(HOURS * IDS_PER_HOUR);
 
         for hour in 0..HOURS {
             let minutes_offset = (hour as i64) * 60;
@@ -719,14 +710,7 @@ fn bench_at_scale_1m(c: &mut Criterion) {
                     let end_t = now - chrono::Duration::hours(*hour as i64);
                     let _ = black_box(
                         svc.query_service
-                            .query_spans(
-                                Some(id),
-                                None,
-                                Some(&start_t),
-                                Some(&end_t),
-                                None,
-                                None,
-                            )
+                            .query_spans(Some(id), None, Some(&start_t), Some(&end_t), None, None)
                             .await
                             .unwrap(),
                     );
@@ -845,8 +829,7 @@ fn bench_at_scale_10m(c: &mut Criterion) {
                 }
                 chunk.extend(spans);
                 if chunk.len() >= WRITE_CHUNK_SIZE {
-                    let batch =
-                        std::mem::replace(&mut chunk, Vec::with_capacity(WRITE_CHUNK_SIZE));
+                    let batch = std::mem::replace(&mut chunk, Vec::with_capacity(WRITE_CHUNK_SIZE));
                     service.write_spans_direct(batch).await.unwrap();
                 }
             }
@@ -908,14 +891,7 @@ fn bench_at_scale_10m(c: &mut Criterion) {
                     let end_t = now - chrono::Duration::hours(*hour as i64);
                     let _ = black_box(
                         svc.query_service
-                            .query_spans(
-                                Some(id),
-                                None,
-                                Some(&start_t),
-                                Some(&end_t),
-                                None,
-                                None,
-                            )
+                            .query_spans(Some(id), None, Some(&start_t), Some(&end_t), None, None)
                             .await
                             .unwrap(),
                     );

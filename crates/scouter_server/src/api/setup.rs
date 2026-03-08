@@ -475,8 +475,7 @@ impl ScouterSetupComponents {
 
         task_manager.spawn(async move {
             // Run nightly. Skip first tick so the server starts cleanly.
-            let mut ticker =
-                tokio::time::interval(std::time::Duration::from_secs(24 * 3600));
+            let mut ticker = tokio::time::interval(std::time::Duration::from_secs(24 * 3600));
             ticker.tick().await;
 
             loop {
@@ -495,7 +494,10 @@ impl ScouterSetupComponents {
             }
         });
 
-        info!("✅ Started trace retention worker (retention={}d)", retention_days);
+        info!(
+            "✅ Started trace retention worker (retention={}d)",
+            retention_days
+        );
         Ok(())
     }
 
