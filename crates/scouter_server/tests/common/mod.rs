@@ -12,6 +12,7 @@ use ndarray_rand::rand_distr::Uniform;
 use ndarray_rand::RandomExt;
 use potato_head::{create_uuid7, mock::create_score_prompt};
 use rand::Rng;
+use scouter_dataframe::parquet::tracing::service::TraceSpanService;
 use scouter_drift::spc::SpcMonitor;
 use scouter_mocks::util::generate_trace_with_spans;
 use scouter_server::api::grpc::start_grpc_server;
@@ -20,10 +21,10 @@ use scouter_server::{create_app_state, create_http_router};
 use scouter_settings::grpc::GrpcConfig;
 use scouter_settings::ObjectStorageSettings;
 use scouter_settings::{DatabaseSettings, ScouterServerConfig};
+use scouter_sql::sql::aggregator::get_trace_cache;
 use scouter_sql::sql::traits::AlertSqlLogic;
 use scouter_sql::sql::traits::EntitySqlLogic;
 use scouter_sql::sql::traits::TagSqlLogic;
-use scouter_sql::sql::traits::TraceSqlLogic;
 use scouter_sql::PostgresClient;
 use scouter_tonic::GrpcClient;
 use scouter_types::custom::ComparisonMetricAlert;
@@ -118,6 +119,7 @@ pub struct TestHelper {
     grpc_shutdown_tx: Option<tokio::sync::oneshot::Sender<()>>,
     pub pool: PgPool,
     pub config: Arc<ScouterServerConfig>,
+    pub trace_service: Arc<TraceSpanService>,
 }
 
 impl TestHelper {
@@ -212,6 +214,7 @@ impl TestHelper {
             token,
             pool: db_pool,
             config: app_state.config.clone(),
+            trace_service: app_state.trace_service.clone(),
         })
     }
 
@@ -533,16 +536,23 @@ impl TestHelper {
     }
 
     pub async fn generate_trace_data(&self) -> Result<(), anyhow::Error> {
-        //print current dir
         for minute in 0..100 {
             let (_trace_record, spans, tag_records) = generate_trace_with_spans(20, minute);
-            let _ = PostgresClient::insert_span_batch(&self.pool, &spans)
-                .await
-                .unwrap();
+
+            // Update the in-memory trace cache (used for trace summary lookups)
+            for span in &spans {
+                get_trace_cache().await.update_trace(span).await;
+            }
+
+            // Write spans directly to Delta Lake (bypasses buffer for immediate availability)
+            self.trace_service.write_spans_direct(spans).await.unwrap();
+
+            // Insert tags into PostgreSQL (still PG-backed)
             let _ = PostgresClient::insert_tag_batch(&self.pool, &tag_records)
                 .await
                 .unwrap();
         }
+
         Ok(())
     }
 
