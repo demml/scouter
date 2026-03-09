@@ -31,6 +31,20 @@ enum StorageProvider {
 }
 
 impl StorageProvider {
+    /// Return the inner object store as a type-erased `Arc<dyn ObjectStore>`.
+    ///
+    /// Used by the Delta Lake engine to bypass the storage factory via
+    /// `DeltaTableBuilder::with_storage_backend` — necessary for cloud stores
+    /// (GCS, S3, Azure) whose schemes are not registered in the default factory.
+    pub fn as_dyn_object_store(&self) -> Arc<dyn ObjStore> {
+        match self {
+            StorageProvider::Google(s) => s.clone() as Arc<dyn ObjStore>,
+            StorageProvider::Aws(s) => s.clone() as Arc<dyn ObjStore>,
+            StorageProvider::Local(s) => s.clone() as Arc<dyn ObjStore>,
+            StorageProvider::Azure(s) => s.clone() as Arc<dyn ObjStore>,
+        }
+    }
+
     pub fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, StorageError> {
         let store = match storage_settings.storage_type {
             StorageType::Google => {
@@ -210,6 +224,14 @@ impl ObjectStore {
     pub fn get_session(&self) -> Result<SessionContext, StorageError> {
         let ctx = self.provider.get_session(&self.storage_settings)?;
         Ok(ctx)
+    }
+
+    /// Return the inner object store as a type-erased `Arc<dyn ObjectStore>`.
+    ///
+    /// Pass this to `DeltaTableBuilder::with_storage_backend` to bypass the Delta Lake
+    /// storage factory (required for GCS, S3, and Azure).
+    pub fn as_dyn_object_store(&self) -> Arc<dyn ObjStore> {
+        self.provider.as_dyn_object_store()
     }
 
     /// Get the base URL for datafusion to use

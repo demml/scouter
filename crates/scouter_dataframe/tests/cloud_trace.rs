@@ -14,7 +14,7 @@ fn storage_prefix(settings: &ObjectStorageSettings) -> Option<String> {
     ["gs://", "s3://", "az://"]
         .iter()
         .find_map(|scheme| settings.storage_uri.strip_prefix(scheme))
-        .and_then(|rest| rest.splitn(2, '/').nth(1))
+        .and_then(|rest| rest.split_once('/').map(|x| x.1))
         .map(|p| p.to_string())
 }
 

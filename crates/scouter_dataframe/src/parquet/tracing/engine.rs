@@ -12,7 +12,7 @@ use deltalake::datafusion::parquet::basic::{Compression, Encoding, ZstdLevel};
 use deltalake::datafusion::parquet::file::properties::{EnabledStatistics, WriterProperties};
 use deltalake::datafusion::parquet::schema::types::ColumnPath;
 use deltalake::operations::optimize::OptimizeType;
-use deltalake::DeltaTable;
+use deltalake::{DeltaTable, DeltaTableBuilder};
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::SpanId;
 use scouter_types::TraceId;
@@ -57,10 +57,25 @@ async fn build_url(object_store: &ObjectStore) -> Result<Url, TraceEngineError> 
 }
 
 #[instrument(skip_all)]
-async fn create_table(table_url: Url, schema: SchemaRef) -> Result<DeltaTable, TraceEngineError> {
+async fn create_table(
+    object_store: &ObjectStore,
+    table_url: Url,
+    schema: SchemaRef,
+) -> Result<DeltaTable, TraceEngineError> {
     info!("Creating new Delta table at URL: {}", table_url);
 
-    let table = DeltaTable::try_from_url(table_url).await?;
+    println!("Creating Delta table at URL: {}", table_url);
+
+    // Use with_storage_backend to bypass the Delta Lake storage factory.
+    // DeltaTable::try_from_url internally calls store_for(url) which requires
+    // scheme-specific handlers (gs://, s3://, az://) to be registered globally.
+    // Providing the object store directly avoids that lookup entirely.
+    let store = object_store.as_dyn_object_store();
+    let table = DeltaTableBuilder::from_url(table_url.clone())?
+        .with_storage_backend(store, table_url)
+        .build()?;
+
+    println!("Creating Delta table with schema: {:#?}", schema);
 
     let delta_fields = arrow_schema_to_delta(&schema);
 
@@ -82,9 +97,14 @@ async fn build_or_create_table(
 
     info!("Attempting to load table at URL: {}", table_url);
 
-    // DeltaTable::try_from_url is lazy — it always returns Ok regardless of whether
-    // the path is an actual Delta table. The Err(NotATable) branch is never reached.
-    // We must check for _delta_log explicitly to determine whether to create or load.
+    // For all store types we check for an existing Delta table by attempting a load.
+    // Local tables can be checked cheaply via the filesystem; remote tables require
+    // an actual load attempt against the object store.
+    //
+    // We always use DeltaTableBuilder::with_storage_backend to avoid the Delta Lake
+    // storage factory (store_for(url)), which returns InvalidTableLocation for
+    // cloud schemes (gs://, s3://, az://) unless scheme-specific handlers are
+    // registered as a Cargo feature — which we intentionally do not require.
     let is_delta_table = if table_url.scheme() == "file" {
         if let Ok(path) = table_url.to_file_path() {
             if !path.exists() {
@@ -96,21 +116,28 @@ async fn build_or_create_table(
             false
         }
     } else {
-        // For remote stores (S3, GCS, Azure), fall back to try_from_url + load.
-        match DeltaTable::try_from_url(table_url.clone()).await {
-            Ok(mut t) => t.load().await.is_ok(),
+        let store = object_store.as_dyn_object_store();
+        match DeltaTableBuilder::from_url(table_url.clone()) {
+            Ok(builder) => builder
+                .with_storage_backend(store, table_url.clone())
+                .load()
+                .await
+                .is_ok(),
             Err(_) => false,
         }
     };
 
     if is_delta_table {
         info!("Loading existing Delta table");
-        let mut table = DeltaTable::try_from_url(table_url).await?;
-        table.load().await?;
+        let store = object_store.as_dyn_object_store();
+        let table = DeltaTableBuilder::from_url(table_url.clone())?
+            .with_storage_backend(store, table_url)
+            .load()
+            .await?;
         Ok(table)
     } else {
         info!("Table does not exist, creating new table");
-        create_table(table_url, schema).await
+        create_table(object_store, table_url, schema).await
     }
 }
 
