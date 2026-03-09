@@ -177,7 +177,9 @@ impl ControlTableEngine {
         }
 
         // Read current task state
-        let current = self.read_task(&table_guard_to_ctx(&self.ctx), task_name).await?;
+        let current = self
+            .read_task(&table_guard_to_ctx(&self.ctx), task_name)
+            .await?;
 
         let now = Utc::now();
 
@@ -227,10 +229,7 @@ impl ControlTableEngine {
                     Err(TraceEngineError::DataTableError(ref e))
                         if e.to_string().contains("Transaction") =>
                     {
-                        info!(
-                            "Lost OCC race for task '{}' to another pod",
-                            task_name
-                        );
+                        info!("Lost OCC race for task '{}' to another pod", task_name);
                         Ok(false)
                     }
                     Err(e) => Err(e),
@@ -256,10 +255,7 @@ impl ControlTableEngine {
                     Err(TraceEngineError::DataTableError(ref e))
                         if e.to_string().contains("Transaction") =>
                     {
-                        info!(
-                            "Lost OCC race for new task '{}' to another pod",
-                            task_name
-                        );
+                        info!("Lost OCC race for new task '{}' to another pod", task_name);
                         Ok(false)
                     }
                     Err(e) => Err(e),
@@ -299,10 +295,7 @@ impl ControlTableEngine {
 
     /// Release a task after a failure, keeping the original `next_run_at` so it
     /// can be retried immediately by any pod.
-    pub async fn release_task_on_failure(
-        &self,
-        task_name: &str,
-    ) -> Result<(), TraceEngineError> {
+    pub async fn release_task_on_failure(&self, task_name: &str) -> Result<(), TraceEngineError> {
         let mut table_guard = self.table.write().await;
 
         // Refresh to get current next_run_at
@@ -320,9 +313,7 @@ impl ControlTableEngine {
             .await?;
 
         let now = Utc::now();
-        let next_run = current
-            .map(|r| r.next_run_at)
-            .unwrap_or(now);
+        let next_run = current.map(|r| r.next_run_at).unwrap_or(now);
 
         let released = TaskRecord {
             task_name: task_name.to_string(),
@@ -663,12 +654,13 @@ mod tests {
 
         // Second claim from same engine should fail (task is processing)
         let claimed_again = engine.try_claim_task("optimize").await?;
-        assert!(!claimed_again, "Second claim should fail (already processing)");
+        assert!(
+            !claimed_again,
+            "Second claim should fail (already processing)"
+        );
 
         // Release with 1-hour interval
-        engine
-            .release_task("optimize", Duration::hours(1))
-            .await?;
+        engine.release_task("optimize", Duration::hours(1)).await?;
 
         // Task should not be due yet (next_run_at is 1 hour from now)
         let due = engine.is_task_due("optimize").await?;
@@ -689,9 +681,7 @@ mod tests {
         let claimed = engine.try_claim_task("vacuum").await?;
         assert!(claimed);
 
-        engine
-            .release_task("vacuum", Duration::seconds(0))
-            .await?;
+        engine.release_task("vacuum", Duration::seconds(0)).await?;
 
         // Should be due now
         let due = engine.is_task_due("vacuum").await?;
@@ -722,12 +712,8 @@ mod tests {
         assert!(claimed_vac, "Vacuum claim should succeed");
 
         // Release both
-        engine
-            .release_task("optimize", Duration::hours(24))
-            .await?;
-        engine
-            .release_task("vacuum", Duration::hours(168))
-            .await?;
+        engine.release_task("optimize", Duration::hours(24)).await?;
+        engine.release_task("vacuum", Duration::hours(168)).await?;
 
         cleanup();
         Ok(())

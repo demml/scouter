@@ -410,26 +410,24 @@ impl TraceSummaryDBEngine {
     /// Try to claim and run the summary optimize task via the control table.
     async fn try_run_optimize(&self, interval_hours: u64) {
         match self.control.try_claim_task(TASK_SUMMARY_OPTIMIZE).await {
-            Ok(true) => {
-                match self.optimize_table().await {
-                    Ok(()) => {
-                        let _ = self
-                            .control
-                            .release_task(
-                                TASK_SUMMARY_OPTIMIZE,
-                                chrono::Duration::hours(interval_hours as i64),
-                            )
-                            .await;
-                    }
-                    Err(e) => {
-                        error!("Summary optimize failed: {}", e);
-                        let _ = self
-                            .control
-                            .release_task_on_failure(TASK_SUMMARY_OPTIMIZE)
-                            .await;
-                    }
+            Ok(true) => match self.optimize_table().await {
+                Ok(()) => {
+                    let _ = self
+                        .control
+                        .release_task(
+                            TASK_SUMMARY_OPTIMIZE,
+                            chrono::Duration::hours(interval_hours as i64),
+                        )
+                        .await;
                 }
-            }
+                Err(e) => {
+                    error!("Summary optimize failed: {}", e);
+                    let _ = self
+                        .control
+                        .release_task_on_failure(TASK_SUMMARY_OPTIMIZE)
+                        .await;
+                }
+            },
             Ok(false) => { /* not due or another pod owns it */ }
             Err(e) => error!("Summary optimize claim check failed: {}", e),
         }

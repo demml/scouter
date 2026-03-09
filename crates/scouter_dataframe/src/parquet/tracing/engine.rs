@@ -471,23 +471,21 @@ impl TraceSpanDBEngine {
     /// the entire K8s deployment.
     async fn try_run_optimize(&self, interval_hours: u64) {
         match self.control.try_claim_task(TASK_OPTIMIZE).await {
-            Ok(true) => {
-                match self.optimize_table().await {
-                    Ok(()) => {
-                        let _ = self
-                            .control
-                            .release_task(
-                                TASK_OPTIMIZE,
-                                chrono::Duration::hours(interval_hours as i64),
-                            )
-                            .await;
-                    }
-                    Err(e) => {
-                        error!("Optimize failed: {}", e);
-                        let _ = self.control.release_task_on_failure(TASK_OPTIMIZE).await;
-                    }
+            Ok(true) => match self.optimize_table().await {
+                Ok(()) => {
+                    let _ = self
+                        .control
+                        .release_task(
+                            TASK_OPTIMIZE,
+                            chrono::Duration::hours(interval_hours as i64),
+                        )
+                        .await;
                 }
-            }
+                Err(e) => {
+                    error!("Optimize failed: {}", e);
+                    let _ = self.control.release_task_on_failure(TASK_OPTIMIZE).await;
+                }
+            },
             Ok(false) => { /* not due or another pod owns it */ }
             Err(e) => error!("Optimize claim check failed: {}", e),
         }
