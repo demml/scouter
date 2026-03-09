@@ -7,6 +7,7 @@ use object_store::azure::{MicrosoftAzure, MicrosoftAzureBuilder};
 use object_store::gcp::{GoogleCloudStorage, GoogleCloudStorageBuilder};
 use object_store::local::LocalFileSystem;
 use object_store::path::Path;
+use object_store::prefix::PrefixStore;
 use object_store::ObjectStore as ObjStore;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::StorageType;
@@ -77,11 +78,29 @@ impl StorageProvider {
                 StorageProvider::Local(Arc::new(builder))
             }
             StorageType::Azure => {
-                let builder = MicrosoftAzureBuilder::from_env()
+                // MicrosoftAzureBuilder::from_env() reads AZURE_STORAGE_ACCOUNT_NAME
+                // and AZURE_STORAGE_ACCOUNT_KEY specifically.  Many Azure tools
+                // (az CLI, Terraform, GitHub Actions) emit AZURE_STORAGE_ACCOUNT and
+                // AZURE_STORAGE_KEY instead.  Accept both so callers don't need to
+                // know which naming convention object_store expects.
+                let mut builder = MicrosoftAzureBuilder::from_env();
+
+                if std::env::var("AZURE_STORAGE_ACCOUNT_NAME").is_err() {
+                    if let Ok(account) = std::env::var("AZURE_STORAGE_ACCOUNT") {
+                        builder = builder.with_account(account);
+                    }
+                }
+                if std::env::var("AZURE_STORAGE_ACCOUNT_KEY").is_err() {
+                    if let Ok(key) = std::env::var("AZURE_STORAGE_KEY") {
+                        builder = builder.with_access_key(key);
+                    }
+                }
+
+                let store = builder
                     .with_container_name(storage_settings.storage_root())
                     .build()?;
 
-                StorageProvider::Azure(Arc::new(builder))
+                StorageProvider::Azure(Arc::new(store))
             }
         };
 
