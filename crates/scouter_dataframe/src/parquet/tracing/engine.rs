@@ -11,8 +11,11 @@ use datafusion::prelude::SessionContext;
 use deltalake::datafusion::parquet::basic::{Compression, Encoding, ZstdLevel};
 use deltalake::datafusion::parquet::file::properties::{EnabledStatistics, WriterProperties};
 use deltalake::datafusion::parquet::schema::types::ColumnPath;
+use deltalake::logstore::{
+    default_logstore, logstore_factories, LogStore, LogStoreFactory, ObjectStoreRef, StorageConfig,
+};
 use deltalake::operations::optimize::OptimizeType;
-use deltalake::{DeltaTable, DeltaTableBuilder};
+use deltalake::{DeltaResult, DeltaTable, DeltaTableBuilder};
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::SpanId;
 use scouter_types::TraceId;
@@ -51,6 +54,54 @@ pub enum TableCommand {
     Shutdown,
 }
 
+/// Minimal [`LogStoreFactory`] that wraps a pre-built [`ObjectStore`] in a
+/// [`DefaultLogStore`].
+///
+/// `DeltaTableBuilder::with_storage_backend` bypasses the `ObjectStoreFactory`
+/// registry so delta-rs won't attempt to build a GCS/S3/Azure client from env
+/// vars. However, `build_storage()` still calls `logstore_with()` which looks up
+/// `logstore_factories()` for the URL scheme. Only `file://` and `memory://` are
+/// registered by default — cloud schemes ("gs", "s3", "az", …) are not.
+///
+/// Registering this factory for those schemes satisfies the lookup without
+/// pulling in the full `deltalake-gcs` / `deltalake-aws` / `deltalake-azure`
+/// crates or enabling their Cargo features.
+struct PassthroughLogStoreFactory;
+
+impl LogStoreFactory for PassthroughLogStoreFactory {
+    fn with_options(
+        &self,
+        prefixed_store: ObjectStoreRef,
+        root_store: ObjectStoreRef,
+        location: &Url,
+        options: &StorageConfig,
+    ) -> DeltaResult<Arc<dyn LogStore>> {
+        Ok(default_logstore(
+            prefixed_store,
+            root_store,
+            location,
+            options,
+        ))
+    }
+}
+
+/// Register [`PassthroughLogStoreFactory`] for every cloud URL scheme that
+/// delta-rs does not handle by default.
+///
+/// Must be called before the first [`DeltaTableBuilder::build()`] for any
+/// cloud-backed table.  Safe to call repeatedly — existing entries are not
+/// overwritten.
+fn register_cloud_logstore_factories() {
+    let factories = logstore_factories();
+    let factory = Arc::new(PassthroughLogStoreFactory) as Arc<dyn LogStoreFactory>;
+    for scheme in ["gs", "s3", "s3a", "az", "abfs", "abfss"] {
+        let key = Url::parse(&format!("{}://", scheme)).expect("scheme is a valid URL prefix");
+        if !factories.contains_key(&key) {
+            factories.insert(key, factory.clone());
+        }
+    }
+}
+
 async fn build_url(object_store: &ObjectStore) -> Result<Url, TraceEngineError> {
     let base_url = object_store.get_base_url()?;
     Ok(base_url)
@@ -64,18 +115,12 @@ async fn create_table(
 ) -> Result<DeltaTable, TraceEngineError> {
     info!("Creating new Delta table at URL: {}", table_url);
 
-    println!("Creating Delta table at URL: {}", table_url);
-
-    // Use with_storage_backend to bypass the Delta Lake storage factory.
-    // DeltaTable::try_from_url internally calls store_for(url) which requires
-    // scheme-specific handlers (gs://, s3://, az://) to be registered globally.
-    // Providing the object store directly avoids that lookup entirely.
+    // with_storage_backend supplies our pre-built ObjectStore so delta-rs does
+    // not try to construct one from env vars via ObjectStoreFactory.
     let store = object_store.as_dyn_object_store();
     let table = DeltaTableBuilder::from_url(table_url.clone())?
         .with_storage_backend(store, table_url)
         .build()?;
-
-    println!("Creating Delta table with schema: {:#?}", schema);
 
     let delta_fields = arrow_schema_to_delta(&schema);
 
@@ -93,6 +138,13 @@ async fn build_or_create_table(
     object_store: &ObjectStore,
     schema: SchemaRef,
 ) -> Result<DeltaTable, TraceEngineError> {
+    // Ensure cloud URL schemes are registered in the global logstore factory
+    // registry before any DeltaTableBuilder::build() call.  delta-rs only
+    // registers "file://" and "memory://" by default; cloud schemes ("gs",
+    // "s3", "az", …) must be present or build_storage() → logstore_with()
+    // returns InvalidTableLocation even when with_storage_backend() is used.
+    register_cloud_logstore_factories();
+
     let table_url = build_url(object_store).await?;
 
     info!("Attempting to load table at URL: {}", table_url);
@@ -101,10 +153,10 @@ async fn build_or_create_table(
     // Local tables can be checked cheaply via the filesystem; remote tables require
     // an actual load attempt against the object store.
     //
-    // We always use DeltaTableBuilder::with_storage_backend to avoid the Delta Lake
-    // storage factory (store_for(url)), which returns InvalidTableLocation for
-    // cloud schemes (gs://, s3://, az://) unless scheme-specific handlers are
-    // registered as a Cargo feature — which we intentionally do not require.
+    // We use DeltaTableBuilder::with_storage_backend so delta-rs uses our
+    // pre-built ObjectStore instead of trying to construct one from env vars via
+    // ObjectStoreFactory.  The PassthroughLogStoreFactory registered above handles
+    // the LogStoreFactory lookup that build_storage() → logstore_with() performs.
     let is_delta_table = if table_url.scheme() == "file" {
         if let Ok(path) = table_url.to_file_path() {
             if !path.exists() {
