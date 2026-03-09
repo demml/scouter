@@ -7,7 +7,6 @@ use object_store::azure::{MicrosoftAzure, MicrosoftAzureBuilder};
 use object_store::gcp::{GoogleCloudStorage, GoogleCloudStorageBuilder};
 use object_store::local::LocalFileSystem;
 use object_store::path::Path;
-use object_store::prefix::PrefixStore;
 use object_store::ObjectStore as ObjStore;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::StorageType;

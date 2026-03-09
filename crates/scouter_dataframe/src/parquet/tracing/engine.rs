@@ -76,12 +76,30 @@ impl LogStoreFactory for PassthroughLogStoreFactory {
         location: &Url,
         options: &StorageConfig,
     ) -> DeltaResult<Arc<dyn LogStore>> {
-        Ok(default_logstore(
-            prefixed_store,
-            root_store,
-            location,
-            options,
-        ))
+        // For az:// URLs, object_store's ObjectStoreScheme::parse uses strip_bucket()
+        // which assumes az://account/container/blob-path format. Scouter uses
+        // az://container/blob-path (container in host, subpath in URL path).
+        // strip_bucket() finds no second path segment → returns "" → delta-rs
+        // applies no PrefixStore for Azure. Manually apply the correct prefix here.
+        //
+        // For gs://, s3://, s3a://, abfs://, abfss:// — delta-rs correctly derives
+        // the subpath prefix from url.path() and applies PrefixStore via decorate_prefix.
+        // Do not re-wrap those: use the already-prefixed `prefixed_store` as-is.
+        let store = if location.scheme() == "az" {
+            let subpath = location.path().trim_start_matches('/');
+            if subpath.is_empty() {
+                prefixed_store
+            } else {
+                let prefix = object_store::path::Path::from(subpath);
+                Arc::new(object_store::prefix::PrefixStore::new(
+                    root_store.clone(),
+                    prefix,
+                )) as ObjectStoreRef
+            }
+        } else {
+            prefixed_store
+        };
+        Ok(default_logstore(store, root_store, location, options))
     }
 }
 
