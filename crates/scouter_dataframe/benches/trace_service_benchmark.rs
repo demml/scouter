@@ -39,7 +39,7 @@ fn bench_write_throughput(c: &mut Criterion) {
                 };
 
                 b.to_async(&rt).iter(|| async {
-                    let service = TraceSpanService::new(&storage_settings, 999, Some(1))
+                    let service = TraceSpanService::new(&storage_settings, 999, Some(1), None)
                         .await
                         .unwrap();
 
@@ -80,7 +80,7 @@ fn bench_concurrent_writes(c: &mut Criterion) {
 
                 b.to_async(&rt).iter(|| async {
                     let service = Arc::new(
-                        TraceSpanService::new(&storage_settings, 999, Some(1))
+                        TraceSpanService::new(&storage_settings, 999, Some(1), None)
                             .await
                             .unwrap(),
                     );
@@ -130,7 +130,7 @@ fn bench_query_performance(c: &mut Criterion) {
                 };
 
                 let (service, trace_id) = rt.block_on(async {
-                    let service = TraceSpanService::new(&storage_settings, 999, Some(1))
+                    let service = TraceSpanService::new(&storage_settings, 999, Some(1), None)
                         .await
                         .unwrap();
                     let spans = generate_trace_batch(size / 5, 5);
@@ -187,7 +187,7 @@ fn bench_sustained_load(c: &mut Criterion) {
         };
 
         b.to_async(&rt).iter(|| async {
-            let service = TraceSpanService::new(&storage_settings, 999, Some(1))
+            let service = TraceSpanService::new(&storage_settings, 999, Some(1), None)
                 .await
                 .unwrap();
 
@@ -235,7 +235,7 @@ fn bench_query_at_scale(c: &mut Criterion) {
                 };
 
                 let (service, trace_id_bytes) = rt.block_on(async {
-                    let service = TraceSpanService::new(&storage_settings, 999, Some(1))
+                    let service = TraceSpanService::new(&storage_settings, 999, Some(1), None)
                         .await
                         .unwrap();
                     let mut first_id = None;
@@ -295,7 +295,7 @@ fn bench_query_at_scale(c: &mut Criterion) {
                 };
 
                 let service = rt.block_on(async {
-                    let service = TraceSpanService::new(&storage_settings, 999, Some(1))
+                    let service = TraceSpanService::new(&storage_settings, 999, Some(1), None)
                         .await
                         .unwrap();
                     for _ in 0..size.div_ceil(chunk) {
@@ -380,7 +380,7 @@ fn bench_cold_query(c: &mut Criterion) {
 
         // all_ids: (trace_id_bytes, hour_index)
         let (service, all_ids) = rt.block_on(async {
-            let service = TraceSpanService::new(&storage_settings, 999, Some(1))
+            let service = TraceSpanService::new(&storage_settings, 999, Some(1), None)
                 .await
                 .unwrap();
             let mut all_ids: Vec<(Vec<u8>, usize)> = Vec::new();
@@ -447,7 +447,7 @@ fn bench_cold_query(c: &mut Criterion) {
         };
 
         let (service, all_ids) = rt.block_on(async {
-            let service = TraceSpanService::new(&storage_settings, 999, Some(1))
+            let service = TraceSpanService::new(&storage_settings, 999, Some(1), None)
                 .await
                 .unwrap();
             let mut all_ids: Vec<(Vec<u8>, usize)> = Vec::new();
@@ -519,7 +519,7 @@ fn bench_cold_query(c: &mut Criterion) {
         };
 
         let service = rt.block_on(async {
-            let service = TraceSpanService::new(&storage_settings, 999, Some(1))
+            let service = TraceSpanService::new(&storage_settings, 999, Some(1), None)
                 .await
                 .unwrap();
 
@@ -611,7 +611,7 @@ fn bench_at_scale_1m(c: &mut Criterion) {
     async fn seed_and_compact(
         storage_settings: &ObjectStorageSettings,
     ) -> (Arc<TraceSpanService>, Arc<Vec<(Vec<u8>, usize)>>) {
-        let service = TraceSpanService::new(storage_settings, 999, Some(1))
+        let service = TraceSpanService::new(storage_settings, 999, Some(1), None)
             .await
             .unwrap();
         let mut all_ids: Vec<(Vec<u8>, usize)> = Vec::with_capacity(HOURS * IDS_PER_HOUR);
@@ -811,7 +811,7 @@ fn bench_at_scale_10m(c: &mut Criterion) {
     };
 
     let (service, all_ids) = rt.block_on(async {
-        let service = TraceSpanService::new(&storage_settings, 999, Some(1))
+        let service = TraceSpanService::new(&storage_settings, 999, Some(1), None)
             .await
             .unwrap();
         let mut all_ids: Vec<(Vec<u8>, usize)> = Vec::with_capacity(HOURS * IDS_PER_HOUR);

@@ -59,7 +59,7 @@ async fn run_cloud_integration_test(settings: &ObjectStorageSettings, label: &st
     // Remove stale files from a previous failed run (idempotent).
     cleanup_remote(settings).await;
 
-    let service = TraceSpanService::new(settings, 24, Some(2))
+    let service = TraceSpanService::new(settings, 24, Some(2), None)
         .await
         .unwrap_or_else(|e| panic!("Failed to initialize TraceSpanService on {label}: {e}"));
 

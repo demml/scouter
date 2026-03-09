@@ -22,12 +22,14 @@ pub async fn init_trace_span_service(
     storage_settings: &ObjectStorageSettings,
     compaction_interval_hours: u64,
     flush_interval_secs: Option<u64>,
+    retention_days: Option<u32>,
 ) -> Result<Arc<TraceSpanService>, TraceEngineError> {
     let service = Arc::new(
         TraceSpanService::new(
             storage_settings,
             compaction_interval_hours,
             flush_interval_secs,
+            retention_days,
         )
         .await?,
     );
@@ -69,6 +71,7 @@ impl TraceSpanService {
         storage_settings: &ObjectStorageSettings,
         compaction_interval_hours: u64,
         flush_interval_secs: Option<u64>,
+        retention_days: Option<u32>,
     ) -> Result<Self, TraceEngineError> {
         let buffer_size = storage_settings.trace_buffer_size();
         let engine = TraceSpanDBEngine::new(storage_settings).await?;
@@ -78,7 +81,8 @@ impl TraceSpanService {
         );
 
         let ctx = engine.ctx.clone();
-        let (engine_tx, engine_handle) = engine.start_actor(compaction_interval_hours);
+        let (engine_tx, engine_handle) =
+            engine.start_actor(compaction_interval_hours, retention_days);
         let (span_tx, span_rx) = mpsc::channel::<Vec<TraceSpanRecord>>(100);
         let (shutdown_tx, shutdown_rx) = mpsc::channel::<()>(1);
 
@@ -366,7 +370,7 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let service = TraceSpanService::new(&storage_settings, 24, Some(2)).await?;
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None).await?;
         service.shutdown().await?;
         cleanup();
         Ok(())
@@ -377,7 +381,7 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let service = TraceSpanService::new(&storage_settings, 24, Some(2)).await?;
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None).await?;
 
         let (_trace_record, spans, _tags) = generate_trace_with_spans(3, 0);
         info!("Test: writing {} spans", spans.len());
@@ -411,7 +415,7 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let service = TraceSpanService::new(&storage_settings, 24, Some(2)).await?;
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None).await?;
 
         // Build a deterministic tree: root → child → grandchild
         let trace_id = TraceId::from_bytes([1u8; 16]);
@@ -503,7 +507,7 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let service = TraceSpanService::new(&storage_settings, 24, Some(2)).await?;
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None).await?;
 
         let (_record, spans, _tags) = generate_trace_with_spans(5, 0);
         service.write_spans(spans).await?;
@@ -531,7 +535,7 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let service = TraceSpanService::new(&storage_settings, 24, Some(2)).await?;
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None).await?;
 
         // Write spans for two distinct services using deterministic IDs
         let trace_a = TraceId::from_bytes([10u8; 16]);
@@ -609,7 +613,7 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let service = TraceSpanService::new(&storage_settings, 24, Some(2)).await?;
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None).await?;
 
         // Write a known batch directly so it is immediately queryable
         // Use distinct byte values that don't collide with other tests.
@@ -726,7 +730,7 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let service = TraceSpanService::new(&storage_settings, 24, Some(2)).await?;
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None).await?;
 
         let trace_kafka = TraceId::from_bytes([30u8; 16]);
         let trace_http = TraceId::from_bytes([40u8; 16]);

@@ -127,16 +127,8 @@ impl ScouterSetupComponents {
 
         Self::setup_background_data_archive_worker(&db_pool, &config, &mut task_manager).await?;
 
-        // Initialize Delta Lake trace services
+        // Initialize Delta Lake trace services (retention is now handled inside the actor)
         let (trace_service, trace_summary_service) = Self::start_trace_services(&config).await?;
-
-        // Wire partition-level retention for trace spans
-        Self::setup_trace_retention_worker(
-            Arc::clone(&trace_service),
-            Arc::clone(&config),
-            &mut task_manager,
-        )
-        .await?;
 
         Ok(Self {
             server_config: config,
@@ -155,10 +147,15 @@ impl ScouterSetupComponents {
         let compaction_hours = config.storage_settings.trace_compaction_interval_hours;
         let flush_secs = config.storage_settings.trace_flush_interval_secs;
 
-        let trace_service =
-            init_trace_span_service(&config.storage_settings, compaction_hours, Some(flush_secs))
-                .await
-                .context("❌ Failed to initialize TraceSpanService")?;
+        let retention_days = Some(config.database_settings.retention_period as u32);
+        let trace_service = init_trace_span_service(
+            &config.storage_settings,
+            compaction_hours,
+            Some(flush_secs),
+            retention_days,
+        )
+        .await
+        .context("❌ Failed to initialize TraceSpanService")?;
 
         let trace_summary_service = Arc::new(
             TraceSummaryService::new(
@@ -458,46 +455,6 @@ impl ScouterSetupComponents {
         BackgroundGenAIDriftManager::start_workers(db_pool, poll_settings, shutdown_rx).await?;
         info!("✅ Started background genai workers");
 
-        Ok(())
-    }
-
-    /// Wire a nightly background task that deletes trace spans older than `retention_period`
-    /// days and vacuums orphaned Parquet files from storage.
-    ///
-    /// Uses `TraceSpanService::expire()` which performs DELETE then VACUUM in the correct order.
-    async fn setup_trace_retention_worker(
-        trace_service: Arc<TraceSpanService>,
-        config: Arc<ScouterServerConfig>,
-        task_manager: &mut TaskManager,
-    ) -> AnyhowResult<()> {
-        let mut shutdown_rx = task_manager.get_shutdown_receiver();
-        let retention_days = config.database_settings.retention_period as u32;
-
-        task_manager.spawn(async move {
-            // Run nightly. Skip first tick so the server starts cleanly.
-            let mut ticker = tokio::time::interval(std::time::Duration::from_secs(24 * 3600));
-            ticker.tick().await;
-
-            loop {
-                tokio::select! {
-                    _ = shutdown_rx.changed() => {
-                        tracing::info!("Trace retention worker shutting down");
-                        break;
-                    }
-                    _ = ticker.tick() => {
-                        tracing::info!("Running trace retention ({}d)", retention_days);
-                        if let Err(e) = trace_service.expire(retention_days).await {
-                            tracing::error!("Trace expiration failed: {}", e);
-                        }
-                    }
-                }
-            }
-        });
-
-        info!(
-            "✅ Started trace retention worker (retention={}d)",
-            retention_days
-        );
         Ok(())
     }
 

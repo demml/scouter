@@ -1,4 +1,5 @@
 use crate::error::TraceEngineError;
+use crate::parquet::control::{get_pod_id, ControlTableEngine};
 use crate::parquet::tracing::traits::arrow_schema_to_delta;
 use crate::parquet::tracing::traits::attribute_field;
 use crate::parquet::tracing::traits::TraceSchemaExt;
@@ -6,7 +7,7 @@ use crate::storage::ObjectStore;
 use arrow::array::*;
 use arrow::datatypes::*;
 use arrow_array::RecordBatch;
-use chrono::Datelike;
+use chrono::{Datelike, Utc};
 use datafusion::prelude::SessionContext;
 use deltalake::datafusion::parquet::basic::{Compression, Encoding, ZstdLevel};
 use deltalake::datafusion::parquet::file::properties::{EnabledStatistics, WriterProperties};
@@ -30,6 +31,10 @@ use tracing::{debug, error, info, instrument};
 use url::Url;
 
 const TRACE_SPAN_TABLE_NAME: &str = "trace_spans";
+
+/// Control table task names for distributed coordination.
+const TASK_OPTIMIZE: &str = "trace_optimize";
+const TASK_RETENTION: &str = "trace_retention";
 
 /// Days from year-0001 to Unix epoch (1970-01-01), used to convert chrono → Arrow Date32.
 /// Equivalent to `NaiveDate::from_ymd_opt(1970, 1, 1).unwrap().num_days_from_ce()`.
@@ -222,6 +227,7 @@ pub struct TraceSpanDBEngine {
     pub object_store: ObjectStore,
     table: Arc<AsyncRwLock<DeltaTable>>,
     pub ctx: Arc<SessionContext>,
+    control: ControlTableEngine,
 }
 
 impl TraceSchemaExt for TraceSpanDBEngine {}
@@ -240,11 +246,14 @@ impl TraceSpanDBEngine {
         } else {
             info!("Empty table at init — deferring SessionContext registration until first write");
         }
+        let control = ControlTableEngine::new(storage_settings, get_pod_id()).await?;
+
         Ok(TraceSpanDBEngine {
             schema,
             object_store,
             table: Arc::new(AsyncRwLock::new(delta_table)),
             ctx: Arc::new(ctx),
+            control,
         })
     }
 
@@ -456,17 +465,73 @@ impl TraceSpanDBEngine {
         Ok(())
     }
 
+    /// Try to claim and run the optimize task via the control table.
+    ///
+    /// The control table's OCC ensures only one pod runs this at a time across
+    /// the entire K8s deployment.
+    async fn try_run_optimize(&self, interval_hours: u64) {
+        match self.control.try_claim_task(TASK_OPTIMIZE).await {
+            Ok(true) => {
+                match self.optimize_table().await {
+                    Ok(()) => {
+                        let _ = self
+                            .control
+                            .release_task(
+                                TASK_OPTIMIZE,
+                                chrono::Duration::hours(interval_hours as i64),
+                            )
+                            .await;
+                    }
+                    Err(e) => {
+                        error!("Optimize failed: {}", e);
+                        let _ = self.control.release_task_on_failure(TASK_OPTIMIZE).await;
+                    }
+                }
+            }
+            Ok(false) => { /* not due or another pod owns it */ }
+            Err(e) => error!("Optimize claim check failed: {}", e),
+        }
+    }
+
+    /// Try to claim and run the retention task via the control table.
+    async fn try_run_retention(&self, retention_days: u32) {
+        match self.control.try_claim_task(TASK_RETENTION).await {
+            Ok(true) => {
+                let cutoff =
+                    (Utc::now() - chrono::Duration::days(retention_days as i64)).date_naive();
+                match self.expire_table(cutoff).await {
+                    Ok(()) => {
+                        // Reclaim disk space after logical delete
+                        let _ = self.vacuum_table(0).await;
+                        let _ = self
+                            .control
+                            .release_task(TASK_RETENTION, chrono::Duration::hours(24))
+                            .await;
+                    }
+                    Err(e) => {
+                        error!("Retention failed: {}", e);
+                        let _ = self.control.release_task_on_failure(TASK_RETENTION).await;
+                    }
+                }
+            }
+            Ok(false) => {}
+            Err(e) => error!("Retention claim check failed: {}", e),
+        }
+    }
+
     #[instrument(skip_all, name = "trace_engine_actor")]
     pub fn start_actor(
         self,
         compaction_interval_hours: u64,
+        retention_days: Option<u32>,
     ) -> (mpsc::Sender<TableCommand>, tokio::task::JoinHandle<()>) {
         let (tx, mut rx) = mpsc::channel::<TableCommand>(100);
 
         let handle = tokio::spawn(async move {
-            let mut compaction_ticker =
-                interval(Duration::from_secs(compaction_interval_hours * 3600));
-            compaction_ticker.tick().await;
+            // Poll every 5 minutes — the actual schedule is persisted in the
+            // control table's `next_run_at` and survives pod restarts.
+            let mut scheduler_ticker = interval(Duration::from_secs(5 * 60));
+            scheduler_ticker.tick().await; // skip immediate tick
 
             loop {
                 tokio::select! {
@@ -482,40 +547,14 @@ impl TraceSpanDBEngine {
                                 }
                             }
                             TableCommand::Optimize { respond_to } => {
-                                match self.optimize_table().await {
-                                    Ok(_) => {
-                                        tracing::info!("Compaction completed");
-                                        let _ = respond_to.send(Ok(()));
-                                    }
-                                    Err(e) => {
-                                        tracing::error!("Compaction failed: {}", e);
-                                        let _ = respond_to.send(Err(e));
-                                    }
-                                }
+                                // Direct admin request — bypass control table
+                                let _ = respond_to.send(self.optimize_table().await);
                             }
                             TableCommand::Vacuum { retention_hours, respond_to } => {
-                                match self.vacuum_table(retention_hours).await {
-                                    Ok(_) => {
-                                        tracing::info!("Vacuum completed");
-                                        let _ = respond_to.send(Ok(()));
-                                    }
-                                    Err(e) => {
-                                        tracing::error!("Vacuum failed: {}", e);
-                                        let _ = respond_to.send(Err(e));
-                                    }
-                                }
+                                let _ = respond_to.send(self.vacuum_table(retention_hours).await);
                             }
                             TableCommand::Expire { cutoff_date, respond_to } => {
-                                match self.expire_table(cutoff_date).await {
-                                    Ok(_) => {
-                                        tracing::info!("Partition expiration completed up to {}", cutoff_date);
-                                        let _ = respond_to.send(Ok(()));
-                                    }
-                                    Err(e) => {
-                                        tracing::error!("Partition expiration failed: {}", e);
-                                        let _ = respond_to.send(Err(e));
-                                    }
-                                }
+                                let _ = respond_to.send(self.expire_table(cutoff_date).await);
                             }
                             TableCommand::Shutdown => {
                                 tracing::info!("Shutting down table engine");
@@ -523,11 +562,10 @@ impl TraceSpanDBEngine {
                             }
                         }
                     }
-                    _ = compaction_ticker.tick() => {
-                        if let Err(e) = self.optimize_table().await {
-                            tracing::error!("Scheduled compaction failed: {}", e);
-                        } else {
-                            tracing::info!("Scheduled compaction completed");
+                    _ = scheduler_ticker.tick() => {
+                        self.try_run_optimize(compaction_interval_hours).await;
+                        if let Some(days) = retention_days {
+                            self.try_run_retention(days).await;
                         }
                     }
                 }

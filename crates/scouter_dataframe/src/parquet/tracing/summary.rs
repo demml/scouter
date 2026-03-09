@@ -1,4 +1,5 @@
 use crate::error::TraceEngineError;
+use crate::parquet::control::{get_pod_id, ControlTableEngine};
 use crate::parquet::tracing::traits::arrow_schema_to_delta;
 use crate::storage::ObjectStore;
 use arrow::array::*;
@@ -23,6 +24,9 @@ use tracing::{error, info};
 use url::Url;
 
 const SUMMARY_TABLE_NAME: &str = "trace_summaries";
+
+/// Control table task name for summary compaction coordination.
+const TASK_SUMMARY_OPTIMIZE: &str = "summary_optimize";
 
 // ── Column name constants ────────────────────────────────────────────────────
 const BUCKET_TIME_COL: &str = "bucket_time";
@@ -299,6 +303,7 @@ pub struct TraceSummaryDBEngine {
     schema: Arc<Schema>,
     table: Arc<AsyncRwLock<DeltaTable>>,
     pub ctx: Arc<SessionContext>,
+    control: ControlTableEngine,
 }
 
 impl TraceSummaryDBEngine {
@@ -317,10 +322,13 @@ impl TraceSummaryDBEngine {
         let delta_table = build_or_create_summary_table(&object_store, schema.clone()).await?;
         ctx.register_table(SUMMARY_TABLE_NAME, delta_table.table_provider().await?)?;
 
+        let control = ControlTableEngine::new(storage_settings, get_pod_id()).await?;
+
         Ok(TraceSummaryDBEngine {
             schema,
             table: Arc::new(AsyncRwLock::new(delta_table)),
             ctx,
+            control,
         })
     }
 
@@ -399,6 +407,34 @@ impl TraceSummaryDBEngine {
         Ok(())
     }
 
+    /// Try to claim and run the summary optimize task via the control table.
+    async fn try_run_optimize(&self, interval_hours: u64) {
+        match self.control.try_claim_task(TASK_SUMMARY_OPTIMIZE).await {
+            Ok(true) => {
+                match self.optimize_table().await {
+                    Ok(()) => {
+                        let _ = self
+                            .control
+                            .release_task(
+                                TASK_SUMMARY_OPTIMIZE,
+                                chrono::Duration::hours(interval_hours as i64),
+                            )
+                            .await;
+                    }
+                    Err(e) => {
+                        error!("Summary optimize failed: {}", e);
+                        let _ = self
+                            .control
+                            .release_task_on_failure(TASK_SUMMARY_OPTIMIZE)
+                            .await;
+                    }
+                }
+            }
+            Ok(false) => { /* not due or another pod owns it */ }
+            Err(e) => error!("Summary optimize claim check failed: {}", e),
+        }
+    }
+
     pub fn start_actor(
         self,
         compaction_interval_hours: u64,
@@ -409,9 +445,9 @@ impl TraceSummaryDBEngine {
         let (tx, mut rx) = mpsc::channel::<SummaryTableCommand>(100);
 
         let handle = tokio::spawn(async move {
-            let mut compaction_ticker =
-                interval(Duration::from_secs(compaction_interval_hours * 3600));
-            compaction_ticker.tick().await;
+            // Poll every 5 minutes — the actual schedule is in the control table.
+            let mut scheduler_ticker = interval(Duration::from_secs(5 * 60));
+            scheduler_ticker.tick().await; // skip immediate tick
 
             loop {
                 tokio::select! {
@@ -425,6 +461,7 @@ impl TraceSummaryDBEngine {
                                 let _ = respond_to.send(result);
                             }
                             SummaryTableCommand::Optimize { respond_to } => {
+                                // Direct admin request — bypass control table
                                 let _ = respond_to.send(self.optimize_table().await);
                             }
                             SummaryTableCommand::Vacuum { retention_hours, respond_to } => {
@@ -436,10 +473,8 @@ impl TraceSummaryDBEngine {
                             }
                         }
                     }
-                    _ = compaction_ticker.tick() => {
-                        if let Err(e) = self.optimize_table().await {
-                            error!("Scheduled summary compaction failed: {}", e);
-                        }
+                    _ = scheduler_ticker.tick() => {
+                        self.try_run_optimize(compaction_interval_hours).await;
                     }
                 }
             }
@@ -1292,7 +1327,7 @@ mod tests {
         let storage_settings = ObjectStorageSettings::default();
 
         // TraceSpanService owns the SessionContext (trace_spans registered in it)
-        let span_service = TraceSpanService::new(&storage_settings, 24, Some(2)).await?;
+        let span_service = TraceSpanService::new(&storage_settings, 24, Some(2), None).await?;
         let shared_ctx = span_service.ctx.clone();
 
         // TraceSummaryService shares the same ctx — JOIN to trace_spans will work

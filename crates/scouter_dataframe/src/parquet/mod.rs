@@ -1,3 +1,4 @@
+pub mod control;
 pub mod custom;
 pub mod dataframe;
 pub mod genai;
