@@ -15,7 +15,7 @@ use deltalake::logstore::{
     default_logstore, logstore_factories, LogStore, LogStoreFactory, ObjectStoreRef, StorageConfig,
 };
 use deltalake::operations::optimize::OptimizeType;
-use deltalake::{DeltaResult, DeltaTable, DeltaTableBuilder};
+use deltalake::{DeltaResult, DeltaTable, DeltaTableBuilder, TableProperty};
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::SpanId;
 use scouter_types::TraceId;
@@ -147,6 +147,7 @@ async fn create_table(
         .with_table_name(TRACE_SPAN_TABLE_NAME)
         .with_columns(delta_fields)
         .with_partition_columns(vec!["partition_date".to_string()])
+        .with_configuration_property(TableProperty::CheckpointInterval, Some("5"))
         .await
         .map_err(Into::into)
 }

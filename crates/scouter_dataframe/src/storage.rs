@@ -7,12 +7,23 @@ use object_store::azure::{MicrosoftAzure, MicrosoftAzureBuilder};
 use object_store::gcp::{GoogleCloudStorage, GoogleCloudStorageBuilder};
 use object_store::local::LocalFileSystem;
 use object_store::path::Path;
+use object_store::ClientOptions;
 use object_store::ObjectStore as ObjStore;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::StorageType;
 use std::sync::Arc;
 use tracing::debug;
 use url::Url;
+
+/// HTTP client options for cloud object stores.
+///
+/// Enables TCP+TLS connection pooling so repeat queries reuse existing
+/// connections
+fn cloud_client_options() -> ClientOptions {
+    ClientOptions::new()
+        .with_pool_idle_timeout(std::time::Duration::from_secs(90))
+        .with_pool_max_idle_per_host(16)
+}
 
 /// Helper function to decode base64 encoded string
 fn decode_base64_str(service_base64_creds: &str) -> Result<String, StorageError> {
@@ -60,6 +71,7 @@ impl StorageProvider {
                 // Add bucket name and build
                 let storage = builder
                     .with_bucket_name(storage_settings.storage_root())
+                    .with_client_options(cloud_client_options())
                     .build()?;
 
                 StorageProvider::Google(Arc::new(storage))
@@ -68,6 +80,7 @@ impl StorageProvider {
                 let builder = AmazonS3Builder::from_env()
                     .with_bucket_name(storage_settings.storage_root())
                     .with_region(storage_settings.region.clone())
+                    .with_client_options(cloud_client_options())
                     .build()?;
                 StorageProvider::Aws(Arc::new(builder))
             }
@@ -97,6 +110,7 @@ impl StorageProvider {
 
                 let store = builder
                     .with_container_name(storage_settings.storage_root())
+                    .with_client_options(cloud_client_options())
                     .build()?;
 
                 StorageProvider::Azure(Arc::new(store))
@@ -139,7 +153,7 @@ impl StorageProvider {
         &self,
         storage_settings: &ObjectStorageSettings,
     ) -> Result<SessionContext, StorageError> {
-        let config = SessionConfig::new()
+        let mut config = SessionConfig::new()
             .with_target_partitions(
                 std::thread::available_parallelism()
                     .map(|n| n.get())
@@ -149,6 +163,13 @@ impl StorageProvider {
             .with_prefer_existing_sort(true)
             .with_parquet_pruning(true)
             .with_collect_statistics(true);
+
+        // Push filter predicates into the Parquet reader so only matching rows are decoded,
+        // and reorder predicates by selectivity so bloom filters (trace_id, entity_id) are
+        // evaluated before range checks (start_time), short-circuiting row evaluation early.
+        config.options_mut().execution.parquet.pushdown_filters = true;
+        config.options_mut().execution.parquet.reorder_filters = true;
+
         let ctx = SessionContext::new_with_config(config);
         let base_url = self.get_base_url(storage_settings)?;
 

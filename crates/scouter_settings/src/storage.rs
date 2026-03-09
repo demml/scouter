@@ -46,6 +46,19 @@ impl Default for ObjectStorageSettings {
 }
 
 impl ObjectStorageSettings {
+    /// Buffer size for trace span batching before flushing to Delta Lake.
+    ///
+    /// Configurable via `SCOUTER_TRACE_BUFFER_SIZE`. Larger values produce fewer,
+    /// bigger Parquet files — reducing Delta log replay cost and file-open overhead
+    /// on cloud storage at the expense of slightly longer flush intervals.
+    /// Default: 10,000 spans.
+    pub fn trace_buffer_size(&self) -> usize {
+        std::env::var("SCOUTER_TRACE_BUFFER_SIZE")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(10_000)
+    }
+
     pub fn storage_root(&self) -> String {
         match self.storage_type {
             StorageType::Google | StorageType::Aws | StorageType::Azure => {

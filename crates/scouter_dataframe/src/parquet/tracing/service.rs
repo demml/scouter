@@ -9,7 +9,6 @@ use tokio::sync::mpsc;
 use tokio::time::{interval, Duration};
 use tracing::{debug, info};
 
-const BUFFER_SIZE: usize = 10_000;
 const FLUSH_INTERVAL_SECS: u64 = 5;
 
 /// Global singleton for the TraceSpanService.
@@ -71,10 +70,11 @@ impl TraceSpanService {
         compaction_interval_hours: u64,
         flush_interval_secs: Option<u64>,
     ) -> Result<Self, TraceEngineError> {
+        let buffer_size = storage_settings.trace_buffer_size();
         let engine = TraceSpanDBEngine::new(storage_settings).await?;
         info!(
-            "TraceSpanService initialized with storage URI: {}",
-            storage_settings.storage_uri
+            "TraceSpanService initialized with storage URI: {}, buffer_size: {}",
+            storage_settings.storage_uri, buffer_size
         );
 
         let ctx = engine.ctx.clone();
@@ -87,6 +87,7 @@ impl TraceSpanService {
             span_rx,
             shutdown_rx,
             flush_interval_secs,
+            buffer_size,
         );
 
         Ok(TraceSpanService {
@@ -105,9 +106,10 @@ impl TraceSpanService {
         mut span_rx: mpsc::Receiver<Vec<TraceSpanRecord>>,
         mut shutdown_rx: mpsc::Receiver<()>,
         flush_interval_secs: Option<u64>,
+        buffer_size: usize,
     ) -> tokio::task::JoinHandle<()> {
         tokio::spawn(async move {
-            let mut buffer: Vec<TraceSpanRecord> = Vec::with_capacity(BUFFER_SIZE);
+            let mut buffer: Vec<TraceSpanRecord> = Vec::with_capacity(buffer_size);
             let mut flush_ticker = interval(Duration::from_secs(
                 flush_interval_secs.unwrap_or(FLUSH_INTERVAL_SECS),
             ));
@@ -117,7 +119,7 @@ impl TraceSpanService {
                 tokio::select! {
                     Some(spans) = span_rx.recv() => {
                         buffer.extend(spans);
-                        if buffer.len() >= BUFFER_SIZE {
+                        if buffer.len() >= buffer_size {
                             Self::flush_buffer(&engine_tx, &mut buffer).await;
                         }
                     }
@@ -150,7 +152,8 @@ impl TraceSpanService {
             return;
         }
 
-        let spans_to_write = std::mem::replace(buffer, Vec::with_capacity(BUFFER_SIZE));
+        let capacity = buffer.capacity();
+        let spans_to_write = std::mem::replace(buffer, Vec::with_capacity(capacity));
         let span_count = spans_to_write.len();
 
         debug!("Sending write command to engine for {} spans", span_count);
