@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 from scouter.client import ScouterClient, TraceMetricsRequest
 
-from .conftest import _wait_for_export
+from .conftest import _wait_for_export  # type: ignore
 
 
 def test_scouter_span_exporter(setup_scouter_trace_provider):

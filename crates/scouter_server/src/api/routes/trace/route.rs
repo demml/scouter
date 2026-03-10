@@ -312,8 +312,8 @@ pub async fn get_trace_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
             .route(&format!("{prefix}/v1/traces"), post(v1_otel_traces))
             // add {id}/spans route for otel compat
             .route(
-                &format!("{prefix}/v1/traces/:id/spans"),
-                get(get_trace_spans),
+                &(format!("{prefix}/v1/traces/") + "{id}/spans"),
+                get(get_trace_spans_by_id),
             )
         // metr
     }));
