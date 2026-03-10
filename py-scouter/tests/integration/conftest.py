@@ -36,7 +36,7 @@ def rabbitmq_scouter_server():
 
 @pytest.fixture()
 def scouter_grpc_openai_server():
-    with ScouterTestServer(openai=True, cleanup=False) as server:
+    with ScouterTestServer(openai=True) as server:
         init_tracer(
             service_name="tracing-grpc",
             transport_config=GrpcConfig(),

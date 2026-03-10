@@ -31,7 +31,7 @@ def _find_attr(attributes: List[Any], key: str) -> Optional[Any]:
     return next((a.value for a in attributes if a.key == key), None)
 
 
-def _wait_for_export(seconds: float = 0.4) -> None:
+def _wait_for_export(seconds: float = 2.0) -> None:
     """Give the batch exporter time to flush."""
     time.sleep(seconds)
 
@@ -49,7 +49,8 @@ def test_instrumentor_sets_global_otel_provider(setup_instrumentor_http):
 
     global_provider = trace.get_tracer_provider()
     assert isinstance(global_provider, TracerProvider), (
-        f"Expected global OTel provider to be TracerProvider, " f"got {type(global_provider).__name__}"
+        f"Expected global OTel provider to be TracerProvider, "
+        f"got {type(global_provider).__name__}"
     )
 
 
@@ -70,7 +71,8 @@ def test_instrumentor_traces_appear_in_scouter_db(setup_instrumentor_http):
     response = scouter_client.get_trace_spans(trace_id)
 
     assert len(response.spans) > 0, (
-        f"No spans found for trace_id={trace_id!r}. " "Traces were not persisted to the Scouter backend."
+        f"No spans found for trace_id={trace_id!r}. "
+        "Traces were not persisted to the Scouter backend."
     )
 
 
@@ -85,7 +87,9 @@ def test_instrumentor_paginated_traces_filterable_by_service(setup_instrumentor_
     _wait_for_export()
 
     scouter_client = ScouterClient()
-    response = scouter_client.get_paginated_traces(TraceFilters(service_name=INSTRUMENTOR_HTTP_SERVICE))
+    response = scouter_client.get_paginated_traces(
+        TraceFilters(service_name=INSTRUMENTOR_HTTP_SERVICE)
+    )
 
     assert len(response.items) > 0, (
         f"No paginated traces found for service_name={INSTRUMENTOR_HTTP_SERVICE!r}. "
@@ -130,10 +134,12 @@ def test_instrumentor_default_attributes_on_spans(
     response = scouter_client.get_trace_spans(trace_id)
 
     assert len(response.spans) > 0, (
-        f"No spans returned for trace_id={trace_id!r}. " "Trace was not persisted — cannot verify default_attributes."
+        f"No spans returned for trace_id={trace_id!r}. "
+        "Trace was not persisted — cannot verify default_attributes."
     )
 
     for span in response.spans:
+        print(span)
         for attr_key, expected_value in DEFAULT_TEST_ATTRIBUTES.items():
             actual = _find_attr(span.attributes, attr_key)
             assert actual is not None, (
@@ -141,7 +147,8 @@ def test_instrumentor_default_attributes_on_spans(
                 "default_attributes are not being propagated to stored spans."
             )
             assert str(actual) == str(expected_value), (
-                f"Span '{span.span_name}': attribute '{attr_key}' " f"expected={expected_value!r}, got={actual!r}"
+                f"Span '{span.span_name}': attribute '{attr_key}' "
+                f"expected={expected_value!r}, got={actual!r}"
             )
 
 
@@ -158,7 +165,9 @@ def test_instrumentor_default_attrs_service_queryable(
     _wait_for_export()
 
     scouter_client = ScouterClient()
-    response = scouter_client.get_paginated_traces(TraceFilters(service_name=INSTRUMENTOR_ATTRS_SERVICE))
+    response = scouter_client.get_paginated_traces(
+        TraceFilters(service_name=INSTRUMENTOR_ATTRS_SERVICE)
+    )
 
     assert len(response.items) > 0, (
         f"No records returned for service_name={INSTRUMENTOR_ATTRS_SERVICE!r} "
@@ -177,4 +186,6 @@ def test_instrumentor_uninstrument_resets_provider(setup_instrumentor_http):
     # so we only verify the state directly after an explicit uninstrument.
     instrumentor.uninstrument()
 
-    assert not instrumentor.is_instrumented, "ScouterInstrumentor.is_instrumented should be False after uninstrument()."
+    assert not instrumentor.is_instrumented, (
+        "ScouterInstrumentor.is_instrumented should be False after uninstrument()."
+    )

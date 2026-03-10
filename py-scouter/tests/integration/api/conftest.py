@@ -134,6 +134,7 @@ def create_and_register_drift_profile(
 def create_and_register_genai_drift_profile(
     client: ScouterClient,
     name: str,
+    with_trace_assertion: bool = True,
 ) -> GenAIEvalProfile:
     # create drift config (usually associated with a model name, space name, version)
     config = GenAIEvalConfig(
@@ -166,13 +167,17 @@ def create_and_register_genai_drift_profile(
             operator=ComparisonOperator.GreaterThanOrEqual,
             description="Evaluate text coherence",
         ),
-        TraceAssertionTask(
-            id="no_errors",
-            assertion=TraceAssertion.trace_error_count(),
-            expected_value=0,
-            operator=ComparisonOperator.Equals,
-        ),
     ]
+
+    if with_trace_assertion:
+        tasks.append(
+            TraceAssertionTask(
+                id="no_errors",
+                assertion=TraceAssertion.trace_error_count(),
+                expected_value=0,
+                operator=ComparisonOperator.Equals,
+            ),
+        )
 
     # create drifter
     drifter = Drifter()
@@ -286,7 +291,8 @@ def create_kafka_genai_app(profile_path: Path) -> FastAPI:
             GenAIEvalRecord(
                 context={
                     "input": bound_prompt.messages[0].text,
-                    "response": response.response_text,
+                    "response": response.response_text(),
+                    "assertion": 10,
                 },
             )
         )
