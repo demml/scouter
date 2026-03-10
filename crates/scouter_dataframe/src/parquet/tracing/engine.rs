@@ -834,14 +834,13 @@ impl TraceSpanBatchBuilder {
             .inspect_err(|e| error!("Failed to append links for span {}: {}", span.span_id, e))?;
 
         // Payloads
-        match &span.input {
-            Value::Null => self.input.append_null(),
-            v => self.input.append_value(v.to_string()),
-        }
-        match &span.output {
-            Value::Null => self.output.append_null(),
-            v => self.output.append_value(v.to_string()),
-        }
+        self.input.append_value(
+            serde_json::to_string(&span.input).unwrap_or_else(|_| "null".to_string()),
+        );
+
+        self.output.append_value(
+            serde_json::to_string(&span.output).unwrap_or_else(|_| "null".to_string()),
+        );
 
         // Search blob
         let search_text = Self::build_search_blob(span);
@@ -857,11 +856,8 @@ impl TraceSpanBatchBuilder {
     fn append_attributes(&mut self, attributes: &[Attribute]) -> Result<(), TraceEngineError> {
         for attr in attributes {
             self.attributes.keys().append_value(&attr.key);
-            let value_str = match &attr.value {
-                Value::String(s) => s.clone(),
-                Value::Null => String::new(),
-                other => other.to_string(),
-            };
+            let value_str =
+                serde_json::to_string(&attr.value).unwrap_or_else(|_| "null".to_string());
             self.attributes.values().append_value(value_str);
         }
         self.attributes.append(true)?;
@@ -877,11 +873,8 @@ impl TraceSpanBatchBuilder {
         } else {
             for attr in attributes {
                 self.resource_attributes.keys().append_value(&attr.key);
-                let value_str = match &attr.value {
-                    Value::String(s) => s.clone(),
-                    Value::Null => String::new(),
-                    other => other.to_string(),
-                };
+                let value_str =
+                    serde_json::to_string(&attr.value).unwrap_or_else(|_| "null".to_string());
                 self.resource_attributes.values().append_value(value_str);
             }
             self.resource_attributes.append(true)?;
@@ -908,11 +901,8 @@ impl TraceSpanBatchBuilder {
 
             for attr in &event.attributes {
                 attr_builder.keys().append_value(&attr.key);
-                let value_str = match &attr.value {
-                    Value::String(s) => s.clone(),
-                    Value::Null => String::new(),
-                    other => other.to_string(),
-                };
+                let value_str =
+                    serde_json::to_string(&attr.value).unwrap_or_else(|_| "null".to_string());
                 attr_builder.values().append_value(value_str);
             }
             attr_builder.append(true)?;
@@ -964,11 +954,8 @@ impl TraceSpanBatchBuilder {
 
             for attr in &link.attributes {
                 attr_builder.keys().append_value(&attr.key);
-                let value_str = match &attr.value {
-                    Value::String(s) => s.clone(),
-                    Value::Null => String::new(),
-                    other => other.to_string(),
-                };
+                let value_str =
+                    serde_json::to_string(&attr.value).unwrap_or_else(|_| "null".to_string());
                 attr_builder.values().append_value(value_str);
             }
             attr_builder.append(true)?;

@@ -205,11 +205,8 @@ impl TraceSummaryBatchBuilder {
         } else {
             for attr in &rec.resource_attributes {
                 self.resource_attributes.keys().append_value(&attr.key);
-                let value_str = match &attr.value {
-                    serde_json::Value::String(s) => s.clone(),
-                    serde_json::Value::Null => String::new(),
-                    other => other.to_string(),
-                };
+                let value_str =
+                    serde_json::to_string(&attr.value).unwrap_or_else(|_| "null".to_string());
                 self.resource_attributes.values().append_value(value_str);
             }
             self.resource_attributes.append(true)?;
@@ -940,11 +937,7 @@ fn extract_map_attributes(map_array: &MapArray, row_idx: usize) -> Vec<Attribute
     (0..struct_array.len())
         .map(|i| Attribute {
             key: keys.value(i).to_string(),
-            value: if values.is_null(i) {
-                serde_json::Value::Null
-            } else {
-                serde_json::Value::String(values.value(i).to_string())
-            },
+            value: serde_json::from_str(values.value(i)).unwrap_or(serde_json::Value::Null),
         })
         .collect()
 }
