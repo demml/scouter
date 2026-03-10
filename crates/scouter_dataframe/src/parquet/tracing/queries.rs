@@ -8,11 +8,12 @@ use arrow::compute::cast;
 use arrow::datatypes::DataType;
 use arrow_array::Array;
 use chrono::{DateTime, Datelike, TimeZone, Utc};
+use datafusion::common::JoinType;
 use datafusion::logical_expr::{col, lit, SortExpr};
 use datafusion::prelude::*;
 use datafusion::scalar::ScalarValue;
 use mini_moka::sync::Cache;
-use scouter_types::sql::{TraceMetricBucket, TraceSpan};
+use scouter_types::sql::{TraceFilters, TraceMetricBucket, TraceSpan};
 use scouter_types::{Attribute, SpanEvent, SpanId, SpanLink, TraceId};
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
@@ -66,6 +67,11 @@ pub const OUTPUT_COL: &str = "output";
 pub const SEARCH_BLOB_COL: &str = "search_blob";
 pub const ENTITY_ID_COL: &str = "entity_id";
 pub const SPAN_TABLE_NAME: &str = "trace_spans";
+
+const SUMMARY_TABLE_NAME: &str = "trace_summaries";
+const ERROR_COUNT_COL: &str = "error_count";
+const ENTITY_IDS_COL: &str = "entity_ids";
+const QUEUE_IDS_COL: &str = "queue_ids";
 
 /// Columns needed to reconstruct a `TraceSpan` (all fields except search_blob).
 const SPAN_COLUMNS: &[&str] = &[
@@ -1090,5 +1096,149 @@ impl TraceQueries {
         self.metrics_cache
             .insert(cache_key, Arc::new(metrics.clone()));
         Ok(metrics)
+    }
+
+    /// Look up traces from the summary table that match aggregate-level filters
+    /// (e.g. `entity_uid`, `queue_uid`, `has_errors`) and return spans for the
+    /// most-recent matching trace. The entire pipeline runs as a single DataFusion
+    /// JOIN — no intermediate collection, no Postgres round-trip.
+    pub async fn query_spans_from_trace_filters(
+        &self,
+        filters: &TraceFilters,
+    ) -> Result<Vec<TraceSpan>, TraceEngineError> {
+        // ── Phase 1: Summary filters (time-first for partition pruning) ─────
+        let mut summary_df = self
+            .ctx
+            .table(SUMMARY_TABLE_NAME)
+            .await
+            .map_err(TraceEngineError::DatafusionError)?;
+
+        if let Some(start) = filters.start_time {
+            summary_df = summary_df.filter(col(START_TIME_COL).gt_eq(ts_lit(&start)))?;
+        }
+        if let Some(end) = filters.end_time {
+            summary_df = summary_df.filter(col(START_TIME_COL).lt(ts_lit(&end)))?;
+        }
+        if let Some(ref svc) = filters.service_name {
+            summary_df = summary_df.filter(col(SERVICE_NAME_COL).eq(lit(svc.as_str())))?;
+        }
+        match filters.has_errors {
+            Some(true) => {
+                summary_df = summary_df.filter(col(ERROR_COUNT_COL).gt(lit(0i64)))?;
+            }
+            Some(false) => {
+                summary_df = summary_df.filter(col(ERROR_COUNT_COL).eq(lit(0i64)))?;
+            }
+            None => {}
+        }
+        if let Some(sc) = filters.status_code {
+            summary_df = summary_df.filter(col(STATUS_CODE_COL).eq(lit(sc)))?;
+        }
+        if let Some(ref uid) = filters.entity_uid {
+            summary_df = summary_df.filter(datafusion::functions_nested::expr_fn::array_has(
+                col(ENTITY_IDS_COL),
+                lit(uid.as_str()),
+            ))?;
+        }
+        if let Some(ref uid) = filters.queue_uid {
+            summary_df = summary_df.filter(datafusion::functions_nested::expr_fn::array_has(
+                col(QUEUE_IDS_COL),
+                lit(uid.as_str()),
+            ))?;
+        }
+
+        // ── Phase 1b: Attribute filter join (keeps everything in DataFusion) ─
+        if let Some(ref attr_filters) = filters.attribute_filters {
+            if !attr_filters.is_empty() {
+                let mut attr_df = self
+                    .ctx
+                    .table(SPAN_TABLE_NAME)
+                    .await
+                    .map_err(TraceEngineError::DatafusionError)?;
+
+                // Time pruning on the span side
+                if let Some(start) = filters.start_time {
+                    attr_df = attr_df.filter(col(START_TIME_COL).gt_eq(ts_lit(&start)))?;
+                }
+                if let Some(end) = filters.end_time {
+                    attr_df = attr_df.filter(col(START_TIME_COL).lt(ts_lit(&end)))?;
+                }
+
+                // OR-match search_blob against each filter pattern
+                let mut attr_expr: Option<Expr> = None;
+                for f in attr_filters {
+                    let pattern = normalize_attr_filter(f);
+                    let cond = col(SEARCH_BLOB_COL).like(lit(pattern));
+                    attr_expr = Some(match attr_expr {
+                        None => cond,
+                        Some(e) => e.or(cond),
+                    });
+                }
+                if let Some(expr) = attr_expr {
+                    attr_df = attr_df.filter(expr)?;
+                }
+
+                // Deduplicate and alias trace_id to avoid ambiguous column in join
+                let attr_df = attr_df
+                    .select(vec![col(TRACE_ID_COL).alias("_attr_tid")])?
+                    .distinct()?;
+
+                summary_df = summary_df.join(
+                    attr_df,
+                    JoinType::Inner,
+                    &[TRACE_ID_COL],
+                    &["_attr_tid"],
+                    None,
+                )?;
+            }
+        }
+
+        // ── Phase 2: Sort DESC, limit 1, project trace_id → _match_tid ──────
+        let first_trace_df = summary_df
+            .sort(vec![
+                col(START_TIME_COL).sort(false, false),
+                col(TRACE_ID_COL).sort(false, false),
+            ])?
+            .limit(0, Some(1))?
+            .select(vec![col(TRACE_ID_COL).alias("_match_tid")])?;
+
+        // ── Phase 3: Spans DataFrame — partition + row-group pruning ─────────
+        let mut spans_df = self
+            .ctx
+            .table(SPAN_TABLE_NAME)
+            .await
+            .map_err(TraceEngineError::DatafusionError)?;
+
+        if let Some(start) = filters.start_time {
+            spans_df = spans_df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
+            spans_df = spans_df.filter(col(START_TIME_COL).gt_eq(ts_lit(&start)))?;
+        }
+        if let Some(end) = filters.end_time {
+            spans_df = spans_df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end)))?;
+            spans_df = spans_df.filter(col(START_TIME_COL).lt(ts_lit(&end)))?;
+        }
+        spans_df = spans_df.select_columns(SPAN_COLUMNS)?;
+        spans_df = spans_df.sort(vec![col(START_TIME_COL).sort(true, true)])?;
+
+        // ── Phase 4: Inner join — spans filtered to the single matching trace ─
+        let result_df = spans_df.join(
+            first_trace_df,
+            JoinType::Inner,
+            &[TRACE_ID_COL],
+            &["_match_tid"],
+            None,
+        )?;
+
+        let batches = result_df
+            .collect()
+            .await
+            .map_err(TraceEngineError::DatafusionError)?;
+
+        if batches.is_empty() || batches.iter().all(|b| b.num_rows() == 0) {
+            return Ok(Vec::new());
+        }
+
+        let flat_spans = batches_to_flat_spans(batches)?;
+        Ok(build_span_tree(flat_spans))
     }
 }

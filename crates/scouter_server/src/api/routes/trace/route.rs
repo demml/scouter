@@ -233,6 +233,27 @@ pub async fn trace_metrics(
 }
 
 #[instrument(skip_all)]
+pub async fn query_spans_from_filters(
+    State(data): State<Arc<AppState>>,
+    Json(body): Json<TraceFilters>,
+) -> Result<Json<TraceSpansResponse>, (StatusCode, Json<ScouterServerError>)> {
+    let spans = data
+        .trace_service
+        .query_service
+        .query_spans_from_trace_filters(&body)
+        .await
+        .map_err(|e| {
+            error!("Failed to get spans from trace filters: {:?}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::get_trace_spans_error(e)),
+            )
+        })?;
+
+    Ok(Json(TraceSpansResponse { spans }))
+}
+
+#[instrument(skip_all)]
 pub async fn v1_otel_traces(
     State(_data): State<Arc<AppState>>,
     Json(body): Json<serde_json::Value>,
@@ -251,6 +272,10 @@ pub async fn get_trace_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
             .route(
                 &format!("{prefix}/trace/spans/tags"),
                 post(query_trace_spans_from_tags),
+            )
+            .route(
+                &format!("{prefix}/trace/spans/filters"),
+                post(query_spans_from_filters),
             )
             .route(&format!("{prefix}/trace/metrics"), post(trace_metrics))
             .route(&format!("{prefix}/v1/traces"), post(v1_otel_traces))

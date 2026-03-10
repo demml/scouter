@@ -1681,9 +1681,16 @@ mod tests {
             "queue_uid filter must return at least one result"
         );
         assert!(
-            response.items.iter().all(|i| i.trace_id == queue_trace.to_hex()),
+            response
+                .items
+                .iter()
+                .all(|i| i.trace_id == queue_trace.to_hex()),
             "only the queue trace should appear; got {:?}",
-            response.items.iter().map(|i| &i.trace_id).collect::<Vec<_>>()
+            response
+                .items
+                .iter()
+                .map(|i| &i.trace_id)
+                .collect::<Vec<_>>()
         );
 
         // ── Step 2: fetch spans for the returned trace_id ─────────────────────────

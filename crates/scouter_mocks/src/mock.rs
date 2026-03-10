@@ -123,13 +123,8 @@ impl ScouterTestServer {
                 std::env::set_var("SCOUTER_TRACE_FLUSH_INTERVAL_SECS", "1");
                 // Pin storage to an absolute path so the server and cleanup()
                 // always refer to the same directory regardless of CWD.
-                let storage_path = std::env::current_dir()
-                    .unwrap()
-                    .join("scouter_storage");
-                std::env::set_var(
-                    "SCOUTER_STORAGE_URI",
-                    storage_path.to_str().unwrap(),
-                );
+                let storage_path = std::env::current_dir().unwrap().join("scouter_storage");
+                std::env::set_var("SCOUTER_STORAGE_URI", storage_path.to_str().unwrap());
             }
 
             if self.rabbit_mq {
@@ -300,11 +295,7 @@ impl ScouterTestServer {
         // falling back to the relative default so both cases are covered.
         let storage_dir = std::env::var("SCOUTER_STORAGE_URI")
             .map(std::path::PathBuf::from)
-            .unwrap_or_else(|_| {
-                std::env::current_dir()
-                    .unwrap()
-                    .join("scouter_storage")
-            });
+            .unwrap_or_else(|_| std::env::current_dir().unwrap().join("scouter_storage"));
 
         // unset env vars
         self.remove_env_vars_for_client()?;
