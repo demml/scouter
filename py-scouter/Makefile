@@ -44,9 +44,10 @@ test.unit:
 		--benchmark-skip
 
 test.integration.api:
-	uv run pytest -s tests/integration/api/test_fastapi.py
-	uv run pytest -s tests/integration/api/test_fastapi_genai_tracing.py
-	uv run pytest -s tests/integration/api/test_fastapi_genai.py
+	uv run pytest -s tests/integration/api
+
+test.integration.tracing:
+	uv run pytest -s tests/integration/tracing
 
 test.integration.queue:
 	uv run pytest -s tests/integration/queue
@@ -54,7 +55,7 @@ test.integration.queue:
 test.integration.client:
 	uv run pytest -s tests/integration/client
 
-test.integration: test.integration.queue test.integration.api test.integration.client
+test.integration: test.integration.queue test.integration.api test.integration.client test.integration.tracing
 
 uv.pre.patch:
 	uv version prepatch

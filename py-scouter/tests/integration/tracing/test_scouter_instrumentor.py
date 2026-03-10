@@ -8,7 +8,6 @@ Verifies that ScouterInstrumentor correctly:
   - Cleans up global OTel state on uninstrument()
 """
 
-import time
 from typing import Any, List, Optional
 
 from opentelemetry import trace
@@ -19,6 +18,7 @@ from .conftest import (  # type: ignore
     DEFAULT_TEST_ATTRIBUTES,
     INSTRUMENTOR_ATTRS_SERVICE,
     INSTRUMENTOR_HTTP_SERVICE,
+    _wait_for_export,
 )
 
 # ---------------------------------------------------------------------------
@@ -29,11 +29,6 @@ from .conftest import (  # type: ignore
 def _find_attr(attributes: List[Any], key: str) -> Optional[Any]:
     """Return the first attribute value matching *key*, or None."""
     return next((a.value for a in attributes if a.key == key), None)
-
-
-def _wait_for_export(seconds: float = 2.0) -> None:
-    """Give the batch exporter time to flush."""
-    time.sleep(seconds)
 
 
 # ---------------------------------------------------------------------------
@@ -134,7 +129,6 @@ def test_instrumentor_default_attributes_on_spans(
     )
 
     for span in response.spans:
-        print(span)
         for attr_key, expected_value in DEFAULT_TEST_ATTRIBUTES.items():
             actual = _find_attr(span.attributes, attr_key)
             assert actual is not None, (

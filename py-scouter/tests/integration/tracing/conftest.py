@@ -1,5 +1,6 @@
 # type: ignore
 
+import time
 from datetime import datetime, timedelta
 
 import pytest
@@ -19,6 +20,11 @@ from scouter.tracing import (
     shutdown_tracer,
 )
 from scouter.transport import GrpcConfig
+
+
+def _wait_for_export(seconds: float = 2.0) -> None:
+    """Give the batch exporter time to flush."""
+    time.sleep(seconds)
 
 
 @pytest.fixture()

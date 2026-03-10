@@ -1,7 +1,8 @@
-import time
 from datetime import datetime, timedelta, timezone
 
 from scouter.client import ScouterClient, TraceMetricsRequest
+
+from .conftest import _wait_for_export
 
 
 def test_scouter_span_exporter(setup_scouter_trace_provider):
@@ -15,7 +16,7 @@ def test_scouter_span_exporter(setup_scouter_trace_provider):
 
         trace_id = span.trace_id
 
-    time.sleep(0.3)
+    _wait_for_export()
     scouter_client = ScouterClient()
 
     # Get spans for specific trace

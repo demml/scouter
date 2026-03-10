@@ -2,7 +2,7 @@ import time
 
 from scouter.client import ScouterClient, TraceFilters
 
-from .conftest import get_traces_from_jaeger  # type: ignore
+from .conftest import _wait_for_export, get_traces_from_jaeger  # type: ignore
 
 
 def test_tracer_grpc(setup_tracer_grpc):
@@ -29,6 +29,8 @@ def test_tracer_grpc(setup_tracer_grpc):
 
     traces = get_traces_from_jaeger("tracing-grpc")
     assert len(traces) > 0
+
+    _wait_for_export()
 
     scouter_client = ScouterClient()
     trace_spans = scouter_client.get_trace_spans(trace_id)
@@ -60,6 +62,8 @@ def test_tracer_grpc_sampling(setup_tracer_grpc_sample):
     traces = get_traces_from_jaeger("tracing-grpc-sample")
     assert len(traces) > 0
     assert len(traces) < 20
+
+    _wait_for_export()
 
     scouter_client = ScouterClient()
     traces = scouter_client.get_paginated_traces(TraceFilters(service_name="tracing-grpc-sample"))
