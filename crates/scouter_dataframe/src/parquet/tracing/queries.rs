@@ -774,7 +774,7 @@ impl TraceQueries {
                 }
 
                 let result = self
-                    .query_spans(Some(tid), service_name, start_time, end_time, limit, None)
+                    .query_spans(Some(tid), service_name, start_time, end_time, limit)
                     .await?;
                 self.span_cache.insert(key, Arc::new(result.clone()));
                 return Ok(result);
@@ -782,22 +782,11 @@ impl TraceQueries {
         }
 
         // No trace_id or non-16-byte ID — uncached scan path (time/service/attribute queries).
-        self.query_spans(
-            trace_id_bytes,
-            service_name,
-            start_time,
-            end_time,
-            limit,
-            None,
-        )
-        .await
+        self.query_spans(trace_id_bytes, service_name, start_time, end_time, limit)
+            .await
     }
 
     /// Execute the actual DataFusion query without cache logic.
-    ///
-    /// `entity_uid` filters on the top-level `entity_id` column (extracted from
-    /// the `scouter.entity` attribute at ingest time). Filtering is applied before
-    /// column projection so `entity_id` remains in scope.
     pub async fn query_spans(
         &self,
         trace_id_bytes: Option<&[u8]>,
@@ -805,11 +794,9 @@ impl TraceQueries {
         start_time: Option<&DateTime<Utc>>,
         end_time: Option<&DateTime<Utc>>,
         limit: Option<usize>,
-        entity_uid: Option<&str>,
     ) -> Result<Vec<TraceSpan>, TraceEngineError> {
         let mut builder = TraceQueryBuilder::set_table(self.ctx.clone(), SPAN_TABLE_NAME).await?;
 
-        // All filters BEFORE select_columns so entity_id (not in SPAN_COLUMNS) stays in scope.
         // Partition filters FIRST — eliminates whole partition_date=YYYY-MM-DD/ directories
         // at directory level before any file metadata or Parquet statistics are read.
         if let Some(start) = start_time {
@@ -834,13 +821,6 @@ impl TraceQueries {
 
         if let Some(svc) = service_name {
             builder = builder.add_filter(col(SERVICE_NAME_COL).eq(lit(svc)))?;
-        }
-
-        if let Some(uid) = entity_uid {
-            // IS NOT NULL first — stats-only check lets DataFusion skip all-NULL files
-            // before the equality filter is evaluated at the row level.
-            builder = builder.add_filter(col(ENTITY_ID_COL).is_not_null())?;
-            builder = builder.add_filter(col(ENTITY_ID_COL).eq(lit(uid)))?;
         }
 
         builder = builder.select_columns(SPAN_COLUMNS)?;
@@ -929,15 +909,6 @@ impl TraceQueries {
             _ => (String::new(), String::new()),
         };
 
-        // entity_id direct column predicate — avoids IN-list and enables file-level skipping
-        let entity_filter_clause = match entity_uid {
-            Some(uid) => format!(
-                "AND entity_id IS NOT NULL AND entity_id = '{}'",
-                uid.replace('\'', "''")
-            ),
-            None => String::new(),
-        };
-
         // Service filter on root span (parent_span_id IS NULL) — matches Postgres logic
         let service_filter_clause = match service_name {
             Some(svc) => format!("root_service = '{}'", svc.replace('\'', "''")),
@@ -962,7 +933,6 @@ impl TraceQueries {
                     {attr_match_select} \
                 FROM {table} s \
                 WHERE s.start_time >= '{start}' AND s.start_time < '{end}' \
-                {entity_filter} \
                 GROUP BY s.trace_id \
                 {attr_having} \
             ), \
@@ -999,7 +969,6 @@ impl TraceQueries {
             table = SPAN_TABLE_NAME,
             start = start_rfc,
             end = end_rfc,
-            entity_filter = entity_filter_clause,
             attr_match_select = attr_match_select,
             attr_having = attr_having,
             svc_filter = service_filter_clause,

@@ -13,64 +13,28 @@ graph TB
     end
 
     subgraph "Server Ingestion"
-        B -->|gRPC| C[MessageGrpcService]
-        C --> D[Consumer Worker Channel]
-        D --> E["PostgresClient::\ninsert_trace_server_record()"]
+        B --> C[Transport Layer]
+        C --> D[Consumer Worker]
+        D --> E[MessageHandler]
     end
 
     subgraph "Storage Layer"
-        E -->|"write_spans()"| F[Buffer Actor\n10K cap · 5s flush]
-        F -->|"TableCommand::Write"| G[Engine Actor\nSingle writer]
-        G -->|"build_batch() → append"| H[(Delta Lake\ntrace_spans)]
+        E -->|"write_spans()"| F[Buffer Actor 10K cap · 5s flush]
+        F -->|"TableCommand::Write"| G[Engine Actor Single writer]
+        G -->|"build_batch() → append"| H[(Delta Lake trace_spans)]
 
-        E --> I[TraceSummaryService\nwrite_summaries]
-        I --> J[(Delta Lake\ntrace_summaries)]
-
-        E --> K[(PostgreSQL\nbaggage + tags)]
+        E --> I[TraceSummaryService write_summaries]
+        I --> J[(Delta Lake trace_summaries)]
     end
 
     style H fill:#5c6bc0,color:#fff
     style J fill:#5c6bc0,color:#fff
-    style K fill:#26a69a,color:#fff
 ```
 
-Every span batch arriving via gRPC is processed by `insert_trace_server_record`, which fans out to three destinations simultaneously:
+Every span batch is processed by the `MessageHandler`, which fans out to two Delta Lake destinations:
 
-1. **Delta Lake `trace_spans`** — full span data via the dual-actor pipeline
-2. **Delta Lake `trace_summaries`** — one row per trace, updated as spans arrive
-3. **PostgreSQL** — baggage and tag metadata (retained for indexed search)
-
----
-
-## Query Path
-
-```mermaid
-graph TB
-    subgraph "HTTP API"
-        A[GET /api/v1/traces] --> B[Route Handler]
-        A2[GET /api/v1/traces/:id/spans] --> B
-        A3[GET /api/v1/traces/metrics] --> B
-    end
-
-    subgraph "TraceQueries"
-        B --> C[TraceSpanService\n.query_service]
-        C --> D["get_trace_spans()\ntime filter → trace_id filter\n→ RecordBatch → DFS tree"]
-        C --> E["get_trace_metrics()\nCTE pipeline → approx percentiles"]
-    end
-
-    subgraph "TraceSummaryService"
-        B --> F["get_paginated_traces()\ncursor pagination on\ntrace_summaries"]
-    end
-
-    subgraph "Delta Lake"
-        D --> G[(trace_spans)]
-        E --> G
-        F --> H[(trace_summaries)]
-    end
-
-    style G fill:#5c6bc0,color:#fff
-    style H fill:#5c6bc0,color:#fff
-```
+1. **Delta Lake `trace_spans`** — full span data via the dual-actor buffer/engine pipeline
+2. **Delta Lake `trace_summaries`** — one row per trace, updated as spans arrive via `TraceCache` (accumulates span updates and flushes per-trace summaries on flush)
 
 ---
 
@@ -83,8 +47,8 @@ graph TB
 | `TraceSpanBatchBuilder` | `scouter_dataframe` | `parquet/tracing/engine.rs` | Zero-copy Arrow serialization of `TraceSpanRecord` |
 | `TraceQueries` | `scouter_dataframe` | `parquet/tracing/queries.rs` | DataFusion query execution and DFS span tree assembly |
 | `TraceSummaryService` | `scouter_dataframe` | `parquet/tracing/summary.rs` | Hour-bucketed summary table with cursor pagination |
-| `MessageGrpcService` | `scouter_server` | `api/grpc/message.rs` | gRPC ingestion handler |
-| `PostgresClient` | `scouter_sql` | `sql/postgres.rs` | Consumer worker; routes spans to services via `insert_trace_server_record` |
+| `Transport Layer (gRPC/HTTP/Kafka/RabbitMQ/Redis)` | `scouter_server` / `scouter_events` | `api/grpc/message.rs`, `api/routes/`, `events/` | Span ingestion handlers across all supported transports |
+| `MessageHandler` | `scouter_sql` | `sql/postgres.rs` | Consumer worker; routes spans to `TraceSpanService` and `TraceSummaryService` |
 
 ---
 
@@ -187,7 +151,7 @@ Stores one row per trace, hour-bucketed. Used exclusively for the paginated trac
 | `status_message` | `Utf8` | Yes |
 | `span_count` | `Int64` | No |
 | `error_count` | `Int64` | No |
-| `resource_attributes` | `Utf8` | Yes |
+| `resource_attributes` | `Map<Utf8, Utf8View>` | Yes |
 
 ---
 

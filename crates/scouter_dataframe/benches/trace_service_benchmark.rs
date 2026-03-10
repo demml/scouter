@@ -356,7 +356,6 @@ fn bench_query_at_scale(c: &mut Criterion) {
 /// - `by_id_with_time_bounds` — same traces but a 1-hour window per trace; proves ts_lit pruning
 /// - `by_entity`              — entity_id column predicate with a 1-hour window
 fn bench_cold_query(c: &mut Criterion) {
-    const TARGET_ENTITY_UID: &str = "bench-entity-abc123";
     const HOURS: usize = 24;
     const SPANS_PER_HOUR: usize = 420; // ~10 080 total; 84 traces × 5 spans per hour
 
@@ -416,7 +415,7 @@ fn bench_cold_query(c: &mut Criterion) {
                     let (id, _hour) = &ids[i as usize % ids.len()];
                     let _ = black_box(
                         svc.query_service
-                            .query_spans(Some(id), None, None, None, None, None)
+                            .query_spans(Some(id), None, None, None, None)
                             .await
                             .unwrap(),
                     );
@@ -488,84 +487,7 @@ fn bench_cold_query(c: &mut Criterion) {
                     let end_t = now - chrono::Duration::hours(*hour as i64);
                     let _ = black_box(
                         svc.query_service
-                            .query_spans(Some(id), None, Some(&start_t), Some(&end_t), None, None)
-                            .await
-                            .unwrap(),
-                    );
-                }
-                t.elapsed()
-            }
-        });
-
-        let service =
-            Arc::try_unwrap(service).unwrap_or_else(|_| panic!("Arc still has multiple owners"));
-        rt.block_on(async { service.shutdown().await.unwrap() });
-        drop(tmp_dir);
-    });
-
-    // ── 3c: by_entity — entity_id column predicate with time-window pruning ──
-    group.bench_function("by_entity", |b| {
-        use chrono::Utc;
-        use scouter_mocks::{generate_trace_with_entity, generate_trace_with_spans};
-
-        let rt = Runtime::new().unwrap();
-        let tmp_dir = tempfile::tempdir().unwrap();
-        let storage_settings = ObjectStorageSettings {
-            storage_uri: tmp_dir.path().to_str().unwrap().to_string(),
-            storage_type: StorageType::Local,
-            region: "us-east-1".to_string(),
-            trace_compaction_interval_hours: 999,
-            trace_flush_interval_secs: 1,
-        };
-
-        let service = rt.block_on(async {
-            let service = TraceSpanService::new(&storage_settings, 999, Some(1), None)
-                .await
-                .unwrap();
-
-            // Background spans spread across hours 1..23 (not hour 0).
-            for hour in 1..HOURS {
-                let minutes_offset = (hour as i64) * 60;
-                let mut hour_spans: Vec<TraceSpanRecord> = Vec::new();
-                for _ in 0..(SPANS_PER_HOUR / 5) {
-                    let (_r, spans, _t) = generate_trace_with_spans(5, minutes_offset);
-                    hour_spans.extend(spans);
-                }
-                service.write_spans(hour_spans).await.unwrap();
-            }
-
-            // Entity traces all at hour 0 (most recent) so the 1-hour window hits only them.
-            let mut entity_spans: Vec<TraceSpanRecord> = Vec::new();
-            for _ in 0..10 {
-                let (_r, spans, _t) = generate_trace_with_entity(5, TARGET_ENTITY_UID, 0);
-                entity_spans.extend(spans);
-            }
-            service.write_spans(entity_spans).await.unwrap();
-
-            tokio::time::sleep(Duration::from_millis(1500)).await;
-            service.optimize().await.unwrap();
-            Arc::new(service)
-        });
-
-        b.to_async(&rt).iter_custom(|iters| {
-            let svc = service.clone();
-            async move {
-                let now = Utc::now();
-                // 1-hour window bracketing hour 0 — skips all 23 background hour-files.
-                let start_t = now - chrono::Duration::hours(1);
-                let end_t = now + chrono::Duration::minutes(5);
-                let t = Instant::now();
-                for _ in 0..iters {
-                    let _ = black_box(
-                        svc.query_service
-                            .query_spans(
-                                None,
-                                None,
-                                Some(&start_t),
-                                Some(&end_t),
-                                None,
-                                Some(TARGET_ENTITY_UID),
-                            )
+                            .query_spans(Some(id), None, Some(&start_t), Some(&end_t), None)
                             .await
                             .unwrap(),
                     );
@@ -667,7 +589,7 @@ fn bench_at_scale_1m(c: &mut Criterion) {
                     let (id, _hour) = &ids[i as usize % ids.len()];
                     let _ = black_box(
                         svc.query_service
-                            .query_spans(Some(id), None, None, None, None, None)
+                            .query_spans(Some(id), None, None, None, None)
                             .await
                             .unwrap(),
                     );
@@ -710,55 +632,7 @@ fn bench_at_scale_1m(c: &mut Criterion) {
                     let end_t = now - chrono::Duration::hours(*hour as i64);
                     let _ = black_box(
                         svc.query_service
-                            .query_spans(Some(id), None, Some(&start_t), Some(&end_t), None, None)
-                            .await
-                            .unwrap(),
-                    );
-                }
-                t.elapsed()
-            }
-        });
-
-        let service =
-            Arc::try_unwrap(service).unwrap_or_else(|_| panic!("Arc still has multiple owners"));
-        rt.block_on(async { service.shutdown().await.unwrap() });
-        drop(tmp_dir);
-    });
-
-    // ── 1c: entity_uid + 1h time bound — validates entity bloom filter ────
-    group.bench_function("entity_uid_1h_bound", |b| {
-        use chrono::Utc;
-
-        let rt = Runtime::new().unwrap();
-        let tmp_dir = tempfile::tempdir().unwrap();
-        let storage_settings = ObjectStorageSettings {
-            storage_uri: tmp_dir.path().to_str().unwrap().to_string(),
-            storage_type: StorageType::Local,
-            region: "us-east-1".to_string(),
-            trace_compaction_interval_hours: 999,
-            trace_flush_interval_secs: 1,
-        };
-
-        let (service, _all_ids) = rt.block_on(seed_and_compact(&storage_settings));
-
-        b.to_async(&rt).iter_custom(|iters| {
-            let svc = service.clone();
-            async move {
-                let now = Utc::now();
-                let start_t = now - chrono::Duration::hours(1);
-                let end_t = now + chrono::Duration::minutes(5);
-                let t = Instant::now();
-                for _ in 0..iters {
-                    let _ = black_box(
-                        svc.query_service
-                            .query_spans(
-                                None,
-                                None,
-                                Some(&start_t),
-                                Some(&end_t),
-                                None,
-                                Some(TARGET_ENTITY_UID),
-                            )
+                            .query_spans(Some(id), None, Some(&start_t), Some(&end_t), None)
                             .await
                             .unwrap(),
                     );
@@ -867,7 +741,7 @@ fn bench_at_scale_10m(c: &mut Criterion) {
                     let (id, _hour) = &ids[i as usize % ids.len()];
                     let _ = black_box(
                         svc.query_service
-                            .query_spans(Some(id), None, None, None, None, None)
+                            .query_spans(Some(id), None, None, None, None)
                             .await
                             .unwrap(),
                     );
@@ -891,36 +765,7 @@ fn bench_at_scale_10m(c: &mut Criterion) {
                     let end_t = now - chrono::Duration::hours(*hour as i64);
                     let _ = black_box(
                         svc.query_service
-                            .query_spans(Some(id), None, Some(&start_t), Some(&end_t), None, None)
-                            .await
-                            .unwrap(),
-                    );
-                }
-                t.elapsed()
-            }
-        });
-    });
-
-    // ── 1c: entity_uid + 1h time bound — validates entity bloom filter ────
-    group.bench_function("entity_uid_1h_bound", |b| {
-        b.to_async(&rt).iter_custom(|iters| {
-            let svc = service.clone();
-            async move {
-                let now = Utc::now();
-                let start_t = now - chrono::Duration::hours(1);
-                let end_t = now + chrono::Duration::minutes(5);
-                let t = Instant::now();
-                for _ in 0..iters {
-                    let _ = black_box(
-                        svc.query_service
-                            .query_spans(
-                                None,
-                                None,
-                                Some(&start_t),
-                                Some(&end_t),
-                                None,
-                                Some(TARGET_ENTITY_UID),
-                            )
+                            .query_spans(Some(id), None, Some(&start_t), Some(&end_t), None)
                             .await
                             .unwrap(),
                     );

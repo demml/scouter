@@ -8,6 +8,7 @@ use axum::{
     Json, Router,
 };
 
+use axum::extract::Path;
 use scouter_sql::sql::traits::{TagSqlLogic, TraceSqlLogic};
 use scouter_sql::PostgresClient;
 use scouter_types::{
@@ -65,6 +66,36 @@ pub async fn paginated_traces(
     );
 
     Ok(Json(pagination_response))
+}
+
+#[instrument(skip_all)]
+pub async fn get_trace_spans_by_id(
+    State(data): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<Json<TraceSpansResponse>, (StatusCode, Json<ScouterServerError>)> {
+    debug!("Getting trace spans for trace_id: {}", id);
+    let trace_id_bytes = TraceId::hex_to_bytes(&id).map_err(|e| {
+        error!("Invalid trace_id hex: {:?}", e);
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ScouterServerError::get_trace_spans_error(e)),
+        )
+    })?;
+
+    let spans = data
+        .trace_service
+        .query_service
+        .get_trace_spans(Some(trace_id_bytes.as_slice()), None, None, None, None)
+        .await
+        .map_err(|e| {
+            error!("Failed to get trace spans: {:?}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::get_trace_spans_error(e)),
+            )
+        })?;
+
+    Ok(Json(TraceSpansResponse { spans }))
 }
 
 #[instrument(skip_all)]
@@ -279,6 +310,12 @@ pub async fn get_trace_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
             )
             .route(&format!("{prefix}/trace/metrics"), post(trace_metrics))
             .route(&format!("{prefix}/v1/traces"), post(v1_otel_traces))
+            // add {id}/spans route for otel compat
+            .route(
+                &format!("{prefix}/v1/traces/:id/spans"),
+                get(get_trace_spans),
+            )
+        // metr
     }));
 
     match result {

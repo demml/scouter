@@ -21,7 +21,7 @@ use scouter_settings::ObjectStorageSettings;
 use scouter_types::SpanId;
 use scouter_types::TraceId;
 use scouter_types::TraceSpanRecord;
-use scouter_types::{Attribute, SpanEvent, SpanLink, SCOUTER_ENTITY};
+use scouter_types::{Attribute, SpanEvent, SpanLink};
 use serde_json::Value;
 use std::sync::Arc;
 use tokio::sync::oneshot;
@@ -273,10 +273,6 @@ impl TraceSpanDBEngine {
             .set_column_bloom_filter_enabled(ColumnPath::new(vec!["trace_id".to_string()]), true)
             .set_column_bloom_filter_fpp(ColumnPath::new(vec!["trace_id".to_string()]), 0.01)
             .set_column_bloom_filter_ndv(ColumnPath::new(vec!["trace_id".to_string()]), 32_768)
-            // entity_id: high cardinality (UUIDs), very hot equality predicate
-            .set_column_bloom_filter_enabled(ColumnPath::new(vec!["entity_id".to_string()]), true)
-            .set_column_bloom_filter_fpp(ColumnPath::new(vec!["entity_id".to_string()]), 0.01)
-            .set_column_bloom_filter_ndv(ColumnPath::new(vec!["entity_id".to_string()]), 32_768)
             // service_name: low cardinality but hot lookup path — bloom skips row groups fast
             .set_column_bloom_filter_enabled(
                 ColumnPath::new(vec!["service_name".to_string()]),
@@ -370,9 +366,8 @@ impl TraceSpanDBEngine {
             .optimize()
             .with_target_size(128 * 1024 * 1024)
             .with_type(OptimizeType::ZOrder(vec![
-                "start_time".to_string(),   // PRIMARY — always present, dominant pruning key
-                "entity_id".to_string(),    // SECONDARY — primary scouter query dimension
-                "service_name".to_string(), // TERTIARY — service-level filter bonus
+                "start_time".to_string(),
+                "service_name".to_string(),
             ]))
             // Bloom filters must be re-specified here — compaction rewrites all Parquet files
             // from scratch using these properties. Without this, every compaction cycle
@@ -587,7 +582,6 @@ pub struct TraceSpanBatchBuilder {
 
     // Scouter-specific
     label: StringBuilder,
-    entity_id: StringBuilder,
 
     // Attribute builders
     attributes: MapBuilder<StringBuilder, StringViewBuilder>,
@@ -632,7 +626,6 @@ impl TraceSpanBatchBuilder {
         let status_message = StringBuilder::new();
 
         let label = StringBuilder::new();
-        let entity_id = StringBuilder::new();
 
         let map_field_name = MapFieldNames {
             entry: "key_value".to_string(),
@@ -722,7 +715,6 @@ impl TraceSpanBatchBuilder {
             status_code,
             status_message,
             label,
-            entity_id,
             attributes,
             resource_attributes,
             events,
@@ -795,17 +787,6 @@ impl TraceSpanBatchBuilder {
         match &span.label {
             Some(l) => self.label.append_value(l),
             None => self.label.append_null(),
-        }
-
-        // Entity ID — extracted from the scouter.entity span attribute
-        let entity_id = span
-            .attributes
-            .iter()
-            .find(|a| a.key == SCOUTER_ENTITY)
-            .and_then(|a| a.value.as_str());
-        match entity_id {
-            Some(uid) => self.entity_id.append_value(uid),
-            None => self.entity_id.append_null(),
         }
 
         // Attributes
@@ -1044,7 +1025,6 @@ impl TraceSpanBatchBuilder {
                 Arc::new(self.status_code.finish()),
                 Arc::new(self.status_message.finish()),
                 Arc::new(self.label.finish()),
-                Arc::new(self.entity_id.finish()),
                 Arc::new(self.attributes.finish()),
                 Arc::new(self.resource_attributes.finish()),
                 Arc::new(self.events.finish()),

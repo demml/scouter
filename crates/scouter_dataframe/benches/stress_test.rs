@@ -104,7 +104,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let t = Instant::now();
             let _ = service
                 .query_service
-                .query_spans(Some(id), None, None, None, None, None)
+                .query_spans(Some(id), None, None, None, None)
                 .await?;
             timings.push(t.elapsed());
         }
@@ -127,39 +127,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let t = Instant::now();
             let _ = service
                 .query_service
-                .query_spans(Some(id), None, Some(&start_t), Some(&end_t), None, None)
+                .query_spans(Some(id), None, Some(&start_t), Some(&end_t), None)
                 .await?;
             timings.push(t.elapsed());
         }
         utils::print_percentiles(
             "query_spans (by trace_id, 1h time bound)",
-            &utils::compute_percentiles(timings),
-        );
-    }
-
-    // 3c. entity_uid + 1h time bound — validates entity_id column pruning.
-    {
-        let now = Utc::now();
-        let start_t = now - chrono::Duration::hours(1);
-        let end_t = now + chrono::Duration::minutes(5);
-        let mut timings = Vec::with_capacity(QUERY_ITERS);
-        for _ in 0..QUERY_ITERS {
-            let t = Instant::now();
-            let _ = service
-                .query_service
-                .query_spans(
-                    None,
-                    None,
-                    Some(&start_t),
-                    Some(&end_t),
-                    None,
-                    Some(TARGET_ENTITY_UID),
-                )
-                .await?;
-            timings.push(t.elapsed());
-        }
-        utils::print_percentiles(
-            "query_spans (by entity_uid, 1h time bound)",
             &utils::compute_percentiles(timings),
         );
     }
