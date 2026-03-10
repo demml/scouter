@@ -175,7 +175,6 @@ Stores one row per trace, hour-bucketed. Used exclusively for the paginated trac
 
 | Column | Arrow Type | Nullable |
 |--------|-----------|----------|
-| `bucket_time` | `Timestamp(Microsecond, UTC)` | No |
 | `trace_id` | `FixedSizeBinary(16)` | No |
 | `service_name` | `Dictionary<Int32, Utf8>` | No |
 | `scope_name` | `Utf8` | No |

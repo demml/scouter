@@ -1112,7 +1112,8 @@ pub struct TraceSummaryRecord {
     pub span_count: i64,
     pub error_count: i64,
     pub resource_attributes: Vec<Attribute>,
-    /// Primary entity UID associated with this trace (from `scouter.entity` attribute).
-    /// Nullable — spans without entity context leave this as None.
-    pub entity_id: Option<String>,
+    /// Entity UIDs associated with this trace (from `scouter.entity` attributes).
+    pub entity_ids: Vec<String>,
+    /// Queue record UIDs associated with this trace (from `scouter.queue.record` attributes).
+    pub queue_ids: Vec<String>,
 }

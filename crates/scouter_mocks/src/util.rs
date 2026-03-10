@@ -14,7 +14,7 @@ use pyo3::pyfunction;
 use rand::Rng;
 
 #[cfg(feature = "server")]
-use scouter_types::SCOUTER_ENTITY;
+use scouter_types::{SCOUTER_ENTITY, SCOUTER_QUEUE_RECORD};
 
 #[cfg(feature = "server")]
 const SCOPE: &str = "scope";
@@ -367,12 +367,19 @@ pub fn generate_trace_with_spans(num_spans: usize, minutes_offset: i64) -> Trace
         } else {
             Some(&spans[rng.random_range(0..spans.len())].span_id)
         };
-        let span_record = random_span_record(
+        let mut span_record = random_span_record(
             &trace_record.trace_id,
             parent_span_id,
             &trace_record.service_name,
             minutes_offset,
         );
+        // Root span carries a queue record attribute so the aggregator populates queue_ids.
+        if i == 0 {
+            span_record.attributes.push(Attribute {
+                key: SCOUTER_QUEUE_RECORD.to_string(),
+                value: Value::String(trace_record.trace_id.to_hex()),
+            });
+        }
         spans.push(span_record);
     }
 

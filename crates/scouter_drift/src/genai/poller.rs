@@ -1,14 +1,15 @@
 // Module for polling GenAI drift records that are "pending" and need to be processed
 use crate::error::DriftError;
 use chrono::Duration;
+use scouter_dataframe::parquet::tracing::service::get_trace_span_service;
 use scouter_evaluate::evaluate::GenAIEvaluator;
-use scouter_sql::sql::traits::{GenAIDriftSqlLogic, ProfileSqlLogic, TraceSqlLogic};
+use scouter_sql::sql::aggregator::get_trace_summary_service;
+use scouter_sql::sql::traits::{GenAIDriftSqlLogic, ProfileSqlLogic};
 use scouter_sql::PostgresClient;
 use scouter_types::genai::{GenAIEvalProfile, GenAIEvalSet};
-use scouter_types::sql::TraceSpan;
-use scouter_types::{GenAIEvalRecord, Status, SCOUTER_QUEUE_RECORD};
+use scouter_types::sql::{TraceFilters, TraceSpan};
+use scouter_types::{GenAIEvalRecord, Status, TraceId};
 use sqlx::{Pool, Postgres};
-use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::time::sleep;
 use tracing::{debug, error, instrument};
@@ -20,9 +21,10 @@ enum TraceSpanResult {
 }
 
 #[instrument(skip_all)]
-/// Helper function to wait for trace spans associated with a task UID
+/// Helper function to wait for trace spans associated with a task UID.
+/// Queries Delta Lake: first finds the trace summary by queue_uid, then fetches
+/// full spans from the trace_spans table.
 async fn wait_for_trace_spans(
-    pool: &Pool<Postgres>,
     task_uid: &str,
     max_wait: Duration,
     initial_backoff: Duration,
@@ -30,43 +32,78 @@ async fn wait_for_trace_spans(
     let start = chrono::Utc::now();
     let mut backoff = initial_backoff;
 
-    let tags = vec![HashMap::from([
-        ("key".to_string(), SCOUTER_QUEUE_RECORD.to_string()),
-        ("value".to_string(), task_uid.to_string()),
-    ])];
+    let summary_service = get_trace_summary_service().ok_or_else(|| {
+        DriftError::GenAIEvaluatorError("TraceSummaryService not initialized".to_string())
+    })?;
+
+    let span_service = get_trace_span_service().ok_or_else(|| {
+        DriftError::GenAIEvaluatorError("TraceSpanService not initialized".to_string())
+    })?;
 
     loop {
-        // todo: move this to a generic provider in case user wants to use their own trace storage
-        match PostgresClient::get_spans_from_tags(pool, "trace", tags.clone(), false, None).await {
-            Ok(spans) if !spans.is_empty() => {
-                debug!("Found {} spans for task {}", spans.len(), task_uid);
-                return Ok(Arc::new(spans));
+        // Query summaries by queue_uid to find the trace_id
+        let filters = TraceFilters {
+            queue_uid: Some(task_uid.to_string()),
+            limit: Some(1),
+            ..Default::default()
+        };
+
+        match summary_service
+            .query_service
+            .get_paginated_traces(&filters)
+            .await
+        {
+            Ok(response) if !response.items.is_empty() => {
+                let trace_id_hex = &response.items[0].trace_id;
+                debug!(
+                    "Found trace summary for task {}, trace_id={}",
+                    task_uid, trace_id_hex
+                );
+
+                // Fetch full spans from Delta Lake
+                let trace_id_bytes = TraceId::hex_to_bytes(trace_id_hex).map_err(|e| {
+                    DriftError::GenAIEvaluatorError(format!("Invalid trace_id hex: {}", e))
+                })?;
+
+                match span_service
+                    .query_service
+                    .get_trace_spans(Some(trace_id_bytes.as_slice()), None, None, None, None)
+                    .await
+                {
+                    Ok(spans) if !spans.is_empty() => {
+                        debug!("Found {} spans for task {}", spans.len(), task_uid);
+                        return Ok(Arc::new(spans));
+                    }
+                    Ok(_) => {
+                        debug!("Trace summary found but spans not yet available for {}", task_uid);
+                    }
+                    Err(e) => {
+                        error!("Error fetching spans from Delta Lake: {:?}", e);
+                    }
+                }
             }
             Ok(_) => {
-                if (chrono::Utc::now() - start) >= max_wait {
-                    error!(
-                        "Timeout waiting for trace spans after {:?} for task {}",
-                        max_wait, task_uid
-                    );
-                    return Err(DriftError::TraceSpansNotAvailable(task_uid.to_string()));
-                }
-
-                debug!(
-                    "No spans found yet for {}, waiting {:?} before retry",
-                    task_uid, backoff
-                );
-                sleep(backoff.to_std().unwrap()).await;
-                backoff = std::cmp::min(backoff * 2, Duration::seconds(5));
+                // No summary found yet
             }
             Err(e) => {
-                error!("Error querying for trace spans: {:?}", e);
-                if (chrono::Utc::now() - start) >= max_wait {
-                    return Err(DriftError::SqlError(e));
-                }
-                sleep(backoff.to_std().unwrap()).await;
-                backoff = std::cmp::min(backoff * 2, Duration::seconds(5));
+                error!("Error querying trace summaries: {:?}", e);
             }
         }
+
+        if (chrono::Utc::now() - start) >= max_wait {
+            error!(
+                "Timeout waiting for trace spans after {:?} for task {}",
+                max_wait, task_uid
+            );
+            return Err(DriftError::TraceSpansNotAvailable(task_uid.to_string()));
+        }
+
+        debug!(
+            "No spans found yet for {}, waiting {:?} before retry",
+            task_uid, backoff
+        );
+        sleep(backoff.to_std().unwrap()).await;
+        backoff = std::cmp::min(backoff * 2, Duration::seconds(5));
     }
 }
 
@@ -85,7 +122,7 @@ async fn wait_for_trace_spans_with_reschedule(
         return Ok(TraceSpanResult::Failed);
     }
 
-    match wait_for_trace_spans(pool, &task.uid, trace_wait_timeout, trace_backoff).await {
+    match wait_for_trace_spans(&task.uid, trace_wait_timeout, trace_backoff).await {
         Ok(spans) => Ok(TraceSpanResult::Ready(spans)),
         Err(DriftError::TraceSpansNotAvailable(_)) => {
             PostgresClient::reschedule_genai_eval_record(pool, &task.uid, trace_reschedule_delay)

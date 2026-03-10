@@ -59,18 +59,6 @@ pub enum TableCommand {
     Shutdown,
 }
 
-/// Minimal [`LogStoreFactory`] that wraps a pre-built [`ObjectStore`] in a
-/// [`DefaultLogStore`].
-///
-/// `DeltaTableBuilder::with_storage_backend` bypasses the `ObjectStoreFactory`
-/// registry so delta-rs won't attempt to build a GCS/S3/Azure client from env
-/// vars. However, `build_storage()` still calls `logstore_with()` which looks up
-/// `logstore_factories()` for the URL scheme. Only `file://` and `memory://` are
-/// registered by default — cloud schemes ("gs", "s3", "az", …) are not.
-///
-/// Registering this factory for those schemes satisfies the lookup without
-/// pulling in the full `deltalake-gcs` / `deltalake-aws` / `deltalake-azure`
-/// crates or enabling their Cargo features.
 struct PassthroughLogStoreFactory;
 
 impl LogStoreFactory for PassthroughLogStoreFactory {
@@ -108,12 +96,6 @@ impl LogStoreFactory for PassthroughLogStoreFactory {
     }
 }
 
-/// Register [`PassthroughLogStoreFactory`] for every cloud URL scheme that
-/// delta-rs does not handle by default.
-///
-/// Must be called before the first [`DeltaTableBuilder::build()`] for any
-/// cloud-backed table.  Safe to call repeatedly — existing entries are not
-/// overwritten.
 fn register_cloud_logstore_factories() {
     let factories = logstore_factories();
     let factory = Arc::new(PassthroughLogStoreFactory) as Arc<dyn LogStoreFactory>;
@@ -138,8 +120,6 @@ async fn create_table(
 ) -> Result<DeltaTable, TraceEngineError> {
     info!("Creating new Delta table at URL: {}", table_url);
 
-    // with_storage_backend supplies our pre-built ObjectStore so delta-rs does
-    // not try to construct one from env vars via ObjectStoreFactory.
     let store = object_store.as_dyn_object_store();
     let table = DeltaTableBuilder::from_url(table_url.clone())?
         .with_storage_backend(store, table_url)
@@ -153,6 +133,13 @@ async fn create_table(
         .with_columns(delta_fields)
         .with_partition_columns(vec!["partition_date".to_string()])
         .with_configuration_property(TableProperty::CheckpointInterval, Some("5"))
+        // Only collect min/max statistics for columns that benefit from data skipping.
+        .with_configuration_property(
+            TableProperty::DataSkippingStatsColumns,
+            Some(
+                "start_time,end_time,service_name,duration_ms,status_code,entity_id,partition_date",
+            ),
+        )
         .await
         .map_err(Into::into)
 }
@@ -162,25 +149,13 @@ async fn build_or_create_table(
     object_store: &ObjectStore,
     schema: SchemaRef,
 ) -> Result<DeltaTable, TraceEngineError> {
-    // Ensure cloud URL schemes are registered in the global logstore factory
-    // registry before any DeltaTableBuilder::build() call.  delta-rs only
-    // registers "file://" and "memory://" by default; cloud schemes ("gs",
-    // "s3", "az", …) must be present or build_storage() → logstore_with()
-    // returns InvalidTableLocation even when with_storage_backend() is used.
     register_cloud_logstore_factories();
-
     let table_url = build_url(object_store).await?;
-
     info!("Attempting to load table at URL: {}", table_url);
 
     // For all store types we check for an existing Delta table by attempting a load.
     // Local tables can be checked cheaply via the filesystem; remote tables require
     // an actual load attempt against the object store.
-    //
-    // We use DeltaTableBuilder::with_storage_backend so delta-rs uses our
-    // pre-built ObjectStore instead of trying to construct one from env vars via
-    // ObjectStoreFactory.  The PassthroughLogStoreFactory registered above handles
-    // the LogStoreFactory lookup that build_storage() → logstore_with() performs.
     let is_delta_table = if table_url.scheme() == "file" {
         if let Ok(path) = table_url.to_file_path() {
             if !path.exists() {
@@ -238,8 +213,8 @@ impl TraceSpanDBEngine {
         let schema = Arc::new(Self::create_schema());
         let delta_table = build_or_create_table(&object_store, schema.clone()).await?;
         let ctx = object_store.get_session()?;
+
         // A freshly-created table has no committed Parquet files yet — table_provider()
-        // returns a DataFusionError(External(NotATable)) in that case.
         // Defer registration until the first write populates the log.
         if let Ok(provider) = delta_table.table_provider().await {
             ctx.register_table(TRACE_SPAN_TABLE_NAME, provider)?;
@@ -283,10 +258,6 @@ impl TraceSpanDBEngine {
     }
 
     /// Build the shared `WriterProperties` used for both ingest writes and Z-ORDER compaction.
-    ///
-    /// Must be applied to BOTH `write_spans()` and `optimize_table()` — compaction rewrites
-    /// all Parquet files, so bloom filters configured only on write are discarded after the
-    /// first compaction cycle.
     fn build_writer_props() -> WriterProperties {
         WriterProperties::builder()
             // Row group size: creates ~4 groups per 128MB file so bloom + page stats

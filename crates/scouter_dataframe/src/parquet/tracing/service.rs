@@ -13,17 +13,32 @@ const FLUSH_INTERVAL_SECS: u64 = 5;
 
 /// Global singleton for the TraceSpanService.
 ///
-/// Initialized once via `init_trace_span_service()` in server setup.
+/// Initialized via `init_trace_span_service()` in server setup.
 /// Consumer workers call `get_trace_span_service()` to obtain the Arc for writing.
-static TRACE_SPAN_SERVICE: std::sync::OnceLock<Arc<TraceSpanService>> = std::sync::OnceLock::new();
+/// Uses `RwLock<Option<...>>` so tests can re-initialize with a fresh service.
+static TRACE_SPAN_SERVICE: std::sync::RwLock<Option<Arc<TraceSpanService>>> =
+    std::sync::RwLock::new(None);
 
-/// Initialize the global `TraceSpanService`. Must be called once during server startup.
+/// Initialize the global `TraceSpanService`.
+///
+/// If a previous service exists (e.g. in test re-initialization), it is signaled to
+/// shut down before being replaced.
 pub async fn init_trace_span_service(
     storage_settings: &ObjectStorageSettings,
     compaction_interval_hours: u64,
     flush_interval_secs: Option<u64>,
     retention_days: Option<u32>,
 ) -> Result<Arc<TraceSpanService>, TraceEngineError> {
+    // Shut down any existing service before replacing
+    let old_service = {
+        let guard = TRACE_SPAN_SERVICE.read().unwrap();
+        guard.clone()
+    };
+    if let Some(old) = old_service {
+        info!("Shutting down previous TraceSpanService before re-initialization");
+        old.signal_shutdown().await;
+    }
+
     let service = Arc::new(
         TraceSpanService::new(
             storage_settings,
@@ -33,9 +48,12 @@ pub async fn init_trace_span_service(
         )
         .await?,
     );
-    TRACE_SPAN_SERVICE.set(service.clone()).map_err(|_| {
-        TraceEngineError::UnsupportedOperation("TraceSpanService already initialized".to_string())
-    })?;
+
+    {
+        let mut guard = TRACE_SPAN_SERVICE.write().unwrap();
+        *guard = Some(service.clone());
+    }
+
     info!("TraceSpanService global singleton initialized");
     Ok(service)
 }
@@ -44,7 +62,7 @@ pub async fn init_trace_span_service(
 ///
 /// Returns `None` if called before `init_trace_span_service()`.
 pub fn get_trace_span_service() -> Option<Arc<TraceSpanService>> {
-    TRACE_SPAN_SERVICE.get().cloned()
+    TRACE_SPAN_SERVICE.read().unwrap().clone()
 }
 
 pub struct TraceSpanService {

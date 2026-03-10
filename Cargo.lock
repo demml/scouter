@@ -6515,6 +6515,7 @@ dependencies = [
  "pyo3",
  "rayon",
  "rusty-logging",
+ "scouter-dataframe",
  "scouter-dispatch",
  "scouter-evaluate",
  "scouter-settings",

@@ -1,18 +1,18 @@
 use crate::error::TraceEngineError;
 use crate::parquet::control::{get_pod_id, ControlTableEngine};
-use crate::parquet::tracing::traits::arrow_schema_to_delta;
+use crate::parquet::tracing::traits::{arrow_schema_to_delta, resource_attribute_field};
 use crate::storage::ObjectStore;
 use arrow::array::*;
 use arrow::compute;
 use arrow::datatypes::*;
 use arrow_array::Array;
 use arrow_array::RecordBatch;
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, Datelike, TimeZone, Utc};
 use datafusion::logical_expr::{col, lit};
 use datafusion::prelude::*;
 use datafusion::scalar::ScalarValue;
 use deltalake::operations::optimize::OptimizeType;
-use deltalake::DeltaTable;
+use deltalake::{DeltaTable, TableProperty};
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::sql::{TraceFilters, TraceListItem};
 use scouter_types::{Attribute, TraceCursor, TraceId, TracePaginationResponse, TraceSummaryRecord};
@@ -23,13 +23,16 @@ use tokio::time::{interval, Duration};
 use tracing::{error, info};
 use url::Url;
 
+/// Days from CE epoch to Unix epoch (1970-01-01).
+/// Equivalent to `NaiveDate::from_ymd_opt(1970, 1, 1).unwrap().num_days_from_ce()`.
+const UNIX_EPOCH_DAYS: i32 = 719_163;
+
 const SUMMARY_TABLE_NAME: &str = "trace_summaries";
 
 /// Control table task name for summary compaction coordination.
 const TASK_SUMMARY_OPTIMIZE: &str = "summary_optimize";
 
 // ── Column name constants ────────────────────────────────────────────────────
-const BUCKET_TIME_COL: &str = "bucket_time";
 const TRACE_ID_COL: &str = "trace_id";
 const SERVICE_NAME_COL: &str = "service_name";
 const SCOPE_NAME_COL: &str = "scope_name";
@@ -45,10 +48,10 @@ const ERROR_COUNT_COL: &str = "error_count";
 const SEARCH_BLOB_COL: &str = "search_blob";
 
 const RESOURCE_ATTRIBUTES_COL: &str = "resource_attributes";
-const ENTITY_ID_COL: &str = "entity_id";
+const ENTITY_IDS_COL: &str = "entity_ids";
+const QUEUE_IDS_COL: &str = "queue_ids";
 
 const SUMMARY_COLUMNS: &[&str] = &[
-    BUCKET_TIME_COL,
     TRACE_ID_COL,
     SERVICE_NAME_COL,
     SCOPE_NAME_COL,
@@ -62,18 +65,16 @@ const SUMMARY_COLUMNS: &[&str] = &[
     SPAN_COUNT_COL,
     ERROR_COUNT_COL,
     RESOURCE_ATTRIBUTES_COL,
-    ENTITY_ID_COL,
+    ENTITY_IDS_COL,
+    QUEUE_IDS_COL,
 ];
+
+const PARTITION_DATE_COL: &str = "partition_date";
 
 // ── Schema ───────────────────────────────────────────────────────────────────
 
 fn create_summary_schema() -> Schema {
     Schema::new(vec![
-        Field::new(
-            BUCKET_TIME_COL,
-            DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".into())),
-            false,
-        ),
         Field::new(TRACE_ID_COL, DataType::FixedSizeBinary(16), false),
         Field::new(
             SERVICE_NAME_COL,
@@ -98,28 +99,25 @@ fn create_summary_schema() -> Schema {
         Field::new(STATUS_MESSAGE_COL, DataType::Utf8, true),
         Field::new(SPAN_COUNT_COL, DataType::Int64, false),
         Field::new(ERROR_COUNT_COL, DataType::Int64, false),
-        Field::new(RESOURCE_ATTRIBUTES_COL, DataType::Utf8, true),
-        Field::new(ENTITY_ID_COL, DataType::Utf8, true),
+        resource_attribute_field(),
+        Field::new(
+            ENTITY_IDS_COL,
+            DataType::List(Arc::new(Field::new("item", DataType::Utf8, true))),
+            true,
+        ),
+        Field::new(
+            QUEUE_IDS_COL,
+            DataType::List(Arc::new(Field::new("item", DataType::Utf8, true))),
+            true,
+        ),
+        Field::new(PARTITION_DATE_COL, DataType::Date32, false),
     ])
-}
-
-/// Compute hour-truncated bucket_time from start_time (matches Postgres behavior).
-fn bucket_time(start: DateTime<Utc>) -> DateTime<Utc> {
-    use chrono::Timelike;
-    start
-        .with_minute(0)
-        .unwrap()
-        .with_second(0)
-        .unwrap()
-        .with_nanosecond(0)
-        .unwrap()
 }
 
 // ── BatchBuilder ─────────────────────────────────────────────────────────────
 
 struct TraceSummaryBatchBuilder {
     schema: Arc<Schema>,
-    bucket_time: TimestampMicrosecondBuilder,
     trace_id: FixedSizeBinaryBuilder,
     service_name: StringDictionaryBuilder<Int32Type>,
     scope_name: StringBuilder,
@@ -132,15 +130,26 @@ struct TraceSummaryBatchBuilder {
     status_message: StringBuilder,
     span_count: Int64Builder,
     error_count: Int64Builder,
-    resource_attributes: StringBuilder,
-    entity_id: StringBuilder,
+    resource_attributes: MapBuilder<StringBuilder, StringViewBuilder>,
+    entity_ids: ListBuilder<StringBuilder>,
+    queue_ids: ListBuilder<StringBuilder>,
+    partition_date: Date32Builder,
 }
 
 impl TraceSummaryBatchBuilder {
     fn new(schema: Arc<Schema>, capacity: usize) -> Self {
+        let map_field_names = MapFieldNames {
+            entry: "key_value".to_string(),
+            key: "key".to_string(),
+            value: "value".to_string(),
+        };
+        let resource_attributes = MapBuilder::new(
+            Some(map_field_names),
+            StringBuilder::new(),
+            StringViewBuilder::new(),
+        );
         Self {
             schema,
-            bucket_time: TimestampMicrosecondBuilder::with_capacity(capacity).with_timezone("UTC"),
             trace_id: FixedSizeBinaryBuilder::with_capacity(capacity, 16),
             service_name: StringDictionaryBuilder::new(),
             scope_name: StringBuilder::with_capacity(capacity, capacity * 16),
@@ -153,14 +162,14 @@ impl TraceSummaryBatchBuilder {
             status_message: StringBuilder::with_capacity(capacity, capacity * 16),
             span_count: Int64Builder::with_capacity(capacity),
             error_count: Int64Builder::with_capacity(capacity),
-            resource_attributes: StringBuilder::with_capacity(capacity, capacity * 64),
-            entity_id: StringBuilder::with_capacity(capacity, capacity * 36),
+            resource_attributes,
+            entity_ids: ListBuilder::new(StringBuilder::new()),
+            queue_ids: ListBuilder::new(StringBuilder::new()),
+            partition_date: Date32Builder::with_capacity(capacity),
         }
     }
 
     fn append(&mut self, rec: &TraceSummaryRecord) -> Result<(), TraceEngineError> {
-        let btime = bucket_time(rec.start_time);
-        self.bucket_time.append_value(btime.timestamp_micros());
         self.trace_id.append_value(rec.trace_id.as_bytes())?;
         self.service_name.append_value(&rec.service_name);
         self.scope_name.append_value(&rec.scope_name);
@@ -192,22 +201,43 @@ impl TraceSummaryBatchBuilder {
         self.span_count.append_value(rec.span_count);
         self.error_count.append_value(rec.error_count);
         if rec.resource_attributes.is_empty() {
-            self.resource_attributes.append_null();
+            self.resource_attributes.append(false)?; // null map
         } else {
-            let json = serde_json::to_string(&rec.resource_attributes)
-                .unwrap_or_else(|_| "[]".to_string());
-            self.resource_attributes.append_value(&json);
+            for attr in &rec.resource_attributes {
+                self.resource_attributes.keys().append_value(&attr.key);
+                let value_str = match &attr.value {
+                    serde_json::Value::String(s) => s.clone(),
+                    serde_json::Value::Null => String::new(),
+                    other => other.to_string(),
+                };
+                self.resource_attributes.values().append_value(value_str);
+            }
+            self.resource_attributes.append(true)?;
         }
-        match rec.entity_id.as_deref() {
-            Some(uid) => self.entity_id.append_value(uid),
-            None => self.entity_id.append_null(),
+        if rec.entity_ids.is_empty() {
+            self.entity_ids.append_null();
+        } else {
+            for id in &rec.entity_ids {
+                self.entity_ids.values().append_value(id);
+            }
+            self.entity_ids.append(true);
         }
+        if rec.queue_ids.is_empty() {
+            self.queue_ids.append_null();
+        } else {
+            for id in &rec.queue_ids {
+                self.queue_ids.values().append_value(id);
+            }
+            self.queue_ids.append(true);
+        }
+        // Partition key — days since Unix epoch, derived from start_time
+        let days = rec.start_time.date_naive().num_days_from_ce() - UNIX_EPOCH_DAYS;
+        self.partition_date.append_value(days);
         Ok(())
     }
 
     fn finish(mut self) -> Result<RecordBatch, TraceEngineError> {
         let columns: Vec<Arc<dyn Array>> = vec![
-            Arc::new(self.bucket_time.finish()),
             Arc::new(self.trace_id.finish()),
             Arc::new(self.service_name.finish()),
             Arc::new(self.scope_name.finish()),
@@ -221,7 +251,9 @@ impl TraceSummaryBatchBuilder {
             Arc::new(self.span_count.finish()),
             Arc::new(self.error_count.finish()),
             Arc::new(self.resource_attributes.finish()),
-            Arc::new(self.entity_id.finish()),
+            Arc::new(self.entity_ids.finish()),
+            Arc::new(self.queue_ids.finish()),
+            Arc::new(self.partition_date.finish()),
         ];
         RecordBatch::try_new(self.schema, columns).map_err(Into::into)
     }
@@ -268,6 +300,13 @@ async fn create_summary_table(
         .create()
         .with_table_name(SUMMARY_TABLE_NAME)
         .with_columns(delta_fields)
+        .with_partition_columns(vec![PARTITION_DATE_COL.to_string()])
+        // Only collect min/max statistics for non-binary columns.
+        // trace_id (FixedSizeBinary) has no meaningful ordering for file-level pruning.
+        .with_configuration_property(
+            TableProperty::DataSkippingStatsColumns,
+            Some("start_time,end_time,service_name,duration_ms,status_code,span_count,error_count,partition_date"),
+        )
         .await
         .map_err(Into::into)
 }
@@ -279,23 +318,30 @@ async fn build_or_create_summary_table(
     let table_url = build_summary_url(object_store).await?;
     info!("Loading summary table at URL: {}", table_url);
 
-    if table_url.scheme() == "file" {
+    // Check whether a Delta log actually exists. For local tables, check the
+    // filesystem directly. For remote tables, attempt a full load.
+    let is_delta_table = if table_url.scheme() == "file" {
         if let Ok(path) = table_url.to_file_path() {
             if !path.exists() {
+                info!("Creating directory for summary table: {:?}", path);
                 std::fs::create_dir_all(&path)?;
             }
+            path.join("_delta_log").exists()
+        } else {
+            false
         }
-    }
+    } else {
+        DeltaTable::try_from_url(table_url.clone()).await.is_ok()
+    };
 
-    match DeltaTable::try_from_url(table_url.clone()).await {
-        Ok(table) => {
-            info!("Loaded existing summary table");
-            Ok(table)
-        }
-        Err(deltalake::DeltaTableError::NotATable(_)) => {
-            create_summary_table(table_url, schema).await
-        }
-        Err(e) => Err(e.into()),
+    if is_delta_table {
+        info!("Loaded existing summary table");
+        DeltaTable::try_from_url(table_url)
+            .await
+            .map_err(Into::into)
+    } else {
+        info!("Summary table does not exist, creating new table");
+        create_summary_table(table_url, schema).await
     }
 }
 
@@ -320,7 +366,13 @@ impl TraceSummaryDBEngine {
         let object_store = ObjectStore::new(storage_settings)?;
         let schema = Arc::new(create_summary_schema());
         let delta_table = build_or_create_summary_table(&object_store, schema.clone()).await?;
-        ctx.register_table(SUMMARY_TABLE_NAME, delta_table.table_provider().await?)?;
+        // A freshly-created table has no committed Parquet files yet — table_provider()
+        // returns an error in that case. Defer registration until the first write.
+        if let Ok(provider) = delta_table.table_provider().await {
+            ctx.register_table(SUMMARY_TABLE_NAME, provider)?;
+        } else {
+            info!("Empty summary table at init — deferring SessionContext registration until first write");
+        }
 
         let control = ControlTableEngine::new(storage_settings, get_pod_id()).await?;
 
@@ -361,6 +413,7 @@ impl TraceSummaryDBEngine {
             .clone()
             .write(vec![batch])
             .with_save_mode(deltalake::protocol::SaveMode::Append)
+            .with_partition_columns(vec![PARTITION_DATE_COL.to_string()])
             .await?;
 
         self.ctx.deregister_table(SUMMARY_TABLE_NAME)?;
@@ -379,7 +432,7 @@ impl TraceSummaryDBEngine {
             .optimize()
             .with_target_size(128 * 1024 * 1024)
             .with_type(OptimizeType::ZOrder(vec![
-                BUCKET_TIME_COL.to_string(),
+                START_TIME_COL.to_string(),
                 SERVICE_NAME_COL.to_string(),
             ]))
             .await?;
@@ -586,7 +639,7 @@ impl TraceSummaryQueries {
         &self,
         filters: &TraceFilters,
     ) -> Result<TracePaginationResponse, TraceEngineError> {
-        let limit = filters.limit.unwrap_or(25) as usize;
+        let limit = filters.limit.unwrap_or(50) as usize;
         let direction = filters.direction.as_deref().unwrap_or("next");
 
         let mut df = self.ctx.table(SUMMARY_TABLE_NAME).await?;
@@ -627,11 +680,20 @@ impl TraceSummaryQueries {
             df = df.filter(col(STATUS_CODE_COL).eq(lit(sc)))?;
         }
 
-        // ── entity_uid direct column predicate ──────────────────────────────
-        // Preferred over trace_ids IN-list: DataFusion uses per-file min/max for entity_id
-        // to skip Parquet files — 90%+ file skipping after Z-ORDER compaction.
+        // ── entity_uid filter via array_has on List column ────────────────
         if let Some(ref uid) = filters.entity_uid {
-            df = df.filter(col(ENTITY_ID_COL).eq(lit(uid.as_str())))?;
+            df = df.filter(datafusion::functions_nested::expr_fn::array_has(
+                col(ENTITY_IDS_COL),
+                lit(uid.as_str()),
+            ))?;
+        }
+
+        // ── queue_uid filter via array_has on List column ─────────────────
+        if let Some(ref uid) = filters.queue_uid {
+            df = df.filter(datafusion::functions_nested::expr_fn::array_has(
+                col(QUEUE_IDS_COL),
+                lit(uid.as_str()),
+            ))?;
         }
 
         // ── trace_ids IN filter ──────────────────────────────────────────────
@@ -731,10 +793,17 @@ impl TraceSummaryQueries {
                     std::collections::HashSet::new();
                 let mut binary_ids: Vec<Expr> = Vec::new();
                 for batch in &span_batches {
-                    if let Some(col_arr) = batch
-                        .column_by_name(TRACE_ID_COL)
-                        .and_then(|c| c.as_any().downcast_ref::<BinaryArray>())
-                    {
+                    // trace_id may be FixedSizeBinary(16) or Binary after Delta round-trip.
+                    // Cast to Binary to handle both uniformly.
+                    if let Some(col_ref) = batch.column_by_name(TRACE_ID_COL) {
+                        let casted = compute::cast(col_ref, &DataType::Binary)?;
+                        let col_arr =
+                            casted
+                                .as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .ok_or_else(|| {
+                                    TraceEngineError::DowncastError("trace_id to BinaryArray")
+                                })?;
                         for i in 0..batch.num_rows() {
                             let id_bytes = col_arr.value(i).to_vec();
                             if seen_ids.insert(id_bytes.clone()) {
@@ -774,29 +843,74 @@ impl TraceSummaryQueries {
         let batches = df.collect().await?;
         let mut items = batches_to_trace_list_items(batches)?;
 
-        let has_next = items.len() > limit;
-        let has_previous = filters.cursor_start_time.is_some();
-
-        if has_next {
-            items.truncate(limit);
+        let has_more = items.len() > limit;
+        if has_more {
+            items.pop(); // remove N+1 sentinel
         }
 
-        let next_cursor = if has_next {
-            items.last().map(|item| TraceCursor {
-                start_time: item.start_time,
-                trace_id: item.trace_id.clone(),
-            })
-        } else {
-            None
-        };
+        // Direction-specific cursor logic — mirrors the original PostgreSQL implementation.
+        //
+        // "next" (DESC order): items are newest-first. The sentinel tells us if older
+        // items exist (has_next). Cursor presence means we navigated forward, so newer
+        // items exist behind us (has_previous).
+        //
+        // "previous" (ASC order): items are oldest-first (closest-to-cursor first).
+        // The sentinel tells us if even more newer items exist (has_previous). Cursor
+        // presence means we navigated backward, so older items exist ahead (has_next).
+        // Items stay in ASC order — no reversal — matching PG behavior exactly.
+        let (has_next, next_cursor, has_previous, previous_cursor) = match direction {
+            "next" => {
+                let next_cursor = if has_more {
+                    items.last().map(|item| TraceCursor {
+                        start_time: item.start_time,
+                        trace_id: item.trace_id.clone(),
+                    })
+                } else {
+                    None
+                };
 
-        let previous_cursor = if has_previous {
-            items.first().map(|item| TraceCursor {
-                start_time: item.start_time,
-                trace_id: item.trace_id.clone(),
-            })
-        } else {
-            None
+                let previous_cursor = items.first().map(|item| TraceCursor {
+                    start_time: item.start_time,
+                    trace_id: item.trace_id.clone(),
+                });
+
+                (
+                    has_more,
+                    next_cursor,
+                    filters.cursor_start_time.is_some(),
+                    previous_cursor,
+                )
+            }
+            "previous" => {
+                // ASC order: items.last() is the newest (largest start_time).
+                // To continue backward (fetch even newer items), the cursor must
+                // point past the current page's newest item so `> cursor` excludes
+                // everything already returned.
+                let previous_cursor = if has_more {
+                    items.last().map(|item| TraceCursor {
+                        start_time: item.start_time,
+                        trace_id: item.trace_id.clone(),
+                    })
+                } else {
+                    None
+                };
+
+                // items.first() is the oldest (smallest start_time).
+                // To go forward (back toward newer-first / DESC pages), the cursor
+                // must point at the oldest item so `< cursor` fetches older items.
+                let next_cursor = items.first().map(|item| TraceCursor {
+                    start_time: item.start_time,
+                    trace_id: item.trace_id.clone(),
+                });
+
+                (
+                    filters.cursor_start_time.is_some(),
+                    next_cursor,
+                    has_more,
+                    previous_cursor,
+                )
+            }
+            _ => (false, None, false, None),
         };
 
         Ok(TracePaginationResponse {
@@ -811,26 +925,79 @@ impl TraceSummaryQueries {
 
 // ── Arrow → TraceListItem conversion ─────────────────────────────────────────
 
+/// Extract attributes from a MapArray at a given row index.
+fn extract_map_attributes(map_array: &MapArray, row_idx: usize) -> Vec<Attribute> {
+    if map_array.is_null(row_idx) {
+        return Vec::new();
+    }
+    let entry = map_array.value(row_idx);
+    let struct_array = entry.as_any().downcast_ref::<StructArray>().unwrap();
+    let keys_arr = compute::cast(struct_array.column(0).as_ref(), &DataType::Utf8).unwrap();
+    let keys = keys_arr.as_any().downcast_ref::<StringArray>().unwrap();
+    let values_arr = compute::cast(struct_array.column(1).as_ref(), &DataType::Utf8).unwrap();
+    let values = values_arr.as_any().downcast_ref::<StringArray>().unwrap();
+
+    (0..struct_array.len())
+        .map(|i| Attribute {
+            key: keys.value(i).to_string(),
+            value: if values.is_null(i) {
+                serde_json::Value::Null
+            } else {
+                serde_json::Value::String(values.value(i).to_string())
+            },
+        })
+        .collect()
+}
+
+/// Extract a `Vec<String>` from a nullable `ListArray` at a given row index.
+fn extract_list_strings(list: Option<&ListArray>, row_idx: usize) -> Vec<String> {
+    let Some(list) = list else {
+        return Vec::new();
+    };
+    if list.is_null(row_idx) {
+        return Vec::new();
+    }
+    let inner = list.value(row_idx);
+    let str_arr = compute::cast(&inner, &DataType::Utf8)
+        .ok()
+        .and_then(|a| a.as_any().downcast_ref::<StringArray>().cloned());
+    match str_arr {
+        Some(arr) => (0..arr.len())
+            .filter(|i| !arr.is_null(*i))
+            .map(|i| arr.value(i).to_string())
+            .collect(),
+        None => Vec::new(),
+    }
+}
+
 fn batches_to_trace_list_items(
     batches: Vec<RecordBatch>,
 ) -> Result<Vec<TraceListItem>, TraceEngineError> {
     let mut items = Vec::new();
 
     for batch in &batches {
-        // Delta Lake stores FixedSizeBinary(16) as Binary; DataFusion returns BinaryArray on read.
-        let trace_ids = batch
-            .column_by_name(TRACE_ID_COL)
-            .and_then(|c| c.as_any().downcast_ref::<BinaryArray>())
+        // trace_id may come back as FixedSizeBinary(16) or Binary depending on
+        // whether DataFusion/Delta round-tripped the schema. Handle both.
+        let trace_id_col = batch.column_by_name(TRACE_ID_COL).ok_or_else(|| {
+            TraceEngineError::UnsupportedOperation("missing trace_id column".into())
+        })?;
+        let trace_id_binary = compute::cast(trace_id_col, &DataType::Binary)?;
+        let trace_ids = trace_id_binary
+            .as_any()
+            .downcast_ref::<BinaryArray>()
             .ok_or_else(|| {
-                TraceEngineError::UnsupportedOperation("missing trace_id column".into())
+                TraceEngineError::UnsupportedOperation("trace_id cast to BinaryArray failed".into())
             })?;
 
-        // Dictionary-encoded service_name — cast to Utf8 for simple access
-        let service_name_col = batch.column_by_name(SERVICE_NAME_COL).ok_or_else(|| {
-            TraceEngineError::UnsupportedOperation("missing service_name column".into())
-        })?;
-        let service_name_utf8 = compute::cast(service_name_col, &DataType::Utf8)?;
-        let service_names = service_name_utf8
+        // Cast all string/dictionary columns to Utf8 uniformly (handles Utf8View,
+        // Dictionary(Int32, Utf8), LargeUtf8, etc.).
+        let svc_arr = compute::cast(
+            batch.column_by_name(SERVICE_NAME_COL).ok_or_else(|| {
+                TraceEngineError::UnsupportedOperation("missing service_name column".into())
+            })?,
+            &DataType::Utf8,
+        )?;
+        let service_names = svc_arr
             .as_any()
             .downcast_ref::<StringArray>()
             .ok_or_else(|| {
@@ -839,26 +1006,80 @@ fn batches_to_trace_list_items(
                 )
             })?;
 
-        let scope_names = batch
-            .column_by_name(SCOPE_NAME_COL)
-            .and_then(|c| c.as_any().downcast_ref::<StringArray>())
-            .ok_or_else(|| {
+        let scope_arr = compute::cast(
+            batch.column_by_name(SCOPE_NAME_COL).ok_or_else(|| {
                 TraceEngineError::UnsupportedOperation("missing scope_name column".into())
+            })?,
+            &DataType::Utf8,
+        )?;
+        let scope_names = scope_arr
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .ok_or_else(|| {
+                TraceEngineError::UnsupportedOperation(
+                    "scope_name cast to StringArray failed".into(),
+                )
             })?;
 
-        let scope_versions = batch
-            .column_by_name(SCOPE_VERSION_COL)
-            .and_then(|c| c.as_any().downcast_ref::<StringArray>())
-            .ok_or_else(|| {
+        let scopev_arr = compute::cast(
+            batch.column_by_name(SCOPE_VERSION_COL).ok_or_else(|| {
                 TraceEngineError::UnsupportedOperation("missing scope_version column".into())
+            })?,
+            &DataType::Utf8,
+        )?;
+        let scope_versions = scopev_arr
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .ok_or_else(|| {
+                TraceEngineError::UnsupportedOperation(
+                    "scope_version cast to StringArray failed".into(),
+                )
             })?;
 
-        let root_operations = batch
-            .column_by_name(ROOT_OPERATION_COL)
-            .and_then(|c| c.as_any().downcast_ref::<StringArray>())
-            .ok_or_else(|| {
+        let root_arr = compute::cast(
+            batch.column_by_name(ROOT_OPERATION_COL).ok_or_else(|| {
                 TraceEngineError::UnsupportedOperation("missing root_operation column".into())
+            })?,
+            &DataType::Utf8,
+        )?;
+        let root_operations = root_arr
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .ok_or_else(|| {
+                TraceEngineError::UnsupportedOperation(
+                    "root_operation cast to StringArray failed".into(),
+                )
             })?;
+
+        let sm_arr = compute::cast(
+            batch.column_by_name(STATUS_MESSAGE_COL).ok_or_else(|| {
+                TraceEngineError::UnsupportedOperation("missing status_message column".into())
+            })?,
+            &DataType::Utf8,
+        )?;
+        let status_messages = sm_arr
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .ok_or_else(|| {
+                TraceEngineError::UnsupportedOperation(
+                    "status_message cast to StringArray failed".into(),
+                )
+            })?;
+
+        let resource_attrs_map = batch
+            .column_by_name(RESOURCE_ATTRIBUTES_COL)
+            .and_then(|c| c.as_any().downcast_ref::<MapArray>())
+            .ok_or_else(|| {
+                TraceEngineError::UnsupportedOperation("missing resource_attributes column".into())
+            })?;
+
+        let entity_ids_list = batch
+            .column_by_name(ENTITY_IDS_COL)
+            .and_then(|c| c.as_any().downcast_ref::<ListArray>());
+
+        let queue_ids_list = batch
+            .column_by_name(QUEUE_IDS_COL)
+            .and_then(|c| c.as_any().downcast_ref::<ListArray>());
 
         let start_times = batch
             .column_by_name(START_TIME_COL)
@@ -888,13 +1109,6 @@ fn batches_to_trace_list_items(
                 TraceEngineError::UnsupportedOperation("missing status_code column".into())
             })?;
 
-        let status_messages = batch
-            .column_by_name(STATUS_MESSAGE_COL)
-            .and_then(|c| c.as_any().downcast_ref::<StringArray>())
-            .ok_or_else(|| {
-                TraceEngineError::UnsupportedOperation("missing status_message column".into())
-            })?;
-
         let span_counts = batch
             .column_by_name(SPAN_COUNT_COL)
             .and_then(|c| c.as_any().downcast_ref::<Int64Array>())
@@ -907,13 +1121,6 @@ fn batches_to_trace_list_items(
             .and_then(|c| c.as_any().downcast_ref::<Int64Array>())
             .ok_or_else(|| {
                 TraceEngineError::UnsupportedOperation("missing error_count column".into())
-            })?;
-
-        let resource_attrs_col = batch
-            .column_by_name(RESOURCE_ATTRIBUTES_COL)
-            .and_then(|c| c.as_any().downcast_ref::<StringArray>())
-            .ok_or_else(|| {
-                TraceEngineError::UnsupportedOperation("missing resource_attributes column".into())
             })?;
 
         for i in 0..batch.num_rows() {
@@ -932,11 +1139,10 @@ fn batches_to_trace_list_items(
             };
             let error_count = error_counts.value(i);
 
-            let resource_attributes: Vec<Attribute> = if resource_attrs_col.is_null(i) {
-                Vec::new()
-            } else {
-                serde_json::from_str(resource_attrs_col.value(i)).unwrap_or_default()
-            };
+            let resource_attributes = extract_map_attributes(resource_attrs_map, i);
+
+            let entity_ids = extract_list_strings(entity_ids_list, i);
+            let queue_ids = extract_list_strings(queue_ids_list, i);
 
             items.push(TraceListItem {
                 trace_id: trace_id_hex,
@@ -957,6 +1163,8 @@ fn batches_to_trace_list_items(
                 has_errors: error_count > 0,
                 error_count,
                 resource_attributes,
+                entity_ids,
+                queue_ids,
             });
         }
     }
@@ -1027,7 +1235,8 @@ mod tests {
             span_count: 3,
             error_count,
             resource_attributes,
-            entity_id: None,
+            entity_ids: vec![],
+            queue_ids: vec![],
         }
     }
 
@@ -1060,6 +1269,7 @@ mod tests {
             attribute_filters: None,
             trace_ids: None,
             entity_uid: None,
+            queue_uid: None,
         };
 
         let response = service.query_service.get_paginated_traces(&filters).await?;
@@ -1106,6 +1316,7 @@ mod tests {
             attribute_filters: None,
             trace_ids: None,
             entity_uid: None,
+            queue_uid: None,
         };
 
         // has_errors = true → only error trace
@@ -1180,6 +1391,7 @@ mod tests {
             attribute_filters: None,
             trace_ids: None,
             entity_uid: None,
+            queue_uid: None,
         };
 
         let response = service.query_service.get_paginated_traces(&filters).await?;
@@ -1232,6 +1444,7 @@ mod tests {
             attribute_filters: None,
             trace_ids: Some(vec![wanted_id.to_hex()]),
             entity_uid: None,
+            queue_uid: None,
         };
 
         let response = service.query_service.get_paginated_traces(&filters).await?;
@@ -1463,6 +1676,7 @@ mod tests {
             attribute_filters: None,
             trace_ids: Some(vec![TraceId::from_bytes([9u8; 16]).to_hex()]),
             entity_uid: None,
+            queue_uid: None,
         };
 
         let response = service.query_service.get_paginated_traces(&filters).await?;

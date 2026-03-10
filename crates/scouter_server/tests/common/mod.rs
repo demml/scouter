@@ -668,6 +668,9 @@ pub async fn setup_test() -> TestHelper {
     // Get the global TestHelper (initialized only once)
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
+    // TestHelper::new() already calls cleanup_storage() before creating services,
+    // so Delta Lake tables are created fresh. Do NOT call cleanup_storage() after
+    // new() — that would delete the tables the services just initialized.
     let helper = TestHelper::new(false, false)
         .await
         .expect("Failed to initialize TestHelper");
@@ -676,8 +679,6 @@ pub async fn setup_test() -> TestHelper {
     cleanup_tables(&helper.pool)
         .await
         .expect("Failed to cleanup database before test");
-
-    TestHelper::cleanup_storage();
 
     helper
 }

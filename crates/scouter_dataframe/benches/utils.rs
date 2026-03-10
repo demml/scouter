@@ -22,7 +22,7 @@ pub fn _create_trace_batch(n_spans: usize) -> Vec<TraceSpanRecord> {
 }
 
 /// Create a batch of spans where every root span carries `entity_uid` as its
-/// `scouter.entity` attribute, so the ingest pipeline populates `entity_id`.
+/// `scouter.entity` attribute, so the ingest pipeline populates `entity_ids`.
 pub fn create_entity_trace_batch(n_traces: usize, entity_uid: &str) -> Vec<TraceSpanRecord> {
     (0..n_traces)
         .flat_map(|_| {

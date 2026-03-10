@@ -1,10 +1,12 @@
 use crate::sql::error::SqlError;
 use crate::sql::query::Queries;
 use crate::sql::utils::EntityBytea;
-use chrono::{DateTime, Duration, Timelike, Utc};
+use chrono::{DateTime, Duration, Utc};
 use dashmap::DashMap;
 use scouter_dataframe::parquet::tracing::summary::TraceSummaryService;
-use scouter_types::{Attribute, TraceId, TraceSpanRecord, TraceSummaryRecord, SCOUTER_ENTITY};
+use scouter_types::{
+    Attribute, TraceId, TraceSpanRecord, TraceSummaryRecord, SCOUTER_ENTITY, SCOUTER_QUEUE_RECORD,
+};
 use sqlx::PgPool;
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -15,21 +17,23 @@ use tracing::{error, info, warn};
 const TRACE_BATCH_SIZE: usize = 1000;
 
 // ── Global TraceSummaryService singleton ─────────────────────────────────────
-static TRACE_SUMMARY_SERVICE: std::sync::OnceLock<Arc<TraceSummaryService>> =
-    std::sync::OnceLock::new();
+/// Uses `RwLock<Option<...>>` so tests can re-initialize with a fresh service.
+static TRACE_SUMMARY_SERVICE: std::sync::RwLock<Option<Arc<TraceSummaryService>>> =
+    std::sync::RwLock::new(None);
 
-/// Register the global TraceSummaryService. Called once during server startup.
+/// Register the global TraceSummaryService. Replaces any previously registered instance.
 pub fn init_trace_summary_service(service: Arc<TraceSummaryService>) -> Result<(), SqlError> {
-    TRACE_SUMMARY_SERVICE.set(service).map_err(|_| {
-        SqlError::TraceCacheError("TraceSummaryService already initialized".to_string())
-    })?;
+    let mut guard = TRACE_SUMMARY_SERVICE
+        .write()
+        .map_err(|e| SqlError::TraceCacheError(format!("Failed to acquire write lock: {}", e)))?;
+    *guard = Some(service);
     info!("TraceSummaryService global singleton registered in aggregator");
     Ok(())
 }
 
 /// Retrieve the global TraceSummaryService (if initialized).
 pub fn get_trace_summary_service() -> Option<Arc<TraceSummaryService>> {
-    TRACE_SUMMARY_SERVICE.get().cloned()
+    TRACE_SUMMARY_SERVICE.read().ok()?.clone()
 }
 
 const MAX_TOTAL_SPANS: u64 = 1_000_000;
@@ -59,19 +63,10 @@ pub struct TraceAggregator {
     pub first_seen: DateTime<Utc>,
     pub last_updated: DateTime<Utc>,
     pub entity_tags: HashSet<EntityBytea>,
+    pub queue_tags: HashSet<String>,
 }
 
 impl TraceAggregator {
-    pub fn bucket_time(&self) -> DateTime<Utc> {
-        self.start_time
-            .with_minute(0)
-            .unwrap()
-            .with_second(0)
-            .unwrap()
-            .with_nanosecond(0)
-            .unwrap()
-    }
-
     /// Extracts specific entity attributes from span attributes and adds them to the aggregator's entity_tags set
     /// Arguments:
     /// - `span`: The TraceSpanRecord from which to extract entity attributes
@@ -90,6 +85,17 @@ impl TraceAggregator {
                     Err(e) => {
                         warn!(%entity, "Failed to parse entity UID from attribute value in span {}: {}", span.span_id, e);
                     }
+                }
+            }
+        }
+    }
+
+    /// Extracts queue record UIDs from span attributes (`scouter.queue.record` key).
+    pub fn add_queue_records(&mut self, span: &TraceSpanRecord) {
+        for attr in &span.attributes {
+            if attr.key == SCOUTER_QUEUE_RECORD {
+                if let serde_json::Value::String(s) = &attr.value {
+                    self.queue_tags.insert(s.clone());
                 }
             }
         }
@@ -117,8 +123,10 @@ impl TraceAggregator {
             first_seen: now,
             last_updated: now,
             entity_tags: HashSet::new(),
+            queue_tags: HashSet::new(),
         };
         aggregator.add_entities(span);
+        aggregator.add_queue_records(span);
         aggregator
     }
 
@@ -153,6 +161,7 @@ impl TraceAggregator {
         self.span_count += 1;
         self.last_updated = Utc::now();
         self.add_entities(span);
+        self.add_queue_records(span);
     }
 
     pub fn duration_ms(&self) -> Option<i64> {
@@ -166,11 +175,12 @@ impl TraceAggregator {
 
     /// Convert to the lightweight `TraceSummaryRecord` for Delta Lake writes.
     pub fn to_summary_record(&self) -> TraceSummaryRecord {
-        let entity_id = self
+        let entity_ids: Vec<String> = self
             .entity_tags
             .iter()
-            .next()
-            .map(|e| uuid::Uuid::from_bytes(e.0).to_string());
+            .map(|e| uuid::Uuid::from_bytes(e.0).to_string())
+            .collect();
+        let queue_ids: Vec<String> = self.queue_tags.iter().cloned().collect();
         TraceSummaryRecord {
             trace_id: self.trace_id.clone(),
             service_name: self.service_name.clone(),
@@ -184,7 +194,8 @@ impl TraceAggregator {
             span_count: self.span_count,
             error_count: self.error_count,
             resource_attributes: self.resource_attributes.clone(),
-            entity_id,
+            entity_ids,
+            queue_ids,
         }
     }
 }

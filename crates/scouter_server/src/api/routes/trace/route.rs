@@ -8,12 +8,12 @@ use axum::{
     Json, Router,
 };
 
-use scouter_sql::sql::traits::TraceSqlLogic;
+use scouter_sql::sql::traits::{TagSqlLogic, TraceSqlLogic};
 use scouter_sql::PostgresClient;
 use scouter_types::{
-    contracts::ScouterServerError, sql::TraceFilters, SpansFromTagsRequest, TraceBaggageResponse,
-    TraceId, TraceMetricsRequest, TraceMetricsResponse, TracePaginationResponse,
-    TraceReceivedResponse, TraceRequest, TraceSpansResponse,
+    contracts::ScouterServerError, sql::TraceFilters, SpansFromTagsRequest, Tag,
+    TraceBaggageResponse, TraceId, TraceMetricsRequest, TraceMetricsResponse,
+    TracePaginationResponse, TraceReceivedResponse, TraceRequest, TraceSpansResponse,
 };
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
@@ -127,24 +127,65 @@ pub async fn query_trace_spans_from_tags(
     State(data): State<Arc<AppState>>,
     Json(params): Json<SpansFromTagsRequest>,
 ) -> Result<Json<TraceSpansResponse>, (StatusCode, Json<ScouterServerError>)> {
-    // Execute both queries concurrently
-    let spans = PostgresClient::get_spans_from_tags(
+    // Step 1: resolve tags → trace_id hex strings via PostgreSQL
+    let tags: Vec<Tag> = params
+        .tag_filters
+        .iter()
+        .filter_map(|m| {
+            Some(Tag {
+                key: m.get("key")?.clone(),
+                value: m.get("value")?.clone(),
+            })
+        })
+        .collect();
+
+    let trace_id_hexes = PostgresClient::get_entity_id_by_tags(
         &data.db_pool,
         &params.entity_type,
-        params.tag_filters,
+        &tags,
         params.match_all,
-        params.service_name.as_deref(),
     )
     .await
     .map_err(|e| {
-        error!("Failed to get trace spans from tags: {:?}", e);
+        error!("Failed to get entity IDs from tags: {:?}", e);
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ScouterServerError::get_trace_spans_error(e)),
         )
     })?;
 
-    Ok(Json(TraceSpansResponse { spans }))
+    // Step 2: fetch spans from Delta Lake for each trace_id
+    let mut all_spans = Vec::new();
+    for hex_id in &trace_id_hexes {
+        let trace_id_bytes = TraceId::hex_to_bytes(hex_id).map_err(|e| {
+            error!("Invalid trace_id hex from tags: {:?}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::get_trace_spans_error(e)),
+            )
+        })?;
+        let spans = data
+            .trace_service
+            .query_service
+            .get_trace_spans(
+                Some(trace_id_bytes.as_slice()),
+                params.service_name.as_deref(),
+                None,
+                None,
+                None,
+            )
+            .await
+            .map_err(|e| {
+                error!("Failed to get trace spans from Delta Lake: {:?}", e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ScouterServerError::get_trace_spans_error(e)),
+                )
+            })?;
+        all_spans.extend(spans);
+    }
+
+    Ok(Json(TraceSpansResponse { spans: all_spans }))
 }
 
 #[instrument(skip_all)]
@@ -157,6 +198,15 @@ pub async fn trace_metrics(
     let attr_filters_ref: Option<&[String]> =
         body.attribute_filters.as_deref().filter(|f| !f.is_empty());
 
+    // Normalize legacy interval strings like "1 minutes" → "minute" for DataFusion DATE_TRUNC.
+    let bucket_interval = body
+        .bucket_interval
+        .split_whitespace()
+        .last()
+        .unwrap_or(&body.bucket_interval)
+        .trim_end_matches('s')
+        .to_string();
+
     // entity_uid is applied as a direct column predicate on `entity_id` inside DataFusion,
     // enabling Z-ORDER file skipping without a Postgres trace_id lookup round-trip.
     let metrics = data
@@ -166,7 +216,7 @@ pub async fn trace_metrics(
             body.service_name.as_deref(),
             body.start_time,
             body.end_time,
-            &body.bucket_interval,
+            &bucket_interval,
             attr_filters_ref,
             body.entity_uid.as_deref(),
         )

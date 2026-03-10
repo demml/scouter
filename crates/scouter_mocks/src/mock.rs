@@ -116,6 +116,11 @@ impl ScouterTestServer {
             // set server env vars
             unsafe {
                 std::env::set_var("APP_ENV", "dev_server");
+                // Ensure fast trace flushing for tests (override production defaults
+                // of 30s/15s which are too slow for integration tests that sleep 5s)
+                std::env::set_var("TRACE_STALE_THRESHOLD_SECONDS", "1");
+                std::env::set_var("TRACE_FLUSH_INTERVAL_SECONDS", "1");
+                std::env::set_var("SCOUTER_TRACE_FLUSH_INTERVAL_SECS", "1");
             }
 
             if self.rabbit_mq {
