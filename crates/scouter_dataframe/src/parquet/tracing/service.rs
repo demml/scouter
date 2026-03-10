@@ -738,7 +738,7 @@ mod tests {
         );
 
         service.shutdown().await?;
-        //cleanup();
+        cleanup();
         Ok(())
     }
 

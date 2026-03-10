@@ -284,7 +284,7 @@ async fn build_summary_url(object_store: &ObjectStore) -> Result<Url, TraceEngin
     if !path.ends_with('/') {
         path.push('/');
     }
-    path.push_str("summaries");
+    path.push_str(SUMMARY_TABLE_NAME);
     base.set_path(&path);
     Ok(base)
 }
@@ -1601,6 +1601,108 @@ mod tests {
                 .iter()
                 .map(|i| &i.trace_id)
                 .collect::<Vec<_>>()
+        );
+
+        span_service.shutdown().await?;
+        summary_service.shutdown().await?;
+        cleanup();
+        Ok(())
+    }
+
+    /// queue_uid filter: only traces whose queue_ids contain the target UID are returned,
+    /// and the matching trace's spans can be fetched by trace_id.
+    #[tokio::test]
+    async fn test_summary_queue_id_filter_and_span_lookup() -> Result<(), TraceEngineError> {
+        use crate::parquet::tracing::service::TraceSpanService;
+
+        cleanup();
+        let storage_settings = ObjectStorageSettings::default();
+
+        // TraceSpanService owns the SessionContext
+        let span_service = TraceSpanService::new(&storage_settings, 24, Some(2), None).await?;
+        let shared_ctx = span_service.ctx.clone();
+
+        // TraceSummaryService shares the same ctx so JOIN path works
+        let summary_service = TraceSummaryService::new(&storage_settings, 24, shared_ctx).await?;
+
+        let now = Utc::now();
+        let queue_trace = TraceId::from_bytes([90u8; 16]);
+        let plain_trace = TraceId::from_bytes([91u8; 16]);
+        let target_queue_uid = "queue-record-abc123";
+
+        // Write spans for both traces
+        let queue_span = make_span_record(
+            &queue_trace,
+            SpanId::from_bytes([90u8; 8]),
+            "svc_queue",
+            vec![],
+        );
+        let plain_span = make_span_record(
+            &plain_trace,
+            SpanId::from_bytes([91u8; 8]),
+            "svc_queue",
+            vec![],
+        );
+        span_service
+            .write_spans_direct(vec![queue_span, plain_span])
+            .await?;
+
+        // Write summaries: one with a matching queue_id, one without
+        let mut queue_summary = make_summary([90u8; 16], "svc_queue", 0, vec![]);
+        queue_summary.start_time = now;
+        queue_summary.queue_ids = vec![target_queue_uid.to_string()];
+
+        let mut plain_summary = make_summary([91u8; 16], "svc_queue", 0, vec![]);
+        plain_summary.start_time = now;
+        // queue_ids left empty — should not appear in results
+
+        summary_service
+            .write_summaries(vec![queue_summary, plain_summary])
+            .await?;
+
+        tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+
+        // ── Step 1: query summaries by queue_uid ─────────────────────────────────
+        let filters = TraceFilters {
+            start_time: Some(now - chrono::Duration::hours(1)),
+            end_time: Some(now + chrono::Duration::hours(1)),
+            queue_uid: Some(target_queue_uid.to_string()),
+            limit: Some(25),
+            ..Default::default()
+        };
+
+        let response = summary_service
+            .query_service
+            .get_paginated_traces(&filters)
+            .await?;
+
+        assert!(
+            !response.items.is_empty(),
+            "queue_uid filter must return at least one result"
+        );
+        assert!(
+            response.items.iter().all(|i| i.trace_id == queue_trace.to_hex()),
+            "only the queue trace should appear; got {:?}",
+            response.items.iter().map(|i| &i.trace_id).collect::<Vec<_>>()
+        );
+
+        // ── Step 2: fetch spans for the returned trace_id ─────────────────────────
+        let returned_trace_id =
+            TraceId::from_hex(&response.items[0].trace_id).expect("trace_id must be valid hex");
+        let spans = span_service
+            .query_service
+            .get_trace_spans(
+                Some(returned_trace_id.as_bytes()),
+                None,
+                Some(&(now - chrono::Duration::hours(1))),
+                Some(&(now + chrono::Duration::hours(1))),
+                None,
+            )
+            .await?;
+
+        assert!(
+            !spans.is_empty(),
+            "should find spans for the returned trace_id"
         );
 
         span_service.shutdown().await?;

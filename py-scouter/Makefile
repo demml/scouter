@@ -45,6 +45,8 @@ test.unit:
 
 test.integration.api:
 	uv run pytest -s tests/integration/api/test_fastapi.py
+	uv run pytest -s tests/integration/api/test_fastapi_genai_tracing.py
+	uv run pytest -s tests/integration/api/test_fastapi_genai.py
 
 test.integration.queue:
 	uv run pytest -s tests/integration/queue

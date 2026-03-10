@@ -108,8 +108,14 @@ fn register_cloud_logstore_factories() {
 }
 
 async fn build_url(object_store: &ObjectStore) -> Result<Url, TraceEngineError> {
-    let base_url = object_store.get_base_url()?;
-    Ok(base_url)
+    let mut base = object_store.get_base_url()?;
+    let mut path = base.path().to_string();
+    if !path.ends_with('/') {
+        path.push('/');
+    }
+    path.push_str(TRACE_SPAN_TABLE_NAME);
+    base.set_path(&path);
+    Ok(base)
 }
 
 #[instrument(skip_all)]

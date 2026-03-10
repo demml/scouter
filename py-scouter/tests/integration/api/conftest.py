@@ -233,7 +233,6 @@ def create_kafka_app(profile_path: Path) -> FastAPI:
     @app.post("/predict", response_model=TestResponse)
     @tracer.span("predict")
     async def predict(request: Request, payload: PredictRequest) -> TestResponse:
-        print(f"Received payload: {request.app.state}")
         request.app.state.queue["spc"].insert(payload.to_features())
         return TestResponse(message="success")
 
@@ -275,7 +274,6 @@ def create_kafka_genai_app(profile_path: Path) -> FastAPI:
     @app.post("/chat", response_model=TestResponse)
     async def chat(request: Request, payload: ChatRequest) -> TestResponse:
         queue: Queue = request.app.state.queue["genai"]
-
         agent: Agent = request.app.state.agent
         prompt: Prompt = request.app.state.prompt
 

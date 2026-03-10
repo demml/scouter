@@ -75,7 +75,10 @@ async fn wait_for_trace_spans(
                         return Ok(Arc::new(spans));
                     }
                     Ok(_) => {
-                        debug!("Trace summary found but spans not yet available for {}", task_uid);
+                        debug!(
+                            "Trace summary found but spans not yet available for {}",
+                            task_uid
+                        );
                     }
                     Err(e) => {
                         error!("Error fetching spans from Delta Lake: {:?}", e);
