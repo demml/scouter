@@ -9,9 +9,9 @@ use scouter_types::contracts::{
 use scouter_types::http::{RequestType, Routes};
 use scouter_types::sql::TraceFilters;
 use scouter_types::{
-    RegisteredProfileResponse, SpansFromTagsRequest, TagsRequest, TagsResponse,
-    TraceBaggageResponse, TraceMetricsRequest, TraceMetricsResponse, TracePaginationResponse,
-    TraceRequest, TraceSpansResponse,
+    RegisteredProfileResponse, TagsRequest, TagsResponse, TraceBaggageResponse,
+    TraceMetricsRequest, TraceMetricsResponse, TracePaginationResponse, TraceRequest,
+    TraceSpansResponse,
 };
 
 use scouter_http::HttpClient;
@@ -19,7 +19,6 @@ use scouter_types::{
     psi::BinnedPsiFeatureMetrics, spc::SpcDriftFeatures, BinnedMetrics, DriftProfile, DriftType,
     PyHelperFuncs,
 };
-use std::collections::HashMap;
 use std::path::PathBuf;
 use tracing::{debug, error};
 
@@ -214,47 +213,31 @@ impl ScouterClient {
         Ok(response)
     }
 
-    fn get_trace_spans_from_tags(
+    fn get_trace_spans_from_filters(
         &self,
-        tags: Vec<(String, String)>,
-        match_all: bool,
-        service_name: Option<String>,
+        request: &TraceFilters,
     ) -> Result<TraceSpansResponse, ClientError> {
-        let tag_filters: Vec<HashMap<String, String>> = tags
-            .into_iter()
-            .map(|(k, v)| {
-                let mut map = HashMap::new();
-                map.insert("key".to_string(), k);
-                map.insert("value".to_string(), v);
-                map
-            })
-            .collect();
-        let trace_request = SpansFromTagsRequest {
-            entity_type: "trace".to_string(),
-            tag_filters,
-            match_all,
-            service_name,
-        };
-
-        let query = serde_json::to_value(&trace_request).unwrap();
-
         let response = self.client.request(
-            Routes::TraceSpanTags,
+            Routes::TraceSpanFilters,
             RequestType::Post,
-            Some(query),
+            Some(serde_json::to_value(request).unwrap()),
             None,
             None,
         )?;
+
         if !response.status().is_success() {
+            let status_code = response.status();
+            let err_msg = response.text().unwrap_or_default();
             error!(
-                "Failed to get trace spans from tags. Status: {:?}",
-                response.status()
+                "Failed to get trace spans from filters. Status: {:?}, Error: {}",
+                status_code, err_msg
             );
-            return Err(ClientError::GetTraceSpansError);
+            return Err(ClientError::GetTraceSpansFromFiltersError);
         }
 
         // Get response body
         let body = response.bytes()?;
+
         // Parse JSON response
         let response: TraceSpansResponse = serde_json::from_slice(&body)?;
         Ok(response)
@@ -518,15 +501,12 @@ impl PyScouterClient {
         self.client.get_trace_spans(trace_id, service_name)
     }
 
-    #[pyo3(signature = (tags, match_all=false, service_name=None))]
-    pub fn get_trace_spans_from_tags(
+    #[pyo3(signature = (filters))]
+    pub fn get_trace_spans_from_filters(
         &self,
-        tags: Vec<(String, String)>,
-        match_all: bool,
-        service_name: Option<String>,
+        filters: TraceFilters,
     ) -> Result<TraceSpansResponse, ClientError> {
-        self.client
-            .get_trace_spans_from_tags(tags, match_all, service_name)
+        self.client.get_trace_spans_from_filters(&filters)
     }
 
     /// Get trace metrics for a given trace metrics request

@@ -69,6 +69,9 @@ pub enum ClientError {
 
     #[error("Invalid drift type for GenAI task request")]
     InvalidDriftTypeForGenAITask,
+
+    #[error("Invalid drift type for GenAI workflow request")]
+    GetTraceSpansFromFiltersError,
 }
 
 impl From<ClientError> for PyErr {
