@@ -1,6 +1,6 @@
 use crate::sql::error::SqlError;
 use crate::sql::query::Queries;
-use crate::sql::utils::EntityBytea;
+use crate::sql::utils::UuidBytea;
 use chrono::{DateTime, Duration, Utc};
 use dashmap::DashMap;
 use scouter_dataframe::parquet::tracing::summary::TraceSummaryService;
@@ -62,40 +62,35 @@ pub struct TraceAggregator {
     pub resource_attributes: Vec<Attribute>,
     pub first_seen: DateTime<Utc>,
     pub last_updated: DateTime<Utc>,
-    pub entity_tags: HashSet<EntityBytea>,
-    pub queue_tags: HashSet<String>,
+    pub entity_tags: HashSet<UuidBytea>,
+    pub queue_tags: HashSet<UuidBytea>,
 }
 
-impl TraceAggregator {
-    /// Extracts specific entity attributes from span attributes and adds them to the aggregator's entity_tags set
-    /// Arguments:
-    /// - `span`: The TraceSpanRecord from which to extract entity attributes
-    pub fn add_entities(&mut self, span: &TraceSpanRecord) {
-        for attr in &span.attributes {
-            if attr.key.starts_with(SCOUTER_ENTITY) {
-                // Value should be string in the format "{uid}"
-                let entity = match &attr.value {
-                    serde_json::Value::String(s) => s.clone(),
-                    _ => continue, // Skip if not a string
-                };
-                match EntityBytea::from_uuid(&entity) {
-                    Ok(uid) => {
-                        self.entity_tags.insert(uid);
-                    }
-                    Err(e) => {
-                        warn!(%entity, "Failed to parse entity UID from attribute value in span {}: {}", span.span_id, e);
-                    }
-                }
+fn extract_value_to_set(attr: &Attribute, set: &mut HashSet<UuidBytea>) -> Option<UuidBytea> {
+    if let serde_json::Value::String(s) = &attr.value {
+        match UuidBytea::from_uuid(s) {
+            Ok(uid) => {
+                set.insert(uid.clone());
+                return Some(uid);
+            }
+            Err(e) => {
+                warn!(%s, "Failed to parse value as UUID for attribute key '{}': {}", attr.key, e)
             }
         }
     }
+    None
+}
 
-    /// Extracts queue record UIDs from span attributes (`scouter.queue.record` key).
-    pub fn add_queue_records(&mut self, span: &TraceSpanRecord) {
-        for attr in &span.attributes {
-            if attr.key == SCOUTER_QUEUE_RECORD {
-                if let serde_json::Value::String(s) = &attr.value {
-                    self.queue_tags.insert(s.clone());
+impl TraceAggregator {
+    /// Extracts specific attributes from span events to populate entity and queue tag sets
+    pub fn add_ids(&mut self, span: &TraceSpanRecord) {
+        for event in &span.events {
+            for attr in &event.attributes {
+                if attr.key == SCOUTER_QUEUE_RECORD {
+                    extract_value_to_set(attr, &mut self.queue_tags);
+                }
+                if attr.key.starts_with(SCOUTER_ENTITY) {
+                    extract_value_to_set(attr, &mut self.entity_tags);
                 }
             }
         }
@@ -125,8 +120,7 @@ impl TraceAggregator {
             entity_tags: HashSet::new(),
             queue_tags: HashSet::new(),
         };
-        aggregator.add_entities(span);
-        aggregator.add_queue_records(span);
+        aggregator.add_ids(span);
         aggregator
     }
 
@@ -160,8 +154,7 @@ impl TraceAggregator {
 
         self.span_count += 1;
         self.last_updated = Utc::now();
-        self.add_entities(span);
-        self.add_queue_records(span);
+        self.add_ids(span);
     }
 
     pub fn duration_ms(&self) -> Option<i64> {
@@ -180,7 +173,11 @@ impl TraceAggregator {
             .iter()
             .map(|e| uuid::Uuid::from_bytes(e.0).to_string())
             .collect();
-        let queue_ids: Vec<String> = self.queue_tags.iter().cloned().collect();
+        let queue_ids: Vec<String> = self
+            .queue_tags
+            .iter()
+            .map(|q| uuid::Uuid::from_bytes(q.0).to_string())
+            .collect();
         TraceSummaryRecord {
             trace_id: self.trace_id.clone(),
             service_name: self.service_name.clone(),

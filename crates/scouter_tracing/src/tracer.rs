@@ -39,6 +39,7 @@ use scouter_events::queue::types::TransportConfig;
 use scouter_events::queue::ScouterQueue;
 use scouter_settings::grpc::GrpcConfig;
 
+use scouter_types::SCOUTER_QUEUE_RECORD;
 use scouter_types::{
     pyobject_to_otel_value, pyobject_to_tracing_json, EntityType, BAGGAGE_PREFIX,
     EXCEPTION_TRACEBACK, SCOUTER_ENTITY, SCOUTER_QUEUE_EVENT, SCOUTER_SCOPE, SCOUTER_SCOPE_DEFAULT,
@@ -303,33 +304,23 @@ fn reset_current_context(py: Python, token: &Py<PyAny>) -> PyResult<()> {
 /// * `inner` - The inner span data to add the event to
 fn add_entity_event_to_span(
     queue_item: &Bound<'_, PyAny>,
+    queue_bus: &Bound<'_, PyAny>,
     inner: &mut ActiveSpanInner,
 ) -> Result<(), TraceError> {
     let mut attributes = vec![];
 
     if let Ok(record_uid) = queue_item.getattr("uid") {
         let entity_type_py = queue_item.getattr("entity_type")?;
+        let entity_uid = queue_bus.getattr("entity_uid")?.str()?.to_string();
         let entity_type = entity_type_py.extract::<EntityType>()?;
         let record_uid_str = record_uid.str()?.to_string();
 
         // set attributes for events
-        attributes.push(KeyValue::new("record_uid", record_uid_str.clone()));
+        attributes.push(KeyValue::new(SCOUTER_QUEUE_RECORD, record_uid_str.clone()));
         attributes.push(KeyValue::new("entity", entity_type));
+        attributes.push(KeyValue::new(SCOUTER_ENTITY, entity_uid.clone()));
         inner.span.add_event(SCOUTER_QUEUE_EVENT, attributes);
     };
-
-    Ok(())
-}
-
-fn add_entity_attribute(
-    inner: &mut ActiveSpanInner,
-    queue_bus: &Bound<'_, PyAny>,
-) -> Result<(), TraceError> {
-    // add entity tag so we can pull all traces associated with this entity in the ui
-    let entity_uid = queue_bus.getattr("entity_uid")?.str()?.to_string();
-    inner
-        .span
-        .set_attribute(KeyValue::new(SCOUTER_ENTITY, entity_uid.clone()));
 
     Ok(())
 }
@@ -472,10 +463,10 @@ impl ActiveSpan {
                         bound_queue.call_method1("insert", (item,))?;
 
                         // add event
-                        add_entity_event_to_span(item, inner)?;
+                        // event attributes include entity uid and queue record uid
+                        // these will also be extracted in trace aggregation layer
+                        add_entity_event_to_span(item, &bound_queue, inner)?;
 
-                        // associate span with entity for easier searching in the backend
-                        add_entity_attribute(inner, &bound_queue)?;
                         Ok(())
                     } else {
                         warn!(

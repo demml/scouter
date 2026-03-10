@@ -183,9 +183,9 @@ mod tests {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct EntityBytea(pub [u8; 16]);
+pub struct UuidBytea(pub [u8; 16]);
 
-impl EntityBytea {
+impl UuidBytea {
     pub fn from_uuid(uid_str: &str) -> Result<Self, SqlError> {
         let uuid = Uuid::from_str(uid_str)?;
         Ok(Self(*uuid.as_bytes()))
