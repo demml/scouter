@@ -253,7 +253,13 @@ impl ScouterTestServer {
         {
             let handle = self.handle.clone();
             let runtime = self.runtime.clone();
-            runtime.spawn(async move {
+            // Block until the server has fully stopped before touching the
+            // filesystem. Using spawn+fire-and-forget here causes a race where
+            // cleanup() deletes scouter_storage while the server's Delta Lake
+            // writer is still flushing, which leads to concurrent-writer
+            // corruption when the next test spins up a fresh server on the
+            // same path.
+            runtime.block_on(async move {
                 stop_server(handle).await;
             });
 
