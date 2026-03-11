@@ -82,3 +82,5 @@ postgres-data/
 py-scouter/python/scouter/stubs.pyi
 /.github/instructions
 dev/
+
+scouter_storage/

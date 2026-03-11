@@ -147,7 +147,7 @@ impl ScouterSetupComponents {
         let compaction_hours = config.storage_settings.trace_compaction_interval_hours;
         let flush_secs = config.storage_settings.trace_flush_interval_secs;
 
-        let retention_days = Some(config.database_settings.retention_period as u32);
+        let retention_days = Some(config.database_settings.trace_retention_period as u32);
         let trace_service = init_trace_span_service(
             &config.storage_settings,
             compaction_hours,
