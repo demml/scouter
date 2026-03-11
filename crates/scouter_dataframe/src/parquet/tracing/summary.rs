@@ -1,6 +1,7 @@
 use crate::error::TraceEngineError;
 use crate::parquet::control::{get_pod_id, ControlTableEngine};
 use crate::parquet::tracing::traits::{arrow_schema_to_delta, resource_attribute_field};
+use crate::parquet::utils::match_attr_expr;
 use crate::parquet::utils::register_cloud_logstore_factories;
 use crate::storage::ObjectStore;
 use arrow::array::*;
@@ -9,7 +10,7 @@ use arrow::datatypes::*;
 use arrow_array::Array;
 use arrow_array::RecordBatch;
 use chrono::{DateTime, Datelike, TimeZone, Utc};
-use datafusion::logical_expr::{col, lit};
+use datafusion::logical_expr::{cast as df_cast, col, lit, SortExpr};
 use datafusion::prelude::*;
 use datafusion::scalar::ScalarValue;
 use deltalake::operations::optimize::OptimizeType;
@@ -51,24 +52,6 @@ const SEARCH_BLOB_COL: &str = "search_blob";
 const RESOURCE_ATTRIBUTES_COL: &str = "resource_attributes";
 const ENTITY_IDS_COL: &str = "entity_ids";
 const QUEUE_IDS_COL: &str = "queue_ids";
-
-const SUMMARY_COLUMNS: &[&str] = &[
-    TRACE_ID_COL,
-    SERVICE_NAME_COL,
-    SCOPE_NAME_COL,
-    SCOPE_VERSION_COL,
-    ROOT_OPERATION_COL,
-    START_TIME_COL,
-    END_TIME_COL,
-    DURATION_MS_COL,
-    STATUS_CODE_COL,
-    STATUS_MESSAGE_COL,
-    SPAN_COUNT_COL,
-    ERROR_COUNT_COL,
-    RESOURCE_ATTRIBUTES_COL,
-    ENTITY_IDS_COL,
-    QUEUE_IDS_COL,
-];
 
 const PARTITION_DATE_COL: &str = "partition_date";
 
@@ -665,11 +648,15 @@ impl TraceSummaryQueries {
 
     /// Get paginated traces from the Delta Lake summary table.
     ///
-    /// All filtering (time, service, errors, trace_ids, cursor) is pushed into DataFusion
-    /// before collection. Attribute filters are resolved via a JOIN with the `trace_spans`
-    /// table (requires shared `SessionContext` from `TraceSpanService`).
-    /// Cursor pagination uses lexicographic `(start_time, trace_id)` comparison in DataFusion,
-    /// and `LIMIT` is applied before `collect()` to bound data transfer.
+    /// The first step is a `GROUP BY trace_id` dedup query that merges any duplicate
+    /// rows (from late-arriving spans) using the same rules as `TraceAggregator`:
+    ///   - `SUM` for span/error counts, `MIN`/`MAX` for times, `MAX` for status_code
+    ///   - `FIRST_VALUE` ordered by `span_count DESC` for string fields
+    ///   - `array_distinct(flatten(array_agg(...)))` for entity/queue ID lists (full union)
+    ///
+    ///   Time filters are pushed into the SQL WHERE clause for partition pruning.
+    ///
+    ///   Secondary filters (service, errors, cursor) apply to the deduplicated DataFrame.
     pub async fn get_paginated_traces(
         &self,
         filters: &TraceFilters,
@@ -677,26 +664,89 @@ impl TraceSummaryQueries {
         let limit = filters.limit.unwrap_or(50) as usize;
         let direction = filters.direction.as_deref().unwrap_or("next");
 
-        let mut df = self.ctx.table(SUMMARY_TABLE_NAME).await?;
-        df = df.select_columns(SUMMARY_COLUMNS)?;
+        // ── Dedup: time-filtered GROUP BY trace_id (DataFrame API) ───────────
+        use crate::parquet::tracing::queries::{date_lit, ts_lit};
+        use datafusion::functions_aggregate::expr_fn::{array_agg, first_value, max, min, sum};
+        use datafusion::functions_nested::set_ops::array_distinct;
 
-        // ── Time filters FIRST for partition pruning ─────────────────────────
+        let mut df = self.ctx.table(SUMMARY_TABLE_NAME).await?;
+
+        // ① Partition date — directory-level pruning (skips entire partition folders)
+        // ② start_time     — row-group-level pruning within matched files
         if let Some(start) = filters.start_time {
-            df = df.filter(
-                col(START_TIME_COL).gt_eq(lit(ScalarValue::TimestampMicrosecond(
-                    Some(start.timestamp_micros()),
-                    Some("UTC".into()),
-                ))),
-            )?;
+            df = df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
+            df = df.filter(col(START_TIME_COL).gt_eq(ts_lit(&start)))?;
         }
         if let Some(end) = filters.end_time {
-            df = df.filter(
-                col(START_TIME_COL).lt(lit(ScalarValue::TimestampMicrosecond(
-                    Some(end.timestamp_micros()),
-                    Some("UTC".into()),
-                ))),
-            )?;
+            df = df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end)))?;
+            df = df.filter(col(START_TIME_COL).lt(ts_lit(&end)))?;
         }
+
+        // ORDER BY specs for FIRST_VALUE aggregates
+        // span_count DESC NULLS LAST, end_time DESC NULLS LAST
+        let by_span_end: Vec<SortExpr> = vec![
+            col(SPAN_COUNT_COL).sort(false, false),
+            col(END_TIME_COL).sort(false, false),
+        ];
+        // status_code DESC, span_count DESC
+        let by_status_span: Vec<SortExpr> = vec![
+            col(STATUS_CODE_COL).sort(false, false),
+            col(SPAN_COUNT_COL).sort(false, false),
+        ];
+
+        // Phase 1: aggregate
+        // _max_end_us / _min_start_us are hidden Int64 columns used to compute
+        // duration_ms post-aggregation (arithmetic across two aggregate exprs
+        // cannot be expressed in a single aggregate slot).
+        //
+        // entity_ids / queue_ids: array_agg without FILTER is intentional.
+        // array_flatten treats NULL outer-list elements as empty and skips them,
+        // giving identical results to FILTER (WHERE IS NOT NULL) for the GROUP BY
+        // case. Unlike the original SQL, this produces [] rather than NULL when
+        // ALL rows have null IDs — the safer outcome for downstream deserialization.
+        let mut df = df
+            .aggregate(
+                vec![col(TRACE_ID_COL)],
+                vec![
+                    min(col(START_TIME_COL)).alias(START_TIME_COL),
+                    max(col(END_TIME_COL)).alias(END_TIME_COL),
+                    max(df_cast(col(END_TIME_COL), DataType::Int64)).alias("_max_end_us"),
+                    min(df_cast(col(START_TIME_COL), DataType::Int64)).alias("_min_start_us"),
+                    max(col(STATUS_CODE_COL)).alias(STATUS_CODE_COL),
+                    sum(col(SPAN_COUNT_COL)).alias(SPAN_COUNT_COL),
+                    sum(col(ERROR_COUNT_COL)).alias(ERROR_COUNT_COL),
+                    first_value(col(SERVICE_NAME_COL), by_span_end.clone()).alias(SERVICE_NAME_COL),
+                    first_value(col(SCOPE_NAME_COL), by_span_end.clone()).alias(SCOPE_NAME_COL),
+                    first_value(col(SCOPE_VERSION_COL), by_span_end.clone())
+                        .alias(SCOPE_VERSION_COL),
+                    first_value(col(ROOT_OPERATION_COL), by_span_end.clone())
+                        .alias(ROOT_OPERATION_COL),
+                    first_value(col(STATUS_MESSAGE_COL), by_status_span).alias(STATUS_MESSAGE_COL),
+                    first_value(col(RESOURCE_ATTRIBUTES_COL), by_span_end)
+                        .alias(RESOURCE_ATTRIBUTES_COL),
+                    array_agg(col(ENTITY_IDS_COL)).alias("_entity_ids_raw"),
+                    array_agg(col(QUEUE_IDS_COL)).alias("_queue_ids_raw"),
+                ],
+            )?
+            // Phase 2: derive computed columns from hidden aggregates, then drop them
+            .with_column(
+                DURATION_MS_COL,
+                (col("_max_end_us") - col("_min_start_us")) / lit(1000i64),
+            )?
+            .with_column(
+                ENTITY_IDS_COL,
+                array_distinct(flatten(col("_entity_ids_raw"))),
+            )?
+            .with_column(
+                QUEUE_IDS_COL,
+                array_distinct(flatten(col("_queue_ids_raw"))),
+            )?
+            .drop_columns(&[
+                "_max_end_us",
+                "_min_start_us",
+                "_entity_ids_raw",
+                "_queue_ids_raw",
+            ])?;
 
         // ── Secondary filters ────────────────────────────────────────────────
         if let Some(ref svc) = filters.service_name {
@@ -811,7 +861,7 @@ impl TraceSummaryQueries {
                 let mut attr_expr: Option<Expr> = None;
                 for f in attr_filters {
                     let pattern = crate::parquet::tracing::queries::normalize_attr_filter(f);
-                    let cond = col(SEARCH_BLOB_COL).like(lit(pattern));
+                    let cond = match_attr_expr(col(SEARCH_BLOB_COL), lit(pattern));
                     attr_expr = Some(match attr_expr {
                         None => cond,
                         Some(e) => e.or(cond),

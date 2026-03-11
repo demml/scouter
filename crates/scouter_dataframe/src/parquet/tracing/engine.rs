@@ -3,7 +3,7 @@ use crate::parquet::control::{get_pod_id, ControlTableEngine};
 use crate::parquet::tracing::traits::arrow_schema_to_delta;
 use crate::parquet::tracing::traits::attribute_field;
 use crate::parquet::tracing::traits::TraceSchemaExt;
-use crate::parquet::utils::register_cloud_logstore_factories;
+use crate::parquet::utils::{create_attr_match_udf, register_cloud_logstore_factories};
 use crate::storage::ObjectStore;
 use arrow::array::*;
 use arrow::datatypes::*;
@@ -188,6 +188,10 @@ impl TraceSpanDBEngine {
         let schema = Arc::new(Self::create_schema());
         let delta_table = build_or_create_table(&object_store, schema.clone()).await?;
         let ctx = object_store.get_session()?;
+
+        // Register the match_attr UDF so DataFusion plans can use it for search_blob filtering.
+        // This must happen before any query is planned — UDFs live on the SessionContext.
+        ctx.register_udf(create_attr_match_udf());
 
         // A freshly-created table has no committed Parquet files yet — table_provider()
         // Defer registration until the first write populates the log.

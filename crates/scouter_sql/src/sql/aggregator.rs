@@ -94,6 +94,14 @@ impl TraceAggregator {
                 }
             }
         }
+        for attr in &span.attributes {
+            if attr.key == SCOUTER_QUEUE_RECORD {
+                extract_value_to_set(attr, &mut self.queue_tags);
+            }
+            if attr.key.starts_with(SCOUTER_ENTITY) {
+                extract_value_to_set(attr, &mut self.entity_tags);
+            }
+        }
     }
 
     pub fn new_from_span(span: &TraceSpanRecord) -> Self {
