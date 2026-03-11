@@ -22,7 +22,7 @@ from scouter.tracing import (
 from scouter.transport import GrpcConfig
 
 
-def _wait_for_export(seconds: float = 2.0) -> None:
+def _wait_for_export(seconds: float = 3.0) -> None:
     """Give the batch exporter time to flush."""
     time.sleep(seconds)
 

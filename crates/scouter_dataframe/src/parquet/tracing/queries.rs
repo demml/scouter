@@ -932,7 +932,8 @@ impl TraceQueries {
                     MAX(s.status_code) AS status_code\
                     {attr_match_select} \
                 FROM {table} s \
-                WHERE s.start_time >= '{start}' AND s.start_time < '{end}' \
+                WHERE s.start_time >= to_timestamp_micros('{start}') \
+                  AND s.start_time <  to_timestamp_micros('{end}') \
                 GROUP BY s.trace_id \
                 {attr_having} \
             ), \
@@ -990,16 +991,22 @@ impl TraceQueries {
         for batch in &batches {
             let schema = batch.schema();
 
-            // DATE_TRUNC may return various Timestamp sub-types depending on DataFusion version.
-            // Cast to Int64 (microseconds since epoch) for uniform handling.
+            // DATE_TRUNC may return Timestamp(Nanosecond) when string literals in the WHERE
+            // clause cause DataFusion to upcast the column. Cast explicitly to
+            // Timestamp(Microsecond, UTC) so Arrow handles the ns→µs division correctly,
+            // regardless of the sub-type returned by the query plan.
             let raw_bucket = batch.column(schema.index_of("bucket_start").unwrap());
-            let bucket_i64 = arrow::compute::cast(raw_bucket, &arrow::datatypes::DataType::Int64)
-                .map_err(|e| {
-                TraceEngineError::BatchConversion(format!("bucket_start cast: {}", e))
-            })?;
-            let bucket_col = bucket_i64
+            let bucket_arr = arrow::compute::cast(
+                raw_bucket,
+                &arrow::datatypes::DataType::Timestamp(
+                    arrow::datatypes::TimeUnit::Microsecond,
+                    Some("UTC".into()),
+                ),
+            )
+            .map_err(|e| TraceEngineError::BatchConversion(format!("bucket_start cast: {}", e)))?;
+            let bucket_col = bucket_arr
                 .as_any()
-                .downcast_ref::<Int64Array>()
+                .downcast_ref::<TimestampMicrosecondArray>()
                 .ok_or_else(|| TraceEngineError::BatchConversion("bucket_start".into()))?;
             let count_col = batch
                 .column(schema.index_of("trace_count").unwrap())
@@ -1034,9 +1041,9 @@ impl TraceQueries {
 
             for i in 0..batch.num_rows() {
                 let micros = bucket_col.value(i);
-                let bucket_start = Utc
-                    .timestamp_opt(micros / 1_000_000, ((micros % 1_000_000) * 1_000) as u32)
-                    .unwrap();
+                let bucket_start = DateTime::from_timestamp_micros(micros)
+                    .unwrap_or_default()
+                    .with_timezone(&Utc);
 
                 metrics.push(TraceMetricBucket {
                     bucket_start,

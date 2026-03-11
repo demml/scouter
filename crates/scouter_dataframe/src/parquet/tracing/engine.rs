@@ -142,9 +142,7 @@ async fn create_table(
         // Only collect min/max statistics for columns that benefit from data skipping.
         .with_configuration_property(
             TableProperty::DataSkippingStatsColumns,
-            Some(
-                "start_time,end_time,service_name,duration_ms,status_code,entity_id,partition_date",
-            ),
+            Some("start_time,end_time,service_name,duration_ms,status_code,partition_date"),
         )
         .await
         .map_err(Into::into)
