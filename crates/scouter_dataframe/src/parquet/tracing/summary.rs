@@ -1,6 +1,7 @@
 use crate::error::TraceEngineError;
 use crate::parquet::control::{get_pod_id, ControlTableEngine};
 use crate::parquet::tracing::traits::{arrow_schema_to_delta, resource_attribute_field};
+use crate::parquet::utils::match_attr_expr;
 use crate::parquet::utils::register_cloud_logstore_factories;
 use crate::storage::ObjectStore;
 use arrow::array::*;
@@ -677,7 +678,7 @@ impl TraceSummaryQueries {
             df = df.filter(col(START_TIME_COL).gt_eq(ts_lit(&start)))?;
         }
         if let Some(end) = filters.end_time {
-            df = df.filter(col(PARTITION_DATE_COL).lt(date_lit(&end)))?;
+            df = df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end)))?;
             df = df.filter(col(START_TIME_COL).lt(ts_lit(&end)))?;
         }
 
@@ -860,7 +861,7 @@ impl TraceSummaryQueries {
                 let mut attr_expr: Option<Expr> = None;
                 for f in attr_filters {
                     let pattern = crate::parquet::tracing::queries::normalize_attr_filter(f);
-                    let cond = col(SEARCH_BLOB_COL).like(lit(pattern));
+                    let cond = match_attr_expr(col(SEARCH_BLOB_COL), lit(pattern));
                     attr_expr = Some(match attr_expr {
                         None => cond,
                         Some(e) => e.or(cond),
