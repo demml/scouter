@@ -1,5 +1,6 @@
 use crate::error::TraceEngineError;
 use crate::parquet::tracing::traits::arrow_schema_to_delta;
+use crate::parquet::utils::register_cloud_logstore_factories;
 use crate::storage::ObjectStore;
 use arrow::array::*;
 use arrow::datatypes::*;
@@ -7,7 +8,6 @@ use arrow_array::RecordBatch;
 use chrono::{DateTime, Duration, Utc};
 use datafusion::logical_expr::{col, lit};
 use datafusion::prelude::SessionContext;
-use deltalake::logstore::logstore_factories;
 use deltalake::{DeltaTable, DeltaTableBuilder, TableProperty};
 use scouter_settings::ObjectStorageSettings;
 use std::sync::Arc;
@@ -507,7 +507,14 @@ async fn build_or_create_control_table(
     let base_url = object_store.get_base_url()?;
     let control_url = append_path_to_url(&base_url, CONTROL_TABLE_NAME)?;
 
-    info!("Loading control table at URL: {}", control_url);
+    info!(
+        "Loading control table [{}://.../{} ]",
+        control_url.scheme(),
+        control_url
+            .path_segments()
+            .and_then(|mut s| s.next_back())
+            .unwrap_or(CONTROL_TABLE_NAME)
+    );
 
     let store = object_store.as_dyn_object_store();
 
@@ -533,7 +540,14 @@ async fn build_or_create_control_table(
     };
 
     if is_delta_table {
-        info!("Loading existing control table");
+        info!(
+            "Loaded existing control table [{}://.../{} ]",
+            control_url.scheme(),
+            control_url
+                .path_segments()
+                .and_then(|mut s| s.next_back())
+                .unwrap_or(CONTROL_TABLE_NAME)
+        );
         let table = DeltaTableBuilder::from_url(control_url.clone())?
             .with_storage_backend(store, control_url)
             .load()
@@ -554,50 +568,6 @@ async fn build_or_create_control_table(
             .with_configuration_property(TableProperty::CheckpointInterval, Some("5"))
             .await
             .map_err(Into::into)
-    }
-}
-
-/// Register cloud logstore factories (mirrors the trace engine's registration).
-fn register_cloud_logstore_factories() {
-    use deltalake::logstore::{
-        default_logstore, LogStore, LogStoreFactory, ObjectStoreRef, StorageConfig,
-    };
-
-    struct PassthroughLogStoreFactory;
-
-    impl LogStoreFactory for PassthroughLogStoreFactory {
-        fn with_options(
-            &self,
-            prefixed_store: ObjectStoreRef,
-            root_store: ObjectStoreRef,
-            location: &Url,
-            options: &StorageConfig,
-        ) -> deltalake::DeltaResult<Arc<dyn LogStore>> {
-            let store = if location.scheme() == "az" {
-                let subpath = location.path().trim_start_matches('/');
-                if subpath.is_empty() {
-                    prefixed_store
-                } else {
-                    let prefix = object_store::path::Path::from(subpath);
-                    Arc::new(object_store::prefix::PrefixStore::new(
-                        root_store.clone(),
-                        prefix,
-                    )) as ObjectStoreRef
-                }
-            } else {
-                prefixed_store
-            };
-            Ok(default_logstore(store, root_store, location, options))
-        }
-    }
-
-    let factories = logstore_factories();
-    let factory = Arc::new(PassthroughLogStoreFactory) as Arc<dyn LogStoreFactory>;
-    for scheme in ["gs", "s3", "s3a", "az", "abfs", "abfss"] {
-        let key = Url::parse(&format!("{}://", scheme)).expect("scheme is a valid URL prefix");
-        if !factories.contains_key(&key) {
-            factories.insert(key, factory.clone());
-        }
     }
 }
 

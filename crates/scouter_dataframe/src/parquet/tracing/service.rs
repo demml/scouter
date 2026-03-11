@@ -93,9 +93,10 @@ impl TraceSpanService {
     ) -> Result<Self, TraceEngineError> {
         let buffer_size = storage_settings.trace_buffer_size();
         let engine = TraceSpanDBEngine::new(storage_settings).await?;
+
         info!(
-            "TraceSpanService initialized with storage URI: {}, buffer_size: {}",
-            storage_settings.storage_uri, buffer_size
+            "TraceSpanService initialized with buffer_size: {}",
+            buffer_size
         );
 
         let ctx = engine.ctx.clone();

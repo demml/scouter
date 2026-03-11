@@ -1,6 +1,7 @@
 use crate::error::TraceEngineError;
 use crate::parquet::control::{get_pod_id, ControlTableEngine};
 use crate::parquet::tracing::traits::{arrow_schema_to_delta, resource_attribute_field};
+use crate::parquet::utils::register_cloud_logstore_factories;
 use crate::storage::ObjectStore;
 use arrow::array::*;
 use arrow::compute;
@@ -12,7 +13,7 @@ use datafusion::logical_expr::{col, lit};
 use datafusion::prelude::*;
 use datafusion::scalar::ScalarValue;
 use deltalake::operations::optimize::OptimizeType;
-use deltalake::{DeltaTable, TableProperty};
+use deltalake::{DeltaTable, DeltaTableBuilder, TableProperty};
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::sql::{TraceFilters, TraceListItem};
 use scouter_types::{Attribute, TraceCursor, TraceId, TracePaginationResponse, TraceSummaryRecord};
@@ -273,8 +274,6 @@ pub enum SummaryTableCommand {
     Shutdown,
 }
 
-// ── Engine ───────────────────────────────────────────────────────────────────
-
 async fn build_summary_url(object_store: &ObjectStore) -> Result<Url, TraceEngineError> {
     let mut base = object_store.get_base_url()?;
     let mut path = base.path().to_string();
@@ -287,11 +286,22 @@ async fn build_summary_url(object_store: &ObjectStore) -> Result<Url, TraceEngin
 }
 
 async fn create_summary_table(
+    object_store: &ObjectStore,
     table_url: Url,
     schema: SchemaRef,
 ) -> Result<DeltaTable, TraceEngineError> {
-    info!("Creating new Delta summary table at URL: {}", table_url);
-    let table = DeltaTable::try_from_url(table_url).await?;
+    info!(
+        "Creating trace summary table [{}://.../{} ]",
+        table_url.scheme(),
+        table_url
+            .path_segments()
+            .and_then(|mut s| s.next_back())
+            .unwrap_or(SUMMARY_TABLE_NAME)
+    );
+    let store = object_store.as_dyn_object_store();
+    let table = DeltaTableBuilder::from_url(table_url.clone())?
+        .with_storage_backend(store, table_url)
+        .build()?;
     let delta_fields = arrow_schema_to_delta(&schema);
     table
         .create()
@@ -312,11 +322,21 @@ async fn build_or_create_summary_table(
     object_store: &ObjectStore,
     schema: SchemaRef,
 ) -> Result<DeltaTable, TraceEngineError> {
+    register_cloud_logstore_factories();
     let table_url = build_summary_url(object_store).await?;
-    info!("Loading summary table at URL: {}", table_url);
+    info!(
+        "Loading trace summary table [{}://.../{} ]",
+        table_url.scheme(),
+        table_url
+            .path_segments()
+            .and_then(|mut s| s.next_back())
+            .unwrap_or(SUMMARY_TABLE_NAME)
+    );
 
     // Check whether a Delta log actually exists. For local tables, check the
-    // filesystem directly. For remote tables, attempt a full load.
+    // filesystem directly. For remote tables, attempt a full load with the
+    // explicit storage backend — required for S3/GCS/Azure where Delta Lake
+    // cannot infer the object store from the URL scheme alone.
     let is_delta_table = if table_url.scheme() == "file" {
         if let Ok(path) = table_url.to_file_path() {
             if !path.exists() {
@@ -328,17 +348,35 @@ async fn build_or_create_summary_table(
             false
         }
     } else {
-        DeltaTable::try_from_url(table_url.clone()).await.is_ok()
+        let store = object_store.as_dyn_object_store();
+        match DeltaTableBuilder::from_url(table_url.clone()) {
+            Ok(builder) => builder
+                .with_storage_backend(store, table_url.clone())
+                .load()
+                .await
+                .is_ok(),
+            Err(_) => false,
+        }
     };
 
     if is_delta_table {
-        info!("Loaded existing summary table");
-        DeltaTable::try_from_url(table_url)
+        info!(
+            "Loaded existing trace summary table [{}://.../{} ]",
+            table_url.scheme(),
+            table_url
+                .path_segments()
+                .and_then(|mut s| s.next_back())
+                .unwrap_or(SUMMARY_TABLE_NAME)
+        );
+        let store = object_store.as_dyn_object_store();
+        DeltaTableBuilder::from_url(table_url.clone())?
+            .with_storage_backend(store, table_url)
+            .load()
             .await
             .map_err(Into::into)
     } else {
         info!("Summary table does not exist, creating new table");
-        create_summary_table(table_url, schema).await
+        create_summary_table(object_store, table_url, schema).await
     }
 }
 

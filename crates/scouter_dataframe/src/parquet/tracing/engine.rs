@@ -3,6 +3,7 @@ use crate::parquet::control::{get_pod_id, ControlTableEngine};
 use crate::parquet::tracing::traits::arrow_schema_to_delta;
 use crate::parquet::tracing::traits::attribute_field;
 use crate::parquet::tracing::traits::TraceSchemaExt;
+use crate::parquet::utils::register_cloud_logstore_factories;
 use crate::storage::ObjectStore;
 use arrow::array::*;
 use arrow::datatypes::*;
@@ -12,11 +13,8 @@ use datafusion::prelude::SessionContext;
 use deltalake::datafusion::parquet::basic::{Compression, Encoding, ZstdLevel};
 use deltalake::datafusion::parquet::file::properties::{EnabledStatistics, WriterProperties};
 use deltalake::datafusion::parquet::schema::types::ColumnPath;
-use deltalake::logstore::{
-    default_logstore, logstore_factories, LogStore, LogStoreFactory, ObjectStoreRef, StorageConfig,
-};
 use deltalake::operations::optimize::OptimizeType;
-use deltalake::{DeltaResult, DeltaTable, DeltaTableBuilder, TableProperty};
+use deltalake::{DeltaTable, DeltaTableBuilder, TableProperty};
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::SpanId;
 use scouter_types::TraceId;
@@ -59,54 +57,6 @@ pub enum TableCommand {
     Shutdown,
 }
 
-struct PassthroughLogStoreFactory;
-
-impl LogStoreFactory for PassthroughLogStoreFactory {
-    fn with_options(
-        &self,
-        prefixed_store: ObjectStoreRef,
-        root_store: ObjectStoreRef,
-        location: &Url,
-        options: &StorageConfig,
-    ) -> DeltaResult<Arc<dyn LogStore>> {
-        // For az:// URLs, object_store's ObjectStoreScheme::parse uses strip_bucket()
-        // which assumes az://account/container/blob-path format. Scouter uses
-        // az://container/blob-path (container in host, subpath in URL path).
-        // strip_bucket() finds no second path segment → returns "" → delta-rs
-        // applies no PrefixStore for Azure. Manually apply the correct prefix here.
-        //
-        // For gs://, s3://, s3a://, abfs://, abfss:// — delta-rs correctly derives
-        // the subpath prefix from url.path() and applies PrefixStore via decorate_prefix.
-        // Do not re-wrap those: use the already-prefixed `prefixed_store` as-is.
-        let store = if location.scheme() == "az" {
-            let subpath = location.path().trim_start_matches('/');
-            if subpath.is_empty() {
-                prefixed_store
-            } else {
-                let prefix = object_store::path::Path::from(subpath);
-                Arc::new(object_store::prefix::PrefixStore::new(
-                    root_store.clone(),
-                    prefix,
-                )) as ObjectStoreRef
-            }
-        } else {
-            prefixed_store
-        };
-        Ok(default_logstore(store, root_store, location, options))
-    }
-}
-
-fn register_cloud_logstore_factories() {
-    let factories = logstore_factories();
-    let factory = Arc::new(PassthroughLogStoreFactory) as Arc<dyn LogStoreFactory>;
-    for scheme in ["gs", "s3", "s3a", "az", "abfs", "abfss"] {
-        let key = Url::parse(&format!("{}://", scheme)).expect("scheme is a valid URL prefix");
-        if !factories.contains_key(&key) {
-            factories.insert(key, factory.clone());
-        }
-    }
-}
-
 async fn build_url(object_store: &ObjectStore) -> Result<Url, TraceEngineError> {
     let mut base = object_store.get_base_url()?;
     let mut path = base.path().to_string();
@@ -124,7 +74,14 @@ async fn create_table(
     table_url: Url,
     schema: SchemaRef,
 ) -> Result<DeltaTable, TraceEngineError> {
-    info!("Creating new Delta table at URL: {}", table_url);
+    info!(
+        "Creating trace span table [{}://.../{} ]",
+        table_url.scheme(),
+        table_url
+            .path_segments()
+            .and_then(|mut s| s.next_back())
+            .unwrap_or(TRACE_SPAN_TABLE_NAME)
+    );
 
     let store = object_store.as_dyn_object_store();
     let table = DeltaTableBuilder::from_url(table_url.clone())?
@@ -155,7 +112,14 @@ async fn build_or_create_table(
 ) -> Result<DeltaTable, TraceEngineError> {
     register_cloud_logstore_factories();
     let table_url = build_url(object_store).await?;
-    info!("Attempting to load table at URL: {}", table_url);
+    info!(
+        "Attempting to load trace span table [{}://.../{} ]",
+        table_url.scheme(),
+        table_url
+            .path_segments()
+            .and_then(|mut s| s.next_back())
+            .unwrap_or(TRACE_SPAN_TABLE_NAME)
+    );
 
     // For all store types we check for an existing Delta table by attempting a load.
     // Local tables can be checked cheaply via the filesystem; remote tables require
@@ -183,7 +147,14 @@ async fn build_or_create_table(
     };
 
     if is_delta_table {
-        info!("Loading existing Delta table");
+        info!(
+            "Loaded existing trace span table [{}://.../{} ]",
+            table_url.scheme(),
+            table_url
+                .path_segments()
+                .and_then(|mut s| s.next_back())
+                .unwrap_or(TRACE_SPAN_TABLE_NAME)
+        );
         let store = object_store.as_dyn_object_store();
         let table = DeltaTableBuilder::from_url(table_url.clone())?
             .with_storage_backend(store, table_url)
