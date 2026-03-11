@@ -16,7 +16,7 @@ reqwest = { workspace = true }
 scouter-http = { workspace = true }
 scouter-settings = { workspace = true }
 tokio = { workspace = true }
-tonic = { workspace = true, default-features = false, features = ["codegen"] }
+tonic = { workspace = true, features = ["codegen"] }
 tonic-health = { workspace = true }
 tonic-prost = { workspace = true }
 thiserror = { workspace = true }

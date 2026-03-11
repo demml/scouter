@@ -1,4 +1,5 @@
 use crate::error::TraceEngineError;
+use crate::parquet::utils::match_attr_expr;
 use arrow::array::RecordBatch;
 use arrow::array::{
     BinaryArray, Int32Array, Int64Array, ListArray, MapArray, StringArray,
@@ -9,7 +10,7 @@ use arrow::datatypes::DataType;
 use arrow_array::Array;
 use chrono::{DateTime, Datelike, TimeZone, Utc};
 use datafusion::common::JoinType;
-use datafusion::logical_expr::{col, lit, SortExpr};
+use datafusion::logical_expr::{cast as df_cast, col, lit, when, SortExpr};
 use datafusion::prelude::*;
 use datafusion::scalar::ScalarValue;
 use mini_moka::sync::Cache;
@@ -885,104 +886,174 @@ impl TraceQueries {
             )));
         }
 
-        let start_rfc = start_time.to_rfc3339();
-        let end_rfc = end_time.to_rfc3339();
-
-        // Single-pass attribute filter: fold match into trace_level aggregation with HAVING.
-        let (attr_match_select, attr_having) = match attribute_filters {
-            Some(filters) if !filters.is_empty() => {
-                let clauses: Vec<String> = filters
-                    .iter()
-                    .map(|f| {
-                        let pattern = normalize_attr_filter(f);
-                        // Strip the outer % wrappers — they're added back in the LIKE expression
-                        let inner = pattern.trim_matches('%');
-                        format!("search_blob LIKE '%{}%'", inner.replace('\'', "''"))
-                    })
-                    .collect();
-                let match_expr = format!(
-                    ", MAX(CASE WHEN {} THEN 1 ELSE 0 END) AS attr_match",
-                    clauses.join(" OR ")
-                );
-                (match_expr, "HAVING attr_match = 1".to_string())
-            }
-            _ => (String::new(), String::new()),
-        };
-
-        // Service filter on root span (parent_span_id IS NULL) — matches Postgres logic
-        let service_filter_clause = match service_name {
-            Some(svc) => format!("root_service = '{}'", svc.replace('\'', "''")),
-            None => "TRUE".to_string(),
-        };
-
-        // CTE-based query: trace-level duration = MAX(end_time) - MIN(start_time) in µs / 1000.
-        // trace_level aggregates per-trace; service_filtered computes duration from the
-        // already-aggregated trace_start/trace_end to avoid duplicate aggregate expressions
-        // in the same SELECT (which DataFusion rejects).
-        // attr_match_select + attr_having fold attribute filtering into the single scan.
-        let sql = format!(
-            "WITH \
-            trace_level AS (\
-                SELECT \
-                    s.trace_id, \
-                    MIN(s.start_time) AS trace_start, \
-                    MAX(s.end_time)   AS trace_end, \
-                    MAX(CASE WHEN s.parent_span_id IS NULL \
-                             THEN CAST(s.service_name AS VARCHAR) END) AS root_service, \
-                    MAX(s.status_code) AS status_code\
-                    {attr_match_select} \
-                FROM {table} s \
-                WHERE s.start_time >= to_timestamp_micros('{start}') \
-                  AND s.start_time <  to_timestamp_micros('{end}') \
-                GROUP BY s.trace_id \
-                {attr_having} \
-            ), \
-            service_filtered AS (\
-                SELECT \
-                    trace_id, \
-                    trace_start, \
-                    root_service, \
-                    status_code, \
-                    (CAST(trace_end AS BIGINT) - CAST(trace_start AS BIGINT)) / 1000 \
-                        AS duration_ms \
-                FROM trace_level \
-                WHERE {svc_filter} \
-                AND trace_end IS NOT NULL \
-            ), \
-            bucketed AS (\
-                SELECT \
-                    DATE_TRUNC('{interval}', trace_start) AS bucket_start, \
-                    duration_ms, \
-                    status_code \
-                FROM service_filtered \
-            ) \
-            SELECT \
-                bucket_start, \
-                COUNT(*) AS trace_count, \
-                AVG(CAST(duration_ms AS DOUBLE)) AS avg_duration_ms, \
-                approx_percentile_cont(CAST(duration_ms AS DOUBLE), 0.50) AS p50_duration_ms, \
-                approx_percentile_cont(CAST(duration_ms AS DOUBLE), 0.95) AS p95_duration_ms, \
-                approx_percentile_cont(CAST(duration_ms AS DOUBLE), 0.99) AS p99_duration_ms, \
-                AVG(CASE WHEN status_code = 2 THEN 1.0 ELSE 0.0 END) AS error_rate \
-            FROM bucketed \
-            GROUP BY bucket_start \
-            ORDER BY bucket_start ASC",
-            table = SPAN_TABLE_NAME,
-            start = start_rfc,
-            end = end_rfc,
-            attr_match_select = attr_match_select,
-            attr_having = attr_having,
-            svc_filter = service_filter_clause,
-            interval = bucket_interval,
-        );
-
-        let df = self
+        // ── Phase 1: Spans base DataFrame — time-first for partition + row-group pruning ──
+        let mut spans_df = self
             .ctx
-            .sql(&sql)
+            .table(SPAN_TABLE_NAME)
             .await
             .map_err(TraceEngineError::DatafusionError)?;
 
-        let batches = df
+        // Partition directory pruning — eliminates whole YYYY-MM-DD/ directories before
+        // DataFusion reads a single file's metadata or Parquet column statistics.
+        spans_df = spans_df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start_time)))?;
+        spans_df = spans_df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end_time)))?;
+
+        // Row-group pruning — typed Timestamp(Microsecond, UTC) literals let DataFusion
+        // use Parquet column min/max stats within the surviving partition directories.
+        spans_df = spans_df.filter(col(START_TIME_COL).gt_eq(ts_lit(&start_time)))?;
+        spans_df = spans_df.filter(col(START_TIME_COL).lt(ts_lit(&end_time)))?;
+
+        // ── Phase 2: Entity filter — optional INNER JOIN against summary table ──
+        //
+        // Resolves the set of matching trace IDs from the summary table (time-first),
+        // then INNER JOIN into spans.  Replaces the `entity_traces` CTE + join.
+        if let Some(uid) = entity_uid {
+            let mut entity_df = self
+                .ctx
+                .table(SUMMARY_TABLE_NAME)
+                .await
+                .map_err(TraceEngineError::DatafusionError)?;
+
+            // Summary-side time pruning (same partition-pruning principle as spans).
+            entity_df = entity_df.filter(col(START_TIME_COL).gt_eq(ts_lit(&start_time)))?;
+            entity_df = entity_df.filter(col(START_TIME_COL).lt(ts_lit(&end_time)))?;
+            entity_df = entity_df.filter(datafusion::functions_nested::expr_fn::array_has(
+                col(ENTITY_IDS_COL),
+                lit(uid),
+            ))?;
+
+            // Alias to avoid ambiguous `trace_id` column in the JOIN output schema.
+            let entity_df = entity_df
+                .select(vec![col(TRACE_ID_COL).alias("_entity_tid")])?
+                .distinct()?;
+
+            spans_df = spans_df.join(
+                entity_df,
+                JoinType::Inner,
+                &[TRACE_ID_COL],
+                &["_entity_tid"],
+                None,
+            )?;
+        }
+
+        // ── Phase 3: trace_level — aggregate per-trace ───────────────────────
+        //
+        // Replaces the `trace_level` CTE:
+        //   MIN(start_time) → trace_start
+        //   MAX(end_time)   → trace_end (NULL when all end_times are NULL)
+        //   MAX(CASE WHEN parent_span_id IS NULL THEN service_name END) → root_service
+        //   MAX(status_code) → status_code
+        //   [MAX(CAST(match_attr OR-chain AS INT64)) → attr_match]  ← single-scan attr filter
+        //
+        // CASE WHEN parent_span_id IS NULL THEN CAST(service_name AS Utf8) END:
+        // The root span is the one with no parent; MAX picks the single non-NULL value
+        // across all spans for a given trace.
+        use datafusion::functions::expr_fn::date_trunc;
+        use datafusion::functions_aggregate::expr_fn::approx_percentile_cont;
+        use datafusion::functions_aggregate::expr_fn::{avg, count, max, min};
+
+        let root_service_case = when(
+            col(PARENT_SPAN_ID_COL).is_null(),
+            df_cast(col(SERVICE_NAME_COL), DataType::Utf8),
+        )
+        .end()?;
+
+        let has_attr_filter = attribute_filters.is_some_and(|f| !f.is_empty());
+
+        let mut agg_exprs: Vec<Expr> = vec![
+            min(col(START_TIME_COL)).alias("trace_start"),
+            max(col(END_TIME_COL)).alias("trace_end"),
+            max(root_service_case).alias("root_service"),
+            max(col(STATUS_CODE_COL)).alias("status_code"),
+        ];
+
+        // Attribute filter: OR-chain match_attr() calls over search_blob, cast to Int64,
+        // then MAX to get 1 if any span in the trace matched.
+        // Single-pass: avoids a second table scan for attribute filtering.
+        // Post-aggregate .filter(attr_match = 1) replaces the SQL HAVING clause.
+        if has_attr_filter {
+            let filters = attribute_filters.unwrap();
+            let mut match_expr: Option<Expr> = None;
+            for f in filters {
+                let pattern = normalize_attr_filter(f);
+                let cond = match_attr_expr(col(SEARCH_BLOB_COL), lit(pattern));
+                match_expr = Some(match match_expr {
+                    None => cond,
+                    Some(e) => e.or(cond),
+                });
+            }
+            // CAST(bool OR-chain AS INT64): true → 1, false → 0.
+            // MAX over the group gives 1 if any span matched.
+            let attr_int = df_cast(match_expr.unwrap(), DataType::Int64);
+            agg_exprs.push(max(attr_int).alias("attr_match"));
+        }
+
+        let mut trace_level_df = spans_df.aggregate(vec![col(TRACE_ID_COL)], agg_exprs)?;
+
+        // HAVING attr_match = 1 — post-aggregate filter (SQL HAVING equivalent).
+        if has_attr_filter {
+            trace_level_df = trace_level_df.filter(col("attr_match").eq(lit(1i64)))?;
+        }
+
+        // ── Phase 4: service_filtered — duration_ms, null guard, service filter ──
+        //
+        // Replaces the `service_filtered` CTE.
+        // Cast Timestamp(Microsecond, UTC) → Int64 gives µs since epoch;
+        // subtracting gives trace duration in µs, dividing by 1_000 gives ms.
+        // Computed here (after the per-trace aggregate) to avoid the DataFusion
+        // restriction on duplicate aggregate expressions in the same SELECT.
+        let duration_expr = (df_cast(col("trace_end"), DataType::Int64)
+            - df_cast(col("trace_start"), DataType::Int64))
+            / lit(1000i64);
+
+        let mut service_filtered_df = trace_level_df
+            .filter(col("trace_end").is_not_null())?
+            .with_column("duration_ms", duration_expr)?;
+
+        if let Some(svc) = service_name {
+            service_filtered_df = service_filtered_df.filter(col("root_service").eq(lit(svc)))?;
+        }
+
+        // ── Phase 5: DATE_TRUNC bucket ───────────────────────────────────────
+        //
+        // Replaces the `bucketed` CTE.
+        // date_trunc(precision_literal, timestamp_expr) — precision is a Utf8 scalar.
+        let bucket_expr = date_trunc(lit(bucket_interval), col("trace_start"));
+        let bucketed_df = service_filtered_df.with_column("bucket_start", bucket_expr)?;
+
+        // ── Phase 6: Final bucketed aggregation ─────────────────────────────
+        let duration_f64 = df_cast(col("duration_ms"), DataType::Float64);
+        let error_rate_case =
+            when(col(STATUS_CODE_COL).eq(lit(2i32)), lit(1.0f64)).otherwise(lit(0.0f64))?;
+
+        // approx_percentile_cont in DataFusion 52: (SortExpr, percentile, limit: Option<Expr>)
+        // SortExpr is col.sort(asc, nulls_first); None limit = no row-count cap.
+        let final_df = bucketed_df
+            .aggregate(
+                vec![col("bucket_start")],
+                vec![
+                    count(lit(1i64)).alias("trace_count"),
+                    avg(duration_f64.clone()).alias("avg_duration_ms"),
+                    approx_percentile_cont(
+                        duration_f64.clone().sort(true, false),
+                        lit(0.50f64),
+                        None,
+                    )
+                    .alias("p50_duration_ms"),
+                    approx_percentile_cont(
+                        duration_f64.clone().sort(true, false),
+                        lit(0.95f64),
+                        None,
+                    )
+                    .alias("p95_duration_ms"),
+                    approx_percentile_cont(duration_f64.sort(true, false), lit(0.99f64), None)
+                        .alias("p99_duration_ms"),
+                    avg(error_rate_case).alias("error_rate"),
+                ],
+            )?
+            .sort(vec![col("bucket_start").sort(true, true)])?;
+
+        let batches = final_df
             .collect()
             .await
             .map_err(TraceEngineError::DatafusionError)?;
@@ -1140,11 +1211,13 @@ impl TraceQueries {
                     attr_df = attr_df.filter(col(START_TIME_COL).lt(ts_lit(&end)))?;
                 }
 
-                // OR-match search_blob against each filter pattern
+                // OR-match search_blob against each filter pattern via match_attr UDF.
+                // match_attr_expr is a drop-in replacement for col(..).like(lit(pattern)):
+                // handles Utf8View natively and uses .contains() for LIKE '%inner%' semantics.
                 let mut attr_expr: Option<Expr> = None;
                 for f in attr_filters {
                     let pattern = normalize_attr_filter(f);
-                    let cond = col(SEARCH_BLOB_COL).like(lit(pattern));
+                    let cond = match_attr_expr(col(SEARCH_BLOB_COL), lit(pattern));
                     attr_expr = Some(match attr_expr {
                         None => cond,
                         Some(e) => e.or(cond),

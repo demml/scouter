@@ -1,5 +1,7 @@
 use crate::error::DataFrameError;
 use arrow::array::AsArray;
+use arrow::array::{BooleanBuilder, StringArray};
+use arrow::datatypes::DataType;
 use arrow::datatypes::UInt32Type;
 use arrow_array::types::Float64Type;
 use arrow_array::types::TimestampNanosecondType;
@@ -7,7 +9,13 @@ use arrow_array::Array;
 use arrow_array::RecordBatch;
 use arrow_array::StringViewArray;
 use chrono::{DateTime, TimeZone, Utc};
+use datafusion::error::{DataFusionError, Result};
+use datafusion::logical_expr::ScalarFunctionArgs;
+use datafusion::logical_expr::{
+    ColumnarValue, Expr, ScalarUDF, ScalarUDFImpl, Signature, TypeSignature, Volatility,
+};
 use datafusion::prelude::DataFrame;
+use datafusion::scalar::ScalarValue;
 use deltalake::logstore::{
     default_logstore, logstore_factories, LogStore, LogStoreFactory, ObjectStoreRef, StorageConfig,
 };
@@ -16,7 +24,6 @@ use scouter_types::{BinnedMetric, BinnedMetricStats, BinnedMetrics};
 use std::sync::Arc;
 use tracing::{debug, error, instrument};
 use url::Url;
-
 /// Now that we have at least 2 metric types that calculate avg, lower_bound, and upper_bound as part of their stats,
 /// it makes sense to implement a generic trait that we can use.
 pub struct ParquetHelper {}
@@ -230,4 +237,204 @@ pub(crate) fn register_cloud_logstore_factories() {
             factories.insert(key, factory.clone());
         }
     }
+}
+
+/// DataFusion 52 scalar UDF for attribute-pattern matching on `search_blob`.
+///
+/// `match_attr(search_blob, '%key=value%')` → `Boolean`
+///
+/// The pattern argument is a pre-normalized LIKE string produced by `normalize_attr_filter`:
+/// it wraps the inner substring in `%...%`, so `match_attr` strips the outer `%` characters
+/// and performs a `.contains(inner)` check — semantically identical to `LIKE '%inner%'`
+/// but with zero regex compilation overhead and native `Utf8View` support.
+///
+/// **Accepted types for `search_blob` (first arg):**
+/// - `Utf8View` — the canonical storage type written by `TraceSpanBatchBuilder`
+/// - `Utf8` — the normalized form returned by DataFusion after some plan transformations
+///
+/// **Pattern (second arg):**
+/// - Must always be a `Utf8` scalar literal (i.e. `lit("...")`). Array patterns are rejected.
+///
+/// Register once on the `SessionContext`:
+/// ```rust
+/// ctx.register_udf(create_attr_match_udf());
+/// ```
+///
+/// Use in the DataFrame API via `match_attr_expr`:
+/// ```rust
+/// df = df.filter(match_attr_expr(col("search_blob"), lit("%svc=auth%")))?;
+/// ```
+/// `DynHash` (required by `ScalarUDFImpl`) is satisfied by `Hash + PartialEq + Eq`.
+/// Identity is name-based — two `AttrMatchUdf` instances with the same name are equal.
+#[derive(Debug)]
+struct AttrMatchUdf {
+    signature: Signature,
+}
+
+impl PartialEq for AttrMatchUdf {
+    fn eq(&self, _other: &Self) -> bool {
+        true // singleton UDF; all instances are equivalent
+    }
+}
+
+impl Eq for AttrMatchUdf {}
+
+impl std::hash::Hash for AttrMatchUdf {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.name().hash(state);
+    }
+}
+
+impl AttrMatchUdf {
+    fn new() -> Self {
+        Self {
+            // Accept both Utf8View (Delta Lake read path) and Utf8 (post-cast path),
+            // plus a Utf8 literal pattern. one_of covers both schema variants cleanly.
+            signature: Signature::one_of(
+                vec![
+                    TypeSignature::Exact(vec![DataType::Utf8View, DataType::Utf8]),
+                    TypeSignature::Exact(vec![DataType::Utf8, DataType::Utf8]),
+                ],
+                Volatility::Immutable,
+            ),
+        }
+    }
+}
+
+impl ScalarUDFImpl for AttrMatchUdf {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn name(&self) -> &str {
+        "match_attr"
+    }
+
+    fn signature(&self) -> &Signature {
+        &self.signature
+    }
+
+    fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
+        Ok(DataType::Boolean)
+    }
+
+    /// Vectorized execution: match each `search_blob` value against a constant pattern.
+    ///
+    /// Pattern is always a scalar literal — DataFusion folds constant expressions before
+    /// dispatch, so the substring lookup is compiled exactly once per batch.
+    fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
+        let args_slice = args.args;
+        let batch_size = args.number_rows;
+
+        // ── Pattern (second arg) — scalar literal only ───────────────────────
+        let pattern_str = match &args_slice[1] {
+            ColumnarValue::Scalar(ScalarValue::Utf8(Some(p)))
+            | ColumnarValue::Scalar(ScalarValue::LargeUtf8(Some(p))) => p.clone(),
+            _ => {
+                return Err(DataFusionError::Execution(
+                    "match_attr: second arg must be a non-null Utf8 scalar literal".into(),
+                ))
+            }
+        };
+
+        // Strip the '%...%' LIKE wrappers produced by normalize_attr_filter.
+        // LIKE '%inner%'  ≡  .contains("inner")  for substring matching.
+        let inner = pattern_str.trim_matches('%');
+
+        // ── Search blob (first arg) ───────────────────────────────────────────
+        match &args_slice[0] {
+            // Scalar fold path — constant propagation without allocating an array.
+            ColumnarValue::Scalar(s) => {
+                let matched = match s {
+                    ScalarValue::Utf8(Some(v))
+                    | ScalarValue::LargeUtf8(Some(v))
+                    | ScalarValue::Utf8View(Some(v)) => v.contains(inner),
+                    _ => false,
+                };
+                Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(matched))))
+            }
+
+            // Array path — vectorized substring scan.
+            ColumnarValue::Array(arr) => {
+                let mut builder = BooleanBuilder::with_capacity(batch_size);
+
+                if arr.data_type() == &DataType::Utf8View {
+                    // Zero-copy: StringViewArray::value() returns &str into inline or heap buffer.
+                    let view_arr = arr
+                        .as_any()
+                        .downcast_ref::<arrow_array::StringViewArray>()
+                        .ok_or_else(|| {
+                            DataFusionError::Execution(
+                                "match_attr: expected StringViewArray for search_blob".into(),
+                            )
+                        })?;
+                    for i in 0..arr.len() {
+                        if view_arr.is_null(i) {
+                            builder.append_null();
+                        } else {
+                            builder.append_value(view_arr.value(i).contains(inner));
+                        }
+                    }
+                } else {
+                    // Utf8 / LargeUtf8 — normalize via Arrow cast (zero-copy reinterpret).
+                    let cast_arr =
+                        arrow::compute::cast(arr.as_ref(), &DataType::Utf8).map_err(|e| {
+                            DataFusionError::Execution(format!(
+                                "match_attr: cast to Utf8 failed: {e}"
+                            ))
+                        })?;
+                    let str_arr =
+                        cast_arr
+                            .as_any()
+                            .downcast_ref::<StringArray>()
+                            .ok_or_else(|| {
+                                DataFusionError::Execution(
+                                    "match_attr: downcast to StringArray failed".into(),
+                                )
+                            })?;
+                    for i in 0..arr.len() {
+                        if str_arr.is_null(i) {
+                            builder.append_null();
+                        } else {
+                            builder.append_value(str_arr.value(i).contains(inner));
+                        }
+                    }
+                }
+
+                Ok(ColumnarValue::Array(Arc::new(builder.finish())))
+            }
+        }
+    }
+}
+
+/// Create the `match_attr` [`ScalarUDF`] using the DataFusion 52 `ScalarUDFImpl` API.
+///
+/// Register with a [`SessionContext`] once during initialization:
+/// ```rust
+/// ctx.register_udf(create_attr_match_udf());
+/// ```
+pub fn create_attr_match_udf() -> ScalarUDF {
+    ScalarUDF::from(AttrMatchUdf::new())
+}
+
+/// Build a DataFusion [`Expr`] that calls `match_attr(search_blob, pattern)`.
+///
+/// Drop-in replacement for `col(blob).like(lit(pattern))` in any DataFrame
+/// `.filter()`, `when()`, or aggregate context.  Handles `Utf8View` natively
+/// without an intermediate cast allocation.
+///
+/// # Example
+/// ```rust
+/// // Attribute filter in a query pipeline:
+/// let cond = match_attr_expr(col("search_blob"), lit("%key=value%"));
+/// df = df.filter(cond)?;
+///
+/// // Aggregate HAVING equivalent — fold into MAX for single-pass scan:
+/// let attr_agg = max(datafusion::logical_expr::cast(
+///     match_attr_expr(col("search_blob"), lit("%key=value%")),
+///     arrow::datatypes::DataType::Int64,
+/// )).alias("attr_match");
+/// ```
+pub fn match_attr_expr(search_blob: Expr, pattern: Expr) -> Expr {
+    create_attr_match_udf().call(vec![search_blob, pattern])
 }

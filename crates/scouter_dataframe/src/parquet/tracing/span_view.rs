@@ -330,7 +330,7 @@ impl<'a> Serialize for TraceSpanView<'a> {
     {
         use serde::ser::SerializeStruct;
 
-        let mut state = serializer.serialize_struct("TraceSpanView", 20)?;
+        let mut state = serializer.serialize_struct("TraceSpanView", 21)?;
 
         state.serialize_field("trace_id", &self.trace_id_hex())?;
         state.serialize_field("span_id", &self.span_id_hex())?;
@@ -352,6 +352,7 @@ impl<'a> Serialize for TraceSpanView<'a> {
         state.serialize_field("output", &self.output_json())?;
         state.serialize_field("attributes", &self.attributes())?;
         state.serialize_field("events", &self.events())?;
+        state.serialize_field("links", &self.links())?;
 
         state.end()
     }
