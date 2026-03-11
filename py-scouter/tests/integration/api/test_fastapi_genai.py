@@ -20,6 +20,7 @@ def test_genai_api_kafka(kafka_scouter_openai_server):
     profile = create_and_register_genai_drift_profile(
         client=scouter_client,
         name=f"kafka_genai_test_{random_number}",
+        with_trace_assertion=False,
     )
     drift_path = profile.save_to_json()
 

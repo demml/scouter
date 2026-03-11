@@ -5,6 +5,7 @@ from scouter.client import ScouterClient
 from scouter.tracing import get_tracing_headers_from_current_span
 
 from .conftest import (  # type: ignore
+    _wait_for_export,
     create_service_a_app,
     get_trace_by_id,
     get_traces_from_jaeger,
@@ -94,6 +95,7 @@ def test_distributed_trace_propagation(setup_tracer_http):
     assert trace_data is not None
 
     # fetch trace spans from scouter
+    _wait_for_export()
     scouter_client = ScouterClient()
     trace_span = scouter_client.get_trace_spans(trace_id)
 

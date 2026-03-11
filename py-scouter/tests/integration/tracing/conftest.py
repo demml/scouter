@@ -1,5 +1,6 @@
 # type: ignore
 
+import time
 from datetime import datetime, timedelta
 
 import pytest
@@ -19,6 +20,11 @@ from scouter.tracing import (
     shutdown_tracer,
 )
 from scouter.transport import GrpcConfig
+
+
+def _wait_for_export(seconds: float = 3.0) -> None:
+    """Give the batch exporter time to flush."""
+    time.sleep(seconds)
 
 
 @pytest.fixture()
@@ -174,7 +180,6 @@ def setup_instrumentor_http():
         tracer = trace.get_tracer(INSTRUMENTOR_HTTP_SERVICE)
         yield tracer, server, instrumentor
         instrumentor.uninstrument()
-    # Belt-and-suspenders: drop the singleton so the next fixture starts fresh.
     ScouterInstrumentor._instance = None
 
 
@@ -228,11 +233,15 @@ def create_service_a_app() -> FastAPI:
         trace_id = incoming_headers.get("trace_id")
         span_id = incoming_headers.get("span_id")
 
-        with tracer.start_as_current_span("service_a_double", trace_id=trace_id, span_id=span_id):
+        with tracer.start_as_current_span(
+            "service_a_double", trace_id=trace_id, span_id=span_id
+        ):
             doubled = payload.value * 2
 
             service_a_inner_function()
 
-            return ServiceAResponse(result=doubled + 10, trace_id=trace_id, span_id=span_id)
+            return ServiceAResponse(
+                result=doubled + 10, trace_id=trace_id, span_id=span_id
+            )
 
     return app

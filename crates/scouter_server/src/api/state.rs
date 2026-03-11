@@ -4,6 +4,8 @@ use axum::http::StatusCode;
 use axum::Json;
 use flume::Sender;
 use scouter_auth::auth::AuthManager;
+use scouter_dataframe::parquet::tracing::service::TraceSpanService;
+use scouter_dataframe::parquet::tracing::summary::TraceSummaryService;
 use scouter_settings::ScouterServerConfig;
 use scouter_sql::sql::aggregator::shutdown_trace_cache;
 use scouter_sql::sql::cache::entity_cache;
@@ -19,6 +21,8 @@ pub struct AppState {
     pub task_manager: TaskManager,
     pub config: Arc<ScouterServerConfig>,
     pub http_consumer_tx: Sender<MessageRecord>,
+    pub trace_service: Arc<TraceSpanService>,
+    pub trace_summary_service: Arc<TraceSummaryService>,
 }
 
 impl AppState {
@@ -31,6 +35,8 @@ impl AppState {
                 error!("Failed to shutdown trace cache: {:?}", e);
                 0
             });
+        self.trace_service.signal_shutdown().await;
+        self.trace_summary_service.signal_shutdown().await;
         self.db_pool.close().await;
     }
 

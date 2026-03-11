@@ -1,136 +1,75 @@
-use chrono::{DateTime, Duration, Utc};
-use scouter_types::sql::TraceSpan;
-use scouter_types::{trace::Attribute, SpanId, TraceId};
-use serde_json::{json, Value};
+use scouter_mocks::{generate_trace_with_entity, generate_trace_with_spans};
+use scouter_types::TraceSpanRecord;
+use std::time::Duration;
 
-fn create_trace_id_from_str(id: &str) -> TraceId {
-    let mut bytes = [0u8; 16];
-    let id_bytes = id.as_bytes();
-    let len = id_bytes.len().min(16);
-    bytes[..len].copy_from_slice(&id_bytes[..len]);
-    TraceId::from_bytes(bytes)
+/// Create a simple 3-span trace as ingest records (ready for `write_spans()`).
+pub fn _create_simple_trace() -> Vec<TraceSpanRecord> {
+    let (_trace_record, spans, _tags) = generate_trace_with_spans(3, 0);
+    spans
 }
 
-fn create_span_id_from_str(id: &str) -> SpanId {
-    // convert the string to bytes, ensuring it's 8 bytes long (padding or truncating as needed)
-    let mut bytes = [0u8; 8];
-    let id_bytes = id.as_bytes();
-    let len = id_bytes.len().min(8);
-    bytes[..len].copy_from_slice(&id_bytes[..len]);
-    SpanId::from_bytes(bytes)
+/// Create a batch of approximately `n_spans` records across multiple traces.
+/// Uses 5 spans per trace for realistic nesting depth.
+pub fn _create_trace_batch(n_spans: usize) -> Vec<TraceSpanRecord> {
+    let spans_per_trace = 5;
+    let n_traces = n_spans.div_ceil(spans_per_trace);
+    (0..n_traces)
+        .flat_map(|_| {
+            let (_record, spans, _tags) = generate_trace_with_spans(spans_per_trace, 0);
+            spans
+        })
+        .collect()
 }
 
-pub struct SpanBuilder {
-    trace_id: TraceId,
-    service_name: String,
-    root_span_id: SpanId,
-    current_time: DateTime<Utc>,
-    next_span_id: u32,
-    next_order: i32,
+/// Create a batch of spans where every root span carries `entity_uid` as its
+/// `scouter.entity` attribute, so the ingest pipeline populates `entity_ids`.
+pub fn create_entity_trace_batch(n_traces: usize, entity_uid: &str) -> Vec<TraceSpanRecord> {
+    (0..n_traces)
+        .flat_map(|_| {
+            let (_record, spans, _tags) = generate_trace_with_entity(5, entity_uid, 0);
+            spans
+        })
+        .collect()
 }
 
-impl SpanBuilder {
-    pub fn new(trace_id: TraceId, service_name: impl Into<String>) -> Self {
-        Self {
-            root_span_id: create_span_id_from_str("span_0"),
-            trace_id,
-            service_name: service_name.into(),
-            current_time: Utc::now(),
-            next_span_id: 0,
-            next_order: 0,
-        }
-    }
+pub struct Percentiles {
+    pub p50: Duration,
+    pub p95: Duration,
+    pub p99: Duration,
+    pub min: Duration,
+    pub max: Duration,
+    pub mean: Duration,
+    pub count: usize,
+}
 
-    fn next_span(&mut self) -> SpanId {
-        let id = format!("span_{}", self.next_span_id);
-        self.next_span_id += 1;
-        create_span_id_from_str(&id)
-    }
-
-    fn next_order(&mut self) -> i32 {
-        let order = self.next_order;
-        self.next_order += 1;
-        order
-    }
-
-    pub fn create_span(
-        &mut self,
-        name: impl Into<String>,
-        parent_span_id: Option<String>,
-        depth: i32,
-        duration_ms: i64,
-        status_code: i32,
-    ) -> TraceSpan {
-        let next_span = self.next_span();
-        let start_time = self.current_time;
-        let end_time = start_time + Duration::milliseconds(duration_ms);
-        self.current_time = end_time;
-
-        let parent_span =
-            parent_span_id.map(|parent_span_id| create_span_id_from_str(&parent_span_id));
-
-        let path = if let Some(ref parent) = parent_span {
-            vec![parent.to_hex(), next_span.to_hex()]
-        } else {
-            vec![next_span.to_hex()]
-        };
-
-        TraceSpan {
-            trace_id: self.trace_id.to_hex(),
-            span_id: next_span.to_hex(),
-            parent_span_id: parent_span.map(|s| s.to_hex()),
-            span_name: name.into(),
-            span_kind: Some("INTERNAL".to_string()),
-            start_time,
-            end_time,
-            duration_ms,
-            status_code,
-            status_message: if status_code == 2 {
-                Some("Error occurred".to_string())
-            } else {
-                None
-            },
-            attributes: vec![],
-            events: vec![],
-            links: vec![],
-            depth,
-            path,
-            root_span_id: self.root_span_id.to_hex(),
-            service_name: self.service_name.clone(),
-            span_order: self.next_order(),
-            input: None,
-            output: None,
-        }
-    }
-
-    pub fn with_attributes(mut span: TraceSpan, attrs: Vec<(&str, Value)>) -> TraceSpan {
-        span.attributes = attrs
-            .into_iter()
-            .map(|(k, v)| Attribute {
-                key: k.to_string(),
-                value: v,
-            })
-            .collect();
-        span
+pub fn compute_percentiles(mut timings: Vec<Duration>) -> Percentiles {
+    assert!(!timings.is_empty(), "no timings to compute");
+    timings.sort_unstable();
+    let len = timings.len();
+    let last = *timings.last().unwrap();
+    let pct = |p: f64| timings[((p / 100.0) * len as f64) as usize].min(last);
+    let mean = timings.iter().sum::<Duration>() / len as u32;
+    Percentiles {
+        p50: pct(50.0),
+        p95: pct(95.0),
+        p99: pct(99.0),
+        min: *timings.first().unwrap(),
+        max: last,
+        mean,
+        count: len,
     }
 }
 
-pub fn create_simple_trace() -> Vec<TraceSpan> {
-    let trace_id = create_trace_id_from_str("trace_001");
-    let mut builder = SpanBuilder::new(trace_id, "test_service");
-
-    let root = SpanBuilder::with_attributes(
-        builder.create_span("root", None, 0, 150, 1),
-        vec![
-            ("http.method", json!("POST")),
-            ("http.status_code", json!(200)),
-            ("http.url", json!("https://api.example.com/users")),
-        ],
+pub fn print_percentiles(label: &str, p: &Percentiles) {
+    println!(
+        "  {label:<45} n={count:>5}  p50={p50:>7.2}ms  p95={p95:>7.2}ms  p99={p99:>7.2}ms  min={min:.2}ms  max={max:.2}ms  mean={mean:.2}ms",
+        label = label,
+        count = p.count,
+        p50 = p.p50.as_secs_f64() * 1000.0,
+        p95 = p.p95.as_secs_f64() * 1000.0,
+        p99 = p.p99.as_secs_f64() * 1000.0,
+        min = p.min.as_secs_f64() * 1000.0,
+        max = p.max.as_secs_f64() * 1000.0,
+        mean = p.mean.as_secs_f64() * 1000.0,
     );
-
-    vec![
-        root,
-        builder.create_span("child_1", Some("span_0".to_string()), 1, 50, 1),
-        builder.create_span("child_2", Some("span_0".to_string()), 1, 30, 1),
-    ]
 }

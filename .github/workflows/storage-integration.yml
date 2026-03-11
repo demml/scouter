@@ -59,6 +59,13 @@ jobs:
         env:
           RUST_BACKTRACE: 1
 
+      - name: Trace storage tests (Delta Lake / S3)
+        run: |
+          make test.dataframe.cloud.s3
+        env:
+          RUST_BACKTRACE: 1
+          SCOUTER_STORAGE_URI: s3://${{ secrets.AWS_CLOUD_BUCKET_NAME }}/trace_test
+
   gcs-test:
     environment: gcs-production
     permissions:
@@ -100,6 +107,13 @@ jobs:
         env:
           RUST_BACKTRACE: 1
 
+      - name: Trace storage tests (Delta Lake / GCS)
+        run: |
+          make test.dataframe.cloud.gcs
+        env:
+          RUST_BACKTRACE: 1
+          SCOUTER_STORAGE_URI: gs://${{ secrets.GCS_CLOUD_BUCKET_NAME }}/trace_test
+
   azure-test:
     environment: azure-production
     needs: gcs-test
@@ -138,3 +152,10 @@ jobs:
           make test.server.cloud
         env:
           RUST_BACKTRACE: 1
+
+      - name: Trace storage tests (Delta Lake / Azure)
+        run: |
+          make test.dataframe.cloud.azure
+        env:
+          RUST_BACKTRACE: 1
+          SCOUTER_STORAGE_URI: az://${{ secrets.AZURE_CLOUD_BUCKET_NAME }}/trace_test

@@ -87,7 +87,23 @@ test.evaluate: test.evaluate
 
 .PHONY: test.dataframe
 test.dataframe:
-	cargo test -p scouter-dataframe test_dataframe-- --nocapture --test-threads=1
+	cargo test -p scouter-dataframe -- --nocapture --test-threads=1
+
+.PHONY: test.dataframe.cloud.gcs
+test.dataframe.cloud.gcs:
+	cargo test -p scouter-dataframe test_trace_service_gcs_integration \
+	  --all-features -- --nocapture --test-threads=1
+
+.PHONY: test.dataframe.cloud.s3
+test.dataframe.cloud.s3:
+	cargo test -p scouter-dataframe test_trace_service_s3_integration \
+	  --all-features -- --nocapture --test-threads=1
+
+.PHONY: test.dataframe.cloud.azure
+test.dataframe.cloud.azure:
+	cargo test -p scouter-dataframe test_trace_service_azure_integration \
+	  --all-features -- --nocapture --test-threads=1
+
 
 .PHONY: test
 test: build.all_backends test.needs_sql test.unit build.shutdown

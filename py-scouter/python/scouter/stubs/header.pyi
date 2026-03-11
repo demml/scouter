@@ -16,7 +16,6 @@ from typing import (
     ParamSpec,
     Protocol,
     Sequence,
-    Tuple,
     Type,
     TypeAlias,
     Union,

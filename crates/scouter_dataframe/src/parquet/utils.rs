@@ -3,6 +3,7 @@ use arrow::array::AsArray;
 use arrow::datatypes::UInt32Type;
 use arrow_array::types::Float64Type;
 use arrow_array::types::TimestampNanosecondType;
+use arrow_array::Array;
 use arrow_array::RecordBatch;
 use arrow_array::StringViewArray;
 use chrono::{DateTime, TimeZone, Utc};
@@ -57,7 +58,7 @@ pub struct BinnedMetricsExtractor {}
 
 impl BinnedMetricsExtractor {
     #[instrument(skip_all)]
-    fn extract_stats(batch: &RecordBatch) -> Result<BinnedMetricStats, DataFrameError> {
+    fn extract_stats(batch: &RecordBatch) -> Result<Vec<BinnedMetricStats>, DataFrameError> {
         let stats_list = batch
             .column_by_name("stats")
             .ok_or_else(|| {
@@ -76,44 +77,34 @@ impl BinnedMetricsExtractor {
             DataFrameError::DowncastError("StructArray")
         })?;
 
-        // extract avg, lower_bound, and upper_bound from the struct
-
-        // Extract avg, lower_bound, and upper_bound from the struct
-        let avg = stats_structs
+        let avg_array = stats_structs
             .column_by_name("avg")
             .ok_or_else(|| DataFrameError::MissingFieldError("avg"))
-            .inspect_err(|e| {
-                error!("Failed to get 'avg' field from stats: {:?}", e);
-            })?
+            .inspect_err(|e| error!("Failed to get 'avg' field from stats: {:?}", e))?
             .as_primitive_opt::<Float64Type>()
-            .ok_or_else(|| DataFrameError::DowncastError("Float64Array"))?
-            .value(0);
+            .ok_or_else(|| DataFrameError::DowncastError("Float64Array"))?;
 
-        let lower_bound = stats_structs
+        let lower_bound_array = stats_structs
             .column_by_name("lower_bound")
             .ok_or_else(|| DataFrameError::MissingFieldError("lower_bound"))
-            .inspect_err(|e| {
-                error!("Failed to get 'lower_bound' field from stats: {:?}", e);
-            })?
+            .inspect_err(|e| error!("Failed to get 'lower_bound' field from stats: {:?}", e))?
             .as_primitive_opt::<Float64Type>()
-            .ok_or_else(|| DataFrameError::DowncastError("Float64Array"))?
-            .value(0);
+            .ok_or_else(|| DataFrameError::DowncastError("Float64Array"))?;
 
-        let upper_bound = stats_structs
+        let upper_bound_array = stats_structs
             .column_by_name("upper_bound")
             .ok_or_else(|| DataFrameError::MissingFieldError("upper_bound"))
-            .inspect_err(|e| {
-                error!("Failed to get 'upper_bound' field from stats: {:?}", e);
-            })?
+            .inspect_err(|e| error!("Failed to get 'upper_bound' field from stats: {:?}", e))?
             .as_primitive_opt::<Float64Type>()
-            .ok_or_else(|| DataFrameError::DowncastError("Float64Array"))?
-            .value(0);
+            .ok_or_else(|| DataFrameError::DowncastError("Float64Array"))?;
 
-        Ok(BinnedMetricStats {
-            avg,
-            lower_bound,
-            upper_bound,
-        })
+        Ok((0..stats_structs.len())
+            .map(|i| BinnedMetricStats {
+                avg: avg_array.value(i),
+                lower_bound: lower_bound_array.value(i),
+                upper_bound: upper_bound_array.value(i),
+            })
+            .collect())
     }
 
     #[instrument(skip_all)]
@@ -156,7 +147,7 @@ impl BinnedMetricsExtractor {
         Ok(BinnedMetric {
             metric: metric_name,
             created_at: created_at_list,
-            stats: vec![stats],
+            stats,
         })
     }
 

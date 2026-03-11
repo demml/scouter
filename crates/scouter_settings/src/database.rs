@@ -15,6 +15,7 @@ pub struct DatabaseSettings {
     pub stale_threshold: Duration,
     pub max_cache_size: usize,
     pub entity_cache_size: u64,
+    pub trace_retention_period: i32,
 }
 
 impl Default for DatabaseSettings {
@@ -64,7 +65,7 @@ impl Default for DatabaseSettings {
             .unwrap();
 
         let stale_threshold = std::env::var("TRACE_STALE_THRESHOLD_SECONDS")
-            .unwrap_or_else(|_| "30".to_string())
+            .unwrap_or_else(|_| "10".to_string())
             .parse::<i64>()
             .map(Duration::seconds)
             .unwrap();
@@ -77,6 +78,11 @@ impl Default for DatabaseSettings {
         let entity_cache_size = std::env::var("ENTITY_CACHE_MAX_SIZE")
             .unwrap_or_else(|_| "1000".to_string())
             .parse::<u64>()
+            .unwrap();
+
+        let trace_retention_period = std::env::var("TRACE_DATA_RETENTION_PERIOD")
+            .unwrap_or_else(|_| "365".to_string())
+            .parse::<i32>()
             .unwrap();
 
         Self {
@@ -92,6 +98,7 @@ impl Default for DatabaseSettings {
             stale_threshold,
             max_cache_size,
             entity_cache_size,
+            trace_retention_period,
         }
     }
 }

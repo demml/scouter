@@ -44,6 +44,8 @@ pub async fn create_app_state() -> Result<Arc<AppState>, anyhow::Error> {
         ),
         config: scouter_components.server_config,
         http_consumer_tx: scouter_components.http_consumer_tx,
+        trace_service: scouter_components.trace_service,
+        trace_summary_service: scouter_components.trace_summary_service,
     });
 
     Ok(app_state)

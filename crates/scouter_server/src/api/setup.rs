@@ -6,6 +6,8 @@ use flume::Sender;
 use password_auth::generate_hash;
 use rusty_logging::logger::{LogLevel, LoggingConfig, RustyLogger};
 use scouter_auth::util::generate_recovery_codes_with_hashes;
+use scouter_dataframe::parquet::tracing::service::{init_trace_span_service, TraceSpanService};
+use scouter_dataframe::parquet::tracing::summary::TraceSummaryService;
 use scouter_settings::{
     polling::GenAIPollerSettings, DatabaseSettings, PollingSettings, ScouterServerConfig,
 };
@@ -14,6 +16,7 @@ use scouter_sql::sql::traits::UserSqlLogic;
 use scouter_sql::PostgresClient;
 use sqlx::{Pool, Postgres};
 use std::str::FromStr;
+use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
 #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
@@ -39,13 +42,14 @@ use crate::api::task_manager::TaskManager;
 use scouter_events::consumer::http::consumer::HttpConsumerManager;
 use scouter_settings::events::HttpConsumerSettings;
 use scouter_types::MessageRecord;
-use std::sync::Arc;
 
 pub struct ScouterSetupComponents {
     pub server_config: Arc<ScouterServerConfig>,
     pub db_pool: Pool<Postgres>,
     pub task_manager: TaskManager,
     pub http_consumer_tx: Sender<MessageRecord>,
+    pub trace_service: Arc<TraceSpanService>,
+    pub trace_summary_service: Arc<TraceSummaryService>,
 }
 
 impl ScouterSetupComponents {
@@ -123,14 +127,50 @@ impl ScouterSetupComponents {
 
         Self::setup_background_data_archive_worker(&db_pool, &config, &mut task_manager).await?;
 
+        // Initialize Delta Lake trace services (retention is now handled inside the actor)
+        let (trace_service, trace_summary_service) = Self::start_trace_services(&config).await?;
+
         Ok(Self {
             server_config: config,
             db_pool,
             task_manager,
             http_consumer_tx: http_consumer_manager.tx.clone(),
+            trace_service,
+            trace_summary_service,
         })
     }
 
+    #[instrument(skip_all)]
+    async fn start_trace_services(
+        config: &Arc<ScouterServerConfig>,
+    ) -> AnyhowResult<(Arc<TraceSpanService>, Arc<TraceSummaryService>)> {
+        let compaction_hours = config.storage_settings.trace_compaction_interval_hours;
+        let flush_secs = config.storage_settings.trace_flush_interval_secs;
+
+        let retention_days = Some(config.database_settings.trace_retention_period as u32);
+        let trace_service = init_trace_span_service(
+            &config.storage_settings,
+            compaction_hours,
+            Some(flush_secs),
+            retention_days,
+        )
+        .await
+        .context("❌ Failed to initialize TraceSpanService")?;
+
+        let trace_summary_service = Arc::new(
+            TraceSummaryService::new(
+                &config.storage_settings,
+                compaction_hours,
+                trace_service.ctx.clone(),
+            )
+            .await
+            .context("❌ Failed to initialize TraceSummaryService")?,
+        );
+        scouter_sql::sql::aggregator::init_trace_summary_service(trace_summary_service.clone())
+            .context("❌ Failed to register TraceSummaryService")?;
+
+        Ok((trace_service, trace_summary_service))
+    }
     /// Setup logging for the application
     async fn setup_logging() -> AnyhowResult<()> {
         let log_level = LogLevel::from_str(
@@ -418,16 +458,6 @@ impl ScouterSetupComponents {
         Ok(())
     }
 
-    /// Helper to setup the redis consumer
-    /// This worker will continually run and check for redis events
-    ///
-    /// Arguments:
-    /// * `settings` - The redis settings to use for the consumer
-    /// * `db_pool` - The database client to use for the worker
-    /// * `shutdown_rx` - The shutdown receiver to use for the worker
-    ///
-    /// Returns:
-    /// * `AnyhowResult<()>` - The result of the setup
     #[cfg(feature = "redis_events")]
     #[instrument(skip_all)]
     pub async fn setup_redis(

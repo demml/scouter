@@ -2,7 +2,7 @@
 
 import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Union, overload
+from typing import Any, Dict, List, Literal, Optional, Sequence, Union, overload
 
 from .evaluate import (
     AssertionTask,
@@ -1086,20 +1086,14 @@ class ScouterClient:
             TraceSpansResponse
         """
 
-    def get_trace_spans_from_tags(
+    def get_trace_spans_from_filters(
         self,
-        tags: List[Tuple[str, str]],
-        match_all: bool = False,
-        service_name: Optional[str] = None,
+        filters: TraceFilters,
     ) -> TraceSpansResponse:
-        """Get trace spans from tags
+        """Get trace spans from filters
         Args:
-            tags:
-                List of tags to filter by
-            match_all:
-                Whether to match all tags or any tag
-            service_name:
-                Service name
+            filters:
+                TraceFilters object
 
         Returns:
             TraceSpansResponse

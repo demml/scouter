@@ -1,5 +1,3 @@
-use potato_head::create_uuid7;
-use pyo3::pyfunction;
 use scouter_types::sql::TraceSpan;
 #[cfg(feature = "server")]
 use scouter_types::{TagRecord, TraceRecord, TraceSpanRecord};
@@ -9,11 +7,14 @@ use {
     serde_json::{json, Value},
 };
 
+#[cfg(feature = "python")]
+use pyo3::pyfunction;
+
 #[cfg(feature = "server")]
 use rand::Rng;
 
 #[cfg(feature = "server")]
-use scouter_types::SCOUTER_ENTITY;
+use scouter_types::{SCOUTER_ENTITY, SCOUTER_QUEUE_RECORD};
 
 #[cfg(feature = "server")]
 const SCOPE: &str = "scope";
@@ -139,7 +140,7 @@ impl SpanBuilder {
     }
 }
 
-#[pyfunction]
+#[cfg_attr(feature = "python", pyfunction)]
 pub fn create_simple_trace() -> Vec<TraceSpan> {
     let trace_id = create_trace_id_from_str("trace_001");
     let mut builder = SpanBuilder::new(trace_id, "test_service");
@@ -160,7 +161,7 @@ pub fn create_simple_trace() -> Vec<TraceSpan> {
     ]
 }
 
-#[pyfunction]
+#[cfg_attr(feature = "python", pyfunction)]
 pub fn create_nested_trace() -> Vec<TraceSpan> {
     let mut builder = SpanBuilder::new(create_trace_id_from_str("trace_002"), "nested_service");
 
@@ -172,7 +173,7 @@ pub fn create_nested_trace() -> Vec<TraceSpan> {
     vec![root, process, db_query, finalize]
 }
 
-#[pyfunction]
+#[cfg_attr(feature = "python", pyfunction)]
 pub fn create_trace_with_errors() -> Vec<TraceSpan> {
     let mut builder = SpanBuilder::new(create_trace_id_from_str("trace_003"), "error_service");
 
@@ -186,7 +187,7 @@ pub fn create_trace_with_errors() -> Vec<TraceSpan> {
     vec![root, failing_span, recovery]
 }
 
-#[pyfunction]
+#[cfg_attr(feature = "python", pyfunction)]
 pub fn create_trace_with_attributes() -> Vec<TraceSpan> {
     let mut builder = SpanBuilder::new(create_trace_id_from_str("trace_004"), "attribute_service");
 
@@ -213,7 +214,7 @@ pub fn create_trace_with_attributes() -> Vec<TraceSpan> {
     vec![root, api_call]
 }
 
-#[pyfunction]
+#[cfg_attr(feature = "python", pyfunction)]
 pub fn create_multi_service_trace() -> Vec<TraceSpan> {
     let mut builder_a = SpanBuilder::new(create_trace_id_from_str("trace_006"), "service_a");
     let mut builder_b = SpanBuilder::new(create_trace_id_from_str("trace_006"), "service_b");
@@ -236,7 +237,7 @@ pub fn create_multi_service_trace() -> Vec<TraceSpan> {
     ]
 }
 
-#[pyfunction]
+#[cfg_attr(feature = "python", pyfunction)]
 pub fn create_sequence_pattern_trace() -> Vec<TraceSpan> {
     let mut builder = SpanBuilder::new(create_trace_id_from_str("trace_007"), "pattern_service");
 
@@ -304,7 +305,7 @@ fn random_span_record(
     if rng.random_bool(0.3) {
         attributes.push(Attribute {
             key: SCOUTER_ENTITY.to_string(),
-            value: Value::String(create_uuid7()),
+            value: Value::String(format!("{:032x}", rng.random::<u128>())),
         });
     } else {
         attributes.push(Attribute {
@@ -366,12 +367,19 @@ pub fn generate_trace_with_spans(num_spans: usize, minutes_offset: i64) -> Trace
         } else {
             Some(&spans[rng.random_range(0..spans.len())].span_id)
         };
-        let span_record = random_span_record(
+        let mut span_record = random_span_record(
             &trace_record.trace_id,
             parent_span_id,
             &trace_record.service_name,
             minutes_offset,
         );
+        // Root span carries a queue record attribute so the aggregator populates queue_ids.
+        if i == 0 {
+            span_record.attributes.push(Attribute {
+                key: SCOUTER_QUEUE_RECORD.to_string(),
+                value: Value::String(trace_record.trace_id.to_hex()),
+            });
+        }
         spans.push(span_record);
     }
 
@@ -387,4 +395,54 @@ pub fn generate_trace_with_spans(num_spans: usize, minutes_offset: i64) -> Trace
     tag_records.push(tag_record);
 
     (trace_record, spans, tag_records)
+}
+
+/// Generate a trace where the root span always carries a deterministic `entity_uid`.
+///
+/// All spans are timestamped at `now - minutes_offset`. The root span (index 0) has
+/// its `attributes` set to `[{key: SCOUTER_ENTITY, value: entity_uid}]` so the
+/// ingest pipeline promotes it to the top-level `entity_id` column — enabling
+/// DataFusion file-level skipping in benchmarks.
+#[cfg(feature = "server")]
+pub fn generate_trace_with_entity(
+    num_spans: usize,
+    entity_uid: &str,
+    minutes_offset: i64,
+) -> TraceRecords {
+    use scouter_types::TagRecord;
+
+    let trace_record = random_trace_record();
+    let mut spans: Vec<TraceSpanRecord> = Vec::new();
+    let mut rng = rand::rng();
+
+    for i in 0..num_spans {
+        let parent_span_id = if i == 0 {
+            None
+        } else {
+            Some(&spans[rng.random_range(0..spans.len())].span_id)
+        };
+        let mut span_record = random_span_record(
+            &trace_record.trace_id,
+            parent_span_id,
+            &trace_record.service_name,
+            minutes_offset,
+        );
+        // Root span always carries the deterministic entity UID.
+        if i == 0 {
+            span_record.attributes = vec![Attribute {
+                key: SCOUTER_ENTITY.to_string(),
+                value: Value::String(entity_uid.to_string()),
+            }];
+        }
+        spans.push(span_record);
+    }
+
+    let tag_record = TagRecord {
+        entity_type: "trace".to_string(),
+        entity_id: trace_record.trace_id.to_hex(),
+        key: "scouter.queue.record".to_string(),
+        value: trace_record.trace_id.to_hex(),
+    };
+
+    (trace_record, spans, vec![tag_record])
 }

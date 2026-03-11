@@ -16,6 +16,7 @@ scouter-settings = { workspace = true }
 scouter-types = { workspace = true }
 
 arrow = { workspace = true }
+hex = { workspace = true }
 arrow-array  = { workspace = true }
 async-trait = { workspace = true }
 base64 = { workspace = true }
@@ -24,7 +25,7 @@ deltalake = { workspace = true }
 datafusion = { workspace = true }
 futures = { workspace = true }
 object_store = { workspace = true }
-parquet = { workspace = true }
+mini-moka = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

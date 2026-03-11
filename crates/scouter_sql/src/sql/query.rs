@@ -122,11 +122,7 @@ const LAST_ADMIN: &str = include_str!("scripts/user/last_admin.sql");
 const DELETE_USER: &str = include_str!("scripts/user/delete_user.sql");
 
 // trace
-const INSERT_TRACE_SPAN: &str = include_str!("scripts/trace/insert_span.sql");
 const INSERT_TRACE_BAGGAGE: &str = include_str!("scripts/trace/insert_baggage.sql");
-const GET_PAGINATED_TRACES: &str = include_str!("scripts/trace/get_paginated_traces.sql");
-const GET_TRACE_SPANS: &str = include_str!("scripts/trace/get_trace_spans.sql");
-const GET_TRACE_METRICS: &str = include_str!("scripts/trace/get_trace_metrics.sql");
 const GET_TRACE_BAGGAGE: &str = include_str!("scripts/trace/get_trace_baggage.sql");
 const GET_SPANS_BY_TAG: &str = include_str!("scripts/trace/get_spans_from_tags.sql");
 const UPSERT_TRACE: &str = include_str!("scripts/trace/upsert_trace.sql");
@@ -235,11 +231,7 @@ pub enum Queries {
     ListDriftProfiles,
 
     //trace
-    InsertTraceSpan,
     InsertTraceBaggage,
-    GetPaginatedTraces,
-    GetTraceSpans,
-    GetTraceMetrics,
     GetTraceBaggage,
     GetSpansByTags,
     UpsertTrace,
@@ -339,11 +331,7 @@ impl Queries {
             Queries::InsertBinCountsBatch => INSERT_BIN_COUNTS_BATCH,
 
             // trace
-            Queries::InsertTraceSpan => INSERT_TRACE_SPAN,
             Queries::InsertTraceBaggage => INSERT_TRACE_BAGGAGE,
-            Queries::GetPaginatedTraces => GET_PAGINATED_TRACES,
-            Queries::GetTraceSpans => GET_TRACE_SPANS,
-            Queries::GetTraceMetrics => GET_TRACE_METRICS,
             Queries::GetTraceBaggage => GET_TRACE_BAGGAGE,
             Queries::GetSpansByTags => GET_SPANS_BY_TAG,
             Queries::UpsertTrace => UPSERT_TRACE,

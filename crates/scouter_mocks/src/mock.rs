@@ -116,6 +116,15 @@ impl ScouterTestServer {
             // set server env vars
             unsafe {
                 std::env::set_var("APP_ENV", "dev_server");
+                // Ensure fast trace flushing for tests (override production defaults
+                // of 30s/15s which are too slow for integration tests that sleep 5s)
+                std::env::set_var("TRACE_STALE_THRESHOLD_SECONDS", "1");
+                std::env::set_var("TRACE_FLUSH_INTERVAL_SECONDS", "1");
+                std::env::set_var("SCOUTER_TRACE_FLUSH_INTERVAL_SECS", "1");
+                // Pin storage to an absolute path so the server and cleanup()
+                // always refer to the same directory regardless of CWD.
+                let storage_path = std::env::current_dir().unwrap().join("scouter_storage");
+                std::env::set_var("SCOUTER_STORAGE_URI", storage_path.to_str().unwrap());
             }
 
             if self.rabbit_mq {
@@ -244,7 +253,13 @@ impl ScouterTestServer {
         {
             let handle = self.handle.clone();
             let runtime = self.runtime.clone();
-            runtime.spawn(async move {
+            // Block until the server has fully stopped before touching the
+            // filesystem. Using spawn+fire-and-forget here causes a race where
+            // cleanup() deletes scouter_storage while the server's Delta Lake
+            // writer is still flushing, which leads to concurrent-writer
+            // corruption when the next test spins up a fresh server on the
+            // same path.
+            runtime.block_on(async move {
                 stop_server(handle).await;
             });
 
@@ -273,6 +288,8 @@ impl ScouterTestServer {
             std::env::remove_var("APP_ENV");
             std::env::remove_var("SCOUTER_SERVER_URI");
             std::env::remove_var("SCOUTER_SERVER_PORT");
+            std::env::remove_var("SCOUTER_GRPC_URI");
+            std::env::remove_var("SCOUTER_STORAGE_URI");
             std::env::remove_var("KAFKA_BROKERS");
             std::env::remove_var("RABBITMQ_ADDR");
         }
@@ -280,8 +297,11 @@ impl ScouterTestServer {
     }
 
     fn cleanup(&self) -> PyResult<()> {
-        let current_dir = std::env::current_dir().unwrap();
-        let storage_dir = current_dir.join("scouter_storage");
+        // Remove the pinned absolute storage path first (set by start_server),
+        // falling back to the relative default so both cases are covered.
+        let storage_dir = std::env::var("SCOUTER_STORAGE_URI")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|_| std::env::current_dir().unwrap().join("scouter_storage"));
 
         // unset env vars
         self.remove_env_vars_for_client()?;

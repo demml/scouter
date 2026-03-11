@@ -57,7 +57,7 @@ cron = "0.*"
 crossbeam-queue = "0.*"
 dashmap = "6.*"
 deltalake = { version = "0.*", features = ["datafusion"] }
-datafusion = { version = "51.*", features = ["parquet"] }
+datafusion = { version = "52.*", features = ["parquet"] }
 futures-util = { version = "0.*" }
 flume = "0.11.*"
 futures = "0.*"
@@ -145,3 +145,11 @@ opt-level = 3
 [profile.release-no-lto]
 inherits = "release"
 lto = false
+
+# Fast bench/test builds: thin LTO + parallel codegen, no stripping.
+# cargo bench and cargo test use this profile automatically.
+[profile.bench]
+inherits = "release"
+lto = "thin"
+codegen-units = 4
+strip = false

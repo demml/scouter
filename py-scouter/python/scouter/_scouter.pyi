@@ -19,7 +19,6 @@ from typing import (
     ParamSpec,
     Protocol,
     Sequence,
-    Tuple,
     Type,
     TypeAlias,
     Union,
@@ -9779,6 +9778,11 @@ class TraceFilters:
     limit: Optional[int]
     cursor_created_at: Optional[datetime.datetime]
     cursor_trace_id: Optional[str]
+    direction: Optional[str]
+    attribute_filters: Optional[List[str]]
+    trace_ids: Optional[List[str]]
+    entity_uid: Optional[str]
+    queue_uid: Optional[str]
 
     def __init__(
         self,
@@ -9790,6 +9794,11 @@ class TraceFilters:
         limit: Optional[int] = None,
         cursor_created_at: Optional[datetime.datetime] = None,
         cursor_trace_id: Optional[str] = None,
+        direction: Optional[str] = None,
+        attribute_filters: Optional[List[str]] = None,
+        trace_ids: Optional[List[str]] = None,
+        entity_uid: Optional[str] = None,
+        queue_uid: Optional[str] = None,
     ) -> None:
         """Initialize trace filters.
 
@@ -9810,6 +9819,16 @@ class TraceFilters:
                 Pagination cursor: created at timestamp
             cursor_trace_id:
                 Pagination cursor: trace ID
+            direction:
+                Pagination direction ("next" or "prev")
+            attribute_filters:
+                List of attribute filters in the format "key=value" or "key!=value"
+            trace_ids:
+                List of trace IDs to filter by
+            entity_uid:
+                Filter by associated entity UID
+            queue_uid:
+                Filter by associated queue UID
         """
 
 class TraceMetricBucket:
@@ -13410,20 +13429,14 @@ class ScouterClient:
             TraceSpansResponse
         """
 
-    def get_trace_spans_from_tags(
+    def get_trace_spans_from_filters(
         self,
-        tags: List[Tuple[str, str]],
-        match_all: bool = False,
-        service_name: Optional[str] = None,
+        filters: TraceFilters,
     ) -> TraceSpansResponse:
-        """Get trace spans from tags
+        """Get trace spans from filters
         Args:
-            tags:
-                List of tags to filter by
-            match_all:
-                Whether to match all tags or any tag
-            service_name:
-                Service name
+            filters:
+                TraceFilters object
 
         Returns:
             TraceSpansResponse

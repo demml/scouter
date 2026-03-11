@@ -2,7 +2,7 @@ import time
 
 import numpy as np
 from fastapi.testclient import TestClient
-from scouter.client import DriftRequest, ScouterClient, TimeInterval
+from scouter.client import DriftRequest, ScouterClient, TimeInterval, TraceFilters
 from scouter.types import DriftType
 
 from tests.integration.api.conftest import ChatRequest
@@ -21,6 +21,7 @@ def test_genai_tracing_api(scouter_grpc_openai_server):
     profile = create_and_register_genai_drift_profile(
         client=scouter_client,
         name=f"grpc_genai_test_{random_number}",
+        with_trace_assertion=True,  # we are testing that spans are created
     )
     drift_path = profile.save_to_json()
 
@@ -64,7 +65,7 @@ def test_genai_tracing_api(scouter_grpc_openai_server):
     record_uid = response.json().get("record_uid")
     assert record_uid is not None
 
-    spans = scouter_client.get_trace_spans_from_tags(tags=[("scouter.queue.record", record_uid)])
+    spans = scouter_client.get_trace_spans_from_filters(filters=TraceFilters(queue_uid=record_uid))
 
     assert len(spans.spans) > 0
 
