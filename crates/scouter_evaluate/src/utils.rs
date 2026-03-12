@@ -1,6 +1,6 @@
 use crate::error::EvaluationError;
 use crate::evaluate::evaluator::GenAIEvaluator;
-use crate::evaluate::types::{EvaluationConfig, GenAIEvalResults};
+use crate::evaluate::types::{EvalResults, EvaluationConfig};
 use crate::genai::EvalDataset;
 use crate::tasks::evaluator::FieldEvaluator;
 use itertools::iproduct;
@@ -8,7 +8,7 @@ use num_traits::FromPrimitive;
 use potato_head::{Embedder, EmbeddingInput, PyEmbedder};
 use pyo3::prelude::*;
 use rayon::prelude::*;
-use scouter_types::genai::GenAIEvalSet;
+use scouter_types::genai::EvalSet;
 use scouter_types::EvalRecord;
 use serde_json::Value;
 use simsimd::SpatialSimilarity;
@@ -19,7 +19,7 @@ use tracing::{debug, error, warn};
 
 type EvalTaskResult = (
     usize, // Index into records array
-    Result<(GenAIEvalSet, BTreeMap<String, Vec<f32>>), String>,
+    Result<(EvalSet, BTreeMap<String, Vec<f32>>), String>,
 );
 
 /// Spawn tasks without embedding support
@@ -29,7 +29,7 @@ type EvalTaskResult = (
 /// * `workflow` - The workflow to execute for each record.
 /// * `records` - The list of EvalRecords to process.
 /// # Returns
-/// A JoinSet containing tuples of record ID and optional GenAIEvalTaskResult.
+/// A JoinSet containing tuples of record ID and optional EvalTaskResult.
 pub async fn spawn_evaluation_tasks_without_embeddings(
     dataset: &EvalDataset,
     _config: &Arc<EvaluationConfig>,
@@ -174,8 +174,8 @@ pub async fn generate_embeddings_for_record(
 pub async fn collect_and_align_results(
     mut join_set: JoinSet<EvalTaskResult>,
     records: &Arc<Vec<EvalRecord>>,
-) -> Result<GenAIEvalResults, EvaluationError> {
-    let mut results = GenAIEvalResults::new();
+) -> Result<EvalResults, EvaluationError> {
+    let mut results = EvalResults::new();
 
     while let Some(join_result) = join_set.join_next().await {
         match join_result {
@@ -202,7 +202,7 @@ pub async fn collect_and_align_results(
 
 /// Post-process aligned results
 pub fn post_process_aligned_results(
-    results: &mut GenAIEvalResults,
+    results: &mut EvalResults,
     config: &Arc<EvaluationConfig>,
 ) -> Result<(), EvaluationError> {
     results.aligned_results.par_iter_mut().for_each(|aligned| {

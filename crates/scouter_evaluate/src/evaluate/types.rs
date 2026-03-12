@@ -10,7 +10,7 @@ use pyo3::prelude::*;
 use pyo3::types::IntoPyDict;
 use pyo3::types::PyDict;
 use scouter_profile::{Histogram, NumProfiler};
-use scouter_types::genai::GenAIEvalSet;
+use scouter_types::genai::EvalSet;
 use scouter_types::{EvalRecord, TaskResultTableEntry, WorkflowResultTableEntry};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -498,7 +498,7 @@ struct TaskStatusChangeEntry {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[pyclass]
-pub struct GenAIEvalResults {
+pub struct EvalResults {
     /// Aligned results in original record order
     pub aligned_results: Vec<AlignedEvalResult>,
 
@@ -518,7 +518,7 @@ pub struct GenAIEvalResults {
 }
 
 #[pymethods]
-impl GenAIEvalResults {
+impl EvalResults {
     pub fn __getitem__(&self, key: &str) -> Result<AlignedEvalResult, EvaluationError> {
         self.results_by_id
             .get(key)
@@ -621,14 +621,14 @@ impl GenAIEvalResults {
     #[pyo3(signature = (baseline, regression_threshold=0.05))]
     pub fn compare_to(
         &self,
-        baseline: &GenAIEvalResults,
+        baseline: &EvalResults,
         regression_threshold: f64,
     ) -> Result<ComparisonResults, EvaluationError> {
         compare_results(baseline, self, regression_threshold)
     }
 }
 
-impl GenAIEvalResults {
+impl EvalResults {
     fn get_schema_mapping<'py>(
         &self,
         py: Python<'py>,
@@ -745,7 +745,7 @@ impl GenAIEvalResults {
     pub fn add_success(
         &mut self,
         record: &EvalRecord,
-        eval_set: GenAIEvalSet,
+        eval_set: EvalSet,
         embeddings: BTreeMap<String, Vec<f32>>,
     ) {
         self.aligned_results.push(AlignedEvalResult::from_success(
@@ -810,7 +810,7 @@ impl GenAIEvalResults {
     }
 }
 
-impl Default for GenAIEvalResults {
+impl Default for EvalResults {
     fn default() -> Self {
         Self::new()
     }
@@ -896,7 +896,7 @@ impl ArrayDataset {
     /// Build feature names from aligned results
     /// This extracts all unique task names, embedding targets, and similarity pairs
     /// from the evaluation results to create column names for the array dataset
-    fn build_feature_names(results: &GenAIEvalResults) -> Result<Vec<String>, EvaluationError> {
+    fn build_feature_names(results: &EvalResults) -> Result<Vec<String>, EvaluationError> {
         // Get first successful result to determine schema
         let first_result = results
             .aligned_results
@@ -920,7 +920,7 @@ impl ArrayDataset {
     /// Creates a 2D array where:
     /// - Rows = evaluation records
     /// - Columns = task scores, embedding means, similarity scores
-    pub fn from_results(results: &GenAIEvalResults) -> Result<Self, EvaluationError> {
+    pub fn from_results(results: &EvalResults) -> Result<Self, EvaluationError> {
         if results.aligned_results.is_empty() {
             return Ok(Self::new());
         }
@@ -1004,7 +1004,7 @@ pub struct AlignedEvalResult {
     pub record_uid: String,
 
     #[pyo3(get)]
-    pub eval_set: GenAIEvalSet,
+    pub eval_set: EvalSet,
 
     #[pyo3(get)]
     #[serde(skip)]
@@ -1042,7 +1042,7 @@ impl AlignedEvalResult {
     /// Create from successful evaluation
     pub fn from_success(
         record: &EvalRecord,
-        eval_set: GenAIEvalSet,
+        eval_set: EvalSet,
         embeddings: BTreeMap<String, Vec<f32>>,
     ) -> Self {
         Self {
@@ -1062,7 +1062,7 @@ impl AlignedEvalResult {
     pub fn from_failure(record: &EvalRecord, error: String) -> Self {
         Self {
             record_uid: record.uid.clone(),
-            eval_set: GenAIEvalSet::empty(),
+            eval_set: EvalSet::empty(),
             embeddings: BTreeMap::new(),
             mean_embeddings: BTreeMap::new(),
             similarity_scores: BTreeMap::new(),

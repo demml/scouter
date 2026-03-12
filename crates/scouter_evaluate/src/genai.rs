@@ -1,5 +1,5 @@
 use crate::error::EvaluationError;
-use crate::evaluate::types::{EvaluationConfig, GenAIEvalResults};
+use crate::evaluate::types::{EvalResults, EvaluationConfig};
 use crate::utils::{
     collect_and_align_results, post_process_aligned_results,
     spawn_evaluation_tasks_with_embeddings, spawn_evaluation_tasks_without_embeddings,
@@ -24,7 +24,7 @@ use tracing::{debug, instrument};
 pub async fn evaluate_genai_dataset(
     dataset: &EvalDataset,
     config: &Arc<EvaluationConfig>,
-) -> Result<GenAIEvalResults, EvaluationError> {
+) -> Result<EvalResults, EvaluationError> {
     debug!(
         "Starting LLM evaluation for {} records",
         dataset.records.len()
@@ -182,10 +182,7 @@ impl EvalDataset {
     }
 
     #[pyo3(signature = (config=None))]
-    fn evaluate(
-        &self,
-        config: Option<EvaluationConfig>,
-    ) -> Result<GenAIEvalResults, EvaluationError> {
+    fn evaluate(&self, config: Option<EvaluationConfig>) -> Result<EvalResults, EvaluationError> {
         let config = Arc::new(config.unwrap_or_default());
         app_state()
             .handle()

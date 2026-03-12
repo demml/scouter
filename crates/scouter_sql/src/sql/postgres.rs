@@ -1474,7 +1474,7 @@ mod tests {
         let mut records = Vec::new();
         for i in 0..2 {
             for j in 0..25 {
-                let record = GenAIEvalTaskResult {
+                let record = EvalTaskResult {
                     record_uid: format!("record_uid_{i}_{j}"),
                     created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
                     start_time: Utc::now(),

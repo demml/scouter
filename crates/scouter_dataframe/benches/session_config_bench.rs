@@ -74,10 +74,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    println!(
-        "  Seeded in {:.2}s\n",
-        seed_start.elapsed().as_secs_f64()
-    );
+    println!("  Seeded in {:.2}s\n", seed_start.elapsed().as_secs_f64());
 
     // ── Compact ──────────────────────────────────────────────────────────
     println!("Compacting...");

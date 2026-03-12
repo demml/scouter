@@ -1,7 +1,7 @@
 from typing import cast
 
 from pydantic import BaseModel
-from scouter._scouter import GenAIEvalResultSet
+from scouter._scouter import EvalResultSet
 from scouter.alert import AlertCondition, AlertThreshold
 from scouter.drift import (
     ComparisonOperator,
@@ -88,7 +88,7 @@ def test_genai_drifter():
         )
 
         drifter = Drifter()
-        results = cast(GenAIEvalResultSet, drifter.compute_drift([record], profile))
+        results = cast(EvalResultSet, drifter.compute_drift([record], profile))
 
         assert len(results.records) == 1
 

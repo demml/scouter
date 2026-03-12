@@ -7,7 +7,7 @@ use pyo3::types::PyList;
 use pyo3::IntoPyObjectExt;
 use scouter_drift::error::DriftError;
 use scouter_drift::spc::SpcDriftMap;
-use scouter_types::genai::GenAIEvalResultSet;
+use scouter_types::genai::EvalResultSet;
 use scouter_types::spc::SpcDriftProfile;
 use scouter_types::{
     custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
@@ -23,7 +23,7 @@ use std::sync::RwLock;
 pub enum DriftMap {
     Spc(SpcDriftMap),
     Psi(PsiDriftMap),
-    GenAI(GenAIEvalResultSet),
+    GenAI(EvalResultSet),
 }
 
 pub enum DriftConfig {
@@ -177,7 +177,7 @@ impl Drifter {
                 let records = data.extract::<Vec<EvalRecord>>()?;
                 let records = drifter.compute_drift(records, profile.get_genai_profile()?)?;
 
-                Ok(DriftMap::GenAI(GenAIEvalResultSet { records }))
+                Ok(DriftMap::GenAI(EvalResultSet { records }))
             }
         }
     }

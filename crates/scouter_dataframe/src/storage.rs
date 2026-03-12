@@ -183,20 +183,12 @@ impl StorageProvider {
         // larger than average. 1MB captures footer + column/offset indexes in one
         // GCS round-trip instead of the default multi-step chain, saving 1-2
         // round-trips (~30-60ms each) per file.
-        config
-            .options_mut()
-            .execution
-            .parquet
-            .metadata_size_hint = Some(1024 * 1024);
+        config.options_mut().execution.parquet.metadata_size_hint = Some(1024 * 1024);
 
         // Bloom filters are written on trace_id and entity_id — ensure the reader
         // consults them before decoding row groups. (Default is true in DF 52, but
         // we're explicit to guard against version changes.)
-        config
-            .options_mut()
-            .execution
-            .parquet
-            .bloom_filter_on_read = true;
+        config.options_mut().execution.parquet.bloom_filter_on_read = true;
 
         // Read Utf8 columns as Utf8View and Binary as BinaryView for zero-copy.
         // Our schema already uses Utf8View/BinaryView — this ensures DataFusion
@@ -213,10 +205,7 @@ impl StorageProvider {
         // a Delta table's backing Parquet files. Default is 32. On GCS each
         // stat is a separate HTTP HEAD; higher concurrency hides the per-file
         // latency behind parallelism. 64 matches our pool_max_idle_per_host.
-        config
-            .options_mut()
-            .execution
-            .meta_fetch_concurrency = 64;
+        config.options_mut().execution.meta_fetch_concurrency = 64;
 
         // ── Write-path tuning ────────────────────────────────────────────
         //

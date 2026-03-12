@@ -1,7 +1,7 @@
 use crate::sql::error::SqlError;
 use chrono::{DateTime, Utc};
 use scouter_types::{
-    CustomMetricRecord, EvalRecord, GenAIEvalTaskResult, GenAIEvalWorkflowResult, IntoServerRecord,
+    CustomMetricRecord, EvalRecord, EvalTaskResult, GenAIEvalWorkflowResult, IntoServerRecord,
     PsiRecord, RecordType, ServerRecords, SpcRecord,
 };
 use sqlx::postgres::PgRow;
@@ -42,7 +42,7 @@ pub fn parse_pg_rows(
             crate::sql::utils::pg_rows_to_server_records::<EvalRecord>(rows, record_type)
         }
         RecordType::GenAITask => {
-            crate::sql::utils::pg_rows_to_server_records::<GenAIEvalTaskResult>(rows, record_type)
+            crate::sql::utils::pg_rows_to_server_records::<EvalTaskResult>(rows, record_type)
         }
         RecordType::GenAIWorkflow => crate::sql::utils::pg_rows_to_server_records::<
             GenAIEvalWorkflowResult,

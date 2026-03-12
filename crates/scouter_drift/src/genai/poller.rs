@@ -6,7 +6,7 @@ use scouter_evaluate::evaluate::GenAIEvaluator;
 use scouter_sql::sql::aggregator::get_trace_summary_service;
 use scouter_sql::sql::traits::{GenAIDriftSqlLogic, ProfileSqlLogic};
 use scouter_sql::PostgresClient;
-use scouter_types::genai::{GenAIEvalProfile, GenAIEvalSet};
+use scouter_types::genai::{EvalSet, GenAIEvalProfile};
 use scouter_types::sql::{TraceFilters, TraceSpan};
 use scouter_types::{EvalRecord, Status, TraceId};
 use sqlx::{Pool, Postgres};
@@ -174,7 +174,7 @@ impl GenAIPoller {
         record: &EvalRecord,
         profile: &GenAIEvalProfile,
         spans: Arc<Vec<TraceSpan>>,
-    ) -> Result<GenAIEvalSet, DriftError> {
+    ) -> Result<EvalSet, DriftError> {
         debug!("Processing workflow");
 
         // create arc mutex for profile

@@ -1,10 +1,10 @@
 use crate::error::EvaluationError;
 use crate::evaluate::types::{
-    ComparisonResults, GenAIEvalResults, MissingTask, TaskComparison, WorkflowComparison,
+    ComparisonResults, EvalResults, MissingTask, TaskComparison, WorkflowComparison,
 };
 use std::collections::HashMap;
 
-/// Compares two GenAIEvalResults datasets and produces a ComparisonResults summary.
+/// Compares two EvalResults datasets and produces a ComparisonResults summary.
 ///
 /// Every workflow is compared against the baseline. The comparison identifies:
 /// - Tasks that passed/failed in both datasets
@@ -36,8 +36,8 @@ use std::collections::HashMap;
 ///    - Track tasks only in baseline or comparison
 /// 3. Aggregate workflow-level statistics (pass rates, deltas, regressions)
 pub fn compare_results(
-    baseline: &GenAIEvalResults,
-    comparison: &GenAIEvalResults,
+    baseline: &EvalResults,
+    comparison: &EvalResults,
     regression_threshold: f64,
 ) -> Result<ComparisonResults, EvaluationError> {
     let baseline_map: HashMap<_, _> = baseline
