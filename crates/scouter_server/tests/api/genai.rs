@@ -7,10 +7,8 @@ use axum::{
 };
 use http_body_util::BodyExt;
 use potato_head::mock::LLMTestServer;
-use scouter_types::{
-    GenAIEvalRecordPaginationRequest, GenAIEvalTaskResponse, RecordType, ServiceInfo,
-};
-use scouter_types::{GenAIEvalRecordPaginationResponse, GenAIEvalWorkflowPaginationResponse};
+use scouter_types::{EvalRecordPaginationRequest, GenAIEvalTaskResponse, RecordType, ServiceInfo};
+use scouter_types::{EvalRecordPaginationResponse, GenAIEvalWorkflowPaginationResponse};
 use tokio::time::sleep;
 
 #[test]
@@ -37,7 +35,7 @@ fn test_genai_server_records() {
     runtime.block_on(async { sleep(Duration::from_secs(5)).await });
 
     // get drift records by page
-    let request = GenAIEvalRecordPaginationRequest {
+    let request = EvalRecordPaginationRequest {
         service_info: ServiceInfo {
             space: SPACE.to_string(),
             uid: uid.clone(),
@@ -59,7 +57,7 @@ fn test_genai_server_records() {
     let response = runtime.block_on(async { helper.send_oneshot(request).await });
     let val = runtime.block_on(async { response.into_body().collect().await.unwrap().to_bytes() });
 
-    let records: GenAIEvalRecordPaginationResponse = serde_json::from_slice(&val).unwrap();
+    let records: EvalRecordPaginationResponse = serde_json::from_slice(&val).unwrap();
     assert!(!records.items.is_empty());
     assert!(records.has_next);
 

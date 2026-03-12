@@ -1,9 +1,9 @@
 ### The following example shows how to run offline evaluations
 from pydantic import BaseModel
-from scouter.evaluate import ComparisonOperator, GenAIEvalDataset, LLMJudgeTask
+from scouter.evaluate import ComparisonOperator, EvalDataset, LLMJudgeTask
 from scouter.genai import Agent, Prompt, Provider, Score
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
-from scouter.queue import GenAIEvalRecord
+from scouter.queue import EvalRecord
 
 RustyLogger.setup_logging(LoggingConfig(log_level=LogLevel.Debug))
 
@@ -99,13 +99,13 @@ def create_query_harmfulness_prompt():
     )
 
 
-def build_eval_dataset(user_query: str, response: str) -> GenAIEvalDataset:
-    """Helper function to create a GenAIEvalDataset for evaluating query reformulations."""
+def build_eval_dataset(user_query: str, response: str) -> EvalDataset:
+    """Helper function to create a EvalDataset for evaluating query reformulations."""
     eval_prompt = create_reformulation_evaluation_prompt()
 
-    record = GenAIEvalRecord(context={"user_query": user_query, "response": response})
+    record = EvalRecord(context={"user_query": user_query, "response": response})
 
-    dataset = GenAIEvalDataset(
+    dataset = EvalDataset(
         records=[record],
         tasks=[
             LLMJudgeTask(
@@ -141,7 +141,9 @@ if __name__ == "__main__":
     # print reformulated query
     print("Reformulated Query:", response.response_text())
 
-    dataset = build_eval_dataset(user_query=user_query, response=response.response_text())
+    dataset = build_eval_dataset(
+        user_query=user_query, response=response.response_text()
+    )
 
     results = dataset.evaluate()
     results.as_table(True)

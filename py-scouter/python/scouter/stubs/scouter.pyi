@@ -1545,13 +1545,13 @@ class Metrics:
 class Queue:
     """Individual queue associated with a drift profile"""
 
-    def insert(self, item: Union[Features, Metrics, GenAIEvalRecord]) -> None:
+    def insert(self, item: Union[Features, Metrics, EvalRecord]) -> None:
         """Insert a record into the queue
 
         Args:
             item:
                 Item to insert into the queue.
-                Can be an instance for Features, Metrics, or GenAIEvalRecord.
+                Can be an instance for Features, Metrics, or EvalRecord.
 
         Example:
             ```python
@@ -1601,7 +1601,7 @@ class ScouterQueue:
         ║                              │                                           ║
         ║                              ▼                                           ║
         ║  ┌────────────────────────────────────────────────────────────────────┐  ║
-        ║  │  queue["profile_alias"].insert(Features | Metrics | GenAIEvalRecord)     │  ║
+        ║  │  queue["profile_alias"].insert(Features | Metrics | EvalRecord)     │  ║
         ║  └───────────────────────────┬────────────────────────────────────────┘  ║
         ║                              │                                           ║
         ╚══════════════════════════════╪═══════════════════════════════════════════╝
@@ -1652,7 +1652,7 @@ class ScouterQueue:
         ```
         Flow Summary:
             1. **Python Runtime**: Initialize queue with drift profiles and transport config
-            2. **Insert Records**: Call queue["alias"].insert() with Features/Metrics/GenAIEvalRecord
+            2. **Insert Records**: Call queue["alias"].insert() with Features/Metrics/EvalRecord
             3. **Rust Queue**: Buffer and validate records against profile schema
             4. **Transport Producer**: Serialize and publish to configured transport
             5. **Network**: Records travel via Kafka/RabbitMQ/Redis/HTTP/gRPC
@@ -1727,7 +1727,7 @@ class ScouterQueue:
                 ...     ),
                 ... )
                 >>> queue["genai_eval"].insert(
-                ...     GenAIEvalRecord(context={"input": "...", "response": "..."})
+                ...     EvalRecord(context={"input": "...", "response": "..."})
                 ... )
         """
 
@@ -1784,13 +1784,13 @@ class ScouterQueue:
     ) -> Union[KafkaConfig, RabbitMQConfig, RedisConfig, HttpConfig, MockConfig]:
         """Return the transport configuration used by the queue"""
 
-class GenAIEvalRecord:
+class EvalRecord:
     """LLM record containing context tied to a Large Language Model interaction
     that is used to evaluate drift in LLM responses.
 
 
     Examples:
-        >>> record = GenAIEvalRecord(
+        >>> record = EvalRecord(
         ...     context={
         ...         "input": "What is the capital of France?",
         ...         "response": "Paris is the capital of France."
@@ -3992,15 +3992,15 @@ class Drifter:
     @overload
     def compute_drift(
         self,
-        data: List[GenAIEvalRecord],
+        data: List[EvalRecord],
         drift_profile: GenAIEvalProfile,
         data_type: Optional[ScouterDataType] = None,
     ) -> "GenAIEvalResultSet":
         """Create a drift map from data.
 
         Args:
-            data (List[GenAIEvalRecord]):
-                Data to create a data profile from. Data can be a list of GenAIEvalRecord.
+            data (List[EvalRecord]):
+                Data to create a data profile from. Data can be a list of EvalRecord.
             profile (GenAIEvalProfile):
                 Drift profile to use to compute drift map
             data_type:
@@ -4092,25 +4092,25 @@ class GenAIEvalTaskResult:
     def model_dump_json(self) -> str:
         """Serialize the task result to JSON string"""
 
-class GenAIEvalDataset:
+class EvalDataset:
     """Defines the dataset used for LLM evaluation"""
 
     def __init__(
         self,
-        records: Sequence[GenAIEvalRecord],
+        records: Sequence[EvalRecord],
         tasks: Sequence[LLMJudgeTask | AssertionTask],
     ):
-        """Initialize the GenAIEvalDataset with records and tasks.
+        """Initialize the EvalDataset with records and tasks.
 
         Args:
-            records (List[GenAIEvalRecord]):
+            records (List[EvalRecord]):
                 List of LLM evaluation records to be evaluated.
             tasks (List[LLMJudgeTask | AssertionTask]):
                 List of evaluation tasks to apply to the records.
         """
 
     @property
-    def records(self) -> List[GenAIEvalRecord]:
+    def records(self) -> List[EvalRecord]:
         """Get the list of LLM evaluation records in this dataset"""
 
     @property
@@ -4142,8 +4142,8 @@ class GenAIEvalDataset:
     def with_updated_contexts_by_id(
         self,
         updated_contexts: Dict[str, Any],
-    ) -> "GenAIEvalDataset":
-        """Create a new GenAIEvalDataset with updated contexts for specific records.
+    ) -> "EvalDataset":
+        """Create a new EvalDataset with updated contexts for specific records.
 
         Example:
             >>> updated_contexts = {
@@ -4155,7 +4155,7 @@ class GenAIEvalDataset:
             updated_contexts (Dict[str, Any]):
                 A dictionary mapping record UIDs to their new context data.
         Returns:
-            GenAIEvalDataset:
+            EvalDataset:
                 A new dataset instance with the updated contexts.
         """
 
@@ -4786,7 +4786,7 @@ __all__ = [
     "FreedmanDiaconis",
     "GenAIEvalResults",
     "EvaluationConfig",
-    "GenAIEvalDataset",
+    "EvalDataset",
     "GenAIEvalSet",
     "GenAIEvalTaskResult",
     "GenAIEvalResultSet",
@@ -4814,7 +4814,7 @@ __all__ = [
     "Metric",
     "Metrics",
     "EntityType",
-    "GenAIEvalRecord",
+    "EvalRecord",
     "HttpConfig",
     "KafkaConfig",
     "RabbitMQConfig",

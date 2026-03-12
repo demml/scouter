@@ -652,7 +652,7 @@ impl DataType {
             "polars.dataframe.frame.DataFrame" => Ok(DataType::Polars),
             "numpy.ndarray" => Ok(DataType::Numpy),
             "pyarrow.lib.Table" => Ok(DataType::Arrow),
-            "scouter_drift.genai.GenAIEvalRecord" => Ok(DataType::GenAI),
+            "scouter_drift.genai.EvalRecord" => Ok(DataType::GenAI),
             _ => Err(TypeError::InvalidDataType),
         }
     }

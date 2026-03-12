@@ -57,7 +57,7 @@ Monitors a two-stage LLM pipeline (query reformulation → response generation) 
 **Files:**
 - `genai/api/profile/create_profile.py` — creates and registers the `GenAIEvalProfile`
 - `genai/api/assets/prompts.py` — Gemini prompt templates and `PromptState`
-- `genai/api/main.py` — FastAPI app; runs the LLM pipeline and inserts `GenAIEvalRecord`
+- `genai/api/main.py` — FastAPI app; runs the LLM pipeline and inserts `EvalRecord`
 - `genai/api/assets/genai_drift_profile.json` — saved profile loaded by the app
 
 **Run:**
@@ -85,7 +85,7 @@ curl -X POST http://localhost:8000/predict \
 - Configuring a `GenAIEvalProfile` with `sample_ratio` (fraction of traffic to evaluate)
 - Setting `GenAIAlertConfig` with a `baseline_value`, `AlertThreshold`, and `delta`
 - Registering the profile and saving it to JSON for the app to load
-- Inserting a `GenAIEvalRecord` with a multi-field context dict on each request
+- Inserting a `EvalRecord` with a multi-field context dict on each request
 - The server sampling records and running evaluation tasks asynchronously
 
 **LLM provider required:** Google Gemini (configured in `prompts.py`). Swap the `Provider` and model settings to use OpenAI or Anthropic instead.
@@ -98,5 +98,5 @@ curl -X POST http://localhost:8000/predict \
 | `GenAIEvalConfig` | Profile identity (`space`, `name`, `version`) and `sample_ratio` |
 | `LLMJudgeTask` | Semantic evaluation via LLM with structured output |
 | `GenAIAlertConfig` | Alert threshold and baseline for pass-rate monitoring |
-| `GenAIEvalRecord` | Captures inference context for evaluation |
+| `EvalRecord` | Captures inference context for evaluation |
 | `Agent` / `Prompt` | LLM call abstraction used in the application itself |

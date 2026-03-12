@@ -193,12 +193,12 @@ pub enum Queries {
     UpdateAlertStatus,
 
     // genai - query
-    GetGenAIEvalRecords,
+    GetEvalRecords,
     GetPendingGenAIEvalTask,
-    GetPaginatedGenAIEvalRecords,
+    GetPaginatedEvalRecords,
     GetPaginatedGenAIEvalWorkflow,
     GetGenAIEvalTasks,
-    RescheduleGenAIEvalRecord,
+    RescheduleEvalRecord,
 
     // genai - data
     GetGenAIWorkflowBinnedMetrics,
@@ -209,16 +209,16 @@ pub enum Queries {
     // genai - insert
     InsertGenAITaskResultsBatch,
     InsertGenAIWorkflowResult,
-    InsertGenAIEvalRecord,
+    InsertEvalRecord,
 
     // genai - update
     UpdateGenAIEvalTask,
 
     // Genai - archive
-    GetGenAIEvalRecordEntitiesForArchive,
+    GetEvalRecordEntitiesForArchive,
     GetGenAIEvalTaskResultEntitiesForArchive,
     GetGenAIEvalWorkflowEntitiesForArchive,
-    GetGenAIEvalRecordDataForArchive,
+    GetEvalRecordDataForArchive,
     GetGenAITaskResultDataForArchive,
     GetGenAIWorkflowResultDataForArchive,
 
@@ -303,17 +303,17 @@ impl Queries {
             //genai - insert
             Queries::InsertGenAITaskResultsBatch => INSERT_GENAI_TASK_RESULTS_BATCH,
             Queries::InsertGenAIWorkflowResult => INSERT_GENAI_WORKFLOW_RESULT,
-            Queries::InsertGenAIEvalRecord => INSERT_GENAI_EVAL_RECORD,
+            Queries::InsertEvalRecord => INSERT_GENAI_EVAL_RECORD,
 
-            Queries::GetGenAIEvalRecords => GET_GENAI_EVAL_RECORDS,
-            Queries::GetPaginatedGenAIEvalRecords => GET_PAGINATED_GENAI_EVAL_RECORDS,
+            Queries::GetEvalRecords => GET_GENAI_EVAL_RECORDS,
+            Queries::GetPaginatedEvalRecords => GET_PAGINATED_GENAI_EVAL_RECORDS,
             Queries::GetPaginatedGenAIEvalWorkflow => GET_PAGINATED_GENAI_EVAL_WORKFLOW,
             Queries::GetPendingGenAIEvalTask => GET_PENDING_GENAI_EVAL_TASK,
             Queries::GetGenAIEvalTasks => GET_GENAI_EVAL_TASKS,
-            Queries::RescheduleGenAIEvalRecord => RESCHEDULE_GENAI_EVAL_RECORD,
+            Queries::RescheduleEvalRecord => RESCHEDULE_GENAI_EVAL_RECORD,
 
-            Queries::GetGenAIEvalRecordEntitiesForArchive => GET_GENAI_EVAL_RECORD_ENTITIES,
-            Queries::GetGenAIEvalRecordDataForArchive => GET_GENAI_EVAL_RECORD_DATA_FOR_ARCHIVE,
+            Queries::GetEvalRecordEntitiesForArchive => GET_GENAI_EVAL_RECORD_ENTITIES,
+            Queries::GetEvalRecordDataForArchive => GET_GENAI_EVAL_RECORD_DATA_FOR_ARCHIVE,
             Queries::UpdateGenAIEvalEntities => UPDATE_GENAI_EVAL_ENTITIES,
 
             Queries::GetGenAIEvalTaskResultEntitiesForArchive => GET_GENAI_TASK_RECORD_ENTITIES,

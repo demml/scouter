@@ -13,12 +13,12 @@ from pydantic import BaseModel
 from scouter.evaluate import (
     AssertionTask,
     ComparisonOperator,
-    GenAIEvalDataset,
+    EvalDataset,
     LLMJudgeTask,
 )
 from scouter.genai import Prompt
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
-from scouter.queue import GenAIEvalRecord
+from scouter.queue import EvalRecord
 
 RustyLogger.setup_logging(LoggingConfig(log_level=LogLevel.Info))
 
@@ -326,13 +326,13 @@ def create_evaluation_tasks() -> List[LLMJudgeTask | AssertionTask]:
     ]
 
 
-def create_baseline_dataset() -> GenAIEvalDataset:
+def create_baseline_dataset() -> EvalDataset:
     """Creates the baseline evaluation dataset for the customer support agent."""
     baseline_data = generate_baseline_interactions()
 
     records = []
     for idx, (query, response) in enumerate(baseline_data):
-        record = GenAIEvalRecord(
+        record = EvalRecord(
             context={
                 "customer_query": query.question,
                 "customer_context": query.customer_context,
@@ -345,7 +345,7 @@ def create_baseline_dataset() -> GenAIEvalDataset:
 
     tasks = create_evaluation_tasks()
 
-    return GenAIEvalDataset(records=records, tasks=tasks)
+    return EvalDataset(records=records, tasks=tasks)
 
 
 def main():

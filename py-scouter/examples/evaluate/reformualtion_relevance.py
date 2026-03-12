@@ -2,13 +2,13 @@ from scouter.evaluate import (
     AssertionTask,
     ComparisonOperator,
     EvaluationConfig,
-    GenAIEvalDataset,
+    EvalDataset,
     LLMJudgeTask,
 )
 from scouter.genai import Embedder, Prompt, Provider, Score
 from scouter.genai.openai import OpenAIEmbeddingConfig
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
-from scouter.queue import GenAIEvalRecord
+from scouter.queue import EvalRecord
 
 RustyLogger.setup_logging(LoggingConfig(log_level=LogLevel.Debug))
 
@@ -71,7 +71,7 @@ answer_eval_prompt = Prompt(
 )
 
 # Create evaluation records
-flight_record = GenAIEvalRecord(
+flight_record = EvalRecord(
     context={
         "user_query": "cheap flights to Europe next month",
         "reformulated_query": "affordable airfare to Europe next month",
@@ -79,7 +79,7 @@ flight_record = GenAIEvalRecord(
     },
 )
 
-technical_record = GenAIEvalRecord(
+technical_record = EvalRecord(
     context={
         "user_query": "why won't my laptop turn on",
         "reformulated_query": "laptop computer won't boot power issues troubleshooting steps hardware failure battery power supply diagnostic repair",
@@ -87,7 +87,7 @@ technical_record = GenAIEvalRecord(
     },
 )
 
-cooking_record = GenAIEvalRecord(
+cooking_record = EvalRecord(
     context={
         "user_query": "easy dinner recipes with chicken",
         "reformulated_query": "simple quick chicken dinner recipes healthy family-friendly weeknight meals",
@@ -96,7 +96,7 @@ cooking_record = GenAIEvalRecord(
 )
 
 # Create the evaluation dataset with tasks
-dataset = GenAIEvalDataset(
+dataset = EvalDataset(
     records=[flight_record, technical_record, cooking_record],
     tasks=[
         LLMJudgeTask(

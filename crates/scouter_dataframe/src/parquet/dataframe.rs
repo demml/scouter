@@ -183,8 +183,7 @@ mod tests {
     use scouter_settings::ObjectStorageSettings;
     use scouter_types::Assertion;
     use scouter_types::{
-        BoxedGenAIEvalRecord, GenAIEvalRecord, PsiRecord, ServerRecord, ServerRecords, SpcRecord,
-        Status,
+        BoxedEvalRecord, EvalRecord, PsiRecord, ServerRecord, ServerRecords, SpcRecord, Status,
     };
     use scouter_types::{CustomMetricRecord, GenAIEvalTaskResult, GenAIEvalWorkflowResult};
     use serde_json::Map;
@@ -210,7 +209,7 @@ mod tests {
         // create records
         for i in 0..3 {
             for j in 0..50 {
-                let record = GenAIEvalRecord {
+                let record = EvalRecord {
                     created_at: Utc::now() + chrono::Duration::hours(i),
                     entity_id,
                     context: serde_json::Value::Object(Map::new()),
@@ -221,7 +220,7 @@ mod tests {
                     ..Default::default()
                 };
 
-                let boxed_record = BoxedGenAIEvalRecord::new(record);
+                let boxed_record = BoxedEvalRecord::new(record);
                 batch.push(ServerRecord::GenAIEval(boxed_record));
             }
         }

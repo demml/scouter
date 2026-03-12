@@ -9,9 +9,9 @@ Uses only assertion-based tasks to showcase objective metric tracking across run
 from typing import List
 
 from pydantic import BaseModel
-from scouter.evaluate import AssertionTask, ComparisonOperator, GenAIEvalDataset
+from scouter.evaluate import AssertionTask, ComparisonOperator, EvalDataset
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
-from scouter.queue import GenAIEvalRecord
+from scouter.queue import EvalRecord
 
 RustyLogger.setup_logging(LoggingConfig(log_level=LogLevel.Info))
 
@@ -251,7 +251,7 @@ def generate_improved_classifications() -> List[ModelOutput]:
     ]
 
 
-def create_baseline_dataset() -> GenAIEvalDataset:
+def create_baseline_dataset() -> EvalDataset:
     """
     Creates baseline evaluation dataset with stable record IDs.
     Uses record IDs without prefixes so they can be matched across runs.
@@ -260,7 +260,7 @@ def create_baseline_dataset() -> GenAIEvalDataset:
 
     records = []
     for idx, model_output in enumerate(baseline_data):
-        record = GenAIEvalRecord(context=model_output, id=f"product_classification_{idx}")
+        record = EvalRecord(context=model_output, id=f"product_classification_{idx}")
         records.append(record)
 
     tasks = [
@@ -301,7 +301,7 @@ def create_baseline_dataset() -> GenAIEvalDataset:
         ),
     ]
 
-    return GenAIEvalDataset(records=records, tasks=tasks)
+    return EvalDataset(records=records, tasks=tasks)
 
 
 def main():
@@ -324,7 +324,10 @@ def main():
 
     improved_data = generate_improved_classifications()
 
-    context_map = {f"product_classification_{idx}": model_output for idx, model_output in enumerate(improved_data)}
+    context_map = {
+        f"product_classification_{idx}": model_output
+        for idx, model_output in enumerate(improved_data)
+    }
     improved_dataset = baseline_dataset.with_updated_contexts_by_id(context_map)
 
     improved_results = improved_dataset.evaluate()

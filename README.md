@@ -226,11 +226,11 @@ Run batch evaluations against a test set with conditional task chains and depend
 from scouter.evaluate import (
     AssertionTask,
     ComparisonOperator,
-    GenAIEvalDataset,
+    EvalDataset,
     LLMJudgeTask,
 )
 from scouter.genai import Prompt, Provider, Score
-from scouter.queue import GenAIEvalRecord
+from scouter.queue import EvalRecord
 
 quality_prompt = Prompt(
     messages=(
@@ -264,11 +264,11 @@ tasks = [
 ]
 
 records = [
-    GenAIEvalRecord(context={"query": q, "response": r})
+    EvalRecord(context={"query": q, "response": r})
     for q, r in test_pairs
 ]
 
-dataset = GenAIEvalDataset(records=records, tasks=tasks)
+dataset = EvalDataset(records=records, tasks=tasks)
 dataset.print_execution_plan()  # Preview before running
 results = dataset.evaluate()
 results.as_table()              # Summary view
@@ -374,7 +374,7 @@ client = ScouterClient()
 client.register_profile(profile, set_active=True)
 
 # At request time — non-blocking, sampled automatically by the server
-record = GenAIEvalRecord(context={"query": user_query, "response": model_output})
+record = EvalRecord(context={"query": user_query, "response": model_output})
 queue["support_agent"].insert(record)
 ```
 

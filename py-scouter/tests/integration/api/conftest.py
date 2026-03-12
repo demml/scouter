@@ -31,7 +31,7 @@ from scouter.evaluate import (
 )
 from scouter.genai import Agent, Prompt, Provider, Score
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
-from scouter.queue import GenAIEvalRecord
+from scouter.queue import EvalRecord
 from scouter.tracing import (
     BatchConfig,
     TestSpanExporter,
@@ -282,13 +282,13 @@ def create_kafka_genai_app(profile_path: Path) -> FastAPI:
         agent: Agent = request.app.state.agent
         prompt: Prompt = request.app.state.prompt
 
-        # Create an GenAIEvalRecord from the payload
+        # Create an EvalRecord from the payload
         bound_prompt = prompt.bind(question=payload.question)
 
         response = agent.execute_prompt(prompt=bound_prompt)
 
         queue.insert(
-            GenAIEvalRecord(
+            EvalRecord(
                 context={
                     "input": bound_prompt.messages[0].text,
                     "response": response.response_text(),
@@ -393,11 +393,11 @@ def create_tracing_genai_app(tracer: Tracer, profile_path: Path) -> FastAPI:
             agent: Agent = request.app.state.agent
             prompt: Prompt = request.app.state.prompt
 
-            # Create an GenAIEvalRecord from the payload
+            # Create an EvalRecord from the payload
             bound_prompt = prompt.bind(question=payload.question)
 
             response = agent.execute_prompt(prompt=bound_prompt)
-            queue_record = GenAIEvalRecord(
+            queue_record = EvalRecord(
                 context={
                     "input": bound_prompt.messages[0].text,
                     "response": response.response_text(),

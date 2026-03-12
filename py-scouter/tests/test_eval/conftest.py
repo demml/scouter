@@ -2,7 +2,7 @@ import pytest
 from scouter.evaluate import (
     AssertionTask,
     ComparisonOperator,
-    GenAIEvalRecord,
+    EvalRecord,
     LLMJudgeTask,
 )
 from scouter.genai import Prompt, Provider, Role, Score
@@ -130,35 +130,35 @@ def base_assertion_tasks():
 def baseline_records():
     """Baseline records with mixed success rates."""
     return [
-        GenAIEvalRecord(
+        EvalRecord(
             context={
                 "metrics": {"quality_score": 5, "accuracy_score": 6},
                 "response": {"provides_solution": False, "acknowledges_concern": False},
             },
             id="record_1",
         ),
-        GenAIEvalRecord(
+        EvalRecord(
             context={
                 "metrics": {"quality_score": 7, "accuracy_score": 8},
                 "response": {"provides_solution": True, "acknowledges_concern": True},
             },
             id="record_2",
         ),
-        GenAIEvalRecord(
+        EvalRecord(
             context={
                 "metrics": {"quality_score": 6, "accuracy_score": 7},
                 "response": {"provides_solution": True, "acknowledges_concern": False},
             },
             id="record_3",
         ),
-        GenAIEvalRecord(
+        EvalRecord(
             context={
                 "metrics": {"quality_score": 8, "accuracy_score": 9},
                 "response": {"provides_solution": True, "acknowledges_concern": True},
             },
             id="record_4",
         ),
-        GenAIEvalRecord(
+        EvalRecord(
             context={
                 "metrics": {"quality_score": 5, "accuracy_score": 6},
                 "response": {"provides_solution": False, "acknowledges_concern": True},
@@ -172,35 +172,35 @@ def baseline_records():
 def improved_records():
     """Improved records with better scores across the board."""
     return [
-        GenAIEvalRecord(
+        EvalRecord(
             context={
                 "metrics": {"quality_score": 8, "accuracy_score": 9},
                 "response": {"provides_solution": True, "acknowledges_concern": True},
             },
             id="record_1",
         ),
-        GenAIEvalRecord(
+        EvalRecord(
             context={
                 "metrics": {"quality_score": 9, "accuracy_score": 10},
                 "response": {"provides_solution": True, "acknowledges_concern": True},
             },
             id="record_2",
         ),
-        GenAIEvalRecord(
+        EvalRecord(
             context={
                 "metrics": {"quality_score": 7, "accuracy_score": 8},
                 "response": {"provides_solution": True, "acknowledges_concern": True},
             },
             id="record_3",
         ),
-        GenAIEvalRecord(
+        EvalRecord(
             context={
                 "metrics": {"quality_score": 9, "accuracy_score": 10},
                 "response": {"provides_solution": True, "acknowledges_concern": True},
             },
             id="record_4",
         ),
-        GenAIEvalRecord(
+        EvalRecord(
             context={
                 "metrics": {"quality_score": 8, "accuracy_score": 9},
                 "response": {"provides_solution": True, "acknowledges_concern": True},
@@ -214,35 +214,35 @@ def improved_records():
 def regressed_records():
     """Records showing regression in some metrics."""
     return [
-        GenAIEvalRecord(
+        EvalRecord(
             context={
                 "metrics": {"quality_score": 4, "accuracy_score": 5},
                 "response": {"provides_solution": False, "acknowledges_concern": False},
             },
             id="record_1",
         ),
-        GenAIEvalRecord(
+        EvalRecord(
             context={
                 "metrics": {"quality_score": 6, "accuracy_score": 7},
                 "response": {"provides_solution": True, "acknowledges_concern": False},
             },
             id="record_2",
         ),
-        GenAIEvalRecord(
+        EvalRecord(
             context={
                 "metrics": {"quality_score": 5, "accuracy_score": 6},
                 "response": {"provides_solution": False, "acknowledges_concern": True},
             },
             id="record_3",
         ),
-        GenAIEvalRecord(
+        EvalRecord(
             context={
                 "metrics": {"quality_score": 7, "accuracy_score": 8},
                 "response": {"provides_solution": True, "acknowledges_concern": True},
             },
             id="record_4",
         ),
-        GenAIEvalRecord(
+        EvalRecord(
             context={
                 "metrics": {"quality_score": 4, "accuracy_score": 5},
                 "response": {"provides_solution": False, "acknowledges_concern": False},

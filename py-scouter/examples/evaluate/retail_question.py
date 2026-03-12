@@ -5,11 +5,11 @@ from pydantic import BaseModel
 from scouter.evaluate import (
     AssertionTask,
     ComparisonOperator,
-    GenAIEvalDataset,
+    EvalDataset,
     LLMJudgeTask,
 )
 from scouter.genai import Agent, Prompt, Provider
-from scouter.queue import GenAIEvalRecord
+from scouter.queue import EvalRecord
 
 categories = ["bath", "kitchen", "outdoor"]
 ApplianceCategory = Literal["kitchen", "bath", "outdoor"]
@@ -219,7 +219,7 @@ def create_outdoor_expert_prompt() -> Prompt:
 
 def simulate_agent_interaction(
     num_questions: int,
-) -> List[GenAIEvalRecord]:
+) -> List[EvalRecord]:
     """Generates user questions and agent responses for appliance support."""
     print(f"\n=== Generating {num_questions} Customer Questions ===")
     question_prompt = create_question_generation_prompt()
@@ -252,7 +252,7 @@ def simulate_agent_interaction(
 
     records = []
     for question, response in zip(user_questions, agent_responses):
-        record = GenAIEvalRecord(
+        record = EvalRecord(
             context={
                 "user_input": question.question,
                 "agent_response": response.model_dump_json(),
@@ -357,13 +357,13 @@ def outdoor_category_tasks() -> List[LLMJudgeTask | AssertionTask]:
 
 
 def build_appliance_support_dataset(
-    records: Sequence[GenAIEvalRecord],
-) -> GenAIEvalDataset:
+    records: Sequence[EvalRecord],
+) -> EvalDataset:
     """
     Creates an evaluation dataset for validating appliance support responses.
     """
 
-    dataset = GenAIEvalDataset(
+    dataset = EvalDataset(
         records=records,
         tasks=[
             LLMJudgeTask(

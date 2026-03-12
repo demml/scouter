@@ -9,7 +9,7 @@ use pyo3::types::{PyList, PySlice};
 use pyo3::IntoPyObjectExt;
 use scouter_state::app_state;
 use scouter_types::genai::{AssertionTask, GenAIEvalProfile, LLMJudgeTask, TraceAssertionTask};
-use scouter_types::GenAIEvalRecord;
+use scouter_types::EvalRecord;
 use scouter_types::PyHelperFuncs;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -22,7 +22,7 @@ use tracing::{debug, instrument};
 /// * `embedding_targets`: Optional list of fields to embed.
 #[instrument(skip_all)]
 pub async fn evaluate_genai_dataset(
-    dataset: &GenAIEvalDataset,
+    dataset: &EvalDataset,
     config: &Arc<EvaluationConfig>,
 ) -> Result<GenAIEvalResults, EvaluationError> {
     debug!(
@@ -59,7 +59,7 @@ pub async fn evaluate_genai_dataset(
 
 #[pyclass]
 pub struct DatasetRecords {
-    records: Arc<Vec<GenAIEvalRecord>>,
+    records: Arc<Vec<EvalRecord>>,
     index: usize,
 }
 
@@ -69,7 +69,7 @@ impl DatasetRecords {
         slf
     }
 
-    pub fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<GenAIEvalRecord> {
+    pub fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<EvalRecord> {
         if slf.index < slf.records.len() {
             let record = slf.records[slf.index].clone();
             slf.index += 1;
@@ -121,17 +121,17 @@ impl DatasetRecords {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize)]
-pub struct GenAIEvalDataset {
-    pub records: Arc<Vec<GenAIEvalRecord>>,
+pub struct EvalDataset {
+    pub records: Arc<Vec<EvalRecord>>,
     pub profile: Arc<GenAIEvalProfile>,
 }
 
 #[pymethods]
-impl GenAIEvalDataset {
+impl EvalDataset {
     #[new]
     #[pyo3(signature = (records, tasks))]
     pub fn new(
-        records: Vec<GenAIEvalRecord>,
+        records: Vec<EvalRecord>,
         tasks: &Bound<'_, PyList>,
     ) -> Result<Self, EvaluationError> {
         let profile = GenAIEvalProfile::new_py(tasks, None, None)?;
@@ -204,11 +204,11 @@ impl GenAIEvalDataset {
     /// * `context_map` - Dictionary mapping record_id to new context object
     ///
     /// # Returns
-    /// A new `GenAIEvalDataset` with updated contexts for matched IDs
+    /// A new `EvalDataset` with updated contexts for matched IDs
     ///
     /// # Example
     /// ```python
-    /// baseline_dataset = GenAIEvalDataset(records=[...], tasks=[...])
+    /// baseline_dataset = EvalDataset(records=[...], tasks=[...])
     ///
     /// # Update specific records by ID
     /// new_contexts = {
@@ -224,7 +224,7 @@ impl GenAIEvalDataset {
         py: Python<'_>,
         context_map: HashMap<String, Bound<'_, PyAny>>,
     ) -> Result<Self, EvaluationError> {
-        let updated_records: Vec<GenAIEvalRecord> = self
+        let updated_records: Vec<EvalRecord> = self
             .records
             .iter()
             .map(|record| {
@@ -236,7 +236,7 @@ impl GenAIEvalDataset {
                     Ok(record.clone())
                 }
             })
-            .collect::<Result<Vec<GenAIEvalRecord>, EvaluationError>>()?;
+            .collect::<Result<Vec<EvalRecord>, EvaluationError>>()?;
 
         Ok(Self {
             records: Arc::new(updated_records),

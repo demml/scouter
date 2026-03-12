@@ -96,17 +96,17 @@ request.to_features()
 In the above logic, we access the queue via the `request.app.state` and the corresponding alias ("psi"). We then call the insert method with the features we want to send to the Scouter server. This is a simple exchange of data, as the ScouterQueue will pass the features through a channel to a background worker that is running independently on a separate thread. In our benchmarks, inserting data is extremely fast (<1us), so you can expect minimal overhead in your API response time. However, if you want to move the insertion logic to a background task, you can use the `BackgroundTasks` from FastAPI to do so.
 
 ### What Queues Expect
-As you can see in the above example, the `ScouterQueue` expects either a `Features` object, a `Metrics` object or an `GenAIEvalRecord` object. Both of these objects are designed to be flexible and can be created in a variety of ways.
+As you can see in the above example, the `ScouterQueue` expects either a `Features` object, a `Metrics` object or an `EvalRecord` object. Both of these objects are designed to be flexible and can be created in a variety of ways.
 
-### When to use `Features` vs `Metrics` vs `GenAIEvalRecord`?
+### When to use `Features` vs `Metrics` vs `EvalRecord`?
 
 | `type`  | `Description` | `Associated Profiles` |
 |---------|----------------|-----------------------|
 | `Features` | Used for PSI and SPC monitoring, where you are monitoring 'features' | `PsiDriftProfile`, `SpcDriftProfile` |
 | `Metrics` | Used for custom metrics that you want to monitor | `CustomMetricProfile` |
-| `GenAIEvalRecord` | Used for LLM monitoring, where you are monitoring the performance of LLM services | `GenAIEvalProfile` |
+| `EvalRecord` | Used for LLM monitoring, where you are monitoring the performance of LLM services | `GenAIEvalProfile` |
 
-### How to create `Features`, `Metrics` and `GenAIEvalRecord` objects?
+### How to create `Features`, `Metrics` and `EvalRecord` objects?
 
 #### Features
 
@@ -201,8 +201,8 @@ Metrics(my_metrics.model_dump())
 ```
 
 
-#### GenAIEvalRecord
-The `GenAIEvalRecord` object is used to send GenAI service records to the Scouter server for online evaluation. It contains a context map of keys and relevant values for your GenAI service. For instance, if you are monitoring a question-answering service, you might want to include the following fields in your context:
+#### EvalRecord
+The `EvalRecord` object is used to send GenAI service records to the Scouter server for online evaluation. It contains a context map of keys and relevant values for your GenAI service. For instance, if you are monitoring a question-answering service, you might want to include the following fields in your context:
 - `input`: The input question to the GenAI service
 - `response`: The response from the GenAI service
 
@@ -213,7 +213,7 @@ The `GenAIEvalRecord` object is used to send GenAI service records to the Scoute
 ```python
 
 # dictionary context
-record = GenAIEvalRecord(
+record = EvalRecord(
     context={
         "input": "What is the capital of France?",
         "response": "The capital of France is Paris.",
@@ -231,10 +231,10 @@ qa_record = QARecord(
     response="The capital of France is Paris.",
 )
 
-record = GenAIEvalRecord(context=qa_record)
+record = EvalRecord(context=qa_record)
 ```
 
-For more information on creating `GenAIEvalRecord` objects, please refer to the [GenAI Tasks Documentation](/scouter/docs/monitoring/genai/tasks/).
+For more information on creating `EvalRecord` objects, please refer to the [GenAI Tasks Documentation](/scouter/docs/monitoring/genai/tasks/).
 
 ### Ready to go!
 

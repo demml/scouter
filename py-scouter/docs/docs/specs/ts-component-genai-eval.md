@@ -15,13 +15,13 @@ Both modes share a common task model (`AssertionTask`, `LLMJudgeTask`) and a com
 
 ### How it works
 
-Online evaluation integrates directly into the production inference path. A `GenAIEvalProfile` is registered with the Scouter server, defining what to evaluate and how. At inference time, the application inserts `GenAIEvalRecord` objects into a `ScouterQueue`. The server samples records based on a configurable `sample_ratio`, then runs evaluation tasks asynchronously via the GenAI poller background worker.
+Online evaluation integrates directly into the production inference path. A `GenAIEvalProfile` is registered with the Scouter server, defining what to evaluate and how. At inference time, the application inserts `EvalRecord` objects into a `ScouterQueue`. The server samples records based on a configurable `sample_ratio`, then runs evaluation tasks asynchronously via the GenAI poller background worker.
 
 ```
 Inference request
       │
       ▼
-Application inserts GenAIEvalRecord into ScouterQueue
+Application inserts EvalRecord into ScouterQueue
       │
       ▼
 Scouter server samples based on sample_ratio
@@ -36,14 +36,14 @@ Evaluation tasks run (AssertionTask / LLMJudgeTask)
 Alert conditions checked → dispatch if threshold crossed
 ```
 
-### GenAIEvalRecord
+### EvalRecord
 
-A `GenAIEvalRecord` captures the context of a single inference call. It accepts a Python `dict` or Pydantic `BaseModel` as context, and an optional `Prompt`.
+A `EvalRecord` captures the context of a single inference call. It accepts a Python `dict` or Pydantic `BaseModel` as context, and an optional `Prompt`.
 
 ```python
-from scouter import GenAIEvalRecord
+from scouter import EvalRecord
 
-record = GenAIEvalRecord(
+record = EvalRecord(
     context={
         "input": user_message,
         "response": model_response,
@@ -81,14 +81,14 @@ profile = GenAIEvalProfile(
 
 ## Offline Evaluation
 
-Offline evaluation runs batch evaluation against a `GenAIEvalDataset`. This is useful for pre-deployment testing, regression analysis, and comparing model versions.
+Offline evaluation runs batch evaluation against a `EvalDataset`. This is useful for pre-deployment testing, regression analysis, and comparing model versions.
 
 ### Workflow
 
 ```python
-from scouter.evaluate import GenAIEvalDataset, GenAIEvalConfig
+from scouter.evaluate import EvalDataset, GenAIEvalConfig
 
-dataset = GenAIEvalDataset(
+dataset = EvalDataset(
     config=GenAIEvalConfig(
         space="my-space",
         name="my-model",

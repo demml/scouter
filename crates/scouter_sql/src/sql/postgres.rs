@@ -1027,7 +1027,7 @@ mod tests {
                 "input": input,
                 "response": output,
             });
-            let record = GenAIEvalRecord {
+            let record = EvalRecord {
                 created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
                 context,
                 status: Status::Pending,
@@ -1038,7 +1038,7 @@ mod tests {
                 ..Default::default()
             };
 
-            let boxed = BoxedGenAIEvalRecord::new(record);
+            let boxed = BoxedEvalRecord::new(record);
 
             let result = PostgresClient::insert_genai_eval_record(&pool, boxed, &entity_id)
                 .await
@@ -1096,7 +1096,7 @@ mod tests {
                 "input": input,
                 "response": output,
             });
-            let record = GenAIEvalRecord {
+            let record = EvalRecord {
                 created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
                 context,
                 status: Status::Pending,
@@ -1107,7 +1107,7 @@ mod tests {
                 ..Default::default()
             };
 
-            let boxed = BoxedGenAIEvalRecord::new(record);
+            let boxed = BoxedEvalRecord::new(record);
 
             let result = PostgresClient::insert_genai_eval_record(&pool, boxed, &entity_id)
                 .await
@@ -1180,7 +1180,7 @@ mod tests {
                 "input": input,
                 "response": output,
             });
-            let record = GenAIEvalRecord {
+            let record = EvalRecord {
                 created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
                 context,
                 status: Status::Pending,
@@ -1191,7 +1191,7 @@ mod tests {
                 ..Default::default()
             };
 
-            let boxed = BoxedGenAIEvalRecord::new(record);
+            let boxed = BoxedEvalRecord::new(record);
 
             let result = PostgresClient::insert_genai_eval_record(&pool, boxed, &entity_id)
                 .await
@@ -1201,7 +1201,7 @@ mod tests {
         }
 
         // ===== PAGE 1: Get first 5 records (newest) =====
-        let params = GenAIEvalRecordPaginationRequest {
+        let params = EvalRecordPaginationRequest {
             status: None,
             limit: Some(5),
             cursor_created_at: None,
@@ -1234,7 +1234,7 @@ mod tests {
         // ===== PAGE 2: Get next 5 records (older) =====
         let next_cursor = page1.next_cursor.unwrap();
 
-        let params = GenAIEvalRecordPaginationRequest {
+        let params = EvalRecordPaginationRequest {
             status: None,
             limit: Some(5),
             cursor_created_at: Some(next_cursor.created_at),
@@ -1283,7 +1283,7 @@ mod tests {
         // Go back from page 2 to page 1
         let previous_cursor = page2.previous_cursor.unwrap();
 
-        let params = GenAIEvalRecordPaginationRequest {
+        let params = EvalRecordPaginationRequest {
             status: None,
             limit: Some(5),
             cursor_created_at: Some(previous_cursor.created_at),
@@ -1343,7 +1343,7 @@ mod tests {
         }
 
         // ===== PAGE 1: Get first 5 records (newest) =====
-        let params = GenAIEvalRecordPaginationRequest {
+        let params = EvalRecordPaginationRequest {
             status: None,
             limit: Some(5),
             cursor_created_at: None,
@@ -1377,7 +1377,7 @@ mod tests {
         // ===== PAGE 2: Get next 5 records (older) =====
         let next_cursor = page1.next_cursor.unwrap();
 
-        let params = GenAIEvalRecordPaginationRequest {
+        let params = EvalRecordPaginationRequest {
             status: None,
             limit: Some(5),
             cursor_created_at: Some(next_cursor.created_at),
@@ -1427,7 +1427,7 @@ mod tests {
         // Go back from page 2 to page 1
         let previous_cursor = page2.previous_cursor.unwrap();
 
-        let params = GenAIEvalRecordPaginationRequest {
+        let params = EvalRecordPaginationRequest {
             status: None,
             limit: Some(5),
             cursor_created_at: Some(previous_cursor.created_at),

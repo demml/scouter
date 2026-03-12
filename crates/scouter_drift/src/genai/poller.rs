@@ -8,7 +8,7 @@ use scouter_sql::sql::traits::{GenAIDriftSqlLogic, ProfileSqlLogic};
 use scouter_sql::PostgresClient;
 use scouter_types::genai::{GenAIEvalProfile, GenAIEvalSet};
 use scouter_types::sql::{TraceFilters, TraceSpan};
-use scouter_types::{GenAIEvalRecord, Status, TraceId};
+use scouter_types::{EvalRecord, Status, TraceId};
 use sqlx::{Pool, Postgres};
 use std::sync::Arc;
 use tokio::time::sleep;
@@ -113,7 +113,7 @@ async fn wait_for_trace_spans(
 #[instrument(skip_all)]
 async fn wait_for_trace_spans_with_reschedule(
     pool: &Pool<Postgres>,
-    task: &GenAIEvalRecord,
+    task: &EvalRecord,
     max_retries: &i32,
     trace_wait_timeout: Duration,
     trace_backoff: Duration,
@@ -171,7 +171,7 @@ impl GenAIPoller {
     #[instrument(skip_all)]
     pub async fn process_event_record(
         &mut self,
-        record: &GenAIEvalRecord,
+        record: &EvalRecord,
         profile: &GenAIEvalProfile,
         spans: Arc<Vec<TraceSpan>>,
     ) -> Result<GenAIEvalSet, DriftError> {

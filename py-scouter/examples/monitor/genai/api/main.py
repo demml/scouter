@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from scouter.genai import Agent, Prompt
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
-from scouter.queue import GenAIEvalRecord, Queue, ScouterQueue
+from scouter.queue import EvalRecord, Queue, ScouterQueue
 from scouter.transport import HttpConfig
 
 from .assets.prompts import prompt_state
@@ -53,7 +53,7 @@ async def predict(request: Request, payload: Question) -> Answer:
     ).response_text()
 
     queue.insert(
-        GenAIEvalRecord(
+        EvalRecord(
             context={
                 "user_input": payload.question,
                 "reformulated_query": reformulated_query,

@@ -8,15 +8,15 @@ use scouter_dataframe::parquet::BinnedMetricsExtractor;
 use scouter_dataframe::parquet::ParquetDataFrame;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::contracts::DriftRequest;
-use scouter_types::BoxedGenAIEvalRecord;
-use scouter_types::GenAIEvalRecord;
+use scouter_types::BoxedEvalRecord;
+use scouter_types::EvalRecord;
 use scouter_types::GenAIEvalTaskResult;
 use scouter_types::GenAIEvalWorkflowPaginationResponse;
 use scouter_types::GenAIEvalWorkflowResult;
 use scouter_types::Status;
 use scouter_types::{
-    BinnedMetrics, GenAIEvalRecordPaginationRequest, GenAIEvalRecordPaginationResponse,
-    RecordCursor, RecordType,
+    BinnedMetrics, EvalRecordPaginationRequest, EvalRecordPaginationResponse, RecordCursor,
+    RecordType,
 };
 use sqlx::types::Json;
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
@@ -34,10 +34,10 @@ pub trait GenAIDriftSqlLogic {
     /// * A result containing the query result or an error
     async fn insert_genai_eval_record(
         pool: &Pool<Postgres>,
-        record: BoxedGenAIEvalRecord,
+        record: BoxedEvalRecord,
         entity_id: &i32,
     ) -> Result<PgQueryResult, SqlError> {
-        let query = Queries::InsertGenAIEvalRecord.get_query();
+        let query = Queries::InsertEvalRecord.get_query();
 
         sqlx::query(query)
             .bind(record.record.uid)
@@ -159,8 +159,8 @@ pub trait GenAIDriftSqlLogic {
         limit_datetime: Option<&DateTime<Utc>>,
         status: Option<Status>,
         entity_id: &i32,
-    ) -> Result<Vec<GenAIEvalRecord>, SqlError> {
-        let mut query_string = Queries::GetGenAIEvalRecords.get_query().to_string();
+    ) -> Result<Vec<EvalRecord>, SqlError> {
+        let mut query_string = Queries::GetEvalRecords.get_query().to_string();
         let mut bind_count = 1;
 
         if limit_datetime.is_some() {
@@ -174,7 +174,7 @@ pub trait GenAIDriftSqlLogic {
             query_string.push_str(&format!(" AND status = ${bind_count}"));
         }
 
-        let mut query = sqlx::query_as::<_, GenAIEvalRecord>(&query_string).bind(entity_id);
+        let mut query = sqlx::query_as::<_, EvalRecord>(&query_string).bind(entity_id);
 
         if let Some(datetime) = limit_datetime {
             query = query.bind(datetime);
@@ -207,14 +207,14 @@ pub trait GenAIDriftSqlLogic {
     #[instrument(skip_all)]
     async fn get_paginated_genai_eval_records(
         pool: &Pool<Postgres>,
-        params: &GenAIEvalRecordPaginationRequest,
+        params: &EvalRecordPaginationRequest,
         entity_id: &i32,
-    ) -> Result<GenAIEvalRecordPaginationResponse, SqlError> {
-        let query = Queries::GetPaginatedGenAIEvalRecords.get_query();
+    ) -> Result<EvalRecordPaginationResponse, SqlError> {
+        let query = Queries::GetPaginatedEvalRecords.get_query();
         let limit = params.limit.unwrap_or(50);
         let direction = params.direction.as_deref().unwrap_or("next");
 
-        let mut items: Vec<GenAIEvalRecord> = sqlx::query_as(query)
+        let mut items: Vec<EvalRecord> = sqlx::query_as(query)
             .bind(entity_id)
             .bind(params.status.as_ref().and_then(|s| s.as_str()))
             .bind(params.cursor_created_at)
@@ -291,7 +291,7 @@ pub trait GenAIDriftSqlLogic {
             })
             .collect();
 
-        Ok(GenAIEvalRecordPaginationResponse {
+        Ok(EvalRecordPaginationResponse {
             items: public_items,
             has_next,
             next_cursor,
@@ -332,7 +332,7 @@ pub trait GenAIDriftSqlLogic {
     #[instrument(skip_all)]
     async fn get_paginated_genai_eval_workflow_records(
         pool: &Pool<Postgres>,
-        params: &GenAIEvalRecordPaginationRequest,
+        params: &EvalRecordPaginationRequest,
         entity_id: &i32,
     ) -> Result<GenAIEvalWorkflowPaginationResponse, SqlError> {
         let query = Queries::GetPaginatedGenAIEvalWorkflow.get_query();
@@ -770,9 +770,9 @@ pub trait GenAIDriftSqlLogic {
     /// Retrieves the next pending GenAI drift task from drift_records.
     async fn get_pending_genai_eval_record(
         pool: &Pool<Postgres>,
-    ) -> Result<Option<GenAIEvalRecord>, SqlError> {
+    ) -> Result<Option<EvalRecord>, SqlError> {
         let query = Queries::GetPendingGenAIEvalTask.get_query();
-        let result: Option<GenAIEvalRecord> = sqlx::query_as(query)
+        let result: Option<EvalRecord> = sqlx::query_as(query)
             .fetch_optional(pool)
             .await
             .map_err(SqlError::SqlxError)?;
@@ -785,7 +785,7 @@ pub trait GenAIDriftSqlLogic {
     #[instrument(skip_all)]
     async fn update_genai_eval_record_status(
         pool: &Pool<Postgres>,
-        record: &GenAIEvalRecord,
+        record: &EvalRecord,
         status: Status,
         workflow_duration: &i64,
     ) -> Result<(), SqlError> {
@@ -811,7 +811,7 @@ pub trait GenAIDriftSqlLogic {
     ) -> Result<(), SqlError> {
         let scheduled_at = Utc::now() + delay;
 
-        let query = Queries::RescheduleGenAIEvalRecord.get_query();
+        let query = Queries::RescheduleEvalRecord.get_query();
         sqlx::query(query)
             .bind(scheduled_at)
             .bind(uid)

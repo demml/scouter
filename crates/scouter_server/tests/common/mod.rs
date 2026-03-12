@@ -41,9 +41,7 @@ use scouter_types::{
     AlertMap, CustomMetricRecord, GenAIEvalTaskResult, GenAIEvalWorkflowResult, MessageRecord,
     PsiRecord,
 };
-use scouter_types::{
-    BoxedGenAIEvalRecord, GenAIEvalRecord, ServerRecord, ServerRecords, SpcRecord, Status,
-};
+use scouter_types::{BoxedEvalRecord, EvalRecord, ServerRecord, ServerRecords, SpcRecord, Status};
 use scouter_types::{DriftType, RecordType};
 use serde_json::Value;
 use sqlx::{PgPool, Pool, Postgres};
@@ -348,7 +346,7 @@ impl TestHelper {
                     "input": format!("input{i}"),
                     "response": format!("output{i}"),
                 });
-                let record = GenAIEvalRecord {
+                let record = EvalRecord {
                     created_at: Utc::now() - chrono::Duration::days(offset),
                     entity_uid: uid.to_string(),
                     context,
@@ -359,7 +357,7 @@ impl TestHelper {
                     ..Default::default()
                 };
 
-                let boxed_record = BoxedGenAIEvalRecord::new(record);
+                let boxed_record = BoxedEvalRecord::new(record);
                 records.push(ServerRecord::GenAIEval(boxed_record));
             }
         }
