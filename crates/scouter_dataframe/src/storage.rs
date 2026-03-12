@@ -1,3 +1,4 @@
+use crate::caching_store::CachingStore;
 use crate::error::StorageError;
 use base64::prelude::*;
 use datafusion::prelude::{SessionConfig, SessionContext};
@@ -38,10 +39,10 @@ fn decode_base64_str(service_base64_creds: &str) -> Result<String, StorageError>
 /// Storage provider enum for common object stores
 #[derive(Debug, Clone)]
 enum StorageProvider {
-    Google(Arc<GoogleCloudStorage>),
-    Aws(Arc<AmazonS3>),
-    Local(Arc<LocalFileSystem>),
-    Azure(Arc<MicrosoftAzure>),
+    Google(Arc<CachingStore<GoogleCloudStorage>>),
+    Aws(Arc<CachingStore<AmazonS3>>),
+    Local(Arc<CachingStore<LocalFileSystem>>),
+    Azure(Arc<CachingStore<MicrosoftAzure>>),
 }
 
 impl StorageProvider {
@@ -60,6 +61,8 @@ impl StorageProvider {
     }
 
     pub fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, StorageError> {
+        let cache_bytes = storage_settings.object_cache_mb() * 1024 * 1024;
+
         let store = match storage_settings.storage_type {
             StorageType::Google => {
                 let mut builder = GoogleCloudStorageBuilder::from_env();
@@ -77,20 +80,19 @@ impl StorageProvider {
                     .with_client_options(cloud_client_options())
                     .build()?;
 
-                StorageProvider::Google(Arc::new(storage))
+                StorageProvider::Google(Arc::new(CachingStore::new(storage, cache_bytes)))
             }
             StorageType::Aws => {
-                let builder = AmazonS3Builder::from_env()
+                let storage = AmazonS3Builder::from_env()
                     .with_bucket_name(storage_settings.storage_root())
                     .with_region(storage_settings.region.clone())
                     .with_client_options(cloud_client_options())
                     .build()?;
-                StorageProvider::Aws(Arc::new(builder))
+                StorageProvider::Aws(Arc::new(CachingStore::new(storage, cache_bytes)))
             }
             StorageType::Local => {
-                // Create LocalFileSystem with the root path as the prefix
-                let builder = LocalFileSystem::new();
-                StorageProvider::Local(Arc::new(builder))
+                let storage = LocalFileSystem::new();
+                StorageProvider::Local(Arc::new(CachingStore::new(storage, cache_bytes)))
             }
             StorageType::Azure => {
                 // MicrosoftAzureBuilder::from_env() reads AZURE_STORAGE_ACCOUNT_NAME
@@ -111,12 +113,12 @@ impl StorageProvider {
                     }
                 }
 
-                let store = builder
+                let storage = builder
                     .with_container_name(storage_settings.storage_root())
                     .with_client_options(cloud_client_options())
                     .build()?;
 
-                StorageProvider::Azure(Arc::new(store))
+                StorageProvider::Azure(Arc::new(CachingStore::new(storage, cache_bytes)))
             }
         };
 

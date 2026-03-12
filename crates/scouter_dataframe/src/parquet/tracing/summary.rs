@@ -532,6 +532,10 @@ impl TraceSummaryDBEngine {
                             SummaryTableCommand::Optimize { respond_to } => {
                                 // Direct admin request — bypass control table
                                 let _ = respond_to.send(self.optimize_table().await);
+                                // vacuum table
+                                if let Err(e) = self.vacuum_table(0).await {
+                                    error!("Post-optimize vacuum failed: {}", e);
+                                }
                             }
                             SummaryTableCommand::Vacuum { retention_hours, respond_to } => {
                                 let _ = respond_to.send(self.vacuum_table(retention_hours).await);

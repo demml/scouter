@@ -50,6 +50,7 @@ arrow = { version = "57.*" }
 arrow-array = { version = "57.*" }
 async-trait = ">=0.1"
 base64 = ">=0.22"
+bytes = "1"
 chrono ={ version = "0.*", features = ["serde"] }
 clap = { version = "4.*", features = ["derive"] }
 colored_json = "5.*"

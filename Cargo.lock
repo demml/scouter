@@ -6459,6 +6459,7 @@ dependencies = [
  "arrow-array",
  "async-trait",
  "base64",
+ "bytes",
  "chrono",
  "criterion",
  "datafusion",
