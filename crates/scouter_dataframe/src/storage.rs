@@ -18,11 +18,14 @@ use url::Url;
 /// HTTP client options for cloud object stores.
 ///
 /// Enables TCP+TLS connection pooling so repeat queries reuse existing
-/// connections
+/// connections. Sized for high-concurrency GCS/S3 workloads where many
+/// parallel readers share the same host.
 fn cloud_client_options() -> ClientOptions {
     ClientOptions::new()
-        .with_pool_idle_timeout(std::time::Duration::from_secs(90))
-        .with_pool_max_idle_per_host(16)
+        .with_pool_idle_timeout(std::time::Duration::from_secs(120))
+        .with_pool_max_idle_per_host(64)
+        .with_timeout(std::time::Duration::from_secs(30))
+        .with_connect_timeout(std::time::Duration::from_secs(5))
 }
 
 /// Helper function to decode base64 encoded string
@@ -169,6 +172,67 @@ impl StorageProvider {
         // evaluated before range checks (start_time), short-circuiting row evaluation early.
         config.options_mut().execution.parquet.pushdown_filters = true;
         config.options_mut().execution.parquet.reorder_filters = true;
+
+        // ── Parquet read-path tuning (GCS latency reduction) ──────────────
+        //
+        // Read at least 1MB from the end of each Parquet file in a single request.
+        // Default is 512KB. Our files have bloom filters on trace_id + entity_id
+        // and page-level statistics on start_time + status_code, so footers are
+        // larger than average. 1MB captures footer + column/offset indexes in one
+        // GCS round-trip instead of the default multi-step chain, saving 1-2
+        // round-trips (~30-60ms each) per file.
+        config
+            .options_mut()
+            .execution
+            .parquet
+            .metadata_size_hint = Some(1024 * 1024);
+
+        // Bloom filters are written on trace_id and entity_id — ensure the reader
+        // consults them before decoding row groups. (Default is true in DF 52, but
+        // we're explicit to guard against version changes.)
+        config
+            .options_mut()
+            .execution
+            .parquet
+            .bloom_filter_on_read = true;
+
+        // Read Utf8 columns as Utf8View and Binary as BinaryView for zero-copy.
+        // Our schema already uses Utf8View/BinaryView — this ensures DataFusion
+        // doesn't downgrade them when reading back from Parquet.
+        config
+            .options_mut()
+            .execution
+            .parquet
+            .schema_force_view_types = true;
+
+        // ── Listing / metadata concurrency ───────────────────────────────
+        //
+        // Number of files to stat in parallel when inferring schema or listing
+        // a Delta table's backing Parquet files. Default is 32. On GCS each
+        // stat is a separate HTTP HEAD; higher concurrency hides the per-file
+        // latency behind parallelism. 64 matches our pool_max_idle_per_host.
+        config
+            .options_mut()
+            .execution
+            .meta_fetch_concurrency = 64;
+
+        // ── Write-path tuning ────────────────────────────────────────────
+        //
+        // Increase write-side parallelism so compaction and flush can encode
+        // multiple row groups concurrently, reducing wall-clock write latency.
+        config
+            .options_mut()
+            .execution
+            .parquet
+            .maximum_parallel_row_group_writers = 4;
+
+        // Buffer more decoded record batches per stream before back-pressure
+        // kicks in, smoothing out bursty reads from GCS.
+        config
+            .options_mut()
+            .execution
+            .parquet
+            .maximum_buffered_record_batches_per_stream = 8;
 
         let ctx = SessionContext::new_with_config(config);
         let base_url = self.get_base_url(storage_settings)?;
