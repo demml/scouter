@@ -47,6 +47,8 @@ Every span batch is processed by the `MessageHandler`, which fans out to two Del
 | `TraceSpanBatchBuilder` | `scouter_dataframe` | `parquet/tracing/engine.rs` | Zero-copy Arrow serialization of `TraceSpanRecord` |
 | `TraceQueries` | `scouter_dataframe` | `parquet/tracing/queries.rs` | DataFusion query execution and DFS span tree assembly |
 | `TraceSummaryService` | `scouter_dataframe` | `parquet/tracing/summary.rs` | Hour-bucketed summary table with cursor pagination |
+| `CachingStore` | `scouter_dataframe` | `caching_store.rs` | `ObjectStore` wrapper; caches `head()` and small range reads (≤2 MB) for immutable Parquet files |
+| `ObjectStore` | `scouter_dataframe` | `storage.rs` | Constructs the concrete cloud/local store wrapped in `CachingStore`; builds the tuned `SessionContext` |
 | `Transport Layer (gRPC/HTTP/Kafka/RabbitMQ/Redis)` | `scouter_server` / `scouter_events` | `api/grpc/message.rs`, `api/routes/`, `events/` | Span ingestion handlers across all supported transports |
 | `MessageHandler` | `scouter_sql` | `sql/postgres.rs` | Consumer worker; routes spans to `TraceSpanService` and `TraceSummaryService` |
 
@@ -121,6 +123,7 @@ Stores one row per span. Hierarchy fields (`depth`, `span_order`, `path`, `root_
 | `input` | `Utf8View` | Yes | Captured function input (JSON) |
 | `output` | `Utf8View` | Yes | Captured function output (JSON) |
 | `search_blob` | `Utf8View` | No | Pre-computed search string |
+| `partition_date` | `Date32` | No | Hive partition column (days since Unix epoch); derived from `start_time` at ingest |
 
 **Key design decisions:**
 
@@ -132,6 +135,9 @@ Stores one row per span. Hierarchy fields (`depth`, `span_order`, `path`, `root_
 | `search_blob` pre-computed at ingest | Concatenates service name, span name, scope name, attributes, and events into a single string — avoids JSON re-parsing on every attribute filter query |
 | `Timestamp(Microsecond, UTC)` | Sub-millisecond precision with explicit timezone; matches OTel wire format |
 | `FixedSizeBinary` for IDs | Compact binary representation; avoids hex string parsing in hot path |
+| `partition_date` Hive partition | Enables partition pruning — queries filtered by time skip entire date directories without reading the Delta log |
+| `DataSkippingStatsColumns` restricted | Delta Lake collects min/max stats only for `start_time`, `end_time`, `service_name`, `duration_ms`, `status_code`, `partition_date` — avoids inflating the Delta log with statistics on wide map/list columns |
+| Bloom filters on `trace_id`, `service_name`, `span_name` | Written at Parquet row-group level; skip ~99% of row groups for equality lookups in the hot query path |
 
 ### `trace_summaries` (14 columns)
 
@@ -222,14 +228,81 @@ The engine actor runs compaction automatically on a configurable interval (defau
 
 - **Target file size**: 128 MB
 - **Z-ORDER columns**: `start_time` (time-range queries), `service_name` (service filter pushdown)
+- **WriterProperties preserved**: bloom filters on `trace_id`, `service_name`, `span_name` are re-specified explicitly — without this, every compaction cycle would silently discard them from rewritten files
 
-Z-ORDER co-locates spans with similar start times and service names within each Parquet file, maximizing the effectiveness of DataFusion's min/max statistics-based file pruning.
+Z-ORDER co-locates spans with similar start times and service names within each Parquet file, maximizing the effectiveness of DataFusion's min/max statistics-based file pruning. After Z-ORDER, delta-encoded timestamps compress 4–8x within each row group.
 
-### 3. Vacuum
+Compaction is coordinated across pods via a **control table** — an optimistic-concurrency PostgreSQL table that ensures only one pod runs optimize or retention at a time, even in multi-replica deployments. The scheduler ticks every 5 minutes; the actual run schedule is persisted in `next_run_at` and survives pod restarts.
 
-Removes old Parquet file versions that are no longer referenced by the Delta log, freeing object storage space. Vacuum honors the configured retention window before deleting files.
+### 3. Retention
 
-Both compaction and vacuum can also be triggered on-demand via `TraceSpanService::optimize()` and `TraceSpanService::vacuum(retention_hours)`.
+The engine actor can also run periodic data expiry. When `retention_days` is configured, it issues a logical delete against the `partition_date` partition column, then immediately vacuums the freed files. Because the predicate maps directly to a partition directory, Delta Lake skips all unaffected partitions.
+
+Retention is also coordinated via the control table (task name: `trace_retention`), defaulting to a 24-hour schedule.
+
+### 4. Vacuum
+
+Removes old Parquet file versions that are no longer referenced by the Delta log, freeing object storage space. Vacuum runs automatically after both compaction and retention. It can also be triggered on-demand via `TraceSpanService::vacuum(retention_hours)`. Compaction is available on-demand via `TraceSpanService::optimize()`.
+
+---
+
+## Read/Write Performance Tuning
+
+The optimization PR introduced several layers of read and write improvements that apply across all storage backends.
+
+### CachingStore
+
+Every storage backend (GCS, S3, Azure, local) is now wrapped in a `CachingStore`. After Z-ORDER compaction, Parquet files are immutable — the same path always returns the same bytes. `CachingStore` caches two call types:
+
+- **`head()`** — up to 10,000 entries, 1-hour TTL. Eliminates repeated `HEAD` requests DataFusion issues to check file size before opening each file.
+- **`get_range()`** — byte-addressed cache with a configurable max size (default 64 MB), 1-hour TTL. Only ranges ≤2 MB are cached; larger column-data reads (uncommon for footer-heavy queries) pass through uncached.
+
+Cache size is configurable via `SCOUTER_OBJECT_CACHE_MB`. On GCS/S3 workloads where footer reads dominate query latency, this eliminates 1–2 round-trips (~30–60 ms each) per file per query.
+
+### DataFusion Session Configuration
+
+The `SessionContext` is now built with a tuned `SessionConfig` applied to all query and compaction operations:
+
+| Setting | Value | Effect |
+|---------|-------|--------|
+| `target_partitions` | `available_parallelism` | Uses all CPU cores for parallel query execution |
+| `batch_size` | 8192 | Controls Arrow RecordBatch size during query scans |
+| `prefer_existing_sort` | true | Avoids re-sorting data that Z-ORDER already sorted |
+| `parquet_pruning` | true | Enables min/max statistics-based file pruning |
+| `collect_statistics` | true | Gathers column statistics to improve query planning |
+| `pushdown_filters` | true | Pushes predicates into the Parquet reader — only matching rows are decoded |
+| `reorder_filters` | true | Reorders predicates by selectivity — bloom filters (`trace_id`) evaluated before range checks (`start_time`) |
+| `metadata_size_hint` | 1 MB | Fetches Parquet footer in one cloud round-trip; default 512KB is insufficient for files with bloom filters and page-level statistics |
+| `bloom_filter_on_read` | true | Consults row-group bloom filters before decoding; explicit to guard against DataFusion version changes |
+| `schema_force_view_types` | true | Reads `Utf8` columns as `Utf8View` — matches the schema's `StringView` type and avoids a downgrade on read |
+| `meta_fetch_concurrency` | 64 | Parallel file stat operations when listing Delta table files; matches the HTTP connection pool size |
+| `maximum_parallel_row_group_writers` | 4 | Encodes multiple row groups concurrently during compaction and flush |
+| `maximum_buffered_record_batches_per_stream` | 8 | Smooths bursty GCS reads by buffering more decoded batches per stream |
+
+### HTTP Connection Pooling
+
+Cloud object stores (GCS, S3, Azure) are built with shared `ClientOptions`:
+
+- Pool idle timeout: 120 seconds
+- Max idle connections per host: 64 (matches `meta_fetch_concurrency`)
+- Request timeout: 30 seconds
+- Connect timeout: 5 seconds
+
+### Parquet WriterProperties
+
+Both flush writes and Z-ORDER compaction use the same `WriterProperties`:
+
+| Setting | Value | Rationale |
+|---------|-------|-----------|
+| `max_row_group_size` | 32,768 rows | Creates ~4 row groups per 128 MB file; bloom filters and page statistics prune within files, not just across files |
+| Bloom filter: `trace_id` | FPP 0.01, NDV 32,768 | Skips ~99% of row groups for `trace_id` equality lookups |
+| Bloom filter: `service_name` | FPP 0.01, NDV 256 | Low cardinality but hot lookup path |
+| Bloom filter: `span_name` | FPP 0.01, NDV 32,768 | High cardinality equality queries |
+| Page stats: `start_time` | Page-level | Finest-grained time pruning within row groups |
+| Page stats: `status_code` | Page-level | Prunes pages for error-only queries (no bloom filter — only 3 values) |
+| Encoding: `start_time`, `duration_ms` | `DELTA_BINARY_PACKED` | 4–8x compression on near-sorted integers after Z-ORDER; 2–4x on durations within a service |
+| Compression | ZSTD level 3 | ~40% better than SNAPPY on text columns; marginal decompression overhead is offset by reduced I/O |
+| Dictionary: `span_name` | enabled | High repetition similar to `service_name` |
 
 ---
 
@@ -240,19 +313,21 @@ Both compaction and vacuum can also be triggered on-demand via `TraceSpanService
 | `SCOUTER_STORAGE_URI` | `./scouter_storage` | Object store root. Supports `s3://`, `gs://`, `az://`, or local path |
 | `SCOUTER_TRACE_COMPACTION_INTERVAL_HOURS` | `24` | How often automatic Z-ORDER compaction runs |
 | `SCOUTER_TRACE_FLUSH_INTERVAL_SECS` | `5` | How often the span buffer flushes to Delta Lake |
+| `SCOUTER_TRACE_BUFFER_SIZE` | `10000` | Span buffer capacity before a flush is triggered |
+| `SCOUTER_OBJECT_CACHE_MB` | `64` | Maximum size of the in-process object store range cache (MB) |
 | `AWS_REGION` | `us-east-1` | Required when using S3 storage |
 
 ---
 
 ## Storage Backends
 
-The storage layer uses the `ObjectStore` abstraction, supporting all major cloud providers and local filesystems with no code changes:
+The storage layer uses the `ObjectStore` abstraction, supporting all major cloud providers and local filesystems with no code changes. Every backend is wrapped in `CachingStore` — the caching layer is transparent to the rest of the system.
 
 | Backend | URI Prefix | Notes |
 |---------|-----------|-------|
 | Local filesystem | `./path` or `/abs/path` | Default; good for development |
 | Amazon S3 | `s3://bucket/prefix` | Requires `AWS_REGION` and standard AWS credentials |
-| Google Cloud Storage | `gs://bucket/prefix` | Uses Application Default Credentials |
-| Azure Blob Storage | `az://container/prefix` | Uses standard Azure SDK credentials |
+| Google Cloud Storage | `gs://bucket/prefix` | Uses Application Default Credentials; also accepts `GOOGLE_ACCOUNT_JSON_BASE64` for service account key injection |
+| Azure Blob Storage | `az://container/prefix` | Accepts both `AZURE_STORAGE_ACCOUNT_NAME`/`AZURE_STORAGE_ACCOUNT_KEY` (object_store convention) and `AZURE_STORAGE_ACCOUNT`/`AZURE_STORAGE_KEY` (az CLI/Terraform convention) |
 
 The same Delta Lake protocol and DataFusion query engine run identically across all backends.

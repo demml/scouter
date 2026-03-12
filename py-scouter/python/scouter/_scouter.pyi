@@ -424,9 +424,7 @@ class Prompt(Generic[OutputType]):
         model: str,
         provider: Provider | str,
         system_instructions: Optional[PromptMessage] = None,
-        model_settings: Optional[
-            ModelSettings | OpenAIChatSettings | GeminiSettings | AnthropicSettings
-        ] = None,
+        model_settings: Optional[ModelSettings | OpenAIChatSettings | GeminiSettings | AnthropicSettings] = None,
         output_type: Optional[Type[OutputType]] = None,
     ) -> None:
         """Initialize a Prompt object.
@@ -2757,9 +2755,7 @@ class ChatMessage:
     @property
     def content(
         self,
-    ) -> List[
-        Union[TextContentPart, ImageContentPart, InputAudioContentPart, FileContentPart]
-    ]:
+    ) -> List[Union[TextContentPart, ImageContentPart, InputAudioContentPart, FileContentPart]]:
         """The message content parts."""
 
     @property
@@ -9948,12 +9944,8 @@ class BatchConfig:
 def init_tracer(
     service_name: str = "scouter_service",
     scope: str = "scouter.tracer.{version}",
-    transport_config: Optional[
-        HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig | GrpcConfig
-    ] = None,
-    exporter: Optional[
-        HttpSpanExporter | GrpcSpanExporter | StdoutSpanExporter | TestSpanExporter
-    ] = None,
+    transport_config: Optional[HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig | GrpcConfig] = None,
+    exporter: Optional[HttpSpanExporter | GrpcSpanExporter | StdoutSpanExporter | TestSpanExporter] = None,
     batch_config: Optional[BatchConfig] = None,
     sample_ratio: Optional[float] = None,
     scouter_queue: Optional[ScouterQueue] = None,
@@ -11593,9 +11585,7 @@ class SpanFilter:
         """
 
     @staticmethod
-    def with_duration(
-        min_ms: Optional[float] = None, max_ms: Optional[float] = None
-    ) -> "SpanFilter":
+    def with_duration(min_ms: Optional[float] = None, max_ms: Optional[float] = None) -> "SpanFilter":
         """Filter spans by duration constraints.
 
         Args:
@@ -11875,9 +11865,7 @@ class TraceAssertion:
         """
 
     @staticmethod
-    def span_aggregation(
-        filter: SpanFilter, attribute_key: str, aggregation: AggregationType
-    ) -> "TraceAssertion":
+    def span_aggregation(filter: SpanFilter, attribute_key: str, aggregation: AggregationType) -> "TraceAssertion":
         """Aggregate numeric attribute across filtered spans.
 
         Args:
@@ -12232,9 +12220,7 @@ class AssertionResults:
     def __str__(self): ...
     def __getitem__(self, key: str) -> AssertionResult: ...
 
-def execute_trace_assertion_tasks(
-    tasks: List[TraceAssertionTask], spans: List[TraceSpan]
-) -> AssertionResults:
+def execute_trace_assertion_tasks(tasks: List[TraceAssertionTask], spans: List[TraceSpan]) -> AssertionResults:
     """Execute trace assertion tasks against provided spans.
 
     Args:
@@ -12261,12 +12247,7 @@ class TasksFile:
 
     def __getitem__(
         self, index: int | slice
-    ) -> (
-        AssertionTask
-        | LLMJudgeTask
-        | TraceAssertionTask
-        | List[AssertionTask | LLMJudgeTask | TraceAssertionTask]
-    ):
+    ) -> AssertionTask | LLMJudgeTask | TraceAssertionTask | List[AssertionTask | LLMJudgeTask | TraceAssertionTask]:
         """Get task(s) by index or slice."""
 
     def __len__(self) -> int:
@@ -12485,9 +12466,7 @@ class AlertDispatchType:
     def to_string() -> str:
         """Return the string representation of the alert dispatch type"""
 
-DispatchConfigType = (
-    ConsoleDispatchConfig | SlackDispatchConfig | OpsGenieDispatchConfig
-)
+DispatchConfigType = ConsoleDispatchConfig | SlackDispatchConfig | OpsGenieDispatchConfig
 
 class AlertZone:
     Zone1: "AlertZone"
@@ -13256,9 +13235,7 @@ class DriftRequest:
         """
 
 class ProfileStatusRequest:
-    def __init__(
-        self, name: str, space: str, version: str, drift_type: DriftType, active: bool
-    ) -> None:
+    def __init__(self, name: str, space: str, version: str, drift_type: DriftType, active: bool) -> None:
         """Initialize profile status request
 
         Args:
@@ -13275,9 +13252,7 @@ class ProfileStatusRequest:
         """
 
 class GetProfileRequest:
-    def __init__(
-        self, name: str, space: str, version: str, drift_type: DriftType
-    ) -> None:
+    def __init__(self, name: str, space: str, version: str, drift_type: DriftType) -> None:
         """Initialize get profile request
 
         Args:
@@ -13378,9 +13353,7 @@ class ScouterClient:
                 DriftRequest object
         """
 
-    def register_profile(
-        self, profile: Any, set_active: bool = False, deactivate_others: bool = False
-    ) -> bool:
+    def register_profile(self, profile: Any, set_active: bool = False, deactivate_others: bool = False) -> bool:
         """Registers a drift profile with the server
 
         Args:
@@ -13406,9 +13379,7 @@ class ScouterClient:
             boolean
         """
 
-    def get_alerts(
-        self, request: DriftAlertPaginationRequest
-    ) -> DriftAlertPaginationResponse:
+    def get_alerts(self, request: DriftAlertPaginationRequest) -> DriftAlertPaginationResponse:
         """Get alerts
 
         Args:
@@ -14105,14 +14076,7 @@ class ScouterQueue:
 
     @staticmethod
     def from_profile(
-        profile: Union[
-            dict,
-            list,
-            SpcDriftProfile,
-            PsiDriftProfile,
-            CustomDriftProfile,
-            GenAIEvalProfile,
-        ],
+        profile: Union[dict, list, SpcDriftProfile, PsiDriftProfile, CustomDriftProfile, GenAIEvalProfile],
         transport_config: Union[
             KafkaConfig,
             RabbitMQConfig,
@@ -14754,16 +14718,7 @@ class FreedmanDiaconis:
         For more information, please see: https://en.wikipedia.org/wiki/Histogram
         """
 
-EqualWidthMethods = (
-    Manual
-    | SquareRoot
-    | Sturges
-    | Rice
-    | Doane
-    | Scott
-    | TerrellScott
-    | FreedmanDiaconis
-)
+EqualWidthMethods = Manual | SquareRoot | Sturges | Rice | Doane | Scott | TerrellScott | FreedmanDiaconis
 
 class EqualWidthBinning:
     def __init__(self, method: EqualWidthMethods = Doane()):
@@ -14837,9 +14792,7 @@ class PsiDriftConfig:
         alert_config: PsiAlertConfig = PsiAlertConfig(),
         config_path: Optional[Path] = None,
         categorical_features: Optional[list[str]] = None,
-        binning_strategy: QuantileBinning | EqualWidthBinning = QuantileBinning(
-            num_bins=10
-        ),
+        binning_strategy: QuantileBinning | EqualWidthBinning = QuantileBinning(num_bins=10),
     ):
         """Initialize monitor config
 
@@ -14917,9 +14870,7 @@ class PsiDriftConfig:
         """binning_strategy"""
 
     @binning_strategy.setter
-    def binning_strategy(
-        self, binning_strategy: QuantileBinning | EqualWidthBinning
-    ) -> None:
+    def binning_strategy(self, binning_strategy: QuantileBinning | EqualWidthBinning) -> None:
         """Set binning_strategy"""
 
     @property
@@ -16260,9 +16211,7 @@ class Drifter:
     def create_drift_profile(  # type: ignore
         self,
         data: Any,
-        config: Optional[
-            Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]
-        ] = None,
+        config: Optional[Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]] = None,
         data_type: Optional[ScouterDataType] = None,
     ) -> Union[SpcDriftProfile, PsiDriftProfile, CustomDriftProfile]:
         """Create a drift profile from data.
@@ -16844,9 +16793,7 @@ class EvalResults:
 
         """
 
-    def compare_to(
-        self, baseline: "EvalResults", regression_threshold: float
-    ) -> ComparisonResults:
+    def compare_to(self, baseline: "EvalResults", regression_threshold: float) -> ComparisonResults:
         """Compare the current evaluation results to a baseline with a regression threshold.
 
         Args:
@@ -17212,6 +17159,10 @@ __all__ = [
     "EqualWidthBinning",
     "EvalDataset",
     "EvalRecord",
+    "EvalResultSet",
+    "EvalResults",
+    "EvalSet",
+    "EvalTaskResult",
     "EvaluationConfig",
     "EvaluationTaskType",
     "EventDetails",
@@ -17246,10 +17197,6 @@ __all__ = [
     "GenAIAlertConfig",
     "GenAIEvalConfig",
     "GenAIEvalProfile",
-    "EvalResultSet",
-    "EvalResults",
-    "EvalSet",
-    "EvalTaskResult",
     "GenerateContentResponse",
     "GenerationConfig",
     "GetProfileRequest",
