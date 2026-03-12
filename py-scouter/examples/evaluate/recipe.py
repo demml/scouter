@@ -4,12 +4,12 @@ from pydantic import BaseModel
 from scouter.evaluate import (
     AssertionTask,
     ComparisonOperator,
-    GenAIEvalDataset,
+    EvalDataset,
     LLMJudgeTask,
 )
 from scouter.genai import Agent, Prompt, Provider
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
-from scouter.queue import GenAIEvalRecord
+from scouter.queue import EvalRecord
 
 RustyLogger.setup_logging(LoggingConfig(log_level=LogLevel.Info))
 
@@ -137,7 +137,9 @@ def create_practical_prompt() -> Prompt:
     )
 
 
-def build_recipe_eval_dataset(user_request: str, recipe_response: Recipe) -> GenAIEvalDataset:
+def build_recipe_eval_dataset(
+    user_request: str, recipe_response: Recipe
+) -> EvalDataset:
     """
     Creates an evaluation dataset for validating vegetarian recipe generation.
     """
@@ -153,10 +155,10 @@ def build_recipe_eval_dataset(user_request: str, recipe_response: Recipe) -> Gen
             response = recipe_response.model_copy()
             response.rating = Rating(score=5, reason="Excellent recipe")
 
-        record = GenAIEvalRecord(context={"user_request": user_request, "recipe": response})
+        record = EvalRecord(context={"user_request": user_request, "recipe": response})
         records.append(record)
 
-    dataset = GenAIEvalDataset(
+    dataset = EvalDataset(
         records=records,
         tasks=[
             LLMJudgeTask(  # LLM judges validate the prompt outputs, not original context
@@ -248,7 +250,9 @@ if __name__ == "__main__":
     for i, direction in enumerate(recipe.directions, 1):
         print(f"  {i}. {direction}")
 
-    dataset = build_recipe_eval_dataset(user_request=user_request, recipe_response=recipe)
+    dataset = build_recipe_eval_dataset(
+        user_request=user_request, recipe_response=recipe
+    )
 
     print("\n=== Evaluation Plan ===")
     dataset.print_execution_plan()

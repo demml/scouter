@@ -16,7 +16,7 @@ Before going over offline and online evaluations, it's important to understand h
 
 ### Offline Evaluation
 
-One of our goals with GenAI evaluations is to maintain parity between offline and online evaluations. This means you can define your evaluation tasks once and use them both for offline batch evaluations as well as on-line. This ensures consistency in how you measure your LLM's performance across different environments and versions. To run offline evaluations, you can use the `GenAIEvalDataset` along with the `GenAIEvalRecord` class and `LLMJudgeTask` and `AssertionTask` to run evaluations against a set of records. More on this can be found in the [Offline Evaluation Documentation](/scouter/docs/monitoring/genai/offline-evaluation/).
+One of our goals with GenAI evaluations is to maintain parity between offline and online evaluations. This means you can define your evaluation tasks once and use them both for offline batch evaluations as well as on-line. This ensures consistency in how you measure your LLM's performance across different environments and versions. To run offline evaluations, you can use the `EvalDataset` along with the `EvalRecord` class and `LLMJudgeTask` and `AssertionTask` to run evaluations against a set of records. More on this can be found in the [Offline Evaluation Documentation](/scouter/docs/monitoring/genai/offline-evaluation/).
 
 
 ### Online Drift Detection

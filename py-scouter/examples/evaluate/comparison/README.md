@@ -4,7 +4,7 @@ Demonstrates comparing two evaluation runs to detect regressions or measure impr
 
 ## How comparison works
 
-1. Assign stable `id` values to `GenAIEvalRecord` objects
+1. Assign stable `id` values to `EvalRecord` objects
 2. Run baseline evaluation → `baseline_results`
 3. Build a new dataset using `with_updated_contexts_by_id(context_map)` — only the fields you changed need to be in the map; everything else carries over
 4. Run improved evaluation → `improved_results`
@@ -69,8 +69,8 @@ uv run python examples/evaluate/comparison/retail_helper_agent.py
 
 ```python
 # Create baseline dataset
-baseline_dataset = GenAIEvalDataset(
-    records=[GenAIEvalRecord(id="interaction_0", context={...}), ...],
+baseline_dataset = EvalDataset(
+    records=[EvalRecord(id="interaction_0", context={...}), ...],
     tasks=[...],
 )
 baseline_results = baseline_dataset.evaluate()

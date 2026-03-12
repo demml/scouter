@@ -229,7 +229,7 @@ mod tests {
         spc::{SpcAlertConfig, SpcAlertRule, SpcDriftConfig, SpcDriftProfile},
         AlertDispatchConfig, DriftAlertPaginationRequest,
     };
-    use scouter_types::{BoxedGenAIEvalRecord, DriftType, ProfileArgs, SpcRecord};
+    use scouter_types::{BoxedEvalRecord, DriftType, ProfileArgs, SpcRecord};
     use semver::Version;
     use sqlx::{postgres::Postgres, Pool};
     use std::collections::HashMap;
@@ -239,7 +239,7 @@ mod tests {
         AssertionTask, ComparisonOperator, EvaluationTaskType, EvaluationTasks, GenAIAlertConfig,
         GenAIEvalConfig, GenAIEvalProfile, LLMJudgeTask,
     };
-    use scouter_types::{AlertCondition, AlertThreshold, GenAIEvalRecord};
+    use scouter_types::{AlertCondition, AlertThreshold, EvalRecord};
     use serde_json::Value;
 
     pub async fn cleanup(pool: &Pool<Postgres>) {
@@ -703,7 +703,7 @@ mod tests {
                 }
             });
 
-            let record = GenAIEvalRecord::new_rs(
+            let record = EvalRecord::new_rs(
                 context,
                 Utc::now() + chrono::Duration::seconds(i),
                 format!("UID{}", i),
@@ -712,7 +712,7 @@ mod tests {
                 None,
             );
 
-            records.push(BoxedGenAIEvalRecord::new(record));
+            records.push(BoxedEvalRecord::new(record));
         }
 
         // Insert all records and results into database and poll for tasks

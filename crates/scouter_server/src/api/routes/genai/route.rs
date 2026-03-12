@@ -10,7 +10,7 @@ use scouter_auth::permission::UserPermissions;
 use scouter_sql::sql::traits::GenAIDriftSqlLogic;
 use scouter_sql::PostgresClient;
 use scouter_types::{
-    GenAIEvalRecordPaginationRequest, GenAIEvalRecordPaginationResponse, GenAIEvalTaskRequest,
+    EvalRecordPaginationRequest, EvalRecordPaginationResponse, GenAIEvalTaskRequest,
     GenAIEvalWorkflowPaginationResponse,
 };
 use scouter_types::{GenAIEvalTaskResponse, ScouterServerError};
@@ -23,8 +23,8 @@ use tracing::{debug, error, instrument};
 pub async fn query_genai_eval_records(
     State(data): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
-    Json(params): Json<GenAIEvalRecordPaginationRequest>,
-) -> Result<Json<GenAIEvalRecordPaginationResponse>, (StatusCode, Json<ScouterServerError>)> {
+    Json(params): Json<EvalRecordPaginationRequest>,
+) -> Result<Json<EvalRecordPaginationResponse>, (StatusCode, Json<ScouterServerError>)> {
     // validate time window
 
     if !perms.has_read_permission(&params.service_info.space) {
@@ -63,7 +63,7 @@ pub async fn query_genai_eval_records(
 #[instrument(skip_all)]
 pub async fn query_genai_eval_workflow(
     State(data): State<Arc<AppState>>,
-    Json(params): Json<GenAIEvalRecordPaginationRequest>,
+    Json(params): Json<EvalRecordPaginationRequest>,
 ) -> Result<Json<GenAIEvalWorkflowPaginationResponse>, (StatusCode, Json<ScouterServerError>)> {
     // validate time window
 

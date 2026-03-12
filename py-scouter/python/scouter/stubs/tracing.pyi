@@ -7,7 +7,7 @@ from .header import SerializedType
 from .scouter import (
     CompressionType,
     Features,
-    GenAIEvalRecord,
+    EvalRecord,
     GrpcConfig,
     HttpConfig,
     KafkaConfig,
@@ -369,7 +369,7 @@ def init_tracer(
             Optional ScouterQueue to associate with the tracer for correlated
             queue entity export alongside span data.
 
-            This allows queue records (e.g., Features, Metrics, GenAIEvalRecord)
+            This allows queue records (e.g., Features, Metrics, EvalRecord)
             to be ingested in conjunction with tracing data for enhanced
             observability.
 
@@ -523,7 +523,7 @@ class ActiveSpan:
     def add_queue_item(
         self,
         alias: str,
-        item: Union[Features, Metrics, GenAIEvalRecord],
+        item: Union[Features, Metrics, EvalRecord],
     ) -> None:
         """Helpers to add queue entities into a specified queue associated with the active span.
         This is an convenience method that abstracts away the details of queue management and
@@ -533,9 +533,9 @@ class ActiveSpan:
         Args:
             alias (str):
                 Alias of the queue to add the item into.
-            item (Union[Features, Metrics, GenAIEvalRecord]):
+            item (Union[Features, Metrics, EvalRecord]):
                 Item to add into the queue.
-                Can be an instance for Features, Metrics, or GenAIEvalRecord.
+                Can be an instance for Features, Metrics, or EvalRecord.
 
         Example:
             ```python

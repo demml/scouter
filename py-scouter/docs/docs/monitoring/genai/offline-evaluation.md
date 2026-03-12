@@ -17,8 +17,8 @@ Offline evaluation allows you to test and validate your GenAI service's outputs 
 
 Scouter's offline evaluation framework consists of four main building blocks:
 
-- **GenAIEvalRecord**: Contains the context (input/output pairs) to evaluate
-- **GenAIEvalDataset**: Collection of records and evaluation tasks
+- **EvalRecord**: Contains the context (input/output pairs) to evaluate
+- **EvalDataset**: Collection of records and evaluation tasks
 - **LLMJudgeTask**: Uses an LLM to evaluate injected context
 - **AssertionTask**: Validates specific conditions without LLM calls
 - **Task Dependencies and Conditional Execution**: Tasks can depend on other tasks, creating an evaluation workflow. Use the condition parameter on tasks to create branching logic:
@@ -45,12 +45,12 @@ from pydantic import BaseModel
 from scouter.evaluate import (
     AssertionTask,
     ComparisonOperator,
-    GenAIEvalDataset,
+    EvalDataset,
     LLMJudgeTask,
 )
 from scouter.genai import Agent, Prompt, Provider
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
-from scouter.queue import GenAIEvalRecord
+from scouter.queue import EvalRecord
 
 categories = ["bath", "kitchen", "outdoor"]
 ApplianceCategory = Literal["kitchen", "bath", "outdoor"]
@@ -138,13 +138,13 @@ def create_agent_response_prompt() -> Prompt:
         output_type=AgentResponse,
     )
 
-def simulate_agent_interaction(num_questions: int) -> List[GenAIEvalRecord]:
+def simulate_agent_interaction(num_questions: int) -> List[EvalRecord]:
     """Generates user questions and agent responses for appliance support.
 
     Args:
         num_questions (int): Number of question/response pairs to generate.
     Returns:
-        List[GenAIEvalRecord]: Generated evaluation records.
+        List[EvalRecord]: Generated evaluation records.
     """
     print(f"\n=== Generating {num_questions} Customer Questions ===")
     question_prompt = create_question_generation_prompt()
@@ -180,7 +180,7 @@ def simulate_agent_interaction(num_questions: int) -> List[GenAIEvalRecord]:
 
     records = []
     for question, response in zip(user_questions, agent_responses):
-        record = GenAIEvalRecord(
+        record = EvalRecord(
             context={
                 "user_input": question.question,
                 "agent_response": response.model_dump_json(),
@@ -471,13 +471,13 @@ Combine all tasks into a single evaluation dataset:
 
 ```python
 def build_appliance_support_dataset(
-    records: Sequence[GenAIEvalRecord],
-) -> GenAIEvalDataset:
+    records: Sequence[EvalRecord],
+) -> EvalDataset:
     """
     Creates an evaluation dataset for validating appliance support responses.
     """
 
-    dataset = GenAIEvalDataset(
+    dataset = EvalDataset(
         records=records,
         tasks=[
             # Base classification (always runs)
@@ -551,10 +551,10 @@ Understanding how context flows through evaluation tasks is crucial for building
 
 **Base Context**
 
-Every evaluation starts with a **base context map** provided in the `GenAIEvalRecord`. In our example, the base context contains two keys:
+Every evaluation starts with a **base context map** provided in the `EvalRecord`. In our example, the base context contains two keys:
 
 ```python
-record = GenAIEvalRecord(
+record = EvalRecord(
     context={
         "user_input": "What's the best grill for outdoor cooking?",
         "agent_response": '{"answer": "...", "product_recommendations": [...], "safety_notes": [...]}'

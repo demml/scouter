@@ -1,5 +1,5 @@
 use crate::error::TypeError;
-use crate::GenAIEvalRecord;
+use crate::EvalRecord;
 use crate::PyHelperFuncs;
 use opentelemetry::StringValue;
 use pyo3::prelude::*;
@@ -407,7 +407,7 @@ impl Metrics {
 pub enum QueueItem {
     Features(Features),
     Metrics(Metrics),
-    GenAI(Box<GenAIEvalRecord>),
+    GenAI(Box<EvalRecord>),
 }
 
 impl QueueItem {
@@ -429,7 +429,7 @@ impl QueueItem {
             }
             EntityType::GenAI => {
                 // LLM is not supported in this context
-                let genai = entity.extract::<GenAIEvalRecord>()?;
+                let genai = entity.extract::<EvalRecord>()?;
                 Ok(QueueItem::GenAI(Box::new(genai)))
             }
         }
@@ -439,7 +439,7 @@ impl QueueItem {
 pub trait QueueExt: Send + Sync {
     fn metrics(&self) -> &Vec<Metric>;
     fn features(&self) -> &Vec<Feature>;
-    fn into_genai_record(self) -> Option<GenAIEvalRecord>;
+    fn into_genai_record(self) -> Option<EvalRecord>;
 }
 
 impl QueueExt for Features {
@@ -454,7 +454,7 @@ impl QueueExt for Features {
         &self.features
     }
 
-    fn into_genai_record(self) -> Option<GenAIEvalRecord> {
+    fn into_genai_record(self) -> Option<EvalRecord> {
         // this is not a real implementation, just a placeholder
         // to satisfy the trait bound
         None
@@ -473,14 +473,14 @@ impl QueueExt for Metrics {
         &EMPTY
     }
 
-    fn into_genai_record(self) -> Option<GenAIEvalRecord> {
+    fn into_genai_record(self) -> Option<EvalRecord> {
         // this is not a real implementation, just a placeholder
         // to satisfy the trait bound
         None
     }
 }
 
-impl QueueExt for GenAIEvalRecord {
+impl QueueExt for EvalRecord {
     fn metrics(&self) -> &Vec<Metric> {
         // this is not a real implementation, just a placeholder
         // to satisfy the trait bound
@@ -495,7 +495,7 @@ impl QueueExt for GenAIEvalRecord {
         &EMPTY
     }
 
-    fn into_genai_record(self) -> Option<GenAIEvalRecord> {
+    fn into_genai_record(self) -> Option<EvalRecord> {
         Some(self)
     }
 }

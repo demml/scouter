@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from scouter.queue import GenAIEvalRecord
+from scouter.queue import EvalRecord
 
 
 class Context(BaseModel):
@@ -9,9 +9,9 @@ class Context(BaseModel):
 
 def test_genai_record():
     """
-    Test the GenAIEvalRecord class.
+    Test the EvalRecord class.
     """
-    record = GenAIEvalRecord(
+    record = EvalRecord(
         context={
             "input": "What is the capital of France?",
             "response": "Paris is the capital of France.",
@@ -32,14 +32,14 @@ def test_genai_record():
         ],
     }
 
-    record = GenAIEvalRecord(
+    record = EvalRecord(
         context={
             "role": "system",
             "content": system_prompt,
         },
     )
 
-    record = GenAIEvalRecord(
+    record = EvalRecord(
         context={"foo": "bar", "value": 1},
     )
 
@@ -48,7 +48,7 @@ def test_genai_record():
         input="What is the capital of France?",
         response="Paris is the capital of France.",
     )
-    record = GenAIEvalRecord(context=context)
+    record = EvalRecord(context=context)
 
     assert record.context["input"] == "What is the capital of France?"
     assert record.context["response"] == "Paris is the capital of France."

@@ -15,7 +15,7 @@ use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::ToDriftRecords;
-use scouter_types::{BoxedGenAIEvalRecord, ServerRecords, StorageType};
+use scouter_types::{BoxedEvalRecord, ServerRecords, StorageType};
 use std::sync::Arc;
 
 pub struct GenAIEvalDataFrame {
@@ -129,10 +129,7 @@ impl GenAIEvalDataFrame {
         })
     }
 
-    fn build_batch(
-        &self,
-        records: Vec<BoxedGenAIEvalRecord>,
-    ) -> Result<RecordBatch, DataFrameError> {
+    fn build_batch(&self, records: Vec<BoxedEvalRecord>) -> Result<RecordBatch, DataFrameError> {
         // Build ID and UID arrays
         let id_array = Int64Array::from_iter_values(records.iter().map(|r| r.record.id));
         let uid_array =

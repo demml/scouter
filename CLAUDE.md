@@ -98,7 +98,7 @@ scouter/
 | `client/` | `ScouterClient` — register profiles, query drift results |
 | `drift/` | `Drifter` — create `PsiDriftProfile`, `SpcDriftProfile`, `CustomMetricDriftProfile` |
 | `profile/` | `DataProfiler` — create `DataProfile` with feature statistics |
-| `evaluate/` | `GenAIEvalProfile`, `GenAIEvalDataset`, `GenAIEvalRecord` |
+| `evaluate/` | `GenAIEvalProfile`, `EvalDataset`, `EvalRecord` |
 | `queue/` | `ScouterQueue` — real-time record insertion (<1µs, non-blocking) |
 | `tracing/` | `init_tracer`, `get_tracer`, `TraceContext`, `SpanContext` |
 | `genai/` | GenAI provider integrations (Anthropic, Google) |
@@ -118,7 +118,7 @@ The server runs as a dual-protocol service with shared `Arc<AppState>`:
 
 Background workers (in `scouter-sql`):
 - **Drift Executor**: Scheduled via `pg_cron`; queries stored drift profiles, computes drift against recent data, triggers alerts
-- **GenAI Poller**: Picks up pending `GenAIEvalRecord` batches, runs evaluation tasks, checks alert conditions
+- **GenAI Poller**: Picks up pending `EvalRecord` batches, runs evaluation tasks, checks alert conditions
 
 ### Event Bus
 
@@ -140,9 +140,9 @@ Each profile type has a config + per-feature profile:
 
 Two evaluation modes:
 
-**Online** (`GenAIEvalProfile`): Real-time monitoring. `GenAIEvalRecord` objects are inserted into `ScouterQueue` during inference. Server samples based on `sample_ratio`, runs evaluation tasks asynchronously, checks alert conditions on schedule.
+**Online** (`GenAIEvalProfile`): Real-time monitoring. `EvalRecord` objects are inserted into `ScouterQueue` during inference. Server samples based on `sample_ratio`, runs evaluation tasks asynchronously, checks alert conditions on schedule.
 
-**Offline** (`GenAIEvalDataset`): Batch evaluation. Records → Tasks → Dataset → Execute → Review results.
+**Offline** (`EvalDataset`): Batch evaluation. Records → Tasks → Dataset → Execute → Review results.
 
 **Task types:**
 - `AssertionTask` — Deterministic checks using 50+ `ComparisonOperator` values (Equals, GreaterThan, Contains, Matches, IsJson, etc.). Supports `context_path` (dot-notation field extraction) and template variable substitution (`${field_name}`). Set `condition=True` to act as a conditional gate (skips downstream tasks on failure).

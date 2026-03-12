@@ -424,7 +424,9 @@ class Prompt(Generic[OutputType]):
         model: str,
         provider: Provider | str,
         system_instructions: Optional[PromptMessage] = None,
-        model_settings: Optional[ModelSettings | OpenAIChatSettings | GeminiSettings | AnthropicSettings] = None,
+        model_settings: Optional[
+            ModelSettings | OpenAIChatSettings | GeminiSettings | AnthropicSettings
+        ] = None,
         output_type: Optional[Type[OutputType]] = None,
     ) -> None:
         """Initialize a Prompt object.
@@ -2755,7 +2757,9 @@ class ChatMessage:
     @property
     def content(
         self,
-    ) -> List[Union[TextContentPart, ImageContentPart, InputAudioContentPart, FileContentPart]]:
+    ) -> List[
+        Union[TextContentPart, ImageContentPart, InputAudioContentPart, FileContentPart]
+    ]:
         """The message content parts."""
 
     @property
@@ -9944,8 +9948,12 @@ class BatchConfig:
 def init_tracer(
     service_name: str = "scouter_service",
     scope: str = "scouter.tracer.{version}",
-    transport_config: Optional[HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig | GrpcConfig] = None,
-    exporter: Optional[HttpSpanExporter | GrpcSpanExporter | StdoutSpanExporter | TestSpanExporter] = None,
+    transport_config: Optional[
+        HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig | GrpcConfig
+    ] = None,
+    exporter: Optional[
+        HttpSpanExporter | GrpcSpanExporter | StdoutSpanExporter | TestSpanExporter
+    ] = None,
     batch_config: Optional[BatchConfig] = None,
     sample_ratio: Optional[float] = None,
     scouter_queue: Optional[ScouterQueue] = None,
@@ -10060,7 +10068,7 @@ def init_tracer(
             Optional ScouterQueue to associate with the tracer for correlated
             queue entity export alongside span data.
 
-            This allows queue records (e.g., Features, Metrics, GenAIEvalRecord)
+            This allows queue records (e.g., Features, Metrics, EvalRecord)
             to be ingested in conjunction with tracing data for enhanced
             observability.
 
@@ -10214,7 +10222,7 @@ class ActiveSpan:
     def add_queue_item(
         self,
         alias: str,
-        item: Union[Features, Metrics, GenAIEvalRecord],
+        item: Union[Features, Metrics, EvalRecord],
     ) -> None:
         """Helpers to add queue entities into a specified queue associated with the active span.
         This is an convenience method that abstracts away the details of queue management and
@@ -10224,9 +10232,9 @@ class ActiveSpan:
         Args:
             alias (str):
                 Alias of the queue to add the item into.
-            item (Union[Features, Metrics, GenAIEvalRecord]):
+            item (Union[Features, Metrics, EvalRecord]):
                 Item to add into the queue.
-                Can be an instance for Features, Metrics, or GenAIEvalRecord.
+                Can be an instance for Features, Metrics, or EvalRecord.
 
         Example:
             ```python
@@ -11585,7 +11593,9 @@ class SpanFilter:
         """
 
     @staticmethod
-    def with_duration(min_ms: Optional[float] = None, max_ms: Optional[float] = None) -> "SpanFilter":
+    def with_duration(
+        min_ms: Optional[float] = None, max_ms: Optional[float] = None
+    ) -> "SpanFilter":
         """Filter spans by duration constraints.
 
         Args:
@@ -11865,7 +11875,9 @@ class TraceAssertion:
         """
 
     @staticmethod
-    def span_aggregation(filter: SpanFilter, attribute_key: str, aggregation: AggregationType) -> "TraceAssertion":
+    def span_aggregation(
+        filter: SpanFilter, attribute_key: str, aggregation: AggregationType
+    ) -> "TraceAssertion":
         """Aggregate numeric attribute across filtered spans.
 
         Args:
@@ -12220,7 +12232,9 @@ class AssertionResults:
     def __str__(self): ...
     def __getitem__(self, key: str) -> AssertionResult: ...
 
-def execute_trace_assertion_tasks(tasks: List[TraceAssertionTask], spans: List[TraceSpan]) -> AssertionResults:
+def execute_trace_assertion_tasks(
+    tasks: List[TraceAssertionTask], spans: List[TraceSpan]
+) -> AssertionResults:
     """Execute trace assertion tasks against provided spans.
 
     Args:
@@ -12247,7 +12261,12 @@ class TasksFile:
 
     def __getitem__(
         self, index: int | slice
-    ) -> AssertionTask | LLMJudgeTask | TraceAssertionTask | List[AssertionTask | LLMJudgeTask | TraceAssertionTask]:
+    ) -> (
+        AssertionTask
+        | LLMJudgeTask
+        | TraceAssertionTask
+        | List[AssertionTask | LLMJudgeTask | TraceAssertionTask]
+    ):
         """Get task(s) by index or slice."""
 
     def __len__(self) -> int:
@@ -12466,7 +12485,9 @@ class AlertDispatchType:
     def to_string() -> str:
         """Return the string representation of the alert dispatch type"""
 
-DispatchConfigType = ConsoleDispatchConfig | SlackDispatchConfig | OpsGenieDispatchConfig
+DispatchConfigType = (
+    ConsoleDispatchConfig | SlackDispatchConfig | OpsGenieDispatchConfig
+)
 
 class AlertZone:
     Zone1: "AlertZone"
@@ -13235,7 +13256,9 @@ class DriftRequest:
         """
 
 class ProfileStatusRequest:
-    def __init__(self, name: str, space: str, version: str, drift_type: DriftType, active: bool) -> None:
+    def __init__(
+        self, name: str, space: str, version: str, drift_type: DriftType, active: bool
+    ) -> None:
         """Initialize profile status request
 
         Args:
@@ -13252,7 +13275,9 @@ class ProfileStatusRequest:
         """
 
 class GetProfileRequest:
-    def __init__(self, name: str, space: str, version: str, drift_type: DriftType) -> None:
+    def __init__(
+        self, name: str, space: str, version: str, drift_type: DriftType
+    ) -> None:
         """Initialize get profile request
 
         Args:
@@ -13353,7 +13378,9 @@ class ScouterClient:
                 DriftRequest object
         """
 
-    def register_profile(self, profile: Any, set_active: bool = False, deactivate_others: bool = False) -> bool:
+    def register_profile(
+        self, profile: Any, set_active: bool = False, deactivate_others: bool = False
+    ) -> bool:
         """Registers a drift profile with the server
 
         Args:
@@ -13379,7 +13406,9 @@ class ScouterClient:
             boolean
         """
 
-    def get_alerts(self, request: DriftAlertPaginationRequest) -> DriftAlertPaginationResponse:
+    def get_alerts(
+        self, request: DriftAlertPaginationRequest
+    ) -> DriftAlertPaginationResponse:
         """Get alerts
 
         Args:
@@ -13888,13 +13917,13 @@ class Metrics:
 class Queue:
     """Individual queue associated with a drift profile"""
 
-    def insert(self, item: Union[Features, Metrics, GenAIEvalRecord]) -> None:
+    def insert(self, item: Union[Features, Metrics, EvalRecord]) -> None:
         """Insert a record into the queue
 
         Args:
             item:
                 Item to insert into the queue.
-                Can be an instance for Features, Metrics, or GenAIEvalRecord.
+                Can be an instance for Features, Metrics, or EvalRecord.
 
         Example:
             ```python
@@ -13944,7 +13973,7 @@ class ScouterQueue:
         ║                              │                                           ║
         ║                              ▼                                           ║
         ║  ┌────────────────────────────────────────────────────────────────────┐  ║
-        ║  │  queue["profile_alias"].insert(Features | Metrics | GenAIEvalRecord)     │  ║
+        ║  │  queue["profile_alias"].insert(Features | Metrics | EvalRecord)     │  ║
         ║  └───────────────────────────┬────────────────────────────────────────┘  ║
         ║                              │                                           ║
         ╚══════════════════════════════╪═══════════════════════════════════════════╝
@@ -13995,7 +14024,7 @@ class ScouterQueue:
         ```
         Flow Summary:
             1. **Python Runtime**: Initialize queue with drift profiles and transport config
-            2. **Insert Records**: Call queue["alias"].insert() with Features/Metrics/GenAIEvalRecord
+            2. **Insert Records**: Call queue["alias"].insert() with Features/Metrics/EvalRecord
             3. **Rust Queue**: Buffer and validate records against profile schema
             4. **Transport Producer**: Serialize and publish to configured transport
             5. **Network**: Records travel via Kafka/RabbitMQ/Redis/HTTP/gRPC
@@ -14070,13 +14099,20 @@ class ScouterQueue:
                 ...     ),
                 ... )
                 >>> queue["genai_eval"].insert(
-                ...     GenAIEvalRecord(context={"input": "...", "response": "..."})
+                ...     EvalRecord(context={"input": "...", "response": "..."})
                 ... )
         """
 
     @staticmethod
     def from_profile(
-        profile: Union[dict, list, SpcDriftProfile, PsiDriftProfile, CustomDriftProfile, GenAIEvalProfile],
+        profile: Union[
+            dict,
+            list,
+            SpcDriftProfile,
+            PsiDriftProfile,
+            CustomDriftProfile,
+            GenAIEvalProfile,
+        ],
         transport_config: Union[
             KafkaConfig,
             RabbitMQConfig,
@@ -14127,13 +14163,13 @@ class ScouterQueue:
     ) -> Union[KafkaConfig, RabbitMQConfig, RedisConfig, HttpConfig, MockConfig]:
         """Return the transport configuration used by the queue"""
 
-class GenAIEvalRecord:
+class EvalRecord:
     """LLM record containing context tied to a Large Language Model interaction
     that is used to evaluate drift in LLM responses.
 
 
     Examples:
-        >>> record = GenAIEvalRecord(
+        >>> record = EvalRecord(
         ...     context={
         ...         "input": "What is the capital of France?",
         ...         "response": "Paris is the capital of France."
@@ -14718,7 +14754,16 @@ class FreedmanDiaconis:
         For more information, please see: https://en.wikipedia.org/wiki/Histogram
         """
 
-EqualWidthMethods = Manual | SquareRoot | Sturges | Rice | Doane | Scott | TerrellScott | FreedmanDiaconis
+EqualWidthMethods = (
+    Manual
+    | SquareRoot
+    | Sturges
+    | Rice
+    | Doane
+    | Scott
+    | TerrellScott
+    | FreedmanDiaconis
+)
 
 class EqualWidthBinning:
     def __init__(self, method: EqualWidthMethods = Doane()):
@@ -14792,7 +14837,9 @@ class PsiDriftConfig:
         alert_config: PsiAlertConfig = PsiAlertConfig(),
         config_path: Optional[Path] = None,
         categorical_features: Optional[list[str]] = None,
-        binning_strategy: QuantileBinning | EqualWidthBinning = QuantileBinning(num_bins=10),
+        binning_strategy: QuantileBinning | EqualWidthBinning = QuantileBinning(
+            num_bins=10
+        ),
     ):
         """Initialize monitor config
 
@@ -14870,7 +14917,9 @@ class PsiDriftConfig:
         """binning_strategy"""
 
     @binning_strategy.setter
-    def binning_strategy(self, binning_strategy: QuantileBinning | EqualWidthBinning) -> None:
+    def binning_strategy(
+        self, binning_strategy: QuantileBinning | EqualWidthBinning
+    ) -> None:
         """Set binning_strategy"""
 
     @property
@@ -16211,7 +16260,9 @@ class Drifter:
     def create_drift_profile(  # type: ignore
         self,
         data: Any,
-        config: Optional[Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]] = None,
+        config: Optional[
+            Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]
+        ] = None,
         data_type: Optional[ScouterDataType] = None,
     ) -> Union[SpcDriftProfile, PsiDriftProfile, CustomDriftProfile]:
         """Create a drift profile from data.
@@ -16335,15 +16386,15 @@ class Drifter:
     @overload
     def compute_drift(
         self,
-        data: List[GenAIEvalRecord],
+        data: List[EvalRecord],
         drift_profile: GenAIEvalProfile,
         data_type: Optional[ScouterDataType] = None,
     ) -> "GenAIEvalResultSet":
         """Create a drift map from data.
 
         Args:
-            data (List[GenAIEvalRecord]):
-                Data to create a data profile from. Data can be a list of GenAIEvalRecord.
+            data (List[EvalRecord]):
+                Data to create a data profile from. Data can be a list of EvalRecord.
             profile (GenAIEvalProfile):
                 Drift profile to use to compute drift map
             data_type:
@@ -16435,25 +16486,25 @@ class GenAIEvalTaskResult:
     def model_dump_json(self) -> str:
         """Serialize the task result to JSON string"""
 
-class GenAIEvalDataset:
+class EvalDataset:
     """Defines the dataset used for LLM evaluation"""
 
     def __init__(
         self,
-        records: Sequence[GenAIEvalRecord],
+        records: Sequence[EvalRecord],
         tasks: Sequence[LLMJudgeTask | AssertionTask],
     ):
-        """Initialize the GenAIEvalDataset with records and tasks.
+        """Initialize the EvalDataset with records and tasks.
 
         Args:
-            records (List[GenAIEvalRecord]):
+            records (List[EvalRecord]):
                 List of LLM evaluation records to be evaluated.
             tasks (List[LLMJudgeTask | AssertionTask]):
                 List of evaluation tasks to apply to the records.
         """
 
     @property
-    def records(self) -> List[GenAIEvalRecord]:
+    def records(self) -> List[EvalRecord]:
         """Get the list of LLM evaluation records in this dataset"""
 
     @property
@@ -16485,8 +16536,8 @@ class GenAIEvalDataset:
     def with_updated_contexts_by_id(
         self,
         updated_contexts: Dict[str, Any],
-    ) -> "GenAIEvalDataset":
-        """Create a new GenAIEvalDataset with updated contexts for specific records.
+    ) -> "EvalDataset":
+        """Create a new EvalDataset with updated contexts for specific records.
 
         Example:
             >>> updated_contexts = {
@@ -16498,7 +16549,7 @@ class GenAIEvalDataset:
             updated_contexts (Dict[str, Any]):
                 A dictionary mapping record UIDs to their new context data.
         Returns:
-            GenAIEvalDataset:
+            EvalDataset:
                 A new dataset instance with the updated contexts.
         """
 
@@ -16793,7 +16844,9 @@ class GenAIEvalResults:
 
         """
 
-    def compare_to(self, baseline: "GenAIEvalResults", regression_threshold: float) -> ComparisonResults:
+    def compare_to(
+        self, baseline: "GenAIEvalResults", regression_threshold: float
+    ) -> ComparisonResults:
         """Compare the current evaluation results to a baseline with a regression threshold.
 
         Args:
@@ -17190,9 +17243,9 @@ __all__ = [
     "GeminiTool",
     "GenAIAlertConfig",
     "GenAIEvalConfig",
-    "GenAIEvalDataset",
+    "EvalDataset",
     "GenAIEvalProfile",
-    "GenAIEvalRecord",
+    "EvalRecord",
     "GenAIEvalResultSet",
     "GenAIEvalResults",
     "GenAIEvalSet",

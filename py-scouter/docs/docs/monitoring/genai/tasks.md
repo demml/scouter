@@ -753,12 +753,12 @@ tasks = [
 
 ### Offline Evaluation
 
-Tasks are combined in a `GenAIEvalDataset` for batch evaluation:
+Tasks are combined in a `EvalDataset` for batch evaluation:
 
 ```python
-from scouter.evaluate import GenAIEvalDataset
+from scouter.evaluate import EvalDataset
 
-dataset = GenAIEvalDataset(
+dataset = EvalDataset(
     records=[record1, record2, record3],
     tasks=[
         AssertionTask(id="length_check", ...),

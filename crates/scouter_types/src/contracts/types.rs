@@ -3,9 +3,7 @@ use std::fmt::Display;
 use crate::error::{ContractError, TypeError};
 use crate::sql::{TraceListItem, TraceMetricBucket, TraceSpan};
 use crate::{Alert, GenAIEvalTaskResult, GenAIEvalWorkflowResult};
-use crate::{
-    CustomInterval, DriftProfile, GenAIEvalRecord, Status, Tag, TagRecord, TraceBaggageRecord,
-};
+use crate::{CustomInterval, DriftProfile, EvalRecord, Status, Tag, TagRecord, TraceBaggageRecord};
 use crate::{DriftType, PyHelperFuncs, TimeInterval};
 use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
@@ -549,7 +547,7 @@ pub struct GenAIEvalTaskResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct GenAIEvalRecordPaginationRequest {
+pub struct EvalRecordPaginationRequest {
     pub service_info: ServiceInfo,
     pub status: Option<Status>,
     pub limit: Option<i32>,
@@ -561,8 +559,8 @@ pub struct GenAIEvalRecordPaginationRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct GenAIEvalRecordPaginationResponse {
-    pub items: Vec<GenAIEvalRecord>,
+pub struct EvalRecordPaginationResponse {
+    pub items: Vec<EvalRecord>,
     pub has_next: bool,
     pub next_cursor: Option<RecordCursor>,
     pub has_previous: bool,

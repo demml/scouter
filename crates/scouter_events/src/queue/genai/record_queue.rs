@@ -2,27 +2,27 @@ use crate::error::FeatureQueueError;
 use crate::queue::traits::FeatureQueue;
 use core::result::Result::Ok;
 use scouter_types::genai::GenAIEvalProfile;
-use scouter_types::BoxedGenAIEvalRecord;
+use scouter_types::BoxedEvalRecord;
 use scouter_types::QueueExt;
 use scouter_types::{MessageRecord, ServerRecord, ServerRecords};
 
 #[derive(Default)]
-pub struct GenAIEvalRecordQueue {
+pub struct EvalRecordQueue {
     pub drift_profile: GenAIEvalProfile,
 }
 
-impl GenAIEvalRecordQueue {
+impl EvalRecordQueue {
     pub fn new(drift_profile: GenAIEvalProfile) -> Self {
-        GenAIEvalRecordQueue { drift_profile }
+        EvalRecordQueue { drift_profile }
     }
 }
 
-impl FeatureQueue for GenAIEvalRecordQueue {
+impl FeatureQueue for EvalRecordQueue {
     fn create_drift_records_from_batch<T: QueueExt>(
         &self,
         batch: Vec<T>,
     ) -> Result<MessageRecord, FeatureQueueError> {
-        // Convert T to GenAIEvalRecord using QueueExt::into_genai_record
+        // Convert T to EvalRecord using QueueExt::into_genai_record
         let genai_records: Vec<ServerRecord> = batch
             .into_iter()
             .filter_map(|item| {
@@ -32,7 +32,7 @@ impl FeatureQueue for GenAIEvalRecordQueue {
                     // Set the entity_uid from the drift profile
                     let mut r = r;
                     r.entity_uid = self.drift_profile.config.uid.clone();
-                    ServerRecord::GenAIEval(BoxedGenAIEvalRecord::new(r))
+                    ServerRecord::GenAIEval(BoxedEvalRecord::new(r))
                 })
             })
             .collect();
@@ -47,12 +47,12 @@ impl FeatureQueue for GenAIEvalRecordQueue {
 mod tests {
 
     use super::*;
-    use scouter_types::GenAIEvalRecord;
+    use scouter_types::EvalRecord;
 
     #[test]
     fn test_feature_queue_genai_insert_record() {
         let profile = GenAIEvalProfile::default();
-        let feature_queue = GenAIEvalRecordQueue::new(profile);
+        let feature_queue = EvalRecordQueue::new(profile);
 
         let mut record_batch = Vec::new();
         for _ in 0..1 {
@@ -61,7 +61,7 @@ mod tests {
             new_map.insert("input".into(), serde_json::Value::String("test".into()));
             let context = serde_json::Value::Object(new_map);
 
-            let record = GenAIEvalRecord {
+            let record = EvalRecord {
                 context,
                 ..Default::default()
             };

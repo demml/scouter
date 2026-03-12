@@ -198,7 +198,7 @@ impl PsiRecord {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct GenAIEvalRecord {
+pub struct EvalRecord {
     #[pyo3(get, set)]
     pub record_id: String,
     #[pyo3(get, set)]
@@ -223,11 +223,11 @@ pub struct GenAIEvalRecord {
 }
 
 #[pymethods]
-impl GenAIEvalRecord {
+impl EvalRecord {
     #[new]
     #[pyo3(signature = (context=None, id = None, session_id = None))]
 
-    /// Creates a new GenAIEvalRecord instance.
+    /// Creates a new EvalRecord instance.
     /// The context is either a python dictionary or a pydantic basemodel.
     pub fn new(
         py: Python<'_>,
@@ -241,7 +241,7 @@ impl GenAIEvalRecord {
             None => Value::Object(serde_json::Map::new()),
         };
 
-        Ok(GenAIEvalRecord {
+        Ok(EvalRecord {
             uid: create_uuid7(),
             created_at: Utc::now(),
             context: context_val,
@@ -298,7 +298,7 @@ impl GenAIEvalRecord {
     }
 }
 
-impl GenAIEvalRecord {
+impl EvalRecord {
     /// will update the entire context of the record
     /// If new context is a map, update context fields individually
     /// if not, replace entire context
@@ -364,7 +364,7 @@ impl GenAIEvalRecord {
     }
 }
 
-impl Default for GenAIEvalRecord {
+impl Default for EvalRecord {
     fn default() -> Self {
         Self {
             created_at: Utc::now(),
@@ -388,7 +388,7 @@ impl Default for GenAIEvalRecord {
 }
 
 #[cfg(feature = "server")]
-impl FromRow<'_, PgRow> for GenAIEvalRecord {
+impl FromRow<'_, PgRow> for EvalRecord {
     fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
         let context: Value = serde_json::from_value(row.try_get("context")?).unwrap_or(Value::Null);
 
@@ -397,7 +397,7 @@ impl FromRow<'_, PgRow> for GenAIEvalRecord {
         let status = Status::from_str(&status_string).unwrap_or(Status::Pending);
         let trace_id_str = row.try_get::<Option<String>, &str>("trace_id")?;
 
-        Ok(GenAIEvalRecord {
+        Ok(EvalRecord {
             record_id: row.try_get("record_id")?,
             session_id: row.try_get("session_id")?,
             created_at: row.try_get("created_at")?,
@@ -420,12 +420,12 @@ impl FromRow<'_, PgRow> for GenAIEvalRecord {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct BoxedGenAIEvalRecord {
-    pub record: Box<GenAIEvalRecord>,
+pub struct BoxedEvalRecord {
+    pub record: Box<EvalRecord>,
 }
 
-impl BoxedGenAIEvalRecord {
-    pub fn new(record: GenAIEvalRecord) -> Self {
+impl BoxedEvalRecord {
+    pub fn new(record: EvalRecord) -> Self {
         Self {
             record: Box::new(record),
         }
@@ -997,7 +997,7 @@ pub enum ServerRecord {
     Psi(PsiRecord),
     Custom(CustomMetricRecord),
     Observability(ObservabilityMetrics),
-    GenAIEval(BoxedGenAIEvalRecord),
+    GenAIEval(BoxedEvalRecord),
     GenAITaskRecord(GenAIEvalTaskResult),
     GenAIWorkflowRecord(GenAIEvalWorkflowResult),
 }
@@ -1175,9 +1175,9 @@ impl IntoServerRecord for CustomMetricRecord {
     }
 }
 
-impl IntoServerRecord for GenAIEvalRecord {
+impl IntoServerRecord for EvalRecord {
     fn into_server_record(self) -> ServerRecord {
-        ServerRecord::GenAIEval(BoxedGenAIEvalRecord::new(self))
+        ServerRecord::GenAIEval(BoxedEvalRecord::new(self))
     }
 }
 
@@ -1198,7 +1198,7 @@ pub trait ToDriftRecords {
     fn to_observability_drift_records(self) -> Result<Vec<ObservabilityMetrics>, RecordError>;
     fn to_psi_drift_records(self) -> Result<Vec<PsiRecord>, RecordError>;
     fn to_custom_metric_drift_records(self) -> Result<Vec<CustomMetricRecord>, RecordError>;
-    fn to_genai_eval_records(self) -> Result<Vec<BoxedGenAIEvalRecord>, RecordError>;
+    fn to_genai_eval_records(self) -> Result<Vec<BoxedEvalRecord>, RecordError>;
     fn to_genai_workflow_records(self) -> Result<Vec<GenAIEvalWorkflowResult>, RecordError>;
     fn to_genai_task_records(self) -> Result<Vec<GenAIEvalTaskResult>, RecordError>;
 }
@@ -1232,7 +1232,7 @@ impl ToDriftRecords for ServerRecords {
         })
     }
 
-    fn to_genai_eval_records(self) -> Result<Vec<BoxedGenAIEvalRecord>, RecordError> {
+    fn to_genai_eval_records(self) -> Result<Vec<BoxedEvalRecord>, RecordError> {
         extract_owned_records(self.records, |record| match record {
             ServerRecord::GenAIEval(inner) => Some(inner),
             _ => None,
@@ -1333,7 +1333,7 @@ impl MessageRecord {
 
 impl_mask_entity_id!(
     crate::ScouterRecordExt =>
-    GenAIEvalRecord,
+    EvalRecord,
     SpcRecord,
     PsiRecord,
     CustomMetricRecord,

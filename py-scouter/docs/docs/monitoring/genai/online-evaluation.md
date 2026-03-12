@@ -250,19 +250,19 @@ client.register_profile(
 
 ## Inserting Records for Evaluation
 
-Use `GenAIEvalRecord` to send evaluation data to the queue. Queue insertion is meant for real-time applications that need to monitor ML/GenAI services without blocking. In these scenarios the typical flow is:
+Use `EvalRecord` to send evaluation data to the queue. Queue insertion is meant for real-time applications that need to monitor ML/GenAI services without blocking. In these scenarios the typical flow is:
 
 1. Load your `ScouterQueue` with the profile path on application startup
-2. For each request/response, create a `GenAIEvalRecord` with the context and insert it into the queue which will be processed asynchronously by the Scouter server.
+2. For each request/response, create a `EvalRecord` with the context and insert it into the queue which will be processed asynchronously by the Scouter server.
 3. The server executes the evaluation tasks on sampled records, stores results, and checks alert conditions on schedule.
 
 ### Creating Records
 
 ```python
-from scouter.queue import GenAIEvalRecord
+from scouter.queue import EvalRecord
 
 # Simple context
-record = GenAIEvalRecord(
+record = EvalRecord(
     context={
         "user_query": "How do I reset my password?",
         "response": "To reset your password, go to Settings > Security..."
@@ -283,7 +283,7 @@ context = QueryContext(
     metadata={"session_id": "abc123"}
 )
 
-record = GenAIEvalRecord(context=context)
+record = EvalRecord(context=context)
 ```
 
 ### Inserting into Queue
@@ -310,7 +310,7 @@ queue["chatbot_service"].insert(record)
 │                    Your Application                       │
 │                                                           │
 │  ┌──────────────┐    ┌──────────────────────────────────┐ │
-│  │   LLM Call   │───>│   Insert GenAIEvalRecord         │ │
+│  │   LLM Call   │───>│   Insert EvalRecord         │ │
 │  │              │    │   to ScouterQueue (sampled)      │ │
 │  └──────────────┘    └──────────┬───────────────────────┘ │
 │                                 │ (async, non-blocking)   │
@@ -348,7 +348,7 @@ from scouter.evaluate import (
     ComparisonOperator,
 )
 from scouter.genai import Prompt, Provider, Score
-from scouter.queue import ScouterQueue, GenAIEvalRecord
+from scouter.queue import ScouterQueue, EvalRecord
 
 # 1. Define category classification
 category_prompt = Prompt(
@@ -422,7 +422,7 @@ queue = ScouterQueue.from_path(
 )
 
 for user_query, model_response in production_requests:
-    record = GenAIEvalRecord(
+    record = EvalRecord(
         context={
             "user_query": user_query,
             "response": model_response

@@ -11,7 +11,7 @@ use pyo3::types::IntoPyDict;
 use pyo3::types::PyDict;
 use scouter_profile::{Histogram, NumProfiler};
 use scouter_types::genai::GenAIEvalSet;
-use scouter_types::{GenAIEvalRecord, TaskResultTableEntry, WorkflowResultTableEntry};
+use scouter_types::{EvalRecord, TaskResultTableEntry, WorkflowResultTableEntry};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
@@ -744,7 +744,7 @@ impl GenAIEvalResults {
     /// Add a successful result
     pub fn add_success(
         &mut self,
-        record: &GenAIEvalRecord,
+        record: &EvalRecord,
         eval_set: GenAIEvalSet,
         embeddings: BTreeMap<String, Vec<f32>>,
     ) {
@@ -759,7 +759,7 @@ impl GenAIEvalResults {
     }
 
     /// Add a failed result - only reference the record
-    pub fn add_failure(&mut self, record: &GenAIEvalRecord, error: String) {
+    pub fn add_failure(&mut self, record: &EvalRecord, error: String) {
         let uid = record.uid.clone();
 
         self.aligned_results
@@ -1041,7 +1041,7 @@ impl AlignedEvalResult {
 impl AlignedEvalResult {
     /// Create from successful evaluation
     pub fn from_success(
-        record: &GenAIEvalRecord,
+        record: &EvalRecord,
         eval_set: GenAIEvalSet,
         embeddings: BTreeMap<String, Vec<f32>>,
     ) -> Self {
@@ -1059,7 +1059,7 @@ impl AlignedEvalResult {
     }
 
     /// Create from failed evaluation
-    pub fn from_failure(record: &GenAIEvalRecord, error: String) -> Self {
+    pub fn from_failure(record: &EvalRecord, error: String) -> Self {
         Self {
             record_uid: record.uid.clone(),
             eval_set: GenAIEvalSet::empty(),
@@ -1074,7 +1074,7 @@ impl AlignedEvalResult {
     }
 
     /// Capture context snapshot for dataframe export
-    pub fn capture_context(&mut self, record: &GenAIEvalRecord) {
+    pub fn capture_context(&mut self, record: &EvalRecord) {
         if let serde_json::Value::Object(context_map) = &record.context {
             self.context_snapshot = Some(
                 context_map

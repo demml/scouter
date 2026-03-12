@@ -1,7 +1,7 @@
 use crate::error::EvaluationError;
 use crate::evaluate::evaluator::GenAIEvaluator;
 use crate::evaluate::types::{EvaluationConfig, GenAIEvalResults};
-use crate::genai::GenAIEvalDataset;
+use crate::genai::EvalDataset;
 use crate::tasks::evaluator::FieldEvaluator;
 use itertools::iproduct;
 use num_traits::FromPrimitive;
@@ -9,7 +9,7 @@ use potato_head::{Embedder, EmbeddingInput, PyEmbedder};
 use pyo3::prelude::*;
 use rayon::prelude::*;
 use scouter_types::genai::GenAIEvalSet;
-use scouter_types::GenAIEvalRecord;
+use scouter_types::EvalRecord;
 use serde_json::Value;
 use simsimd::SpatialSimilarity;
 use std::collections::BTreeMap;
@@ -27,11 +27,11 @@ type EvalTaskResult = (
 /// If there is an error during workflow execution, it will log the error and return None for that record
 /// # Arguments
 /// * `workflow` - The workflow to execute for each record.
-/// * `records` - The list of GenAIEvalRecords to process.
+/// * `records` - The list of EvalRecords to process.
 /// # Returns
 /// A JoinSet containing tuples of record ID and optional GenAIEvalTaskResult.
 pub async fn spawn_evaluation_tasks_without_embeddings(
-    dataset: &GenAIEvalDataset,
+    dataset: &EvalDataset,
     _config: &Arc<EvaluationConfig>,
 ) -> JoinSet<EvalTaskResult> {
     let mut join_set = JoinSet::new();
@@ -67,13 +67,13 @@ pub async fn spawn_evaluation_tasks_without_embeddings(
 
 /// Spawn tasks to run evaluation workflows with embedding calculations
 /// # Arguments
-/// * `dataset` - The GenAIEvalDataset containing records to evaluate.
+/// * `dataset` - The EvalDataset containing records to evaluate.
 /// * `embedder` - The Embedder instance to use for generating embeddings.
 /// * `config` - The EvaluationConfig containing evaluation settings.
 /// # Returns
 /// A JoinSet containing GenAIEvalTaskResults for each record.
 pub async fn spawn_evaluation_tasks_with_embeddings(
-    dataset: &GenAIEvalDataset,
+    dataset: &EvalDataset,
     embedder: Arc<Embedder>,
     config: &Arc<EvaluationConfig>,
 ) -> JoinSet<EvalTaskResult> {
@@ -114,12 +114,12 @@ pub async fn spawn_evaluation_tasks_with_embeddings(
 
 /// Helper for extracting embeddings for a single record. Used in the genai evaulation workflow.
 /// # Arguments
-/// * `record` - The GenAIEvalRecord to extract embeddings from.
+/// * `record` - The EvalRecord to extract embeddings from.
 /// * `embedder` - The Embedder instance to use for generating embeddings.
 /// * `embedding_targets` - The list of keys in the record's context to generate embeddings for.
 /// # Returns
 pub async fn generate_embeddings_for_record(
-    record: &GenAIEvalRecord,
+    record: &EvalRecord,
     embedder: &Arc<Embedder>,
     embedding_targets: &[String],
 ) -> BTreeMap<String, Vec<f32>> {
@@ -173,7 +173,7 @@ pub async fn generate_embeddings_for_record(
 /// Collect and align results with original records
 pub async fn collect_and_align_results(
     mut join_set: JoinSet<EvalTaskResult>,
-    records: &Arc<Vec<GenAIEvalRecord>>,
+    records: &Arc<Vec<EvalRecord>>,
 ) -> Result<GenAIEvalResults, EvaluationError> {
     let mut results = GenAIEvalResults::new();
 

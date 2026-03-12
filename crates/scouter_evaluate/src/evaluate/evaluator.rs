@@ -9,7 +9,7 @@ use scouter_types::genai::{
     AssertionResult, ExecutionPlan, GenAIEvalProfile, GenAIEvalSet, TraceAssertionTask,
 };
 use scouter_types::sql::TraceSpan;
-use scouter_types::{Assertion, GenAIEvalRecord};
+use scouter_types::{Assertion, EvalRecord};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -484,7 +484,7 @@ impl ResultCollector {
 
     async fn build_eval_set(
         &self,
-        record: &GenAIEvalRecord,
+        record: &EvalRecord,
         profile: &GenAIEvalProfile,
         duration_ms: i64,
         execution_plan: ExecutionPlan,
@@ -629,7 +629,7 @@ pub struct GenAIEvaluator;
 impl GenAIEvaluator {
     #[instrument(skip_all, fields(record_uid = %record.uid))]
     pub async fn process_event_record(
-        record: &GenAIEvalRecord,
+        record: &EvalRecord,
         profile: Arc<GenAIEvalProfile>,
         spans: Arc<Vec<TraceSpan>>,
     ) -> Result<GenAIEvalSet, EvaluationError> {
@@ -713,7 +713,7 @@ mod tests {
         LLMJudgeTask,
     };
     use scouter_types::genai::{EvaluationTaskType, EvaluationTasks};
-    use scouter_types::GenAIEvalRecord;
+    use scouter_types::EvalRecord;
     use serde_json::Value;
     use std::sync::Arc;
 
@@ -1077,7 +1077,7 @@ mod tests {
             "foo": "bar" }
         });
 
-        let record = GenAIEvalRecord::new_rs(
+        let record = EvalRecord::new_rs(
             context,
             Utc::now(),
             "UID123".to_string(),
@@ -1115,7 +1115,7 @@ mod tests {
                 "baz": [1, 2, 3]}
         });
 
-        let record = GenAIEvalRecord::new_rs(
+        let record = EvalRecord::new_rs(
             context,
             Utc::now(),
             "UID123".to_string(),
@@ -1143,7 +1143,7 @@ mod tests {
         let spans = Arc::new(create_simple_trace());
 
         let context = serde_json::json!({});
-        let record = GenAIEvalRecord::new_rs(
+        let record = EvalRecord::new_rs(
             context,
             Utc::now(),
             "TRACE_UID_001".to_string(),
@@ -1170,7 +1170,7 @@ mod tests {
         let spans = Arc::new(create_trace_with_errors());
 
         let context = serde_json::json!({});
-        let record = GenAIEvalRecord::new_rs(
+        let record = EvalRecord::new_rs(
             context,
             Utc::now(),
             "TRACE_UID_002".to_string(),
@@ -1198,7 +1198,7 @@ mod tests {
         let spans = Arc::new(create_trace_with_attributes());
 
         let context = serde_json::json!({});
-        let record = GenAIEvalRecord::new_rs(
+        let record = EvalRecord::new_rs(
             context,
             Utc::now(),
             "TRACE_UID_003".to_string(),
@@ -1226,7 +1226,7 @@ mod tests {
         let spans = Arc::new(create_sequence_pattern_trace());
 
         let context = serde_json::json!({});
-        let record = GenAIEvalRecord::new_rs(
+        let record = EvalRecord::new_rs(
             context,
             Utc::now(),
             "TRACE_UID_004".to_string(),
@@ -1253,7 +1253,7 @@ mod tests {
         let spans = Arc::new(create_trace_with_errors());
 
         let context = serde_json::json!({});
-        let record = GenAIEvalRecord::new_rs(
+        let record = EvalRecord::new_rs(
             context,
             Utc::now(),
             "TRACE_UID_005".to_string(),
@@ -1301,7 +1301,7 @@ mod tests {
         let spans = Arc::new(create_multi_service_trace());
 
         let context = serde_json::json!({});
-        let record = GenAIEvalRecord::new_rs(
+        let record = EvalRecord::new_rs(
             context,
             Utc::now(),
             "TRACE_UID_006".to_string(),
@@ -1355,7 +1355,7 @@ mod tests {
         let spans = Arc::new(create_simple_trace());
 
         let context = serde_json::json!({});
-        let record = GenAIEvalRecord::new_rs(
+        let record = EvalRecord::new_rs(
             context,
             Utc::now(),
             "TRACE_UID_007".to_string(),
@@ -1426,7 +1426,7 @@ mod tests {
             }
         });
 
-        let record = GenAIEvalRecord::new_rs(
+        let record = EvalRecord::new_rs(
             context,
             Utc::now(),
             "TRACE_UID_008".to_string(),
@@ -1480,7 +1480,7 @@ mod tests {
         let spans = Arc::new(create_nested_trace());
 
         let context = serde_json::json!({});
-        let record = GenAIEvalRecord::new_rs(
+        let record = EvalRecord::new_rs(
             context,
             Utc::now(),
             "TRACE_UID_009".to_string(),

@@ -4,8 +4,8 @@ from scouter._scouter import ComparisonOperator
 from scouter.evaluate import (
     AssertionTask,
     EvaluationConfig,
-    GenAIEvalDataset,
-    GenAIEvalRecord,
+    EvalDataset,
+    EvalRecord,
     GenAIEvalResults,
 )
 from scouter.genai import Embedder, Provider
@@ -21,12 +21,12 @@ def test_genai_eval_no_embedding(
     query_relevance_reason_assertion_task,
 ) -> None:
     with LLMTestServer():
-        record = GenAIEvalRecord(
+        record = EvalRecord(
             context={"input": {"foo": "bar", "bar": 42, "baz": [1, 2, 3]}},
             id="test_id_1",
         )
 
-        dataset = GenAIEvalDataset(
+        dataset = EvalDataset(
             records=[record],
             tasks=[
                 assertion_task_foo,
@@ -63,13 +63,13 @@ def test_genai_eval_no_embedding_one_fail(
         records = []
 
         for i in range(5):
-            record = GenAIEvalRecord(
+            record = EvalRecord(
                 context={"input": {"foo": "bar", "bar": 42, "baz": [1, 2, 3]}},
                 id=f"test_id_{i}",
             )
             records.append(record)
 
-        dataset = GenAIEvalDataset(
+        dataset = EvalDataset(
             records=records,
             tasks=[
                 assertion_task_foo,
@@ -98,13 +98,13 @@ def test_genai_eval_no_embedding_all_assertion(
         records = []
 
         for i in range(5):
-            record = GenAIEvalRecord(
+            record = EvalRecord(
                 context={"input": {"foo": "bar", "bar": 42, "baz": [1, 2, 3]}},
                 id=f"test_id_{i}",
             )
             records.append(record)
 
-        dataset = GenAIEvalDataset(
+        dataset = EvalDataset(
             records=records,
             tasks=[
                 assertion_task_foo,
@@ -138,7 +138,7 @@ def test_genai_eval_embedding_all_assertion(
         records = []
 
         for i in range(5):
-            record = GenAIEvalRecord(
+            record = EvalRecord(
                 context={
                     "input": {"foo": "bar", "bar": 42, "baz": [1, 2, 3]},
                     "response": "my response",
@@ -147,7 +147,7 @@ def test_genai_eval_embedding_all_assertion(
             )
             records.append(record)
 
-        dataset = GenAIEvalDataset(
+        dataset = EvalDataset(
             records=records,
             tasks=[
                 assertion_task_foo,
@@ -187,7 +187,7 @@ def test_genai_eval_embedding_all_assertion(
 
 def test_array_of_objects_not_empty_pass() -> None:
     """Array of objects is non-empty → PASS."""
-    record = GenAIEvalRecord(
+    record = EvalRecord(
         context={"responses": [{"text": "hello"}, {"text": "world"}, {"text": "foo"}]},
         id="array_obj_not_empty_pass",
     )
@@ -199,14 +199,14 @@ def test_array_of_objects_not_empty_pass() -> None:
         expected_value=True,
         description="Responses array must have at least one entry",
     )
-    dataset = GenAIEvalDataset(records=[record], tasks=[task])
+    dataset = EvalDataset(records=[record], tasks=[task])
     results = dataset.evaluate()
     assert results["array_obj_not_empty_pass"].eval_set.failed_tasks == 0
 
 
 def test_array_of_objects_not_empty_fail() -> None:
     """Array of objects is empty (no items) → FAIL."""
-    record = GenAIEvalRecord(
+    record = EvalRecord(
         context={"responses": []},
         id="array_obj_not_empty_fail",
     )
@@ -217,14 +217,14 @@ def test_array_of_objects_not_empty_fail() -> None:
         expected_value=True,
         description="Responses array must have at least one entry",
     )
-    dataset = GenAIEvalDataset(records=[record], tasks=[task])
+    dataset = EvalDataset(records=[record], tasks=[task])
     results = dataset.evaluate()
     assert results["array_obj_not_empty_fail"].eval_set.failed_tasks > 0
 
 
 def test_array_items_greater_than_pass() -> None:
     """All numeric values in the array are >= 5 → PASS."""
-    record = GenAIEvalRecord(
+    record = EvalRecord(
         context={"scores": [8, 6, 10]},
         id="attr_gte_pass",
     )
@@ -235,14 +235,14 @@ def test_array_items_greater_than_pass() -> None:
         expected_value=5,
         description="Every score must be >= 5",
     )
-    dataset = GenAIEvalDataset(records=[record], tasks=[task])
+    dataset = EvalDataset(records=[record], tasks=[task])
     results = dataset.evaluate()
     assert results["attr_gte_pass"].eval_set.failed_tasks == 0
 
 
 def test_array_items_greater_than_fail() -> None:
     """One numeric value in the array is < 5 → FAIL."""
-    record = GenAIEvalRecord(
+    record = EvalRecord(
         context={"scores": [8, 3, 10]},
         id="attr_gte_fail",
     )
@@ -253,14 +253,14 @@ def test_array_items_greater_than_fail() -> None:
         expected_value=5,
         description="Every score must be >= 5",
     )
-    dataset = GenAIEvalDataset(records=[record], tasks=[task])
+    dataset = EvalDataset(records=[record], tasks=[task])
     results = dataset.evaluate()
     assert results["attr_gte_fail"].eval_set.failed_tasks > 0
 
 
 def test_array_items_less_than_pass() -> None:
     """All numeric values in the array are < 500 → PASS."""
-    record = GenAIEvalRecord(
+    record = EvalRecord(
         context={"latencies": [120, 200, 450]},
         id="attr_lt_pass",
     )
@@ -271,14 +271,14 @@ def test_array_items_less_than_pass() -> None:
         expected_value=500,
         description="Every latency must be < 500ms",
     )
-    dataset = GenAIEvalDataset(records=[record], tasks=[task])
+    dataset = EvalDataset(records=[record], tasks=[task])
     results = dataset.evaluate()
     assert results["attr_lt_pass"].eval_set.failed_tasks == 0
 
 
 def test_array_items_less_than_fail() -> None:
     """One numeric value in the array is >= 500 → FAIL."""
-    record = GenAIEvalRecord(
+    record = EvalRecord(
         context={"latencies": [120, 600, 450]},
         id="attr_lt_fail",
     )
@@ -289,14 +289,14 @@ def test_array_items_less_than_fail() -> None:
         expected_value=500,
         description="Every latency must be < 500ms",
     )
-    dataset = GenAIEvalDataset(records=[record], tasks=[task])
+    dataset = EvalDataset(records=[record], tasks=[task])
     results = dataset.evaluate()
     assert results["attr_lt_fail"].eval_set.failed_tasks > 0
 
 
 def test_array_of_scalars_greater_than_pass() -> None:
     """All scalar values in the array are > 0 → PASS."""
-    record = GenAIEvalRecord(
+    record = EvalRecord(
         context={"scores": [5, 8, 10, 7]},
         id="scalar_gt_pass",
     )
@@ -307,14 +307,14 @@ def test_array_of_scalars_greater_than_pass() -> None:
         expected_value=0,
         description="Every score must be positive",
     )
-    dataset = GenAIEvalDataset(records=[record], tasks=[task])
+    dataset = EvalDataset(records=[record], tasks=[task])
     results = dataset.evaluate()
     assert results["scalar_gt_pass"].eval_set.failed_tasks == 0
 
 
 def test_array_of_scalars_greater_than_fail() -> None:
     """One scalar value is not > 0 → FAIL."""
-    record = GenAIEvalRecord(
+    record = EvalRecord(
         context={"scores": [5, 8, -1, 7]},
         id="scalar_gt_fail",
     )
@@ -325,14 +325,14 @@ def test_array_of_scalars_greater_than_fail() -> None:
         expected_value=0,
         description="Every score must be positive",
     )
-    dataset = GenAIEvalDataset(records=[record], tasks=[task])
+    dataset = EvalDataset(records=[record], tasks=[task])
     results = dataset.evaluate()
     assert results["scalar_gt_fail"].eval_set.failed_tasks > 0
 
 
 def test_array_of_scalars_less_than_pass() -> None:
     """All scalar values are < 100 → PASS."""
-    record = GenAIEvalRecord(
+    record = EvalRecord(
         context={"percentages": [10, 45, 99, 72]},
         id="scalar_lt_pass",
     )
@@ -343,14 +343,14 @@ def test_array_of_scalars_less_than_pass() -> None:
         expected_value=100,
         description="Every percentage must be < 100",
     )
-    dataset = GenAIEvalDataset(records=[record], tasks=[task])
+    dataset = EvalDataset(records=[record], tasks=[task])
     results = dataset.evaluate()
     assert results["scalar_lt_pass"].eval_set.failed_tasks == 0
 
 
 def test_array_of_scalars_less_than_fail() -> None:
     """One scalar value is >= 100 → FAIL."""
-    record = GenAIEvalRecord(
+    record = EvalRecord(
         context={"percentages": [10, 45, 100, 72]},
         id="scalar_lt_fail",
     )
@@ -361,14 +361,14 @@ def test_array_of_scalars_less_than_fail() -> None:
         expected_value=100,
         description="Every percentage must be < 100",
     )
-    dataset = GenAIEvalDataset(records=[record], tasks=[task])
+    dataset = EvalDataset(records=[record], tasks=[task])
     results = dataset.evaluate()
     assert results["scalar_lt_fail"].eval_set.failed_tasks > 0
 
 
 def test_array_native_has_length_unaffected() -> None:
     """HasLengthEqual operates on the array as a whole, not its items."""
-    record = GenAIEvalRecord(
+    record = EvalRecord(
         context={"tags": ["a", "b", "c"]},
         id="has_length_native",
     )
@@ -379,7 +379,7 @@ def test_array_native_has_length_unaffected() -> None:
         expected_value=3,
         description="Array must have exactly 3 items",
     )
-    dataset = GenAIEvalDataset(records=[record], tasks=[task])
+    dataset = EvalDataset(records=[record], tasks=[task])
     results = dataset.evaluate()
     assert results["has_length_native"].eval_set.failed_tasks == 0
 
@@ -441,12 +441,12 @@ def test_genai_conditional_assertions():
         ),
     ]
 
-    record = GenAIEvalRecord(
+    record = EvalRecord(
         context={"input": "bar", "response": "bar_bar"},
         id="test_conditional_1",
     )
 
-    dataset = GenAIEvalDataset(
+    dataset = EvalDataset(
         records=[record],
         tasks=stage_1_tasks + stage_2_task,
     )
@@ -455,9 +455,9 @@ def test_genai_conditional_assertions():
 
     results.as_table()
 
-    assert (
-        results["test_conditional_1"].task_count == 4
-    ), f"Expected 2 tasks to run, got {results['test_conditional_1'].task_count}"
-    assert (
-        results["test_conditional_1"].eval_set.records[0].task_id == "is_foo"
-    ), f"Expected first task to be 'is_bar', got {results['test_conditional_1'].eval_set.records[0].task_id}"
+    assert results["test_conditional_1"].task_count == 4, (
+        f"Expected 2 tasks to run, got {results['test_conditional_1'].task_count}"
+    )
+    assert results["test_conditional_1"].eval_set.records[0].task_id == "is_foo", (
+        f"Expected first task to be 'is_bar', got {results['test_conditional_1'].eval_set.records[0].task_id}"
+    )

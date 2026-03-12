@@ -35,7 +35,7 @@ from ._scouter import (  # genai
     FreedmanDiaconis,
     GenAIEvalConfig,
     GenAIEvalProfile,
-    GenAIEvalRecord,
+    EvalRecord,
     GenAIEvalResults,
     GrpcConfig,
     HttpConfig,
@@ -146,7 +146,7 @@ __all__ = [
     # genai
     "GenAIEvalConfig",
     "GenAIEvalProfile",
-    "GenAIEvalRecord",
+    "EvalRecord",
     "LLMJudgeTask",
     "AssertionTask",
     "ComparisonOperator",

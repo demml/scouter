@@ -1,14 +1,14 @@
 # Evaluate Examples
 
-Offline batch evaluation using `GenAIEvalDataset`. These examples run without a live Scouter server — evaluation executes locally and results are printed to stdout.
+Offline batch evaluation using `EvalDataset`. These examples run without a live Scouter server — evaluation executes locally and results are printed to stdout.
 
 All examples require an LLM provider API key for `LLMJudgeTask` examples. `AssertionTask`-only examples run without one.
 
 ## How offline evaluation works
 
 1. Define evaluation tasks (`AssertionTask` or `LLMJudgeTask`)
-2. Create `GenAIEvalRecord` objects containing the data to evaluate
-3. Build a `GenAIEvalDataset` with the records and tasks
+2. Create `EvalRecord` objects containing the data to evaluate
+3. Build a `EvalDataset` with the records and tasks
 4. Call `dataset.evaluate()` — tasks run, results are returned
 5. Inspect results via `results.as_table()` or `results.as_dataframe()`
 
@@ -26,7 +26,7 @@ uv run python examples/evaluate/customer_support.py
 
 **What it shows:**
 - Defining a `LLMJudgeTask` with a custom Pydantic output type (`ResponseQuality`)
-- Using `AssertionTask` to check boolean fields and numeric thresholds from a `GenAIEvalRecord` context
+- Using `AssertionTask` to check boolean fields and numeric thresholds from a `EvalRecord` context
 - `context_path` to extract nested fields (e.g. `response.confidence_score`)
 - Running evaluation and printing a results table
 
@@ -103,7 +103,7 @@ uv run python examples/evaluate/retail_question.py
 - Category classification as an `AssertionTask` gate (`condition=True`) routing to domain-specific tasks
 - Three independent expert validation chains (`LLMJudgeTask` → score threshold `AssertionTask`)
 - Deep `depends_on` chains: `expert_validation` depends on category gate; score check depends on expert result
-- Using `model.model_dump_json()` to pass Pydantic objects into `GenAIEvalRecord` context
+- Using `model.model_dump_json()` to pass Pydantic objects into `EvalRecord` context
 - Score thresholds per domain (technical accuracy, installation guidance, durability)
 
 ---

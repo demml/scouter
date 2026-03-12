@@ -2,11 +2,11 @@ from pydantic import BaseModel
 from scouter.evaluate import (
     AssertionTask,
     ComparisonOperator,
-    GenAIEvalDataset,
+    EvalDataset,
     LLMJudgeTask,
 )
 from scouter.genai import Prompt
-from scouter.queue import GenAIEvalRecord
+from scouter.queue import EvalRecord
 
 
 class SupportResponse(BaseModel):
@@ -47,12 +47,12 @@ quality_prompt = Prompt(
     output_type=ResponseQuality,
 )
 
-record = GenAIEvalRecord(
+record = EvalRecord(
     context={"customer_issue": customer_issue, "response": support_response},
 )
 
 
-dataset = GenAIEvalDataset(
+dataset = EvalDataset(
     records=[record],
     tasks=[
         # LLM Judge: Subjective quality assessment

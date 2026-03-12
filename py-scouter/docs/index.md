@@ -171,7 +171,7 @@ Correlated tracing and queue insertion in a single span:
 ```python
 with tracer.start_as_current_span("inference") as span:
     response = call_llm(user_input)
-    span.insert_queue_item("genai_profile", GenAIEvalRecord(context={...}))
+    span.insert_queue_item("genai_profile", EvalRecord(context={...}))
 ```
 
 See the [Tracing Overview](docs/tracing/overview.md) for cross-service context propagation, sync/async/streaming support, and OTEL collector configuration.
@@ -196,11 +196,11 @@ Run batch evaluations against a test set. Use task dependencies and `TraceAssert
 from scouter.evaluate import (
     AssertionTask,
     ComparisonOperator,
-    GenAIEvalDataset,
+    EvalDataset,
     LLMJudgeTask,
 )
 from scouter.genai import Prompt, Provider, Score
-from scouter.queue import GenAIEvalRecord
+from scouter.queue import EvalRecord
 
 quality_prompt = Prompt(
     messages=(
@@ -234,11 +234,11 @@ tasks = [
 ]
 
 records = [
-    GenAIEvalRecord(context={"query": q, "response": r})
+    EvalRecord(context={"query": q, "response": r})
     for q, r in test_pairs
 ]
 
-dataset = GenAIEvalDataset(records=records, tasks=tasks)
+dataset = EvalDataset(records=records, tasks=tasks)
 dataset.print_execution_plan()        # Preview task graph before running
 results = dataset.evaluate()
 results.as_table()                    # Workflow summary
@@ -344,7 +344,7 @@ client = ScouterClient()
 client.register_profile(profile, set_active=True)
 
 # At request time — non-blocking, evaluated asynchronously server-side
-record = GenAIEvalRecord(context={"query": user_query, "response": model_output})
+record = EvalRecord(context={"query": user_query, "response": model_output})
 queue["support_agent"].insert(record)
 ```
 

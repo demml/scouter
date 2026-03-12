@@ -13,7 +13,7 @@ use crate::queue::types::{QueueSettings, TransportConfig};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyListMethods};
 use scouter_state::app_state;
-use scouter_types::{DriftProfile, GenAIEvalRecord, QueueItem};
+use scouter_types::{DriftProfile, EvalRecord, QueueItem};
 use scouter_types::{Features, Metrics};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -145,7 +145,7 @@ impl QueueNum {
     ///
     pub async fn insert_genai_record(
         &mut self,
-        genai_record: GenAIEvalRecord,
+        genai_record: EvalRecord,
     ) -> Result<(), EventError> {
         match self {
             QueueNum::GenAI(queue) => {

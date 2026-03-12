@@ -13,7 +13,7 @@ from scouter.drift import (
 )
 from scouter.genai import Prompt, Score
 from scouter.mock import LLMTestServer, MockConfig
-from scouter.queue import GenAIEvalRecord, ScouterQueue
+from scouter.queue import EvalRecord, ScouterQueue
 
 
 class TaskOutput(BaseModel):
@@ -80,7 +80,7 @@ def test_genai_drifter():
             tasks=[task],
         )
 
-        record = GenAIEvalRecord(
+        record = EvalRecord(
             context={
                 "input": "What is the capital of France?",
                 "response": "The capital of France is Paris.",
@@ -92,7 +92,7 @@ def test_genai_drifter():
 
         assert len(results.records) == 1
 
-        record = GenAIEvalRecord(
+        record = EvalRecord(
             context={
                 "input": "What is the capital of France?",
                 "response": "The capital of France is Paris.",

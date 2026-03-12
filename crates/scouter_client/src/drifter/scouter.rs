@@ -14,7 +14,7 @@ use scouter_types::{
     genai::{GenAIEvalConfig, GenAIEvalProfile},
     psi::{PsiDriftConfig, PsiDriftMap, PsiDriftProfile},
     spc::SpcDriftConfig,
-    DataType, DriftProfile, DriftType, GenAIEvalRecord,
+    DataType, DriftProfile, DriftType, EvalRecord,
 };
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -167,16 +167,14 @@ impl Drifter {
             }
 
             Drifter::GenAI(drifter) => {
-                // extract data to be Vec<GenAIEvalRecord>
+                // extract data to be Vec<EvalRecord>
                 if !data.is_instance_of::<PyList>() {
                     // convert to pylist
                     let type_ = data.get_type().name()?;
-                    return Err(DriftError::ExpectedListOfGenAIEvalRecords(
-                        type_.to_string(),
-                    ));
+                    return Err(DriftError::ExpectedListOfEvalRecords(type_.to_string()));
                 };
 
-                let records = data.extract::<Vec<GenAIEvalRecord>>()?;
+                let records = data.extract::<Vec<EvalRecord>>()?;
                 let records = drifter.compute_drift(records, profile.get_genai_profile()?)?;
 
                 Ok(DriftMap::GenAI(GenAIEvalResultSet { records }))
