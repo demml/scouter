@@ -6,9 +6,7 @@ use crate::genai::utils::{extract_assertion_tasks_from_pylist, AssertionTasks};
 use crate::genai::TraceAssertionTask;
 use crate::traits::ConfigExt;
 use crate::util::{json_to_pyobject, pyobject_to_json};
-use crate::{
-    scouter_version, GenAIEvalTaskResult, GenAIEvalWorkflowResult, WorkflowResultTableEntry,
-};
+use crate::{scouter_version, EvalTaskResult, GenAIEvalWorkflowResult, WorkflowResultTableEntry};
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
     PyHelperFuncs, VersionRequest, DEFAULT_VERSION, MISSING,
@@ -1000,13 +998,13 @@ impl ProfileBaseArgs for GenAIEvalProfile {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct GenAIEvalSet {
+pub struct EvalSet {
     #[pyo3(get)]
-    pub records: Vec<GenAIEvalTaskResult>,
+    pub records: Vec<EvalTaskResult>,
     pub inner: GenAIEvalWorkflowResult,
 }
 
-impl GenAIEvalSet {
+impl EvalSet {
     pub fn build_task_entries(&mut self, record_id: &str) -> Vec<TaskResultTableEntry> {
         // sort records by stage, then by task_id
 
@@ -1023,7 +1021,7 @@ impl GenAIEvalSet {
         vec![self.inner.to_table_entry()]
     }
 
-    pub fn new(records: Vec<GenAIEvalTaskResult>, inner: GenAIEvalWorkflowResult) -> Self {
+    pub fn new(records: Vec<EvalTaskResult>, inner: GenAIEvalWorkflowResult) -> Self {
         Self { records, inner }
     }
 
@@ -1048,7 +1046,7 @@ impl GenAIEvalSet {
 }
 
 #[pymethods]
-impl GenAIEvalSet {
+impl EvalSet {
     #[getter]
     pub fn created_at(&self) -> DateTime<Utc> {
         self.inner.created_at
@@ -1092,14 +1090,14 @@ impl GenAIEvalSet {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct GenAIEvalResultSet {
+pub struct EvalResultSet {
     #[pyo3(get)]
-    pub records: Vec<GenAIEvalSet>,
+    pub records: Vec<EvalSet>,
 }
 
 #[pymethods]
-impl GenAIEvalResultSet {
-    pub fn record(&self, id: &str) -> Option<GenAIEvalSet> {
+impl EvalResultSet {
+    pub fn record(&self, id: &str) -> Option<EvalSet> {
         self.records.iter().find(|r| r.record_uid() == id).cloned()
     }
     pub fn __str__(&self) -> String {

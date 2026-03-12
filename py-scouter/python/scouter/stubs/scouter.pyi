@@ -3995,7 +3995,7 @@ class Drifter:
         data: List[EvalRecord],
         drift_profile: GenAIEvalProfile,
         data_type: Optional[ScouterDataType] = None,
-    ) -> "GenAIEvalResultSet":
+    ) -> "EvalResultSet":
         """Create a drift map from data.
 
         Args:
@@ -4007,7 +4007,7 @@ class Drifter:
                 Optional data type. Inferred from data if not provided.
 
         Returns:
-            GenAIEvalResultSet
+            EvalResultSet
         """
 
     def compute_drift(  # type: ignore
@@ -4015,7 +4015,7 @@ class Drifter:
         data: Any,
         drift_profile: Union[SpcDriftProfile, PsiDriftProfile, GenAIEvalProfile],
         data_type: Optional[ScouterDataType] = None,
-    ) -> Union[SpcDriftMap, PsiDriftMap, GenAIEvalResultSet]:
+    ) -> Union[SpcDriftMap, PsiDriftMap, EvalResultSet]:
         """Create a drift map from data.
 
         Args:
@@ -4028,10 +4028,10 @@ class Drifter:
                 Optional data type. Inferred from data if not provided.
 
         Returns:
-            SpcDriftMap, PsiDriftMap or GenAIEvalResultSet
+            SpcDriftMap, PsiDriftMap or EvalResultSet
         """
 
-class GenAIEvalTaskResult:
+class EvalTaskResult:
     """Individual task result from an LLM evaluation run"""
 
     @property
@@ -4124,7 +4124,7 @@ class EvalDataset:
     def evaluate(
         self,
         config: Optional[EvaluationConfig] = None,
-    ) -> "GenAIEvalResults":
+    ) -> "EvalResults":
         """Evaluate the records using the defined tasks.
 
         Args:
@@ -4132,7 +4132,7 @@ class EvalDataset:
                 Optional configuration for the evaluation process.
 
         Returns:
-            GenAIEvalResults:
+            EvalResults:
                 The results of the evaluation.
         """
 
@@ -4159,11 +4159,11 @@ class EvalDataset:
                 A new dataset instance with the updated contexts.
         """
 
-class GenAIEvalSet:
+class EvalSet:
     """Evaluation set for a specific evaluation run"""
 
     @property
-    def records(self) -> List[GenAIEvalTaskResult]:
+    def records(self) -> List[EvalTaskResult]:
         """Get the list of task results in this evaluation set"""
 
     @property
@@ -4205,11 +4205,11 @@ class GenAIEvalSet:
 
     def __str__(self): ...
 
-class GenAIEvalResultSet:
+class EvalResultSet:
     """Defines the results of a specific evaluation run"""
 
     @property
-    def records(self) -> List[GenAIEvalSet]:
+    def records(self) -> List[EvalSet]:
         """Get the list of evaluation sets in this result set"""
 
 class AlignedEvalResult:
@@ -4220,7 +4220,7 @@ class AlignedEvalResult:
         """Get the unique identifier for the record associated with this result"""
 
     @property
-    def eval_set(self) -> GenAIEvalSet:
+    def eval_set(self) -> EvalSet:
         """Get the eval results"""
 
     @property
@@ -4313,7 +4313,7 @@ class WorkflowComparison:
         """Get detailed task-by-task comparisons for this workflow"""
 
 class ComparisonResults:
-    """Results from comparing two GenAIEvalResults evaluations"""
+    """Results from comparing two EvalResults evaluations"""
 
     @property
     def workflow_comparisons(self) -> List[WorkflowComparison]:
@@ -4390,7 +4390,7 @@ class ComparisonResults:
         - Missing tasks list (if any)
         """
 
-class GenAIEvalResults:
+class EvalResults:
     """Defines the results of an LLM eval metric"""
 
     def __getitem__(self, key: str) -> AlignedEvalResult:
@@ -4413,7 +4413,7 @@ class GenAIEvalResults:
         """Get the count of failed evaluations"""
 
     def __str__(self):
-        """String representation of the GenAIEvalResults"""
+        """String representation of the EvalResults"""
 
     def to_dataframe(self, polars: bool = False) -> Any:
         """
@@ -4432,12 +4432,12 @@ class GenAIEvalResults:
         """Dump the results as a JSON string"""
 
     @staticmethod
-    def model_validate_json(json_string: str) -> "GenAIEvalResults":
-        """Validate and create an GenAIEvalResults instance from a JSON string
+    def model_validate_json(json_string: str) -> "EvalResults":
+        """Validate and create an EvalResults instance from a JSON string
 
         Args:
             json_string (str):
-                JSON string to validate and create the GenAIEvalResults instance from.
+                JSON string to validate and create the EvalResults instance from.
         """
 
     def as_table(self, show_tasks: bool = False) -> str:
@@ -4450,11 +4450,11 @@ class GenAIEvalResults:
 
         """
 
-    def compare_to(self, baseline: "GenAIEvalResults", regression_threshold: float) -> ComparisonResults:
+    def compare_to(self, baseline: "EvalResults", regression_threshold: float) -> ComparisonResults:
         """Compare the current evaluation results to a baseline with a regression threshold.
 
         Args:
-            baseline (GenAIEvalResults):
+            baseline (EvalResults):
                 The baseline evaluation results to compare against.
             regression_threshold (float):
                 The threshold for considering a regression significant.
@@ -4784,12 +4784,12 @@ __all__ = [
     "Scott",
     "TerrellScott",
     "FreedmanDiaconis",
-    "GenAIEvalResults",
+    "EvalResults",
     "EvaluationConfig",
     "EvalDataset",
-    "GenAIEvalSet",
-    "GenAIEvalTaskResult",
-    "GenAIEvalResultSet",
+    "EvalSet",
+    "EvalTaskResult",
+    "EvalResultSet",
     "AlignedEvalResult",
     "Distinct",
     "Quantiles",

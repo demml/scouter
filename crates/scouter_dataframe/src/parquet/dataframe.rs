@@ -185,7 +185,7 @@ mod tests {
     use scouter_types::{
         BoxedEvalRecord, EvalRecord, PsiRecord, ServerRecord, ServerRecords, SpcRecord, Status,
     };
-    use scouter_types::{CustomMetricRecord, GenAIEvalTaskResult, GenAIEvalWorkflowResult};
+    use scouter_types::{CustomMetricRecord, EvalTaskResult, GenAIEvalWorkflowResult};
     use serde_json::Map;
     use serde_json::Value;
 
@@ -267,7 +267,7 @@ mod tests {
         // create records
         for i in 0..3 {
             for j in 0..50 {
-                let record = ServerRecord::GenAITaskRecord(GenAIEvalTaskResult {
+                let record = ServerRecord::GenAITaskRecord(EvalTaskResult {
                     record_uid: format!("record_uid_{i}_{j}"),
                     created_at: Utc::now() + chrono::Duration::hours(i),
                     start_time: Utc::now() + chrono::Duration::hours(i),

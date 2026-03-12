@@ -639,7 +639,7 @@ pub enum Assertion {
 // Detailed result for an individual evaluation task within a workflow
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GenAIEvalTaskResult {
+pub struct EvalTaskResult {
     #[pyo3(get)]
     pub created_at: DateTime<Utc>,
 
@@ -687,7 +687,7 @@ pub struct GenAIEvalTaskResult {
 }
 
 #[pymethods]
-impl GenAIEvalTaskResult {
+impl EvalTaskResult {
     #[getter]
     pub fn get_expected<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, RecordError> {
         let py_value = pythonize(py, &self.expected)?;
@@ -717,7 +717,7 @@ impl GenAIEvalTaskResult {
     }
 }
 
-impl GenAIEvalTaskResult {
+impl EvalTaskResult {
     pub(crate) fn to_table_entry(&self, record_id: &str) -> TaskResultTableEntry {
         let expected_str =
             serde_json::to_string(&self.expected).unwrap_or_else(|_| "null".to_string());
@@ -794,7 +794,7 @@ impl GenAIEvalTaskResult {
     }
 }
 
-impl Default for GenAIEvalTaskResult {
+impl Default for EvalTaskResult {
     fn default() -> Self {
         Self {
             created_at: Utc::now(),
@@ -819,7 +819,7 @@ impl Default for GenAIEvalTaskResult {
 }
 
 #[cfg(feature = "server")]
-impl FromRow<'_, PgRow> for GenAIEvalTaskResult {
+impl FromRow<'_, PgRow> for EvalTaskResult {
     fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
         let expected: Value =
             serde_json::from_value(row.try_get("expected")?).unwrap_or(Value::Null);
@@ -833,7 +833,7 @@ impl FromRow<'_, PgRow> for GenAIEvalTaskResult {
         let assertion: Assertion =
             serde_json::from_value(row.try_get("assertion")?).unwrap_or(Assertion::FieldPath(None));
 
-        Ok(GenAIEvalTaskResult {
+        Ok(EvalTaskResult {
             record_uid: row.try_get("record_uid")?,
             created_at: row.try_get("created_at")?,
             start_time: row.try_get("start_time")?,
@@ -998,7 +998,7 @@ pub enum ServerRecord {
     Custom(CustomMetricRecord),
     Observability(ObservabilityMetrics),
     GenAIEval(BoxedEvalRecord),
-    GenAITaskRecord(GenAIEvalTaskResult),
+    GenAITaskRecord(EvalTaskResult),
     GenAIWorkflowRecord(GenAIEvalWorkflowResult),
 }
 
@@ -1186,7 +1186,7 @@ impl IntoServerRecord for GenAIEvalWorkflowResult {
         ServerRecord::GenAIWorkflowRecord(self)
     }
 }
-impl IntoServerRecord for GenAIEvalTaskResult {
+impl IntoServerRecord for EvalTaskResult {
     fn into_server_record(self) -> ServerRecord {
         ServerRecord::GenAITaskRecord(self)
     }
@@ -1200,7 +1200,7 @@ pub trait ToDriftRecords {
     fn to_custom_metric_drift_records(self) -> Result<Vec<CustomMetricRecord>, RecordError>;
     fn to_genai_eval_records(self) -> Result<Vec<BoxedEvalRecord>, RecordError>;
     fn to_genai_workflow_records(self) -> Result<Vec<GenAIEvalWorkflowResult>, RecordError>;
-    fn to_genai_task_records(self) -> Result<Vec<GenAIEvalTaskResult>, RecordError>;
+    fn to_genai_task_records(self) -> Result<Vec<EvalTaskResult>, RecordError>;
 }
 
 impl ToDriftRecords for ServerRecords {
@@ -1246,7 +1246,7 @@ impl ToDriftRecords for ServerRecords {
         })
     }
 
-    fn to_genai_task_records(self) -> Result<Vec<GenAIEvalTaskResult>, RecordError> {
+    fn to_genai_task_records(self) -> Result<Vec<EvalTaskResult>, RecordError> {
         extract_owned_records(self.records, |record| match record {
             ServerRecord::GenAITaskRecord(inner) => Some(inner),
             _ => None,

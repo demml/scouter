@@ -10,7 +10,7 @@ use scouter_settings::ObjectStorageSettings;
 use scouter_types::contracts::DriftRequest;
 use scouter_types::BoxedEvalRecord;
 use scouter_types::EvalRecord;
-use scouter_types::GenAIEvalTaskResult;
+use scouter_types::EvalTaskResult;
 use scouter_types::GenAIEvalWorkflowPaginationResponse;
 use scouter_types::GenAIEvalWorkflowResult;
 use scouter_types::Status;
@@ -84,7 +84,7 @@ pub trait GenAIDriftSqlLogic {
     /// This is the output from processing/evaluating the GenAI drift records.
     async fn insert_eval_task_results_batch(
         pool: &Pool<Postgres>,
-        records: &[GenAIEvalTaskResult], // Passed by slice for better ergonomics
+        records: &[EvalTaskResult], // Passed by slice for better ergonomics
         entity_id: &i32,
     ) -> Result<sqlx::postgres::PgQueryResult, SqlError> {
         if records.is_empty() {
@@ -309,9 +309,9 @@ pub trait GenAIDriftSqlLogic {
     async fn get_genai_eval_task(
         pool: &Pool<Postgres>,
         record_uid: &str,
-    ) -> Result<Vec<GenAIEvalTaskResult>, SqlError> {
+    ) -> Result<Vec<EvalTaskResult>, SqlError> {
         let query = Queries::GetGenAIEvalTasks.get_query();
-        let tasks: Result<Vec<GenAIEvalTaskResult>, SqlError> = sqlx::query_as(query)
+        let tasks: Result<Vec<EvalTaskResult>, SqlError> = sqlx::query_as(query)
             .bind(record_uid)
             .fetch_all(pool)
             .await

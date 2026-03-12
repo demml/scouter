@@ -14,9 +14,9 @@ pub use scouter_types::{
     custom::{CustomDriftProfile, CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig},
     genai::{
         utils::AssertionTasks, AggregationType, AssertionResult, AssertionResults, AssertionTask,
-        ComparisonOperator, EvaluationTaskType, GenAIAlertConfig, GenAIEvalConfig,
-        GenAIEvalProfile, GenAIEvalResultSet, GenAIEvalSet, LLMJudgeTask, SpanFilter, SpanStatus,
-        TasksFile, TraceAssertion, TraceAssertionTask,
+        ComparisonOperator, EvalResultSet, EvalSet, EvaluationTaskType, GenAIAlertConfig,
+        GenAIEvalConfig, GenAIEvalProfile, LLMJudgeTask, SpanFilter, SpanStatus, TasksFile,
+        TraceAssertion, TraceAssertionTask,
     },
     is_pydantic_basemodel,
     psi::{
@@ -34,8 +34,8 @@ pub use scouter_types::{
     BinnedMetrics, ConsoleDispatchConfig, CustomMetricRecord, DataType, Doane,
     DriftAlertPaginationRequest, DriftAlertPaginationResponse, DriftProfile, DriftRequest,
     DriftType, EntityIdTagsRequest, EntityIdTagsResponse, EntityType, EqualWidthBinning,
-    EvalRecord, EvalRecordPaginationRequest, EvalRecordPaginationResponse, Feature, FeatureMap,
-    Features, FreedmanDiaconis, GenAIEvalTaskRequest, GenAIEvalTaskResponse, GenAIEvalTaskResult,
+    EvalRecord, EvalRecordPaginationRequest, EvalRecordPaginationResponse, EvalTaskResult, Feature,
+    FeatureMap, Features, FreedmanDiaconis, GenAIEvalTaskRequest, GenAIEvalTaskResponse,
     GenAIEvalWorkflowPaginationResponse, GenAIEvalWorkflowResult, GetProfileRequest,
     LatencyMetrics, Manual, Metric, Metrics, ObservabilityMetrics, OpsGenieDispatchConfig,
     ProfileRequest, ProfileStatusRequest, PsiRecord, QuantileBinning, RecordType,
@@ -80,7 +80,7 @@ pub use scouter_types::error::{ContractError, ProfileError, RecordError, TypeErr
 pub use scouter_evaluate::{
     error::EvaluationError,
     evaluate::types::{
-        AlignedEvalResult, ComparisonResults, EvaluationConfig, GenAIEvalResults, MissingTask,
+        AlignedEvalResult, ComparisonResults, EvalResults, EvaluationConfig, MissingTask,
         TaskComparison, WorkflowComparison,
     },
     genai::EvalDataset,

@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::error::{ContractError, TypeError};
 use crate::sql::{TraceListItem, TraceMetricBucket, TraceSpan};
-use crate::{Alert, GenAIEvalTaskResult, GenAIEvalWorkflowResult};
+use crate::{Alert, EvalTaskResult, GenAIEvalWorkflowResult};
 use crate::{CustomInterval, DriftProfile, EvalRecord, Status, Tag, TagRecord, TraceBaggageRecord};
 use crate::{DriftType, PyHelperFuncs, TimeInterval};
 use chrono::{DateTime, Utc};
@@ -543,7 +543,7 @@ pub struct GenAIEvalTaskRequest {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GenAIEvalTaskResponse {
-    pub tasks: Vec<GenAIEvalTaskResult>,
+    pub tasks: Vec<EvalTaskResult>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]

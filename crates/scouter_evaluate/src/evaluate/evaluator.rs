@@ -6,7 +6,7 @@ use crate::tasks::traits::EvaluationTask;
 use chrono::{DateTime, Utc};
 use scouter_types::genai::traits::ProfileExt;
 use scouter_types::genai::{
-    AssertionResult, ExecutionPlan, GenAIEvalProfile, GenAIEvalSet, TraceAssertionTask,
+    AssertionResult, EvalSet, ExecutionPlan, GenAIEvalProfile, TraceAssertionTask,
 };
 use scouter_types::sql::TraceSpan;
 use scouter_types::{Assertion, EvalRecord};
@@ -488,7 +488,7 @@ impl ResultCollector {
         profile: &GenAIEvalProfile,
         duration_ms: i64,
         execution_plan: ExecutionPlan,
-    ) -> GenAIEvalSet {
+    ) -> EvalSet {
         let mut passed_count = 0;
         let mut failed_count = 0;
         let mut records = Vec::new();
@@ -507,7 +507,7 @@ impl ResultCollector {
 
                 let stage = *self.context.task_stages.get(&assertion.id).unwrap_or(&-1);
 
-                records.push(scouter_types::GenAIEvalTaskResult {
+                records.push(scouter_types::EvalTaskResult {
                     created_at: chrono::Utc::now(),
                     start_time,
                     end_time,
@@ -541,7 +541,7 @@ impl ResultCollector {
 
                 let stage = *self.context.task_stages.get(&judge.id).unwrap_or(&-1);
 
-                records.push(scouter_types::GenAIEvalTaskResult {
+                records.push(scouter_types::EvalTaskResult {
                     created_at: chrono::Utc::now(),
                     start_time,
                     end_time,
@@ -580,7 +580,7 @@ impl ResultCollector {
                     .get(&trace_assertion.id)
                     .unwrap_or(&-1);
 
-                records.push(scouter_types::GenAIEvalTaskResult {
+                records.push(scouter_types::EvalTaskResult {
                     created_at: chrono::Utc::now(),
                     start_time,
                     end_time,
@@ -620,7 +620,7 @@ impl ResultCollector {
             execution_plan,
         };
 
-        GenAIEvalSet::new(records, workflow_record)
+        EvalSet::new(records, workflow_record)
     }
 }
 
@@ -632,7 +632,7 @@ impl GenAIEvaluator {
         record: &EvalRecord,
         profile: Arc<GenAIEvalProfile>,
         spans: Arc<Vec<TraceSpan>>,
-    ) -> Result<GenAIEvalSet, EvaluationError> {
+    ) -> Result<EvalSet, EvaluationError> {
         let begin = chrono::Utc::now();
 
         let mut registry = TaskRegistry::new();
