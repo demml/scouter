@@ -483,6 +483,10 @@ impl TraceSummaryDBEngine {
         match self.control.try_claim_task(TASK_SUMMARY_OPTIMIZE).await {
             Ok(true) => match self.optimize_table().await {
                 Ok(()) => {
+                    if let Err(e) = self.vacuum_table(0).await {
+                        error!("Post-optimize vacuum failed: {}", e);
+                    }
+
                     let _ = self
                         .control
                         .release_task(
