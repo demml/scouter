@@ -1,14 +1,7 @@
-from scouter.evaluate import (
-    AssertionTask,
-    ComparisonOperator,
-    EvalDataset,
-    EvalRecord,
-)
+from scouter.evaluate import AssertionTask, ComparisonOperator, EvalDataset, EvalRecord
 
 
-def test_comparison_improvement_detected(
-    base_assertion_tasks, baseline_records, improved_records
-):
+def test_comparison_improvement_detected(base_assertion_tasks, baseline_records, improved_records):
     """Test that improvements are correctly detected in comparison."""
     baseline_dataset = EvalDataset(records=baseline_records, tasks=base_assertion_tasks)
     improved_dataset = EvalDataset(records=improved_records, tasks=base_assertion_tasks)
@@ -23,19 +16,13 @@ def test_comparison_improvement_detected(
 
     assert comparison.improved_workflows > 0, "Expected to detect improvements"
     assert comparison.regressed_workflows == 0, "No regressions should be detected"
-    assert comparison.mean_pass_rate_delta > 0, (
-        f"Success rate should improve, got {comparison.mean_pass_rate_delta}"
-    )
+    assert comparison.mean_pass_rate_delta > 0, f"Success rate should improve, got {comparison.mean_pass_rate_delta}"
 
 
-def test_comparison_regression_detected(
-    base_assertion_tasks, baseline_records, regressed_records
-):
+def test_comparison_regression_detected(base_assertion_tasks, baseline_records, regressed_records):
     """Test that regressions are correctly detected in comparison."""
     baseline_dataset = EvalDataset(records=baseline_records, tasks=base_assertion_tasks)
-    regressed_dataset = EvalDataset(
-        records=regressed_records, tasks=base_assertion_tasks
-    )
+    regressed_dataset = EvalDataset(records=regressed_records, tasks=base_assertion_tasks)
 
     baseline_results = baseline_dataset.evaluate()
     regressed_results = regressed_dataset.evaluate()
@@ -46,9 +33,7 @@ def test_comparison_regression_detected(
     )
 
     assert comparison.regressed_workflows > 0, "Expected to detect regressions"
-    assert comparison.mean_pass_rate_delta < 0, (
-        f"Success rate should decrease, got {comparison.mean_pass_rate_delta}"
-    )
+    assert comparison.mean_pass_rate_delta < 0, f"Success rate should decrease, got {comparison.mean_pass_rate_delta}"
 
 
 def test_comparison_no_change(base_assertion_tasks, baseline_records):
@@ -68,9 +53,9 @@ def test_comparison_no_change(base_assertion_tasks, baseline_records):
 
     assert comparison.improved_workflows == 0, "No improvements should be detected"
     assert comparison.regressed_workflows == 0, "No regressions should be detected"
-    assert abs(comparison.mean_pass_rate_delta) < 0.01, (
-        f"Success rate should be stable, got {comparison.mean_pass_rate_delta}"
-    )
+    assert (
+        abs(comparison.mean_pass_rate_delta) < 0.01
+    ), f"Success rate should be stable, got {comparison.mean_pass_rate_delta}"
 
 
 def test_comparison_with_updated_contexts(base_assertion_tasks, baseline_records):
@@ -104,9 +89,9 @@ def test_comparison_with_updated_contexts(base_assertion_tasks, baseline_records
     comparison.as_table()
 
     assert comparison.improved_workflows > 0, "Expected improvements in updated records"
-    assert comparison.mean_pass_rate_delta > 0, (
-        f"Overall success rate should improve, got {comparison.mean_pass_rate_delta}"
-    )
+    assert (
+        comparison.mean_pass_rate_delta > 0
+    ), f"Overall success rate should improve, got {comparison.mean_pass_rate_delta}"
 
 
 def test_comparison_threshold_sensitivity(base_assertion_tasks, baseline_records):
@@ -120,9 +105,7 @@ def test_comparison_threshold_sensitivity(base_assertion_tasks, baseline_records
         },
     }
 
-    slightly_worse_dataset = baseline_dataset.with_updated_contexts_by_id(
-        context_updates
-    )
+    slightly_worse_dataset = baseline_dataset.with_updated_contexts_by_id(context_updates)
     slightly_worse_results = slightly_worse_dataset.evaluate()
 
     strict_comparison = slightly_worse_results.compare_to(
@@ -222,12 +205,8 @@ def test_comparison_with_conditional_tasks():
         regression_threshold=0.05,
     )
 
-    assert comparison.improved_workflows > 0, (
-        "Expected improvements with conditional tasks"
-    )
-    assert comparison.mean_pass_rate_delta > 0, (
-        f"Success rate should improve, got {comparison.mean_pass_rate_delta}"
-    )
+    assert comparison.improved_workflows > 0, "Expected improvements with conditional tasks"
+    assert comparison.mean_pass_rate_delta > 0, f"Success rate should improve, got {comparison.mean_pass_rate_delta}"
 
 
 def test_comparison_mixed_results():

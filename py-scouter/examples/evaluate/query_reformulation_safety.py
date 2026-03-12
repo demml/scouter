@@ -141,9 +141,7 @@ if __name__ == "__main__":
     # print reformulated query
     print("Reformulated Query:", response.response_text())
 
-    dataset = build_eval_dataset(
-        user_query=user_query, response=response.response_text()
-    )
+    dataset = build_eval_dataset(user_query=user_query, response=response.response_text())
 
     results = dataset.evaluate()
     results.as_table(True)

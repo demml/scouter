@@ -59,6 +59,17 @@ impl ObjectStorageSettings {
             .unwrap_or(10_000)
     }
 
+    /// Maximum size (in MB) of the object store range cache used to avoid
+    /// redundant cloud round-trips for immutable Parquet footer reads.
+    ///
+    /// Configurable via `SCOUTER_OBJECT_CACHE_MB`. Default: 64 MB.
+    pub fn object_cache_mb(&self) -> u64 {
+        std::env::var("SCOUTER_OBJECT_CACHE_MB")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(64)
+    }
+
     pub fn storage_root(&self) -> String {
         match self.storage_type {
             StorageType::Google | StorageType::Aws | StorageType::Azure => {

@@ -324,10 +324,7 @@ def main():
 
     improved_data = generate_improved_classifications()
 
-    context_map = {
-        f"product_classification_{idx}": model_output
-        for idx, model_output in enumerate(improved_data)
-    }
+    context_map = {f"product_classification_{idx}": model_output for idx, model_output in enumerate(improved_data)}
     improved_dataset = baseline_dataset.with_updated_contexts_by_id(context_map)
 
     improved_results = improved_dataset.evaluate()

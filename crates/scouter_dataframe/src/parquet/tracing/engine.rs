@@ -413,11 +413,16 @@ impl TraceSpanDBEngine {
     /// Try to claim and run the optimize task via the control table.
     ///
     /// The control table's OCC ensures only one pod runs this at a time across
-    /// the entire K8s deployment.
     async fn try_run_optimize(&self, interval_hours: u64) {
         match self.control.try_claim_task(TASK_OPTIMIZE).await {
             Ok(true) => match self.optimize_table().await {
                 Ok(()) => {
+                    // Vacuum tombstoned files left behind by compaction.
+                    // retention_hours=0 is safe here because the single-writer invariant
+                    // guarantees no concurrent reader is using an older table version.
+                    if let Err(e) = self.vacuum_table(0).await {
+                        error!("Post-optimize vacuum failed: {}", e);
+                    }
                     let _ = self
                         .control
                         .release_task(
@@ -490,8 +495,10 @@ impl TraceSpanDBEngine {
                                 }
                             }
                             TableCommand::Optimize { respond_to } => {
-                                // Direct admin request — bypass control table
                                 let _ = respond_to.send(self.optimize_table().await);
+                                if let Err(e) = self.vacuum_table(0).await {
+                                    error!("Post-optimize vacuum failed: {}", e);
+                                }
                             }
                             TableCommand::Vacuum { retention_hours, respond_to } => {
                                 let _ = respond_to.send(self.vacuum_table(retention_hours).await);

@@ -1,3 +1,4 @@
+use crate::caching_store::CachingStore;
 use crate::error::StorageError;
 use base64::prelude::*;
 use datafusion::prelude::{SessionConfig, SessionContext};
@@ -18,11 +19,14 @@ use url::Url;
 /// HTTP client options for cloud object stores.
 ///
 /// Enables TCP+TLS connection pooling so repeat queries reuse existing
-/// connections
+/// connections. Sized for high-concurrency GCS/S3 workloads where many
+/// parallel readers share the same host.
 fn cloud_client_options() -> ClientOptions {
     ClientOptions::new()
-        .with_pool_idle_timeout(std::time::Duration::from_secs(90))
-        .with_pool_max_idle_per_host(16)
+        .with_pool_idle_timeout(std::time::Duration::from_secs(120))
+        .with_pool_max_idle_per_host(64)
+        .with_timeout(std::time::Duration::from_secs(30))
+        .with_connect_timeout(std::time::Duration::from_secs(5))
 }
 
 /// Helper function to decode base64 encoded string
@@ -35,10 +39,10 @@ fn decode_base64_str(service_base64_creds: &str) -> Result<String, StorageError>
 /// Storage provider enum for common object stores
 #[derive(Debug, Clone)]
 enum StorageProvider {
-    Google(Arc<GoogleCloudStorage>),
-    Aws(Arc<AmazonS3>),
-    Local(Arc<LocalFileSystem>),
-    Azure(Arc<MicrosoftAzure>),
+    Google(Arc<CachingStore<GoogleCloudStorage>>),
+    Aws(Arc<CachingStore<AmazonS3>>),
+    Local(Arc<CachingStore<LocalFileSystem>>),
+    Azure(Arc<CachingStore<MicrosoftAzure>>),
 }
 
 impl StorageProvider {
@@ -57,6 +61,8 @@ impl StorageProvider {
     }
 
     pub fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, StorageError> {
+        let cache_bytes = storage_settings.object_cache_mb() * 1024 * 1024;
+
         let store = match storage_settings.storage_type {
             StorageType::Google => {
                 let mut builder = GoogleCloudStorageBuilder::from_env();
@@ -74,20 +80,19 @@ impl StorageProvider {
                     .with_client_options(cloud_client_options())
                     .build()?;
 
-                StorageProvider::Google(Arc::new(storage))
+                StorageProvider::Google(Arc::new(CachingStore::new(storage, cache_bytes)))
             }
             StorageType::Aws => {
-                let builder = AmazonS3Builder::from_env()
+                let storage = AmazonS3Builder::from_env()
                     .with_bucket_name(storage_settings.storage_root())
                     .with_region(storage_settings.region.clone())
                     .with_client_options(cloud_client_options())
                     .build()?;
-                StorageProvider::Aws(Arc::new(builder))
+                StorageProvider::Aws(Arc::new(CachingStore::new(storage, cache_bytes)))
             }
             StorageType::Local => {
-                // Create LocalFileSystem with the root path as the prefix
-                let builder = LocalFileSystem::new();
-                StorageProvider::Local(Arc::new(builder))
+                let storage = LocalFileSystem::new();
+                StorageProvider::Local(Arc::new(CachingStore::new(storage, cache_bytes)))
             }
             StorageType::Azure => {
                 // MicrosoftAzureBuilder::from_env() reads AZURE_STORAGE_ACCOUNT_NAME
@@ -108,12 +113,12 @@ impl StorageProvider {
                     }
                 }
 
-                let store = builder
+                let storage = builder
                     .with_container_name(storage_settings.storage_root())
                     .with_client_options(cloud_client_options())
                     .build()?;
 
-                StorageProvider::Azure(Arc::new(store))
+                StorageProvider::Azure(Arc::new(CachingStore::new(storage, cache_bytes)))
             }
         };
 
@@ -169,6 +174,67 @@ impl StorageProvider {
         // evaluated before range checks (start_time), short-circuiting row evaluation early.
         config.options_mut().execution.parquet.pushdown_filters = true;
         config.options_mut().execution.parquet.reorder_filters = true;
+
+        // ── Parquet read-path tuning (GCS latency reduction) ──────────────
+        //
+        // Read at least 1MB from the end of each Parquet file in a single request.
+        // Default is 512KB. Our files have bloom filters on trace_id + entity_id
+        // and page-level statistics on start_time + status_code, so footers are
+        // larger than average. 1MB captures footer + column/offset indexes in one
+        // GCS round-trip instead of the default multi-step chain, saving 1-2
+        // round-trips (~30-60ms each) per file.
+        config
+            .options_mut()
+            .execution
+            .parquet
+            .metadata_size_hint = Some(1024 * 1024);
+
+        // Bloom filters are written on trace_id and entity_id — ensure the reader
+        // consults them before decoding row groups. (Default is true in DF 52, but
+        // we're explicit to guard against version changes.)
+        config
+            .options_mut()
+            .execution
+            .parquet
+            .bloom_filter_on_read = true;
+
+        // Read Utf8 columns as Utf8View and Binary as BinaryView for zero-copy.
+        // Our schema already uses Utf8View/BinaryView — this ensures DataFusion
+        // doesn't downgrade them when reading back from Parquet.
+        config
+            .options_mut()
+            .execution
+            .parquet
+            .schema_force_view_types = true;
+
+        // ── Listing / metadata concurrency ───────────────────────────────
+        //
+        // Number of files to stat in parallel when inferring schema or listing
+        // a Delta table's backing Parquet files. Default is 32. On GCS each
+        // stat is a separate HTTP HEAD; higher concurrency hides the per-file
+        // latency behind parallelism. 64 matches our pool_max_idle_per_host.
+        config
+            .options_mut()
+            .execution
+            .meta_fetch_concurrency = 64;
+
+        // ── Write-path tuning ────────────────────────────────────────────
+        //
+        // Increase write-side parallelism so compaction and flush can encode
+        // multiple row groups concurrently, reducing wall-clock write latency.
+        config
+            .options_mut()
+            .execution
+            .parquet
+            .maximum_parallel_row_group_writers = 4;
+
+        // Buffer more decoded record batches per stream before back-pressure
+        // kicks in, smoothing out bursty reads from GCS.
+        config
+            .options_mut()
+            .execution
+            .parquet
+            .maximum_buffered_record_batches_per_stream = 8;
 
         let ctx = SessionContext::new_with_config(config);
         let base_url = self.get_base_url(storage_settings)?;

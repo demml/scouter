@@ -1,10 +1,5 @@
 import pytest
-from scouter.evaluate import (
-    AssertionTask,
-    ComparisonOperator,
-    EvalRecord,
-    LLMJudgeTask,
-)
+from scouter.evaluate import AssertionTask, ComparisonOperator, EvalRecord, LLMJudgeTask
 from scouter.genai import Prompt, Provider, Role, Score
 from scouter.genai.openai import ChatMessage
 

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use scouter_mocks::{generate_trace_with_entity, generate_trace_with_spans};
 use scouter_types::TraceSpanRecord;
 use std::time::Duration;

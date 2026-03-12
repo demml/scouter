@@ -1,3 +1,4 @@
+pub mod caching_store;
 pub mod error;
 pub mod parquet;
 pub mod sql;

@@ -234,6 +234,8 @@ impl TraceSpanService {
         rx.await.map_err(|_| TraceEngineError::ChannelClosed)?
     }
 
+    // Admin operations — these can be called directly or via the control table for single-writer cron-style execution across
+    // Primarily used in tests and benches. In Production, we default to the control table approach to ensure only worker runs them at a time, but the direct methods remain available for manual invocation when needed.
     pub async fn optimize(&self) -> Result<(), TraceEngineError> {
         let (tx, rx) = tokio::sync::oneshot::channel();
 
