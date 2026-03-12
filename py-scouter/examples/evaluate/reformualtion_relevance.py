@@ -1,8 +1,8 @@
 from scouter.evaluate import (
     AssertionTask,
     ComparisonOperator,
-    EvaluationConfig,
     EvalDataset,
+    EvaluationConfig,
     LLMJudgeTask,
 )
 from scouter.genai import Embedder, Prompt, Provider, Score

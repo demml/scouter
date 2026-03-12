@@ -137,9 +137,7 @@ def create_practical_prompt() -> Prompt:
     )
 
 
-def build_recipe_eval_dataset(
-    user_request: str, recipe_response: Recipe
-) -> EvalDataset:
+def build_recipe_eval_dataset(user_request: str, recipe_response: Recipe) -> EvalDataset:
     """
     Creates an evaluation dataset for validating vegetarian recipe generation.
     """
@@ -250,9 +248,7 @@ if __name__ == "__main__":
     for i, direction in enumerate(recipe.directions, 1):
         print(f"  {i}. {direction}")
 
-    dataset = build_recipe_eval_dataset(
-        user_request=user_request, recipe_response=recipe
-    )
+    dataset = build_recipe_eval_dataset(user_request=user_request, recipe_response=recipe)
 
     print("\n=== Evaluation Plan ===")
     dataset.print_execution_plan()

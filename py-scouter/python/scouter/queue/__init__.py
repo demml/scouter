@@ -3,8 +3,8 @@
 from .._scouter import (
     CustomMetricRecord,
     EntityType,
-    Features,
     EvalRecord,
+    Features,
     Metric,
     Metrics,
     PsiRecord,
