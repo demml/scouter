@@ -1755,7 +1755,7 @@ class AgentAssertion:
         Args:
             path (str):
                 Dot-notation path into the response object
-                (e.g. "choices.0.message.content").
+                (e.g. "choices[0].message.content").
 
         Returns:
             AgentAssertion that extracts the response field value.
