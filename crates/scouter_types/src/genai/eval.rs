@@ -47,6 +47,10 @@ fn default_trace_assertion_task_type() -> EvaluationTaskType {
     EvaluationTaskType::TraceAssertion
 }
 
+fn default_request_assertion_task_type() -> EvaluationTaskType {
+    EvaluationTaskType::AgentAssertion
+}
+
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AssertionResult {
@@ -1066,11 +1070,379 @@ impl TaskAccessor for TraceAssertionTask {
     }
 }
 
+#[pyclass]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ToolCall {
+    #[pyo3(get, set)]
+    pub name: String,
+
+    pub arguments: Value,
+
+    pub result: Option<Value>,
+
+    #[pyo3(get, set)]
+    pub call_id: Option<String>,
+}
+
+#[pymethods]
+impl ToolCall {
+    #[new]
+    #[pyo3(signature = (name, arguments=None, result=None, call_id=None))]
+    pub fn new(
+        name: String,
+        arguments: Option<&Bound<'_, PyAny>>,
+        result: Option<&Bound<'_, PyAny>>,
+        call_id: Option<String>,
+    ) -> Result<Self, TypeError> {
+        let arguments = match arguments {
+            Some(args) => depythonize(args)?,
+            None => Value::Object(serde_json::Map::new()),
+        };
+        let result = match result {
+            Some(r) => Some(depythonize(r)?),
+            None => None,
+        };
+        Ok(Self {
+            name,
+            arguments,
+            result,
+            call_id,
+        })
+    }
+
+    #[getter]
+    pub fn get_arguments<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TypeError> {
+        let py_value = pythonize(py, &self.arguments)?;
+        Ok(py_value)
+    }
+
+    #[getter]
+    pub fn get_result<'py>(&self, py: Python<'py>) -> Result<Option<Bound<'py, PyAny>>, TypeError> {
+        match &self.result {
+            Some(r) => Ok(Some(pythonize(py, r)?)),
+            None => Ok(None),
+        }
+    }
+
+    pub fn __str__(&self) -> String {
+        serde_json::to_string_pretty(self).unwrap_or_default()
+    }
+}
+
+#[pyclass]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TokenUsage {
+    #[pyo3(get, set)]
+    pub input_tokens: Option<i64>,
+
+    #[pyo3(get, set)]
+    pub output_tokens: Option<i64>,
+
+    #[pyo3(get, set)]
+    pub total_tokens: Option<i64>,
+}
+
+#[pymethods]
+impl TokenUsage {
+    #[new]
+    #[pyo3(signature = (input_tokens=None, output_tokens=None, total_tokens=None))]
+    pub fn new(
+        input_tokens: Option<i64>,
+        output_tokens: Option<i64>,
+        total_tokens: Option<i64>,
+    ) -> Self {
+        Self {
+            input_tokens,
+            output_tokens,
+            total_tokens,
+        }
+    }
+
+    pub fn __str__(&self) -> String {
+        serde_json::to_string_pretty(self).unwrap_or_default()
+    }
+}
+
+#[pyclass(eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum AgentAssertion {
+    /// Check if a specific tool was called
+    ToolCalled { name: String },
+
+    /// Check if a specific tool was NOT called
+    ToolNotCalled { name: String },
+
+    /// Check if a tool was called with specific arguments (partial match)
+    ToolCalledWithArgs {
+        name: String,
+        arguments: PyValueWrapper,
+    },
+
+    /// Check if tools were called in exact sequence
+    ToolCallSequence { names: Vec<String> },
+
+    /// Count tool calls (optionally filtered by name)
+    ToolCallCount { name: Option<String> },
+
+    /// Extract a tool argument value
+    ToolArgument { name: String, argument_key: String },
+
+    /// Extract a tool result value
+    ToolResult { name: String },
+
+    /// Get the text content of the response
+    ResponseContent {},
+
+    /// Get the model name
+    ResponseModel {},
+
+    /// Get the finish/stop reason
+    ResponseFinishReason {},
+
+    /// Get input token count
+    ResponseInputTokens {},
+
+    /// Get output token count
+    ResponseOutputTokens {},
+
+    /// Get total token count
+    ResponseTotalTokens {},
+
+    /// Extract a field from the raw (un-normalized) response via context_path
+    ResponseField { path: String },
+}
+
+impl Display for AgentAssertion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = serde_json::to_string(self).unwrap_or_default();
+        write!(f, "{}", s)
+    }
+}
+
+#[pymethods]
+impl AgentAssertion {
+    #[staticmethod]
+    pub fn tool_called(name: &str) -> Self {
+        AgentAssertion::ToolCalled {
+            name: name.to_string(),
+        }
+    }
+
+    #[staticmethod]
+    pub fn tool_not_called(name: &str) -> Self {
+        AgentAssertion::ToolNotCalled {
+            name: name.to_string(),
+        }
+    }
+
+    #[staticmethod]
+    pub fn tool_called_with_args(
+        name: &str,
+        arguments: &Bound<'_, PyAny>,
+    ) -> Result<Self, TypeError> {
+        let arguments: Value = depythonize(arguments)?;
+        Ok(AgentAssertion::ToolCalledWithArgs {
+            name: name.to_string(),
+            arguments: PyValueWrapper(arguments),
+        })
+    }
+
+    #[staticmethod]
+    pub fn tool_call_sequence(names: Vec<String>) -> Self {
+        AgentAssertion::ToolCallSequence { names }
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (name=None))]
+    pub fn tool_call_count(name: Option<String>) -> Self {
+        AgentAssertion::ToolCallCount { name }
+    }
+
+    #[staticmethod]
+    pub fn tool_argument(name: &str, argument_key: &str) -> Self {
+        AgentAssertion::ToolArgument {
+            name: name.to_string(),
+            argument_key: argument_key.to_string(),
+        }
+    }
+
+    #[staticmethod]
+    pub fn tool_result(name: &str) -> Self {
+        AgentAssertion::ToolResult {
+            name: name.to_string(),
+        }
+    }
+
+    #[staticmethod]
+    pub fn response_content() -> Self {
+        AgentAssertion::ResponseContent {}
+    }
+
+    #[staticmethod]
+    pub fn response_model() -> Self {
+        AgentAssertion::ResponseModel {}
+    }
+
+    #[staticmethod]
+    pub fn response_finish_reason() -> Self {
+        AgentAssertion::ResponseFinishReason {}
+    }
+
+    #[staticmethod]
+    pub fn response_input_tokens() -> Self {
+        AgentAssertion::ResponseInputTokens {}
+    }
+
+    #[staticmethod]
+    pub fn response_output_tokens() -> Self {
+        AgentAssertion::ResponseOutputTokens {}
+    }
+
+    #[staticmethod]
+    pub fn response_total_tokens() -> Self {
+        AgentAssertion::ResponseTotalTokens {}
+    }
+
+    #[staticmethod]
+    pub fn response_field(path: &str) -> Self {
+        AgentAssertion::ResponseField {
+            path: path.to_string(),
+        }
+    }
+
+    pub fn __str__(&self) -> String {
+        serde_json::to_string_pretty(self).unwrap_or_default()
+    }
+}
+
+#[pyclass]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AgentAssertionTask {
+    #[pyo3(get, set)]
+    pub id: String,
+
+    #[pyo3(get, set)]
+    pub assertion: AgentAssertion,
+
+    #[pyo3(get, set)]
+    pub operator: ComparisonOperator,
+
+    pub expected_value: Value,
+
+    #[pyo3(get, set)]
+    #[serde(default)]
+    pub description: Option<String>,
+
+    #[pyo3(get, set)]
+    #[serde(default)]
+    pub depends_on: Vec<String>,
+
+    #[serde(default = "default_request_assertion_task_type")]
+    #[pyo3(get)]
+    pub task_type: EvaluationTaskType,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<AssertionResult>,
+
+    #[pyo3(get, set)]
+    #[serde(default)]
+    pub condition: bool,
+}
+
+#[pymethods]
+impl AgentAssertionTask {
+    #[new]
+    #[pyo3(signature = (id, assertion, expected_value, operator, description=None, depends_on=None, condition=None))]
+    pub fn new(
+        id: String,
+        assertion: AgentAssertion,
+        expected_value: &Bound<'_, PyAny>,
+        operator: ComparisonOperator,
+        description: Option<String>,
+        depends_on: Option<Vec<String>>,
+        condition: Option<bool>,
+    ) -> Result<Self, TypeError> {
+        let expected_value = depythonize(expected_value)?;
+
+        Ok(Self {
+            id: id.to_lowercase(),
+            assertion,
+            operator,
+            expected_value,
+            description,
+            task_type: EvaluationTaskType::AgentAssertion,
+            depends_on: depends_on.unwrap_or_default(),
+            result: None,
+            condition: condition.unwrap_or(false),
+        })
+    }
+
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+
+    pub fn model_dump_json(&self) -> String {
+        serde_json::to_string(self).unwrap_or_default()
+    }
+
+    #[getter]
+    pub fn get_expected_value<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TypeError> {
+        let py_value = pythonize(py, &self.expected_value)?;
+        Ok(py_value)
+    }
+
+    #[getter]
+    pub fn get_result<'py>(&self, py: Python<'py>) -> Result<Option<Bound<'py, PyAny>>, TypeError> {
+        match &self.result {
+            Some(result) => {
+                let py_value = pythonize(py, result)?;
+                Ok(Some(py_value))
+            }
+            None => Ok(None),
+        }
+    }
+}
+
+impl TaskAccessor for AgentAssertionTask {
+    fn context_path(&self) -> Option<&str> {
+        None
+    }
+
+    fn item_context_path(&self) -> Option<&str> {
+        None
+    }
+
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn operator(&self) -> &ComparisonOperator {
+        &self.operator
+    }
+
+    fn task_type(&self) -> &EvaluationTaskType {
+        &self.task_type
+    }
+
+    fn expected_value(&self) -> &Value {
+        &self.expected_value
+    }
+
+    fn depends_on(&self) -> &[String] {
+        &self.depends_on
+    }
+
+    fn add_result(&mut self, result: AssertionResult) {
+        self.result = Some(result);
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum EvaluationTask {
     Assertion(Box<AssertionTask>),
     LLMJudge(Box<LLMJudgeTask>),
     TraceAssertion(Box<TraceAssertionTask>),
+    AgentAssertion(Box<AgentAssertionTask>),
 }
 
 impl TaskAccessor for EvaluationTask {
@@ -1079,6 +1451,7 @@ impl TaskAccessor for EvaluationTask {
             EvaluationTask::Assertion(t) => t.context_path(),
             EvaluationTask::LLMJudge(t) => t.context_path(),
             EvaluationTask::TraceAssertion(t) => t.context_path(),
+            EvaluationTask::AgentAssertion(t) => t.context_path(),
         }
     }
 
@@ -1087,6 +1460,7 @@ impl TaskAccessor for EvaluationTask {
             EvaluationTask::Assertion(t) => t.item_context_path(),
             EvaluationTask::LLMJudge(t) => t.item_context_path(),
             EvaluationTask::TraceAssertion(t) => t.item_context_path(),
+            EvaluationTask::AgentAssertion(t) => t.item_context_path(),
         }
     }
 
@@ -1095,6 +1469,7 @@ impl TaskAccessor for EvaluationTask {
             EvaluationTask::Assertion(t) => t.id(),
             EvaluationTask::LLMJudge(t) => t.id(),
             EvaluationTask::TraceAssertion(t) => t.id(),
+            EvaluationTask::AgentAssertion(t) => t.id(),
         }
     }
 
@@ -1103,6 +1478,7 @@ impl TaskAccessor for EvaluationTask {
             EvaluationTask::Assertion(t) => t.task_type(),
             EvaluationTask::LLMJudge(t) => t.task_type(),
             EvaluationTask::TraceAssertion(t) => t.task_type(),
+            EvaluationTask::AgentAssertion(t) => t.task_type(),
         }
     }
 
@@ -1111,6 +1487,7 @@ impl TaskAccessor for EvaluationTask {
             EvaluationTask::Assertion(t) => t.operator(),
             EvaluationTask::LLMJudge(t) => t.operator(),
             EvaluationTask::TraceAssertion(t) => t.operator(),
+            EvaluationTask::AgentAssertion(t) => t.operator(),
         }
     }
 
@@ -1119,6 +1496,7 @@ impl TaskAccessor for EvaluationTask {
             EvaluationTask::Assertion(t) => t.expected_value(),
             EvaluationTask::LLMJudge(t) => t.expected_value(),
             EvaluationTask::TraceAssertion(t) => t.expected_value(),
+            EvaluationTask::AgentAssertion(t) => t.expected_value(),
         }
     }
 
@@ -1127,6 +1505,7 @@ impl TaskAccessor for EvaluationTask {
             EvaluationTask::Assertion(t) => t.depends_on(),
             EvaluationTask::LLMJudge(t) => t.depends_on(),
             EvaluationTask::TraceAssertion(t) => t.depends_on(),
+            EvaluationTask::AgentAssertion(t) => t.depends_on(),
         }
     }
 
@@ -1135,6 +1514,7 @@ impl TaskAccessor for EvaluationTask {
             EvaluationTask::Assertion(t) => t.add_result(result),
             EvaluationTask::LLMJudge(t) => t.add_result(result),
             EvaluationTask::TraceAssertion(t) => t.add_result(result),
+            EvaluationTask::AgentAssertion(t) => t.add_result(result),
         }
     }
 }
@@ -1174,6 +1554,12 @@ impl From<LLMJudgeTask> for EvaluationTask {
 impl From<TraceAssertionTask> for EvaluationTask {
     fn from(task: TraceAssertionTask) -> Self {
         EvaluationTask::TraceAssertion(Box::new(task))
+    }
+}
+
+impl From<AgentAssertionTask> for EvaluationTask {
+    fn from(task: AgentAssertionTask) -> Self {
+        EvaluationTask::AgentAssertion(Box::new(task))
     }
 }
 
@@ -1481,6 +1867,7 @@ pub enum EvaluationTaskType {
     Conditional,
     HumanValidation,
     TraceAssertion,
+    AgentAssertion,
 }
 
 impl Display for EvaluationTaskType {
@@ -1491,6 +1878,7 @@ impl Display for EvaluationTaskType {
             EvaluationTaskType::Conditional => "Conditional",
             EvaluationTaskType::HumanValidation => "HumanValidation",
             EvaluationTaskType::TraceAssertion => "TraceAssertion",
+            EvaluationTaskType::AgentAssertion => "AgentAssertion",
         };
         write!(f, "{}", task_type_str)
     }
@@ -1506,6 +1894,7 @@ impl FromStr for EvaluationTaskType {
             "Conditional" => Ok(EvaluationTaskType::Conditional),
             "HumanValidation" => Ok(EvaluationTaskType::HumanValidation),
             "TraceAssertion" => Ok(EvaluationTaskType::TraceAssertion),
+            "AgentAssertion" => Ok(EvaluationTaskType::AgentAssertion),
             _ => Err(TypeError::InvalidEvalType(s.to_string())),
         }
     }
@@ -1519,6 +1908,7 @@ impl EvaluationTaskType {
             EvaluationTaskType::Conditional => "Conditional",
             EvaluationTaskType::HumanValidation => "HumanValidation",
             EvaluationTaskType::TraceAssertion => "TraceAssertion",
+            EvaluationTaskType::AgentAssertion => "AgentAssertion",
         }
     }
 }
@@ -1607,6 +1997,7 @@ pub enum TaskConfig {
     #[serde(rename = "LLMJudge")]
     LLMJudge(Box<LLMJudgeTask>),
     TraceAssertion(TraceAssertionTask),
+    AgentAssertion(AgentAssertionTask),
 }
 
 impl TaskConfig {
@@ -1615,6 +2006,7 @@ impl TaskConfig {
             TaskConfig::Assertion(task) => Ok(task.into_bound_py_any(py)?),
             TaskConfig::LLMJudge(task) => Ok(task.into_bound_py_any(py)?),
             TaskConfig::TraceAssertion(task) => Ok(task.into_bound_py_any(py)?),
+            TaskConfig::AgentAssertion(task) => Ok(task.into_bound_py_any(py)?),
         }
     }
 }
@@ -1674,6 +2066,15 @@ impl<'de> Deserialize<'de> for TasksFile {
                         })?;
                     task.task_type = EvaluationTaskType::TraceAssertion;
                     TaskConfig::TraceAssertion(task)
+                }
+                EvaluationTaskType::AgentAssertion => {
+                    let mut task: AgentAssertionTask = serde_json::from_value(task_raw.data)
+                        .map_err(|e| {
+                            error!("Failed to deserialize AgentAssertionTask: {}", e);
+                            serde::de::Error::custom(e.to_string())
+                        })?;
+                    task.task_type = EvaluationTaskType::AgentAssertion;
+                    TaskConfig::AgentAssertion(task)
                 }
                 _ => {
                     return Err(serde::de::Error::custom(format!(

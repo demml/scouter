@@ -3,7 +3,7 @@ use crate::genai::alert::GenAIAlertConfig;
 use crate::genai::eval::{AssertionTask, EvaluationTask, LLMJudgeTask};
 use crate::genai::traits::{separate_tasks, ProfileExt, TaskAccessor};
 use crate::genai::utils::{extract_assertion_tasks_from_pylist, AssertionTasks};
-use crate::genai::TraceAssertionTask;
+use crate::genai::{AgentAssertionTask, TraceAssertionTask};
 use crate::traits::ConfigExt;
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::{scouter_version, EvalTaskResult, GenAIEvalWorkflowResult, WorkflowResultTableEntry};
@@ -447,6 +447,11 @@ impl GenAIEvalProfile {
     }
 
     #[getter]
+    pub fn request_assertion_tasks(&self) -> Vec<AgentAssertionTask> {
+        self.tasks.request.clone()
+    }
+
+    #[getter]
     pub fn alias(&self) -> Option<String> {
         self.alias.clone()
     }
@@ -541,7 +546,11 @@ impl GenAIEvalProfile {
         !self.tasks.trace.is_empty()
     }
 
-    /// Get execution order for all tasks (assertions + LLM judges + trace assertions)
+    pub fn has_request_assertions(&self) -> bool {
+        !self.tasks.request.is_empty()
+    }
+
+    /// Get execution order for all tasks (assertions + LLM judges + trace assertions + request assertions)
     pub fn get_execution_plan(&self) -> Result<ExecutionPlan, ProfileError> {
         let mut graph: HashMap<String, Vec<String>> = HashMap::new();
         let mut reverse_graph: HashMap<String, Vec<String>> = HashMap::new();
@@ -567,6 +576,13 @@ impl GenAIEvalProfile {
             &mut in_degree,
         );
 
+        initialize_node_graphs(
+            &self.tasks.request,
+            &mut graph,
+            &mut reverse_graph,
+            &mut in_degree,
+        );
+
         build_dependency_edges(
             &self.tasks.assertion,
             &mut graph,
@@ -582,6 +598,13 @@ impl GenAIEvalProfile {
 
         build_dependency_edges(
             &self.tasks.trace,
+            &mut graph,
+            &mut reverse_graph,
+            &mut in_degree,
+        );
+
+        build_dependency_edges(
+            &self.tasks.request,
             &mut graph,
             &mut reverse_graph,
             &mut in_degree,
@@ -629,8 +652,10 @@ impl GenAIEvalProfile {
             stage_idx += 1;
         }
 
-        let total_tasks =
-            self.tasks.assertion.len() + self.tasks.judge.len() + self.tasks.trace.len();
+        let total_tasks = self.tasks.assertion.len()
+            + self.tasks.judge.len()
+            + self.tasks.trace.len()
+            + self.tasks.request.len();
         let processed_tasks: usize = stages.iter().map(|level| level.len()).sum();
 
         if processed_tasks != total_tasks {
@@ -668,6 +693,8 @@ impl GenAIEvalProfile {
                     judge.condition
                 } else if let Some(trace) = self.get_trace_assertion_by_id(task_id) {
                     trace.condition
+                } else if let Some(request) = self.get_request_assertion_by_id(task_id) {
+                    request.condition
                 } else {
                     false
                 };
@@ -681,6 +708,8 @@ impl GenAIEvalProfile {
                         ("Assertion", |s: &str| s.yellow().to_string())
                     } else if self.tasks.trace.iter().any(|t| &t.id == task_id) {
                         ("Trace Assertion", |s: &str| s.bright_blue().to_string())
+                    } else if self.tasks.request.iter().any(|t| &t.id == task_id) {
+                        ("Request Assertion", |s: &str| s.bright_green().to_string())
                     } else {
                         ("LLM Judge", |s: &str| s.purple().to_string())
                     };
@@ -710,6 +739,10 @@ impl GenAIEvalProfile {
                                 .or_else(|| self.get_llm_judge_by_id(dep_id).map(|t| t.condition))
                                 .or_else(|| {
                                     self.get_trace_assertion_by_id(dep_id).map(|t| t.condition)
+                                })
+                                .or_else(|| {
+                                    self.get_request_assertion_by_id(dep_id)
+                                        .map(|t| t.condition)
                                 })
                                 .unwrap_or(false)
                         });
@@ -760,7 +793,10 @@ impl GenAIEvalProfile {
         println!(
             "{}: {} tasks across {} stages",
             "Summary".bold(),
-            self.tasks.assertion.len() + self.tasks.judge.len() + self.tasks.trace.len(),
+            self.tasks.assertion.len()
+                + self.tasks.judge.len()
+                + self.tasks.trace.len()
+                + self.tasks.request.len(),
             plan.stages.len()
         );
 
@@ -786,6 +822,7 @@ impl Default for GenAIEvalProfile {
                 assertion: Vec::new(),
                 judge: Vec::new(),
                 trace: Vec::new(),
+                request: Vec::new(),
             },
             scouter_version: scouter_version(),
             workflow: None,
@@ -836,7 +873,11 @@ impl GenAIEvalProfile {
     async fn build_profile(
         tasks: &AssertionTasks,
     ) -> Result<(Option<Workflow>, BTreeSet<String>), ProfileError> {
-        if tasks.assertion.is_empty() && tasks.judge.is_empty() && tasks.trace.is_empty() {
+        if tasks.assertion.is_empty()
+            && tasks.judge.is_empty()
+            && tasks.trace.is_empty()
+            && tasks.request.is_empty()
+        {
             return Err(ProfileError::EmptyTaskList);
         }
 
@@ -944,6 +985,10 @@ impl ProfileExt for GenAIEvalProfile {
             return Some(trace);
         }
 
+        if let Some(request) = self.tasks.request.iter().find(|t| t.id() == id) {
+            return Some(request);
+        }
+
         None
     }
 
@@ -964,6 +1009,11 @@ impl ProfileExt for GenAIEvalProfile {
     }
 
     #[inline]
+    fn get_request_assertion_by_id(&self, id: &str) -> Option<&AgentAssertionTask> {
+        self.tasks.request.iter().find(|t| t.id() == id)
+    }
+
+    #[inline]
     fn has_llm_tasks(&self) -> bool {
         !self.tasks.judge.is_empty()
     }
@@ -971,6 +1021,11 @@ impl ProfileExt for GenAIEvalProfile {
     #[inline]
     fn has_trace_assertions(&self) -> bool {
         !self.tasks.trace.is_empty()
+    }
+
+    #[inline]
+    fn has_request_assertions(&self) -> bool {
+        !self.tasks.request.is_empty()
     }
 }
 

@@ -1,5 +1,7 @@
 use crate::error::RecordError;
-use crate::genai::{ComparisonOperator, EvaluationTaskType, ExecutionPlan, TraceAssertion};
+use crate::genai::{
+    AgentAssertion, ComparisonOperator, EvaluationTaskType, ExecutionPlan, TraceAssertion,
+};
 use crate::trace::TraceServerRecord;
 use crate::{depythonize_object_to_value, DriftType, Status, TraceId};
 use crate::{EntityType, TagRecord};
@@ -634,6 +636,7 @@ pub struct TaskResultTableEntry {
 pub enum Assertion {
     FieldPath(Option<String>),
     TraceAssertion(TraceAssertion),
+    AgentAssertion(AgentAssertion),
 }
 
 // Detailed result for an individual evaluation task within a workflow
@@ -713,6 +716,7 @@ impl EvalTaskResult {
         match &self.assertion {
             Assertion::FieldPath(path) => path.clone().unwrap_or_default(),
             Assertion::TraceAssertion(trace_assertion) => trace_assertion.to_string(),
+            Assertion::AgentAssertion(request_assertion) => request_assertion.to_string(),
         }
     }
 }

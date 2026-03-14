@@ -12,6 +12,7 @@ pub enum TaskType {
     Assertion,
     LLMJudge,
     TraceAssertion,
+    AgentAssertion,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

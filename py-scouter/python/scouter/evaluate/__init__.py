@@ -1,6 +1,8 @@
 # mypy: disable-error-code="attr-defined"
 
 from .._scouter import (
+    AgentAssertion,
+    AgentAssertionTask,
     AggregationType,
     AlignedEvalResult,
     AssertionTask,
@@ -18,8 +20,11 @@ from .._scouter import (
     SpanFilter,
     SpanStatus,
     TasksFile,
+    TokenUsage,
+    ToolCall,
     TraceAssertion,
     TraceAssertionTask,
+    execute_agent_assertion_tasks,
     execute_trace_assertion_tasks,
 )
 
@@ -38,10 +43,15 @@ __all__ = [
     "ComparisonOperator",
     "TraceAssertion",
     "TraceAssertionTask",
+    "AgentAssertion",
+    "AgentAssertionTask",
+    "ToolCall",
+    "TokenUsage",
     "SpanStatus",
     "AggregationType",
     "SpanFilter",
     "execute_trace_assertion_tasks",
+    "execute_agent_assertion_tasks",
     "TasksFile",
     "EvaluationTaskType",
 ]

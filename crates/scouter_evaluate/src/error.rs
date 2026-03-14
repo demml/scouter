@@ -179,6 +179,9 @@ pub enum EvaluationError {
 
     #[error("Attribute '{0}' not found in span")]
     AttributeNotFound(String),
+
+    #[error("Failed to parse provider response type")]
+    InvalidProviderResponse,
 }
 
 impl From<pythonize::PythonizeError> for EvaluationError {
