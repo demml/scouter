@@ -345,7 +345,7 @@ mod tests {
 
         let result = builder
             .build_context(&AgentAssertion::ResponseField {
-                path: "response.candidates[0].safety_ratings[0].category".to_string(),
+                path: "candidates[0].safety_ratings[0].category".to_string(),
             })
             .unwrap();
         assert_eq!(result, json!("HARM_CATEGORY_SAFE"));
