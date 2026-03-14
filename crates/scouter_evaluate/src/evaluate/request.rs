@@ -267,11 +267,18 @@ mod tests {
     #[test]
     fn test_tool_called_with_args_partial_match() {
         let context = json!({
-            "content": null,
             "model": "gpt-4o",
-            "tool_calls": [{
-                "name": "web_search",
-                "arguments": {"query": "weather NYC", "lang": "en", "limit": 5}
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "content": null,
+                    "tool_calls": [{
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {"name": "web_search", "arguments": "{\"query\": \"weather NYC\", \"lang\": \"en\", \"limit\": 5}"}
+                    }]
+                },
+                "finish_reason": "tool_calls"
             }]
         });
 
@@ -299,13 +306,19 @@ mod tests {
     #[test]
     fn test_tool_call_sequence() {
         let context = json!({
-            "content": null,
             "model": "gpt-4o",
-            "tool_calls": [
-                {"name": "web_search", "arguments": {}},
-                {"name": "summarize", "arguments": {}},
-                {"name": "respond", "arguments": {}}
-            ]
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "content": null,
+                    "tool_calls": [
+                        {"id": "call_1", "type": "function", "function": {"name": "web_search", "arguments": "{}"}},
+                        {"id": "call_2", "type": "function", "function": {"name": "summarize", "arguments": "{}"}},
+                        {"id": "call_3", "type": "function", "function": {"name": "respond", "arguments": "{}"}}
+                    ]
+                },
+                "finish_reason": "tool_calls"
+            }]
         });
 
         let builder = AgentContextBuilder::from_context(&context).unwrap();
@@ -335,17 +348,20 @@ mod tests {
         let context = json!({
             "response": {
                 "candidates": [{
-                    "content": {"parts": [{"text": "hello"}]},
+                    "content": {"role": "model", "parts": [{"text": "hello"}]},
+                    "finishReason": "STOP",
                     "safety_ratings": [{"category": "HARM_CATEGORY_SAFE"}]
-                }]
+                }],
+                "usageMetadata": {"promptTokenCount": 5, "candidatesTokenCount": 2}
             }
         });
 
         let builder = AgentContextBuilder::from_context(&context).unwrap();
 
+        // Path is relative to response_val (the candidates object), not the full context
         let result = builder
             .build_context(&AgentAssertion::ResponseField {
-                path: "response.candidates[0].safety_ratings[0].category".to_string(),
+                path: "candidates[0].safety_ratings[0].category".to_string(),
             })
             .unwrap();
         assert_eq!(result, json!("HARM_CATEGORY_SAFE"));
@@ -377,11 +393,18 @@ mod tests {
     #[test]
     fn test_tool_argument_extraction() {
         let context = json!({
-            "content": null,
             "model": "gpt-4o",
-            "tool_calls": [{
-                "name": "web_search",
-                "arguments": {"query": "test query", "limit": 10}
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "content": null,
+                    "tool_calls": [{
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {"name": "web_search", "arguments": "{\"query\": \"test query\", \"limit\": 10}"}
+                    }]
+                },
+                "finish_reason": "tool_calls"
             }]
         });
 
