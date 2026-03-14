@@ -2,7 +2,7 @@ use crate::error::EvaluationError;
 use crate::evaluate::request::AgentContextBuilder;
 use crate::evaluate::store::{AssertionResultStore, LLMResponseStore, TaskRegistry, TaskType};
 use crate::evaluate::trace::TraceContextBuilder;
-use crate::tasks::request::execute_request_assertions;
+use crate::tasks::request::execute_agent_assertions;
 use crate::tasks::trace::execute_trace_assertions;
 use crate::tasks::traits::EvaluationTask;
 use chrono::{DateTime, Utc};
@@ -274,7 +274,7 @@ impl TaskExecutor {
         let trace_context_builder = TraceContextBuilder::new(spans);
 
         // Build request context builder from the eval record context if there are request assertions
-        let request_context_builder = if profile.has_request_assertions() {
+        let request_context_builder = if profile.has_agent_assertions() {
             AgentContextBuilder::from_context(context.base_context.as_ref())
                 .inspect_err(|e| error!("Failed to build request context: {:?}", e))
                 .ok()
@@ -301,7 +301,7 @@ impl TaskExecutor {
             return Ok(());
         }
 
-        let (assertions, judges, traces_assertions, request_assertions) =
+        let (assertions, judges, traces_assertions, agent_assertions) =
             self.partition_tasks(executable_tasks).await;
 
         debug!(
@@ -309,14 +309,14 @@ impl TaskExecutor {
             assertions.len(),
             judges.len(),
             traces_assertions.len(),
-            request_assertions.len()
+            agent_assertions.len()
         );
 
         let _result = tokio::try_join!(
             self.execute_assertions(&assertions),
             self.execute_llm_judges(&judges),
             self.execute_trace_assertions(&traces_assertions),
-            self.execute_request_assertions(&request_assertions)
+            self.execute_agent_assertions(&agent_assertions)
         )?;
 
         Ok(())
@@ -329,7 +329,7 @@ impl TaskExecutor {
         let registry = self.context.task_registry.read().await;
         let mut assertions = Vec::new();
         let mut traces_assertions = Vec::new();
-        let mut request_assertions = Vec::new();
+        let mut agent_assertions = Vec::new();
         let mut judges = Vec::new();
 
         for id in task_ids {
@@ -337,12 +337,12 @@ impl TaskExecutor {
                 Some(TaskType::Assertion) => assertions.push(id),
                 Some(TaskType::LLMJudge) => judges.push(id),
                 Some(TaskType::TraceAssertion) => traces_assertions.push(id),
-                Some(TaskType::AgentAssertion) => request_assertions.push(id),
+                Some(TaskType::AgentAssertion) => agent_assertions.push(id),
                 None => continue,
             }
         }
 
-        (assertions, judges, traces_assertions, request_assertions)
+        (assertions, judges, traces_assertions, agent_assertions)
     }
 
     async fn execute_assertions(&self, task_ids: &[&str]) -> Result<(), EvaluationError> {
@@ -402,7 +402,7 @@ impl TaskExecutor {
         Ok(())
     }
 
-    async fn execute_request_assertions(&self, task_ids: &[&str]) -> Result<(), EvaluationError> {
+    async fn execute_agent_assertions(&self, task_ids: &[&str]) -> Result<(), EvaluationError> {
         debug!("Executing request assertion tasks: {:?}", task_ids);
         if task_ids.is_empty() {
             return Ok(());
@@ -410,14 +410,14 @@ impl TaskExecutor {
 
         let tasks: Vec<AgentAssertionTask> = task_ids
             .iter()
-            .filter_map(|&task_id| self.profile.get_request_assertion_by_id(task_id))
+            .filter_map(|&task_id| self.profile.get_agent_assertion_by_id(task_id))
             .cloned()
             .collect();
 
         debug!("Executing {} request assertion tasks", tasks.len());
 
         let results = match &self.request_context_builder {
-            Some(ctx) => execute_request_assertions(ctx, &tasks).inspect_err(|e| {
+            Some(ctx) => execute_agent_assertions(ctx, &tasks).inspect_err(|e| {
                 error!("Failed to execute request assertions: {:?}", e);
             })?,
             None => {
@@ -686,11 +686,10 @@ impl ResultCollector {
             }
         }
 
-        for request_assertion in &profile.tasks.request {
-            if let Some((start_time, end_time, result)) =
-                assert_store.retrieve(&request_assertion.id)
+        for agent_assertion in &profile.tasks.request {
+            if let Some((start_time, end_time, result)) = assert_store.retrieve(&agent_assertion.id)
             {
-                if !request_assertion.condition {
+                if !agent_assertion.condition {
                     if result.passed {
                         passed_count += 1;
                     } else {
@@ -701,7 +700,7 @@ impl ResultCollector {
                 let stage = *self
                     .context
                     .task_stages
-                    .get(&request_assertion.id)
+                    .get(&agent_assertion.id)
                     .unwrap_or(&-1);
 
                 records.push(scouter_types::EvalTaskResult {
@@ -710,17 +709,17 @@ impl ResultCollector {
                     end_time,
                     record_uid: record.uid.clone(),
                     entity_id: record.entity_id,
-                    task_id: request_assertion.id.clone(),
-                    task_type: request_assertion.task_type.clone(),
+                    task_id: agent_assertion.id.clone(),
+                    task_type: agent_assertion.task_type.clone(),
                     passed: result.passed,
                     value: result.to_metric_value(),
-                    assertion: Assertion::AgentAssertion(request_assertion.assertion.clone()),
+                    assertion: Assertion::AgentAssertion(agent_assertion.assertion.clone()),
                     expected: result.expected.clone(),
                     actual: result.actual.clone(),
                     message: result.message.clone(),
-                    operator: request_assertion.operator.clone(),
+                    operator: agent_assertion.operator.clone(),
                     entity_uid: String::new(),
-                    condition: request_assertion.condition,
+                    condition: agent_assertion.condition,
                     stage,
                 });
             }

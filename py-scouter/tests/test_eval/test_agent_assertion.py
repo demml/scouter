@@ -7,8 +7,6 @@ from scouter.evaluate import (
     execute_agent_assertion_tasks,
 )
 
-# ─── AgentAssertion factory method tests ──────────────────────────────────
-
 
 def test_tool_called():
     assertion = AgentAssertion.tool_called("web_search")
@@ -219,7 +217,7 @@ def test_execute_tool_called_openai():
                 operator=ComparisonOperator.Equals,
             ),
         ],
-        context=context,
+        context={"response": context},
     )
 
     assert results["search_called"].passed
@@ -230,14 +228,27 @@ def test_execute_tool_called_openai():
 def test_execute_tool_called_with_args():
     """Test partial argument matching."""
     context = {
-        "content": None,
         "model": "gpt-4o",
-        "tool_calls": [
+        "choices": [
             {
-                "name": "web_search",
-                "arguments": {"query": "weather NYC", "lang": "en", "limit": 5},
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {
+                                "name": "web_search",
+                                "arguments": '{"query": "weather NYC", "lang": "en", "limit": 5}',
+                            },
+                        }
+                    ],
+                },
+                "finish_reason": "tool_calls",
             }
         ],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 50, "total_tokens": 60},
     }
 
     results = execute_agent_assertion_tasks(
@@ -255,7 +266,7 @@ def test_execute_tool_called_with_args():
                 operator=ComparisonOperator.Equals,
             ),
         ],
-        context=context,
+        context={"response": context},
     )
 
     assert results["partial_match"].passed
@@ -265,13 +276,22 @@ def test_execute_tool_called_with_args():
 def test_execute_tool_call_sequence():
     """Test tool call sequence matching."""
     context = {
-        "content": None,
         "model": "gpt-4o",
-        "tool_calls": [
-            {"name": "web_search", "arguments": {}},
-            {"name": "summarize", "arguments": {}},
-            {"name": "respond", "arguments": {}},
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {"id": "call_1", "type": "function", "function": {"name": "web_search", "arguments": "{}"}},
+                        {"id": "call_2", "type": "function", "function": {"name": "summarize", "arguments": "{}"}},
+                        {"id": "call_3", "type": "function", "function": {"name": "respond", "arguments": "{}"}},
+                    ],
+                },
+                "finish_reason": "tool_calls",
+            }
         ],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 50, "total_tokens": 60},
     }
 
     results = execute_agent_assertion_tasks(
@@ -298,10 +318,29 @@ def test_execute_tool_call_sequence():
 
 def test_execute_tool_argument_extraction():
     """Test extracting tool argument values."""
+
     context = {
-        "content": None,
         "model": "gpt-4o",
-        "tool_calls": [{"name": "web_search", "arguments": {"query": "test query", "limit": 10}}],
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {
+                                "name": "web_search",
+                                "arguments": '{"query": "test query", "limit": 10}',
+                            },
+                        }
+                    ],
+                },
+                "finish_reason": "tool_calls",
+            }
+        ],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 50, "total_tokens": 60},
     }
 
     results = execute_agent_assertion_tasks(
@@ -324,9 +363,6 @@ def test_execute_tool_argument_extraction():
 
     assert results["check_query"].passed
     assert results["check_limit"].passed
-
-
-# ─── execute_agent_assertion_tasks tests (response field assertions) ──────
 
 
 def test_execute_response_content():
@@ -497,19 +533,19 @@ def test_google_format():
                     "parts": [
                         {"text": "The sky appears blue due to Rayleigh scattering."},
                         {
-                            "function_call": {
+                            "functionCall": {
                                 "name": "web_search",
                                 "args": {"query": "sky color science"},
                             }
                         },
                     ],
                 },
-                "finish_reason": "STOP",
+                "finishReason": "STOP",
             }
         ],
-        "usage_metadata": {
-            "prompt_token_count": 10,
-            "candidates_token_count": 50,
+        "usageMetadata": {
+            "promptTokenCount": 10,
+            "candidatesTokenCount": 50,
         },
     }
 
@@ -592,15 +628,21 @@ def test_response_sub_key():
 
 
 def test_response_field_escape_hatch():
-    """Test ResponseField for vendor-specific field extraction."""
+    """Test ResponseField for vendor-specific field extraction.
+
+    The path is resolved against the parsed response value (not the full context dict),
+    so it must be relative to the response object itself.
+    """
     context = {
         "response": {
             "candidates": [
                 {
-                    "content": {"parts": [{"text": "hello"}]},
+                    "content": {"role": "model", "parts": [{"text": "hello"}]},
+                    "finishReason": "STOP",
                     "safety_ratings": [{"category": "HARM_CATEGORY_SAFE"}],
                 }
-            ]
+            ],
+            "usageMetadata": {"promptTokenCount": 5, "candidatesTokenCount": 2},
         }
     }
 
@@ -608,7 +650,7 @@ def test_response_field_escape_hatch():
         tasks=[
             AgentAssertionTask(
                 id="check_safety",
-                assertion=AgentAssertion.response_field("response.candidates[0].safety_ratings[0].category"),
+                assertion=AgentAssertion.response_field("candidates[0].safety_ratings[0].category"),
                 expected_value="HARM_CATEGORY_SAFE",
                 operator=ComparisonOperator.Equals,
             ),
@@ -622,7 +664,7 @@ def test_response_field_escape_hatch():
 # ─── EvalDataset integration test ───────────────────────────────────────────
 
 
-def test_eval_dataset_with_request_assertions():
+def test_eval_dataset_with_agent_assertions():
     """End-to-end: EvalDataset with request assertion tasks."""
     tasks = [
         AgentAssertionTask(
@@ -740,19 +782,19 @@ def test_eval_dataset_google_adk_format():
                             "parts": [
                                 {"text": "The sky appears blue due to Rayleigh scattering."},
                                 {
-                                    "function_call": {
+                                    "functionCall": {
                                         "name": "web_search",
                                         "args": {"query": "sky color science"},
                                     }
                                 },
                             ],
                         },
-                        "finish_reason": "STOP",
+                        "finishReason": "STOP",
                     }
                 ],
-                "usage_metadata": {
-                    "prompt_token_count": 10,
-                    "candidates_token_count": 50,
+                "usageMetadata": {
+                    "promptTokenCount": 10,
+                    "candidatesTokenCount": 50,
                 },
             },
         },
@@ -802,14 +844,14 @@ def test_eval_dataset_mixed_task_types():
                             "role": "model",
                             "parts": [
                                 {
-                                    "function_call": {
+                                    "functionCall": {
                                         "name": "web_search",
                                         "args": {"query": "test"},
                                     }
                                 }
                             ],
                         },
-                        "finish_reason": "STOP",
+                        "finishReason": "STOP",
                     }
                 ]
             },

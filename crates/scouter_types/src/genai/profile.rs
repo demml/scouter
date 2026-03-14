@@ -447,7 +447,7 @@ impl GenAIEvalProfile {
     }
 
     #[getter]
-    pub fn request_assertion_tasks(&self) -> Vec<AgentAssertionTask> {
+    pub fn agent_assertion_tasks(&self) -> Vec<AgentAssertionTask> {
         self.tasks.request.clone()
     }
 
@@ -546,7 +546,7 @@ impl GenAIEvalProfile {
         !self.tasks.trace.is_empty()
     }
 
-    pub fn has_request_assertions(&self) -> bool {
+    pub fn has_agent_assertions(&self) -> bool {
         !self.tasks.request.is_empty()
     }
 
@@ -693,7 +693,7 @@ impl GenAIEvalProfile {
                     judge.condition
                 } else if let Some(trace) = self.get_trace_assertion_by_id(task_id) {
                     trace.condition
-                } else if let Some(request) = self.get_request_assertion_by_id(task_id) {
+                } else if let Some(request) = self.get_agent_assertion_by_id(task_id) {
                     request.condition
                 } else {
                     false
@@ -741,8 +741,7 @@ impl GenAIEvalProfile {
                                     self.get_trace_assertion_by_id(dep_id).map(|t| t.condition)
                                 })
                                 .or_else(|| {
-                                    self.get_request_assertion_by_id(dep_id)
-                                        .map(|t| t.condition)
+                                    self.get_agent_assertion_by_id(dep_id).map(|t| t.condition)
                                 })
                                 .unwrap_or(false)
                         });
@@ -1009,7 +1008,7 @@ impl ProfileExt for GenAIEvalProfile {
     }
 
     #[inline]
-    fn get_request_assertion_by_id(&self, id: &str) -> Option<&AgentAssertionTask> {
+    fn get_agent_assertion_by_id(&self, id: &str) -> Option<&AgentAssertionTask> {
         self.tasks.request.iter().find(|t| t.id() == id)
     }
 
@@ -1024,7 +1023,7 @@ impl ProfileExt for GenAIEvalProfile {
     }
 
     #[inline]
-    fn has_request_assertions(&self) -> bool {
+    fn has_agent_assertions(&self) -> bool {
         !self.tasks.request.is_empty()
     }
 }

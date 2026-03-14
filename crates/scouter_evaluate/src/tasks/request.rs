@@ -38,7 +38,7 @@ pub fn execute_agent_assertion_tasks(
     Ok(AssertionResults { results })
 }
 
-pub(crate) fn execute_request_assertions(
+pub(crate) fn execute_agent_assertions(
     context: &AgentContextBuilder,
     tasks: &[AgentAssertionTask],
 ) -> Result<AssertionResults, EvaluationError> {

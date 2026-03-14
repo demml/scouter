@@ -179,8 +179,8 @@ impl EvalDataset {
     }
 
     #[getter]
-    pub fn request_assertion_tasks(&self) -> Vec<AgentAssertionTask> {
-        self.profile.request_assertion_tasks()
+    pub fn agent_assertion_tasks(&self) -> Vec<AgentAssertionTask> {
+        self.profile.agent_assertion_tasks()
     }
 
     pub fn print_execution_plan(&self) -> Result<(), EvaluationError> {

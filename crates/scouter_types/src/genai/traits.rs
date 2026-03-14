@@ -34,14 +34,14 @@ pub fn separate_tasks(tasks: Vec<EvaluationTask>) -> AssertionTasks {
     let mut llm_judges = Vec::new();
     let mut assertions = Vec::new();
     let mut trace_assertions = Vec::new();
-    let mut request_assertions = Vec::new();
+    let mut agent_assertions = Vec::new();
 
     for task in tasks {
         match task {
             EvaluationTask::Assertion(a) => assertions.push(*a),
             EvaluationTask::LLMJudge(j) => llm_judges.push(*j),
             EvaluationTask::TraceAssertion(t) => trace_assertions.push(*t),
-            EvaluationTask::AgentAssertion(r) => request_assertions.push(*r),
+            EvaluationTask::AgentAssertion(r) => agent_assertions.push(*r),
         }
     }
 
@@ -49,7 +49,7 @@ pub fn separate_tasks(tasks: Vec<EvaluationTask>) -> AssertionTasks {
         assertion: assertions,
         judge: llm_judges,
         trace: trace_assertions,
-        request: request_assertions,
+        request: agent_assertions,
     }
 }
 
@@ -79,9 +79,9 @@ pub trait ProfileExt {
     fn get_assertion_by_id(&self, id: &str) -> Option<&AssertionTask>;
     fn get_llm_judge_by_id(&self, id: &str) -> Option<&LLMJudgeTask>;
     fn get_trace_assertion_by_id(&self, id: &str) -> Option<&TraceAssertionTask>;
-    fn get_request_assertion_by_id(&self, id: &str) -> Option<&AgentAssertionTask>;
+    fn get_agent_assertion_by_id(&self, id: &str) -> Option<&AgentAssertionTask>;
     fn get_task_by_id(&self, id: &str) -> Option<&dyn TaskAccessor>;
     fn has_llm_tasks(&self) -> bool;
     fn has_trace_assertions(&self) -> bool;
-    fn has_request_assertions(&self) -> bool;
+    fn has_agent_assertions(&self) -> bool;
 }

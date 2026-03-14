@@ -47,7 +47,7 @@ fn default_trace_assertion_task_type() -> EvaluationTaskType {
     EvaluationTaskType::TraceAssertion
 }
 
-fn default_request_assertion_task_type() -> EvaluationTaskType {
+fn default_agent_assertion_task_type() -> EvaluationTaskType {
     EvaluationTaskType::AgentAssertion
 }
 
@@ -1337,7 +1337,7 @@ pub struct AgentAssertionTask {
     #[serde(default)]
     pub depends_on: Vec<String>,
 
-    #[serde(default = "default_request_assertion_task_type")]
+    #[serde(default = "default_agent_assertion_task_type")]
     #[pyo3(get)]
     pub task_type: EvaluationTaskType,
 

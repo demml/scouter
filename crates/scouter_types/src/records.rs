@@ -716,7 +716,7 @@ impl EvalTaskResult {
         match &self.assertion {
             Assertion::FieldPath(path) => path.clone().unwrap_or_default(),
             Assertion::TraceAssertion(trace_assertion) => trace_assertion.to_string(),
-            Assertion::AgentAssertion(request_assertion) => request_assertion.to_string(),
+            Assertion::AgentAssertion(agent_assertion) => agent_assertion.to_string(),
         }
     }
 }
