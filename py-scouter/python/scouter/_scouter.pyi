@@ -12470,7 +12470,7 @@ class AgentAssertion:
         Args:
             path (str):
                 Dot-notation path into the response object
-                (e.g. "choices.0.message.content").
+                (e.g. "choices[0].message.content").
 
         Returns:
             AgentAssertion that extracts the response field value.
@@ -12694,6 +12694,172 @@ def execute_trace_assertion_tasks(tasks: List[TraceAssertionTask], spans: List[T
     Raises:
         ValueError: If tasks list is empty or spans are not provided.
     """
+
+class EvalScenario:
+    """A single test case in an offline agent evaluation run.
+
+    Scenarios drive ``EvalScenarios`` (the orchestrator). At minimum, supply an
+    ``initial_query``. Everything else is optional.
+
+    Task attachment:
+        Use ``tasks`` to attach scenario-level evaluation tasks (any of the four
+        task types: ``AssertionTask``, ``LLMJudgeTask``, ``AgentAssertionTask``,
+        ``TraceAssertionTask``). These are evaluated against the agent's **final
+        response** for this specific scenario.
+
+    Multi-turn scenarios:
+        Populate ``predefined_turns`` with follow-up queries (executed in order
+        after ``initial_query``). Leave empty for single-turn evaluation.
+
+    ReAct / simulated-user scenarios:
+        ``simulated_user_persona`` and ``termination_signal`` are placeholder
+        fields for future ReAct support. Setting them has no effect in the
+        current implementation.
+
+    Args:
+        initial_query (str):
+            The opening query or prompt sent to the agent.
+        tasks (Optional[List[AssertionTask | LLMJudgeTask | AgentAssertionTask | TraceAssertionTask]]):
+            Scenario-level evaluation tasks. Evaluated against the agent's final
+            response for this scenario.
+        id (Optional[str]):
+            Unique identifier for this scenario. Auto-generated (UUID7) if not
+            provided.
+        expected_outcome (Optional[str]):
+            Ground-truth or reference answer. Available as ``${expected_outcome}``
+            in task template variables.
+        predefined_turns (Optional[List[str]]):
+            Scripted follow-up queries for multi-turn scenarios (executed in
+            order after ``initial_query``).
+        simulated_user_persona (Optional[str]):
+            Placeholder for future ReAct simulated-user support. No effect now.
+        termination_signal (Optional[str]):
+            Placeholder for future ReAct termination detection. No effect now.
+        max_turns (int):
+            Maximum number of turns for multi-turn evaluation. Defaults to 10.
+        metadata (Optional[Dict[str, Any]]):
+            Arbitrary key-value metadata attached to this scenario.
+
+    Examples:
+        Simple single-turn scenario:
+
+        >>> scenario = EvalScenario(
+        ...     initial_query="What is the capital of France?",
+        ...     expected_outcome="Paris",
+        ... )
+
+        With assertion tasks:
+
+        >>> from scouter.evaluate import AssertionTask, ComparisonOperator
+        >>> task = AssertionTask(
+        ...     id="check_response",
+        ...     context_path="response",
+        ...     operator=ComparisonOperator.Contains,
+        ...     expected_value="Paris",
+        ... )
+        >>> scenario = EvalScenario(
+        ...     initial_query="What is the capital of France?",
+        ...     expected_outcome="Paris",
+        ...     tasks=[task],
+        ... )
+
+        Multi-turn scenario:
+
+        >>> scenario = EvalScenario(
+        ...     initial_query="Plan a pasta dinner for 4 people.",
+        ...     predefined_turns=["Make it vegetarian.", "Add a dessert option."],
+        ...     expected_outcome="A complete vegetarian dinner plan.",
+        ... )
+    """
+
+    def __init__(
+        self,
+        initial_query: str,
+        tasks: Optional[List[Any]] = None,
+        id: Optional[str] = None,
+        expected_outcome: Optional[str] = None,
+        predefined_turns: Optional[List[str]] = None,
+        simulated_user_persona: Optional[str] = None,
+        termination_signal: Optional[str] = None,
+        max_turns: int = 10,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None: ...
+    def __str__(self) -> str:
+        """Return a pretty-printed JSON string representation."""
+
+    def model_dump_json(self) -> str:
+        """Serialize the scenario to a JSON string."""
+
+    def model_dump(self) -> Dict[str, Any]:
+        """Serialize the scenario to a Python dictionary."""
+
+    def is_multi_turn(self) -> bool:
+        """Return True when ``predefined_turns`` is non-empty."""
+
+    def is_reactive(self) -> bool:
+        """Return True when ``simulated_user_persona`` is set (ReAct placeholder)."""
+
+    @property
+    def id(self) -> str:
+        """Unique scenario identifier (UUID7 by default)."""
+
+    @id.setter
+    def id(self, value: str) -> None: ...
+    @property
+    def initial_query(self) -> str:
+        """The opening query sent to the agent."""
+
+    @initial_query.setter
+    def initial_query(self, value: str) -> None: ...
+    @property
+    def predefined_turns(self) -> List[str]:
+        """Scripted follow-up queries for multi-turn scenarios."""
+
+    @predefined_turns.setter
+    def predefined_turns(self, value: List[str]) -> None: ...
+    @property
+    def simulated_user_persona(self) -> Optional[str]:
+        """Simulated user persona string (ReAct placeholder)."""
+
+    @simulated_user_persona.setter
+    def simulated_user_persona(self, value: Optional[str]) -> None: ...
+    @property
+    def termination_signal(self) -> Optional[str]:
+        """Termination signal string (ReAct placeholder)."""
+
+    @termination_signal.setter
+    def termination_signal(self, value: Optional[str]) -> None: ...
+    @property
+    def max_turns(self) -> int:
+        """Maximum number of turns for multi-turn evaluation."""
+
+    @max_turns.setter
+    def max_turns(self, value: int) -> None: ...
+    @property
+    def expected_outcome(self) -> Optional[str]:
+        """Ground-truth or reference answer for this scenario."""
+
+    @expected_outcome.setter
+    def expected_outcome(self, value: Optional[str]) -> None: ...
+    @property
+    def assertion_tasks(self) -> List[AssertionTask]:
+        """All ``AssertionTask`` instances attached to this scenario."""
+
+    @property
+    def llm_judge_tasks(self) -> List[LLMJudgeTask]:
+        """All ``LLMJudgeTask`` instances attached to this scenario."""
+
+    @property
+    def trace_assertion_tasks(self) -> List[TraceAssertionTask]:
+        """All ``TraceAssertionTask`` instances attached to this scenario."""
+
+    @property
+    def agent_assertion_tasks(self) -> List[AgentAssertionTask]:
+        """All ``AgentAssertionTask`` instances attached to this scenario."""
+
+    @property
+    def has_tasks(self) -> bool:
+        """Return True when at least one task of any type is attached."""
 
 class TasksFile:
     """Object representing a collection of evaluation tasks loaded from a file."""
@@ -17667,6 +17833,7 @@ __all__ = [
     "EvalRecord",
     "EvalResultSet",
     "EvalResults",
+    "EvalScenario",
     "EvalSet",
     "EvalTaskResult",
     "EvaluationConfig",

@@ -393,7 +393,6 @@ impl TaskExecutor {
         let end_time = Utc::now();
 
         for (task_id, result) in results.results {
-
             self.context
                 .store_assertion(task_id, start_time, end_time, result)
                 .await;
