@@ -208,6 +208,8 @@ impl TaskState {
     }
 }
 
+type PyQueueItem = Py<PyAny>;
+
 /// QueueBus is an mpsc bus that allows for publishing events to subscribers.
 /// It leverage an unbounded channel
 /// Primary way to publish non-blocking events to background queues with ScouterQueue
@@ -221,6 +223,9 @@ pub struct QueueBus {
     // for tracing purposes
     #[pyo3(get)]
     pub entity_uid: String,
+
+    /// Capture store: `None` = disabled (default), `Some(Vec)` = enabled.
+    record_store: Arc<RwLock<Option<Vec<PyQueueItem>>>>,
 }
 
 impl QueueBus {
@@ -232,6 +237,7 @@ impl QueueBus {
             task_state,
             identifier,
             entity_uid,
+            record_store: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -252,15 +258,57 @@ impl QueueBus {
     /// # Arguments
     /// * `event` - The event to publish
     pub fn insert(&self, item: &Bound<'_, PyAny>) -> Result<(), PyEventError> {
-        let item = QueueItem::from_py_entity(item)
+        let extracted_item = QueueItem::from_py_entity(item)
             .inspect_err(|e| error!("Failed to convert entity to QueueItem: {}", e))?;
         debug!(
             "Inserting event into QueueBus for identifier: {}: {:?}",
-            self.identifier, item
+            self.identifier, extracted_item
         );
 
-        let event = Event::Task(item);
-        self.publish(event)?;
+        {
+            let mut store = self.record_store.write().unwrap();
+            if let Some(store) = store.as_mut() {
+                if matches!(extracted_item, QueueItem::GenAI(_)) {
+                    store.push(item.clone().unbind());
+                }
+            }
+        }
+
+        self.publish(Event::Task(extracted_item))?;
         Ok(())
+    }
+
+    /// Enable in-process record capture for offline development.
+    ///
+    /// Once enabled, every `EvalRecord` inserted via `insert()` is also stored
+    /// in memory and can be retrieved with `drain()`. Has no effect if capture
+    /// is already enabled.
+    pub fn enable_capture(&self) {
+        let mut guard = self.record_store.write().unwrap();
+        if guard.is_none() {
+            *guard = Some(Vec::new());
+        }
+    }
+
+    /// Disable record capture and discard any buffered records.
+    pub fn disable_capture(&self) {
+        let mut guard = self.record_store.write().unwrap();
+        *guard = None;
+    }
+
+    /// Drain and return all captured `EvalRecord`s, clearing the internal buffer.
+    ///
+    /// Returns an empty list when capture is disabled.
+    pub fn drain(&self) -> PyResult<Vec<PyQueueItem>> {
+        let records: Vec<PyQueueItem> = {
+            let mut guard = self.record_store.write().unwrap();
+            if let Some(store) = guard.as_mut() {
+                std::mem::take(store)
+            } else {
+                Vec::new()
+            }
+        };
+
+        Ok(records)
     }
 }
