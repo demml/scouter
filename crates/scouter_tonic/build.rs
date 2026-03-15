@@ -38,10 +38,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Skip code generation if the generated file already exists and the proto
     // content hasn't changed since the last successful generation. The hash is
-    // stored in OUT_DIR (cargo's build cache) so it persists across invocations
-    // without touching the source tree.
+    // stored next to the generated file so it is shared across all compilation
+    // contexts (OUT_DIR is per-feature-set and ephemeral, causing spurious
+    // regeneration when scouter_tonic is compiled as a transitive dep with a
+    // different feature set).
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let hash_cache = out_dir.join(".proto_hash");
+    let hash_cache = PathBuf::from("src/generated/.proto_hash");
     let generated = PathBuf::from("src/generated/scouter.grpc.v1.rs");
     let current_hash = {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();

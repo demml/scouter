@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
 use crate::error::{EventError, PyEventError};
+use opentelemetry::trace::TraceContextExt;
+use opentelemetry::Context as OtelContext;
 use pyo3::prelude::*;
-use scouter_types::QueueItem;
+use scouter_types::{EvalRecord, QueueItem, TraceId};
 use std::sync::RwLock;
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
@@ -228,6 +230,25 @@ pub struct QueueBus {
     record_store: Arc<RwLock<Option<Vec<PyQueueItem>>>>,
 }
 
+/// If `record` has no `trace_id` and there is an active OTel span, stamps the
+/// record's `trace_id` from the current span context and returns the stamped
+/// `TraceId`. Returns `None` when no stamping occurred (either the record
+/// already had a `trace_id`, or there is no valid active span).
+fn stamp_otel_trace_id(record: &mut EvalRecord) -> Option<TraceId> {
+    if record.trace_id.is_some() {
+        return None;
+    }
+    let cx = OtelContext::current();
+    let span_ctx = cx.span().span_context().clone();
+    if span_ctx.is_valid() {
+        let trace_id = TraceId::from_bytes(span_ctx.trace_id().to_bytes());
+        record.trace_id = Some(trace_id.clone());
+        Some(trace_id)
+    } else {
+        None
+    }
+}
+
 impl QueueBus {
     #[instrument(skip_all)]
     pub fn new(task_state: TaskState, identifier: String, entity_uid: String) -> Self {
@@ -258,12 +279,20 @@ impl QueueBus {
     /// # Arguments
     /// * `event` - The event to publish
     pub fn insert(&self, item: &Bound<'_, PyAny>) -> Result<(), PyEventError> {
-        let extracted_item = QueueItem::from_py_entity(item)
+        let mut extracted_item = QueueItem::from_py_entity(item)
             .inspect_err(|e| error!("Failed to convert entity to QueueItem: {}", e))?;
         debug!(
             "Inserting event into QueueBus for identifier: {}: {:?}",
             self.identifier, extracted_item
         );
+
+        if let QueueItem::GenAI(ref mut record) = extracted_item {
+            if let Some(trace_id) = stamp_otel_trace_id(record) {
+                if let Ok(py_record) = item.cast::<EvalRecord>() {
+                    py_record.borrow_mut().trace_id = Some(trace_id);
+                }
+            }
+        }
 
         {
             let mut store = self.record_store.write().unwrap();
@@ -310,5 +339,78 @@ impl QueueBus {
         };
 
         Ok(records)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use opentelemetry::trace::{Tracer as OTelTracer, TracerProvider};
+    use opentelemetry_sdk::trace::SdkTracerProvider;
+
+    #[test]
+    fn test_stamp_otel_trace_id_with_active_span() {
+        let provider = SdkTracerProvider::builder().build();
+        let tracer = provider.tracer("test");
+
+        tracer.in_span("test_span", |_cx| {
+            let mut record = EvalRecord::default();
+            assert!(record.trace_id.is_none());
+
+            let result = stamp_otel_trace_id(&mut record);
+
+            assert!(result.is_some(), "expected trace_id to be stamped");
+            assert!(record.trace_id.is_some(), "record.trace_id should be set");
+        });
+    }
+
+    #[test]
+    fn test_stamp_otel_trace_id_without_active_span() {
+        let mut record = EvalRecord::default();
+        let result = stamp_otel_trace_id(&mut record);
+
+        assert!(
+            result.is_none(),
+            "no active span — nothing should be stamped"
+        );
+        assert!(record.trace_id.is_none());
+    }
+
+    #[test]
+    fn test_stamp_otel_trace_id_not_overwritten_when_present() {
+        let existing = TraceId::from_bytes([42u8; 16]);
+        let mut record = EvalRecord::default();
+        record.trace_id = Some(existing.clone());
+
+        let provider = SdkTracerProvider::builder().build();
+        let tracer = provider.tracer("test");
+
+        tracer.in_span("test_span", |_cx| {
+            let result = stamp_otel_trace_id(&mut record);
+            assert!(
+                result.is_none(),
+                "existing trace_id must not be overwritten"
+            );
+            assert_eq!(record.trace_id, Some(existing.clone()));
+        });
+    }
+
+    #[test]
+    fn test_stamp_otel_trace_id_consistent_within_span() {
+        let provider = SdkTracerProvider::builder().build();
+        let tracer = provider.tracer("test");
+
+        tracer.in_span("test_span", |_cx| {
+            let mut r1 = EvalRecord::default();
+            let mut r2 = EvalRecord::default();
+
+            stamp_otel_trace_id(&mut r1);
+            stamp_otel_trace_id(&mut r2);
+
+            assert_eq!(
+                r1.trace_id, r2.trace_id,
+                "both records should carry the same trace_id within one span"
+            );
+        });
     }
 }
