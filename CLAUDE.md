@@ -81,7 +81,7 @@ scouter/
 | `scouter-sql` | PostgreSQL (sqlx), migrations, background workers (drift executor, GenAI poller) |
 | `scouter-drift` | PSI, SPC, custom metric drift algorithms + binning strategies |
 | `scouter-profile` | Data profiling (feature statistics, distributions) |
-| `scouter-evaluate` | GenAI eval: LLM judge tasks, assertion tasks, comparison operators |
+| `scouter-evaluate` | GenAI eval: LLM judge tasks, assertion tasks, agent assertion tasks, comparison operators |
 | `scouter-types` | Shared types/contracts across all crates |
 | `scouter-events` | Kafka, RabbitMQ, Redis event bus adapters (feature-gated) |
 | `scouter-tonic` | gRPC proto definitions |
@@ -98,7 +98,7 @@ scouter/
 | `client/` | `ScouterClient` — register profiles, query drift results |
 | `drift/` | `Drifter` — create `PsiDriftProfile`, `SpcDriftProfile`, `CustomMetricDriftProfile` |
 | `profile/` | `DataProfiler` — create `DataProfile` with feature statistics |
-| `evaluate/` | `GenAIEvalProfile`, `EvalDataset`, `EvalRecord` |
+| `evaluate/` | `GenAIEvalProfile`, `EvalDataset`, `EvalRecord`, `AgentAssertionTask`, `AgentAssertion`, `execute_agent_assertion_tasks` |
 | `queue/` | `ScouterQueue` — real-time record insertion (<1µs, non-blocking) |
 | `tracing/` | `init_tracer`, `get_tracer`, `TraceContext`, `SpanContext` |
 | `genai/` | GenAI provider integrations (Anthropic, Google) |
@@ -147,6 +147,8 @@ Two evaluation modes:
 **Task types:**
 - `AssertionTask` — Deterministic checks using 50+ `ComparisonOperator` values (Equals, GreaterThan, Contains, Matches, IsJson, etc.). Supports `context_path` (dot-notation field extraction) and template variable substitution (`${field_name}`). Set `condition=True` to act as a conditional gate (skips downstream tasks on failure).
 - `LLMJudgeTask` — LLM-powered semantic evaluation. Injects context variables into `Prompt`. Supports OpenAI, Anthropic, Google. Uses structured output (Pydantic models). `context_path` extracts field from LLM response.
+- `AgentAssertionTask` — Deterministic assertions on agentic LLM responses. Backed by `AgentAssertion` (14 variants): `ToolCalled`, `ToolNotCalled`, `ToolCalledWithArgs` (partial match), `ToolCallSequence` (ordered), `ToolCallCount`, `ToolArgument`, `ToolResult`, `ResponseContent`, `ResponseModel`, `ResponseFinishReason`, `ResponseInputTokens`, `ResponseOutputTokens`, `ResponseTotalTokens`, `ResponseField` (dot-notation escape hatch into raw JSON). `AgentContextBuilder` auto-detects vendor format from response JSON (`choices` → OpenAI, `stop_reason`+`content` → Anthropic, `candidates` → Gemini/Vertex). Supports a `response` sub-key wrapper. `ResponseField` paths are resolved against the response value (not the full context root). Use `execute_agent_assertion_tasks()` for standalone evaluation or include in `EvalDataset` alongside other task types.
+- `TraceAssertionTask` — Assertions on OpenTelemetry spans fetched from Delta Lake. Used for tracing-aware evaluation in the online poller path.
 
 Tasks can declare `depends_on: ["task_id"]` to access upstream outputs. Each task sees base context + declared dependencies only.
 

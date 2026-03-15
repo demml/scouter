@@ -20,6 +20,8 @@ class EvaluationTaskType:
     """Human validation evaluation task."""
     TraceAssertion: "EvaluationTaskType"
     """Trace assertion-based evaluation task."""
+    AgentAssertion: "EvaluationTaskType"
+    """Agent assertion-based evaluation task."""
 
 class ComparisonOperator:
     """Comparison operators for assertion-based evaluations.
@@ -1488,6 +1490,446 @@ class TraceAssertionTask:
     def __str__(self) -> str:
         """Return string representation of the trace assertion task."""
 
+class TokenUsage:
+    """Token usage statistics for an LLM response.
+
+    Attributes:
+        input_tokens (Optional[int]): Number of input/prompt tokens.
+        output_tokens (Optional[int]): Number of output/completion tokens.
+        total_tokens (Optional[int]): Total tokens consumed.
+    """
+
+    input_tokens: Optional[int]
+    output_tokens: Optional[int]
+    total_tokens: Optional[int]
+
+    def __new__(
+        cls,
+        input_tokens: Optional[int] = None,
+        output_tokens: Optional[int] = None,
+        total_tokens: Optional[int] = None,
+    ) -> "TokenUsage": ...
+    def __str__(self) -> str: ...
+
+class AgentAssertion:
+    """Assertion target for agent tool calls and response properties.
+
+    Defines what aspect of an agent interaction should be evaluated.
+    AgentAssertion variants fall into two categories:
+
+    1. Tool assertions: Evaluate tool call behavior
+       (tool_called, tool_not_called, tool_called_with_args, tool_call_sequence,
+        tool_call_count, tool_argument, tool_result)
+
+    2. Response assertions: Evaluate LLM response properties
+       (response_content, response_model, response_finish_reason,
+        response_input_tokens, response_output_tokens, response_total_tokens,
+        response_field)
+
+    Each assertion variant extracts a value from the agent context that is then
+    compared against an expected value using the operator in AgentAssertionTask.
+
+    Examples:
+        Check that a specific tool was called:
+
+        >>> assertion = AgentAssertion.tool_called("search_web")
+        >>> # Use with Equals(True)
+
+        Check that a tool was called with specific arguments:
+
+        >>> assertion = AgentAssertion.tool_called_with_args("search_web", {"query": "weather"})
+        >>> # Use with Equals(True)
+
+        Check tool call order:
+
+        >>> assertion = AgentAssertion.tool_call_sequence(["search_web", "summarize"])
+        >>> # Use with SequenceMatches operator
+
+        Inspect a specific field in the response:
+
+        >>> assertion = AgentAssertion.response_field("choices.0.message.content")
+        >>> # Use with Contains operator
+    """
+
+    class ToolCalled:
+        """Check if a specific tool was called."""
+
+        name: str
+
+    class ToolNotCalled:
+        """Check if a specific tool was NOT called."""
+
+        name: str
+
+    class ToolCalledWithArgs:
+        """Check if a tool was called with specific arguments (partial match)."""
+
+        name: str
+        arguments: object  # PyValueWrapper is internal, exposed as object
+
+    class ToolCallSequence:
+        """Check if tools were called in exact sequence."""
+
+        names: List[str]
+
+    class ToolCallCount:
+        """Count tool calls, optionally filtered by name."""
+
+        name: Optional[str]
+
+    class ToolArgument:
+        """Extract a specific argument value from a tool call."""
+
+        name: str
+        argument_key: str
+
+    class ToolResult:
+        """Extract the result returned by a tool call."""
+
+        name: str
+
+    class ResponseContent:
+        """Get the text content of the response."""
+
+    class ResponseModel:
+        """Get the model name used in the response."""
+
+    class ResponseFinishReason:
+        """Get the finish/stop reason of the response."""
+
+    class ResponseInputTokens:
+        """Get the input token count of the response."""
+
+    class ResponseOutputTokens:
+        """Get the output token count of the response."""
+
+    class ResponseTotalTokens:
+        """Get the total token count of the response."""
+
+    class ResponseField:
+        """Extract a field from the raw response via dot-notation path."""
+
+        path: str
+
+    def __str__(self) -> str: ...
+    @staticmethod
+    def tool_called(name: str) -> "AgentAssertion":
+        """Assert that a tool with the given name was called.
+
+        Args:
+            name (str):
+                Name of the tool to check.
+
+        Returns:
+            AgentAssertion that checks tool call existence.
+        """
+
+    @staticmethod
+    def tool_not_called(name: str) -> "AgentAssertion":
+        """Assert that a tool with the given name was NOT called.
+
+        Args:
+            name (str):
+                Name of the tool to check.
+
+        Returns:
+            AgentAssertion that checks tool call absence.
+        """
+
+    @staticmethod
+    def tool_called_with_args(name: str, arguments: Dict[str, Any]) -> "AgentAssertion":
+        """Assert that a tool was called with specific arguments (partial match).
+
+        Args:
+            name (str):
+                Name of the tool.
+            arguments (Dict[str, Any]):
+                Expected arguments dict (partial match).
+
+        Returns:
+            AgentAssertion that checks tool call arguments.
+        """
+
+    @staticmethod
+    def tool_call_sequence(names: List[str]) -> "AgentAssertion":
+        """Assert that tools were called in the given exact sequence.
+
+        Args:
+            names (List[str]):
+                Ordered list of tool names.
+
+        Returns:
+            AgentAssertion that checks the tool call sequence.
+        """
+
+    @staticmethod
+    def tool_call_count(name: Optional[str] = None) -> "AgentAssertion":
+        """Extract the number of times a tool (or any tool) was called.
+
+        Args:
+            name (Optional[str]):
+                Tool name to count, or None to count all tool calls.
+
+        Returns:
+            AgentAssertion that extracts a call count for comparison.
+        """
+
+    @staticmethod
+    def tool_argument(name: str, argument_key: str) -> "AgentAssertion":
+        """Extract a specific argument value from a tool call.
+
+        Args:
+            name (str):
+                Name of the tool.
+            argument_key (str):
+                Key of the argument to extract.
+
+        Returns:
+            AgentAssertion that extracts the argument value.
+        """
+
+    @staticmethod
+    def tool_result(name: str) -> "AgentAssertion":
+        """Extract the result returned by a tool call.
+
+        Args:
+            name (str):
+                Name of the tool.
+
+        Returns:
+            AgentAssertion that extracts the tool result.
+        """
+
+    @staticmethod
+    def response_content() -> "AgentAssertion":
+        """Extract the text content of the agent response.
+
+        Returns:
+            AgentAssertion that extracts response content.
+        """
+
+    @staticmethod
+    def response_model() -> "AgentAssertion":
+        """Extract the model identifier used in the agent response.
+
+        Returns:
+            AgentAssertion that extracts the response model name.
+        """
+
+    @staticmethod
+    def response_finish_reason() -> "AgentAssertion":
+        """Extract the finish reason of the agent response.
+
+        Returns:
+            AgentAssertion that extracts the finish reason.
+        """
+
+    @staticmethod
+    def response_input_tokens() -> "AgentAssertion":
+        """Extract the number of input tokens from the agent response.
+
+        Returns:
+            AgentAssertion that extracts input token count.
+        """
+
+    @staticmethod
+    def response_output_tokens() -> "AgentAssertion":
+        """Extract the number of output tokens from the agent response.
+
+        Returns:
+            AgentAssertion that extracts output token count.
+        """
+
+    @staticmethod
+    def response_total_tokens() -> "AgentAssertion":
+        """Extract the total number of tokens from the agent response.
+
+        Returns:
+            AgentAssertion that extracts total token count.
+        """
+
+    @staticmethod
+    def response_field(path: str) -> "AgentAssertion":
+        """Extract an arbitrary field from the raw response using dot-notation.
+
+        Args:
+            path (str):
+                Dot-notation path into the response object
+                (e.g. "choices[0].message.content").
+
+        Returns:
+            AgentAssertion that extracts the response field value.
+        """
+
+class AgentAssertionTask:
+    """Agent-based evaluation task for behavioral assertions.
+
+    Evaluates agent tool calls and response properties to validate execution
+    behavior against expected values. Each task defines an assertion target
+    (AgentAssertion), a comparison operator, and an expected value.
+
+    Args:
+        id (str):
+            Unique identifier for this task (converted to lowercase).
+        assertion (AgentAssertion):
+            AgentAssertion defining what to measure in the agent interaction.
+        expected_value (Any):
+            The value to compare against the extracted assertion value.
+            Must be JSON-serializable.
+        operator (ComparisonOperator):
+            How to compare the extracted value against expected_value.
+        description (Optional[str]):
+            Human-readable description of what this task checks.
+        depends_on (Optional[List[str]]):
+            Task IDs whose outputs this task may reference.
+        condition (Optional[bool]):
+            If True, this task acts as a gate — downstream tasks are
+            skipped if this task fails.
+
+    Examples:
+        Check that a tool was called:
+
+        >>> task = AgentAssertionTask(
+        ...     id="tool_was_called",
+        ...     assertion=AgentAssertion.tool_called("search_web"),
+        ...     expected_value=True,
+        ...     operator=ComparisonOperator.Equals,
+        ... )
+
+        Count total tool calls:
+
+        >>> task = AgentAssertionTask(
+        ...     id="tool_call_count",
+        ...     assertion=AgentAssertion.tool_call_count(),
+        ...     expected_value=3,
+        ...     operator=ComparisonOperator.LessThanOrEqual,
+        ... )
+    """
+
+    def __init__(
+        self,
+        id: str,
+        assertion: AgentAssertion,
+        expected_value: Any,
+        operator: ComparisonOperator,
+        description: Optional[str] = None,
+        depends_on: Optional[List[str]] = None,
+        condition: Optional[bool] = None,
+    ) -> None:
+        """Create an AgentAssertionTask.
+
+        Args:
+            id (str):
+                Unique task identifier (converted to lowercase).
+            assertion (AgentAssertion):
+                AgentAssertion defining what to measure.
+            expected_value (Any):
+                Expected value for comparison. Must be JSON-serializable.
+            operator (ComparisonOperator):
+                Comparison operator for the assertion.
+            description (Optional[str]):
+                Human-readable description of the assertion.
+            depends_on (Optional[List[str]]):
+                Task IDs this task depends on.
+            condition (Optional[bool]):
+                If True, failed task skips subsequent tasks.
+
+        Raises:
+            TypeError: If expected_value is not JSON-serializable or if
+                operator is not a valid ComparisonOperator.
+        """
+
+    @property
+    def id(self) -> str:
+        """Unique task identifier (lowercase)."""
+
+    @id.setter
+    def id(self, id: str) -> None:
+        """Set task identifier (will be converted to lowercase)."""
+
+    @property
+    def assertion(self) -> AgentAssertion:
+        """AgentAssertion defining what to measure in the agent interaction."""
+
+    @assertion.setter
+    def assertion(self, assertion: AgentAssertion) -> None:
+        """Set agent assertion target.
+
+        Args:
+            assertion (AgentAssertion):
+                AgentAssertion defining what to measure.
+        """
+
+    @property
+    def operator(self) -> ComparisonOperator:
+        """Comparison operator for the assertion."""
+
+    @operator.setter
+    def operator(self, operator: ComparisonOperator) -> None:
+        """Set comparison operator.
+
+        Args:
+            operator (ComparisonOperator):
+                ComparisonOperator defining how to compare values.
+        """
+
+    @property
+    def expected_value(self) -> Any:
+        """Expected value for comparison.
+
+        Returns:
+            The expected value as a Python object (deserialized from internal
+            JSON representation).
+        """
+
+    @property
+    def description(self) -> Optional[str]:
+        """Human-readable description of the assertion."""
+
+    @description.setter
+    def description(self, description: Optional[str]) -> None:
+        """Set assertion description.
+
+        Args:
+            description (Optional[str]):
+                Human-readable description of the assertion.
+        """
+
+    @property
+    def depends_on(self) -> List[str]:
+        """List of task IDs this task depends on."""
+
+    @depends_on.setter
+    def depends_on(self, depends_on: List[str]) -> None:
+        """Set task dependencies.
+
+        Args:
+            depends_on (List[str]):
+                List of task IDs that must complete before this task.
+        """
+
+    @property
+    def condition(self) -> bool:
+        """Indicates if this task is a condition for subsequent tasks."""
+
+    @condition.setter
+    def condition(self, condition: bool) -> None:
+        """Set whether this task is a condition for subsequent tasks."""
+
+    @property
+    def task_type(self) -> EvaluationTaskType:
+        """The type of this evaluation task (AgentAssertion)."""
+
+    @property
+    def result(self) -> Optional[AssertionResult]:
+        """Assertion result after task execution, or None if not yet run."""
+
+    def __str__(self) -> str:
+        """Return string representation of the agent assertion task."""
+
+    def model_dump_json(self) -> str:
+        """Serialize the task to a JSON string."""
+
 class AssertionResult:
     @property
     def passed(self) -> bool: ...
@@ -1504,6 +1946,23 @@ class AssertionResults:
     def results(self) -> Dict[str, AssertionResult]: ...
     def __str__(self): ...
     def __getitem__(self, key: str) -> AssertionResult: ...
+
+def execute_agent_assertion_tasks(tasks: List[AgentAssertionTask], context: Any) -> AssertionResults:
+    """Execute agent assertion tasks against a provided request context.
+
+    Args:
+        tasks (List[AgentAssertionTask]):
+            List of AgentAssertionTask to evaluate.
+        context (Any):
+            Python object representing the agent request/response context.
+            Typically the raw response object from your LLM provider.
+
+    Returns:
+        AssertionResults containing results for each agent assertion task.
+
+    Raises:
+        ValueError: If tasks list is empty or context cannot be deserialized.
+    """
 
 def execute_trace_assertion_tasks(tasks: List[TraceAssertionTask], spans: List[TraceSpan]) -> AssertionResults:
     """Execute trace assertion tasks against provided spans.
@@ -1562,5 +2021,8 @@ __all__ = [
     "SpanFilter",
     "TraceAssertion",
     "TraceAssertionTask",
+    "AgentAssertion",
+    "AgentAssertionTask",
+    "execute_agent_assertion_tasks",
     "TasksFile",
 ]

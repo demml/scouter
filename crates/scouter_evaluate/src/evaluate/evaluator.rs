@@ -1,12 +1,15 @@
 use crate::error::EvaluationError;
+use crate::evaluate::agent::AgentContextBuilder;
 use crate::evaluate::store::{AssertionResultStore, LLMResponseStore, TaskRegistry, TaskType};
 use crate::evaluate::trace::TraceContextBuilder;
+use crate::tasks::agent::execute_agent_assertions;
 use crate::tasks::trace::execute_trace_assertions;
 use crate::tasks::traits::EvaluationTask;
 use chrono::{DateTime, Utc};
 use scouter_types::genai::traits::ProfileExt;
 use scouter_types::genai::{
-    AssertionResult, EvalSet, ExecutionPlan, GenAIEvalProfile, TraceAssertionTask,
+    AgentAssertionTask, AssertionResult, EvalSet, ExecutionPlan, GenAIEvalProfile,
+    TraceAssertionTask,
 };
 use scouter_types::sql::TraceSpan;
 use scouter_types::{Assertion, EvalRecord};
@@ -71,6 +74,12 @@ impl ExecutionContext {
 
                 Some(TaskType::TraceAssertion) => {
                     // Trace assertions store their results in the assertion store
+                    let store = self.assertion_store.read().await;
+                    if let Some(result) = store.retrieve(dep_id) {
+                        scoped_context.insert(dep_id.clone(), result.2.actual.clone());
+                    }
+                }
+                Some(TaskType::AgentAssertion) => {
                     let store = self.assertion_store.read().await;
                     if let Some(result) = store.retrieve(dep_id) {
                         scoped_context.insert(dep_id.clone(), result.2.actual.clone());
@@ -206,6 +215,13 @@ impl DependencyChecker {
                 .await
                 .retrieve(task_id)
                 .is_some(),
+            Some(TaskType::AgentAssertion) => self
+                .context
+                .assertion_store
+                .read()
+                .await
+                .retrieve(task_id)
+                .is_some(),
             None => false,
         }
     }
@@ -244,7 +260,8 @@ impl DependencyChecker {
 struct TaskExecutor {
     context: ExecutionContext,
     profile: Arc<GenAIEvalProfile>,
-    context_builder: TraceContextBuilder,
+    trace_context_builder: TraceContextBuilder,
+    request_context_builder: Option<AgentContextBuilder>,
 }
 
 impl TaskExecutor {
@@ -254,11 +271,22 @@ impl TaskExecutor {
         spans: Arc<Vec<TraceSpan>>,
     ) -> Self {
         debug!("Creating TaskExecutor");
-        let context_builder = TraceContextBuilder::new(spans);
+        let trace_context_builder = TraceContextBuilder::new(spans);
+
+        // Build request context builder from the eval record context if there are request assertions
+        let request_context_builder = if profile.has_agent_assertions() {
+            AgentContextBuilder::from_context(context.base_context.as_ref())
+                .inspect_err(|e| error!("Failed to build request context: {:?}", e))
+                .ok()
+        } else {
+            None
+        };
+
         Self {
             context,
             profile,
-            context_builder,
+            trace_context_builder,
+            request_context_builder,
         }
     }
 
@@ -273,19 +301,22 @@ impl TaskExecutor {
             return Ok(());
         }
 
-        let (assertions, judges, traces_assertions) = self.partition_tasks(executable_tasks).await;
+        let (assertions, judges, traces_assertions, agent_assertions) =
+            self.partition_tasks(executable_tasks).await;
 
         debug!(
-            "Executing level with {} assertions, {} LLM judges, and {} trace assertions",
+            "Executing level with {} assertions, {} LLM judges, {} trace assertions, and {} request assertions",
             assertions.len(),
             judges.len(),
-            traces_assertions.len()
+            traces_assertions.len(),
+            agent_assertions.len()
         );
 
         let _result = tokio::try_join!(
             self.execute_assertions(&assertions),
             self.execute_llm_judges(&judges),
-            self.execute_trace_assertions(&traces_assertions)
+            self.execute_trace_assertions(&traces_assertions),
+            self.execute_agent_assertions(&agent_assertions)
         )?;
 
         Ok(())
@@ -294,10 +325,11 @@ impl TaskExecutor {
     async fn partition_tasks<'a>(
         &self,
         task_ids: Vec<&'a str>,
-    ) -> (Vec<&'a str>, Vec<&'a str>, Vec<&'a str>) {
+    ) -> (Vec<&'a str>, Vec<&'a str>, Vec<&'a str>, Vec<&'a str>) {
         let registry = self.context.task_registry.read().await;
         let mut assertions = Vec::new();
         let mut traces_assertions = Vec::new();
+        let mut agent_assertions = Vec::new();
         let mut judges = Vec::new();
 
         for id in task_ids {
@@ -305,11 +337,12 @@ impl TaskExecutor {
                 Some(TaskType::Assertion) => assertions.push(id),
                 Some(TaskType::LLMJudge) => judges.push(id),
                 Some(TaskType::TraceAssertion) => traces_assertions.push(id),
+                Some(TaskType::AgentAssertion) => agent_assertions.push(id),
                 None => continue,
             }
         }
 
-        (assertions, judges, traces_assertions)
+        (assertions, judges, traces_assertions, agent_assertions)
     }
 
     async fn execute_assertions(&self, task_ids: &[&str]) -> Result<(), EvaluationError> {
@@ -352,14 +385,64 @@ impl TaskExecutor {
 
         debug!("Executing {} trace assertion tasks", tasks.len());
 
-        let results = execute_trace_assertions(&self.context_builder, &tasks).inspect_err(|e| {
-            error!("Failed to execute trace assertions: {:?}", e);
-        })?;
+        let start_time = Utc::now();
+        let results =
+            execute_trace_assertions(&self.trace_context_builder, &tasks).inspect_err(|e| {
+                error!("Failed to execute trace assertions: {:?}", e);
+            })?;
+        let end_time = Utc::now();
 
         for (task_id, result) in results.results {
-            let start_time = Utc::now(); // In a real implementation, track actual start times
-            let end_time = Utc::now();
 
+            self.context
+                .store_assertion(task_id, start_time, end_time, result)
+                .await;
+        }
+
+        Ok(())
+    }
+
+    async fn execute_agent_assertions(&self, task_ids: &[&str]) -> Result<(), EvaluationError> {
+        debug!("Executing agent assertion tasks: {:?}", task_ids);
+        if task_ids.is_empty() {
+            return Ok(());
+        }
+
+        let tasks: Vec<AgentAssertionTask> = task_ids
+            .iter()
+            .filter_map(|&task_id| self.profile.get_agent_assertion_by_id(task_id))
+            .cloned()
+            .collect();
+
+        debug!("Executing {} agent assertion tasks", tasks.len());
+
+        let start_time = Utc::now();
+        let results = match &self.request_context_builder {
+            Some(ctx) => execute_agent_assertions(ctx, &tasks).inspect_err(|e| {
+                error!("Failed to execute agent assertions: {:?}", e);
+            })?,
+            None => {
+                // No request context available - fail all tasks
+                let results = tasks
+                    .iter()
+                    .map(|task| {
+                        (
+                            task.id.clone(),
+                            AssertionResult {
+                                passed: false,
+                                actual: serde_json::Value::Null,
+                                expected: serde_json::Value::Null,
+                                message: "No request context available for evaluation".to_string(),
+                            },
+                        )
+                    })
+                    .collect();
+                scouter_types::genai::AssertionResults { results }
+            }
+        };
+
+        let end_time = Utc::now();
+        for (task_id, result) in results.results {
             self.context
                 .store_assertion(task_id, start_time, end_time, result)
                 .await;
@@ -602,6 +685,45 @@ impl ResultCollector {
             }
         }
 
+        for agent_assertion in &profile.tasks.agent {
+            if let Some((start_time, end_time, result)) = assert_store.retrieve(&agent_assertion.id)
+            {
+                if !agent_assertion.condition {
+                    if result.passed {
+                        passed_count += 1;
+                    } else {
+                        failed_count += 1;
+                    }
+                }
+
+                let stage = *self
+                    .context
+                    .task_stages
+                    .get(&agent_assertion.id)
+                    .unwrap_or(&-1);
+
+                records.push(scouter_types::EvalTaskResult {
+                    created_at: chrono::Utc::now(),
+                    start_time,
+                    end_time,
+                    record_uid: record.uid.clone(),
+                    entity_id: record.entity_id,
+                    task_id: agent_assertion.id.clone(),
+                    task_type: agent_assertion.task_type.clone(),
+                    passed: result.passed,
+                    value: result.to_metric_value(),
+                    assertion: Assertion::AgentAssertion(agent_assertion.assertion.clone()),
+                    expected: result.expected.clone(),
+                    actual: result.actual.clone(),
+                    message: result.message.clone(),
+                    operator: agent_assertion.operator.clone(),
+                    entity_uid: String::new(),
+                    condition: agent_assertion.condition,
+                    stage,
+                });
+            }
+        }
+
         let workflow_record = scouter_types::GenAIEvalWorkflowResult {
             created_at: chrono::Utc::now(),
             id: record.id,
@@ -689,6 +811,13 @@ impl GenAIEvaluator {
 
         for task in &profile.tasks.trace {
             registry.register(task.id.clone(), TaskType::TraceAssertion, task.condition);
+            if !task.depends_on.is_empty() {
+                registry.register_dependencies(task.id.clone(), task.depends_on.clone());
+            }
+        }
+
+        for task in &profile.tasks.agent {
+            registry.register(task.id.clone(), TaskType::AgentAssertion, task.condition);
             if !task.depends_on.is_empty() {
                 registry.register_dependencies(task.id.clone(), task.depends_on.clone());
             }

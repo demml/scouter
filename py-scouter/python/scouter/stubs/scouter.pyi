@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Sequence, Union, overload
 
 from .evaluate import (
+    AgentAssertionTask,
     AssertionTask,
     ComparisonOperator,
     EvaluationTaskType,
@@ -4144,14 +4145,14 @@ class EvalDataset:
     def __init__(
         self,
         records: Sequence[EvalRecord],
-        tasks: Sequence[LLMJudgeTask | AssertionTask],
+        tasks: Sequence[LLMJudgeTask | AssertionTask | AgentAssertionTask],
     ):
         """Initialize the EvalDataset with records and tasks.
 
         Args:
             records (List[EvalRecord]):
                 List of LLM evaluation records to be evaluated.
-            tasks (List[LLMJudgeTask | AssertionTask]):
+            tasks (List[LLMJudgeTask | AssertionTask | AgentAssertionTask]):
                 List of evaluation tasks to apply to the records.
         """
 

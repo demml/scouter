@@ -1,6 +1,5 @@
 use chrono::{DateTime, Utc};
 use scouter_types::genai::AssertionResult;
-use std::sync::RwLock;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -12,6 +11,7 @@ pub enum TaskType {
     Assertion,
     LLMJudge,
     TraceAssertion,
+    AgentAssertion,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,7 +26,7 @@ pub struct TaskRegistry {
     /// Maps task_id -> TaskType
     registry: HashMap<String, TaskMetadata>,
     dependency_map: HashMap<String, Arc<Vec<String>>>,
-    skipped_tasks: RwLock<HashSet<String>>,
+    skipped_tasks: HashSet<String>,
 }
 
 impl TaskRegistry {
@@ -35,16 +35,16 @@ impl TaskRegistry {
         Self {
             registry: HashMap::new(),
             dependency_map: HashMap::new(),
-            skipped_tasks: RwLock::new(HashSet::new()),
+            skipped_tasks: HashSet::new(),
         }
     }
 
-    pub fn mark_skipped(&self, task_id: String) {
-        self.skipped_tasks.write().unwrap().insert(task_id);
+    pub fn mark_skipped(&mut self, task_id: String) {
+        self.skipped_tasks.insert(task_id);
     }
 
     pub fn is_skipped(&self, task_id: &str) -> bool {
-        self.skipped_tasks.read().unwrap().contains(task_id)
+        self.skipped_tasks.contains(task_id)
     }
 
     /// Register a task with its type and conditional status

@@ -1,3 +1,4 @@
+pub mod agent;
 pub mod compare;
 pub mod evaluator;
 pub mod store;
