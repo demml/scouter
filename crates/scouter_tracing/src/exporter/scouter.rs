@@ -61,15 +61,12 @@ impl SpanExporter for ScouterSpanExporter {
             let record = TraceServerRecord { request: req };
 
             // Check capture mode BEFORE consuming record into MessageRecord
-            let is_capturing = capture_buffer
-                .read()
-                .unwrap()
-                .is_some();
+            let is_capturing = capture_buffer.read().unwrap().is_some();
 
             if is_capturing {
-                let (spans, _, _) = record.to_records().map_err(|e| {
-                    OTelSdkError::InternalFailure(e.to_string())
-                })?;
+                let (spans, _, _) = record
+                    .to_records()
+                    .map_err(|e| OTelSdkError::InternalFailure(e.to_string()))?;
                 if let Some(buf) = capture_buffer.write().unwrap().as_mut() {
                     buf.extend(spans);
                 }
