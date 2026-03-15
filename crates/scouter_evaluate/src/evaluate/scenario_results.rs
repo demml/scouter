@@ -513,8 +513,8 @@ impl ScenarioEvalResults {
                 .scenario_results
                 .iter()
                 .map(|r| {
-                    let query = if r.initial_query.len() > 40 {
-                        format!("{}...", &r.initial_query[..40])
+                    let query = if r.initial_query.chars().count() > 40 {
+                        format!("{}...", r.initial_query.chars().take(40).collect::<String>())
                     } else {
                         r.initial_query.clone()
                     };
