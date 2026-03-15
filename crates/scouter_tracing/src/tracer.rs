@@ -41,15 +41,17 @@ use scouter_settings::grpc::GrpcConfig;
 
 use scouter_types::SCOUTER_QUEUE_RECORD;
 use scouter_types::{
-    pyobject_to_otel_value, pyobject_to_tracing_json, EntityType, TraceSpanRecord, BAGGAGE_PREFIX,
-    EXCEPTION_TRACEBACK, SCOUTER_ENTITY, SCOUTER_QUEUE_EVENT, SCOUTER_SCOPE, SCOUTER_SCOPE_DEFAULT,
-    SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL, SCOUTER_TRACING_OUTPUT,
-    SPAN_ERROR, TRACE_START_TIME_KEY,
+    pyobject_to_otel_value, pyobject_to_tracing_json, EntityType, TraceId as ScouterTraceId,
+    TraceSpanRecord, BAGGAGE_PREFIX, EXCEPTION_TRACEBACK, SCOUTER_ENTITY, SCOUTER_QUEUE_EVENT,
+    SCOUTER_SCOPE, SCOUTER_SCOPE_DEFAULT, SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT,
+    SCOUTER_TRACING_LABEL, SCOUTER_TRACING_OUTPUT, SPAN_ERROR, TRACE_START_TIME_KEY,
 };
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock, RwLock};
 use std::time::SystemTime;
+use tokio::sync::RwLock as TokioRwLock;
 use tracing::{debug, info, instrument, warn};
 
 /// Global static instance of the tracer provider.
@@ -60,8 +62,13 @@ static TRACE_METADATA_STORE: OnceLock<TraceMetadataStore> = OnceLock::new();
 // This allows us to set the queue anytime get_tracer is called
 static SCOUTER_QUEUE_STORE: RwLock<Option<Py<ScouterQueue>>> = RwLock::new(None);
 
-pub(crate) static CAPTURE_BUFFER: RwLock<Vec<TraceSpanRecord>> = RwLock::new(Vec::new());
-pub(crate) static CAPTURING: RwLock<bool> = RwLock::new(false);
+pub(crate) const CAPTURE_BUFFER_MAX: usize = 20_000;
+
+// Local span capture state — all spans are collected globally, then
+// filtered by trace_id during evaluation (see EvalRunner.evaluate()).
+pub(crate) static CAPTURING: AtomicBool = AtomicBool::new(false);
+pub(crate) static CAPTURE_BUFFER: TokioRwLock<Vec<TraceSpanRecord>> =
+    TokioRwLock::const_new(Vec::new());
 
 fn get_tracer_provider() -> Result<Option<Arc<SdkTracerProvider>>, TraceError> {
     TRACER_PROVIDER_STORE
@@ -1242,6 +1249,17 @@ impl BaseTracer {
     pub fn drain_local_spans(&self) -> Result<Vec<TraceSpanRecord>, TraceError> {
         drain_spans_impl()
     }
+
+    pub fn get_local_spans_by_trace_ids(
+        &self,
+        trace_ids: Vec<String>,
+    ) -> Result<Vec<TraceSpanRecord>, TraceError> {
+        let set: HashSet<ScouterTraceId> = trace_ids
+            .into_iter()
+            .filter_map(|s| ScouterTraceId::from_hex(&s).ok())
+            .collect();
+        get_spans_by_trace_ids(&set)
+    }
 }
 
 impl BaseTracer {
@@ -1324,13 +1342,8 @@ pub fn shutdown_tracer() -> Result<(), TraceError> {
         .map_err(|e| TraceError::PoisonError(e.to_string()))?;
     *queue_store_guard = None;
 
-    *CAPTURING
-        .write()
-        .map_err(|e| TraceError::PoisonError(e.to_string()))? = false;
-    CAPTURE_BUFFER
-        .write()
-        .map_err(|e| TraceError::PoisonError(e.to_string()))?
-        .clear();
+    CAPTURING.store(false, Ordering::Relaxed);
+    CAPTURE_BUFFER.blocking_write().clear();
 
     Ok(())
 }
@@ -1338,60 +1351,41 @@ pub fn shutdown_tracer() -> Result<(), TraceError> {
 // ── Local span capture helpers ─────────────────────────────────────────────
 
 fn enable_capture_impl() -> Result<(), TraceError> {
-    *CAPTURING
-        .write()
-        .map_err(|e| TraceError::PoisonError(e.to_string()))? = true;
-    CAPTURE_BUFFER
-        .write()
-        .map_err(|e| TraceError::PoisonError(e.to_string()))?
-        .clear();
+    warn!("Local span capture enabled — spans will be buffered in-process");
+    CAPTURING.store(true, Ordering::Relaxed);
+    CAPTURE_BUFFER.blocking_write().clear();
     Ok(())
 }
 
 fn disable_capture_impl() -> Result<(), TraceError> {
-    *CAPTURING
-        .write()
-        .map_err(|e| TraceError::PoisonError(e.to_string()))? = false;
-    CAPTURE_BUFFER
-        .write()
-        .map_err(|e| TraceError::PoisonError(e.to_string()))?
-        .clear();
+    let buf = CAPTURE_BUFFER.blocking_read();
+    if !buf.is_empty() {
+        warn!(
+            "disable_local_capture: discarding {} buffered spans",
+            buf.len()
+        );
+    }
+    drop(buf);
+    CAPTURING.store(false, Ordering::Relaxed);
+    CAPTURE_BUFFER.blocking_write().clear();
     Ok(())
 }
 
 fn drain_spans_impl() -> Result<Vec<TraceSpanRecord>, TraceError> {
-    if !*CAPTURING
-        .read()
-        .map_err(|e| TraceError::PoisonError(e.to_string()))?
-    {
-        return Ok(vec![]);
-    }
-    Ok(std::mem::take(
-        &mut *CAPTURE_BUFFER
-            .write()
-            .map_err(|e| TraceError::PoisonError(e.to_string()))?,
-    ))
+    Ok(std::mem::take(&mut *CAPTURE_BUFFER.blocking_write()))
 }
 
-/// Enable local span capture mode.
-/// While active, `ScouterSpanExporter` buffers spans in memory instead of publishing them.
-/// Requires the tracer to be initialized first via `init_tracer()`.
-#[pyfunction]
-pub fn enable_local_capture() -> Result<(), TraceError> {
-    enable_capture_impl()
-}
-
-/// Disable local span capture mode and discard any buffered spans.
-#[pyfunction]
-pub fn disable_local_capture() -> Result<(), TraceError> {
-    disable_capture_impl()
-}
-
-/// Drain and return all locally captured spans, clearing the buffer.
-/// Returns an empty list if capture mode is not active.
-#[pyfunction]
-pub fn drain_local_spans() -> Result<Vec<TraceSpanRecord>, TraceError> {
-    drain_spans_impl()
+/// Returns clones of spans matching the given trace_ids.
+/// Does NOT drain the buffer — call drain_spans_impl() after all evaluations.
+pub(crate) fn get_spans_by_trace_ids(
+    trace_ids: &HashSet<ScouterTraceId>,
+) -> Result<Vec<TraceSpanRecord>, TraceError> {
+    let buf = CAPTURE_BUFFER.blocking_read();
+    Ok(buf
+        .iter()
+        .filter(|span| trace_ids.contains(&span.trace_id))
+        .cloned()
+        .collect())
 }
 
 fn get_tracer(scope: InstrumentationScope) -> Result<SdkTracer, TraceError> {
@@ -1477,38 +1471,66 @@ mod capture_tests {
     use super::*;
 
     fn reset() {
-        *CAPTURING.write().unwrap() = false;
-        CAPTURE_BUFFER.write().unwrap().clear();
+        CAPTURING.store(false, Ordering::Relaxed);
+        CAPTURE_BUFFER.blocking_write().clear();
     }
 
     #[test]
     fn test_enable_sets_capturing_true() {
+        reset();
         enable_capture_impl().unwrap();
-        assert!(*CAPTURING.read().unwrap());
+        assert!(CAPTURING.load(Ordering::Relaxed));
         reset();
     }
 
     #[test]
     fn test_disable_sets_capturing_false() {
-        *CAPTURING.write().unwrap() = true;
+        reset();
+        CAPTURING.store(true, Ordering::Relaxed);
         disable_capture_impl().unwrap();
-        assert!(!*CAPTURING.read().unwrap());
+        assert!(!CAPTURING.load(Ordering::Relaxed));
         reset();
     }
 
     #[test]
     fn test_drain_clears_and_returns_empty() {
+        reset();
         enable_capture_impl().unwrap();
         let drained = drain_spans_impl().unwrap();
         assert!(drained.is_empty());
-        assert!(*CAPTURING.read().unwrap()); // still capturing after drain
+        assert!(CAPTURING.load(Ordering::Relaxed)); // still capturing after drain
         reset();
     }
 
     #[test]
     fn test_drain_returns_empty_when_capture_off() {
+        reset();
         let result = drain_spans_impl().unwrap();
         assert!(result.is_empty());
+        reset();
+    }
+
+    #[test]
+    fn test_drain_returns_and_clears_populated_buffer() {
+        reset();
+        enable_capture_impl().unwrap();
+        CAPTURE_BUFFER
+            .blocking_write()
+            .push(TraceSpanRecord::default());
+        let drained = drain_spans_impl().unwrap();
+        assert_eq!(drained.len(), 1);
+        assert!(CAPTURE_BUFFER.blocking_read().is_empty());
+        reset();
+    }
+
+    #[test]
+    fn test_enable_clears_existing_buffer() {
+        reset();
+        CAPTURE_BUFFER
+            .blocking_write()
+            .push(TraceSpanRecord::default());
+        enable_capture_impl().unwrap();
+        assert!(CAPTURE_BUFFER.blocking_read().is_empty());
         reset();
     }
 }

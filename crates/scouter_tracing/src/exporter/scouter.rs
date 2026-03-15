@@ -1,5 +1,5 @@
 use crate::exporter::TraceError;
-use crate::tracer::{CAPTURE_BUFFER, CAPTURING};
+use crate::tracer::{CAPTURE_BUFFER, CAPTURE_BUFFER_MAX, CAPTURING};
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
 use opentelemetry_proto::transform::common::tonic::ResourceAttributesWithSchema;
 use opentelemetry_proto::transform::trace::tonic::group_spans_by_resource_and_scope;
@@ -8,6 +8,7 @@ use opentelemetry_sdk::{
     error::{OTelSdkError, OTelSdkResult},
     trace::{SpanData, SpanExporter},
 };
+use std::sync::atomic::Ordering;
 
 use scouter_events::producer::RustScouterProducer;
 use scouter_events::queue::types::TransportConfig;
@@ -15,7 +16,7 @@ use scouter_state::app_state;
 use scouter_types::{MessageRecord, TraceServerRecord};
 use std::fmt;
 use std::sync::Arc;
-use tracing::{error, instrument};
+use tracing::{error, instrument, warn};
 
 pub struct ScouterSpanExporter {
     producer: Arc<RustScouterProducer>,
@@ -54,11 +55,19 @@ impl SpanExporter for ScouterSpanExporter {
             let req = ExportTraceServiceRequest { resource_spans };
             let record = TraceServerRecord { request: req };
 
-            if *CAPTURING.read().unwrap() {
+            if CAPTURING.load(Ordering::Relaxed) {
                 let (spans, _, _) = record
                     .to_records()
                     .map_err(|e| OTelSdkError::InternalFailure(e.to_string()))?;
-                CAPTURE_BUFFER.write().unwrap().extend(spans);
+                let mut buf = CAPTURE_BUFFER.write().await;
+                if buf.len() + spans.len() > CAPTURE_BUFFER_MAX {
+                    warn!(
+                        "CAPTURE_BUFFER exceeded {} records; dropping new spans to prevent OOM",
+                        CAPTURE_BUFFER_MAX
+                    );
+                } else {
+                    buf.extend(spans);
+                }
                 return Ok(());
             }
 

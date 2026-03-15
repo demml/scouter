@@ -795,6 +795,9 @@ class BaseTracer:
     def drain_local_spans(self) -> List[TraceSpanRecord]:
         """Drain and return all locally captured spans, clearing the buffer."""
 
+    def get_local_spans_by_trace_ids(self, trace_ids: List[str]) -> List[TraceSpanRecord]:
+        """Return spans matching the given trace_ids without draining the buffer."""
+
 def get_current_active_span(self) -> ActiveSpan:
     """Get the current active span.
 
@@ -831,19 +834,6 @@ class StdoutSpanExporter:
 
 def flush_tracer() -> None:
     """Force flush the tracer's exporter."""
-
-def enable_local_capture() -> None:
-    """Enable local span capture mode on the ScouterSpanExporter.
-    Requires the tracer to be initialized first via init_tracer().
-    """
-
-def disable_local_capture() -> None:
-    """Disable local span capture mode, discarding any buffered spans."""
-
-def drain_local_spans() -> List[TraceSpanRecord]:
-    """Drain and return all locally captured spans, clearing the buffer.
-    Returns an empty list if capture mode is not active.
-    """
 
 class OtelExportConfig:
     """Configuration for exporting spans."""
