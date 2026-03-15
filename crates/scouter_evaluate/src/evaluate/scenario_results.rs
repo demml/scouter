@@ -334,7 +334,7 @@ impl ScenarioComparisonResults {
                         _ => "No Change".yellow().to_string(),
                     };
                     ScenarioDeltaEntry {
-                        scenario_id: d.scenario_id[..16.min(d.scenario_id.len())].to_string(),
+                        scenario_id: d.scenario_id.chars().take(16).collect::<String>(),
                         baseline: baseline_str,
                         current: current_str,
                         change,
@@ -520,12 +520,10 @@ impl ScenarioEvalResults {
                 .iter()
                 .map(|r| {
                     let query = if r.initial_query.chars().count() > 40 {
-                        let truncated = r
-                            .initial_query
-                            .char_indices()
-                            .nth(40)
-                            .map_or(r.initial_query.as_str(), |(i, _)| &r.initial_query[..i]);
-                        format!("{}...", truncated)
+                        format!(
+                            "{}...",
+                            r.initial_query.chars().take(40).collect::<String>()
+                        )
                     } else {
                         r.initial_query.clone()
                     };
@@ -535,7 +533,7 @@ impl ScenarioEvalResults {
                         "✗ FAIL".red().to_string()
                     };
                     ScenarioResultEntry {
-                        scenario_id: r.scenario_id[..16.min(r.scenario_id.len())].to_string(),
+                        scenario_id: r.scenario_id.chars().take(16).collect::<String>(),
                         initial_query: query,
                         pass_rate: format!("{:.1}%", r.pass_rate * 100.0),
                         status,
