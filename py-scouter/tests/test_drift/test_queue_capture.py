@@ -46,9 +46,7 @@ def test_capture_disabled_by_default(genai_queue: ScouterQueue) -> None:
     assert genai_queue.drain_all_records() == {}
 
 
-def test_enable_capture_and_drain(
-    genai_queue: ScouterQueue, eval_record: EvalRecord
-) -> None:
+def test_enable_capture_and_drain(genai_queue: ScouterQueue, eval_record: EvalRecord) -> None:
     """Records inserted after enable_capture are returned by drain_records."""
     genai_queue.enable_capture()
     genai_queue["test"].insert(eval_record)
@@ -57,9 +55,7 @@ def test_enable_capture_and_drain(
     assert isinstance(records[0], EvalRecord)
 
 
-def test_drain_clears_buffer(
-    genai_queue: ScouterQueue, eval_record: EvalRecord
-) -> None:
+def test_drain_clears_buffer(genai_queue: ScouterQueue, eval_record: EvalRecord) -> None:
     """drain_records empties the buffer so a second call returns nothing."""
     genai_queue.enable_capture()
     genai_queue["test"].insert(eval_record)
@@ -67,9 +63,7 @@ def test_drain_clears_buffer(
     assert genai_queue.drain_records("test") == []
 
 
-def test_disable_capture_frees_buffer(
-    genai_queue: ScouterQueue, eval_record: EvalRecord
-) -> None:
+def test_disable_capture_frees_buffer(genai_queue: ScouterQueue, eval_record: EvalRecord) -> None:
     """disable_capture discards buffered records; drain_all_records returns empty afterwards."""
     genai_queue.enable_capture()
     genai_queue["test"].insert(eval_record)
