@@ -1,4 +1,5 @@
 use crate::error::EvaluationError;
+use crate::tasks::evaluator::{PATH_REGEX, REGEX_FIELD_PARSE_PATTERN};
 use potato_head::ChatResponse;
 use scouter_types::genai::AgentAssertion;
 use serde_json::{json, Value};
@@ -166,7 +167,7 @@ impl AgentContextBuilder {
     fn extract_by_path(val: &Value, path: &str) -> Result<Value, EvaluationError> {
         let mut current = val.clone();
 
-        for segment in Self::parse_path_segments(path) {
+        for segment in Self::parse_path_segments(path)? {
             match segment {
                 PathSegment::Key(key) => {
                     current = current.get(&key).cloned().unwrap_or(Value::Null);
@@ -184,33 +185,32 @@ impl AgentContextBuilder {
         Ok(current)
     }
 
-    fn parse_path_segments(path: &str) -> Vec<PathSegment> {
+    fn parse_path_segments(path: &str) -> Result<Vec<PathSegment>, EvaluationError> {
+        let regex = PATH_REGEX.get_or_init(|| {
+            regex::Regex::new(REGEX_FIELD_PARSE_PATTERN)
+                .expect("Invalid regex pattern in REGEX_FIELD_PARSE_PATTERN")
+        });
+
         let mut segments = Vec::new();
 
-        for part in path.split('.') {
-            if let Some(bracket_pos) = part.find('[') {
-                let key = &part[..bracket_pos];
-                if !key.is_empty() {
-                    segments.push(PathSegment::Key(key.to_string()));
-                }
-                // Parse all bracket indices
-                let mut rest = &part[bracket_pos..];
-                while let Some(start) = rest.find('[') {
-                    if let Some(end) = rest.find(']') {
-                        if let Ok(idx) = rest[start + 1..end].parse::<usize>() {
-                            segments.push(PathSegment::Index(idx));
-                        }
-                        rest = &rest[end + 1..];
-                    } else {
-                        break;
-                    }
-                }
+        for capture in regex.find_iter(path) {
+            let s = capture.as_str();
+            if s.starts_with('[') && s.ends_with(']') {
+                let idx_str = &s[1..s.len() - 1];
+                let idx = idx_str
+                    .parse::<usize>()
+                    .map_err(|_| EvaluationError::InvalidArrayIndex(idx_str.to_string()))?;
+                segments.push(PathSegment::Index(idx));
             } else {
-                segments.push(PathSegment::Key(part.to_string()));
+                segments.push(PathSegment::Key(s.to_string()));
             }
         }
 
-        segments
+        if segments.is_empty() {
+            return Err(EvaluationError::EmptyFieldPath);
+        }
+
+        Ok(segments)
     }
 }
 

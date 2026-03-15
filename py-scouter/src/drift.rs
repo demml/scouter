@@ -48,7 +48,6 @@ pub fn add_drift_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(execute_trace_assertion_tasks, m)?)?;
 
     // Request assertions
-    m.add_class::<ToolCall>()?;
     m.add_class::<TokenUsage>()?;
     m.add_class::<AgentAssertion>()?;
     m.add_class::<AgentAssertionTask>()?;

@@ -6,8 +6,8 @@ use serde_json::Value;
 use std::sync::OnceLock;
 use tracing::instrument;
 
-const REGEX_FIELD_PARSE_PATTERN: &str = r"[a-zA-Z_][a-zA-Z0-9_]*|\[[0-9]+\]";
-static PATH_REGEX: OnceLock<Regex> = OnceLock::new();
+pub(crate) const REGEX_FIELD_PARSE_PATTERN: &str = r"[a-zA-Z_][a-zA-Z0-9_]*|\[[0-9]+\]";
+pub(crate) static PATH_REGEX: OnceLock<Regex> = OnceLock::new();
 
 pub struct FieldEvaluator;
 
