@@ -49,7 +49,7 @@ fn default_tasks() -> AssertionTasks {
 /// for future ReAct support. Setting them has no effect in the current
 /// implementation.
 #[pyclass]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct EvalScenario {
     #[pyo3(get, set)]
     #[serde(default = "default_id")]
