@@ -1,8 +1,10 @@
 pub mod alert;
 pub mod eval;
 pub mod profile;
+pub mod scenario;
 pub use alert::*;
 pub use eval::*;
 pub use profile::*;
+pub use scenario::EvalScenario;
 pub mod traits;
 pub mod utils;

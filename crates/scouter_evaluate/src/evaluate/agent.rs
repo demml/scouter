@@ -414,7 +414,10 @@ mod tests {
         let context = json!({});
         let result = AgentContextBuilder::from_context(&context);
         assert!(result.is_err());
-        assert!(matches!(result, Err(EvaluationError::InvalidProviderResponse)));
+        assert!(matches!(
+            result,
+            Err(EvaluationError::InvalidProviderResponse)
+        ));
     }
 
     #[test]
@@ -441,7 +444,11 @@ mod tests {
         // Non-contiguous in-order subsequence should pass
         let result = builder
             .build_context(&AgentAssertion::ToolCallSequence {
-                names: vec!["search".to_string(), "rank".to_string(), "respond".to_string()],
+                names: vec![
+                    "search".to_string(),
+                    "rank".to_string(),
+                    "respond".to_string(),
+                ],
             })
             .unwrap();
         assert_eq!(result, json!(true));
@@ -472,7 +479,10 @@ mod tests {
             .collect::<Vec<_>>()
             .join(".");
         let result = AgentContextBuilder::parse_path_segments(&many_segments);
-        assert!(matches!(result, Err(EvaluationError::TooManyPathSegments(_))));
+        assert!(matches!(
+            result,
+            Err(EvaluationError::TooManyPathSegments(_))
+        ));
     }
 
     #[test]
