@@ -1,5 +1,5 @@
 ---
-name: rust-python
+name: rust-python-scouter
 description: Apply when working with Rust code, Python code, or PyO3 bindings in this codebase. Activates expert-level guidelines for writing interoperable Rust+Python code where Rust holds all logic and Python is a thin re-export layer.
 ---
 
@@ -286,6 +286,24 @@ mod tests {
 - SQL/integration tests use `--test-threads=1` for isolation
 - `cargo clippy -- -D warnings` must pass cleanly
 
+### ⚠️ CRITICAL: Always use `--no-deps` with cargo commands
+
+`crates/scouter_tonic/src/generated/scouter.grpc.v1.rs` is a checked-in generated file. The `scouter_tonic` build script **deletes and regenerates it** whenever the crate is compiled as a transitive dependency. This happens silently when running cargo without `--no-deps`.
+
+**Every cargo clippy / build / test command MUST include `--no-deps`:**
+
+```bash
+# CORRECT
+cargo clippy -p scouter-types --no-deps --all-features -- -D warnings
+cargo test -p scouter-types --no-deps --all-features -- --nocapture --test-threads=1
+
+# WRONG — triggers scouter_tonic build script via transitive deps
+cargo clippy -p scouter-client --all-features -- -D warnings
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+```
+
+The only exception: when explicitly working inside `scouter_tonic` itself.
+
 ---
 
 ## Python Guidelines
@@ -362,4 +380,4 @@ def test_model_dump_roundtrip():
 - [ ] Python re-export added to the domain `__init__.py`
 - [ ] `.pyi` stub updated; `make build.stubs` run
 - [ ] Python-side test verifies the binding
-- [ ] `make setup.project` run; `cargo clippy -- -D warnings` passes
+- [ ] `make setup.project` run; `cargo clippy -p <crate> --no-deps -- -D warnings` passes (always `--no-deps`)

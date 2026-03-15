@@ -1,7 +1,7 @@
 use pyo3::prelude::*;
 use scouter_client::{
-    AlignedEvalResult, ComparisonResults, EvalDataset, EvalResultSet, EvalResults, EvalSet,
-    EvalTaskResult, EvaluationConfig, EvaluationTaskType, MissingTask, TaskComparison,
+    AlignedEvalResult, ComparisonResults, EvalDataset, EvalResultSet, EvalResults, EvalScenario,
+    EvalSet, EvalTaskResult, EvaluationConfig, EvaluationTaskType, MissingTask, TaskComparison,
     WorkflowComparison,
 };
 
@@ -20,6 +20,7 @@ pub fn add_evaluate_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<TaskComparison>()?;
     m.add_class::<WorkflowComparison>()?;
     m.add_class::<EvaluationTaskType>()?;
+    m.add_class::<EvalScenario>()?;
 
     Ok(())
 }
