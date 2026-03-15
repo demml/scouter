@@ -379,8 +379,10 @@ mod tests {
     #[test]
     fn test_stamp_otel_trace_id_not_overwritten_when_present() {
         let existing = TraceId::from_bytes([42u8; 16]);
-        let mut record = EvalRecord::default();
-        record.trace_id = Some(existing.clone());
+        let mut record = EvalRecord {
+            trace_id: Some(existing.clone()),
+            ..Default::default()
+        };
 
         let provider = SdkTracerProvider::builder().build();
         let tracer = provider.tracer("test");

@@ -1367,7 +1367,10 @@ mod tests {
         };
         assert_eq!(record.tag.as_deref(), Some("scenario_42"));
 
-        let cleared = EvalRecord { tag: None, ..Default::default() };
+        let cleared = EvalRecord {
+            tag: None,
+            ..Default::default()
+        };
         assert!(cleared.tag.is_none());
     }
 
