@@ -1571,6 +1571,22 @@ class Queue:
     def identifier(self) -> str:
         """Return the identifier of the queue"""
 
+    def enable_capture(self) -> None:
+        """Enable in-process EvalRecord capture for offline development.
+
+        Once enabled, every EvalRecord inserted via ``insert()`` is also buffered
+        in memory. Has no effect if capture is already active.
+        """
+
+    def disable_capture(self) -> None:
+        """Disable record capture and discard any buffered records."""
+
+    def drain(self) -> List[EvalRecord]:
+        """Drain and return all captured EvalRecords, clearing the buffer.
+
+        Returns an empty list when capture is disabled.
+        """
+
 class ScouterQueue:
     """Main queue class for Scouter. Publishes drift records to the configured transport"""
 
@@ -1741,6 +1757,7 @@ class ScouterQueue:
             RedisConfig,
             HttpConfig,
             GrpcConfig,
+            MockConfig,
         ],
         wait_for_startup: bool = False,
     ) -> "ScouterQueue":
@@ -1784,6 +1801,35 @@ class ScouterQueue:
         self,
     ) -> Union[KafkaConfig, RabbitMQConfig, RedisConfig, HttpConfig, MockConfig]:
         """Return the transport configuration used by the queue"""
+
+    def enable_capture(self) -> None:
+        """Enable offline EvalRecord capture across all queues.
+
+        After calling this, every EvalRecord inserted into any queue is also
+        buffered in memory. Capture is off by default.
+        """
+
+    def disable_capture(self) -> None:
+        """Disable offline record capture across all queues and discard any buffered records."""
+
+    def drain_records(self, alias: str) -> List[EvalRecord]:
+        """Drain and return captured EvalRecords from the queue identified by *alias*.
+
+        Returns an empty list if capture is disabled or no records have been inserted.
+
+        Args:
+            alias: Key identifying the target queue (same key used in ``__getitem__``).
+
+        Raises:
+            KeyError: If *alias* does not match any registered queue.
+        """
+
+    def drain_all_records(self) -> Dict[str, List[EvalRecord]]:
+        """Drain captured EvalRecords from all queues.
+
+        Returns a mapping of alias → records. Queues with no buffered records are
+        omitted from the result.
+        """
 
 class EvalRecord:
     """LLM record containing context tied to a Large Language Model interaction

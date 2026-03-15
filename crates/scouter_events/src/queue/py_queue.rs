@@ -398,6 +398,52 @@ impl ScouterQueue {
         Ok(())
     }
 
+    /// Enable offline record capture across all queues.
+    ///
+    /// After calling this, every `EvalRecord` inserted into any queue is also
+    /// buffered in memory. Use `drain_records` or `drain_all_records` to retrieve
+    /// them. Capture is off by default; enabling it has negligible overhead.
+    pub fn enable_capture(&self, py: Python<'_>) -> PyResult<()> {
+        for queue in self.queues.values() {
+            queue.bind(py).borrow().enable_capture();
+        }
+        Ok(())
+    }
+
+    /// Disable offline record capture across all queues and discard any buffered records.
+    pub fn disable_capture(&self, py: Python<'_>) -> PyResult<()> {
+        for queue in self.queues.values() {
+            queue.bind(py).borrow().disable_capture();
+        }
+        Ok(())
+    }
+
+    /// Drain and return captured `EvalRecord`s from the queue identified by `alias`.
+    ///
+    /// Returns an empty list if capture is disabled or no records have been inserted.
+    /// Raises `KeyError` if `alias` does not match any registered queue.
+    pub fn drain_records(&self, py: Python<'_>, alias: &str) -> PyResult<Vec<Py<PyAny>>> {
+        match self.queues.get(alias) {
+            Some(queue) => queue.bind(py).borrow().drain(),
+            None => Err(PyEventError::MissingQueueError(alias.to_string()).into()),
+        }
+    }
+
+    /// Drain captured `EvalRecord`s from all queues.
+    ///
+    /// Returns a mapping of alias → records. Queues with no buffered records are
+    /// omitted from the result.
+    pub fn drain_all_records(&self, py: Python<'_>) -> PyResult<HashMap<String, Vec<Py<PyAny>>>> {
+        let mut result = HashMap::new();
+        for (alias, queue) in &self.queues {
+            let records = queue.bind(py).borrow().drain()?;
+            if !records.is_empty() {
+                result.insert(alias.clone(), records);
+            }
+        }
+        Ok(result)
+    }
+
     /// Update the sample ratio for all queues
     pub fn _set_sample_ratio(&self, sample_ratio: f64) -> Result<(), PyEventError> {
         for (alias, settings) in self.settings.iter() {
