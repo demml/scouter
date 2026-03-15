@@ -222,6 +222,9 @@ pub struct EvalRecord {
     pub entity_type: EntityType,
     pub retry_count: i32,
     pub trace_id: Option<TraceId>,
+    #[pyo3(get, set)]
+    #[serde(default)]
+    pub tag: Option<String>,
 }
 
 #[pymethods]
@@ -356,6 +359,7 @@ impl EvalRecord {
             session_id: session_id.unwrap_or_else(create_uuid7),
             retry_count: 0,
             trace_id: None,
+            tag: None,
         }
     }
 
@@ -385,6 +389,7 @@ impl Default for EvalRecord {
             session_id: create_uuid7(),
             retry_count: 0,
             trace_id: None,
+            tag: None,
         }
     }
 }
@@ -416,6 +421,7 @@ impl FromRow<'_, PgRow> for EvalRecord {
             entity_type: EntityType::GenAI,
             retry_count: row.try_get("retry_count")?,
             trace_id: trace_id_str.and_then(|tid| TraceId::from_hex(&tid).ok()),
+            tag: None,
         })
     }
 }
@@ -1342,3 +1348,50 @@ impl_mask_entity_id!(
     PsiRecord,
     CustomMetricRecord,
 );
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_eval_record_tag_defaults_none() {
+        let record = EvalRecord::default();
+        assert!(record.tag.is_none());
+    }
+
+    #[test]
+    fn test_eval_record_tag_can_be_set() {
+        let record = EvalRecord {
+            tag: Some("scenario_42".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(record.tag.as_deref(), Some("scenario_42"));
+
+        let cleared = EvalRecord {
+            tag: None,
+            ..Default::default()
+        };
+        assert!(cleared.tag.is_none());
+    }
+
+    #[test]
+    fn test_eval_record_tag_serde_roundtrip() {
+        let record = EvalRecord {
+            tag: Some("scenario_1".to_string()),
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&record).unwrap();
+        let deserialized: EvalRecord = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.tag, Some("scenario_1".to_string()));
+    }
+
+    #[test]
+    fn test_eval_record_tag_missing_in_json_defaults_none() {
+        // Verify #[serde(default)] allows deserializing from older JSON without "tag" field
+        let record = EvalRecord::default();
+        let mut json_val: serde_json::Value = serde_json::to_value(&record).unwrap();
+        json_val.as_object_mut().unwrap().remove("tag");
+        let deserialized: EvalRecord = serde_json::from_value(json_val).unwrap();
+        assert!(deserialized.tag.is_none());
+    }
+}

@@ -204,8 +204,16 @@ impl ComparisonResults {
                     baseline_pass_count: baseline_pass,
                     comparison_pass_count: comparison_pass,
                     status_changed_count: changed,
-                    baseline_pass_rate: baseline_pass as f64 / total as f64,
-                    comparison_pass_rate: comparison_pass as f64 / total as f64,
+                    baseline_pass_rate: if total > 0 {
+                        baseline_pass as f64 / total as f64
+                    } else {
+                        0.0
+                    },
+                    comparison_pass_rate: if total > 0 {
+                        comparison_pass as f64 / total as f64
+                    } else {
+                        0.0
+                    },
                 },
             )
             .collect()

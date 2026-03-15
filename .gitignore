@@ -84,3 +84,6 @@ py-scouter/python/scouter/stubs.pyi
 dev/
 
 scouter_storage/
+
+# scouter_tonic build cache (stored next to generated file for cross-context stability)
+crates/scouter_tonic/src/generated/.proto_hash

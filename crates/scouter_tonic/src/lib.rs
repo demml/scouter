@@ -21,8 +21,8 @@
 //! scouter-tonic = { version = "0.1", features = ["server", "client"] }
 //! ```
 
-pub const FILE_DESCRIPTOR_SET: &[u8] =
-    include_bytes!(concat!(env!("OUT_DIR"), "/scouter_descriptor.bin"));
+#[cfg(feature = "server")]
+pub const FILE_DESCRIPTOR_SET: &[u8] = include_bytes!("generated/scouter_descriptor.bin");
 
 // Re-export common types (always available)
 pub use generated::scouter::grpc::v1::{
