@@ -55,18 +55,26 @@ impl SpanExporter for ScouterSpanExporter {
             let req = ExportTraceServiceRequest { resource_spans };
             let record = TraceServerRecord { request: req };
 
-            if CAPTURING.load(Ordering::Relaxed) {
+            if CAPTURING.load(Ordering::Acquire) {
                 let (spans, _, _) = record
                     .to_records()
                     .map_err(|e| OTelSdkError::InternalFailure(e.to_string()))?;
-                let mut buf = CAPTURE_BUFFER.write().await;
-                if buf.len() + spans.len() > CAPTURE_BUFFER_MAX {
+                let mut buf = CAPTURE_BUFFER.write().unwrap();
+                let available = CAPTURE_BUFFER_MAX.saturating_sub(buf.len());
+                if available == 0 {
                     warn!(
-                        "CAPTURE_BUFFER exceeded {} records; dropping new spans to prevent OOM",
+                        "CAPTURE_BUFFER full ({} records); dropping new spans to prevent OOM",
                         CAPTURE_BUFFER_MAX
                     );
                 } else {
-                    buf.extend(spans);
+                    if spans.len() > available {
+                        warn!(
+                            "CAPTURE_BUFFER near full; truncating batch from {} to {} spans",
+                            spans.len(),
+                            available
+                        );
+                    }
+                    buf.extend(spans.into_iter().take(available));
                 }
                 return Ok(());
             }
