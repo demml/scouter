@@ -496,7 +496,7 @@ struct TaskStatusChangeEntry {
     change: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[pyclass]
 pub struct EvalResults {
     /// Aligned results in original record order
@@ -869,7 +869,7 @@ impl ClusterData {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ArrayDataset {
     pub data: Array2<f64>,
     pub feature_names: Vec<String>,
