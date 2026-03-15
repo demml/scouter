@@ -321,7 +321,7 @@ impl ScenarioComparisonResults {
                         _ => "No Change".yellow().to_string(),
                     };
                     ScenarioDeltaEntry {
-                        scenario_id: d.scenario_id[..16.min(d.scenario_id.len())].to_string(),
+                        scenario_id: d.scenario_id.chars().take(16).collect::<String>(),
                         baseline: baseline_str,
                         current: current_str,
                         change,
@@ -524,7 +524,7 @@ impl ScenarioEvalResults {
                         "✗ FAIL".red().to_string()
                     };
                     ScenarioResultEntry {
-                        scenario_id: r.scenario_id[..16.min(r.scenario_id.len())].to_string(),
+                        scenario_id: r.scenario_id.chars().take(16).collect::<String>(),
                         initial_query: query,
                         pass_rate: format!("{:.1}%", r.pass_rate * 100.0),
                         status,
