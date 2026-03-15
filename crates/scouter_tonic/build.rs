@@ -43,7 +43,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let hash_cache = out_dir.join(".proto_hash");
     let generated = PathBuf::from("src/generated/scouter.grpc.v1.rs");
-    let current_hash = hash_protos(protos).to_string();
+    let current_hash = {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        use std::hash::{Hash, Hasher};
+        hash_protos(protos).hash(&mut hasher);
+        // Include feature flags so different feature sets don't share a cache entry
+        cfg!(feature = "server").hash(&mut hasher);
+        cfg!(feature = "client").hash(&mut hasher);
+        hasher.finish().to_string()
+    };
 
     if generated.exists() {
         let cached = std::fs::read_to_string(&hash_cache).unwrap_or_default();
