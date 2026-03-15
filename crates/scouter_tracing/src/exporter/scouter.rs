@@ -1,4 +1,5 @@
 use crate::exporter::TraceError;
+use crate::tracer::{CAPTURE_BUFFER, CAPTURING};
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
 use opentelemetry_proto::transform::common::tonic::ResourceAttributesWithSchema;
 use opentelemetry_proto::transform::trace::tonic::group_spans_by_resource_and_scope;
@@ -11,15 +12,14 @@ use opentelemetry_sdk::{
 use scouter_events::producer::RustScouterProducer;
 use scouter_events::queue::types::TransportConfig;
 use scouter_state::app_state;
-use scouter_types::{MessageRecord, TraceServerRecord, TraceSpanRecord};
+use scouter_types::{MessageRecord, TraceServerRecord};
 use std::fmt;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use tracing::{error, instrument};
 
 pub struct ScouterSpanExporter {
     producer: Arc<RustScouterProducer>,
     resource: Resource,
-    capture_buffer: Arc<RwLock<Option<Vec<TraceSpanRecord>>>>,
 }
 
 impl fmt::Debug for ScouterSpanExporter {
@@ -36,12 +36,7 @@ impl ScouterSpanExporter {
         Ok(ScouterSpanExporter {
             producer: Arc::new(producer),
             resource: resource.clone(),
-            capture_buffer: Arc::new(RwLock::new(None)),
         })
-    }
-
-    pub fn capture_buffer_arc(&self) -> Arc<RwLock<Option<Vec<TraceSpanRecord>>>> {
-        self.capture_buffer.clone()
     }
 }
 
@@ -50,7 +45,6 @@ impl SpanExporter for ScouterSpanExporter {
     async fn export(&self, batch: Vec<SpanData>) -> OTelSdkResult {
         let producer = self.producer.clone();
         let resource = self.resource.clone();
-        let capture_buffer = self.capture_buffer.clone();
 
         let export_future = async move {
             let resource_spans = group_spans_by_resource_and_scope(
@@ -60,16 +54,11 @@ impl SpanExporter for ScouterSpanExporter {
             let req = ExportTraceServiceRequest { resource_spans };
             let record = TraceServerRecord { request: req };
 
-            // Check capture mode BEFORE consuming record into MessageRecord
-            let is_capturing = capture_buffer.read().unwrap().is_some();
-
-            if is_capturing {
+            if *CAPTURING.read().unwrap() {
                 let (spans, _, _) = record
                     .to_records()
                     .map_err(|e| OTelSdkError::InternalFailure(e.to_string()))?;
-                if let Some(buf) = capture_buffer.write().unwrap().as_mut() {
-                    buf.extend(spans);
-                }
+                CAPTURE_BUFFER.write().unwrap().extend(spans);
                 return Ok(());
             }
 

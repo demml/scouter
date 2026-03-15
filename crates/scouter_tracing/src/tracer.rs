@@ -60,10 +60,8 @@ static TRACE_METADATA_STORE: OnceLock<TraceMetadataStore> = OnceLock::new();
 // This allows us to set the queue anytime get_tracer is called
 static SCOUTER_QUEUE_STORE: RwLock<Option<Py<ScouterQueue>>> = RwLock::new(None);
 
-/// Global capture buffer — holds a reference to the exporter's inner buffer.
-/// When `Some`, the exporter buffers spans locally instead of publishing them.
-static CAPTURE_BUFFER: RwLock<Option<Arc<RwLock<Option<Vec<TraceSpanRecord>>>>>> =
-    RwLock::new(None);
+pub(crate) static CAPTURE_BUFFER: RwLock<Vec<TraceSpanRecord>> = RwLock::new(Vec::new());
+pub(crate) static CAPTURING: RwLock<bool> = RwLock::new(false);
 
 fn get_tracer_provider() -> Result<Option<Arc<SdkTracerProvider>>, TraceError> {
     TRACER_PROVIDER_STORE
@@ -260,16 +258,6 @@ pub fn init_tracer(
 
         // Primary exporter for sending spans to Scouter backend
         let scouter_export = ScouterSpanExporter::new(transport_config, &resource)?;
-
-        // Register the exporter's capture buffer in the global static so
-        // enable_local_capture / drain_local_spans can reach it without holding
-        // a reference to the exporter itself (which is moved into the provider below).
-        {
-            let mut cap = CAPTURE_BUFFER
-                .write()
-                .map_err(|e| TraceError::PoisonError(e.to_string()))?;
-            *cap = Some(scouter_export.capture_buffer_arc());
-        }
 
         // Optional secondary exporter for sending spans to OTLP collector
         let mut span_exporter = if let Some(exporter) = exporter {
@@ -1336,11 +1324,13 @@ pub fn shutdown_tracer() -> Result<(), TraceError> {
         .map_err(|e| TraceError::PoisonError(e.to_string()))?;
     *queue_store_guard = None;
 
-    // clear capture buffer reference
-    let mut cap = CAPTURE_BUFFER
+    *CAPTURING
         .write()
-        .map_err(|e| TraceError::PoisonError(e.to_string()))?;
-    *cap = None;
+        .map_err(|e| TraceError::PoisonError(e.to_string()))? = false;
+    CAPTURE_BUFFER
+        .write()
+        .map_err(|e| TraceError::PoisonError(e.to_string()))?
+        .clear();
 
     Ok(())
 }
@@ -1348,46 +1338,39 @@ pub fn shutdown_tracer() -> Result<(), TraceError> {
 // ── Local span capture helpers ─────────────────────────────────────────────
 
 fn enable_capture_impl() -> Result<(), TraceError> {
-    let cap_guard = CAPTURE_BUFFER
-        .read()
-        .map_err(|e| TraceError::PoisonError(e.to_string()))?;
-    let inner_arc = cap_guard.as_ref().ok_or_else(|| {
-        TraceError::InitializationError(
-            "Tracer not initialized — call init_tracer() before enable_local_capture()".to_string(),
-        )
-    })?;
-    inner_arc
+    *CAPTURING
+        .write()
+        .map_err(|e| TraceError::PoisonError(e.to_string()))? = true;
+    CAPTURE_BUFFER
         .write()
         .map_err(|e| TraceError::PoisonError(e.to_string()))?
-        .get_or_insert_with(Vec::new);
+        .clear();
     Ok(())
 }
 
 fn disable_capture_impl() -> Result<(), TraceError> {
-    let cap_guard = CAPTURE_BUFFER
-        .read()
-        .map_err(|e| TraceError::PoisonError(e.to_string()))?;
-    if let Some(inner_arc) = cap_guard.as_ref() {
-        *inner_arc
-            .write()
-            .map_err(|e| TraceError::PoisonError(e.to_string()))? = None;
-    }
+    *CAPTURING
+        .write()
+        .map_err(|e| TraceError::PoisonError(e.to_string()))? = false;
+    CAPTURE_BUFFER
+        .write()
+        .map_err(|e| TraceError::PoisonError(e.to_string()))?
+        .clear();
     Ok(())
 }
 
 fn drain_spans_impl() -> Result<Vec<TraceSpanRecord>, TraceError> {
-    let cap_guard = CAPTURE_BUFFER
+    if !*CAPTURING
         .read()
-        .map_err(|e| TraceError::PoisonError(e.to_string()))?;
-    if let Some(inner_arc) = cap_guard.as_ref() {
-        let mut inner = inner_arc
-            .write()
-            .map_err(|e| TraceError::PoisonError(e.to_string()))?;
-        if let Some(buf) = inner.as_mut() {
-            return Ok(std::mem::take(buf));
-        }
+        .map_err(|e| TraceError::PoisonError(e.to_string()))?
+    {
+        return Ok(vec![]);
     }
-    Ok(vec![])
+    Ok(std::mem::take(
+        &mut *CAPTURE_BUFFER
+            .write()
+            .map_err(|e| TraceError::PoisonError(e.to_string()))?,
+    ))
 }
 
 /// Enable local span capture mode.
@@ -1493,79 +1476,39 @@ pub fn try_set_span_attribute(py: Python<'_>, key: &str, value: &str) -> Result<
 mod capture_tests {
     use super::*;
 
-    fn make_buffer() -> Arc<RwLock<Option<Vec<TraceSpanRecord>>>> {
-        Arc::new(RwLock::new(None))
-    }
-
-    fn inject_buffer(arc: Arc<RwLock<Option<Vec<TraceSpanRecord>>>>) {
-        let mut cap = CAPTURE_BUFFER.write().unwrap();
-        *cap = Some(arc);
-    }
-
-    fn clear_buffer() {
-        let mut cap = CAPTURE_BUFFER.write().unwrap();
-        *cap = None;
+    fn reset() {
+        *CAPTURING.write().unwrap() = false;
+        CAPTURE_BUFFER.write().unwrap().clear();
     }
 
     #[test]
-    fn test_enable_sets_buffer_some() {
-        let buf = make_buffer();
-        inject_buffer(buf.clone());
-
+    fn test_enable_sets_capturing_true() {
         enable_capture_impl().unwrap();
-
-        assert!(buf.read().unwrap().is_some());
-        clear_buffer();
+        assert!(*CAPTURING.read().unwrap());
+        reset();
     }
 
     #[test]
-    fn test_disable_sets_buffer_none() {
-        let buf = make_buffer();
-        *buf.write().unwrap() = Some(vec![]);
-        inject_buffer(buf.clone());
-
+    fn test_disable_sets_capturing_false() {
+        *CAPTURING.write().unwrap() = true;
         disable_capture_impl().unwrap();
-
-        assert!(buf.read().unwrap().is_none());
-        clear_buffer();
+        assert!(!*CAPTURING.read().unwrap());
+        reset();
     }
 
     #[test]
-    fn test_drain_clears_and_returns() {
-        let buf = make_buffer();
-        inject_buffer(buf.clone());
+    fn test_drain_clears_and_returns_empty() {
         enable_capture_impl().unwrap();
-
-        // Manually push a dummy span into the buffer via the Arc
-        {
-            let mut inner = buf.write().unwrap();
-            // Just confirm buffer exists; we can't easily construct TraceSpanRecord here
-            assert!(inner.is_some());
-            // Leave it empty — drain of empty Some should return empty vec
-        }
-
         let drained = drain_spans_impl().unwrap();
         assert!(drained.is_empty());
-
-        // After drain the buffer is still Some (just cleared)
-        assert!(buf.read().unwrap().is_some());
-        clear_buffer();
-    }
-
-    #[test]
-    fn test_enable_errors_when_buffer_not_initialized() {
-        clear_buffer();
-        let result = enable_capture_impl();
-        assert!(result.is_err());
+        assert!(*CAPTURING.read().unwrap()); // still capturing after drain
+        reset();
     }
 
     #[test]
     fn test_drain_returns_empty_when_capture_off() {
-        let buf = make_buffer();
-        inject_buffer(buf); // inner is None (capture off)
-
         let result = drain_spans_impl().unwrap();
         assert!(result.is_empty());
-        clear_buffer();
+        reset();
     }
 }
