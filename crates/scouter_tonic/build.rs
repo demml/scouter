@@ -45,49 +45,47 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let hash_cache = PathBuf::from("src/generated/.proto_hash");
     let generated = PathBuf::from("src/generated/scouter.grpc.v1.rs");
-    let current_hash = {
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        use std::hash::{Hash, Hasher};
-        hash_protos(protos).hash(&mut hasher);
-        // Include feature flags so different feature sets don't share a cache entry
-        cfg!(feature = "server").hash(&mut hasher);
-        cfg!(feature = "client").hash(&mut hasher);
-        hasher.finish().to_string()
-    };
+    // Hash only proto content — feature flags are intentionally excluded.
+    // The generated file always includes both server and client code; the
+    // #[cfg(feature = "...")] guards in lib.rs handle conditional exposure.
+    // Including features in the hash caused spurious regeneration whenever
+    // scouter_tonic compiled as a transitive dep with a different feature set.
+    let current_hash = hash_protos(protos).to_string();
 
     if generated.exists() {
         let cached = std::fs::read_to_string(&hash_cache).unwrap_or_default();
         if cached.trim() == current_hash {
-            return Ok(());
+            // Generated file is up-to-date. Still need scouter_descriptor.bin
+            // in OUT_DIR for the include_bytes! in lib.rs — copy it from the
+            // last generation if present alongside the hash cache.
+            let cached_descriptor = hash_cache.with_file_name("scouter_descriptor.bin");
+            let descriptor_path = out_dir.join("scouter_descriptor.bin");
+            if cached_descriptor.exists() && !descriptor_path.exists() {
+                std::fs::copy(&cached_descriptor, &descriptor_path)?;
+            }
+            if descriptor_path.exists() {
+                return Ok(());
+            }
+            // Descriptor missing even after copy attempt — fall through to regenerate.
         }
     }
 
     let descriptor_path = out_dir.join("scouter_descriptor.bin");
 
-    let mut config = tonic_prost_build::configure();
-
-    #[cfg(feature = "server")]
-    {
-        config = config.build_server(true);
-    }
-    #[cfg(not(feature = "server"))]
-    {
-        config = config.build_server(false);
-    }
-
-    #[cfg(feature = "client")]
-    {
-        config = config.build_client(true);
-    }
-    #[cfg(not(feature = "client"))]
-    {
-        config = config.build_client(false);
-    }
-
-    config
+    // Always generate with both server and client so the file is identical
+    // regardless of which features are active. lib.rs uses #[cfg(feature)]
+    // to gate what is re-exported.
+    tonic_prost_build::configure()
+        .build_server(true)
+        .build_client(true)
         .file_descriptor_set_path(&descriptor_path)
         .out_dir("src/generated")
         .compile_protos(protos, std::slice::from_ref(&proto_root))?;
+
+    // Cache the descriptor next to the hash so future compilations with a
+    // different OUT_DIR (different profile / feature set) can reuse it.
+    let cached_descriptor = hash_cache.with_file_name("scouter_descriptor.bin");
+    std::fs::copy(&descriptor_path, &cached_descriptor)?;
 
     std::fs::write(&hash_cache, &current_hash)?;
 
