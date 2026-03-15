@@ -80,9 +80,6 @@ pub use scouter_types::error::{ContractError, ProfileError, RecordError, TypeErr
 
 pub use scouter_evaluate::{
     error::EvaluationError,
-    evaluate::scenario_results::{
-        EvalMetrics, ScenarioComparisonResults, ScenarioDelta, ScenarioEvalResults, ScenarioResult,
-    },
     evaluate::types::{
         AlignedEvalResult, ComparisonResults, EvalResults, EvaluationConfig, MissingTask,
         TaskComparison, WorkflowComparison,
