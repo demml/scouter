@@ -13,6 +13,7 @@ use crate::queue::types::{QueueSettings, TransportConfig};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyListMethods};
 use scouter_state::app_state;
+use scouter_types::genai::GenAIEvalProfile;
 use scouter_types::{DriftProfile, EvalRecord, QueueItem};
 use scouter_types::{Features, Metrics};
 use std::collections::HashMap;
@@ -41,6 +42,24 @@ fn create_event_state(id: String) -> (TaskState, UnboundedReceiver<Event>) {
 
     (event_state, event_rx)
 }
+/// Mutable output maps populated during queue initialization.
+/// Bundled to keep `initialize_queue`'s argument count within clippy limits.
+struct QueueRegistry {
+    queue_state: HashMap<String, TaskState>,
+    queue_settings: HashMap<String, Arc<RwLock<QueueSettings>>>,
+    genai_profiles: HashMap<String, Arc<GenAIEvalProfile>>,
+}
+
+impl QueueRegistry {
+    fn new() -> Self {
+        Self {
+            queue_state: HashMap::new(),
+            queue_settings: HashMap::new(),
+            genai_profiles: HashMap::new(),
+        }
+    }
+}
+
 pub enum QueueNum {
     Spc(SpcQueue),
     Psi(PsiQueue),
@@ -276,6 +295,8 @@ pub struct ScouterQueue {
     // Key is the alias of the queue
     settings: HashMap<String, Arc<RwLock<QueueSettings>>>,
     pub queue_state: Arc<HashMap<String, TaskState>>,
+    // Profiles stored as Arc so EvalScenarios can share ownership without cloning
+    profiles: HashMap<String, Arc<GenAIEvalProfile>>,
 }
 
 #[pymethods]
@@ -444,6 +465,17 @@ impl ScouterQueue {
         Ok(result)
     }
 
+    /// Return a copy of all registered GenAI evaluation profiles, keyed by alias.
+    ///
+    /// This is the Python-facing counterpart of `get_profiles()`. Returns cloned
+    /// profiles so Python owns its copies independently of the queue's internal Arc.
+    pub fn genai_profiles(&self) -> HashMap<String, GenAIEvalProfile> {
+        self.profiles
+            .iter()
+            .map(|(alias, arc)| (alias.clone(), arc.as_ref().clone()))
+            .collect()
+    }
+
     /// Update the sample ratio for all queues
     pub fn _set_sample_ratio(&self, sample_ratio: f64) -> Result<(), PyEventError> {
         for (alias, settings) in self.settings.iter() {
@@ -465,16 +497,18 @@ impl ScouterQueue {
         id: String,
         drift_profile: DriftProfile,
         config: TransportConfig,
-        queue_state: &mut HashMap<String, TaskState>,
-        queue_settings: &mut HashMap<String, Arc<RwLock<QueueSettings>>>,
+        registry: &mut QueueRegistry,
         wait_for_startup: bool,
     ) -> Result<Py<QueueBus>, PyEventError> {
         let settings = if let DriftProfile::GenAI(genai_profile) = &drift_profile {
+            registry
+                .genai_profiles
+                .insert(id.clone(), Arc::new(genai_profile.clone()));
             let settings = Arc::new(RwLock::new(QueueSettings::new(
                 id.clone(),
                 genai_profile.config.sample_ratio,
             )));
-            queue_settings.insert(id.clone(), settings.clone());
+            registry.queue_settings.insert(id.clone(), settings.clone());
             Some(settings)
         } else {
             None
@@ -486,7 +520,7 @@ impl ScouterQueue {
             drift_profile.identifier(),
             drift_profile.uid().to_string(),
         );
-        queue_state.insert(id.clone(), event_state.clone());
+        registry.queue_state.insert(id.clone(), event_state.clone());
 
         let cancellation_token = CancellationToken::new();
         let cloned_cancellation_token = cancellation_token.clone();
@@ -558,8 +592,7 @@ impl ScouterQueue {
     ) -> Result<Self, PyEventError> {
         debug!("Creating ScouterQueue from path");
         let mut queues = HashMap::new();
-        let mut queue_state = HashMap::new();
-        let mut queue_settings = HashMap::new();
+        let mut registry = QueueRegistry::new();
 
         if transport_config.is_none() {
             return Err(PyEventError::MissingTransportConfig);
@@ -574,8 +607,7 @@ impl ScouterQueue {
                 id.clone(),
                 drift_profile,
                 config.clone(),
-                &mut queue_state,
-                &mut queue_settings,
+                &mut registry,
                 wait_for_startup,
             )?;
             queues.insert(id, queue);
@@ -584,8 +616,9 @@ impl ScouterQueue {
         Ok(ScouterQueue {
             queues,
             transport_config: config,
-            queue_state: Arc::new(queue_state),
-            settings: queue_settings,
+            queue_state: Arc::new(registry.queue_state),
+            settings: registry.queue_settings,
+            profiles: registry.genai_profiles,
         })
     }
 
@@ -598,8 +631,7 @@ impl ScouterQueue {
     ) -> Result<Self, PyEventError> {
         debug!("Creating ScouterQueue from profiles");
         let mut queues = HashMap::new();
-        let mut queue_state = HashMap::new();
-        let mut queue_settings = HashMap::new();
+        let mut registry = QueueRegistry::new();
 
         if transport_config.is_none() {
             return Err(PyEventError::MissingTransportConfig);
@@ -613,8 +645,7 @@ impl ScouterQueue {
                 id.clone(),
                 drift_profile,
                 config.clone(),
-                &mut queue_state,
-                &mut queue_settings,
+                &mut registry,
                 wait_for_startup,
             )?;
             queues.insert(id, queue);
@@ -623,9 +654,17 @@ impl ScouterQueue {
         Ok(ScouterQueue {
             queues,
             transport_config: config,
-            queue_state: Arc::new(queue_state),
-            settings: queue_settings,
+            queue_state: Arc::new(registry.queue_state),
+            settings: registry.queue_settings,
+            profiles: registry.genai_profiles,
         })
+    }
+
+    /// Returns Arc references to all registered GenAI evaluation profiles,
+    /// keyed by alias. Used by EvalScenarios to share profile ownership
+    /// without cloning the profile data.
+    pub fn get_profiles(&self) -> &HashMap<String, Arc<GenAIEvalProfile>> {
+        &self.profiles
     }
 }
 
