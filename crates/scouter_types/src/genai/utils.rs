@@ -12,7 +12,7 @@ pub struct AssertionTasks {
     pub assertion: Vec<AssertionTask>,
     pub judge: Vec<LLMJudgeTask>,
     pub trace: Vec<TraceAssertionTask>,
-    pub request: Vec<AgentAssertionTask>,
+    pub agent: Vec<AgentAssertionTask>,
 }
 
 impl AssertionTasks {
@@ -21,7 +21,7 @@ impl AssertionTasks {
             .iter()
             .map(|t| t.id.clone())
             .chain(self.trace.iter().map(|t| t.id.clone()))
-            .chain(self.request.iter().map(|t| t.id.clone()))
+            .chain(self.agent.iter().map(|t| t.id.clone()))
             .collect()
     }
 
@@ -37,12 +37,12 @@ impl AssertionTasks {
         for task in &self.trace {
             task_ids.insert(task.id.clone());
         }
-        for task in &self.request {
+        for task in &self.agent {
             task_ids.insert(task.id.clone());
         }
 
         let total_tasks =
-            self.assertion.len() + self.judge.len() + self.trace.len() + self.request.len();
+            self.assertion.len() + self.judge.len() + self.trace.len() + self.agent.len();
         if task_ids.len() != total_tasks {
             return Err(TypeError::DuplicateTaskIds);
         }
@@ -54,14 +54,14 @@ impl AssertionTasks {
         let mut assertion = Vec::new();
         let mut judge = Vec::new();
         let mut trace = Vec::new();
-        let mut request = Vec::new();
+        let mut agent = Vec::new();
 
         for task in tasks.tasks {
             match task {
                 TaskConfig::Assertion(t) => assertion.push(t),
                 TaskConfig::LLMJudge(t) => judge.push(*t),
                 TaskConfig::TraceAssertion(t) => trace.push(t),
-                TaskConfig::AgentAssertion(t) => request.push(t),
+                TaskConfig::AgentAssertion(t) => agent.push(t),
             }
         }
 
@@ -69,7 +69,7 @@ impl AssertionTasks {
             assertion,
             judge,
             trace,
-            request,
+            agent,
         }
     }
 }
@@ -81,7 +81,7 @@ pub fn extract_assertion_tasks_from_pylist(
     let mut assertion_tasks = Vec::new();
     let mut llm_judge_tasks = Vec::new();
     let mut trace_tasks = Vec::new();
-    let mut request_tasks = Vec::new();
+    let mut agent_tasks = Vec::new();
 
     for item in list.iter() {
         if item.is_instance_of::<AssertionTask>() {
@@ -95,7 +95,7 @@ pub fn extract_assertion_tasks_from_pylist(
             trace_tasks.push(task);
         } else if item.is_instance_of::<AgentAssertionTask>() {
             let task = item.extract::<AgentAssertionTask>()?;
-            request_tasks.push(task);
+            agent_tasks.push(task);
         } else {
             return Err(TypeError::InvalidAssertionTaskType);
         }
@@ -104,6 +104,6 @@ pub fn extract_assertion_tasks_from_pylist(
         assertion: assertion_tasks,
         judge: llm_judge_tasks,
         trace: trace_tasks,
-        request: request_tasks,
+        agent: agent_tasks,
     })
 }

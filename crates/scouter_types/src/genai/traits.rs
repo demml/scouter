@@ -49,7 +49,7 @@ pub fn separate_tasks(tasks: Vec<EvaluationTask>) -> AssertionTasks {
         assertion: assertions,
         judge: llm_judges,
         trace: trace_assertions,
-        request: agent_assertions,
+        agent: agent_assertions,
     }
 }
 

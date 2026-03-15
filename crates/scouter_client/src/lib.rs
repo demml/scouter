@@ -85,7 +85,7 @@ pub use scouter_evaluate::{
         TaskComparison, WorkflowComparison,
     },
     genai::EvalDataset,
-    tasks::request::execute_agent_assertion_tasks,
+    tasks::agent::execute_agent_assertion_tasks,
     tasks::trace::execute_trace_assertion_tasks,
 };
 pub use scouter_tracing::error::TraceError;

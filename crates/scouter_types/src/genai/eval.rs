@@ -629,12 +629,12 @@ pub enum SpanStatus {
 pub struct PyValueWrapper(pub Value);
 
 impl<'py> IntoPyObject<'py> for PyValueWrapper {
-    type Target = PyAny; // the Python type
+    type Target = PyAny;
     type Output = Bound<'py, Self::Target>;
-    type Error = std::convert::Infallible;
+    type Error = TypeError;
 
     fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
-        Ok(pythonize(py, &self.0).unwrap())
+        pythonize(py, &self.0).map_err(TypeError::from)
     }
 }
 
@@ -701,7 +701,7 @@ impl SpanFilter {
 
     #[staticmethod]
     pub fn with_attribute_value(key: String, value: &Bound<'_, PyAny>) -> Result<Self, TypeError> {
-        let value = PyValueWrapper(depythonize(value).unwrap());
+        let value = PyValueWrapper(depythonize(value)?);
         Ok(SpanFilter::WithAttributeValue { key, value })
     }
 
@@ -1070,63 +1070,12 @@ impl TaskAccessor for TraceAssertionTask {
     }
 }
 
-#[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ToolCall {
-    #[pyo3(get, set)]
     pub name: String,
-
     pub arguments: Value,
-
     pub result: Option<Value>,
-
-    #[pyo3(get, set)]
     pub call_id: Option<String>,
-}
-
-#[pymethods]
-impl ToolCall {
-    #[new]
-    #[pyo3(signature = (name, arguments=None, result=None, call_id=None))]
-    pub fn new(
-        name: String,
-        arguments: Option<&Bound<'_, PyAny>>,
-        result: Option<&Bound<'_, PyAny>>,
-        call_id: Option<String>,
-    ) -> Result<Self, TypeError> {
-        let arguments = match arguments {
-            Some(args) => depythonize(args)?,
-            None => Value::Object(serde_json::Map::new()),
-        };
-        let result = match result {
-            Some(r) => Some(depythonize(r)?),
-            None => None,
-        };
-        Ok(Self {
-            name,
-            arguments,
-            result,
-            call_id,
-        })
-    }
-
-    #[getter]
-    pub fn get_arguments<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TypeError> {
-        let py_value = pythonize(py, &self.arguments)?;
-        Ok(py_value)
-    }
-
-    #[getter]
-    pub fn get_result<'py>(&self, py: Python<'py>) -> Result<Option<Bound<'py, PyAny>>, TypeError> {
-        match &self.result {
-            Some(r) => Ok(Some(pythonize(py, r)?)),
-            None => Ok(None),
-        }
-    }
-
-    pub fn __str__(&self) -> String {
-        serde_json::to_string_pretty(self).unwrap_or_default()
-    }
 }
 
 #[pyclass]
@@ -1400,6 +1349,11 @@ impl AgentAssertionTask {
             }
             None => Ok(None),
         }
+    }
+
+    #[staticmethod]
+    pub fn from_path(path: PathBuf) -> Result<Self, TypeError> {
+        deserialize_from_path(path)
     }
 }
 

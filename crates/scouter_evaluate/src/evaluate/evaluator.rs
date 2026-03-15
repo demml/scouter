@@ -1,8 +1,8 @@
 use crate::error::EvaluationError;
-use crate::evaluate::request::AgentContextBuilder;
+use crate::evaluate::agent::AgentContextBuilder;
 use crate::evaluate::store::{AssertionResultStore, LLMResponseStore, TaskRegistry, TaskType};
 use crate::evaluate::trace::TraceContextBuilder;
-use crate::tasks::request::execute_agent_assertions;
+use crate::tasks::agent::execute_agent_assertions;
 use crate::tasks::trace::execute_trace_assertions;
 use crate::tasks::traits::EvaluationTask;
 use chrono::{DateTime, Utc};
@@ -385,14 +385,14 @@ impl TaskExecutor {
 
         debug!("Executing {} trace assertion tasks", tasks.len());
 
+        let start_time = Utc::now();
         let results =
             execute_trace_assertions(&self.trace_context_builder, &tasks).inspect_err(|e| {
                 error!("Failed to execute trace assertions: {:?}", e);
             })?;
+        let end_time = Utc::now();
 
         for (task_id, result) in results.results {
-            let start_time = Utc::now(); // In a real implementation, track actual start times
-            let end_time = Utc::now();
 
             self.context
                 .store_assertion(task_id, start_time, end_time, result)
@@ -403,7 +403,7 @@ impl TaskExecutor {
     }
 
     async fn execute_agent_assertions(&self, task_ids: &[&str]) -> Result<(), EvaluationError> {
-        debug!("Executing request assertion tasks: {:?}", task_ids);
+        debug!("Executing agent assertion tasks: {:?}", task_ids);
         if task_ids.is_empty() {
             return Ok(());
         }
@@ -414,11 +414,12 @@ impl TaskExecutor {
             .cloned()
             .collect();
 
-        debug!("Executing {} request assertion tasks", tasks.len());
+        debug!("Executing {} agent assertion tasks", tasks.len());
 
+        let start_time = Utc::now();
         let results = match &self.request_context_builder {
             Some(ctx) => execute_agent_assertions(ctx, &tasks).inspect_err(|e| {
-                error!("Failed to execute request assertions: {:?}", e);
+                error!("Failed to execute agent assertions: {:?}", e);
             })?,
             None => {
                 // No request context available - fail all tasks
@@ -440,10 +441,8 @@ impl TaskExecutor {
             }
         };
 
+        let end_time = Utc::now();
         for (task_id, result) in results.results {
-            let start_time = Utc::now();
-            let end_time = Utc::now();
-
             self.context
                 .store_assertion(task_id, start_time, end_time, result)
                 .await;
@@ -686,7 +685,7 @@ impl ResultCollector {
             }
         }
 
-        for agent_assertion in &profile.tasks.request {
+        for agent_assertion in &profile.tasks.agent {
             if let Some((start_time, end_time, result)) = assert_store.retrieve(&agent_assertion.id)
             {
                 if !agent_assertion.condition {
@@ -817,7 +816,7 @@ impl GenAIEvaluator {
             }
         }
 
-        for task in &profile.tasks.request {
+        for task in &profile.tasks.agent {
             registry.register(task.id.clone(), TaskType::AgentAssertion, task.condition);
             if !task.depends_on.is_empty() {
                 registry.register_dependencies(task.id.clone(), task.depends_on.clone());

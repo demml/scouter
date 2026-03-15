@@ -182,6 +182,12 @@ pub enum EvaluationError {
 
     #[error("Failed to parse provider response type")]
     InvalidProviderResponse,
+
+    #[error("Path too long: {0} bytes (max 512)")]
+    PathTooLong(usize),
+
+    #[error("Too many path segments: {0} (max 32)")]
+    TooManyPathSegments(usize),
 }
 
 impl From<pythonize::PythonizeError> for EvaluationError {

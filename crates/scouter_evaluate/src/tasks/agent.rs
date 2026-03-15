@@ -1,4 +1,4 @@
-use crate::evaluate::request::AgentContextBuilder;
+use crate::evaluate::agent::AgentContextBuilder;
 use crate::tasks::evaluator::AssertionEvaluator;
 use crate::{error::EvaluationError, tasks::traits::EvaluationTask};
 use pyo3::prelude::*;
@@ -57,7 +57,7 @@ pub(crate) fn execute_agent_assertions(
         })
         .collect::<Result<HashMap<String, AssertionResult>, EvaluationError>>()
         .inspect_err(|e| {
-            error!("Error executing request assertions: {:?}", e);
+            error!("Error executing agent assertions: {:?}", e);
         })?;
 
     Ok(AssertionResults { results })
