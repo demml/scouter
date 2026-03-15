@@ -65,7 +65,7 @@ async fn run_cloud_integration_test(settings: &ObjectStorageSettings, label: &st
 
     // Write a batch directly (bypasses the flush timer).
     let (_record, spans, _tags) = generate_trace_with_spans(5, 0);
-    let first_trace_id = spans.first().unwrap().trace_id.clone();
+    let first_trace_id = spans.first().unwrap().trace_id;
 
     service
         .write_spans_direct(spans)

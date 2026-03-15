@@ -398,15 +398,18 @@ impl ScouterQueue {
     /// scouter_queues.shutdown()
     ///
     /// ```
-    pub fn shutdown(&mut self) -> Result<(), PyEventError> {
+    pub fn shutdown(&mut self, py: Python<'_>) -> Result<(), PyEventError> {
         debug!("Starting ScouterQueue shutdown");
 
-        for (alias, event_state) in self.queue_state.iter() {
-            debug!("Shutting down queue: {}", alias);
-            // Flush first
-            // shutdown the queue
-            event_state.shutdown_tasks()?;
-        }
+        // Release the GIL while sleeping inside shutdown_event_task so other
+        // Python threads can run during the 250ms wait periods.
+        py.detach(|| -> Result<(), PyEventError> {
+            for (alias, event_state) in self.queue_state.iter() {
+                debug!("Shutting down queue: {}", alias);
+                event_state.shutdown_tasks()?;
+            }
+            Ok(())
+        })?;
 
         // clear the queues
         self.queues.clear();

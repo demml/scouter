@@ -15205,6 +15205,14 @@ class EvalRecord:
             TypeError: If the stored JSON cannot be converted to a Python object.
         """
 
+    @property
+    def tag(self) -> Optional[str]:
+        """Get the scenario tag (set by EvalRunner.add_scenario_data)."""
+
+    @tag.setter
+    def tag(self, tag: Optional[str]) -> None:
+        """Set the scenario tag."""
+
     def __str__(self) -> str:
         """Return the string representation of the record."""
 

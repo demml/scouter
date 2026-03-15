@@ -53,7 +53,7 @@ pub struct ScouterEntityAttribute {
     pub space: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
 pub struct TraceId([u8; 16]);
 
 impl TraceId {
@@ -496,7 +496,7 @@ pub trait TraceRecordExt {
                     // Also extract as baggage since it has baggage prefix
                     baggage_records.push(TraceBaggageRecord {
                         created_at,
-                        trace_id: trace_id.clone(),
+                        trace_id: *trace_id,
                         scope: scope_owned.clone(),
                         key: format!("{}.{}", SCOUTER_TAG_PREFIX, tag_key),
                         value: string_value,
@@ -549,7 +549,7 @@ pub trait TraceRecordExt {
 
                 baggage_records.push(TraceBaggageRecord {
                     created_at,
-                    trace_id: trace_id.clone(),
+                    trace_id: *trace_id,
                     scope: scope_owned.clone(),
                     key: clean_key,
                     value: string_value,
@@ -861,7 +861,7 @@ impl TraceServerRecord {
             .into_iter()
             .map(|(key, value)| TraceBaggageRecord {
                 created_at: Self::get_trace_start_time_attribute(attributes, &Utc::now()),
-                trace_id: trace_id.clone(),
+                trace_id: *trace_id,
                 scope: scope_name.to_string(),
                 key,
                 value,

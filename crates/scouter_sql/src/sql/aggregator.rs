@@ -107,7 +107,7 @@ impl TraceAggregator {
     pub fn new_from_span(span: &TraceSpanRecord) -> Self {
         let now = Utc::now();
         let mut aggregator = Self {
-            trace_id: span.trace_id.clone(),
+            trace_id: span.trace_id,
             service_name: span.service_name.clone(),
             scope_name: span.scope_name.clone(),
             scope_version: span.scope_version.clone().unwrap_or_default(),
@@ -187,7 +187,7 @@ impl TraceAggregator {
             .map(|q| uuid::Uuid::from_bytes(q.0).to_string())
             .collect();
         TraceSummaryRecord {
-            trace_id: self.trace_id.clone(),
+            trace_id: self.trace_id,
             service_name: self.service_name.clone(),
             scope_name: self.scope_name.clone(),
             scope_version: self.scope_version.clone(),
@@ -240,7 +240,7 @@ impl TraceCache {
             );
         }
         self.traces
-            .entry(span.trace_id.clone())
+            .entry(span.trace_id)
             .and_modify(|agg| {
                 agg.update_from_span(span);
                 self.total_span_count.fetch_add(1, Ordering::Relaxed);
@@ -260,7 +260,7 @@ impl TraceCache {
             .traces
             .iter()
             .filter(|entry| entry.value().is_stale(stale_threshold))
-            .map(|entry| entry.key().clone())
+            .map(|entry| *entry.key())
             .collect();
 
         if stale_keys.is_empty() {

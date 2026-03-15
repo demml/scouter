@@ -1,17 +1,20 @@
-use std::{
-    collections::hash_map::DefaultHasher,
-    hash::{Hash, Hasher},
-    path::PathBuf,
-};
+use std::path::PathBuf;
+
+fn fnv1a_hash(data: &[u8]) -> u64 {
+    const FNV_OFFSET: u64 = 0xcbf29ce484222325;
+    const FNV_PRIME: u64 = 0x100000001b3;
+    data.iter()
+        .fold(FNV_OFFSET, |acc, &b| acc.wrapping_mul(FNV_PRIME) ^ b as u64)
+}
 
 fn hash_protos(protos: &[PathBuf]) -> u64 {
-    let mut hasher = DefaultHasher::new();
+    let mut hash: u64 = 0;
     for path in protos {
         if let Ok(content) = std::fs::read(path) {
-            content.hash(&mut hasher);
+            hash ^= fnv1a_hash(&content);
         }
     }
-    hasher.finish()
+    hash
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

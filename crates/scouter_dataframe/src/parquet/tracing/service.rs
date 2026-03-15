@@ -361,7 +361,7 @@ mod tests {
         let now = Utc::now();
         TraceSpanRecord {
             created_at: now,
-            trace_id: trace_id.clone(),
+            trace_id: *trace_id,
             span_id,
             parent_span_id,
             flags: 1,
@@ -407,7 +407,7 @@ mod tests {
         let (_trace_record, spans, _tags) = generate_trace_with_spans(3, 0);
         info!("Test: writing {} spans", spans.len());
 
-        let first_trace_id = spans.first().unwrap().trace_id.clone();
+        let first_trace_id = spans.first().unwrap().trace_id;
         service.write_spans(spans).await?;
 
         info!("Test: waiting for flush");

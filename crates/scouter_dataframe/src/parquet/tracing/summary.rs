@@ -1817,7 +1817,7 @@ mod tests {
         let now = Utc::now();
         TraceSpanRecord {
             created_at: now,
-            trace_id: trace_id.clone(),
+            trace_id: *trace_id,
             span_id,
             parent_span_id: None,
             flags: 1,
