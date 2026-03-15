@@ -265,9 +265,13 @@ impl QueueBus {
             self.identifier, extracted_item
         );
 
-        let mut store = self.record_store.write().unwrap();
-        if let Some(store) = store.as_mut() {
-            store.push(item.clone().unbind());
+        {
+            let mut store = self.record_store.write().unwrap();
+            if let Some(store) = store.as_mut() {
+                if matches!(extracted_item, QueueItem::GenAI(_)) {
+                    store.push(item.clone().unbind());
+                }
+            }
         }
 
         self.publish(Event::Task(extracted_item))?;
