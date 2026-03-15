@@ -242,7 +242,7 @@ fn stamp_otel_trace_id(record: &mut EvalRecord) -> Option<TraceId> {
     let span_ctx = cx.span().span_context().clone();
     if span_ctx.is_valid() {
         let trace_id = TraceId::from_bytes(span_ctx.trace_id().to_bytes());
-        record.trace_id = Some(trace_id.clone());
+        record.trace_id = Some(trace_id);
         Some(trace_id)
     } else {
         None
@@ -290,6 +290,8 @@ impl QueueBus {
             if let Some(trace_id) = stamp_otel_trace_id(record) {
                 if let Ok(py_record) = item.cast::<EvalRecord>() {
                     py_record.borrow_mut().trace_id = Some(trace_id);
+                } else {
+                    warn!("stamp_otel_trace_id: could not cast Python item to EvalRecord; Python-side trace_id not updated");
                 }
             }
         }
@@ -380,7 +382,7 @@ mod tests {
     fn test_stamp_otel_trace_id_not_overwritten_when_present() {
         let existing = TraceId::from_bytes([42u8; 16]);
         let mut record = EvalRecord {
-            trace_id: Some(existing.clone()),
+            trace_id: Some(existing),
             ..Default::default()
         };
 
@@ -393,7 +395,7 @@ mod tests {
                 result.is_none(),
                 "existing trace_id must not be overwritten"
             );
-            assert_eq!(record.trace_id, Some(existing.clone()));
+            assert_eq!(record.trace_id, Some(existing));
         });
     }
 

@@ -1,25 +1,26 @@
-use std::{
-    collections::hash_map::DefaultHasher,
-    env,
-    hash::{Hash, Hasher},
-    path::PathBuf,
-};
+use std::path::PathBuf;
+
+fn fnv1a_hash(data: &[u8]) -> u64 {
+    const FNV_OFFSET: u64 = 0xcbf29ce484222325;
+    const FNV_PRIME: u64 = 0x100000001b3;
+    data.iter()
+        .fold(FNV_OFFSET, |acc, &b| acc.wrapping_mul(FNV_PRIME) ^ b as u64)
+}
 
 fn hash_protos(protos: &[PathBuf]) -> u64 {
-    let mut hasher = DefaultHasher::new();
+    let mut hash: u64 = 0;
     for path in protos {
         if let Ok(content) = std::fs::read(path) {
-            content.hash(&mut hasher);
+            hash ^= fnv1a_hash(&content);
         }
     }
-    hasher.finish()
+    hash
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let proto_root = PathBuf::from("proto");
     let protos = &[proto_root.join("grpc.v1.proto")];
 
-    // Tell cargo to re-run this script only when proto files change.
     for proto in protos {
         println!("cargo:rerun-if-changed={}", proto.display());
     }
@@ -36,23 +37,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
-    // Skip code generation if the generated file already exists and the proto
-    // content hasn't changed since the last successful generation. The hash is
-    // stored next to the generated file so it is shared across all compilation
-    // contexts (OUT_DIR is per-feature-set and ephemeral, causing spurious
-    // regeneration when scouter_tonic is compiled as a transitive dep with a
-    // different feature set).
-    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let hash_cache = PathBuf::from("src/generated/.proto_hash");
     let generated = PathBuf::from("src/generated/scouter.grpc.v1.rs");
-    // Hash only proto content — feature flags are intentionally excluded.
-    // The generated file always includes both server and client code; the
-    // #[cfg(feature = "...")] guards in lib.rs handle conditional exposure.
-    // Including features in the hash caused spurious regeneration whenever
-    // scouter_tonic compiled as a transitive dep with a different feature set.
+    let descriptor_path = PathBuf::from("src/generated/scouter_descriptor.bin");
     let current_hash = hash_protos(protos).to_string();
 
-    if generated.exists() {
+    if generated.exists() && descriptor_path.exists() {
         let cached = std::fs::read_to_string(&hash_cache).unwrap_or_default();
         if cached.trim() == current_hash {
             // Generated file is up-to-date. Still need scouter_descriptor.bin
@@ -70,11 +60,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let descriptor_path = out_dir.join("scouter_descriptor.bin");
-
-    // Always generate with both server and client so the file is identical
-    // regardless of which features are active. lib.rs uses #[cfg(feature)]
-    // to gate what is re-exported.
+    // Always generate both server and client code. Feature-gating is handled
+    // in lib.rs via #[cfg(feature = "server")] / #[cfg(feature = "client")].
+    // This keeps the generated file identical regardless of which feature set
+    // triggers the build script, preventing spurious regeneration when
+    // scouter-tonic is compiled as a transitive dependency.
     tonic_prost_build::configure()
         .build_server(true)
         .build_client(true)

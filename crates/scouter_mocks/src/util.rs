@@ -324,7 +324,7 @@ fn random_span_record(
     TraceSpanRecord {
         created_at,
         span_id,
-        trace_id: trace_id.clone(),
+        trace_id: *trace_id,
         parent_span_id: parent_span_id.cloned(),
         flags: 1,
         trace_state: String::new(),

@@ -189,7 +189,7 @@ pub fn compare_results(
 
     Ok(ComparisonResults {
         workflow_comparisons,
-        total_workflows: baseline_map.len().min(comparison_map.len()),
+        total_workflows: improved + regressed + unchanged,
         improved_workflows: improved,
         regressed_workflows: regressed,
         unchanged_workflows: unchanged,

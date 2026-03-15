@@ -6,21 +6,19 @@ use potato_head::PyHelperFuncs;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fs;
 use tabled::Tabled;
 use tabled::{
     settings::{object::Rows, Alignment, Color, Format, Style},
     Table,
 };
 
-// ─── EvalMetrics ─────────────────────────────────────────────────────────────
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[pyclass]
 pub struct EvalMetrics {
     #[pyo3(get)]
     pub overall_pass_rate: f64,
 
+    // HashMap<K,V> fields cannot use #[pyo3(get)]; exposed via the getter method below
     pub dataset_pass_rates: HashMap<String, f64>,
 
     #[pyo3(get)]
@@ -122,8 +120,6 @@ impl EvalMetrics {
     }
 }
 
-// ─── ScenarioResult ──────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[pyclass]
 pub struct ScenarioResult {
@@ -142,6 +138,15 @@ pub struct ScenarioResult {
     pub pass_rate: f64,
 }
 
+impl PartialEq for ScenarioResult {
+    fn eq(&self, other: &Self) -> bool {
+        self.scenario_id == other.scenario_id
+            && self.initial_query == other.initial_query
+            && self.passed == other.passed
+            && self.pass_rate == other.pass_rate
+    }
+}
+
 #[pymethods]
 impl ScenarioResult {
     pub fn __str__(&self) -> String {
@@ -154,9 +159,7 @@ impl ScenarioResult {
     }
 }
 
-// ─── ScenarioDelta ───────────────────────────────────────────────────────────
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[pyclass]
 pub struct ScenarioDelta {
     #[pyo3(get)]
@@ -188,8 +191,6 @@ impl ScenarioDelta {
     }
 }
 
-// ─── ScenarioComparisonResults ───────────────────────────────────────────────
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[pyclass]
 pub struct ScenarioComparisonResults {
@@ -212,6 +213,18 @@ pub struct ScenarioComparisonResults {
 
     #[pyo3(get)]
     pub regressed_aliases: Vec<String>,
+}
+
+impl PartialEq for ScenarioComparisonResults {
+    fn eq(&self, other: &Self) -> bool {
+        self.scenario_deltas == other.scenario_deltas
+            && self.baseline_overall_pass_rate == other.baseline_overall_pass_rate
+            && self.comparison_overall_pass_rate == other.comparison_overall_pass_rate
+            && self.regressed == other.regressed
+            && self.improved_aliases == other.improved_aliases
+            && self.regressed_aliases == other.regressed_aliases
+        // dataset_comparisons excluded: ComparisonResults does not implement PartialEq
+    }
 }
 
 #[derive(Tabled)]
@@ -375,8 +388,6 @@ impl ScenarioComparisonResults {
     }
 }
 
-// ─── ScenarioEvalResults ─────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[pyclass]
 pub struct ScenarioEvalResults {
@@ -386,6 +397,13 @@ pub struct ScenarioEvalResults {
 
     #[pyo3(get)]
     pub metrics: EvalMetrics,
+}
+
+impl PartialEq for ScenarioEvalResults {
+    fn eq(&self, other: &Self) -> bool {
+        self.scenario_results == other.scenario_results && self.metrics == other.metrics
+        // dataset_results excluded: EvalResults does not implement PartialEq
+    }
 }
 
 #[derive(Tabled)]
@@ -406,13 +424,13 @@ impl ScenarioEvalResults {
         PyHelperFuncs::__str__(self)
     }
 
-    pub fn model_dump_json(&self) -> String {
-        PyHelperFuncs::__json__(self)
+    pub fn model_dump_json(&self) -> Result<String, EvaluationError> {
+        serde_json::to_string(self).map_err(Into::into)
     }
 
     #[staticmethod]
     pub fn model_validate_json(json_string: String) -> Result<Self, EvaluationError> {
-        Ok(serde_json::from_str(&json_string)?)
+        serde_json::from_str(&json_string).map_err(Into::into)
     }
 
     #[getter]
@@ -423,18 +441,6 @@ impl ScenarioEvalResults {
     #[getter]
     pub fn scenario_results(&self) -> Vec<ScenarioResult> {
         self.scenario_results.clone()
-    }
-
-    pub fn save(&self, path: &str) -> Result<(), EvaluationError> {
-        let json = serde_json::to_string(self)?;
-        fs::write(path, json)?;
-        Ok(())
-    }
-
-    #[staticmethod]
-    pub fn load(path: &str) -> Result<Self, EvaluationError> {
-        let content = fs::read_to_string(path)?;
-        Ok(serde_json::from_str(&content)?)
     }
 
     pub fn get_scenario_detail(
@@ -513,8 +519,13 @@ impl ScenarioEvalResults {
                 .scenario_results
                 .iter()
                 .map(|r| {
-                    let query = if r.initial_query.len() > 40 {
-                        format!("{}...", &r.initial_query[..40])
+                    let query = if r.initial_query.chars().count() > 40 {
+                        let truncated = r
+                            .initial_query
+                            .char_indices()
+                            .nth(40)
+                            .map_or(r.initial_query.as_str(), |(i, _)| &r.initial_query[..i]);
+                        format!("{}...", truncated)
                     } else {
                         r.initial_query.clone()
                     };
@@ -546,8 +557,6 @@ impl ScenarioEvalResults {
         }
     }
 }
-
-// ─── Unit tests ──────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
@@ -608,15 +617,18 @@ mod tests {
     }
 
     #[test]
-    fn save_load_roundtrip() {
+    fn model_dump_json_roundtrip() {
         let results = make_eval_results();
-        let path = "/tmp/test_scenario_eval_results.json";
-        results.save(path).unwrap();
-
-        let loaded = ScenarioEvalResults::load(path).unwrap();
+        let json = results.model_dump_json().unwrap();
+        let loaded = ScenarioEvalResults::model_validate_json(json).unwrap();
         assert_eq!(loaded.scenario_results.len(), 2);
         assert_eq!(loaded.metrics.total_scenarios, 2);
         assert_eq!(loaded.metrics.passed_scenarios, 1);
+        assert_eq!(loaded.metrics.overall_pass_rate, 0.75);
+        assert_eq!(loaded.scenario_results[0].scenario_id, "s1");
+        assert_eq!(loaded.scenario_results[1].scenario_id, "s2");
+        assert_eq!(loaded.scenario_results[0].pass_rate, 1.0);
+        assert_eq!(loaded.scenario_results[1].pass_rate, 0.5);
     }
 
     #[test]
@@ -660,6 +672,46 @@ mod tests {
         let comp = current.compare_to(&baseline, 0.05).unwrap();
         assert!(!comp.regressed);
         assert!(comp.scenario_deltas.iter().all(|d| !d.status_changed));
+    }
+
+    #[test]
+    fn compare_to_with_dataset_results() {
+        let mut baseline_dataset = HashMap::new();
+        baseline_dataset.insert("agent_a".to_string(), EvalResults::new());
+
+        let mut current_dataset = HashMap::new();
+        current_dataset.insert("agent_a".to_string(), EvalResults::new());
+
+        let baseline = ScenarioEvalResults {
+            dataset_results: baseline_dataset,
+            scenario_results: vec![make_scenario_result("s1", "query one", true, 1.0)],
+            metrics: empty_metrics(1.0, 1.0, 1, 1),
+        };
+
+        let current = ScenarioEvalResults {
+            dataset_results: current_dataset,
+            scenario_results: vec![make_scenario_result("s1", "query one", false, 0.0)],
+            metrics: empty_metrics(0.0, 0.0, 1, 0),
+        };
+
+        let comp = current.compare_to(&baseline, 0.05).unwrap();
+
+        // dataset_comparisons should be populated for agent_a
+        assert!(comp.dataset_comparisons.contains_key("agent_a"));
+
+        // scenario delta for s1 should show regression
+        let s1 = comp
+            .scenario_deltas
+            .iter()
+            .find(|d| d.scenario_id == "s1")
+            .unwrap();
+        assert!(s1.status_changed);
+        assert!(s1.baseline_passed);
+        assert!(!s1.comparison_passed);
+
+        // regressed flag reflects true state
+        // no dataset-level regression (empty EvalResults → no workflows to regress)
+        assert!(comp.improved_aliases.is_empty());
     }
 
     #[test]
