@@ -252,17 +252,17 @@ fn stamp_otel_trace_id(record: &mut EvalRecord) -> Option<TraceId> {
 
 const SCENARIO_TAG_BAGGAGE_KEY: &str = "scouter.eval.scenario_id";
 
-/// If `record` has no `tag` and there is a `scouter.eval.scenario_id` entry in the
-/// current OTel baggage, stamps the record's `tag` and returns the value.
+/// If there is a `scouter.eval.scenario_id` entry in the current OTel baggage and the
+/// record does not already carry that tag, appends `"scouter.eval.scenario_id=<value>"`
+/// to `record.tags` and returns the formatted tag string.
 fn stamp_scenario_tag(record: &mut EvalRecord) -> Option<String> {
-    if record.tag.is_some() {
-        return None;
-    }
     let cx = OtelContext::current();
     for (key, (value, _)) in cx.baggage() {
         if key.as_str() == SCENARIO_TAG_BAGGAGE_KEY {
-            let tag = value.to_string();
-            record.tag = Some(tag.clone());
+            let tag = format!("{}={}", SCENARIO_TAG_BAGGAGE_KEY, value);
+            if !record.tags.contains(&tag) {
+                record.tags.push(tag.clone());
+            }
             return Some(tag);
         }
     }
@@ -317,7 +317,10 @@ impl QueueBus {
             // Auto-stamp scenario tag from OTel baggage
             if let Some(tag) = stamp_scenario_tag(record) {
                 if let Ok(py_record) = item.cast::<EvalRecord>() {
-                    py_record.borrow_mut().tag = Some(tag);
+                    let mut borrowed = py_record.borrow_mut();
+                    if !borrowed.tags.contains(&tag) {
+                        borrowed.tags.push(tag);
+                    }
                 }
             }
         }

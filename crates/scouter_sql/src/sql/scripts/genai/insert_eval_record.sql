@@ -11,7 +11,8 @@ INSERT INTO scouter.genai_eval_record (
     context,
     record_id,
     session_id,
-    trace_id
+    trace_id,
+    tags
 )
 SELECT
     next_id.id,
@@ -21,6 +22,7 @@ SELECT
     $4, -- context
     $5, -- record_id
     $6, -- session_id
-    $7  -- trace_id
+    $7, -- trace_id
+    $8  -- tags
 FROM next_id
 ON CONFLICT DO NOTHING;

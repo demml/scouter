@@ -1910,12 +1910,16 @@ class EvalRecord:
         """
 
     @property
-    def tag(self) -> Optional[str]:
-        """Get the scenario tag (set by EvalRunner.collect_scenario_data)."""
+    def tags(self) -> List[str]:
+        """Get the tags list (e.g. ``["scenario_id=s1", "env=test"]``)."""
 
-    @tag.setter
-    def tag(self, tag: Optional[str]) -> None:
-        """Set the scenario tag."""
+    def add_tag(self, key: str, value: str) -> None:
+        """Append a tag in ``"key=value"`` format.
+
+        Args:
+            key: Tag key (e.g. ``"env"``).
+            value: Tag value (e.g. ``"production"``).
+        """
 
     def __str__(self) -> str:
         """Return the string representation of the record."""

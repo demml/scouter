@@ -62,9 +62,7 @@ static TRACE_METADATA_STORE: OnceLock<TraceMetadataStore> = OnceLock::new();
 static SCOUTER_QUEUE_STORE: RwLock<Option<Py<ScouterQueue>>> = RwLock::new(None);
 
 // Re-export span capture statics from scouter-types for use within this crate.
-pub use scouter_types::span_capture::{
-    CAPTURE_BUFFER, CAPTURE_BUFFER_MAX, CAPTURING,
-};
+pub use scouter_types::span_capture::{CAPTURE_BUFFER, CAPTURE_BUFFER_MAX, CAPTURING};
 
 fn get_tracer_provider() -> Result<Option<Arc<SdkTracerProvider>>, TraceError> {
     TRACER_PROVIDER_STORE

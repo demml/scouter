@@ -94,8 +94,11 @@ impl EvalRunner {
 
         for (alias, mut alias_records) in records {
             // Tag each record with the scenario_id
+            let scenario_tag = format!("scenario_id={}", scenario_id);
             for record in &mut alias_records {
-                record.tag = Some(scenario_id.clone());
+                if !record.tags.contains(&scenario_tag) {
+                    record.tags.push(scenario_tag.clone());
+                }
             }
 
             let profile = self.profiles.get(&alias).ok_or_else(|| {
@@ -299,7 +302,7 @@ impl EvalRunner {
             let record = EvalRecord {
                 context,
                 record_id: scenario.id.clone(),
-                tag: Some(scenario.id.clone()),
+                tags: vec![format!("scenario_id={}", scenario.id)],
                 ..Default::default()
             };
 
@@ -537,7 +540,9 @@ mod tests {
         assert!(datasets.contains_key("agent_a"));
         assert_eq!(datasets["agent_a"].records.len(), 1);
 
-        assert_eq!(datasets["agent_a"].records[0].tag, Some("s1".to_string()));
+        assert!(datasets["agent_a"].records[0]
+            .tags
+            .contains(&"scenario_id=s1".to_string()));
 
         assert!(runner.scenarios.scenario_contexts.contains_key("s1"));
         let ctx = &runner.scenarios.scenario_contexts["s1"];

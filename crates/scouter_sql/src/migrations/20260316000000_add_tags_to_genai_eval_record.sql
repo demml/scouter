@@ -1,0 +1,2 @@
+ALTER TABLE scouter.genai_eval_record
+    ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];

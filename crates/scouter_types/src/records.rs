@@ -222,9 +222,9 @@ pub struct EvalRecord {
     pub entity_type: EntityType,
     pub retry_count: i32,
     pub trace_id: Option<TraceId>,
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     #[serde(default)]
-    pub tag: Option<String>,
+    pub tags: Vec<String>,
 }
 
 #[pymethods]
@@ -253,7 +253,9 @@ impl EvalRecord {
             context: context_val,
             record_id: id.unwrap_or_default(),
             session_id: session_id.unwrap_or_else(create_uuid7),
-            trace_id: trace_id.as_deref().and_then(|tid| TraceId::from_hex(tid).ok()),
+            trace_id: trace_id
+                .as_deref()
+                .and_then(|tid| TraceId::from_hex(tid).ok()),
             ..Default::default()
         })
     }
@@ -301,6 +303,12 @@ impl EvalRecord {
         }
 
         Ok(())
+    }
+
+    /// Add a tag in "key=value" format.
+    #[pyo3(signature = (key, value))]
+    pub fn add_tag(&mut self, key: String, value: String) {
+        self.tags.push(format!("{}={}", key, value));
     }
 }
 
@@ -360,7 +368,7 @@ impl EvalRecord {
             session_id: session_id.unwrap_or_else(create_uuid7),
             retry_count: 0,
             trace_id: None,
-            tag: None,
+            tags: Vec::new(),
         }
     }
 
@@ -390,7 +398,7 @@ impl Default for EvalRecord {
             session_id: create_uuid7(),
             retry_count: 0,
             trace_id: None,
-            tag: None,
+            tags: Vec::new(),
         }
     }
 }
@@ -422,7 +430,7 @@ impl FromRow<'_, PgRow> for EvalRecord {
             entity_type: EntityType::GenAI,
             retry_count: row.try_get("retry_count")?,
             trace_id: trace_id_str.and_then(|tid| TraceId::from_hex(&tid).ok()),
-            tag: None,
+            tags: row.try_get::<Vec<String>, &str>("tags").unwrap_or_default(),
         })
     }
 }
@@ -1355,44 +1363,38 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_eval_record_tag_defaults_none() {
+    fn test_eval_record_tags_defaults_empty() {
         let record = EvalRecord::default();
-        assert!(record.tag.is_none());
+        assert!(record.tags.is_empty());
     }
 
     #[test]
-    fn test_eval_record_tag_can_be_set() {
+    fn test_eval_record_tags_can_be_set() {
         let record = EvalRecord {
-            tag: Some("scenario_42".to_string()),
+            tags: vec!["scenario_id=scenario_42".to_string()],
             ..Default::default()
         };
-        assert_eq!(record.tag.as_deref(), Some("scenario_42"));
-
-        let cleared = EvalRecord {
-            tag: None,
-            ..Default::default()
-        };
-        assert!(cleared.tag.is_none());
+        assert_eq!(record.tags, vec!["scenario_id=scenario_42"]);
     }
 
     #[test]
-    fn test_eval_record_tag_serde_roundtrip() {
+    fn test_eval_record_tags_serde_roundtrip() {
         let record = EvalRecord {
-            tag: Some("scenario_1".to_string()),
+            tags: vec!["scenario_id=scenario_1".to_string(), "env=test".to_string()],
             ..Default::default()
         };
         let json = serde_json::to_string(&record).unwrap();
         let deserialized: EvalRecord = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized.tag, Some("scenario_1".to_string()));
+        assert_eq!(deserialized.tags, record.tags);
     }
 
     #[test]
-    fn test_eval_record_tag_missing_in_json_defaults_none() {
-        // Verify #[serde(default)] allows deserializing from older JSON without "tag" field
+    fn test_eval_record_tags_missing_in_json_defaults_empty() {
+        // Verify #[serde(default)] allows deserializing from older JSON without "tags" field
         let record = EvalRecord::default();
         let mut json_val: serde_json::Value = serde_json::to_value(&record).unwrap();
-        json_val.as_object_mut().unwrap().remove("tag");
+        json_val.as_object_mut().unwrap().remove("tags");
         let deserialized: EvalRecord = serde_json::from_value(json_val).unwrap();
-        assert!(deserialized.tag.is_none());
+        assert!(deserialized.tags.is_empty());
     }
 }
