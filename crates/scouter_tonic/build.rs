@@ -7,14 +7,13 @@ fn fnv1a_hash(data: &[u8]) -> u64 {
         .fold(FNV_OFFSET, |acc, &b| (acc ^ b as u64).wrapping_mul(FNV_PRIME))
 }
 
-fn hash_protos(protos: &[PathBuf]) -> u64 {
+fn hash_protos(protos: &[PathBuf]) -> Result<u64, Box<dyn std::error::Error>> {
     let mut hash: u64 = 0;
     for path in protos {
-        if let Ok(content) = std::fs::read(path) {
-            hash ^= fnv1a_hash(&content);
-        }
+        let content = std::fs::read(path)?;
+        hash ^= fnv1a_hash(&content);
     }
-    hash
+    Ok(hash)
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -40,7 +39,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let hash_cache = PathBuf::from("src/generated/.proto_hash");
     let generated = PathBuf::from("src/generated/scouter.grpc.v1.rs");
     let descriptor_path = PathBuf::from("src/generated/scouter_descriptor.bin");
-    let current_hash = hash_protos(protos).to_string();
+    let current_hash = hash_protos(protos)?.to_string();
 
     if generated.exists() && descriptor_path.exists() {
         let cached = std::fs::read_to_string(&hash_cache).unwrap_or_default();

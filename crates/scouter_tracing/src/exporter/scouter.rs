@@ -1,4 +1,5 @@
 use crate::exporter::TraceError;
+use crate::tracer::{CAPTURE_BUFFER, CAPTURE_BUFFER_MAX, CAPTURING};
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
 use opentelemetry_proto::transform::common::tonic::ResourceAttributesWithSchema;
 use opentelemetry_proto::transform::trace::tonic::group_spans_by_resource_and_scope;
@@ -7,6 +8,7 @@ use opentelemetry_sdk::{
     error::{OTelSdkError, OTelSdkResult},
     trace::{SpanData, SpanExporter},
 };
+use std::sync::atomic::Ordering;
 
 use scouter_events::producer::RustScouterProducer;
 use scouter_events::queue::types::TransportConfig;
@@ -14,7 +16,7 @@ use scouter_state::app_state;
 use scouter_types::{MessageRecord, TraceServerRecord};
 use std::fmt;
 use std::sync::Arc;
-use tracing::{error, instrument};
+use tracing::{error, instrument, warn};
 
 pub struct ScouterSpanExporter {
     producer: Arc<RustScouterProducer>,
@@ -42,27 +44,49 @@ impl ScouterSpanExporter {
 impl SpanExporter for ScouterSpanExporter {
     #[instrument(name = "ScouterSpanExporter::export", skip_all)]
     async fn export(&self, batch: Vec<SpanData>) -> OTelSdkResult {
-        let producer = self.producer.clone(); // Requires RustScouterProducer: Clone
+        let producer = self.producer.clone();
         let resource = self.resource.clone();
+
         let export_future = async move {
             let resource_spans = group_spans_by_resource_and_scope(
                 batch,
                 &ResourceAttributesWithSchema::from(&resource),
             );
             let req = ExportTraceServiceRequest { resource_spans };
-
-            // Note: `self` is consumed by the async move block.
             let record = TraceServerRecord { request: req };
+
+            if CAPTURING.load(Ordering::Acquire) {
+                let (spans, _, _) = record
+                    .to_records()
+                    .map_err(|e| OTelSdkError::InternalFailure(e.to_string()))?;
+                let mut buf = CAPTURE_BUFFER.write().unwrap();
+                let available = CAPTURE_BUFFER_MAX.saturating_sub(buf.len());
+                if available == 0 {
+                    warn!(
+                        "CAPTURE_BUFFER full ({} records); dropping new spans to prevent OOM",
+                        CAPTURE_BUFFER_MAX
+                    );
+                } else {
+                    if spans.len() > available {
+                        warn!(
+                            "CAPTURE_BUFFER near full; truncating batch from {} to {} spans",
+                            spans.len(),
+                            available
+                        );
+                    }
+                    buf.extend(spans.into_iter().take(available));
+                }
+                return Ok(());
+            }
+
             let message = MessageRecord::TraceServerRecord(record);
 
-            // This fallible call requires the block to resolve to a Result
             producer.publish(message).await.map_err(|e| {
                 let msg = format!("Failed to publish message to scouter: {}", e);
                 error!("{}", msg);
                 OTelSdkError::InternalFailure(msg)
             })?;
 
-            // Explicitly return the Ok(()) that the outer spawn expects
             Ok(()) as Result<(), OTelSdkError>
         };
 

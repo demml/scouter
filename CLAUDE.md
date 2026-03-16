@@ -12,13 +12,42 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 The architecture is a Rust server + Python client. The Python package (`scouter-ml`) wraps Rust logic via PyO3. The server uses PostgreSQL for recent data and DataFusion for archival.
 
+## Verification After Any Code Change
+
+After implementing any change, Claude **must** run the full verification sequence below before considering the task complete. Do not skip steps.
+
+```bash
+# 1. Rust — workspace-wide clippy (run from repo root)
+make lints
+
+# 2. Rust — unit tests for the changed crate
+cargo test -p scouter-<crate> --all-features -- --nocapture --test-threads=1
+
+# 3. Python — rebuild extension after any Rust change (run from py-scouter/)
+make setup.project
+
+# 4. Python — lints (ruff + pylint + mypy, run from py-scouter/)
+make lints
+
+# 5. Python — unit tests for changed area
+uv run pytest tests/path/to/affected_test.py -s -v
+```
+
+**Rules:**
+- `make lints` at repo root = `cargo clippy --workspace --all-targets --all-features -- -D warnings`
+- `make lints` inside `py-scouter/` = ruff + pylint + mypy
+- Always run `make setup.project` (from `py-scouter/`) before Python lints/tests when Rust code changed
+- Clippy lints apply to test code too (`--all-targets`) — use struct update syntax (`..Default::default()`) not field-by-field assignment after `Default::default()`
+
+---
+
 ## Commands
 
 ### Rust (root)
 
 ```bash
 cargo fmt --all                          # Format
-cargo clippy --workspace --all-targets --all-features -- -D warnings  # Lint
+cargo clippy --workspace --all-targets --all-features -- -D warnings  # Lint (workspace-wide, use with care)
 
 make test.unit                           # Unit tests (types, dispatch, drift, profile) — no Docker needed
 make test.needs_sql                      # SQL + server + eval + drift executor tests (requires Docker)

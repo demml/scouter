@@ -41,13 +41,14 @@ use scouter_settings::grpc::GrpcConfig;
 
 use scouter_types::SCOUTER_QUEUE_RECORD;
 use scouter_types::{
-    pyobject_to_otel_value, pyobject_to_tracing_json, EntityType, BAGGAGE_PREFIX,
-    EXCEPTION_TRACEBACK, SCOUTER_ENTITY, SCOUTER_QUEUE_EVENT, SCOUTER_SCOPE, SCOUTER_SCOPE_DEFAULT,
-    SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL, SCOUTER_TRACING_OUTPUT,
-    SPAN_ERROR, TRACE_START_TIME_KEY,
+    pyobject_to_otel_value, pyobject_to_tracing_json, EntityType, TraceId as ScouterTraceId,
+    TraceSpanRecord, BAGGAGE_PREFIX, EXCEPTION_TRACEBACK, SCOUTER_ENTITY, SCOUTER_QUEUE_EVENT,
+    SCOUTER_SCOPE, SCOUTER_SCOPE_DEFAULT, SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT,
+    SCOUTER_TRACING_LABEL, SCOUTER_TRACING_OUTPUT, SPAN_ERROR, TRACE_START_TIME_KEY,
 };
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock, RwLock};
 use std::time::SystemTime;
 use tracing::{debug, info, instrument, warn};
@@ -59,6 +60,13 @@ static TRACE_METADATA_STORE: OnceLock<TraceMetadataStore> = OnceLock::new();
 // Static ScouterQueue store for global access if needed
 // This allows us to set the queue anytime get_tracer is called
 static SCOUTER_QUEUE_STORE: RwLock<Option<Py<ScouterQueue>>> = RwLock::new(None);
+
+pub(crate) const CAPTURE_BUFFER_MAX: usize = 20_000;
+
+// Local span capture state — all spans are collected globally, then
+// filtered by trace_id during evaluation (see EvalRunner.evaluate()).
+pub(crate) static CAPTURING: AtomicBool = AtomicBool::new(false);
+pub(crate) static CAPTURE_BUFFER: RwLock<Vec<TraceSpanRecord>> = RwLock::new(Vec::new());
 
 fn get_tracer_provider() -> Result<Option<Arc<SdkTracerProvider>>, TraceError> {
     TRACER_PROVIDER_STORE
@@ -1227,6 +1235,43 @@ impl BaseTracer {
     pub fn shutdown(&self) -> Result<(), TraceError> {
         shutdown_tracer()
     }
+
+    /// Enable in-process span capture mode. While active, all exported spans are
+    /// written to the in-memory buffer instead of being forwarded to the transport.
+    pub fn enable_local_capture(&self) -> Result<(), TraceError> {
+        enable_capture_impl()
+    }
+
+    /// Disable in-process span capture mode, discarding any buffered spans.
+    pub fn disable_local_capture(&self) -> Result<(), TraceError> {
+        disable_capture_impl()
+    }
+
+    /// Drain and return all locally captured spans, clearing the buffer.
+    /// Safe to call regardless of whether capture is currently enabled.
+    pub fn drain_local_spans(&self) -> Result<Vec<TraceSpanRecord>, TraceError> {
+        drain_spans_impl()
+    }
+
+    /// Return captured spans matching the given trace IDs without draining the buffer.
+    /// Invalid hex trace IDs are skipped with a warning.
+    pub fn get_local_spans_by_trace_ids(
+        &self,
+        trace_ids: Vec<String>,
+    ) -> Result<Vec<TraceSpanRecord>, TraceError> {
+        let mut set = HashSet::new();
+        for s in trace_ids {
+            match ScouterTraceId::from_hex(&s) {
+                Ok(id) => {
+                    set.insert(id);
+                }
+                Err(_) => {
+                    warn!("Invalid trace ID format, skipping: {}", s);
+                }
+            }
+        }
+        get_spans_by_trace_ids(&set)
+    }
 }
 
 impl BaseTracer {
@@ -1309,7 +1354,50 @@ pub fn shutdown_tracer() -> Result<(), TraceError> {
         .map_err(|e| TraceError::PoisonError(e.to_string()))?;
     *queue_store_guard = None;
 
+    CAPTURING.store(false, Ordering::Release);
+    CAPTURE_BUFFER.write().unwrap().clear();
+
     Ok(())
+}
+
+// ── Local span capture helpers ─────────────────────────────────────────────
+
+fn enable_capture_impl() -> Result<(), TraceError> {
+    info!("Local span capture enabled — spans will be buffered in-process");
+    let mut buf = CAPTURE_BUFFER.write().unwrap();
+    buf.clear();
+    CAPTURING.store(true, Ordering::Release);
+    Ok(())
+}
+
+fn disable_capture_impl() -> Result<(), TraceError> {
+    let mut buf = CAPTURE_BUFFER.write().unwrap();
+    if !buf.is_empty() {
+        warn!(
+            "disable_local_capture: discarding {} buffered spans",
+            buf.len()
+        );
+    }
+    CAPTURING.store(false, Ordering::Release);
+    buf.clear();
+    Ok(())
+}
+
+fn drain_spans_impl() -> Result<Vec<TraceSpanRecord>, TraceError> {
+    Ok(std::mem::take(&mut *CAPTURE_BUFFER.write().unwrap()))
+}
+
+/// Returns clones of spans matching the given trace_ids.
+/// Does NOT drain the buffer — call drain_spans_impl() after all evaluations.
+pub(crate) fn get_spans_by_trace_ids(
+    trace_ids: &HashSet<ScouterTraceId>,
+) -> Result<Vec<TraceSpanRecord>, TraceError> {
+    let buf = CAPTURE_BUFFER.read().unwrap();
+    Ok(buf
+        .iter()
+        .filter(|span| trace_ids.contains(&span.trace_id))
+        .cloned()
+        .collect())
 }
 
 fn get_tracer(scope: InstrumentationScope) -> Result<SdkTracer, TraceError> {
@@ -1388,4 +1476,129 @@ pub fn try_set_span_attribute(py: Python<'_>, key: &str, value: &str) -> Result<
 
     span.call_method1("set_attribute", (key, value))?;
     Ok(true)
+}
+
+#[cfg(test)]
+mod capture_tests {
+    use super::*;
+
+    fn reset() {
+        CAPTURING.store(false, Ordering::Release);
+        CAPTURE_BUFFER.write().unwrap().clear();
+    }
+
+    #[test]
+    fn test_enable_sets_capturing_true() {
+        reset();
+        enable_capture_impl().unwrap();
+        assert!(CAPTURING.load(Ordering::Acquire));
+        reset();
+    }
+
+    #[test]
+    fn test_disable_sets_capturing_false() {
+        reset();
+        CAPTURING.store(true, Ordering::Release);
+        disable_capture_impl().unwrap();
+        assert!(!CAPTURING.load(Ordering::Acquire));
+        reset();
+    }
+
+    #[test]
+    fn test_drain_clears_and_returns_empty() {
+        reset();
+        enable_capture_impl().unwrap();
+        let drained = drain_spans_impl().unwrap();
+        assert!(drained.is_empty());
+        assert!(CAPTURING.load(Ordering::Acquire)); // still capturing after drain
+        reset();
+    }
+
+    #[test]
+    fn test_drain_returns_empty_when_capture_off() {
+        reset();
+        let result = drain_spans_impl().unwrap();
+        assert!(result.is_empty());
+        reset();
+    }
+
+    #[test]
+    fn test_drain_returns_and_clears_populated_buffer() {
+        reset();
+        enable_capture_impl().unwrap();
+        CAPTURE_BUFFER
+            .write()
+            .unwrap()
+            .push(TraceSpanRecord::default());
+        let drained = drain_spans_impl().unwrap();
+        assert_eq!(drained.len(), 1);
+        assert!(CAPTURE_BUFFER.read().unwrap().is_empty());
+        reset();
+    }
+
+    #[test]
+    fn test_enable_clears_existing_buffer() {
+        reset();
+        CAPTURE_BUFFER
+            .write()
+            .unwrap()
+            .push(TraceSpanRecord::default());
+        enable_capture_impl().unwrap();
+        assert!(CAPTURE_BUFFER.read().unwrap().is_empty());
+        reset();
+    }
+
+    #[test]
+    fn test_get_spans_by_trace_ids_filters_without_drain() {
+        reset();
+        enable_capture_impl().unwrap();
+        let id_a = ScouterTraceId::from_bytes([1u8; 16]);
+        let id_b = ScouterTraceId::from_bytes([2u8; 16]);
+        let span_a = TraceSpanRecord {
+            trace_id: id_a,
+            ..TraceSpanRecord::default()
+        };
+        let span_b = TraceSpanRecord {
+            trace_id: id_b,
+            ..TraceSpanRecord::default()
+        };
+        CAPTURE_BUFFER.write().unwrap().extend([span_a, span_b]);
+        let set = HashSet::from([id_a]);
+        let result = get_spans_by_trace_ids(&set).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].trace_id, id_a);
+        // buffer not drained
+        assert_eq!(CAPTURE_BUFFER.read().unwrap().len(), 2);
+        reset();
+    }
+
+    #[test]
+    fn test_buffer_overflow_drops_excess() {
+        reset();
+        enable_capture_impl().unwrap();
+        {
+            let mut buf = CAPTURE_BUFFER.write().unwrap();
+            for _ in 0..CAPTURE_BUFFER_MAX {
+                buf.push(TraceSpanRecord::default());
+            }
+        }
+        let available = CAPTURE_BUFFER_MAX.saturating_sub(CAPTURE_BUFFER.read().unwrap().len());
+        assert_eq!(available, 0);
+        // Buffer at max, no panic
+        assert_eq!(CAPTURE_BUFFER.read().unwrap().len(), CAPTURE_BUFFER_MAX);
+        reset();
+    }
+
+    #[test]
+    fn test_drain_returns_spans_even_when_not_capturing() {
+        reset();
+        CAPTURE_BUFFER
+            .write()
+            .unwrap()
+            .push(TraceSpanRecord::default());
+        let result = drain_spans_impl().unwrap();
+        assert_eq!(result.len(), 1); // drain is unconditional
+        assert!(CAPTURE_BUFFER.read().unwrap().is_empty());
+        reset();
+    }
 }

@@ -532,6 +532,22 @@ class ScouterInstrumentor(BaseInstrumentor):
             **kwargs,
         )
 
+    def enable_local_capture(self) -> None:
+        """Enable local span capture mode on the ScouterSpanExporter."""
+        get_tracer("scouter").enable_local_capture()
+
+    def disable_local_capture(self) -> None:
+        """Disable local span capture mode, discarding any buffered spans."""
+        get_tracer("scouter").disable_local_capture()
+
+    def drain_local_spans(self) -> List[TraceSpanRecord]:
+        """Drain and return all locally captured spans, clearing the buffer."""
+        return get_tracer("scouter").drain_local_spans()
+
+    def get_local_spans_by_trace_ids(self, trace_ids: List[str]) -> List[TraceSpanRecord]:
+        """Return captured spans matching the given trace IDs without draining the buffer."""
+        return get_tracer("scouter").get_local_spans_by_trace_ids(trace_ids)
+
     def _uninstrument(self, **kwargs) -> None:
         """Shutdown Scouter tracing and reset global provider."""
         if not HAS_OPENTELEMETRY:
