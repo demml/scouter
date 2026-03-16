@@ -520,12 +520,10 @@ impl ScenarioEvalResults {
                 .iter()
                 .map(|r| {
                     let query = if r.initial_query.chars().count() > 40 {
-                        let truncated = r
-                            .initial_query
-                            .char_indices()
-                            .nth(40)
-                            .map_or(r.initial_query.as_str(), |(i, _)| &r.initial_query[..i]);
-                        format!("{}...", truncated)
+                        format!(
+                            "{}...",
+                            r.initial_query.chars().take(40).collect::<String>()
+                        )
                     } else {
                         r.initial_query.clone()
                     };

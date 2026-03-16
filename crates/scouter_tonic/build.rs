@@ -4,7 +4,7 @@ fn fnv1a_hash(data: &[u8]) -> u64 {
     const FNV_OFFSET: u64 = 0xcbf29ce484222325;
     const FNV_PRIME: u64 = 0x100000001b3;
     data.iter()
-        .fold(FNV_OFFSET, |acc, &b| acc.wrapping_mul(FNV_PRIME) ^ b as u64)
+        .fold(FNV_OFFSET, |acc, &b| (acc ^ b as u64).wrapping_mul(FNV_PRIME))
 }
 
 fn hash_protos(protos: &[PathBuf]) -> Result<u64, Box<dyn std::error::Error>> {

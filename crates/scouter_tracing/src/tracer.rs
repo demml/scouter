@@ -1362,8 +1362,9 @@ pub fn shutdown_tracer() -> Result<(), TraceError> {
 
 fn enable_capture_impl() -> Result<(), TraceError> {
     info!("Local span capture enabled — spans will be buffered in-process");
+    let mut buf = CAPTURE_BUFFER.write().unwrap();
+    buf.clear();
     CAPTURING.store(true, Ordering::Release);
-    CAPTURE_BUFFER.write().unwrap().clear();
     Ok(())
 }
 
