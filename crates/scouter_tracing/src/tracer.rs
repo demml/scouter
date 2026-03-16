@@ -48,7 +48,7 @@ use scouter_types::{
 };
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, OnceLock, RwLock};
 use std::time::SystemTime;
 use tracing::{debug, info, instrument, warn};
@@ -61,12 +61,10 @@ static TRACE_METADATA_STORE: OnceLock<TraceMetadataStore> = OnceLock::new();
 // This allows us to set the queue anytime get_tracer is called
 static SCOUTER_QUEUE_STORE: RwLock<Option<Py<ScouterQueue>>> = RwLock::new(None);
 
-pub(crate) const CAPTURE_BUFFER_MAX: usize = 20_000;
-
-// Local span capture state — all spans are collected globally, then
-// filtered by trace_id during evaluation (see EvalRunner.evaluate()).
-pub(crate) static CAPTURING: AtomicBool = AtomicBool::new(false);
-pub(crate) static CAPTURE_BUFFER: RwLock<Vec<TraceSpanRecord>> = RwLock::new(Vec::new());
+// Re-export span capture statics from scouter-types for use within this crate.
+pub use scouter_types::span_capture::{
+    CAPTURE_BUFFER, CAPTURE_BUFFER_MAX, CAPTURING,
+};
 
 fn get_tracer_provider() -> Result<Option<Arc<SdkTracerProvider>>, TraceError> {
     TRACER_PROVIDER_STORE
@@ -1382,21 +1380,21 @@ fn disable_capture_impl() -> Result<(), TraceError> {
     Ok(())
 }
 
-fn drain_spans_impl() -> Result<Vec<TraceSpanRecord>, TraceError> {
-    Ok(std::mem::take(&mut *CAPTURE_BUFFER.write().unwrap()))
+pub fn drain_spans_impl() -> Result<Vec<TraceSpanRecord>, TraceError> {
+    Ok(scouter_types::span_capture::drain_captured_spans())
 }
 
 /// Returns clones of spans matching the given trace_ids.
 /// Does NOT drain the buffer — call drain_spans_impl() after all evaluations.
-pub(crate) fn get_spans_by_trace_ids(
+pub fn get_spans_by_trace_ids(
     trace_ids: &HashSet<ScouterTraceId>,
 ) -> Result<Vec<TraceSpanRecord>, TraceError> {
-    let buf = CAPTURE_BUFFER.read().unwrap();
-    Ok(buf
-        .iter()
-        .filter(|span| trace_ids.contains(&span.trace_id))
-        .cloned()
-        .collect())
+    Ok(scouter_types::span_capture::get_captured_spans_by_trace_ids(trace_ids))
+}
+
+/// Returns a clone of all captured spans without draining.
+pub fn get_all_captured_spans() -> Result<Vec<TraceSpanRecord>, TraceError> {
+    Ok(scouter_types::span_capture::get_all_captured_spans())
 }
 
 fn get_tracer(scope: InstrumentationScope) -> Result<SdkTracer, TraceError> {

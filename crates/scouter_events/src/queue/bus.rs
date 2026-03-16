@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::error::{EventError, PyEventError};
+use opentelemetry::baggage::BaggageExt;
 use opentelemetry::trace::TraceContextExt;
 use opentelemetry::Context as OtelContext;
 use pyo3::prelude::*;
@@ -249,6 +250,25 @@ fn stamp_otel_trace_id(record: &mut EvalRecord) -> Option<TraceId> {
     }
 }
 
+const SCENARIO_TAG_BAGGAGE_KEY: &str = "scouter.eval.scenario_id";
+
+/// If `record` has no `tag` and there is a `scouter.eval.scenario_id` entry in the
+/// current OTel baggage, stamps the record's `tag` and returns the value.
+fn stamp_scenario_tag(record: &mut EvalRecord) -> Option<String> {
+    if record.tag.is_some() {
+        return None;
+    }
+    let cx = OtelContext::current();
+    for (key, (value, _)) in cx.baggage() {
+        if key.as_str() == SCENARIO_TAG_BAGGAGE_KEY {
+            let tag = value.to_string();
+            record.tag = Some(tag.clone());
+            return Some(tag);
+        }
+    }
+    None
+}
+
 impl QueueBus {
     #[instrument(skip_all)]
     pub fn new(task_state: TaskState, identifier: String, entity_uid: String) -> Self {
@@ -292,6 +312,12 @@ impl QueueBus {
                     py_record.borrow_mut().trace_id = Some(trace_id);
                 } else {
                     warn!("stamp_otel_trace_id: could not cast Python item to EvalRecord; Python-side trace_id not updated");
+                }
+            }
+            // Auto-stamp scenario tag from OTel baggage
+            if let Some(tag) = stamp_scenario_tag(record) {
+                if let Ok(py_record) = item.cast::<EvalRecord>() {
+                    py_record.borrow_mut().tag = Some(tag);
                 }
             }
         }

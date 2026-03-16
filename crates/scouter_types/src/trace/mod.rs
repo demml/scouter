@@ -16,6 +16,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt;
 
@@ -1094,6 +1095,178 @@ impl TagRecord {
     }
 }
 
+/// Convert a flat list of `TraceSpanRecord`s into a tree-enriched list of `TraceSpan`s.
+///
+/// Groups records by `trace_id`, performs DFS to compute `depth`, `path`,
+/// `root_span_id`, and `span_order` for each span.
+pub fn build_trace_spans(records: Vec<TraceSpanRecord>) -> Vec<sql::TraceSpan> {
+    if records.is_empty() {
+        return Vec::new();
+    }
+
+    // Group by trace_id (hex)
+    let mut groups: HashMap<String, Vec<&TraceSpanRecord>> = HashMap::new();
+    for record in &records {
+        groups
+            .entry(record.trace_id.to_hex())
+            .or_default()
+            .push(record);
+    }
+
+    let mut all_spans = Vec::with_capacity(records.len());
+    let mut global_order: i32 = 0;
+
+    for spans in groups.values() {
+        // Build parent→children index (using span_id bytes as key)
+        let mut children: HashMap<[u8; 8], Vec<usize>> = HashMap::new();
+        let mut root_indices: Vec<usize> = Vec::new();
+
+        for (i, span) in spans.iter().enumerate() {
+            if let Some(pid) = &span.parent_span_id {
+                children.entry(*pid.as_bytes()).or_default().push(i);
+            } else {
+                root_indices.push(i);
+            }
+        }
+
+        // Sort roots by start_time for determinism
+        root_indices.sort_by_key(|&i| spans[i].start_time);
+
+        // Determine root_span_id
+        let root_span_id_hex = if let Some(&first_root) = root_indices.first() {
+            spans[first_root].span_id.to_hex()
+        } else {
+            // All spans have parents (orphans) — use first span's span_id as fallback
+            spans[0].span_id.to_hex()
+        };
+
+        // DFS traversal (iterative)
+        let pre_dfs_len = all_spans.len();
+        dfs_assign_records(
+            &root_indices,
+            spans,
+            &children,
+            &root_span_id_hex,
+            &mut all_spans,
+            &mut global_order,
+        );
+
+        // Attach orphan spans (parent not found in this trace group)
+        // Only look at spans added by THIS group's DFS to avoid cross-group collisions
+        let visited: HashSet<[u8; 8]> = all_spans[pre_dfs_len..]
+            .iter()
+            .filter_map(|s| {
+                let bytes = SpanId::hex_to_bytes(&s.span_id).ok()?;
+                let arr: [u8; 8] = bytes.try_into().ok()?;
+                Some(arr)
+            })
+            .collect();
+
+        for span in spans {
+            if !visited.contains(span.span_id.as_bytes()) {
+                let span_id_hex = span.span_id.to_hex();
+                all_spans.push(record_to_trace_span(
+                    span,
+                    &span_id_hex,
+                    &root_span_id_hex,
+                    0,
+                    vec![span_id_hex.clone()],
+                    global_order,
+                ));
+                global_order += 1;
+            }
+        }
+    }
+
+    all_spans
+}
+
+/// Iterative DFS traversal to assign depth, path, and span_order to trace spans.
+fn dfs_assign_records(
+    root_indices: &[usize],
+    spans: &[&TraceSpanRecord],
+    children: &HashMap<[u8; 8], Vec<usize>>,
+    root_span_id_hex: &str,
+    result: &mut Vec<sql::TraceSpan>,
+    span_order: &mut i32,
+) {
+    // Stack entries: (span_index, depth, path_so_far)
+    let mut stack: Vec<(usize, i32, Vec<String>)> = Vec::new();
+
+    // Push roots in reverse so the first root is processed first
+    for &idx in root_indices.iter().rev() {
+        stack.push((idx, 0, Vec::new()));
+    }
+
+    while let Some((idx, depth, path_so_far)) = stack.pop() {
+        let span = spans[idx];
+        let span_id_hex = span.span_id.to_hex();
+
+        let mut path = path_so_far;
+        path.push(span_id_hex.clone());
+
+        result.push(record_to_trace_span(
+            span,
+            &span_id_hex,
+            root_span_id_hex,
+            depth,
+            path.clone(),
+            *span_order,
+        ));
+        *span_order += 1;
+
+        // Push children in reverse start_time order so earliest is processed first
+        if let Some(child_indices) = children.get(span.span_id.as_bytes()) {
+            let mut sorted = child_indices.clone();
+            sorted.sort_by_key(|&i| spans[i].start_time);
+            for &ci in sorted.iter().rev() {
+                stack.push((ci, depth + 1, path.clone()));
+            }
+        }
+    }
+}
+
+fn record_to_trace_span(
+    record: &TraceSpanRecord,
+    span_id_hex: &str,
+    root_span_id_hex: &str,
+    depth: i32,
+    path: Vec<String>,
+    span_order: i32,
+) -> sql::TraceSpan {
+    let input = match &record.input {
+        Value::Null => None,
+        v => Some(v.clone()),
+    };
+    let output = match &record.output {
+        Value::Null => None,
+        v => Some(v.clone()),
+    };
+
+    sql::TraceSpan {
+        trace_id: record.trace_id.to_hex(),
+        span_id: span_id_hex.to_string(),
+        parent_span_id: record.parent_span_id.as_ref().map(|id| id.to_hex()),
+        span_name: record.span_name.clone(),
+        span_kind: Some(record.span_kind.clone()),
+        start_time: record.start_time,
+        end_time: record.end_time,
+        duration_ms: record.duration_ms,
+        status_code: record.status_code,
+        status_message: Some(record.status_message.clone()),
+        attributes: record.attributes.clone(),
+        events: record.events.clone(),
+        links: record.links.clone(),
+        depth,
+        path,
+        root_span_id: root_span_id_hex.to_string(),
+        service_name: record.service_name.clone(),
+        span_order,
+        input,
+        output,
+    }
+}
+
 /// Lightweight trace summary record written to the Delta Lake `trace_summaries` table.
 ///
 /// Produced by converting a `TraceAggregator` (in `scouter_sql`) after the in-memory
@@ -1116,4 +1289,177 @@ pub struct TraceSummaryRecord {
     pub entity_ids: Vec<String>,
     /// Queue record UIDs associated with this trace (from `scouter.queue.record` attributes).
     pub queue_ids: Vec<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_span_record(
+        trace_id: [u8; 16],
+        span_id: [u8; 8],
+        parent_span_id: Option<[u8; 8]>,
+        name: &str,
+        start_ms: i64,
+    ) -> TraceSpanRecord {
+        TraceSpanRecord {
+            trace_id: TraceId::from_bytes(trace_id),
+            span_id: SpanId::from_bytes(span_id),
+            parent_span_id: parent_span_id.map(SpanId::from_bytes),
+            span_name: name.to_string(),
+            start_time: chrono::DateTime::from_timestamp_millis(start_ms).unwrap(),
+            end_time: chrono::DateTime::from_timestamp_millis(start_ms + 100).unwrap(),
+            duration_ms: 100,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn build_trace_spans_empty() {
+        let result = build_trace_spans(vec![]);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn build_trace_spans_simple_tree() {
+        let tid = [0u8; 16];
+        let root_sid = [1u8; 8];
+        let child_sid = [2u8; 8];
+
+        let records = vec![
+            make_span_record(tid, root_sid, None, "root", 1000),
+            make_span_record(tid, child_sid, Some(root_sid), "child", 1050),
+        ];
+
+        let spans = build_trace_spans(records);
+        assert_eq!(spans.len(), 2);
+
+        // Root span
+        let root = spans.iter().find(|s| s.span_name == "root").unwrap();
+        assert_eq!(root.depth, 0);
+        assert_eq!(root.span_order, 0);
+        assert!(root.parent_span_id.is_none());
+        assert_eq!(root.path.len(), 1);
+
+        // Child span
+        let child = spans.iter().find(|s| s.span_name == "child").unwrap();
+        assert_eq!(child.depth, 1);
+        assert_eq!(child.span_order, 1);
+        assert!(child.parent_span_id.is_some());
+        assert_eq!(child.path.len(), 2);
+        assert_eq!(child.root_span_id, root.span_id);
+    }
+
+    #[test]
+    fn build_trace_spans_orphan_spans() {
+        let tid = [0u8; 16];
+        let orphan_sid = [3u8; 8];
+        // Parent doesn't exist in the batch
+        let missing_parent = [99u8; 8];
+
+        let records = vec![make_span_record(
+            tid,
+            orphan_sid,
+            Some(missing_parent),
+            "orphan",
+            1000,
+        )];
+
+        let spans = build_trace_spans(records);
+        assert_eq!(spans.len(), 1);
+
+        let orphan = &spans[0];
+        assert_eq!(orphan.span_name, "orphan");
+        assert_eq!(orphan.depth, 0);
+    }
+
+    #[test]
+    fn build_trace_spans_multiple_traces() {
+        let tid1 = [1u8; 16];
+        let tid2 = [2u8; 16];
+
+        let records = vec![
+            make_span_record(tid1, [10u8; 8], None, "trace1_root", 1000),
+            make_span_record(tid2, [20u8; 8], None, "trace2_root", 2000),
+            make_span_record(tid1, [11u8; 8], Some([10u8; 8]), "trace1_child", 1050),
+        ];
+
+        let spans = build_trace_spans(records);
+        assert_eq!(spans.len(), 3);
+
+        // Check that trace_ids are correct
+        let t1_spans: Vec<_> = spans
+            .iter()
+            .filter(|s| s.trace_id == TraceId::from_bytes(tid1).to_hex())
+            .collect();
+        assert_eq!(t1_spans.len(), 2);
+
+        let t2_spans: Vec<_> = spans
+            .iter()
+            .filter(|s| s.trace_id == TraceId::from_bytes(tid2).to_hex())
+            .collect();
+        assert_eq!(t2_spans.len(), 1);
+    }
+
+    #[test]
+    fn build_trace_spans_deep_tree() {
+        let tid = [0u8; 16];
+        let root_sid = [1u8; 8];
+        let child_sid = [2u8; 8];
+        let grandchild_sid = [3u8; 8];
+
+        let records = vec![
+            make_span_record(tid, root_sid, None, "root", 1000),
+            make_span_record(tid, child_sid, Some(root_sid), "child", 1050),
+            make_span_record(tid, grandchild_sid, Some(child_sid), "grandchild", 1100),
+        ];
+
+        let spans = build_trace_spans(records);
+        assert_eq!(spans.len(), 3);
+
+        let grandchild = spans.iter().find(|s| s.span_name == "grandchild").unwrap();
+        assert_eq!(grandchild.depth, 2);
+        assert_eq!(grandchild.path.len(), 3); // root → child → grandchild
+    }
+
+    #[test]
+    fn build_trace_spans_cross_group_collision() {
+        // Two different traces where spans happen to share the same span_id bytes.
+        // The visited set must be scoped per group to avoid cross-group collisions.
+        let tid1 = [1u8; 16];
+        let tid2 = [2u8; 16];
+        let shared_sid = [42u8; 8]; // Same span_id in both traces
+
+        let records = vec![
+            make_span_record(tid1, shared_sid, None, "trace1_root", 1000),
+            make_span_record(tid2, shared_sid, None, "trace2_root", 2000),
+        ];
+
+        let spans = build_trace_spans(records);
+        // Both spans must appear — the cross-group visited set bug would drop the second
+        assert_eq!(spans.len(), 2);
+
+        let names: HashSet<&str> = spans.iter().map(|s| s.span_name.as_str()).collect();
+        assert!(names.contains("trace1_root"));
+        assert!(names.contains("trace2_root"));
+    }
+
+    #[test]
+    fn build_trace_spans_input_output_mapping() {
+        let tid = [0u8; 16];
+        let records = vec![TraceSpanRecord {
+            trace_id: TraceId::from_bytes(tid),
+            span_id: SpanId::from_bytes([1u8; 8]),
+            parent_span_id: None,
+            span_name: "test".to_string(),
+            input: serde_json::json!({"key": "value"}),
+            output: Value::Null,
+            ..Default::default()
+        }];
+
+        let spans = build_trace_spans(records);
+        assert_eq!(spans.len(), 1);
+        assert!(spans[0].input.is_some());
+        assert!(spans[0].output.is_none()); // Null → None
+    }
 }
