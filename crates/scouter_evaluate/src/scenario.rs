@@ -58,12 +58,12 @@ impl EvalScenarios {
         self.scenario_results.clone()
     }
 
-    pub fn len(&self) -> usize {
+    pub fn __len__(&self) -> usize {
         self.scenarios.len()
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.scenarios.is_empty()
+    pub fn __bool__(&self) -> bool {
+        !self.scenarios.is_empty()
     }
 
     pub fn is_evaluated(&self) -> bool {
@@ -114,7 +114,7 @@ mod tests {
             make_scenario("s1", "Hello"),
             make_scenario("s2", "World"),
         ]);
-        assert_eq!(scenarios.len(), 2);
+        assert_eq!(scenarios.__len__(), 2);
         assert!(!scenarios.is_evaluated());
     }
 
@@ -136,10 +136,10 @@ mod tests {
     #[test]
     fn is_empty_true_and_false() {
         let empty = EvalScenarios::new(vec![]);
-        assert!(empty.is_empty());
+        assert!(!empty.__bool__());
 
         let non_empty = EvalScenarios::new(vec![make_scenario("s1", "Hello")]);
-        assert!(!non_empty.is_empty());
+        assert!(non_empty.__bool__());
     }
 
     #[test]

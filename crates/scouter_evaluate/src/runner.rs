@@ -16,11 +16,11 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 use tracing::{debug, error};
 
-type AliasData = (
-    Vec<EvalRecord>,
-    Option<Arc<GenAIEvalProfile>>,
-    Vec<TraceSpan>,
-);
+struct AliasData {
+    records: Vec<EvalRecord>,
+    profile: Option<Arc<GenAIEvalProfile>>,
+    spans: Vec<TraceSpan>,
+}
 
 /// Stateful evaluation engine that orchestrates scenario evaluation.
 ///
@@ -71,6 +71,14 @@ impl EvalRunner {
     ) -> Result<ScenarioEvalResults, EvaluationError> {
         let config = Arc::new(config.unwrap_or_default());
 
+        if tokio::runtime::Handle::try_current().is_ok() {
+            return Err(EvaluationError::GenAIEvaluatorError(
+                "EvalRunner.evaluate() cannot be called from within an async context. \
+                 Use evaluate_async() or call from a synchronous Python context."
+                    .to_string(),
+            ));
+        }
+
         app_state()
             .handle()
             .block_on(async { self.evaluate_async(&config).await })
@@ -94,7 +102,7 @@ impl EvalRunner {
 
         for (alias, mut alias_records) in records {
             // Tag each record with the scenario_id
-            let scenario_tag = format!("scenario_id={}", scenario_id);
+            let scenario_tag = format!("scouter.eval.scenario_id={}", scenario_id);
             for record in &mut alias_records {
                 if !record.tags.contains(&scenario_tag) {
                     record.tags.push(scenario_tag.clone());
@@ -116,6 +124,13 @@ impl EvalRunner {
                     spans: Arc::new(vec![]),
                 },
             );
+        }
+
+        if self.scenarios.scenario_datasets.contains_key(&scenario_id) {
+            return Err(EvaluationError::MissingKeyError(format!(
+                "Scenario '{}' already has data — collect_scenario_data called twice",
+                scenario_id
+            )));
         }
 
         self.scenarios
@@ -154,15 +169,14 @@ impl EvalRunner {
         // Convert once, use for both levels
         let trace_spans = build_trace_spans(captured_spans);
 
-        // ── LEVEL 1: Sub-agent evaluation ──
-        // Set spans on alias datasets from pre-converted TraceSpans
+        // Level 1: Sub-agent evaluation
         self.set_dataset_spans(&trace_spans);
         let dataset_results = self.evaluate_datasets(config).await?;
 
-        // ── LEVEL 2: Scenario evaluation ──
+        // Level 2: Scenario evaluation
         let scenario_results = self.evaluate_scenarios(&trace_spans).await?;
 
-        // ── LEVEL 3: Aggregate metrics ──
+        // Level 3: Aggregate metrics
         let metrics = compute_metrics(&dataset_results, &scenario_results);
 
         // Store results on the EvalScenarios container
@@ -226,20 +240,29 @@ impl EvalRunner {
 
         for datasets in self.scenarios.scenario_datasets.values() {
             for (alias, dataset) in datasets {
-                let entry = alias_data
-                    .entry(alias.clone())
-                    .or_insert_with(|| (Vec::new(), None, Vec::new()));
-                entry.0.extend(dataset.records.iter().cloned());
-                if entry.1.is_none() {
-                    entry.1 = Some(Arc::clone(&dataset.profile));
+                let entry = alias_data.entry(alias.clone()).or_insert_with(|| AliasData {
+                    records: Vec::new(),
+                    profile: None,
+                    spans: Vec::new(),
+                });
+                entry.records.extend(dataset.records.iter().cloned());
+                if entry.profile.is_none() {
+                    entry.profile = Some(Arc::clone(&dataset.profile));
+                } else {
+                    // First-seen profile wins per alias — log when a subsequent scenario
+                    // provides a different profile instance for the same alias.
+                    debug!(
+                        "Alias '{}': profile already set, ignoring profile from another scenario",
+                        alias
+                    );
                 }
-                entry.2.extend(dataset.spans.iter().cloned());
+                entry.spans.extend(dataset.spans.iter().cloned());
             }
         }
 
         let mut results = HashMap::new();
 
-        for (alias, (records, profile, spans)) in alias_data {
+        for (alias, AliasData { records, profile, spans }) in alias_data {
             if records.is_empty() {
                 continue;
             }
@@ -302,7 +325,7 @@ impl EvalRunner {
             let record = EvalRecord {
                 context,
                 record_id: scenario.id.clone(),
-                tags: vec![format!("scenario_id={}", scenario.id)],
+                tags: vec![format!("scouter.eval.scenario_id={}", scenario.id)],
                 ..Default::default()
             };
 
@@ -425,7 +448,7 @@ fn compute_metrics(
 /// Compute pass/fail and pass rate from EvalResults
 fn compute_pass_rate(results: &EvalResults) -> (bool, f64) {
     if results.aligned_results.is_empty() {
-        return (true, 1.0);
+        return (false, 0.0);
     }
 
     let mut total_tasks = 0;
@@ -542,7 +565,7 @@ mod tests {
 
         assert!(datasets["agent_a"].records[0]
             .tags
-            .contains(&"scenario_id=s1".to_string()));
+            .contains(&"scouter.eval.scenario_id=s1".to_string()));
 
         assert!(runner.scenarios.scenario_contexts.contains_key("s1"));
         let ctx = &runner.scenarios.scenario_contexts["s1"];
@@ -682,8 +705,8 @@ mod tests {
     fn compute_pass_rate_empty_results() {
         let results = EvalResults::new();
         let (passed, rate) = compute_pass_rate(&results);
-        assert!(passed);
-        assert_eq!(rate, 1.0);
+        assert!(!passed);
+        assert_eq!(rate, 0.0);
     }
 
     #[test]

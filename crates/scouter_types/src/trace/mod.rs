@@ -1192,6 +1192,7 @@ fn dfs_assign_records(
 ) {
     // Stack entries: (span_index, depth, path_so_far)
     let mut stack: Vec<(usize, i32, Vec<String>)> = Vec::new();
+    let mut visited: HashSet<usize> = HashSet::new();
 
     // Push roots in reverse so the first root is processed first
     for &idx in root_indices.iter().rev() {
@@ -1199,6 +1200,9 @@ fn dfs_assign_records(
     }
 
     while let Some((idx, depth, path_so_far)) = stack.pop() {
+        if !visited.insert(idx) {
+            continue; // cycle detected — skip
+        }
         let span = spans[idx];
         let span_id_hex = span.span_id.to_hex();
 
@@ -1461,5 +1465,27 @@ mod tests {
         assert_eq!(spans.len(), 1);
         assert!(spans[0].input.is_some());
         assert!(spans[0].output.is_none()); // Null → None
+    }
+
+    #[test]
+    fn build_trace_spans_cycle_does_not_loop() {
+        // Construct a cycle: A → B → A (via parent_span_id pointing back).
+        // The DFS visited guard must prevent infinite traversal.
+        let tid = [0u8; 16];
+        let span_a = [1u8; 8];
+        let span_b = [2u8; 8];
+
+        // A is the root (no parent), B claims A as parent,
+        // but we also add A as a child of B in the children map by
+        // making A's parent_span_id point to B. This creates a cycle.
+        let records = vec![
+            make_span_record(tid, span_a, Some(span_b), "A", 1000),
+            make_span_record(tid, span_b, Some(span_a), "B", 1050),
+        ];
+
+        // Both are orphans (neither has a true root), so both become synthetic roots.
+        // The key test: this terminates without hanging.
+        let spans = build_trace_spans(records);
+        assert_eq!(spans.len(), 2, "Both spans should appear exactly once");
     }
 }

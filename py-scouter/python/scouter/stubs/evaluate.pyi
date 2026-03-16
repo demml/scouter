@@ -2527,8 +2527,11 @@ class EvalScenarios:
     def scenario_results(self) -> List[ScenarioResult]:
         """Per-scenario evaluation results."""
 
-    def len(self) -> int:
+    def __len__(self) -> int:
         """Return the number of scenarios."""
+
+    def __bool__(self) -> bool:
+        """Return True if there are scenarios."""
 
     def is_evaluated(self) -> bool:
         """Return True if evaluation has been run (metrics are populated)."""
@@ -2559,9 +2562,17 @@ class EvalRunner:
 
     def __init__(
         self,
-        scenarios: List[EvalScenario],
-        profiles: Dict[str, "GenAIEvalConfig"],
+        scenarios: "EvalScenarios",
+        profiles: Dict[str, "GenAIEvalProfile"],
     ) -> None: ...
+    def collect_scenario_data(
+        self,
+        records: Dict[str, List["EvalRecord"]],
+        response: str,
+        scenario: "EvalScenario",
+    ) -> None:
+        """Populate scenario data for evaluation."""
+
     def evaluate(
         self,
         config: Optional["EvaluationConfig"] = None,

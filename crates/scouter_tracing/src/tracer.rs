@@ -1351,7 +1351,10 @@ pub fn shutdown_tracer() -> Result<(), TraceError> {
     *queue_store_guard = None;
 
     CAPTURING.store(false, Ordering::Release);
-    CAPTURE_BUFFER.write().unwrap().clear();
+    CAPTURE_BUFFER
+        .write()
+        .unwrap_or_else(|p| p.into_inner())
+        .clear();
 
     Ok(())
 }
@@ -1360,14 +1363,18 @@ pub fn shutdown_tracer() -> Result<(), TraceError> {
 
 fn enable_capture_impl() -> Result<(), TraceError> {
     info!("Local span capture enabled — spans will be buffered in-process");
-    let mut buf = CAPTURE_BUFFER.write().unwrap();
+    let mut buf = CAPTURE_BUFFER
+        .write()
+        .unwrap_or_else(|p| p.into_inner());
     buf.clear();
     CAPTURING.store(true, Ordering::Release);
     Ok(())
 }
 
 fn disable_capture_impl() -> Result<(), TraceError> {
-    let mut buf = CAPTURE_BUFFER.write().unwrap();
+    let mut buf = CAPTURE_BUFFER
+        .write()
+        .unwrap_or_else(|p| p.into_inner());
     if !buf.is_empty() {
         warn!(
             "disable_local_capture: discarding {} buffered spans",

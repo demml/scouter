@@ -19,7 +19,7 @@ pub fn is_capturing() -> bool {
 
 /// Drain all captured spans from the buffer (takes ownership).
 pub fn drain_captured_spans() -> Vec<TraceSpanRecord> {
-    std::mem::take(&mut *CAPTURE_BUFFER.write().unwrap())
+    std::mem::take(&mut *CAPTURE_BUFFER.write().unwrap_or_else(|p| p.into_inner()))
 }
 
 /// Returns clones of spans matching the given trace_ids.
@@ -27,7 +27,7 @@ pub fn drain_captured_spans() -> Vec<TraceSpanRecord> {
 pub fn get_captured_spans_by_trace_ids(
     trace_ids: &HashSet<ScouterTraceId>,
 ) -> Vec<TraceSpanRecord> {
-    let buf = CAPTURE_BUFFER.read().unwrap();
+    let buf = CAPTURE_BUFFER.read().unwrap_or_else(|p| p.into_inner());
     buf.iter()
         .filter(|span| trace_ids.contains(&span.trace_id))
         .cloned()
@@ -36,5 +36,5 @@ pub fn get_captured_spans_by_trace_ids(
 
 /// Returns a clone of all captured spans without draining.
 pub fn get_all_captured_spans() -> Vec<TraceSpanRecord> {
-    CAPTURE_BUFFER.read().unwrap().clone()
+    CAPTURE_BUFFER.read().unwrap_or_else(|p| p.into_inner()).clone()
 }

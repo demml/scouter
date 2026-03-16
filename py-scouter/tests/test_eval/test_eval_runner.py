@@ -1,5 +1,6 @@
 import time
 
+import pytest
 from scouter.drift import GenAIEvalProfile
 from scouter.evaluate import (
     AssertionTask,
@@ -130,9 +131,22 @@ def test_eval_runner_full_e2e(tracer):
     assert results.metrics.total_scenarios == 5
     # Scenario tasks only check "response IsString" — all 5 pass at scenario level
     assert results.metrics.passed_scenarios == 5
-    assert 0.0 < results.metrics.overall_pass_rate <= 1.0
+    # Retriever: result_count >= 1 → scenarios 1,2,3,5 pass (count=3,5,2,1), scenario 4 fails (count=0) → 4/5 = 0.8
+    # Synthesizer: quality >= 7 → scenarios 1,2,3 pass (8,9,7), 4,5 fail (4,6) → 3/5 = 0.6
+    # Scenario tasks: response IsString → all 5 pass → 5/5 = 1.0
+    # Note: trace tasks (retriever_span_exists) also run per record — spans are present for all 5
+    # Overall = mean of dataset + scenario rates
     assert "retriever" in results.metrics.dataset_pass_rates
     assert "synthesizer" in results.metrics.dataset_pass_rates
+    # retriever has 2 tasks per record (result_count + retriever_span_exists)
+    # result_count: 4/5 pass; retriever_span_exists: 5/5 pass → 9/10 = 0.9
+    assert results.metrics.dataset_pass_rates["retriever"] == pytest.approx(0.9, abs=0.05)
+    # synthesizer has 1 task per record (quality_check): 3/5 = 0.6
+    assert results.metrics.dataset_pass_rates["synthesizer"] == pytest.approx(0.6, abs=0.05)
+    # scenario_pass_rate: all 5 pass → 1.0
+    assert results.metrics.scenario_pass_rate == pytest.approx(1.0, abs=0.01)
+    # overall = mean(0.9, 0.6, 1.0) ≈ 0.833
+    assert results.metrics.overall_pass_rate == pytest.approx(0.833, abs=0.05)
 
     # ── Level 1: dataset results — 5 records per alias ──
     assert "retriever" in results.dataset_results
