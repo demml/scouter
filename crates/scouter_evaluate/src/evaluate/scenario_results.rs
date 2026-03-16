@@ -213,6 +213,28 @@ pub struct ScenarioComparisonResults {
 
     #[pyo3(get)]
     pub regressed_aliases: Vec<String>,
+
+    #[pyo3(get)]
+    #[serde(default)]
+    pub new_aliases: Vec<String>,
+
+    #[pyo3(get)]
+    #[serde(default)]
+    pub removed_aliases: Vec<String>,
+
+    #[pyo3(get)]
+    #[serde(default)]
+    pub new_scenarios: Vec<String>,
+
+    #[pyo3(get)]
+    #[serde(default)]
+    pub removed_scenarios: Vec<String>,
+
+    #[serde(default)]
+    pub baseline_alias_pass_rates: HashMap<String, f64>,
+
+    #[serde(default)]
+    pub comparison_alias_pass_rates: HashMap<String, f64>,
 }
 
 impl PartialEq for ScenarioComparisonResults {
@@ -223,6 +245,10 @@ impl PartialEq for ScenarioComparisonResults {
             && self.regressed == other.regressed
             && self.improved_aliases == other.improved_aliases
             && self.regressed_aliases == other.regressed_aliases
+            && self.new_aliases == other.new_aliases
+            && self.removed_aliases == other.removed_aliases
+            && self.new_scenarios == other.new_scenarios
+            && self.removed_scenarios == other.removed_scenarios
         // dataset_comparisons excluded: ComparisonResults does not implement PartialEq
     }
 }
@@ -245,8 +271,24 @@ struct ScenarioDeltaEntry {
     baseline: String,
     #[tabled(rename = "Current")]
     current: String,
+    #[tabled(rename = "Pass Rate Δ")]
+    pass_rate_delta: String,
     #[tabled(rename = "Change")]
     change: String,
+}
+
+#[derive(Tabled)]
+struct AliasPassRateEntry {
+    #[tabled(rename = "Alias")]
+    alias: String,
+    #[tabled(rename = "Baseline")]
+    baseline: String,
+    #[tabled(rename = "Current")]
+    current: String,
+    #[tabled(rename = "Delta")]
+    delta: String,
+    #[tabled(rename = "Status")]
+    status: String,
 }
 
 #[pymethods]

@@ -1,3 +1,11 @@
+#### begin imports ####
+
+from typing import Dict, List, Optional
+from pathlib import Path
+from .tracing import TraceSpan
+
+#### end of imports ####
+
 class ScouterTestServer:
     def __init__(
         self,
