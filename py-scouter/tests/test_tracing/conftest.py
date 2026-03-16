@@ -1,7 +1,7 @@
 import pytest
 from pydantic import BaseModel
 from scouter.mock import MockConfig
-from scouter.tracing import TestSpanExporter, get_tracer, init_tracer
+from scouter.tracing import TestSpanExporter, get_tracer, init_tracer, shutdown_tracer
 
 
 class ChatInput(BaseModel):
@@ -24,6 +24,9 @@ def span_exporter():
 @pytest.fixture(scope="session")
 def tracer(span_exporter):
     """Initialize tracer with test exporter for each test."""
+    # Shut down any previously initialized tracer (e.g. from test_eval/conftest.py
+    # which runs first alphabetically and sets up the global TRACER_PROVIDER_STORE).
+    shutdown_tracer()
     init_tracer(
         service_name="test-service",
         transport_config=MockConfig(),
