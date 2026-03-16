@@ -12882,7 +12882,7 @@ class ScenarioComparisonResults:
     """
 
     @property
-    def dataset_comparisons(self) -> "Dict[str, ComparisonResults]":
+    def dataset_comparisons(self) -> Dict[str, "ComparisonResults"]:
         """Per-alias comparison results, keyed by alias name."""
 
     @property
@@ -12950,7 +12950,7 @@ class ScenarioEvalResults:
     """
 
     @property
-    def dataset_results(self) -> "Dict[str, EvalResults]":
+    def dataset_results(self) -> Dict[str, "EvalResults"]:
         """Per-alias holistic evaluation results across all scenarios."""
 
     @property
@@ -15241,6 +15241,7 @@ class EvalRecord:
         context: Context,
         id: Optional[str] = None,
         session_id: Optional[str] = None,
+        trace_id: Optional[str] = None,
     ) -> None:
         """Creates a new LLM record to associate with an `GenAIEvalProfile`.
         The record is sent to the `Scouter` server via the `ScouterQueue` and is

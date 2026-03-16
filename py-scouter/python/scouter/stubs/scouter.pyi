@@ -1852,6 +1852,7 @@ class EvalRecord:
         context: Context,
         id: Optional[str] = None,
         session_id: Optional[str] = None,
+        trace_id: Optional[str] = None,
     ) -> None:
         """Creates a new LLM record to associate with an `GenAIEvalProfile`.
         The record is sent to the `Scouter` server via the `ScouterQueue` and is

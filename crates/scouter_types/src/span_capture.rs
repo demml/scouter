@@ -36,5 +36,8 @@ pub fn get_captured_spans_by_trace_ids(
 
 /// Returns a clone of all captured spans without draining.
 pub fn get_all_captured_spans() -> Vec<TraceSpanRecord> {
-    CAPTURE_BUFFER.read().unwrap_or_else(|p| p.into_inner()).clone()
+    CAPTURE_BUFFER
+        .read()
+        .unwrap_or_else(|p| p.into_inner())
+        .clone()
 }

@@ -5,6 +5,13 @@ from typing import Any, Dict, Iterator, List, Optional, Sequence
 
 from .header import SerializedType
 from .potato import Prompt
+from .scouter import (
+    ComparisonResults,
+    EvalRecord,
+    EvalResults,
+    EvaluationConfig,
+    GenAIEvalProfile,
+)
 from .tracing import TraceSpan
 
 #### end of imports ####
@@ -2155,7 +2162,7 @@ class ScenarioComparisonResults:
     """
 
     @property
-    def dataset_comparisons(self) -> "Dict[str, ComparisonResults]":
+    def dataset_comparisons(self) -> Dict[str, "ComparisonResults"]:
         """Per-alias comparison results, keyed by alias name."""
 
     @property
@@ -2223,7 +2230,7 @@ class ScenarioEvalResults:
     """
 
     @property
-    def dataset_results(self) -> "Dict[str, EvalResults]":
+    def dataset_results(self) -> Dict[str, "EvalResults"]:
         """Per-alias holistic evaluation results across all scenarios."""
 
     @property

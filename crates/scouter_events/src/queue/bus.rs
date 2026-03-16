@@ -339,8 +339,8 @@ impl QueueBus {
                             borrowed.tags.push(tag.clone());
                         }
                     }
-                } else if trace_id.is_some() {
-                    warn!("stamp_otel_trace_id: could not cast Python item to EvalRecord; Python-side trace_id not updated");
+                } else if trace_id.is_some() || scenario_tag.is_some() {
+                    warn!("stamp_otel_trace_id: could not cast Python item to EvalRecord; Python-side trace_id/tags not updated");
                 }
             }
         }
@@ -481,9 +481,10 @@ mod tests {
     fn test_stamp_scenario_tag_with_matching_baggage_stamps_tag() {
         use opentelemetry::baggage::BaggageExt;
 
-        let cx = OtelContext::current().with_baggage(vec![
-            opentelemetry::KeyValue::new("scouter.eval.scenario_id", "test_scenario_1"),
-        ]);
+        let cx = OtelContext::current().with_baggage(vec![opentelemetry::KeyValue::new(
+            "scouter.eval.scenario_id",
+            "test_scenario_1",
+        )]);
         let _guard = cx.attach();
 
         let mut record = EvalRecord::default();
@@ -499,9 +500,10 @@ mod tests {
     fn test_stamp_scenario_tag_idempotent_does_not_duplicate() {
         use opentelemetry::baggage::BaggageExt;
 
-        let cx = OtelContext::current().with_baggage(vec![
-            opentelemetry::KeyValue::new("scouter.eval.scenario_id", "scenario_x"),
-        ]);
+        let cx = OtelContext::current().with_baggage(vec![opentelemetry::KeyValue::new(
+            "scouter.eval.scenario_id",
+            "scenario_x",
+        )]);
         let _guard = cx.attach();
 
         let mut record = EvalRecord::default();
@@ -520,9 +522,10 @@ mod tests {
     fn test_stamp_scenario_tag_ignores_unrelated_baggage() {
         use opentelemetry::baggage::BaggageExt;
 
-        let cx = OtelContext::current().with_baggage(vec![
-            opentelemetry::KeyValue::new("some.other.key", "value"),
-        ]);
+        let cx = OtelContext::current().with_baggage(vec![opentelemetry::KeyValue::new(
+            "some.other.key",
+            "value",
+        )]);
         let _guard = cx.attach();
 
         let mut record = EvalRecord::default();
@@ -537,9 +540,10 @@ mod tests {
         use opentelemetry::baggage::BaggageExt;
 
         // Value with spaces and special characters — should be rejected
-        let cx = OtelContext::current().with_baggage(vec![
-            opentelemetry::KeyValue::new("scouter.eval.scenario_id", "invalid value!"),
-        ]);
+        let cx = OtelContext::current().with_baggage(vec![opentelemetry::KeyValue::new(
+            "scouter.eval.scenario_id",
+            "invalid value!",
+        )]);
         let _guard = cx.attach();
 
         let mut record = EvalRecord::default();

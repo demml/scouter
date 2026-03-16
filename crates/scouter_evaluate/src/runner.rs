@@ -240,11 +240,13 @@ impl EvalRunner {
 
         for datasets in self.scenarios.scenario_datasets.values() {
             for (alias, dataset) in datasets {
-                let entry = alias_data.entry(alias.clone()).or_insert_with(|| AliasData {
-                    records: Vec::new(),
-                    profile: None,
-                    spans: Vec::new(),
-                });
+                let entry = alias_data
+                    .entry(alias.clone())
+                    .or_insert_with(|| AliasData {
+                        records: Vec::new(),
+                        profile: None,
+                        spans: Vec::new(),
+                    });
                 entry.records.extend(dataset.records.iter().cloned());
                 if entry.profile.is_none() {
                     entry.profile = Some(Arc::clone(&dataset.profile));
@@ -262,7 +264,15 @@ impl EvalRunner {
 
         let mut results = HashMap::new();
 
-        for (alias, AliasData { records, profile, spans }) in alias_data {
+        for (
+            alias,
+            AliasData {
+                records,
+                profile,
+                spans,
+            },
+        ) in alias_data
+        {
             if records.is_empty() {
                 continue;
             }
