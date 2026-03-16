@@ -9,6 +9,8 @@ from scouter.evaluate import (
     EvalRunner,
     EvalScenario,
     EvalScenarios,
+    ScenarioComparisonResults,
+    ScenarioEvalResults,
     SpanFilter,
     TraceAssertion,
     TraceAssertionTask,
@@ -117,7 +119,10 @@ def test_eval_runner_full_e2e(tracer):
         ]
 
         runner.collect_scenario_data(
-            records={"retriever": retriever_records, "synthesizer": synthesizer_records},
+            records={
+                "retriever": retriever_records,
+                "synthesizer": synthesizer_records,
+            },
             response=f"Synthesized answer for: {query}",
             scenario=scenario,
         )
@@ -354,3 +359,134 @@ def test_mock_adk_agent_e2e():
     # Cleanup
     adk_tracer.disable_local_capture()
     adk_tracer.drain_local_spans()
+
+
+def _run_eval(scenario_data: list[tuple[str, int, int]]) -> ScenarioEvalResults:
+    """Helper: run a minimal eval and return results."""
+    profile = GenAIEvalProfile(
+        tasks=[
+            AssertionTask(
+                id="quality_check",
+                context_path="response.quality",
+                operator=ComparisonOperator.GreaterThanOrEqual,
+                expected_value=7,
+            ),
+        ],
+        alias="agent",
+    )
+    scenarios = EvalScenarios(
+        scenarios=[
+            EvalScenario(
+                initial_query=query,
+                id=f"scenario_{i + 1}",
+                expected_outcome="quality response",
+                tasks=[
+                    AssertionTask(
+                        id="response_is_string",
+                        context_path="response",
+                        operator=ComparisonOperator.IsString,
+                        expected_value=True,
+                    ),
+                ],
+            )
+            for i, (query, _, _) in enumerate(scenario_data)
+        ]
+    )
+    runner = EvalRunner(scenarios=scenarios, profiles={"agent": profile})
+    for i, (query, quality, _) in enumerate(scenario_data):
+        scenario = scenarios.scenarios[i]
+        runner.collect_scenario_data(
+            records={
+                "agent": [
+                    EvalRecord(
+                        context={"response": {"quality": quality, "text": query}},
+                        id=f"rec_{i + 1}",
+                    )
+                ]
+            },
+            response=f"Answer for: {query}",
+            scenario=scenario,
+        )
+    return runner.evaluate()
+
+
+def test_scenario_eval_results_save_load_roundtrip(tmp_path):
+    """save() → load() produces identical ScenarioEvalResults."""
+    results = _run_eval([("Q1", 8, 1), ("Q2", 5, 0)])
+
+    path = str(tmp_path / "results.json")
+    results.save(path)
+    loaded = ScenarioEvalResults.load(path)
+
+    assert loaded.metrics.total_scenarios == results.metrics.total_scenarios
+    assert loaded.metrics.passed_scenarios == results.metrics.passed_scenarios
+    assert loaded.metrics.overall_pass_rate == pytest.approx(results.metrics.overall_pass_rate)
+    assert len(loaded.scenario_results) == len(results.scenario_results)
+    assert {r.scenario_id for r in loaded.scenario_results} == {r.scenario_id for r in results.scenario_results}
+
+
+def test_scenario_eval_results_model_dump_roundtrip():
+    """model_dump_json() → model_validate_json() roundtrip."""
+    results = _run_eval([("Q1", 9, 1)])
+    json_str = results.model_dump_json()
+    assert isinstance(json_str, str)
+    loaded = ScenarioEvalResults.model_validate_json(json_str)
+    assert loaded.metrics.total_scenarios == 1
+
+
+def test_compare_to_new_fields_populated(tmp_path):
+    """compare_to() populates new_scenarios, new_aliases, alias pass rates."""
+    # Baseline: scenarios 1+2, agent alias only
+    baseline = _run_eval([("Q1", 8, 1), ("Q2", 6, 0)])
+
+    # Current: scenarios 1+2+3 — scenario 3 is new; same alias
+    current = _run_eval([("Q1", 8, 1), ("Q2", 6, 0), ("Q3", 9, 1)])
+
+    comp = current.compare_to(baseline, regression_threshold=0.05)
+
+    assert "scenario_3" in comp.new_scenarios
+    assert comp.removed_scenarios == []
+    assert comp.new_aliases == []
+    assert comp.removed_aliases == []
+    # Per-alias pass rates should be populated from metrics
+    assert "agent" in comp.baseline_alias_pass_rates
+    assert "agent" in comp.comparison_alias_pass_rates
+    assert 0.0 <= comp.baseline_alias_pass_rates["agent"] <= 1.0
+    assert 0.0 <= comp.comparison_alias_pass_rates["agent"] <= 1.0
+
+
+def test_compare_to_removed_scenario(tmp_path):
+    """compare_to() detects removed_scenarios when current has fewer."""
+    baseline = _run_eval([("Q1", 8, 1), ("Q2", 9, 1), ("Q3", 7, 1)])
+    current = _run_eval([("Q1", 8, 1), ("Q2", 9, 1)])
+    comp = current.compare_to(baseline)
+    assert "scenario_3" in comp.removed_scenarios
+    assert comp.new_scenarios == []
+
+
+def test_scenario_comparison_results_save_load_roundtrip(tmp_path):
+    """ScenarioComparisonResults save() → load() roundtrip."""
+    baseline = _run_eval([("Q1", 8, 1), ("Q2", 5, 0)])
+    current = _run_eval([("Q1", 9, 1), ("Q2", 6, 0)])
+    comp = current.compare_to(baseline)
+
+    path = str(tmp_path / "comparison.json")
+    comp.save(path)
+    loaded = ScenarioComparisonResults.load(path)
+
+    assert loaded.baseline_overall_pass_rate == pytest.approx(comp.baseline_overall_pass_rate)
+    assert loaded.comparison_overall_pass_rate == pytest.approx(comp.comparison_overall_pass_rate)
+    assert loaded.regressed == comp.regressed
+    assert len(loaded.scenario_deltas) == len(comp.scenario_deltas)
+
+
+def test_scenario_comparison_results_model_dump_roundtrip():
+    """ScenarioComparisonResults model_dump_json() → model_validate_json() roundtrip."""
+    baseline = _run_eval([("Q1", 8, 1)])
+    current = _run_eval([("Q1", 7, 1)])
+    comp = current.compare_to(baseline)
+    json_str = comp.model_dump_json()
+    assert isinstance(json_str, str)
+    loaded = ScenarioComparisonResults.model_validate_json(json_str)
+    assert loaded.regressed == comp.regressed
+    assert len(loaded.scenario_deltas) == 1
