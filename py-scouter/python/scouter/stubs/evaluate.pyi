@@ -2544,7 +2544,7 @@ class EvalRunner:
     """Stateful evaluation engine that orchestrates scenario evaluation.
 
     Owns scenario definitions and profiles (as shared references).
-    Provides ``add_scenario_data()`` to populate scenario data and
+    Provides ``collect_scenario_data()`` to populate scenario data and
     ``evaluate()`` to run multi-level evaluation, pulling spans from
     the global capture buffer automatically.
 

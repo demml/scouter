@@ -1911,7 +1911,7 @@ class EvalRecord:
 
     @property
     def tag(self) -> Optional[str]:
-        """Get the scenario tag (set by EvalRunner.add_scenario_data)."""
+        """Get the scenario tag (set by EvalRunner.collect_scenario_data)."""
 
     @tag.setter
     def tag(self, tag: Optional[str]) -> None:

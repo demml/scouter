@@ -13,7 +13,7 @@ use std::collections::HashMap;
 ///
 /// `EvalScenarios` is the data model that holds:
 /// - The scenario definitions (`Vec<EvalScenario>`)
-/// - Internal state populated by `EvalRunner::add_scenario_data()` (not serialized)
+/// - Internal state populated by `EvalRunner::collect_scenario_data()` (not serialized)
 /// - Output populated by `EvalRunner::evaluate()` (serialized)
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize)]

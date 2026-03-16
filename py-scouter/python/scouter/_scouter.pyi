@@ -13271,7 +13271,7 @@ class EvalRunner:
     """Stateful evaluation engine that orchestrates scenario evaluation.
 
     Owns scenario definitions and profiles (as shared references).
-    Provides ``add_scenario_data()`` to populate scenario data and
+    Provides ``collect_scenario_data()`` to populate scenario data and
     ``evaluate()`` to run multi-level evaluation, pulling spans from
     the global capture buffer automatically.
 
@@ -15289,7 +15289,7 @@ class EvalRecord:
 
     @property
     def tag(self) -> Optional[str]:
-        """Get the scenario tag (set by EvalRunner.add_scenario_data)."""
+        """Get the scenario tag (set by EvalRunner.collect_scenario_data)."""
 
     @tag.setter
     def tag(self, tag: Optional[str]) -> None:
