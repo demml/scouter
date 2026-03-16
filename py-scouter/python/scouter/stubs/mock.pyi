@@ -1,7 +1,8 @@
 #### begin imports ####
 
-from typing import Dict, List, Optional
 from pathlib import Path
+from typing import Dict, List, Optional
+
 from .tracing import TraceSpan
 
 #### end of imports ####

@@ -6552,6 +6552,7 @@ dependencies = [
  "serde_json",
  "simsimd",
  "tabled",
+ "tempfile",
  "thiserror 2.0.18",
  "tokio",
  "tracing",

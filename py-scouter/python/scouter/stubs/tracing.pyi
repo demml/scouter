@@ -4,6 +4,7 @@ from types import TracebackType
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
 from .header import SerializedType
+from .mock import MockConfig
 from .scouter import (
     CompressionType,
     EvalRecord,
@@ -16,7 +17,6 @@ from .scouter import (
     RedisConfig,
     ScouterQueue,
 )
-from .mock import MockConfig
 
 HAS_OPENTELEMETRY = True
 if TYPE_CHECKING:

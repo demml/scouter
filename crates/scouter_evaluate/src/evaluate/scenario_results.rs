@@ -302,10 +302,123 @@ impl ScenarioComparisonResults {
         self.dataset_comparisons.clone()
     }
 
-    pub fn as_table(&self) {
-        println!("\n{}", "Sub-Agent Comparison".truecolor(245, 77, 85).bold());
+    #[getter]
+    pub fn baseline_alias_pass_rates(&self) -> HashMap<String, f64> {
+        self.baseline_alias_pass_rates.clone()
+    }
 
-        if !self.dataset_comparisons.is_empty() {
+    #[getter]
+    pub fn comparison_alias_pass_rates(&self) -> HashMap<String, f64> {
+        self.comparison_alias_pass_rates.clone()
+    }
+
+    pub fn model_dump_json(&self) -> Result<String, EvaluationError> {
+        serde_json::to_string(self).map_err(Into::into)
+    }
+
+    #[staticmethod]
+    pub fn model_validate_json(json_string: String) -> Result<Self, EvaluationError> {
+        serde_json::from_str(&json_string).map_err(Into::into)
+    }
+
+    pub fn save(&self, path: &str) -> Result<(), EvaluationError> {
+        let json = serde_json::to_string_pretty(self)?;
+        std::fs::write(path, json)?;
+        Ok(())
+    }
+
+    #[staticmethod]
+    pub fn load(path: &str) -> Result<Self, EvaluationError> {
+        let json = std::fs::read_to_string(path)?;
+        serde_json::from_str(&json).map_err(Into::into)
+    }
+
+    pub fn as_table(&self) {
+        // Sub-Agent Comparison with pass rates
+        if !self.baseline_alias_pass_rates.is_empty()
+            || !self.comparison_alias_pass_rates.is_empty()
+        {
+            println!("\n{}", "Sub-Agent Comparison".truecolor(245, 77, 85).bold());
+
+            let mut all_aliases: Vec<String> = self
+                .baseline_alias_pass_rates
+                .keys()
+                .chain(self.comparison_alias_pass_rates.keys())
+                .cloned()
+                .collect();
+            all_aliases.sort();
+            all_aliases.dedup();
+
+            let mut alias_entries: Vec<AliasPassRateEntry> = Vec::new();
+            for alias in &all_aliases {
+                let baseline_rate = self.baseline_alias_pass_rates.get(alias);
+                let current_rate = self.comparison_alias_pass_rates.get(alias);
+
+                let (baseline_str, current_str, delta_str, status) =
+                    match (baseline_rate, current_rate) {
+                        (Some(b), Some(c)) => {
+                            let delta = (c - b) * 100.0;
+                            let d = format!("{:+.1}%", delta);
+                            let colored_delta = if delta > 1.0 {
+                                d.green().to_string()
+                            } else if delta < -1.0 {
+                                d.red().to_string()
+                            } else {
+                                d.yellow().to_string()
+                            };
+                            let s = if self.regressed_aliases.contains(alias) {
+                                "REGRESSION".red().to_string()
+                            } else if self.improved_aliases.contains(alias) {
+                                "IMPROVED".green().to_string()
+                            } else {
+                                "UNCHANGED".yellow().to_string()
+                            };
+                            (
+                                format!("{:.1}%", b * 100.0),
+                                format!("{:.1}%", c * 100.0),
+                                colored_delta,
+                                s,
+                            )
+                        }
+                        (None, Some(c)) => (
+                            "-".to_string(),
+                            format!("{:.1}%", c * 100.0),
+                            "-".to_string(),
+                            "NEW".green().bold().to_string(),
+                        ),
+                        (Some(b), None) => (
+                            format!("{:.1}%", b * 100.0),
+                            "-".to_string(),
+                            "-".to_string(),
+                            "REMOVED".red().bold().to_string(),
+                        ),
+                        (None, None) => continue,
+                    };
+
+                alias_entries.push(AliasPassRateEntry {
+                    alias: alias.clone(),
+                    baseline: baseline_str,
+                    current: current_str,
+                    delta: delta_str,
+                    status,
+                });
+            }
+
+            let mut alias_table = Table::new(alias_entries);
+            alias_table.with(Style::sharp());
+            alias_table.modify(
+                Rows::new(0..1),
+                (
+                    Format::content(|s: &str| s.truecolor(245, 77, 85).bold().to_string()),
+                    Alignment::center(),
+                    Color::BOLD,
+                ),
+            );
+            println!("{}", alias_table);
+        } else if !self.dataset_comparisons.is_empty() {
+            // Fallback for old data without alias pass rates
+            println!("\n{}", "Sub-Agent Comparison".truecolor(245, 77, 85).bold());
+
             let mut alias_entries: Vec<_> = self
                 .dataset_comparisons
                 .iter()
@@ -320,11 +433,11 @@ impl ScenarioComparisonResults {
                         delta_str.yellow().to_string()
                     };
                     let status = if comp.regressed {
-                        "⚠ REGRESSION".red().to_string()
+                        "REGRESSION".red().to_string()
                     } else if comp.improved_workflows > 0 {
-                        "✓ IMPROVED".green().to_string()
+                        "IMPROVED".green().to_string()
                     } else {
-                        "→ UNCHANGED".yellow().to_string()
+                        "UNCHANGED".yellow().to_string()
                     };
                     DatasetComparisonEntry {
                         alias: alias.clone(),
@@ -348,37 +461,46 @@ impl ScenarioComparisonResults {
             println!("{}", alias_table);
         }
 
-        let changed: Vec<_> = self
-            .scenario_deltas
-            .iter()
-            .filter(|d| d.status_changed)
-            .collect();
+        // All Scenarios table (not just changed ones)
+        if !self.scenario_deltas.is_empty() {
+            println!(
+                "\n{}",
+                "Scenario Comparison".truecolor(245, 77, 85).bold()
+            );
 
-        if !changed.is_empty() {
-            println!("\n{}", "Scenario Changes".truecolor(245, 77, 85).bold());
-
-            let entries: Vec<_> = changed
+            let entries: Vec<_> = self
+                .scenario_deltas
                 .iter()
                 .map(|d| {
                     let baseline_str = if d.baseline_passed {
-                        "✓ PASS".green().to_string()
+                        "PASS".green().to_string()
                     } else {
-                        "✗ FAIL".red().to_string()
+                        "FAIL".red().to_string()
                     };
                     let current_str = if d.comparison_passed {
-                        "✓ PASS".green().to_string()
+                        "PASS".green().to_string()
                     } else {
-                        "✗ FAIL".red().to_string()
+                        "FAIL".red().to_string()
+                    };
+                    let pr_delta = (d.comparison_pass_rate - d.baseline_pass_rate) * 100.0;
+                    let pr_delta_str = format!("{:+.1}%", pr_delta);
+                    let colored_pr_delta = if pr_delta > 1.0 {
+                        pr_delta_str.green().to_string()
+                    } else if pr_delta < -1.0 {
+                        pr_delta_str.red().to_string()
+                    } else {
+                        pr_delta_str.yellow().to_string()
                     };
                     let change = match (d.baseline_passed, d.comparison_passed) {
-                        (true, false) => "Pass → Fail".red().bold().to_string(),
-                        (false, true) => "Fail → Pass".green().bold().to_string(),
-                        _ => "No Change".yellow().to_string(),
+                        (true, false) => "Pass -> Fail".red().bold().to_string(),
+                        (false, true) => "Fail -> Pass".green().bold().to_string(),
+                        _ => "-".to_string(),
                     };
                     ScenarioDeltaEntry {
                         scenario_id: d.scenario_id.chars().take(16).collect::<String>(),
                         baseline: baseline_str,
                         current: current_str,
+                        pass_rate_delta: colored_pr_delta,
                         change,
                     }
                 })
@@ -397,12 +519,29 @@ impl ScenarioComparisonResults {
             println!("{}", delta_table);
         }
 
+        // New/Removed Scenarios
+        if !self.new_scenarios.is_empty() {
+            println!(
+                "\n{}  {}",
+                "New Scenarios:".truecolor(245, 77, 85).bold(),
+                self.new_scenarios.join(", ").green()
+            );
+        }
+        if !self.removed_scenarios.is_empty() {
+            println!(
+                "\n{}  {}",
+                "Removed Scenarios:".truecolor(245, 77, 85).bold(),
+                self.removed_scenarios.join(", ").red()
+            );
+        }
+
+        // Summary
         let overall_status = if self.regressed {
-            "⚠️  REGRESSION DETECTED".red().bold().to_string()
+            "REGRESSION DETECTED".red().bold().to_string()
         } else if !self.improved_aliases.is_empty() {
-            "✅ IMPROVEMENT DETECTED".green().bold().to_string()
+            "IMPROVEMENT DETECTED".green().bold().to_string()
         } else {
-            "➡️  NO SIGNIFICANT CHANGE".yellow().bold().to_string()
+            "NO SIGNIFICANT CHANGE".yellow().bold().to_string()
         };
 
         println!("\n{}", "Summary".truecolor(245, 77, 85).bold());
@@ -426,6 +565,28 @@ impl ScenarioComparisonResults {
                 "  Improved aliases: {}",
                 self.improved_aliases.join(", ").green()
             );
+        }
+        if !self.new_aliases.is_empty() {
+            println!(
+                "  New aliases: {}",
+                self.new_aliases.join(", ").green()
+            );
+        }
+        if !self.removed_aliases.is_empty() {
+            println!(
+                "  Removed aliases: {}",
+                self.removed_aliases.join(", ").red()
+            );
+        }
+        let changed_count = self.scenario_deltas.iter().filter(|d| d.status_changed).count();
+        if changed_count > 0 {
+            println!("  Scenarios changed: {}", changed_count);
+        }
+        if !self.new_scenarios.is_empty() {
+            println!("  New scenarios: {}", self.new_scenarios.len());
+        }
+        if !self.removed_scenarios.is_empty() {
+            println!("  Removed scenarios: {}", self.removed_scenarios.len());
         }
     }
 }
@@ -475,6 +636,18 @@ impl ScenarioEvalResults {
         serde_json::from_str(&json_string).map_err(Into::into)
     }
 
+    pub fn save(&self, path: &str) -> Result<(), EvaluationError> {
+        let json = serde_json::to_string_pretty(self)?;
+        std::fs::write(path, json)?;
+        Ok(())
+    }
+
+    #[staticmethod]
+    pub fn load(path: &str) -> Result<Self, EvaluationError> {
+        let json = std::fs::read_to_string(path)?;
+        serde_json::from_str(&json).map_err(Into::into)
+    }
+
     #[getter]
     pub fn dataset_results(&self) -> HashMap<String, EvalResults> {
         self.dataset_results.clone()
@@ -519,7 +692,30 @@ impl ScenarioEvalResults {
             }
         }
 
+        // Detect new/removed aliases
+        let mut new_aliases: Vec<String> = self
+            .dataset_results
+            .keys()
+            .filter(|alias| !baseline.dataset_results.contains_key(*alias))
+            .cloned()
+            .collect();
+        new_aliases.sort();
+
+        let mut removed_aliases: Vec<String> = baseline
+            .dataset_results
+            .keys()
+            .filter(|alias| !self.dataset_results.contains_key(*alias))
+            .cloned()
+            .collect();
+        removed_aliases.sort();
+
         let baseline_scenario_map: HashMap<_, _> = baseline
+            .scenario_results
+            .iter()
+            .map(|r| (r.scenario_id.as_str(), r))
+            .collect();
+
+        let current_scenario_map: HashMap<_, _> = self
             .scenario_results
             .iter()
             .map(|r| (r.scenario_id.as_str(), r))
@@ -540,6 +736,25 @@ impl ScenarioEvalResults {
             }
         }
 
+        // Detect new/removed scenarios
+        let mut new_scenarios: Vec<String> = current_scenario_map
+            .keys()
+            .filter(|id| !baseline_scenario_map.contains_key(*id))
+            .map(|id| id.to_string())
+            .collect();
+        new_scenarios.sort();
+
+        let mut removed_scenarios: Vec<String> = baseline_scenario_map
+            .keys()
+            .filter(|id| !current_scenario_map.contains_key(*id))
+            .map(|id| id.to_string())
+            .collect();
+        removed_scenarios.sort();
+
+        // Per-alias pass rates from metrics
+        let baseline_alias_pass_rates = baseline.metrics.dataset_pass_rates.clone();
+        let comparison_alias_pass_rates = self.metrics.dataset_pass_rates.clone();
+
         Ok(ScenarioComparisonResults {
             dataset_comparisons,
             scenario_deltas,
@@ -548,6 +763,12 @@ impl ScenarioEvalResults {
             regressed: !regressed_aliases.is_empty(),
             improved_aliases,
             regressed_aliases,
+            new_aliases,
+            removed_aliases,
+            new_scenarios,
+            removed_scenarios,
+            baseline_alias_pass_rates,
+            comparison_alias_pass_rates,
         })
     }
 
@@ -765,5 +986,177 @@ mod tests {
     fn get_scenario_detail_missing() {
         let results = make_eval_results();
         assert!(results.get_scenario_detail("nonexistent").is_err());
+    }
+
+    #[test]
+    fn save_load_roundtrip() {
+        let results = make_eval_results();
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("results.json");
+        let path_str = path.to_str().unwrap();
+
+        results.save(path_str).unwrap();
+        let loaded = ScenarioEvalResults::load(path_str).unwrap();
+        assert_eq!(results, loaded);
+    }
+
+    #[test]
+    fn comparison_model_dump_json_roundtrip() {
+        let comp = ScenarioComparisonResults {
+            dataset_comparisons: HashMap::new(),
+            scenario_deltas: vec![ScenarioDelta {
+                scenario_id: "s1".to_string(),
+                initial_query: "hello".to_string(),
+                baseline_passed: true,
+                comparison_passed: false,
+                baseline_pass_rate: 1.0,
+                comparison_pass_rate: 0.0,
+                status_changed: true,
+            }],
+            baseline_overall_pass_rate: 1.0,
+            comparison_overall_pass_rate: 0.5,
+            regressed: true,
+            improved_aliases: vec![],
+            regressed_aliases: vec!["a".to_string()],
+            new_aliases: vec!["c".to_string()],
+            removed_aliases: vec!["b".to_string()],
+            new_scenarios: vec!["s3".to_string()],
+            removed_scenarios: vec![],
+            baseline_alias_pass_rates: HashMap::from([("a".to_string(), 1.0)]),
+            comparison_alias_pass_rates: HashMap::from([("a".to_string(), 0.5)]),
+        };
+
+        let json = comp.model_dump_json().unwrap();
+        let loaded = ScenarioComparisonResults::model_validate_json(json).unwrap();
+        assert_eq!(comp, loaded);
+    }
+
+    #[test]
+    fn comparison_save_load_roundtrip() {
+        let comp = ScenarioComparisonResults {
+            dataset_comparisons: HashMap::new(),
+            scenario_deltas: vec![],
+            baseline_overall_pass_rate: 0.8,
+            comparison_overall_pass_rate: 0.9,
+            regressed: false,
+            improved_aliases: vec!["x".to_string()],
+            regressed_aliases: vec![],
+            new_aliases: vec![],
+            removed_aliases: vec![],
+            new_scenarios: vec![],
+            removed_scenarios: vec![],
+            baseline_alias_pass_rates: HashMap::new(),
+            comparison_alias_pass_rates: HashMap::new(),
+        };
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("comp.json");
+        let path_str = path.to_str().unwrap();
+
+        comp.save(path_str).unwrap();
+        let loaded = ScenarioComparisonResults::load(path_str).unwrap();
+        assert_eq!(comp, loaded);
+    }
+
+    #[test]
+    fn compare_to_new_scenarios() {
+        let baseline = make_eval_results(); // s1, s2
+        let current = ScenarioEvalResults {
+            dataset_results: HashMap::new(),
+            scenario_results: vec![
+                make_scenario_result("s1", "Make pasta", true, 1.0),
+                make_scenario_result("s2", "Make curry", false, 0.5),
+                make_scenario_result("s3", "Make salad", true, 0.8),
+            ],
+            metrics: empty_metrics(0.77, 0.67, 3, 2),
+        };
+
+        let comp = current.compare_to(&baseline, 0.05).unwrap();
+        assert_eq!(comp.new_scenarios, vec!["s3".to_string()]);
+        assert!(comp.removed_scenarios.is_empty());
+        // Only shared scenarios appear in deltas
+        assert_eq!(comp.scenario_deltas.len(), 2);
+    }
+
+    #[test]
+    fn compare_to_removed_scenarios() {
+        let baseline = ScenarioEvalResults {
+            dataset_results: HashMap::new(),
+            scenario_results: vec![
+                make_scenario_result("s1", "Make pasta", true, 1.0),
+                make_scenario_result("s2", "Make curry", false, 0.5),
+                make_scenario_result("s3", "Make salad", true, 0.8),
+            ],
+            metrics: empty_metrics(0.77, 0.67, 3, 2),
+        };
+        let current = make_eval_results(); // s1, s2
+
+        let comp = current.compare_to(&baseline, 0.05).unwrap();
+        assert_eq!(comp.removed_scenarios, vec!["s3".to_string()]);
+        assert!(comp.new_scenarios.is_empty());
+    }
+
+    #[test]
+    fn compare_to_new_removed_aliases() {
+        let mut baseline_datasets = HashMap::new();
+        baseline_datasets.insert("a".to_string(), EvalResults::new());
+        baseline_datasets.insert("b".to_string(), EvalResults::new());
+
+        let mut current_datasets = HashMap::new();
+        current_datasets.insert("a".to_string(), EvalResults::new());
+        current_datasets.insert("c".to_string(), EvalResults::new());
+
+        let baseline = ScenarioEvalResults {
+            dataset_results: baseline_datasets,
+            scenario_results: vec![make_scenario_result("s1", "q", true, 1.0)],
+            metrics: empty_metrics(1.0, 1.0, 1, 1),
+        };
+
+        let current = ScenarioEvalResults {
+            dataset_results: current_datasets,
+            scenario_results: vec![make_scenario_result("s1", "q", true, 1.0)],
+            metrics: empty_metrics(1.0, 1.0, 1, 1),
+        };
+
+        let comp = current.compare_to(&baseline, 0.05).unwrap();
+        assert_eq!(comp.new_aliases, vec!["c".to_string()]);
+        assert_eq!(comp.removed_aliases, vec!["b".to_string()]);
+    }
+
+    #[test]
+    fn compare_to_alias_pass_rates() {
+        let mut baseline_metrics = empty_metrics(0.9, 1.0, 1, 1);
+        baseline_metrics
+            .dataset_pass_rates
+            .insert("agent_a".to_string(), 0.9);
+        baseline_metrics
+            .dataset_pass_rates
+            .insert("agent_b".to_string(), 0.8);
+
+        let mut current_metrics = empty_metrics(0.85, 1.0, 1, 1);
+        current_metrics
+            .dataset_pass_rates
+            .insert("agent_a".to_string(), 0.85);
+        current_metrics
+            .dataset_pass_rates
+            .insert("agent_b".to_string(), 0.75);
+
+        let baseline = ScenarioEvalResults {
+            dataset_results: HashMap::new(),
+            scenario_results: vec![make_scenario_result("s1", "q", true, 1.0)],
+            metrics: baseline_metrics,
+        };
+
+        let current = ScenarioEvalResults {
+            dataset_results: HashMap::new(),
+            scenario_results: vec![make_scenario_result("s1", "q", true, 1.0)],
+            metrics: current_metrics,
+        };
+
+        let comp = current.compare_to(&baseline, 0.05).unwrap();
+        assert_eq!(comp.baseline_alias_pass_rates.get("agent_a"), Some(&0.9));
+        assert_eq!(comp.baseline_alias_pass_rates.get("agent_b"), Some(&0.8));
+        assert_eq!(comp.comparison_alias_pass_rates.get("agent_a"), Some(&0.85));
+        assert_eq!(comp.comparison_alias_pass_rates.get("agent_b"), Some(&0.75));
     }
 }
