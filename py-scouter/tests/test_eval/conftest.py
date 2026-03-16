@@ -2,6 +2,8 @@ import pytest
 from scouter.evaluate import AssertionTask, ComparisonOperator, EvalRecord, LLMJudgeTask
 from scouter.genai import Prompt, Provider, Role, Score
 from scouter.genai.openai import ChatMessage
+from scouter.mock import MockConfig
+from scouter.tracing import TestSpanExporter, get_tracer, init_tracer
 
 
 @pytest.fixture
@@ -245,3 +247,18 @@ def regressed_records():
             id="record_5",
         ),
     ]
+
+
+@pytest.fixture(scope="session")
+def span_exporter():
+    return TestSpanExporter(batch_export=False)
+
+
+@pytest.fixture(scope="session")
+def tracer(span_exporter):
+    init_tracer(
+        service_name="test-eval-service",
+        transport_config=MockConfig(),
+        exporter=span_exporter,
+    )
+    return get_tracer("test-eval-tracer")

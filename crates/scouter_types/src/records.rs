@@ -230,7 +230,7 @@ pub struct EvalRecord {
 #[pymethods]
 impl EvalRecord {
     #[new]
-    #[pyo3(signature = (context=None, id = None, session_id = None))]
+    #[pyo3(signature = (context=None, id = None, session_id = None, trace_id = None))]
 
     /// Creates a new EvalRecord instance.
     /// The context is either a python dictionary or a pydantic basemodel.
@@ -239,6 +239,7 @@ impl EvalRecord {
         context: Option<Bound<'_, PyAny>>,
         id: Option<String>,
         session_id: Option<String>,
+        trace_id: Option<String>,
     ) -> Result<Self, RecordError> {
         // check if context is a PyDict or PyObject(Pydantic model)
         let context_val = match context {
@@ -252,7 +253,7 @@ impl EvalRecord {
             context: context_val,
             record_id: id.unwrap_or_default(),
             session_id: session_id.unwrap_or_else(create_uuid7),
-            trace_id: None,
+            trace_id: trace_id.as_deref().and_then(|tid| TraceId::from_hex(tid).ok()),
             ..Default::default()
         })
     }
