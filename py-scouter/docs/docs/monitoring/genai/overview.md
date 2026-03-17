@@ -12,7 +12,7 @@ This point has been made multiple times by others, so we won't rehash it here, b
 
 ### Building Blocks for GenAI Evaluations
 
-Before going over offline and online evaluations, it's important to understand how tasks (`AssertionTask` and `LLMJudgeTask`) work in Scouter for GenAI evaluations. These tasks allow you to define prompts, expected outputs, and evaluation criteria for your GenAI services. You can chain multiple tasks together to create complex evaluation workflows that assess various aspects of your service's performance. More on this can be found in the [Task Building Blocks Section](/scouter/docs/monitoring/genai/tasks/).
+Before going over offline and online evaluations, it's important to understand how tasks work in Scouter for GenAI evaluations. Scouter provides four task types: `AssertionTask` (deterministic rule-based checks), `LLMJudgeTask` (LLM-powered semantic evaluation), `TraceAssertionTask` (trace/span property validation), and `AgentAssertionTask` (deterministic assertions on agent tool calls and response properties — auto-detects OpenAI, Anthropic, and Google response formats). Tasks allow you to define expected outputs and evaluation criteria for your GenAI services and can be chained together to create complex evaluation workflows. More on this can be found in the [Task Building Blocks Section](/scouter/docs/monitoring/genai/tasks/).
 
 ### Offline Evaluation
 
@@ -21,4 +21,4 @@ One of our goals with GenAI evaluations is to maintain parity between offline an
 
 ### Online Drift Detection
 
-In line with our other drift tooling, Scouter provides a way to define GenAI Eval Profiles that can be used to monitor your LLM services in real-time. These profiles allow you to specify both tasks and alert criteria, so you can be notified when your LLM's performance degrades or drifts from expected behavior. This is done using the `GenAIEvalProfile`, `GenAIEvalConfig`, `LLMJudgeTask` and `AssertionTask` classes. More on this can be found in the [Online Evaluation Documentation](/scouter/docs/monitoring/genai/online-evaluation/).
+In line with our other drift tooling, Scouter provides a way to define GenAI Eval Profiles that can be used to monitor your LLM services in real-time. These profiles allow you to specify both tasks and alert criteria, so you can be notified when your LLM's performance degrades or drifts from expected behavior. This is done using the `GenAIEvalProfile`, `GenAIEvalConfig`, `LLMJudgeTask`, `AssertionTask`, and `AgentAssertionTask` classes. More on this can be found in the [Online Evaluation Documentation](/scouter/docs/monitoring/genai/online-evaluation/).

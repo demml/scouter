@@ -121,6 +121,8 @@ Scouter's tracing layer is built on top of the OpenTelemetry SDK. You can use Sc
 
 `ScouterInstrumentor` is a singleton — calling it multiple times returns the same instance.
 
+Full API reference, framework integration examples (OpenAI Agents SDK, LangChain, LlamaIndex, CrewAI, FastAPI), default attributes, and local span capture patterns are covered in the [ScouterInstrumentor guide](/scouter/docs/tracing/instrumentor/).
+
 ```python
 from scouter.tracing import ScouterInstrumentor
 
