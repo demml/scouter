@@ -2189,14 +2189,73 @@ class ScenarioComparisonResults:
     def regressed_aliases(self) -> List[str]:
         """Aliases that regressed relative to the baseline."""
 
+    @property
+    def new_aliases(self) -> List[str]:
+        """Aliases present in the current run but not in the baseline."""
+
+    @property
+    def removed_aliases(self) -> List[str]:
+        """Aliases present in the baseline but not in the current run."""
+
+    @property
+    def new_scenarios(self) -> List[str]:
+        """Scenario IDs present in the current run but not in the baseline."""
+
+    @property
+    def removed_scenarios(self) -> List[str]:
+        """Scenario IDs present in the baseline but not in the current run."""
+
+    @property
+    def baseline_alias_pass_rates(self) -> Dict[str, float]:
+        """Per-alias pass rates from the baseline run."""
+
+    @property
+    def comparison_alias_pass_rates(self) -> Dict[str, float]:
+        """Per-alias pass rates from the current run."""
+
     def __str__(self) -> str:
         """Return a pretty-printed JSON string representation."""
+
+    def model_dump_json(self) -> str:
+        """Serialize the comparison results to a JSON string."""
+
+    @staticmethod
+    def model_validate_json(json_string: str) -> "ScenarioComparisonResults":
+        """Deserialize comparison results from a JSON string.
+
+        Args:
+            json_string (str): JSON string produced by ``model_dump_json()``.
+
+        Raises:
+            RuntimeError: If the JSON is invalid or cannot be deserialized.
+        """
+
+    def save(self, path: str) -> None:
+        """Serialize and write comparison results to a JSON file.
+
+        Args:
+            path (str): Filesystem path to write the JSON file.
+
+        Raises:
+            RuntimeError: If the file cannot be written.
+        """
+
+    @staticmethod
+    def load(path: str) -> "ScenarioComparisonResults":
+        """Load comparison results from a JSON file written by ``save()``.
+
+        Args:
+            path (str): Filesystem path of the JSON file.
+
+        Raises:
+            RuntimeError: If the file cannot be read or parsed.
+        """
 
     def as_table(self) -> None:
         """Print a regression summary table to stdout.
 
-        Shows sub-agent deltas, scenario-level changes (status_changed only),
-        and an overall summary line.
+        Shows sub-agent pass rate comparison, all scenario deltas with
+        pass rate changes, new/removed scenarios, and an overall summary.
         """
 
 class ScenarioEvalResults:

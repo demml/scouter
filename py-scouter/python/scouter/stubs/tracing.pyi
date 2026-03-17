@@ -4,6 +4,7 @@ from types import TracebackType
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
 from .header import SerializedType
+from .mock import MockConfig
 from .scouter import (
     CompressionType,
     EvalRecord,
@@ -253,7 +254,9 @@ class BatchConfig:
 def init_tracer(
     service_name: str = "scouter_service",
     scope: str = "scouter.tracer.{version}",
-    transport_config: Optional[HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig | GrpcConfig] = None,
+    transport_config: Optional[
+        HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig | GrpcConfig | MockConfig
+    ] = None,
     exporter: Optional[HttpSpanExporter | GrpcSpanExporter | StdoutSpanExporter | TestSpanExporter] = None,
     batch_config: Optional[BatchConfig] = None,
     sample_ratio: Optional[float] = None,
@@ -1062,5 +1065,4 @@ __all__ = [
     "flush_tracer",
     "BatchConfig",
     "shutdown_tracer",
-    "TraceMetricsRequest",
 ]

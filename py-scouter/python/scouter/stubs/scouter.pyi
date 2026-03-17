@@ -1831,6 +1831,9 @@ class ScouterQueue:
         omitted from the result.
         """
 
+    def genai_profiles(self) -> Dict[str, GenAIEvalProfile]:
+        """Returns a mapping of alias → GenAIEvalProfile for all GenAIEvalProfiles registered in the queue."""
+
 class EvalRecord:
     """LLM record containing context tied to a Large Language Model interaction
     that is used to evaluate drift in LLM responses.
