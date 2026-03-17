@@ -1386,6 +1386,21 @@ pub fn drain_spans_impl() -> Result<Vec<TraceSpanRecord>, TraceError> {
     Ok(scouter_types::span_capture::drain_captured_spans())
 }
 
+#[pyfunction]
+pub fn enable_local_span_capture() -> Result<(), TraceError> {
+    enable_capture_impl()
+}
+
+#[pyfunction]
+pub fn disable_local_span_capture() -> Result<(), TraceError> {
+    disable_capture_impl()
+}
+
+#[pyfunction]
+pub fn drain_local_span_capture() -> Result<Vec<TraceSpanRecord>, TraceError> {
+    drain_spans_impl()
+}
+
 /// Returns clones of spans matching the given trace_ids.
 /// Does NOT drain the buffer — call drain_spans_impl() after all evaluations.
 pub fn get_spans_by_trace_ids(

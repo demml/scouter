@@ -36,6 +36,9 @@ from .._scouter import (
     TraceBaggageRecord,
     TraceRecord,
     TraceSpanRecord,
+    disable_local_span_capture,
+    drain_local_span_capture,
+    enable_local_span_capture,
     flush_tracer,
     get_current_active_span,
     get_function_type,
@@ -667,4 +670,7 @@ __all__ = [
     "ScouterInstrumentor",
     "instrument",
     "uninstrument",
+    "enable_local_span_capture",
+    "disable_local_span_capture",
+    "drain_local_span_capture",
 ]

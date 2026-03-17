@@ -34,8 +34,10 @@ from .._scouter import (
     execute_agent_assertion_tasks,
     execute_trace_assertion_tasks,
 )
+from .runner import EvalOrchestrator
 
 __all__ = [
+    "EvalOrchestrator",
     "GenAIEvalConfig",
     "EvalResults",
     "EvaluationConfig",
