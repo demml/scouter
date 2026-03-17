@@ -1,3 +1,5 @@
+import unittest.mock
+
 import pytest
 from scouter.drift import GenAIEvalProfile
 from scouter.evaluate import (
@@ -61,6 +63,14 @@ def _make_queue(profiles):
         transport_config=MockConfig(),
         wait_for_startup=True,
     )
+
+
+def _single_scenario():
+    return _simple_scenarios(["What is 2+2?"])
+
+
+def _three_scenarios():
+    return _simple_scenarios(["Q1", "Q2", "Q3"])
 
 
 # ---------------------------------------------------------------------------
@@ -151,6 +161,17 @@ class TestDefaultExecution:
 
         assert call_log == ["Plan dinner", "Make it vegetarian"]
         assert results.metrics.total_scenarios == 1
+
+        # Verify execute_agent returns the last turn's response, not the initial query's
+        turn_log: list = []
+
+        def turn_counting_agent(query):
+            turn_log.append(query)
+            return f"turn_{len(turn_log)}_response"
+
+        verify_orch = EvalOrchestrator(queue=queue, scenarios=scenarios, agent_fn=turn_counting_agent)
+        response = verify_orch.execute_agent(scenarios.scenarios[0])
+        assert response == "turn_2_response"
 
 
 class TestSubclassWithoutAgentFn:
@@ -292,6 +313,113 @@ class TestCaptureLifecycle:
             orch.run()
 
         queue.disable_capture()
+
+
+class TestEdgePaths:
+    @pytest.fixture
+    def mock_queue(self):
+        return _make_queue(_simple_profile())
+
+    @pytest.fixture
+    def init_test_tracer(self, mock_queue):
+        tracer = init_tracer(
+            service_name="edge-paths-test",
+            scouter_queue=mock_queue,
+            transport_config=MockConfig(),
+            exporter=TestSpanExporter(batch_export=False),
+        )
+        return tracer
+
+    def test_no_tracer_fallback_single_execution(self, mock_queue):
+        """_execute_with_baggage falls back cleanly when no tracer is available."""
+        call_count = 0
+
+        def counting_agent(query):
+            nonlocal call_count
+            call_count += 1
+            return "response"
+
+        orch = EvalOrchestrator(mock_queue, _single_scenario(), agent_fn=counting_agent)
+        orch._execute_with_baggage(orch._scenarios.scenarios[0])
+        assert call_count == 1  # must not be 2 (double execution)
+
+    def test_exception_inside_span_propagates(self, mock_queue, init_test_tracer):
+        """execute_agent raising inside the span context must propagate, not be swallowed."""
+        call_count = 0
+
+        def failing_agent(query):
+            nonlocal call_count
+            call_count += 1
+            raise ValueError("agent failure")
+
+        orch = EvalOrchestrator(mock_queue, _single_scenario(), agent_fn=failing_agent)
+        with pytest.raises(ValueError, match="agent failure"):
+            orch._execute_with_baggage(orch._scenarios.scenarios[0])
+        assert call_count == 1  # must not be 2
+
+    def test_teardown_runs_on_exception(self, mock_queue):
+        """_teardown_capture must run even when execute_agent raises mid-loop."""
+        teardown_called = False
+        original_teardown = EvalOrchestrator._teardown_capture
+
+        def patched_teardown(self):
+            nonlocal teardown_called
+            teardown_called = True
+            original_teardown(self)
+
+        orch = EvalOrchestrator(
+            mock_queue,
+            _single_scenario(),
+            agent_fn=lambda q: (_ for _ in ()).throw(RuntimeError("boom")),
+        )
+
+        with pytest.raises(RuntimeError):
+            with unittest.mock.patch.object(EvalOrchestrator, "_teardown_capture", patched_teardown):
+                orch.run()
+        assert teardown_called
+
+    def test_mid_loop_failure_propagates(self, mock_queue):
+        """Failure on scenario N does not silently skip to scenario N+1."""
+        executed: list = []
+
+        def agent(query):
+            executed.append(query)
+            if len(executed) == 2:
+                raise ValueError("scenario 2 failed")
+            return "ok"
+
+        orch = EvalOrchestrator(mock_queue, _three_scenarios(), agent_fn=agent)
+        with pytest.raises(ValueError, match="scenario 2 failed"):
+            orch.run()
+        assert len(executed) == 2  # scenario 3 never reached
+
+    def test_flush_tracer_failure_returns_results(self, mock_queue, monkeypatch):
+        """flush_tracer() raising must not abort evaluation before results are returned."""
+        import scouter.evaluate.runner as runner_mod
+
+        monkeypatch.setattr(
+            runner_mod,
+            "flush_tracer",
+            lambda: (_ for _ in ()).throw(RuntimeError("flush failed")),
+        )
+
+        orch = EvalOrchestrator(mock_queue, _single_scenario(), agent_fn=lambda q: "response")
+        results = orch.run()
+        assert results is not None
+
+    def test_on_evaluation_complete_return_value_used(self, mock_queue):
+        """run() must return the value from on_evaluation_complete, not the raw results."""
+        sentinel = object()
+
+        class CustomOrch(EvalOrchestrator):
+            def execute_agent(self, scenario):
+                return "response"
+
+            def on_evaluation_complete(self, results):
+                return sentinel
+
+        orch = CustomOrch(mock_queue, _single_scenario())
+        assert orch.run() is sentinel
 
 
 # ---------------------------------------------------------------------------

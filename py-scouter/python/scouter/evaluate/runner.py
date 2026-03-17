@@ -9,12 +9,16 @@ from .._scouter import (
     EvalScenarios,
     EvaluationConfig,
     ScenarioEvalResults,
-    flush_tracer,
 )
 from ..queue import ScouterQueue
-from ..tracing import disable_local_span_capture, enable_local_span_capture
+from ..tracing import (
+    disable_local_span_capture,
+    enable_local_span_capture,
+    flush_tracer,
+)
 from ..tracing import get_tracer as _get_tracer
 
+# Baggage key injected into each scenario span so ScouterQueue can tag EvalRecords by scenario.
 SCENARIO_TAG_BAGGAGE_KEY = "scouter.eval.scenario_id"
 
 AgentFn = Callable[[str], str]
