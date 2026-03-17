@@ -463,10 +463,7 @@ impl ScenarioComparisonResults {
 
         // All Scenarios table (not just changed ones)
         if !self.scenario_deltas.is_empty() {
-            println!(
-                "\n{}",
-                "Scenario Comparison".truecolor(245, 77, 85).bold()
-            );
+            println!("\n{}", "Scenario Comparison".truecolor(245, 77, 85).bold());
 
             let entries: Vec<_> = self
                 .scenario_deltas
@@ -567,10 +564,7 @@ impl ScenarioComparisonResults {
             );
         }
         if !self.new_aliases.is_empty() {
-            println!(
-                "  New aliases: {}",
-                self.new_aliases.join(", ").green()
-            );
+            println!("  New aliases: {}", self.new_aliases.join(", ").green());
         }
         if !self.removed_aliases.is_empty() {
             println!(
@@ -578,7 +572,11 @@ impl ScenarioComparisonResults {
                 self.removed_aliases.join(", ").red()
             );
         }
-        let changed_count = self.scenario_deltas.iter().filter(|d| d.status_changed).count();
+        let changed_count = self
+            .scenario_deltas
+            .iter()
+            .filter(|d| d.status_changed)
+            .count();
         if changed_count > 0 {
             println!("  Scenarios changed: {}", changed_count);
         }

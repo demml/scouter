@@ -690,9 +690,9 @@ class BaseTracer:
         name: str,
         kind: Optional[SpanKind] = SpanKind.Internal,
         label: Optional[str] = None,
-        attributes: Optional[dict[str, str]] = None,
-        baggage: Optional[dict[str, str]] = None,
-        tags: Optional[dict[str, str]] = None,
+        attributes: Optional[List[dict[str, str]]] = None,
+        baggage: Optional[List[dict[str, str]]] = None,
+        tags: Optional[List[dict[str, str]]] = None,
         parent_context_id: Optional[str] = None,
         trace_id: Optional[str] = None,
         span_id: Optional[str] = None,
@@ -1046,6 +1046,15 @@ class TestSpanExporter:
 
 def shutdown_tracer() -> None:
     """Shutdown the tracer and flush any remaining spans."""
+
+def enable_local_span_capture() -> None:
+    """Enable in-process span capture. Spans are buffered instead of exported."""
+
+def disable_local_span_capture() -> None:
+    """Disable in-process span capture, discarding any buffered spans."""
+
+def drain_local_span_capture() -> List[TraceSpanRecord]:
+    """Drain and return all locally captured spans, clearing the buffer."""
 
 __all__ = [
     "init_tracer",

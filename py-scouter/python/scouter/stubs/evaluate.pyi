@@ -1,7 +1,7 @@
 #### begin imports ####
 
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Sequence
+from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Union
 
 from .header import SerializedType
 from .potato import Prompt
@@ -11,8 +11,9 @@ from .scouter import (
     EvalResults,
     EvaluationConfig,
     GenAIEvalProfile,
+    ScouterQueue,
 )
-from .tracing import TraceSpan
+from .tracing import BaseTracer, TraceSpan
 
 #### end of imports ####
 
@@ -2651,7 +2652,63 @@ class EvalRunner:
             config: Optional evaluation configuration.
         """
 
+AgentFn = Callable[[str], str]
+
+class EvalOrchestrator:
+    """Manages the capture lifecycle, routes scenario types, and delegates to the Rust EvalRunner.
+
+    Works out of the box — pass ``agent_fn`` and call ``run()``.
+
+    Args:
+        queue: ScouterQueue instance (source of profiles + capture lifecycle).
+        scenarios: Scenario definitions to evaluate.
+        agent_fn: Optional callable ``(query) -> response_str``.  Called once
+            for ``initial_query`` and once per ``predefined_turns`` entry.
+    """
+
+    def __init__(
+        self,
+        queue: "ScouterQueue",
+        scenarios: EvalScenarios,
+        agent_fn: Optional[AgentFn] = None,
+    ) -> None: ...
+    def execute_agent(
+        self,
+        scenario: EvalScenario,
+    ) -> str:
+        """Execute the agent for a scenario.
+
+        Default calls ``agent_fn(initial_query)`` then each
+        ``predefined_turns`` entry.  Override to customize.
+
+        Args:
+            scenario: The scenario to execute.
+
+        Returns:
+            The agent's final response string.
+        """
+
+    def on_scenario_start(self, scenario: EvalScenario) -> None:
+        """Hook called before a scenario is executed."""
+
+    def on_scenario_complete(self, scenario: EvalScenario, response: str) -> None:
+        """Hook called after a scenario is executed."""
+
+    def on_evaluation_complete(self, results: ScenarioEvalResults) -> ScenarioEvalResults:
+        """Hook called after evaluation completes. Override to post-process results."""
+
+    def run(self, config: Optional[EvaluationConfig] = None) -> ScenarioEvalResults:
+        """Execute all scenarios and return evaluation results.
+
+        Args:
+            config: Optional evaluation configuration.
+
+        Returns:
+            ScenarioEvalResults with metrics across all scenarios.
+        """
+
 __all__ = [
+    "EvalOrchestrator",
     "EvaluationTaskType",
     "ComparisonOperator",
     "AssertionTask",
