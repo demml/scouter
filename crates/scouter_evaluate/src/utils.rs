@@ -40,6 +40,7 @@ pub async fn spawn_evaluation_tasks_without_embeddings(
         // cloning here so we can reference inside async move
         let record_ref = dataset.records.clone();
         let profile_ref = dataset.profile.clone();
+        let spans_ref = dataset.spans.clone();
 
         join_set.spawn(async move {
             // Access record by index - no cloning
@@ -51,9 +52,7 @@ pub async fn spawn_evaluation_tasks_without_embeddings(
             );
 
             let result =
-                match GenAIEvaluator::process_event_record(record, profile_ref, Arc::new(vec![]))
-                    .await
-                {
+                match GenAIEvaluator::process_event_record(record, profile_ref, spans_ref).await {
                     Ok(eval_set) => Ok((eval_set, BTreeMap::new())),
                     Err(e) => Err(format!("Evaluation failed: {}", e)),
                 };
@@ -82,6 +81,7 @@ pub async fn spawn_evaluation_tasks_with_embeddings(
     for (idx, _) in dataset.records.iter().enumerate() {
         let record_ref = dataset.records.clone();
         let profile_ref = dataset.profile.clone();
+        let spans_ref = dataset.spans.clone();
         let embedder_ref = embedder.clone();
         let config_ref = config.clone();
 
@@ -98,9 +98,7 @@ pub async fn spawn_evaluation_tasks_with_embeddings(
 
             // Execute evaluation
             let result =
-                match GenAIEvaluator::process_event_record(record, profile_ref, Arc::new(vec![]))
-                    .await
-                {
+                match GenAIEvaluator::process_event_record(record, profile_ref, spans_ref).await {
                     Ok(eval_set) => Ok((eval_set, embeddings)),
                     Err(e) => Err(format!("Evaluation failed: {}", e)),
                 };

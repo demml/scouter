@@ -1035,6 +1035,7 @@ mod tests {
                 uid: format!("test_{}", j),
                 entity_uid: uid.clone(),
                 entity_id,
+                tags: vec!["key=value".to_string()],
                 ..Default::default()
             };
 

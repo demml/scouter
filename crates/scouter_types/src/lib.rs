@@ -9,6 +9,7 @@ pub mod http;
 pub mod psi;
 pub mod queue;
 pub mod records;
+pub mod span_capture;
 pub mod spc;
 pub mod trace;
 pub mod traits;

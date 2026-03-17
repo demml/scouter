@@ -88,6 +88,8 @@ pub use scouter_evaluate::{
         TaskComparison, WorkflowComparison,
     },
     genai::EvalDataset,
+    runner::EvalRunner,
+    scenario::EvalScenarios,
     tasks::agent::execute_agent_assertion_tasks,
     tasks::trace::execute_trace_assertion_tasks,
 };

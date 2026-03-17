@@ -12,7 +12,8 @@ SELECT
     record_id,
     session_id,
     retry_count,
-    trace_id
+    trace_id,
+    tags
 FROM scouter.genai_eval_record
 WHERE 1=1
     AND created_at BETWEEN $1 AND $2

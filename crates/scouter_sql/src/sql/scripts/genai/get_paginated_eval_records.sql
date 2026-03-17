@@ -12,7 +12,8 @@ SELECT
     record_id,
     session_id,
     retry_count,
-    trace_id
+    trace_id,
+    tags
 FROM scouter.genai_eval_record
 WHERE entity_id = $1
   AND ($2::VARCHAR IS NULL OR status = $2)

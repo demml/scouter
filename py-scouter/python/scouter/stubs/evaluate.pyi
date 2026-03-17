@@ -5,6 +5,13 @@ from typing import Any, Dict, Iterator, List, Optional, Sequence
 
 from .header import SerializedType
 from .potato import Prompt
+from .scouter import (
+    ComparisonResults,
+    EvalRecord,
+    EvalResults,
+    EvaluationConfig,
+    GenAIEvalProfile,
+)
 from .tracing import TraceSpan
 
 #### end of imports ####
@@ -2155,7 +2162,7 @@ class ScenarioComparisonResults:
     """
 
     @property
-    def dataset_comparisons(self) -> "Dict[str, ComparisonResults]":
+    def dataset_comparisons(self) -> Dict[str, "ComparisonResults"]:
         """Per-alias comparison results, keyed by alias name."""
 
     @property
@@ -2223,7 +2230,7 @@ class ScenarioEvalResults:
     """
 
     @property
-    def dataset_results(self) -> "Dict[str, EvalResults]":
+    def dataset_results(self) -> Dict[str, "EvalResults"]:
         """Per-alias holistic evaluation results across all scenarios."""
 
     @property
@@ -2504,6 +2511,87 @@ class TasksFile:
                 Path to the YAML file containing evaluation task definitions.
         """
 
+class EvalScenarios:
+    """Collection of evaluation scenarios with associated data and results.
+
+    Holds scenario definitions, internal evaluation state, and output results
+    populated by ``EvalRunner``.
+
+    Args:
+        scenarios: List of ``EvalScenario`` instances to evaluate.
+    """
+
+    scenarios: List[EvalScenario]
+    metrics: Optional[EvalMetrics]
+
+    def __init__(self, scenarios: List[EvalScenario]) -> None: ...
+    def __str__(self) -> str: ...
+    @property
+    def dataset_results(self) -> Dict[str, "EvalResults"]:
+        """Sub-agent evaluation results keyed by alias."""
+
+    @property
+    def scenario_results(self) -> List[ScenarioResult]:
+        """Per-scenario evaluation results."""
+
+    def __len__(self) -> int:
+        """Return the number of scenarios."""
+
+    def __bool__(self) -> bool:
+        """Return True if there are scenarios."""
+
+    def is_evaluated(self) -> bool:
+        """Return True if evaluation has been run (metrics are populated)."""
+
+    def model_dump_json(self) -> str:
+        """Serialize to a JSON string."""
+
+    @staticmethod
+    def model_validate_json(json_string: str) -> "EvalScenarios":
+        """Deserialize from a JSON string."""
+
+class EvalRunner:
+    """Stateful evaluation engine that orchestrates scenario evaluation.
+
+    Owns scenario definitions and profiles (as shared references).
+    Provides ``collect_scenario_data()`` to populate scenario data and
+    ``evaluate()`` to run multi-level evaluation, pulling spans from
+    the global capture buffer automatically.
+
+    Args:
+        scenarios: List of ``EvalScenario`` instances to evaluate.
+        profiles: Map of alias → ``GenAIEvalProfile`` for sub-agent evaluation.
+    """
+
+    @property
+    def scenarios(self) -> EvalScenarios:
+        """The internal ``EvalScenarios`` container."""
+
+    def __init__(
+        self,
+        scenarios: "EvalScenarios",
+        profiles: Dict[str, "GenAIEvalProfile"],
+    ) -> None: ...
+    def collect_scenario_data(
+        self,
+        records: Dict[str, List["EvalRecord"]],
+        response: str,
+        scenario: "EvalScenario",
+    ) -> None:
+        """Populate scenario data for evaluation."""
+
+    def evaluate(
+        self,
+        config: Optional["EvaluationConfig"] = None,
+    ) -> "ScenarioEvalResults":
+        """Run multi-level evaluation.
+
+        Spans are pulled automatically from the global capture buffer.
+
+        Args:
+            config: Optional evaluation configuration.
+        """
+
 __all__ = [
     "EvaluationTaskType",
     "ComparisonOperator",
@@ -2521,6 +2609,8 @@ __all__ = [
     "execute_agent_assertion_tasks",
     "TasksFile",
     "EvalScenario",
+    "EvalScenarios",
+    "EvalRunner",
     "EvalMetrics",
     "ScenarioResult",
     "ScenarioDelta",

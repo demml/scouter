@@ -12882,7 +12882,7 @@ class ScenarioComparisonResults:
     """
 
     @property
-    def dataset_comparisons(self) -> "Dict[str, ComparisonResults]":
+    def dataset_comparisons(self) -> Dict[str, "ComparisonResults"]:
         """Per-alias comparison results, keyed by alias name."""
 
     @property
@@ -12950,7 +12950,7 @@ class ScenarioEvalResults:
     """
 
     @property
-    def dataset_results(self) -> "Dict[str, EvalResults]":
+    def dataset_results(self) -> Dict[str, "EvalResults"]:
         """Per-alias holistic evaluation results across all scenarios."""
 
     @property
@@ -13229,6 +13229,87 @@ class TasksFile:
         Args:
             path (Path):
                 Path to the YAML file containing evaluation task definitions.
+        """
+
+class EvalScenarios:
+    """Collection of evaluation scenarios with associated data and results.
+
+    Holds scenario definitions, internal evaluation state, and output results
+    populated by ``EvalRunner``.
+
+    Args:
+        scenarios: List of ``EvalScenario`` instances to evaluate.
+    """
+
+    scenarios: List[EvalScenario]
+    metrics: Optional[EvalMetrics]
+
+    def __init__(self, scenarios: List[EvalScenario]) -> None: ...
+    def __str__(self) -> str: ...
+    @property
+    def dataset_results(self) -> Dict[str, "EvalResults"]:
+        """Sub-agent evaluation results keyed by alias."""
+
+    @property
+    def scenario_results(self) -> List[ScenarioResult]:
+        """Per-scenario evaluation results."""
+
+    def __len__(self) -> int:
+        """Return the number of scenarios."""
+
+    def __bool__(self) -> bool:
+        """Return True if there are scenarios."""
+
+    def is_evaluated(self) -> bool:
+        """Return True if evaluation has been run (metrics are populated)."""
+
+    def model_dump_json(self) -> str:
+        """Serialize to a JSON string."""
+
+    @staticmethod
+    def model_validate_json(json_string: str) -> "EvalScenarios":
+        """Deserialize from a JSON string."""
+
+class EvalRunner:
+    """Stateful evaluation engine that orchestrates scenario evaluation.
+
+    Owns scenario definitions and profiles (as shared references).
+    Provides ``collect_scenario_data()`` to populate scenario data and
+    ``evaluate()`` to run multi-level evaluation, pulling spans from
+    the global capture buffer automatically.
+
+    Args:
+        scenarios: List of ``EvalScenario`` instances to evaluate.
+        profiles: Map of alias → ``GenAIEvalProfile`` for sub-agent evaluation.
+    """
+
+    @property
+    def scenarios(self) -> EvalScenarios:
+        """The internal ``EvalScenarios`` container."""
+
+    def __init__(
+        self,
+        scenarios: "EvalScenarios",
+        profiles: Dict[str, "GenAIEvalProfile"],
+    ) -> None: ...
+    def collect_scenario_data(
+        self,
+        records: Dict[str, List["EvalRecord"]],
+        response: str,
+        scenario: "EvalScenario",
+    ) -> None:
+        """Populate scenario data for evaluation."""
+
+    def evaluate(
+        self,
+        config: Optional["EvaluationConfig"] = None,
+    ) -> "ScenarioEvalResults":
+        """Run multi-level evaluation.
+
+        Spans are pulled automatically from the global capture buffer.
+
+        Args:
+            config: Optional evaluation configuration.
         """
 
 ### mock.pyi ###
@@ -15160,6 +15241,7 @@ class EvalRecord:
         context: Context,
         id: Optional[str] = None,
         session_id: Optional[str] = None,
+        trace_id: Optional[str] = None,
     ) -> None:
         """Creates a new LLM record to associate with an `GenAIEvalProfile`.
         The record is sent to the `Scouter` server via the `ScouterQueue` and is
@@ -15218,12 +15300,16 @@ class EvalRecord:
         """
 
     @property
-    def tag(self) -> Optional[str]:
-        """Get the scenario tag (set by EvalRunner.add_scenario_data)."""
+    def tags(self) -> List[str]:
+        """Get the tags list (e.g. ``["scenario_id=s1", "env=test"]``)."""
 
-    @tag.setter
-    def tag(self, tag: Optional[str]) -> None:
-        """Set the scenario tag."""
+    def add_tag(self, key: str, value: str) -> None:
+        """Append a tag in ``"key=value"`` format.
+
+        Args:
+            key: Tag key (e.g. ``"env"``).
+            value: Tag value (e.g. ``"production"``).
+        """
 
     def __str__(self) -> str:
         """Return the string representation of the record."""
@@ -18183,7 +18269,9 @@ __all__ = [
     "EvalRecord",
     "EvalResultSet",
     "EvalResults",
+    "EvalRunner",
     "EvalScenario",
+    "EvalScenarios",
     "EvalSet",
     "EvalTaskResult",
     "EvaluationConfig",

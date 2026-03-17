@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::error::{EventError, PyEventError};
+use opentelemetry::baggage::BaggageExt;
 use opentelemetry::trace::TraceContextExt;
 use opentelemetry::Context as OtelContext;
 use pyo3::prelude::*;
@@ -249,6 +250,42 @@ fn stamp_otel_trace_id(record: &mut EvalRecord) -> Option<TraceId> {
     }
 }
 
+const SCENARIO_TAG_BAGGAGE_KEY: &str = "scouter.eval.scenario_id";
+
+/// If there is a `scouter.eval.scenario_id` entry in the current OTel baggage and the
+/// record does not already carry that tag, appends `"scouter.eval.scenario_id=<value>"`
+/// to `record.tags` and returns the formatted tag string.
+/// Returns `true` if the value is a valid scenario ID (alphanumeric, hyphens, underscores, max 128 chars).
+fn is_valid_scenario_id(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && value
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+}
+
+fn stamp_scenario_tag(record: &mut EvalRecord) -> Option<String> {
+    let cx = OtelContext::current();
+    for (key, (value, _)) in cx.baggage() {
+        if key.as_str() == SCENARIO_TAG_BAGGAGE_KEY {
+            let value_str = value.as_str();
+            if !is_valid_scenario_id(value_str) {
+                warn!(
+                    "stamp_scenario_tag: ignoring invalid scenario_id from baggage: {:?}",
+                    value_str
+                );
+                return None;
+            }
+            let tag = format!("{}={}", SCENARIO_TAG_BAGGAGE_KEY, value_str);
+            if !record.tags.contains(&tag) {
+                record.tags.push(tag.clone());
+            }
+            return Some(tag);
+        }
+    }
+    None
+}
+
 impl QueueBus {
     #[instrument(skip_all)]
     pub fn new(task_state: TaskState, identifier: String, entity_uid: String) -> Self {
@@ -287,11 +324,23 @@ impl QueueBus {
         );
 
         if let QueueItem::GenAI(ref mut record) = extracted_item {
-            if let Some(trace_id) = stamp_otel_trace_id(record) {
+            let trace_id = stamp_otel_trace_id(record);
+            let scenario_tag = stamp_scenario_tag(record);
+
+            // Single borrow to sync Python-side object
+            if trace_id.is_some() || scenario_tag.is_some() {
                 if let Ok(py_record) = item.cast::<EvalRecord>() {
-                    py_record.borrow_mut().trace_id = Some(trace_id);
-                } else {
-                    warn!("stamp_otel_trace_id: could not cast Python item to EvalRecord; Python-side trace_id not updated");
+                    let mut borrowed = py_record.borrow_mut();
+                    if let Some(tid) = trace_id {
+                        borrowed.trace_id = Some(tid);
+                    }
+                    if let Some(ref tag) = scenario_tag {
+                        if !borrowed.tags.contains(tag) {
+                            borrowed.tags.push(tag.clone());
+                        }
+                    }
+                } else if trace_id.is_some() || scenario_tag.is_some() {
+                    warn!("stamp_otel_trace_id: could not cast Python item to EvalRecord; Python-side trace_id/tags not updated");
                 }
             }
         }
@@ -416,5 +465,102 @@ mod tests {
                 "both records should carry the same trace_id within one span"
             );
         });
+    }
+
+    // ── stamp_scenario_tag tests ──
+
+    #[test]
+    fn test_stamp_scenario_tag_no_baggage_returns_none() {
+        let mut record = EvalRecord::default();
+        let result = stamp_scenario_tag(&mut record);
+        assert!(result.is_none(), "no baggage → None");
+        assert!(record.tags.is_empty());
+    }
+
+    #[test]
+    fn test_stamp_scenario_tag_with_matching_baggage_stamps_tag() {
+        use opentelemetry::baggage::BaggageExt;
+
+        let cx = OtelContext::current().with_baggage(vec![opentelemetry::KeyValue::new(
+            "scouter.eval.scenario_id",
+            "test_scenario_1",
+        )]);
+        let _guard = cx.attach();
+
+        let mut record = EvalRecord::default();
+        let result = stamp_scenario_tag(&mut record);
+
+        assert!(result.is_some());
+        let tag = result.unwrap();
+        assert_eq!(tag, "scouter.eval.scenario_id=test_scenario_1");
+        assert!(record.tags.contains(&tag));
+    }
+
+    #[test]
+    fn test_stamp_scenario_tag_idempotent_does_not_duplicate() {
+        use opentelemetry::baggage::BaggageExt;
+
+        let cx = OtelContext::current().with_baggage(vec![opentelemetry::KeyValue::new(
+            "scouter.eval.scenario_id",
+            "scenario_x",
+        )]);
+        let _guard = cx.attach();
+
+        let mut record = EvalRecord::default();
+        stamp_scenario_tag(&mut record);
+        stamp_scenario_tag(&mut record);
+
+        let matching: Vec<_> = record
+            .tags
+            .iter()
+            .filter(|t| t.contains("scenario_id"))
+            .collect();
+        assert_eq!(matching.len(), 1, "tag should not be duplicated");
+    }
+
+    #[test]
+    fn test_stamp_scenario_tag_ignores_unrelated_baggage() {
+        use opentelemetry::baggage::BaggageExt;
+
+        let cx = OtelContext::current().with_baggage(vec![opentelemetry::KeyValue::new(
+            "some.other.key",
+            "value",
+        )]);
+        let _guard = cx.attach();
+
+        let mut record = EvalRecord::default();
+        let result = stamp_scenario_tag(&mut record);
+
+        assert!(result.is_none(), "unrelated baggage should be ignored");
+        assert!(record.tags.is_empty());
+    }
+
+    #[test]
+    fn test_stamp_scenario_tag_rejects_invalid_value() {
+        use opentelemetry::baggage::BaggageExt;
+
+        // Value with spaces and special characters — should be rejected
+        let cx = OtelContext::current().with_baggage(vec![opentelemetry::KeyValue::new(
+            "scouter.eval.scenario_id",
+            "invalid value!",
+        )]);
+        let _guard = cx.attach();
+
+        let mut record = EvalRecord::default();
+        let result = stamp_scenario_tag(&mut record);
+
+        assert!(result.is_none(), "invalid scenario_id should be rejected");
+        assert!(record.tags.is_empty());
+    }
+
+    #[test]
+    fn test_is_valid_scenario_id() {
+        assert!(is_valid_scenario_id("test_scenario_1"));
+        assert!(is_valid_scenario_id("my-scenario"));
+        assert!(is_valid_scenario_id("abc123"));
+        assert!(!is_valid_scenario_id(""));
+        assert!(!is_valid_scenario_id("has spaces"));
+        assert!(!is_valid_scenario_id("special!chars"));
+        assert!(!is_valid_scenario_id(&"a".repeat(129)));
     }
 }

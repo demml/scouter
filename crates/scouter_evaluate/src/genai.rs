@@ -11,6 +11,7 @@ use scouter_state::app_state;
 use scouter_types::genai::{
     AgentAssertionTask, AssertionTask, GenAIEvalProfile, LLMJudgeTask, TraceAssertionTask,
 };
+use scouter_types::trace::sql::TraceSpan;
 use scouter_types::EvalRecord;
 use scouter_types::PyHelperFuncs;
 use serde::{Deserialize, Serialize};
@@ -122,10 +123,12 @@ impl DatasetRecords {
 }
 
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EvalDataset {
     pub records: Arc<Vec<EvalRecord>>,
     pub profile: Arc<GenAIEvalProfile>,
+    #[serde(skip)]
+    pub spans: Arc<Vec<TraceSpan>>,
 }
 
 #[pymethods]
@@ -141,6 +144,7 @@ impl EvalDataset {
         Ok(Self {
             records: Arc::new(records),
             profile: Arc::new(profile),
+            spans: Arc::new(vec![]),
         })
     }
 
@@ -245,6 +249,7 @@ impl EvalDataset {
         Ok(Self {
             records: Arc::new(updated_records),
             profile: Arc::clone(&self.profile),
+            spans: Arc::clone(&self.spans),
         })
     }
 }

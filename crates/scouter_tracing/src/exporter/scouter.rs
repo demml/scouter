@@ -59,7 +59,7 @@ impl SpanExporter for ScouterSpanExporter {
                 let (spans, _, _) = record
                     .to_records()
                     .map_err(|e| OTelSdkError::InternalFailure(e.to_string()))?;
-                let mut buf = CAPTURE_BUFFER.write().unwrap();
+                let mut buf = CAPTURE_BUFFER.write().unwrap_or_else(|p| p.into_inner());
                 let available = CAPTURE_BUFFER_MAX.saturating_sub(buf.len());
                 if available == 0 {
                     warn!(
