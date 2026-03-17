@@ -4,13 +4,14 @@ Evaluation tasks are the core building blocks of Scouter's GenAI evaluation fram
 
 ## Task Types
 
-Scouter provides three types of evaluation tasks:
+Scouter provides four types of evaluation tasks:
 
 | Task Type | Evaluation Method | Use Cases | Cost/Latency |
 |-----------|------------------|-----------|--------------|
 | **AssertionTask** | Deterministic rule-based validation | Structure validation, threshold checks, pattern matching | Zero cost, minimal latency |
 | **LLMJudgeTask** | LLM-powered reasoning | Semantic similarity, quality assessment, complex criteria | Additional LLM call cost and latency |
 | **TraceAssertionTask** | Trace/span property validation | Execution order, retry counts, token budgets, SLA enforcement | Zero cost, minimal latency |
+| **AgentAssertionTask** | Deterministic agent response validation | Tool call verification, argument matching, token counts, response content | Zero cost, minimal latency |
 
 All task types support:
 - **Dependencies**: Chain tasks to build on previous results
@@ -584,6 +585,346 @@ for task_id, result in results.items():
     print(f"{task_id}: {'PASS' if result.passed else 'FAIL'} (actual={result.actual})")
 ```
 
+## AgentAssertionTask
+
+`AgentAssertionTask` evaluates LLM agent responses by asserting on tool call behavior and response properties. It is deterministic — no additional LLM call is required. Each task defines an `AgentAssertion` (what to extract from the agent context), a comparison operator, and an expected value.
+
+Vendor format is auto-detected from the response structure:
+
+| Vendor | Detection signal |
+|--------|-----------------|
+| OpenAI | `choices` key present |
+| Anthropic | `stop_reason` + `content` keys present |
+| Google / Vertex | `candidates` key present |
+
+The context passed to `execute_agent_assertion_tasks()` can be the raw response object directly, or a dict with a `"response"` sub-key — both are handled automatically.
+
+### Import
+
+```python
+from scouter.evaluate import AgentAssertion, AgentAssertionTask, execute_agent_assertion_tasks
+```
+
+### Parameters
+
+```python
+AgentAssertionTask(
+    id: str,
+    assertion: AgentAssertion,
+    expected_value: Any,
+    operator: ComparisonOperator,
+    description: Optional[str] = None,
+    depends_on: Optional[List[str]] = None,
+    condition: Optional[bool] = None,
+)
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | `str` | Yes | Unique identifier (converted to lowercase). |
+| `assertion` | `AgentAssertion` | Yes | Defines what to extract from the agent interaction. |
+| `expected_value` | `Any` | Yes | Value to compare against the extracted result. Must be JSON-serializable. |
+| `operator` | `ComparisonOperator` | Yes | How to compare the extracted value against `expected_value`. |
+| `description` | `str` | No | Human-readable description of what this task checks. |
+| `depends_on` | `List[str]` | No | Task IDs whose outputs this task may reference. |
+| `condition` | `bool` | No | If `True`, this task acts as a gate — downstream tasks are skipped if this task fails. |
+
+### AgentAssertion Variants
+
+#### Tool Call Assertions
+
+| Constructor | Returns | Description |
+|-------------|---------|-------------|
+| `AgentAssertion.tool_called(name)` | `bool` | Whether the named tool was called at all. |
+| `AgentAssertion.tool_not_called(name)` | `bool` | Whether the named tool was NOT called. |
+| `AgentAssertion.tool_called_with_args(name, arguments)` | `bool` | Whether the tool was called with arguments that are a superset of `arguments` (partial match). |
+| `AgentAssertion.tool_call_sequence(names)` | `bool` | Whether tools were called in the exact order given by `names`. |
+| `AgentAssertion.tool_call_count(name=None)` | `int` | Number of times the named tool was called, or total tool call count if `name` is `None`. |
+| `AgentAssertion.tool_argument(name, argument_key)` | `Any` | Value of a specific argument from a tool call. |
+| `AgentAssertion.tool_result(name)` | `Any` | Return value from a tool call. |
+
+#### Response Assertions
+
+| Constructor | Returns | Description |
+|-------------|---------|-------------|
+| `AgentAssertion.response_content()` | `str` | Text content of the response. |
+| `AgentAssertion.response_model()` | `str` | Model identifier used in the response. |
+| `AgentAssertion.response_finish_reason()` | `str` | Finish/stop reason of the response. |
+| `AgentAssertion.response_input_tokens()` | `int` | Input token count. |
+| `AgentAssertion.response_output_tokens()` | `int` | Output token count. |
+| `AgentAssertion.response_total_tokens()` | `int` | Total token count. |
+| `AgentAssertion.response_field(path)` | `Any` | Arbitrary field extracted via dot-notation from the response value. Useful for vendor-specific fields not covered by the named variants. |
+
+`response_field(path)` resolves its path against the response value, not the full context root. For example, `response_field("choices[0].message.content")` is equivalent to `response["choices"][0]["message"]["content"]`.
+
+### Standalone Usage
+
+Use `execute_agent_assertion_tasks()` to evaluate tasks against a response outside of any dataset or profile.
+
+**OpenAI format:**
+
+```python
+from scouter.evaluate import (
+    AgentAssertion,
+    AgentAssertionTask,
+    ComparisonOperator,
+    execute_agent_assertion_tasks,
+)
+
+# Raw OpenAI response
+response = {
+    "model": "gpt-4o",
+    "choices": [
+        {
+            "message": {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {
+                            "name": "web_search",
+                            "arguments": '{"query": "weather NYC", "lang": "en"}',
+                        },
+                    },
+                    {
+                        "id": "call_2",
+                        "type": "function",
+                        "function": {"name": "summarize", "arguments": "{}"},
+                    },
+                ],
+            },
+            "finish_reason": "tool_calls",
+        }
+    ],
+    "usage": {"prompt_tokens": 120, "completion_tokens": 80, "total_tokens": 200},
+}
+
+results = execute_agent_assertion_tasks(
+    tasks=[
+        AgentAssertionTask(
+            id="search_called",
+            assertion=AgentAssertion.tool_called("web_search"),
+            expected_value=True,
+            operator=ComparisonOperator.Equals,
+            description="Verify web_search was invoked",
+        ),
+        AgentAssertionTask(
+            id="no_delete",
+            assertion=AgentAssertion.tool_not_called("delete_user"),
+            expected_value=True,
+            operator=ComparisonOperator.Equals,
+        ),
+        AgentAssertionTask(
+            id="search_args",
+            assertion=AgentAssertion.tool_called_with_args("web_search", {"query": "weather NYC"}),
+            expected_value=True,
+            operator=ComparisonOperator.Equals,
+            description="Partial argument match",
+        ),
+        AgentAssertionTask(
+            id="call_order",
+            assertion=AgentAssertion.tool_call_sequence(["web_search", "summarize"]),
+            expected_value=True,
+            operator=ComparisonOperator.Equals,
+        ),
+        AgentAssertionTask(
+            id="token_budget",
+            assertion=AgentAssertion.response_total_tokens(),
+            expected_value=500,
+            operator=ComparisonOperator.LessThan,
+        ),
+    ],
+    context={"response": response},
+)
+
+for task_id, result in results.results.items():
+    print(f"{task_id}: {'PASS' if result.passed else 'FAIL'} (actual={result.actual})")
+```
+
+**Anthropic format:**
+
+```python
+response = {
+    "id": "msg_01",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-sonnet-4-20250514",
+    "content": [
+        {"type": "text", "text": "Let me search for that."},
+        {
+            "type": "tool_use",
+            "id": "toolu_01",
+            "name": "web_search",
+            "input": {"query": "weather NYC"},
+        },
+    ],
+    "stop_reason": "tool_use",
+    "usage": {"input_tokens": 100, "output_tokens": 200},
+}
+
+results = execute_agent_assertion_tasks(
+    tasks=[
+        AgentAssertionTask(
+            id="model_check",
+            assertion=AgentAssertion.response_model(),
+            expected_value="claude-sonnet-4-20250514",
+            operator=ComparisonOperator.Equals,
+        ),
+        AgentAssertionTask(
+            id="search_called",
+            assertion=AgentAssertion.tool_called("web_search"),
+            expected_value=True,
+            operator=ComparisonOperator.Equals,
+        ),
+        AgentAssertionTask(
+            id="output_tokens",
+            assertion=AgentAssertion.response_output_tokens(),
+            expected_value=500,
+            operator=ComparisonOperator.LessThan,
+        ),
+    ],
+    context=response,  # can also pass the response directly (no "response" wrapper)
+)
+```
+
+### EvalDataset Integration
+
+`AgentAssertionTask` can be combined with other task types in an `EvalDataset` for offline batch evaluation:
+
+```python
+from scouter.evaluate import (
+    AgentAssertion,
+    AgentAssertionTask,
+    AssertionTask,
+    ComparisonOperator,
+    EvalDataset,
+    EvalRecord,
+)
+
+records = [
+    EvalRecord(
+        context={
+            "response": {
+                "model": "gpt-4o",
+                "choices": [
+                    {
+                        "message": {
+                            "content": "The capital of France is Paris.",
+                            "tool_calls": [],
+                        },
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 30, "completion_tokens": 15, "total_tokens": 45},
+            },
+            "expected_answer": "Paris",
+        }
+    ),
+]
+
+tasks = [
+    # Gate: only proceed if the model finished normally
+    AgentAssertionTask(
+        id="finish_reason_gate",
+        assertion=AgentAssertion.response_finish_reason(),
+        expected_value="stop",
+        operator=ComparisonOperator.Equals,
+        condition=True,
+    ),
+    # Verify response content contains the expected answer
+    AgentAssertionTask(
+        id="answer_check",
+        assertion=AgentAssertion.response_content(),
+        expected_value="${expected_answer}",
+        operator=ComparisonOperator.Contains,
+        depends_on=["finish_reason_gate"],
+    ),
+    # Enforce token budget
+    AgentAssertionTask(
+        id="token_budget",
+        assertion=AgentAssertion.response_total_tokens(),
+        expected_value=200,
+        operator=ComparisonOperator.LessThan,
+    ),
+    # Structural check using AssertionTask alongside agent tasks
+    AssertionTask(
+        id="context_not_empty",
+        context_path="response",
+        operator=ComparisonOperator.IsNotEmpty,
+        expected_value=True,
+    ),
+]
+
+dataset = EvalDataset(records=records, tasks=tasks)
+results = dataset.evaluate()
+results.as_table()
+```
+
+### Online Evaluation
+
+Attach `AgentAssertionTask` to a `GenAIEvalProfile` for real-time monitoring. The server samples `EvalRecord` objects at the configured `sample_ratio` and evaluates the tasks asynchronously.
+
+```python
+from scouter.evaluate import AgentAssertion, AgentAssertionTask, GenAIEvalProfile, EvalRecord
+from scouter import GenAIEvalConfig, GrpcConfig
+from scouter.queue import ScouterQueue
+from scouter.alert import ConsoleDispatchConfig
+from scouter.types import CommonCrons
+
+profile = GenAIEvalProfile(
+    config=GenAIEvalConfig(
+        space="production",
+        name="search-agent",
+        version="1.0.0",
+        sample_ratio=0.2,  # Evaluate 20% of requests
+        alert_config=ConsoleDispatchConfig(),
+        schedule=CommonCrons.EveryHour,
+    ),
+    tasks=[
+        AgentAssertionTask(
+            id="search_called",
+            assertion=AgentAssertion.tool_called("web_search"),
+            expected_value=True,
+            operator=ComparisonOperator.Equals,
+            description="Search tool must be invoked",
+        ),
+        AgentAssertionTask(
+            id="no_dangerous_tools",
+            assertion=AgentAssertion.tool_not_called("delete_all_records"),
+            expected_value=True,
+            operator=ComparisonOperator.Equals,
+        ),
+        AgentAssertionTask(
+            id="output_token_budget",
+            assertion=AgentAssertion.response_output_tokens(),
+            expected_value=2000,
+            operator=ComparisonOperator.LessThan,
+        ),
+    ],
+)
+
+# Register the profile (typically done once at deployment time)
+client.register_profile(profile, set_active=True)
+
+# At inference time, insert records into the queue
+queue = ScouterQueue.from_path(
+    path={"search-agent": profile},
+    transport_config=GrpcConfig(),
+)
+
+# After each agent invocation, record the raw response
+raw_response = call_my_agent(user_query)
+
+queue.insert(
+    "search-agent",
+    EvalRecord(context={"response": raw_response}),
+)
+```
+
+The server picks up sampled records, runs the tasks, and triggers alerts based on the profile's `alert_config` and `schedule`.
+
 ---
 
 ## Task Interplay
@@ -660,10 +1001,13 @@ tasks = [
 |----------|-----------|
 | Did the response contain the right fields? | `AssertionTask` |
 | Is the response numerically within threshold? | `AssertionTask` |
-| Did the agent call the right tools in order? | `TraceAssertionTask` |
+| Did the agent call the right tools in order? | `AgentAssertionTask` |
+| Was a specific tool called with the right arguments? | `AgentAssertionTask` |
+| Did total response tokens exceed the budget? | `AgentAssertionTask` |
+| Did the response finish with the expected stop reason? | `AgentAssertionTask` |
 | Did the agent retry more than N times? | `TraceAssertionTask` |
 | Did total latency exceed the SLA? | `TraceAssertionTask` |
-| Did total token usage exceed the budget? | `TraceAssertionTask` |
+| Did total token usage across spans exceed the budget? | `TraceAssertionTask` |
 | Is the response semantically relevant? | `LLMJudgeTask` |
 | Does the response contain hallucinations? | `LLMJudgeTask` |
 | Is the tone appropriate for the audience? | `LLMJudgeTask` |
@@ -814,11 +1158,20 @@ client.register_profile(profile, set_active=True)
 - **Factuality checking**: Hallucination detection, source verification
 - **Style/tone analysis**: Appropriate language for audience
 
+### When to Use AgentAssertionTask
+
+- **Tool call verification**: Check that specific tools were (or were not) called
+- **Argument validation**: Assert tool arguments match expected values
+- **Call sequence**: Verify tools were called in the correct order
+- **Response content**: Check text content of agent responses
+- **Token budgets**: Assert input, output, or total token counts from the response object
+- **Vendor-specific fields**: Use `response_field(path)` for fields not covered by named variants
+
 ### When to Use TraceAssertionTask
 
 - **Execution order**: Verify spans ran in the correct sequence
 - **Retry enforcement**: Limit retry attempts to prevent runaway agents
-- **Token budgets**: Sum token usage across all LLM calls
+- **Token budgets**: Sum token usage across all LLM calls in a trace
 - **Latency SLAs**: Assert total trace or individual span duration
 - **Error detection**: Count spans with ERROR status
 - **Model verification**: Check which model was used in a specific span
@@ -835,6 +1188,7 @@ client.register_profile(profile, set_active=True)
 ### Error Handling
 
 - **AssertionTask**: Fails immediately on type mismatch or missing fields
+- **AgentAssertionTask**: Fails if the response cannot be deserialized or the assertion path does not resolve
 - **TraceAssertionTask**: Fails if no spans match the filter (for span-level assertions)
 - **LLMJudgeTask**: Respects `max_retries` for transient failures (network, rate limits)
 - **Conditional tasks**: Failed conditions skip dependent tasks without failing the workflow
