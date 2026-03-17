@@ -249,6 +249,8 @@ impl PartialEq for ScenarioComparisonResults {
             && self.removed_aliases == other.removed_aliases
             && self.new_scenarios == other.new_scenarios
             && self.removed_scenarios == other.removed_scenarios
+            && self.baseline_alias_pass_rates == other.baseline_alias_pass_rates
+            && self.comparison_alias_pass_rates == other.comparison_alias_pass_rates
         // dataset_comparisons excluded: ComparisonResults does not implement PartialEq
     }
 }
