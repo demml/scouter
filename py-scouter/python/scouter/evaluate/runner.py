@@ -12,11 +12,8 @@ from .._scouter import (
     flush_tracer,
 )
 from ..queue import ScouterQueue
-from ..tracing import (
-    enable_local_span_capture,
-    disable_local_span_capture,
-    get_tracer as _get_tracer,
-)
+from ..tracing import disable_local_span_capture, enable_local_span_capture
+from ..tracing import get_tracer as _get_tracer
 
 SCENARIO_TAG_BAGGAGE_KEY = "scouter.eval.scenario_id"
 
@@ -107,9 +104,7 @@ class EvalOrchestrator:
     def on_scenario_complete(self, scenario: EvalScenario, response: str) -> None:
         """Hook called after a scenario is executed. Override to add custom logic."""
 
-    def on_evaluation_complete(
-        self, results: ScenarioEvalResults
-    ) -> ScenarioEvalResults:
+    def on_evaluation_complete(self, results: ScenarioEvalResults) -> ScenarioEvalResults:
         """Hook called after evaluation completes. Override to post-process results."""
         return results
 
@@ -131,12 +126,13 @@ class EvalOrchestrator:
         """Run execute_agent inside a span with scenario_id baggage (if tracer available)."""
         try:
             eval_tracer = _get_tracer("scouter.eval")
-            with eval_tracer.start_as_current_span(
+            span_ctx = eval_tracer.start_as_current_span(
                 f"scouter.eval.scenario.{scenario.id}",
                 baggage=[{SCENARIO_TAG_BAGGAGE_KEY: scenario.id}],
-            ):
-                return self.execute_agent(scenario)
+            )
         except Exception:  # noqa: BLE001 pylint: disable=broad-except
+            return self.execute_agent(scenario)
+        with span_ctx:
             return self.execute_agent(scenario)
 
     def _collect_scenario_data(self, scenario: EvalScenario, response: str) -> None:
@@ -174,7 +170,10 @@ class EvalOrchestrator:
                 self._collect_scenario_data(scenario, response)
                 self.on_scenario_complete(scenario, response)
 
-            flush_tracer()
+            try:
+                flush_tracer()
+            except Exception:  # noqa: BLE001 pylint: disable=broad-except
+                pass
             results = self._engine.evaluate(config)
             return self.on_evaluation_complete(results)
         finally:

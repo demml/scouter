@@ -222,9 +222,7 @@ class TestReactiveScenario:
         )
         queue = _make_queue(profile)
 
-        orch = EvalOrchestrator(
-            queue=queue, scenarios=scenarios, agent_fn=lambda q: "response"
-        )
+        orch = EvalOrchestrator(queue=queue, scenarios=scenarios, agent_fn=lambda q: "response")
 
         with pytest.raises(NotImplementedError, match="Reactive"):
             orch.run()
@@ -288,9 +286,7 @@ class TestCaptureLifecycle:
         def failing_agent(query):
             raise RuntimeError("agent failed")
 
-        orch = EvalOrchestrator(
-            queue=queue, scenarios=scenarios, agent_fn=failing_agent
-        )
+        orch = EvalOrchestrator(queue=queue, scenarios=scenarios, agent_fn=failing_agent)
 
         with pytest.raises(RuntimeError, match="agent failed"):
             orch.run()
@@ -314,9 +310,7 @@ retriever_eval_profile = GenAIEvalProfile(
         ),
         TraceAssertionTask(
             id="retriever_span",
-            assertion=TraceAssertion.span_count(
-                SpanFilter.by_name("retriever_callback")
-            ),
+            assertion=TraceAssertion.span_count(SpanFilter.by_name("retriever_callback")),
             operator=ComparisonOperator.GreaterThanOrEqual,
             expected_value=1,
         ),
@@ -334,9 +328,7 @@ synthesizer_eval_profile = GenAIEvalProfile(
         ),
         TraceAssertionTask(
             id="synthesizer_span",
-            assertion=TraceAssertion.span_count(
-                SpanFilter.by_name("synthesizer_callback")
-            ),
+            assertion=TraceAssertion.span_count(SpanFilter.by_name("synthesizer_callback")),
             operator=ComparisonOperator.GreaterThanOrEqual,
             expected_value=1,
         ),
@@ -454,9 +446,7 @@ class TestADKAgentPattern:
             span.add_queue_item(
                 "retriever",
                 EvalRecord(
-                    context={
-                        "results": {"count": data["count"], "source": data["source"]}
-                    },
+                    context={"results": {"count": data["count"], "source": data["source"]}},
                     id=f"retriever_{query[:10]}",
                 ),
             )
@@ -469,9 +459,7 @@ class TestADKAgentPattern:
             span.add_queue_item(
                 "synthesizer",
                 EvalRecord(
-                    context={
-                        "response": {"quality": data["quality"], "text": data["text"]}
-                    },
+                    context={"response": {"quality": data["quality"], "text": data["text"]}},
                     id=f"synthesizer_{query[:10]}",
                 ),
             )
@@ -523,9 +511,7 @@ class TestADKAgentPattern:
 
         assert loaded.metrics.total_scenarios == results.metrics.total_scenarios
         assert loaded.metrics.passed_scenarios == results.metrics.passed_scenarios
-        assert loaded.metrics.overall_pass_rate == pytest.approx(
-            results.metrics.overall_pass_rate
-        )
+        assert loaded.metrics.overall_pass_rate == pytest.approx(results.metrics.overall_pass_rate)
         assert len(loaded.scenario_results) == len(results.scenario_results)
 
     def test_compare_baseline_to_improved(self, tmp_path):
