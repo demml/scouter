@@ -42,11 +42,10 @@ impl Default for ObjectStorageSettings {
             .and_then(|v| v.parse().ok())
             .unwrap_or(5u64);
 
-        let trace_refresh_interval_secs =
-            std::env::var("SCOUTER_TRACE_REFRESH_INTERVAL_SECS")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(10u64);
+        let trace_refresh_interval_secs = std::env::var("SCOUTER_TRACE_REFRESH_INTERVAL_SECS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(10u64);
 
         Self {
             storage_uri,
