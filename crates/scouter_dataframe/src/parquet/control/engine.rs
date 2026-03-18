@@ -9,7 +9,6 @@ use chrono::{DateTime, Duration, Utc};
 use datafusion::logical_expr::{col, lit};
 use datafusion::prelude::SessionContext;
 use deltalake::{DeltaTable, DeltaTableBuilder, TableProperty};
-use scouter_settings::ObjectStorageSettings;
 use std::sync::Arc;
 use tokio::sync::RwLock as AsyncRwLock;
 use tracing::{debug, info, warn};
@@ -118,7 +117,6 @@ pub fn get_pod_id() -> String {
 pub struct ControlTableEngine {
     schema: SchemaRef,
     #[allow(dead_code)] // Used for future vacuum/maintenance operations
-    object_store: ObjectStore,
     table: Arc<AsyncRwLock<DeltaTable>>,
     ctx: Arc<SessionContext>,
     pod_id: String,
@@ -129,13 +127,9 @@ impl ControlTableEngine {
     ///
     /// The `pod_id` identifies this instance for distributed locking. In K8s,
     /// pass the pod hostname (`std::env::var("HOSTNAME")`).
-    pub async fn new(
-        storage_settings: &ObjectStorageSettings,
-        pod_id: String,
-    ) -> Result<Self, TraceEngineError> {
-        let object_store = ObjectStore::new(storage_settings)?;
+    pub async fn new(object_store: &ObjectStore, pod_id: String) -> Result<Self, TraceEngineError> {
         let schema = Arc::new(control_schema());
-        let table = build_or_create_control_table(&object_store, schema.clone()).await?;
+        let table = build_or_create_control_table(object_store, schema.clone()).await?;
         let ctx = object_store.get_session()?;
 
         if let Ok(provider) = table.table_provider().await {
@@ -146,7 +140,6 @@ impl ControlTableEngine {
 
         Ok(Self {
             schema,
-            object_store,
             table: Arc::new(AsyncRwLock::new(table)),
             ctx: Arc::new(ctx),
             pod_id,
@@ -587,6 +580,10 @@ mod tests {
     use super::*;
     use scouter_settings::ObjectStorageSettings;
 
+    fn make_test_object_store(storage_settings: &ObjectStorageSettings) -> ObjectStore {
+        ObjectStore::new(storage_settings).unwrap()
+    }
+
     fn cleanup() {
         let storage_settings = ObjectStorageSettings::default();
         let current_dir = std::env::current_dir().unwrap();
@@ -601,7 +598,8 @@ mod tests {
         cleanup();
 
         let settings = ObjectStorageSettings::default();
-        let engine = ControlTableEngine::new(&settings, "pod-1".to_string()).await?;
+        let object_store = make_test_object_store(&settings);
+        let engine = ControlTableEngine::new(&object_store, "pod-1".to_string()).await?;
 
         // No tasks should exist yet
         let due = engine.is_task_due("optimize").await?;
@@ -616,7 +614,8 @@ mod tests {
         cleanup();
 
         let settings = ObjectStorageSettings::default();
-        let engine = ControlTableEngine::new(&settings, "pod-1".to_string()).await?;
+        let object_store = make_test_object_store(&settings);
+        let engine = ControlTableEngine::new(&object_store, "pod-1".to_string()).await?;
 
         // Claim a new task
         let claimed = engine.try_claim_task("optimize").await?;
@@ -645,7 +644,8 @@ mod tests {
         cleanup();
 
         let settings = ObjectStorageSettings::default();
-        let engine = ControlTableEngine::new(&settings, "pod-1".to_string()).await?;
+        let object_store = make_test_object_store(&settings);
+        let engine = ControlTableEngine::new(&object_store, "pod-1".to_string()).await?;
 
         // Claim and release with 0-second interval (immediately due again)
         let claimed = engine.try_claim_task("vacuum").await?;
@@ -673,7 +673,8 @@ mod tests {
         cleanup();
 
         let settings = ObjectStorageSettings::default();
-        let engine = ControlTableEngine::new(&settings, "pod-1".to_string()).await?;
+        let object_store = make_test_object_store(&settings);
+        let engine = ControlTableEngine::new(&object_store, "pod-1".to_string()).await?;
 
         // Claim two different tasks
         let claimed_opt = engine.try_claim_task("optimize").await?;

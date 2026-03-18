@@ -73,16 +73,28 @@ else:
             """Stub base class when OpenTelemetry is not available."""
 
             def instrument(self, **kwargs):
-                raise ImportError("OpenTelemetry is not installed. Install with: " "pip install opsml[opentelemetry]")
+                raise ImportError(
+                    "OpenTelemetry is not installed. Install with: "
+                    "pip install opsml[opentelemetry]"
+                )
 
             def uninstrument(self, **kwargs):
-                raise ImportError("OpenTelemetry is not installed. Install with: " "pip install opsml[opentelemetry]")
+                raise ImportError(
+                    "OpenTelemetry is not installed. Install with: "
+                    "pip install opsml[opentelemetry]"
+                )
 
         def get_tracer_provider():
-            raise ImportError("OpenTelemetry is not installed. Install with: " "pip install opsml[opentelemetry]")
+            raise ImportError(
+                "OpenTelemetry is not installed. Install with: "
+                "pip install opsml[opentelemetry]"
+            )
 
         def set_tracer_provider(provider):
-            raise ImportError("OpenTelemetry is not installed. Install with: " "pip install opsml[opentelemetry]")
+            raise ImportError(
+                "OpenTelemetry is not installed. Install with: "
+                "pip install opsml[opentelemetry]"
+            )
 
     class _OtelTracerProvider:
         pass
@@ -195,7 +207,9 @@ class Tracer(BaseTracer):
             if function_type == FunctionType.AsyncGenerator:
 
                 @functools.wraps(func)
-                async def async_generator_wrapper(*args: P.args, **kwargs: P.kwargs) -> Any:
+                async def async_generator_wrapper(
+                    *args: P.args, **kwargs: P.kwargs
+                ) -> Any:
                     async with self._start_decorated_as_current_span(
                         name=span_name,
                         func=func,
@@ -212,7 +226,9 @@ class Tracer(BaseTracer):
                         func_kwargs=kwargs,
                     ) as span:
                         try:
-                            async_gen_func = cast(Callable[P, AsyncGenerator[Any, None]], func)
+                            async_gen_func = cast(
+                                Callable[P, AsyncGenerator[Any, None]], func
+                            )
                             generator = async_gen_func(*args, **kwargs)
 
                             outputs = []
@@ -254,7 +270,9 @@ class Tracer(BaseTracer):
                         func_kwargs=kwargs,
                     ) as span:
                         try:
-                            gen_func = cast(Callable[P, Generator[Any, None, None]], func)
+                            gen_func = cast(
+                                Callable[P, Generator[Any, None, None]], func
+                            )
                             generator = gen_func(*args, **kwargs)
                             results = []
 
@@ -469,7 +487,8 @@ class ScouterInstrumentor(BaseInstrumentor):
         """Initialize Scouter tracing and set as global provider."""
         if not HAS_OPENTELEMETRY:
             raise ImportError(
-                "OpenTelemetry is required for instrumentation. " "Install with: pip install opsml[opentelemetry]"
+                "OpenTelemetry is required for instrumentation. "
+                "Install with: pip install opsml[opentelemetry]"
             )
 
         if self._provider is not None:
@@ -493,7 +512,7 @@ class ScouterInstrumentor(BaseInstrumentor):
 
         trace._TRACER_PROVIDER_SET_ONCE._done = False  # pylint: disable=protected-access
         trace._TRACER_PROVIDER_SET_ONCE._lock = __import__("threading").Lock()  # pylint: disable=protected-access
-        set_tracer_provider(self._provider)
+        set_tracer_provider(self._provider)  # type: ignore
 
     def instrument(
         self,
@@ -547,7 +566,9 @@ class ScouterInstrumentor(BaseInstrumentor):
         """Drain and return all locally captured spans, clearing the buffer."""
         return get_tracer("scouter").drain_local_spans()
 
-    def get_local_spans_by_trace_ids(self, trace_ids: List[str]) -> List[TraceSpanRecord]:
+    def get_local_spans_by_trace_ids(
+        self, trace_ids: List[str]
+    ) -> List[TraceSpanRecord]:
         """Return captured spans matching the given trace IDs without draining the buffer."""
         return get_tracer("scouter").get_local_spans_by_trace_ids(trace_ids)
 
@@ -577,7 +598,9 @@ class ScouterInstrumentor(BaseInstrumentor):
         # Reset the singleton
         ScouterInstrumentor._instance = None
 
-        assert self._provider is None, "Expected provider to be None after uninstrument()"
+        assert self._provider is None, (
+            "Expected provider to be None after uninstrument()"
+        )
 
     @property
     def is_instrumented(self) -> bool:

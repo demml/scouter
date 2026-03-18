@@ -74,6 +74,9 @@ pub struct TraceSpanService {
     pub query_service: TraceQueries,
     /// Shared SessionContext — exposes `trace_spans` registration for TraceSummaryService.
     pub ctx: Arc<SessionContext>,
+    /// Shared ObjectStore — passed to TraceSummaryService so both engines use the same
+    /// CachingStore instance, preventing stale reads on cloud backends (GCS/S3).
+    pub object_store: crate::storage::ObjectStore,
 }
 
 impl TraceSpanService {
@@ -100,6 +103,7 @@ impl TraceSpanService {
         );
 
         let ctx = engine.ctx.clone();
+        let object_store = engine.object_store.clone();
         let (engine_tx, engine_handle) =
             engine.start_actor(compaction_interval_hours, retention_days);
         let (span_tx, span_rx) = mpsc::channel::<Vec<TraceSpanRecord>>(100);
@@ -121,6 +125,7 @@ impl TraceSpanService {
             buffer_handle,
             query_service: TraceQueries::new(ctx.clone()),
             ctx,
+            object_store,
         })
     }
 
@@ -811,6 +816,140 @@ mod tests {
             "Unfiltered count ({}) should be >= filtered count ({})",
             unfiltered_count,
             filtered_count
+        );
+
+        service.shutdown().await?;
+        cleanup();
+        Ok(())
+    }
+
+    /// Regression test: multiple sequential direct writes must be immediately visible
+    /// to queries without requiring restart.
+    #[tokio::test]
+    async fn test_span_write_visibility_across_multiple_writes() -> Result<(), TraceEngineError> {
+        cleanup();
+
+        let storage_settings = ObjectStorageSettings::default();
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None).await?;
+
+        let start = Utc::now() - chrono::Duration::hours(1);
+        let end = Utc::now() + chrono::Duration::hours(1);
+
+        // Write batch #1 (2 spans)
+        let trace1 = TraceId::from_bytes([0xB0; 16]);
+        let spans1 = vec![
+            make_span(
+                &trace1,
+                SpanId::from_bytes([0xB0; 8]),
+                None,
+                "svc_vis",
+                "op1",
+                vec![],
+            ),
+            make_span(
+                &trace1,
+                SpanId::from_bytes([0xB1; 8]),
+                Some(SpanId::from_bytes([0xB0; 8])),
+                "svc_vis",
+                "op2",
+                vec![],
+            ),
+        ];
+        service.write_spans_direct(spans1).await?;
+
+        let result = service
+            .query_service
+            .get_trace_spans(
+                Some(trace1.as_bytes()),
+                None,
+                Some(&start),
+                Some(&end),
+                None,
+            )
+            .await?;
+        assert_eq!(
+            result.len(),
+            2,
+            "After write #1: expected 2 spans, got {}",
+            result.len()
+        );
+
+        // Write batch #2 (2 more spans, different trace)
+        let trace2 = TraceId::from_bytes([0xB2; 16]);
+        let spans2 = vec![
+            make_span(
+                &trace2,
+                SpanId::from_bytes([0xB2; 8]),
+                None,
+                "svc_vis",
+                "op3",
+                vec![],
+            ),
+            make_span(
+                &trace2,
+                SpanId::from_bytes([0xB3; 8]),
+                Some(SpanId::from_bytes([0xB2; 8])),
+                "svc_vis",
+                "op4",
+                vec![],
+            ),
+        ];
+        service.write_spans_direct(spans2).await?;
+
+        let result = service
+            .query_service
+            .get_trace_spans(
+                Some(trace2.as_bytes()),
+                None,
+                Some(&start),
+                Some(&end),
+                None,
+            )
+            .await?;
+        assert_eq!(
+            result.len(),
+            2,
+            "After write #2: expected 2 spans for trace2, got {} (stale snapshot?)",
+            result.len()
+        );
+
+        // Write batch #3 (2 more spans, third trace)
+        let trace3 = TraceId::from_bytes([0xB4; 16]);
+        let spans3 = vec![
+            make_span(
+                &trace3,
+                SpanId::from_bytes([0xB4; 8]),
+                None,
+                "svc_vis",
+                "op5",
+                vec![],
+            ),
+            make_span(
+                &trace3,
+                SpanId::from_bytes([0xB5; 8]),
+                Some(SpanId::from_bytes([0xB4; 8])),
+                "svc_vis",
+                "op6",
+                vec![],
+            ),
+        ];
+        service.write_spans_direct(spans3).await?;
+
+        let result = service
+            .query_service
+            .get_trace_spans(
+                Some(trace3.as_bytes()),
+                None,
+                Some(&start),
+                Some(&end),
+                None,
+            )
+            .await?;
+        assert_eq!(
+            result.len(),
+            2,
+            "After write #3: expected 2 spans for trace3, got {} (stale snapshot?)",
+            result.len()
         );
 
         service.shutdown().await?;
