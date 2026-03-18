@@ -161,7 +161,7 @@ impl ScouterSetupComponents {
 
         let trace_summary_service = Arc::new(
             TraceSummaryService::new(
-                &config.storage_settings,
+                &trace_service.object_store,
                 compaction_hours,
                 trace_service.ctx.clone(),
             )

@@ -1,6 +1,7 @@
 use crate::error::TraceEngineError;
 use crate::parquet::tracing::engine::{TableCommand, TraceSpanDBEngine};
 use crate::parquet::tracing::queries::TraceQueries;
+use crate::storage::ObjectStore;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::TraceSpanRecord;
@@ -76,6 +77,9 @@ pub struct TraceSpanService {
     pub query_service: TraceQueries,
     /// Shared SessionContext — exposes `trace_spans` registration for TraceSummaryService.
     pub ctx: Arc<SessionContext>,
+    /// Shared ObjectStore — passed to TraceSummaryService so both engines use the same
+    /// CachingStore instance, preventing stale reads on cloud backends (GCS/S3).
+    pub object_store: ObjectStore,
 }
 
 impl TraceSpanService {
@@ -104,6 +108,7 @@ impl TraceSpanService {
         );
 
         let ctx = engine.ctx.clone();
+        let object_store = engine.object_store.clone();
         let (engine_tx, engine_handle) = engine.start_actor(
             compaction_interval_hours,
             retention_days,
@@ -128,6 +133,7 @@ impl TraceSpanService {
             buffer_handle,
             query_service: TraceQueries::new(ctx.clone()),
             ctx,
+            object_store,
         })
     }
 
@@ -352,7 +358,7 @@ mod tests {
         let current_dir = std::env::current_dir().unwrap();
         let storage_path = current_dir.join(storage_settings.storage_root());
         if storage_path.exists() {
-            std::fs::remove_dir_all(storage_path).unwrap();
+            let _ = std::fs::remove_dir_all(storage_path);
         }
     }
 
@@ -874,6 +880,144 @@ mod tests {
 
         writer.signal_shutdown().await;
         reader.signal_shutdown().await;
+        cleanup();
+        Ok(())
+    }
+
+    /// Regression test for stale DataFusion session state after Delta Lake writes.
+    ///
+    /// Before the fix, `SessionContext` cached file metadata from the first write and
+    /// subsequent writes were invisible to queries — the session held a stale snapshot
+    /// of the Delta log. The fix calls `update_datafusion_session()` after each write
+    /// to re-register the table provider with the latest Delta log state.
+    #[tokio::test]
+    async fn test_span_write_visibility_across_multiple_writes() -> Result<(), TraceEngineError> {
+        cleanup();
+
+        let storage_settings = ObjectStorageSettings::default();
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+
+        let start = Utc::now() - chrono::Duration::hours(1);
+        let end = Utc::now() + chrono::Duration::hours(1);
+
+        // Write batch #1 (2 spans)
+        let trace1 = TraceId::from_bytes([0xB0; 16]);
+        let spans1 = vec![
+            make_span(
+                &trace1,
+                SpanId::from_bytes([0xB0; 8]),
+                None,
+                "svc_vis",
+                "op1",
+                vec![],
+            ),
+            make_span(
+                &trace1,
+                SpanId::from_bytes([0xB1; 8]),
+                Some(SpanId::from_bytes([0xB0; 8])),
+                "svc_vis",
+                "op2",
+                vec![],
+            ),
+        ];
+        service.write_spans_direct(spans1).await?;
+
+        let result = service
+            .query_service
+            .get_trace_spans(
+                Some(trace1.as_bytes()),
+                None,
+                Some(&start),
+                Some(&end),
+                None,
+            )
+            .await?;
+        assert_eq!(
+            result.len(),
+            2,
+            "After write #1: expected 2 spans, got {}",
+            result.len()
+        );
+
+        // Write batch #2 (2 more spans, different trace)
+        let trace2 = TraceId::from_bytes([0xB2; 16]);
+        let spans2 = vec![
+            make_span(
+                &trace2,
+                SpanId::from_bytes([0xB2; 8]),
+                None,
+                "svc_vis",
+                "op3",
+                vec![],
+            ),
+            make_span(
+                &trace2,
+                SpanId::from_bytes([0xB3; 8]),
+                Some(SpanId::from_bytes([0xB2; 8])),
+                "svc_vis",
+                "op4",
+                vec![],
+            ),
+        ];
+        service.write_spans_direct(spans2).await?;
+
+        let result = service
+            .query_service
+            .get_trace_spans(
+                Some(trace2.as_bytes()),
+                None,
+                Some(&start),
+                Some(&end),
+                None,
+            )
+            .await?;
+        assert_eq!(
+            result.len(),
+            2,
+            "After write #2: expected 2 spans for trace2, got {} (stale snapshot?)",
+            result.len()
+        );
+
+        // Write batch #3 (2 more spans, third trace)
+        let trace3 = TraceId::from_bytes([0xB4; 16]);
+        let spans3 = vec![
+            make_span(
+                &trace3,
+                SpanId::from_bytes([0xB4; 8]),
+                None,
+                "svc_vis",
+                "op5",
+                vec![],
+            ),
+            make_span(
+                &trace3,
+                SpanId::from_bytes([0xB5; 8]),
+                Some(SpanId::from_bytes([0xB4; 8])),
+                "svc_vis",
+                "op6",
+                vec![],
+            ),
+        ];
+        service.write_spans_direct(spans3).await?;
+
+        let result = service
+            .query_service
+            .get_trace_spans(
+                Some(trace3.as_bytes()),
+                None,
+                Some(&start),
+                Some(&end),
+                None,
+            )
+            .await?;
+        assert_eq!(
+            result.len(),
+            2,
+            "After write #3: expected 2 spans for trace3, got {} (stale snapshot?)",
+            result.len()
+        );
+
+        service.shutdown().await?;
         cleanup();
         Ok(())
     }

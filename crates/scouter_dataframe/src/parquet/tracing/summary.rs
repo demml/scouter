@@ -9,13 +9,12 @@ use arrow::compute;
 use arrow::datatypes::*;
 use arrow_array::Array;
 use arrow_array::RecordBatch;
-use chrono::{DateTime, Datelike, TimeZone, Utc};
+use chrono::{DateTime, Datelike, Utc};
 use datafusion::logical_expr::{cast as df_cast, col, lit, SortExpr};
 use datafusion::prelude::*;
 use datafusion::scalar::ScalarValue;
 use deltalake::operations::optimize::OptimizeType;
 use deltalake::{DeltaTable, DeltaTableBuilder, TableProperty};
-use scouter_settings::ObjectStorageSettings;
 use scouter_types::sql::{TraceFilters, TraceListItem};
 use scouter_types::{Attribute, TraceCursor, TraceId, TracePaginationResponse, TraceSummaryRecord};
 use std::sync::Arc;
@@ -171,7 +170,7 @@ impl TraceSummaryBatchBuilder {
         }
         let duration = rec
             .end_time
-            .map(|end| (end - rec.start_time).num_milliseconds());
+            .map(|end| (end - rec.start_time).num_milliseconds().max(0));
         match duration {
             Some(d) => self.duration_ms.append_value(d),
             None => self.duration_ms.append_null(),
@@ -378,12 +377,11 @@ impl TraceSummaryDBEngine {
     /// `trace_spans` and `trace_summaries` live in the same context and can participate in
     /// JOIN queries.
     pub async fn new(
-        storage_settings: &ObjectStorageSettings,
+        object_store: &ObjectStore,
         ctx: Arc<SessionContext>,
     ) -> Result<Self, TraceEngineError> {
-        let object_store = ObjectStore::new(storage_settings)?;
         let schema = Arc::new(create_summary_schema());
-        let delta_table = build_or_create_summary_table(&object_store, schema.clone()).await?;
+        let delta_table = build_or_create_summary_table(object_store, schema.clone()).await?;
         // A freshly-created table has no committed Parquet files yet — table_provider()
         // returns an error in that case. Defer registration until the first write.
         if let Ok(provider) = delta_table.table_provider().await {
@@ -392,7 +390,7 @@ impl TraceSummaryDBEngine {
             info!("Empty summary table at init — deferring SessionContext registration until first write");
         }
 
-        let control = ControlTableEngine::new(storage_settings, get_pod_id()).await?;
+        let control = ControlTableEngine::new(object_store, get_pod_id()).await?;
 
         Ok(TraceSummaryDBEngine {
             schema,
@@ -422,13 +420,16 @@ impl TraceSummaryDBEngine {
         let batch = self.build_batch(records)?;
 
         let mut table_guard = self.table.write().await;
+        // update_incremental is intentionally omitted here.
+        //
+        // This engine runs as a single-writer actor — no other process commits to this
+        // Delta table, so the in-memory state is always current. Calling update_incremental
+        // can mutate table_guard into a corrupted intermediate state before the error
+        // propagates, producing a DeltaTable whose snapshot may not reflect newly written
+        // files — causing stale query results until restart.
 
-        if let Err(e) = table_guard.update_incremental(None).await {
-            info!("Summary table update skipped (new table): {}", e);
-        }
-
-        let updated_table = table_guard
-            .clone()
+        let current_table = table_guard.clone();
+        let updated_table = current_table
             .write(vec![batch])
             .with_save_mode(deltalake::protocol::SaveMode::Append)
             .with_partition_columns(vec![PARTITION_DATE_COL.to_string()])
@@ -437,6 +438,7 @@ impl TraceSummaryDBEngine {
         self.ctx.deregister_table(SUMMARY_TABLE_NAME)?;
         self.ctx
             .register_table(SUMMARY_TABLE_NAME, updated_table.table_provider().await?)?;
+        updated_table.update_datafusion_session(&self.ctx.state())?;
 
         *table_guard = updated_table;
         info!("Summary table updated with {} records", count);
@@ -458,6 +460,7 @@ impl TraceSummaryDBEngine {
         self.ctx.deregister_table(SUMMARY_TABLE_NAME)?;
         self.ctx
             .register_table(SUMMARY_TABLE_NAME, updated_table.table_provider().await?)?;
+        updated_table.update_datafusion_session(&self.ctx.state())?;
         *table_guard = updated_table;
         Ok(())
     }
@@ -474,6 +477,7 @@ impl TraceSummaryDBEngine {
         self.ctx.deregister_table(SUMMARY_TABLE_NAME)?;
         self.ctx
             .register_table(SUMMARY_TABLE_NAME, updated_table.table_provider().await?)?;
+        updated_table.update_datafusion_session(&self.ctx.state())?;
         *table_guard = updated_table;
         Ok(())
     }
@@ -534,9 +538,10 @@ impl TraceSummaryDBEngine {
                                 let _ = respond_to.send(result);
                             }
                             SummaryTableCommand::Optimize { respond_to } => {
-                                // Direct admin request — bypass control table
+                                // Direct admin request — bypass control table.
+                                // Response is sent before vacuum so callers aren't blocked
+                                // on the potentially slow file-deletion pass.
                                 let _ = respond_to.send(self.optimize_table().await);
-                                // vacuum table
                                 if let Err(e) = self.vacuum_table(0).await {
                                     error!("Post-optimize vacuum failed: {}", e);
                                 }
@@ -571,11 +576,11 @@ pub struct TraceSummaryService {
 
 impl TraceSummaryService {
     pub async fn new(
-        storage_settings: &ObjectStorageSettings,
+        object_store: &ObjectStore,
         compaction_interval_hours: u64,
         ctx: Arc<SessionContext>,
     ) -> Result<Self, TraceEngineError> {
-        let engine = TraceSummaryDBEngine::new(storage_settings, ctx).await?;
+        let engine = TraceSummaryDBEngine::new(object_store, ctx).await?;
         let engine_ctx = engine.ctx.clone();
         let (engine_tx, engine_handle) = engine.start_actor(compaction_interval_hours);
 
@@ -1024,11 +1029,28 @@ fn extract_map_attributes(map_array: &MapArray, row_idx: usize) -> Vec<Attribute
         return Vec::new();
     }
     let entry = map_array.value(row_idx);
-    let struct_array = entry.as_any().downcast_ref::<StructArray>().unwrap();
-    let keys_arr = compute::cast(struct_array.column(0).as_ref(), &DataType::Utf8).unwrap();
-    let keys = keys_arr.as_any().downcast_ref::<StringArray>().unwrap();
-    let values_arr = compute::cast(struct_array.column(1).as_ref(), &DataType::Utf8).unwrap();
-    let values = values_arr.as_any().downcast_ref::<StringArray>().unwrap();
+    let Some(struct_array) = entry.as_any().downcast_ref::<StructArray>() else {
+        tracing::warn!("extract_map_attributes: failed to downcast to StructArray");
+        return Vec::new();
+    };
+    let Some(keys_arr) = compute::cast(struct_array.column(0).as_ref(), &DataType::Utf8).ok()
+    else {
+        tracing::warn!("extract_map_attributes: failed to cast keys to Utf8");
+        return Vec::new();
+    };
+    let Some(keys) = keys_arr.as_any().downcast_ref::<StringArray>() else {
+        tracing::warn!("extract_map_attributes: failed to downcast keys to StringArray");
+        return Vec::new();
+    };
+    let Some(values_arr) = compute::cast(struct_array.column(1).as_ref(), &DataType::Utf8).ok()
+    else {
+        tracing::warn!("extract_map_attributes: failed to cast values to Utf8");
+        return Vec::new();
+    };
+    let Some(values) = values_arr.as_any().downcast_ref::<StringArray>() else {
+        tracing::warn!("extract_map_attributes: failed to downcast values to StringArray");
+        return Vec::new();
+    };
 
     (0..struct_array.len())
         .map(|i| Attribute {
@@ -1215,11 +1237,11 @@ fn batches_to_trace_list_items(
         for i in 0..batch.num_rows() {
             let trace_id_hex = hex::encode(trace_ids.value(i));
 
-            let start_time = micros_to_datetime(start_times.value(i));
+            let start_time = micros_to_datetime(start_times.value(i))?;
             let end_time = if end_times.is_null(i) {
                 None
             } else {
-                Some(micros_to_datetime(end_times.value(i)))
+                Some(micros_to_datetime(end_times.value(i))?)
             };
             let duration_ms = if durations.is_null(i) {
                 None
@@ -1261,10 +1283,10 @@ fn batches_to_trace_list_items(
     Ok(items)
 }
 
-fn micros_to_datetime(micros: i64) -> DateTime<Utc> {
-    let secs = micros / 1_000_000;
-    let nanos = ((micros % 1_000_000) * 1_000) as u32;
-    Utc.timestamp_opt(secs, nanos).unwrap()
+fn micros_to_datetime(micros: i64) -> Result<DateTime<Utc>, TraceEngineError> {
+    DateTime::from_timestamp_micros(micros).ok_or(TraceEngineError::InvalidTimestamp(
+        "out-of-range microsecond timestamp",
+    ))
 }
 
 #[cfg(test)]
@@ -1285,19 +1307,18 @@ mod tests {
         let current_dir = std::env::current_dir().unwrap();
         let storage_path = current_dir.join(storage_settings.storage_root());
         if storage_path.exists() {
-            std::fs::remove_dir_all(storage_path).unwrap();
+            let _ = std::fs::remove_dir_all(storage_path);
         }
+    }
+
+    fn make_test_object_store(storage_settings: &ObjectStorageSettings) -> ObjectStore {
+        ObjectStore::new(storage_settings).unwrap()
     }
 
     /// Build a standalone SessionContext for test use (no trace_spans registered).
     /// Attribute-filter paths that need trace_spans are not exercised in these tests.
-    fn make_test_ctx(storage_settings: &ObjectStorageSettings) -> Arc<SessionContext> {
-        Arc::new(
-            ObjectStore::new(storage_settings)
-                .unwrap()
-                .get_session()
-                .unwrap(),
-        )
+    fn make_test_ctx(object_store: &ObjectStore) -> Arc<SessionContext> {
+        Arc::new(object_store.get_session().unwrap())
     }
 
     fn make_summary(
@@ -1335,8 +1356,9 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let ctx = make_test_ctx(&storage_settings);
-        let service = TraceSummaryService::new(&storage_settings, 24, ctx).await?;
+        let object_store = make_test_object_store(&storage_settings);
+        let ctx = make_test_ctx(&object_store);
+        let service = TraceSummaryService::new(&object_store, 24, ctx).await?;
 
         let s1 = make_summary([1u8; 16], "svc_a", 0, vec![]);
         let s2 = make_summary([2u8; 16], "svc_b", 0, vec![]);
@@ -1379,8 +1401,9 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let ctx = make_test_ctx(&storage_settings);
-        let service = TraceSummaryService::new(&storage_settings, 24, ctx).await?;
+        let object_store = make_test_object_store(&storage_settings);
+        let ctx = make_test_ctx(&object_store);
+        let service = TraceSummaryService::new(&object_store, 24, ctx).await?;
 
         let ok_summary = make_summary([3u8; 16], "svc", 0, vec![]);
         let err_summary = make_summary([4u8; 16], "svc", 2, vec![]);
@@ -1457,8 +1480,9 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let ctx = make_test_ctx(&storage_settings);
-        let service = TraceSummaryService::new(&storage_settings, 24, ctx).await?;
+        let object_store = make_test_object_store(&storage_settings);
+        let ctx = make_test_ctx(&object_store);
+        let service = TraceSummaryService::new(&object_store, 24, ctx).await?;
 
         let s_alpha = make_summary([5u8; 16], "alpha_service", 0, vec![]);
         let s_beta = make_summary([6u8; 16], "beta_service", 0, vec![]);
@@ -1507,8 +1531,9 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let ctx = make_test_ctx(&storage_settings);
-        let service = TraceSummaryService::new(&storage_settings, 24, ctx).await?;
+        let object_store = make_test_object_store(&storage_settings);
+        let ctx = make_test_ctx(&object_store);
+        let service = TraceSummaryService::new(&object_store, 24, ctx).await?;
 
         let wanted_id = TraceId::from_bytes([7u8; 16]);
         let unwanted_id = TraceId::from_bytes([8u8; 16]);
@@ -1563,8 +1588,9 @@ mod tests {
     async fn test_summary_cursor_pagination() -> Result<(), TraceEngineError> {
         cleanup();
         let storage_settings = ObjectStorageSettings::default();
-        let ctx = make_test_ctx(&storage_settings);
-        let service = TraceSummaryService::new(&storage_settings, 24, ctx).await?;
+        let object_store = make_test_object_store(&storage_settings);
+        let ctx = make_test_ctx(&object_store);
+        let service = TraceSummaryService::new(&object_store, 24, ctx).await?;
 
         let now = Utc::now();
         let summaries: Vec<TraceSummaryRecord> = (0u8..100)
@@ -1631,7 +1657,8 @@ mod tests {
         let shared_ctx = span_service.ctx.clone();
 
         // TraceSummaryService shares the same ctx — JOIN to trace_spans will work
-        let summary_service = TraceSummaryService::new(&storage_settings, 24, shared_ctx).await?;
+        let summary_service =
+            TraceSummaryService::new(&span_service.object_store, 24, shared_ctx).await?;
 
         let now = Utc::now();
         let kafka_trace = TraceId::from_bytes([70u8; 16]);
@@ -1712,7 +1739,8 @@ mod tests {
         let shared_ctx = span_service.ctx.clone();
 
         // TraceSummaryService shares the same ctx so JOIN path works
-        let summary_service = TraceSummaryService::new(&storage_settings, 24, shared_ctx).await?;
+        let summary_service =
+            TraceSummaryService::new(&span_service.object_store, 24, shared_ctx).await?;
 
         let now = Utc::now();
         let queue_trace = TraceId::from_bytes([90u8; 16]);
@@ -1848,8 +1876,9 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let ctx = make_test_ctx(&storage_settings);
-        let service = TraceSummaryService::new(&storage_settings, 24, ctx).await?;
+        let object_store = make_test_object_store(&storage_settings);
+        let ctx = make_test_ctx(&object_store);
+        let service = TraceSummaryService::new(&object_store, 24, ctx).await?;
 
         let attrs = vec![Attribute {
             key: "cloud.region".to_string(),
@@ -1885,6 +1914,73 @@ mod tests {
             "Expected 1 resource attribute"
         );
         assert_eq!(response.items[0].resource_attributes[0].key, "cloud.region");
+
+        service.shutdown().await?;
+        cleanup();
+        Ok(())
+    }
+
+    /// Regression test: multiple sequential writes must be immediately visible to queries.
+    /// This catches the stale snapshot bug where re-registration doesn't refresh the
+    /// DataFusion session's object store, causing queries after subsequent writes to
+    /// return stale results.
+    #[tokio::test]
+    async fn test_summary_write_visibility_across_multiple_writes() -> Result<(), TraceEngineError>
+    {
+        cleanup();
+
+        let storage_settings = ObjectStorageSettings::default();
+        let object_store = make_test_object_store(&storage_settings);
+        let ctx = make_test_ctx(&object_store);
+        let service = TraceSummaryService::new(&object_store, 24, ctx).await?;
+
+        let start = Utc::now() - chrono::Duration::hours(1);
+        let end = Utc::now() + chrono::Duration::hours(1);
+        let filters = TraceFilters {
+            start_time: Some(start),
+            end_time: Some(end),
+            limit: Some(100),
+            ..Default::default()
+        };
+
+        // Write batch #1 (2 summaries)
+        let s1 = make_summary([0xA0; 16], "svc_vis", 0, vec![]);
+        let s2 = make_summary([0xA1; 16], "svc_vis", 0, vec![]);
+        service.write_summaries(vec![s1, s2]).await?;
+
+        let response = service.query_service.get_paginated_traces(&filters).await?;
+        assert_eq!(
+            response.items.len(),
+            2,
+            "After write #1: expected 2 items, got {}",
+            response.items.len()
+        );
+
+        // Write batch #2 (2 more summaries)
+        let s3 = make_summary([0xA2; 16], "svc_vis", 0, vec![]);
+        let s4 = make_summary([0xA3; 16], "svc_vis", 0, vec![]);
+        service.write_summaries(vec![s3, s4]).await?;
+
+        let response = service.query_service.get_paginated_traces(&filters).await?;
+        assert_eq!(
+            response.items.len(),
+            4,
+            "After write #2: expected 4 items, got {} (stale snapshot?)",
+            response.items.len()
+        );
+
+        // Write batch #3 (2 more summaries)
+        let s5 = make_summary([0xA4; 16], "svc_vis", 0, vec![]);
+        let s6 = make_summary([0xA5; 16], "svc_vis", 0, vec![]);
+        service.write_summaries(vec![s5, s6]).await?;
+
+        let response = service.query_service.get_paginated_traces(&filters).await?;
+        assert_eq!(
+            response.items.len(),
+            6,
+            "After write #3: expected 6 items, got {} (stale snapshot?)",
+            response.items.len()
+        );
 
         service.shutdown().await?;
         cleanup();
