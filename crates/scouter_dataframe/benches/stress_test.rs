@@ -31,7 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // compaction_interval_hours=999 disables auto-compaction; flush every 5s (unused for direct writes).
     let storage_settings = ObjectStorageSettings::default();
-    let service = TraceSpanService::new(&storage_settings, 999, Some(5), None).await?;
+    let service = TraceSpanService::new(&storage_settings, 999, Some(5), None, 10).await?;
 
     // ── Phase 1: Seed ──────────────────────────────────────────────────────
     println!(

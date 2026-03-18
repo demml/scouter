@@ -40,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         TOTAL_SPANS, HOURS, QUERY_ITERS
     );
 
-    let service = TraceSpanService::new(&storage_settings, 999, Some(1), None).await?;
+    let service = TraceSpanService::new(&storage_settings, 999, Some(1), None, 10).await?;
 
     // ── Seed ─────────────────────────────────────────────────────────────
     println!("Seeding {} spans...", TOTAL_SPANS);

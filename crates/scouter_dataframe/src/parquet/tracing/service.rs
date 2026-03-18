@@ -878,8 +878,8 @@ mod tests {
             "Reader pod should see spans written by writer pod after refresh"
         );
 
-        writer.signal_shutdown().await;
-        reader.signal_shutdown().await;
+        writer.shutdown().await?;
+        reader.shutdown().await?;
         cleanup();
         Ok(())
     }

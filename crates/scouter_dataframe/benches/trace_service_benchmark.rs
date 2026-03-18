@@ -36,10 +36,11 @@ fn bench_write_throughput(c: &mut Criterion) {
                     region: "us-east-1".to_string(),
                     trace_compaction_interval_hours: 999,
                     trace_flush_interval_secs: 1,
+                    trace_refresh_interval_secs: 10,
                 };
 
                 b.to_async(&rt).iter(|| async {
-                    let service = TraceSpanService::new(&storage_settings, 999, Some(1), None)
+                    let service = TraceSpanService::new(&storage_settings, 999, Some(1), None, 10)
                         .await
                         .unwrap();
 
@@ -76,11 +77,12 @@ fn bench_concurrent_writes(c: &mut Criterion) {
                     region: "us-east-1".to_string(),
                     trace_compaction_interval_hours: 999,
                     trace_flush_interval_secs: 1,
+                    trace_refresh_interval_secs: 10,
                 };
 
                 b.to_async(&rt).iter(|| async {
                     let service = Arc::new(
-                        TraceSpanService::new(&storage_settings, 999, Some(1), None)
+                        TraceSpanService::new(&storage_settings, 999, Some(1), None, 10)
                             .await
                             .unwrap(),
                     );
@@ -127,10 +129,11 @@ fn bench_query_performance(c: &mut Criterion) {
                     region: "us-east-1".to_string(),
                     trace_compaction_interval_hours: 999,
                     trace_flush_interval_secs: 1,
+                    trace_refresh_interval_secs: 10,
                 };
 
                 let (service, trace_id) = rt.block_on(async {
-                    let service = TraceSpanService::new(&storage_settings, 999, Some(1), None)
+                    let service = TraceSpanService::new(&storage_settings, 999, Some(1), None, 10)
                         .await
                         .unwrap();
                     let spans = generate_trace_batch(size / 5, 5);
@@ -184,10 +187,11 @@ fn bench_sustained_load(c: &mut Criterion) {
             region: "us-east-1".to_string(),
             trace_compaction_interval_hours: 999,
             trace_flush_interval_secs: 1,
+            trace_refresh_interval_secs: 10,
         };
 
         b.to_async(&rt).iter(|| async {
-            let service = TraceSpanService::new(&storage_settings, 999, Some(1), None)
+            let service = TraceSpanService::new(&storage_settings, 999, Some(1), None, 10)
                 .await
                 .unwrap();
 
@@ -232,10 +236,11 @@ fn bench_query_at_scale(c: &mut Criterion) {
                     region: "us-east-1".to_string(),
                     trace_compaction_interval_hours: 999,
                     trace_flush_interval_secs: 1,
+                    trace_refresh_interval_secs: 10,
                 };
 
                 let (service, trace_id_bytes) = rt.block_on(async {
-                    let service = TraceSpanService::new(&storage_settings, 999, Some(1), None)
+                    let service = TraceSpanService::new(&storage_settings, 999, Some(1), None, 10)
                         .await
                         .unwrap();
                     let mut first_id = None;
@@ -292,10 +297,11 @@ fn bench_query_at_scale(c: &mut Criterion) {
                     region: "us-east-1".to_string(),
                     trace_compaction_interval_hours: 999,
                     trace_flush_interval_secs: 1,
+                    trace_refresh_interval_secs: 10,
                 };
 
                 let service = rt.block_on(async {
-                    let service = TraceSpanService::new(&storage_settings, 999, Some(1), None)
+                    let service = TraceSpanService::new(&storage_settings, 999, Some(1), None, 10)
                         .await
                         .unwrap();
                     for _ in 0..size.div_ceil(chunk) {
@@ -375,11 +381,12 @@ fn bench_cold_query(c: &mut Criterion) {
             region: "us-east-1".to_string(),
             trace_compaction_interval_hours: 999,
             trace_flush_interval_secs: 1,
+            trace_refresh_interval_secs: 10,
         };
 
         // all_ids: (trace_id_bytes, hour_index)
         let (service, all_ids) = rt.block_on(async {
-            let service = TraceSpanService::new(&storage_settings, 999, Some(1), None)
+            let service = TraceSpanService::new(&storage_settings, 999, Some(1), None, 10)
                 .await
                 .unwrap();
             let mut all_ids: Vec<(Vec<u8>, usize)> = Vec::new();
@@ -443,10 +450,11 @@ fn bench_cold_query(c: &mut Criterion) {
             region: "us-east-1".to_string(),
             trace_compaction_interval_hours: 999,
             trace_flush_interval_secs: 1,
+            trace_refresh_interval_secs: 10,
         };
 
         let (service, all_ids) = rt.block_on(async {
-            let service = TraceSpanService::new(&storage_settings, 999, Some(1), None)
+            let service = TraceSpanService::new(&storage_settings, 999, Some(1), None, 10)
                 .await
                 .unwrap();
             let mut all_ids: Vec<(Vec<u8>, usize)> = Vec::new();
@@ -533,7 +541,7 @@ fn bench_at_scale_1m(c: &mut Criterion) {
     async fn seed_and_compact(
         storage_settings: &ObjectStorageSettings,
     ) -> (Arc<TraceSpanService>, Arc<Vec<(Vec<u8>, usize)>>) {
-        let service = TraceSpanService::new(storage_settings, 999, Some(1), None)
+        let service = TraceSpanService::new(storage_settings, 999, Some(1), None, 10)
             .await
             .unwrap();
         let mut all_ids: Vec<(Vec<u8>, usize)> = Vec::with_capacity(HOURS * IDS_PER_HOUR);
@@ -576,6 +584,7 @@ fn bench_at_scale_1m(c: &mut Criterion) {
             region: "us-east-1".to_string(),
             trace_compaction_interval_hours: 999,
             trace_flush_interval_secs: 1,
+            trace_refresh_interval_secs: 10,
         };
 
         let (service, all_ids) = rt.block_on(seed_and_compact(&storage_settings));
@@ -616,6 +625,7 @@ fn bench_at_scale_1m(c: &mut Criterion) {
             region: "us-east-1".to_string(),
             trace_compaction_interval_hours: 999,
             trace_flush_interval_secs: 1,
+            trace_refresh_interval_secs: 10,
         };
 
         let (service, all_ids) = rt.block_on(seed_and_compact(&storage_settings));
@@ -682,10 +692,11 @@ fn bench_at_scale_10m(c: &mut Criterion) {
         region: "us-east-1".to_string(),
         trace_compaction_interval_hours: 999,
         trace_flush_interval_secs: 1,
+        trace_refresh_interval_secs: 10,
     };
 
     let (service, all_ids) = rt.block_on(async {
-        let service = TraceSpanService::new(&storage_settings, 999, Some(1), None)
+        let service = TraceSpanService::new(&storage_settings, 999, Some(1), None, 10)
             .await
             .unwrap();
         let mut all_ids: Vec<(Vec<u8>, usize)> = Vec::with_capacity(HOURS * IDS_PER_HOUR);
