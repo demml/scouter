@@ -28,6 +28,7 @@ pub async fn init_trace_span_service(
     compaction_interval_hours: u64,
     flush_interval_secs: Option<u64>,
     retention_days: Option<u32>,
+    refresh_interval_secs: u64,
 ) -> Result<Arc<TraceSpanService>, TraceEngineError> {
     // Shut down any existing service before replacing
     let old_service = {
@@ -45,6 +46,7 @@ pub async fn init_trace_span_service(
             compaction_interval_hours,
             flush_interval_secs,
             retention_days,
+            refresh_interval_secs,
         )
         .await?,
     );
@@ -85,11 +87,13 @@ impl TraceSpanService {
     ///   (merging small files into larger ones). Longer intervals reduce write amplification
     ///   but may increase read latency.
     /// * `flush_interval_secs` - Optional interval in seconds for flushing the buffer to storage
+    /// * `refresh_interval_secs` - How often to refresh the in-memory Delta table snapshot from shared object storage. Useful for multi-pod deployments to pick up new commits.
     pub async fn new(
         storage_settings: &ObjectStorageSettings,
         compaction_interval_hours: u64,
         flush_interval_secs: Option<u64>,
         retention_days: Option<u32>,
+        refresh_interval_secs: u64,
     ) -> Result<Self, TraceEngineError> {
         let buffer_size = storage_settings.trace_buffer_size();
         let engine = TraceSpanDBEngine::new(storage_settings).await?;
@@ -100,8 +104,11 @@ impl TraceSpanService {
         );
 
         let ctx = engine.ctx.clone();
-        let (engine_tx, engine_handle) =
-            engine.start_actor(compaction_interval_hours, retention_days);
+        let (engine_tx, engine_handle) = engine.start_actor(
+            compaction_interval_hours,
+            retention_days,
+            refresh_interval_secs,
+        );
         let (span_tx, span_rx) = mpsc::channel::<Vec<TraceSpanRecord>>(100);
         let (shutdown_tx, shutdown_rx) = mpsc::channel::<()>(1);
 
@@ -391,7 +398,7 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None).await?;
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
         service.shutdown().await?;
         cleanup();
         Ok(())
@@ -402,7 +409,7 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None).await?;
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
 
         let (_trace_record, spans, _tags) = generate_trace_with_spans(3, 0);
         info!("Test: writing {} spans", spans.len());
@@ -436,7 +443,7 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None).await?;
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
 
         // Build a deterministic tree: root → child → grandchild
         let trace_id = TraceId::from_bytes([1u8; 16]);
@@ -528,7 +535,7 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None).await?;
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
 
         let (_record, spans, _tags) = generate_trace_with_spans(5, 0);
         service.write_spans(spans).await?;
@@ -556,7 +563,7 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None).await?;
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
 
         // Write spans for two distinct services using deterministic IDs
         let trace_a = TraceId::from_bytes([10u8; 16]);
@@ -634,7 +641,7 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None).await?;
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
 
         // Write a known batch directly so it is immediately queryable
         // Use distinct byte values that don't collide with other tests.
@@ -751,7 +758,7 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None).await?;
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
 
         let trace_kafka = TraceId::from_bytes([30u8; 16]);
         let trace_http = TraceId::from_bytes([40u8; 16]);
@@ -814,6 +821,59 @@ mod tests {
         );
 
         service.shutdown().await?;
+        cleanup();
+        Ok(())
+    }
+
+    /// Simulate a 2-pod deployment: writer pod commits, reader pod picks it up via refresh.
+    ///
+    /// Two `TraceSpanService` instances share the same local storage directory (same as
+    /// sharing GCS/S3 in production). The writer commits spans directly; the reader's refresh
+    /// ticker (1s interval) picks up the new Delta log entry and re-registers the SessionContext.
+    ///
+    /// Note: we use `TraceSpanService::new()` directly (not `init_trace_span_service()`) because
+    /// the global singleton pattern shuts down the previous service on re-init, which would
+    /// kill the writer before the reader can see its data.
+    #[tokio::test]
+    async fn test_distributed_refresh() -> Result<(), TraceEngineError> {
+        cleanup();
+
+        let storage_settings = ObjectStorageSettings::default();
+
+        // "Writer pod" — standard refresh interval (won't need to refresh since it's the writer)
+        let writer = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+
+        // "Reader pod" — 1s refresh interval for fast test turnaround
+        let reader = TraceSpanService::new(&storage_settings, 24, Some(2), None, 1).await?;
+
+        // Write spans via the writer using a deterministic trace ID
+        let trace_id = TraceId::from_bytes([0xDD_u8; 16]);
+        let span = make_span(
+            &trace_id,
+            SpanId::from_bytes([0xDD_u8; 8]),
+            None,
+            "distributed-svc",
+            "test-op",
+            vec![],
+        );
+        writer.write_spans_direct(vec![span]).await?;
+
+        // Wait for the reader's refresh ticker to fire (1s interval + margin)
+        tokio::time::sleep(Duration::from_secs(3)).await;
+
+        // Reader should now see the data written by the writer
+        let results = reader
+            .query_service
+            .get_trace_spans(Some(trace_id.as_bytes()), None, None, None, None)
+            .await?;
+
+        assert!(
+            !results.is_empty(),
+            "Reader pod should see spans written by writer pod after refresh"
+        );
+
+        writer.signal_shutdown().await;
+        reader.signal_shutdown().await;
         cleanup();
         Ok(())
     }

@@ -12,6 +12,13 @@ pub struct ObjectStorageSettings {
     pub trace_compaction_interval_hours: u64,
     /// How often the span buffer flushes to Delta Lake. Default: 5s.
     pub trace_flush_interval_secs: u64,
+    /// How often each pod refreshes the Delta table snapshot from shared storage. Default: 10s.
+    ///
+    /// In multi-pod deployments (e.g. K8s with a dedicated writer pod and reader pods),
+    /// the reader pods' in-memory Delta log snapshot becomes stale after the writer commits
+    /// new data. This ticker calls `update_incremental()` on the DeltaTable and re-registers
+    /// the SessionContext so queries return fresh results without a pod restart.
+    pub trace_refresh_interval_secs: u64,
 }
 
 impl Default for ObjectStorageSettings {
@@ -35,12 +42,19 @@ impl Default for ObjectStorageSettings {
             .and_then(|v| v.parse().ok())
             .unwrap_or(5u64);
 
+        let trace_refresh_interval_secs =
+            std::env::var("SCOUTER_TRACE_REFRESH_INTERVAL_SECS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(10u64);
+
         Self {
             storage_uri,
             storage_type,
             region,
             trace_compaction_interval_hours,
             trace_flush_interval_secs,
+            trace_refresh_interval_secs,
         }
     }
 }
