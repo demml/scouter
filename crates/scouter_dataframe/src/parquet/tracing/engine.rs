@@ -496,6 +496,7 @@ impl TraceSpanDBEngine {
                     self.ctx.deregister_table(TRACE_SPAN_TABLE_NAME)?;
                     self.ctx
                         .register_table(TRACE_SPAN_TABLE_NAME, refreshed.table_provider().await?)?;
+                    refreshed.update_datafusion_session(&self.ctx.state())?;
                     *table_guard = refreshed;
                 }
             }
