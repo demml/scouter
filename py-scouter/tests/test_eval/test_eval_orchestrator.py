@@ -96,15 +96,11 @@ def test_single_turn():
         with tracer.start_as_current_span("agent_call") as span:
             span.add_queue_item(
                 "agent",
-                EvalRecord(
-                    context={"response": {"quality": 9, "text": "4"}}, id="rec_1"
-                ),
+                EvalRecord(context={"response": {"quality": 9, "text": "4"}}, id="rec_1"),
             )
         return "4"
 
-    results = EvalOrchestrator(
-        queue=queue, scenarios=scenarios, agent_fn=my_agent
-    ).run()
+    results = EvalOrchestrator(queue=queue, scenarios=scenarios, agent_fn=my_agent).run()
 
     assert call_log == ["What is 2+2?"]
     assert isinstance(results, ScenarioEvalResults)
@@ -153,9 +149,7 @@ def test_multi_turn():
             )
         return f"Response to: {query}"
 
-    results = EvalOrchestrator(
-        queue=queue, scenarios=scenarios, agent_fn=my_agent
-    ).run()
+    results = EvalOrchestrator(queue=queue, scenarios=scenarios, agent_fn=my_agent).run()
 
     assert call_log == ["Plan dinner", "Make it vegetarian"]
     assert results.metrics.total_scenarios == 1
@@ -167,9 +161,9 @@ def test_multi_turn():
         turn_log.append(query)
         return f"turn_{len(turn_log)}_response"
 
-    response = EvalOrchestrator(
-        queue=queue, scenarios=scenarios, agent_fn=turn_counting_agent
-    ).execute_agent(scenarios.scenarios[0])
+    response = EvalOrchestrator(queue=queue, scenarios=scenarios, agent_fn=turn_counting_agent).execute_agent(
+        scenarios.scenarios[0]
+    )
     assert response == "turn_2_response"
 
 
@@ -194,9 +188,7 @@ def test_subclass_override():
             with tracer.start_as_current_span("agent_call") as span:
                 span.add_queue_item(
                     "agent",
-                    EvalRecord(
-                        context={"response": {"quality": 9, "text": "4"}}, id="rec_1"
-                    ),
+                    EvalRecord(context={"response": {"quality": 9, "text": "4"}}, id="rec_1"),
                 )
             return "4"
 
@@ -241,9 +233,7 @@ def test_reactive_raises():
             )
         ]
     )
-    orch = EvalOrchestrator(
-        queue=queue, scenarios=scenarios, agent_fn=lambda q: "response"
-    )
+    orch = EvalOrchestrator(queue=queue, scenarios=scenarios, agent_fn=lambda q: "response")
     with pytest.raises(NotImplementedError, match="Reactive"):
         orch.run()
 
@@ -373,9 +363,7 @@ def test_teardown_runs_on_exception():
         agent_fn=lambda q: (_ for _ in ()).throw(RuntimeError("boom")),
     )
     with pytest.raises(RuntimeError):
-        with unittest.mock.patch.object(
-            EvalOrchestrator, "_teardown_capture", patched_teardown
-        ):
+        with unittest.mock.patch.object(EvalOrchestrator, "_teardown_capture", patched_teardown):
             orch.run()
     assert teardown_called
 
@@ -407,9 +395,7 @@ def test_flush_tracer_failure_returns_results(monkeypatch):
         "flush_tracer",
         lambda: (_ for _ in ()).throw(RuntimeError("flush failed")),
     )
-    results = EvalOrchestrator(
-        queue, _single_scenario(), agent_fn=lambda q: "response"
-    ).run()
+    results = EvalOrchestrator(queue, _single_scenario(), agent_fn=lambda q: "response").run()
     assert results is not None
 
 
@@ -442,9 +428,7 @@ _RETRIEVER_PROFILE = GenAIEvalProfile(
         ),
         TraceAssertionTask(
             id="retriever_span",
-            assertion=TraceAssertion.span_count(
-                SpanFilter.by_name("retriever_callback")
-            ),
+            assertion=TraceAssertion.span_count(SpanFilter.by_name("retriever_callback")),
             operator=ComparisonOperator.GreaterThanOrEqual,
             expected_value=1,
         ),
@@ -462,9 +446,7 @@ _SYNTHESIZER_PROFILE = GenAIEvalProfile(
         ),
         TraceAssertionTask(
             id="synthesizer_span",
-            assertion=TraceAssertion.span_count(
-                SpanFilter.by_name("synthesizer_callback")
-            ),
+            assertion=TraceAssertion.span_count(SpanFilter.by_name("synthesizer_callback")),
             operator=ComparisonOperator.GreaterThanOrEqual,
             expected_value=1,
         ),
@@ -546,9 +528,7 @@ def adk_ctx():
         wait_for_startup=True,
     )
     instrumentor = ScouterInstrumentor()
-    instrumentor.instrument(
-        scouter_queue=queue, exporter=TestSpanExporter(batch_export=False)
-    )
+    instrumentor.instrument(scouter_queue=queue, exporter=TestSpanExporter(batch_export=False))
     tracer = init_tracer(
         service_name="adk-agent",
         scouter_queue=queue,
@@ -578,9 +558,7 @@ def _synthesizer_callback(tracer, query, data_override=None):
         span.add_queue_item(
             "synthesizer",
             EvalRecord(
-                context={
-                    "response": {"quality": data["quality"], "text": data["text"]}
-                },
+                context={"response": {"quality": data["quality"], "text": data["text"]}},
                 id=f"synthesizer_{query[:10]}",
             ),
         )
@@ -616,13 +594,10 @@ def test_adk_baseline_eval(adk_ctx):
     assert "retriever" in results.metrics.dataset_pass_rates
     assert "synthesizer" in results.metrics.dataset_pass_rates
     assert (
-        results.dataset_results["retriever"].successful_count
-        + results.dataset_results["retriever"].failed_count
-        == 3
+        results.dataset_results["retriever"].successful_count + results.dataset_results["retriever"].failed_count == 3
     )
     assert (
-        results.dataset_results["synthesizer"].successful_count
-        + results.dataset_results["synthesizer"].failed_count
+        results.dataset_results["synthesizer"].successful_count + results.dataset_results["synthesizer"].failed_count
         == 3
     )
 
@@ -637,9 +612,7 @@ def test_adk_save_load_roundtrip(adk_ctx, tmp_path):
 
     assert loaded.metrics.total_scenarios == results.metrics.total_scenarios
     assert loaded.metrics.passed_scenarios == results.metrics.passed_scenarios
-    assert loaded.metrics.overall_pass_rate == pytest.approx(
-        results.metrics.overall_pass_rate
-    )
+    assert loaded.metrics.overall_pass_rate == pytest.approx(results.metrics.overall_pass_rate)
     assert len(loaded.scenario_results) == len(results.scenario_results)
 
 

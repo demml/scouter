@@ -473,11 +473,48 @@ impl TraceSpanDBEngine {
         }
     }
 
+    /// Refresh the in-memory Delta table snapshot from shared object storage.
+    ///
+    /// This is mainly for multiple pods sharing the same storage.
+    /// Safety: clones the table before calling `update_incremental` so that a failure
+    /// (e.g. "Not a Delta table" on an empty table) leaves the original guard intact.
+    async fn refresh_table(&self) -> Result<(), TraceEngineError> {
+        let mut table_guard = self.table.write().await;
+        let current_version = table_guard.version();
+
+        // Clone before update_incremental — on failure the clone is discarded and the
+        // original guard stays intact, avoiding the corrupted-state bug described at line 301.
+        let mut refreshed = table_guard.clone();
+        match refreshed.update_incremental(None).await {
+            Ok(_) => {
+                if refreshed.version() > current_version {
+                    debug!(
+                        "Table refreshed: v{:?} → v{:?}",
+                        current_version,
+                        refreshed.version()
+                    );
+                    self.ctx.deregister_table(TRACE_SPAN_TABLE_NAME)?;
+                    self.ctx
+                        .register_table(TRACE_SPAN_TABLE_NAME, refreshed.table_provider().await?)?;
+                    refreshed.update_datafusion_session(&self.ctx.state())?;
+                    *table_guard = refreshed;
+                }
+            }
+            Err(e) => {
+                // Tolerate: empty tables (no log yet), transient network errors.
+                // These are expected on freshly-created tables and do not indicate a bug.
+                debug!("Table refresh skipped: {}", e);
+            }
+        }
+        Ok(())
+    }
+
     #[instrument(skip_all, name = "trace_engine_actor")]
     pub fn start_actor(
         self,
         compaction_interval_hours: u64,
         retention_days: Option<u32>,
+        refresh_interval_secs: u64,
     ) -> (mpsc::Sender<TableCommand>, tokio::task::JoinHandle<()>) {
         let (tx, mut rx) = mpsc::channel::<TableCommand>(100);
 
@@ -486,6 +523,12 @@ impl TraceSpanDBEngine {
             // control table's `next_run_at` and survives pod restarts.
             let mut scheduler_ticker = interval(Duration::from_secs(5 * 60));
             scheduler_ticker.tick().await; // skip immediate tick
+
+            // Refresh ticker: picks up commits from other pods on shared storage.
+            // Runs on every process/pod independently — unlike compaction, there is no control-table
+            // mutual exclusion here. Every pod must refresh its own in-memory snapshot.
+            let mut refresh_ticker = interval(Duration::from_secs(refresh_interval_secs));
+            refresh_ticker.tick().await;
 
             loop {
                 tokio::select! {
@@ -524,6 +567,11 @@ impl TraceSpanDBEngine {
                         self.try_run_optimize(compaction_interval_hours).await;
                         if let Some(days) = retention_days {
                             self.try_run_retention(days).await;
+                        }
+                    }
+                    _ = refresh_ticker.tick() => {
+                        if let Err(e) = self.refresh_table().await {
+                            error!("Table refresh failed: {}", e);
                         }
                     }
                 }

@@ -215,5 +215,6 @@ Scouter accepts: Pandas DataFrames, NumPy 2D arrays, Polars DataFrames, Pydantic
 | `RABBITMQ_ADDR` | — | RabbitMQ AMQP URL |
 | `REDIS_ADDR` | — | Redis URL |
 | `SCOUTER_STORAGE_URI` | `./scouter_storage` | Object storage (S3, GCS, Azure, local) |
+| `SCOUTER_TRACE_REFRESH_INTERVAL_SECS` | `10` | How often each pod refreshes its Delta table snapshot from shared storage. Set lower (e.g. `5`) for faster cross-pod visibility; set higher to reduce object-store LIST calls. Only relevant in multi-pod deployments. |
 | `SCOUTER_ENCRYPT_SECRET` | — | HMAC-SHA256 key (32 bytes) |
 | `SCOUTER_BOOTSTRAP_KEY` | — | Initial admin bootstrap key |

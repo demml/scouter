@@ -1653,7 +1653,7 @@ mod tests {
         let storage_settings = ObjectStorageSettings::default();
 
         // TraceSpanService owns the SessionContext (trace_spans registered in it)
-        let span_service = TraceSpanService::new(&storage_settings, 24, Some(2), None).await?;
+        let span_service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
         let shared_ctx = span_service.ctx.clone();
 
         // TraceSummaryService shares the same ctx — JOIN to trace_spans will work
@@ -1735,7 +1735,7 @@ mod tests {
         let storage_settings = ObjectStorageSettings::default();
 
         // TraceSpanService owns the SessionContext
-        let span_service = TraceSpanService::new(&storage_settings, 24, Some(2), None).await?;
+        let span_service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
         let shared_ctx = span_service.ctx.clone();
 
         // TraceSummaryService shares the same ctx so JOIN path works

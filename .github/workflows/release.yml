@@ -357,8 +357,8 @@ jobs:
         run: |
           export VERSION=$(cargo pkgid | cut -d "#" -f2)
           echo "version: $VERSION"
-          echo "tag: $GITHUB_REF_NAME"
-          test "v$VERSION" "=" "$GITHUB_REF_NAME"
+          echo "tag: ${{ github.ref_name }}"
+          test "v$VERSION" "=" "${{ github.ref_name }}"
       - name: set up python
         uses: actions/setup-python@v5
         with:

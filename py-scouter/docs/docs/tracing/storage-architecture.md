@@ -79,16 +79,19 @@ The single writer for the Delta Lake table. It:
 
 **Why this pattern?** Delta Lake requires a single writer per table to avoid log conflicts. The two-actor design amortizes object-store I/O (many small span batches → fewer larger Parquet files per flush) while keeping the write lock duration minimal.
 
-The engine actor also runs automatic compaction via an internal `tokio::time::interval` ticker:
+The engine actor runs two background `tokio::time::interval` tickers alongside command processing:
 
 ```
 loop {
     select! {
         cmd = rx.recv()          => handle Write / Optimize / Vacuum / Shutdown
         _ = compaction_ticker    => run Z-ORDER optimize automatically
+        _ = refresh_ticker       => call update_incremental(); re-register SessionContext if version advanced
     }
 }
 ```
+
+The **refresh ticker** is what keeps reader pods current in multi-pod deployments. See [Multi-Pod Deployments](#multi-pod-deployments) below.
 
 ---
 
@@ -246,6 +249,41 @@ Removes old Parquet file versions that are no longer referenced by the Delta log
 
 ---
 
+## Multi-Pod Deployments
+
+In a K8s deployment with separate writer and reader pods (e.g. a dedicated gRPC ingest pod and one or more HTTP query pods), each pod holds its own in-memory Delta table snapshot. After the writer commits a new batch, reader pods do not automatically see the new data — their snapshot is stale until refreshed.
+
+The **refresh ticker** inside `TraceSpanDBEngine` solves this. On every tick it:
+
+1. Clones the current `DeltaTable` guard (the original is preserved if the operation fails)
+2. Calls `update_incremental()` on the clone to pull new Delta log entries from shared storage
+3. Re-registers the `SessionContext` only if the table version advanced — no-ops on idle tables
+
+The ticker interval is controlled by `SCOUTER_TRACE_REFRESH_INTERVAL_SECS` (default `10`). At 10 s, a reader pod will see new data within ~10 seconds of a writer commit, with ~8,640 object-store LIST calls per day — negligible for GCS/S3.
+
+**Deployment model:**
+
+```
+GCS / S3 / Azure Blob
+    │
+    ├── Pod A (writer)   gRPC ingest → TraceSpanDBEngine (commits new files)
+    └── Pod B (reader)   HTTP queries ← TraceSpanDBEngine (refresh_ticker pulls commits every 10 s)
+```
+
+Both pods point `SCOUTER_STORAGE_URI` at the same bucket path. The writer's single-writer invariant is preserved — only one pod writes to the Delta log at a time. Reader pods never write; they only call `update_incremental()`.
+
+**Compaction coordination** (optimize + retention) is already protected by the control table — only one pod runs it at a time, regardless of how many reader pods are running the refresh ticker.
+
+**Tuning:**
+
+| Scenario | Recommended `SCOUTER_TRACE_REFRESH_INTERVAL_SECS` |
+|----------|---------------------------------------------------|
+| Single pod (writer = reader) | `10` (default) — refresh is a no-op when no other writer exists |
+| Multi-pod, near-real-time reads | `5` — halves visibility latency, doubles LIST call rate |
+| Multi-pod, cost-sensitive storage | `30`–`60` — acceptable for dashboards that poll every minute |
+
+---
+
 ## Read/Write Performance Tuning
 
 The optimization PR introduced several layers of read and write improvements that apply across all storage backends.
@@ -314,6 +352,7 @@ Both flush writes and Z-ORDER compaction use the same `WriterProperties`:
 | `SCOUTER_TRACE_COMPACTION_INTERVAL_HOURS` | `24` | How often automatic Z-ORDER compaction runs |
 | `SCOUTER_TRACE_FLUSH_INTERVAL_SECS` | `5` | How often the span buffer flushes to Delta Lake |
 | `SCOUTER_TRACE_BUFFER_SIZE` | `10000` | Span buffer capacity before a flush is triggered |
+| `SCOUTER_TRACE_REFRESH_INTERVAL_SECS` | `10` | How often each pod refreshes its Delta table snapshot from shared storage. Controls cross-pod visibility latency in multi-pod deployments. |
 | `SCOUTER_OBJECT_CACHE_MB` | `64` | Maximum size of the in-process object store range cache (MB) |
 | `AWS_REGION` | `us-east-1` | Required when using S3 storage |
 

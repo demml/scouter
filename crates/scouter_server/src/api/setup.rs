@@ -146,6 +146,7 @@ impl ScouterSetupComponents {
     ) -> AnyhowResult<(Arc<TraceSpanService>, Arc<TraceSummaryService>)> {
         let compaction_hours = config.storage_settings.trace_compaction_interval_hours;
         let flush_secs = config.storage_settings.trace_flush_interval_secs;
+        let refresh_secs = config.storage_settings.trace_refresh_interval_secs;
 
         let retention_days = Some(config.database_settings.trace_retention_period as u32);
         let trace_service = init_trace_span_service(
@@ -153,6 +154,7 @@ impl ScouterSetupComponents {
             compaction_hours,
             Some(flush_secs),
             retention_days,
+            refresh_secs,
         )
         .await
         .context("❌ Failed to initialize TraceSpanService")?;
