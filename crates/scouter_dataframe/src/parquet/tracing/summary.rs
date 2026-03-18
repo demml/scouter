@@ -9,7 +9,7 @@ use arrow::compute;
 use arrow::datatypes::*;
 use arrow_array::Array;
 use arrow_array::RecordBatch;
-use chrono::{DateTime, Datelike, TimeZone, Utc};
+use chrono::{DateTime, Datelike, Utc};
 use datafusion::logical_expr::{cast as df_cast, col, lit, SortExpr};
 use datafusion::prelude::*;
 use datafusion::scalar::ScalarValue;
@@ -170,7 +170,7 @@ impl TraceSummaryBatchBuilder {
         }
         let duration = rec
             .end_time
-            .map(|end| (end - rec.start_time).num_milliseconds());
+            .map(|end| (end - rec.start_time).num_milliseconds().max(0));
         match duration {
             Some(d) => self.duration_ms.append_value(d),
             None => self.duration_ms.append_null(),
@@ -438,8 +438,6 @@ impl TraceSummaryDBEngine {
         self.ctx.deregister_table(SUMMARY_TABLE_NAME)?;
         self.ctx
             .register_table(SUMMARY_TABLE_NAME, updated_table.table_provider().await?)?;
-        // Ensure the table's object store is registered with the DataFusion session
-        // so that DeltaScan::scan() can resolve file URLs during query execution.
         updated_table.update_datafusion_session(&self.ctx.state())?;
 
         *table_guard = updated_table;
@@ -540,9 +538,10 @@ impl TraceSummaryDBEngine {
                                 let _ = respond_to.send(result);
                             }
                             SummaryTableCommand::Optimize { respond_to } => {
-                                // Direct admin request — bypass control table
+                                // Direct admin request — bypass control table.
+                                // Response is sent before vacuum so callers aren't blocked
+                                // on the potentially slow file-deletion pass.
                                 let _ = respond_to.send(self.optimize_table().await);
-                                // vacuum table
                                 if let Err(e) = self.vacuum_table(0).await {
                                     error!("Post-optimize vacuum failed: {}", e);
                                 }
@@ -1030,11 +1029,28 @@ fn extract_map_attributes(map_array: &MapArray, row_idx: usize) -> Vec<Attribute
         return Vec::new();
     }
     let entry = map_array.value(row_idx);
-    let struct_array = entry.as_any().downcast_ref::<StructArray>().unwrap();
-    let keys_arr = compute::cast(struct_array.column(0).as_ref(), &DataType::Utf8).unwrap();
-    let keys = keys_arr.as_any().downcast_ref::<StringArray>().unwrap();
-    let values_arr = compute::cast(struct_array.column(1).as_ref(), &DataType::Utf8).unwrap();
-    let values = values_arr.as_any().downcast_ref::<StringArray>().unwrap();
+    let Some(struct_array) = entry.as_any().downcast_ref::<StructArray>() else {
+        tracing::warn!("extract_map_attributes: failed to downcast to StructArray");
+        return Vec::new();
+    };
+    let Some(keys_arr) = compute::cast(struct_array.column(0).as_ref(), &DataType::Utf8).ok()
+    else {
+        tracing::warn!("extract_map_attributes: failed to cast keys to Utf8");
+        return Vec::new();
+    };
+    let Some(keys) = keys_arr.as_any().downcast_ref::<StringArray>() else {
+        tracing::warn!("extract_map_attributes: failed to downcast keys to StringArray");
+        return Vec::new();
+    };
+    let Some(values_arr) = compute::cast(struct_array.column(1).as_ref(), &DataType::Utf8).ok()
+    else {
+        tracing::warn!("extract_map_attributes: failed to cast values to Utf8");
+        return Vec::new();
+    };
+    let Some(values) = values_arr.as_any().downcast_ref::<StringArray>() else {
+        tracing::warn!("extract_map_attributes: failed to downcast values to StringArray");
+        return Vec::new();
+    };
 
     (0..struct_array.len())
         .map(|i| Attribute {
@@ -1221,11 +1237,11 @@ fn batches_to_trace_list_items(
         for i in 0..batch.num_rows() {
             let trace_id_hex = hex::encode(trace_ids.value(i));
 
-            let start_time = micros_to_datetime(start_times.value(i));
+            let start_time = micros_to_datetime(start_times.value(i))?;
             let end_time = if end_times.is_null(i) {
                 None
             } else {
-                Some(micros_to_datetime(end_times.value(i)))
+                Some(micros_to_datetime(end_times.value(i))?)
             };
             let duration_ms = if durations.is_null(i) {
                 None
@@ -1267,10 +1283,10 @@ fn batches_to_trace_list_items(
     Ok(items)
 }
 
-fn micros_to_datetime(micros: i64) -> DateTime<Utc> {
-    let secs = micros / 1_000_000;
-    let nanos = ((micros % 1_000_000) * 1_000) as u32;
-    Utc.timestamp_opt(secs, nanos).unwrap()
+fn micros_to_datetime(micros: i64) -> Result<DateTime<Utc>, TraceEngineError> {
+    DateTime::from_timestamp_micros(micros).ok_or(TraceEngineError::InvalidTimestamp(
+        "out-of-range microsecond timestamp",
+    ))
 }
 
 #[cfg(test)]
@@ -1291,7 +1307,7 @@ mod tests {
         let current_dir = std::env::current_dir().unwrap();
         let storage_path = current_dir.join(storage_settings.storage_root());
         if storage_path.exists() {
-            std::fs::remove_dir_all(storage_path).unwrap();
+            let _ = std::fs::remove_dir_all(storage_path);
         }
     }
 
@@ -1301,13 +1317,8 @@ mod tests {
 
     /// Build a standalone SessionContext for test use (no trace_spans registered).
     /// Attribute-filter paths that need trace_spans are not exercised in these tests.
-    fn make_test_ctx(storage_settings: &ObjectStorageSettings) -> Arc<SessionContext> {
-        Arc::new(
-            ObjectStore::new(storage_settings)
-                .unwrap()
-                .get_session()
-                .unwrap(),
-        )
+    fn make_test_ctx(object_store: &ObjectStore) -> Arc<SessionContext> {
+        Arc::new(object_store.get_session().unwrap())
     }
 
     fn make_summary(
@@ -1346,7 +1357,7 @@ mod tests {
 
         let storage_settings = ObjectStorageSettings::default();
         let object_store = make_test_object_store(&storage_settings);
-        let ctx = make_test_ctx(&storage_settings);
+        let ctx = make_test_ctx(&object_store);
         let service = TraceSummaryService::new(&object_store, 24, ctx).await?;
 
         let s1 = make_summary([1u8; 16], "svc_a", 0, vec![]);
@@ -1391,7 +1402,7 @@ mod tests {
 
         let storage_settings = ObjectStorageSettings::default();
         let object_store = make_test_object_store(&storage_settings);
-        let ctx = make_test_ctx(&storage_settings);
+        let ctx = make_test_ctx(&object_store);
         let service = TraceSummaryService::new(&object_store, 24, ctx).await?;
 
         let ok_summary = make_summary([3u8; 16], "svc", 0, vec![]);
@@ -1470,7 +1481,7 @@ mod tests {
 
         let storage_settings = ObjectStorageSettings::default();
         let object_store = make_test_object_store(&storage_settings);
-        let ctx = make_test_ctx(&storage_settings);
+        let ctx = make_test_ctx(&object_store);
         let service = TraceSummaryService::new(&object_store, 24, ctx).await?;
 
         let s_alpha = make_summary([5u8; 16], "alpha_service", 0, vec![]);
@@ -1521,7 +1532,7 @@ mod tests {
 
         let storage_settings = ObjectStorageSettings::default();
         let object_store = make_test_object_store(&storage_settings);
-        let ctx = make_test_ctx(&storage_settings);
+        let ctx = make_test_ctx(&object_store);
         let service = TraceSummaryService::new(&object_store, 24, ctx).await?;
 
         let wanted_id = TraceId::from_bytes([7u8; 16]);
@@ -1578,7 +1589,7 @@ mod tests {
         cleanup();
         let storage_settings = ObjectStorageSettings::default();
         let object_store = make_test_object_store(&storage_settings);
-        let ctx = make_test_ctx(&storage_settings);
+        let ctx = make_test_ctx(&object_store);
         let service = TraceSummaryService::new(&object_store, 24, ctx).await?;
 
         let now = Utc::now();
@@ -1866,7 +1877,7 @@ mod tests {
 
         let storage_settings = ObjectStorageSettings::default();
         let object_store = make_test_object_store(&storage_settings);
-        let ctx = make_test_ctx(&storage_settings);
+        let ctx = make_test_ctx(&object_store);
         let service = TraceSummaryService::new(&object_store, 24, ctx).await?;
 
         let attrs = vec![Attribute {
@@ -1920,7 +1931,7 @@ mod tests {
 
         let storage_settings = ObjectStorageSettings::default();
         let object_store = make_test_object_store(&storage_settings);
-        let ctx = make_test_ctx(&storage_settings);
+        let ctx = make_test_ctx(&object_store);
         let service = TraceSummaryService::new(&object_store, 24, ctx).await?;
 
         let start = Utc::now() - chrono::Duration::hours(1);

@@ -1,6 +1,7 @@
 use crate::error::TraceEngineError;
 use crate::parquet::tracing::engine::{TableCommand, TraceSpanDBEngine};
 use crate::parquet::tracing::queries::TraceQueries;
+use crate::storage::ObjectStore;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::TraceSpanRecord;
@@ -76,7 +77,7 @@ pub struct TraceSpanService {
     pub ctx: Arc<SessionContext>,
     /// Shared ObjectStore — passed to TraceSummaryService so both engines use the same
     /// CachingStore instance, preventing stale reads on cloud backends (GCS/S3).
-    pub object_store: crate::storage::ObjectStore,
+    pub object_store: ObjectStore,
 }
 
 impl TraceSpanService {
@@ -350,7 +351,7 @@ mod tests {
         let current_dir = std::env::current_dir().unwrap();
         let storage_path = current_dir.join(storage_settings.storage_root());
         if storage_path.exists() {
-            std::fs::remove_dir_all(storage_path).unwrap();
+            let _ = std::fs::remove_dir_all(storage_path);
         }
     }
 
@@ -823,8 +824,12 @@ mod tests {
         Ok(())
     }
 
-    /// Regression test: multiple sequential direct writes must be immediately visible
-    /// to queries without requiring restart.
+    /// Regression test for stale DataFusion session state after Delta Lake writes.
+    ///
+    /// Before the fix, `SessionContext` cached file metadata from the first write and
+    /// subsequent writes were invisible to queries — the session held a stale snapshot
+    /// of the Delta log. The fix calls `update_datafusion_session()` after each write
+    /// to re-register the table provider with the latest Delta log state.
     #[tokio::test]
     async fn test_span_write_visibility_across_multiple_writes() -> Result<(), TraceEngineError> {
         cleanup();

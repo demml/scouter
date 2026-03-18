@@ -392,32 +392,40 @@ impl ControlTableEngine {
                 continue;
             }
 
-            let get_string = |col_name: &str| -> String {
-                let col = batch.column_by_name(col_name).unwrap();
-                let casted =
-                    arrow::compute::cast(col, &DataType::Utf8).expect("cast to Utf8 failed");
-                let arr = casted.as_any().downcast_ref::<StringArray>().unwrap();
-                arr.value(0).to_string()
-            };
-
-            let get_timestamp = |col_name: &str| -> Option<DateTime<Utc>> {
-                let col = batch.column_by_name(col_name).unwrap();
-                if col.is_null(0) {
-                    return None;
-                }
-                let arr = col
+            let get_string = |col_name: &'static str| -> Result<String, TraceEngineError> {
+                let col = batch
+                    .column_by_name(col_name)
+                    .ok_or(TraceEngineError::DowncastError(col_name))?;
+                let casted = arrow::compute::cast(col, &DataType::Utf8)
+                    .map_err(TraceEngineError::ArrowError)?;
+                let arr = casted
                     .as_any()
-                    .downcast_ref::<TimestampMicrosecondArray>()
-                    .unwrap();
-                DateTime::from_timestamp_micros(arr.value(0))
+                    .downcast_ref::<StringArray>()
+                    .ok_or(TraceEngineError::DowncastError(col_name))?;
+                Ok(arr.value(0).to_string())
             };
 
-            let task_name_val = get_string("task_name");
-            let status_val = get_string("status");
-            let pod_id_val = get_string("pod_id");
-            let claimed_at = get_timestamp("claimed_at").unwrap_or_else(Utc::now);
-            let completed_at = get_timestamp("completed_at");
-            let next_run_at = get_timestamp("next_run_at").unwrap_or_else(Utc::now);
+            let get_timestamp =
+                |col_name: &'static str| -> Result<Option<DateTime<Utc>>, TraceEngineError> {
+                    let col = batch
+                        .column_by_name(col_name)
+                        .ok_or(TraceEngineError::DowncastError(col_name))?;
+                    if col.is_null(0) {
+                        return Ok(None);
+                    }
+                    let arr = col
+                        .as_any()
+                        .downcast_ref::<TimestampMicrosecondArray>()
+                        .ok_or(TraceEngineError::DowncastError(col_name))?;
+                    Ok(DateTime::from_timestamp_micros(arr.value(0)))
+                };
+
+            let task_name_val = get_string("task_name")?;
+            let status_val = get_string("status")?;
+            let pod_id_val = get_string("pod_id")?;
+            let claimed_at = get_timestamp("claimed_at")?.unwrap_or_else(Utc::now);
+            let completed_at = get_timestamp("completed_at")?;
+            let next_run_at = get_timestamp("next_run_at")?.unwrap_or_else(Utc::now);
 
             return Ok(Some(TaskRecord {
                 task_name: task_name_val,
@@ -446,6 +454,17 @@ impl ControlTableEngine {
 
         // First, delete the existing row for this task (if any).
         // On a brand-new table with no data, delete will fail — that's fine.
+        // Safety: task_name is always an internal constant (e.g. "summary_optimize").
+        // The delta-rs delete API takes a String predicate, not a parameterized Expr,
+        // so we assert the invariant defensively.
+        debug_assert!(
+            record
+                .task_name
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '_'),
+            "task_name must be alphanumeric + underscore, got: {}",
+            record.task_name
+        );
         let predicate = format!("task_name = '{}'", record.task_name);
         let delete_result = table_guard.clone().delete().with_predicate(predicate).await;
 
@@ -463,8 +482,19 @@ impl ControlTableEngine {
                 }
                 *table_guard = updated_table;
             }
-            Err(_) => {
-                // No existing data to delete (new table) — just append
+            Err(e) => {
+                let err_msg = e.to_string();
+                // On a brand-new table with no data, delete fails because there's nothing
+                // to remove — this is expected and we fall through to append.
+                // All other errors are real failures and must be propagated.
+                if !err_msg.contains("No data") && !err_msg.contains("empty") {
+                    warn!(
+                        "Delete before write_task_update failed unexpectedly: {}",
+                        err_msg
+                    );
+                    return Err(TraceEngineError::DataTableError(e));
+                }
+
                 let updated_table = table_guard
                     .clone()
                     .write(vec![batch])
@@ -589,7 +619,7 @@ mod tests {
         let current_dir = std::env::current_dir().unwrap();
         let storage_path = current_dir.join(storage_settings.storage_root());
         if storage_path.exists() {
-            std::fs::remove_dir_all(storage_path).unwrap();
+            let _ = std::fs::remove_dir_all(storage_path);
         }
     }
 

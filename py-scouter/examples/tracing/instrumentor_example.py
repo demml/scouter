@@ -53,9 +53,7 @@ otel_tracer = trace.get_tracer("my-service")
 
 def call_external_api(url: str) -> dict:
     """Simulate an outbound HTTP call with a child span."""
-    with otel_tracer.start_as_current_span(
-        "http.get", kind=trace.SpanKind.CLIENT
-    ) as span:
+    with otel_tracer.start_as_current_span("http.get", kind=trace.SpanKind.CLIENT) as span:
         span.set_attribute("http.url", url)
         span.set_attribute("http.method", "GET")
         # ... real HTTP call here ...
@@ -65,9 +63,7 @@ def call_external_api(url: str) -> dict:
 
 def query_database(query: str) -> list:
     """Simulate a DB query with a child span."""
-    with otel_tracer.start_as_current_span(
-        "db.query", kind=trace.SpanKind.CLIENT
-    ) as span:
+    with otel_tracer.start_as_current_span("db.query", kind=trace.SpanKind.CLIENT) as span:
         span.set_attribute("db.system", "postgresql")
         span.set_attribute("db.statement", query)
         # ... real query here ...

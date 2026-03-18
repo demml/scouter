@@ -501,6 +501,8 @@ impl TraceSpanDBEngine {
                                 }
                             }
                             TableCommand::Optimize { respond_to } => {
+                                // Response is sent before vacuum so callers aren't blocked
+                                // on the potentially slow file-deletion pass.
                                 let _ = respond_to.send(self.optimize_table().await);
                                 if let Err(e) = self.vacuum_table(0).await {
                                     error!("Post-optimize vacuum failed: {}", e);
