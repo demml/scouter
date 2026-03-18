@@ -493,7 +493,7 @@ class ScouterInstrumentor(BaseInstrumentor):
 
         trace._TRACER_PROVIDER_SET_ONCE._done = False  # pylint: disable=protected-access
         trace._TRACER_PROVIDER_SET_ONCE._lock = __import__("threading").Lock()  # pylint: disable=protected-access
-        set_tracer_provider(self._provider)
+        set_tracer_provider(self._provider)  # type: ignore
 
     def instrument(
         self,

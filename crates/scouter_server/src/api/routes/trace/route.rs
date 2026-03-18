@@ -294,6 +294,36 @@ pub async fn v1_otel_traces(
     Ok(Json(TraceReceivedResponse { received: true }))
 }
 
+#[instrument(skip_all)]
+pub async fn debug_recent_traces(
+    State(data): State<Arc<AppState>>,
+) -> Result<Json<TracePaginationResponse>, (StatusCode, Json<ScouterServerError>)> {
+    let end_time = chrono::Utc::now();
+    let start_time = end_time - chrono::Duration::hours(24);
+
+    let filters = TraceFilters {
+        start_time: Some(start_time),
+        end_time: Some(end_time),
+        limit: Some(10),
+        ..Default::default()
+    };
+
+    let response = data
+        .trace_summary_service
+        .query_service
+        .get_paginated_traces(&filters)
+        .await
+        .map_err(|e| {
+            error!("Failed to get debug recent traces: {:?}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::get_paginated_traces_error(e)),
+            )
+        })?;
+
+    Ok(Json(response))
+}
+
 pub async fn get_trace_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
     let result = catch_unwind(AssertUnwindSafe(|| {
         Router::new()
@@ -310,6 +340,10 @@ pub async fn get_trace_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
             )
             .route(&format!("{prefix}/trace/metrics"), post(trace_metrics))
             .route(&format!("{prefix}/v1/traces"), post(v1_otel_traces))
+            .route(
+                &format!("{prefix}/trace/debug/recent"),
+                get(debug_recent_traces),
+            )
             // add {id}/spans route for otel compat
             .route(
                 &(format!("{prefix}/v1/traces/") + "{id}/spans"),

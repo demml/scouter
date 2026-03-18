@@ -200,7 +200,7 @@ impl TraceSpanDBEngine {
         } else {
             info!("Empty table at init — deferring SessionContext registration until first write");
         }
-        let control = ControlTableEngine::new(storage_settings, get_pod_id()).await?;
+        let control = ControlTableEngine::new(&object_store, get_pod_id()).await?;
 
         Ok(TraceSpanDBEngine {
             schema,
@@ -324,6 +324,9 @@ impl TraceSpanDBEngine {
         self.ctx.deregister_table(TRACE_SPAN_TABLE_NAME)?;
         self.ctx
             .register_table(TRACE_SPAN_TABLE_NAME, updated_table.table_provider().await?)?;
+        // Ensure the table's object store is registered with the DataFusion session
+        // so that DeltaScan::scan() can resolve file URLs during query execution.
+        updated_table.update_datafusion_session(&self.ctx.state())?;
 
         *table_guard = updated_table;
 
@@ -351,6 +354,7 @@ impl TraceSpanDBEngine {
         self.ctx.deregister_table(TRACE_SPAN_TABLE_NAME)?;
         self.ctx
             .register_table(TRACE_SPAN_TABLE_NAME, updated_table.table_provider().await?)?;
+        updated_table.update_datafusion_session(&self.ctx.state())?;
 
         *table_guard = updated_table;
 
@@ -370,6 +374,7 @@ impl TraceSpanDBEngine {
         self.ctx.deregister_table(TRACE_SPAN_TABLE_NAME)?;
         self.ctx
             .register_table(TRACE_SPAN_TABLE_NAME, updated_table.table_provider().await?)?;
+        updated_table.update_datafusion_session(&self.ctx.state())?;
 
         *table_guard = updated_table;
 
@@ -404,6 +409,7 @@ impl TraceSpanDBEngine {
         self.ctx.deregister_table(TRACE_SPAN_TABLE_NAME)?;
         self.ctx
             .register_table(TRACE_SPAN_TABLE_NAME, updated_table.table_provider().await?)?;
+        updated_table.update_datafusion_session(&self.ctx.state())?;
 
         *table_guard = updated_table;
 
@@ -495,6 +501,8 @@ impl TraceSpanDBEngine {
                                 }
                             }
                             TableCommand::Optimize { respond_to } => {
+                                // Response is sent before vacuum so callers aren't blocked
+                                // on the potentially slow file-deletion pass.
                                 let _ = respond_to.send(self.optimize_table().await);
                                 if let Err(e) = self.vacuum_table(0).await {
                                     error!("Post-optimize vacuum failed: {}", e);
