@@ -37,8 +37,6 @@ pub fn add_drift_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<AssertionTask>()?;
     m.add_class::<ComparisonOperator>()?;
 
-    m.add_class::<MultiResponseMode>()?;
-    m.add_class::<AttributeFilterTask>()?;
     m.add_class::<TraceAssertion>()?;
     m.add_class::<TraceAssertionTask>()?;
     m.add_class::<AggregationType>()?;

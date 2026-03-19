@@ -156,37 +156,25 @@ impl EvalRunner {
         &mut self,
         config: &Arc<EvaluationConfig>,
     ) -> Result<ScenarioEvalResults, EvaluationError> {
-        let scenario_ids: HashSet<String> = self
-            .scenarios
-            .scenarios
-            .iter()
-            .map(|s| s.id.clone())
-            .collect();
+        // Collect all trace_ids from stored records (one pass)
+        let all_trace_ids = self.collect_all_trace_ids();
 
-        // Single buffer scan → grouped by scenario_id
-        let raw_by_scenario =
-            scouter_types::span_capture::get_spans_grouped_by_scenario_id(&scenario_ids);
+        // Single targeted query — only clones matching spans
+        let captured_spans = if !all_trace_ids.is_empty() {
+            scouter_types::span_capture::get_captured_spans_by_trace_ids(&all_trace_ids)
+        } else {
+            vec![]
+        };
 
-        // Convert each group to tree-enriched TraceSpans
-        let spans_by_scenario: HashMap<String, Arc<Vec<TraceSpan>>> = raw_by_scenario
-            .into_iter()
-            .map(|(id, records)| (id, Arc::new(build_trace_spans(records))))
-            .collect();
-
-        // Assign spans to datasets by scenario_id key lookup
-        for (scenario_id, datasets) in &mut self.scenarios.scenario_datasets {
-            if let Some(spans) = spans_by_scenario.get(scenario_id) {
-                for dataset in datasets.values_mut() {
-                    dataset.spans = Arc::clone(spans);
-                }
-            }
-        }
+        // Convert once, use for both levels
+        let trace_spans = build_trace_spans(captured_spans);
 
         // Level 1: Sub-agent evaluation
+        self.set_dataset_spans(&trace_spans);
         let dataset_results = self.evaluate_datasets(config).await?;
 
         // Level 2: Scenario evaluation
-        let scenario_results = self.evaluate_scenarios(&spans_by_scenario).await?;
+        let scenario_results = self.evaluate_scenarios(&trace_spans).await?;
 
         // Level 3: Aggregate metrics
         let metrics = compute_metrics(&dataset_results, &scenario_results);
@@ -201,6 +189,44 @@ impl EvalRunner {
             scenario_results,
             metrics,
         })
+    }
+
+    /// Set spans on each alias dataset by filtering pre-converted TraceSpans to matching trace_ids.
+    fn set_dataset_spans(&mut self, trace_spans: &[scouter_types::trace::sql::TraceSpan]) {
+        for datasets in self.scenarios.scenario_datasets.values_mut() {
+            for dataset in datasets.values_mut() {
+                let trace_ids: HashSet<String> = dataset
+                    .records
+                    .iter()
+                    .filter_map(|r| r.trace_id.as_ref().map(|tid| tid.to_hex()))
+                    .collect();
+
+                if trace_ids.is_empty() {
+                    continue;
+                }
+
+                let matching: Vec<_> = trace_spans
+                    .iter()
+                    .filter(|s| trace_ids.contains(&s.trace_id))
+                    .cloned()
+                    .collect();
+
+                if !matching.is_empty() {
+                    dataset.spans = Arc::new(matching);
+                }
+            }
+        }
+    }
+
+    /// Collect all trace_ids from records across all scenario datasets.
+    fn collect_all_trace_ids(&self) -> HashSet<scouter_types::TraceId> {
+        self.scenarios
+            .scenario_datasets
+            .values()
+            .flat_map(|datasets| datasets.values())
+            .flat_map(|dataset| dataset.records.iter())
+            .filter_map(|r| r.trace_id)
+            .collect()
     }
 
     /// LEVEL 1: For each alias across all scenarios, flatten records into one
@@ -278,12 +304,15 @@ impl EvalRunner {
     }
 
     /// LEVEL 2: For each scenario that has tasks, build a record from
-    /// the scenario context and evaluate against the profile + spans looked up by scenario_id.
+    /// the scenario context and evaluate against the profile + filtered traces.
     async fn evaluate_scenarios(
         &self,
-        spans_by_scenario: &HashMap<String, Arc<Vec<TraceSpan>>>,
+        trace_spans: &[scouter_types::trace::sql::TraceSpan],
     ) -> Result<Vec<ScenarioResult>, EvaluationError> {
         let mut results = Vec::new();
+
+        // Collect all trace_ids per scenario (from records)
+        let scenario_trace_ids = self.collect_scenario_trace_ids();
 
         for scenario in &self.scenarios.scenarios {
             if !scenario.has_tasks() {
@@ -319,11 +348,17 @@ impl EvalRunner {
             .await?;
             let profile = Arc::new(profile);
 
-            // Look up spans directly by scenario_id — no filtering needed
-            let spans_arc = spans_by_scenario
-                .get(&scenario.id)
-                .cloned()
-                .unwrap_or_else(|| Arc::new(Vec::new()));
+            // Filter trace spans for this scenario's trace_ids
+            let filtered_spans = if let Some(trace_ids) = scenario_trace_ids.get(&scenario.id) {
+                trace_spans
+                    .iter()
+                    .filter(|s| trace_ids.contains(&s.trace_id))
+                    .cloned()
+                    .collect::<Vec<_>>()
+            } else {
+                Vec::new()
+            };
+            let spans_arc = Arc::new(filtered_spans);
 
             // Evaluate
             match GenAIEvaluator::process_event_record(&record, profile, spans_arc).await {
@@ -358,6 +393,27 @@ impl EvalRunner {
         }
 
         Ok(results)
+    }
+
+    /// Collect trace_ids from records for each scenario
+    fn collect_scenario_trace_ids(&self) -> HashMap<String, HashSet<String>> {
+        let mut result: HashMap<String, HashSet<String>> = HashMap::new();
+
+        for (scenario_id, datasets) in &self.scenarios.scenario_datasets {
+            let mut trace_ids = HashSet::new();
+            for dataset in datasets.values() {
+                for record in dataset.records.iter() {
+                    if let Some(ref tid) = record.trace_id {
+                        trace_ids.insert(tid.to_hex());
+                    }
+                }
+            }
+            if !trace_ids.is_empty() {
+                result.insert(scenario_id.clone(), trace_ids);
+            }
+        }
+
+        result
     }
 }
 

@@ -14,11 +14,9 @@ pub use scouter_types::{
     custom::{CustomDriftProfile, CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig},
     genai::{
         utils::AssertionTasks, AgentAssertion, AgentAssertionTask, AggregationType,
-        AssertionResult, AssertionResults, AssertionTask, AttributeFilterTask, ComparisonOperator,
-        EvalResultSet,
+        AssertionResult, AssertionResults, AssertionTask, ComparisonOperator, EvalResultSet,
         EvalScenario, EvalSet, EvaluationTaskType, GenAIAlertConfig, GenAIEvalConfig,
-        GenAIEvalProfile, LLMJudgeTask, MultiResponseMode, SpanFilter, SpanStatus, TasksFile,
-        TokenUsage, ToolCall,
+        GenAIEvalProfile, LLMJudgeTask, SpanFilter, SpanStatus, TasksFile, TokenUsage, ToolCall,
         TraceAssertion, TraceAssertionTask,
     },
     is_pydantic_basemodel,

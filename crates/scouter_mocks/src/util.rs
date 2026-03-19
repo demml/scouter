@@ -251,47 +251,6 @@ pub fn create_sequence_pattern_trace() -> Vec<TraceSpan> {
     ]
 }
 
-/// Creates a trace with spans containing serialized Gemini LLM responses as attributes.
-/// Useful for testing AttributeFilter with AgentAssertion tasks.
-#[cfg_attr(feature = "python", pyfunction)]
-pub fn create_gemini_agent_trace() -> Vec<TraceSpan> {
-    let mut builder = SpanBuilder::new(create_trace_id_from_str("trace_008"), "agent_service");
-
-    let gemini_func_call = json!({
-        "candidates": [{
-            "content": {
-                "role": "model",
-                "parts": [{"functionCall": {"name": "transfer_to_agent", "args": {"agent_name": "MeatRecipeAgent"}}}]
-            },
-            "finishReason": "STOP"
-        }],
-        "usageMetadata": {"promptTokenCount": 800, "candidatesTokenCount": 802}
-    });
-
-    let gemini_text = json!({
-        "candidates": [{
-            "content": {
-                "role": "model",
-                "parts": [{"text": "Pan-Seared Ribeye Steak..."}]
-            },
-            "finishReason": "STOP"
-        }],
-        "usageMetadata": {"promptTokenCount": 1200, "candidatesTokenCount": 1089}
-    });
-
-    let router_span = SpanBuilder::with_attributes(
-        builder.create_span("router.generate", None, 0, 200, 1),
-        vec![("gen_ai.response", Value::String(gemini_func_call.to_string()))],
-    );
-
-    let recipe_span = SpanBuilder::with_attributes(
-        builder.create_span("recipe.generate", Some("span_0".to_string()), 1, 300, 1),
-        vec![("gen_ai.response", Value::String(gemini_text.to_string()))],
-    );
-
-    vec![router_span, recipe_span]
-}
-
 #[cfg(feature = "server")]
 fn random_trace_record() -> TraceRecord {
     let mut rng = rand::rng();

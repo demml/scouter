@@ -1,7 +1,6 @@
 use crate::exporter::ExporterType;
 use crate::exporter::SpanExporterBuilder;
 use crate::exporter::TraceError;
-use crate::tracer::{CAPTURE_BUFFER, CAPTURE_BUFFER_MAX, CAPTURING};
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
 use opentelemetry_proto::transform::common::tonic::ResourceAttributesWithSchema;
 use opentelemetry_proto::transform::trace::tonic::group_spans_by_resource_and_scope;
@@ -11,7 +10,6 @@ use opentelemetry_sdk::{error::OTelSdkResult, trace::SpanData};
 use pyo3::prelude::*;
 use scouter_types::TagRecord;
 use scouter_types::{TraceBaggageRecord, TraceServerRecord, TraceSpanRecord};
-use std::sync::atomic::Ordering;
 use std::sync::{Arc, RwLock};
 #[derive(Debug)]
 pub struct TestRecords {
@@ -114,25 +112,19 @@ impl OtelTestSpanExporter {
 
 impl SpanExporter for OtelTestSpanExporter {
     async fn export(&self, batch: Vec<SpanData>) -> OTelSdkResult {
+        // Here you would implement the logic to export spans to Scouter
         let resource_spans = group_spans_by_resource_and_scope(
             batch,
             &ResourceAttributesWithSchema::from(&self.resource),
         );
 
         let req = ExportTraceServiceRequest { resource_spans };
+
         let record = TraceServerRecord { request: req };
 
         let (spans, baggage, tags) = record
             .to_records()
             .map_err(|e| opentelemetry_sdk::error::OTelSdkError::InternalFailure(e.to_string()))?;
-
-        // Also populate the global CAPTURE_BUFFER when local capture is enabled,
-        // so EvalOrchestrator can match spans to EvalRecords by trace_id.
-        if CAPTURING.load(Ordering::Acquire) {
-            let mut buf = CAPTURE_BUFFER.write().unwrap_or_else(|p| p.into_inner());
-            let available = CAPTURE_BUFFER_MAX.saturating_sub(buf.len());
-            buf.extend(spans.iter().take(available).cloned());
-        }
 
         let mut records = self.records.write().unwrap();
         records.tags.extend(tags);

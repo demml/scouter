@@ -18,8 +18,8 @@ from ..tracing import (
 )
 from ..tracing import get_tracer as _get_tracer
 
-# Attribute key injected into each scenario span so ScouterQueue can tag EvalRecords by scenario.
-SCENARIO_TAG_ATTRIBUTE_KEY = "scouter.eval.scenario_id"
+# Baggage key injected into each scenario span so ScouterQueue can tag EvalRecords by scenario.
+SCENARIO_TAG_BAGGAGE_KEY = "scouter.eval.scenario_id"
 
 AgentFn = Callable[[str], str]
 
@@ -126,15 +126,14 @@ class EvalOrchestrator:
         except Exception:  # noqa: BLE001 pylint: disable=broad-except
             pass
 
-    def _execute_with_attributes(self, scenario: EvalScenario) -> str:
-        """Run execute_agent inside a span with scenario_id attributes (if tracer available)."""
+    def _execute_with_baggage(self, scenario: EvalScenario) -> str:
+        """Run execute_agent inside a span with scenario_id baggage (if tracer available)."""
         try:
             eval_tracer = _get_tracer("scouter.eval")
             span_ctx = eval_tracer.start_as_current_span(
                 f"scouter.eval.scenario.{scenario.id}",
-                attributes=[{SCENARIO_TAG_ATTRIBUTE_KEY: scenario.id}],
+                baggage=[{SCENARIO_TAG_BAGGAGE_KEY: scenario.id}],
             )
-
         except Exception:  # noqa: BLE001 pylint: disable=broad-except
             return self.execute_agent(scenario)
         with span_ctx:
@@ -171,7 +170,7 @@ class EvalOrchestrator:
                     )
 
                 self.on_scenario_start(scenario)
-                response = self._execute_with_attributes(scenario)
+                response = self._execute_with_baggage(scenario)
                 self._collect_scenario_data(scenario, response)
                 self.on_scenario_complete(scenario, response)
 
