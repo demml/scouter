@@ -15,11 +15,9 @@ pub use scouter_types::{
     genai::{
         utils::AssertionTasks, AgentAssertion, AgentAssertionTask, AggregationType,
         AssertionResult, AssertionResults, AssertionTask, AttributeFilterTask, ComparisonOperator,
-        EvalResultSet,
-        EvalScenario, EvalSet, EvaluationTaskType, GenAIAlertConfig, GenAIEvalConfig,
-        GenAIEvalProfile, LLMJudgeTask, MultiResponseMode, SpanFilter, SpanStatus, TasksFile,
-        TokenUsage, ToolCall,
-        TraceAssertion, TraceAssertionTask,
+        EvalResultSet, EvalScenario, EvalSet, EvaluationTaskType, GenAIAlertConfig,
+        GenAIEvalConfig, GenAIEvalProfile, LLMJudgeTask, MultiResponseMode, SpanFilter, SpanStatus,
+        TasksFile, TokenUsage, ToolCall, TraceAssertion, TraceAssertionTask,
     },
     is_pydantic_basemodel,
     psi::{
@@ -84,6 +82,7 @@ pub use scouter_evaluate::{
     error::EvaluationError,
     evaluate::scenario_results::{
         EvalMetrics, ScenarioComparisonResults, ScenarioDelta, ScenarioEvalResults, ScenarioResult,
+        TaskSummary,
     },
     evaluate::types::{
         AlignedEvalResult, ComparisonResults, EvalResults, EvaluationConfig, MissingTask,

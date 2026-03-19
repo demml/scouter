@@ -281,12 +281,57 @@ pub fn create_gemini_agent_trace() -> Vec<TraceSpan> {
 
     let router_span = SpanBuilder::with_attributes(
         builder.create_span("router.generate", None, 0, 200, 1),
-        vec![("gen_ai.response", Value::String(gemini_func_call.to_string()))],
+        vec![(
+            "gen_ai.response",
+            Value::String(gemini_func_call.to_string()),
+        )],
     );
 
     let recipe_span = SpanBuilder::with_attributes(
         builder.create_span("recipe.generate", Some("span_0".to_string()), 1, 300, 1),
         vec![("gen_ai.response", Value::String(gemini_text.to_string()))],
+    );
+
+    vec![router_span, recipe_span]
+}
+
+/// Creates a trace with spans containing ADK LlmResponse-format JSON as attributes.
+/// ADK format differs from Gemini: flat content.parts[], model_version, partial, finish_reason (snake_case).
+#[cfg_attr(feature = "python", pyfunction)]
+pub fn create_adk_agent_trace() -> Vec<TraceSpan> {
+    let mut builder = SpanBuilder::new(create_trace_id_from_str("trace_009"), "adk_agent_service");
+
+    let adk_func_call = json!({
+        "model_version": "gemini-3-flash-preview",
+        "content": {
+            "role": "model",
+            "parts": [{"function_call": {"name": "transfer_to_agent", "args": {"agent_name": "MeatRecipeAgent"}}}]
+        },
+        "partial": false,
+        "turn_complete": true,
+        "finish_reason": "STOP"
+    });
+
+    let adk_text = json!({
+        "model_version": "gemini-3-flash-preview",
+        "content": {
+            "role": "model",
+            "parts": [{"text": "Pan-Seared Ribeye Steak..."}]
+        },
+        "partial": false,
+        "turn_complete": true,
+        "finish_reason": "STOP",
+        "usage_metadata": {"prompt_token_count": 1200, "candidates_token_count": 1089}
+    });
+
+    let router_span = SpanBuilder::with_attributes(
+        builder.create_span("router.generate", None, 0, 200, 1),
+        vec![("gen_ai.response", Value::String(adk_func_call.to_string()))],
+    );
+
+    let recipe_span = SpanBuilder::with_attributes(
+        builder.create_span("recipe.generate", Some("span_0".to_string()), 1, 300, 1),
+        vec![("gen_ai.response", Value::String(adk_text.to_string()))],
     );
 
     vec![router_span, recipe_span]

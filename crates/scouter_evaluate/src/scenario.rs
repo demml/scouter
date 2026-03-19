@@ -129,6 +129,7 @@ mod tests {
             scenario_pass_rate: 1.0,
             total_scenarios: 1,
             passed_scenarios: 1,
+            scenario_task_pass_rates: HashMap::new(),
         });
         assert!(scenarios.is_evaluated());
     }

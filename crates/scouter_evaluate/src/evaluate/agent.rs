@@ -1,6 +1,6 @@
 use crate::error::EvaluationError;
 use crate::tasks::evaluator::{PATH_REGEX, REGEX_FIELD_PARSE_PATTERN};
-use potato_head::ChatResponse;
+use potato_head::{ChatResponse, Provider};
 use scouter_types::genai::AgentAssertion;
 use serde_json::{json, Value};
 use tracing::error;
@@ -25,12 +25,16 @@ impl AgentContextBuilder {
     /// 3. Anthropic format — content[] with ToolUseBlock, usage, model
     /// 4. Google/Gemini format — candidates[].content.parts[] with function_call
     /// 5. Fallback — walk JSON tree for known patterns
-    pub fn from_context(context: &Value) -> Result<Self, EvaluationError> {
+    pub fn from_context(
+        context: &Value,
+        provider: Option<&Provider>,
+    ) -> Result<Self, EvaluationError> {
         let response_val = context.get("response").unwrap_or(context);
-        let response = ChatResponse::from_response_value(response_val.clone()).map_err(|e| {
-            error!("Failed to parse response: {}", e);
-            EvaluationError::InvalidProviderResponse
-        })?;
+        let response =
+            ChatResponse::from_response_value(response_val.clone(), provider).map_err(|e| {
+                error!("Failed to parse response: {}", e);
+                EvaluationError::InvalidProviderResponse
+            })?;
         Ok(Self {
             response,
             raw: response_val.clone(),
@@ -260,7 +264,7 @@ mod tests {
             }]
         });
 
-        let builder = AgentContextBuilder::from_context(&context).unwrap();
+        let builder = AgentContextBuilder::from_context(&context, None).unwrap();
 
         let result = builder
             .build_context(&AgentAssertion::ToolCalled {
@@ -300,7 +304,7 @@ mod tests {
             }]
         });
 
-        let builder = AgentContextBuilder::from_context(&context).unwrap();
+        let builder = AgentContextBuilder::from_context(&context, None).unwrap();
 
         // Partial match - only checking "query"
         let result = builder
@@ -339,7 +343,7 @@ mod tests {
             }]
         });
 
-        let builder = AgentContextBuilder::from_context(&context).unwrap();
+        let builder = AgentContextBuilder::from_context(&context, None).unwrap();
 
         let result = builder
             .build_context(&AgentAssertion::ToolCallSequence {
@@ -374,7 +378,7 @@ mod tests {
             }
         });
 
-        let builder = AgentContextBuilder::from_context(&context).unwrap();
+        let builder = AgentContextBuilder::from_context(&context, None).unwrap();
 
         // Path is relative to response_val (the candidates object), not the full context
         let result = builder
@@ -398,7 +402,7 @@ mod tests {
             }]
         });
 
-        let builder = AgentContextBuilder::from_context(&context).unwrap();
+        let builder = AgentContextBuilder::from_context(&context, None).unwrap();
 
         let result = builder
             .build_context(&AgentAssertion::ToolNotCalled {
@@ -412,7 +416,7 @@ mod tests {
     fn test_from_context_invalid_json() {
         // Empty object has no recognizable vendor keys
         let context = json!({});
-        let result = AgentContextBuilder::from_context(&context);
+        let result = AgentContextBuilder::from_context(&context, None);
         assert!(result.is_err());
         assert!(matches!(
             result,
@@ -439,7 +443,7 @@ mod tests {
             }]
         });
 
-        let builder = AgentContextBuilder::from_context(&context).unwrap();
+        let builder = AgentContextBuilder::from_context(&context, None).unwrap();
 
         // Non-contiguous in-order subsequence should pass
         let result = builder
@@ -498,7 +502,7 @@ mod tests {
             }]
         });
 
-        let builder = AgentContextBuilder::from_context(&context).unwrap();
+        let builder = AgentContextBuilder::from_context(&context, None).unwrap();
         let result = builder
             .build_context(&AgentAssertion::ResponseContent {})
             .unwrap();
@@ -523,7 +527,7 @@ mod tests {
             }]
         });
 
-        let builder = AgentContextBuilder::from_context(&context).unwrap();
+        let builder = AgentContextBuilder::from_context(&context, None).unwrap();
 
         // Nested partial match - only check inner "name"
         let result = builder
@@ -564,7 +568,7 @@ mod tests {
             }]
         });
 
-        let builder = AgentContextBuilder::from_context(&context).unwrap();
+        let builder = AgentContextBuilder::from_context(&context, None).unwrap();
 
         // Named tool with no result -> Null
         let result = builder
@@ -601,7 +605,7 @@ mod tests {
             }]
         });
 
-        let builder = AgentContextBuilder::from_context(&context).unwrap();
+        let builder = AgentContextBuilder::from_context(&context, None).unwrap();
 
         let result = builder
             .build_context(&AgentAssertion::ToolArgument {

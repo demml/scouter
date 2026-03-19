@@ -43,12 +43,8 @@ def assemble():
 
         match = all_pattern.search(raw_text)
         if match:
-            items = [
-                i.strip().replace('"', "").replace("'", "")
-                for i in match.group(1).split(",")
-                if i.strip()
-            ]
-            master_all.extend(items)
+            items = re.findall(r'"([^"]+)"|\'([^\']+)\'', match.group(1))
+            master_all.extend(a or b for a, b in items)
 
             text_to_append = all_pattern.sub("", raw_text)
         else:

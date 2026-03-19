@@ -2,6 +2,14 @@
 # pylint: disable=no-name-in-module
 
 from ..._scouter import (
+    AdkCacheMetadata,
+    AdkContent,
+    AdkLiveSessionResumptionUpdate,
+    AdkLlmResponse,
+    AdkPart,
+    AdkToolCallInfo,
+    AdkTranscription,
+    AdkUsageMetadata,
     ApiKeyConfig,
     ApiSpecType,
     AuthConfig,
@@ -131,6 +139,15 @@ from ..._scouter import (
 )
 
 __all__ = [
+    # ADK Response types
+    "AdkLlmResponse",
+    "AdkContent",
+    "AdkPart",
+    "AdkToolCallInfo",
+    "AdkUsageMetadata",
+    "AdkTranscription",
+    "AdkCacheMetadata",
+    "AdkLiveSessionResumptionUpdate",
     # Request - Schema and Safety
     "SchemaType",
     "Schema",

@@ -1,6 +1,8 @@
 use crate::error::EvaluationError;
 use crate::evaluate::evaluator::GenAIEvaluator;
-use crate::evaluate::scenario_results::{EvalMetrics, ScenarioEvalResults, ScenarioResult};
+use crate::evaluate::scenario_results::{
+    EvalMetrics, ScenarioEvalResults, ScenarioResult, TaskSummary,
+};
 use crate::evaluate::types::{EvalResults, EvaluationConfig};
 use crate::genai::{evaluate_genai_dataset, EvalDataset};
 use crate::scenario::EvalScenarios;
@@ -328,6 +330,16 @@ impl EvalRunner {
             // Evaluate
             match GenAIEvaluator::process_event_record(&record, profile, spans_arc).await {
                 Ok(eval_set) => {
+                    let task_results: Vec<TaskSummary> = eval_set
+                        .records
+                        .iter()
+                        .map(|r| TaskSummary {
+                            task_id: r.task_id.clone(),
+                            passed: r.passed,
+                            value: if r.passed { 1.0 } else { 0.0 },
+                        })
+                        .collect();
+
                     let mut eval_results = EvalResults::new();
                     eval_results.add_success(&record, eval_set, BTreeMap::new());
 
@@ -339,6 +351,7 @@ impl EvalRunner {
                         eval_results,
                         passed,
                         pass_rate,
+                        task_results,
                     });
                 }
                 Err(e) => {
@@ -352,6 +365,7 @@ impl EvalRunner {
                         eval_results,
                         passed: false,
                         pass_rate: 0.0,
+                        task_results: vec![],
                     });
                 }
             }
@@ -390,12 +404,26 @@ fn compute_metrics(
         all_rates.iter().sum::<f64>() / all_rates.len() as f64
     };
 
+    // Build per-scenario, per-task pass rates
+    let mut scenario_task_pass_rates: HashMap<String, HashMap<String, f64>> = HashMap::new();
+    for sr in scenario_results {
+        if !sr.task_results.is_empty() {
+            let task_rates: HashMap<String, f64> = sr
+                .task_results
+                .iter()
+                .map(|t| (t.task_id.clone(), if t.passed { 1.0 } else { 0.0 }))
+                .collect();
+            scenario_task_pass_rates.insert(sr.scenario_id.clone(), task_rates);
+        }
+    }
+
     EvalMetrics {
         overall_pass_rate,
         dataset_pass_rates,
         scenario_pass_rate,
         total_scenarios,
         passed_scenarios,
+        scenario_task_pass_rates,
     }
 }
 
@@ -716,6 +744,7 @@ mod tests {
                 eval_results: EvalResults::new(),
                 passed: true,
                 pass_rate: 1.0,
+                task_results: vec![],
             },
             ScenarioResult {
                 scenario_id: "s2".to_string(),
@@ -723,6 +752,7 @@ mod tests {
                 eval_results: EvalResults::new(),
                 passed: false,
                 pass_rate: 0.5,
+                task_results: vec![],
             },
         ];
 

@@ -1,13 +1,12 @@
 use crate::error::EvaluationError;
-use regex::Regex;
 /// Core logic of evaluation trace spans as part of TraceAssertionTask
 ///
 /// use scouter_types::sql::TraceSpan;
 use crate::evaluate::agent::AgentContextBuilder;
 use crate::tasks::evaluator::AssertionEvaluator;
+use regex::Regex;
 use scouter_types::genai::{
-    AggregationType, AttributeFilterTask, MultiResponseMode, SpanFilter, SpanStatus,
-    TraceAssertion,
+    AggregationType, AttributeFilterTask, MultiResponseMode, SpanFilter, SpanStatus, TraceAssertion,
 };
 use scouter_types::sql::TraceSpan;
 use serde_json::{json, Value};
@@ -374,7 +373,8 @@ impl TraceContextBuilder {
                 Ok(result.passed)
             }
             AttributeFilterTask::AgentAssertion(agent_task) => {
-                let context_builder = AgentContextBuilder::from_context(&parsed)?;
+                let context_builder =
+                    AgentContextBuilder::from_context(&parsed, agent_task.provider.as_ref())?;
                 let resolved = context_builder.build_context(&agent_task.assertion)?;
                 let result = AssertionEvaluator::evaluate_assertion(&resolved, agent_task)?;
                 Ok(result.passed)
@@ -403,14 +403,14 @@ mod tests {
 
     use super::*;
 
+    use potato_head::Provider;
     use scouter_mocks::{
-        create_gemini_agent_trace, create_multi_service_trace, create_nested_trace,
-        create_sequence_pattern_trace, create_simple_trace, create_trace_with_attributes,
-        create_trace_with_errors,
+        create_adk_agent_trace, create_gemini_agent_trace, create_multi_service_trace,
+        create_nested_trace, create_sequence_pattern_trace, create_simple_trace,
+        create_trace_with_attributes, create_trace_with_errors,
     };
     use scouter_types::genai::{
-        AgentAssertion, AgentAssertionTask, AssertionTask, ComparisonOperator,
-        EvaluationTaskType,
+        AgentAssertion, AgentAssertionTask, AssertionTask, ComparisonOperator, EvaluationTaskType,
     };
 
     #[test]
@@ -728,6 +728,7 @@ mod tests {
                 task_type: EvaluationTaskType::AgentAssertion,
                 result: None,
                 condition: false,
+                provider: None,
             }),
             mode: MultiResponseMode::Any,
         };
@@ -754,6 +755,7 @@ mod tests {
                 task_type: EvaluationTaskType::AgentAssertion,
                 result: None,
                 condition: false,
+                provider: None,
             }),
             mode: MultiResponseMode::All,
         };
@@ -836,6 +838,7 @@ mod tests {
                 task_type: EvaluationTaskType::AgentAssertion,
                 result: None,
                 condition: false,
+                provider: None,
             }),
             mode: MultiResponseMode::All,
         };
@@ -843,5 +846,88 @@ mod tests {
         let context = builder.build_context(&assertion).unwrap();
         // Only one of two spans has this tool call, so All fails
         assert_eq!(context, json!(false));
+    }
+
+    #[test]
+    fn test_adk_attribute_filter_agent_assertion_any() {
+        let spans = create_adk_agent_trace();
+        let builder = TraceContextBuilder::new(Arc::new(spans));
+
+        // Check that at least one ADK span has a tool call to "transfer_to_agent"
+        let assertion = TraceAssertion::AttributeFilter {
+            key: "gen_ai.response".to_string(),
+            task: AttributeFilterTask::AgentAssertion(AgentAssertionTask {
+                id: "inner_tool_adk".to_string(),
+                assertion: AgentAssertion::ToolCalled {
+                    name: "transfer_to_agent".to_string(),
+                },
+                operator: ComparisonOperator::Equals,
+                expected_value: json!(true),
+                description: None,
+                depends_on: vec![],
+                task_type: EvaluationTaskType::AgentAssertion,
+                result: None,
+                condition: false,
+                provider: Some(Provider::GoogleAdk),
+            }),
+            mode: MultiResponseMode::Any,
+        };
+
+        let context = builder.build_context(&assertion).unwrap();
+        assert_eq!(context, json!(true));
+    }
+
+    #[test]
+    fn test_adk_attribute_filter_assertion_raw_value() {
+        let spans = create_adk_agent_trace();
+        let builder = TraceContextBuilder::new(Arc::new(spans));
+
+        // Check that all ADK gen_ai.response values have finish_reason == "STOP"
+        let assertion = TraceAssertion::AttributeFilter {
+            key: "gen_ai.response".to_string(),
+            task: AttributeFilterTask::Assertion(AssertionTask {
+                id: "inner_finish_adk".to_string(),
+                context_path: Some("finish_reason".to_string()),
+                item_context_path: None,
+                operator: ComparisonOperator::Equals,
+                expected_value: json!("STOP"),
+                description: None,
+                depends_on: vec![],
+                task_type: EvaluationTaskType::Assertion,
+                result: None,
+                condition: false,
+            }),
+            mode: MultiResponseMode::All,
+        };
+
+        let context = builder.build_context(&assertion).unwrap();
+        assert_eq!(context, json!(true));
+    }
+
+    #[test]
+    fn test_adk_attribute_filter_agent_assertion_all() {
+        let spans = create_adk_agent_trace();
+        let builder = TraceContextBuilder::new(Arc::new(spans));
+
+        // Check that ALL ADK spans have model_version containing "gemini"
+        let assertion = TraceAssertion::AttributeFilter {
+            key: "gen_ai.response".to_string(),
+            task: AttributeFilterTask::AgentAssertion(AgentAssertionTask {
+                id: "inner_model_adk".to_string(),
+                assertion: AgentAssertion::ResponseModel {},
+                operator: ComparisonOperator::Contains,
+                expected_value: json!("gemini"),
+                description: None,
+                depends_on: vec![],
+                task_type: EvaluationTaskType::AgentAssertion,
+                result: None,
+                condition: false,
+                provider: Some(Provider::GoogleAdk),
+            }),
+            mode: MultiResponseMode::All,
+        };
+
+        let context = builder.build_context(&assertion).unwrap();
+        assert_eq!(context, json!(true));
     }
 }

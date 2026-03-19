@@ -3,6 +3,7 @@ use crate::genai::traits::TaskAccessor;
 use crate::PyHelperFuncs;
 use core::fmt::Debug;
 use potato_head::prompt_types::Prompt;
+use potato_head::Provider;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyFloat, PyInt, PyList, PySlice, PyString};
 use pyo3::IntoPyObjectExt;
@@ -944,7 +945,11 @@ impl TraceAssertion {
     }
 
     #[staticmethod]
-    pub fn attribute_filter(key: String, task: AttributeFilterTask, mode: MultiResponseMode) -> Self {
+    pub fn attribute_filter(
+        key: String,
+        task: AttributeFilterTask,
+        mode: MultiResponseMode,
+    ) -> Self {
         TraceAssertion::AttributeFilter { key, task, mode }
     }
 
@@ -1342,12 +1347,17 @@ pub struct AgentAssertionTask {
     #[pyo3(get, set)]
     #[serde(default)]
     pub condition: bool,
+
+    #[pyo3(get, set)]
+    #[serde(default)]
+    pub provider: Option<Provider>,
 }
 
 #[pymethods]
 impl AgentAssertionTask {
     #[new]
-    #[pyo3(signature = (id, assertion, expected_value, operator, description=None, depends_on=None, condition=None))]
+    #[pyo3(signature = (id, assertion, expected_value, operator, description=None, depends_on=None, condition=None, provider=None))]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: String,
         assertion: AgentAssertion,
@@ -1356,6 +1366,7 @@ impl AgentAssertionTask {
         description: Option<String>,
         depends_on: Option<Vec<String>>,
         condition: Option<bool>,
+        provider: Option<Provider>,
     ) -> Result<Self, TypeError> {
         let expected_value = depythonize(expected_value)?;
 
@@ -1369,6 +1380,7 @@ impl AgentAssertionTask {
             depends_on: depends_on.unwrap_or_default(),
             result: None,
             condition: condition.unwrap_or(false),
+            provider,
         })
     }
 

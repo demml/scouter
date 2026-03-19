@@ -1,7 +1,17 @@
 #### begin imports ####
 
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    Sequence,
+    TypeVar,
+    Union,
+)
 
 from .header import SerializedType
 from .potato import Prompt
@@ -502,7 +512,7 @@ class LLMJudgeTask:
     def __init__(
         self,
         id: str,
-        prompt: Prompt,
+        prompt: Prompt[Any],
         expected_value: Any,
         context_path: Optional[str],
         operator: ComparisonOperator,
@@ -1847,6 +1857,7 @@ class AgentAssertionTask:
         description: Optional[str] = None,
         depends_on: Optional[List[str]] = None,
         condition: Optional[bool] = None,
+        provider: Optional[Any] = None,
     ) -> None:
         """Create an AgentAssertionTask.
 
@@ -1865,6 +1876,9 @@ class AgentAssertionTask:
                 Task IDs this task depends on.
             condition (Optional[bool]):
                 If True, failed task skips subsequent tasks.
+            provider (Optional[Provider]):
+                Optional LLM provider hint (e.g. Provider.GoogleAdk) for
+                accurate response parsing.
 
         Raises:
             TypeError: If expected_value is not JSON-serializable or if
@@ -1956,6 +1970,14 @@ class AgentAssertionTask:
     def result(self) -> Optional[AssertionResult]:
         """Assertion result after task execution, or None if not yet run."""
 
+    @property
+    def provider(self) -> Optional[Any]:
+        """Optional LLM provider hint for response parsing."""
+
+    @provider.setter
+    def provider(self, provider: Optional[Any]) -> None:
+        """Set the LLM provider hint."""
+
     def __str__(self) -> str:
         """Return string representation of the agent assertion task."""
 
@@ -2012,6 +2034,30 @@ def execute_trace_assertion_tasks(tasks: List[TraceAssertionTask], spans: List[T
         ValueError: If tasks list is empty or spans are not provided.
     """
 
+class TaskSummary:
+    """Per-task pass/fail summary within a scenario result.
+
+    Attributes:
+        task_id (str): The task identifier.
+        passed (bool): Whether the task passed.
+        value (float): Numeric value (1.0 if passed, 0.0 if failed).
+    """
+
+    @property
+    def task_id(self) -> str:
+        """The task identifier."""
+
+    @property
+    def passed(self) -> bool:
+        """Whether the task passed."""
+
+    @property
+    def value(self) -> float:
+        """Numeric value (1.0 if passed, 0.0 if failed)."""
+
+    def __str__(self) -> str:
+        """Return a pretty-printed JSON string representation."""
+
 class EvalMetrics:
     """Aggregate evaluation metrics across all scenarios and sub-agents.
 
@@ -2030,6 +2076,8 @@ class EvalMetrics:
             Total number of scenarios evaluated.
         passed_scenarios (int):
             Number of scenarios where every task passed.
+        scenario_task_pass_rates (Dict[str, Dict[str, float]]):
+            Per-scenario, per-task pass rates. Maps scenario_id → task_id → pass_rate.
     """
 
     @property
@@ -2051,6 +2099,10 @@ class EvalMetrics:
     @property
     def passed_scenarios(self) -> int:
         """Number of scenarios where every task passed."""
+
+    @property
+    def scenario_task_pass_rates(self) -> Dict[str, Dict[str, float]]:
+        """Per-scenario, per-task pass rates."""
 
     def __str__(self) -> str:
         """Return a pretty-printed JSON string representation."""
@@ -2075,6 +2127,8 @@ class ScenarioResult:
             ``True`` when every task in this scenario passed.
         pass_rate (float):
             Fraction of tasks that passed (0–1).
+        task_results (List[TaskSummary]):
+            Per-task pass/fail summaries for this scenario.
     """
 
     @property
@@ -2096,6 +2150,10 @@ class ScenarioResult:
     @property
     def pass_rate(self) -> float:
         """Fraction of tasks that passed (0–1)."""
+
+    @property
+    def task_results(self) -> List["TaskSummary"]:
+        """Per-task pass/fail summaries for this scenario."""
 
     def __str__(self) -> str:
         """Return a pretty-printed JSON string representation."""
@@ -2794,4 +2852,5 @@ __all__ = [
     "ScenarioDelta",
     "ScenarioComparisonResults",
     "ScenarioEvalResults",
+    "TaskSummary",
 ]

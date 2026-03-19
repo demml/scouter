@@ -30,6 +30,7 @@ from .._scouter import (
     SpanFilter,
     SpanStatus,
     TasksFile,
+    TaskSummary,
     TokenUsage,
     TraceAssertion,
     TraceAssertionTask,
@@ -73,5 +74,6 @@ __all__ = [
     "execute_trace_assertion_tasks",
     "execute_agent_assertion_tasks",
     "TasksFile",
+    "TaskSummary",
     "EvaluationTaskType",
 ]

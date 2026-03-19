@@ -12,6 +12,26 @@ use tabled::{
     Table,
 };
 
+#[pyclass]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TaskSummary {
+    #[pyo3(get)]
+    pub task_id: String,
+
+    #[pyo3(get)]
+    pub passed: bool,
+
+    #[pyo3(get)]
+    pub value: f64,
+}
+
+#[pymethods]
+impl TaskSummary {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[pyclass]
 pub struct EvalMetrics {
@@ -29,6 +49,9 @@ pub struct EvalMetrics {
 
     #[pyo3(get)]
     pub passed_scenarios: usize,
+
+    #[serde(default)]
+    pub scenario_task_pass_rates: HashMap<String, HashMap<String, f64>>,
 }
 
 #[derive(Tabled)]
@@ -56,6 +79,11 @@ impl EvalMetrics {
     #[getter]
     pub fn dataset_pass_rates(&self) -> HashMap<String, f64> {
         self.dataset_pass_rates.clone()
+    }
+
+    #[getter]
+    pub fn scenario_task_pass_rates(&self) -> HashMap<String, HashMap<String, f64>> {
+        self.scenario_task_pass_rates.clone()
     }
 
     pub fn as_table(&self) {
@@ -117,6 +145,21 @@ impl EvalMetrics {
             );
             println!("{}", alias_table);
         }
+
+        if !self.scenario_task_pass_rates.is_empty() {
+            println!(
+                "\n{}",
+                "Per-Task Scenario Pass Rates".truecolor(245, 77, 85).bold()
+            );
+            for (scenario_id, task_rates) in &self.scenario_task_pass_rates {
+                println!("  Scenario: {}", scenario_id);
+                let mut sorted_tasks: Vec<_> = task_rates.iter().collect();
+                sorted_tasks.sort_by(|a, b| a.0.cmp(b.0));
+                for (task_id, rate) in sorted_tasks {
+                    println!("    {}: {:.1}%", task_id, rate * 100.0);
+                }
+            }
+        }
     }
 }
 
@@ -136,6 +179,10 @@ pub struct ScenarioResult {
 
     #[pyo3(get)]
     pub pass_rate: f64,
+
+    #[pyo3(get)]
+    #[serde(default)]
+    pub task_results: Vec<TaskSummary>,
 }
 
 impl PartialEq for ScenarioResult {
@@ -144,6 +191,7 @@ impl PartialEq for ScenarioResult {
             && self.initial_query == other.initial_query
             && self.passed == other.passed
             && self.pass_rate == other.pass_rate
+            && self.task_results == other.task_results
     }
 }
 
@@ -836,6 +884,7 @@ mod tests {
             scenario_pass_rate,
             total_scenarios: total,
             passed_scenarios: passed,
+            scenario_task_pass_rates: HashMap::new(),
         }
     }
 
@@ -846,6 +895,7 @@ mod tests {
             eval_results: EvalResults::new(),
             passed,
             pass_rate,
+            task_results: vec![],
         }
     }
 

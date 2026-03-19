@@ -1,7 +1,8 @@
-import json
 import unittest.mock
 
 import pytest
+from google.adk.models.llm_response import LlmResponse
+from google.genai import types
 from scouter.drift import GenAIEvalProfile
 from scouter.evaluate import (
     AgentAssertion,
@@ -19,6 +20,7 @@ from scouter.evaluate import (
     TraceAssertion,
     TraceAssertionTask,
 )
+from scouter.genai import Provider
 from scouter.mock import MockConfig
 from scouter.queue import ScouterQueue
 from scouter.tracing import ScouterInstrumentor, TestSpanExporter, init_tracer
@@ -680,37 +682,32 @@ def test_adk_compare_baseline_to_regressed(adk_ctx):
 def test_multi_agent_trace_assertions():
     """AttributeFilter: run nested assertions on span attributes across Gemini responses."""
 
-    GEMINI_FUNC_CALL = {
-        "candidates": [
-            {
-                "content": {
-                    "role": "model",
-                    "parts": [
-                        {
-                            "functionCall": {
-                                "name": "transfer_to_agent",
-                                "args": {"agent_name": "MeatRecipeAgent"},
-                            }
-                        }
-                    ],
-                },
-                "finishReason": "STOP",
-            }
-        ],
-        "usageMetadata": {"promptTokenCount": 800, "candidatesTokenCount": 802},
-    }
-    GEMINI_TEXT = {
-        "candidates": [
-            {
-                "content": {
-                    "role": "model",
-                    "parts": [{"text": "Pan-Seared Ribeye Steak..."}],
-                },
-                "finishReason": "STOP",
-            }
-        ],
-        "usageMetadata": {"promptTokenCount": 1200, "candidatesTokenCount": 1089},
-    }
+    GEMINI_FUNC = LlmResponse(
+        model_version="gemini-3-flash-preview",
+        content=types.Content(
+            role="model",
+            parts=[
+                types.Part(
+                    function_call=types.FunctionCall(
+                        name="transfer_to_agent",
+                        args={"agent_name": "MeatRecipeAgent"},
+                    )
+                )
+            ],
+        ),
+        partial=False,
+        finish_reason=types.FinishReason.STOP,
+    )
+
+    GEMINI_TEXT = LlmResponse(
+        model_version="gemini-3-flash-preview",
+        content=types.Content(
+            role="model",
+            parts=[types.Part(text="Here is a steak recipe: ... (quality: 8)")],
+        ),
+        partial=False,
+        finish_reason=types.FinishReason.STOP,
+    )
 
     profile = GenAIEvalProfile(
         tasks=[
@@ -743,9 +740,28 @@ def test_multi_agent_trace_assertions():
                             task=AttributeFilterTask.assertion(
                                 AssertionTask(
                                     id="agent_name_check",
-                                    context_path="candidates",
+                                    context_path="content.parts",
                                     operator=ComparisonOperator.HasLengthGreaterThan,
                                     expected_value=0,
+                                )
+                            ),
+                            mode=MultiResponseMode.Any,
+                        ),
+                        operator=ComparisonOperator.Equals,
+                        expected_value=True,
+                    ),
+                    TraceAssertionTask(
+                        id="tool_call_verified",
+                        # filter for any span where gen_ai.response is not null
+                        assertion=TraceAssertion.attribute_filter(
+                            key="gen_ai.response",
+                            task=AttributeFilterTask.agent_assertion(
+                                AgentAssertionTask(
+                                    id="tool_call_check",
+                                    assertion=AgentAssertion.tool_called("transfer_to_agent"),
+                                    expected_value=True,
+                                    operator=ComparisonOperator.Equals,
+                                    provider=Provider.GoogleAdk,
                                 )
                             ),
                             mode=MultiResponseMode.Any,
@@ -769,10 +785,10 @@ def test_multi_agent_trace_assertions():
 
     def mock_adk(query):
         with tracer.start_as_current_span("router.generate") as span:
-            span.set_attribute("gen_ai.response", json.dumps(GEMINI_FUNC_CALL))
+            span.set_attribute("gen_ai.response", GEMINI_FUNC.model_dump_json())
             span.add_queue_item("agent", EvalRecord(context={"query": query}, id="r1"))
         with tracer.start_as_current_span("recipe.generate") as span:
-            span.set_attribute("gen_ai.response", json.dumps(GEMINI_TEXT))
+            span.set_attribute("gen_ai.response", GEMINI_TEXT.model_dump_json())
             span.add_queue_item("agent", EvalRecord(context={"query": query}, id="r2"))
         return "Steak recipe"
 

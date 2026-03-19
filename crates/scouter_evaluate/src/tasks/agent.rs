@@ -24,7 +24,8 @@ pub fn execute_agent_assertion_tasks(
     let context: serde_json::Value = depythonize(context).map_err(|e| {
         EvaluationError::GenAIEvaluatorError(format!("Failed to deserialize context: {}", e))
     })?;
-    let context_builder = AgentContextBuilder::from_context(&context)?;
+    let provider = tasks.first().and_then(|t| t.provider.as_ref());
+    let context_builder = AgentContextBuilder::from_context(&context, provider)?;
 
     let results: HashMap<String, AssertionResult> = tasks
         .iter()
