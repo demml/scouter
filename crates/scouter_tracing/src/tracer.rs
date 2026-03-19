@@ -738,6 +738,22 @@ impl ActiveSpan {
             inner.span.add_link(span_context, attributes);
         })
     }
+
+    #[getter]
+    fn get_baggage(&self) -> Result<HashMap<String, String>, TraceError> {
+        self.with_inner(|inner| {
+            inner
+                .otel_context
+                .baggage()
+                .iter()
+                .map(|(k, (v, _meta))| (k.as_str().to_string(), v.to_string()))
+                .collect()
+        })
+    }
+
+    fn has_baggage_item(&self, key: String) -> Result<bool, TraceError> {
+        self.with_inner(|inner| Ok(inner.otel_context.baggage().get(&key).is_some()))?
+    }
 }
 
 impl ActiveSpan {
@@ -1034,6 +1050,7 @@ impl BaseTracer {
             span,
             context_token: None,
             queue: self.queue.as_ref().map(|q| q.clone_ref(py)),
+            otel_context: final_ctx,
         }));
 
         // set as current span
@@ -1138,6 +1155,7 @@ impl BaseTracer {
             span,
             context_token: None, // not pushed onto the context stack
             queue: self.queue.as_ref().map(|q| q.clone_ref(py)),
+            otel_context: final_ctx,
         }));
 
         Ok(ActiveSpan { inner })

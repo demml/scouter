@@ -3,6 +3,7 @@ use crate::tracer::ActiveSpan;
 use opentelemetry::global::ObjectSafeSpan;
 use opentelemetry::trace::Status;
 use opentelemetry::trace::{SpanContext, TraceState};
+use opentelemetry::Context as OtelContext;
 use opentelemetry::{trace, KeyValue, SpanId, TraceFlags, TraceId};
 use opentelemetry_otlp::ExportConfig as OtlpExportConfig;
 use pyo3::types::PyString;
@@ -404,6 +405,7 @@ pub(crate) struct ActiveSpanInner {
     pub span: BoxedSpan,
     pub context_token: Option<Py<PyAny>>,
     pub queue: Option<Py<ScouterQueue>>,
+    pub otel_context: OtelContext,
 }
 
 #[pyclass(eq)]

@@ -3,7 +3,12 @@ use regex::Regex;
 /// Core logic of evaluation trace spans as part of TraceAssertionTask
 ///
 /// use scouter_types::sql::TraceSpan;
-use scouter_types::genai::{AggregationType, SpanFilter, SpanStatus, TraceAssertion};
+use crate::evaluate::agent::AgentContextBuilder;
+use crate::tasks::evaluator::AssertionEvaluator;
+use scouter_types::genai::{
+    AggregationType, AttributeFilterTask, MultiResponseMode, SpanFilter, SpanStatus,
+    TraceAssertion,
+};
 use scouter_types::sql::TraceSpan;
 use serde_json::{json, Value};
 use std::collections::HashSet;
@@ -47,6 +52,9 @@ impl TraceContextBuilder {
             TraceAssertion::TraceMaxDepth {} => Ok(json!(self.calculate_max_depth())),
             TraceAssertion::TraceAttribute { attribute_key } => {
                 self.extract_trace_attribute(attribute_key)
+            }
+            TraceAssertion::AttributeFilter { key, task, mode } => {
+                self.evaluate_attribute_filter(key, task, mode)
             }
         }
     }
@@ -314,6 +322,66 @@ impl TraceContextBuilder {
             .ok_or_else(|| EvaluationError::AttributeNotFound(attribute_key.to_string()))
     }
 
+    fn evaluate_attribute_filter(
+        &self,
+        key: &str,
+        task: &AttributeFilterTask,
+        mode: &MultiResponseMode,
+    ) -> Result<Value, EvaluationError> {
+        // Find all spans with the key attribute and extract values
+        let values: Vec<Value> = self
+            .spans
+            .iter()
+            .filter_map(|span| {
+                span.attributes
+                    .iter()
+                    .find(|attr| attr.key == key)
+                    .map(|attr| attr.value.clone())
+            })
+            .collect();
+
+        if values.is_empty() {
+            return Ok(json!(false));
+        }
+
+        let results: Vec<bool> = values
+            .iter()
+            .map(|value| self.evaluate_inner_task(value, task))
+            .collect::<Result<Vec<bool>, EvaluationError>>()?;
+
+        let passed = match mode {
+            MultiResponseMode::Any => results.iter().any(|r| *r),
+            MultiResponseMode::All => results.iter().all(|r| *r),
+        };
+
+        Ok(json!(passed))
+    }
+
+    fn evaluate_inner_task(
+        &self,
+        value: &Value,
+        task: &AttributeFilterTask,
+    ) -> Result<bool, EvaluationError> {
+        // Attribute values stored as JSON strings need parsing
+        let parsed = match value {
+            Value::String(s) => serde_json::from_str(s).unwrap_or_else(|_| value.clone()),
+            _ => value.clone(),
+        };
+
+        match task {
+            AttributeFilterTask::Assertion(assertion_task) => {
+                let result = AssertionEvaluator::evaluate_assertion(&parsed, assertion_task)?;
+                Ok(result.passed)
+            }
+            AttributeFilterTask::AgentAssertion(agent_task) => {
+                let context_builder = AgentContextBuilder::from_context(&parsed)?;
+                let resolved = context_builder.build_context(&agent_task.assertion)?;
+                let result = AssertionEvaluator::evaluate_assertion(&resolved, agent_task)?;
+                Ok(result.passed)
+            }
+        }
+    }
+
     // Helper methods
     fn map_status_code(&self, code: i32) -> SpanStatus {
         match code {
@@ -336,8 +404,13 @@ mod tests {
     use super::*;
 
     use scouter_mocks::{
-        create_multi_service_trace, create_nested_trace, create_sequence_pattern_trace,
-        create_simple_trace, create_trace_with_attributes, create_trace_with_errors,
+        create_gemini_agent_trace, create_multi_service_trace, create_nested_trace,
+        create_sequence_pattern_trace, create_simple_trace, create_trace_with_attributes,
+        create_trace_with_errors,
+    };
+    use scouter_types::genai::{
+        AgentAssertion, AgentAssertionTask, AssertionTask, ComparisonOperator,
+        EvaluationTaskType,
     };
 
     #[test]
@@ -633,5 +706,142 @@ mod tests {
         let assertion = TraceAssertion::SpanCount { filter };
         let context = builder.build_context(&assertion).unwrap();
         assert_eq!(context, json!(2));
+    }
+
+    #[test]
+    fn test_attribute_filter_agent_assertion_any() {
+        let spans = create_gemini_agent_trace();
+        let builder = TraceContextBuilder::new(Arc::new(spans));
+
+        // Check that at least one span has a tool call to "transfer_to_agent"
+        let assertion = TraceAssertion::AttributeFilter {
+            key: "gen_ai.response".to_string(),
+            task: AttributeFilterTask::AgentAssertion(AgentAssertionTask {
+                id: "inner_tool".to_string(),
+                assertion: AgentAssertion::ToolCalled {
+                    name: "transfer_to_agent".to_string(),
+                },
+                operator: ComparisonOperator::Equals,
+                expected_value: json!(true),
+                description: None,
+                depends_on: vec![],
+                task_type: EvaluationTaskType::AgentAssertion,
+                result: None,
+                condition: false,
+            }),
+            mode: MultiResponseMode::Any,
+        };
+
+        let context = builder.build_context(&assertion).unwrap();
+        assert_eq!(context, json!(true));
+    }
+
+    #[test]
+    fn test_attribute_filter_agent_assertion_all() {
+        let spans = create_gemini_agent_trace();
+        let builder = TraceContextBuilder::new(Arc::new(spans));
+
+        // Check that ALL spans have total tokens < 5000
+        let assertion = TraceAssertion::AttributeFilter {
+            key: "gen_ai.response".to_string(),
+            task: AttributeFilterTask::AgentAssertion(AgentAssertionTask {
+                id: "inner_tokens".to_string(),
+                assertion: AgentAssertion::ResponseTotalTokens {},
+                operator: ComparisonOperator::LessThan,
+                expected_value: json!(5000),
+                description: None,
+                depends_on: vec![],
+                task_type: EvaluationTaskType::AgentAssertion,
+                result: None,
+                condition: false,
+            }),
+            mode: MultiResponseMode::All,
+        };
+
+        let context = builder.build_context(&assertion).unwrap();
+        assert_eq!(context, json!(true));
+    }
+
+    #[test]
+    fn test_attribute_filter_assertion_raw_value() {
+        let spans = create_gemini_agent_trace();
+        let builder = TraceContextBuilder::new(Arc::new(spans));
+
+        // Check that all gen_ai.response values have finishReason == "STOP"
+        let assertion = TraceAssertion::AttributeFilter {
+            key: "gen_ai.response".to_string(),
+            task: AttributeFilterTask::Assertion(AssertionTask {
+                id: "inner_finish".to_string(),
+                context_path: Some("candidates[0].finishReason".to_string()),
+                item_context_path: None,
+                operator: ComparisonOperator::Equals,
+                expected_value: json!("STOP"),
+                description: None,
+                depends_on: vec![],
+                task_type: EvaluationTaskType::Assertion,
+                result: None,
+                condition: false,
+            }),
+            mode: MultiResponseMode::All,
+        };
+
+        let context = builder.build_context(&assertion).unwrap();
+        assert_eq!(context, json!(true));
+    }
+
+    #[test]
+    fn test_attribute_filter_no_matching_spans() {
+        let spans = create_gemini_agent_trace();
+        let builder = TraceContextBuilder::new(Arc::new(spans));
+
+        // No span has "nonexistent" attribute
+        let assertion = TraceAssertion::AttributeFilter {
+            key: "nonexistent".to_string(),
+            task: AttributeFilterTask::Assertion(AssertionTask {
+                id: "inner".to_string(),
+                context_path: None,
+                item_context_path: None,
+                operator: ComparisonOperator::Equals,
+                expected_value: json!(true),
+                description: None,
+                depends_on: vec![],
+                task_type: EvaluationTaskType::Assertion,
+                result: None,
+                condition: false,
+            }),
+            mode: MultiResponseMode::Any,
+        };
+
+        let context = builder.build_context(&assertion).unwrap();
+        assert_eq!(context, json!(false));
+    }
+
+    #[test]
+    fn test_attribute_filter_all_mode_fails_when_one_fails() {
+        let spans = create_gemini_agent_trace();
+        let builder = TraceContextBuilder::new(Arc::new(spans));
+
+        // Only one span has tool calls, so "All" mode should fail for ToolCalled
+        let assertion = TraceAssertion::AttributeFilter {
+            key: "gen_ai.response".to_string(),
+            task: AttributeFilterTask::AgentAssertion(AgentAssertionTask {
+                id: "inner_tool".to_string(),
+                assertion: AgentAssertion::ToolCalled {
+                    name: "transfer_to_agent".to_string(),
+                },
+                operator: ComparisonOperator::Equals,
+                expected_value: json!(true),
+                description: None,
+                depends_on: vec![],
+                task_type: EvaluationTaskType::AgentAssertion,
+                result: None,
+                condition: false,
+            }),
+            mode: MultiResponseMode::All,
+        };
+
+        let context = builder.build_context(&assertion).unwrap();
+        // Only one of two spans has this tool call, so All fails
+        assert_eq!(context, json!(false));
     }
 }

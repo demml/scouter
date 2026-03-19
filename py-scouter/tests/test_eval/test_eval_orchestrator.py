@@ -1,14 +1,19 @@
+import json
 import unittest.mock
 
 import pytest
 from scouter.drift import GenAIEvalProfile
 from scouter.evaluate import (
+    AgentAssertion,
+    AgentAssertionTask,
     AssertionTask,
+    AttributeFilterTask,
     ComparisonOperator,
     EvalOrchestrator,
     EvalRecord,
     EvalScenario,
     EvalScenarios,
+    MultiResponseMode,
     ScenarioEvalResults,
     SpanFilter,
     TraceAssertion,
@@ -320,7 +325,7 @@ def test_no_tracer_fallback_single_execution():
         return "response"
 
     orch = EvalOrchestrator(queue, _single_scenario(), agent_fn=counting_agent)
-    orch._execute_with_baggage(orch._scenarios.scenarios[0])
+    orch._execute_with_attributes(orch._scenarios.scenarios[0])
     assert call_count == 1
 
 
@@ -342,7 +347,7 @@ def test_exception_inside_span_propagates():
 
     orch = EvalOrchestrator(queue, _single_scenario(), agent_fn=failing_agent)
     with pytest.raises(ValueError, match="agent failure"):
-        orch._execute_with_baggage(orch._scenarios.scenarios[0])
+        orch._execute_with_attributes(orch._scenarios.scenarios[0])
     assert call_count == 1
 
 
@@ -670,3 +675,109 @@ def test_adk_compare_baseline_to_regressed(adk_ctx):
     comp = regressed.compare_to(baseline)
     assert comp.regressed
     assert comp.comparison_overall_pass_rate < comp.baseline_overall_pass_rate
+
+
+def test_multi_agent_trace_assertions():
+    """AttributeFilter: run nested assertions on span attributes across Gemini responses."""
+
+    GEMINI_FUNC_CALL = {
+        "candidates": [
+            {
+                "content": {
+                    "role": "model",
+                    "parts": [
+                        {
+                            "functionCall": {
+                                "name": "transfer_to_agent",
+                                "args": {"agent_name": "MeatRecipeAgent"},
+                            }
+                        }
+                    ],
+                },
+                "finishReason": "STOP",
+            }
+        ],
+        "usageMetadata": {"promptTokenCount": 800, "candidatesTokenCount": 802},
+    }
+    GEMINI_TEXT = {
+        "candidates": [
+            {
+                "content": {
+                    "role": "model",
+                    "parts": [{"text": "Pan-Seared Ribeye Steak..."}],
+                },
+                "finishReason": "STOP",
+            }
+        ],
+        "usageMetadata": {"promptTokenCount": 1200, "candidatesTokenCount": 1089},
+    }
+
+    profile = GenAIEvalProfile(
+        tasks=[
+            AssertionTask(
+                id="placeholder",
+                operator=ComparisonOperator.IsString,
+                expected_value=True,
+                context_path="query",
+            ),
+        ],
+        alias="agent",
+    )
+    queue = ScouterQueue.from_profile(
+        profile=[profile],
+        transport_config=MockConfig(),
+        wait_for_startup=True,
+    )
+
+    scenarios = EvalScenarios(
+        scenarios=[
+            EvalScenario(
+                initial_query="Give me a meat recipe",
+                id="adk_multi",
+                expected_outcome="Recipe",
+                tasks=[
+                    TraceAssertionTask(
+                        id="transfer_called",
+                        assertion=TraceAssertion.attribute_filter(
+                            key="gen_ai.response",
+                            task=AttributeFilterTask.assertion(
+                                AssertionTask(
+                                    id="agent_name_check",
+                                    context_path="candidates",
+                                    operator=ComparisonOperator.HasLengthGreaterThan,
+                                    expected_value=0,
+                                )
+                            ),
+                            mode=MultiResponseMode.Any,
+                        ),
+                        operator=ComparisonOperator.Equals,
+                        expected_value=True,
+                    ),
+                ],
+            )
+        ]
+    )
+
+    instrumentor = ScouterInstrumentor()
+    instrumentor.instrument(scouter_queue=queue, exporter=TestSpanExporter(batch_export=False))
+    tracer = init_tracer(
+        service_name="adk",
+        scouter_queue=queue,
+        transport_config=MockConfig(),
+        exporter=TestSpanExporter(batch_export=False),
+    )
+
+    def mock_adk(query):
+        with tracer.start_as_current_span("router.generate") as span:
+            span.set_attribute("gen_ai.response", json.dumps(GEMINI_FUNC_CALL))
+            span.add_queue_item("agent", EvalRecord(context={"query": query}, id="r1"))
+        with tracer.start_as_current_span("recipe.generate") as span:
+            span.set_attribute("gen_ai.response", json.dumps(GEMINI_TEXT))
+            span.add_queue_item("agent", EvalRecord(context={"query": query}, id="r2"))
+        return "Steak recipe"
+
+    results = EvalOrchestrator(queue=queue, scenarios=scenarios, agent_fn=mock_adk).run()
+
+    instrumentor.uninstrument()
+    assert results.metrics.passed_scenarios == 1
+    assert results.metrics.total_scenarios == 1

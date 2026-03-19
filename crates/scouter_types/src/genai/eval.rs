@@ -764,9 +764,43 @@ pub enum AggregationType {
     Last,
 }
 
+/// Mode for aggregating results across multiple attribute values
+#[pyclass(eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum MultiResponseMode {
+    /// At least one value must pass
+    Any,
+    /// All values must pass
+    All,
+}
+
+/// Inner task to run on each extracted attribute value
+#[pyclass]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum AttributeFilterTask {
+    /// Run a deterministic assertion on the raw attribute value
+    Assertion(AssertionTask),
+    /// Parse through AgentContextBuilder then run agent assertion
+    AgentAssertion(AgentAssertionTask),
+}
+
+#[pymethods]
+impl AttributeFilterTask {
+    #[staticmethod]
+    pub fn assertion(task: AssertionTask) -> Self {
+        AttributeFilterTask::Assertion(task)
+    }
+
+    #[staticmethod]
+    pub fn agent_assertion(task: AgentAssertionTask) -> Self {
+        AttributeFilterTask::AgentAssertion(task)
+    }
+}
+
 /// Unified assertion target that can operate on traces or filtered spans
 #[pyclass(eq)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[allow(clippy::large_enum_variant)]
 pub enum TraceAssertion {
     /// Check if spans exist in a specific order
     SpanSequence { span_names: Vec<String> },
@@ -813,6 +847,13 @@ pub enum TraceAssertion {
 
     /// Get trace-level attribute
     TraceAttribute { attribute_key: String },
+
+    /// Filter spans by attribute key, run inner task on each value, aggregate results
+    AttributeFilter {
+        key: String,
+        task: AttributeFilterTask,
+        mode: MultiResponseMode,
+    },
 }
 
 // implement to_string for TraceAssertion
@@ -900,6 +941,11 @@ impl TraceAssertion {
     #[staticmethod]
     pub fn trace_attribute(attribute_key: String) -> Self {
         TraceAssertion::TraceAttribute { attribute_key }
+    }
+
+    #[staticmethod]
+    pub fn attribute_filter(key: String, task: AttributeFilterTask, mode: MultiResponseMode) -> Self {
+        TraceAssertion::AttributeFilter { key, task, mode }
     }
 
     pub fn model_dump_json(&self) -> String {
@@ -1946,6 +1992,7 @@ impl TasksFile {
 }
 
 #[derive(Debug, Serialize, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum TaskConfig {
     Assertion(AssertionTask),
     #[serde(rename = "LLMJudge")]
