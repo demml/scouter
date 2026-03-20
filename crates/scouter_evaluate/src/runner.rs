@@ -187,7 +187,7 @@ impl EvalRunner {
             // Only fetch trace_ids not already covered by the attribute-based pass
             let already_covered: HashSet<ScouterTraceId> = raw_by_scenario
                 .values()
-                .flat_map(|spans| spans.iter().map(|s| s.trace_id))
+                .flat_map(|spans: &Vec<_>| spans.iter().map(|s| s.trace_id))
                 .collect();
             let new_trace_ids: HashSet<ScouterTraceId> = record_trace_to_scenario
                 .keys()
