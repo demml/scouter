@@ -1,7 +1,4 @@
 use crate::error::EvaluationError;
-/// Core logic of evaluation trace spans as part of TraceAssertionTask
-///
-/// use scouter_types::sql::TraceSpan;
 use crate::evaluate::agent::AgentContextBuilder;
 use crate::tasks::evaluator::AssertionEvaluator;
 use regex::Regex;
@@ -12,7 +9,7 @@ use scouter_types::sql::TraceSpan;
 use serde_json::{json, Value};
 use std::collections::HashSet;
 use std::sync::Arc;
-use tracing::debug;
+use tracing::{debug, warn};
 
 #[derive(Debug, Clone)]
 pub struct TraceContextBuilder {
@@ -60,6 +57,19 @@ impl TraceContextBuilder {
 
     // Span filtering logic
     fn filter_spans(&self, filter: &SpanFilter) -> Result<Vec<&TraceSpan>, EvaluationError> {
+        // Pre-compile ByNamePattern regex once before iterating spans to avoid
+        // O(N) compilations when the same pattern is matched against every span.
+        if let SpanFilter::ByNamePattern { pattern } = filter {
+            let regex = Regex::new(pattern)?;
+            let filtered: Vec<&TraceSpan> = self
+                .spans
+                .iter()
+                .filter(|s| regex.is_match(&s.span_name))
+                .collect();
+            debug!("Filtered spans count: {} with pattern {:?}", filtered.len(), pattern);
+            return Ok(filtered);
+        }
+
         let mut filtered = Vec::new();
 
         for span in self.spans.iter() {
@@ -216,7 +226,7 @@ impl TraceContextBuilder {
             .collect();
 
         if values.len() == 1 {
-            Ok(values[0].clone())
+            Ok(values.into_iter().next().unwrap())
         } else {
             Ok(Value::Array(values))
         }
@@ -284,13 +294,18 @@ impl TraceContextBuilder {
 
     // Trace-level calculations
     fn calculate_trace_duration(&self) -> i64 {
-        self.spans.iter().map(|s| s.duration_ms).max().unwrap_or(0)
+        let min_start = self.spans.iter().map(|s| s.start_time).min();
+        let max_end = self.spans.iter().map(|s| s.end_time).max();
+        match (min_start, max_end) {
+            (Some(start), Some(end)) => (end - start).num_milliseconds(),
+            _ => 0,
+        }
     }
 
     fn count_error_spans(&self) -> usize {
         self.spans
             .iter()
-            .filter(|s| s.status_code == 2) // Error status
+            .filter(|s| self.map_status_code(s.status_code) == SpanStatus::Error)
             .count()
     }
 
@@ -363,7 +378,10 @@ impl TraceContextBuilder {
     ) -> Result<bool, EvaluationError> {
         // Attribute values stored as JSON strings need parsing
         let parsed = match value {
-            Value::String(s) => serde_json::from_str(s).unwrap_or_else(|_| value.clone()),
+            Value::String(s) => serde_json::from_str(s).unwrap_or_else(|_| {
+                warn!("Attribute value is a non-JSON string; evaluating as raw string value");
+                value.clone()
+            }),
             _ => value.clone(),
         };
 
@@ -929,5 +947,79 @@ mod tests {
 
         let context = builder.build_context(&assertion).unwrap();
         assert_eq!(context, json!(true));
+    }
+
+    #[test]
+    fn test_invalid_regex_returns_error() {
+        let spans = create_simple_trace();
+        let builder = TraceContextBuilder::new(Arc::new(spans));
+        let result = builder.build_context(&TraceAssertion::SpanCount {
+            filter: SpanFilter::ByNamePattern {
+                pattern: "[invalid".to_string(),
+            },
+        });
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_sequence_filter_in_span_exists_returns_invalid_filter_error() {
+        let spans = create_simple_trace();
+        let builder = TraceContextBuilder::new(Arc::new(spans));
+        let result = builder.build_context(&TraceAssertion::SpanExists {
+            filter: SpanFilter::Sequence {
+                names: vec!["root".to_string()],
+            },
+        });
+        assert!(matches!(result, Err(EvaluationError::InvalidFilter(_))));
+    }
+
+    #[test]
+    fn test_extract_trace_attribute_no_root_span() {
+        let mut spans = create_simple_trace();
+        for span in &mut spans {
+            span.depth = 1;
+        }
+        let builder = TraceContextBuilder::new(Arc::new(spans));
+        let result = builder.build_context(&TraceAssertion::TraceAttribute {
+            attribute_key: "model".to_string(),
+        });
+        assert!(matches!(result, Err(EvaluationError::NoRootSpan)));
+    }
+
+    #[test]
+    fn test_extract_trace_attribute_key_not_found() {
+        let spans = create_simple_trace();
+        let builder = TraceContextBuilder::new(Arc::new(spans));
+        let result = builder.build_context(&TraceAssertion::TraceAttribute {
+            attribute_key: "nonexistent_key_xyz".to_string(),
+        });
+        assert!(matches!(result, Err(EvaluationError::AttributeNotFound(_))));
+    }
+
+    #[test]
+    fn test_aggregate_null_when_no_numeric_values() {
+        let spans = create_simple_trace();
+        let builder = TraceContextBuilder::new(Arc::new(spans));
+        let filter = SpanFilter::ByName {
+            name: "root".to_string(),
+        };
+        let result = builder
+            .aggregate_span_attribute(&filter, "nonexistent_numeric", &AggregationType::Sum)
+            .unwrap();
+        assert_eq!(result, Value::Null);
+    }
+
+    #[test]
+    fn test_extract_span_attribute_multi_span_returns_array() {
+        // create_gemini_agent_trace has 2 spans with gen_ai.response
+        let spans = create_gemini_agent_trace();
+        let builder = TraceContextBuilder::new(Arc::new(spans));
+        let filter = SpanFilter::WithAttribute {
+            key: "gen_ai.response".to_string(),
+        };
+        let result = builder
+            .extract_span_attribute(&filter, "gen_ai.response")
+            .unwrap();
+        assert!(result.is_array());
     }
 }

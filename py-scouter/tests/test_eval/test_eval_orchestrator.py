@@ -770,7 +770,50 @@ def test_multi_agent_trace_assertions():
                         expected_value=True,
                     ),
                 ],
-            )
+            ),
+            EvalScenario(
+                initial_query="Give me a vegan recipe",
+                id="adk_multi_2",
+                expected_outcome="Recipe",
+                tasks=[
+                    TraceAssertionTask(
+                        id="transfer_called",
+                        assertion=TraceAssertion.attribute_filter(
+                            key="gen_ai.response",
+                            task=AttributeFilterTask.assertion(
+                                AssertionTask(
+                                    id="agent_name_check",
+                                    context_path="content.parts",
+                                    operator=ComparisonOperator.HasLengthGreaterThan,
+                                    expected_value=0,
+                                )
+                            ),
+                            mode=MultiResponseMode.Any,
+                        ),
+                        operator=ComparisonOperator.Equals,
+                        expected_value=True,
+                    ),
+                    TraceAssertionTask(
+                        id="tool_call_verified",
+                        # filter for any span where gen_ai.response is not null
+                        assertion=TraceAssertion.attribute_filter(
+                            key="gen_ai.response",
+                            task=AttributeFilterTask.agent_assertion(
+                                AgentAssertionTask(
+                                    id="tool_call_check",
+                                    assertion=AgentAssertion.tool_called("transfer_to_agent"),
+                                    expected_value=True,
+                                    operator=ComparisonOperator.Equals,
+                                    provider=Provider.GoogleAdk,
+                                )
+                            ),
+                            mode=MultiResponseMode.Any,
+                        ),
+                        operator=ComparisonOperator.Equals,
+                        expected_value=True,
+                    ),
+                ],
+            ),
         ]
     )
 
@@ -795,5 +838,7 @@ def test_multi_agent_trace_assertions():
     results = EvalOrchestrator(queue=queue, scenarios=scenarios, agent_fn=mock_adk).run()
 
     instrumentor.uninstrument()
-    assert results.metrics.passed_scenarios == 1
-    assert results.metrics.total_scenarios == 1
+    assert results.metrics.passed_scenarios == 2
+    assert results.metrics.total_scenarios == 2
+
+    results.as_table(show_datasets=True)

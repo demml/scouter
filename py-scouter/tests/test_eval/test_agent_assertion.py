@@ -6,6 +6,7 @@ from scouter.evaluate import (
     EvalRecord,
     execute_agent_assertion_tasks,
 )
+from scouter.genai import Provider
 
 
 def test_tool_called():
@@ -865,3 +866,86 @@ def test_eval_dataset_mixed_task_types():
 
     assert result.eval_set.passed_tasks == 2
     assert result.eval_set.failed_tasks == 0
+
+
+# ADK response format: snake_case finish_reason, flat content.parts, model_version
+_ADK_FUNC_CALL_RESPONSE = {
+    "model_version": "gemini-3-flash-preview",
+    "content": {
+        "role": "model",
+        "parts": [
+            {
+                "function_call": {
+                    "name": "transfer_to_agent",
+                    "args": {"agent_name": "MeatRecipeAgent"},
+                }
+            }
+        ],
+    },
+    "partial": False,
+    "turn_complete": True,
+    "finish_reason": "STOP",
+}
+
+_ADK_TEXT_RESPONSE = {
+    "model_version": "gemini-3-flash-preview",
+    "content": {
+        "role": "model",
+        "parts": [{"text": "Here is a steak recipe..."}],
+    },
+    "partial": False,
+    "turn_complete": True,
+    "finish_reason": "STOP",
+    "usage_metadata": {"prompt_token_count": 1200, "candidates_token_count": 1089},
+}
+
+
+def test_agent_assertion_explicit_google_adk_provider_tool_called():
+    """Provider=GoogleAdk routes AgentContextBuilder through the ADK parse path."""
+    results = execute_agent_assertion_tasks(
+        tasks=[
+            AgentAssertionTask(
+                id="tool_called",
+                assertion=AgentAssertion.tool_called("transfer_to_agent"),
+                operator=ComparisonOperator.Equals,
+                expected_value=True,
+                provider=Provider.GoogleAdk,
+            )
+        ],
+        context={"response": _ADK_FUNC_CALL_RESPONSE},
+    )
+    assert results["tool_called"].passed
+
+
+def test_agent_assertion_explicit_google_adk_provider_tool_not_called():
+    """Provider=GoogleAdk: tool-not-called assertion on a text-only response passes."""
+    results = execute_agent_assertion_tasks(
+        tasks=[
+            AgentAssertionTask(
+                id="no_tool",
+                assertion=AgentAssertion.tool_not_called("transfer_to_agent"),
+                operator=ComparisonOperator.Equals,
+                expected_value=True,
+                provider=Provider.GoogleAdk,
+            )
+        ],
+        context={"response": _ADK_TEXT_RESPONSE},
+    )
+    assert results["no_tool"].passed
+
+
+def test_agent_assertion_explicit_google_adk_provider_finish_reason():
+    """Provider=GoogleAdk: ResponseFinishReason reads the snake_case finish_reason field."""
+    results = execute_agent_assertion_tasks(
+        tasks=[
+            AgentAssertionTask(
+                id="finish_reason",
+                assertion=AgentAssertion.response_finish_reason(),
+                operator=ComparisonOperator.Equals,
+                expected_value="STOP",
+                provider=Provider.GoogleAdk,
+            )
+        ],
+        context={"response": _ADK_TEXT_RESPONSE},
+    )
+    assert results["finish_reason"].passed

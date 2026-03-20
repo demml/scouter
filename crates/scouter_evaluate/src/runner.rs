@@ -16,7 +16,7 @@ use scouter_types::EvalRecord;
 use serde_json::json;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 struct AliasData {
     records: Vec<EvalRecord>,
@@ -31,8 +31,8 @@ struct AliasData {
 /// - `collect_scenario_data()`: Populates scenario datasets and contexts
 /// - `evaluate()`: Runs multi-level evaluation (sub-agent + scenario + aggregate),
 ///   pulling captured spans from the global buffer automatically.
-#[pyclass]
 #[derive(Debug)]
+#[pyclass]
 pub struct EvalRunner {
     profiles: HashMap<String, Arc<GenAIEvalProfile>>,
     scenarios: EvalScenarios,
@@ -227,10 +227,10 @@ impl EvalRunner {
                 if entry.profile.is_none() {
                     entry.profile = Some(Arc::clone(&dataset.profile));
                 } else {
-                    // First-seen profile wins per alias — log when a subsequent scenario
+                    // First-seen profile wins per alias — warn when a subsequent scenario
                     // provides a different profile instance for the same alias.
-                    debug!(
-                        "Alias '{}': profile already set, ignoring profile from another scenario",
+                    warn!(
+                        "Alias '{}': profile already set — first-seen profile wins; ignoring profile from a subsequent scenario. Ensure all scenarios use the same profile for this alias.",
                         alias
                     );
                 }
@@ -552,6 +552,25 @@ mod tests {
         assert!(runner.scenarios.scenario_contexts.contains_key("s1"));
         let ctx = &runner.scenarios.scenario_contexts["s1"];
         assert_eq!(ctx["response"], "Agent response");
+    }
+
+    #[test]
+    fn collect_scenario_data_duplicate_returns_error() {
+        let mut runner = EvalRunner::new(
+            EvalScenarios::new(vec![make_scenario("s1", "Hello")]),
+            make_default_profiles(),
+        );
+        let mut records = HashMap::new();
+        records.insert("agent_a".to_string(), vec![EvalRecord::default()]);
+        let scenario = runner.scenarios.scenarios[0].clone();
+
+        runner
+            .collect_scenario_data(records.clone(), "Response".to_string(), &scenario)
+            .unwrap();
+        let result =
+            runner.collect_scenario_data(records, "Response again".to_string(), &scenario);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("already has data"));
     }
 
     #[test]

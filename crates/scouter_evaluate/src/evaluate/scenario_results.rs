@@ -12,8 +12,8 @@ use tabled::{
     Table,
 };
 
-#[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[pyclass]
 pub struct TaskSummary {
     #[pyo3(get)]
     pub task_id: String,
@@ -146,20 +146,6 @@ impl EvalMetrics {
             println!("{}", alias_table);
         }
 
-        if !self.scenario_task_pass_rates.is_empty() {
-            println!(
-                "\n{}",
-                "Per-Task Scenario Pass Rates".truecolor(245, 77, 85).bold()
-            );
-            for (scenario_id, task_rates) in &self.scenario_task_pass_rates {
-                println!("  Scenario: {}", scenario_id);
-                let mut sorted_tasks: Vec<_> = task_rates.iter().collect();
-                sorted_tasks.sort_by(|a, b| a.0.cmp(b.0));
-                for (task_id, rate) in sorted_tasks {
-                    println!("    {}: {:.1}%", task_id, rate * 100.0);
-                }
-            }
-        }
     }
 }
 
@@ -663,6 +649,12 @@ struct ScenarioResultEntry {
     scenario_id: String,
     #[tabled(rename = "Initial Query")]
     initial_query: String,
+    #[tabled(rename = "Tasks")]
+    tasks: usize,
+    #[tabled(rename = "Passed")]
+    passed_count: usize,
+    #[tabled(rename = "Failed")]
+    failed_count: usize,
     #[tabled(rename = "Pass Rate")]
     pass_rate: String,
     #[tabled(rename = "Status")]
@@ -820,7 +812,8 @@ impl ScenarioEvalResults {
         })
     }
 
-    pub fn as_table(&self) {
+    #[pyo3(signature = (show_datasets=false))]
+    pub fn as_table(&mut self, show_datasets: bool) {
         self.metrics.as_table();
 
         if !self.scenario_results.is_empty() {
@@ -843,9 +836,15 @@ impl ScenarioEvalResults {
                     } else {
                         "✗ FAIL".red().to_string()
                     };
+                    let total = r.task_results.len();
+                    let passed_count = r.task_results.iter().filter(|t| t.passed).count();
+                    let failed_count = total - passed_count;
                     ScenarioResultEntry {
                         scenario_id: r.scenario_id.chars().take(16).collect::<String>(),
                         initial_query: query,
+                        tasks: total,
+                        passed_count,
+                        failed_count,
                         pass_rate: format!("{:.1}%", r.pass_rate * 100.0),
                         status,
                     }
@@ -863,6 +862,20 @@ impl ScenarioEvalResults {
                 ),
             );
             println!("{}", table);
+        }
+
+        if show_datasets {
+            let mut aliases: Vec<_> = self.dataset_results.keys().cloned().collect();
+            aliases.sort();
+            for alias in aliases {
+                if let Some(eval_results) = self.dataset_results.get_mut(&alias) {
+                    println!(
+                        "\n{}",
+                        format!("Dataset: {}", alias).truecolor(245, 77, 85).bold()
+                    );
+                    eval_results.as_table(false);
+                }
+            }
         }
     }
 }

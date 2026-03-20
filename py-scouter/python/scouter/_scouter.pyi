@@ -13454,8 +13454,12 @@ class ScenarioEvalResults:
             RuntimeError: If comparison computation fails.
         """
 
-    def as_table(self) -> None:
-        """Print a full evaluation summary (metrics + scenario table) to stdout."""
+    def as_table(self, show_datasets: bool = False) -> None:
+        """Print a full evaluation summary (metrics + scenario table) to stdout.
+
+        Args:
+            show_datasets: If True, also print per-dataset EvalResults tables.
+        """
 
 class EvalScenario:
     """A single test case in an offline agent evaluation run.
