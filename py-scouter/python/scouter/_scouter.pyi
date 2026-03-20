@@ -12959,6 +12959,88 @@ class AgentAssertionTask:
     def model_dump_json(self) -> str:
         """Serialize the task to a JSON string."""
 
+class MultiResponseMode:
+    """Mode for aggregating assertion results across multiple attribute values.
+
+    When a span attribute contains multiple values (e.g. a list of responses),
+    ``MultiResponseMode`` controls whether *any* or *all* of those values must
+    satisfy the inner task to count as a pass.
+
+    Variants:
+        Any: At least one value must pass the inner task.
+        All: Every value must pass the inner task.
+
+    Examples:
+        >>> mode = MultiResponseMode.Any
+        >>> mode = MultiResponseMode.All
+    """
+
+    Any: "MultiResponseMode"
+    All: "MultiResponseMode"
+
+class AttributeFilterTask:
+    """Inner task to run on each value extracted from a span attribute.
+
+    ``AttributeFilterTask`` is the sub-task embedded inside a
+    ``TraceAssertion.attribute_filter`` call.  It controls *how* each
+    extracted attribute value is evaluated:
+
+    - ``Assertion``: run a deterministic :class:`AssertionTask` directly on
+      the raw extracted value.
+    - ``AgentAssertion``: parse the value through ``AgentContextBuilder``
+      (to reconstruct tool-call / response structure) and then evaluate with
+      an :class:`AgentAssertionTask`.
+
+    Use the static factory methods rather than constructing variants directly.
+
+    Examples:
+        Deterministic check on a raw attribute value:
+
+        >>> task = AttributeFilterTask.assertion(
+        ...     AssertionTask(
+        ...         id="has_parts",
+        ...         context_path="content.parts",
+        ...         operator=ComparisonOperator.HasLengthGreaterThan,
+        ...         expected_value=0,
+        ...     )
+        ... )
+
+        Agent-level check (tool call) on a JSON-encoded response attribute:
+
+        >>> task = AttributeFilterTask.agent_assertion(
+        ...     AgentAssertionTask(
+        ...         id="tool_was_called",
+        ...         assertion=AgentAssertion.tool_called("transfer_to_agent"),
+        ...         expected_value=True,
+        ...         operator=ComparisonOperator.Equals,
+        ...     )
+        ... )
+    """
+
+    @staticmethod
+    def assertion(task: AssertionTask) -> "AttributeFilterTask":
+        """Create an ``Assertion`` variant wrapping *task*.
+
+        Args:
+            task (AssertionTask): The deterministic assertion to run on each
+                extracted attribute value.
+
+        Returns:
+            AttributeFilterTask: An ``Assertion`` variant.
+        """
+
+    @staticmethod
+    def agent_assertion(task: AgentAssertionTask) -> "AttributeFilterTask":
+        """Create an ``AgentAssertion`` variant wrapping *task*.
+
+        Args:
+            task (AgentAssertionTask): The agent assertion to run after
+                parsing the attribute value through ``AgentContextBuilder``.
+
+        Returns:
+            AttributeFilterTask: An ``AgentAssertion`` variant.
+        """
+
 class AssertionResult:
     @property
     def passed(self) -> bool: ...
