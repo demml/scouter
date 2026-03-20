@@ -648,7 +648,6 @@ pub struct TaskResultTableEntry {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-#[allow(clippy::large_enum_variant)]
 pub enum Assertion {
     FieldPath(Option<String>),
     TraceAssertion(TraceAssertion),
@@ -1012,7 +1011,6 @@ impl ObservabilityMetrics {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-#[allow(clippy::large_enum_variant)]
 pub enum ServerRecord {
     Spc(SpcRecord),
     Psi(PsiRecord),

@@ -12088,13 +12088,6 @@ class TraceAssertion:
 
         attribute_key: str
 
-    class AttributeFilter:
-        """Filter spans by attribute key, run inner task on each value, aggregate results."""
-
-        key: str
-        task: "AttributeFilterTask"
-        mode: "MultiResponseMode"
-
     @staticmethod
     def span_sequence(span_names: List[str]) -> "TraceAssertion":
         """Assert spans appear in specific order.
@@ -12248,23 +12241,6 @@ class TraceAssertion:
         Returns:
             TraceAssertion that extracts the trace attribute.
             Use with appropriate operators for the value type.
-        """
-
-    @staticmethod
-    def attribute_filter(key: str, task: "AttributeFilterTask", mode: "MultiResponseMode") -> "TraceAssertion":
-        """Filter spans by attribute key, run inner task on each value, aggregate results.
-
-        Args:
-            key (str):
-                Attribute key to filter spans by.
-            task (AttributeFilterTask):
-                Inner task to execute on each extracted attribute value.
-            mode (MultiResponseMode):
-                Aggregation mode (Any or All).
-
-        Returns:
-            TraceAssertion that evaluates to a boolean.
-            Use with Equals(True) operator.
         """
 
 class TraceAssertionTask:
@@ -13790,42 +13766,6 @@ class EvalOrchestrator:
 
         Returns:
             ScenarioEvalResults with metrics across all scenarios.
-        """
-
-class MultiResponseMode:
-    """Mode for aggregating results across multiple attribute values."""
-
-    Any: "MultiResponseMode"
-    """At least one value must pass."""
-    All: "MultiResponseMode"
-    """All values must pass."""
-
-class AttributeFilterTask:
-    """Inner task to run on each extracted attribute value.
-
-    Used with TraceAssertion.attribute_filter to evaluate span attributes.
-    """
-
-    @staticmethod
-    def assertion(task: AssertionTask) -> "AttributeFilterTask":
-        """Create a filter task that runs a deterministic assertion on the raw attribute value.
-
-        Args:
-            task (AssertionTask): The assertion task to run on each value.
-
-        Returns:
-            AttributeFilterTask wrapping the assertion.
-        """
-
-    @staticmethod
-    def agent_assertion(task: AgentAssertionTask) -> "AttributeFilterTask":
-        """Create a filter task that parses through AgentContextBuilder then runs agent assertion.
-
-        Args:
-            task (AgentAssertionTask): The agent assertion task to run on each value.
-
-        Returns:
-            AttributeFilterTask wrapping the agent assertion.
         """
 
 ### mock.pyi ###
@@ -18714,7 +18654,6 @@ __all__ = [
     "AssertionResult",
     "AssertionResults",
     "AssertionTask",
-    "AttributeFilterTask",
     "Audio",
     "AudioParam",
     "AuthConfig",
@@ -18897,7 +18836,6 @@ __all__ = [
     "ModelArmorConfig",
     "ModelRoutingPreference",
     "ModelSettings",
-    "MultiResponseMode",
     "MultiSpeakerVoiceConfig",
     "NumericStats",
     "OauthConfig",
