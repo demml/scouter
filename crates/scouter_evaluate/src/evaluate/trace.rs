@@ -7,7 +7,7 @@ use scouter_types::genai::{
 };
 use scouter_types::sql::TraceSpan;
 use serde_json::{json, Value};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tracing::{debug, warn};
 
@@ -15,6 +15,26 @@ use tracing::{debug, warn};
 pub struct TraceContextBuilder {
     /// We want to share trace spans across multiple evaluations
     pub(crate) spans: Arc<Vec<TraceSpan>>,
+}
+
+fn collect_filter_regexes<'a>(
+    filter: &'a SpanFilter,
+    out: &mut HashMap<&'a str, Regex>,
+) -> Result<(), EvaluationError> {
+    match filter {
+        SpanFilter::ByNamePattern { pattern } => {
+            if !out.contains_key(pattern.as_str()) {
+                out.insert(pattern.as_str(), Regex::new(pattern)?);
+            }
+        }
+        SpanFilter::And { filters } | SpanFilter::Or { filters } => {
+            for f in filters {
+                collect_filter_regexes(f, out)?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 impl TraceContextBuilder {
@@ -57,23 +77,12 @@ impl TraceContextBuilder {
 
     // Span filtering logic
     fn filter_spans(&self, filter: &SpanFilter) -> Result<Vec<&TraceSpan>, EvaluationError> {
-        // Pre-compile ByNamePattern regex once before iterating spans to avoid
-        // O(N) compilations when the same pattern is matched against every span.
-        if let SpanFilter::ByNamePattern { pattern } = filter {
-            let regex = Regex::new(pattern)?;
-            let filtered: Vec<&TraceSpan> = self
-                .spans
-                .iter()
-                .filter(|s| regex.is_match(&s.span_name))
-                .collect();
-            debug!("Filtered spans count: {} with pattern {:?}", filtered.len(), pattern);
-            return Ok(filtered);
-        }
+        let mut regexes: HashMap<&str, Regex> = HashMap::new();
+        collect_filter_regexes(filter, &mut regexes)?;
 
         let mut filtered = Vec::new();
-
         for span in self.spans.iter() {
-            if self.matches_filter(span, filter)? {
+            if self.matches_filter(span, filter, &regexes)? {
                 filtered.push(span);
             }
         }
@@ -91,12 +100,15 @@ impl TraceContextBuilder {
         &self,
         span: &TraceSpan,
         filter: &SpanFilter,
+        regexes: &HashMap<&str, Regex>,
     ) -> Result<bool, EvaluationError> {
         match filter {
             SpanFilter::ByName { name } => Ok(span.span_name == *name),
 
             SpanFilter::ByNamePattern { pattern } => {
-                let regex = Regex::new(pattern)?;
+                let regex = regexes
+                    .get(pattern.as_str())
+                    .expect("regex pre-compiled by collect_filter_regexes");
                 Ok(regex.is_match(&span.span_name))
             }
 
@@ -123,7 +135,7 @@ impl TraceContextBuilder {
 
             SpanFilter::And { filters } => {
                 for f in filters {
-                    if !self.matches_filter(span, f)? {
+                    if !self.matches_filter(span, f, regexes)? {
                         return Ok(false);
                     }
                 }
@@ -132,7 +144,7 @@ impl TraceContextBuilder {
 
             SpanFilter::Or { filters } => {
                 for f in filters {
-                    if self.matches_filter(span, f)? {
+                    if self.matches_filter(span, f, regexes)? {
                         return Ok(true);
                     }
                 }
@@ -215,7 +227,7 @@ impl TraceContextBuilder {
             return Ok(Value::Null);
         }
 
-        let values: Vec<Value> = filtered_spans
+        let mut values: Vec<Value> = filtered_spans
             .iter()
             .filter_map(|span| {
                 span.attributes
@@ -226,7 +238,7 @@ impl TraceContextBuilder {
             .collect();
 
         if values.len() == 1 {
-            Ok(values.into_iter().next().unwrap())
+            Ok(values.remove(0))
         } else {
             Ok(Value::Array(values))
         }
@@ -297,7 +309,7 @@ impl TraceContextBuilder {
         let min_start = self.spans.iter().map(|s| s.start_time).min();
         let max_end = self.spans.iter().map(|s| s.end_time).max();
         match (min_start, max_end) {
-            (Some(start), Some(end)) => (end - start).num_milliseconds(),
+            (Some(start), Some(end)) => (end - start).num_milliseconds().max(0),
             _ => 0,
         }
     }

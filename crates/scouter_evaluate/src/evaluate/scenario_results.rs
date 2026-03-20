@@ -145,7 +145,6 @@ impl EvalMetrics {
             );
             println!("{}", alias_table);
         }
-
     }
 }
 

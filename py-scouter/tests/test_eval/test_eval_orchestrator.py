@@ -841,4 +841,5 @@ def test_multi_agent_trace_assertions():
     assert results.metrics.passed_scenarios == 2
     assert results.metrics.total_scenarios == 2
 
+    assert "agent" in results.dataset_results
     results.as_table(show_datasets=True)

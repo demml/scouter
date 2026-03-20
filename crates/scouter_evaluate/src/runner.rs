@@ -13,6 +13,7 @@ use scouter_types::genai::{GenAIEvalConfig, GenAIEvalProfile};
 use scouter_types::trace::build_trace_spans;
 use scouter_types::trace::sql::TraceSpan;
 use scouter_types::EvalRecord;
+use scouter_types::TraceId as ScouterTraceId;
 use serde_json::json;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
@@ -165,9 +166,44 @@ impl EvalRunner {
             .map(|s| s.id.clone())
             .collect();
 
-        // Single buffer scan → grouped by scenario_id
-        let raw_by_scenario =
+        // Single buffer scan → grouped by scenario_id (via span attribute)
+        let mut raw_by_scenario =
             scouter_types::span_capture::get_spans_grouped_by_scenario_id(&scenario_ids);
+
+        // Also resolve spans via EvalRecord.trace_id for scenarios whose spans were not
+        // captured with the scouter.eval.scenario_id attribute (e.g. plain OTel spans).
+        let mut record_trace_to_scenario: HashMap<ScouterTraceId, String> = HashMap::new();
+        for (scenario_id, datasets) in &self.scenarios.scenario_datasets {
+            for dataset in datasets.values() {
+                for record in dataset.records.iter() {
+                    if let Some(tid) = record.trace_id {
+                        record_trace_to_scenario.insert(tid, scenario_id.clone());
+                    }
+                }
+            }
+        }
+
+        if !record_trace_to_scenario.is_empty() {
+            // Only fetch trace_ids not already covered by the attribute-based pass
+            let already_covered: HashSet<ScouterTraceId> = raw_by_scenario
+                .values()
+                .flat_map(|spans| spans.iter().map(|s| s.trace_id))
+                .collect();
+            let new_trace_ids: HashSet<ScouterTraceId> = record_trace_to_scenario
+                .keys()
+                .filter(|tid| !already_covered.contains(tid))
+                .copied()
+                .collect();
+            if !new_trace_ids.is_empty() {
+                let extra =
+                    scouter_types::span_capture::get_captured_spans_by_trace_ids(&new_trace_ids);
+                for span in extra {
+                    if let Some(sid) = record_trace_to_scenario.get(&span.trace_id) {
+                        raw_by_scenario.entry(sid.clone()).or_default().push(span);
+                    }
+                }
+            }
+        }
 
         // Convert each group to tree-enriched TraceSpans
         let spans_by_scenario: HashMap<String, Arc<Vec<TraceSpan>>> = raw_by_scenario
@@ -567,8 +603,7 @@ mod tests {
         runner
             .collect_scenario_data(records.clone(), "Response".to_string(), &scenario)
             .unwrap();
-        let result =
-            runner.collect_scenario_data(records, "Response again".to_string(), &scenario);
+        let result = runner.collect_scenario_data(records, "Response again".to_string(), &scenario);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("already has data"));
     }
@@ -689,6 +724,96 @@ mod tests {
         assert!(!result.scenario_results[0].passed);
         assert_eq!(result.scenario_results[0].pass_rate, 0.0);
         assert_eq!(result.metrics.passed_scenarios, 0);
+    }
+
+    #[test]
+    fn evaluate_with_assertion_tasks_populates_task_results() {
+        let scenario = make_scenario_with_tasks("s1", "Say hello");
+        let mut runner =
+            EvalRunner::new(EvalScenarios::new(vec![scenario.clone()]), HashMap::new());
+
+        let context = json!({
+            "response": "hello world",
+            "expected_outcome": "Response contains hello",
+            "metadata": null,
+        });
+        runner
+            .scenarios
+            .scenario_contexts
+            .insert("s1".to_string(), context);
+
+        let result = runner.evaluate(None).unwrap();
+
+        let sr = &result.scenario_results[0];
+        assert_eq!(sr.task_results.len(), 1);
+        assert_eq!(sr.task_results[0].task_id, "check_response");
+        assert!(sr.task_results[0].passed);
+        assert_eq!(sr.task_results[0].value, 1.0);
+    }
+
+    #[test]
+    fn evaluate_with_failing_assertion_task_results() {
+        let scenario = make_scenario_with_tasks("s1", "Say hello");
+        let mut runner =
+            EvalRunner::new(EvalScenarios::new(vec![scenario.clone()]), HashMap::new());
+
+        let context = json!({
+            "response": "goodbye world",
+            "expected_outcome": "Response contains hello",
+            "metadata": null,
+        });
+        runner
+            .scenarios
+            .scenario_contexts
+            .insert("s1".to_string(), context);
+
+        let result = runner.evaluate(None).unwrap();
+
+        let sr = &result.scenario_results[0];
+        assert_eq!(sr.task_results.len(), 1);
+        assert_eq!(sr.task_results[0].task_id, "check_response");
+        assert!(!sr.task_results[0].passed);
+        assert_eq!(sr.task_results[0].value, 0.0);
+
+        let rates = &result.metrics.scenario_task_pass_rates;
+        assert!(rates.contains_key("s1"));
+        assert_eq!(rates["s1"]["check_response"], 0.0);
+    }
+
+    #[test]
+    fn compute_metrics_scenario_task_pass_rates() {
+        use crate::evaluate::scenario_results::{ScenarioResult, TaskSummary};
+        use crate::evaluate::types::EvalResults;
+
+        let make_result = |id: &str, passed: bool| ScenarioResult {
+            scenario_id: id.to_string(),
+            initial_query: "q".to_string(),
+            eval_results: EvalResults::new(),
+            passed,
+            pass_rate: if passed { 1.0 } else { 0.0 },
+            task_results: vec![
+                TaskSummary {
+                    task_id: "t1".to_string(),
+                    passed,
+                    value: if passed { 1.0 } else { 0.0 },
+                },
+                TaskSummary {
+                    task_id: "t2".to_string(),
+                    passed: true,
+                    value: 1.0,
+                },
+            ],
+        };
+
+        let scenario_results = vec![make_result("s1", true), make_result("s2", false)];
+        let metrics = compute_metrics(&HashMap::new(), &scenario_results);
+
+        assert!(metrics.scenario_task_pass_rates.contains_key("s1"));
+        assert!(metrics.scenario_task_pass_rates.contains_key("s2"));
+        assert_eq!(metrics.scenario_task_pass_rates["s1"]["t1"], 1.0);
+        assert_eq!(metrics.scenario_task_pass_rates["s2"]["t1"], 0.0);
+        assert_eq!(metrics.scenario_task_pass_rates["s1"]["t2"], 1.0);
+        assert_eq!(metrics.scenario_task_pass_rates["s2"]["t2"], 1.0);
     }
 
     #[test]

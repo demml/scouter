@@ -195,7 +195,7 @@ def test_trace_duration():
                 id="check_duration_less_than",
                 assertion=TraceAssertion.trace_duration(),
                 operator=ComparisonOperator.LessThanOrEqual,
-                expected_value=200,
+                expected_value=300,  # wall-clock: root(0→150ms) + api_call(150→250ms) = 250ms
             ),
             TraceAssertionTask(
                 id="check_max_depth",
@@ -220,7 +220,7 @@ def test_trace_duration():
     )
 
     assert results["check_duration_less_than"].passed
-    assert results["check_duration_less_than"].actual <= 200
+    assert results["check_duration_less_than"].actual <= 300  # wall-clock 250ms
     assert results["check_max_depth"].passed
     assert results["check_max_depth"].actual <= 5
     assert results["check_span_count"].passed
