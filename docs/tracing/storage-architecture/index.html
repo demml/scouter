@@ -1,0 +1,2681 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://docs.demml.io/scouter/docs/tracing/storage-architecture/">
+      
+      
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.9">
+    
+    
+      
+        <title>Trace Storage Architecture - Scouter</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.4af4bdda.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../css/custom.css">
+    
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
+      <link rel="stylesheet" href="../../css/termynal.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="stylesheets/extra.css" data-md-color-accent="stylesheets/extra.css">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#trace-storage-architecture" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Scouter" class="md-header__button md-logo" aria-label="Scouter" data-md-component="logo">
+      
+  <img src="../../images/scouter-icon.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Scouter
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Trace Storage Architecture
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="stylesheets/extra.css" data-md-color-accent="stylesheets/extra.css"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="scouter-light" data-md-color-primary="stylesheets/extra.css" data-md-color-accent="stylesheets/extra.css"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="scouter-dark" data-md-color-primary="stylesheets/extra.css" data-md-color-accent="stylesheets/extra.css"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/demml/scouter" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    scouter
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../.." class="md-tabs__link">
+        
+  
+    
+  
+  Overview
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../installation/" class="md-tabs__link">
+        
+  
+    
+  
+  Installation
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../server/" class="md-tabs__link">
+          
+  
+  Server
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../monitoring/" class="md-tabs__link">
+          
+  
+  Monitoring
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../overview/" class="md-tabs__link">
+          
+  
+  Tracing
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../profiling/overview/" class="md-tabs__link">
+          
+  
+  Profiling
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../specs/Readme/" class="md-tabs__link">
+          
+  
+  Tech Specs
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../api/stubs/" class="md-tabs__link">
+          
+  
+  API Documentation
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Scouter" class="md-nav__button md-logo" aria-label="Scouter" data-md-component="logo">
+      
+  <img src="../../images/scouter-icon.svg" alt="logo">
+
+    </a>
+    Scouter
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/demml/scouter" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    scouter
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Installation
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Server
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Server
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../server/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../server/postgres/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Postgres
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Monitoring
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Monitoring
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    PSI
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            PSI
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/psi/quickstart/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Quickstart
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/psi/drift_config/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Drift Config
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/psi/drift_profile/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Drift Profile
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/psi/theory/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Theory
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    SPC
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            SPC
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/spc/quickstart/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Quickstart
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/spc/drift_config/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Drift Config
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/spc/drift_profile/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Drift Profile
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/spc/theory/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Theory
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_4" id="__nav_4_4_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Custom Metric
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_4">
+            <span class="md-nav__icon md-icon"></span>
+            Custom Metric
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/custom/quickstart/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_5" id="__nav_4_5_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    GenAI
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_5">
+            <span class="md-nav__icon md-icon"></span>
+            GenAI
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/genai/overview/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/genai/tasks/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Evaluation Tasks
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/genai/gates/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Assertion Gates
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/genai/offline-evaluation/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Offline
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/genai/online-evaluation/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Online
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_6" id="__nav_4_6_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Get to the Queue!
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_6">
+            <span class="md-nav__icon md-icon"></span>
+            Get to the Queue!
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/inference/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Inference
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Tracing
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            Tracing
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overview/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Profiling
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            Profiling
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../profiling/overview/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Data Profile
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Tech Specs
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            Tech Specs
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../specs/Readme/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../specs/ts-component-data-archive/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Archive
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../specs/ts-component-scouter-queue/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Queue
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../specs/ts-component-scouter-grpc/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    gRPC
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../specs/ts-component-genai-eval/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    GenAI Evaluation
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    API Documentation
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            API Documentation
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/stubs/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    API
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+  
+
+<nav class="md-nav md-nav--secondary" aria-label="Page contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Page contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#write-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      Write Path
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#component-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      Component Reference
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#write-path-dual-actor-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      Write Path: Dual-Actor Design
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Write Path: Dual-Actor Design">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#buffer-actor" class="md-nav__link">
+    <span class="md-ellipsis">
+      Buffer Actor
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#engine-actor" class="md-nav__link">
+    <span class="md-ellipsis">
+      Engine Actor
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#schema-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      Schema Design
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Schema Design">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#trace_spans-23-columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      trace_spans (23 columns)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#trace_summaries-14-columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      trace_summaries (14 columns)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#query-path-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      Query Path Details
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Query Path Details">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#get_trace_spans" class="md-nav__link">
+    <span class="md-ellipsis">
+      get_trace_spans
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_trace_metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      get_trace_metrics
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_paginated_traces" class="md-nav__link">
+    <span class="md-ellipsis">
+      get_paginated_traces
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compaction-and-maintenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      Compaction and Maintenance
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Compaction and Maintenance">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-flush" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. Flush
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-compaction-z-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. Compaction (Z-ORDER)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-retention" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. Retention
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-vacuum" class="md-nav__link">
+    <span class="md-ellipsis">
+      4. Vacuum
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-pod-deployments" class="md-nav__link">
+    <span class="md-ellipsis">
+      Multi-Pod Deployments
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#readwrite-performance-tuning" class="md-nav__link">
+    <span class="md-ellipsis">
+      Read/Write Performance Tuning
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Read/Write Performance Tuning">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cachingstore" class="md-nav__link">
+    <span class="md-ellipsis">
+      CachingStore
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datafusion-session-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      DataFusion Session Configuration
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#http-connection-pooling" class="md-nav__link">
+    <span class="md-ellipsis">
+      HTTP Connection Pooling
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#parquet-writerproperties" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parquet WriterProperties
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      Configuration
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#storage-backends" class="md-nav__link">
+    <span class="md-ellipsis">
+      Storage Backends
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="trace-storage-architecture">Trace Storage Architecture<a class="headerlink" href="#trace-storage-architecture" title="Permanent link">&para;</a></h1>
+<p>Scouter's server stores OTel spans in a <strong>Delta Lake + Apache DataFusion</strong> columnar engine, replacing Postgres-only trace storage. Spans are ingested at high throughput via a dual-actor write pipeline and queried via DataFusion SQL — giving you sub-second reads, efficient compaction, and cloud-native object store support.</p>
+<hr />
+<h2 id="write-path">Write Path<a class="headerlink" href="#write-path" title="Permanent link">&para;</a></h2>
+<pre class="mermaid"><code>graph TB
+    subgraph "Client"
+        A[Application Code] --&gt; B[ScouterSpanExporter]
+    end
+
+    subgraph "Server Ingestion"
+        B --&gt; C[Transport Layer]
+        C --&gt; D[Consumer Worker]
+        D --&gt; E[MessageHandler]
+    end
+
+    subgraph "Storage Layer"
+        E --&gt;|"write_spans()"| F[Buffer Actor 10K cap · 5s flush]
+        F --&gt;|"TableCommand::Write"| G[Engine Actor Single writer]
+        G --&gt;|"build_batch() → append"| H[(Delta Lake trace_spans)]
+
+        E --&gt; I[TraceSummaryService write_summaries]
+        I --&gt; J[(Delta Lake trace_summaries)]
+    end
+
+    style H fill:#5c6bc0,color:#fff
+    style J fill:#5c6bc0,color:#fff</code></pre>
+<p>Every span batch is processed by the <code>MessageHandler</code>, which fans out to two Delta Lake destinations:</p>
+<ol>
+<li><strong>Delta Lake <code>trace_spans</code></strong> — full span data via the dual-actor buffer/engine pipeline</li>
+<li><strong>Delta Lake <code>trace_summaries</code></strong> — one row per trace, updated as spans arrive via <code>TraceCache</code> (accumulates span updates and flushes per-trace summaries on flush)</li>
+</ol>
+<hr />
+<h2 id="component-reference">Component Reference<a class="headerlink" href="#component-reference" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Crate</th>
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TraceSpanService</code></td>
+<td><code>scouter_dataframe</code></td>
+<td><code>parquet/tracing/service.rs</code></td>
+<td>Global singleton; owns both actors and the query service</td>
+</tr>
+<tr>
+<td><code>TraceSpanDBEngine</code></td>
+<td><code>scouter_dataframe</code></td>
+<td><code>parquet/tracing/engine.rs</code></td>
+<td>Delta Lake single-writer actor</td>
+</tr>
+<tr>
+<td><code>TraceSpanBatchBuilder</code></td>
+<td><code>scouter_dataframe</code></td>
+<td><code>parquet/tracing/engine.rs</code></td>
+<td>Zero-copy Arrow serialization of <code>TraceSpanRecord</code></td>
+</tr>
+<tr>
+<td><code>TraceQueries</code></td>
+<td><code>scouter_dataframe</code></td>
+<td><code>parquet/tracing/queries.rs</code></td>
+<td>DataFusion query execution and DFS span tree assembly</td>
+</tr>
+<tr>
+<td><code>TraceSummaryService</code></td>
+<td><code>scouter_dataframe</code></td>
+<td><code>parquet/tracing/summary.rs</code></td>
+<td>Hour-bucketed summary table with cursor pagination</td>
+</tr>
+<tr>
+<td><code>CachingStore</code></td>
+<td><code>scouter_dataframe</code></td>
+<td><code>caching_store.rs</code></td>
+<td><code>ObjectStore</code> wrapper; caches <code>head()</code> and small range reads (≤2 MB) for immutable Parquet files</td>
+</tr>
+<tr>
+<td><code>ObjectStore</code></td>
+<td><code>scouter_dataframe</code></td>
+<td><code>storage.rs</code></td>
+<td>Constructs the concrete cloud/local store wrapped in <code>CachingStore</code>; builds the tuned <code>SessionContext</code></td>
+</tr>
+<tr>
+<td><code>Transport Layer (gRPC/HTTP/Kafka/RabbitMQ/Redis)</code></td>
+<td><code>scouter_server</code> / <code>scouter_events</code></td>
+<td><code>api/grpc/message.rs</code>, <code>api/routes/</code>, <code>events/</code></td>
+<td>Span ingestion handlers across all supported transports</td>
+</tr>
+<tr>
+<td><code>MessageHandler</code></td>
+<td><code>scouter_sql</code></td>
+<td><code>sql/postgres.rs</code></td>
+<td>Consumer worker; routes spans to <code>TraceSpanService</code> and <code>TraceSummaryService</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="write-path-dual-actor-design">Write Path: Dual-Actor Design<a class="headerlink" href="#write-path-dual-actor-design" title="Permanent link">&para;</a></h2>
+<p><code>TraceSpanService</code> starts two long-lived Tokio tasks on initialization:</p>
+<h3 id="buffer-actor">Buffer Actor<a class="headerlink" href="#buffer-actor" title="Permanent link">&para;</a></h3>
+<p>Collects incoming <code>TraceSpanRecord</code> batches in memory and triggers a flush when either condition is met:</p>
+<ul>
+<li><strong>Capacity</strong>: buffer reaches 10,000 spans</li>
+<li><strong>Time</strong>: flush interval elapses (default: 5 seconds, configurable via <code>SCOUTER_TRACE_FLUSH_INTERVAL_SECS</code>)</li>
+</ul>
+<p>On flush, the buffer actor drains itself and sends a <code>TableCommand::Write</code> message to the engine actor, then awaits acknowledgment via a oneshot channel.</p>
+<h3 id="engine-actor">Engine Actor<a class="headerlink" href="#engine-actor" title="Permanent link">&para;</a></h3>
+<p>The single writer for the Delta Lake table. It:</p>
+<ol>
+<li>Receives <code>TableCommand::Write { spans, respond_to }</code></li>
+<li>Calls <code>build_batch()</code> on <code>TraceSpanBatchBuilder</code> to produce an Arrow <code>RecordBatch</code></li>
+<li>Calls <code>write_spans()</code> — acquires a write lock, refreshes the table state, appends the batch</li>
+<li>Re-registers the updated table in the shared <code>SessionContext</code> so queries immediately see new data</li>
+<li>Sends <code>Ok(())</code> back on the oneshot channel</li>
+</ol>
+<p><strong>Why this pattern?</strong> Delta Lake requires a single writer per table to avoid log conflicts. The two-actor design amortizes object-store I/O (many small span batches → fewer larger Parquet files per flush) while keeping the write lock duration minimal.</p>
+<p>The engine actor runs two background <code>tokio::time::interval</code> tickers alongside command processing:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>loop {
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    select! {
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>        cmd = rx.recv()          =&gt; handle Write / Optimize / Vacuum / Shutdown
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>        _ = compaction_ticker    =&gt; run Z-ORDER optimize automatically
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>        _ = refresh_ticker       =&gt; call update_incremental(); re-register SessionContext if version advanced
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    }
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>}
+</code></pre></div>
+<p>The <strong>refresh ticker</strong> is what keeps reader pods current in multi-pod deployments. See <a href="#multi-pod-deployments">Multi-Pod Deployments</a> below.</p>
+<hr />
+<h2 id="schema-design">Schema Design<a class="headerlink" href="#schema-design" title="Permanent link">&para;</a></h2>
+<h3 id="trace_spans-23-columns"><code>trace_spans</code> (23 columns)<a class="headerlink" href="#trace_spans-23-columns" title="Permanent link">&para;</a></h3>
+<p>Stores one row per span. Hierarchy fields (<code>depth</code>, <code>span_order</code>, <code>path</code>, <code>root_span_id</code>) are <strong>not stored</strong> — they are computed at query time by <code>build_span_tree()</code> via Rust DFS traversal. This matches the Jaeger/Zipkin model and avoids ordering dependencies during ingest (spans may arrive out-of-order within a batch).</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Arrow Type</th>
+<th>Nullable</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>trace_id</code></td>
+<td><code>FixedSizeBinary(16)</code></td>
+<td>No</td>
+<td>W3C 128-bit trace ID</td>
+</tr>
+<tr>
+<td><code>span_id</code></td>
+<td><code>FixedSizeBinary(8)</code></td>
+<td>No</td>
+<td>W3C 64-bit span ID</td>
+</tr>
+<tr>
+<td><code>parent_span_id</code></td>
+<td><code>FixedSizeBinary(8)</code></td>
+<td>Yes</td>
+<td>Null on root spans</td>
+</tr>
+<tr>
+<td><code>flags</code></td>
+<td><code>Int32</code></td>
+<td>No</td>
+<td>W3C trace flags</td>
+</tr>
+<tr>
+<td><code>trace_state</code></td>
+<td><code>Utf8</code></td>
+<td>No</td>
+<td>W3C trace state header</td>
+</tr>
+<tr>
+<td><code>scope_name</code></td>
+<td><code>Utf8</code></td>
+<td>No</td>
+<td>Instrumentation scope</td>
+</tr>
+<tr>
+<td><code>scope_version</code></td>
+<td><code>Utf8</code></td>
+<td>Yes</td>
+<td>Instrumentation scope version</td>
+</tr>
+<tr>
+<td><code>service_name</code></td>
+<td><code>Dictionary&lt;Int32, Utf8&gt;</code></td>
+<td>No</td>
+<td>Dictionary-encoded; high repetition</td>
+</tr>
+<tr>
+<td><code>span_name</code></td>
+<td><code>Utf8</code></td>
+<td>No</td>
+<td>Operation name</td>
+</tr>
+<tr>
+<td><code>span_kind</code></td>
+<td><code>Dictionary&lt;Int8, Utf8&gt;</code></td>
+<td>Yes</td>
+<td>Dictionary-encoded; SERVER/CLIENT/etc.</td>
+</tr>
+<tr>
+<td><code>start_time</code></td>
+<td><code>Timestamp(Microsecond, UTC)</code></td>
+<td>No</td>
+<td>Sub-millisecond precision</td>
+</tr>
+<tr>
+<td><code>end_time</code></td>
+<td><code>Timestamp(Microsecond, UTC)</code></td>
+<td>No</td>
+<td>Sub-millisecond precision</td>
+</tr>
+<tr>
+<td><code>duration_ms</code></td>
+<td><code>Int64</code></td>
+<td>No</td>
+<td>Pre-computed for fast aggregation</td>
+</tr>
+<tr>
+<td><code>status_code</code></td>
+<td><code>Int32</code></td>
+<td>No</td>
+<td>OTel status code (0=Unset, 1=OK, 2=Error)</td>
+</tr>
+<tr>
+<td><code>status_message</code></td>
+<td><code>Utf8</code></td>
+<td>Yes</td>
+<td></td>
+</tr>
+<tr>
+<td><code>label</code></td>
+<td><code>Utf8</code></td>
+<td>Yes</td>
+<td>Scouter-specific span label</td>
+</tr>
+<tr>
+<td><code>attributes</code></td>
+<td><code>Map&lt;Utf8, Utf8View&gt;</code></td>
+<td>No</td>
+<td>Key-value span attributes</td>
+</tr>
+<tr>
+<td><code>resource_attributes</code></td>
+<td><code>Map&lt;Utf8, Utf8View&gt;</code></td>
+<td>Yes</td>
+<td>Resource-level attributes</td>
+</tr>
+<tr>
+<td><code>events</code></td>
+<td><code>List&lt;Struct{name, timestamp, attributes, dropped_count}&gt;</code></td>
+<td>No</td>
+<td>Span events</td>
+</tr>
+<tr>
+<td><code>links</code></td>
+<td><code>List&lt;Struct{trace_id, span_id, trace_state, attributes, dropped_count}&gt;</code></td>
+<td>No</td>
+<td>Span links</td>
+</tr>
+<tr>
+<td><code>input</code></td>
+<td><code>Utf8View</code></td>
+<td>Yes</td>
+<td>Captured function input (JSON)</td>
+</tr>
+<tr>
+<td><code>output</code></td>
+<td><code>Utf8View</code></td>
+<td>Yes</td>
+<td>Captured function output (JSON)</td>
+</tr>
+<tr>
+<td><code>search_blob</code></td>
+<td><code>Utf8View</code></td>
+<td>No</td>
+<td>Pre-computed search string</td>
+</tr>
+<tr>
+<td><code>partition_date</code></td>
+<td><code>Date32</code></td>
+<td>No</td>
+<td>Hive partition column (days since Unix epoch); derived from <code>start_time</code> at ingest</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Key design decisions:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Decision</th>
+<th>Rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Hierarchy not stored</td>
+<td>Avoids ordering dependencies during ingest; DFS is computed in Rust at query time</td>
+</tr>
+<tr>
+<td><code>Dictionary</code> on <code>service_name</code>, <code>span_kind</code></td>
+<td>High repetition across spans → significant compression savings</td>
+</tr>
+<tr>
+<td><code>Utf8View</code> for <code>input</code>, <code>output</code>, <code>search_blob</code></td>
+<td>Large JSON payloads; Arrow <code>StringView</code> reduces heap copies for long strings</td>
+</tr>
+<tr>
+<td><code>search_blob</code> pre-computed at ingest</td>
+<td>Concatenates service name, span name, scope name, attributes, and events into a single string — avoids JSON re-parsing on every attribute filter query</td>
+</tr>
+<tr>
+<td><code>Timestamp(Microsecond, UTC)</code></td>
+<td>Sub-millisecond precision with explicit timezone; matches OTel wire format</td>
+</tr>
+<tr>
+<td><code>FixedSizeBinary</code> for IDs</td>
+<td>Compact binary representation; avoids hex string parsing in hot path</td>
+</tr>
+<tr>
+<td><code>partition_date</code> Hive partition</td>
+<td>Enables partition pruning — queries filtered by time skip entire date directories without reading the Delta log</td>
+</tr>
+<tr>
+<td><code>DataSkippingStatsColumns</code> restricted</td>
+<td>Delta Lake collects min/max stats only for <code>start_time</code>, <code>end_time</code>, <code>service_name</code>, <code>duration_ms</code>, <code>status_code</code>, <code>partition_date</code> — avoids inflating the Delta log with statistics on wide map/list columns</td>
+</tr>
+<tr>
+<td>Bloom filters on <code>trace_id</code>, <code>service_name</code>, <code>span_name</code></td>
+<td>Written at Parquet row-group level; skip ~99% of row groups for equality lookups in the hot query path</td>
+</tr>
+</tbody>
+</table>
+<h3 id="trace_summaries-14-columns"><code>trace_summaries</code> (14 columns)<a class="headerlink" href="#trace_summaries-14-columns" title="Permanent link">&para;</a></h3>
+<p>Stores one row per trace, hour-bucketed. Used exclusively for the paginated trace list — avoiding a full <code>trace_spans</code> scan for list views.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Arrow Type</th>
+<th>Nullable</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>trace_id</code></td>
+<td><code>FixedSizeBinary(16)</code></td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>service_name</code></td>
+<td><code>Dictionary&lt;Int32, Utf8&gt;</code></td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>scope_name</code></td>
+<td><code>Utf8</code></td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>scope_version</code></td>
+<td><code>Utf8</code></td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>root_operation</code></td>
+<td><code>Utf8</code></td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>start_time</code></td>
+<td><code>Timestamp(Microsecond, UTC)</code></td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>end_time</code></td>
+<td><code>Timestamp(Microsecond, UTC)</code></td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>duration_ms</code></td>
+<td><code>Int64</code></td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>status_code</code></td>
+<td><code>Int32</code></td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>status_message</code></td>
+<td><code>Utf8</code></td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>span_count</code></td>
+<td><code>Int64</code></td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>error_count</code></td>
+<td><code>Int64</code></td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>resource_attributes</code></td>
+<td><code>Map&lt;Utf8, Utf8View&gt;</code></td>
+<td>Yes</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="query-path-details">Query Path Details<a class="headerlink" href="#query-path-details" title="Permanent link">&para;</a></h2>
+<h3 id="get_trace_spans"><code>get_trace_spans</code><a class="headerlink" href="#get_trace_spans" title="Permanent link">&para;</a></h3>
+<p>Retrieves all spans for a single trace and assembles them into a hierarchy tree.</p>
+<ol>
+<li><strong>Time filter applied first</strong> — enables Delta Lake statistics-based file pruning (skips Parquet files whose <code>start_time</code> range doesn't overlap the query window)</li>
+<li><strong><code>trace_id</code> filter</strong> — binary equality pushdown</li>
+<li><strong><code>RecordBatch</code> → <code>FlatSpan</code></strong> — zero-copy column extraction from Arrow arrays</li>
+<li><strong><code>build_span_tree()</code></strong> — Rust DFS traversal assigns <code>depth</code>, <code>span_order</code>, <code>path</code>, and <code>root_span_id</code> in-memory; orphan spans (parent not in batch) are appended at the end</li>
+</ol>
+<h3 id="get_trace_metrics"><code>get_trace_metrics</code><a class="headerlink" href="#get_trace_metrics" title="Permanent link">&para;</a></h3>
+<p>Returns time-bucketed aggregates using a DataFusion CTE pipeline:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">WITH</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="c1">-- Optional: pre-filter by attribute (LIKE on search_blob)</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="n">matching_traces</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="k">SELECT</span><span class="w"> </span><span class="k">DISTINCT</span><span class="w"> </span><span class="n">trace_id</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">trace_spans</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="k">WHERE</span><span class="w"> </span><span class="n">start_time</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">start_time</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="o">?</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span><span class="k">AND</span><span class="w"> </span><span class="p">(</span><span class="n">search_blob</span><span class="w"> </span><span class="k">LIKE</span><span class="w"> </span><span class="s1">&#39;%key:value%&#39;</span><span class="w"> </span><span class="k">OR</span><span class="w"> </span><span class="p">...)</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="p">),</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span><span class="c1">-- Aggregate per-trace: duration = MAX(end_time) - MIN(start_time)</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span><span class="n">trace_level</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">    </span><span class="k">SELECT</span><span class="w"> </span><span class="n">trace_id</span><span class="p">,</span><span class="w"> </span><span class="k">MIN</span><span class="p">(</span><span class="n">start_time</span><span class="p">),</span><span class="w"> </span><span class="k">MAX</span><span class="p">(</span><span class="n">end_time</span><span class="p">),</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">           </span><span class="k">MAX</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">parent_span_id</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">service_name</span><span class="w"> </span><span class="k">END</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">root_service</span><span class="p">,</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">           </span><span class="k">MAX</span><span class="p">(</span><span class="n">status_code</span><span class="p">)</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">    </span><span class="k">FROM</span><span class="w"> </span><span class="n">trace_spans</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">trace_id</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">  </span><span class="p">),</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">  </span><span class="n">service_filtered</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(...),</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">  </span><span class="n">bucketed</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="n">DATE_TRUNC</span><span class="p">(</span><span class="s1">&#39;hour&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">trace_start</span><span class="p">),</span><span class="w"> </span><span class="n">duration_ms</span><span class="p">,</span><span class="w"> </span><span class="n">status_code</span><span class="w"> </span><span class="p">...)</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="k">SELECT</span>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="w">  </span><span class="n">bucket_start</span><span class="p">,</span>
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="w">  </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">trace_count</span><span class="p">,</span>
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="w">  </span><span class="k">AVG</span><span class="p">(</span><span class="n">duration_ms</span><span class="p">),</span><span class="w"> </span><span class="n">approx_percentile_cont</span><span class="p">(</span><span class="n">duration_ms</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">.</span><span class="mi">50</span><span class="p">),</span>
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="w">  </span><span class="n">approx_percentile_cont</span><span class="p">(</span><span class="n">duration_ms</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">.</span><span class="mi">95</span><span class="p">),</span>
+<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="w">  </span><span class="n">approx_percentile_cont</span><span class="p">(</span><span class="n">duration_ms</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">.</span><span class="mi">99</span><span class="p">),</span>
+<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="w">  </span><span class="k">AVG</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">status_code</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="mi">1</span><span class="p">.</span><span class="mi">0</span><span class="w"> </span><span class="k">ELSE</span><span class="w"> </span><span class="mi">0</span><span class="p">.</span><span class="mi">0</span><span class="w"> </span><span class="k">END</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">error_rate</span>
+<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a><span class="k">FROM</span><span class="w"> </span><span class="n">bucketed</span><span class="w"> </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">bucket_start</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">bucket_start</span>
+</code></pre></div>
+<p>Attribute filters use <code>search_blob LIKE '%key:value%'</code> — no JSON parsing at query time.</p>
+<h3 id="get_paginated_traces"><code>get_paginated_traces</code><a class="headerlink" href="#get_paginated_traces" title="Permanent link">&para;</a></h3>
+<p>Reads from <code>trace_summaries</code> using cursor-based pagination on <code>(start_time, trace_id)</code>. The cursor avoids full table scans on large datasets:</p>
+<ul>
+<li><strong>Forward</strong>: <code>(start_time, trace_id) &lt; (cursor_start, cursor_id) LIMIT n</code></li>
+<li><strong>Backward</strong>: <code>(start_time, trace_id) &gt; (cursor_start, cursor_id) LIMIT n</code> (then reverse)</li>
+</ul>
+<hr />
+<h2 id="compaction-and-maintenance">Compaction and Maintenance<a class="headerlink" href="#compaction-and-maintenance" title="Permanent link">&para;</a></h2>
+<p>Trace data goes through a three-phase lifecycle:</p>
+<h3 id="1-flush">1. Flush<a class="headerlink" href="#1-flush" title="Permanent link">&para;</a></h3>
+<p>The buffer actor writes small Parquet files on every flush (every 10K spans or 5 seconds). File sizes depend on span payload sizes but are typically small immediately after ingest.</p>
+<h3 id="2-compaction-z-order">2. Compaction (Z-ORDER)<a class="headerlink" href="#2-compaction-z-order" title="Permanent link">&para;</a></h3>
+<p>The engine actor runs compaction automatically on a configurable interval (default: every 24 hours). Compaction uses Delta Lake Z-ORDER on <code>(start_time, service_name)</code>:</p>
+<ul>
+<li><strong>Target file size</strong>: 128 MB</li>
+<li><strong>Z-ORDER columns</strong>: <code>start_time</code> (time-range queries), <code>service_name</code> (service filter pushdown)</li>
+<li><strong>WriterProperties preserved</strong>: bloom filters on <code>trace_id</code>, <code>service_name</code>, <code>span_name</code> are re-specified explicitly — without this, every compaction cycle would silently discard them from rewritten files</li>
+</ul>
+<p>Z-ORDER co-locates spans with similar start times and service names within each Parquet file, maximizing the effectiveness of DataFusion's min/max statistics-based file pruning. After Z-ORDER, delta-encoded timestamps compress 4–8x within each row group.</p>
+<p>Compaction is coordinated across pods via a <strong>control table</strong> — an optimistic-concurrency PostgreSQL table that ensures only one pod runs optimize or retention at a time, even in multi-replica deployments. The scheduler ticks every 5 minutes; the actual run schedule is persisted in <code>next_run_at</code> and survives pod restarts.</p>
+<h3 id="3-retention">3. Retention<a class="headerlink" href="#3-retention" title="Permanent link">&para;</a></h3>
+<p>The engine actor can also run periodic data expiry. When <code>retention_days</code> is configured, it issues a logical delete against the <code>partition_date</code> partition column, then immediately vacuums the freed files. Because the predicate maps directly to a partition directory, Delta Lake skips all unaffected partitions.</p>
+<p>Retention is also coordinated via the control table (task name: <code>trace_retention</code>), defaulting to a 24-hour schedule.</p>
+<h3 id="4-vacuum">4. Vacuum<a class="headerlink" href="#4-vacuum" title="Permanent link">&para;</a></h3>
+<p>Removes old Parquet file versions that are no longer referenced by the Delta log, freeing object storage space. Vacuum runs automatically after both compaction and retention. It can also be triggered on-demand via <code>TraceSpanService::vacuum(retention_hours)</code>. Compaction is available on-demand via <code>TraceSpanService::optimize()</code>.</p>
+<hr />
+<h2 id="multi-pod-deployments">Multi-Pod Deployments<a class="headerlink" href="#multi-pod-deployments" title="Permanent link">&para;</a></h2>
+<p>In a K8s deployment with separate writer and reader pods (e.g. a dedicated gRPC ingest pod and one or more HTTP query pods), each pod holds its own in-memory Delta table snapshot. After the writer commits a new batch, reader pods do not automatically see the new data — their snapshot is stale until refreshed.</p>
+<p>The <strong>refresh ticker</strong> inside <code>TraceSpanDBEngine</code> solves this. On every tick it:</p>
+<ol>
+<li>Clones the current <code>DeltaTable</code> guard (the original is preserved if the operation fails)</li>
+<li>Calls <code>update_incremental()</code> on the clone to pull new Delta log entries from shared storage</li>
+<li>Re-registers the <code>SessionContext</code> only if the table version advanced — no-ops on idle tables</li>
+</ol>
+<p>The ticker interval is controlled by <code>SCOUTER_TRACE_REFRESH_INTERVAL_SECS</code> (default <code>10</code>). At 10 s, a reader pod will see new data within ~10 seconds of a writer commit, with ~8,640 object-store LIST calls per day — negligible for GCS/S3.</p>
+<p><strong>Deployment model:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>GCS / S3 / Azure Blob
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    │
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    ├── Pod A (writer)   gRPC ingest → TraceSpanDBEngine (commits new files)
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    └── Pod B (reader)   HTTP queries ← TraceSpanDBEngine (refresh_ticker pulls commits every 10 s)
+</code></pre></div>
+<p>Both pods point <code>SCOUTER_STORAGE_URI</code> at the same bucket path. The writer's single-writer invariant is preserved — only one pod writes to the Delta log at a time. Reader pods never write; they only call <code>update_incremental()</code>.</p>
+<p><strong>Compaction coordination</strong> (optimize + retention) is already protected by the control table — only one pod runs it at a time, regardless of how many reader pods are running the refresh ticker.</p>
+<p><strong>Tuning:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Recommended <code>SCOUTER_TRACE_REFRESH_INTERVAL_SECS</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Single pod (writer = reader)</td>
+<td><code>10</code> (default) — refresh is a no-op when no other writer exists</td>
+</tr>
+<tr>
+<td>Multi-pod, near-real-time reads</td>
+<td><code>5</code> — halves visibility latency, doubles LIST call rate</td>
+</tr>
+<tr>
+<td>Multi-pod, cost-sensitive storage</td>
+<td><code>30</code>–<code>60</code> — acceptable for dashboards that poll every minute</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="readwrite-performance-tuning">Read/Write Performance Tuning<a class="headerlink" href="#readwrite-performance-tuning" title="Permanent link">&para;</a></h2>
+<p>The optimization PR introduced several layers of read and write improvements that apply across all storage backends.</p>
+<h3 id="cachingstore">CachingStore<a class="headerlink" href="#cachingstore" title="Permanent link">&para;</a></h3>
+<p>Every storage backend (GCS, S3, Azure, local) is now wrapped in a <code>CachingStore</code>. After Z-ORDER compaction, Parquet files are immutable — the same path always returns the same bytes. <code>CachingStore</code> caches two call types:</p>
+<ul>
+<li><strong><code>head()</code></strong> — up to 10,000 entries, 1-hour TTL. Eliminates repeated <code>HEAD</code> requests DataFusion issues to check file size before opening each file.</li>
+<li><strong><code>get_range()</code></strong> — byte-addressed cache with a configurable max size (default 64 MB), 1-hour TTL. Only ranges ≤2 MB are cached; larger column-data reads (uncommon for footer-heavy queries) pass through uncached.</li>
+</ul>
+<p>Cache size is configurable via <code>SCOUTER_OBJECT_CACHE_MB</code>. On GCS/S3 workloads where footer reads dominate query latency, this eliminates 1–2 round-trips (~30–60 ms each) per file per query.</p>
+<h3 id="datafusion-session-configuration">DataFusion Session Configuration<a class="headerlink" href="#datafusion-session-configuration" title="Permanent link">&para;</a></h3>
+<p>The <code>SessionContext</code> is now built with a tuned <code>SessionConfig</code> applied to all query and compaction operations:</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Value</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>target_partitions</code></td>
+<td><code>available_parallelism</code></td>
+<td>Uses all CPU cores for parallel query execution</td>
+</tr>
+<tr>
+<td><code>batch_size</code></td>
+<td>8192</td>
+<td>Controls Arrow RecordBatch size during query scans</td>
+</tr>
+<tr>
+<td><code>prefer_existing_sort</code></td>
+<td>true</td>
+<td>Avoids re-sorting data that Z-ORDER already sorted</td>
+</tr>
+<tr>
+<td><code>parquet_pruning</code></td>
+<td>true</td>
+<td>Enables min/max statistics-based file pruning</td>
+</tr>
+<tr>
+<td><code>collect_statistics</code></td>
+<td>true</td>
+<td>Gathers column statistics to improve query planning</td>
+</tr>
+<tr>
+<td><code>pushdown_filters</code></td>
+<td>true</td>
+<td>Pushes predicates into the Parquet reader — only matching rows are decoded</td>
+</tr>
+<tr>
+<td><code>reorder_filters</code></td>
+<td>true</td>
+<td>Reorders predicates by selectivity — bloom filters (<code>trace_id</code>) evaluated before range checks (<code>start_time</code>)</td>
+</tr>
+<tr>
+<td><code>metadata_size_hint</code></td>
+<td>1 MB</td>
+<td>Fetches Parquet footer in one cloud round-trip; default 512KB is insufficient for files with bloom filters and page-level statistics</td>
+</tr>
+<tr>
+<td><code>bloom_filter_on_read</code></td>
+<td>true</td>
+<td>Consults row-group bloom filters before decoding; explicit to guard against DataFusion version changes</td>
+</tr>
+<tr>
+<td><code>schema_force_view_types</code></td>
+<td>true</td>
+<td>Reads <code>Utf8</code> columns as <code>Utf8View</code> — matches the schema's <code>StringView</code> type and avoids a downgrade on read</td>
+</tr>
+<tr>
+<td><code>meta_fetch_concurrency</code></td>
+<td>64</td>
+<td>Parallel file stat operations when listing Delta table files; matches the HTTP connection pool size</td>
+</tr>
+<tr>
+<td><code>maximum_parallel_row_group_writers</code></td>
+<td>4</td>
+<td>Encodes multiple row groups concurrently during compaction and flush</td>
+</tr>
+<tr>
+<td><code>maximum_buffered_record_batches_per_stream</code></td>
+<td>8</td>
+<td>Smooths bursty GCS reads by buffering more decoded batches per stream</td>
+</tr>
+</tbody>
+</table>
+<h3 id="http-connection-pooling">HTTP Connection Pooling<a class="headerlink" href="#http-connection-pooling" title="Permanent link">&para;</a></h3>
+<p>Cloud object stores (GCS, S3, Azure) are built with shared <code>ClientOptions</code>:</p>
+<ul>
+<li>Pool idle timeout: 120 seconds</li>
+<li>Max idle connections per host: 64 (matches <code>meta_fetch_concurrency</code>)</li>
+<li>Request timeout: 30 seconds</li>
+<li>Connect timeout: 5 seconds</li>
+</ul>
+<h3 id="parquet-writerproperties">Parquet WriterProperties<a class="headerlink" href="#parquet-writerproperties" title="Permanent link">&para;</a></h3>
+<p>Both flush writes and Z-ORDER compaction use the same <code>WriterProperties</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Value</th>
+<th>Rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>max_row_group_size</code></td>
+<td>32,768 rows</td>
+<td>Creates ~4 row groups per 128 MB file; bloom filters and page statistics prune within files, not just across files</td>
+</tr>
+<tr>
+<td>Bloom filter: <code>trace_id</code></td>
+<td>FPP 0.01, NDV 32,768</td>
+<td>Skips ~99% of row groups for <code>trace_id</code> equality lookups</td>
+</tr>
+<tr>
+<td>Bloom filter: <code>service_name</code></td>
+<td>FPP 0.01, NDV 256</td>
+<td>Low cardinality but hot lookup path</td>
+</tr>
+<tr>
+<td>Bloom filter: <code>span_name</code></td>
+<td>FPP 0.01, NDV 32,768</td>
+<td>High cardinality equality queries</td>
+</tr>
+<tr>
+<td>Page stats: <code>start_time</code></td>
+<td>Page-level</td>
+<td>Finest-grained time pruning within row groups</td>
+</tr>
+<tr>
+<td>Page stats: <code>status_code</code></td>
+<td>Page-level</td>
+<td>Prunes pages for error-only queries (no bloom filter — only 3 values)</td>
+</tr>
+<tr>
+<td>Encoding: <code>start_time</code>, <code>duration_ms</code></td>
+<td><code>DELTA_BINARY_PACKED</code></td>
+<td>4–8x compression on near-sorted integers after Z-ORDER; 2–4x on durations within a service</td>
+</tr>
+<tr>
+<td>Compression</td>
+<td>ZSTD level 3</td>
+<td>~40% better than SNAPPY on text columns; marginal decompression overhead is offset by reduced I/O</td>
+</tr>
+<tr>
+<td>Dictionary: <code>span_name</code></td>
+<td>enabled</td>
+<td>High repetition similar to <code>service_name</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Environment Variable</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SCOUTER_STORAGE_URI</code></td>
+<td><code>./scouter_storage</code></td>
+<td>Object store root. Supports <code>s3://</code>, <code>gs://</code>, <code>az://</code>, or local path</td>
+</tr>
+<tr>
+<td><code>SCOUTER_TRACE_COMPACTION_INTERVAL_HOURS</code></td>
+<td><code>24</code></td>
+<td>How often automatic Z-ORDER compaction runs</td>
+</tr>
+<tr>
+<td><code>SCOUTER_TRACE_FLUSH_INTERVAL_SECS</code></td>
+<td><code>5</code></td>
+<td>How often the span buffer flushes to Delta Lake</td>
+</tr>
+<tr>
+<td><code>SCOUTER_TRACE_BUFFER_SIZE</code></td>
+<td><code>10000</code></td>
+<td>Span buffer capacity before a flush is triggered</td>
+</tr>
+<tr>
+<td><code>SCOUTER_TRACE_REFRESH_INTERVAL_SECS</code></td>
+<td><code>10</code></td>
+<td>How often each pod refreshes its Delta table snapshot from shared storage. Controls cross-pod visibility latency in multi-pod deployments.</td>
+</tr>
+<tr>
+<td><code>SCOUTER_OBJECT_CACHE_MB</code></td>
+<td><code>64</code></td>
+<td>Maximum size of the in-process object store range cache (MB)</td>
+</tr>
+<tr>
+<td><code>AWS_REGION</code></td>
+<td><code>us-east-1</code></td>
+<td>Required when using S3 storage</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="storage-backends">Storage Backends<a class="headerlink" href="#storage-backends" title="Permanent link">&para;</a></h2>
+<p>The storage layer uses the <code>ObjectStore</code> abstraction, supporting all major cloud providers and local filesystems with no code changes. Every backend is wrapped in <code>CachingStore</code> — the caching layer is transparent to the rest of the system.</p>
+<table>
+<thead>
+<tr>
+<th>Backend</th>
+<th>URI Prefix</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Local filesystem</td>
+<td><code>./path</code> or <code>/abs/path</code></td>
+<td>Default; good for development</td>
+</tr>
+<tr>
+<td>Amazon S3</td>
+<td><code>s3://bucket/prefix</code></td>
+<td>Requires <code>AWS_REGION</code> and standard AWS credentials</td>
+</tr>
+<tr>
+<td>Google Cloud Storage</td>
+<td><code>gs://bucket/prefix</code></td>
+<td>Uses Application Default Credentials; also accepts <code>GOOGLE_ACCOUNT_JSON_BASE64</code> for service account key injection</td>
+</tr>
+<tr>
+<td>Azure Blob Storage</td>
+<td><code>az://container/prefix</code></td>
+<td>Accepts both <code>AZURE_STORAGE_ACCOUNT_NAME</code>/<code>AZURE_STORAGE_ACCOUNT_KEY</code> (object_store convention) and <code>AZURE_STORAGE_ACCOUNT</code>/<code>AZURE_STORAGE_KEY</code> (az CLI/Terraform convention)</td>
+</tr>
+</tbody>
+</table>
+<p>The same Delta Lake protocol and DataFusion query engine run identically across all backends.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "../../..", "features": ["content.code.annotate", "content.code.copy", "announce.dismiss", "navigation.path", "navigation.sections", "navigation.top", "navigation.tabs", "navigation.tracking", "search.suggest", "toc.follow"], "search": "../../../assets/javascripts/workers/search.f8cc74c7.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.c8b220af.min.js"></script>
+      
+        <script src="../../../javascripts/mathjax.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>
