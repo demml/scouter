@@ -1,6 +1,8 @@
 use crate::error::EvaluationError;
 use crate::evaluate::evaluator::GenAIEvaluator;
-use crate::evaluate::scenario_results::{EvalMetrics, ScenarioEvalResults, ScenarioResult};
+use crate::evaluate::scenario_results::{
+    EvalMetrics, ScenarioEvalResults, ScenarioResult, TaskSummary,
+};
 use crate::evaluate::types::{EvalResults, EvaluationConfig};
 use crate::genai::{evaluate_genai_dataset, EvalDataset};
 use crate::scenario::EvalScenarios;
@@ -11,10 +13,11 @@ use scouter_types::genai::{GenAIEvalConfig, GenAIEvalProfile};
 use scouter_types::trace::build_trace_spans;
 use scouter_types::trace::sql::TraceSpan;
 use scouter_types::EvalRecord;
+use scouter_types::TraceId as ScouterTraceId;
 use serde_json::json;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 struct AliasData {
     records: Vec<EvalRecord>,
@@ -29,8 +32,8 @@ struct AliasData {
 /// - `collect_scenario_data()`: Populates scenario datasets and contexts
 /// - `evaluate()`: Runs multi-level evaluation (sub-agent + scenario + aggregate),
 ///   pulling captured spans from the global buffer automatically.
-#[pyclass]
 #[derive(Debug)]
+#[pyclass]
 pub struct EvalRunner {
     profiles: HashMap<String, Arc<GenAIEvalProfile>>,
     scenarios: EvalScenarios,
@@ -156,25 +159,72 @@ impl EvalRunner {
         &mut self,
         config: &Arc<EvaluationConfig>,
     ) -> Result<ScenarioEvalResults, EvaluationError> {
-        // Collect all trace_ids from stored records (one pass)
-        let all_trace_ids = self.collect_all_trace_ids();
+        let scenario_ids: HashSet<String> = self
+            .scenarios
+            .scenarios
+            .iter()
+            .map(|s| s.id.clone())
+            .collect();
 
-        // Single targeted query — only clones matching spans
-        let captured_spans = if !all_trace_ids.is_empty() {
-            scouter_types::span_capture::get_captured_spans_by_trace_ids(&all_trace_ids)
-        } else {
-            vec![]
-        };
+        // Single buffer scan → grouped by scenario_id (via span attribute)
+        let mut raw_by_scenario =
+            scouter_types::span_capture::get_spans_grouped_by_scenario_id(&scenario_ids);
 
-        // Convert once, use for both levels
-        let trace_spans = build_trace_spans(captured_spans);
+        // Also resolve spans via EvalRecord.trace_id for scenarios whose spans were not
+        // captured with the scouter.eval.scenario_id attribute (e.g. plain OTel spans).
+        let mut record_trace_to_scenario: HashMap<ScouterTraceId, String> = HashMap::new();
+        for (scenario_id, datasets) in &self.scenarios.scenario_datasets {
+            for dataset in datasets.values() {
+                for record in dataset.records.iter() {
+                    if let Some(tid) = record.trace_id {
+                        record_trace_to_scenario.insert(tid, scenario_id.clone());
+                    }
+                }
+            }
+        }
+
+        if !record_trace_to_scenario.is_empty() {
+            // Only fetch trace_ids not already covered by the attribute-based pass
+            let already_covered: HashSet<ScouterTraceId> = raw_by_scenario
+                .values()
+                .flat_map(|spans: &Vec<_>| spans.iter().map(|s| s.trace_id))
+                .collect();
+            let new_trace_ids: HashSet<ScouterTraceId> = record_trace_to_scenario
+                .keys()
+                .filter(|tid| !already_covered.contains(tid))
+                .copied()
+                .collect();
+            if !new_trace_ids.is_empty() {
+                let extra =
+                    scouter_types::span_capture::get_captured_spans_by_trace_ids(&new_trace_ids);
+                for span in extra {
+                    if let Some(sid) = record_trace_to_scenario.get(&span.trace_id) {
+                        raw_by_scenario.entry(sid.clone()).or_default().push(span);
+                    }
+                }
+            }
+        }
+
+        // Convert each group to tree-enriched TraceSpans
+        let spans_by_scenario: HashMap<String, Arc<Vec<TraceSpan>>> = raw_by_scenario
+            .into_iter()
+            .map(|(id, records)| (id, Arc::new(build_trace_spans(records))))
+            .collect();
+
+        // Assign spans to datasets by scenario_id key lookup
+        for (scenario_id, datasets) in &mut self.scenarios.scenario_datasets {
+            if let Some(spans) = spans_by_scenario.get(scenario_id) {
+                for dataset in datasets.values_mut() {
+                    dataset.spans = Arc::clone(spans);
+                }
+            }
+        }
 
         // Level 1: Sub-agent evaluation
-        self.set_dataset_spans(&trace_spans);
         let dataset_results = self.evaluate_datasets(config).await?;
 
         // Level 2: Scenario evaluation
-        let scenario_results = self.evaluate_scenarios(&trace_spans).await?;
+        let scenario_results = self.evaluate_scenarios(&spans_by_scenario).await?;
 
         // Level 3: Aggregate metrics
         let metrics = compute_metrics(&dataset_results, &scenario_results);
@@ -189,44 +239,6 @@ impl EvalRunner {
             scenario_results,
             metrics,
         })
-    }
-
-    /// Set spans on each alias dataset by filtering pre-converted TraceSpans to matching trace_ids.
-    fn set_dataset_spans(&mut self, trace_spans: &[scouter_types::trace::sql::TraceSpan]) {
-        for datasets in self.scenarios.scenario_datasets.values_mut() {
-            for dataset in datasets.values_mut() {
-                let trace_ids: HashSet<String> = dataset
-                    .records
-                    .iter()
-                    .filter_map(|r| r.trace_id.as_ref().map(|tid| tid.to_hex()))
-                    .collect();
-
-                if trace_ids.is_empty() {
-                    continue;
-                }
-
-                let matching: Vec<_> = trace_spans
-                    .iter()
-                    .filter(|s| trace_ids.contains(&s.trace_id))
-                    .cloned()
-                    .collect();
-
-                if !matching.is_empty() {
-                    dataset.spans = Arc::new(matching);
-                }
-            }
-        }
-    }
-
-    /// Collect all trace_ids from records across all scenario datasets.
-    fn collect_all_trace_ids(&self) -> HashSet<scouter_types::TraceId> {
-        self.scenarios
-            .scenario_datasets
-            .values()
-            .flat_map(|datasets| datasets.values())
-            .flat_map(|dataset| dataset.records.iter())
-            .filter_map(|r| r.trace_id)
-            .collect()
     }
 
     /// LEVEL 1: For each alias across all scenarios, flatten records into one
@@ -251,10 +263,10 @@ impl EvalRunner {
                 if entry.profile.is_none() {
                     entry.profile = Some(Arc::clone(&dataset.profile));
                 } else {
-                    // First-seen profile wins per alias — log when a subsequent scenario
+                    // First-seen profile wins per alias — warn when a subsequent scenario
                     // provides a different profile instance for the same alias.
-                    debug!(
-                        "Alias '{}': profile already set, ignoring profile from another scenario",
+                    warn!(
+                        "Alias '{}': profile already set — first-seen profile wins; ignoring profile from a subsequent scenario. Ensure all scenarios use the same profile for this alias.",
                         alias
                     );
                 }
@@ -304,15 +316,12 @@ impl EvalRunner {
     }
 
     /// LEVEL 2: For each scenario that has tasks, build a record from
-    /// the scenario context and evaluate against the profile + filtered traces.
+    /// the scenario context and evaluate against the profile + spans looked up by scenario_id.
     async fn evaluate_scenarios(
         &self,
-        trace_spans: &[scouter_types::trace::sql::TraceSpan],
+        spans_by_scenario: &HashMap<String, Arc<Vec<TraceSpan>>>,
     ) -> Result<Vec<ScenarioResult>, EvaluationError> {
         let mut results = Vec::new();
-
-        // Collect all trace_ids per scenario (from records)
-        let scenario_trace_ids = self.collect_scenario_trace_ids();
 
         for scenario in &self.scenarios.scenarios {
             if !scenario.has_tasks() {
@@ -348,21 +357,25 @@ impl EvalRunner {
             .await?;
             let profile = Arc::new(profile);
 
-            // Filter trace spans for this scenario's trace_ids
-            let filtered_spans = if let Some(trace_ids) = scenario_trace_ids.get(&scenario.id) {
-                trace_spans
-                    .iter()
-                    .filter(|s| trace_ids.contains(&s.trace_id))
-                    .cloned()
-                    .collect::<Vec<_>>()
-            } else {
-                Vec::new()
-            };
-            let spans_arc = Arc::new(filtered_spans);
+            // Look up spans directly by scenario_id — no filtering needed
+            let spans_arc = spans_by_scenario
+                .get(&scenario.id)
+                .cloned()
+                .unwrap_or_else(|| Arc::new(Vec::new()));
 
             // Evaluate
             match GenAIEvaluator::process_event_record(&record, profile, spans_arc).await {
                 Ok(eval_set) => {
+                    let task_results: Vec<TaskSummary> = eval_set
+                        .records
+                        .iter()
+                        .map(|r| TaskSummary {
+                            task_id: r.task_id.clone(),
+                            passed: r.passed,
+                            value: if r.passed { 1.0 } else { 0.0 },
+                        })
+                        .collect();
+
                     let mut eval_results = EvalResults::new();
                     eval_results.add_success(&record, eval_set, BTreeMap::new());
 
@@ -374,6 +387,7 @@ impl EvalRunner {
                         eval_results,
                         passed,
                         pass_rate,
+                        task_results,
                     });
                 }
                 Err(e) => {
@@ -387,33 +401,13 @@ impl EvalRunner {
                         eval_results,
                         passed: false,
                         pass_rate: 0.0,
+                        task_results: vec![],
                     });
                 }
             }
         }
 
         Ok(results)
-    }
-
-    /// Collect trace_ids from records for each scenario
-    fn collect_scenario_trace_ids(&self) -> HashMap<String, HashSet<String>> {
-        let mut result: HashMap<String, HashSet<String>> = HashMap::new();
-
-        for (scenario_id, datasets) in &self.scenarios.scenario_datasets {
-            let mut trace_ids = HashSet::new();
-            for dataset in datasets.values() {
-                for record in dataset.records.iter() {
-                    if let Some(ref tid) = record.trace_id {
-                        trace_ids.insert(tid.to_hex());
-                    }
-                }
-            }
-            if !trace_ids.is_empty() {
-                result.insert(scenario_id.clone(), trace_ids);
-            }
-        }
-
-        result
     }
 }
 
@@ -446,12 +440,26 @@ fn compute_metrics(
         all_rates.iter().sum::<f64>() / all_rates.len() as f64
     };
 
+    // Build per-scenario, per-task pass rates
+    let mut scenario_task_pass_rates: HashMap<String, HashMap<String, f64>> = HashMap::new();
+    for sr in scenario_results {
+        if !sr.task_results.is_empty() {
+            let task_rates: HashMap<String, f64> = sr
+                .task_results
+                .iter()
+                .map(|t| (t.task_id.clone(), if t.passed { 1.0 } else { 0.0 }))
+                .collect();
+            scenario_task_pass_rates.insert(sr.scenario_id.clone(), task_rates);
+        }
+    }
+
     EvalMetrics {
         overall_pass_rate,
         dataset_pass_rates,
         scenario_pass_rate,
         total_scenarios,
         passed_scenarios,
+        scenario_task_pass_rates,
     }
 }
 
@@ -583,6 +591,24 @@ mod tests {
     }
 
     #[test]
+    fn collect_scenario_data_duplicate_returns_error() {
+        let mut runner = EvalRunner::new(
+            EvalScenarios::new(vec![make_scenario("s1", "Hello")]),
+            make_default_profiles(),
+        );
+        let mut records = HashMap::new();
+        records.insert("agent_a".to_string(), vec![EvalRecord::default()]);
+        let scenario = runner.scenarios.scenarios[0].clone();
+
+        runner
+            .collect_scenario_data(records.clone(), "Response".to_string(), &scenario)
+            .unwrap();
+        let result = runner.collect_scenario_data(records, "Response again".to_string(), &scenario);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("already has data"));
+    }
+
+    #[test]
     fn collect_scenario_data_missing_profile_errors() {
         let mut runner = EvalRunner::new(
             EvalScenarios::new(vec![make_scenario("s1", "Hello")]),
@@ -701,6 +727,96 @@ mod tests {
     }
 
     #[test]
+    fn evaluate_with_assertion_tasks_populates_task_results() {
+        let scenario = make_scenario_with_tasks("s1", "Say hello");
+        let mut runner =
+            EvalRunner::new(EvalScenarios::new(vec![scenario.clone()]), HashMap::new());
+
+        let context = json!({
+            "response": "hello world",
+            "expected_outcome": "Response contains hello",
+            "metadata": null,
+        });
+        runner
+            .scenarios
+            .scenario_contexts
+            .insert("s1".to_string(), context);
+
+        let result = runner.evaluate(None).unwrap();
+
+        let sr = &result.scenario_results[0];
+        assert_eq!(sr.task_results.len(), 1);
+        assert_eq!(sr.task_results[0].task_id, "check_response");
+        assert!(sr.task_results[0].passed);
+        assert_eq!(sr.task_results[0].value, 1.0);
+    }
+
+    #[test]
+    fn evaluate_with_failing_assertion_task_results() {
+        let scenario = make_scenario_with_tasks("s1", "Say hello");
+        let mut runner =
+            EvalRunner::new(EvalScenarios::new(vec![scenario.clone()]), HashMap::new());
+
+        let context = json!({
+            "response": "goodbye world",
+            "expected_outcome": "Response contains hello",
+            "metadata": null,
+        });
+        runner
+            .scenarios
+            .scenario_contexts
+            .insert("s1".to_string(), context);
+
+        let result = runner.evaluate(None).unwrap();
+
+        let sr = &result.scenario_results[0];
+        assert_eq!(sr.task_results.len(), 1);
+        assert_eq!(sr.task_results[0].task_id, "check_response");
+        assert!(!sr.task_results[0].passed);
+        assert_eq!(sr.task_results[0].value, 0.0);
+
+        let rates = &result.metrics.scenario_task_pass_rates;
+        assert!(rates.contains_key("s1"));
+        assert_eq!(rates["s1"]["check_response"], 0.0);
+    }
+
+    #[test]
+    fn compute_metrics_scenario_task_pass_rates() {
+        use crate::evaluate::scenario_results::{ScenarioResult, TaskSummary};
+        use crate::evaluate::types::EvalResults;
+
+        let make_result = |id: &str, passed: bool| ScenarioResult {
+            scenario_id: id.to_string(),
+            initial_query: "q".to_string(),
+            eval_results: EvalResults::new(),
+            passed,
+            pass_rate: if passed { 1.0 } else { 0.0 },
+            task_results: vec![
+                TaskSummary {
+                    task_id: "t1".to_string(),
+                    passed,
+                    value: if passed { 1.0 } else { 0.0 },
+                },
+                TaskSummary {
+                    task_id: "t2".to_string(),
+                    passed: true,
+                    value: 1.0,
+                },
+            ],
+        };
+
+        let scenario_results = vec![make_result("s1", true), make_result("s2", false)];
+        let metrics = compute_metrics(&HashMap::new(), &scenario_results);
+
+        assert!(metrics.scenario_task_pass_rates.contains_key("s1"));
+        assert!(metrics.scenario_task_pass_rates.contains_key("s2"));
+        assert_eq!(metrics.scenario_task_pass_rates["s1"]["t1"], 1.0);
+        assert_eq!(metrics.scenario_task_pass_rates["s2"]["t1"], 0.0);
+        assert_eq!(metrics.scenario_task_pass_rates["s1"]["t2"], 1.0);
+        assert_eq!(metrics.scenario_task_pass_rates["s2"]["t2"], 1.0);
+    }
+
+    #[test]
     fn evaluate_scenario_with_tasks_but_no_context_errors() {
         let scenario = make_scenario_with_tasks("s1", "Say hello");
         let mut runner = EvalRunner::new(EvalScenarios::new(vec![scenario]), HashMap::new());
@@ -772,6 +888,7 @@ mod tests {
                 eval_results: EvalResults::new(),
                 passed: true,
                 pass_rate: 1.0,
+                task_results: vec![],
             },
             ScenarioResult {
                 scenario_id: "s2".to_string(),
@@ -779,6 +896,7 @@ mod tests {
                 eval_results: EvalResults::new(),
                 passed: false,
                 pass_rate: 0.5,
+                task_results: vec![],
             },
         ];
 

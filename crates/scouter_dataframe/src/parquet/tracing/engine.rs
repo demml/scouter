@@ -340,7 +340,7 @@ impl TraceSpanDBEngine {
 
         let (updated_table, _metrics) = current_table
             .optimize()
-            .with_target_size(128 * 1024 * 1024)
+            .with_target_size(std::num::NonZero::new(128 * 1024 * 1024).unwrap())
             .with_type(OptimizeType::ZOrder(vec![
                 "start_time".to_string(),
                 "service_name".to_string(),

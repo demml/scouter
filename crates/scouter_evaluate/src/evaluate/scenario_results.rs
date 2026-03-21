@@ -14,6 +14,26 @@ use tabled::{
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[pyclass]
+pub struct TaskSummary {
+    #[pyo3(get)]
+    pub task_id: String,
+
+    #[pyo3(get)]
+    pub passed: bool,
+
+    #[pyo3(get)]
+    pub value: f64,
+}
+
+#[pymethods]
+impl TaskSummary {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[pyclass]
 pub struct EvalMetrics {
     #[pyo3(get)]
     pub overall_pass_rate: f64,
@@ -29,6 +49,9 @@ pub struct EvalMetrics {
 
     #[pyo3(get)]
     pub passed_scenarios: usize,
+
+    #[serde(default)]
+    pub scenario_task_pass_rates: HashMap<String, HashMap<String, f64>>,
 }
 
 #[derive(Tabled)]
@@ -56,6 +79,11 @@ impl EvalMetrics {
     #[getter]
     pub fn dataset_pass_rates(&self) -> HashMap<String, f64> {
         self.dataset_pass_rates.clone()
+    }
+
+    #[getter]
+    pub fn scenario_task_pass_rates(&self) -> HashMap<String, HashMap<String, f64>> {
+        self.scenario_task_pass_rates.clone()
     }
 
     pub fn as_table(&self) {
@@ -136,6 +164,10 @@ pub struct ScenarioResult {
 
     #[pyo3(get)]
     pub pass_rate: f64,
+
+    #[pyo3(get)]
+    #[serde(default)]
+    pub task_results: Vec<TaskSummary>,
 }
 
 impl PartialEq for ScenarioResult {
@@ -144,6 +176,7 @@ impl PartialEq for ScenarioResult {
             && self.initial_query == other.initial_query
             && self.passed == other.passed
             && self.pass_rate == other.pass_rate
+            && self.task_results == other.task_results
     }
 }
 
@@ -615,6 +648,12 @@ struct ScenarioResultEntry {
     scenario_id: String,
     #[tabled(rename = "Initial Query")]
     initial_query: String,
+    #[tabled(rename = "Tasks")]
+    tasks: usize,
+    #[tabled(rename = "Passed")]
+    passed_count: usize,
+    #[tabled(rename = "Failed")]
+    failed_count: usize,
     #[tabled(rename = "Pass Rate")]
     pass_rate: String,
     #[tabled(rename = "Status")]
@@ -772,7 +811,8 @@ impl ScenarioEvalResults {
         })
     }
 
-    pub fn as_table(&self) {
+    #[pyo3(signature = (show_datasets=false))]
+    pub fn as_table(&mut self, show_datasets: bool) {
         self.metrics.as_table();
 
         if !self.scenario_results.is_empty() {
@@ -795,9 +835,15 @@ impl ScenarioEvalResults {
                     } else {
                         "✗ FAIL".red().to_string()
                     };
+                    let total = r.task_results.len();
+                    let passed_count = r.task_results.iter().filter(|t| t.passed).count();
+                    let failed_count = total - passed_count;
                     ScenarioResultEntry {
                         scenario_id: r.scenario_id.chars().take(16).collect::<String>(),
                         initial_query: query,
+                        tasks: total,
+                        passed_count,
+                        failed_count,
                         pass_rate: format!("{:.1}%", r.pass_rate * 100.0),
                         status,
                     }
@@ -815,6 +861,20 @@ impl ScenarioEvalResults {
                 ),
             );
             println!("{}", table);
+        }
+
+        if show_datasets {
+            let mut aliases: Vec<_> = self.dataset_results.keys().cloned().collect();
+            aliases.sort();
+            for alias in aliases {
+                if let Some(eval_results) = self.dataset_results.get_mut(&alias) {
+                    println!(
+                        "\n{}",
+                        format!("Dataset: {}", alias).truecolor(245, 77, 85).bold()
+                    );
+                    eval_results.as_table(false);
+                }
+            }
         }
     }
 }
@@ -836,6 +896,7 @@ mod tests {
             scenario_pass_rate,
             total_scenarios: total,
             passed_scenarios: passed,
+            scenario_task_pass_rates: HashMap::new(),
         }
     }
 
@@ -846,6 +907,7 @@ mod tests {
             eval_results: EvalResults::new(),
             passed,
             pass_rate,
+            task_results: vec![],
         }
     }
 

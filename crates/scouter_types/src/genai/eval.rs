@@ -3,6 +3,7 @@ use crate::genai::traits::TaskAccessor;
 use crate::PyHelperFuncs;
 use core::fmt::Debug;
 use potato_head::prompt_types::Prompt;
+use potato_head::Provider;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyFloat, PyInt, PyList, PySlice, PyString};
 use pyo3::IntoPyObjectExt;
@@ -764,9 +765,43 @@ pub enum AggregationType {
     Last,
 }
 
+/// Mode for aggregating results across multiple attribute values
+#[pyclass(eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum MultiResponseMode {
+    /// At least one value must pass
+    Any,
+    /// All values must pass
+    All,
+}
+
+/// Inner task to run on each extracted attribute value
+#[pyclass]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum AttributeFilterTask {
+    /// Run a deterministic assertion on the raw attribute value
+    Assertion(AssertionTask),
+    /// Parse through AgentContextBuilder then run agent assertion
+    AgentAssertion(AgentAssertionTask),
+}
+
+#[pymethods]
+impl AttributeFilterTask {
+    #[staticmethod]
+    pub fn assertion(task: AssertionTask) -> Self {
+        AttributeFilterTask::Assertion(task)
+    }
+
+    #[staticmethod]
+    pub fn agent_assertion(task: AgentAssertionTask) -> Self {
+        AttributeFilterTask::AgentAssertion(task)
+    }
+}
+
 /// Unified assertion target that can operate on traces or filtered spans
 #[pyclass(eq)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[allow(clippy::large_enum_variant)]
 pub enum TraceAssertion {
     /// Check if spans exist in a specific order
     SpanSequence { span_names: Vec<String> },
@@ -813,6 +848,13 @@ pub enum TraceAssertion {
 
     /// Get trace-level attribute
     TraceAttribute { attribute_key: String },
+
+    /// Filter spans by attribute key, run inner task on each value, aggregate results
+    AttributeFilter {
+        key: String,
+        task: AttributeFilterTask,
+        mode: MultiResponseMode,
+    },
 }
 
 // implement to_string for TraceAssertion
@@ -900,6 +942,15 @@ impl TraceAssertion {
     #[staticmethod]
     pub fn trace_attribute(attribute_key: String) -> Self {
         TraceAssertion::TraceAttribute { attribute_key }
+    }
+
+    #[staticmethod]
+    pub fn attribute_filter(
+        key: String,
+        task: AttributeFilterTask,
+        mode: MultiResponseMode,
+    ) -> Self {
+        TraceAssertion::AttributeFilter { key, task, mode }
     }
 
     pub fn model_dump_json(&self) -> String {
@@ -1296,12 +1347,17 @@ pub struct AgentAssertionTask {
     #[pyo3(get, set)]
     #[serde(default)]
     pub condition: bool,
+
+    #[pyo3(get, set)]
+    #[serde(default)]
+    pub provider: Option<Provider>,
 }
 
 #[pymethods]
 impl AgentAssertionTask {
     #[new]
-    #[pyo3(signature = (id, assertion, expected_value, operator, description=None, depends_on=None, condition=None))]
+    #[pyo3(signature = (id, assertion, expected_value, operator, description=None, depends_on=None, condition=None, provider=None))]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: String,
         assertion: AgentAssertion,
@@ -1310,6 +1366,7 @@ impl AgentAssertionTask {
         description: Option<String>,
         depends_on: Option<Vec<String>>,
         condition: Option<bool>,
+        provider: Option<Provider>,
     ) -> Result<Self, TypeError> {
         let expected_value = depythonize(expected_value)?;
 
@@ -1323,6 +1380,7 @@ impl AgentAssertionTask {
             depends_on: depends_on.unwrap_or_default(),
             result: None,
             condition: condition.unwrap_or(false),
+            provider,
         })
     }
 
@@ -1946,6 +2004,7 @@ impl TasksFile {
 }
 
 #[derive(Debug, Serialize, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum TaskConfig {
     Assertion(AssertionTask),
     #[serde(rename = "LLMJudge")]

@@ -3,7 +3,7 @@ use scouter_client::{
     AlignedEvalResult, ComparisonResults, EvalDataset, EvalMetrics, EvalResultSet, EvalResults,
     EvalRunner, EvalScenario, EvalScenarios, EvalSet, EvalTaskResult, EvaluationConfig,
     EvaluationTaskType, MissingTask, ScenarioComparisonResults, ScenarioDelta, ScenarioEvalResults,
-    ScenarioResult, TaskComparison, WorkflowComparison,
+    ScenarioResult, TaskComparison, TaskSummary, WorkflowComparison,
 };
 
 pub fn add_evaluate_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -31,6 +31,7 @@ pub fn add_evaluate_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     m.add_class::<EvalScenarios>()?;
     m.add_class::<EvalRunner>()?;
+    m.add_class::<TaskSummary>()?;
 
     Ok(())
 }

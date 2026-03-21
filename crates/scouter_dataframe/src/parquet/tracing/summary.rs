@@ -450,7 +450,7 @@ impl TraceSummaryDBEngine {
         let (updated_table, _metrics) = table_guard
             .clone()
             .optimize()
-            .with_target_size(128 * 1024 * 1024)
+            .with_target_size(std::num::NonZero::new(128 * 1024 * 1024).unwrap())
             .with_type(OptimizeType::ZOrder(vec![
                 START_TIME_COL.to_string(),
                 SERVICE_NAME_COL.to_string(),

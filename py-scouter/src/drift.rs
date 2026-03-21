@@ -53,5 +53,9 @@ pub fn add_drift_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<AgentAssertionTask>()?;
     m.add_function(wrap_pyfunction!(execute_agent_assertion_tasks, m)?)?;
 
+    // Attribute filter / multi-response
+    m.add_class::<AttributeFilterTask>()?;
+    m.add_class::<MultiResponseMode>()?;
+
     Ok(())
 }

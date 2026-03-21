@@ -275,7 +275,7 @@ impl TaskExecutor {
 
         // Build request context builder from the eval record context if there are request assertions
         let request_context_builder = if profile.has_agent_assertions() {
-            AgentContextBuilder::from_context(context.base_context.as_ref())
+            AgentContextBuilder::from_context(context.base_context.as_ref(), None)
                 .inspect_err(|e| error!("Failed to build request context: {:?}", e))
                 .ok()
         } else {

@@ -231,6 +231,9 @@ class Provider:
     Anthropic: "Provider"
     """Anthropic provider"""
 
+    GoogleAdk: "Provider"
+    """Google ADK (Agent Development Kit) provider"""
+
     Undefined: "Provider"
     """Undefined provider"""
 
@@ -4030,6 +4033,9 @@ class FinishReason:
     NoImage = "FinishReason"
     """Expected image but none generated"""
 
+    Language = "FinishReason"
+    """Stopped due to unsupported language"""
+
 class EmbeddingTaskType:
     """Task type for embedding generation.
 
@@ -7372,6 +7378,14 @@ class GroundingMetadata:
     def google_maps_widget_context_token(self) -> Optional[str]:
         """Maps widget context token."""
 
+    @property
+    def retrieval_queries(self) -> Optional[List[str]]:
+        """Retrieval queries used."""
+
+    @property
+    def image_search_queries(self) -> Optional[List[str]]:
+        """Image search queries used."""
+
 class SafetyRating:
     """Safety rating for content.
 
@@ -7646,6 +7660,271 @@ class GenerateContentResponse:
     @property
     def usage_metadata(self) -> Optional[UsageMetadata]:
         """Token usage metadata."""
+
+class AdkToolCallInfo:
+    """Tool call info returned from AdkLlmResponse.get_tool_calls()."""
+
+    @property
+    def name(self) -> str:
+        """Tool/function name."""
+
+    @property
+    def call_id(self) -> Optional[str]:
+        """Optional call identifier."""
+
+    @property
+    def arguments_json(self) -> str:
+        """Serialized JSON string of the function arguments."""
+
+class AdkPart:
+    """A single content part in an ADK response.
+
+    Uses individual Optional fields rather than a union enum to handle
+    Pydantic's wire format which serializes all fields including null values.
+    """
+
+    @property
+    def text(self) -> Optional[str]:
+        """Text content."""
+
+    @property
+    def function_call(self) -> Optional[FunctionCall]:
+        """Function call, if present."""
+
+    @property
+    def function_response(self) -> Optional[FunctionResponse]:
+        """Function response, if present."""
+
+    @property
+    def inline_data(self) -> Optional[Blob]:
+        """Inline binary data, if present."""
+
+    @property
+    def file_data(self) -> Optional[FileData]:
+        """File data reference, if present."""
+
+    @property
+    def executable_code(self) -> Optional[ExecutableCode]:
+        """Executable code, if present."""
+
+    @property
+    def code_execution_result(self) -> Optional[CodeExecutionResult]:
+        """Code execution result, if present."""
+
+class AdkContent:
+    """Content container in an ADK response."""
+
+    @property
+    def parts(self) -> List[AdkPart]:
+        """Content parts."""
+
+    @property
+    def role(self) -> str:
+        """Content role (e.g. 'model')."""
+
+class AdkUsageMetadata:
+    """Token usage metadata from an ADK response."""
+
+    @property
+    def prompt_token_count(self) -> Optional[int]:
+        """Input prompt tokens."""
+
+    @property
+    def candidates_token_count(self) -> Optional[int]:
+        """Output/candidate tokens."""
+
+    @property
+    def total_token_count(self) -> Optional[int]:
+        """Total tokens."""
+
+    @property
+    def cached_content_token_count(self) -> Optional[int]:
+        """Cached content tokens."""
+
+    @property
+    def thoughts_token_count(self) -> Optional[int]:
+        """Thinking/thoughts tokens."""
+
+    @property
+    def tool_use_prompt_token_count(self) -> Optional[int]:
+        """Tool use prompt tokens."""
+
+    @property
+    def cache_tokens_details(self) -> Optional[List[ModalityTokenCount]]:
+        """Cache token breakdown by modality."""
+
+    @property
+    def candidates_tokens_details(self) -> Optional[List[ModalityTokenCount]]:
+        """Candidate token breakdown by modality."""
+
+    @property
+    def prompt_tokens_details(self) -> Optional[List[ModalityTokenCount]]:
+        """Prompt token breakdown by modality."""
+
+    @property
+    def tool_use_prompt_tokens_details(self) -> Optional[List[ModalityTokenCount]]:
+        """Tool use prompt token breakdown by modality."""
+
+    @property
+    def traffic_type(self) -> Optional[TrafficType]:
+        """Traffic type for the request."""
+
+class AdkTranscription:
+    """Input or output transcription from an ADK live session."""
+
+    @property
+    def text(self) -> Optional[str]:
+        """Transcription text."""
+
+    @property
+    def finished(self) -> Optional[bool]:
+        """Whether transcription is complete."""
+
+class AdkCacheMetadata:
+    """Cache metadata from an ADK response."""
+
+    @property
+    def cache_name(self) -> Optional[str]:
+        """Cache name."""
+
+    @property
+    def expire_time(self) -> Optional[float]:
+        """Cache expiry timestamp."""
+
+    @property
+    def fingerprint(self) -> str:
+        """Cache fingerprint."""
+
+    @property
+    def invocations_used(self) -> Optional[int]:
+        """Number of invocations used."""
+
+    @property
+    def contents_count(self) -> int:
+        """Number of cached contents."""
+
+    @property
+    def created_at(self) -> Optional[float]:
+        """Cache creation timestamp."""
+
+class AdkLiveSessionResumptionUpdate:
+    """Live session resumption update from an ADK response."""
+
+    @property
+    def new_handle(self) -> Optional[str]:
+        """New session handle."""
+
+    @property
+    def resumable(self) -> Optional[bool]:
+        """Whether session can be resumed."""
+
+    @property
+    def last_consumed_client_message_index(self) -> Optional[int]:
+        """Last consumed client message index."""
+
+class AdkLlmResponse:
+    """Google ADK LlmResponse — flat snake_case structure.
+
+    Discriminated by the presence of the ``partial`` field (ADK-specific).
+
+    Examples:
+        >>> resp = AdkLlmResponse.model_validate_json(llm_resp.model_dump_json())
+        >>> resp.response_text()
+        'hello from adk'
+    """
+
+    @property
+    def model_version(self) -> Optional[str]:
+        """Model version string."""
+
+    @property
+    def content(self) -> Optional[AdkContent]:
+        """Response content."""
+
+    @property
+    def grounding_metadata(self) -> Optional[GroundingMetadata]:
+        """Grounding metadata."""
+
+    @property
+    def partial(self) -> Optional[bool]:
+        """Whether this is a partial (streaming) response."""
+
+    @property
+    def turn_complete(self) -> Optional[bool]:
+        """Whether the turn is complete."""
+
+    @property
+    def finish_reason(self) -> Optional[FinishReason]:
+        """Finish reason enum value."""
+
+    @property
+    def error_code(self) -> Optional[str]:
+        """Error code, if any."""
+
+    @property
+    def error_message(self) -> Optional[str]:
+        """Error message, if any."""
+
+    @property
+    def interrupted(self) -> Optional[bool]:
+        """Whether the response was interrupted."""
+
+    @property
+    def usage_metadata(self) -> Optional[AdkUsageMetadata]:
+        """Token usage metadata."""
+
+    @property
+    def avg_logprobs(self) -> Optional[float]:
+        """Average log probabilities."""
+
+    @property
+    def logprobs_result(self) -> Optional[LogprobsResult]:
+        """Log probabilities result."""
+
+    @property
+    def cache_metadata(self) -> Optional[AdkCacheMetadata]:
+        """Cache metadata."""
+
+    @property
+    def citation_metadata(self) -> Optional[CitationMetadata]:
+        """Citation metadata."""
+
+    @property
+    def interaction_id(self) -> Optional[str]:
+        """Interaction identifier."""
+
+    @property
+    def live_session_resumption_update(self) -> Optional[AdkLiveSessionResumptionUpdate]:
+        """Live session resumption update."""
+
+    @property
+    def input_transcription(self) -> Optional[AdkTranscription]:
+        """Input transcription."""
+
+    @property
+    def output_transcription(self) -> Optional[AdkTranscription]:
+        """Output transcription."""
+
+    @staticmethod
+    def model_validate_json(json_string: str) -> "AdkLlmResponse":
+        """Deserialize from a JSON string."""
+
+    def model_dump_json(self) -> str:
+        """Serialize to a JSON string."""
+
+    def response_text(self) -> str:
+        """Extract the last non-empty text part."""
+
+    def model_name_str(self) -> Optional[str]:
+        """Return the model version string."""
+
+    def finish_reason_str(self) -> Optional[str]:
+        """Return the finish reason as a string (e.g. 'STOP')."""
+
+    def get_tool_calls(self) -> List[AdkToolCallInfo]:
+        """Return all function/tool calls in this response."""
+
+    def __str__(self) -> str: ...
 
 class PredictRequest:
     """Prediction API request.
@@ -11232,7 +11511,7 @@ class LLMJudgeTask:
     def __init__(
         self,
         id: str,
-        prompt: Prompt,
+        prompt: Prompt[Any],
         expected_value: Any,
         context_path: Optional[str],
         operator: ComparisonOperator,
@@ -12553,6 +12832,7 @@ class AgentAssertionTask:
         description: Optional[str] = None,
         depends_on: Optional[List[str]] = None,
         condition: Optional[bool] = None,
+        provider: Optional[Any] = None,
     ) -> None:
         """Create an AgentAssertionTask.
 
@@ -12571,6 +12851,9 @@ class AgentAssertionTask:
                 Task IDs this task depends on.
             condition (Optional[bool]):
                 If True, failed task skips subsequent tasks.
+            provider (Optional[Provider]):
+                Optional LLM provider hint (e.g. Provider.GoogleAdk) for
+                accurate response parsing.
 
         Raises:
             TypeError: If expected_value is not JSON-serializable or if
@@ -12662,11 +12945,101 @@ class AgentAssertionTask:
     def result(self) -> Optional[AssertionResult]:
         """Assertion result after task execution, or None if not yet run."""
 
+    @property
+    def provider(self) -> Optional[Any]:
+        """Optional LLM provider hint for response parsing."""
+
+    @provider.setter
+    def provider(self, provider: Optional[Any]) -> None:
+        """Set the LLM provider hint."""
+
     def __str__(self) -> str:
         """Return string representation of the agent assertion task."""
 
     def model_dump_json(self) -> str:
         """Serialize the task to a JSON string."""
+
+class MultiResponseMode:
+    """Mode for aggregating assertion results across multiple attribute values.
+
+    When a span attribute contains multiple values (e.g. a list of responses),
+    ``MultiResponseMode`` controls whether *any* or *all* of those values must
+    satisfy the inner task to count as a pass.
+
+    Variants:
+        Any: At least one value must pass the inner task.
+        All: Every value must pass the inner task.
+
+    Examples:
+        >>> mode = MultiResponseMode.Any
+        >>> mode = MultiResponseMode.All
+    """
+
+    Any: "MultiResponseMode"
+    All: "MultiResponseMode"
+
+class AttributeFilterTask:
+    """Inner task to run on each value extracted from a span attribute.
+
+    ``AttributeFilterTask`` is the sub-task embedded inside a
+    ``TraceAssertion.attribute_filter`` call.  It controls *how* each
+    extracted attribute value is evaluated:
+
+    - ``Assertion``: run a deterministic :class:`AssertionTask` directly on
+      the raw extracted value.
+    - ``AgentAssertion``: parse the value through ``AgentContextBuilder``
+      (to reconstruct tool-call / response structure) and then evaluate with
+      an :class:`AgentAssertionTask`.
+
+    Use the static factory methods rather than constructing variants directly.
+
+    Examples:
+        Deterministic check on a raw attribute value:
+
+        >>> task = AttributeFilterTask.assertion(
+        ...     AssertionTask(
+        ...         id="has_parts",
+        ...         context_path="content.parts",
+        ...         operator=ComparisonOperator.HasLengthGreaterThan,
+        ...         expected_value=0,
+        ...     )
+        ... )
+
+        Agent-level check (tool call) on a JSON-encoded response attribute:
+
+        >>> task = AttributeFilterTask.agent_assertion(
+        ...     AgentAssertionTask(
+        ...         id="tool_was_called",
+        ...         assertion=AgentAssertion.tool_called("transfer_to_agent"),
+        ...         expected_value=True,
+        ...         operator=ComparisonOperator.Equals,
+        ...     )
+        ... )
+    """
+
+    @staticmethod
+    def assertion(task: AssertionTask) -> "AttributeFilterTask":
+        """Create an ``Assertion`` variant wrapping *task*.
+
+        Args:
+            task (AssertionTask): The deterministic assertion to run on each
+                extracted attribute value.
+
+        Returns:
+            AttributeFilterTask: An ``Assertion`` variant.
+        """
+
+    @staticmethod
+    def agent_assertion(task: AgentAssertionTask) -> "AttributeFilterTask":
+        """Create an ``AgentAssertion`` variant wrapping *task*.
+
+        Args:
+            task (AgentAssertionTask): The agent assertion to run after
+                parsing the attribute value through ``AgentContextBuilder``.
+
+        Returns:
+            AttributeFilterTask: An ``AgentAssertion`` variant.
+        """
 
 class AssertionResult:
     @property
@@ -12718,6 +13091,30 @@ def execute_trace_assertion_tasks(tasks: List[TraceAssertionTask], spans: List[T
         ValueError: If tasks list is empty or spans are not provided.
     """
 
+class TaskSummary:
+    """Per-task pass/fail summary within a scenario result.
+
+    Attributes:
+        task_id (str): The task identifier.
+        passed (bool): Whether the task passed.
+        value (float): Numeric value (1.0 if passed, 0.0 if failed).
+    """
+
+    @property
+    def task_id(self) -> str:
+        """The task identifier."""
+
+    @property
+    def passed(self) -> bool:
+        """Whether the task passed."""
+
+    @property
+    def value(self) -> float:
+        """Numeric value (1.0 if passed, 0.0 if failed)."""
+
+    def __str__(self) -> str:
+        """Return a pretty-printed JSON string representation."""
+
 class EvalMetrics:
     """Aggregate evaluation metrics across all scenarios and sub-agents.
 
@@ -12736,6 +13133,8 @@ class EvalMetrics:
             Total number of scenarios evaluated.
         passed_scenarios (int):
             Number of scenarios where every task passed.
+        scenario_task_pass_rates (Dict[str, Dict[str, float]]):
+            Per-scenario, per-task pass rates. Maps scenario_id → task_id → pass_rate.
     """
 
     @property
@@ -12757,6 +13156,10 @@ class EvalMetrics:
     @property
     def passed_scenarios(self) -> int:
         """Number of scenarios where every task passed."""
+
+    @property
+    def scenario_task_pass_rates(self) -> Dict[str, Dict[str, float]]:
+        """Per-scenario, per-task pass rates."""
 
     def __str__(self) -> str:
         """Return a pretty-printed JSON string representation."""
@@ -12781,6 +13184,8 @@ class ScenarioResult:
             ``True`` when every task in this scenario passed.
         pass_rate (float):
             Fraction of tasks that passed (0–1).
+        task_results (List[TaskSummary]):
+            Per-task pass/fail summaries for this scenario.
     """
 
     @property
@@ -12802,6 +13207,10 @@ class ScenarioResult:
     @property
     def pass_rate(self) -> float:
         """Fraction of tasks that passed (0–1)."""
+
+    @property
+    def task_results(self) -> List["TaskSummary"]:
+        """Per-task pass/fail summaries for this scenario."""
 
     def __str__(self) -> str:
         """Return a pretty-printed JSON string representation."""
@@ -13103,8 +13512,12 @@ class ScenarioEvalResults:
             RuntimeError: If comparison computation fails.
         """
 
-    def as_table(self) -> None:
-        """Print a full evaluation summary (metrics + scenario table) to stdout."""
+    def as_table(self, show_datasets: bool = False) -> None:
+        """Print a full evaluation summary (metrics + scenario table) to stdout.
+
+        Args:
+            show_datasets: If True, also print per-dataset EvalResults tables.
+        """
 
 class EvalScenario:
     """A single test case in an offline agent evaluation run.
@@ -18290,6 +18703,14 @@ class DataProfiler:
 ### GLOBAL EXPORTS ###
 __all__ = [
     "ActiveSpan",
+    "AdkCacheMetadata",
+    "AdkContent",
+    "AdkLiveSessionResumptionUpdate",
+    "AdkLlmResponse",
+    "AdkPart",
+    "AdkToolCallInfo",
+    "AdkTranscription",
+    "AdkUsageMetadata",
     "Agent",
     "AgentAssertion",
     "AgentAssertionTask",
@@ -18615,6 +19036,7 @@ __all__ = [
     "TaskEvent",
     "TaskList",
     "TaskStatus",
+    "TaskSummary",
     "TasksFile",
     "TerrellScott",
     "TestSpanExporter",
