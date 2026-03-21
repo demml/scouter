@@ -5,12 +5,16 @@ from google.adk.models.llm_response import LlmResponse
 from google.genai import types
 from scouter.drift import GenAIEvalProfile
 from scouter.evaluate import (
+    AgentAssertion,
+    AgentAssertionTask,
     AssertionTask,
+    AttributeFilterTask,
     ComparisonOperator,
     EvalOrchestrator,
     EvalRecord,
     EvalScenario,
     EvalScenarios,
+    MultiResponseMode,
     ScenarioEvalResults,
     SpanFilter,
     TraceAssertion,
