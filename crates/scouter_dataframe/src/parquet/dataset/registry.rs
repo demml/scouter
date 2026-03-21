@@ -225,31 +225,31 @@ impl DatasetRegistry {
         let batches = df.collect().await?;
 
         for batch in &batches {
-            // Use StringViewArray (Utf8View) — session config has schema_force_view_types=true
+            // session config has schema_force_view_types=true → Utf8 reads back as Utf8View
             let fqn_col = batch
                 .column_by_name("fqn")
-                .and_then(|c| c.as_any().downcast_ref::<StringViewArray>());
+                .and_then(|c| c.as_string_view_opt());
             let catalog_col = batch
                 .column_by_name("catalog")
-                .and_then(|c| c.as_any().downcast_ref::<StringViewArray>());
+                .and_then(|c| c.as_string_view_opt());
             let schema_name_col = batch
                 .column_by_name("schema_name")
-                .and_then(|c| c.as_any().downcast_ref::<StringViewArray>());
+                .and_then(|c| c.as_string_view_opt());
             let table_name_col = batch
                 .column_by_name("table_name")
-                .and_then(|c| c.as_any().downcast_ref::<StringViewArray>());
+                .and_then(|c| c.as_string_view_opt());
             let fingerprint_col = batch
                 .column_by_name("fingerprint")
-                .and_then(|c| c.as_any().downcast_ref::<StringViewArray>());
+                .and_then(|c| c.as_string_view_opt());
             let arrow_schema_col = batch
                 .column_by_name("arrow_schema_json")
-                .and_then(|c| c.as_any().downcast_ref::<StringViewArray>());
+                .and_then(|c| c.as_string_view_opt());
             let json_schema_col = batch
                 .column_by_name("json_schema")
-                .and_then(|c| c.as_any().downcast_ref::<StringViewArray>());
+                .and_then(|c| c.as_string_view_opt());
             let partition_col = batch
                 .column_by_name("partition_columns")
-                .and_then(|c| c.as_any().downcast_ref::<StringViewArray>());
+                .and_then(|c| c.as_string_view_opt());
 
             let (
                 Some(fqn_col),

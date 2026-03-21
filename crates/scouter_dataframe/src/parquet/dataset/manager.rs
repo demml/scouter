@@ -404,7 +404,8 @@ impl DatasetEngineManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
+    use arrow::array::AsArray;
+    use arrow::datatypes::{DataType, Field, Int64Type, Schema, TimeUnit};
     use scouter_types::dataset::{DatasetFingerprint, DatasetRegistration};
     use tempfile::TempDir;
 
@@ -667,7 +668,7 @@ mod tests {
 
         // Register 3 tables
         for i in 0..3 {
-            let ns = DatasetNamespace::new("cat", "sch", &format!("tbl_{}", i)).unwrap();
+            let ns = DatasetNamespace::new("cat", "sch", format!("tbl_{i}")).unwrap();
             let reg = DatasetRegistration::new(
                 ns, fp.clone(), arrow_json.clone(), "{}".into(), vec![],
             );
@@ -740,8 +741,7 @@ mod tests {
         let count_col = results[0]
             .column_by_name("cnt")
             .unwrap()
-            .as_any()
-            .downcast_ref::<arrow::array::Int64Array>()
+            .as_primitive_opt::<Int64Type>()
             .unwrap();
         assert_eq!(count_col.value(0), 3);
 
