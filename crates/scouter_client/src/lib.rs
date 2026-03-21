@@ -1,12 +1,17 @@
 pub mod data_utils;
+pub mod dataset;
 pub mod drifter;
 pub mod error;
 pub mod http;
 pub mod profiler;
 
+pub use dataset::client::DatasetClient;
 pub use drifter::scouter::PyDrifter;
 pub use profiler::scouter::DataProfiler;
 pub use scouter_settings::{grpc::GrpcConfig, HttpConfig};
+pub use scouter_types::dataset::{
+    fingerprint_from_json_schema, inject_system_columns, json_schema_to_arrow,
+};
 pub use scouter_types::{
     alert::{Alert, Alerts, CompressionType},
     create_feature_map,
