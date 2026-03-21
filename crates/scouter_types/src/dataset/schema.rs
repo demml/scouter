@@ -10,6 +10,8 @@ const SCOUTER_CREATED_AT: &str = "scouter_created_at";
 const SCOUTER_PARTITION_DATE: &str = "scouter_partition_date";
 const SCOUTER_BATCH_ID: &str = "scouter_batch_id";
 
+const MAX_SCHEMA_DEPTH: usize = 32;
+
 /// Convert a Pydantic-generated JSON Schema string into an Arrow `Schema`.
 ///
 /// Handles:
@@ -52,7 +54,7 @@ pub fn json_schema_to_arrow(json_schema: &str) -> Result<Schema, DatasetError> {
     let mut fields = Vec::with_capacity(properties.len());
     for (name, prop) in properties {
         let nullable = !required.contains(name.as_str());
-        let (dtype, is_nullable) = resolve_type(prop, &defs, nullable)?;
+        let (dtype, is_nullable) = resolve_type(prop, &defs, nullable, 0)?;
         fields.push(Field::new(name, dtype, is_nullable));
     }
 
@@ -61,7 +63,16 @@ pub fn json_schema_to_arrow(json_schema: &str) -> Result<Schema, DatasetError> {
 
 /// Inject the three system columns at the end of a schema.
 /// These are always non-nullable and always appended in the same order.
-pub fn inject_system_columns(schema: Schema) -> Schema {
+///
+/// Returns `Err` if the user schema already contains a reserved column name.
+pub fn inject_system_columns(schema: Schema) -> Result<Schema, DatasetError> {
+    for col_name in [SCOUTER_CREATED_AT, SCOUTER_PARTITION_DATE, SCOUTER_BATCH_ID] {
+        if schema.index_of(col_name).is_ok() {
+            return Err(DatasetError::SchemaParseError(format!(
+                "User schema must not contain reserved column '{col_name}'"
+            )));
+        }
+    }
     let mut fields: Vec<Field> = schema.fields().iter().map(|f| f.as_ref().clone()).collect();
     fields.push(Field::new(
         SCOUTER_CREATED_AT,
@@ -70,26 +81,74 @@ pub fn inject_system_columns(schema: Schema) -> Schema {
     ));
     fields.push(Field::new(SCOUTER_PARTITION_DATE, DataType::Date32, false));
     fields.push(Field::new(SCOUTER_BATCH_ID, DataType::Utf8, false));
-    Schema::new(fields)
+    Ok(Schema::new(fields))
 }
 
 /// Compute a stable fingerprint from a schema.
 ///
-/// Serializes the schema to JSON (canonical field order), then hashes with SHA-256.
+/// Serializes the schema to a canonical string (sorted field names + type + nullable),
+/// then hashes with SHA-256.
 pub fn schema_fingerprint(schema: &Schema) -> Result<DatasetFingerprint, DatasetError> {
-    // Use a canonical representation: sorted field names + type + nullable
     let canonical = canonical_schema_repr(schema);
     Ok(DatasetFingerprint::from_schema_json(&canonical))
+}
+
+fn canonical_type_repr(dt: &DataType) -> String {
+    match dt {
+        DataType::Struct(fields) => {
+            let mut sub: Vec<String> = fields
+                .iter()
+                .map(|f| {
+                    format!(
+                        "{}:{}:{}",
+                        f.name(),
+                        canonical_type_repr(f.data_type()),
+                        f.is_nullable()
+                    )
+                })
+                .collect();
+            sub.sort();
+            format!("Struct({})", sub.join(","))
+        }
+        other => format!("{other}"),
+    }
 }
 
 fn canonical_schema_repr(schema: &Schema) -> String {
     let mut fields: Vec<String> = schema
         .fields()
         .iter()
-        .map(|f| format!("{}:{}:{}", f.name(), f.data_type(), f.is_nullable()))
+        .map(|f| {
+            format!(
+                "{}:{}:{}",
+                f.name(),
+                canonical_type_repr(f.data_type()),
+                f.is_nullable()
+            )
+        })
         .collect();
     fields.sort();
     fields.join("|")
+}
+
+/// Returns true if this JSON Schema variant represents the `null` type,
+/// covering Pydantic v2's multiple encodings:
+/// - `{"type": "null"}`
+/// - `{"const": null}`
+/// - `{"enum": [null]}` (single-element null enum)
+fn is_null_variant(v: &Value) -> bool {
+    if v.get("type").and_then(Value::as_str) == Some("null") {
+        return true;
+    }
+    if v.get("const").map(Value::is_null).unwrap_or(false) {
+        return true;
+    }
+    if let Some(arr) = v.get("enum").and_then(Value::as_array) {
+        if arr.len() == 1 && arr[0].is_null() {
+            return true;
+        }
+    }
+    false
 }
 
 /// Resolve a single JSON Schema property into an Arrow `(DataType, nullable)` pair.
@@ -97,7 +156,14 @@ fn resolve_type(
     prop: &Value,
     defs: &Map<String, Value>,
     nullable: bool,
+    depth: usize,
 ) -> Result<(DataType, bool), DatasetError> {
+    if depth >= MAX_SCHEMA_DEPTH {
+        return Err(DatasetError::SchemaParseError(format!(
+            "Schema nesting exceeds maximum depth of {MAX_SCHEMA_DEPTH}"
+        )));
+    }
+
     let obj = match prop.as_object() {
         Some(o) => o,
         None => {
@@ -109,12 +175,12 @@ fn resolve_type(
 
     // $ref — look up in $defs
     if let Some(ref_val) = obj.get("$ref").and_then(Value::as_str) {
-        return resolve_ref(ref_val, defs, nullable);
+        return resolve_ref(ref_val, defs, nullable, depth + 1);
     }
 
     // anyOf — typically Optional[T]: [{T}, {type: "null"}]
     if let Some(any_of) = obj.get("anyOf").and_then(Value::as_array) {
-        return resolve_any_of(any_of, defs);
+        return resolve_any_of(any_of, defs, depth + 1);
     }
 
     // enum / Literal
@@ -149,7 +215,7 @@ fn resolve_type(
             let items = obj.get("items").ok_or_else(|| {
                 DatasetError::SchemaParseError("Array missing 'items'".to_string())
             })?;
-            let (item_type, item_nullable) = resolve_type(items, defs, true)?;
+            let (item_type, item_nullable) = resolve_type(items, defs, true, depth + 1)?;
             let item_field = Arc::new(Field::new("item", item_type, item_nullable));
             Ok((DataType::List(item_field), nullable))
         }
@@ -158,7 +224,10 @@ fn resolve_type(
                 .get("properties")
                 .and_then(Value::as_object)
                 .ok_or_else(|| {
-                    DatasetError::SchemaParseError("Object type missing 'properties'".to_string())
+                    DatasetError::UnsupportedType(
+                        "Free-form dict (object without 'properties') is not yet supported"
+                            .to_string(),
+                    )
                 })?;
             let required: std::collections::HashSet<&str> = obj
                 .get("required")
@@ -168,7 +237,7 @@ fn resolve_type(
             let mut struct_fields = Vec::with_capacity(props.len());
             for (name, sub_prop) in props {
                 let field_nullable = !required.contains(name.as_str());
-                let (dtype, is_nullable) = resolve_type(sub_prop, defs, field_nullable)?;
+                let (dtype, is_nullable) = resolve_type(sub_prop, defs, field_nullable, depth + 1)?;
                 struct_fields.push(Arc::new(Field::new(name, dtype, is_nullable)));
             }
             Ok((DataType::Struct(Fields::from(struct_fields)), nullable))
@@ -187,7 +256,14 @@ fn resolve_ref(
     ref_val: &str,
     defs: &Map<String, Value>,
     nullable: bool,
+    depth: usize,
 ) -> Result<(DataType, bool), DatasetError> {
+    if depth >= MAX_SCHEMA_DEPTH {
+        return Err(DatasetError::SchemaParseError(format!(
+            "Schema nesting exceeds maximum depth of {MAX_SCHEMA_DEPTH}"
+        )));
+    }
+
     let def_name = ref_val.strip_prefix("#/$defs/").ok_or_else(|| {
         DatasetError::RefResolutionError(format!("Unrecognized $ref format: {ref_val}"))
     })?;
@@ -211,14 +287,14 @@ fn resolve_ref(
         let mut struct_fields = Vec::with_capacity(props.len());
         for (name, sub_prop) in props {
             let field_nullable = !required.contains(name.as_str());
-            let (dtype, is_nullable) = resolve_type(sub_prop, defs, field_nullable)?;
+            let (dtype, is_nullable) = resolve_type(sub_prop, defs, field_nullable, depth + 1)?;
             struct_fields.push(Arc::new(Field::new(name, dtype, is_nullable)));
         }
         return Ok((DataType::Struct(Fields::from(struct_fields)), nullable));
     }
 
     // Non-struct def (enum, primitive, etc.) — delegate to resolve_type
-    resolve_type(def, defs, nullable)
+    resolve_type(def, defs, nullable, depth + 1)
 }
 
 /// Handle `anyOf` — Pydantic's encoding for `Optional[T]` is `[{T}, {"type": "null"}]`.
@@ -226,18 +302,16 @@ fn resolve_ref(
 fn resolve_any_of(
     variants: &[Value],
     defs: &Map<String, Value>,
+    depth: usize,
 ) -> Result<(DataType, bool), DatasetError> {
-    let non_null: Vec<&Value> = variants
-        .iter()
-        .filter(|v| v.get("type").and_then(Value::as_str) != Some("null"))
-        .collect();
+    let non_null: Vec<&Value> = variants.iter().filter(|v| !is_null_variant(v)).collect();
 
     if non_null.len() == 1 {
-        let (dtype, _) = resolve_type(non_null[0], defs, true)?;
+        let (dtype, _) = resolve_type(non_null[0], defs, true, depth)?;
         return Ok((dtype, true));
     }
 
-    // Multiple non-null variants — not yet supported, use Utf8View as fallback
+    // Multiple non-null variants — not yet supported
     Err(DatasetError::UnsupportedType(
         "anyOf with multiple non-null variants is not supported".to_string(),
     ))
@@ -247,19 +321,20 @@ fn resolve_any_of(
 /// Convenience wrapper: parse → inject system cols → fingerprint.
 pub fn fingerprint_from_json_schema(json_schema: &str) -> Result<DatasetFingerprint, DatasetError> {
     let schema = json_schema_to_arrow(json_schema)?;
-    let schema_with_sys = inject_system_columns(schema);
+    let schema_with_sys = inject_system_columns(schema)?;
     schema_fingerprint(&schema_with_sys)
 }
 
 /// Build registration inputs from a JSON Schema string + namespace + partition columns.
 /// Returns `(arrow_schema, fingerprint)`.
-pub fn build_registration(
+#[allow(dead_code)]
+pub(crate) fn build_registration(
     json_schema: &str,
     _namespace: &DatasetNamespace,
     _partition_columns: &[String],
 ) -> Result<(Schema, DatasetFingerprint), DatasetError> {
     let schema = json_schema_to_arrow(json_schema)?;
-    let schema_with_sys = inject_system_columns(schema);
+    let schema_with_sys = inject_system_columns(schema)?;
     let fingerprint = schema_fingerprint(&schema_with_sys)?;
     Ok((schema_with_sys, fingerprint))
 }
@@ -485,7 +560,7 @@ mod tests {
     #[test]
     fn test_system_columns_injected() {
         let schema = json_schema_to_arrow(flat_schema_json()).unwrap();
-        let schema = inject_system_columns(schema);
+        let schema = inject_system_columns(schema).unwrap();
 
         let created = schema.field_with_name(SCOUTER_CREATED_AT).unwrap();
         assert!(matches!(
@@ -501,6 +576,21 @@ mod tests {
         let batch_id = schema.field_with_name(SCOUTER_BATCH_ID).unwrap();
         assert_eq!(batch_id.data_type(), &DataType::Utf8);
         assert!(!batch_id.is_nullable());
+    }
+
+    #[test]
+    fn test_reserved_column_collision_error() {
+        let bad = r#"{
+            "type": "object",
+            "properties": {
+                "scouter_created_at": {"type": "string"}
+            },
+            "required": ["scouter_created_at"]
+        }"#;
+        let schema = json_schema_to_arrow(bad).unwrap();
+        let err = inject_system_columns(schema).unwrap_err();
+        assert!(matches!(err, DatasetError::SchemaParseError(_)));
+        assert!(err.to_string().contains("reserved"));
     }
 
     #[test]
@@ -533,9 +623,33 @@ mod tests {
     }
 
     #[test]
-    fn test_fingerprint_is_16_chars() {
+    fn test_fingerprint_is_32_chars() {
         let fp = fingerprint_from_json_schema(flat_schema_json()).unwrap();
-        assert_eq!(fp.as_str().len(), 16);
+        assert_eq!(fp.as_str().len(), 32);
+    }
+
+    #[test]
+    fn test_fingerprint_field_order_independent() {
+        // Same fields, different declaration order → same fingerprint
+        let schema_a = r#"{
+            "type": "object",
+            "properties": {
+                "alpha": {"type": "string"},
+                "beta": {"type": "integer"}
+            },
+            "required": ["alpha", "beta"]
+        }"#;
+        let schema_b = r#"{
+            "type": "object",
+            "properties": {
+                "beta": {"type": "integer"},
+                "alpha": {"type": "string"}
+            },
+            "required": ["alpha", "beta"]
+        }"#;
+        let fp_a = fingerprint_from_json_schema(schema_a).unwrap();
+        let fp_b = fingerprint_from_json_schema(schema_b).unwrap();
+        assert_eq!(fp_a, fp_b);
     }
 
     #[test]
@@ -562,5 +676,131 @@ mod tests {
         }"##;
         let err = json_schema_to_arrow(bad).unwrap_err();
         assert!(matches!(err, DatasetError::RefResolutionError(_)));
+    }
+
+    #[test]
+    fn test_missing_properties_key_error() {
+        let bad = r#"{"type": "object"}"#;
+        let err = json_schema_to_arrow(bad).unwrap_err();
+        assert!(matches!(err, DatasetError::SchemaParseError(_)));
+    }
+
+    #[test]
+    fn test_bad_ref_format_error() {
+        let bad = r##"{
+            "type": "object",
+            "properties": {
+                "x": {"$ref": "definitions/Foo"}
+            },
+            "required": ["x"]
+        }"##;
+        let err = json_schema_to_arrow(bad).unwrap_err();
+        assert!(matches!(err, DatasetError::RefResolutionError(_)));
+    }
+
+    #[test]
+    fn test_property_not_object_error() {
+        let bad = r#"{
+            "type": "object",
+            "properties": {
+                "x": true
+            },
+            "required": ["x"]
+        }"#;
+        let err = json_schema_to_arrow(bad).unwrap_err();
+        assert!(matches!(err, DatasetError::SchemaParseError(_)));
+    }
+
+    #[test]
+    fn test_any_of_multiple_non_null_variants_error() {
+        let bad = r#"{
+            "type": "object",
+            "properties": {
+                "x": {"anyOf": [{"type": "integer"}, {"type": "string"}]}
+            },
+            "required": ["x"]
+        }"#;
+        let err = json_schema_to_arrow(bad).unwrap_err();
+        assert!(matches!(err, DatasetError::UnsupportedType(_)));
+    }
+
+    #[test]
+    fn test_any_of_null_enum_encoding() {
+        // Pydantic v2 may encode Optional[T] null branch as {"enum": [null]}
+        let schema = r#"{
+            "type": "object",
+            "properties": {
+                "x": {"anyOf": [{"type": "integer"}, {"enum": [null]}]}
+            },
+            "required": []
+        }"#;
+        let result = json_schema_to_arrow(schema);
+        assert!(result.is_ok());
+        let field = result.unwrap();
+        let x = field.field_with_name("x").unwrap();
+        assert!(x.is_nullable());
+        assert_eq!(x.data_type(), &DataType::Int64);
+    }
+
+    #[test]
+    fn test_any_of_const_null_encoding() {
+        // Pydantic v2 may encode null branch as {"const": null}
+        let schema = r#"{
+            "type": "object",
+            "properties": {
+                "x": {"anyOf": [{"type": "string"}, {"const": null}]}
+            },
+            "required": []
+        }"#;
+        let result = json_schema_to_arrow(schema);
+        assert!(result.is_ok());
+        let field = result.unwrap();
+        let x = field.field_with_name("x").unwrap();
+        assert!(x.is_nullable());
+        assert_eq!(x.data_type(), &DataType::Utf8View);
+    }
+
+    #[test]
+    fn test_free_form_dict_is_unsupported_type() {
+        let bad = r#"{
+            "type": "object",
+            "properties": {
+                "x": {"type": "object"}
+            },
+            "required": ["x"]
+        }"#;
+        let err = json_schema_to_arrow(bad).unwrap_err();
+        assert!(matches!(err, DatasetError::UnsupportedType(_)));
+    }
+
+    #[test]
+    fn test_build_registration_includes_sys_cols() {
+        use crate::dataset::types::DatasetNamespace;
+        let ns = DatasetNamespace::new("cat", "sch", "tbl").unwrap();
+        let (schema, fingerprint) = build_registration(flat_schema_json(), &ns, &[]).unwrap();
+        assert!(schema.index_of(SCOUTER_CREATED_AT).is_ok());
+        assert!(schema.index_of(SCOUTER_PARTITION_DATE).is_ok());
+        assert!(schema.index_of(SCOUTER_BATCH_ID).is_ok());
+        assert_eq!(fingerprint.as_str().len(), 32);
+    }
+
+    #[test]
+    fn test_max_depth_exceeded() {
+        // Build a deeply nested $ref chain that exceeds MAX_SCHEMA_DEPTH
+        // We simulate by crafting a schema where $defs reference each other > 32 levels deep.
+        // Since $ref resolves via a flat $defs lookup (no actual recursion in the JSON),
+        // we test the depth by constructing an "object" with nested properties 33 levels deep.
+        let mut inner = r#"{"type": "string"}"#.to_string();
+        for _ in 0..MAX_SCHEMA_DEPTH {
+            inner = format!(
+                r#"{{"type": "object", "properties": {{"x": {inner}}}, "required": ["x"]}}"#
+            );
+        }
+        let schema = format!(
+            r#"{{"type": "object", "properties": {{"root": {inner}}}, "required": ["root"]}}"#
+        );
+        let err = json_schema_to_arrow(&schema).unwrap_err();
+        assert!(matches!(err, DatasetError::SchemaParseError(_)));
+        assert!(err.to_string().contains("depth"));
     }
 }

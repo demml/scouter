@@ -4,9 +4,16 @@ use scouter_types::dataset::{
     fingerprint_from_json_schema, inject_system_columns, json_schema_to_arrow, DatasetError,
 };
 
-fn to_json_str(schema: &Bound<'_, PyAny>) -> PyResult<String> {
+fn to_json_str(schema: &Bound<'_, PyAny>) -> Result<String, DatasetError> {
     let json = schema.py().import("json")?;
-    json.call_method1("dumps", (schema,))?.extract()
+    let dumped = json
+        .call_method1("dumps", (schema,))
+        .map_err(|_| {
+            DatasetError::SchemaParseError(
+                "schema must be a JSON-serialisable dict — pass `Model.model_json_schema()`, not a model instance".to_string(),
+            )
+        })?;
+    Ok(dumped.extract::<String>()?)
 }
 
 #[pyclass]
@@ -21,12 +28,12 @@ impl DatasetClient {
     ) -> Result<Bound<'py, PyDict>, DatasetError> {
         let json_str = to_json_str(schema)?;
         let arrow_schema = json_schema_to_arrow(&json_str)?;
-        let arrow_schema = inject_system_columns(arrow_schema);
+        let arrow_schema = inject_system_columns(arrow_schema)?;
 
         let result = PyDict::new(py);
         for field in arrow_schema.fields() {
             let field_info = PyDict::new(py);
-            field_info.set_item("arrow_type", format!("{}", field.data_type()))?;
+            field_info.set_item("arrow_type", field.data_type().to_string())?;
             field_info.set_item("nullable", field.is_nullable())?;
             result.set_item(field.name(), field_info)?;
         }

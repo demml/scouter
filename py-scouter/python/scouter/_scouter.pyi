@@ -18722,7 +18722,7 @@ class DatasetClient:
 
     @staticmethod
     def compute_fingerprint(schema: Dict[str, Any]) -> str:
-        """Compute a stable 16-character SHA-256 fingerprint from a JSON Schema dict.
+        """Compute a stable 32-character SHA-256 fingerprint from a JSON Schema dict.
 
         The fingerprint is deterministic — the same schema always yields the same value.
         Any field addition, removal, or type change yields a different value.
@@ -18732,7 +18732,7 @@ class DatasetClient:
                 Dict returned by ``Model.model_json_schema()``.
 
         Returns:
-            str: 16-character hexadecimal fingerprint string.
+            str: 32-character hexadecimal fingerprint string.
         """
 
 ### GLOBAL EXPORTS ###
@@ -18831,6 +18831,7 @@ __all__ = [
     "DataProfile",
     "DataProfiler",
     "DataStoreSpec",
+    "DatasetClient",
     "Distinct",
     "Doane",
     "DocumentBlockParam",

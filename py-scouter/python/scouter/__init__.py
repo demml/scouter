@@ -3,6 +3,7 @@
 from . import (
     alert,
     client,
+    dataset,
     drift,
     evaluate,
     genai,
@@ -16,7 +17,7 @@ from . import (
     types,
     util,
 )
-from ._scouter import (  # genai
+from ._scouter import (  # dataset; genai
     AggregationType,
     AssertionTask,
     CommonCrons,
@@ -54,7 +55,7 @@ from ._scouter import (  # genai
     Queue,
 )
 from ._scouter import QueueFeature as Feature
-from ._scouter import (  # genai
+from ._scouter import (  # dataset; genai
     RabbitMQConfig,
     RedisConfig,
     Rice,
@@ -90,6 +91,7 @@ RustyLogger.setup_logging(
 __all__ = [
     "alert",
     "client",
+    "dataset",
     "drift",
     "evaluate",
     "genai",

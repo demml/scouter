@@ -4,8 +4,9 @@ from datetime import date, datetime
 from enum import Enum
 from typing import List, Optional
 
+import pytest
 from pydantic import BaseModel
-from scouter._scouter import DatasetClient
+from scouter.dataset import DatasetClient
 
 # ── Model definitions ─────────────────────────────────────────────────────────
 
@@ -207,15 +208,15 @@ def test_optional_nested_struct_is_nullable():
 # ── Fingerprint ───────────────────────────────────────────────────────────────
 
 
-def test_fingerprint_is_16_chars():
+def test_fingerprint_is_32_chars():
     fp = DatasetClient.compute_fingerprint(FlatModel.model_json_schema())
-    assert len(fp) == 16
+    assert len(fp) == 32
 
 
 def test_fingerprint_stable():
-    assert DatasetClient.compute_fingerprint(
+    assert DatasetClient.compute_fingerprint(FlatModel.model_json_schema()) == DatasetClient.compute_fingerprint(
         FlatModel.model_json_schema()
-    ) == DatasetClient.compute_fingerprint(FlatModel.model_json_schema())
+    )
 
 
 def test_fingerprint_changes_on_field_add():
@@ -228,9 +229,9 @@ def test_fingerprint_changes_on_field_add():
         label: str
         new_field: str
 
-    assert DatasetClient.compute_fingerprint(
-        FlatModel.model_json_schema()
-    ) != DatasetClient.compute_fingerprint(Extended.model_json_schema())
+    assert DatasetClient.compute_fingerprint(FlatModel.model_json_schema()) != DatasetClient.compute_fingerprint(
+        Extended.model_json_schema()
+    )
 
 
 def test_fingerprint_changes_on_type_change():
@@ -242,12 +243,55 @@ def test_fingerprint_changes_on_type_change():
         active: bool
         label: int
 
-    assert DatasetClient.compute_fingerprint(
-        FlatModel.model_json_schema()
-    ) != DatasetClient.compute_fingerprint(IntLabel.model_json_schema())
+    assert DatasetClient.compute_fingerprint(FlatModel.model_json_schema()) != DatasetClient.compute_fingerprint(
+        IntLabel.model_json_schema()
+    )
 
 
 def test_fingerprint_differs_across_models():
-    assert DatasetClient.compute_fingerprint(
-        FlatModel.model_json_schema()
-    ) != DatasetClient.compute_fingerprint(OptionalModel.model_json_schema())
+    assert DatasetClient.compute_fingerprint(FlatModel.model_json_schema()) != DatasetClient.compute_fingerprint(
+        OptionalModel.model_json_schema()
+    )
+
+
+# ── Error paths ───────────────────────────────────────────────────────────────
+
+
+def test_parse_schema_unsupported_type_raises():
+    schema = {
+        "type": "object",
+        "properties": {"x": {"type": "unknown_type"}},
+        "required": ["x"],
+    }
+    with pytest.raises(RuntimeError, match="Unsupported"):
+        DatasetClient.parse_schema(schema)
+
+
+def test_parse_schema_missing_ref_raises():
+    schema = {
+        "type": "object",
+        "properties": {"x": {"$ref": "#/$defs/DoesNotExist"}},
+        "required": ["x"],
+    }
+    with pytest.raises(RuntimeError):
+        DatasetClient.parse_schema(schema)
+
+
+def test_parse_schema_missing_properties_raises():
+    with pytest.raises(RuntimeError):
+        DatasetClient.parse_schema({"type": "object"})
+
+
+def test_parse_schema_reserved_column_collision_raises():
+    schema = {
+        "type": "object",
+        "properties": {"scouter_created_at": {"type": "string"}},
+        "required": ["scouter_created_at"],
+    }
+    with pytest.raises(RuntimeError, match="reserved"):
+        DatasetClient.parse_schema(schema)
+
+
+def test_compute_fingerprint_invalid_schema_raises():
+    with pytest.raises(RuntimeError):
+        DatasetClient.compute_fingerprint({"no_properties": True})

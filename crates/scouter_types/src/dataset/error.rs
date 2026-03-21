@@ -1,5 +1,4 @@
 use pyo3::exceptions::PyRuntimeError;
-use pyo3::pyclass::PyClassGuardError;
 use pyo3::PyErr;
 use thiserror::Error;
 
@@ -36,12 +35,6 @@ impl From<DatasetError> for PyErr {
 
 impl From<PyErr> for DatasetError {
     fn from(err: PyErr) -> DatasetError {
-        DatasetError::PyError(err.to_string())
-    }
-}
-
-impl<'a, 'py> From<PyClassGuardError<'a, 'py>> for DatasetError {
-    fn from(err: PyClassGuardError<'a, 'py>) -> Self {
         DatasetError::PyError(err.to_string())
     }
 }
