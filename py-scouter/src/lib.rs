@@ -1,5 +1,6 @@
 pub mod alert;
 pub mod client;
+pub mod dataset;
 pub mod drift;
 pub mod evaluate;
 pub mod genai;
@@ -16,6 +17,7 @@ use pyo3::prelude::*;
 
 #[pymodule]
 fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    dataset::add_dataset_module(m)?;
     queue::add_queue_module(m)?;
     logging::add_logging_module(m)?;
     client::add_client_module(m)?;

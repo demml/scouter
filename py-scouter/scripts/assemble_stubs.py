@@ -12,6 +12,7 @@ STUB_FILES = [
     "evaluate.pyi",
     "mock.pyi",
     "scouter.pyi",
+    "dataset.pyi",
 ]
 
 

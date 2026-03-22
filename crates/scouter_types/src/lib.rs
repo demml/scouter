@@ -2,6 +2,7 @@ pub mod alert;
 pub mod archive;
 pub mod contracts;
 pub mod custom;
+pub mod dataset;
 pub mod drift;
 pub mod error;
 pub mod genai;
