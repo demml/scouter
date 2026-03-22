@@ -121,7 +121,6 @@ fn canonical_type_repr(dt: &DataType) -> String {
         other => format!("{other}"),
     }
 }
-}
 
 fn canonical_schema_repr(schema: &Schema) -> String {
     let mut fields: Vec<String> = schema
