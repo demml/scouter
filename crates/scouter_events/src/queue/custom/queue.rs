@@ -1,6 +1,6 @@
 use crate::error::EventError;
 use crate::producer::RustScouterProducer;
-use crate::queue::bus::TaskState;
+use crate::queue::bus::{Event, TaskState};
 use crate::queue::custom::feature_queue::CustomMetricFeatureQueue;
 use crate::queue::traits::{BackgroundTask, QueueMethods};
 use crate::queue::types::TransportConfig;
@@ -38,7 +38,7 @@ impl CustomQueue {
     pub async fn new(
         drift_profile: CustomDriftProfile,
         config: TransportConfig,
-        task_state: &mut TaskState,
+        task_state: &mut TaskState<Event>,
         identifier: String,
     ) -> Result<Self, EventError> {
         let sample_size = drift_profile.config.sample_size;

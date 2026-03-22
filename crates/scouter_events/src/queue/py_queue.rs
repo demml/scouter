@@ -24,7 +24,7 @@ use tokio::sync::mpsc::UnboundedReceiver;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, instrument};
 
-fn create_event_state(id: String) -> (TaskState, UnboundedReceiver<Event>) {
+fn create_event_state(id: String) -> (TaskState<Event>, UnboundedReceiver<Event>) {
     let (event_tx, event_rx) = tokio::sync::mpsc::unbounded_channel();
 
     // get background loop
@@ -45,7 +45,7 @@ fn create_event_state(id: String) -> (TaskState, UnboundedReceiver<Event>) {
 /// Mutable output maps populated during queue initialization.
 /// Bundled to keep `initialize_queue`'s argument count within clippy limits.
 struct QueueRegistry {
-    queue_state: HashMap<String, TaskState>,
+    queue_state: HashMap<String, TaskState<Event>>,
     queue_settings: HashMap<String, Arc<RwLock<QueueSettings>>>,
     genai_profiles: HashMap<String, Arc<GenAIEvalProfile>>,
 }
@@ -71,7 +71,7 @@ impl QueueNum {
     pub async fn new(
         transport_config: TransportConfig,
         drift_profile: DriftProfile,
-        task_state: &mut TaskState,
+        task_state: &mut TaskState<Event>,
         queue_settings: Option<Arc<RwLock<QueueSettings>>>,
     ) -> Result<Self, EventError> {
         let identifier = drift_profile.identifier();
@@ -197,7 +197,7 @@ async fn spawn_queue_event_handler(
     transport_config: TransportConfig,
     drift_profile: DriftProfile,
     id: String,
-    mut task_state: TaskState,
+    mut task_state: TaskState<Event>,
     cancellation_token: CancellationToken,
     queue_settings: Option<Arc<RwLock<QueueSettings>>>,
 ) -> Result<(), EventError> {
@@ -294,7 +294,7 @@ pub struct ScouterQueue {
     // this is used to update settings for a particular queue
     // Key is the alias of the queue
     settings: HashMap<String, Arc<RwLock<QueueSettings>>>,
-    pub queue_state: Arc<HashMap<String, TaskState>>,
+    pub queue_state: Arc<HashMap<String, TaskState<Event>>>,
     // Profiles stored as Arc so EvalScenarios can share ownership without cloning
     profiles: HashMap<String, Arc<GenAIEvalProfile>>,
 }

@@ -45,6 +45,12 @@ pub mod client;
 pub use client::GrpcClient;
 
 #[cfg(feature = "client")]
+pub mod dataset_client;
+
+#[cfg(feature = "client")]
+pub use dataset_client::DatasetGrpcClient;
+
+#[cfg(feature = "client")]
 pub mod error;
 
 // Re-export server types when feature is enabled

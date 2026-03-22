@@ -1,5 +1,6 @@
 pub mod bus;
 pub mod custom;
+pub mod dataset;
 pub mod genai;
 pub mod psi;
 pub mod py_queue;

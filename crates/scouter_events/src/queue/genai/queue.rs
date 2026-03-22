@@ -1,6 +1,6 @@
 use crate::error::EventError;
 use crate::producer::RustScouterProducer;
-use crate::queue::bus::TaskState;
+use crate::queue::bus::{Event, TaskState};
 use crate::queue::genai::record_queue::EvalRecordQueue;
 use crate::queue::traits::BackgroundTask;
 use crate::queue::traits::QueueMethods;
@@ -45,7 +45,7 @@ impl GenAIQueue {
         drift_profile: GenAIEvalProfile,
         config: TransportConfig,
         settings: Arc<RwLock<QueueSettings>>,
-        task_state: &mut TaskState,
+        task_state: &mut TaskState<Event>,
         identifier: String,
     ) -> Result<Self, EventError> {
         debug!("Creating GenAI Drift Queue");

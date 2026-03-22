@@ -14,10 +14,20 @@ use tokio::{sync::mpsc::UnboundedSender, task::AbortHandle};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, instrument, warn};
 
+pub trait Flushable: Send + 'static {
+    fn flush_event() -> Self;
+}
+
 #[derive(Debug)]
 pub enum Event {
     Task(QueueItem),
     Flush,
+}
+
+impl Flushable for Event {
+    fn flush_event() -> Self {
+        Event::Flush
+    }
 }
 
 #[derive(Debug)]
@@ -44,21 +54,26 @@ impl Default for Task {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct TaskState {
-    // track the task that receives events
+#[derive(Debug)]
+pub struct TaskState<E: Flushable> {
     pub event_task: Arc<RwLock<Task>>,
-
-    // track the task that processes background tasks (only applies to psi and custom)
     pub background_task: Arc<RwLock<Task>>,
-
-    // channel to send events to the event task
-    pub event_tx: UnboundedSender<Event>,
-
+    pub event_tx: UnboundedSender<E>,
     pub id: String,
 }
 
-impl TaskState {
+impl<E: Flushable> Clone for TaskState<E> {
+    fn clone(&self) -> Self {
+        Self {
+            event_task: self.event_task.clone(),
+            background_task: self.background_task.clone(),
+            event_tx: self.event_tx.clone(),
+            id: self.id.clone(),
+        }
+    }
+}
+
+impl<E: Flushable> TaskState<E> {
     pub fn notify_event_started(&self) {
         self.event_task.read().unwrap().startup_notify.notify_one();
     }
@@ -88,7 +103,10 @@ impl TaskState {
     }
 
     fn flush_event_task(&self) -> Result<(), EventError> {
-        Ok(self.event_tx.send(Event::Flush)?)
+        self.event_tx
+            .send(E::flush_event())
+            .map_err(|e| EventError::SendError(e.to_string()))?;
+        Ok(())
     }
 
     fn cancel_event_task(&self) {
@@ -218,7 +236,7 @@ type PyQueueItem = Py<PyAny>;
 /// Primary way to publish non-blocking events to background queues with ScouterQueue
 #[pyclass(name = "Queue")]
 pub struct QueueBus {
-    pub task_state: TaskState,
+    pub task_state: TaskState<Event>,
 
     #[pyo3(get)]
     pub identifier: String,
@@ -288,7 +306,7 @@ fn stamp_scenario_tag(record: &mut EvalRecord) -> Option<String> {
 
 impl QueueBus {
     #[instrument(skip_all)]
-    pub fn new(task_state: TaskState, identifier: String, entity_uid: String) -> Self {
+    pub fn new(task_state: TaskState<Event>, identifier: String, entity_uid: String) -> Self {
         debug!("Creating unbounded QueueBus for identifier: {}", identifier);
 
         Self {

@@ -2,7 +2,7 @@
 
 use crate::error::{EventError, FeatureQueueError};
 use crate::producer::RustScouterProducer;
-use crate::queue::bus::TaskState;
+use crate::queue::bus::{Event, Flushable, TaskState};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use crossbeam_queue::ArrayQueue;
@@ -37,7 +37,7 @@ pub trait BackgroundTask: Send + Sync + 'static {
         last_publish: Arc<RwLock<DateTime<Utc>>>,
         queue_capacity: usize,
         identifier: String,
-        task_state: TaskState,
+        task_state: TaskState<Event>,
         cancellation_token: CancellationToken,
     ) -> Result<JoinHandle<()>, EventError> {
         let span = info_span!("background_task", task = %identifier);
@@ -223,7 +223,7 @@ pub trait QueueMethods {
 }
 
 /// Waits for the background loop to start
-pub async fn wait_for_background_task(task_state: &TaskState) -> Result<(), EventError> {
+pub async fn wait_for_background_task<E: Flushable>(task_state: &TaskState<E>) -> Result<(), EventError> {
     if !task_state.has_background_handle() {
         debug!("No background handle to wait for {}", task_state.id);
         return Ok(());
@@ -260,7 +260,7 @@ pub async fn wait_for_background_task(task_state: &TaskState) -> Result<(), Even
 }
 
 /// Waits for the event task to start
-pub async fn wait_for_event_task(task_state: &TaskState) -> Result<(), EventError> {
+pub async fn wait_for_event_task<E: Flushable>(task_state: &TaskState<E>) -> Result<(), EventError> {
     let notify = task_state.event_task.read().unwrap().startup_notify.clone();
 
     match timeout(Duration::from_secs(10), notify.notified()).await {
