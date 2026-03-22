@@ -145,6 +145,12 @@ pub struct DatasetRegistry {
     cache: DashMap<String, DatasetRegistration>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum RegistrationResult {
+    Created,
+    AlreadyExists,
+}
+
 impl DatasetRegistry {
     pub async fn new(object_store: &ObjectStore) -> Result<Self, DatasetEngineError> {
         let delta_table = build_or_create_registry(object_store).await?;
@@ -183,15 +189,25 @@ impl DatasetRegistry {
         Ok(registry)
     }
 
-    /// Load all active registrations from the Delta table into the cache.
+    /// Load all registrations from the Delta table into the cache.
+    /// Performs an incremental update first, then repopulates.
     pub async fn load_all(&self) -> Result<(), DatasetEngineError> {
-        // Refresh the table to get the latest state
         {
             let mut table_guard = self.table.write().await;
-            // Try to refresh — picks up commits from other processes
             let _ = table_guard.update_incremental(None).await;
-            // Register object store with the DataFusion session so DeltaScan
-            // can resolve file URLs during query execution.
+        }
+        self.populate_cache().await
+    }
+
+    /// Repopulate the cache from the current table state.
+    /// Assumes the Delta table is already refreshed.
+    async fn populate_cache(&self) -> Result<(), DatasetEngineError> {
+        // Clear stale entries — Delta table is the source of truth
+        self.cache.clear();
+
+        // Re-register the table provider with DataFusion
+        {
+            let table_guard = self.table.read().await;
             let _ = table_guard.update_datafusion_session(&self.ctx.state());
             let _ = self.ctx.deregister_table(REGISTRY_TABLE_NAME);
             match table_guard.table_provider().await {
@@ -245,6 +261,15 @@ impl DatasetRegistry {
             let partition_col = batch
                 .column_by_name("partition_columns")
                 .and_then(|c| c.as_string_view_opt());
+            let status_col = batch
+                .column_by_name("status")
+                .and_then(|c| c.as_string_view_opt());
+            let created_at_col = batch
+                .column_by_name("created_at")
+                .and_then(|c| c.as_any().downcast_ref::<TimestampMicrosecondArray>());
+            let updated_at_col = batch
+                .column_by_name("updated_at")
+                .and_then(|c| c.as_any().downcast_ref::<TimestampMicrosecondArray>());
 
             let (
                 Some(fqn_col),
@@ -284,8 +309,30 @@ impl DatasetRegistry {
                     }
                 };
 
-                let partition_columns: Vec<String> =
-                    serde_json::from_str(partition_col.value(i)).unwrap_or_default();
+                let partition_columns: Vec<String> = match serde_json::from_str(
+                    partition_col.value(i),
+                ) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        warn!(
+                                "Corrupt partition_columns JSON for {}: '{}' — defaulting to empty. Error: {}",
+                                fqn, partition_col.value(i), e
+                            );
+                        vec![]
+                    }
+                };
+
+                let created_at = created_at_col
+                    .and_then(|col| chrono::DateTime::from_timestamp_micros(col.value(i)))
+                    .unwrap_or_else(Utc::now);
+
+                let updated_at = updated_at_col
+                    .and_then(|col| chrono::DateTime::from_timestamp_micros(col.value(i)))
+                    .unwrap_or_else(Utc::now);
+
+                let status = status_col
+                    .and_then(|col| col.value(i).parse::<DatasetStatus>().ok())
+                    .unwrap_or(DatasetStatus::Active);
 
                 let reg = DatasetRegistration {
                     namespace,
@@ -295,9 +342,9 @@ impl DatasetRegistry {
                     arrow_schema_json: arrow_schema_col.value(i).to_string(),
                     json_schema: json_schema_col.value(i).to_string(),
                     partition_columns,
-                    created_at: Utc::now(),
-                    updated_at: Utc::now(),
-                    status: DatasetStatus::Active,
+                    created_at,
+                    updated_at,
+                    status,
                 };
 
                 self.cache.insert(fqn, reg);
@@ -323,6 +370,12 @@ impl DatasetRegistry {
             if existing.fingerprint.as_str() == registration.fingerprint.as_str() {
                 return Ok(RegistrationResult::AlreadyExists);
             } else {
+                warn!(
+                    table = %fqn,
+                    "Fingerprint mismatch: expected={}, actual={}",
+                    existing.fingerprint.as_str(),
+                    registration.fingerprint.as_str()
+                );
                 return Err(DatasetEngineError::FingerprintMismatch {
                     table: fqn,
                     expected: existing.fingerprint.as_str().to_string(),
@@ -376,26 +429,16 @@ impl DatasetRegistry {
 
     /// Refresh from Delta table to pick up registrations from other pods.
     pub async fn refresh(&self) -> Result<(), DatasetEngineError> {
-        let mut table_guard = self.table.write().await;
-        match table_guard.update_incremental(None).await {
-            Ok(_) => {
-                let _ = self.ctx.deregister_table(REGISTRY_TABLE_NAME);
-                if let Ok(provider) = table_guard.table_provider().await {
-                    self.ctx.register_table(REGISTRY_TABLE_NAME, provider)?;
+        {
+            let mut table_guard = self.table.write().await;
+            match table_guard.update_incremental(None).await {
+                Ok(_) => {}
+                Err(e) => {
+                    debug!("Registry refresh skipped: {}", e);
+                    return Ok(());
                 }
-                drop(table_guard);
-                self.load_all().await?;
-            }
-            Err(e) => {
-                debug!("Registry refresh skipped: {}", e);
             }
         }
-        Ok(())
+        self.populate_cache().await
     }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum RegistrationResult {
-    Created,
-    AlreadyExists,
 }

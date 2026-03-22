@@ -1,7 +1,7 @@
 use crate::error::DatasetEngineError;
-use crate::parquet::dataset::buffer::DatasetBufferActor;
+use crate::parquet::dataset::buffer::start_buffer;
 use crate::parquet::dataset::catalog::DatasetCatalogProvider;
-use crate::parquet::dataset::engine::{DatasetEngine, DatasetTableCommand};
+use crate::parquet::dataset::engine::{DatasetEngine, TableCommand};
 use crate::parquet::dataset::registry::{DatasetRegistry, RegistrationResult};
 use crate::storage::ObjectStore;
 use arrow::datatypes::SchemaRef;
@@ -11,9 +11,10 @@ use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::dataset::schema::SCOUTER_PARTITION_DATE;
 use scouter_types::dataset::{DatasetFingerprint, DatasetNamespace, DatasetRegistration};
+use std::collections::HashSet;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Mutex};
 use tokio::time::{interval, Duration};
 use tracing::{info, warn};
 
@@ -27,7 +28,7 @@ const DISCOVERY_INTERVAL_SECS: u64 = 60;
 
 pub struct DatasetTableHandle {
     pub buffer_tx: mpsc::Sender<RecordBatch>,
-    pub engine_tx: mpsc::Sender<DatasetTableCommand>,
+    pub engine_tx: mpsc::Sender<TableCommand>,
     shutdown_tx: mpsc::Sender<()>,
     pub schema: SchemaRef,
     pub fingerprint: DatasetFingerprint,
@@ -52,6 +53,7 @@ impl DatasetTableHandle {
 pub struct DatasetEngineManager {
     registry: Arc<DatasetRegistry>,
     active_engines: Arc<DashMap<String, DatasetTableHandle>>,
+    activating: Mutex<HashSet<String>>,
     query_ctx: Arc<SessionContext>,
     catalog_provider: Arc<DatasetCatalogProvider>,
     object_store: ObjectStore,
@@ -73,18 +75,10 @@ impl DatasetEngineManager {
 
         let registry = Arc::new(DatasetRegistry::new(&object_store).await?);
 
-        // Pre-register catalog names from existing registrations so DataFusion
-        // can resolve them. No engines are spawned — all lazy-loaded.
-        for reg in registry.list_active() {
-            query_ctx.register_catalog(
-                &reg.namespace.catalog,
-                Arc::clone(&catalog_provider) as Arc<dyn datafusion::catalog::CatalogProvider>,
-            );
-        }
-
-        Ok(Self {
+        let manager = Self {
             registry,
             active_engines: Arc::new(DashMap::new()),
+            activating: Mutex::new(HashSet::new()),
             query_ctx,
             catalog_provider,
             object_store,
@@ -93,7 +87,15 @@ impl DatasetEngineManager {
             flush_interval_secs: DEFAULT_FLUSH_INTERVAL_SECS,
             max_buffer_rows: DEFAULT_MAX_BUFFER_ROWS,
             refresh_interval_secs: DEFAULT_REFRESH_INTERVAL_SECS,
-        })
+        };
+
+        // Pre-register catalog names from existing registrations so DataFusion
+        // can resolve them. No engines are spawned — all lazy-loaded.
+        for reg in manager.registry.list_active() {
+            manager.ensure_catalog_registered(&reg.namespace.catalog);
+        }
+
+        Ok(manager)
     }
 
     /// Create a manager with custom configuration (primarily for testing).
@@ -121,36 +123,75 @@ impl DatasetEngineManager {
         registration: &DatasetRegistration,
     ) -> Result<RegistrationResult, DatasetEngineError> {
         let result = self.registry.register(registration).await?;
-
-        // Ensure the catalog is registered with DataFusion
-        self.query_ctx.register_catalog(
-            &registration.namespace.catalog,
-            Arc::clone(&self.catalog_provider) as Arc<dyn datafusion::catalog::CatalogProvider>,
-        );
-
+        self.ensure_catalog_registered(&registration.namespace.catalog);
         Ok(result)
     }
 
     /// Get or activate an engine for the given namespace.
     /// If the engine is already active, touches `last_active_at` and returns the handle reference.
     /// If not active, lazy-loads the Delta table, spawns the actor pair, and returns it.
+    ///
+    /// Uses `activating` mutex to prevent two concurrent callers from creating
+    /// duplicate engine actors for the same FQN (TOCTOU guard).
     async fn activate_engine(
         &self,
         namespace: &DatasetNamespace,
     ) -> Result<(), DatasetEngineError> {
         let fqn = namespace.fqn();
 
-        // Already active?
+        // Fast path: already active
         if let Some(handle) = self.active_engines.get(&fqn) {
             handle.touch();
             return Ok(());
         }
 
+        // Serialize concurrent activations for the same FQN
+        {
+            let mut pending = self.activating.lock().await;
+
+            // Re-check after acquiring lock — another task may have completed activation
+            if let Some(handle) = self.active_engines.get(&fqn) {
+                handle.touch();
+                return Ok(());
+            }
+
+            if !pending.insert(fqn.clone()) {
+                // Another task is already activating this FQN
+                drop(pending);
+                tokio::task::yield_now().await;
+                return if self.active_engines.contains_key(&fqn) {
+                    Ok(())
+                } else {
+                    Err(DatasetEngineError::RegistryError(format!(
+                        "Concurrent activation in progress for {}",
+                        fqn
+                    )))
+                };
+            }
+        } // activating lock released — safe to .await
+
+        let result = self.do_activate_engine_inner(namespace, &fqn).await;
+
+        // Always clean up pending set
+        {
+            let mut pending = self.activating.lock().await;
+            pending.remove(&fqn);
+        }
+
+        result
+    }
+
+    /// Inner activation logic, called only when we hold the pending-set reservation.
+    async fn do_activate_engine_inner(
+        &self,
+        namespace: &DatasetNamespace,
+        fqn: &str,
+    ) -> Result<(), DatasetEngineError> {
         // Look up registration
         let reg = self
             .registry
-            .get(&fqn)
-            .ok_or_else(|| DatasetEngineError::TableNotFound(fqn.clone()))?;
+            .get(fqn)
+            .ok_or_else(|| DatasetEngineError::TableNotFound(fqn.to_string()))?;
 
         // Check cap — evict LRU if needed
         if self.active_engines.len() >= self.max_active_engines {
@@ -191,20 +232,16 @@ impl DatasetEngineManager {
         // Start the buffer actor
         let (buffer_tx, batch_rx) = mpsc::channel::<RecordBatch>(100);
         let (shutdown_tx, shutdown_rx) = mpsc::channel::<()>(1);
-        let buffer_handle = DatasetBufferActor::start(
+        let buffer_handle = start_buffer(
             engine_tx.clone(),
             batch_rx,
             shutdown_rx,
             self.flush_interval_secs,
             self.max_buffer_rows,
-            fqn.clone(),
+            fqn.to_string(),
         );
 
-        // Ensure catalog is registered
-        self.query_ctx.register_catalog(
-            &namespace.catalog,
-            Arc::clone(&self.catalog_provider) as Arc<dyn datafusion::catalog::CatalogProvider>,
-        );
+        self.ensure_catalog_registered(&namespace.catalog);
 
         let handle = DatasetTableHandle {
             buffer_tx,
@@ -219,7 +256,7 @@ impl DatasetEngineManager {
             _buffer_handle: buffer_handle,
         };
 
-        self.active_engines.insert(fqn.clone(), handle);
+        self.active_engines.insert(fqn.to_string(), handle);
         info!("Activated engine for [{}]", fqn);
 
         Ok(())
@@ -245,6 +282,12 @@ impl DatasetEngineManager {
 
         // Validate fingerprint
         if handle.fingerprint.as_str() != fingerprint.as_str() {
+            warn!(
+                table = %fqn,
+                "Fingerprint mismatch: expected={}, actual={}",
+                handle.fingerprint.as_str(),
+                fingerprint.as_str()
+            );
             return Err(DatasetEngineError::FingerprintMismatch {
                 table: fqn,
                 expected: handle.fingerprint.as_str().to_string(),
@@ -265,6 +308,9 @@ impl DatasetEngineManager {
     }
 
     /// Execute a SQL query against the shared query context.
+    ///
+    /// TODO(phase3): Replace with structured query builder API. Raw SQL passthrough
+    /// is a security concern when exposed over gRPC/HTTP.
     pub async fn query(&self, sql: &str) -> Result<Vec<RecordBatch>, DatasetEngineError> {
         let df = self.query_ctx.sql(sql).await?;
         let batches = df.collect().await?;
@@ -299,8 +345,13 @@ impl DatasetEngineManager {
         if let Some((_, handle)) = self.active_engines.remove(fqn) {
             info!("Evicting engine [{}]", fqn);
 
-            // Signal shutdown — buffer will flush remaining, then exit
+            // 1. Signal buffer to flush remaining batches and exit
             let _ = handle.shutdown_tx.send(()).await;
+
+            // 2. Explicitly shut down the engine actor.
+            //    Buffer's final Write commands are already in the engine channel (mpsc FIFO),
+            //    so Shutdown processes last — no data loss.
+            let _ = handle.engine_tx.send(TableCommand::Shutdown).await;
 
             // Remove from catalog
             self.catalog_provider.remove_table(&handle.namespace);
@@ -368,11 +419,7 @@ impl DatasetEngineManager {
 
                 // Register any new catalogs discovered
                 for reg in manager.registry.list_active() {
-                    manager.query_ctx.register_catalog(
-                        &reg.namespace.catalog,
-                        Arc::clone(&manager.catalog_provider)
-                            as Arc<dyn datafusion::catalog::CatalogProvider>,
-                    );
+                    manager.ensure_catalog_registered(&reg.namespace.catalog);
                 }
             }
         })
@@ -391,6 +438,14 @@ impl DatasetEngineManager {
     /// Number of currently active engines.
     pub fn active_engine_count(&self) -> usize {
         self.active_engines.len()
+    }
+
+    /// Register a catalog name with DataFusion (idempotent).
+    fn ensure_catalog_registered(&self, catalog: &str) {
+        self.query_ctx.register_catalog(
+            catalog,
+            Arc::clone(&self.catalog_provider) as Arc<dyn datafusion::catalog::CatalogProvider>,
+        );
     }
 }
 

@@ -22,7 +22,9 @@ use tokio::time::{interval, Duration};
 use tracing::{debug, error, info, instrument};
 use url::Url;
 
-pub enum DatasetTableCommand {
+const MIN_VACUUM_RETENTION_HOURS: u64 = 1;
+
+pub enum TableCommand {
     Write {
         batches: Vec<RecordBatch>,
         respond_to: oneshot::Sender<Result<(), DatasetEngineError>>,
@@ -67,61 +69,52 @@ async fn build_or_create_table(
         namespace.fqn()
     );
 
-    let is_delta_table = if table_url.scheme() == "file" {
+    // For local filesystem, ensure the directory exists
+    if table_url.scheme() == "file" {
         if let Ok(path) = table_url.to_file_path() {
             if !path.exists() {
                 info!("Creating directory for local table: {:?}", path);
                 std::fs::create_dir_all(&path)?;
             }
-            path.join("_delta_log").exists()
-        } else {
-            false
         }
-    } else {
-        let store = object_store.as_dyn_object_store();
-        match DeltaTableBuilder::from_url(table_url.clone()) {
-            Ok(builder) => builder
-                .with_storage_backend(store, table_url.clone())
-                .load()
-                .await
-                .is_ok(),
-            Err(_) => false,
-        }
-    };
-
-    if is_delta_table {
-        info!("Loaded existing dataset table [{}]", namespace.fqn());
-        let store = object_store.as_dyn_object_store();
-        let table = DeltaTableBuilder::from_url(table_url.clone())?
-            .with_storage_backend(store, table_url)
-            .load()
-            .await?;
-        Ok(table)
-    } else {
-        info!("Creating new dataset table [{}]", namespace.fqn());
-        let store = object_store.as_dyn_object_store();
-        let table = DeltaTableBuilder::from_url(table_url.clone())?
-            .with_storage_backend(store, table_url)
-            .build()?;
-
-        let delta_fields = arrow_schema_to_delta(schema);
-
-        let data_skipping_cols = build_data_skipping_columns(partition_columns);
-
-        let table = table
-            .create()
-            .with_table_name(namespace.fqn())
-            .with_columns(delta_fields)
-            .with_partition_columns(partition_columns.to_vec())
-            .with_configuration_property(TableProperty::CheckpointInterval, Some("5"))
-            .with_configuration_property(
-                TableProperty::DataSkippingStatsColumns,
-                Some(&data_skipping_cols),
-            )
-            .await?;
-
-        Ok(table)
     }
+
+    // Try a single load attempt
+    let store = object_store.as_dyn_object_store();
+    let load_result = DeltaTableBuilder::from_url(table_url.clone())
+        .map(|builder| builder.with_storage_backend(store, table_url.clone()));
+
+    if let Ok(builder) = load_result {
+        if let Ok(table) = builder.load().await {
+            info!("Loaded existing dataset table [{}]", namespace.fqn());
+            return Ok(table);
+        }
+    }
+
+    // Table doesn't exist yet — create it
+    info!("Creating new dataset table [{}]", namespace.fqn());
+    let store = object_store.as_dyn_object_store();
+    let table = DeltaTableBuilder::from_url(table_url.clone())?
+        .with_storage_backend(store, table_url)
+        .build()?;
+
+    let delta_fields = arrow_schema_to_delta(schema);
+
+    let data_skipping_cols = build_data_skipping_columns(partition_columns);
+
+    let table = table
+        .create()
+        .with_table_name(namespace.fqn())
+        .with_columns(delta_fields)
+        .with_partition_columns(partition_columns.to_vec())
+        .with_configuration_property(TableProperty::CheckpointInterval, Some("5"))
+        .with_configuration_property(
+            TableProperty::DataSkippingStatsColumns,
+            Some(&data_skipping_cols),
+        )
+        .await?;
+
+    Ok(table)
 }
 
 fn build_data_skipping_columns(partition_columns: &[String]) -> String {
@@ -318,6 +311,7 @@ impl DatasetEngine {
     }
 
     async fn vacuum_table(&self, retention_hours: u64) -> Result<(), DatasetEngineError> {
+        let retention_hours = retention_hours.max(MIN_VACUUM_RETENTION_HOURS);
         info!(
             "Vacuuming dataset table [{}] (retention: {}h)",
             self.namespace.fqn(),
@@ -343,6 +337,11 @@ impl DatasetEngine {
 
         *table_guard = updated_table;
 
+        info!(
+            "Vacuum complete for [{}] (retention: {}h)",
+            self.namespace.fqn(),
+            retention_hours
+        );
         Ok(())
     }
 
@@ -384,14 +383,12 @@ impl DatasetEngine {
     }
 
     /// Start the actor loop. Returns the command channel sender and join handle.
+    #[instrument(skip_all, name = "dataset_engine_actor", fields(fqn = %self.namespace.fqn()))]
     pub fn start_actor(
         self,
         refresh_interval_secs: u64,
-    ) -> (
-        mpsc::Sender<DatasetTableCommand>,
-        tokio::task::JoinHandle<()>,
-    ) {
-        let (tx, mut rx) = mpsc::channel::<DatasetTableCommand>(50);
+    ) -> (mpsc::Sender<TableCommand>, tokio::task::JoinHandle<()>) {
+        let (tx, mut rx) = mpsc::channel::<TableCommand>(50);
 
         let handle = tokio::spawn(async move {
             let mut refresh_ticker = interval(Duration::from_secs(refresh_interval_secs));
@@ -401,23 +398,23 @@ impl DatasetEngine {
                 tokio::select! {
                     Some(cmd) = rx.recv() => {
                         match cmd {
-                            DatasetTableCommand::Write { batches, respond_to } => {
+                            TableCommand::Write { batches, respond_to } => {
                                 let result = self.write_batches(batches).await;
                                 if let Err(ref e) = result {
                                     error!("Write failed for [{}]: {}", self.namespace.fqn(), e);
                                 }
                                 let _ = respond_to.send(result);
                             }
-                            DatasetTableCommand::Optimize { respond_to } => {
+                            TableCommand::Optimize { respond_to } => {
                                 let _ = respond_to.send(self.optimize_table().await);
-                                if let Err(e) = self.vacuum_table(0).await {
+                                if let Err(e) = self.vacuum_table(MIN_VACUUM_RETENTION_HOURS).await {
                                     error!("Post-optimize vacuum failed for [{}]: {}", self.namespace.fqn(), e);
                                 }
                             }
-                            DatasetTableCommand::Vacuum { retention_hours, respond_to } => {
+                            TableCommand::Vacuum { retention_hours, respond_to } => {
                                 let _ = respond_to.send(self.vacuum_table(retention_hours).await);
                             }
-                            DatasetTableCommand::Shutdown => {
+                            TableCommand::Shutdown => {
                                 info!("Shutting down dataset engine [{}]", self.namespace.fqn());
                                 break;
                             }

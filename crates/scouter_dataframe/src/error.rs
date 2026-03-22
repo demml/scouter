@@ -155,7 +155,7 @@ pub enum DatasetEngineError {
     #[error("Table not found: {0}")]
     TableNotFound(String),
 
-    #[error("Fingerprint mismatch for {table}: expected {expected}, got {actual}")]
+    #[error("Fingerprint mismatch for table {table}")]
     FingerprintMismatch {
         table: String,
         expected: String,
@@ -176,7 +176,4 @@ pub enum DatasetEngineError {
 
     #[error("Serialization error: {0}")]
     SerializationError(String),
-
-    #[error("Engine capacity reached: {0}")]
-    CapacityExceeded(String),
 }
