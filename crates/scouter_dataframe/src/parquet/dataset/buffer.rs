@@ -89,10 +89,7 @@ impl DatasetBufferActor {
 
         match rx.await {
             Ok(Ok(())) => {
-                info!(
-                    "Flushed {} rows to engine [{}]",
-                    flushed_rows, table_fqn
-                );
+                info!("Flushed {} rows to engine [{}]", flushed_rows, table_fqn);
             }
             Ok(Err(e)) => {
                 error!("Write failed for [{}]: {}", table_fqn, e);

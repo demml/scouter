@@ -6,9 +6,9 @@ use serde_json::{Map, Value};
 use crate::dataset::error::DatasetError;
 use crate::dataset::types::{DatasetFingerprint, DatasetNamespace};
 
-const SCOUTER_CREATED_AT: &str = "scouter_created_at";
-const SCOUTER_PARTITION_DATE: &str = "scouter_partition_date";
-const SCOUTER_BATCH_ID: &str = "scouter_batch_id";
+pub const SCOUTER_CREATED_AT: &str = "scouter_created_at";
+pub const SCOUTER_PARTITION_DATE: &str = "scouter_partition_date";
+pub const SCOUTER_BATCH_ID: &str = "scouter_batch_id";
 
 const MAX_SCHEMA_DEPTH: usize = 32;
 

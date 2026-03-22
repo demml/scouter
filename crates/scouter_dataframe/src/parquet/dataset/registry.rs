@@ -106,13 +106,12 @@ fn build_registration_batch(
     reg: &DatasetRegistration,
 ) -> Result<RecordBatch, DatasetEngineError> {
     let now = Utc::now().timestamp_micros();
-    let partition_cols_json =
-        serde_json::to_string(&reg.partition_columns).map_err(|e| {
-            DatasetEngineError::SerializationError(format!(
-                "Failed to serialize partition_columns: {}",
-                e
-            ))
-        })?;
+    let partition_cols_json = serde_json::to_string(&reg.partition_columns).map_err(|e| {
+        DatasetEngineError::SerializationError(format!(
+            "Failed to serialize partition_columns: {}",
+            e
+        ))
+    })?;
 
     let batch = RecordBatch::try_new(
         schema.clone(),
@@ -125,14 +124,8 @@ fn build_registration_batch(
             Arc::new(StringArray::from(vec![reg.arrow_schema_json.as_str()])),
             Arc::new(StringArray::from(vec![reg.json_schema.as_str()])),
             Arc::new(StringArray::from(vec![partition_cols_json.as_str()])),
-            Arc::new(
-                TimestampMicrosecondArray::from(vec![now])
-                    .with_timezone("UTC"),
-            ),
-            Arc::new(
-                TimestampMicrosecondArray::from(vec![now])
-                    .with_timezone("UTC"),
-            ),
+            Arc::new(TimestampMicrosecondArray::from(vec![now]).with_timezone("UTC")),
+            Arc::new(TimestampMicrosecondArray::from(vec![now]).with_timezone("UTC")),
             Arc::new(StringArray::from(vec![reg.status.to_string().as_str()])),
         ],
     )?;
@@ -153,9 +146,7 @@ pub struct DatasetRegistry {
 }
 
 impl DatasetRegistry {
-    pub async fn new(
-        object_store: &ObjectStore,
-    ) -> Result<Self, DatasetEngineError> {
+    pub async fn new(object_store: &ObjectStore) -> Result<Self, DatasetEngineError> {
         let delta_table = build_or_create_registry(object_store).await?;
         let ctx = object_store.get_session()?;
         let schema = Arc::new(registry_schema());
@@ -172,7 +163,10 @@ impl DatasetRegistry {
                 );
             }
             Err(e) => {
-                info!("Registry table provider unavailable (likely new/empty): {}", e);
+                info!(
+                    "Registry table provider unavailable (likely new/empty): {}",
+                    e
+                );
             }
         }
 
@@ -211,10 +205,11 @@ impl DatasetRegistry {
             }
         }
 
-        let df = match self.ctx.sql(&format!(
-            "SELECT * FROM {}",
-            REGISTRY_TABLE_NAME
-        )).await {
+        let df = match self
+            .ctx
+            .sql(&format!("SELECT * FROM {}", REGISTRY_TABLE_NAME))
+            .await
+        {
             Ok(df) => df,
             Err(e) => {
                 info!("Registry query failed (likely empty table): {}", e);
@@ -348,8 +343,7 @@ impl DatasetRegistry {
 
         let _ = self.ctx.deregister_table(REGISTRY_TABLE_NAME);
         if let Ok(provider) = updated_table.table_provider().await {
-            self.ctx
-                .register_table(REGISTRY_TABLE_NAME, provider)?;
+            self.ctx.register_table(REGISTRY_TABLE_NAME, provider)?;
         }
         updated_table.update_datafusion_session(&self.ctx.state())?;
 
@@ -367,10 +361,7 @@ impl DatasetRegistry {
     }
 
     /// Get registration by namespace.
-    pub fn get_by_namespace(
-        &self,
-        namespace: &DatasetNamespace,
-    ) -> Option<DatasetRegistration> {
+    pub fn get_by_namespace(&self, namespace: &DatasetNamespace) -> Option<DatasetRegistration> {
         self.get(&namespace.fqn())
     }
 
@@ -390,8 +381,7 @@ impl DatasetRegistry {
             Ok(_) => {
                 let _ = self.ctx.deregister_table(REGISTRY_TABLE_NAME);
                 if let Ok(provider) = table_guard.table_provider().await {
-                    self.ctx
-                        .register_table(REGISTRY_TABLE_NAME, provider)?;
+                    self.ctx.register_table(REGISTRY_TABLE_NAME, provider)?;
                 }
                 drop(table_guard);
                 self.load_all().await?;

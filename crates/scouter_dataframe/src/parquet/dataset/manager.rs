@@ -9,6 +9,7 @@ use arrow_array::RecordBatch;
 use dashmap::DashMap;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
+use scouter_types::dataset::schema::SCOUTER_PARTITION_DATE;
 use scouter_types::dataset::{DatasetFingerprint, DatasetNamespace, DatasetRegistration};
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
@@ -62,9 +63,7 @@ pub struct DatasetEngineManager {
 }
 
 impl DatasetEngineManager {
-    pub async fn new(
-        storage_settings: &ObjectStorageSettings,
-    ) -> Result<Self, DatasetEngineError> {
+    pub async fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, DatasetEngineError> {
         let object_store = ObjectStore::new(storage_settings)?;
         let query_ctx = Arc::new(object_store.get_session()?);
         let catalog_provider = Arc::new(DatasetCatalogProvider::new());
@@ -148,9 +147,10 @@ impl DatasetEngineManager {
         }
 
         // Look up registration
-        let reg = self.registry.get(&fqn).ok_or_else(|| {
-            DatasetEngineError::TableNotFound(fqn.clone())
-        })?;
+        let reg = self
+            .registry
+            .get(&fqn)
+            .ok_or_else(|| DatasetEngineError::TableNotFound(fqn.clone()))?;
 
         // Check cap — evict LRU if needed
         if self.active_engines.len() >= self.max_active_engines {
@@ -158,17 +158,17 @@ impl DatasetEngineManager {
         }
 
         // Parse the Arrow schema from the registration
-        let arrow_schema: arrow::datatypes::Schema =
-            serde_json::from_str(&reg.arrow_schema_json).map_err(|e| {
-                DatasetEngineError::SerializationError(format!(
-                    "Failed to deserialize Arrow schema for {}: {}",
-                    fqn, e
-                ))
-            })?;
+        let arrow_schema: arrow::datatypes::Schema = serde_json::from_str(&reg.arrow_schema_json)
+            .map_err(|e| {
+            DatasetEngineError::SerializationError(format!(
+                "Failed to deserialize Arrow schema for {}: {}",
+                fqn, e
+            ))
+        })?;
         let schema = Arc::new(arrow_schema);
 
         // Build full partition columns list
-        let mut partition_columns = vec!["scouter_partition_date".to_string()];
+        let mut partition_columns = vec![SCOUTER_PARTITION_DATE.to_string()];
         for col in &reg.partition_columns {
             if !partition_columns.contains(col) {
                 partition_columns.push(col.clone());
@@ -214,9 +214,7 @@ impl DatasetEngineManager {
             fingerprint: reg.fingerprint.clone(),
             namespace: namespace.clone(),
             partition_columns,
-            last_active_at: Arc::new(AtomicI64::new(
-                chrono::Utc::now().timestamp(),
-            )),
+            last_active_at: Arc::new(AtomicI64::new(chrono::Utc::now().timestamp())),
             _engine_handle: engine_handle,
             _buffer_handle: buffer_handle,
         };
@@ -240,9 +238,10 @@ impl DatasetEngineManager {
         // Activate if needed
         self.activate_engine(namespace).await?;
 
-        let handle = self.active_engines.get(&fqn).ok_or_else(|| {
-            DatasetEngineError::TableNotFound(fqn.clone())
-        })?;
+        let handle = self
+            .active_engines
+            .get(&fqn)
+            .ok_or_else(|| DatasetEngineError::TableNotFound(fqn.clone()))?;
 
         // Validate fingerprint
         if handle.fingerprint.as_str() != fingerprint.as_str() {
@@ -256,18 +255,17 @@ impl DatasetEngineManager {
         handle.touch();
 
         // Send to buffer
-        handle.buffer_tx.send(batch).await.map_err(|_| {
-            DatasetEngineError::ChannelClosed
-        })?;
+        handle
+            .buffer_tx
+            .send(batch)
+            .await
+            .map_err(|_| DatasetEngineError::ChannelClosed)?;
 
         Ok(())
     }
 
     /// Execute a SQL query against the shared query context.
-    pub async fn query(
-        &self,
-        sql: &str,
-    ) -> Result<Vec<RecordBatch>, DatasetEngineError> {
+    pub async fn query(&self, sql: &str) -> Result<Vec<RecordBatch>, DatasetEngineError> {
         let df = self.query_ctx.sql(sql).await?;
         let batches = df.collect().await?;
         Ok(batches)
@@ -279,10 +277,7 @@ impl DatasetEngineManager {
     }
 
     /// Get registration info for a specific dataset.
-    pub fn get_dataset_info(
-        &self,
-        namespace: &DatasetNamespace,
-    ) -> Option<DatasetRegistration> {
+    pub fn get_dataset_info(&self, namespace: &DatasetNamespace) -> Option<DatasetRegistration> {
         self.registry.get_by_namespace(namespace)
     }
 
@@ -346,9 +341,7 @@ impl DatasetEngineManager {
                 let to_evict: Vec<String> = manager
                     .active_engines
                     .iter()
-                    .filter(|e| {
-                        now - e.value().last_active_at.load(Ordering::Relaxed) > ttl
-                    })
+                    .filter(|e| now - e.value().last_active_at.load(Ordering::Relaxed) > ttl)
                     .map(|e| e.key().clone())
                     .collect();
 
@@ -439,7 +432,8 @@ mod tests {
     fn test_registration(schema: &Schema) -> DatasetRegistration {
         let arrow_schema_json = serde_json::to_string(schema).unwrap();
         let fingerprint = DatasetFingerprint::from_schema_json(&arrow_schema_json);
-        let namespace = DatasetNamespace::new("test_catalog", "test_schema", "predictions").unwrap();
+        let namespace =
+            DatasetNamespace::new("test_catalog", "test_schema", "predictions").unwrap();
 
         DatasetRegistration::new(
             namespace,
@@ -475,9 +469,7 @@ mod tests {
                     ])
                     .with_timezone("UTC"),
                 ),
-                Arc::new(Date32Array::from(vec![
-                    epoch_days, epoch_days, epoch_days,
-                ])),
+                Arc::new(Date32Array::from(vec![epoch_days, epoch_days, epoch_days])),
                 Arc::new(StringArray::from(vec![
                     "batch-001",
                     "batch-001",
@@ -493,11 +485,9 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let settings = test_storage_settings(&dir);
 
-        let manager = DatasetEngineManager::with_config(
-            &settings, 1800, 10, 1, 100, 30,
-        )
-        .await
-        .unwrap();
+        let manager = DatasetEngineManager::with_config(&settings, 1800, 10, 1, 100, 30)
+            .await
+            .unwrap();
 
         let schema = test_schema();
         let reg = test_registration(&schema);
@@ -536,11 +526,9 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let settings = test_storage_settings(&dir);
 
-        let manager = DatasetEngineManager::with_config(
-            &settings, 1800, 10, 1, 100, 30,
-        )
-        .await
-        .unwrap();
+        let manager = DatasetEngineManager::with_config(&settings, 1800, 10, 1, 100, 30)
+            .await
+            .unwrap();
 
         let schema = test_schema();
         let reg = test_registration(&schema);
@@ -550,9 +538,7 @@ mod tests {
         let wrong_fp = DatasetFingerprint::from_schema_json("wrong");
         let batch = make_test_batch(&schema);
 
-        let result = manager
-            .insert_batch(&reg.namespace, &wrong_fp, batch)
-            .await;
+        let result = manager.insert_batch(&reg.namespace, &wrong_fp, batch).await;
 
         assert!(result.is_err());
         if let Err(DatasetEngineError::FingerprintMismatch { .. }) = result {
@@ -569,11 +555,9 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let settings = test_storage_settings(&dir);
 
-        let manager = DatasetEngineManager::with_config(
-            &settings, 1800, 10, 1, 100, 30,
-        )
-        .await
-        .unwrap();
+        let manager = DatasetEngineManager::with_config(&settings, 1800, 10, 1, 100, 30)
+            .await
+            .unwrap();
 
         let ns = DatasetNamespace::new("no", "such", "table").unwrap();
         let fp = DatasetFingerprint::from_schema_json("x");
@@ -591,11 +575,9 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let settings = test_storage_settings(&dir);
 
-        let manager = DatasetEngineManager::with_config(
-            &settings, 1800, 10, 1, 100, 30,
-        )
-        .await
-        .unwrap();
+        let manager = DatasetEngineManager::with_config(&settings, 1800, 10, 1, 100, 30)
+            .await
+            .unwrap();
 
         assert!(manager.list_datasets().is_empty());
 
@@ -605,7 +587,10 @@ mod tests {
 
         let datasets = manager.list_datasets();
         assert_eq!(datasets.len(), 1);
-        assert_eq!(datasets[0].namespace.fqn(), "test_catalog.test_schema.predictions");
+        assert_eq!(
+            datasets[0].namespace.fqn(),
+            "test_catalog.test_schema.predictions"
+        );
 
         manager.shutdown().await;
     }
@@ -615,11 +600,9 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let settings = test_storage_settings(&dir);
 
-        let manager = DatasetEngineManager::with_config(
-            &settings, 1800, 10, 1, 100, 30,
-        )
-        .await
-        .unwrap();
+        let manager = DatasetEngineManager::with_config(&settings, 1800, 10, 1, 100, 30)
+            .await
+            .unwrap();
 
         let schema = test_schema();
 
@@ -630,10 +613,18 @@ mod tests {
         let fp = DatasetFingerprint::from_schema_json(&arrow_json);
 
         let reg1 = DatasetRegistration::new(
-            ns1.clone(), fp.clone(), arrow_json.clone(), "{}".into(), vec![],
+            ns1.clone(),
+            fp.clone(),
+            arrow_json.clone(),
+            "{}".into(),
+            vec![],
         );
         let reg2 = DatasetRegistration::new(
-            ns2.clone(), fp.clone(), arrow_json.clone(), "{}".into(), vec![],
+            ns2.clone(),
+            fp.clone(),
+            arrow_json.clone(),
+            "{}".into(),
+            vec![],
         );
 
         manager.register_dataset(&reg1).await.unwrap();
@@ -656,11 +647,9 @@ mod tests {
         let settings = test_storage_settings(&dir);
 
         // Cap at 2 active engines
-        let manager = DatasetEngineManager::with_config(
-            &settings, 1800, 2, 1, 100, 30,
-        )
-        .await
-        .unwrap();
+        let manager = DatasetEngineManager::with_config(&settings, 1800, 2, 1, 100, 30)
+            .await
+            .unwrap();
 
         let schema = test_schema();
         let arrow_json = serde_json::to_string(&schema).unwrap();
@@ -669,9 +658,8 @@ mod tests {
         // Register 3 tables
         for i in 0..3 {
             let ns = DatasetNamespace::new("cat", "sch", format!("tbl_{i}")).unwrap();
-            let reg = DatasetRegistration::new(
-                ns, fp.clone(), arrow_json.clone(), "{}".into(), vec![],
-            );
+            let reg =
+                DatasetRegistration::new(ns, fp.clone(), arrow_json.clone(), "{}".into(), vec![]);
             manager.register_dataset(&reg).await.unwrap();
         }
 
@@ -709,11 +697,8 @@ mod tests {
         let settings = test_storage_settings(&dir);
 
         let manager = DatasetEngineManager::with_config(
-            &settings,
-            1800,
-            10,
-            1,    // 1s flush interval
-            100,  // small buffer for testing
+            &settings, 1800, 10, 1,   // 1s flush interval
+            100, // small buffer for testing
             30,
         )
         .await
@@ -755,11 +740,9 @@ mod tests {
 
         // Register a dataset
         {
-            let manager = DatasetEngineManager::with_config(
-                &settings, 1800, 10, 1, 100, 30,
-            )
-            .await
-            .unwrap();
+            let manager = DatasetEngineManager::with_config(&settings, 1800, 10, 1, 100, 30)
+                .await
+                .unwrap();
 
             let schema = test_schema();
             let reg = test_registration(&schema);
@@ -769,11 +752,9 @@ mod tests {
 
         // Create a new manager from same storage — should find the registration
         {
-            let manager = DatasetEngineManager::with_config(
-                &settings, 1800, 10, 1, 100, 30,
-            )
-            .await
-            .unwrap();
+            let manager = DatasetEngineManager::with_config(&settings, 1800, 10, 1, 100, 30)
+                .await
+                .unwrap();
 
             let datasets = manager.list_datasets();
             assert_eq!(datasets.len(), 1);

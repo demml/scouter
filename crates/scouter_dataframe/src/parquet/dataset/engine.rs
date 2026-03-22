@@ -7,10 +7,13 @@ use arrow::datatypes::{DataType, Schema, SchemaRef};
 use arrow_array::RecordBatch;
 use datafusion::prelude::SessionContext;
 use deltalake::datafusion::parquet::basic::{Compression, Encoding, ZstdLevel};
-use deltalake::datafusion::parquet::file::properties::WriterProperties;
+use deltalake::datafusion::parquet::file::properties::{EnabledStatistics, WriterProperties};
 use deltalake::datafusion::parquet::schema::types::ColumnPath;
 use deltalake::operations::optimize::OptimizeType;
 use deltalake::{DeltaTable, DeltaTableBuilder, TableProperty};
+use scouter_types::dataset::schema::{
+    SCOUTER_BATCH_ID, SCOUTER_CREATED_AT, SCOUTER_PARTITION_DATE,
+};
 use scouter_types::dataset::DatasetNamespace;
 use std::sync::Arc;
 use tokio::sync::oneshot;
@@ -124,7 +127,7 @@ async fn build_or_create_table(
 fn build_data_skipping_columns(partition_columns: &[String]) -> String {
     let mut cols = vec![
         "scouter_created_at".to_string(),
-        "scouter_partition_date".to_string(),
+        SCOUTER_PARTITION_DATE.to_string(),
     ];
     for col in partition_columns {
         if !cols.contains(col) {
@@ -143,20 +146,15 @@ pub fn build_writer_props(schema: &Schema) -> WriterProperties {
         .set_max_row_group_size(32_768)
         .set_compression(Compression::ZSTD(ZstdLevel::try_new(3).unwrap()))
         .set_column_encoding(
-            ColumnPath::new(vec!["scouter_created_at".to_string()]),
+            ColumnPath::new(vec![SCOUTER_CREATED_AT.to_string()]),
             Encoding::DELTA_BINARY_PACKED,
         )
-        .set_column_bloom_filter_enabled(
-            ColumnPath::new(vec!["scouter_batch_id".to_string()]),
-            true,
-        )
-        .set_column_bloom_filter_fpp(
-            ColumnPath::new(vec!["scouter_batch_id".to_string()]),
-            0.01,
-        )
-        .set_column_bloom_filter_ndv(
-            ColumnPath::new(vec!["scouter_batch_id".to_string()]),
-            10_000,
+        .set_column_bloom_filter_enabled(ColumnPath::new(vec![SCOUTER_BATCH_ID.to_string()]), true)
+        .set_column_bloom_filter_fpp(ColumnPath::new(vec![SCOUTER_BATCH_ID.to_string()]), 0.01)
+        .set_column_bloom_filter_ndv(ColumnPath::new(vec![SCOUTER_BATCH_ID.to_string()]), 10_000)
+        .set_column_statistics_enabled(
+            ColumnPath::new(vec![SCOUTER_CREATED_AT.to_string()]),
+            EnabledStatistics::Page,
         );
 
     for field in schema.fields() {
@@ -166,7 +164,7 @@ pub fn build_writer_props(schema: &Schema) -> WriterProperties {
                 field.data_type(),
                 DataType::Utf8 | DataType::Utf8View | DataType::LargeUtf8
             )
-            && name != "scouter_batch_id"
+            && name != SCOUTER_BATCH_ID
         {
             builder = builder
                 .set_column_bloom_filter_enabled(ColumnPath::new(vec![name.clone()]), true)
@@ -234,13 +232,13 @@ impl DatasetEngine {
 
     /// Simple table name for the private write_ctx (avoids catalog resolution).
     fn write_table_name(namespace: &DatasetNamespace) -> String {
-        format!("_write_{}_{}_{}", namespace.catalog, namespace.schema_name, namespace.table)
+        format!(
+            "_write_{}_{}_{}",
+            namespace.catalog, namespace.schema_name, namespace.table
+        )
     }
 
-    async fn write_batches(
-        &self,
-        batches: Vec<RecordBatch>,
-    ) -> Result<(), DatasetEngineError> {
+    async fn write_batches(&self, batches: Vec<RecordBatch>) -> Result<(), DatasetEngineError> {
         let total_rows: usize = batches.iter().map(|b| b.num_rows()).sum();
         info!(
             "Engine writing {} batches ({} rows) to [{}]",
@@ -378,11 +376,7 @@ impl DatasetEngine {
                 }
             }
             Err(e) => {
-                debug!(
-                    "Refresh skipped for [{}]: {}",
-                    self.namespace.fqn(),
-                    e
-                );
+                debug!("Refresh skipped for [{}]: {}", self.namespace.fqn(), e);
             }
         }
 
@@ -393,7 +387,10 @@ impl DatasetEngine {
     pub fn start_actor(
         self,
         refresh_interval_secs: u64,
-    ) -> (mpsc::Sender<DatasetTableCommand>, tokio::task::JoinHandle<()>) {
+    ) -> (
+        mpsc::Sender<DatasetTableCommand>,
+        tokio::task::JoinHandle<()>,
+    ) {
         let (tx, mut rx) = mpsc::channel::<DatasetTableCommand>(50);
 
         let handle = tokio::spawn(async move {

@@ -37,11 +37,7 @@ impl DatasetCatalogProvider {
     /// Atomically swap the `TableProvider` for a table after a Delta write.
     /// In-flight queries that already obtained a `DataFrame` hold a reference
     /// to the old snapshot and complete normally.
-    pub fn swap_table(
-        &self,
-        namespace: &DatasetNamespace,
-        provider: Arc<dyn TableProvider>,
-    ) {
+    pub fn swap_table(&self, namespace: &DatasetNamespace, provider: Arc<dyn TableProvider>) {
         let schema = self.get_or_create_schema(&namespace.schema_name);
         schema.tables.insert(namespace.table.clone(), provider);
     }
@@ -132,10 +128,7 @@ impl SchemaProvider for DatasetSchemaProvider {
         self.tables.iter().map(|e| e.key().clone()).collect()
     }
 
-    async fn table(
-        &self,
-        name: &str,
-    ) -> Result<Option<Arc<dyn TableProvider>>, DataFusionError> {
+    async fn table(&self, name: &str) -> Result<Option<Arc<dyn TableProvider>>, DataFusionError> {
         Ok(self.tables.get(name).map(|t| Arc::clone(&*t)))
     }
 
@@ -196,11 +189,7 @@ mod tests {
         )]);
         let batch = arrow_array::RecordBatch::new_empty(Arc::new(schema));
         let provider = Arc::new(
-            datafusion::datasource::MemTable::try_new(
-                batch.schema(),
-                vec![vec![batch]],
-            )
-            .unwrap(),
+            datafusion::datasource::MemTable::try_new(batch.schema(), vec![vec![batch]]).unwrap(),
         );
         catalog.swap_table(&ns, provider);
 
