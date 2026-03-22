@@ -6,6 +6,7 @@ use flume::Sender;
 use password_auth::generate_hash;
 use rusty_logging::logger::{LogLevel, LoggingConfig, RustyLogger};
 use scouter_auth::util::generate_recovery_codes_with_hashes;
+use scouter_dataframe::parquet::dataset::manager::DatasetEngineManager;
 use scouter_dataframe::parquet::tracing::service::{init_trace_span_service, TraceSpanService};
 use scouter_dataframe::parquet::tracing::summary::TraceSummaryService;
 use scouter_settings::{
@@ -50,6 +51,7 @@ pub struct ScouterSetupComponents {
     pub http_consumer_tx: Sender<MessageRecord>,
     pub trace_service: Arc<TraceSpanService>,
     pub trace_summary_service: Arc<TraceSummaryService>,
+    pub dataset_manager: Arc<DatasetEngineManager>,
 }
 
 impl ScouterSetupComponents {
@@ -130,6 +132,16 @@ impl ScouterSetupComponents {
         // Initialize Delta Lake trace services (retention is now handled inside the actor)
         let (trace_service, trace_summary_service) = Self::start_trace_services(&config).await?;
 
+        // Initialize dataset engine manager
+        let dataset_manager = Arc::new(
+            DatasetEngineManager::new(&config.storage_settings)
+                .await
+                .context("Failed to initialize DatasetEngineManager")?,
+        );
+        dataset_manager.start_reaper_loop();
+        dataset_manager.start_discovery_loop();
+        info!("✅ Started DatasetEngineManager");
+
         Ok(Self {
             server_config: config,
             db_pool,
@@ -137,6 +149,7 @@ impl ScouterSetupComponents {
             http_consumer_tx: http_consumer_manager.tx.clone(),
             trace_service,
             trace_summary_service,
+            dataset_manager,
         })
     }
 
