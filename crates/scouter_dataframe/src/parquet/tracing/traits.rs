@@ -164,13 +164,13 @@ pub fn arrow_schema_to_delta(schema: &Schema) -> Vec<DeltaStructField> {
 }
 
 /// Convert a single Arrow Field to Delta Lake StructField
-fn arrow_field_to_delta(field: &Field) -> DeltaStructField {
+pub fn arrow_field_to_delta(field: &Field) -> DeltaStructField {
     let delta_type = arrow_type_to_delta(field.data_type());
     DeltaStructField::new(field.name().clone(), delta_type, field.is_nullable())
 }
 
 /// Map Arrow DataType to Delta Lake DataType
-fn arrow_type_to_delta(arrow_type: &DataType) -> DeltaDataType {
+pub fn arrow_type_to_delta(arrow_type: &DataType) -> DeltaDataType {
     match arrow_type {
         // Primitive types
         DataType::Boolean => DeltaDataType::Primitive(PrimitiveType::Boolean),

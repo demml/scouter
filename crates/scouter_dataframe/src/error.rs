@@ -134,3 +134,46 @@ pub enum TraceEngineError {
     #[error("Failed to convert RecordBatch to TraceSpanBatch: {0}")]
     BatchConversion(String),
 }
+
+#[derive(Error, Debug)]
+pub enum DatasetEngineError {
+    #[error(transparent)]
+    DeltaTableError(#[from] deltalake::DeltaTableError),
+
+    #[error(transparent)]
+    ArrowError(#[from] arrow::error::ArrowError),
+
+    #[error(transparent)]
+    DatafusionError(#[from] datafusion::error::DataFusionError),
+
+    #[error(transparent)]
+    StorageError(#[from] StorageError),
+
+    #[error(transparent)]
+    DatasetError(#[from] scouter_types::dataset::DatasetError),
+
+    #[error("Table not found: {0}")]
+    TableNotFound(String),
+
+    #[error("Fingerprint mismatch for table {table}")]
+    FingerprintMismatch {
+        table: String,
+        expected: String,
+        actual: String,
+    },
+
+    #[error("Channel closed")]
+    ChannelClosed,
+
+    #[error("Registry error: {0}")]
+    RegistryError(String),
+
+    #[error(transparent)]
+    IoError(#[from] std::io::Error),
+
+    #[error(transparent)]
+    UrlParseError(#[from] url::ParseError),
+
+    #[error("Serialization error: {0}")]
+    SerializationError(String),
+}

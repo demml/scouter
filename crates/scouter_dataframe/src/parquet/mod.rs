@@ -1,6 +1,7 @@
 pub mod control;
 pub mod custom;
 pub mod dataframe;
+pub mod dataset;
 pub mod genai;
 pub mod psi;
 pub mod spc;

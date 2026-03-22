@@ -97,6 +97,21 @@ impl std::fmt::Display for DatasetStatus {
     }
 }
 
+impl std::str::FromStr for DatasetStatus {
+    type Err = DatasetError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "active" => Ok(DatasetStatus::Active),
+            "deprecated" => Ok(DatasetStatus::Deprecated),
+            other => Err(DatasetError::SchemaParseError(format!(
+                "Unknown dataset status: '{}'",
+                other
+            ))),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatasetRegistration {
     pub namespace: DatasetNamespace,

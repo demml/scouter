@@ -6445,6 +6445,7 @@ dependencies = [
  "bytes",
  "chrono",
  "criterion",
+ "dashmap 6.1.0",
  "datafusion",
  "deltalake",
  "futures",
@@ -6464,6 +6465,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
+ "uuid",
 ]
 
 [[package]]
