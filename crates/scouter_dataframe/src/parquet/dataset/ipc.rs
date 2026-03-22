@@ -6,19 +6,15 @@ use std::io::Cursor;
 
 /// Deserialize Arrow IPC stream bytes into a Vec of RecordBatches.
 ///
-/// Reads all batches from the IPC stream. Returns an error if the bytes
-/// are malformed or contain zero batches.
+/// Returns an empty Vec for empty input (e.g., zero-row query results).
+/// Returns an error only if the bytes are malformed.
 pub fn ipc_bytes_to_batches(data: &[u8]) -> Result<Vec<RecordBatch>, ArrowError> {
+    if data.is_empty() {
+        return Ok(Vec::new());
+    }
     let cursor = Cursor::new(data);
     let reader = StreamReader::try_new(cursor, None)?;
-    let batches: Result<Vec<RecordBatch>, ArrowError> = reader.collect();
-    let batches = batches?;
-    if batches.is_empty() {
-        return Err(ArrowError::IpcError(
-            "IPC stream contained no batches".to_string(),
-        ));
-    }
-    Ok(batches)
+    reader.collect()
 }
 
 /// Serialize a slice of RecordBatches into Arrow IPC stream bytes.
@@ -94,9 +90,12 @@ mod tests {
     }
 
     #[test]
-    fn test_empty_batches() {
+    fn test_empty_batches_round_trip() {
         let bytes = batches_to_ipc_bytes(&[]).unwrap();
         assert!(bytes.is_empty());
+        // Empty bytes should round-trip to empty batches, not error
+        let decoded = ipc_bytes_to_batches(&bytes).unwrap();
+        assert!(decoded.is_empty());
     }
 
     #[test]

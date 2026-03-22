@@ -1,5 +1,4 @@
 use crate::api::state::AppState;
-use anyhow::Context;
 use axum::{
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
@@ -11,7 +10,6 @@ use scouter_dataframe::parquet::dataset::ipc::{batches_to_ipc_bytes, ipc_bytes_t
 use scouter_dataframe::parquet::dataset::registry::RegistrationResult;
 use scouter_types::contracts::ScouterServerError;
 use scouter_types::dataset::{DatasetFingerprint, DatasetNamespace, DatasetRegistration};
-use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 use tracing::{error, instrument};
 
@@ -61,16 +59,24 @@ struct ListDatasetsResponse {
 
 // ── Error mapping ───────────────────────────────────────────────────
 
-fn map_err(e: DatasetEngineError) -> (StatusCode, Json<ScouterServerError>) {
-    let status = match &e {
-        DatasetEngineError::TableNotFound(_) => StatusCode::NOT_FOUND,
-        DatasetEngineError::FingerprintMismatch { .. } => StatusCode::PRECONDITION_FAILED,
-        DatasetEngineError::ChannelClosed => StatusCode::SERVICE_UNAVAILABLE,
-        DatasetEngineError::DatasetError(_) => StatusCode::BAD_REQUEST,
-        _ => StatusCode::INTERNAL_SERVER_ERROR,
+fn map_dataset_error(e: DatasetEngineError) -> (StatusCode, Json<ScouterServerError>) {
+    let (status, msg) = match &e {
+        DatasetEngineError::TableNotFound(_) => (StatusCode::NOT_FOUND, e.to_string()),
+        DatasetEngineError::FingerprintMismatch { .. } => {
+            (StatusCode::PRECONDITION_FAILED, e.to_string())
+        }
+        DatasetEngineError::ChannelClosed => (StatusCode::SERVICE_UNAVAILABLE, e.to_string()),
+        DatasetEngineError::DatasetError(_) => (StatusCode::BAD_REQUEST, e.to_string()),
+        DatasetEngineError::SqlValidationError(_) => (StatusCode::BAD_REQUEST, e.to_string()),
+        _ => {
+            error!("Dataset engine error: {:?}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Internal server error".to_string(),
+            )
+        }
     };
-    error!("Dataset error: {:?}", e);
-    (status, Json(ScouterServerError::new(e.to_string())))
+    (status, Json(ScouterServerError::new(msg)))
 }
 
 fn bad_request(msg: String) -> (StatusCode, Json<ScouterServerError>) {
@@ -115,7 +121,7 @@ async fn register_dataset(
         .dataset_manager
         .register_dataset(&registration)
         .await
-        .map_err(map_err)?;
+        .map_err(map_dataset_error)?;
 
     let status = match result {
         RegistrationResult::Created => "created",
@@ -154,7 +160,7 @@ async fn insert_batch(
         data.dataset_manager
             .insert_batch(&namespace, &fingerprint, batch)
             .await
-            .map_err(map_err)?;
+            .map_err(map_dataset_error)?;
     }
 
     Ok(Json(InsertBatchHttpResponse {
@@ -171,7 +177,7 @@ async fn query_dataset(
         .dataset_manager
         .query(&body.sql)
         .await
-        .map_err(map_err)?;
+        .map_err(map_dataset_error)?;
 
     let ipc_data = batches_to_ipc_bytes(&batches).map_err(|e| {
         internal_error(format!("Failed to serialize query results: {e}"))
@@ -238,30 +244,20 @@ async fn get_dataset_info(
 
 // ── Router ──────────────────────────────────────────────────────────
 
-pub async fn get_dataset_router(
-    prefix: &str,
-) -> anyhow::Result<Router<Arc<AppState>>> {
-    let result = catch_unwind(AssertUnwindSafe(|| {
-        Router::new()
-            .route(
-                &format!("{prefix}/datasets/register"),
-                post(register_dataset),
-            )
-            .route(&format!("{prefix}/datasets/sql"), post(query_dataset))
-            .route(&format!("{prefix}/datasets"), get(list_datasets))
-            .route(
-                &format!("{prefix}/datasets/{{catalog}}/{{schema}}/{{table}}/records"),
-                post(insert_batch),
-            )
-            .route(
-                &format!("{prefix}/datasets/{{catalog}}/{{schema}}/{{table}}/info"),
-                get(get_dataset_info),
-            )
-    }));
-
-    match result {
-        Ok(router) => Ok(router),
-        Err(_) => Err(anyhow::anyhow!("Failed to create dataset router"))
-            .context("Panic occurred while creating the router"),
-    }
+pub fn get_dataset_router(prefix: &str) -> Router<Arc<AppState>> {
+    Router::new()
+        .route(
+            &format!("{prefix}/datasets/register"),
+            post(register_dataset),
+        )
+        .route(&format!("{prefix}/datasets/sql"), post(query_dataset))
+        .route(&format!("{prefix}/datasets"), get(list_datasets))
+        .route(
+            &format!("{prefix}/datasets/{{catalog}}/{{schema}}/{{table}}/records"),
+            post(insert_batch),
+        )
+        .route(
+            &format!("{prefix}/datasets/{{catalog}}/{{schema}}/{{table}}/info"),
+            get(get_dataset_info),
+        )
 }

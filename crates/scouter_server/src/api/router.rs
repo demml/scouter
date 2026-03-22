@@ -31,7 +31,7 @@ const ROUTE_PREFIX: &str = "/scouter";
 /// The main router for the application
 pub async fn create_router(app_state: Arc<AppState>) -> Result<Router> {
     let cors = CorsLayer::new()
-        .allow_methods([Method::GET, Method::PUT, Method::DELETE])
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
         .allow_credentials(true)
         .allow_headers([AUTHORIZATION, ACCEPT, CONTENT_TYPE]);
 
@@ -46,7 +46,7 @@ pub async fn create_router(app_state: Arc<AppState>) -> Result<Router> {
     let message_routes = get_message_router(ROUTE_PREFIX).await?;
     let observability_routes = get_observability_router(ROUTE_PREFIX).await?;
     let genai_routes = get_genai_router(ROUTE_PREFIX).await?;
-    let dataset_routes = get_dataset_router(ROUTE_PREFIX).await?;
+    let dataset_routes = get_dataset_router(ROUTE_PREFIX);
 
     let merged_routes = Router::new()
         .merge(drift_routes)

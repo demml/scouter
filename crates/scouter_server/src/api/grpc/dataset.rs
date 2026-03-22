@@ -38,9 +38,10 @@ fn map_dataset_error(e: DatasetEngineError) -> Status {
         }
         DatasetEngineError::ChannelClosed => Status::unavailable(e.to_string()),
         DatasetEngineError::DatasetError(_) => Status::invalid_argument(e.to_string()),
+        DatasetEngineError::SqlValidationError(_) => Status::invalid_argument(e.to_string()),
         _ => {
             error!("Dataset engine error: {:?}", e);
-            Status::internal(e.to_string())
+            Status::internal("Internal server error".to_string())
         }
     }
 }
