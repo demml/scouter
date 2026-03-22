@@ -186,10 +186,17 @@ impl DatasetEngineManager {
             }
 
             if let Some(notify) = pending.get(&fqn) {
-                // Another task is already activating this FQN — wait for it
+                // Another task is already activating this FQN — wait for it.
+                // Pin and enable the Notified future before releasing the lock so the
+                // waiter is registered before the activating task can call notify_waiters().
+                // Without enable(), a notify_waiters() fired between drop(pending) and the
+                // first poll of notified.await would be lost, hanging this task forever.
                 let notify = Arc::clone(notify);
+                let notified = notify.notified();
+                tokio::pin!(notified);
+                notified.as_mut().enable();
                 drop(pending);
-                notify.notified().await;
+                notified.await;
                 return if self.active_engines.contains_key(&fqn) {
                     Ok(())
                 } else {
