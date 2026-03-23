@@ -53,7 +53,7 @@ impl DatasetTableHandle {
 pub struct DatasetEngineManager {
     registry: Arc<DatasetRegistry>,
     active_engines: Arc<DashMap<String, DatasetTableHandle>>,
-    activating: Mutex<HashMap<String, Arc<Notify>>>,
+    activating: Arc<Mutex<HashMap<String, Arc<Notify>>>>,
     query_ctx: Arc<SessionContext>,
     catalog_provider: Arc<DatasetCatalogProvider>,
     object_store: ObjectStore,
@@ -108,7 +108,7 @@ impl DatasetEngineManager {
         let manager = Self {
             registry,
             active_engines: Arc::new(DashMap::new()),
-            activating: Mutex::new(HashMap::new()),
+            activating: Arc::new(Mutex::new(HashMap::new())),
             query_ctx,
             catalog_provider,
             object_store,
@@ -161,8 +161,13 @@ impl DatasetEngineManager {
     /// If the engine is already active, touches `last_active_at` and returns the handle reference.
     /// If not active, lazy-loads the Delta table, spawns the actor pair, and returns it.
     ///
-    /// Uses `activating` mutex to prevent two concurrent callers from creating
-    /// duplicate engine actors for the same FQN (TOCTOU guard).
+    /// Uses `activating` to prevent two concurrent callers from creating duplicate engine
+    /// actors for the same FQN (TOCTOU guard).
+    ///
+    /// Cancellation safety: a spawned cleanup task holds an `Arc` clone of `activating`
+    /// and waits for a oneshot signal. If this future is dropped mid-await, the oneshot
+    /// sender drops too, the cleanup task unblocks via `Err(RecvError)`, and it removes
+    /// the stale entry + fires `notify_waiters()` so waiters are not permanently hung.
     async fn activate_engine(
         &self,
         namespace: &DatasetNamespace,
@@ -196,13 +201,22 @@ impl DatasetEngineManager {
                 tokio::pin!(notified);
                 notified.as_mut().enable();
                 drop(pending);
-                notified.await;
+
+                // Timeout bounds worst-case wait if the cleanup task is somehow delayed.
+                match tokio::time::timeout(Duration::from_secs(30), notified).await {
+                    Ok(_) => {}
+                    Err(_) => {
+                        return Err(DatasetEngineError::RegistryError(format!(
+                            "Engine activation timed out for {fqn}"
+                        )));
+                    }
+                }
+
                 return if self.active_engines.contains_key(&fqn) {
                     Ok(())
                 } else {
                     Err(DatasetEngineError::RegistryError(format!(
-                        "Activation failed for {}",
-                        fqn
+                        "Activation failed for {fqn}"
                     )))
                 };
             }
@@ -210,16 +224,23 @@ impl DatasetEngineManager {
             pending.insert(fqn.clone(), Arc::new(Notify::new()));
         } // activating lock released — safe to .await
 
-        let result = self.do_activate_engine_inner(namespace, &fqn).await;
-
-        // Always clean up pending set and notify waiters
-        {
-            let mut pending = self.activating.lock().await;
-            if let Some(notify) = pending.remove(&fqn) {
+        // Spawn a cleanup task that runs whether we complete normally or get cancelled.
+        // The oneshot sender is dropped in both cases, unblocking the cleanup task.
+        let (done_tx, done_rx) = tokio::sync::oneshot::channel::<()>();
+        let activating = Arc::clone(&self.activating);
+        let fqn_for_cleanup = fqn.clone();
+        tokio::spawn(async move {
+            // Waits for done_tx.send(()) on the happy path, or Err if sender is dropped
+            // (future cancelled). Either way, clean up the pending entry.
+            let _ = done_rx.await;
+            let mut pending = activating.lock().await;
+            if let Some(notify) = pending.remove(&fqn_for_cleanup) {
                 notify.notify_waiters();
             }
-        }
+        });
 
+        let result = self.do_activate_engine_inner(namespace, &fqn).await;
+        let _ = done_tx.send(()); // signal cleanup; if already dropped, cleanup already ran
         result
     }
 
