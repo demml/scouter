@@ -1,10 +1,14 @@
 use pyo3::prelude::*;
 use scouter_types::PyHelperFuncs;
 use scouter_types::TransportType;
-use serde::Serialize;
+use serde::{Serialize, Serializer};
+
+fn redact<S: Serializer>(_: &str, s: S) -> Result<S::Ok, S::Error> {
+    s.serialize_str("***")
+}
 
 #[pyclass]
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Serialize)]
 pub struct GrpcConfig {
     #[pyo3(get, set)]
     pub server_uri: String,
@@ -12,7 +16,8 @@ pub struct GrpcConfig {
     #[pyo3(get, set)]
     pub username: String,
 
-    #[pyo3(get, set)]
+    #[pyo3(set)]
+    #[serde(serialize_with = "redact")]
     pub password: String,
 
     #[pyo3(get, set)]
@@ -32,6 +37,22 @@ pub struct GrpcConfig {
 
     #[pyo3(get)]
     pub transport_type: TransportType,
+}
+
+impl std::fmt::Debug for GrpcConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GrpcConfig")
+            .field("server_uri", &self.server_uri)
+            .field("username", &self.username)
+            .field("password", &"***")
+            .field("timeout_secs", &self.timeout_secs)
+            .field("connect_timeout_secs", &self.connect_timeout_secs)
+            .field("keep_alive_interval_secs", &self.keep_alive_interval_secs)
+            .field("keep_alive_timeout_secs", &self.keep_alive_timeout_secs)
+            .field("keep_alive_while_idle", &self.keep_alive_while_idle)
+            .field("transport_type", &self.transport_type)
+            .finish()
+    }
 }
 
 #[pymethods]

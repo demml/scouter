@@ -1,6 +1,6 @@
 use crate::error::EventError;
 use crate::producer::RustScouterProducer;
-use crate::queue::bus::TaskState;
+use crate::queue::bus::{Event, TaskState};
 use crate::queue::psi::feature_queue::PsiFeatureQueue;
 use crate::queue::traits::{BackgroundTask, QueueMethods};
 use crate::queue::types::TransportConfig;
@@ -28,7 +28,7 @@ impl PsiQueue {
     pub async fn new(
         drift_profile: PsiDriftProfile,
         config: TransportConfig,
-        task_state: &mut TaskState,
+        task_state: &mut TaskState<Event>,
         identifier: String,
     ) -> Result<Self, EventError> {
         // ArrayQueue size is based on the max PSI queue size

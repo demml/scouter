@@ -18702,6 +18702,38 @@ class DataProfiler:
 
 ### dataset.pyi ###
 class DatasetClient:
+    """Dataset client for reads and queries (Phase 5)."""
+
+class TableConfig:
+    """Configuration for a dataset table, derived from a Pydantic model.
+
+    Eagerly computes Arrow schema, fingerprint, and namespace from the model class.
+
+    Args:
+        model: Pydantic model class (not an instance).
+        catalog: Catalog name.
+        schema_name: Schema name.
+        table: Table name.
+        partition_columns: Optional list of partition column names.
+    """
+
+    catalog: str
+    schema_name: str
+    table: str
+    partition_columns: List[str]
+
+    def __init__(
+        self,
+        model: Type[Any],
+        catalog: str,
+        schema_name: str,
+        table: str,
+        partition_columns: Optional[List[str]] = None,
+    ) -> None: ...
+    @property
+    def fingerprint_str(self) -> str: ...
+    @property
+    def fqn(self) -> str: ...
     @staticmethod
     def parse_schema(schema: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
         """Parse a Pydantic model's JSON Schema dict into a field map.
@@ -18712,11 +18744,10 @@ class DatasetClient:
         ``scouter_batch_id``) are included automatically.
 
         Args:
-            schema (Dict[str, Any]):
-                Dict returned by ``Model.model_json_schema()``.
+            schema: Dict returned by ``Model.model_json_schema()``.
 
         Returns:
-            Dict[str, Dict[str, Any]]: Mapping of field name to Arrow type descriptor
+            Mapping of field name to Arrow type descriptor
             with ``arrow_type`` (str) and ``nullable`` (bool) keys.
         """
 
@@ -18728,12 +18759,74 @@ class DatasetClient:
         Any field addition, removal, or type change yields a different value.
 
         Args:
-            schema (Dict[str, Any]):
-                Dict returned by ``Model.model_json_schema()``.
+            schema: Dict returned by ``Model.model_json_schema()``.
 
         Returns:
-            str: 32-character hexadecimal fingerprint string.
+            32-character hexadecimal fingerprint string.
         """
+
+class WriteConfig:
+    """Configuration for dataset write behavior.
+
+    Args:
+        batch_size: Number of rows per batch (default: 1000).
+        scheduled_delay_secs: Seconds between scheduled flushes (default: 30).
+    """
+
+    batch_size: int
+    scheduled_delay_secs: int
+
+    def __init__(
+        self,
+        batch_size: int = 1000,
+        scheduled_delay_secs: int = 30,
+    ) -> None: ...
+
+class DatasetProducer:
+    """Real-time streaming producer for the Scouter dataset engine.
+
+    Pushes Pydantic model instances through a Rust queue to Delta Lake via gRPC.
+    Always has an active background queue.
+
+    Args:
+        table_config: Table configuration derived from a Pydantic model.
+        transport: Transport configuration (e.g., GrpcConfig).
+        write_config: Optional write configuration.
+    """
+
+    def __init__(
+        self,
+        table_config: TableConfig,
+        transport: Any,
+        write_config: Optional[WriteConfig] = None,
+    ) -> None: ...
+    def insert(self, record: Any) -> None:
+        """Insert a Pydantic model instance into the queue.
+
+        Calls ``record.model_dump_json()`` and sends via channel. Non-blocking.
+        """
+
+    def flush(self) -> None:
+        """Signal the background queue to flush immediately."""
+
+    def shutdown(self) -> None:
+        """Gracefully shut down the producer, flushing remaining items."""
+
+    def register(self) -> str:
+        """Register the dataset table with the server.
+
+        Optional — auto-registers on first flush if not called explicitly.
+
+        Returns:
+            Registration status from the server.
+        """
+
+    @property
+    def fingerprint(self) -> str: ...
+    @property
+    def namespace(self) -> str: ...
+    @property
+    def is_registered(self) -> bool: ...
 
 ### GLOBAL EXPORTS ###
 __all__ = [
@@ -18832,6 +18925,7 @@ __all__ = [
     "DataProfiler",
     "DataStoreSpec",
     "DatasetClient",
+    "DatasetProducer",
     "Distinct",
     "Doane",
     "DocumentBlockParam",
@@ -19066,6 +19160,7 @@ __all__ = [
     "StringStats",
     "Sturges",
     "SystemPrompt",
+    "TableConfig",
     "TagRecord",
     "TagsResponse",
     "Task",
@@ -19133,6 +19228,7 @@ __all__ = [
     "Workflow",
     "WorkflowResult",
     "WorkflowTask",
+    "WriteConfig",
     "WriteLevel",
     "execute_agent_assertion_tasks",
     "flush_tracer",

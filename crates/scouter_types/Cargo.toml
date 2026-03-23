@@ -39,6 +39,7 @@ tabled = { workspace = true }
 sha2 = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true}
+uuid = { workspace = true }
 tracing = { workspace = true }
 statrs = { workspace = true }
 num-traits = { workspace = true }

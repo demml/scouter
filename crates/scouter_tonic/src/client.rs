@@ -122,7 +122,7 @@ impl GrpcClient {
         let current_token = self.get_current_token();
 
         let mut request = Request::new(RefreshTokenRequest {
-            refresh_token: current_token.clone(),
+            access_token: current_token.clone(),
         });
 
         // Add current token as bearer token in metadata

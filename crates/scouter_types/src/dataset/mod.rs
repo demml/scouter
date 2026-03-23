@@ -1,3 +1,4 @@
+pub mod batch_builder;
 pub mod error;
 pub mod schema;
 pub mod types;

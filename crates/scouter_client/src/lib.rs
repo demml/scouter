@@ -5,7 +5,10 @@ pub mod error;
 pub mod http;
 pub mod profiler;
 
-pub use dataset::client::DatasetClient;
+pub use dataset::client::DatasetProducer;
+pub use dataset::config::{TableConfig, WriteConfig};
+pub use dataset::error::DatasetClientError;
+pub use dataset::reader::DatasetClient;
 pub use drifter::scouter::PyDrifter;
 pub use profiler::scouter::DataProfiler;
 pub use scouter_settings::{grpc::GrpcConfig, HttpConfig};
@@ -64,7 +67,7 @@ pub use scouter_events::error::PyEventError;
 pub use scouter_events::producer::{
     kafka::KafkaConfig, mock::MockConfig, rabbitmq::RabbitMQConfig, redis::RedisConfig,
 };
-pub use scouter_events::queue::bus::TaskState;
+pub use scouter_events::queue::bus::{Flushable, TaskState};
 pub use scouter_events::queue::{
     custom::CustomMetricFeatureQueue, genai::EvalRecordQueue, psi::PsiFeatureQueue,
     spc::SpcFeatureQueue, QueueBus, ScouterQueue,

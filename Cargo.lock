@@ -6407,7 +6407,9 @@ dependencies = [
 name = "scouter-client"
 version = "0.23.0"
 dependencies = [
+ "arrow",
  "chrono",
+ "crossbeam-queue",
  "ndarray",
  "ndarray-stats",
  "noisy_float",
@@ -6424,6 +6426,7 @@ dependencies = [
  "scouter-profile",
  "scouter-settings",
  "scouter-state",
+ "scouter-tonic",
  "scouter-tracing",
  "scouter-types",
  "serde",
@@ -6431,6 +6434,7 @@ dependencies = [
  "serde_qs",
  "thiserror 2.0.18",
  "tokio",
+ "tokio-util",
  "tracing",
 ]
 
@@ -6548,6 +6552,7 @@ dependencies = [
 name = "scouter-events"
 version = "0.23.0"
 dependencies = [
+ "arrow",
  "async-trait",
  "chrono",
  "crossbeam-queue",
@@ -6872,6 +6877,7 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]

@@ -30,7 +30,7 @@ pub struct LoginResponse {
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct RefreshTokenRequest {
     #[prost(string, tag = "1")]
-    pub refresh_token: ::prost::alloc::string::String,
+    pub access_token: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct RefreshTokenResponse {

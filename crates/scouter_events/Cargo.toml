@@ -12,6 +12,7 @@ license = "MIT"
 description = "Logic for setting up and running Scouter event-driven consumers and producers"
 
 [dependencies]
+arrow = { workspace = true }
 async-trait = { workspace = true }
 chrono = { workspace = true }
 crossbeam-queue = { workspace = true }

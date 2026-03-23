@@ -5,8 +5,6 @@ use pyo3::PyErr;
 use rdkafka::error::KafkaError;
 use thiserror::Error;
 
-use crate::queue::bus::Event;
-
 #[derive(Error, Debug)]
 pub enum FeatureQueueError {
     #[error("{0}")]
@@ -110,8 +108,8 @@ pub enum EventError {
     #[error(transparent)]
     SerdeJsonError(#[from] serde_json::Error),
 
-    #[error(transparent)]
-    SendEntityError(#[from] tokio::sync::mpsc::error::SendError<Event>),
+    #[error("Failed to send event: {0}")]
+    SendError(String),
 
     #[error("Failed to push to queue. Queue is full")]
     QueuePushError,
@@ -187,6 +185,18 @@ pub enum EventError {
 
     #[error("Failed to get queue settings for GenAI queue")]
     MissingQueueSettingsError,
+
+    #[error("Dataset fingerprint mismatch between client and server")]
+    DatasetFingerprintMismatch,
+
+    #[error("Failed to build dataset batch: {0}")]
+    DatasetBatchBuildError(String),
+}
+
+impl<T: std::fmt::Debug + Send> From<tokio::sync::mpsc::error::SendError<T>> for EventError {
+    fn from(e: tokio::sync::mpsc::error::SendError<T>) -> Self {
+        EventError::SendError(e.to_string())
+    }
 }
 
 #[derive(Error, Debug)]
