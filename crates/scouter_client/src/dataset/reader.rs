@@ -131,7 +131,9 @@ impl DatasetClient {
         let client = self.client.clone();
         let resp = py
             .detach(|| {
-                let mut c = client.lock().unwrap();
+                let mut c = client
+                    .lock()
+                    .map_err(|_| DatasetClientError::GrpcError("gRPC client lock poisoned".into()))?;
                 app_state().block_on(c.list_datasets())
             })
             .map_err(|e| DatasetClientError::GrpcError(e.to_string()))?;
@@ -164,7 +166,9 @@ impl DatasetClient {
         let client = self.client.clone();
         let resp = py
             .detach(move || {
-                let mut c = client.lock().unwrap();
+                let mut c = client
+                    .lock()
+                    .map_err(|_| DatasetClientError::GrpcError("gRPC client lock poisoned".into()))?;
                 app_state().block_on(c.describe_dataset(&catalog, &schema_name, &table))
             })
             .map_err(|e| DatasetClientError::GrpcError(e.to_string()))?;
@@ -191,7 +195,9 @@ impl DatasetClient {
         let client = self.client.clone();
         let query = query.to_string();
         let response = py.detach(move || {
-            let mut c = client.lock().unwrap();
+            let mut c = client
+                .lock()
+                .map_err(|_| DatasetClientError::GrpcError("gRPC client lock poisoned".into()))?;
             app_state().block_on(c.query_dataset(&query))
         })?;
         Ok(response.ipc_data)
