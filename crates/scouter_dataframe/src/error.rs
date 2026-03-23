@@ -176,7 +176,4 @@ pub enum DatasetEngineError {
 
     #[error("Serialization error: {0}")]
     SerializationError(String),
-
-    #[error("SQL validation failed: {0}")]
-    SqlValidationError(String),
 }

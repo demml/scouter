@@ -26,17 +26,14 @@ pub const FILE_DESCRIPTOR_SET: &[u8] = include_bytes!("generated/scouter_descrip
 
 // Re-export common types (always available)
 pub use generated::scouter::grpc::v1::{
-    InsertBatchRequest, InsertBatchResponse, InsertMessageRequest, InsertMessageResponse,
-    LoginRequest, LoginResponse, QueryDatasetRequest, QueryDatasetResponse,
-    RegisterDatasetRequest, RegisterDatasetResponse, RefreshTokenRequest, RefreshTokenResponse,
-    ValidateTokenRequest, ValidateTokenResponse,
+    InsertMessageRequest, InsertMessageResponse, LoginRequest, LoginResponse, RefreshTokenRequest,
+    RefreshTokenResponse, ValidateTokenRequest, ValidateTokenResponse,
 };
 
 // Re-export client types when feature is enabled
 #[cfg(feature = "client")]
 pub use generated::scouter::grpc::v1::{
-    auth_service_client::AuthServiceClient, dataset_service_client::DatasetServiceClient,
-    message_service_client::MessageServiceClient,
+    auth_service_client::AuthServiceClient, message_service_client::MessageServiceClient,
 };
 #[cfg(feature = "client")]
 pub mod client;
@@ -51,7 +48,6 @@ pub mod error;
 #[cfg(feature = "server")]
 pub use generated::scouter::grpc::v1::{
     auth_service_server::{AuthService, AuthServiceServer},
-    dataset_service_server::{DatasetService, DatasetServiceServer},
     message_service_server::{MessageService, MessageServiceServer},
 };
 

@@ -6684,7 +6684,6 @@ version = "0.23.0"
 dependencies = [
  "anyhow",
  "approx",
- "arrow-array",
  "axum",
  "axum-extra",
  "chrono",
