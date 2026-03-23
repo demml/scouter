@@ -17,7 +17,7 @@ use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, info_span, Instrument};
+use tracing::{debug, error, info, info_span, warn, Instrument};
 
 pub enum DatasetEvent {
     Insert(String),
@@ -71,32 +71,39 @@ impl DatasetQueue {
         }
     }
 
+    /// Create a second `DatasetQueue` that shares the same underlying `ArrayQueue`,
+    /// `registered` flag, and `last_publish` timestamp. Used so the background flush
+    /// task can drain from the same buffer as the event handler.
+    #[allow(clippy::too_many_arguments)]
+    pub fn with_shared_state(
+        queue: Arc<ArrayQueue<String>>,
+        schema: SchemaRef,
+        fingerprint: DatasetFingerprint,
+        namespace: DatasetNamespace,
+        json_schema: String,
+        partition_columns: Vec<String>,
+        grpc_config: GrpcConfig,
+        registered: Arc<AtomicBool>,
+        last_publish: Arc<RwLock<DateTime<Utc>>>,
+        batch_size: usize,
+    ) -> Self {
+        Self {
+            queue,
+            schema,
+            fingerprint,
+            namespace,
+            json_schema,
+            partition_columns,
+            grpc_config,
+            registered,
+            last_publish,
+            batch_size,
+            grpc_client: None,
+        }
+    }
+
     pub fn queue(&self) -> Arc<ArrayQueue<String>> {
         self.queue.clone()
-    }
-
-    pub fn schema(&self) -> SchemaRef {
-        self.schema.clone()
-    }
-
-    pub fn fingerprint(&self) -> DatasetFingerprint {
-        self.fingerprint.clone()
-    }
-
-    pub fn namespace(&self) -> DatasetNamespace {
-        self.namespace.clone()
-    }
-
-    pub fn json_schema(&self) -> String {
-        self.json_schema.clone()
-    }
-
-    pub fn partition_columns(&self) -> Vec<String> {
-        self.partition_columns.clone()
-    }
-
-    pub fn grpc_config(&self) -> GrpcConfig {
-        self.grpc_config.clone()
     }
 
     pub fn registered(&self) -> Arc<AtomicBool> {
@@ -107,15 +114,10 @@ impl DatasetQueue {
         self.last_publish.clone()
     }
 
-    pub fn batch_size(&self) -> usize {
-        self.batch_size
-    }
-
     /// Insert a JSON string into the queue with backpressure.
     pub async fn insert(&mut self, json_str: String) -> Result<(), EventError> {
         self.insert_with_backpressure(json_str).await?;
 
-        // Check if we need to flush based on capacity
         if self.queue.len() >= self.batch_size {
             debug!(
                 "Dataset queue reached capacity, processing queue, current count: {}, batch_size: {}",
@@ -129,40 +131,38 @@ impl DatasetQueue {
     }
 
     /// Backpressure handling for inserting items into the queue.
-    /// Retries up to 3 times with exponential backoff (100ms, 200ms, 400ms).
+    /// Retries up to 3 times with exponential backoff (200ms, 400ms, 800ms).
+    /// `ArrayQueue::push` returns the item on failure, so no cloning is needed.
     async fn insert_with_backpressure(&self, item: String) -> Result<(), EventError> {
-        let max_retries = 3;
-        let mut current_retry: u32 = 0;
-
-        while current_retry < max_retries {
-            match self.queue.push(item.clone()) {
-                Ok(_) => return Ok(()),
-                Err(_) => {
-                    current_retry += 1;
-                    if current_retry == max_retries {
-                        return Err(EventError::QueuePushError);
+        match self.queue.push(item) {
+            Ok(_) => Ok(()),
+            Err(returned) => {
+                let mut item = returned;
+                for retry in 1..=3u32 {
+                    sleep(Duration::from_millis(100 * 2_u64.pow(retry))).await;
+                    match self.queue.push(item) {
+                        Ok(_) => return Ok(()),
+                        Err(returned) => {
+                            item = returned;
+                        }
                     }
-                    // Exponential backoff: 100ms, 200ms, 400ms
-                    sleep(Duration::from_millis(100 * 2_u64.pow(current_retry))).await;
                 }
+                Err(EventError::QueuePushError)
             }
         }
-
-        Err(EventError::QueuePushRetryError)
     }
 
     /// Drain queue, build Arrow batch, send via gRPC.
+    /// On failure, items are re-queued on a best-effort basis.
     pub async fn try_publish(&mut self) -> Result<(), EventError> {
         // Lazy-init gRPC client
         if self.grpc_client.is_none() {
-            self.grpc_client =
-                Some(DatasetGrpcClient::new(self.grpc_config.clone()).await?);
+            self.grpc_client = Some(DatasetGrpcClient::new(self.grpc_config.clone()).await?);
         }
 
-        let client = self.grpc_client.as_mut().unwrap();
-
         // Auto-register if not registered
-        if !self.registered.load(Ordering::Relaxed) {
+        if !self.registered.load(Ordering::Acquire) {
+            let client = self.grpc_client.as_mut().unwrap();
             let resp = client
                 .register_dataset(
                     &self.namespace.catalog,
@@ -173,7 +173,6 @@ impl DatasetQueue {
                 )
                 .await?;
 
-            // Verify fingerprint matches
             if resp.fingerprint != self.fingerprint.as_str() {
                 error!(
                     "Fingerprint mismatch: server={}, local={}",
@@ -183,11 +182,11 @@ impl DatasetQueue {
                 return Err(EventError::DatasetFingerprintMismatch);
             }
 
-            self.registered.store(true, Ordering::Relaxed);
+            self.registered.store(true, Ordering::Release);
             info!("Dataset registered: {}", self.namespace.fqn());
         }
 
-        // Drain queue
+        // Drain at most batch_size items
         let mut batch_items = Vec::with_capacity(self.batch_size);
         while let Some(item) = self.queue.pop() {
             batch_items.push(item);
@@ -200,52 +199,98 @@ impl DatasetQueue {
             return Ok(());
         }
 
-        // Build Arrow batch
-        let mut builder = DynamicBatchBuilder::new(self.schema.clone());
-        for json_str in &batch_items {
-            builder.append_json_row(json_str).map_err(|e| {
-                error!("Failed to append JSON row: {}", e);
-                EventError::DatasetBatchBuildError(e.to_string())
-            })?;
+        // Build Arrow batch from JSON strings
+        let row_count = batch_items.len();
+        let send_result = build_and_send(
+            self.grpc_client.as_mut().unwrap(),
+            &self.schema,
+            &self.namespace,
+            &self.fingerprint,
+            &batch_items,
+        )
+        .await;
+
+        match send_result {
+            Ok(()) => {
+                if let Ok(mut last_publish) = self.last_publish.write() {
+                    *last_publish = Utc::now();
+                }
+                info!(
+                    "Published {} rows to dataset {}",
+                    row_count,
+                    self.namespace.fqn()
+                );
+                Ok(())
+            }
+            Err(e) => {
+                // Re-queue items on best-effort basis
+                let mut dropped = 0;
+                for item in batch_items {
+                    if self.queue.push(item).is_err() {
+                        dropped += 1;
+                    }
+                }
+                if dropped > 0 {
+                    warn!(
+                        "Dropped {} rows (queue full after failed publish to {})",
+                        dropped,
+                        self.namespace.fqn()
+                    );
+                }
+                Err(e)
+            }
         }
-
-        let batch = builder.finish().map_err(|e| {
-            error!("Failed to finish batch: {}", e);
-            EventError::DatasetBatchBuildError(e.to_string())
-        })?;
-
-        // Convert to IPC bytes
-        let ipc_bytes = batches_to_ipc_bytes(&[batch])?;
-
-        // Send via gRPC
-        client
-            .insert_batch(
-                &self.namespace.catalog,
-                &self.namespace.schema_name,
-                &self.namespace.table,
-                self.fingerprint.as_str(),
-                ipc_bytes,
-            )
-            .await?;
-
-        // Update last publish time
-        if let Ok(mut last_publish) = self.last_publish.write() {
-            *last_publish = Utc::now();
-        }
-
-        info!(
-            "Published {} rows to dataset {}",
-            batch_items.len(),
-            self.namespace.fqn()
-        );
-
-        Ok(())
     }
 
     /// Flush all remaining items in the queue.
     pub async fn flush(&mut self) -> Result<(), EventError> {
         self.try_publish().await
     }
+
+    /// Check whether enough time has elapsed since the last publish.
+    pub fn should_process(&self, scheduled_delay_secs: u64) -> bool {
+        if let Ok(last) = self.last_publish.read() {
+            (Utc::now() - *last).num_seconds() >= scheduled_delay_secs as i64
+        } else {
+            false
+        }
+    }
+}
+
+/// Build an Arrow batch from JSON strings and send via gRPC.
+async fn build_and_send(
+    client: &mut DatasetGrpcClient,
+    schema: &SchemaRef,
+    namespace: &DatasetNamespace,
+    fingerprint: &DatasetFingerprint,
+    batch_items: &[String],
+) -> Result<(), EventError> {
+    let mut builder = DynamicBatchBuilder::new(schema.clone());
+    for json_str in batch_items {
+        builder.append_json_row(json_str).map_err(|e| {
+            error!("Failed to append JSON row: {}", e);
+            EventError::DatasetBatchBuildError(e.to_string())
+        })?;
+    }
+
+    let batch = builder.finish().map_err(|e| {
+        error!("Failed to finish batch: {}", e);
+        EventError::DatasetBatchBuildError(e.to_string())
+    })?;
+
+    let ipc_bytes = batches_to_ipc_bytes(&[batch])?;
+
+    client
+        .insert_batch(
+            &namespace.catalog,
+            &namespace.schema_name,
+            &namespace.table,
+            fingerprint.as_str(),
+            ipc_bytes,
+        )
+        .await?;
+
+    Ok(())
 }
 
 /// Convert Arrow RecordBatches to IPC stream bytes.
@@ -277,7 +322,6 @@ fn batches_to_ipc_bytes(batches: &[RecordBatch]) -> Result<Vec<u8>, EventError> 
 }
 
 /// Event handler loop for the dataset queue.
-/// Mirrors `spawn_queue_event_handler` from `py_queue.rs`.
 pub async fn spawn_dataset_event_handler(
     mut event_rx: UnboundedReceiver<DatasetEvent>,
     mut queue: DatasetQueue,
@@ -329,24 +373,14 @@ pub async fn spawn_dataset_event_handler(
 }
 
 /// Background flush task for the dataset queue.
-/// Mirrors `BackgroundTask::start_background_task` from `traits/queue.rs`.
-#[allow(clippy::too_many_arguments)]
+/// Periodically drains the queue and publishes via gRPC using `DatasetQueue::try_publish`.
 pub fn start_dataset_background_task(
-    data_queue: Arc<ArrayQueue<String>>,
-    schema: SchemaRef,
-    fingerprint: DatasetFingerprint,
-    namespace: DatasetNamespace,
-    json_schema: String,
-    partition_columns: Vec<String>,
-    grpc_config: GrpcConfig,
-    registered: Arc<AtomicBool>,
-    last_publish: Arc<RwLock<DateTime<Utc>>>,
-    batch_size: usize,
+    mut queue: DatasetQueue,
     scheduled_delay_secs: u64,
     task_state: TaskState<DatasetEvent>,
     cancellation_token: CancellationToken,
 ) -> Result<JoinHandle<()>, EventError> {
-    let identifier = namespace.fqn();
+    let identifier = queue.namespace.fqn();
     let span = info_span!("dataset_background_task", task = %identifier);
 
     let future = async move {
@@ -356,126 +390,12 @@ pub fn start_dataset_background_task(
         task_state.notify_background_started();
         sleep(Duration::from_millis(10)).await;
 
-        let mut grpc_client: Option<DatasetGrpcClient> = None;
-
         loop {
             tokio::select! {
                 _ = sleep(Duration::from_secs(2)) => {
-                    debug!("Waking up dataset background task");
-
-                    let now = Utc::now();
-
-                    // Check if enough time has elapsed since last publish
-                    let should_process = {
-                        if let Ok(last) = last_publish.read() {
-                            (now - *last).num_seconds() >= scheduled_delay_secs as i64
-                        } else {
-                            false
-                        }
-                    };
-
-                    if should_process {
-                        // Drain queue
-                        let mut batch_items = Vec::with_capacity(batch_size);
-                        while let Some(item) = data_queue.pop() {
-                            batch_items.push(item);
-                        }
-
-                        // Update last_publish time regardless of batch processing result
-                        if let Ok(mut guard) = last_publish.write() {
-                            *guard = now;
-                        }
-
-                        if !batch_items.is_empty() {
-                            // Lazy-init gRPC client
-                            if grpc_client.is_none() {
-                                match DatasetGrpcClient::new(grpc_config.clone()).await {
-                                    Ok(client) => grpc_client = Some(client),
-                                    Err(e) => {
-                                        error!("Failed to create dataset gRPC client: {}", e);
-                                        continue;
-                                    }
-                                }
-                            }
-
-                            let client = grpc_client.as_mut().unwrap();
-
-                            // Auto-register if not registered
-                            if !registered.load(Ordering::Relaxed) {
-                                match client
-                                    .register_dataset(
-                                        &namespace.catalog,
-                                        &namespace.schema_name,
-                                        &namespace.table,
-                                        &json_schema,
-                                        partition_columns.clone(),
-                                    )
-                                    .await
-                                {
-                                    Ok(resp) => {
-                                        if resp.fingerprint != fingerprint.as_str() {
-                                            error!(
-                                                "Fingerprint mismatch: server={}, local={}",
-                                                resp.fingerprint,
-                                                fingerprint.as_str()
-                                            );
-                                            continue;
-                                        }
-                                        registered.store(true, Ordering::Relaxed);
-                                        info!("Dataset registered (background): {}", namespace.fqn());
-                                    }
-                                    Err(e) => {
-                                        error!("Failed to register dataset: {}", e);
-                                        continue;
-                                    }
-                                }
-                            }
-
-                            // Build Arrow batch
-                            let mut builder = DynamicBatchBuilder::new(schema.clone());
-                            let mut build_ok = true;
-                            for json_str in &batch_items {
-                                if let Err(e) = builder.append_json_row(json_str) {
-                                    error!("Failed to append JSON row in background task: {}", e);
-                                    build_ok = false;
-                                    break;
-                                }
-                            }
-
-                            if build_ok {
-                                match builder.finish() {
-                                    Ok(batch) => {
-                                        match batches_to_ipc_bytes(&[batch]) {
-                                            Ok(ipc_bytes) => {
-                                                if let Err(e) = client
-                                                    .insert_batch(
-                                                        &namespace.catalog,
-                                                        &namespace.schema_name,
-                                                        &namespace.table,
-                                                        fingerprint.as_str(),
-                                                        ipc_bytes,
-                                                    )
-                                                    .await
-                                                {
-                                                    error!("Failed to publish dataset batch: {}", e);
-                                                } else {
-                                                    info!(
-                                                        "Background task published {} rows to dataset {}",
-                                                        batch_items.len(),
-                                                        namespace.fqn()
-                                                    );
-                                                }
-                                            }
-                                            Err(e) => {
-                                                error!("Failed to convert batch to IPC bytes: {}", e);
-                                            }
-                                        }
-                                    }
-                                    Err(e) => {
-                                        error!("Failed to finish batch in background task: {}", e);
-                                    }
-                                }
-                            }
+                    if queue.should_process(scheduled_delay_secs) {
+                        if let Err(e) = queue.try_publish().await {
+                            error!("Background publish failed for {}: {}", identifier, e);
                         }
                     }
                 }

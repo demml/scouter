@@ -1,3 +1,4 @@
+use crate::client::{AUTHORIZATION, X_REFRESHED_TOKEN};
 use crate::error::ClientError;
 use crate::{
     AuthServiceClient, DatasetServiceClient, InsertBatchRequest, InsertBatchResponse,
@@ -11,9 +12,6 @@ use tonic::metadata::MetadataValue;
 use tonic::transport::Channel;
 use tonic::Request;
 use tracing::{debug, error, info, instrument};
-
-pub const X_REFRESHED_TOKEN: &str = "x-refreshed-token";
-pub const AUTHORIZATION: &str = "authorization";
 
 async fn build_channel(config: &GrpcConfig) -> Result<Channel, ClientError> {
     let mut endpoint = Channel::from_shared(config.server_uri.clone())
@@ -83,7 +81,7 @@ impl DatasetGrpcClient {
         };
 
         client.login().await?;
-        debug!("DatasetGrpcClient initialised and authenticated");
+        debug!("DatasetGrpcClient initialized and authenticated");
         Ok(client)
     }
 
@@ -242,7 +240,7 @@ impl DatasetGrpcClient {
     pub async fn refresh_token(&mut self) -> Result<(), ClientError> {
         let current = self.get_token();
         let mut req = Request::new(RefreshTokenRequest {
-            refresh_token: current.clone(),
+            access_token: current.clone(),
         });
         let meta = MetadataValue::try_from(format!("Bearer {current}"))
             .map_err(|e| ClientError::GrpcError(format!("Invalid metadata: {e}")))?;

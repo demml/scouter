@@ -104,7 +104,7 @@ impl scouter_tonic::AuthService for AuthServiceImpl {
         let claims = self
             .state
             .auth_manager
-            .decode_jwt_without_validation(&refresh_req.refresh_token)
+            .decode_jwt_without_validation(&refresh_req.access_token)
             .map_err(|e| Status::unauthenticated(format!("Invalid token: {}", e)))?;
 
         // Get user from database

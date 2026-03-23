@@ -13,9 +13,6 @@ pub enum DatasetClientError {
     #[error("IPC error: {0}")]
     IpcError(String),
 
-    #[error("Queue is full (capacity: {capacity}). Increase batch_size or reduce insert rate.")]
-    QueueFull { capacity: usize },
-
     #[error("Client has been shut down")]
     AlreadyShutdown,
 

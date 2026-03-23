@@ -434,7 +434,14 @@ fn append_to_builder(
 ) -> Result<(), DatasetError> {
     match data_type {
         DataType::Int64 => {
-            let b = builder.as_any_mut().downcast_mut::<Int64Builder>().unwrap();
+            let b = builder
+                .as_any_mut()
+                .downcast_mut::<Int64Builder>()
+                .ok_or_else(|| {
+                    DatasetError::SchemaParseError(
+                        "Internal error: builder type mismatch for Int64".to_string(),
+                    )
+                })?;
             for v in items {
                 match v {
                     Value::Number(n) => b.append_value(n.as_i64().ok_or_else(|| {
@@ -450,7 +457,14 @@ fn append_to_builder(
             }
         }
         DataType::Float64 => {
-            let b = builder.as_any_mut().downcast_mut::<Float64Builder>().unwrap();
+            let b = builder
+                .as_any_mut()
+                .downcast_mut::<Float64Builder>()
+                .ok_or_else(|| {
+                    DatasetError::SchemaParseError(
+                        "Internal error: builder type mismatch for Float64".to_string(),
+                    )
+                })?;
             for v in items {
                 match v {
                     Value::Number(n) => b.append_value(n.as_f64().ok_or_else(|| {
@@ -469,7 +483,11 @@ fn append_to_builder(
             let b = builder
                 .as_any_mut()
                 .downcast_mut::<StringViewBuilder>()
-                .unwrap();
+                .ok_or_else(|| {
+                    DatasetError::SchemaParseError(
+                        "Internal error: builder type mismatch for Utf8View".to_string(),
+                    )
+                })?;
             for v in items {
                 match v {
                     Value::String(s) => b.append_value(s),
@@ -486,7 +504,11 @@ fn append_to_builder(
             let b = builder
                 .as_any_mut()
                 .downcast_mut::<BooleanBuilder>()
-                .unwrap();
+                .ok_or_else(|| {
+                    DatasetError::SchemaParseError(
+                        "Internal error: builder type mismatch for Boolean".to_string(),
+                    )
+                })?;
             for v in items {
                 match v {
                     Value::Bool(bv) => b.append_value(*bv),

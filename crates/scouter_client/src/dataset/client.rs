@@ -31,6 +31,11 @@ pub struct DatasetProducer {
 
 #[pymethods]
 impl DatasetProducer {
+    /// Create a new `DatasetProducer`.
+    ///
+    /// Spawns background event and flush tasks that stream Pydantic records
+    /// to the Scouter server via gRPC. Blocks until both tasks confirm startup
+    /// (raises on timeout).
     #[new]
     #[pyo3(signature = (table_config, transport, write_config=None))]
     fn new(
@@ -42,7 +47,6 @@ impl DatasetProducer {
             DatasetClientError::PyError("transport must be a GrpcConfig instance".to_string())
         })?;
         let wc = write_config.cloned().unwrap_or_default();
-        let registered = Arc::new(AtomicBool::new(false));
 
         let (event_tx, event_rx) = tokio::sync::mpsc::unbounded_channel::<DatasetEvent>();
 
@@ -63,11 +67,12 @@ impl DatasetProducer {
             wc.batch_size,
         );
 
+        // Share the queue, registered flag, and last_publish between event handler and background task
         let shared_queue = dataset_queue.queue();
-        let shared_registered = dataset_queue.registered();
+        let registered = dataset_queue.registered();
         let shared_last_publish = dataset_queue.last_publish();
 
-        // Spawn event handler
+        // Spawn event handler (owns the DatasetQueue for insert/flush)
         let event_cancel = CancellationToken::new();
         let ec = event_cancel.clone();
         let ts_clone = task_state.clone();
@@ -81,9 +86,8 @@ impl DatasetProducer {
         task_state.add_event_abort_handle(event_handle);
         task_state.add_event_cancellation_token(event_cancel);
 
-        // Spawn background flush task
-        let bg_cancel = CancellationToken::new();
-        let bg_handle = start_dataset_background_task(
+        // Spawn background flush task — shares the same ArrayQueue, registered, and last_publish
+        let bg_queue = DatasetQueue::with_shared_state(
             shared_queue,
             table_config.schema.clone(),
             table_config.fingerprint.clone(),
@@ -91,9 +95,13 @@ impl DatasetProducer {
             table_config.json_schema.clone(),
             table_config.partition_columns.clone(),
             grpc_config.clone(),
-            shared_registered,
+            registered.clone(),
             shared_last_publish,
             wc.batch_size,
+        );
+        let bg_cancel = CancellationToken::new();
+        let bg_handle = start_dataset_background_task(
+            bg_queue,
             wc.scheduled_delay_secs,
             task_state.clone(),
             bg_cancel.clone(),
@@ -123,6 +131,11 @@ impl DatasetProducer {
         })
     }
 
+    /// Insert a Pydantic model instance into the dataset queue.
+    ///
+    /// The record is serialized to JSON via `model_dump_json()` and sent to
+    /// the background event handler, which batches rows into Arrow RecordBatches
+    /// and streams them to the server via gRPC.
     fn insert(&self, record: &Bound<'_, PyAny>) -> Result<(), DatasetClientError> {
         let ts = self
             .task_state
@@ -133,6 +146,7 @@ impl DatasetProducer {
         Ok(())
     }
 
+    /// Flush the current buffer immediately (non-blocking signal).
     fn flush(&self) -> Result<(), DatasetClientError> {
         let ts = self
             .task_state
@@ -142,6 +156,7 @@ impl DatasetProducer {
         Ok(())
     }
 
+    /// Shut down the producer, flushing remaining rows and stopping background tasks.
     fn shutdown(&mut self, py: Python<'_>) -> Result<(), DatasetClientError> {
         if let Some(task_state) = self.task_state.take() {
             py.detach(|| task_state.shutdown_tasks())?;
@@ -149,6 +164,8 @@ impl DatasetProducer {
         Ok(())
     }
 
+    /// Explicitly register the dataset with the server (optional — auto-registration
+    /// occurs on first publish if not called).
     fn register(&self) -> Result<String, DatasetClientError> {
         let grpc_config = self.grpc_config.clone();
         let catalog = self.namespace.catalog.clone();
@@ -172,16 +189,19 @@ impl DatasetProducer {
         })
     }
 
+    /// The schema fingerprint computed from the Arrow schema.
     #[getter]
     fn fingerprint(&self) -> String {
         self.fingerprint.as_str().to_string()
     }
 
+    /// The fully-qualified table name (`catalog.schema.table`).
     #[getter]
     fn namespace(&self) -> String {
         self.namespace.fqn()
     }
 
+    /// Whether the dataset has been registered with the server.
     #[getter]
     fn is_registered(&self) -> bool {
         self.registered.load(Ordering::Acquire)

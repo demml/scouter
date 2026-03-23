@@ -35,7 +35,6 @@ pub(crate) fn to_json_str(schema: &Bound<'_, PyAny>) -> Result<String, DatasetEr
 /// Pydantic `BaseModel` class.
 #[pyclass]
 #[derive(Clone, Debug)]
-#[allow(dead_code)]
 pub struct TableConfig {
     #[pyo3(get)]
     pub catalog: String,
