@@ -1,4 +1,4 @@
-# Quickstart
+# Bifrost Quickstart
 
 This guide takes you from zero to writing and reading prediction data in under 5 minutes.
 
@@ -154,6 +154,39 @@ producer.shutdown()  #(1)
 ```
 
 1. Flushes any remaining data, cancels background tasks, and cleans up. Always call this on application exit.
+
+## Unified Client
+
+If you need both read and write access to the same table, use `Bifrost` instead of creating separate `DatasetProducer` and `DatasetClient` instances:
+
+```python
+from scouter.bifrost import Bifrost, TableConfig
+from scouter import GrpcConfig
+
+bifrost = Bifrost(
+    table_config=TableConfig(
+        model=PredictionRecord,
+        catalog="production",
+        schema_name="ml",
+        table="credit_predictions",
+    ),
+    transport=GrpcConfig(server_uri="localhost:50051"),
+)
+
+# Write
+bifrost.insert(record)
+bifrost.flush()
+
+# Read
+records = bifrost.read()
+result = bifrost.sql("SELECT * FROM production.ml.credit_predictions WHERE confidence > 0.9")
+
+# Access underlying clients for the full API
+bifrost.producer.register()
+bifrost.client.list_datasets()
+
+bifrost.shutdown()
+```
 
 ## FastAPI Integration
 

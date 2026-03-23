@@ -6,7 +6,7 @@ use flume::Sender;
 use password_auth::generate_hash;
 use rusty_logging::logger::{LogLevel, LoggingConfig, RustyLogger};
 use scouter_auth::util::generate_recovery_codes_with_hashes;
-use scouter_dataframe::parquet::dataset::manager::DatasetEngineManager;
+use scouter_dataframe::parquet::bifrost::manager::DatasetEngineManager;
 use scouter_dataframe::parquet::tracing::service::{init_trace_span_service, TraceSpanService};
 use scouter_dataframe::parquet::tracing::summary::TraceSummaryService;
 use scouter_settings::{

@@ -1,4 +1,4 @@
-use crate::parquet::dataset::engine::TableCommand;
+use crate::parquet::bifrost::engine::TableCommand;
 use arrow_array::RecordBatch;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::{interval, Duration};

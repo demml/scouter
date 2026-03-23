@@ -1,7 +1,7 @@
 use crate::api::state::AppState;
 use scouter_dataframe::error::DatasetEngineError;
-use scouter_dataframe::parquet::dataset::ipc::{batches_to_ipc_bytes, ipc_bytes_to_batches};
-use scouter_dataframe::parquet::dataset::registry::RegistrationResult;
+use scouter_dataframe::parquet::bifrost::ipc::{batches_to_ipc_bytes, ipc_bytes_to_batches};
+use scouter_dataframe::parquet::bifrost::registry::RegistrationResult;
 use scouter_tonic::{
     DatasetInfo, DatasetService, DatasetServiceServer, DescribeDatasetRequest,
     DescribeDatasetResponse, InsertBatchRequest, InsertBatchResponse, ListDatasetsRequest,

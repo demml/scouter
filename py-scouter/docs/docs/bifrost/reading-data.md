@@ -2,7 +2,7 @@
 
 ## DatasetClient
 
-`DatasetClient` is the read-side client for the dataset engine. It connects to a specific table, validates the schema fingerprint, and provides two ways to read data:
+`DatasetClient` is the read-side client for Bifrost. It connects to a specific table, validates the schema fingerprint, and provides two ways to read data:
 
 - **`read()`** -- returns validated Pydantic model instances. Best for application logic where you need typed objects.
 - **`sql()`** -- executes arbitrary SQL and returns a `QueryResult` that converts to Arrow, Polars, or Pandas. Best for analytics and data exploration.

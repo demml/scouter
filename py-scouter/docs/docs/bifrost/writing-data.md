@@ -2,7 +2,7 @@
 
 ## DatasetProducer
 
-`DatasetProducer` is the write-side client for the dataset engine. It maintains a persistent background queue that batches Pydantic model instances into Arrow RecordBatches and sends them to the server via gRPC.
+`DatasetProducer` is the write-side client for Bifrost. It maintains a persistent background queue that batches Pydantic model instances into Arrow RecordBatches and sends them to the server via gRPC.
 
 ### Constructor
 

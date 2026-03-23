@@ -1,12 +1,12 @@
-# Datasets
+# Bifrost
 
 Reading and writing high volumes of data in an AI application should be easy, but it's not. The ecosystem is fragmented, and the engineering burden is high. You can use a managed data warehouse, but that adds latency and cost. You can write to object storage, but then you have to manage schemas, partitions, and query engines yourself.
 
 None of these give you what you actually want: define a schema, push data, query it later -- without managing infrastructure.
 
-## What Scouter Datasets Do
+## What Bifrost Does
 
-Scouter's dataset engine turns a Pydantic model into a Delta Lake table. You define the schema in Python, push records through a high-throughput queue, and query with SQL -- getting results back as Arrow tables, Polars DataFrames, Pandas DataFrames, or validated Pydantic model instances.
+Scouter Bifrost turns a Pydantic model into a Delta Lake table. You define the schema in Python, push records through a high-throughput queue, and query with SQL -- getting results back as Arrow tables, Polars DataFrames, Pandas DataFrames, or validated Pydantic model instances.
 
 ```
 Write:  Pydantic model  →  Arrow schema  →  gRPC batches  →  Delta Lake
@@ -67,18 +67,19 @@ graph LR
 
 For strict reads, `client.read()` constructs the SQL internally and returns validated Pydantic model instances.
 
-### Two clients
+### Clients
 
 | Client | Purpose | Lifecycle |
 |--------|---------|-----------|
-| `DatasetProducer` | Write records to a dataset table | Long-lived, background queue, call `shutdown()` on exit |
-| `DatasetClient` | Read and query dataset tables | Stateless queries, bound to a table via `TableConfig` |
+| `Bifrost` | Unified read/write client | Long-lived, call `shutdown()` on exit |
+| `DatasetProducer` | Write records to a Bifrost table | Long-lived, background queue, call `shutdown()` on exit |
+| `DatasetClient` | Read and query Bifrost tables | Stateless queries, bound to a table via `TableConfig` |
 
-Both use gRPC transport and authenticate with the same `GrpcConfig`.
+All clients use gRPC transport configured via `GrpcConfig`. Use `Bifrost` when you need both read and write access; use `DatasetProducer` or `DatasetClient` directly when you need only one.
 
 ## Schema-on-Write
 
-Unlike append-only logging, Scouter enforces schema at write time. When you create a `TableConfig`, the Pydantic model's JSON Schema is converted to an Arrow schema and fingerprinted:
+Unlike append-only logging, Bifrost enforces schema at write time. When you create a `TableConfig`, the Pydantic model's JSON Schema is converted to an Arrow schema and fingerprinted:
 
 - **Schema mismatch caught before data lands** -- the server verifies the fingerprint on every batch.
 - **Schema changes produce a different fingerprint** -- adding, removing, or changing a field type all invalidate the fingerprint.
@@ -87,7 +88,7 @@ Unlike append-only logging, Scouter enforces schema at write time. When you crea
 
 ### System columns
 
-Every dataset table includes three columns managed by Scouter:
+Every Bifrost table includes three columns managed by Scouter:
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -110,11 +111,11 @@ Every dataset table includes three columns managed by Scouter:
 | `Enum` | `Dictionary(Int16, Utf8)` | String enum values |
 | Nested `BaseModel` | `Struct(...)` | Recursive -- up to 32 levels |
 
-## Datasets and Monitoring
+## Bifrost and Monitoring
 
-The dataset engine is a standalone system -- it handles data storage and retrieval independent of Scouter's drift detection and alerting features.
+Bifrost is a standalone system -- it handles data storage and retrieval independent of Scouter's drift detection and alerting features.
 
-That said, the two are designed to converge. In a future release, you will be able to write custom queries against data in your datasets and use the results to drive monitoring alerts. This means you can define domain-specific health checks (e.g., "alert if the 95th percentile prediction confidence drops below 0.7 over the last hour") directly on the data you're already storing -- without maintaining a separate analytics pipeline.
+That said, the two are designed to converge. In a future release, you will be able to write custom queries against data in your Bifrost tables and use the results to drive monitoring alerts. This means you can define domain-specific health checks (e.g., "alert if the 95th percentile prediction confidence drops below 0.7 over the last hour") directly on the data you're already storing -- without maintaining a separate analytics pipeline.
 
 ## Next Steps
 
