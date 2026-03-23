@@ -81,6 +81,7 @@ nav:
       - Overview: "docs/datasets/overview.md"
       - Quickstart: "docs/datasets/quickstart.md"
       - Writing Data: "docs/datasets/writing-data.md"
+      - Reading Data: "docs/datasets/reading-data.md"
       - Schema Reference: "docs/datasets/schema.md"
   - Tracing:
       - Overview: "docs/tracing/overview.md"

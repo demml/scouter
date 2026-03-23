@@ -604,6 +604,55 @@ mod tests {
         .unwrap()
     }
 
+    // ── validate_sql unit tests ──────────────────────────────────────
+
+    #[test]
+    fn validate_sql_simple_select() {
+        validate_sql("SELECT * FROM t").unwrap();
+    }
+
+    #[test]
+    fn validate_sql_cte() {
+        validate_sql("WITH cte AS (SELECT 1 AS x) SELECT * FROM cte").unwrap();
+    }
+
+    #[test]
+    fn validate_sql_window_function() {
+        validate_sql("SELECT id, ROW_NUMBER() OVER (ORDER BY ts DESC) AS rn FROM t").unwrap();
+    }
+
+    #[test]
+    fn validate_sql_subquery() {
+        validate_sql("SELECT * FROM (SELECT * FROM t WHERE x > 1) AS sub").unwrap();
+    }
+
+    #[test]
+    fn validate_sql_aggregation() {
+        validate_sql("SELECT category, AVG(score) FROM t GROUP BY category").unwrap();
+    }
+
+    #[test]
+    fn validate_sql_rejects_insert() {
+        assert!(validate_sql("INSERT INTO t VALUES (1)").is_err());
+    }
+
+    #[test]
+    fn validate_sql_rejects_drop() {
+        assert!(validate_sql("DROP TABLE t").is_err());
+    }
+
+    #[test]
+    fn validate_sql_rejects_multi_statement() {
+        assert!(validate_sql("SELECT 1; DROP TABLE t").is_err());
+    }
+
+    #[test]
+    fn validate_sql_rejects_empty() {
+        assert!(validate_sql("").is_err());
+    }
+
+    // ── Engine integration tests ──────────────────────────────────────
+
     #[tokio::test]
     async fn test_register_and_insert() {
         let dir = TempDir::new().unwrap();

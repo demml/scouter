@@ -7,7 +7,7 @@
 ### Constructor
 
 ```python
-from scouter.dataset import DatasetProducer, TableConfig, WriteConfig
+from scouter.bifrost import DatasetProducer, TableConfig, WriteConfig
 from scouter import GrpcConfig
 
 producer = DatasetProducer(

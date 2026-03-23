@@ -26,10 +26,11 @@ pub const FILE_DESCRIPTOR_SET: &[u8] = include_bytes!("generated/scouter_descrip
 
 // Re-export common types (always available)
 pub use generated::scouter::grpc::v1::{
-    InsertBatchRequest, InsertBatchResponse, InsertMessageRequest, InsertMessageResponse,
-    LoginRequest, LoginResponse, QueryDatasetRequest, QueryDatasetResponse, RefreshTokenRequest,
-    RefreshTokenResponse, RegisterDatasetRequest, RegisterDatasetResponse, ValidateTokenRequest,
-    ValidateTokenResponse,
+    DatasetInfo, DescribeDatasetRequest, DescribeDatasetResponse, InsertBatchRequest,
+    InsertBatchResponse, InsertMessageRequest, InsertMessageResponse, ListDatasetsRequest,
+    ListDatasetsResponse, LoginRequest, LoginResponse, QueryDatasetRequest, QueryDatasetResponse,
+    RefreshTokenRequest, RefreshTokenResponse, RegisterDatasetRequest, RegisterDatasetResponse,
+    ValidateTokenRequest, ValidateTokenResponse,
 };
 
 // Re-export client types when feature is enabled

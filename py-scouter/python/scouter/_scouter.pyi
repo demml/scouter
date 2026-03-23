@@ -18701,9 +18701,6 @@ class DataProfiler:
             """
 
 ### dataset.pyi ###
-class DatasetClient:
-    """Dataset client for reads and queries (Phase 5)."""
-
 class TableConfig:
     """Configuration for a dataset table, derived from a Pydantic model.
 
@@ -18781,6 +18778,98 @@ class WriteConfig:
         batch_size: int = 1000,
         scheduled_delay_secs: int = 30,
     ) -> None: ...
+
+class QueryResult:
+    """Wrapper around Arrow IPC stream bytes returned by a SQL query.
+
+    Provides zero-copy conversion to ``pyarrow.Table``, ``polars.DataFrame``,
+    and ``pandas.DataFrame``. The IPC bytes are stored once; each conversion
+    reads from the same buffer.
+    """
+
+    def to_arrow(self) -> Any:
+        """Convert to a ``pyarrow.Table``. Requires ``pyarrow``."""
+
+    def to_polars(self) -> Any:
+        """Convert to a ``polars.DataFrame`` (zero-copy from Arrow).
+
+        Requires ``polars`` and ``pyarrow``.
+        """
+
+    def to_pandas(self) -> Any:
+        """Convert to a ``pandas.DataFrame``. Requires ``pyarrow``."""
+
+    def to_bytes(self) -> bytes:
+        """Get the raw Arrow IPC stream bytes."""
+
+    def __len__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+class DatasetClient:
+    """Dataset client for reading and querying datasets.
+
+    Bound to a specific table via ``TableConfig``. Validates the schema
+    fingerprint against the server on construction.
+
+    Args:
+        transport: gRPC transport configuration (``GrpcConfig`` instance).
+        table_config: Table configuration with model, namespace, and fingerprint.
+    """
+
+    def __init__(self, transport: Any, table_config: TableConfig) -> None: ...
+    def read(self, limit: Optional[int] = None) -> List[Any]:
+        """Read all rows from the bound table as Pydantic model instances.
+
+        Uses the model class from ``TableConfig`` for validation via
+        ``model.model_validate()``.
+
+        Args:
+            limit: Optional maximum number of rows to return.
+
+        Returns:
+            List of validated Pydantic model instances.
+        """
+
+    def sql(self, query: str) -> QueryResult:
+        """Execute a SQL SELECT query and return a ``QueryResult``.
+
+        The ``QueryResult`` wraps Arrow IPC stream bytes and provides
+        zero-copy conversion methods.
+
+        Args:
+            query: SQL SELECT statement. Supports three-level table names
+                (``catalog.schema.table``), CTEs, window functions, subqueries.
+
+        Returns:
+            A ``QueryResult`` with ``.to_arrow()``, ``.to_polars()``,
+            ``.to_pandas()``, and ``.to_bytes()`` methods.
+        """
+
+    def list_datasets(self) -> List[Dict[str, Any]]:
+        """List all registered datasets.
+
+        Returns:
+            List of dicts with keys: ``catalog``, ``schema_name``, ``table``,
+            ``fingerprint``, ``partition_columns``, ``status``,
+            ``created_at``, ``updated_at``.
+        """
+
+    def describe_dataset(
+        self,
+        catalog: str,
+        schema_name: str,
+        table: str,
+    ) -> Dict[str, Any]:
+        """Get metadata and schema for a specific dataset.
+
+        Args:
+            catalog: Catalog name.
+            schema_name: Schema name.
+            table: Table name.
+
+        Returns:
+            Dict with dataset info fields and ``arrow_schema_json``.
+        """
 
 class DatasetProducer:
     """Real-time streaming producer for the Scouter dataset engine.
@@ -19090,6 +19179,7 @@ __all__ = [
     "PsiRecord",
     "QuantileBinning",
     "Quantiles",
+    "QueryResult",
     "Queue",
     "QueueFeature",
     "RabbitMQConfig",

@@ -1,11 +1,12 @@
 # Quickstart
 
-This guide takes you from zero to writing prediction data in under 5 minutes.
+This guide takes you from zero to writing and reading prediction data in under 5 minutes.
 
 ## Prerequisites
 
 - `scouter-ml` installed (`pip install scouter-ml`)
 - A running Scouter server with gRPC enabled (default port: 50051)
+- For reading: `pyarrow` installed. Optional: `polars`, `pandas`.
 
 ## 1. Define your schema
 
@@ -36,7 +37,7 @@ class PredictionRecord(BaseModel):
 `TableConfig` converts your Pydantic model into an Arrow schema and computes a fingerprint for schema enforcement.
 
 ```python
-from scouter.dataset import TableConfig
+from scouter.bifrost import TableConfig
 
 table_config = TableConfig(
     model=PredictionRecord,  #(1)
@@ -54,10 +55,10 @@ print(table_config.fingerprint_str)  # "a1b2c3d4..." (32-char hex)
 2. `catalog.schema_name.table` forms the fully-qualified table name and determines the Delta Lake storage path.
 3. Optional. These columns are used for server-side partitioning beyond the automatic `scouter_partition_date`.
 
-## 3. Create a DatasetProducer
+## 3. Write data
 
 ```python
-from scouter.dataset import DatasetProducer, WriteConfig
+from scouter.bifrost import DatasetProducer, WriteConfig
 from scouter import GrpcConfig
 
 producer = DatasetProducer(
@@ -71,10 +72,6 @@ producer = DatasetProducer(
 ```
 
 1. `WriteConfig` is optional. Defaults: `batch_size=1000`, `scheduled_delay_secs=30`.
-
-The constructor spawns two background tasks and verifies they start. If the gRPC server is unreachable, this will not fail — the producer lazily connects on first flush.
-
-## 4. Insert records
 
 ```python
 from datetime import datetime, timezone
@@ -92,12 +89,63 @@ for i in range(5000):
     producer.insert(record)  #(1)
 ```
 
-1. `insert()` calls `record.model_dump_json()` and sends the JSON string through a channel. It does not block, does not acquire the GIL for I/O, and returns in under 1 microsecond.
+1. `insert()` calls `record.model_dump_json()` and sends the JSON string through a channel. It does not block and returns in under 1 microsecond.
 
 Data is automatically batched and sent to the server when either condition is met:
 
 - The internal queue reaches `batch_size` (1000 by default)
 - `scheduled_delay_secs` (30s by default) have elapsed since the last publish
+
+## 4. Read data
+
+Create a `DatasetClient` to query your data. The client is bound to a specific table via `TableConfig` and validates the schema fingerprint on construction.
+
+```python
+from scouter.bifrost import DatasetClient
+
+client = DatasetClient(
+    transport=GrpcConfig(server_uri="localhost:50051"),
+    table_config=table_config,  #(1)
+)
+```
+
+1. Reuse the same `TableConfig` from the write side. The client validates the fingerprint against the server on construction.
+
+### Strict read -- get Pydantic models back
+
+```python
+records = client.read()  #(1)
+
+for record in records[:5]:
+    print(f"{record.user_id}: {record.prediction:.2f} (confidence: {record.confidence:.2f})")
+```
+
+1. Returns a `list[PredictionRecord]`. Each row is validated through `PredictionRecord.model_validate()`.
+
+### SQL query -- get DataFrames
+
+```python
+# Get a QueryResult (Arrow IPC bytes wrapper)
+result = client.sql("SELECT * FROM production.ml.credit_predictions WHERE confidence > 0.9")
+
+# Convert to your preferred format
+arrow_table = result.to_arrow()   # pyarrow.Table
+polars_df = result.to_polars()    # polars.DataFrame
+pandas_df = result.to_pandas()    # pandas.DataFrame
+```
+
+The SQL supports everything DataFusion supports -- joins, CTEs, window functions, aggregations:
+
+```python
+# Aggregation
+result = client.sql("""
+    SELECT model_name, COUNT(*) as cnt, AVG(confidence) as avg_conf
+    FROM production.ml.credit_predictions
+    GROUP BY model_name
+""")
+df = result.to_polars()
+print(df)
+```
 
 ## 5. Shutdown
 
@@ -116,7 +164,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
-from scouter.dataset import DatasetProducer, TableConfig, WriteConfig
+from scouter.bifrost import DatasetProducer, TableConfig, WriteConfig
 from scouter import GrpcConfig
 
 
@@ -153,7 +201,7 @@ class PredictRequest(BaseModel):
 def predict(request: Request, payload: PredictRequest):
     prediction = model.predict(payload.features)  # your model
 
-    # Non-blocking — returns immediately
+    # Non-blocking -- returns immediately
     request.app.state.producer.insert(
         PredictionRecord(
             user_id=payload.user_id,
@@ -165,17 +213,8 @@ def predict(request: Request, payload: PredictRequest):
     return {"prediction": prediction}
 ```
 
-## Optional: Explicit Registration
-
-The server auto-registers your dataset on first flush. If you want to register upfront (e.g., to verify connectivity during startup):
-
-```python
-status = producer.register()
-print(status)                    # "registered" or "already_exists"
-print(producer.is_registered)    # True
-```
-
 ## Next Steps
 
-- [Writing Data](writing-data.md) — batching behavior, backpressure, shutdown patterns
-- [Schema Reference](schema.md) — type mapping, fingerprinting, `TableConfig` utilities
+- [Writing Data](writing-data.md) -- batching behavior, backpressure, shutdown patterns
+- [Reading Data](reading-data.md) -- `DatasetClient`, `QueryResult`, SQL reference
+- [Schema Reference](schema.md) -- type mapping, fingerprinting, `TableConfig` utilities

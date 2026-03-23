@@ -24,6 +24,9 @@ pub enum DatasetClientError {
 
     #[error("{0}")]
     PyError(String),
+
+    #[error("Fingerprint mismatch for table: expected {expected}, got {actual}")]
+    FingerprintMismatch { expected: String, actual: String },
 }
 
 impl From<DatasetClientError> for PyErr {

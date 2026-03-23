@@ -1,4 +1,4 @@
-# Schema Reference (WIP)
+# Schema Reference
 
 ## TableConfig
 
@@ -7,7 +7,7 @@
 ### Constructor
 
 ```python
-from scouter.dataset import TableConfig
+from scouter.bifrost import TableConfig
 
 config = TableConfig(
     model=MyModel,
