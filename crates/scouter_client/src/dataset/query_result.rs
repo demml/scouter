@@ -16,6 +16,12 @@ impl QueryResult {
     /// Convert to a `pyarrow.Table`. Requires `pyarrow`.
     fn to_arrow<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let pa = py.import("pyarrow")?;
+        if self.ipc_data.is_empty() {
+            // Zero-row result (empty table or LIMIT 0) — pa.ipc.open_stream(b"")
+            // raises ArrowInvalid, so return an empty table instead.
+            let empty_dict = pyo3::types::PyDict::new(py);
+            return pa.call_method1("table", (empty_dict,));
+        }
         let bytes = PyBytes::new(py, &self.ipc_data);
         let reader = pa.getattr("ipc")?.call_method1("open_stream", (bytes,))?;
         reader.call_method0("read_all")

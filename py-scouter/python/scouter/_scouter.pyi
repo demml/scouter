@@ -51,6 +51,7 @@ class BaseModel(Protocol):
     def __str__(self) -> str:
         """String representation of the model"""
 
+
 ### logging.pyi ###
 class LogLevel:
     Debug: "LogLevel"
@@ -204,6 +205,7 @@ class RustyLogger:
             *args:
                 Additional arguments to log.
         """
+
 
 ### potato.pyi ###
 class Provider:
@@ -10005,6 +10007,7 @@ class LLMTestServer:
         Stop the mock server.
         """
 
+
 ### tracing.pyi ###
 class TagRecord:
     """Represents a single tag record associated with an entity."""
@@ -11024,6 +11027,7 @@ def disable_local_span_capture() -> None:
 
 def drain_local_span_capture() -> List[TraceSpanRecord]:
     """Drain and return all locally captured spans, clearing the buffer."""
+
 
 ### evaluate.pyi ###
 class EvaluationTaskType:
@@ -13850,6 +13854,7 @@ class EvalOrchestrator:
             ScenarioEvalResults with metrics across all scenarios.
         """
 
+
 ### mock.pyi ###
 class ScouterTestServer:
     def __init__(
@@ -13952,6 +13957,7 @@ def create_trace_with_errors() -> List["TraceSpan"]:
     Returns:
         List[TraceSpan]: A list of TraceSpan objects representing the trace.
     """
+
 
 ### scouter.pyi ###
 #################
@@ -18700,7 +18706,8 @@ class DataProfiler:
                     Optional interval for aggregating metrics (e.g., "1m", "5m").
             """
 
-### dataset.pyi ###
+
+### bifrost.pyi ###
 class TableConfig:
     """Configuration for a dataset table, derived from a Pydantic model.
 
@@ -18732,7 +18739,7 @@ class TableConfig:
     @property
     def fqn(self) -> str: ...
     @staticmethod
-    def parse_schema(schema: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    def parse_schema(schema: Any) -> Dict[str, Dict[str, Any]]:
         """Parse a Pydantic model's JSON Schema dict into a field map.
 
         Accepts the dict returned directly by ``Model.model_json_schema()``.
@@ -18749,7 +18756,7 @@ class TableConfig:
         """
 
     @staticmethod
-    def compute_fingerprint(schema: Dict[str, Any]) -> str:
+    def compute_fingerprint(schema: Any) -> str:
         """Compute a stable 32-character SHA-256 fingerprint from a JSON Schema dict.
 
         The fingerprint is deterministic — the same schema always yields the same value.
@@ -18917,6 +18924,65 @@ class DatasetProducer:
     @property
     def is_registered(self) -> bool: ...
 
+class Bifrost:
+    """Unified read/write client for the Bifrost dataset engine.
+
+    Wraps both ``DatasetProducer`` and ``DatasetClient`` into a single object.
+    Use this when you need both write and read access to the same table.
+    Access the underlying clients directly via ``.producer`` and ``.client``
+    for the full API.
+
+    Args:
+        table_config: Table configuration derived from a Pydantic model.
+        transport: gRPC transport configuration (``GrpcConfig`` instance).
+        write_config: Optional write configuration for batching behavior.
+    """
+
+    def __init__(
+        self,
+        table_config: TableConfig,
+        transport: Any,
+        write_config: Optional[WriteConfig] = None,
+    ) -> None: ...
+    def insert(self, record: Any) -> None:
+        """Insert a Pydantic model instance into the queue. Non-blocking."""
+
+    def flush(self) -> None:
+        """Signal the background queue to flush immediately."""
+
+    def shutdown(self) -> None:
+        """Gracefully shut down the producer, flushing remaining items."""
+
+    def register(self) -> str:
+        """Register the dataset table with the server."""
+
+    @property
+    def fingerprint(self) -> str: ...
+    @property
+    def namespace(self) -> str: ...
+    @property
+    def is_registered(self) -> bool: ...
+    def read(self, limit: Optional[int] = None) -> List[Any]:
+        """Read rows from the bound table as validated Pydantic model instances."""
+
+    def sql(self, query: str) -> QueryResult:
+        """Execute a SQL SELECT query and return a ``QueryResult``."""
+
+    def list_datasets(self) -> List[Dict[str, Any]]:
+        """List all registered datasets on the server."""
+
+    def describe_dataset(self, catalog: str, schema_name: str, table: str) -> Dict[str, Any]:
+        """Get metadata and schema for a specific dataset."""
+
+    @property
+    def producer(self) -> DatasetProducer:
+        """The underlying ``DatasetProducer`` for full write API access."""
+
+    @property
+    def client(self) -> DatasetClient:
+        """The underlying ``DatasetClient`` for full read API access."""
+
+
 ### GLOBAL EXPORTS ###
 __all__ = [
     "ActiveSpan",
@@ -18963,6 +19029,7 @@ __all__ = [
     "Base64PDFSource",
     "BatchConfig",
     "Behavior",
+    "Bifrost",
     "BinnedMetric",
     "BinnedMetricStats",
     "BinnedMetrics",

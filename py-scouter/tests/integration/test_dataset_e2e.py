@@ -223,7 +223,7 @@ def test_dataset_query_cte(dataset_server) -> None:
 
     assert table.num_rows == 1
     count = table.column("cnt").to_pylist()[0]
-    assert count >= 0  # exact count depends on data distribution
+    assert count > 0, f"CTE query returned {count} rows, expected > 0"
 
     producer.shutdown()
 
@@ -404,6 +404,69 @@ def test_dataset_concurrent_read_write(dataset_server) -> None:
     result = client.sql("SELECT COUNT(*) as cnt FROM prod.ml.preds_concurrent")
     table = result.to_arrow()
     final_count = table.column("cnt").to_pylist()[0]
-    assert final_count >= 50
+    assert final_count >= 200  # seed(50) + 3 writers × 50 = 200 minimum
+
+    producer.shutdown()
+
+
+def test_dataset_client_unregistered_table(dataset_server):
+    """DatasetClient constructor must raise when the table is not registered."""
+    config = TableConfig(
+        model=PredictionRecord,
+        catalog="prod",
+        schema_name="ml",
+        table="does_not_exist",
+    )
+    with pytest.raises(RuntimeError):
+        DatasetClient(transport=GrpcConfig(), table_config=config)
+
+
+def test_dataset_client_fingerprint_mismatch(dataset_server):
+    """DatasetClient constructor must raise on fingerprint mismatch."""
+    producer = _setup_producer(PredictionRecord, "prod", "ml", "fp_mismatch_test")
+    _insert_and_flush(producer, [_make_prediction(i) for i in range(5)])
+
+    # Build a TableConfig for a *different* model pointing at the same table
+    wrong_config = TableConfig(
+        model=UserFeatures,  # different schema → different fingerprint
+        catalog="prod",
+        schema_name="ml",
+        table="fp_mismatch_test",
+    )
+    with pytest.raises(RuntimeError, match="[Ff]ingerprint"):
+        DatasetClient(transport=GrpcConfig(), table_config=wrong_config)
+
+    producer.shutdown()
+
+
+def test_dataset_query_result_to_bytes(dataset_server):
+    """QueryResult.to_bytes() must return bytes that round-trip through pyarrow."""
+    producer = _setup_producer(PredictionRecord, "prod", "ml", "qr_bytes_test")
+    _insert_and_flush(producer, [_make_prediction(i) for i in range(10)])
+
+    client = _setup_client(PredictionRecord, "prod", "ml", "qr_bytes_test")
+    result = client.sql('SELECT * FROM "prod"."ml"."qr_bytes_test" LIMIT 10')
+
+    raw = result.to_bytes()
+    assert isinstance(raw, bytes)
+    assert len(raw) > 0
+
+    # Round-trip: bytes must form a valid Arrow IPC stream
+    table = pa.ipc.open_stream(raw).read_all()
+    assert table.num_rows == 10
+
+    producer.shutdown()
+
+
+def test_dataset_query_result_repr_len(dataset_server):
+    """QueryResult __repr__ and __len__ must work as documented."""
+    producer = _setup_producer(PredictionRecord, "prod", "ml", "qr_repr_test")
+    _insert_and_flush(producer, [_make_prediction(i) for i in range(5)])
+
+    client = _setup_client(PredictionRecord, "prod", "ml", "qr_repr_test")
+    result = client.sql('SELECT * FROM "prod"."ml"."qr_repr_test"')
+
+    assert len(result) > 0
+    assert "QueryResult" in repr(result)
 
     producer.shutdown()

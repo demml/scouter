@@ -5,13 +5,20 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum DatasetClientError {
     #[error(transparent)]
-    DatasetError(#[from] scouter_types::dataset::DatasetError),
+    Dataset(#[from] scouter_types::dataset::DatasetError),
 
+    /// Hand-constructed error messages (e.g., lock poisoned, unregistered table).
     #[error("gRPC error: {0}")]
     GrpcError(String),
 
-    #[error("IPC error: {0}")]
-    IpcError(String),
+    #[error(transparent)]
+    GrpcClient(#[from] scouter_tonic::error::ClientError),
+
+    #[error(transparent)]
+    Arrow(#[from] arrow::error::ArrowError),
+
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
 
     #[error("Client has been shut down")]
     AlreadyShutdown,
@@ -19,8 +26,8 @@ pub enum DatasetClientError {
     #[error("Channel closed — producer may have been shut down")]
     ChannelClosed,
 
-    #[error("Event error: {0}")]
-    EventError(String),
+    #[error(transparent)]
+    Event(#[from] scouter_events::error::EventError),
 
     #[error("{0}")]
     PyError(String),
@@ -38,24 +45,6 @@ impl From<DatasetClientError> for PyErr {
 impl From<PyErr> for DatasetClientError {
     fn from(err: PyErr) -> Self {
         DatasetClientError::PyError(err.to_string())
-    }
-}
-
-impl From<scouter_tonic::error::ClientError> for DatasetClientError {
-    fn from(err: scouter_tonic::error::ClientError) -> Self {
-        DatasetClientError::GrpcError(err.to_string())
-    }
-}
-
-impl From<arrow::error::ArrowError> for DatasetClientError {
-    fn from(err: arrow::error::ArrowError) -> Self {
-        DatasetClientError::IpcError(err.to_string())
-    }
-}
-
-impl From<scouter_events::error::EventError> for DatasetClientError {
-    fn from(err: scouter_events::error::EventError) -> Self {
-        DatasetClientError::EventError(err.to_string())
     }
 }
 

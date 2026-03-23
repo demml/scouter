@@ -241,7 +241,12 @@ from concurrent.futures import ThreadPoolExecutor
 
 client = DatasetClient(transport=GrpcConfig(), table_config=table_config)
 
+ALLOWED_MODEL_NAMES = {"v1", "v2", "v3", "v4"}
+
 def query_model(model_name: str):
+    # Validate before building SQL — never interpolate untrusted input directly.
+    if model_name not in ALLOWED_MODEL_NAMES:
+        raise ValueError(f"Unknown model: {model_name!r}")
     result = client.sql(f"""
         SELECT COUNT(*) as cnt FROM production.ml.predictions
         WHERE model_name = '{model_name}'
@@ -252,6 +257,12 @@ with ThreadPoolExecutor(max_workers=4) as pool:
     futures = [pool.submit(query_model, name) for name in ["v1", "v2", "v3", "v4"]]
     results = [f.result() for f in futures]
 ```
+
+!!! warning "SQL Safety"
+    `client.sql()` accepts raw SQL strings. Never interpolate untrusted user input
+    directly into queries. Validate and allowlist filter values in your application
+    code before constructing the SQL string. DataFusion does not support parameterized
+    queries through this path.
 
 Writers (`DatasetProducer`) and readers (`DatasetClient`) can operate on the same table simultaneously. The server handles concurrency through Delta Lake's transaction log.
 

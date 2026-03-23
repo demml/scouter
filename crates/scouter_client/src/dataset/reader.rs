@@ -1,7 +1,10 @@
+use std::io::Cursor;
 use std::sync::{Arc, Mutex};
 
+use arrow::ipc::reader::StreamReader;
+use arrow_json::ArrayWriter;
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyDict, PyList};
+use pyo3::types::{PyDict, PyList, PyString};
 use scouter_settings::grpc::GrpcConfig;
 use scouter_state::app_state;
 use scouter_tonic::DatasetGrpcClient;
@@ -40,26 +43,31 @@ impl DatasetClient {
         let namespace = table_config.namespace.clone();
         let expected_fp = table_config.fingerprint.as_str().to_string();
 
-        // Create gRPC client and validate fingerprint
         let mut grpc_client =
             py.detach(|| app_state().block_on(DatasetGrpcClient::new(grpc_config)))?;
 
-        // Validate fingerprint against server
         let describe_resp = py.detach(|| {
-            app_state().block_on(grpc_client.describe_dataset(
-                &namespace.catalog,
-                &namespace.schema_name,
-                &namespace.table,
+            app_state()
+                .block_on(grpc_client.describe_dataset(
+                    &namespace.catalog,
+                    &namespace.schema_name,
+                    &namespace.table,
+                ))
+                .map_err(DatasetClientError::from)
+        })?;
+
+        let info = describe_resp.info.ok_or_else(|| {
+            DatasetClientError::GrpcError(format!(
+                "Server returned no dataset info for '{}' -- table may not be registered",
+                namespace.fqn()
             ))
         })?;
 
-        if let Some(info) = &describe_resp.info {
-            if info.fingerprint != expected_fp {
-                return Err(DatasetClientError::FingerprintMismatch {
-                    expected: expected_fp,
-                    actual: info.fingerprint.clone(),
-                });
-            }
+        if info.fingerprint != expected_fp {
+            return Err(DatasetClientError::FingerprintMismatch {
+                expected: expected_fp,
+                actual: info.fingerprint,
+            });
         }
 
         debug!(
@@ -77,40 +85,47 @@ impl DatasetClient {
 
     /// Read all rows from the bound table as Pydantic model instances.
     ///
-    /// Constructs `SELECT * FROM "catalog"."schema"."table"` internally,
-    /// deserializes via pyarrow, and validates each row with the model class.
+    /// Deserializes Arrow IPC bytes in Rust via `arrow-json` and calls
+    /// `model_validate_json` per row — no pyarrow dependency in this path.
     #[pyo3(signature = (limit=None))]
-    fn read<'py>(&self, py: Python<'py>, limit: Option<usize>) -> PyResult<Bound<'py, PyList>> {
-        let fqn = self.namespace.fqn();
+    #[instrument(skip_all)]
+    fn read<'py>(
+        &self,
+        py: Python<'py>,
+        limit: Option<usize>,
+    ) -> Result<Bound<'py, PyList>, DatasetClientError> {
+        let fqn = self.namespace.quoted_fqn();
         let mut sql = format!("SELECT * FROM {fqn}");
         if let Some(n) = limit {
             sql.push_str(&format!(" LIMIT {n}"));
         }
 
-        // Execute query and get IPC bytes
         let ipc_data = self.query_ipc(py, &sql)?;
 
-        // Deserialize via pyarrow -> to_pydict -> model_validate
-        let pa = py.import("pyarrow")?;
-        let bytes = PyBytes::new(py, &ipc_data);
-        let reader = pa.getattr("ipc")?.call_method1("open_stream", (bytes,))?;
-        let table = reader.call_method0("read_all")?;
+        if ipc_data.is_empty() {
+            return Ok(PyList::empty(py));
+        }
 
-        let col_dict = table.call_method0("to_pydict")?;
-        let col_names: Vec<String> = table.getattr("column_names")?.extract()?;
-        let num_rows: usize = table.getattr("num_rows")?.extract()?;
+        let cursor = Cursor::new(&ipc_data);
+        let reader = StreamReader::try_new(cursor, None)?;
+        let batches: Vec<_> = reader.collect::<Result<_, _>>()?;
+
+        // Serialize all batches to a JSON array, then parse per-row
+        let mut buf: Vec<u8> = Vec::new();
+        let mut writer = ArrayWriter::new(&mut buf);
+        let batch_refs: Vec<&_> = batches.iter().collect();
+        writer.write_batches(&batch_refs)?;
+        writer.finish()?;
+
+        let json_rows: Vec<serde_json::Map<String, serde_json::Value>> =
+            serde_json::from_slice(&buf)?;
 
         let results = PyList::empty(py);
         let model = self.model_class.bind(py);
-
-        for i in 0..num_rows {
-            let row_dict = PyDict::new(py);
-            for col in &col_names {
-                let col_values = col_dict.get_item(col)?;
-                let value = col_values.get_item(i)?;
-                row_dict.set_item(col, value)?;
-            }
-            let instance = model.call_method1("model_validate", (row_dict,))?;
+        for row in &json_rows {
+            let json_str = serde_json::to_string(row)?;
+            let py_str = PyString::new(py, &json_str);
+            let instance = model.call_method1("model_validate_json", (py_str,))?;
             results.append(instance)?;
         }
 
@@ -121,22 +136,29 @@ impl DatasetClient {
     ///
     /// The `QueryResult` wraps Arrow IPC bytes and provides zero-copy
     /// conversion to `pyarrow.Table`, `polars.DataFrame`, or `pandas.DataFrame`.
-    fn sql(&self, py: Python<'_>, query: String) -> Result<QueryResult, DatasetClientError> {
+    #[instrument(skip_all)]
+    fn sql(
+        &self,
+        py: Python<'_>,
+        query: String,
+    ) -> Result<QueryResult, DatasetClientError> {
         let ipc_data = self.query_ipc(py, &query)?;
         Ok(QueryResult::new(ipc_data))
     }
 
     /// List all registered datasets.
-    fn list_datasets<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
+    #[instrument(skip_all)]
+    fn list_datasets<'py>(
+        &self,
+        py: Python<'py>,
+    ) -> Result<Bound<'py, PyList>, DatasetClientError> {
         let client = self.client.clone();
-        let resp = py
-            .detach(|| {
-                let mut c = client
-                    .lock()
-                    .map_err(|_| DatasetClientError::GrpcError("gRPC client lock poisoned".into()))?;
-                app_state().block_on(c.list_datasets())
-            })
-            .map_err(|e| DatasetClientError::GrpcError(e.to_string()))?;
+        let resp = py.detach(|| {
+            let mut c = client
+                .lock()
+                .map_err(|_| DatasetClientError::GrpcError("gRPC client lock poisoned".into()))?;
+            app_state().block_on(c.list_datasets()).map_err(DatasetClientError::from)
+        })?;
 
         let results = PyList::empty(py);
         for info in &resp.datasets {
@@ -156,22 +178,23 @@ impl DatasetClient {
 
     /// Describe a specific dataset (metadata + schema).
     #[pyo3(signature = (catalog, schema_name, table))]
+    #[instrument(skip_all)]
     fn describe_dataset<'py>(
         &self,
         py: Python<'py>,
         catalog: String,
         schema_name: String,
         table: String,
-    ) -> PyResult<Bound<'py, PyDict>> {
+    ) -> Result<Bound<'py, PyDict>, DatasetClientError> {
         let client = self.client.clone();
-        let resp = py
-            .detach(move || {
-                let mut c = client
-                    .lock()
-                    .map_err(|_| DatasetClientError::GrpcError("gRPC client lock poisoned".into()))?;
-                app_state().block_on(c.describe_dataset(&catalog, &schema_name, &table))
-            })
-            .map_err(|e| DatasetClientError::GrpcError(e.to_string()))?;
+        let resp = py.detach(move || {
+            let mut c = client
+                .lock()
+                .map_err(|_| DatasetClientError::GrpcError("gRPC client lock poisoned".into()))?;
+            app_state()
+                .block_on(c.describe_dataset(&catalog, &schema_name, &table))
+                .map_err(DatasetClientError::from)
+        })?;
 
         let d = PyDict::new(py);
         if let Some(info) = &resp.info {
@@ -190,7 +213,6 @@ impl DatasetClient {
 }
 
 impl DatasetClient {
-    /// Execute a SQL query via gRPC and return raw IPC bytes.
     fn query_ipc(&self, py: Python<'_>, query: &str) -> Result<Vec<u8>, DatasetClientError> {
         let client = self.client.clone();
         let query = query.to_string();
@@ -198,7 +220,9 @@ impl DatasetClient {
             let mut c = client
                 .lock()
                 .map_err(|_| DatasetClientError::GrpcError("gRPC client lock poisoned".into()))?;
-            app_state().block_on(c.query_dataset(&query))
+            app_state()
+                .block_on(c.query_dataset(&query))
+                .map_err(DatasetClientError::from)
         })?;
         Ok(response.ipc_data)
     }

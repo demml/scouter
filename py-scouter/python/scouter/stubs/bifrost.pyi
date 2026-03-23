@@ -4,15 +4,6 @@ from typing import Any, Dict, List, Optional, Type
 
 #### end of imports ####
 
-__all__ = [
-    "Bifrost",
-    "DatasetClient",
-    "DatasetProducer",
-    "QueryResult",
-    "TableConfig",
-    "WriteConfig",
-]
-
 class TableConfig:
     """Configuration for a dataset table, derived from a Pydantic model.
 
@@ -44,7 +35,7 @@ class TableConfig:
     @property
     def fqn(self) -> str: ...
     @staticmethod
-    def parse_schema(schema: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    def parse_schema(schema: Any) -> Dict[str, Dict[str, Any]]:
         """Parse a Pydantic model's JSON Schema dict into a field map.
 
         Accepts the dict returned directly by ``Model.model_json_schema()``.
@@ -61,7 +52,7 @@ class TableConfig:
         """
 
     @staticmethod
-    def compute_fingerprint(schema: Dict[str, Any]) -> str:
+    def compute_fingerprint(schema: Any) -> str:
         """Compute a stable 32-character SHA-256 fingerprint from a JSON Schema dict.
 
         The fingerprint is deterministic — the same schema always yields the same value.
@@ -286,3 +277,12 @@ class Bifrost:
     @property
     def client(self) -> DatasetClient:
         """The underlying ``DatasetClient`` for full read API access."""
+
+__all__ = [
+    "Bifrost",
+    "DatasetClient",
+    "DatasetProducer",
+    "QueryResult",
+    "TableConfig",
+    "WriteConfig",
+]

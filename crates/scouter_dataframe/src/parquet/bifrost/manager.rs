@@ -12,6 +12,8 @@ use scouter_settings::ObjectStorageSettings;
 use scouter_types::dataset::schema::SCOUTER_PARTITION_DATE;
 use scouter_types::dataset::{DatasetFingerprint, DatasetNamespace, DatasetRegistration};
 use std::collections::HashMap;
+use futures::FutureExt;
+use std::panic::AssertUnwindSafe;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex, Notify};
@@ -209,9 +211,11 @@ impl DatasetEngineManager {
             pending.insert(fqn.clone(), Arc::new(Notify::new()));
         } // activating lock released — safe to .await
 
-        let result = self.do_activate_engine_inner(namespace, &fqn).await;
+        let result = AssertUnwindSafe(self.do_activate_engine_inner(namespace, &fqn))
+            .catch_unwind()
+            .await;
 
-        // Always clean up pending set and notify waiters
+        // Always clean up pending set and notify waiters — even on panic.
         {
             let mut pending = self.activating.lock().await;
             if let Some(notify) = pending.remove(&fqn) {
@@ -219,7 +223,10 @@ impl DatasetEngineManager {
             }
         }
 
-        result
+        match result {
+            Ok(inner) => inner,
+            Err(panic_payload) => std::panic::resume_unwind(panic_payload),
+        }
     }
 
     /// Inner activation logic, called only when we hold the pending-set reservation.
@@ -902,6 +909,81 @@ mod tests {
             .as_primitive_opt::<Int64Type>()
             .unwrap();
         assert_eq!(count_col.value(0), 3);
+
+        manager.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_read_write() {
+        let dir = TempDir::new().unwrap();
+        let settings = test_storage_settings(&dir);
+
+        let manager = Arc::new(
+            DatasetEngineManager::with_config(&settings, 1800, 10, 1, 100, 30)
+                .await
+                .unwrap(),
+        );
+
+        let schema = test_schema();
+        let reg = test_registration(&schema);
+        manager.register_dataset(&reg).await.unwrap();
+
+        // Seed initial data and flush
+        manager
+            .insert_batch(&reg.namespace, &reg.fingerprint, make_test_batch(&schema))
+            .await
+            .unwrap();
+        tokio::time::sleep(Duration::from_secs(2)).await;
+
+        let writer_mgr = Arc::clone(&manager);
+        let writer_ns = reg.namespace.clone();
+        let writer_fp = reg.fingerprint.clone();
+        let writer_schema = schema.clone();
+
+        let writer = tokio::spawn(async move {
+            for _ in 0..10 {
+                writer_mgr
+                    .insert_batch(&writer_ns, &writer_fp, make_test_batch(&writer_schema))
+                    .await
+                    .unwrap();
+            }
+        });
+
+        let sql = "SELECT COUNT(*) as cnt FROM test_catalog.test_schema.predictions";
+
+        let reader1_mgr = Arc::clone(&manager);
+        let reader1 = tokio::spawn(async move {
+            for _ in 0..5 {
+                let results = reader1_mgr.query(sql).await.unwrap();
+                assert!(!results.is_empty());
+            }
+        });
+
+        let reader2_mgr = Arc::clone(&manager);
+        let reader2 = tokio::spawn(async move {
+            for _ in 0..5 {
+                let results = reader2_mgr.query(sql).await.unwrap();
+                assert!(!results.is_empty());
+            }
+        });
+
+        let (w, r1, r2) = tokio::join!(writer, reader1, reader2);
+        w.unwrap();
+        r1.unwrap();
+        r2.unwrap();
+
+        // Wait for buffered writes to flush
+        tokio::time::sleep(Duration::from_secs(3)).await;
+
+        let results = manager.query(sql).await.unwrap();
+        let count = results[0]
+            .column_by_name("cnt")
+            .unwrap()
+            .as_primitive_opt::<Int64Type>()
+            .unwrap()
+            .value(0);
+        // At minimum the seed batch (3 rows) should be present
+        assert!(count >= 3, "Expected at least seed data; got {count}");
 
         manager.shutdown().await;
     }
