@@ -77,6 +77,11 @@ nav:
           - Online: "docs/monitoring/genai/online-evaluation.md"
       - Get to the Queue!:
           - Inference: "docs/monitoring/inference.md"
+  - Datasets:
+      - Overview: "docs/datasets/overview.md"
+      - Quickstart: "docs/datasets/quickstart.md"
+      - Writing Data: "docs/datasets/writing-data.md"
+      - Schema Reference: "docs/datasets/schema.md"
   - Tracing:
       - Overview: "docs/tracing/overview.md"
   - Profiling:
