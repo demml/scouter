@@ -11,10 +11,10 @@ use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::dataset::schema::SCOUTER_PARTITION_DATE;
 use scouter_types::dataset::{DatasetFingerprint, DatasetNamespace, DatasetRegistration};
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{mpsc, Mutex, Notify};
 use tokio::time::{interval, Duration};
 use tracing::{info, warn};
 
@@ -35,8 +35,8 @@ pub struct DatasetTableHandle {
     pub namespace: DatasetNamespace,
     pub partition_columns: Vec<String>,
     pub last_active_at: Arc<AtomicI64>,
-    _engine_handle: tokio::task::JoinHandle<()>,
-    _buffer_handle: tokio::task::JoinHandle<()>,
+    engine_handle: tokio::task::JoinHandle<()>,
+    buffer_handle: tokio::task::JoinHandle<()>,
 }
 
 impl DatasetTableHandle {
@@ -53,7 +53,7 @@ impl DatasetTableHandle {
 pub struct DatasetEngineManager {
     registry: Arc<DatasetRegistry>,
     active_engines: Arc<DashMap<String, DatasetTableHandle>>,
-    activating: Mutex<HashSet<String>>,
+    activating: Arc<Mutex<HashMap<String, Arc<Notify>>>>,
     query_ctx: Arc<SessionContext>,
     catalog_provider: Arc<DatasetCatalogProvider>,
     object_store: ObjectStore,
@@ -62,6 +62,36 @@ pub struct DatasetEngineManager {
     flush_interval_secs: u64,
     max_buffer_rows: usize,
     refresh_interval_secs: u64,
+}
+
+/// Validate that a SQL string contains exactly one SELECT statement.
+/// Rejects DDL, DML, SHOW, and DataFusion extension statements.
+fn validate_sql(sql: &str) -> Result<(), DatasetEngineError> {
+    use datafusion::sql::parser::{DFParser, Statement as DFStatement};
+    use datafusion::sql::sqlparser::ast::Statement as SqlStatement;
+
+    let statements = DFParser::parse_sql(sql).map_err(|e| {
+        DatasetEngineError::SqlValidationError(format!("Failed to parse SQL: {e}"))
+    })?;
+
+    if statements.len() != 1 {
+        return Err(DatasetEngineError::SqlValidationError(
+            "Exactly one SQL statement is required".to_string(),
+        ));
+    }
+
+    match &statements[0] {
+        DFStatement::Statement(stmt) => match stmt.as_ref() {
+            SqlStatement::Query(_) => Ok(()),
+            other => Err(DatasetEngineError::SqlValidationError(format!(
+                "Only SELECT queries are allowed, got: {}",
+                other
+            ))),
+        },
+        _ => Err(DatasetEngineError::SqlValidationError(
+            "Only SELECT queries are allowed".to_string(),
+        )),
+    }
 }
 
 impl DatasetEngineManager {
@@ -78,7 +108,7 @@ impl DatasetEngineManager {
         let manager = Self {
             registry,
             active_engines: Arc::new(DashMap::new()),
-            activating: Mutex::new(HashSet::new()),
+            activating: Arc::new(Mutex::new(HashMap::new())),
             query_ctx,
             catalog_provider,
             object_store,
@@ -131,8 +161,13 @@ impl DatasetEngineManager {
     /// If the engine is already active, touches `last_active_at` and returns the handle reference.
     /// If not active, lazy-loads the Delta table, spawns the actor pair, and returns it.
     ///
-    /// Uses `activating` mutex to prevent two concurrent callers from creating
-    /// duplicate engine actors for the same FQN (TOCTOU guard).
+    /// Uses `activating` to prevent two concurrent callers from creating duplicate engine
+    /// actors for the same FQN (TOCTOU guard).
+    ///
+    /// Cancellation safety: a spawned cleanup task holds an `Arc` clone of `activating`
+    /// and waits for a oneshot signal. If this future is dropped mid-await, the oneshot
+    /// sender drops too, the cleanup task unblocks via `Err(RecvError)`, and it removes
+    /// the stale entry + fires `notify_waiters()` so waiters are not permanently hung.
     async fn activate_engine(
         &self,
         namespace: &DatasetNamespace,
@@ -155,29 +190,57 @@ impl DatasetEngineManager {
                 return Ok(());
             }
 
-            if !pending.insert(fqn.clone()) {
-                // Another task is already activating this FQN
+            if let Some(notify) = pending.get(&fqn) {
+                // Another task is already activating this FQN — wait for it.
+                // Pin and enable the Notified future before releasing the lock so the
+                // waiter is registered before the activating task can call notify_waiters().
+                // Without enable(), a notify_waiters() fired between drop(pending) and the
+                // first poll of notified.await would be lost, hanging this task forever.
+                let notify = Arc::clone(notify);
+                let notified = notify.notified();
+                tokio::pin!(notified);
+                notified.as_mut().enable();
                 drop(pending);
-                tokio::task::yield_now().await;
+
+                // Timeout bounds worst-case wait if the cleanup task is somehow delayed.
+                match tokio::time::timeout(Duration::from_secs(30), notified).await {
+                    Ok(_) => {}
+                    Err(_) => {
+                        return Err(DatasetEngineError::RegistryError(format!(
+                            "Engine activation timed out for {fqn}"
+                        )));
+                    }
+                }
+
                 return if self.active_engines.contains_key(&fqn) {
                     Ok(())
                 } else {
                     Err(DatasetEngineError::RegistryError(format!(
-                        "Concurrent activation in progress for {}",
-                        fqn
+                        "Activation failed for {fqn}"
                     )))
                 };
             }
+
+            pending.insert(fqn.clone(), Arc::new(Notify::new()));
         } // activating lock released — safe to .await
 
+        // Spawn a cleanup task that runs whether we complete normally or get cancelled.
+        // The oneshot sender is dropped in both cases, unblocking the cleanup task.
+        let (done_tx, done_rx) = tokio::sync::oneshot::channel::<()>();
+        let activating = Arc::clone(&self.activating);
+        let fqn_for_cleanup = fqn.clone();
+        tokio::spawn(async move {
+            // Waits for done_tx.send(()) on the happy path, or Err if sender is dropped
+            // (future cancelled). Either way, clean up the pending entry.
+            let _ = done_rx.await;
+            let mut pending = activating.lock().await;
+            if let Some(notify) = pending.remove(&fqn_for_cleanup) {
+                notify.notify_waiters();
+            }
+        });
+
         let result = self.do_activate_engine_inner(namespace, &fqn).await;
-
-        // Always clean up pending set
-        {
-            let mut pending = self.activating.lock().await;
-            pending.remove(&fqn);
-        }
-
+        let _ = done_tx.send(()); // signal cleanup; if already dropped, cleanup already ran
         result
     }
 
@@ -252,8 +315,8 @@ impl DatasetEngineManager {
             namespace: namespace.clone(),
             partition_columns,
             last_active_at: Arc::new(AtomicI64::new(chrono::Utc::now().timestamp())),
-            _engine_handle: engine_handle,
-            _buffer_handle: buffer_handle,
+            engine_handle,
+            buffer_handle,
         };
 
         self.active_engines.insert(fqn.to_string(), handle);
@@ -309,9 +372,10 @@ impl DatasetEngineManager {
 
     /// Execute a SQL query against the shared query context.
     ///
-    /// TODO(phase3): Replace with structured query builder API. Raw SQL passthrough
-    /// is a security concern when exposed over gRPC/HTTP.
+    /// Only SELECT statements are allowed. All other statement types (DDL, DML,
+    /// SHOW, etc.) are rejected at parse time.
     pub async fn query(&self, sql: &str) -> Result<Vec<RecordBatch>, DatasetEngineError> {
+        validate_sql(sql)?;
         let df = self.query_ctx.sql(sql).await?;
         let batches = df.collect().await?;
         Ok(batches)
@@ -348,12 +412,15 @@ impl DatasetEngineManager {
             // 1. Signal buffer to flush remaining batches and exit
             let _ = handle.shutdown_tx.send(()).await;
 
-            // 2. Explicitly shut down the engine actor.
-            //    Buffer's final Write commands are already in the engine channel (mpsc FIFO),
-            //    so Shutdown processes last — no data loss.
-            let _ = handle.engine_tx.send(TableCommand::Shutdown).await;
+            // 2. Wait for buffer to complete its final flush before shutting down the engine.
+            //    This ensures all buffered Write commands are in the engine channel.
+            let _ = handle.buffer_handle.await;
 
-            // Remove from catalog
+            // 3. Now shut down the engine — all buffered Writes are queued (mpsc FIFO)
+            let _ = handle.engine_tx.send(TableCommand::Shutdown).await;
+            let _ = handle.engine_handle.await;
+
+            // 4. Remove from catalog
             self.catalog_provider.remove_table(&handle.namespace);
         }
     }
@@ -377,52 +444,76 @@ impl DatasetEngineManager {
     }
 
     /// Start the reaper loop that evicts idle engines.
-    pub fn start_reaper_loop(self: &Arc<Self>) -> tokio::task::JoinHandle<()> {
+    ///
+    /// Returns a future suitable for `TaskManager::spawn()`. The loop exits
+    /// when the shutdown receiver fires.
+    pub fn start_reaper_loop(
+        self: &Arc<Self>,
+        mut shutdown_rx: tokio::sync::watch::Receiver<()>,
+    ) -> impl std::future::Future<Output = ()> + Send + 'static {
         let manager = Arc::clone(self);
-        tokio::spawn(async move {
+        async move {
             let mut ticker = interval(Duration::from_secs(REAPER_INTERVAL_SECS));
             ticker.tick().await; // skip immediate
 
             loop {
-                ticker.tick().await;
+                tokio::select! {
+                    _ = ticker.tick() => {
+                        let now = chrono::Utc::now().timestamp();
+                        let ttl = manager.engine_ttl_secs as i64;
 
-                let now = chrono::Utc::now().timestamp();
-                let ttl = manager.engine_ttl_secs as i64;
+                        let to_evict: Vec<String> = manager
+                            .active_engines
+                            .iter()
+                            .filter(|e| now - e.value().last_active_at.load(Ordering::Relaxed) > ttl)
+                            .map(|e| e.key().clone())
+                            .collect();
 
-                let to_evict: Vec<String> = manager
-                    .active_engines
-                    .iter()
-                    .filter(|e| now - e.value().last_active_at.load(Ordering::Relaxed) > ttl)
-                    .map(|e| e.key().clone())
-                    .collect();
-
-                for fqn in to_evict {
-                    manager.evict_engine(&fqn).await;
+                        for fqn in to_evict {
+                            manager.evict_engine(&fqn).await;
+                        }
+                    }
+                    _ = shutdown_rx.changed() => {
+                        info!("Reaper loop shutting down");
+                        break;
+                    }
                 }
             }
-        })
+        }
     }
 
     /// Start the discovery loop that refreshes the registry from other pods.
-    pub fn start_discovery_loop(self: &Arc<Self>) -> tokio::task::JoinHandle<()> {
+    ///
+    /// Returns a future suitable for `TaskManager::spawn()`. The loop exits
+    /// when the shutdown receiver fires.
+    pub fn start_discovery_loop(
+        self: &Arc<Self>,
+        mut shutdown_rx: tokio::sync::watch::Receiver<()>,
+    ) -> impl std::future::Future<Output = ()> + Send + 'static {
         let manager = Arc::clone(self);
-        tokio::spawn(async move {
+        async move {
             let mut ticker = interval(Duration::from_secs(DISCOVERY_INTERVAL_SECS));
             ticker.tick().await; // skip immediate
 
             loop {
-                ticker.tick().await;
+                tokio::select! {
+                    _ = ticker.tick() => {
+                        if let Err(e) = manager.registry.refresh().await {
+                            warn!("Registry discovery refresh failed: {}", e);
+                        }
 
-                if let Err(e) = manager.registry.refresh().await {
-                    warn!("Registry discovery refresh failed: {}", e);
-                }
-
-                // Register any new catalogs discovered
-                for reg in manager.registry.list_active() {
-                    manager.ensure_catalog_registered(&reg.namespace.catalog);
+                        // Register any new catalogs discovered
+                        for reg in manager.registry.list_active() {
+                            manager.ensure_catalog_registered(&reg.namespace.catalog);
+                        }
+                    }
+                    _ = shutdown_rx.changed() => {
+                        info!("Discovery loop shutting down");
+                        break;
+                    }
                 }
             }
-        })
+        }
     }
 
     /// Access the shared query context (for Phase 3 gRPC/HTTP integration).
