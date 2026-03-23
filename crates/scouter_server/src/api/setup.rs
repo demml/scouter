@@ -138,12 +138,9 @@ impl ScouterSetupComponents {
                 .await
                 .context("Failed to initialize DatasetEngineManager")?,
         );
-        task_manager.spawn(
-            dataset_manager.start_reaper_loop(task_manager.get_shutdown_receiver()),
-        );
-        task_manager.spawn(
-            dataset_manager.start_discovery_loop(task_manager.get_shutdown_receiver()),
-        );
+        task_manager.spawn(dataset_manager.start_reaper_loop(task_manager.get_shutdown_receiver()));
+        task_manager
+            .spawn(dataset_manager.start_discovery_loop(task_manager.get_shutdown_receiver()));
         info!("✅ Started DatasetEngineManager");
 
         Ok(Self {

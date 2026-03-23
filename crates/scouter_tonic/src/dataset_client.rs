@@ -1,9 +1,9 @@
 use crate::client::{AUTHORIZATION, X_REFRESHED_TOKEN};
 use crate::error::ClientError;
 use crate::{
-    AuthServiceClient, DatasetServiceClient, InsertBatchRequest, InsertBatchResponse,
-    LoginRequest, QueryDatasetRequest, QueryDatasetResponse, RegisterDatasetRequest,
-    RegisterDatasetResponse, RefreshTokenRequest,
+    AuthServiceClient, DatasetServiceClient, InsertBatchRequest, InsertBatchResponse, LoginRequest,
+    QueryDatasetRequest, QueryDatasetResponse, RefreshTokenRequest, RegisterDatasetRequest,
+    RegisterDatasetResponse,
 };
 use scouter_settings::grpc::GrpcConfig;
 use std::sync::{Arc, RwLock};
@@ -197,17 +197,13 @@ impl DatasetGrpcClient {
             ipc_data,
         })?;
 
-        let resp = self
-            .dataset_client
-            .insert_batch(req)
-            .await
-            .map_err(|s| {
-                ClientError::GrpcError(format!(
-                    "insert_batch failed: {} (code: {:?})",
-                    s.message(),
-                    s.code()
-                ))
-            })?;
+        let resp = self.dataset_client.insert_batch(req).await.map_err(|s| {
+            ClientError::GrpcError(format!(
+                "insert_batch failed: {} (code: {:?})",
+                s.message(),
+                s.code()
+            ))
+        })?;
 
         self.handle_refreshed_token(&resp);
         Ok(resp.into_inner())
@@ -220,17 +216,13 @@ impl DatasetGrpcClient {
             sql: sql.to_string(),
         })?;
 
-        let resp = self
-            .dataset_client
-            .query_dataset(req)
-            .await
-            .map_err(|s| {
-                ClientError::GrpcError(format!(
-                    "query_dataset failed: {} (code: {:?})",
-                    s.message(),
-                    s.code()
-                ))
-            })?;
+        let resp = self.dataset_client.query_dataset(req).await.map_err(|s| {
+            ClientError::GrpcError(format!(
+                "query_dataset failed: {} (code: {:?})",
+                s.message(),
+                s.code()
+            ))
+        })?;
 
         self.handle_refreshed_token(&resp);
         Ok(resp.into_inner())

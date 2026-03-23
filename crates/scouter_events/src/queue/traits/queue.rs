@@ -223,7 +223,9 @@ pub trait QueueMethods {
 }
 
 /// Waits for the background loop to start
-pub async fn wait_for_background_task<E: Flushable>(task_state: &TaskState<E>) -> Result<(), EventError> {
+pub async fn wait_for_background_task<E: Flushable>(
+    task_state: &TaskState<E>,
+) -> Result<(), EventError> {
     if !task_state.has_background_handle() {
         debug!("No background handle to wait for {}", task_state.id);
         return Ok(());
@@ -260,7 +262,9 @@ pub async fn wait_for_background_task<E: Flushable>(task_state: &TaskState<E>) -
 }
 
 /// Waits for the event task to start
-pub async fn wait_for_event_task<E: Flushable>(task_state: &TaskState<E>) -> Result<(), EventError> {
+pub async fn wait_for_event_task<E: Flushable>(
+    task_state: &TaskState<E>,
+) -> Result<(), EventError> {
     let notify = task_state.event_task.read().unwrap().startup_notify.clone();
 
     match timeout(Duration::from_secs(10), notify.notified()).await {

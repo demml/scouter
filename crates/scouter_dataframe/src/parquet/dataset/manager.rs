@@ -70,9 +70,8 @@ fn validate_sql(sql: &str) -> Result<(), DatasetEngineError> {
     use datafusion::sql::parser::{DFParser, Statement as DFStatement};
     use datafusion::sql::sqlparser::ast::Statement as SqlStatement;
 
-    let statements = DFParser::parse_sql(sql).map_err(|e| {
-        DatasetEngineError::SqlValidationError(format!("Failed to parse SQL: {e}"))
-    })?;
+    let statements = DFParser::parse_sql(sql)
+        .map_err(|e| DatasetEngineError::SqlValidationError(format!("Failed to parse SQL: {e}")))?;
 
     if statements.len() != 1 {
         return Err(DatasetEngineError::SqlValidationError(

@@ -7,8 +7,8 @@ pub mod profiler;
 
 pub use dataset::client::DatasetProducer;
 pub use dataset::config::{TableConfig, WriteConfig};
-pub use dataset::reader::DatasetClient;
 pub use dataset::error::DatasetClientError;
+pub use dataset::reader::DatasetClient;
 pub use drifter::scouter::PyDrifter;
 pub use profiler::scouter::DataProfiler;
 pub use scouter_settings::{grpc::GrpcConfig, HttpConfig};

@@ -77,8 +77,7 @@ impl DatasetProducer {
         let ec = event_cancel.clone();
         let ts_clone = task_state.clone();
         let event_handle = app_state().handle().spawn(async move {
-            if let Err(e) =
-                spawn_dataset_event_handler(event_rx, dataset_queue, ts_clone, ec).await
+            if let Err(e) = spawn_dataset_event_handler(event_rx, dataset_queue, ts_clone, ec).await
             {
                 tracing::error!("Dataset event handler error: {e}");
             }
@@ -141,7 +140,9 @@ impl DatasetProducer {
             .task_state
             .as_ref()
             .ok_or(DatasetClientError::AlreadyShutdown)?;
-        let json = record.call_method0("model_dump_json")?.extract::<String>()?;
+        let json = record
+            .call_method0("model_dump_json")?
+            .extract::<String>()?;
         ts.event_tx.send(DatasetEvent::Insert(json))?;
         Ok(())
     }
@@ -178,7 +179,13 @@ impl DatasetProducer {
         app_state().block_on(async move {
             let mut client = DatasetGrpcClient::new(grpc_config).await?;
             let resp = client
-                .register_dataset(&catalog, &schema_name, &table, &json_schema, partition_columns)
+                .register_dataset(
+                    &catalog,
+                    &schema_name,
+                    &table,
+                    &json_schema,
+                    partition_columns,
+                )
                 .await?;
             registered.store(true, Ordering::Release);
             info!(

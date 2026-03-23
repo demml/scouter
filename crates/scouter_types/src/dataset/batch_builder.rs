@@ -114,8 +114,8 @@ impl DynamicBatchBuilder {
 
         // scouter_created_at: Timestamp(Microsecond, UTC)
         let now_us = Utc::now().timestamp_micros();
-        let mut ts_builder = TimestampMicrosecondBuilder::with_capacity(n)
-            .with_timezone("UTC".to_string());
+        let mut ts_builder =
+            TimestampMicrosecondBuilder::with_capacity(n).with_timezone("UTC".to_string());
         for _ in 0..n {
             ts_builder.append_value(now_us);
         }
@@ -299,9 +299,7 @@ fn build_array(values: &[Option<Value>], data_type: &DataType) -> Result<ArrayRe
         }
 
         DataType::Dictionary(key_type, value_type) => {
-            if key_type.as_ref() == &DataType::Int16
-                && value_type.as_ref() == &DataType::Utf8
-            {
+            if key_type.as_ref() == &DataType::Int16 && value_type.as_ref() == &DataType::Utf8 {
                 let mut b: StringDictionaryBuilder<Int16Type> =
                     StringDictionaryBuilder::with_capacity(values.len(), 16, values.len() * 8);
                 for v in values {
@@ -357,12 +355,10 @@ fn build_array(values: &[Option<Value>], data_type: &DataType) -> Result<ArrayRe
 }
 
 /// Build a struct array column from a slice of optional JSON objects.
-fn build_struct_array(
-    values: &[Option<Value>],
-    fields: &Fields,
-) -> Result<ArrayRef, DatasetError> {
+fn build_struct_array(values: &[Option<Value>], fields: &Fields) -> Result<ArrayRef, DatasetError> {
     // Collect per-subfield columns
-    let mut sub_cols: Vec<Vec<Option<Value>>> = vec![Vec::with_capacity(values.len()); fields.len()];
+    let mut sub_cols: Vec<Vec<Option<Value>>> =
+        vec![Vec::with_capacity(values.len()); fields.len()];
 
     for v in values {
         match v {
@@ -396,27 +392,29 @@ fn build_struct_array(
         .map(|v| v.as_ref().map(|v| !v.is_null()).unwrap_or(false))
         .collect();
 
-    let struct_array = arrow::array::StructArray::new(
-        fields.clone(),
-        sub_arrays,
-        Some(null_buffer),
-    );
+    let struct_array =
+        arrow::array::StructArray::new(fields.clone(), sub_arrays, Some(null_buffer));
 
     Ok(Arc::new(struct_array))
 }
 
 /// Create a concrete [`ArrayBuilder`] for a given Arrow [`DataType`].
 /// Used to construct inner builders for [`ListBuilder`].
-fn make_builder(data_type: &DataType, capacity: usize) -> Result<Box<dyn ArrayBuilder>, DatasetError> {
+fn make_builder(
+    data_type: &DataType,
+    capacity: usize,
+) -> Result<Box<dyn ArrayBuilder>, DatasetError> {
     match data_type {
         DataType::Int64 => Ok(Box::new(Int64Builder::with_capacity(capacity))),
         DataType::Float64 => Ok(Box::new(Float64Builder::with_capacity(capacity))),
         DataType::Utf8View => Ok(Box::new(StringViewBuilder::with_capacity(capacity))),
-        DataType::Utf8 => Ok(Box::new(StringBuilder::with_capacity(capacity, capacity * 8))),
+        DataType::Utf8 => Ok(Box::new(StringBuilder::with_capacity(
+            capacity,
+            capacity * 8,
+        ))),
         DataType::Boolean => Ok(Box::new(BooleanBuilder::with_capacity(capacity))),
         DataType::Timestamp(TimeUnit::Microsecond, _) => Ok(Box::new(
-            TimestampMicrosecondBuilder::with_capacity(capacity)
-                .with_timezone("UTC".to_string()),
+            TimestampMicrosecondBuilder::with_capacity(capacity).with_timezone("UTC".to_string()),
         )),
         DataType::Date32 => Ok(Box::new(Date32Builder::with_capacity(capacity))),
         other => Err(DatasetError::UnsupportedType(format!(
@@ -702,7 +700,8 @@ mod tests {
             }"#,
         );
         let mut b = DynamicBatchBuilder::new(schema);
-        b.append_json_row(r#"{"ts":"2024-06-01T12:00:00Z"}"#).unwrap();
+        b.append_json_row(r#"{"ts":"2024-06-01T12:00:00Z"}"#)
+            .unwrap();
         let batch = b.finish().unwrap();
         let ts = batch
             .column_by_name("ts")
@@ -828,7 +827,9 @@ mod tests {
     fn test_non_object_json_error() {
         let schema = flat_schema();
         let mut b = DynamicBatchBuilder::new(schema);
-        let err = b.append_json_row(r#"["array","not","object"]"#).unwrap_err();
+        let err = b
+            .append_json_row(r#"["array","not","object"]"#)
+            .unwrap_err();
         assert!(matches!(err, DatasetError::SchemaParseError(_)));
     }
 

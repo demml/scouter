@@ -151,8 +151,8 @@ async fn insert_batch(
 
     let fingerprint = DatasetFingerprint(fingerprint_str.to_string());
 
-    let batches = ipc_bytes_to_batches(&body)
-        .map_err(|e| bad_request(format!("Invalid IPC data: {e}")))?;
+    let batches =
+        ipc_bytes_to_batches(&body).map_err(|e| bad_request(format!("Invalid IPC data: {e}")))?;
 
     let mut total_rows: u64 = 0;
     for batch in batches {
@@ -179,9 +179,8 @@ async fn query_dataset(
         .await
         .map_err(map_dataset_error)?;
 
-    let ipc_data = batches_to_ipc_bytes(&batches).map_err(|e| {
-        internal_error(format!("Failed to serialize query results: {e}"))
-    })?;
+    let ipc_data = batches_to_ipc_bytes(&batches)
+        .map_err(|e| internal_error(format!("Failed to serialize query results: {e}")))?;
 
     Ok((StatusCode::OK, axum::body::Bytes::from(ipc_data)))
 }
