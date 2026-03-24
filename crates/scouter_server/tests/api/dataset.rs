@@ -1,6 +1,6 @@
 use crate::common::setup_test;
 use arrow::array::{
-    Date32Array, Float64Array, StringArray, StringViewArray, TimestampMicrosecondArray,
+    ArrayRef, Date32Array, Float64Array, StringArray, StringViewArray, TimestampMicrosecondArray,
 };
 use arrow_array::RecordBatch;
 use axum::{
@@ -10,7 +10,10 @@ use axum::{
 use chrono::Datelike;
 use http_body_util::BodyExt;
 use scouter_dataframe::parquet::bifrost::ipc::{batches_to_ipc_bytes, ipc_bytes_to_batches};
-use scouter_types::dataset::schema::{inject_system_columns, json_schema_to_arrow};
+use scouter_types::dataset::schema::{
+    inject_system_columns, json_schema_to_arrow, SCOUTER_BATCH_ID, SCOUTER_CREATED_AT,
+    SCOUTER_PARTITION_DATE,
+};
 use serde_json::Value;
 use std::sync::Arc;
 use tokio::time::{sleep, Duration};
@@ -23,8 +26,8 @@ fn test_json_schema() -> &'static str {
     r#"{"type":"object","properties":{"score":{"type":"number"},"label":{"type":"string"}},"required":["score","label"]}"#
 }
 
-/// Build a 3-row Arrow RecordBatch with the exact schema the server expects:
-/// (score: Float64, label: Utf8View) + system columns injected by the server.
+/// Build a 3-row Arrow RecordBatch with the exact schema the server expects.
+/// Arrays are built in schema field order to survive any serde_json key ordering.
 fn test_ipc_bytes() -> Vec<u8> {
     let user_schema = json_schema_to_arrow(test_json_schema()).unwrap();
     let schema = Arc::new(inject_system_columns(user_schema).unwrap());
@@ -33,18 +36,28 @@ fn test_ipc_bytes() -> Vec<u8> {
     let epoch_days = now.date_naive().num_days_from_ce() - 719_163;
     let ts = now.timestamp_micros();
 
-    let batch = RecordBatch::try_new(
-        Arc::clone(&schema),
-        vec![
-            Arc::new(Float64Array::from(vec![1.0, 2.0, 3.0])),
-            Arc::new(StringViewArray::from(vec!["a", "b", "c"])),
-            Arc::new(TimestampMicrosecondArray::from(vec![ts, ts, ts]).with_timezone("UTC")),
-            Arc::new(Date32Array::from(vec![epoch_days, epoch_days, epoch_days])),
-            Arc::new(StringArray::from(vec!["batch-1", "batch-1", "batch-1"])),
-        ],
-    )
-    .unwrap();
+    let columns: Vec<ArrayRef> = schema
+        .fields()
+        .iter()
+        .map(|f| -> ArrayRef {
+            match f.name().as_str() {
+                "score" => Arc::new(Float64Array::from(vec![1.0_f64, 2.0, 3.0])),
+                "label" => Arc::new(StringViewArray::from(vec!["a", "b", "c"])),
+                SCOUTER_CREATED_AT => Arc::new(
+                    TimestampMicrosecondArray::from(vec![ts, ts, ts]).with_timezone("UTC"),
+                ),
+                SCOUTER_PARTITION_DATE => {
+                    Arc::new(Date32Array::from(vec![epoch_days, epoch_days, epoch_days]))
+                }
+                SCOUTER_BATCH_ID => {
+                    Arc::new(StringArray::from(vec!["batch-1", "batch-1", "batch-1"]))
+                }
+                other => panic!("Unexpected schema field: {other}"),
+            }
+        })
+        .collect();
 
+    let batch = RecordBatch::try_new(Arc::clone(&schema), columns).unwrap();
     batches_to_ipc_bytes(std::slice::from_ref(&batch)).unwrap()
 }
 
