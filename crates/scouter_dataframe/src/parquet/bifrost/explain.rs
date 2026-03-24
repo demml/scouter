@@ -114,7 +114,7 @@ pub fn physical_plan_to_tree(plan: &dyn ExecutionPlan) -> PlanNode {
             output_rows: output_rows.map(|r| r as u64),
             elapsed_ms: elapsed.map(|ns| ns as f64 / 1_000_000.0),
             bytes_scanned: m.sum_by_name("bytes_scanned").map(|v| v.as_usize() as u64),
-            spill_bytes: m.sum_by_name("spill_count").map(|v| v.as_usize() as u64),
+            spill_bytes: m.sum_by_name("spilled_bytes").map(|v| v.as_usize() as u64),
         }
     });
 

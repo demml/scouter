@@ -553,19 +553,21 @@ impl DatasetEngineManager {
         let cancel_token = self.query_tracker.register(query_id).await?;
         let start = Instant::now();
 
-        let df = self.query_ctx.sql(sql).await?;
-        // Request max_rows + 1 to detect truncation
-        let limited_df = df.limit(0, Some(max_rows + 1))?;
-
-        let batches = tokio::select! {
-            result = limited_df.collect() => result?,
-            _ = cancel_token.cancelled() => {
-                self.query_tracker.remove(query_id).await;
-                return Err(DatasetEngineError::QueryCancelled(query_id.to_string()));
+        let exec_result: Result<_, DatasetEngineError> = async {
+            let df = self.query_ctx.sql(sql).await?;
+            // Request max_rows + 1 to detect truncation
+            let limited_df = df.limit(0, Some(max_rows + 1))?;
+            tokio::select! {
+                result = limited_df.collect() => result.map_err(DatasetEngineError::from),
+                _ = cancel_token.cancelled() => {
+                    Err(DatasetEngineError::QueryCancelled(query_id.to_string()))
+                }
             }
-        };
+        }
+        .await;
 
         self.query_tracker.remove(query_id).await;
+        let batches = exec_result?;
 
         let total_rows: usize = batches.iter().map(|b| b.num_rows()).sum();
         let truncated = total_rows > max_rows;
@@ -636,14 +638,14 @@ impl DatasetEngineManager {
         let execution_metadata = if analyze {
             let max_rows = max_rows.clamp(1, 100_000);
             let analyze_df = self.query_ctx.sql(sql).await?;
-            let limited = analyze_df.limit(0, Some(max_rows))?;
+            let limited = analyze_df.limit(0, Some(max_rows + 1))?;
             let start = Instant::now();
             let batches = limited.collect().await?;
             let rows: usize = batches.iter().map(|b| b.num_rows()).sum();
 
             Some(QueryExecutionMetadata {
                 query_id: String::new(),
-                rows_returned: rows as u64,
+                rows_returned: rows.min(max_rows) as u64,
                 truncated: rows > max_rows,
                 execution_time_ms: start.elapsed().as_millis() as u64,
                 bytes_scanned: None,
