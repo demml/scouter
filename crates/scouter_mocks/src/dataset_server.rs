@@ -1,11 +1,23 @@
 use pyo3::prelude::*;
+use std::sync::Arc;
+use thiserror::Error;
+use tracing::instrument;
+
+#[cfg(feature = "server")]
 use scouter_auth::auth::AuthManager;
+#[cfg(feature = "server")]
 use scouter_dataframe::error::DatasetEngineError;
+#[cfg(feature = "server")]
 use scouter_dataframe::parquet::bifrost::ipc::{batches_to_ipc_bytes, ipc_bytes_to_batches};
+#[cfg(feature = "server")]
 use scouter_dataframe::parquet::bifrost::manager::DatasetEngineManager;
+#[cfg(feature = "server")]
 use scouter_dataframe::parquet::bifrost::registry::RegistrationResult;
+#[cfg(feature = "server")]
 use scouter_settings::ObjectStorageSettings;
+#[cfg(feature = "server")]
 use scouter_sql::sql::schema::User;
+#[cfg(feature = "server")]
 use scouter_tonic::{
     AuthService, AuthServiceServer, DatasetInfo, DatasetService, DatasetServiceServer,
     DescribeDatasetRequest, DescribeDatasetResponse, InsertBatchRequest, InsertBatchResponse,
@@ -13,22 +25,26 @@ use scouter_tonic::{
     QueryDatasetResponse, RefreshTokenRequest, RefreshTokenResponse, RegisterDatasetRequest,
     RegisterDatasetResponse, ValidateTokenRequest, ValidateTokenResponse,
 };
+#[cfg(feature = "server")]
 use scouter_types::dataset::schema::{fingerprint_from_json_schema, inject_system_columns};
+#[cfg(feature = "server")]
 use scouter_types::dataset::{DatasetFingerprint, DatasetNamespace, DatasetRegistration};
+#[cfg(feature = "server")]
 use scouter_types::StorageType;
+#[cfg(feature = "server")]
 use std::net::TcpListener as StdTcpListener;
-use std::sync::Arc;
+#[cfg(feature = "server")]
 use std::thread::sleep;
+#[cfg(feature = "server")]
 use std::time::Duration;
-use thiserror::Error;
+#[cfg(feature = "server")]
 use tonic::transport::{Channel, Server};
+#[cfg(feature = "server")]
 use tonic::{Request, Response, Status};
+#[cfg(feature = "server")]
 use tonic_health::server::health_reporter;
-use tracing::{error, instrument};
-
-const TEST_JWT_SECRET: &str = "scouter-dataset-test-jwt-secret!!";
-const TEST_REFRESH_SECRET: &str = "scouter-dataset-test-refresh-key!";
-const MAX_MESSAGE_SIZE: usize = 64 * 1024 * 1024;
+#[cfg(feature = "server")]
+use tracing::error;
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -40,6 +56,8 @@ pub enum DatasetServerError {
     PortError,
     #[error("Server failed to start: {0}")]
     StartError(String),
+    #[error("Server feature not enabled")]
+    FeatureNotEnabled,
 }
 
 impl From<DatasetServerError> for PyErr {
@@ -49,13 +67,22 @@ impl From<DatasetServerError> for PyErr {
 }
 
 // ---------------------------------------------------------------------------
-// PassthroughAuthService
+// Server-only: PassthroughAuthService
 // ---------------------------------------------------------------------------
 
+#[cfg(feature = "server")]
+const TEST_JWT_SECRET: &str = "scouter-dataset-test-jwt-secret!!";
+#[cfg(feature = "server")]
+const TEST_REFRESH_SECRET: &str = "scouter-dataset-test-refresh-key!";
+#[cfg(feature = "server")]
+const MAX_MESSAGE_SIZE: usize = 64 * 1024 * 1024;
+
+#[cfg(feature = "server")]
 pub struct PassthroughAuthService {
     auth_manager: AuthManager,
 }
 
+#[cfg(feature = "server")]
 impl PassthroughAuthService {
     fn new() -> Self {
         Self {
@@ -81,6 +108,7 @@ impl PassthroughAuthService {
     }
 }
 
+#[cfg(feature = "server")]
 #[tonic::async_trait]
 impl AuthService for PassthroughAuthService {
     async fn login(
@@ -134,14 +162,16 @@ impl AuthService for PassthroughAuthService {
 }
 
 // ---------------------------------------------------------------------------
-// MockDatasetGrpcService
+// Server-only: MockDatasetGrpcService
 // ---------------------------------------------------------------------------
 
+#[cfg(feature = "server")]
 #[derive(Clone)]
 pub struct MockDatasetGrpcService {
     manager: Arc<DatasetEngineManager>,
 }
 
+#[cfg(feature = "server")]
 impl MockDatasetGrpcService {
     fn new(manager: Arc<DatasetEngineManager>) -> Self {
         Self { manager }
@@ -154,6 +184,7 @@ impl MockDatasetGrpcService {
     }
 }
 
+#[cfg(feature = "server")]
 fn map_dataset_error(e: DatasetEngineError) -> Status {
     match &e {
         DatasetEngineError::TableNotFound(_) => Status::not_found(e.to_string()),
@@ -170,6 +201,7 @@ fn map_dataset_error(e: DatasetEngineError) -> Status {
     }
 }
 
+#[cfg(feature = "server")]
 #[tonic::async_trait]
 impl DatasetService for MockDatasetGrpcService {
     #[instrument(skip_all)]
@@ -333,8 +365,11 @@ impl DatasetService for MockDatasetGrpcService {
 #[pyclass]
 #[allow(dead_code)]
 pub struct BifrostTestServer {
+    #[cfg(feature = "server")]
     runtime: Arc<tokio::runtime::Runtime>,
+    #[cfg(feature = "server")]
     shutdown_tx: Option<tokio::sync::oneshot::Sender<()>>,
+    #[cfg(feature = "server")]
     storage_dir: Option<tempfile::TempDir>,
     cleanup: bool,
 }
@@ -345,134 +380,150 @@ impl BifrostTestServer {
     #[pyo3(signature = (cleanup = true))]
     fn new(cleanup: bool) -> Self {
         Self {
+            #[cfg(feature = "server")]
             runtime: Arc::new(tokio::runtime::Runtime::new().unwrap()),
+            #[cfg(feature = "server")]
             shutdown_tx: None,
+            #[cfg(feature = "server")]
             storage_dir: None,
             cleanup,
         }
     }
 
-    #[instrument(name = "start_dataset_server", skip_all)]
+    #[instrument(name = "start_bifrost_server", skip_all)]
     fn start_server(&mut self) -> Result<(), DatasetServerError> {
-        let dir = tempfile::tempdir().map_err(|e| DatasetServerError::StartError(e.to_string()))?;
-        let storage_path = dir.path().to_path_buf();
-        self.storage_dir = Some(dir);
+        #[cfg(feature = "server")]
+        {
+            let dir =
+                tempfile::tempdir().map_err(|e| DatasetServerError::StartError(e.to_string()))?;
+            let storage_path = dir.path().to_path_buf();
+            self.storage_dir = Some(dir);
 
-        let grpc_port = (50061..50071)
-            .find(|port| StdTcpListener::bind(("127.0.0.1", *port)).is_ok())
-            .ok_or(DatasetServerError::PortError)?;
+            let grpc_port = (50061..50071)
+                .find(|port| StdTcpListener::bind(("127.0.0.1", *port)).is_ok())
+                .ok_or(DatasetServerError::PortError)?;
 
-        unsafe {
-            std::env::set_var("SCOUTER_GRPC_URI", format!("http://127.0.0.1:{grpc_port}"));
-            std::env::set_var("SCOUTER_STORAGE_URI", storage_path.to_str().unwrap());
-            std::env::set_var("APP_ENV", "dev_client");
-        }
-
-        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
-        self.shutdown_tx = Some(shutdown_tx);
-
-        let runtime = self.runtime.clone();
-        runtime.spawn(async move {
-            let storage_settings = ObjectStorageSettings {
-                storage_uri: storage_path.to_str().unwrap().to_string(),
-                storage_type: StorageType::Local,
-                region: "us-east-1".to_string(),
-                trace_compaction_interval_hours: 999,
-                trace_flush_interval_secs: 2,
-                trace_refresh_interval_secs: 2,
-            };
-
-            let manager = match DatasetEngineManager::with_config(
-                &storage_settings,
-                30, // engine_ttl_secs
-                50, // max_active_engines
-                2,  // flush_interval_secs — fast flush for tests
-                50, // max_buffer_rows — trigger flush at 50 rows for tests
-                2,  // refresh_interval_secs
-            )
-            .await
-            {
-                Ok(m) => Arc::new(m),
-                Err(e) => {
-                    error!("Failed to create DatasetEngineManager: {}", e);
-                    return;
-                }
-            };
-
-            let (health_reporter, health_service) = health_reporter();
-            let dataset_service = MockDatasetGrpcService::new(manager).into_server();
-            let auth_service = PassthroughAuthService::new().into_service();
-
-            health_reporter
-                .set_serving::<DatasetServiceServer<MockDatasetGrpcService>>()
-                .await;
-            health_reporter
-                .set_serving::<AuthServiceServer<PassthroughAuthService>>()
-                .await;
-
-            let addr = format!("0.0.0.0:{grpc_port}").parse().unwrap();
-            if let Err(e) = Server::builder()
-                .add_service(health_service)
-                .add_service(auth_service)
-                .add_service(dataset_service)
-                .serve_with_shutdown(addr, async {
-                    shutdown_rx.await.ok();
-                })
-                .await
-            {
-                error!("Dataset gRPC server error: {}", e);
+            unsafe {
+                std::env::set_var("SCOUTER_GRPC_URI", format!("http://127.0.0.1:{grpc_port}"));
+                std::env::set_var("SCOUTER_STORAGE_URI", storage_path.to_str().unwrap());
+                std::env::set_var("APP_ENV", "dev_client");
             }
-        });
 
-        // Poll until the health service reports SERVING
-        let runtime_clone = self.runtime.clone();
-        let mut attempts = 0;
-        let max_attempts = 50;
-        loop {
-            let ready = runtime_clone.block_on(async {
-                let channel = Channel::from_shared(format!("http://127.0.0.1:{grpc_port}"))
-                    .ok()?
-                    .connect()
-                    .await
-                    .ok()?;
-                let mut hc = tonic_health::pb::health_client::HealthClient::new(channel);
-                let resp = hc
-                    .check(tonic_health::pb::HealthCheckRequest {
-                        service: "scouter.grpc.v1.DatasetService".to_string(),
+            let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+            self.shutdown_tx = Some(shutdown_tx);
+
+            let runtime = self.runtime.clone();
+            runtime.spawn(async move {
+                let storage_settings = ObjectStorageSettings {
+                    storage_uri: storage_path.to_str().unwrap().to_string(),
+                    storage_type: StorageType::Local,
+                    region: "us-east-1".to_string(),
+                    trace_compaction_interval_hours: 999,
+                    trace_flush_interval_secs: 2,
+                    trace_refresh_interval_secs: 2,
+                };
+
+                let manager = match DatasetEngineManager::with_config(
+                    &storage_settings,
+                    30, // engine_ttl_secs
+                    50, // max_active_engines
+                    2,  // flush_interval_secs — fast flush for tests
+                    50, // max_buffer_rows — trigger flush at 50 rows for tests
+                    2,  // refresh_interval_secs
+                )
+                .await
+                {
+                    Ok(m) => Arc::new(m),
+                    Err(e) => {
+                        error!("Failed to create DatasetEngineManager: {}", e);
+                        return;
+                    }
+                };
+
+                let (health_reporter, health_service) = health_reporter();
+                let dataset_service = MockDatasetGrpcService::new(manager).into_server();
+                let auth_service = PassthroughAuthService::new().into_service();
+
+                health_reporter
+                    .set_serving::<DatasetServiceServer<MockDatasetGrpcService>>()
+                    .await;
+                health_reporter
+                    .set_serving::<AuthServiceServer<PassthroughAuthService>>()
+                    .await;
+
+                let addr = format!("0.0.0.0:{grpc_port}").parse().unwrap();
+                if let Err(e) = Server::builder()
+                    .add_service(health_service)
+                    .add_service(auth_service)
+                    .add_service(dataset_service)
+                    .serve_with_shutdown(addr, async {
+                        shutdown_rx.await.ok();
                     })
                     .await
-                    .ok()?;
-                // ServingStatus::Serving == 1
-                Some(resp.into_inner().status == 1)
+                {
+                    error!("Dataset gRPC server error: {}", e);
+                }
             });
 
-            if ready == Some(true) {
-                println!("✅ BifrostTestServer ready on gRPC port {grpc_port}");
-                return Ok(());
-            }
+            let runtime_clone = self.runtime.clone();
+            let mut attempts = 0;
+            let max_attempts = 50;
+            loop {
+                let ready = runtime_clone.block_on(async {
+                    let channel = Channel::from_shared(format!("http://127.0.0.1:{grpc_port}"))
+                        .ok()?
+                        .connect()
+                        .await
+                        .ok()?;
+                    let mut hc = tonic_health::pb::health_client::HealthClient::new(channel);
+                    let resp = hc
+                        .check(tonic_health::pb::HealthCheckRequest {
+                            service: "scouter.grpc.v1.DatasetService".to_string(),
+                        })
+                        .await
+                        .ok()?;
+                    Some(resp.into_inner().status == 1)
+                });
 
-            attempts += 1;
-            if attempts >= max_attempts {
-                return Err(DatasetServerError::StartError(
-                    "Dataset gRPC server failed to become ready".to_string(),
-                ));
+                if ready == Some(true) {
+                    println!("✅ BifrostTestServer ready on gRPC port {grpc_port}");
+                    return Ok(());
+                }
+
+                attempts += 1;
+                if attempts >= max_attempts {
+                    return Err(DatasetServerError::StartError(
+                        "Dataset gRPC server failed to become ready".to_string(),
+                    ));
+                }
+                sleep(Duration::from_millis(100 + attempts * 20));
             }
-            sleep(Duration::from_millis(100 + attempts * 20));
+        }
+        #[cfg(not(feature = "server"))]
+        {
+            Err(DatasetServerError::FeatureNotEnabled)
         }
     }
 
     fn stop_server(&mut self) -> Result<(), DatasetServerError> {
-        if let Some(tx) = self.shutdown_tx.take() {
-            let _ = tx.send(());
-        }
+        #[cfg(feature = "server")]
+        {
+            if let Some(tx) = self.shutdown_tx.take() {
+                let _ = tx.send(());
+            }
 
-        unsafe {
-            std::env::remove_var("SCOUTER_GRPC_URI");
-            std::env::remove_var("SCOUTER_STORAGE_URI");
-            std::env::remove_var("APP_ENV");
-        }
+            unsafe {
+                std::env::remove_var("SCOUTER_GRPC_URI");
+                std::env::remove_var("SCOUTER_STORAGE_URI");
+                std::env::remove_var("APP_ENV");
+            }
 
-        Ok(())
+            Ok(())
+        }
+        #[cfg(not(feature = "server"))]
+        {
+            Err(DatasetServerError::FeatureNotEnabled)
+        }
     }
 
     fn __enter__(mut self_: PyRefMut<Self>) -> Result<PyRefMut<Self>, DatasetServerError> {

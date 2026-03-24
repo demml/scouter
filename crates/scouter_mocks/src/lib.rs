@@ -2,7 +2,7 @@
 pub mod mock;
 pub mod util;
 
-#[cfg(all(feature = "python", feature = "server"))]
+#[cfg(feature = "python")]
 pub mod dataset_server;
 
 #[cfg(feature = "server")]
@@ -39,7 +39,7 @@ pub fn init_tracing() {
     });
 }
 
-#[cfg(all(feature = "python", feature = "server"))]
+#[cfg(feature = "python")]
 pub use dataset_server::BifrostTestServer;
 #[cfg(feature = "python")]
 pub use mock::ScouterTestServer;

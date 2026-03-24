@@ -69,9 +69,7 @@ def _make_user_features(i: int) -> UserFeatures:
     )
 
 
-def _setup_bifrost(
-    model, catalog: str, schema_name: str, table: str, batch_size: int = 100
-) -> Bifrost:
+def _setup_bifrost(model, catalog: str, schema_name: str, table: str, batch_size: int = 100) -> Bifrost:
     """Create a Bifrost instance with a registered dataset."""
     config = TableConfig(
         model=model,
@@ -236,9 +234,7 @@ def test_dataset_query_with_filter(dataset_server) -> None:
     _insert_and_flush(producer, records)
 
     client = _setup_client(PredictionRecord, "prod", "ml", "preds_filter")
-    result = client.sql(
-        "SELECT * FROM prod.ml.preds_filter WHERE model_name = 'model_a'"
-    )
+    result = client.sql("SELECT * FROM prod.ml.preds_filter WHERE model_name = 'model_a'")
     table = result.to_arrow()
 
     assert table.num_rows == 50
