@@ -178,6 +178,7 @@ impl TestHelper {
             env::set_var("MAX_POOL_SIZE", "100");
             env::set_var("DATA_RETENTION_PERIOD", "5");
             std::env::set_var("OPENAI_API_KEY", "test_key");
+            std::env::set_var("SCOUTER_DATASET_FLUSH_INTERVAL_SECS", "1");
         }
 
         if enable_kafka {

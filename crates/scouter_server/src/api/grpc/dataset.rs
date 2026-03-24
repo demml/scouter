@@ -419,10 +419,16 @@ impl DatasetService for DatasetGrpcService {
             req.max_rows as usize
         };
 
+        let query_id = if req.query_id.is_empty() {
+            uuid::Uuid::now_v7().to_string()
+        } else {
+            req.query_id
+        };
+
         let result = self
             .state
             .dataset_manager
-            .execute_query(&req.sql, &req.query_id, max_rows)
+            .execute_query(&req.sql, &query_id, max_rows)
             .await
             .map_err(map_dataset_error)?;
 

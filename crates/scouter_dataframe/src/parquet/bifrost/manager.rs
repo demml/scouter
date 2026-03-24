@@ -123,6 +123,11 @@ impl DatasetEngineManager {
 
         let registry = Arc::new(DatasetRegistry::new(&object_store).await?);
 
+        let flush_interval_secs = std::env::var("SCOUTER_DATASET_FLUSH_INTERVAL_SECS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(DEFAULT_FLUSH_INTERVAL_SECS);
+
         let manager = Self {
             registry,
             active_engines: Arc::new(DashMap::new()),
@@ -133,7 +138,7 @@ impl DatasetEngineManager {
             query_tracker: QueryTracker::new(),
             engine_ttl_secs: DEFAULT_ENGINE_TTL_SECS,
             max_active_engines: DEFAULT_MAX_ACTIVE_ENGINES,
-            flush_interval_secs: DEFAULT_FLUSH_INTERVAL_SECS,
+            flush_interval_secs,
             max_buffer_rows: DEFAULT_MAX_BUFFER_ROWS,
             refresh_interval_secs: DEFAULT_REFRESH_INTERVAL_SECS,
         };
