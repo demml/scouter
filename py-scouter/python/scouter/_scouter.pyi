@@ -13851,6 +13851,13 @@ class EvalOrchestrator:
         """
 
 ### mock.pyi ###
+class BifrostTestServer:
+    def __init__(self, cleanup: bool = True) -> None: ...
+    def start_server(self) -> None: ...
+    def stop_server(self) -> None: ...
+    def __enter__(self) -> "BifrostTestServer": ...
+    def __exit__(self, exc_type, exc_value, traceback) -> None: ...
+
 class ScouterTestServer:
     def __init__(
         self,
@@ -18700,10 +18707,7 @@ class DataProfiler:
                     Optional interval for aggregating metrics (e.g., "1m", "5m").
             """
 
-### dataset.pyi ###
-class DatasetClient:
-    """Dataset client for reads and queries (Phase 5)."""
-
+### bifrost.pyi ###
 class TableConfig:
     """Configuration for a dataset table, derived from a Pydantic model.
 
@@ -18735,7 +18739,7 @@ class TableConfig:
     @property
     def fqn(self) -> str: ...
     @staticmethod
-    def parse_schema(schema: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    def parse_schema(schema: Any) -> Dict[str, Dict[str, Any]]:
         """Parse a Pydantic model's JSON Schema dict into a field map.
 
         Accepts the dict returned directly by ``Model.model_json_schema()``.
@@ -18752,7 +18756,7 @@ class TableConfig:
         """
 
     @staticmethod
-    def compute_fingerprint(schema: Dict[str, Any]) -> str:
+    def compute_fingerprint(schema: Any) -> str:
         """Compute a stable 32-character SHA-256 fingerprint from a JSON Schema dict.
 
         The fingerprint is deterministic — the same schema always yields the same value.
@@ -18781,6 +18785,101 @@ class WriteConfig:
         batch_size: int = 1000,
         scheduled_delay_secs: int = 30,
     ) -> None: ...
+
+class QueryResult:
+    """Wrapper around Arrow IPC stream bytes returned by a SQL query.
+
+    Provides zero-copy conversion to ``pyarrow.Table``, ``polars.DataFrame``,
+    and ``pandas.DataFrame``. The IPC bytes are stored once; each conversion
+    reads from the same buffer.
+    """
+
+    def to_arrow(self) -> Any:
+        """Convert to a ``pyarrow.Table``. Requires ``pyarrow``."""
+
+    def to_polars(self) -> Any:
+        """Convert to a ``polars.DataFrame`` (zero-copy from Arrow).
+
+        Requires ``polars`` and ``pyarrow``.
+        """
+
+    def to_pandas(self) -> Any:
+        """Convert to a ``pandas.DataFrame``. Requires ``pyarrow``."""
+
+    def to_bytes(self) -> bytes:
+        """Get the raw Arrow IPC stream bytes."""
+
+    def __len__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+class DatasetClient:
+    """Dataset client for reading and querying datasets.
+
+    When ``table_config`` is provided, validates the schema fingerprint on
+    construction and enables ``read()`` for Pydantic model deserialization.
+    When omitted, works as a general-purpose query client: ``sql()``,
+    ``list_datasets()``, and ``describe_dataset()`` all work without a table
+    binding.
+
+    Args:
+        transport: gRPC transport configuration (``GrpcConfig`` instance).
+        table_config: Optional table configuration. Required for ``read()``.
+    """
+
+    def __init__(self, transport: Any, table_config: Optional[TableConfig] = None) -> None: ...
+    def read(self, limit: Optional[int] = None) -> List[Any]:
+        """Read all rows from the bound table as Pydantic model instances.
+
+        Uses the model class from ``TableConfig`` for validation via
+        ``model.model_validate()``.
+
+        Args:
+            limit: Optional maximum number of rows to return.
+
+        Returns:
+            List of validated Pydantic model instances.
+        """
+
+    def sql(self, query: str) -> QueryResult:
+        """Execute a SQL SELECT query and return a ``QueryResult``.
+
+        The ``QueryResult`` wraps Arrow IPC stream bytes and provides
+        zero-copy conversion methods.
+
+        Args:
+            query: SQL SELECT statement. Supports three-level table names
+                (``catalog.schema.table``), CTEs, window functions, subqueries.
+
+        Returns:
+            A ``QueryResult`` with ``.to_arrow()``, ``.to_polars()``,
+            ``.to_pandas()``, and ``.to_bytes()`` methods.
+        """
+
+    def list_datasets(self) -> List[Dict[str, Any]]:
+        """List all registered datasets.
+
+        Returns:
+            List of dicts with keys: ``catalog``, ``schema_name``, ``table``,
+            ``fingerprint``, ``partition_columns``, ``status``,
+            ``created_at``, ``updated_at``.
+        """
+
+    def describe_dataset(
+        self,
+        catalog: str,
+        schema_name: str,
+        table: str,
+    ) -> Dict[str, Any]:
+        """Get metadata and schema for a specific dataset.
+
+        Args:
+            catalog: Catalog name.
+            schema_name: Schema name.
+            table: Table name.
+
+        Returns:
+            Dict with dataset info fields and ``arrow_schema_json``.
+        """
 
 class DatasetProducer:
     """Real-time streaming producer for the Scouter dataset engine.
@@ -18828,6 +18927,64 @@ class DatasetProducer:
     @property
     def is_registered(self) -> bool: ...
 
+class Bifrost:
+    """Unified read/write client for the Bifrost dataset engine.
+
+    Wraps both ``DatasetProducer`` and ``DatasetClient`` into a single object.
+    Use this when you need both write and read access to the same table.
+    Access the underlying clients directly via ``.producer`` and ``.client``
+    for the full API.
+
+    Args:
+        table_config: Table configuration derived from a Pydantic model.
+        transport: gRPC transport configuration (``GrpcConfig`` instance).
+        write_config: Optional write configuration for batching behavior.
+    """
+
+    def __init__(
+        self,
+        table_config: TableConfig,
+        transport: Any,
+        write_config: Optional[WriteConfig] = None,
+    ) -> None: ...
+    def insert(self, record: Any) -> None:
+        """Insert a Pydantic model instance into the queue. Non-blocking."""
+
+    def flush(self) -> None:
+        """Signal the background queue to flush immediately."""
+
+    def shutdown(self) -> None:
+        """Gracefully shut down the producer, flushing remaining items."""
+
+    def register(self) -> str:
+        """Register the dataset table with the server."""
+
+    @property
+    def fingerprint(self) -> str: ...
+    @property
+    def namespace(self) -> str: ...
+    @property
+    def is_registered(self) -> bool: ...
+    def read(self, limit: Optional[int] = None) -> List[Any]:
+        """Read rows from the bound table as validated Pydantic model instances."""
+
+    def sql(self, query: str) -> QueryResult:
+        """Execute a SQL SELECT query and return a ``QueryResult``."""
+
+    def list_datasets(self) -> List[Dict[str, Any]]:
+        """List all registered datasets on the server."""
+
+    def describe_dataset(self, catalog: str, schema_name: str, table: str) -> Dict[str, Any]:
+        """Get metadata and schema for a specific dataset."""
+
+    @property
+    def producer(self) -> DatasetProducer:
+        """The underlying ``DatasetProducer`` for full write API access."""
+
+    @property
+    def client(self) -> DatasetClient:
+        """The underlying ``DatasetClient`` for full read API access."""
+
 ### GLOBAL EXPORTS ###
 __all__ = [
     "ActiveSpan",
@@ -18874,6 +19031,7 @@ __all__ = [
     "Base64PDFSource",
     "BatchConfig",
     "Behavior",
+    "Bifrost",
     "BinnedMetric",
     "BinnedMetricStats",
     "BinnedMetrics",
@@ -19090,6 +19248,7 @@ __all__ = [
     "PsiRecord",
     "QuantileBinning",
     "Quantiles",
+    "QueryResult",
     "Queue",
     "QueueFeature",
     "RabbitMQConfig",

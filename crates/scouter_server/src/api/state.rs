@@ -4,7 +4,7 @@ use axum::http::StatusCode;
 use axum::Json;
 use flume::Sender;
 use scouter_auth::auth::AuthManager;
-use scouter_dataframe::parquet::dataset::manager::DatasetEngineManager;
+use scouter_dataframe::parquet::bifrost::manager::DatasetEngineManager;
 use scouter_dataframe::parquet::tracing::service::TraceSpanService;
 use scouter_dataframe::parquet::tracing::summary::TraceSummaryService;
 use scouter_settings::ScouterServerConfig;

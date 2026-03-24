@@ -10,9 +10,9 @@ fn validate_namespace_component(name: &str, label: &str) -> Result<(), DatasetEr
             "{label} must not be empty"
         )));
     }
-    if name.contains('/') || name.contains("..") {
+    if name.contains('/') || name.contains("..") || name.contains('"') {
         return Err(DatasetError::SchemaParseError(format!(
-            "{label} must not contain '/' or '..'"
+            "{label} must not contain '/', '..', or '\"'"
         )));
     }
     Ok(())
@@ -46,6 +46,13 @@ impl DatasetNamespace {
 
     pub fn fqn(&self) -> String {
         format!("{}.{}.{}", self.catalog, self.schema_name, self.table)
+    }
+
+    pub fn quoted_fqn(&self) -> String {
+        format!(
+            "\"{}\".\"{}\".\"{}\"",
+            self.catalog, self.schema_name, self.table
+        )
     }
 
     pub fn storage_path(&self) -> String {
@@ -177,6 +184,20 @@ mod tests {
     #[test]
     fn test_namespace_rejects_slash() {
         assert!(DatasetNamespace::new("a/b", "sch", "tbl").is_err());
+    }
+
+    #[test]
+    fn test_namespace_rejects_double_quote() {
+        assert!(DatasetNamespace::new("a\"b", "sch", "tbl").is_err());
+        assert!(DatasetNamespace::new("cat", "s\"ch", "tbl").is_err());
+        assert!(DatasetNamespace::new("cat", "sch", "tb\"l").is_err());
+    }
+
+    #[test]
+    fn test_quoted_fqn() {
+        assert_eq!(make_ns().quoted_fqn(), r#""cat"."sch"."tbl""#);
+        let ns = DatasetNamespace::new("my-catalog", "my-schema", "my-table").unwrap();
+        assert_eq!(ns.quoted_fqn(), r#""my-catalog"."my-schema"."my-table""#);
     }
 
     #[test]

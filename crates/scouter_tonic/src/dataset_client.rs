@@ -1,9 +1,10 @@
 use crate::client::{AUTHORIZATION, X_REFRESHED_TOKEN};
 use crate::error::ClientError;
 use crate::{
-    AuthServiceClient, DatasetServiceClient, InsertBatchRequest, InsertBatchResponse, LoginRequest,
-    QueryDatasetRequest, QueryDatasetResponse, RefreshTokenRequest, RegisterDatasetRequest,
-    RegisterDatasetResponse,
+    AuthServiceClient, DatasetServiceClient, DescribeDatasetRequest, DescribeDatasetResponse,
+    InsertBatchRequest, InsertBatchResponse, ListDatasetsRequest, ListDatasetsResponse,
+    LoginRequest, QueryDatasetRequest, QueryDatasetResponse, RefreshTokenRequest,
+    RegisterDatasetRequest, RegisterDatasetResponse,
 };
 use scouter_settings::grpc::GrpcConfig;
 use std::sync::{Arc, RwLock};
@@ -223,6 +224,53 @@ impl DatasetGrpcClient {
                 s.code()
             ))
         })?;
+
+        self.handle_refreshed_token(&resp);
+        Ok(resp.into_inner())
+    }
+
+    /// List all registered datasets.
+    #[instrument(skip_all)]
+    pub async fn list_datasets(&mut self) -> Result<ListDatasetsResponse, ClientError> {
+        let req = self.authenticated_request(ListDatasetsRequest {})?;
+
+        let resp = self.dataset_client.list_datasets(req).await.map_err(|s| {
+            ClientError::GrpcError(format!(
+                "list_datasets failed: {} (code: {:?})",
+                s.message(),
+                s.code()
+            ))
+        })?;
+
+        self.handle_refreshed_token(&resp);
+        Ok(resp.into_inner())
+    }
+
+    /// Describe a specific dataset (metadata + schema).
+    #[instrument(skip_all, fields(table = %table))]
+    pub async fn describe_dataset(
+        &mut self,
+        catalog: &str,
+        schema_name: &str,
+        table: &str,
+    ) -> Result<DescribeDatasetResponse, ClientError> {
+        let req = self.authenticated_request(DescribeDatasetRequest {
+            catalog: catalog.to_string(),
+            schema_name: schema_name.to_string(),
+            table: table.to_string(),
+        })?;
+
+        let resp = self
+            .dataset_client
+            .describe_dataset(req)
+            .await
+            .map_err(|s| {
+                ClientError::GrpcError(format!(
+                    "describe_dataset failed: {} (code: {:?})",
+                    s.message(),
+                    s.code()
+                ))
+            })?;
 
         self.handle_refreshed_token(&resp);
         Ok(resp.into_inner())

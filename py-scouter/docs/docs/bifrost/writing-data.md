@@ -2,12 +2,12 @@
 
 ## DatasetProducer
 
-`DatasetProducer` is the write-side client for the dataset engine. It maintains a persistent background queue that batches Pydantic model instances into Arrow RecordBatches and sends them to the server via gRPC.
+`DatasetProducer` is the write-side client for Bifrost. It maintains a persistent background queue that batches Pydantic model instances into Arrow RecordBatches and sends them to the server via gRPC.
 
 ### Constructor
 
 ```python
-from scouter.dataset import DatasetProducer, TableConfig, WriteConfig
+from scouter.bifrost import DatasetProducer, TableConfig, WriteConfig
 from scouter import GrpcConfig
 
 producer = DatasetProducer(

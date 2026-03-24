@@ -109,6 +109,48 @@ pub struct QueryDatasetResponse {
     #[prost(bytes = "vec", tag = "1")]
     pub ipc_data: ::prost::alloc::vec::Vec<u8>,
 }
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ListDatasetsRequest {}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct DatasetInfo {
+    #[prost(string, tag = "1")]
+    pub catalog: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub schema_name: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub table: ::prost::alloc::string::String,
+    #[prost(string, tag = "4")]
+    pub fingerprint: ::prost::alloc::string::String,
+    #[prost(string, repeated, tag = "5")]
+    pub partition_columns: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(string, tag = "6")]
+    pub status: ::prost::alloc::string::String,
+    #[prost(string, tag = "7")]
+    pub created_at: ::prost::alloc::string::String,
+    #[prost(string, tag = "8")]
+    pub updated_at: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListDatasetsResponse {
+    #[prost(message, repeated, tag = "1")]
+    pub datasets: ::prost::alloc::vec::Vec<DatasetInfo>,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct DescribeDatasetRequest {
+    #[prost(string, tag = "1")]
+    pub catalog: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub schema_name: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub table: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct DescribeDatasetResponse {
+    #[prost(message, optional, tag = "1")]
+    pub info: ::core::option::Option<DatasetInfo>,
+    #[prost(string, tag = "2")]
+    pub arrow_schema_json: ::prost::alloc::string::String,
+}
 /// Generated client implementations.
 pub mod message_service_client {
     #![allow(
@@ -1022,6 +1064,58 @@ pub mod dataset_service_client {
                 );
             self.inner.unary(req, path, codec).await
         }
+        pub async fn list_datasets(
+            &mut self,
+            request: impl tonic::IntoRequest<super::ListDatasetsRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ListDatasetsResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/scouter.grpc.v1.DatasetService/ListDatasets",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new("scouter.grpc.v1.DatasetService", "ListDatasets"),
+                );
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn describe_dataset(
+            &mut self,
+            request: impl tonic::IntoRequest<super::DescribeDatasetRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::DescribeDatasetResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/scouter.grpc.v1.DatasetService/DescribeDataset",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new("scouter.grpc.v1.DatasetService", "DescribeDataset"),
+                );
+            self.inner.unary(req, path, codec).await
+        }
     }
 }
 /// Generated server implementations.
@@ -1056,6 +1150,20 @@ pub mod dataset_service_server {
             request: tonic::Request<super::QueryDatasetRequest>,
         ) -> std::result::Result<
             tonic::Response<super::QueryDatasetResponse>,
+            tonic::Status,
+        >;
+        async fn list_datasets(
+            &self,
+            request: tonic::Request<super::ListDatasetsRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ListDatasetsResponse>,
+            tonic::Status,
+        >;
+        async fn describe_dataset(
+            &self,
+            request: tonic::Request<super::DescribeDatasetRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::DescribeDatasetResponse>,
             tonic::Status,
         >;
     }
@@ -1256,6 +1364,97 @@ pub mod dataset_service_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = QueryDatasetSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/scouter.grpc.v1.DatasetService/ListDatasets" => {
+                    #[allow(non_camel_case_types)]
+                    struct ListDatasetsSvc<T: DatasetService>(pub Arc<T>);
+                    impl<
+                        T: DatasetService,
+                    > tonic::server::UnaryService<super::ListDatasetsRequest>
+                    for ListDatasetsSvc<T> {
+                        type Response = super::ListDatasetsResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::ListDatasetsRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as DatasetService>::list_datasets(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = ListDatasetsSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/scouter.grpc.v1.DatasetService/DescribeDataset" => {
+                    #[allow(non_camel_case_types)]
+                    struct DescribeDatasetSvc<T: DatasetService>(pub Arc<T>);
+                    impl<
+                        T: DatasetService,
+                    > tonic::server::UnaryService<super::DescribeDatasetRequest>
+                    for DescribeDatasetSvc<T> {
+                        type Response = super::DescribeDatasetResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::DescribeDatasetRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as DatasetService>::describe_dataset(&inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = DescribeDatasetSvc(inner);
                         let codec = tonic_prost::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

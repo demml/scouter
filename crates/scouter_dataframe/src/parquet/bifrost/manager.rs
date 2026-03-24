@@ -1,8 +1,8 @@
 use crate::error::DatasetEngineError;
-use crate::parquet::dataset::buffer::start_buffer;
-use crate::parquet::dataset::catalog::DatasetCatalogProvider;
-use crate::parquet::dataset::engine::{DatasetEngine, TableCommand};
-use crate::parquet::dataset::registry::{DatasetRegistry, RegistrationResult};
+use crate::parquet::bifrost::buffer::start_buffer;
+use crate::parquet::bifrost::catalog::DatasetCatalogProvider;
+use crate::parquet::bifrost::engine::{DatasetEngine, TableCommand};
+use crate::parquet::bifrost::registry::{DatasetRegistry, RegistrationResult};
 use crate::storage::ObjectStore;
 use arrow::datatypes::SchemaRef;
 use arrow_array::RecordBatch;

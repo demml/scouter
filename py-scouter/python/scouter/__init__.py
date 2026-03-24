@@ -2,8 +2,8 @@
 # pylint: disable=no-name-in-module
 from . import (
     alert,
+    bifrost,
     client,
-    dataset,
     drift,
     evaluate,
     genai,
@@ -82,6 +82,7 @@ from ._scouter import (  # dataset; genai
     _get_log_level,
     _log_json,
 )
+from .bifrost import Bifrost
 
 # Configure Rust logging for Python based on environment variables
 RustyLogger.setup_logging(
@@ -93,8 +94,8 @@ RustyLogger.setup_logging(
 
 __all__ = [
     "alert",
+    "bifrost",
     "client",
-    "dataset",
     "drift",
     "evaluate",
     "genai",
@@ -144,6 +145,7 @@ __all__ = [
     "SpcAlertConfig",
     "CustomMetricAlertConfig",
     "ScouterClient",
+    "Bifrost",
     "DatasetClient",
     "DatasetProducer",
     "TableConfig",

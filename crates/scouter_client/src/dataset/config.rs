@@ -34,7 +34,6 @@ pub(crate) fn to_json_str(schema: &Bound<'_, PyAny>) -> Result<String, DatasetEr
 /// Eagerly computes Arrow schema and fingerprint at construction from a
 /// Pydantic `BaseModel` class.
 #[pyclass]
-#[derive(Clone, Debug)]
 pub struct TableConfig {
     #[pyo3(get)]
     pub catalog: String,
@@ -50,6 +49,36 @@ pub struct TableConfig {
     pub(crate) schema: SchemaRef,
     pub(crate) fingerprint: DatasetFingerprint,
     pub(crate) json_schema: String,
+    /// The Pydantic model class, stored for `DatasetClient.read()` to call `model_validate()`.
+    pub(crate) model_class: Py<PyAny>,
+}
+
+impl Clone for TableConfig {
+    fn clone(&self) -> Self {
+        Python::attach(|py| Self {
+            catalog: self.catalog.clone(),
+            schema_name: self.schema_name.clone(),
+            table: self.table.clone(),
+            partition_columns: self.partition_columns.clone(),
+            namespace: self.namespace.clone(),
+            schema: self.schema.clone(),
+            fingerprint: self.fingerprint.clone(),
+            json_schema: self.json_schema.clone(),
+            model_class: self.model_class.clone_ref(py),
+        })
+    }
+}
+
+impl std::fmt::Debug for TableConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TableConfig")
+            .field("catalog", &self.catalog)
+            .field("schema_name", &self.schema_name)
+            .field("table", &self.table)
+            .field("partition_columns", &self.partition_columns)
+            .field("fingerprint", &self.fingerprint)
+            .finish_non_exhaustive()
+    }
 }
 
 #[pymethods]
@@ -89,6 +118,7 @@ impl TableConfig {
             schema,
             fingerprint,
             json_schema,
+            model_class: model.clone().unbind(),
         })
     }
 

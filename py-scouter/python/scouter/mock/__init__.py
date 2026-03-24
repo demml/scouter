@@ -1,6 +1,7 @@
 # mypy: disable-error-code="attr-defined"
 
 from .._scouter import (
+    BifrostTestServer,
     LLMTestServer,
     MockConfig,
     ScouterTestServer,
@@ -14,6 +15,7 @@ from .._scouter import (
 
 __all__ = [
     "ScouterTestServer",
+    "BifrostTestServer",
     "MockConfig",
     "LLMTestServer",
     "create_simple_trace",

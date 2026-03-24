@@ -1,5 +1,5 @@
 use crate::error::DatasetEngineError;
-use crate::parquet::dataset::catalog::DatasetCatalogProvider;
+use crate::parquet::bifrost::catalog::DatasetCatalogProvider;
 use crate::parquet::tracing::traits::arrow_schema_to_delta;
 use crate::parquet::utils::register_cloud_logstore_factories;
 use crate::storage::ObjectStore;

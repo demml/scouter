@@ -10,12 +10,19 @@ mockito = { workspace = true, optional = true }
 potato-head = { workspace = true, optional = true, features = ["mock"] }
 rand = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
+scouter-auth = { workspace = true, optional = true }
+scouter-dataframe = { workspace = true, optional = true }
+scouter-settings = { workspace = true, optional = true }
+scouter-sql = { workspace = true, optional = true }
 scouter-tonic = { workspace = true, optional = true, features = ["all"] }
 scouter-client = { workspace = true }
 scouter-server = { workspace = true , optional = true, features = ["kafka", "rabbitmq", "redis_events"] }
 scouter-types = { workspace = true }
 serde_json = { workspace = true }
+tempfile = { workspace = true, optional = true }
 thiserror = { workspace = true }
+tonic = { workspace = true, optional = true }
+tonic-health = { workspace = true, optional = true }
 tracing = { workspace = true }
 tokio = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, optional = true }
@@ -27,8 +34,15 @@ server = [
     "tokio",
     "reqwest",
     "mockito",
+    "scouter-auth",
+    "scouter-dataframe",
     "scouter-server",
+    "scouter-settings",
+    "scouter-sql",
     "scouter-tonic/all",
+    "tempfile",
+    "tonic",
+    "tonic-health",
     "tracing-subscriber",
     "rand",
 ]

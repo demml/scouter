@@ -58,6 +58,8 @@ service DatasetService {
   rpc RegisterDataset(RegisterDatasetRequest) returns (RegisterDatasetResponse);
   rpc InsertBatch(InsertBatchRequest) returns (InsertBatchResponse);
   rpc QueryDataset(QueryDatasetRequest) returns (QueryDatasetResponse);
+  rpc ListDatasets(ListDatasetsRequest) returns (ListDatasetsResponse);
+  rpc DescribeDataset(DescribeDatasetRequest) returns (DescribeDatasetResponse);
 }
 
 message RegisterDatasetRequest {
@@ -91,4 +93,34 @@ message QueryDatasetRequest {
 
 message QueryDatasetResponse {
   bytes ipc_data = 1;                  // Arrow IPC stream bytes
+}
+
+// ── Dataset List / Describe ───────────────────────────────────────────
+
+message ListDatasetsRequest {}
+
+message DatasetInfo {
+  string catalog = 1;
+  string schema_name = 2;
+  string table = 3;
+  string fingerprint = 4;
+  repeated string partition_columns = 5;
+  string status = 6;
+  string created_at = 7;
+  string updated_at = 8;
+}
+
+message ListDatasetsResponse {
+  repeated DatasetInfo datasets = 1;
+}
+
+message DescribeDatasetRequest {
+  string catalog = 1;
+  string schema_name = 2;
+  string table = 3;
+}
+
+message DescribeDatasetResponse {
+  DatasetInfo info = 1;
+  string arrow_schema_json = 2;
 }

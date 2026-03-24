@@ -1,11 +1,14 @@
 use crate::api::state::AppState;
 use scouter_dataframe::error::DatasetEngineError;
-use scouter_dataframe::parquet::dataset::ipc::{batches_to_ipc_bytes, ipc_bytes_to_batches};
-use scouter_dataframe::parquet::dataset::registry::RegistrationResult;
+use scouter_dataframe::parquet::bifrost::ipc::{batches_to_ipc_bytes, ipc_bytes_to_batches};
+use scouter_dataframe::parquet::bifrost::registry::RegistrationResult;
 use scouter_tonic::{
-    DatasetService, DatasetServiceServer, InsertBatchRequest, InsertBatchResponse,
-    QueryDatasetRequest, QueryDatasetResponse, RegisterDatasetRequest, RegisterDatasetResponse,
+    DatasetInfo, DatasetService, DatasetServiceServer, DescribeDatasetRequest,
+    DescribeDatasetResponse, InsertBatchRequest, InsertBatchResponse, ListDatasetsRequest,
+    ListDatasetsResponse, QueryDatasetRequest, QueryDatasetResponse, RegisterDatasetRequest,
+    RegisterDatasetResponse,
 };
+use scouter_types::dataset::schema::{fingerprint_from_json_schema, inject_system_columns};
 use scouter_types::dataset::{DatasetFingerprint, DatasetNamespace, DatasetRegistration};
 use std::sync::Arc;
 use tonic::{Request, Response, Status};
@@ -63,10 +66,15 @@ impl DatasetService for DatasetGrpcService {
             scouter_types::dataset::schema::json_schema_to_arrow(&req.json_schema)
                 .map_err(|e| Status::invalid_argument(format!("Invalid JSON schema: {e}")))?;
 
-        let arrow_schema_json = serde_json::to_string(&arrow_schema)
+        let arrow_schema_with_sys = inject_system_columns(arrow_schema).map_err(|e| {
+            Status::invalid_argument(format!("Failed to inject system columns: {e}"))
+        })?;
+
+        let arrow_schema_json = serde_json::to_string(&arrow_schema_with_sys)
             .map_err(|e| Status::internal(format!("Failed to serialize Arrow schema: {e}")))?;
 
-        let fingerprint = DatasetFingerprint::from_schema_json(&arrow_schema_json);
+        let fingerprint = fingerprint_from_json_schema(&req.json_schema)
+            .map_err(|e| Status::invalid_argument(format!("Failed to compute fingerprint: {e}")))?;
 
         let registration = DatasetRegistration::new(
             namespace,
@@ -142,5 +150,62 @@ impl DatasetService for DatasetGrpcService {
             .map_err(|e| Status::internal(format!("Failed to serialize query results: {e}")))?;
 
         Ok(Response::new(QueryDatasetResponse { ipc_data }))
+    }
+
+    #[instrument(skip_all)]
+    async fn list_datasets(
+        &self,
+        _request: Request<ListDatasetsRequest>,
+    ) -> Result<Response<ListDatasetsResponse>, Status> {
+        let registrations = self.state.dataset_manager.list_datasets();
+
+        let datasets = registrations
+            .into_iter()
+            .map(|r| DatasetInfo {
+                catalog: r.namespace.catalog,
+                schema_name: r.namespace.schema_name,
+                table: r.namespace.table,
+                fingerprint: r.fingerprint.as_str().to_string(),
+                partition_columns: r.partition_columns,
+                status: r.status.to_string(),
+                created_at: r.created_at.to_rfc3339(),
+                updated_at: r.updated_at.to_rfc3339(),
+            })
+            .collect();
+
+        Ok(Response::new(ListDatasetsResponse { datasets }))
+    }
+
+    #[instrument(skip_all)]
+    async fn describe_dataset(
+        &self,
+        request: Request<DescribeDatasetRequest>,
+    ) -> Result<Response<DescribeDatasetResponse>, Status> {
+        let req = request.into_inner();
+
+        let namespace = DatasetNamespace::new(&req.catalog, &req.schema_name, &req.table)
+            .map_err(|e| Status::invalid_argument(e.to_string()))?;
+
+        let registration = self
+            .state
+            .dataset_manager
+            .get_dataset_info(&namespace)
+            .ok_or_else(|| Status::not_found(format!("Dataset not found: {}", namespace.fqn())))?;
+
+        let info = DatasetInfo {
+            catalog: registration.namespace.catalog,
+            schema_name: registration.namespace.schema_name,
+            table: registration.namespace.table,
+            fingerprint: registration.fingerprint.as_str().to_string(),
+            partition_columns: registration.partition_columns,
+            status: registration.status.to_string(),
+            created_at: registration.created_at.to_rfc3339(),
+            updated_at: registration.updated_at.to_rfc3339(),
+        };
+
+        Ok(Response::new(DescribeDatasetResponse {
+            info: Some(info),
+            arrow_schema_json: registration.arrow_schema_json,
+        }))
     }
 }

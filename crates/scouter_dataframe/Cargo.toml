@@ -62,3 +62,7 @@ harness = false
 [[bench]]
 name = "session_config_bench"
 harness = false
+
+[[bench]]
+name = "dataset_benchmark"
+harness = false

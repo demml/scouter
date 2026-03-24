@@ -6,7 +6,7 @@ from typing import List, Optional
 
 import pytest
 from pydantic import BaseModel
-from scouter.dataset import TableConfig
+from scouter.bifrost import TableConfig
 
 # ── Model definitions ─────────────────────────────────────────────────────────
 

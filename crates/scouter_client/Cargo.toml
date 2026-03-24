@@ -13,6 +13,7 @@ description = "Client and server contract for scouter"
 
 [dependencies]
 arrow = { workspace = true }
+arrow-json = { workspace = true }
 chrono = { workspace = true }
 crossbeam-queue = { workspace = true }
 reqwest = { workspace = true}
