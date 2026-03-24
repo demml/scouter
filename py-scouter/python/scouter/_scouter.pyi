@@ -51,7 +51,6 @@ class BaseModel(Protocol):
     def __str__(self) -> str:
         """String representation of the model"""
 
-
 ### logging.pyi ###
 class LogLevel:
     Debug: "LogLevel"
@@ -205,7 +204,6 @@ class RustyLogger:
             *args:
                 Additional arguments to log.
         """
-
 
 ### potato.pyi ###
 class Provider:
@@ -10007,7 +10005,6 @@ class LLMTestServer:
         Stop the mock server.
         """
 
-
 ### tracing.pyi ###
 class TagRecord:
     """Represents a single tag record associated with an entity."""
@@ -11027,7 +11024,6 @@ def disable_local_span_capture() -> None:
 
 def drain_local_span_capture() -> List[TraceSpanRecord]:
     """Drain and return all locally captured spans, clearing the buffer."""
-
 
 ### evaluate.pyi ###
 class EvaluationTaskType:
@@ -13854,8 +13850,14 @@ class EvalOrchestrator:
             ScenarioEvalResults with metrics across all scenarios.
         """
 
-
 ### mock.pyi ###
+class BifrostTestServer:
+    def __init__(self, cleanup: bool = True) -> None: ...
+    def start_server(self) -> None: ...
+    def stop_server(self) -> None: ...
+    def __enter__(self) -> "BifrostTestServer": ...
+    def __exit__(self, exc_type, exc_value, traceback) -> None: ...
+
 class ScouterTestServer:
     def __init__(
         self,
@@ -13957,7 +13959,6 @@ def create_trace_with_errors() -> List["TraceSpan"]:
     Returns:
         List[TraceSpan]: A list of TraceSpan objects representing the trace.
     """
-
 
 ### scouter.pyi ###
 #################
@@ -18706,7 +18707,6 @@ class DataProfiler:
                     Optional interval for aggregating metrics (e.g., "1m", "5m").
             """
 
-
 ### bifrost.pyi ###
 class TableConfig:
     """Configuration for a dataset table, derived from a Pydantic model.
@@ -18815,15 +18815,18 @@ class QueryResult:
 class DatasetClient:
     """Dataset client for reading and querying datasets.
 
-    Bound to a specific table via ``TableConfig``. Validates the schema
-    fingerprint against the server on construction.
+    When ``table_config`` is provided, validates the schema fingerprint on
+    construction and enables ``read()`` for Pydantic model deserialization.
+    When omitted, works as a general-purpose query client: ``sql()``,
+    ``list_datasets()``, and ``describe_dataset()`` all work without a table
+    binding.
 
     Args:
         transport: gRPC transport configuration (``GrpcConfig`` instance).
-        table_config: Table configuration with model, namespace, and fingerprint.
+        table_config: Optional table configuration. Required for ``read()``.
     """
 
-    def __init__(self, transport: Any, table_config: TableConfig) -> None: ...
+    def __init__(self, transport: Any, table_config: Optional[TableConfig] = None) -> None: ...
     def read(self, limit: Optional[int] = None) -> List[Any]:
         """Read all rows from the bound table as Pydantic model instances.
 
@@ -18981,7 +18984,6 @@ class Bifrost:
     @property
     def client(self) -> DatasetClient:
         """The underlying ``DatasetClient`` for full read API access."""
-
 
 ### GLOBAL EXPORTS ###
 __all__ = [

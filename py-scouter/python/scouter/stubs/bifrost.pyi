@@ -111,15 +111,18 @@ class QueryResult:
 class DatasetClient:
     """Dataset client for reading and querying datasets.
 
-    Bound to a specific table via ``TableConfig``. Validates the schema
-    fingerprint against the server on construction.
+    When ``table_config`` is provided, validates the schema fingerprint on
+    construction and enables ``read()`` for Pydantic model deserialization.
+    When omitted, works as a general-purpose query client: ``sql()``,
+    ``list_datasets()``, and ``describe_dataset()`` all work without a table
+    binding.
 
     Args:
         transport: gRPC transport configuration (``GrpcConfig`` instance).
-        table_config: Table configuration with model, namespace, and fingerprint.
+        table_config: Optional table configuration. Required for ``read()``.
     """
 
-    def __init__(self, transport: Any, table_config: TableConfig) -> None: ...
+    def __init__(self, transport: Any, table_config: Optional[TableConfig] = None) -> None: ...
     def read(self, limit: Optional[int] = None) -> List[Any]:
         """Read all rows from the bound table as Pydantic model instances.
 

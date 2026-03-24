@@ -1,20 +1,26 @@
 """End-to-end integration tests for the dataset engine.
 
 Validates the full lifecycle: register → insert → flush → read / query.
-Requires a running Scouter server (ScouterTestServer context manager).
+Requires a running dataset server (BifrostTestServer context manager). No Docker needed.
 """
 
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Optional
+from typing import List, Optional
 
 import pandas as pd
 import polars as pl
-import pyarrow as pa
+import pyarrow as pa  # type: ignore
 import pytest
 from pydantic import BaseModel
-from scouter.bifrost import DatasetClient, DatasetProducer, TableConfig, WriteConfig
-from scouter.mock import ScouterTestServer
+from scouter.bifrost import (
+    Bifrost,
+    DatasetClient,
+    DatasetProducer,
+    TableConfig,
+    WriteConfig,
+)
+from scouter.mock import BifrostTestServer, ScouterTestServer
 from scouter.transport import GrpcConfig
 
 # ---------------------------------------------------------------------------
@@ -63,6 +69,25 @@ def _make_user_features(i: int) -> UserFeatures:
     )
 
 
+def _setup_bifrost(
+    model, catalog: str, schema_name: str, table: str, batch_size: int = 100
+) -> Bifrost:
+    """Create a Bifrost instance with a registered dataset."""
+    config = TableConfig(
+        model=model,
+        catalog=catalog,
+        schema_name=schema_name,
+        table=table,
+    )
+    bifrost = Bifrost(
+        table_config=config,
+        transport=GrpcConfig(),
+        write_config=WriteConfig(batch_size=batch_size, scheduled_delay_secs=1),
+    )
+    bifrost.register()
+    return bifrost
+
+
 def _setup_producer(
     model,
     catalog: str,
@@ -105,6 +130,14 @@ def _insert_and_flush(producer: DatasetProducer, records: list) -> None:
     time.sleep(FLUSH_WAIT_SECS)
 
 
+def _insert_and_flush_bifrost(producer: Bifrost, records: list) -> None:
+    """Insert records and wait for them to land in Delta Lake."""
+    for record in records:
+        producer.insert(record)
+    producer.flush()
+    time.sleep(FLUSH_WAIT_SECS)
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -112,6 +145,12 @@ def _insert_and_flush(producer: DatasetProducer, records: list) -> None:
 
 @pytest.fixture()
 def dataset_server():
+    with BifrostTestServer() as server:
+        yield server
+
+
+@pytest.fixture()
+def scouter_server():
     with ScouterTestServer() as server:
         yield server
 
@@ -139,11 +178,11 @@ def test_dataset_full_lifecycle(dataset_server) -> None:
 
 def test_dataset_to_arrow(dataset_server) -> None:
     """Query returns a pyarrow.Table with correct shape."""
-    producer = _setup_producer(PredictionRecord, "prod", "ml", "preds_arrow")
-    _insert_and_flush(producer, [_make_prediction(i) for i in range(50)])
 
-    client = _setup_client(PredictionRecord, "prod", "ml", "preds_arrow")
-    result = client.sql("SELECT * FROM prod.ml.preds_arrow")
+    bifrost = _setup_bifrost(PredictionRecord, "prod", "ml", "preds_arrow")
+    _insert_and_flush_bifrost(bifrost, [_make_prediction(i) for i in range(50)])
+
+    result = bifrost.sql("SELECT * FROM prod.ml.preds_arrow")
     table = result.to_arrow()
 
     assert isinstance(table, pa.Table)
@@ -151,39 +190,41 @@ def test_dataset_to_arrow(dataset_server) -> None:
     assert "model_name" in table.column_names
     assert "score" in table.column_names
 
-    producer.shutdown()
+    # add read
+    records: List[PredictionRecord] = bifrost.read(limit=10)
+    assert len(records) == 10
+
+    bifrost.shutdown()
 
 
 def test_dataset_to_polars(dataset_server) -> None:
     """Query returns a polars DataFrame with correct shape."""
-    producer = _setup_producer(PredictionRecord, "prod", "ml", "preds_polars")
-    _insert_and_flush(producer, [_make_prediction(i) for i in range(50)])
+    bifrost = _setup_bifrost(PredictionRecord, "prod", "ml", "preds_polars")
+    _insert_and_flush_bifrost(bifrost, [_make_prediction(i) for i in range(50)])
 
-    client = _setup_client(PredictionRecord, "prod", "ml", "preds_polars")
-    result = client.sql("SELECT * FROM prod.ml.preds_polars")
+    result = bifrost.sql("SELECT * FROM prod.ml.preds_polars")
     df = result.to_polars()
 
     assert isinstance(df, pl.DataFrame)
     assert df.height == 50
     assert "model_name" in df.columns
 
-    producer.shutdown()
+    bifrost.shutdown()
 
 
 def test_dataset_to_pandas(dataset_server) -> None:
     """Query returns a pandas DataFrame with correct shape."""
-    producer = _setup_producer(PredictionRecord, "prod", "ml", "preds_pandas")
-    _insert_and_flush(producer, [_make_prediction(i) for i in range(50)])
+    bifrost = _setup_bifrost(PredictionRecord, "prod", "ml", "preds_pandas")
+    _insert_and_flush_bifrost(bifrost, [_make_prediction(i) for i in range(50)])
 
-    client = _setup_client(PredictionRecord, "prod", "ml", "preds_pandas")
-    result = client.sql("SELECT * FROM prod.ml.preds_pandas")
+    result = bifrost.sql("SELECT * FROM prod.ml.preds_pandas")
     df = result.to_pandas()
 
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 50
     assert "model_name" in df.columns
 
-    producer.shutdown()
+    bifrost.shutdown()
 
 
 def test_dataset_query_with_filter(dataset_server) -> None:
@@ -195,7 +236,9 @@ def test_dataset_query_with_filter(dataset_server) -> None:
     _insert_and_flush(producer, records)
 
     client = _setup_client(PredictionRecord, "prod", "ml", "preds_filter")
-    result = client.sql("SELECT * FROM prod.ml.preds_filter WHERE model_name = 'model_a'")
+    result = client.sql(
+        "SELECT * FROM prod.ml.preds_filter WHERE model_name = 'model_a'"
+    )
     table = result.to_arrow()
 
     assert table.num_rows == 50
@@ -468,5 +511,74 @@ def test_dataset_query_result_repr_len(dataset_server):
 
     assert len(result) > 0
     assert "QueryResult" in repr(result)
+
+    producer.shutdown()
+
+
+def test_dataset_producer_and_config_properties(dataset_server) -> None:
+    """Validate all property getters on DatasetProducer, TableConfig, and WriteConfig."""
+    config = TableConfig(
+        model=PredictionRecord,
+        catalog="prod",
+        schema_name="ml",
+        table="preds_props",
+    )
+    write_config = WriteConfig(batch_size=200, scheduled_delay_secs=5)
+
+    # TableConfig getters
+    assert config.fingerprint_str
+    assert len(config.fingerprint_str) == 32
+    assert config.fqn == "prod.ml.preds_props"
+
+    # WriteConfig getters
+    assert write_config.batch_size == 200
+    assert write_config.scheduled_delay_secs == 5
+
+    # DatasetProducer getters before register
+    producer = DatasetProducer(
+        table_config=config,
+        transport=GrpcConfig(),
+        write_config=write_config,
+    )
+    assert producer.is_registered is False
+    assert producer.fingerprint == config.fingerprint_str
+    assert producer.namespace == "prod.ml.preds_props"
+
+    # DatasetProducer getters after register
+    producer.register()
+    assert producer.is_registered is True
+
+    producer.shutdown()
+
+
+@pytest.mark.integration
+def test_dataset_fingerprint_contract_scouter_server(scouter_server) -> None:
+    """Verify the fingerprint contract holds against the full Scouter server stack.
+
+    The client computes fingerprint_from_json_schema(pydantic_json_schema) locally.
+    The server (HTTP + gRPC) computes the same function with the same input.
+    DatasetClient.__init__ calls describe_dataset and asserts client_fp == server_fp —
+    if it does not raise, the contract is proven end-to-end.
+
+    Requires Docker (PostgreSQL). Run with: make test.integration
+    """
+    producer = _setup_producer(PredictionRecord, "prod", "ml", "svr_fp_contract")
+    assert producer.is_registered is True
+
+    # Insert a small batch — a FingerprintMismatch here would mean the server
+    # stored a different fingerprint than the one the client sent.
+    for i in range(10):
+        producer.insert(_make_prediction(i))
+    producer.flush()
+
+    # DatasetClient constructor calls describe_dataset and compares its locally-
+    # computed fingerprint against what the server stored. A raise here means mismatch.
+    client = _setup_client(PredictionRecord, "prod", "ml", "svr_fp_contract")
+
+    info = client.describe_dataset("prod", "ml", "svr_fp_contract")
+    assert info["fingerprint"] == producer.fingerprint, (
+        f"Server stored fingerprint {info['fingerprint']!r} but client computed "
+        f"{producer.fingerprint!r} — fingerprint_from_json_schema not aligned"
+    )
 
     producer.shutdown()

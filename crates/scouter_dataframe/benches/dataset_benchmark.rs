@@ -34,7 +34,9 @@ fn make_batch(schema: &Schema, n: usize) -> RecordBatch {
     RecordBatch::try_new(
         Arc::new(schema.clone()),
         vec![
-            Arc::new(StringArray::from_iter_values((0..n).map(|i| format!("u{i}")))),
+            Arc::new(StringArray::from_iter_values(
+                (0..n).map(|i| format!("u{i}")),
+            )),
             Arc::new(Float64Array::from_iter_values(
                 (0..n).map(|i| 0.5 + (i % 50) as f64 / 100.0),
             )),
@@ -42,10 +44,8 @@ fn make_batch(schema: &Schema, n: usize) -> RecordBatch {
                 (0..n).map(|i| Some(if i % 2 == 0 { "model_a" } else { "model_b" })),
             )),
             Arc::new(
-                TimestampMicrosecondArray::from_iter_values(
-                    (0..n).map(|_| now.timestamp_micros()),
-                )
-                .with_timezone("UTC"),
+                TimestampMicrosecondArray::from_iter_values((0..n).map(|_| now.timestamp_micros()))
+                    .with_timezone("UTC"),
             ),
             Arc::new(Date32Array::from_iter_values((0..n).map(|_| epoch_days))),
             Arc::new(StringArray::from_iter_values((0..n).map(|_| "bench-batch"))),
@@ -150,25 +150,22 @@ fn bench_query(c: &mut Criterion) {
     group.bench_function("count_star", |b| {
         let mgr = Arc::clone(&manager);
         let sql = format!("SELECT COUNT(*) as cnt FROM {fqn}");
-        b.to_async(&rt).iter(|| async {
-            black_box(mgr.query(&sql).await.unwrap())
-        });
+        b.to_async(&rt)
+            .iter(|| async { black_box(mgr.query(&sql).await.unwrap()) });
     });
 
     group.bench_function("select_star", |b| {
         let mgr = Arc::clone(&manager);
         let sql = format!("SELECT * FROM {fqn} LIMIT 1000");
-        b.to_async(&rt).iter(|| async {
-            black_box(mgr.query(&sql).await.unwrap())
-        });
+        b.to_async(&rt)
+            .iter(|| async { black_box(mgr.query(&sql).await.unwrap()) });
     });
 
     group.bench_function("filter_model_name", |b| {
         let mgr = Arc::clone(&manager);
         let sql = format!("SELECT * FROM {fqn} WHERE model_name = 'model_a'");
-        b.to_async(&rt).iter(|| async {
-            black_box(mgr.query(&sql).await.unwrap())
-        });
+        b.to_async(&rt)
+            .iter(|| async { black_box(mgr.query(&sql).await.unwrap()) });
     });
 
     group.finish();

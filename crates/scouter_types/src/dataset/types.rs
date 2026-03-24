@@ -195,15 +195,9 @@ mod tests {
 
     #[test]
     fn test_quoted_fqn() {
-        assert_eq!(
-            make_ns().quoted_fqn(),
-            r#""cat"."sch"."tbl""#
-        );
+        assert_eq!(make_ns().quoted_fqn(), r#""cat"."sch"."tbl""#);
         let ns = DatasetNamespace::new("my-catalog", "my-schema", "my-table").unwrap();
-        assert_eq!(
-            ns.quoted_fqn(),
-            r#""my-catalog"."my-schema"."my-table""#
-        );
+        assert_eq!(ns.quoted_fqn(), r#""my-catalog"."my-schema"."my-table""#);
     }
 
     #[test]

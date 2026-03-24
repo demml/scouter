@@ -2,6 +2,9 @@
 pub mod mock;
 pub mod util;
 
+#[cfg(all(feature = "python", feature = "server"))]
+pub mod dataset_server;
+
 #[cfg(feature = "server")]
 use std::sync::Once;
 
@@ -36,6 +39,8 @@ pub fn init_tracing() {
     });
 }
 
+#[cfg(all(feature = "python", feature = "server"))]
+pub use dataset_server::BifrostTestServer;
 #[cfg(feature = "python")]
 pub use mock::ScouterTestServer;
 #[cfg(feature = "python")]

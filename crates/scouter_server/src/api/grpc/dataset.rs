@@ -8,6 +8,7 @@ use scouter_tonic::{
     ListDatasetsResponse, QueryDatasetRequest, QueryDatasetResponse, RegisterDatasetRequest,
     RegisterDatasetResponse,
 };
+use scouter_types::dataset::schema::{fingerprint_from_json_schema, inject_system_columns};
 use scouter_types::dataset::{DatasetFingerprint, DatasetNamespace, DatasetRegistration};
 use std::sync::Arc;
 use tonic::{Request, Response, Status};
@@ -65,10 +66,15 @@ impl DatasetService for DatasetGrpcService {
             scouter_types::dataset::schema::json_schema_to_arrow(&req.json_schema)
                 .map_err(|e| Status::invalid_argument(format!("Invalid JSON schema: {e}")))?;
 
-        let arrow_schema_json = serde_json::to_string(&arrow_schema)
+        let arrow_schema_with_sys = inject_system_columns(arrow_schema).map_err(|e| {
+            Status::invalid_argument(format!("Failed to inject system columns: {e}"))
+        })?;
+
+        let arrow_schema_json = serde_json::to_string(&arrow_schema_with_sys)
             .map_err(|e| Status::internal(format!("Failed to serialize Arrow schema: {e}")))?;
 
-        let fingerprint = DatasetFingerprint::from_schema_json(&arrow_schema_json);
+        let fingerprint = fingerprint_from_json_schema(&req.json_schema)
+            .map_err(|e| Status::invalid_argument(format!("Failed to compute fingerprint: {e}")))?;
 
         let registration = DatasetRegistration::new(
             namespace,

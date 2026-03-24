@@ -803,4 +803,65 @@ mod tests {
         assert!(matches!(err, DatasetError::SchemaParseError(_)));
         assert!(err.to_string().contains("depth"));
     }
+
+    /// CONTRACT: the gRPC server and the Python client (TableConfig) must produce
+    /// identical fingerprints for the same Pydantic JSON schema.
+    ///
+    /// Client path (TableConfig::new):
+    ///   fingerprint_from_json_schema(pydantic_json)
+    ///
+    /// Server path (register_dataset handler):
+    ///   fingerprint_from_json_schema(req.json_schema)   ← same call, same input
+    ///
+    /// Both call fingerprint_from_json_schema, which internally does:
+    ///   json_schema_to_arrow → inject_system_columns → schema_fingerprint
+    ///
+    /// If this test fails, DatasetClient::new() will always raise FingerprintMismatch.
+    #[test]
+    fn test_client_server_fingerprint_contract() {
+        let pydantic_json = flat_schema_json();
+
+        // Client-side (TableConfig::new)
+        let client_fp = fingerprint_from_json_schema(pydantic_json).unwrap();
+
+        // Server-side (register_dataset after fix — uses the same function)
+        let server_fp = fingerprint_from_json_schema(pydantic_json).unwrap();
+
+        assert_eq!(
+            client_fp, server_fp,
+            "client and server fingerprints must agree; \
+             both must call fingerprint_from_json_schema with the original Pydantic JSON schema"
+        );
+
+        // Sanity: stored Arrow schema must contain system columns so Delta writes succeed
+        let arrow_schema = json_schema_to_arrow(pydantic_json).unwrap();
+        let schema_with_sys = inject_system_columns(arrow_schema).unwrap();
+        assert!(schema_with_sys
+            .field_with_name(SCOUTER_PARTITION_DATE)
+            .is_ok());
+        assert!(schema_with_sys.field_with_name(SCOUTER_CREATED_AT).is_ok());
+        assert!(schema_with_sys.field_with_name(SCOUTER_BATCH_ID).is_ok());
+    }
+
+    /// Show that hashing the Arrow schema WITHOUT system columns produces a different
+    /// fingerprint from the client path (which includes system columns).
+    /// This documents the pre-fix server bug: omitting inject_system_columns caused mismatches.
+    #[test]
+    fn test_fingerprint_differs_without_system_columns() {
+        let pydantic_json = flat_schema_json();
+
+        // Client fingerprint: Arrow schema WITH system columns, canonical repr
+        let client_fp = fingerprint_from_json_schema(pydantic_json).unwrap();
+
+        // Old server fingerprint: canonical repr WITHOUT system columns
+        let arrow_schema_no_sys = json_schema_to_arrow(pydantic_json).unwrap();
+        let old_server_fp =
+            DatasetFingerprint::from_schema_json(&canonical_schema_repr(&arrow_schema_no_sys));
+
+        assert_ne!(
+            client_fp, old_server_fp,
+            "omitting inject_system_columns changes the fingerprint — \
+             this was the pre-fix bug that caused FingerprintMismatch in DatasetClient::new()"
+        );
+    }
 }

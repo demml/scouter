@@ -2,16 +2,25 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from .._scouter import DatasetClient, DatasetProducer, TableConfig, WriteConfig
+from .._scouter import (
+    DatasetClient,
+    DatasetProducer,
+    QueryResult,
+    TableConfig,
+    WriteConfig,
+)
 
 
 class Bifrost:
     """Unified read/write client for the Bifrost dataset engine.
 
     Wraps both ``DatasetProducer`` and ``DatasetClient`` into a single object.
-    Use this when you need both write and read access to the same table.
-    Access the underlying clients directly via ``.producer`` and ``.client``
-    for the full API.
+    The underlying ``DatasetClient`` is created unbound so that ``sql()``,
+    ``list_datasets()``, and ``describe_dataset()`` work immediately without
+    requiring the table to be registered first.
+
+    ``read()`` uses a lazily-created table-bound client — it is initialized on
+    the first call after the table is registered.
 
     Args:
         table_config: Table configuration derived from a Pydantic model.
@@ -25,12 +34,25 @@ class Bifrost:
         transport: Any,
         write_config: Optional[WriteConfig] = None,
     ) -> None:
+        self._table_config = table_config
+        self._transport = transport
         self._producer = DatasetProducer(
             table_config=table_config,
             transport=transport,
             write_config=write_config,
         )
-        self._client = DatasetClient(transport=transport, table_config=table_config)
+        # Unbound — works immediately for sql/list/describe
+        self._client = DatasetClient(transport=transport)
+        # Lazy bound client for read() — created after registration
+        self._reader: Optional[DatasetClient] = None
+
+    def _ensure_reader(self) -> DatasetClient:
+        if self._reader is None:
+            self._reader = DatasetClient(
+                transport=self._transport,
+                table_config=self._table_config,
+            )
+        return self._reader
 
     # --- Write ---
 
@@ -51,7 +73,9 @@ class Bifrost:
 
         Optional — auto-registers on first flush if not called explicitly.
         """
-        return self._producer.register()
+        result = self._producer.register()
+        self._reader = None  # invalidate so next read() re-validates fingerprint
+        return result
 
     @property
     def fingerprint(self) -> str:
@@ -71,10 +95,14 @@ class Bifrost:
     # --- Read ---
 
     def read(self, limit: Optional[int] = None) -> List[Any]:
-        """Read rows from the bound table as validated Pydantic model instances."""
-        return self._client.read(limit=limit)
+        """Read rows from the bound table as validated Pydantic model instances.
 
-    def sql(self, query: str) -> Any:
+        Lazily initializes the table-bound client on first call. Requires the
+        table to be registered before calling.
+        """
+        return self._ensure_reader().read(limit=limit)
+
+    def sql(self, query: str) -> QueryResult:
         """Execute a SQL SELECT query and return a ``QueryResult``."""
         return self._client.sql(query)
 
@@ -95,5 +123,5 @@ class Bifrost:
 
     @property
     def client(self) -> DatasetClient:
-        """The underlying ``DatasetClient`` for full read API access."""
+        """The unbound ``DatasetClient`` for sql/list/describe access."""
         return self._client
