@@ -1,4 +1,5 @@
 pub mod alert;
+pub mod dataset;
 pub mod archive;
 pub mod archive_cloud;
 pub mod drift;
