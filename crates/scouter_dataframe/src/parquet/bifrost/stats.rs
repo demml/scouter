@@ -42,15 +42,18 @@ pub async fn load_table_stats(
     let table_url = build_table_url(object_store, namespace)?;
 
     let store = object_store.as_dyn_object_store();
-    let builder = DeltaTableBuilder::from_url(table_url.clone())?
-        .with_storage_backend(store, table_url);
+    let builder =
+        DeltaTableBuilder::from_url(table_url.clone())?.with_storage_backend(store, table_url);
 
     let table = match builder.load().await {
         Ok(t) => t,
         Err(e) => {
             // Only treat "table doesn't exist yet" as empty stats
             let msg = e.to_string().to_lowercase();
-            if msg.contains("not a delta table") || msg.contains("no such file") || msg.contains("does not exist") {
+            if msg.contains("not a delta table")
+                || msg.contains("no such file")
+                || msg.contains("does not exist")
+            {
                 return Ok(TableStats::default());
             }
             return Err(DatasetEngineError::DeltaTableError(e));
@@ -97,6 +100,10 @@ pub fn extract_stats_from_snapshot(
         row_count: if has_row_stats { Some(row_count) } else { None },
         file_count: Some(file_count),
         size_bytes: Some(size_bytes),
-        delta_version: if version >= 0 { Some(version as u64) } else { None },
+        delta_version: if version >= 0 {
+            Some(version as u64)
+        } else {
+            None
+        },
     })
 }

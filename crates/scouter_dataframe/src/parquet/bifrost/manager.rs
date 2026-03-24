@@ -440,10 +440,7 @@ impl DatasetEngineManager {
         let datasets = self.registry.list_active();
         let mut schema_map: HashMap<String, u32> = HashMap::new();
 
-        for d in datasets
-            .iter()
-            .filter(|d| d.namespace.catalog == catalog)
-        {
+        for d in datasets.iter().filter(|d| d.namespace.catalog == catalog) {
             *schema_map
                 .entry(d.namespace.schema_name.clone())
                 .or_insert(0) += 1;
@@ -487,14 +484,15 @@ impl DatasetEngineManager {
             .ok_or_else(|| DatasetEngineError::TableNotFound(namespace.fqn()))?;
 
         // Parse Arrow schema from registration
-        let arrow_schema: arrow::datatypes::Schema =
-            serde_json::from_str(&reg.arrow_schema_json).map_err(|e| {
-                DatasetEngineError::SerializationError(format!(
-                    "Failed to deserialize Arrow schema: {e}"
-                ))
-            })?;
+        let arrow_schema: arrow::datatypes::Schema = serde_json::from_str(&reg.arrow_schema_json)
+            .map_err(|e| {
+            DatasetEngineError::SerializationError(format!(
+                "Failed to deserialize Arrow schema: {e}"
+            ))
+        })?;
 
-        let partition_set: HashSet<&str> = reg.partition_columns.iter().map(|s| s.as_str()).collect();
+        let partition_set: HashSet<&str> =
+            reg.partition_columns.iter().map(|s| s.as_str()).collect();
         let system_cols: HashSet<&str> =
             [SCOUTER_CREATED_AT, SCOUTER_PARTITION_DATE, SCOUTER_BATCH_ID]
                 .into_iter()
@@ -632,11 +630,8 @@ impl DatasetEngineManager {
         // Physical plan
         let physical_plan = df.create_physical_plan().await?;
         let physical_tree = physical_plan_to_tree(physical_plan.as_ref());
-        let physical_text = sanitize_plan_text(
-            &displayable(physical_plan.as_ref())
-                .indent(true)
-                .to_string(),
-        );
+        let physical_text =
+            sanitize_plan_text(&displayable(physical_plan.as_ref()).indent(true).to_string());
 
         let execution_metadata = if analyze {
             let max_rows = max_rows.clamp(1, 100_000);

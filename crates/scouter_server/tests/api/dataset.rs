@@ -1,5 +1,7 @@
 use crate::common::setup_test;
-use arrow::array::{Date32Array, Float64Array, StringArray, StringViewArray, TimestampMicrosecondArray};
+use arrow::array::{
+    Date32Array, Float64Array, StringArray, StringViewArray, TimestampMicrosecondArray,
+};
 use arrow_array::RecordBatch;
 use axum::{
     body::Body,
@@ -36,9 +38,7 @@ fn test_ipc_bytes() -> Vec<u8> {
         vec![
             Arc::new(Float64Array::from(vec![1.0, 2.0, 3.0])),
             Arc::new(StringViewArray::from(vec!["a", "b", "c"])),
-            Arc::new(
-                TimestampMicrosecondArray::from(vec![ts, ts, ts]).with_timezone("UTC"),
-            ),
+            Arc::new(TimestampMicrosecondArray::from(vec![ts, ts, ts]).with_timezone("UTC")),
             Arc::new(Date32Array::from(vec![epoch_days, epoch_days, epoch_days])),
             Arc::new(StringArray::from(vec!["batch-1", "batch-1", "batch-1"])),
         ],
@@ -63,7 +63,11 @@ async fn register_test_dataset(helper: &crate::common::TestHelper) -> String {
         .body(Body::from(serde_json::to_string(&body).unwrap()))
         .unwrap();
     let resp = helper.send_oneshot(request).await;
-    assert_eq!(resp.status(), StatusCode::OK, "register_test_dataset failed");
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "register_test_dataset failed"
+    );
     let bytes = resp.into_body().collect().await.unwrap().to_bytes();
     let v: Value = serde_json::from_slice(&bytes).unwrap();
     v["fingerprint"].as_str().unwrap().to_string()
@@ -275,7 +279,9 @@ async fn test_http_list_tables() {
     register_test_dataset(&helper).await;
 
     let request = Request::builder()
-        .uri(format!("/scouter/datasets/catalogs/{CAT}/schemas/{SCH}/tables"))
+        .uri(format!(
+            "/scouter/datasets/catalogs/{CAT}/schemas/{SCH}/tables"
+        ))
         .method("GET")
         .body(Body::empty())
         .unwrap();

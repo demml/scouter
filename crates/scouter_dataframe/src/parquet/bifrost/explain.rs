@@ -80,7 +80,11 @@ pub fn logical_plan_to_tree(plan: &LogicalPlan) -> PlanNode {
         .to_string();
     let description = plan.display().to_string();
 
-    let children: Vec<PlanNode> = plan.inputs().iter().map(|p| logical_plan_to_tree(p)).collect();
+    let children: Vec<PlanNode> = plan
+        .inputs()
+        .iter()
+        .map(|p| logical_plan_to_tree(p))
+        .collect();
 
     PlanNode {
         node_type,
@@ -109,12 +113,8 @@ pub fn physical_plan_to_tree(plan: &dyn ExecutionPlan) -> PlanNode {
         PlanNodeMetrics {
             output_rows: output_rows.map(|r| r as u64),
             elapsed_ms: elapsed.map(|ns| ns as f64 / 1_000_000.0),
-            bytes_scanned: m
-                .sum_by_name("bytes_scanned")
-                .map(|v| v.as_usize() as u64),
-            spill_bytes: m
-                .sum_by_name("spill_count")
-                .map(|v| v.as_usize() as u64),
+            bytes_scanned: m.sum_by_name("bytes_scanned").map(|v| v.as_usize() as u64),
+            spill_bytes: m.sum_by_name("spill_count").map(|v| v.as_usize() as u64),
         }
     });
 

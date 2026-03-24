@@ -285,17 +285,13 @@ impl DatasetGrpcClient {
     pub async fn list_catalogs(&mut self) -> Result<ListCatalogsResponse, ClientError> {
         let req = self.authenticated_request(ListCatalogsRequest {})?;
 
-        let resp = self
-            .dataset_client
-            .list_catalogs(req)
-            .await
-            .map_err(|s| {
-                ClientError::GrpcError(format!(
-                    "list_catalogs failed: {} (code: {:?})",
-                    s.message(),
-                    s.code()
-                ))
-            })?;
+        let resp = self.dataset_client.list_catalogs(req).await.map_err(|s| {
+            ClientError::GrpcError(format!(
+                "list_catalogs failed: {} (code: {:?})",
+                s.message(),
+                s.code()
+            ))
+        })?;
 
         self.handle_refreshed_token(&resp);
         Ok(resp.into_inner())
@@ -393,17 +389,13 @@ impl DatasetGrpcClient {
             max_rows,
         })?;
 
-        let resp = self
-            .dataset_client
-            .preview_table(req)
-            .await
-            .map_err(|s| {
-                ClientError::GrpcError(format!(
-                    "preview_table failed: {} (code: {:?})",
-                    s.message(),
-                    s.code()
-                ))
-            })?;
+        let resp = self.dataset_client.preview_table(req).await.map_err(|s| {
+            ClientError::GrpcError(format!(
+                "preview_table failed: {} (code: {:?})",
+                s.message(),
+                s.code()
+            ))
+        })?;
 
         self.handle_refreshed_token(&resp);
         Ok(resp.into_inner())
@@ -423,17 +415,13 @@ impl DatasetGrpcClient {
             max_rows,
         })?;
 
-        let resp = self
-            .dataset_client
-            .execute_query(req)
-            .await
-            .map_err(|s| {
-                ClientError::GrpcError(format!(
-                    "execute_query failed: {} (code: {:?})",
-                    s.message(),
-                    s.code()
-                ))
-            })?;
+        let resp = self.dataset_client.execute_query(req).await.map_err(|s| {
+            ClientError::GrpcError(format!(
+                "execute_query failed: {} (code: {:?})",
+                s.message(),
+                s.code()
+            ))
+        })?;
 
         self.handle_refreshed_token(&resp);
         Ok(resp.into_inner())
@@ -449,17 +437,13 @@ impl DatasetGrpcClient {
             query_id: query_id.to_string(),
         })?;
 
-        let resp = self
-            .dataset_client
-            .cancel_query(req)
-            .await
-            .map_err(|s| {
-                ClientError::GrpcError(format!(
-                    "cancel_query failed: {} (code: {:?})",
-                    s.message(),
-                    s.code()
-                ))
-            })?;
+        let resp = self.dataset_client.cancel_query(req).await.map_err(|s| {
+            ClientError::GrpcError(format!(
+                "cancel_query failed: {} (code: {:?})",
+                s.message(),
+                s.code()
+            ))
+        })?;
 
         self.handle_refreshed_token(&resp);
         Ok(resp.into_inner())
@@ -479,17 +463,13 @@ impl DatasetGrpcClient {
             max_rows,
         })?;
 
-        let resp = self
-            .dataset_client
-            .explain_query(req)
-            .await
-            .map_err(|s| {
-                ClientError::GrpcError(format!(
-                    "explain_query failed: {} (code: {:?})",
-                    s.message(),
-                    s.code()
-                ))
-            })?;
+        let resp = self.dataset_client.explain_query(req).await.map_err(|s| {
+            ClientError::GrpcError(format!(
+                "explain_query failed: {} (code: {:?})",
+                s.message(),
+                s.code()
+            ))
+        })?;
 
         self.handle_refreshed_token(&resp);
         Ok(resp.into_inner())

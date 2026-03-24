@@ -18,10 +18,15 @@ impl QueryTracker {
     /// Register a query and return a cancellation token.
     /// The caller should poll `token.cancelled()` in a `tokio::select!`.
     /// Returns `Err(DuplicateQueryId)` if the query_id is already registered.
-    pub async fn register(&self, query_id: &str) -> Result<CancellationToken, crate::error::DatasetEngineError> {
+    pub async fn register(
+        &self,
+        query_id: &str,
+    ) -> Result<CancellationToken, crate::error::DatasetEngineError> {
         let mut active = self.active.write().await;
         if active.contains_key(query_id) {
-            return Err(crate::error::DatasetEngineError::DuplicateQueryId(query_id.to_string()));
+            return Err(crate::error::DatasetEngineError::DuplicateQueryId(
+                query_id.to_string(),
+            ));
         }
         let token = CancellationToken::new();
         active.insert(query_id.to_string(), token.clone());

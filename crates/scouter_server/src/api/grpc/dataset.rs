@@ -69,9 +69,7 @@ fn to_dataset_info(r: DatasetRegistration) -> DatasetInfo {
     }
 }
 
-fn plan_node_to_proto(
-    node: &scouter_dataframe::parquet::bifrost::explain::PlanNode,
-) -> PlanNode {
+fn plan_node_to_proto(node: &scouter_dataframe::parquet::bifrost::explain::PlanNode) -> PlanNode {
     PlanNode {
         node_type: node.node_type.clone(),
         description: node.description.clone(),
@@ -113,11 +111,10 @@ impl DatasetService for DatasetGrpcService {
             Status::invalid_argument(format!("Failed to inject system columns: {e}"))
         })?;
 
-        let arrow_schema_json = serde_json::to_string(&arrow_schema_with_sys)
-            .map_err(|e| {
-                error!("Failed to serialize Arrow schema: {e}");
-                Status::internal("Internal server error")
-            })?;
+        let arrow_schema_json = serde_json::to_string(&arrow_schema_with_sys).map_err(|e| {
+            error!("Failed to serialize Arrow schema: {e}");
+            Status::internal("Internal server error")
+        })?;
 
         let fingerprint = fingerprint_from_json_schema(&req.json_schema)
             .map_err(|e| Status::invalid_argument(format!("Failed to compute fingerprint: {e}")))?;
@@ -192,11 +189,10 @@ impl DatasetService for DatasetGrpcService {
             .await
             .map_err(map_dataset_error)?;
 
-        let ipc_data = batches_to_ipc_bytes(&batches)
-            .map_err(|e| {
-                error!("Failed to serialize query results: {e}");
-                Status::internal("Internal server error")
-            })?;
+        let ipc_data = batches_to_ipc_bytes(&batches).map_err(|e| {
+            error!("Failed to serialize query results: {e}");
+            Status::internal("Internal server error")
+        })?;
 
         Ok(Response::new(QueryDatasetResponse { ipc_data }))
     }
@@ -361,7 +357,11 @@ impl DatasetService for DatasetGrpcService {
         let namespace = DatasetNamespace::new(&req.catalog, &req.schema_name, &req.table)
             .map_err(|e| Status::invalid_argument(e.to_string()))?;
 
-        let max_rows = if req.max_rows == 0 { 50 } else { req.max_rows as usize };
+        let max_rows = if req.max_rows == 0 {
+            50
+        } else {
+            req.max_rows as usize
+        };
 
         // Get column info from registration
         let detail = self
@@ -392,11 +392,10 @@ impl DatasetService for DatasetGrpcService {
 
         let row_count: u64 = batches.iter().map(|b| b.num_rows() as u64).sum();
 
-        let ipc_data = batches_to_ipc_bytes(&batches)
-            .map_err(|e| {
-                error!("Failed to serialize preview data: {e}");
-                Status::internal("Internal server error")
-            })?;
+        let ipc_data = batches_to_ipc_bytes(&batches).map_err(|e| {
+            error!("Failed to serialize preview data: {e}");
+            Status::internal("Internal server error")
+        })?;
 
         Ok(Response::new(PreviewTableResponse {
             ipc_data,
@@ -427,11 +426,10 @@ impl DatasetService for DatasetGrpcService {
             .await
             .map_err(map_dataset_error)?;
 
-        let ipc_data = batches_to_ipc_bytes(&result.batches)
-            .map_err(|e| {
-                error!("Failed to serialize query results: {e}");
-                Status::internal("Internal server error")
-            })?;
+        let ipc_data = batches_to_ipc_bytes(&result.batches).map_err(|e| {
+            error!("Failed to serialize query results: {e}");
+            Status::internal("Internal server error")
+        })?;
 
         Ok(Response::new(ExecuteQueryResponse {
             ipc_data,

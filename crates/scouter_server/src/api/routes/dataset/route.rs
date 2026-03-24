@@ -215,12 +215,11 @@ fn map_dataset_error(e: DatasetEngineError) -> (StatusCode, Json<ScouterServerEr
         DatasetEngineError::ChannelClosed => (StatusCode::SERVICE_UNAVAILABLE, e.to_string()),
         DatasetEngineError::DatasetError(_) => (StatusCode::BAD_REQUEST, e.to_string()),
         DatasetEngineError::SqlValidationError(_) => (StatusCode::BAD_REQUEST, e.to_string()),
-        DatasetEngineError::QueryCancelled(_) => {
-            (StatusCode::from_u16(499).unwrap_or(StatusCode::BAD_REQUEST), e.to_string())
-        }
-        DatasetEngineError::DuplicateQueryId(_) => {
-            (StatusCode::CONFLICT, e.to_string())
-        }
+        DatasetEngineError::QueryCancelled(_) => (
+            StatusCode::from_u16(499).unwrap_or(StatusCode::BAD_REQUEST),
+            e.to_string(),
+        ),
+        DatasetEngineError::DuplicateQueryId(_) => (StatusCode::CONFLICT, e.to_string()),
         _ => {
             error!("Dataset engine error: {:?}", e);
             (
@@ -236,7 +235,10 @@ fn bad_request(msg: String) -> (StatusCode, Json<ScouterServerError>) {
     (StatusCode::BAD_REQUEST, Json(ScouterServerError::new(msg)))
 }
 
-fn internal_error(msg: &str, detail: impl std::fmt::Display) -> (StatusCode, Json<ScouterServerError>) {
+fn internal_error(
+    msg: &str,
+    detail: impl std::fmt::Display,
+) -> (StatusCode, Json<ScouterServerError>) {
     error!("{}: {}", msg, detail);
     (
         StatusCode::INTERNAL_SERVER_ERROR,
@@ -297,7 +299,11 @@ fn batches_to_json_rows(
                 schema
                     .fields()
                     .iter()
-                    .map(|f| map.get(f.name()).cloned().unwrap_or(serde_json::Value::Null))
+                    .map(|f| {
+                        map.get(f.name())
+                            .cloned()
+                            .unwrap_or(serde_json::Value::Null)
+                    })
                     .collect()
             } else {
                 vec![]
@@ -575,8 +581,8 @@ async fn preview_table(
         .map_err(map_dataset_error)?;
 
     let row_count: u64 = batches.iter().map(|b| b.num_rows() as u64).sum();
-    let (columns, rows) =
-        batches_to_json_rows(&batches).map_err(|e| internal_error("JSON serialization error", e))?;
+    let (columns, rows) = batches_to_json_rows(&batches)
+        .map_err(|e| internal_error("JSON serialization error", e))?;
 
     Ok(Json(PreviewResponse {
         columns,
