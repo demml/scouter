@@ -6467,6 +6467,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
+ "tokio-util",
  "tracing",
  "tracing-subscriber",
  "url",
@@ -6697,7 +6698,9 @@ version = "0.23.0"
 dependencies = [
  "anyhow",
  "approx",
+ "arrow",
  "arrow-array",
+ "arrow-json",
  "axum",
  "axum-extra",
  "chrono",

@@ -3956,7 +3956,7 @@ class Drifter:
     def create_genai_drift_profile(
         self,
         config: GenAIEvalConfig,
-        tasks: Sequence[LLMJudgeTask | AssertionTask | TraceAssertionTask],
+        tasks: Sequence[LLMJudgeTask | AssertionTask | TraceAssertionTask | AgentAssertionTask],
         alias: Optional[str] = None,
     ) -> GenAIEvalProfile:
         """Initialize a GenAIEvalProfile for LLM evaluation and drift detection.
@@ -4161,7 +4161,7 @@ class EvalDataset:
     def __init__(
         self,
         records: Sequence[EvalRecord],
-        tasks: Sequence[LLMJudgeTask | AssertionTask | AgentAssertionTask],
+        tasks: Sequence[LLMJudgeTask | AssertionTask | TraceAssertionTask |AgentAssertionTask],
     ):
         """Initialize the EvalDataset with records and tasks.
 

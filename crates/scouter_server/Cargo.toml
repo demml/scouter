@@ -23,7 +23,9 @@ scouter-sql = { workspace = true }
 scouter-tonic = { workspace = true, features = ["server"] }
 
 
+arrow = { workspace = true }
 arrow-array = { workspace = true }
+arrow-json = { workspace = true }
 anyhow = {workspace = true}
 hex = { workspace = true }
 clap = { workspace = true }

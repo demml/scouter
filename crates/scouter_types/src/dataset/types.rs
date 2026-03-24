@@ -10,9 +10,9 @@ fn validate_namespace_component(name: &str, label: &str) -> Result<(), DatasetEr
             "{label} must not be empty"
         )));
     }
-    if name.contains('/') || name.contains("..") || name.contains('"') {
+    if name.contains('/') || name.contains('.') || name.contains('"') {
         return Err(DatasetError::SchemaParseError(format!(
-            "{label} must not contain '/', '..', or '\"'"
+            "{label} must not contain '/', '.', or '\"'"
         )));
     }
     Ok(())
