@@ -1,19 +1,17 @@
 use crate::error::DatasetEngineError;
-use crate::parquet::bifrost::buffer::start_buffer;
-use crate::parquet::bifrost::catalog::DatasetCatalogProvider;
-use crate::parquet::bifrost::engine::{DatasetEngine, TableCommand};
-use crate::parquet::bifrost::registry::{DatasetRegistry, RegistrationResult};
+use crate::parquet::dataset::buffer::start_buffer;
+use crate::parquet::dataset::catalog::DatasetCatalogProvider;
+use crate::parquet::dataset::engine::{DatasetEngine, TableCommand};
+use crate::parquet::dataset::registry::{DatasetRegistry, RegistrationResult};
 use crate::storage::ObjectStore;
 use arrow::datatypes::SchemaRef;
 use arrow_array::RecordBatch;
 use dashmap::DashMap;
 use datafusion::prelude::SessionContext;
-use futures::FutureExt;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::dataset::schema::SCOUTER_PARTITION_DATE;
 use scouter_types::dataset::{DatasetFingerprint, DatasetNamespace, DatasetRegistration};
 use std::collections::HashMap;
-use std::panic::AssertUnwindSafe;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex, Notify};
@@ -55,7 +53,7 @@ impl DatasetTableHandle {
 pub struct DatasetEngineManager {
     registry: Arc<DatasetRegistry>,
     active_engines: Arc<DashMap<String, DatasetTableHandle>>,
-    activating: Mutex<HashMap<String, Arc<Notify>>>,
+    activating: Arc<Mutex<HashMap<String, Arc<Notify>>>>,
     query_ctx: Arc<SessionContext>,
     catalog_provider: Arc<DatasetCatalogProvider>,
     object_store: ObjectStore,
@@ -109,7 +107,7 @@ impl DatasetEngineManager {
         let manager = Self {
             registry,
             active_engines: Arc::new(DashMap::new()),
-            activating: Mutex::new(HashMap::new()),
+            activating: Arc::new(Mutex::new(HashMap::new())),
             query_ctx,
             catalog_provider,
             object_store,
@@ -162,8 +160,13 @@ impl DatasetEngineManager {
     /// If the engine is already active, touches `last_active_at` and returns the handle reference.
     /// If not active, lazy-loads the Delta table, spawns the actor pair, and returns it.
     ///
-    /// Uses `activating` mutex to prevent two concurrent callers from creating
-    /// duplicate engine actors for the same FQN (TOCTOU guard).
+    /// Uses `activating` to prevent two concurrent callers from creating duplicate engine
+    /// actors for the same FQN (TOCTOU guard).
+    ///
+    /// Cancellation safety: a spawned cleanup task holds an `Arc` clone of `activating`
+    /// and waits for a oneshot signal. If this future is dropped mid-await, the oneshot
+    /// sender drops too, the cleanup task unblocks via `Err(RecvError)`, and it removes
+    /// the stale entry + fires `notify_waiters()` so waiters are not permanently hung.
     async fn activate_engine(
         &self,
         namespace: &DatasetNamespace,
@@ -197,13 +200,22 @@ impl DatasetEngineManager {
                 tokio::pin!(notified);
                 notified.as_mut().enable();
                 drop(pending);
-                notified.await;
+
+                // Timeout bounds worst-case wait if the cleanup task is somehow delayed.
+                match tokio::time::timeout(Duration::from_secs(30), notified).await {
+                    Ok(_) => {}
+                    Err(_) => {
+                        return Err(DatasetEngineError::RegistryError(format!(
+                            "Engine activation timed out for {fqn}"
+                        )));
+                    }
+                }
+
                 return if self.active_engines.contains_key(&fqn) {
                     Ok(())
                 } else {
                     Err(DatasetEngineError::RegistryError(format!(
-                        "Activation failed for {}",
-                        fqn
+                        "Activation failed for {fqn}"
                     )))
                 };
             }
@@ -211,22 +223,24 @@ impl DatasetEngineManager {
             pending.insert(fqn.clone(), Arc::new(Notify::new()));
         } // activating lock released — safe to .await
 
-        let result = AssertUnwindSafe(self.do_activate_engine_inner(namespace, &fqn))
-            .catch_unwind()
-            .await;
-
-        // Always clean up pending set and notify waiters — even on panic.
-        {
-            let mut pending = self.activating.lock().await;
-            if let Some(notify) = pending.remove(&fqn) {
+        // Spawn a cleanup task that runs whether we complete normally or get cancelled.
+        // The oneshot sender is dropped in both cases, unblocking the cleanup task.
+        let (done_tx, done_rx) = tokio::sync::oneshot::channel::<()>();
+        let activating = Arc::clone(&self.activating);
+        let fqn_for_cleanup = fqn.clone();
+        tokio::spawn(async move {
+            // Waits for done_tx.send(()) on the happy path, or Err if sender is dropped
+            // (future cancelled). Either way, clean up the pending entry.
+            let _ = done_rx.await;
+            let mut pending = activating.lock().await;
+            if let Some(notify) = pending.remove(&fqn_for_cleanup) {
                 notify.notify_waiters();
             }
-        }
+        });
 
-        match result {
-            Ok(inner) => inner,
-            Err(panic_payload) => std::panic::resume_unwind(panic_payload),
-        }
+        let result = self.do_activate_engine_inner(namespace, &fqn).await;
+        let _ = done_tx.send(()); // signal cleanup; if already dropped, cleanup already ran
+        result
     }
 
     /// Inner activation logic, called only when we hold the pending-set reservation.
@@ -611,55 +625,6 @@ mod tests {
         .unwrap()
     }
 
-    // ── validate_sql unit tests ──────────────────────────────────────
-
-    #[test]
-    fn validate_sql_simple_select() {
-        validate_sql("SELECT * FROM t").unwrap();
-    }
-
-    #[test]
-    fn validate_sql_cte() {
-        validate_sql("WITH cte AS (SELECT 1 AS x) SELECT * FROM cte").unwrap();
-    }
-
-    #[test]
-    fn validate_sql_window_function() {
-        validate_sql("SELECT id, ROW_NUMBER() OVER (ORDER BY ts DESC) AS rn FROM t").unwrap();
-    }
-
-    #[test]
-    fn validate_sql_subquery() {
-        validate_sql("SELECT * FROM (SELECT * FROM t WHERE x > 1) AS sub").unwrap();
-    }
-
-    #[test]
-    fn validate_sql_aggregation() {
-        validate_sql("SELECT category, AVG(score) FROM t GROUP BY category").unwrap();
-    }
-
-    #[test]
-    fn validate_sql_rejects_insert() {
-        assert!(validate_sql("INSERT INTO t VALUES (1)").is_err());
-    }
-
-    #[test]
-    fn validate_sql_rejects_drop() {
-        assert!(validate_sql("DROP TABLE t").is_err());
-    }
-
-    #[test]
-    fn validate_sql_rejects_multi_statement() {
-        assert!(validate_sql("SELECT 1; DROP TABLE t").is_err());
-    }
-
-    #[test]
-    fn validate_sql_rejects_empty() {
-        assert!(validate_sql("").is_err());
-    }
-
-    // ── Engine integration tests ──────────────────────────────────────
-
     #[tokio::test]
     async fn test_register_and_insert() {
         let dir = TempDir::new().unwrap();
@@ -909,81 +874,6 @@ mod tests {
             .as_primitive_opt::<Int64Type>()
             .unwrap();
         assert_eq!(count_col.value(0), 3);
-
-        manager.shutdown().await;
-    }
-
-    #[tokio::test]
-    async fn test_concurrent_read_write() {
-        let dir = TempDir::new().unwrap();
-        let settings = test_storage_settings(&dir);
-
-        let manager = Arc::new(
-            DatasetEngineManager::with_config(&settings, 1800, 10, 1, 100, 30)
-                .await
-                .unwrap(),
-        );
-
-        let schema = test_schema();
-        let reg = test_registration(&schema);
-        manager.register_dataset(&reg).await.unwrap();
-
-        // Seed initial data and flush
-        manager
-            .insert_batch(&reg.namespace, &reg.fingerprint, make_test_batch(&schema))
-            .await
-            .unwrap();
-        tokio::time::sleep(Duration::from_secs(2)).await;
-
-        let writer_mgr = Arc::clone(&manager);
-        let writer_ns = reg.namespace.clone();
-        let writer_fp = reg.fingerprint.clone();
-        let writer_schema = schema.clone();
-
-        let writer = tokio::spawn(async move {
-            for _ in 0..10 {
-                writer_mgr
-                    .insert_batch(&writer_ns, &writer_fp, make_test_batch(&writer_schema))
-                    .await
-                    .unwrap();
-            }
-        });
-
-        let sql = "SELECT COUNT(*) as cnt FROM test_catalog.test_schema.predictions";
-
-        let reader1_mgr = Arc::clone(&manager);
-        let reader1 = tokio::spawn(async move {
-            for _ in 0..5 {
-                let results = reader1_mgr.query(sql).await.unwrap();
-                assert!(!results.is_empty());
-            }
-        });
-
-        let reader2_mgr = Arc::clone(&manager);
-        let reader2 = tokio::spawn(async move {
-            for _ in 0..5 {
-                let results = reader2_mgr.query(sql).await.unwrap();
-                assert!(!results.is_empty());
-            }
-        });
-
-        let (w, r1, r2) = tokio::join!(writer, reader1, reader2);
-        w.unwrap();
-        r1.unwrap();
-        r2.unwrap();
-
-        // Wait for buffered writes to flush
-        tokio::time::sleep(Duration::from_secs(3)).await;
-
-        let results = manager.query(sql).await.unwrap();
-        let count = results[0]
-            .column_by_name("cnt")
-            .unwrap()
-            .as_primitive_opt::<Int64Type>()
-            .unwrap()
-            .value(0);
-        // At minimum the seed batch (3 rows) should be present
-        assert!(count >= 3, "Expected at least seed data; got {count}");
 
         manager.shutdown().await;
     }

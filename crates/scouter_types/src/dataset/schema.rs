@@ -110,6 +110,14 @@ fn canonical_type_repr(dt: &DataType) -> String {
             sub.sort();
             format!("Struct({})", sub.join(","))
         }
+        DataType::List(field) => {
+            format!(
+                "List({}:{}:{})",
+                field.name(),
+                canonical_type_repr(field.data_type()),
+                field.is_nullable()
+            )
+        }
         other => format!("{other}"),
     }
 }
