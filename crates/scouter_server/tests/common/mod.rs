@@ -26,7 +26,7 @@ use scouter_sql::sql::traits::AlertSqlLogic;
 use scouter_sql::sql::traits::EntitySqlLogic;
 use scouter_sql::sql::traits::TagSqlLogic;
 use scouter_sql::PostgresClient;
-use scouter_tonic::GrpcClient;
+use scouter_tonic::{DatasetGrpcClient, GrpcClient};
 use scouter_types::custom::ComparisonMetricAlert;
 use scouter_types::genai::ExecutionPlan;
 use scouter_types::spc::SpcDriftConfig;
@@ -178,6 +178,7 @@ impl TestHelper {
             env::set_var("MAX_POOL_SIZE", "100");
             env::set_var("DATA_RETENTION_PERIOD", "5");
             std::env::set_var("OPENAI_API_KEY", "test_key");
+            std::env::set_var("SCOUTER_DATASET_FLUSH_INTERVAL_SECS", "1");
         }
 
         if enable_kafka {
@@ -218,6 +219,10 @@ impl TestHelper {
 
     pub async fn create_grpc_client(&self) -> GrpcClient {
         GrpcClient::new(GrpcConfig::default()).await.unwrap()
+    }
+
+    pub async fn create_dataset_grpc_client(&self) -> DatasetGrpcClient {
+        DatasetGrpcClient::new(GrpcConfig::default()).await.unwrap()
     }
 
     pub async fn login(app: &Router) -> JwtToken {

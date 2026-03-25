@@ -1,6 +1,7 @@
 pub mod alert;
 pub mod archive;
 pub mod archive_cloud;
+pub mod dataset;
 pub mod drift;
 pub mod genai;
 pub mod health;

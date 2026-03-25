@@ -26,11 +26,16 @@ pub const FILE_DESCRIPTOR_SET: &[u8] = include_bytes!("generated/scouter_descrip
 
 // Re-export common types (always available)
 pub use generated::scouter::grpc::v1::{
-    DatasetInfo, DescribeDatasetRequest, DescribeDatasetResponse, InsertBatchRequest,
-    InsertBatchResponse, InsertMessageRequest, InsertMessageResponse, ListDatasetsRequest,
-    ListDatasetsResponse, LoginRequest, LoginResponse, QueryDatasetRequest, QueryDatasetResponse,
+    CancelQueryRequest, CancelQueryResponse, CatalogInfo, ColumnInfo, DatasetInfo,
+    DescribeDatasetRequest, DescribeDatasetResponse, ExecuteQueryRequest, ExecuteQueryResponse,
+    ExplainQueryRequest, ExplainQueryResponse, GetTableDetailRequest, GetTableDetailResponse,
+    InsertBatchRequest, InsertBatchResponse, InsertMessageRequest, InsertMessageResponse,
+    ListCatalogsRequest, ListCatalogsResponse, ListDatasetsRequest, ListDatasetsResponse,
+    ListSchemasRequest, ListSchemasResponse, ListTablesRequest, ListTablesResponse, LoginRequest,
+    LoginResponse, PlanNode, PlanNodeField, PlanNodeMetrics, PreviewTableRequest,
+    PreviewTableResponse, QueryDatasetRequest, QueryDatasetResponse, QueryExecutionMetadata,
     RefreshTokenRequest, RefreshTokenResponse, RegisterDatasetRequest, RegisterDatasetResponse,
-    ValidateTokenRequest, ValidateTokenResponse,
+    SchemaInfo, TableStats, TableSummary, ValidateTokenRequest, ValidateTokenResponse,
 };
 
 // Re-export client types when feature is enabled

@@ -2,18 +2,27 @@ use crate::error::DatasetEngineError;
 use crate::parquet::bifrost::buffer::start_buffer;
 use crate::parquet::bifrost::catalog::DatasetCatalogProvider;
 use crate::parquet::bifrost::engine::{DatasetEngine, TableCommand};
+use crate::parquet::bifrost::explain::{
+    logical_plan_to_tree, physical_plan_to_tree, sanitize_plan_text, ExplainResult,
+};
+use crate::parquet::bifrost::query::{QueryExecutionMetadata, QueryResult, QueryTracker};
 use crate::parquet::bifrost::registry::{DatasetRegistry, RegistrationResult};
+use crate::parquet::bifrost::stats;
 use crate::storage::ObjectStore;
 use arrow::datatypes::SchemaRef;
 use arrow_array::RecordBatch;
 use dashmap::DashMap;
+use datafusion::physical_plan::displayable;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::dataset::schema::SCOUTER_PARTITION_DATE;
+use scouter_types::dataset::schema::{
+    SCOUTER_BATCH_ID, SCOUTER_CREATED_AT, SCOUTER_PARTITION_DATE,
+};
 use scouter_types::dataset::{DatasetFingerprint, DatasetNamespace, DatasetRegistration};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::sync::{mpsc, Mutex, Notify};
 use tokio::time::{interval, Duration};
 use tracing::{info, warn};
@@ -57,6 +66,7 @@ pub struct DatasetEngineManager {
     query_ctx: Arc<SessionContext>,
     catalog_provider: Arc<DatasetCatalogProvider>,
     object_store: ObjectStore,
+    query_tracker: QueryTracker,
     engine_ttl_secs: u64,
     max_active_engines: usize,
     flush_interval_secs: u64,
@@ -82,6 +92,15 @@ fn validate_sql(sql: &str) -> Result<(), DatasetEngineError> {
     match &statements[0] {
         DFStatement::Statement(stmt) => match stmt.as_ref() {
             SqlStatement::Query(_) => Ok(()),
+            // Explicitly deny write-capable and DDL variants as defense-in-depth
+            SqlStatement::Copy { .. }
+            | SqlStatement::CreateTable(_)
+            | SqlStatement::Drop { .. }
+            | SqlStatement::Insert(_)
+            | SqlStatement::Update { .. }
+            | SqlStatement::Delete(_) => Err(DatasetEngineError::SqlValidationError(
+                "DDL and DML statements are not permitted".to_string(),
+            )),
             other => Err(DatasetEngineError::SqlValidationError(format!(
                 "Only SELECT queries are allowed, got: {}",
                 other
@@ -104,6 +123,11 @@ impl DatasetEngineManager {
 
         let registry = Arc::new(DatasetRegistry::new(&object_store).await?);
 
+        let flush_interval_secs = std::env::var("SCOUTER_DATASET_FLUSH_INTERVAL_SECS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(DEFAULT_FLUSH_INTERVAL_SECS);
+
         let manager = Self {
             registry,
             active_engines: Arc::new(DashMap::new()),
@@ -111,9 +135,10 @@ impl DatasetEngineManager {
             query_ctx,
             catalog_provider,
             object_store,
+            query_tracker: QueryTracker::new(),
             engine_ttl_secs: DEFAULT_ENGINE_TTL_SECS,
             max_active_engines: DEFAULT_MAX_ACTIVE_ENGINES,
-            flush_interval_secs: DEFAULT_FLUSH_INTERVAL_SECS,
+            flush_interval_secs,
             max_buffer_rows: DEFAULT_MAX_BUFFER_ROWS,
             refresh_interval_secs: DEFAULT_REFRESH_INTERVAL_SECS,
         };
@@ -390,6 +415,259 @@ impl DatasetEngineManager {
         self.registry.get_by_namespace(namespace)
     }
 
+    // ── Catalog Browser APIs ────────────────────────────────────────────
+
+    /// List all distinct catalogs with schema and table counts.
+    pub fn list_catalogs(&self) -> Vec<CatalogSummary> {
+        let datasets = self.registry.list_active();
+        let mut catalog_map: HashMap<String, (HashSet<String>, u32)> = HashMap::new();
+
+        for d in &datasets {
+            let entry = catalog_map
+                .entry(d.namespace.catalog.clone())
+                .or_insert_with(|| (HashSet::new(), 0));
+            entry.0.insert(d.namespace.schema_name.clone());
+            entry.1 += 1;
+        }
+
+        catalog_map
+            .into_iter()
+            .map(|(catalog, (schemas, table_count))| CatalogSummary {
+                catalog,
+                schema_count: schemas.len() as u32,
+                table_count,
+            })
+            .collect()
+    }
+
+    /// List schemas within a catalog with table counts.
+    pub fn list_schemas(&self, catalog: &str) -> Vec<SchemaSummary> {
+        let datasets = self.registry.list_active();
+        let mut schema_map: HashMap<String, u32> = HashMap::new();
+
+        for d in datasets.iter().filter(|d| d.namespace.catalog == catalog) {
+            *schema_map
+                .entry(d.namespace.schema_name.clone())
+                .or_insert(0) += 1;
+        }
+
+        schema_map
+            .into_iter()
+            .map(|(schema_name, table_count)| SchemaSummary {
+                catalog: catalog.to_string(),
+                schema_name,
+                table_count,
+            })
+            .collect()
+    }
+
+    /// List tables within a catalog.schema with summary info.
+    pub fn list_tables(&self, catalog: &str, schema_name: &str) -> Vec<TableSummaryInfo> {
+        self.registry
+            .list_active()
+            .into_iter()
+            .filter(|d| d.namespace.catalog == catalog && d.namespace.schema_name == schema_name)
+            .map(|d| TableSummaryInfo {
+                catalog: d.namespace.catalog,
+                schema_name: d.namespace.schema_name,
+                table: d.namespace.table,
+                status: d.status.to_string(),
+                created_at: d.created_at.to_rfc3339(),
+                updated_at: d.updated_at.to_rfc3339(),
+            })
+            .collect()
+    }
+
+    /// Get detailed info for a table: columns, partition info, and Delta stats.
+    pub async fn get_table_detail(
+        &self,
+        namespace: &DatasetNamespace,
+    ) -> Result<TableDetail, DatasetEngineError> {
+        let reg = self
+            .registry
+            .get_by_namespace(namespace)
+            .ok_or_else(|| DatasetEngineError::TableNotFound(namespace.fqn()))?;
+
+        // Parse Arrow schema from registration
+        let arrow_schema: arrow::datatypes::Schema = serde_json::from_str(&reg.arrow_schema_json)
+            .map_err(|e| {
+            DatasetEngineError::SerializationError(format!(
+                "Failed to deserialize Arrow schema: {e}"
+            ))
+        })?;
+
+        let partition_set: HashSet<&str> =
+            reg.partition_columns.iter().map(|s| s.as_str()).collect();
+        let system_cols: HashSet<&str> =
+            [SCOUTER_CREATED_AT, SCOUTER_PARTITION_DATE, SCOUTER_BATCH_ID]
+                .into_iter()
+                .collect();
+
+        let columns: Vec<ColumnDetail> = arrow_schema
+            .fields()
+            .iter()
+            .map(|f| ColumnDetail {
+                name: f.name().clone(),
+                arrow_type: format!("{}", f.data_type()),
+                nullable: f.is_nullable(),
+                is_partition: partition_set.contains(f.name().as_str()),
+                is_system: system_cols.contains(f.name().as_str()),
+            })
+            .collect();
+
+        // Load stats from Delta log (transient load for inactive tables)
+        let table_stats = stats::load_table_stats(&self.object_store, namespace).await?;
+
+        Ok(TableDetail {
+            registration: reg,
+            columns,
+            stats: table_stats,
+        })
+    }
+
+    /// Preview a table's data (SELECT * LIMIT max_rows).
+    pub async fn preview_table(
+        &self,
+        namespace: &DatasetNamespace,
+        max_rows: usize,
+    ) -> Result<Vec<RecordBatch>, DatasetEngineError> {
+        let max_rows = max_rows.min(1000);
+        let sql = format!(
+            "SELECT * FROM {} LIMIT {}",
+            namespace.quoted_fqn(),
+            max_rows
+        );
+        self.activate_engine(namespace).await?;
+        let df = self.query_ctx.sql(&sql).await?;
+        let batches = df.collect().await?;
+        Ok(batches)
+    }
+
+    // ── Enhanced Query Execution ────────────────────────────────────────
+
+    /// Execute a SQL query with row limits, cancellation support, and metadata.
+    pub async fn execute_query(
+        &self,
+        sql: &str,
+        query_id: &str,
+        max_rows: usize,
+    ) -> Result<QueryResult, DatasetEngineError> {
+        validate_sql(sql)?;
+        let max_rows = max_rows.clamp(1, 100_000);
+
+        let cancel_token = self.query_tracker.register(query_id).await?;
+        let start = Instant::now();
+
+        let exec_result: Result<_, DatasetEngineError> = async {
+            let df = self.query_ctx.sql(sql).await?;
+            // Request max_rows + 1 to detect truncation
+            let limited_df = df.limit(0, Some(max_rows + 1))?;
+            tokio::select! {
+                result = limited_df.collect() => result.map_err(DatasetEngineError::from),
+                _ = cancel_token.cancelled() => {
+                    Err(DatasetEngineError::QueryCancelled(query_id.to_string()))
+                }
+            }
+        }
+        .await;
+
+        self.query_tracker.remove(query_id).await;
+        let batches = exec_result?;
+
+        let total_rows: usize = batches.iter().map(|b| b.num_rows()).sum();
+        let truncated = total_rows > max_rows;
+
+        // If truncated, we need to trim the last batch
+        let final_batches = if truncated {
+            let mut remaining = max_rows;
+            let mut result = Vec::new();
+            for batch in batches {
+                if remaining == 0 {
+                    break;
+                }
+                if batch.num_rows() <= remaining {
+                    remaining -= batch.num_rows();
+                    result.push(batch);
+                } else {
+                    result.push(batch.slice(0, remaining));
+                    remaining = 0;
+                }
+            }
+            result
+        } else {
+            batches
+        };
+
+        let rows_returned: usize = final_batches.iter().map(|b| b.num_rows()).sum();
+
+        Ok(QueryResult {
+            batches: final_batches,
+            metadata: QueryExecutionMetadata {
+                query_id: query_id.to_string(),
+                rows_returned: rows_returned as u64,
+                truncated,
+                execution_time_ms: start.elapsed().as_millis() as u64,
+                bytes_scanned: None,
+            },
+        })
+    }
+
+    /// Cancel a running query by ID.
+    pub async fn cancel_query(&self, query_id: &str) -> bool {
+        self.query_tracker.cancel(query_id).await
+    }
+
+    // ── Query Plan ──────────────────────────────────────────────────────
+
+    /// Generate a structured query plan, optionally with ANALYZE execution.
+    pub async fn explain_query(
+        &self,
+        sql: &str,
+        analyze: bool,
+        max_rows: usize,
+    ) -> Result<ExplainResult, DatasetEngineError> {
+        validate_sql(sql)?;
+        let df = self.query_ctx.sql(sql).await?;
+
+        // Logical plan (optimized)
+        let logical_plan = df.logical_plan().clone();
+        let logical_tree = logical_plan_to_tree(&logical_plan);
+        let logical_text = sanitize_plan_text(&format!("{}", logical_plan.display_indent()));
+
+        // Physical plan
+        let physical_plan = df.create_physical_plan().await?;
+        let physical_tree = physical_plan_to_tree(physical_plan.as_ref());
+        let physical_text =
+            sanitize_plan_text(&displayable(physical_plan.as_ref()).indent(true).to_string());
+
+        let execution_metadata = if analyze {
+            let max_rows = max_rows.clamp(1, 100_000);
+            let analyze_df = self.query_ctx.sql(sql).await?;
+            let limited = analyze_df.limit(0, Some(max_rows + 1))?;
+            let start = Instant::now();
+            let batches = limited.collect().await?;
+            let rows: usize = batches.iter().map(|b| b.num_rows()).sum();
+
+            Some(QueryExecutionMetadata {
+                query_id: String::new(),
+                rows_returned: rows.min(max_rows) as u64,
+                truncated: rows > max_rows,
+                execution_time_ms: start.elapsed().as_millis() as u64,
+                bytes_scanned: None,
+            })
+        } else {
+            None
+        };
+
+        Ok(ExplainResult {
+            logical_plan: logical_tree,
+            physical_plan: physical_tree,
+            logical_plan_text: logical_text,
+            physical_plan_text: physical_text,
+            execution_metadata,
+        })
+    }
+
     /// Evict the least-recently-used engine.
     async fn evict_lru(&self) {
         let lru_fqn = self
@@ -537,6 +815,47 @@ impl DatasetEngineManager {
             Arc::clone(&self.catalog_provider) as Arc<dyn datafusion::catalog::CatalogProvider>,
         );
     }
+}
+
+// ── Catalog browser types ──────────────────────────────────────────────
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct CatalogSummary {
+    pub catalog: String,
+    pub schema_count: u32,
+    pub table_count: u32,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SchemaSummary {
+    pub catalog: String,
+    pub schema_name: String,
+    pub table_count: u32,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct TableSummaryInfo {
+    pub catalog: String,
+    pub schema_name: String,
+    pub table: String,
+    pub status: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ColumnDetail {
+    pub name: String,
+    pub arrow_type: String,
+    pub nullable: bool,
+    pub is_partition: bool,
+    pub is_system: bool,
+}
+
+pub struct TableDetail {
+    pub registration: DatasetRegistration,
+    pub columns: Vec<ColumnDetail>,
+    pub stats: stats::TableStats,
 }
 
 #[cfg(test)]

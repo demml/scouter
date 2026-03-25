@@ -179,4 +179,10 @@ pub enum DatasetEngineError {
 
     #[error("SQL validation failed: {0}")]
     SqlValidationError(String),
+
+    #[error("Query cancelled: {0}")]
+    QueryCancelled(String),
+
+    #[error("Duplicate query ID: {0}")]
+    DuplicateQueryId(String),
 }

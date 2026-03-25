@@ -60,6 +60,20 @@ service DatasetService {
   rpc QueryDataset(QueryDatasetRequest) returns (QueryDatasetResponse);
   rpc ListDatasets(ListDatasetsRequest) returns (ListDatasetsResponse);
   rpc DescribeDataset(DescribeDatasetRequest) returns (DescribeDatasetResponse);
+
+  // ── Catalog Browser ───────────────────────────────────────────────
+  rpc ListCatalogs(ListCatalogsRequest) returns (ListCatalogsResponse);
+  rpc ListSchemas(ListSchemasRequest) returns (ListSchemasResponse);
+  rpc ListTables(ListTablesRequest) returns (ListTablesResponse);
+  rpc GetTableDetail(GetTableDetailRequest) returns (GetTableDetailResponse);
+  rpc PreviewTable(PreviewTableRequest) returns (PreviewTableResponse);
+
+  // ── Enhanced Query Execution ──────────────────────────────────────
+  rpc ExecuteQuery(ExecuteQueryRequest) returns (ExecuteQueryResponse);
+  rpc CancelQuery(CancelQueryRequest) returns (CancelQueryResponse);
+
+  // ── Query Plan ────────────────────────────────────────────────────
+  rpc ExplainQuery(ExplainQueryRequest) returns (ExplainQueryResponse);
 }
 
 message RegisterDatasetRequest {
@@ -123,4 +137,155 @@ message DescribeDatasetRequest {
 message DescribeDatasetResponse {
   DatasetInfo info = 1;
   string arrow_schema_json = 2;
+}
+
+// ── Catalog Browser ─────────────────────────────────────────────────
+
+message ListCatalogsRequest {}
+
+message CatalogInfo {
+  string catalog = 1;
+  uint32 schema_count = 2;
+  uint32 table_count = 3;
+}
+
+message ListCatalogsResponse {
+  repeated CatalogInfo catalogs = 1;
+}
+
+message ListSchemasRequest {
+  string catalog = 1;
+}
+
+message SchemaInfo {
+  string catalog = 1;
+  string schema_name = 2;
+  uint32 table_count = 3;
+}
+
+message ListSchemasResponse {
+  repeated SchemaInfo schemas = 1;
+}
+
+message ListTablesRequest {
+  string catalog = 1;
+  string schema_name = 2;
+}
+
+message TableSummary {
+  string catalog = 1;
+  string schema_name = 2;
+  string table = 3;
+  string status = 4;
+  string created_at = 5;
+  string updated_at = 6;
+}
+
+message ListTablesResponse {
+  repeated TableSummary tables = 1;
+}
+
+message GetTableDetailRequest {
+  string catalog = 1;
+  string schema_name = 2;
+  string table = 3;
+}
+
+message ColumnInfo {
+  string name = 1;
+  string arrow_type = 2;
+  bool nullable = 3;
+  bool is_partition = 4;
+  bool is_system = 5;
+}
+
+message TableStats {
+  optional uint64 row_count = 1;
+  optional uint64 file_count = 2;
+  optional uint64 size_bytes = 3;
+  optional uint64 delta_version = 4;
+}
+
+message GetTableDetailResponse {
+  DatasetInfo info = 1;
+  repeated ColumnInfo columns = 2;
+  TableStats stats = 3;
+}
+
+message PreviewTableRequest {
+  string catalog = 1;
+  string schema_name = 2;
+  string table = 3;
+  uint32 max_rows = 4;
+}
+
+message PreviewTableResponse {
+  bytes ipc_data = 1;
+  repeated ColumnInfo columns = 2;
+  uint64 row_count = 3;
+}
+
+// ── Enhanced Query Execution ────────────────────────────────────────
+
+message ExecuteQueryRequest {
+  string sql = 1;
+  string query_id = 2;
+  uint32 max_rows = 3;
+}
+
+message QueryExecutionMetadata {
+  string query_id = 1;
+  uint64 rows_returned = 2;
+  bool truncated = 3;
+  uint64 execution_time_ms = 4;
+  optional uint64 bytes_scanned = 5;
+}
+
+message ExecuteQueryResponse {
+  bytes ipc_data = 1;
+  QueryExecutionMetadata metadata = 2;
+}
+
+message CancelQueryRequest {
+  string query_id = 1;
+}
+
+message CancelQueryResponse {
+  bool cancelled = 1;
+}
+
+// ── Query Plan ──────────────────────────────────────────────────────
+
+message ExplainQueryRequest {
+  string sql = 1;
+  bool analyze = 2;
+  uint32 max_rows = 3;
+}
+
+message PlanNodeMetrics {
+  optional uint64 output_rows = 1;
+  optional double elapsed_ms = 2;
+  optional uint64 bytes_scanned = 3;
+  optional uint64 spill_bytes = 4;
+}
+
+message PlanNodeField {
+  string key = 1;
+  string value = 2;
+}
+
+message PlanNode {
+  string node_type = 1;
+  string description = 2;
+  repeated PlanNodeField fields = 3;
+  repeated PlanNode children = 4;
+  PlanNodeMetrics metrics = 5;
+}
+
+message ExplainQueryResponse {
+  PlanNode logical_plan = 1;
+  PlanNode physical_plan = 2;
+  string logical_plan_text = 3;
+  string physical_plan_text = 4;
+  optional QueryExecutionMetadata execution_metadata = 5;
 }

@@ -151,6 +151,222 @@ pub struct DescribeDatasetResponse {
     #[prost(string, tag = "2")]
     pub arrow_schema_json: ::prost::alloc::string::String,
 }
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ListCatalogsRequest {}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct CatalogInfo {
+    #[prost(string, tag = "1")]
+    pub catalog: ::prost::alloc::string::String,
+    #[prost(uint32, tag = "2")]
+    pub schema_count: u32,
+    #[prost(uint32, tag = "3")]
+    pub table_count: u32,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListCatalogsResponse {
+    #[prost(message, repeated, tag = "1")]
+    pub catalogs: ::prost::alloc::vec::Vec<CatalogInfo>,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ListSchemasRequest {
+    #[prost(string, tag = "1")]
+    pub catalog: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct SchemaInfo {
+    #[prost(string, tag = "1")]
+    pub catalog: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub schema_name: ::prost::alloc::string::String,
+    #[prost(uint32, tag = "3")]
+    pub table_count: u32,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListSchemasResponse {
+    #[prost(message, repeated, tag = "1")]
+    pub schemas: ::prost::alloc::vec::Vec<SchemaInfo>,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ListTablesRequest {
+    #[prost(string, tag = "1")]
+    pub catalog: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub schema_name: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct TableSummary {
+    #[prost(string, tag = "1")]
+    pub catalog: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub schema_name: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub table: ::prost::alloc::string::String,
+    #[prost(string, tag = "4")]
+    pub status: ::prost::alloc::string::String,
+    #[prost(string, tag = "5")]
+    pub created_at: ::prost::alloc::string::String,
+    #[prost(string, tag = "6")]
+    pub updated_at: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListTablesResponse {
+    #[prost(message, repeated, tag = "1")]
+    pub tables: ::prost::alloc::vec::Vec<TableSummary>,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct GetTableDetailRequest {
+    #[prost(string, tag = "1")]
+    pub catalog: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub schema_name: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub table: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ColumnInfo {
+    #[prost(string, tag = "1")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub arrow_type: ::prost::alloc::string::String,
+    #[prost(bool, tag = "3")]
+    pub nullable: bool,
+    #[prost(bool, tag = "4")]
+    pub is_partition: bool,
+    #[prost(bool, tag = "5")]
+    pub is_system: bool,
+}
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct TableStats {
+    #[prost(uint64, optional, tag = "1")]
+    pub row_count: ::core::option::Option<u64>,
+    #[prost(uint64, optional, tag = "2")]
+    pub file_count: ::core::option::Option<u64>,
+    #[prost(uint64, optional, tag = "3")]
+    pub size_bytes: ::core::option::Option<u64>,
+    #[prost(uint64, optional, tag = "4")]
+    pub delta_version: ::core::option::Option<u64>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetTableDetailResponse {
+    #[prost(message, optional, tag = "1")]
+    pub info: ::core::option::Option<DatasetInfo>,
+    #[prost(message, repeated, tag = "2")]
+    pub columns: ::prost::alloc::vec::Vec<ColumnInfo>,
+    #[prost(message, optional, tag = "3")]
+    pub stats: ::core::option::Option<TableStats>,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct PreviewTableRequest {
+    #[prost(string, tag = "1")]
+    pub catalog: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub schema_name: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub table: ::prost::alloc::string::String,
+    #[prost(uint32, tag = "4")]
+    pub max_rows: u32,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct PreviewTableResponse {
+    #[prost(bytes = "vec", tag = "1")]
+    pub ipc_data: ::prost::alloc::vec::Vec<u8>,
+    #[prost(message, repeated, tag = "2")]
+    pub columns: ::prost::alloc::vec::Vec<ColumnInfo>,
+    #[prost(uint64, tag = "3")]
+    pub row_count: u64,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ExecuteQueryRequest {
+    #[prost(string, tag = "1")]
+    pub sql: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub query_id: ::prost::alloc::string::String,
+    #[prost(uint32, tag = "3")]
+    pub max_rows: u32,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct QueryExecutionMetadata {
+    #[prost(string, tag = "1")]
+    pub query_id: ::prost::alloc::string::String,
+    #[prost(uint64, tag = "2")]
+    pub rows_returned: u64,
+    #[prost(bool, tag = "3")]
+    pub truncated: bool,
+    #[prost(uint64, tag = "4")]
+    pub execution_time_ms: u64,
+    #[prost(uint64, optional, tag = "5")]
+    pub bytes_scanned: ::core::option::Option<u64>,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ExecuteQueryResponse {
+    #[prost(bytes = "vec", tag = "1")]
+    pub ipc_data: ::prost::alloc::vec::Vec<u8>,
+    #[prost(message, optional, tag = "2")]
+    pub metadata: ::core::option::Option<QueryExecutionMetadata>,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct CancelQueryRequest {
+    #[prost(string, tag = "1")]
+    pub query_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct CancelQueryResponse {
+    #[prost(bool, tag = "1")]
+    pub cancelled: bool,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ExplainQueryRequest {
+    #[prost(string, tag = "1")]
+    pub sql: ::prost::alloc::string::String,
+    #[prost(bool, tag = "2")]
+    pub analyze: bool,
+    #[prost(uint32, tag = "3")]
+    pub max_rows: u32,
+}
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct PlanNodeMetrics {
+    #[prost(uint64, optional, tag = "1")]
+    pub output_rows: ::core::option::Option<u64>,
+    #[prost(double, optional, tag = "2")]
+    pub elapsed_ms: ::core::option::Option<f64>,
+    #[prost(uint64, optional, tag = "3")]
+    pub bytes_scanned: ::core::option::Option<u64>,
+    #[prost(uint64, optional, tag = "4")]
+    pub spill_bytes: ::core::option::Option<u64>,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct PlanNodeField {
+    #[prost(string, tag = "1")]
+    pub key: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub value: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct PlanNode {
+    #[prost(string, tag = "1")]
+    pub node_type: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub description: ::prost::alloc::string::String,
+    #[prost(message, repeated, tag = "3")]
+    pub fields: ::prost::alloc::vec::Vec<PlanNodeField>,
+    #[prost(message, repeated, tag = "4")]
+    pub children: ::prost::alloc::vec::Vec<PlanNode>,
+    #[prost(message, optional, tag = "5")]
+    pub metrics: ::core::option::Option<PlanNodeMetrics>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ExplainQueryResponse {
+    #[prost(message, optional, tag = "1")]
+    pub logical_plan: ::core::option::Option<PlanNode>,
+    #[prost(message, optional, tag = "2")]
+    pub physical_plan: ::core::option::Option<PlanNode>,
+    #[prost(string, tag = "3")]
+    pub logical_plan_text: ::prost::alloc::string::String,
+    #[prost(string, tag = "4")]
+    pub physical_plan_text: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "5")]
+    pub execution_metadata: ::core::option::Option<QueryExecutionMetadata>,
+}
 /// Generated client implementations.
 pub mod message_service_client {
     #![allow(
@@ -1116,6 +1332,215 @@ pub mod dataset_service_client {
                 );
             self.inner.unary(req, path, codec).await
         }
+        /// ── Catalog Browser ───────────────────────────────────────────────
+        pub async fn list_catalogs(
+            &mut self,
+            request: impl tonic::IntoRequest<super::ListCatalogsRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ListCatalogsResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/scouter.grpc.v1.DatasetService/ListCatalogs",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new("scouter.grpc.v1.DatasetService", "ListCatalogs"),
+                );
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn list_schemas(
+            &mut self,
+            request: impl tonic::IntoRequest<super::ListSchemasRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ListSchemasResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/scouter.grpc.v1.DatasetService/ListSchemas",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new("scouter.grpc.v1.DatasetService", "ListSchemas"),
+                );
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn list_tables(
+            &mut self,
+            request: impl tonic::IntoRequest<super::ListTablesRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ListTablesResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/scouter.grpc.v1.DatasetService/ListTables",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("scouter.grpc.v1.DatasetService", "ListTables"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn get_table_detail(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetTableDetailRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::GetTableDetailResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/scouter.grpc.v1.DatasetService/GetTableDetail",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new("scouter.grpc.v1.DatasetService", "GetTableDetail"),
+                );
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn preview_table(
+            &mut self,
+            request: impl tonic::IntoRequest<super::PreviewTableRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::PreviewTableResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/scouter.grpc.v1.DatasetService/PreviewTable",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new("scouter.grpc.v1.DatasetService", "PreviewTable"),
+                );
+            self.inner.unary(req, path, codec).await
+        }
+        /// ── Enhanced Query Execution ──────────────────────────────────────
+        pub async fn execute_query(
+            &mut self,
+            request: impl tonic::IntoRequest<super::ExecuteQueryRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ExecuteQueryResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/scouter.grpc.v1.DatasetService/ExecuteQuery",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new("scouter.grpc.v1.DatasetService", "ExecuteQuery"),
+                );
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn cancel_query(
+            &mut self,
+            request: impl tonic::IntoRequest<super::CancelQueryRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::CancelQueryResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/scouter.grpc.v1.DatasetService/CancelQuery",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new("scouter.grpc.v1.DatasetService", "CancelQuery"),
+                );
+            self.inner.unary(req, path, codec).await
+        }
+        /// ── Query Plan ────────────────────────────────────────────────────
+        pub async fn explain_query(
+            &mut self,
+            request: impl tonic::IntoRequest<super::ExplainQueryRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ExplainQueryResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/scouter.grpc.v1.DatasetService/ExplainQuery",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new("scouter.grpc.v1.DatasetService", "ExplainQuery"),
+                );
+            self.inner.unary(req, path, codec).await
+        }
     }
 }
 /// Generated server implementations.
@@ -1164,6 +1589,65 @@ pub mod dataset_service_server {
             request: tonic::Request<super::DescribeDatasetRequest>,
         ) -> std::result::Result<
             tonic::Response<super::DescribeDatasetResponse>,
+            tonic::Status,
+        >;
+        /// ── Catalog Browser ───────────────────────────────────────────────
+        async fn list_catalogs(
+            &self,
+            request: tonic::Request<super::ListCatalogsRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ListCatalogsResponse>,
+            tonic::Status,
+        >;
+        async fn list_schemas(
+            &self,
+            request: tonic::Request<super::ListSchemasRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ListSchemasResponse>,
+            tonic::Status,
+        >;
+        async fn list_tables(
+            &self,
+            request: tonic::Request<super::ListTablesRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ListTablesResponse>,
+            tonic::Status,
+        >;
+        async fn get_table_detail(
+            &self,
+            request: tonic::Request<super::GetTableDetailRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::GetTableDetailResponse>,
+            tonic::Status,
+        >;
+        async fn preview_table(
+            &self,
+            request: tonic::Request<super::PreviewTableRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::PreviewTableResponse>,
+            tonic::Status,
+        >;
+        /// ── Enhanced Query Execution ──────────────────────────────────────
+        async fn execute_query(
+            &self,
+            request: tonic::Request<super::ExecuteQueryRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ExecuteQueryResponse>,
+            tonic::Status,
+        >;
+        async fn cancel_query(
+            &self,
+            request: tonic::Request<super::CancelQueryRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::CancelQueryResponse>,
+            tonic::Status,
+        >;
+        /// ── Query Plan ────────────────────────────────────────────────────
+        async fn explain_query(
+            &self,
+            request: tonic::Request<super::ExplainQueryRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ExplainQueryResponse>,
             tonic::Status,
         >;
     }
@@ -1455,6 +1939,367 @@ pub mod dataset_service_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = DescribeDatasetSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/scouter.grpc.v1.DatasetService/ListCatalogs" => {
+                    #[allow(non_camel_case_types)]
+                    struct ListCatalogsSvc<T: DatasetService>(pub Arc<T>);
+                    impl<
+                        T: DatasetService,
+                    > tonic::server::UnaryService<super::ListCatalogsRequest>
+                    for ListCatalogsSvc<T> {
+                        type Response = super::ListCatalogsResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::ListCatalogsRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as DatasetService>::list_catalogs(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = ListCatalogsSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/scouter.grpc.v1.DatasetService/ListSchemas" => {
+                    #[allow(non_camel_case_types)]
+                    struct ListSchemasSvc<T: DatasetService>(pub Arc<T>);
+                    impl<
+                        T: DatasetService,
+                    > tonic::server::UnaryService<super::ListSchemasRequest>
+                    for ListSchemasSvc<T> {
+                        type Response = super::ListSchemasResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::ListSchemasRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as DatasetService>::list_schemas(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = ListSchemasSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/scouter.grpc.v1.DatasetService/ListTables" => {
+                    #[allow(non_camel_case_types)]
+                    struct ListTablesSvc<T: DatasetService>(pub Arc<T>);
+                    impl<
+                        T: DatasetService,
+                    > tonic::server::UnaryService<super::ListTablesRequest>
+                    for ListTablesSvc<T> {
+                        type Response = super::ListTablesResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::ListTablesRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as DatasetService>::list_tables(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = ListTablesSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/scouter.grpc.v1.DatasetService/GetTableDetail" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetTableDetailSvc<T: DatasetService>(pub Arc<T>);
+                    impl<
+                        T: DatasetService,
+                    > tonic::server::UnaryService<super::GetTableDetailRequest>
+                    for GetTableDetailSvc<T> {
+                        type Response = super::GetTableDetailResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::GetTableDetailRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as DatasetService>::get_table_detail(&inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetTableDetailSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/scouter.grpc.v1.DatasetService/PreviewTable" => {
+                    #[allow(non_camel_case_types)]
+                    struct PreviewTableSvc<T: DatasetService>(pub Arc<T>);
+                    impl<
+                        T: DatasetService,
+                    > tonic::server::UnaryService<super::PreviewTableRequest>
+                    for PreviewTableSvc<T> {
+                        type Response = super::PreviewTableResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::PreviewTableRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as DatasetService>::preview_table(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = PreviewTableSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/scouter.grpc.v1.DatasetService/ExecuteQuery" => {
+                    #[allow(non_camel_case_types)]
+                    struct ExecuteQuerySvc<T: DatasetService>(pub Arc<T>);
+                    impl<
+                        T: DatasetService,
+                    > tonic::server::UnaryService<super::ExecuteQueryRequest>
+                    for ExecuteQuerySvc<T> {
+                        type Response = super::ExecuteQueryResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::ExecuteQueryRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as DatasetService>::execute_query(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = ExecuteQuerySvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/scouter.grpc.v1.DatasetService/CancelQuery" => {
+                    #[allow(non_camel_case_types)]
+                    struct CancelQuerySvc<T: DatasetService>(pub Arc<T>);
+                    impl<
+                        T: DatasetService,
+                    > tonic::server::UnaryService<super::CancelQueryRequest>
+                    for CancelQuerySvc<T> {
+                        type Response = super::CancelQueryResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::CancelQueryRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as DatasetService>::cancel_query(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = CancelQuerySvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/scouter.grpc.v1.DatasetService/ExplainQuery" => {
+                    #[allow(non_camel_case_types)]
+                    struct ExplainQuerySvc<T: DatasetService>(pub Arc<T>);
+                    impl<
+                        T: DatasetService,
+                    > tonic::server::UnaryService<super::ExplainQueryRequest>
+                    for ExplainQuerySvc<T> {
+                        type Response = super::ExplainQueryResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::ExplainQueryRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as DatasetService>::explain_query(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = ExplainQuerySvc(inner);
                         let codec = tonic_prost::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

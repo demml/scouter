@@ -19,9 +19,13 @@ use scouter_settings::ObjectStorageSettings;
 use scouter_sql::sql::schema::User;
 #[cfg(feature = "server")]
 use scouter_tonic::{
-    AuthService, AuthServiceServer, DatasetInfo, DatasetService, DatasetServiceServer,
-    DescribeDatasetRequest, DescribeDatasetResponse, InsertBatchRequest, InsertBatchResponse,
-    ListDatasetsRequest, ListDatasetsResponse, LoginRequest, LoginResponse, QueryDatasetRequest,
+    AuthService, AuthServiceServer, CancelQueryRequest, CancelQueryResponse, DatasetInfo,
+    DatasetService, DatasetServiceServer, DescribeDatasetRequest, DescribeDatasetResponse,
+    ExecuteQueryRequest, ExecuteQueryResponse, ExplainQueryRequest, ExplainQueryResponse,
+    GetTableDetailRequest, GetTableDetailResponse, InsertBatchRequest, InsertBatchResponse,
+    ListCatalogsRequest, ListCatalogsResponse, ListDatasetsRequest, ListDatasetsResponse,
+    ListSchemasRequest, ListSchemasResponse, ListTablesRequest, ListTablesResponse, LoginRequest,
+    LoginResponse, PreviewTableRequest, PreviewTableResponse, QueryDatasetRequest,
     QueryDatasetResponse, RefreshTokenRequest, RefreshTokenResponse, RegisterDatasetRequest,
     RegisterDatasetResponse, ValidateTokenRequest, ValidateTokenResponse,
 };
@@ -355,6 +359,62 @@ impl DatasetService for MockDatasetGrpcService {
             info: Some(info),
             arrow_schema_json: registration.arrow_schema_json,
         }))
+    }
+
+    async fn list_catalogs(
+        &self,
+        _request: Request<ListCatalogsRequest>,
+    ) -> Result<Response<ListCatalogsResponse>, Status> {
+        Err(Status::unimplemented("Not implemented in mock"))
+    }
+
+    async fn list_schemas(
+        &self,
+        _request: Request<ListSchemasRequest>,
+    ) -> Result<Response<ListSchemasResponse>, Status> {
+        Err(Status::unimplemented("Not implemented in mock"))
+    }
+
+    async fn list_tables(
+        &self,
+        _request: Request<ListTablesRequest>,
+    ) -> Result<Response<ListTablesResponse>, Status> {
+        Err(Status::unimplemented("Not implemented in mock"))
+    }
+
+    async fn get_table_detail(
+        &self,
+        _request: Request<GetTableDetailRequest>,
+    ) -> Result<Response<GetTableDetailResponse>, Status> {
+        Err(Status::unimplemented("Not implemented in mock"))
+    }
+
+    async fn preview_table(
+        &self,
+        _request: Request<PreviewTableRequest>,
+    ) -> Result<Response<PreviewTableResponse>, Status> {
+        Err(Status::unimplemented("Not implemented in mock"))
+    }
+
+    async fn execute_query(
+        &self,
+        _request: Request<ExecuteQueryRequest>,
+    ) -> Result<Response<ExecuteQueryResponse>, Status> {
+        Err(Status::unimplemented("Not implemented in mock"))
+    }
+
+    async fn cancel_query(
+        &self,
+        _request: Request<CancelQueryRequest>,
+    ) -> Result<Response<CancelQueryResponse>, Status> {
+        Err(Status::unimplemented("Not implemented in mock"))
+    }
+
+    async fn explain_query(
+        &self,
+        _request: Request<ExplainQueryRequest>,
+    ) -> Result<Response<ExplainQueryResponse>, Status> {
+        Err(Status::unimplemented("Not implemented in mock"))
     }
 }
 
