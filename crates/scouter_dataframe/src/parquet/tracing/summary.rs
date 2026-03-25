@@ -21,7 +21,7 @@ use std::sync::Arc;
 use tokio::sync::oneshot;
 use tokio::sync::{mpsc, RwLock as AsyncRwLock};
 use tokio::time::{interval, Duration};
-use tracing::{error, info};
+use tracing::{debug, error, info, instrument};
 use url::Url;
 
 /// Days from CE epoch to Unix epoch (1970-01-01).
@@ -435,9 +435,9 @@ impl TraceSummaryDBEngine {
             .with_partition_columns(vec![PARTITION_DATE_COL.to_string()])
             .await?;
 
+        let new_provider = updated_table.table_provider().await?;
         self.ctx.deregister_table(SUMMARY_TABLE_NAME)?;
-        self.ctx
-            .register_table(SUMMARY_TABLE_NAME, updated_table.table_provider().await?)?;
+        self.ctx.register_table(SUMMARY_TABLE_NAME, new_provider)?;
         updated_table.update_datafusion_session(&self.ctx.state())?;
 
         *table_guard = updated_table;
@@ -500,16 +500,17 @@ impl TraceSummaryDBEngine {
                         current_version,
                         refreshed.version()
                     );
+                    let new_provider = refreshed.table_provider().await?;
                     self.ctx.deregister_table(SUMMARY_TABLE_NAME)?;
-                    self.ctx
-                        .register_table(SUMMARY_TABLE_NAME, refreshed.table_provider().await?)?;
+                    self.ctx.register_table(SUMMARY_TABLE_NAME, new_provider)?;
                     refreshed.update_datafusion_session(&self.ctx.state())?;
                     *table_guard = refreshed;
                 }
             }
             Err(e) => {
                 // Tolerate: empty tables (no log yet), transient network errors.
-                tracing::debug!("Summary table refresh skipped: {}", e);
+                // These are expected on freshly-created tables and do not indicate a bug.
+                debug!("Summary table refresh skipped: {}", e);
             }
         }
         Ok(())
@@ -545,6 +546,7 @@ impl TraceSummaryDBEngine {
         }
     }
 
+    #[instrument(skip_all, name = "summary_engine_actor")]
     pub fn start_actor(
         self,
         compaction_interval_hours: u64,
@@ -564,7 +566,9 @@ impl TraceSummaryDBEngine {
 
             // Refresh ticker: picks up commits from the write pod on shared storage.
             // Every pod must refresh its own in-memory snapshot independently.
-            let mut refresh_ticker = interval(Duration::from_secs(refresh_interval_secs));
+            // Clamp to 1s minimum — tokio::time::interval panics on Duration::ZERO.
+            let mut refresh_ticker =
+                interval(Duration::from_secs(refresh_interval_secs.max(1)));
             refresh_ticker.tick().await; // skip immediate tick
 
             loop {

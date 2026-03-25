@@ -321,9 +321,9 @@ impl TraceSpanDBEngine {
 
         info!("Successfully wrote batch to Delta Lake");
 
+        let new_provider = updated_table.table_provider().await?;
         self.ctx.deregister_table(TRACE_SPAN_TABLE_NAME)?;
-        self.ctx
-            .register_table(TRACE_SPAN_TABLE_NAME, updated_table.table_provider().await?)?;
+        self.ctx.register_table(TRACE_SPAN_TABLE_NAME, new_provider)?;
         // Ensure the table's object store is registered with the DataFusion session
         // so that DeltaScan::scan() can resolve file URLs during query execution.
         updated_table.update_datafusion_session(&self.ctx.state())?;
@@ -493,9 +493,9 @@ impl TraceSpanDBEngine {
                         current_version,
                         refreshed.version()
                     );
+                    let new_provider = refreshed.table_provider().await?;
                     self.ctx.deregister_table(TRACE_SPAN_TABLE_NAME)?;
-                    self.ctx
-                        .register_table(TRACE_SPAN_TABLE_NAME, refreshed.table_provider().await?)?;
+                    self.ctx.register_table(TRACE_SPAN_TABLE_NAME, new_provider)?;
                     refreshed.update_datafusion_session(&self.ctx.state())?;
                     *table_guard = refreshed;
                 }
@@ -529,7 +529,9 @@ impl TraceSpanDBEngine {
             // Refresh ticker: picks up commits from other pods on shared storage.
             // Runs on every process/pod independently — unlike compaction, there is no control-table
             // mutual exclusion here. Every pod must refresh its own in-memory snapshot.
-            let mut refresh_ticker = interval(Duration::from_secs(refresh_interval_secs));
+            // Clamp to 1s minimum — tokio::time::interval panics on Duration::ZERO.
+            let mut refresh_ticker =
+                interval(Duration::from_secs(refresh_interval_secs.max(1)));
             refresh_ticker.tick().await;
 
             loop {
