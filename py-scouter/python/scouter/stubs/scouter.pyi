@@ -4161,7 +4161,7 @@ class EvalDataset:
     def __init__(
         self,
         records: Sequence[EvalRecord],
-        tasks: Sequence[LLMJudgeTask | AssertionTask | TraceAssertionTask |AgentAssertionTask],
+        tasks: Sequence[LLMJudgeTask | AssertionTask | TraceAssertionTask | AgentAssertionTask],
     ):
         """Initialize the EvalDataset with records and tasks.
 
