@@ -519,10 +519,7 @@ impl TraceSpanDBEngine {
         let (tx, mut rx) = mpsc::channel::<TableCommand>(100);
 
         let handle = tokio::spawn(async move {
-            info!(
-                refresh_interval_secs,
-                "TraceSpanDBEngine actor started"
-            );
+            info!(refresh_interval_secs, "TraceSpanDBEngine actor started");
 
             // Poll every 5 minutes — the actual schedule is persisted in the
             // control table's `next_run_at` and survives pod restarts.

@@ -43,9 +43,9 @@ fn test_ipc_bytes() -> Vec<u8> {
             match f.name().as_str() {
                 "score" => Arc::new(Float64Array::from(vec![1.0_f64, 2.0, 3.0])),
                 "label" => Arc::new(StringViewArray::from(vec!["a", "b", "c"])),
-                SCOUTER_CREATED_AT => Arc::new(
-                    TimestampMicrosecondArray::from(vec![ts, ts, ts]).with_timezone("UTC"),
-                ),
+                SCOUTER_CREATED_AT => {
+                    Arc::new(TimestampMicrosecondArray::from(vec![ts, ts, ts]).with_timezone("UTC"))
+                }
                 SCOUTER_PARTITION_DATE => {
                     Arc::new(Date32Array::from(vec![epoch_days, epoch_days, epoch_days]))
                 }

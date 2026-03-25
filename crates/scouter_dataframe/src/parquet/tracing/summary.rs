@@ -556,10 +556,7 @@ impl TraceSummaryDBEngine {
         let (tx, mut rx) = mpsc::channel::<SummaryTableCommand>(100);
 
         let handle = tokio::spawn(async move {
-            info!(
-                refresh_interval_secs,
-                "TraceSummaryDBEngine actor started"
-            );
+            info!(refresh_interval_secs, "TraceSummaryDBEngine actor started");
 
             // Poll every 5 minutes — the actual schedule is in the control table.
             let mut scheduler_ticker = interval(Duration::from_secs(5 * 60));
@@ -2070,23 +2067,15 @@ mod tests {
 
         // "Writer pod" — owns writes; standard refresh interval (not needed on the writer)
         let writer_spans = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
-        let writer = TraceSummaryService::new(
-            &writer_spans.object_store,
-            24,
-            writer_spans.ctx.clone(),
-            10,
-        )
-        .await?;
+        let writer =
+            TraceSummaryService::new(&writer_spans.object_store, 24, writer_spans.ctx.clone(), 10)
+                .await?;
 
         // "Reader pod" — separate ObjectStore + SessionContext; 1s refresh for fast turnaround
         let reader_spans = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
-        let reader = TraceSummaryService::new(
-            &reader_spans.object_store,
-            24,
-            reader_spans.ctx.clone(),
-            1,
-        )
-        .await?;
+        let reader =
+            TraceSummaryService::new(&reader_spans.object_store, 24, reader_spans.ctx.clone(), 1)
+                .await?;
 
         let summary = make_summary([0xDD_u8; 16], "distributed-svc", 0, vec![]);
         writer.write_summaries(vec![summary]).await?;
