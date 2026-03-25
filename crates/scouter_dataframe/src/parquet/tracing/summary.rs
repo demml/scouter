@@ -482,6 +482,39 @@ impl TraceSummaryDBEngine {
         Ok(())
     }
 
+    /// Refresh the in-memory Delta table snapshot from shared object storage.
+    ///
+    /// Runs periodically on every pod so that read pods pick up commits written
+    /// by the write pod. Safety: clones the table before `update_incremental` so a
+    /// failure leaves the original guard intact.
+    async fn refresh_table(&self) -> Result<(), TraceEngineError> {
+        let mut table_guard = self.table.write().await;
+        let current_version = table_guard.version();
+
+        let mut refreshed = table_guard.clone();
+        match refreshed.update_incremental(None).await {
+            Ok(_) => {
+                if refreshed.version() > current_version {
+                    info!(
+                        "Summary table refreshed: v{:?} → v{:?}",
+                        current_version,
+                        refreshed.version()
+                    );
+                    self.ctx.deregister_table(SUMMARY_TABLE_NAME)?;
+                    self.ctx
+                        .register_table(SUMMARY_TABLE_NAME, refreshed.table_provider().await?)?;
+                    refreshed.update_datafusion_session(&self.ctx.state())?;
+                    *table_guard = refreshed;
+                }
+            }
+            Err(e) => {
+                // Tolerate: empty tables (no log yet), transient network errors.
+                tracing::debug!("Summary table refresh skipped: {}", e);
+            }
+        }
+        Ok(())
+    }
+
     /// Try to claim and run the summary optimize task via the control table.
     async fn try_run_optimize(&self, interval_hours: u64) {
         match self.control.try_claim_task(TASK_SUMMARY_OPTIMIZE).await {
@@ -515,6 +548,7 @@ impl TraceSummaryDBEngine {
     pub fn start_actor(
         self,
         compaction_interval_hours: u64,
+        refresh_interval_secs: u64,
     ) -> (
         mpsc::Sender<SummaryTableCommand>,
         tokio::task::JoinHandle<()>,
@@ -522,9 +556,19 @@ impl TraceSummaryDBEngine {
         let (tx, mut rx) = mpsc::channel::<SummaryTableCommand>(100);
 
         let handle = tokio::spawn(async move {
+            info!(
+                refresh_interval_secs,
+                "TraceSummaryDBEngine actor started"
+            );
+
             // Poll every 5 minutes — the actual schedule is in the control table.
             let mut scheduler_ticker = interval(Duration::from_secs(5 * 60));
             scheduler_ticker.tick().await; // skip immediate tick
+
+            // Refresh ticker: picks up commits from the write pod on shared storage.
+            // Every pod must refresh its own in-memory snapshot independently.
+            let mut refresh_ticker = interval(Duration::from_secs(refresh_interval_secs));
+            refresh_ticker.tick().await; // skip immediate tick
 
             loop {
                 tokio::select! {
@@ -558,6 +602,11 @@ impl TraceSummaryDBEngine {
                     _ = scheduler_ticker.tick() => {
                         self.try_run_optimize(compaction_interval_hours).await;
                     }
+                    _ = refresh_ticker.tick() => {
+                        if let Err(e) = self.refresh_table().await {
+                            error!("Summary table refresh failed: {}", e);
+                        }
+                    }
                 }
             }
         });
@@ -579,10 +628,12 @@ impl TraceSummaryService {
         object_store: &ObjectStore,
         compaction_interval_hours: u64,
         ctx: Arc<SessionContext>,
+        refresh_interval_secs: u64,
     ) -> Result<Self, TraceEngineError> {
         let engine = TraceSummaryDBEngine::new(object_store, ctx).await?;
         let engine_ctx = engine.ctx.clone();
-        let (engine_tx, engine_handle) = engine.start_actor(compaction_interval_hours);
+        let (engine_tx, engine_handle) =
+            engine.start_actor(compaction_interval_hours, refresh_interval_secs);
 
         Ok(TraceSummaryService {
             engine_tx,
@@ -1358,7 +1409,7 @@ mod tests {
         let storage_settings = ObjectStorageSettings::default();
         let object_store = make_test_object_store(&storage_settings);
         let ctx = make_test_ctx(&object_store);
-        let service = TraceSummaryService::new(&object_store, 24, ctx).await?;
+        let service = TraceSummaryService::new(&object_store, 24, ctx, 10).await?;
 
         let s1 = make_summary([1u8; 16], "svc_a", 0, vec![]);
         let s2 = make_summary([2u8; 16], "svc_b", 0, vec![]);
@@ -1403,7 +1454,7 @@ mod tests {
         let storage_settings = ObjectStorageSettings::default();
         let object_store = make_test_object_store(&storage_settings);
         let ctx = make_test_ctx(&object_store);
-        let service = TraceSummaryService::new(&object_store, 24, ctx).await?;
+        let service = TraceSummaryService::new(&object_store, 24, ctx, 10).await?;
 
         let ok_summary = make_summary([3u8; 16], "svc", 0, vec![]);
         let err_summary = make_summary([4u8; 16], "svc", 2, vec![]);
@@ -1482,7 +1533,7 @@ mod tests {
         let storage_settings = ObjectStorageSettings::default();
         let object_store = make_test_object_store(&storage_settings);
         let ctx = make_test_ctx(&object_store);
-        let service = TraceSummaryService::new(&object_store, 24, ctx).await?;
+        let service = TraceSummaryService::new(&object_store, 24, ctx, 10).await?;
 
         let s_alpha = make_summary([5u8; 16], "alpha_service", 0, vec![]);
         let s_beta = make_summary([6u8; 16], "beta_service", 0, vec![]);
@@ -1533,7 +1584,7 @@ mod tests {
         let storage_settings = ObjectStorageSettings::default();
         let object_store = make_test_object_store(&storage_settings);
         let ctx = make_test_ctx(&object_store);
-        let service = TraceSummaryService::new(&object_store, 24, ctx).await?;
+        let service = TraceSummaryService::new(&object_store, 24, ctx, 10).await?;
 
         let wanted_id = TraceId::from_bytes([7u8; 16]);
         let unwanted_id = TraceId::from_bytes([8u8; 16]);
@@ -1590,7 +1641,7 @@ mod tests {
         let storage_settings = ObjectStorageSettings::default();
         let object_store = make_test_object_store(&storage_settings);
         let ctx = make_test_ctx(&object_store);
-        let service = TraceSummaryService::new(&object_store, 24, ctx).await?;
+        let service = TraceSummaryService::new(&object_store, 24, ctx, 10).await?;
 
         let now = Utc::now();
         let summaries: Vec<TraceSummaryRecord> = (0u8..100)
@@ -1658,7 +1709,7 @@ mod tests {
 
         // TraceSummaryService shares the same ctx — JOIN to trace_spans will work
         let summary_service =
-            TraceSummaryService::new(&span_service.object_store, 24, shared_ctx).await?;
+            TraceSummaryService::new(&span_service.object_store, 24, shared_ctx, 10).await?;
 
         let now = Utc::now();
         let kafka_trace = TraceId::from_bytes([70u8; 16]);
@@ -1740,7 +1791,7 @@ mod tests {
 
         // TraceSummaryService shares the same ctx so JOIN path works
         let summary_service =
-            TraceSummaryService::new(&span_service.object_store, 24, shared_ctx).await?;
+            TraceSummaryService::new(&span_service.object_store, 24, shared_ctx, 10).await?;
 
         let now = Utc::now();
         let queue_trace = TraceId::from_bytes([90u8; 16]);
@@ -1878,7 +1929,7 @@ mod tests {
         let storage_settings = ObjectStorageSettings::default();
         let object_store = make_test_object_store(&storage_settings);
         let ctx = make_test_ctx(&object_store);
-        let service = TraceSummaryService::new(&object_store, 24, ctx).await?;
+        let service = TraceSummaryService::new(&object_store, 24, ctx, 10).await?;
 
         let attrs = vec![Attribute {
             key: "cloud.region".to_string(),
@@ -1932,7 +1983,7 @@ mod tests {
         let storage_settings = ObjectStorageSettings::default();
         let object_store = make_test_object_store(&storage_settings);
         let ctx = make_test_ctx(&object_store);
-        let service = TraceSummaryService::new(&object_store, 24, ctx).await?;
+        let service = TraceSummaryService::new(&object_store, 24, ctx, 10).await?;
 
         let start = Utc::now() - chrono::Duration::hours(1);
         let end = Utc::now() + chrono::Duration::hours(1);
@@ -1984,6 +2035,96 @@ mod tests {
 
         service.shutdown().await?;
         cleanup();
+        Ok(())
+    }
+
+    /// Simulate a 2-pod deployment: writer pod commits summaries, reader pod picks them
+    /// up via the refresh ticker.
+    ///
+    /// Both pods share the same local storage directory (equivalent to a shared GCS/S3
+    /// bucket in production). Each pod has its own `ObjectStore` + `SessionContext` — there
+    /// is no shared memory. The reader's refresh ticker (1s interval) calls
+    /// `update_incremental()`, detects the new Delta log entry, and re-registers the
+    /// `SessionContext` so subsequent queries return fresh data.
+    ///
+    /// We build each pod by creating a `TraceSpanService` first (which sets up the
+    /// `ObjectStore` + `SessionContext` correctly) and then attaching a `TraceSummaryService`
+    /// on top — the same pattern used in server setup. Using `make_test_ctx()` alone is
+    /// insufficient because it does not register the object-store URL scheme that the Delta
+    /// log uses for Parquet file paths, causing a "Failed to fetch metadata" error at query time.
+    #[tokio::test]
+    async fn test_distributed_refresh() -> Result<(), TraceEngineError> {
+        use crate::parquet::tracing::service::TraceSpanService;
+
+        // Use a unique storage dir to avoid racing with service::tests::test_distributed_refresh,
+        // which also uses scouter_storage and runs concurrently in the same binary.
+        let storage_settings = ObjectStorageSettings {
+            storage_uri: "./scouter_storage_summary_dist".to_string(),
+            ..ObjectStorageSettings::default()
+        };
+        let current_dir = std::env::current_dir().unwrap();
+        let storage_path = current_dir.join(storage_settings.storage_root());
+        if storage_path.exists() {
+            let _ = std::fs::remove_dir_all(&storage_path);
+        }
+
+        // "Writer pod" — owns writes; standard refresh interval (not needed on the writer)
+        let writer_spans = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+        let writer = TraceSummaryService::new(
+            &writer_spans.object_store,
+            24,
+            writer_spans.ctx.clone(),
+            10,
+        )
+        .await?;
+
+        // "Reader pod" — separate ObjectStore + SessionContext; 1s refresh for fast turnaround
+        let reader_spans = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+        let reader = TraceSummaryService::new(
+            &reader_spans.object_store,
+            24,
+            reader_spans.ctx.clone(),
+            1,
+        )
+        .await?;
+
+        let summary = make_summary([0xDD_u8; 16], "distributed-svc", 0, vec![]);
+        writer.write_summaries(vec![summary]).await?;
+
+        // Wait for the reader's refresh ticker to fire (1s interval + margin)
+        tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+
+        let start = Utc::now() - chrono::Duration::hours(1);
+        let end = Utc::now() + chrono::Duration::hours(1);
+        let filters = TraceFilters {
+            service_name: Some("distributed-svc".to_string()),
+            has_errors: None,
+            status_code: None,
+            start_time: Some(start),
+            end_time: Some(end),
+            limit: Some(25),
+            cursor_start_time: None,
+            cursor_trace_id: None,
+            direction: None,
+            attribute_filters: None,
+            trace_ids: None,
+            entity_uid: None,
+            queue_uid: None,
+        };
+
+        let response = reader.query_service.get_paginated_traces(&filters).await?;
+        assert!(
+            !response.items.is_empty(),
+            "Reader pod should see summaries written by writer pod after refresh"
+        );
+
+        writer.shutdown().await?;
+        reader.shutdown().await?;
+        writer_spans.shutdown().await?;
+        reader_spans.shutdown().await?;
+        if storage_path.exists() {
+            let _ = std::fs::remove_dir_all(&storage_path);
+        }
         Ok(())
     }
 }

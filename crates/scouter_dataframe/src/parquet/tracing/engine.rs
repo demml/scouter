@@ -488,8 +488,8 @@ impl TraceSpanDBEngine {
         match refreshed.update_incremental(None).await {
             Ok(_) => {
                 if refreshed.version() > current_version {
-                    debug!(
-                        "Table refreshed: v{:?} → v{:?}",
+                    info!(
+                        "Span table refreshed: v{:?} → v{:?}",
                         current_version,
                         refreshed.version()
                     );
@@ -519,6 +519,11 @@ impl TraceSpanDBEngine {
         let (tx, mut rx) = mpsc::channel::<TableCommand>(100);
 
         let handle = tokio::spawn(async move {
+            info!(
+                refresh_interval_secs,
+                "TraceSpanDBEngine actor started"
+            );
+
             // Poll every 5 minutes — the actual schedule is persisted in the
             // control table's `next_run_at` and survives pod restarts.
             let mut scheduler_ticker = interval(Duration::from_secs(5 * 60));
