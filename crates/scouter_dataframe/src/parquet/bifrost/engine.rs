@@ -252,16 +252,20 @@ impl DatasetEngine {
             .with_partition_columns(self.partition_columns.clone())
             .await?;
 
+        // Compute the new provider once — reused for both write_ctx and catalog swap.
+        // This avoids a second async call and ensures the write_ctx update cannot
+        // leave the context in a torn state if table_provider() fails.
+        let new_provider = updated_table.table_provider().await?;
+
         // Update private write context
         let write_name = Self::write_table_name(&self.namespace);
         let _ = self.write_ctx.deregister_table(&write_name);
         self.write_ctx
-            .register_table(&write_name, updated_table.table_provider().await?)?;
+            .register_table(&write_name, Arc::clone(&new_provider))?;
         updated_table.update_datafusion_session(&self.write_ctx.state())?;
 
         // Update shared catalog — atomic TableProvider swap
-        let provider = updated_table.table_provider().await?;
-        self.catalog_provider.swap_table(&self.namespace, provider);
+        self.catalog_provider.swap_table(&self.namespace, new_provider);
 
         *table_guard = updated_table;
 
@@ -360,18 +364,17 @@ impl DatasetEngine {
                         refreshed.version()
                     );
 
-                    let write_name = Self::write_table_name(&self.namespace);
-                    let _ = self.write_ctx.deregister_table(&write_name);
-                    if let Ok(provider) = refreshed.table_provider().await {
-                        self.write_ctx.register_table(&write_name, provider)?;
+                    // Compute provider first — only deregister/re-register if it succeeds,
+                    // so the write_ctx is never left in a torn (no table registered) state.
+                    if let Ok(new_provider) = refreshed.table_provider().await {
+                        let write_name = Self::write_table_name(&self.namespace);
+                        let _ = self.write_ctx.deregister_table(&write_name);
+                        self.write_ctx
+                            .register_table(&write_name, Arc::clone(&new_provider))?;
+                        refreshed.update_datafusion_session(&self.write_ctx.state())?;
+                        self.catalog_provider.swap_table(&self.namespace, new_provider);
+                        *table_guard = refreshed;
                     }
-                    refreshed.update_datafusion_session(&self.write_ctx.state())?;
-
-                    if let Ok(provider) = refreshed.table_provider().await {
-                        self.catalog_provider.swap_table(&self.namespace, provider);
-                    }
-
-                    *table_guard = refreshed;
                 }
             }
             Err(e) => {
@@ -391,7 +394,8 @@ impl DatasetEngine {
         let (tx, mut rx) = mpsc::channel::<TableCommand>(50);
 
         let handle = tokio::spawn(async move {
-            let mut refresh_ticker = interval(Duration::from_secs(refresh_interval_secs));
+            // Clamp to 1s minimum — tokio::time::interval panics on Duration::ZERO.
+            let mut refresh_ticker = interval(Duration::from_secs(refresh_interval_secs.max(1)));
             refresh_ticker.tick().await; // skip immediate
 
             loop {

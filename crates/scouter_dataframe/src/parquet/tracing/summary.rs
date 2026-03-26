@@ -1,5 +1,6 @@
 use crate::error::TraceEngineError;
 use crate::parquet::control::{get_pod_id, ControlTableEngine};
+use crate::parquet::tracing::catalog::TraceCatalogProvider;
 use crate::parquet::tracing::traits::{arrow_schema_to_delta, resource_attribute_field};
 use crate::parquet::utils::match_attr_expr;
 use crate::parquet::utils::register_cloud_logstore_factories;
@@ -366,28 +367,31 @@ pub struct TraceSummaryDBEngine {
     schema: Arc<Schema>,
     table: Arc<AsyncRwLock<DeltaTable>>,
     pub ctx: Arc<SessionContext>,
+    /// Shared atomic catalog — calls `swap()` to update the summary `TableProvider`
+    /// without a deregister/register gap visible to concurrent readers.
+    catalog: Arc<TraceCatalogProvider>,
     control: ControlTableEngine,
 }
 
 impl TraceSummaryDBEngine {
-    /// Create a new `TraceSummaryDBEngine` using the provided shared `SessionContext`.
+    /// Create a new `TraceSummaryDBEngine` using the provided shared `SessionContext` and catalog.
     ///
-    /// The caller is responsible for passing a `SessionContext` that already has the object-store
-    /// backend configured (e.g. the one from `TraceSpanDBEngine`). This ensures both
-    /// `trace_spans` and `trace_summaries` live in the same context and can participate in
-    /// JOIN queries.
+    /// The caller is responsible for passing the `SessionContext` and `TraceCatalogProvider`
+    /// created by `TraceSpanDBEngine::new()`. This ensures both `trace_spans` and
+    /// `trace_summaries` share the same context and atomic DashMap-backed catalog.
     pub async fn new(
         object_store: &ObjectStore,
         ctx: Arc<SessionContext>,
+        catalog: Arc<TraceCatalogProvider>,
     ) -> Result<Self, TraceEngineError> {
         let schema = Arc::new(create_summary_schema());
         let delta_table = build_or_create_summary_table(object_store, schema.clone()).await?;
         // A freshly-created table has no committed Parquet files yet — table_provider()
         // returns an error in that case. Defer registration until the first write.
         if let Ok(provider) = delta_table.table_provider().await {
-            ctx.register_table(SUMMARY_TABLE_NAME, provider)?;
+            catalog.swap(SUMMARY_TABLE_NAME, provider);
         } else {
-            info!("Empty summary table at init — deferring SessionContext registration until first write");
+            info!("Empty summary table at init — deferring catalog registration until first write");
         }
 
         let control = ControlTableEngine::new(object_store, get_pod_id()).await?;
@@ -396,6 +400,7 @@ impl TraceSummaryDBEngine {
             schema,
             table: Arc::new(AsyncRwLock::new(delta_table)),
             ctx,
+            catalog,
             control,
         })
     }
@@ -436,8 +441,8 @@ impl TraceSummaryDBEngine {
             .await?;
 
         let new_provider = updated_table.table_provider().await?;
-        self.ctx.deregister_table(SUMMARY_TABLE_NAME)?;
-        self.ctx.register_table(SUMMARY_TABLE_NAME, new_provider)?;
+        // Atomic single-step swap — no deregister/register gap where queries see "not found".
+        self.catalog.swap(SUMMARY_TABLE_NAME, new_provider);
         updated_table.update_datafusion_session(&self.ctx.state())?;
 
         *table_guard = updated_table;
@@ -457,9 +462,8 @@ impl TraceSummaryDBEngine {
             ]))
             .await?;
 
-        self.ctx.deregister_table(SUMMARY_TABLE_NAME)?;
-        self.ctx
-            .register_table(SUMMARY_TABLE_NAME, updated_table.table_provider().await?)?;
+        self.catalog
+            .swap(SUMMARY_TABLE_NAME, updated_table.table_provider().await?);
         updated_table.update_datafusion_session(&self.ctx.state())?;
         *table_guard = updated_table;
         Ok(())
@@ -474,9 +478,8 @@ impl TraceSummaryDBEngine {
             .with_enforce_retention_duration(false)
             .await?;
 
-        self.ctx.deregister_table(SUMMARY_TABLE_NAME)?;
-        self.ctx
-            .register_table(SUMMARY_TABLE_NAME, updated_table.table_provider().await?)?;
+        self.catalog
+            .swap(SUMMARY_TABLE_NAME, updated_table.table_provider().await?);
         updated_table.update_datafusion_session(&self.ctx.state())?;
         *table_guard = updated_table;
         Ok(())
@@ -501,8 +504,8 @@ impl TraceSummaryDBEngine {
                         refreshed.version()
                     );
                     let new_provider = refreshed.table_provider().await?;
-                    self.ctx.deregister_table(SUMMARY_TABLE_NAME)?;
-                    self.ctx.register_table(SUMMARY_TABLE_NAME, new_provider)?;
+                    // Atomic swap — no gap between deregister and register.
+                    self.catalog.swap(SUMMARY_TABLE_NAME, new_provider);
                     refreshed.update_datafusion_session(&self.ctx.state())?;
                     *table_guard = refreshed;
                 }
@@ -629,9 +632,10 @@ impl TraceSummaryService {
         object_store: &ObjectStore,
         compaction_interval_hours: u64,
         ctx: Arc<SessionContext>,
+        catalog: Arc<TraceCatalogProvider>,
         refresh_interval_secs: u64,
     ) -> Result<Self, TraceEngineError> {
-        let engine = TraceSummaryDBEngine::new(object_store, ctx).await?;
+        let engine = TraceSummaryDBEngine::new(object_store, ctx, catalog).await?;
         let engine_ctx = engine.ctx.clone();
         let (engine_tx, engine_handle) =
             engine.start_actor(compaction_interval_hours, refresh_interval_secs);
@@ -1367,10 +1371,29 @@ mod tests {
         ObjectStore::new(storage_settings).unwrap()
     }
 
-    /// Build a standalone SessionContext for test use (no trace_spans registered).
-    /// Attribute-filter paths that need trace_spans are not exercised in these tests.
+    /// Build a standalone `SessionContext` for test use with the scouter_tracing catalog
+    /// configured as the default so unqualified table names resolve through our DashMap.
     fn make_test_ctx(object_store: &ObjectStore) -> Arc<SessionContext> {
-        Arc::new(object_store.get_session().unwrap())
+        Arc::new(
+            object_store
+                .get_session_with_catalog(
+                    crate::parquet::tracing::engine::TRACE_CATALOG_NAME,
+                    "default",
+                )
+                .unwrap(),
+        )
+    }
+
+    /// Create a `TraceCatalogProvider`, register it on `ctx`, and return it.
+    /// Call this after `make_test_ctx` to get the catalog for standalone summary tests.
+    fn make_test_catalog(ctx: &Arc<SessionContext>) -> Arc<TraceCatalogProvider> {
+        use datafusion::catalog::CatalogProvider;
+        let catalog = Arc::new(TraceCatalogProvider::new());
+        ctx.register_catalog(
+            crate::parquet::tracing::engine::TRACE_CATALOG_NAME,
+            Arc::clone(&catalog) as Arc<dyn CatalogProvider>,
+        );
+        catalog
     }
 
     fn make_summary(
@@ -1410,7 +1433,8 @@ mod tests {
         let storage_settings = ObjectStorageSettings::default();
         let object_store = make_test_object_store(&storage_settings);
         let ctx = make_test_ctx(&object_store);
-        let service = TraceSummaryService::new(&object_store, 24, ctx, 10).await?;
+        let catalog = make_test_catalog(&ctx);
+        let service = TraceSummaryService::new(&object_store, 24, ctx, catalog, 10).await?;
 
         let s1 = make_summary([1u8; 16], "svc_a", 0, vec![]);
         let s2 = make_summary([2u8; 16], "svc_b", 0, vec![]);
@@ -1455,7 +1479,8 @@ mod tests {
         let storage_settings = ObjectStorageSettings::default();
         let object_store = make_test_object_store(&storage_settings);
         let ctx = make_test_ctx(&object_store);
-        let service = TraceSummaryService::new(&object_store, 24, ctx, 10).await?;
+        let catalog = make_test_catalog(&ctx);
+        let service = TraceSummaryService::new(&object_store, 24, ctx, catalog, 10).await?;
 
         let ok_summary = make_summary([3u8; 16], "svc", 0, vec![]);
         let err_summary = make_summary([4u8; 16], "svc", 2, vec![]);
@@ -1534,7 +1559,8 @@ mod tests {
         let storage_settings = ObjectStorageSettings::default();
         let object_store = make_test_object_store(&storage_settings);
         let ctx = make_test_ctx(&object_store);
-        let service = TraceSummaryService::new(&object_store, 24, ctx, 10).await?;
+        let catalog = make_test_catalog(&ctx);
+        let service = TraceSummaryService::new(&object_store, 24, ctx, catalog, 10).await?;
 
         let s_alpha = make_summary([5u8; 16], "alpha_service", 0, vec![]);
         let s_beta = make_summary([6u8; 16], "beta_service", 0, vec![]);
@@ -1585,7 +1611,8 @@ mod tests {
         let storage_settings = ObjectStorageSettings::default();
         let object_store = make_test_object_store(&storage_settings);
         let ctx = make_test_ctx(&object_store);
-        let service = TraceSummaryService::new(&object_store, 24, ctx, 10).await?;
+        let catalog = make_test_catalog(&ctx);
+        let service = TraceSummaryService::new(&object_store, 24, ctx, catalog, 10).await?;
 
         let wanted_id = TraceId::from_bytes([7u8; 16]);
         let unwanted_id = TraceId::from_bytes([8u8; 16]);
@@ -1642,7 +1669,8 @@ mod tests {
         let storage_settings = ObjectStorageSettings::default();
         let object_store = make_test_object_store(&storage_settings);
         let ctx = make_test_ctx(&object_store);
-        let service = TraceSummaryService::new(&object_store, 24, ctx, 10).await?;
+        let catalog = make_test_catalog(&ctx);
+        let service = TraceSummaryService::new(&object_store, 24, ctx, catalog, 10).await?;
 
         let now = Utc::now();
         let summaries: Vec<TraceSummaryRecord> = (0u8..100)
@@ -1708,9 +1736,15 @@ mod tests {
         let span_service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
         let shared_ctx = span_service.ctx.clone();
 
-        // TraceSummaryService shares the same ctx — JOIN to trace_spans will work
-        let summary_service =
-            TraceSummaryService::new(&span_service.object_store, 24, shared_ctx, 10).await?;
+        // TraceSummaryService shares the same ctx + catalog — JOIN to trace_spans will work
+        let summary_service = TraceSummaryService::new(
+            &span_service.object_store,
+            24,
+            shared_ctx,
+            span_service.catalog.clone(),
+            10,
+        )
+        .await?;
 
         let now = Utc::now();
         let kafka_trace = TraceId::from_bytes([70u8; 16]);
@@ -1790,9 +1824,15 @@ mod tests {
         let span_service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
         let shared_ctx = span_service.ctx.clone();
 
-        // TraceSummaryService shares the same ctx so JOIN path works
-        let summary_service =
-            TraceSummaryService::new(&span_service.object_store, 24, shared_ctx, 10).await?;
+        // TraceSummaryService shares the same ctx + catalog so JOIN path works
+        let summary_service = TraceSummaryService::new(
+            &span_service.object_store,
+            24,
+            shared_ctx,
+            span_service.catalog.clone(),
+            10,
+        )
+        .await?;
 
         let now = Utc::now();
         let queue_trace = TraceId::from_bytes([90u8; 16]);
@@ -1930,7 +1970,8 @@ mod tests {
         let storage_settings = ObjectStorageSettings::default();
         let object_store = make_test_object_store(&storage_settings);
         let ctx = make_test_ctx(&object_store);
-        let service = TraceSummaryService::new(&object_store, 24, ctx, 10).await?;
+        let catalog = make_test_catalog(&ctx);
+        let service = TraceSummaryService::new(&object_store, 24, ctx, catalog, 10).await?;
 
         let attrs = vec![Attribute {
             key: "cloud.region".to_string(),
@@ -1984,7 +2025,8 @@ mod tests {
         let storage_settings = ObjectStorageSettings::default();
         let object_store = make_test_object_store(&storage_settings);
         let ctx = make_test_ctx(&object_store);
-        let service = TraceSummaryService::new(&object_store, 24, ctx, 10).await?;
+        let catalog = make_test_catalog(&ctx);
+        let service = TraceSummaryService::new(&object_store, 24, ctx, catalog, 10).await?;
 
         let start = Utc::now() - chrono::Duration::hours(1);
         let end = Utc::now() + chrono::Duration::hours(1);
@@ -2071,15 +2113,25 @@ mod tests {
 
         // "Writer pod" — owns writes; standard refresh interval (not needed on the writer)
         let writer_spans = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
-        let writer =
-            TraceSummaryService::new(&writer_spans.object_store, 24, writer_spans.ctx.clone(), 10)
-                .await?;
+        let writer = TraceSummaryService::new(
+            &writer_spans.object_store,
+            24,
+            writer_spans.ctx.clone(),
+            writer_spans.catalog.clone(),
+            10,
+        )
+        .await?;
 
         // "Reader pod" — separate ObjectStore + SessionContext; 1s refresh for fast turnaround
         let reader_spans = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
-        let reader =
-            TraceSummaryService::new(&reader_spans.object_store, 24, reader_spans.ctx.clone(), 1)
-                .await?;
+        let reader = TraceSummaryService::new(
+            &reader_spans.object_store,
+            24,
+            reader_spans.ctx.clone(),
+            reader_spans.catalog.clone(),
+            1,
+        )
+        .await?;
 
         let summary = make_summary([0xDD_u8; 16], "distributed-svc", 0, vec![]);
         writer.write_summaries(vec![summary]).await?;

@@ -1,3 +1,4 @@
+pub mod catalog;
 pub mod engine;
 pub mod queries;
 pub mod service;

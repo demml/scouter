@@ -1,10 +1,12 @@
 use crate::error::TraceEngineError;
 use crate::parquet::control::{get_pod_id, ControlTableEngine};
+use crate::parquet::tracing::catalog::TraceCatalogProvider;
 use crate::parquet::tracing::traits::arrow_schema_to_delta;
 use crate::parquet::tracing::traits::attribute_field;
 use crate::parquet::tracing::traits::TraceSchemaExt;
 use crate::parquet::utils::{create_attr_match_udf, register_cloud_logstore_factories};
 use crate::storage::ObjectStore;
+use datafusion::catalog::CatalogProvider;
 use arrow::array::*;
 use arrow::datatypes::*;
 use arrow_array::RecordBatch;
@@ -167,6 +169,15 @@ async fn build_or_create_table(
     }
 }
 
+/// The DataFusion catalog name for the tracing engine.
+///
+/// Both `TraceSpanDBEngine` and `TraceSummaryDBEngine` share a `SessionContext` configured with
+/// this catalog as the default. Unqualified table names in SQL and `ctx.table(name)` calls
+/// resolve through our `TraceCatalogProvider` (DashMap-backed) rather than the built-in
+/// `datafusion.public` catalog, enabling atomic single-step `TableProvider` swaps.
+pub const TRACE_CATALOG_NAME: &str = "scouter_tracing";
+const TRACE_DEFAULT_SCHEMA: &str = "default";
+
 /// Core trace span engine for high-throughput observability workloads.
 ///
 /// Hierarchy fields (depth, span_order, path, root_span_id) are NOT stored — they are
@@ -176,7 +187,10 @@ pub struct TraceSpanDBEngine {
     schema: Arc<Schema>,
     pub object_store: ObjectStore,
     table: Arc<AsyncRwLock<DeltaTable>>,
-    pub ctx: Arc<SessionContext>,
+    ctx: Arc<SessionContext>,
+    /// Shared atomic catalog — both span and summary engines call `swap()` to update their
+    /// respective `TableProvider`s without a deregister/register gap.
+    pub catalog: Arc<TraceCatalogProvider>,
     control: ControlTableEngine,
 }
 
@@ -187,18 +201,29 @@ impl TraceSpanDBEngine {
         let object_store = ObjectStore::new(storage_settings)?;
         let schema = Arc::new(Self::create_schema());
         let delta_table = build_or_create_table(&object_store, schema.clone()).await?;
-        let ctx = object_store.get_session()?;
+
+        // Create the session with our catalog as the default so that unqualified table
+        // names in SQL and ctx.table(name) calls resolve through TraceCatalogProvider's
+        // DashMap rather than the built-in datafusion.public catalog.
+        let ctx = object_store
+            .get_session_with_catalog(TRACE_CATALOG_NAME, TRACE_DEFAULT_SCHEMA)?;
+
+        let catalog = Arc::new(TraceCatalogProvider::new());
+        ctx.register_catalog(
+            TRACE_CATALOG_NAME,
+            Arc::clone(&catalog) as Arc<dyn CatalogProvider>,
+        );
 
         // Register the match_attr UDF so DataFusion plans can use it for search_blob filtering.
         // This must happen before any query is planned — UDFs live on the SessionContext.
         ctx.register_udf(create_attr_match_udf());
 
         // A freshly-created table has no committed Parquet files yet — table_provider()
-        // Defer registration until the first write populates the log.
+        // returns an error in that case. Defer registration until the first write populates the log.
         if let Ok(provider) = delta_table.table_provider().await {
-            ctx.register_table(TRACE_SPAN_TABLE_NAME, provider)?;
+            catalog.swap(TRACE_SPAN_TABLE_NAME, provider);
         } else {
-            info!("Empty table at init — deferring SessionContext registration until first write");
+            info!("Empty table at init — deferring catalog registration until first write");
         }
         let control = ControlTableEngine::new(&object_store, get_pod_id()).await?;
 
@@ -207,8 +232,18 @@ impl TraceSpanDBEngine {
             object_store,
             table: Arc::new(AsyncRwLock::new(delta_table)),
             ctx: Arc::new(ctx),
+            catalog,
             control,
         })
+    }
+
+    /// Returns the shared `SessionContext`.
+    ///
+    /// Needed by `TraceSpanService` to share the context with `TraceSummaryDBEngine` and
+    /// `TraceQueries`. Table registration is done via `catalog.swap()` — callers must not
+    /// call `ctx.deregister_table()` + `ctx.register_table()` directly (torn write).
+    pub fn ctx(&self) -> Arc<SessionContext> {
+        Arc::clone(&self.ctx)
     }
 
     /// Build a RecordBatch from a vector of TraceSpanRecord (raw ingest type, no hierarchy).
@@ -322,8 +357,8 @@ impl TraceSpanDBEngine {
         info!("Successfully wrote batch to Delta Lake");
 
         let new_provider = updated_table.table_provider().await?;
-        self.ctx.deregister_table(TRACE_SPAN_TABLE_NAME)?;
-        self.ctx.register_table(TRACE_SPAN_TABLE_NAME, new_provider)?;
+        // Atomic single-step swap — no deregister/register gap where queries see "not found".
+        self.catalog.swap(TRACE_SPAN_TABLE_NAME, new_provider);
         // Ensure the table's object store is registered with the DataFusion session
         // so that DeltaScan::scan() can resolve file URLs during query execution.
         updated_table.update_datafusion_session(&self.ctx.state())?;
@@ -351,9 +386,8 @@ impl TraceSpanDBEngine {
             .with_writer_properties(Self::build_writer_props())
             .await?;
 
-        self.ctx.deregister_table(TRACE_SPAN_TABLE_NAME)?;
-        self.ctx
-            .register_table(TRACE_SPAN_TABLE_NAME, updated_table.table_provider().await?)?;
+        self.catalog
+            .swap(TRACE_SPAN_TABLE_NAME, updated_table.table_provider().await?);
         updated_table.update_datafusion_session(&self.ctx.state())?;
 
         *table_guard = updated_table;
@@ -371,9 +405,8 @@ impl TraceSpanDBEngine {
             .with_enforce_retention_duration(false)
             .await?;
 
-        self.ctx.deregister_table(TRACE_SPAN_TABLE_NAME)?;
-        self.ctx
-            .register_table(TRACE_SPAN_TABLE_NAME, updated_table.table_provider().await?)?;
+        self.catalog
+            .swap(TRACE_SPAN_TABLE_NAME, updated_table.table_provider().await?);
         updated_table.update_datafusion_session(&self.ctx.state())?;
 
         *table_guard = updated_table;
@@ -406,9 +439,8 @@ impl TraceSpanDBEngine {
             metrics.num_deleted_rows, cutoff_date
         );
 
-        self.ctx.deregister_table(TRACE_SPAN_TABLE_NAME)?;
-        self.ctx
-            .register_table(TRACE_SPAN_TABLE_NAME, updated_table.table_provider().await?)?;
+        self.catalog
+            .swap(TRACE_SPAN_TABLE_NAME, updated_table.table_provider().await?);
         updated_table.update_datafusion_session(&self.ctx.state())?;
 
         *table_guard = updated_table;
@@ -494,8 +526,8 @@ impl TraceSpanDBEngine {
                         refreshed.version()
                     );
                     let new_provider = refreshed.table_provider().await?;
-                    self.ctx.deregister_table(TRACE_SPAN_TABLE_NAME)?;
-                    self.ctx.register_table(TRACE_SPAN_TABLE_NAME, new_provider)?;
+                    // Atomic swap — no gap between deregister and register.
+                    self.catalog.swap(TRACE_SPAN_TABLE_NAME, new_provider);
                     refreshed.update_datafusion_session(&self.ctx.state())?;
                     *table_guard = refreshed;
                 }

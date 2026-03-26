@@ -1,4 +1,5 @@
 use crate::error::TraceEngineError;
+use crate::parquet::tracing::catalog::TraceCatalogProvider;
 use crate::parquet::tracing::engine::{TableCommand, TraceSpanDBEngine};
 use crate::parquet::tracing::queries::TraceQueries;
 use crate::storage::ObjectStore;
@@ -75,8 +76,12 @@ pub struct TraceSpanService {
     engine_handle: tokio::task::JoinHandle<()>,
     buffer_handle: tokio::task::JoinHandle<()>,
     pub query_service: TraceQueries,
-    /// Shared SessionContext — exposes `trace_spans` registration for TraceSummaryService.
+    /// Shared SessionContext — passed to TraceSummaryService so both engines share the same
+    /// context (and thus the same UDF registrations and object-store bindings).
     pub ctx: Arc<SessionContext>,
+    /// Shared catalog — passed to TraceSummaryService so summary engine can call
+    /// `catalog.swap()` for atomic `TableProvider` updates.
+    pub catalog: Arc<TraceCatalogProvider>,
     /// Shared ObjectStore — passed to TraceSummaryService so both engines use the same
     /// CachingStore instance, preventing stale reads on cloud backends (GCS/S3).
     pub object_store: ObjectStore,
@@ -107,7 +112,8 @@ impl TraceSpanService {
             buffer_size
         );
 
-        let ctx = engine.ctx.clone();
+        let ctx = engine.ctx();
+        let catalog = engine.catalog.clone();
         let object_store = engine.object_store.clone();
         let (engine_tx, engine_handle) = engine.start_actor(
             compaction_interval_hours,
@@ -133,6 +139,7 @@ impl TraceSpanService {
             buffer_handle,
             query_service: TraceQueries::new(ctx.clone()),
             ctx,
+            catalog,
             object_store,
         })
     }

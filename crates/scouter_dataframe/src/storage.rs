@@ -154,10 +154,8 @@ impl StorageProvider {
         }
     }
 
-    pub fn get_session(
-        &self,
-        storage_settings: &ObjectStorageSettings,
-    ) -> Result<SessionContext, StorageError> {
+    /// Build the base `SessionConfig` used by all session constructors.
+    fn build_session_config() -> SessionConfig {
         let mut config = SessionConfig::new()
             .with_target_partitions(
                 std::thread::available_parallelism()
@@ -225,6 +223,15 @@ impl StorageProvider {
             .parquet
             .maximum_buffered_record_batches_per_stream = 8;
 
+        config
+    }
+
+    /// Create a `SessionContext` from a config and register the backing object store.
+    fn build_ctx(
+        &self,
+        storage_settings: &ObjectStorageSettings,
+        config: SessionConfig,
+    ) -> Result<SessionContext, StorageError> {
         let ctx = SessionContext::new_with_config(config);
         let base_url = self.get_base_url(storage_settings)?;
 
@@ -244,6 +251,28 @@ impl StorageProvider {
         }
 
         Ok(ctx)
+    }
+
+    pub fn get_session(
+        &self,
+        storage_settings: &ObjectStorageSettings,
+    ) -> Result<SessionContext, StorageError> {
+        let config = Self::build_session_config();
+        self.build_ctx(storage_settings, config)
+    }
+
+    /// Like `get_session()` but sets `catalog_name.schema_name` as the default catalog
+    /// for SQL name resolution. Unqualified table names in queries and `ctx.table(name)`
+    /// calls will resolve through the named catalog instead of the built-in `datafusion.public`.
+    pub fn get_session_with_catalog(
+        &self,
+        storage_settings: &ObjectStorageSettings,
+        catalog_name: &str,
+        schema_name: &str,
+    ) -> Result<SessionContext, StorageError> {
+        let config = Self::build_session_config()
+            .with_default_catalog_and_schema(catalog_name, schema_name);
+        self.build_ctx(storage_settings, config)
     }
 
     /// List files in the object store
@@ -317,6 +346,21 @@ impl ObjectStore {
 
     pub fn get_session(&self) -> Result<SessionContext, StorageError> {
         let ctx = self.provider.get_session(&self.storage_settings)?;
+        Ok(ctx)
+    }
+
+    /// Like `get_session()` but configures `catalog_name.schema_name` as the default catalog
+    /// so unqualified table names in SQL and `ctx.table(name)` resolve through the named catalog.
+    pub fn get_session_with_catalog(
+        &self,
+        catalog_name: &str,
+        schema_name: &str,
+    ) -> Result<SessionContext, StorageError> {
+        let ctx = self.provider.get_session_with_catalog(
+            &self.storage_settings,
+            catalog_name,
+            schema_name,
+        )?;
         Ok(ctx)
     }
 
