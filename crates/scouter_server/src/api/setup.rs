@@ -178,6 +178,8 @@ impl ScouterSetupComponents {
                 &trace_service.object_store,
                 compaction_hours,
                 trace_service.ctx.clone(),
+                trace_service.catalog.clone(),
+                refresh_secs,
             )
             .await
             .context("❌ Failed to initialize TraceSummaryService")?,
