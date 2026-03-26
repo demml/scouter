@@ -570,8 +570,7 @@ impl TraceSummaryDBEngine {
             // Refresh ticker: picks up commits from the write pod on shared storage.
             // Every pod must refresh its own in-memory snapshot independently.
             // Clamp to 1s minimum — tokio::time::interval panics on Duration::ZERO.
-            let mut refresh_ticker =
-                interval(Duration::from_secs(refresh_interval_secs.max(1)));
+            let mut refresh_ticker = interval(Duration::from_secs(refresh_interval_secs.max(1)));
             refresh_ticker.tick().await; // skip immediate tick
 
             loop {

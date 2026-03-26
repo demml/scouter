@@ -6,11 +6,11 @@ use crate::parquet::tracing::traits::attribute_field;
 use crate::parquet::tracing::traits::TraceSchemaExt;
 use crate::parquet::utils::{create_attr_match_udf, register_cloud_logstore_factories};
 use crate::storage::ObjectStore;
-use datafusion::catalog::CatalogProvider;
 use arrow::array::*;
 use arrow::datatypes::*;
 use arrow_array::RecordBatch;
 use chrono::{Datelike, Utc};
+use datafusion::catalog::CatalogProvider;
 use datafusion::prelude::SessionContext;
 use deltalake::datafusion::parquet::basic::{Compression, Encoding, ZstdLevel};
 use deltalake::datafusion::parquet::file::properties::{EnabledStatistics, WriterProperties};
@@ -205,8 +205,8 @@ impl TraceSpanDBEngine {
         // Create the session with our catalog as the default so that unqualified table
         // names in SQL and ctx.table(name) calls resolve through TraceCatalogProvider's
         // DashMap rather than the built-in datafusion.public catalog.
-        let ctx = object_store
-            .get_session_with_catalog(TRACE_CATALOG_NAME, TRACE_DEFAULT_SCHEMA)?;
+        let ctx =
+            object_store.get_session_with_catalog(TRACE_CATALOG_NAME, TRACE_DEFAULT_SCHEMA)?;
 
         let catalog = Arc::new(TraceCatalogProvider::new());
         ctx.register_catalog(
@@ -562,8 +562,7 @@ impl TraceSpanDBEngine {
             // Runs on every process/pod independently — unlike compaction, there is no control-table
             // mutual exclusion here. Every pod must refresh its own in-memory snapshot.
             // Clamp to 1s minimum — tokio::time::interval panics on Duration::ZERO.
-            let mut refresh_ticker =
-                interval(Duration::from_secs(refresh_interval_secs.max(1)));
+            let mut refresh_ticker = interval(Duration::from_secs(refresh_interval_secs.max(1)));
             refresh_ticker.tick().await;
 
             loop {

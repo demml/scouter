@@ -39,10 +39,7 @@ impl SchemaProvider for TraceSchemaProvider {
         self.tables.iter().map(|e| e.key().clone()).collect()
     }
 
-    async fn table(
-        &self,
-        name: &str,
-    ) -> Result<Option<Arc<dyn TableProvider>>, DataFusionError> {
+    async fn table(&self, name: &str) -> Result<Option<Arc<dyn TableProvider>>, DataFusionError> {
         Ok(self.tables.get(name).map(|v| Arc::clone(v.value())))
     }
 

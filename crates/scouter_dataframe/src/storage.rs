@@ -270,8 +270,8 @@ impl StorageProvider {
         catalog_name: &str,
         schema_name: &str,
     ) -> Result<SessionContext, StorageError> {
-        let config = Self::build_session_config()
-            .with_default_catalog_and_schema(catalog_name, schema_name);
+        let config =
+            Self::build_session_config().with_default_catalog_and_schema(catalog_name, schema_name);
         self.build_ctx(storage_settings, config)
     }
 

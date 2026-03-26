@@ -265,7 +265,8 @@ impl DatasetEngine {
         updated_table.update_datafusion_session(&self.write_ctx.state())?;
 
         // Update shared catalog — atomic TableProvider swap
-        self.catalog_provider.swap_table(&self.namespace, new_provider);
+        self.catalog_provider
+            .swap_table(&self.namespace, new_provider);
 
         *table_guard = updated_table;
 
@@ -372,7 +373,8 @@ impl DatasetEngine {
                         self.write_ctx
                             .register_table(&write_name, Arc::clone(&new_provider))?;
                         refreshed.update_datafusion_session(&self.write_ctx.state())?;
-                        self.catalog_provider.swap_table(&self.namespace, new_provider);
+                        self.catalog_provider
+                            .swap_table(&self.namespace, new_provider);
                         *table_guard = refreshed;
                     }
                 }
