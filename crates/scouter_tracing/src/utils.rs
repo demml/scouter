@@ -1,12 +1,13 @@
 use crate::error::TraceError;
 use crate::tracer::ActiveSpan;
 use opentelemetry::global::ObjectSafeSpan;
+use opentelemetry::propagation::{Extractor, Injector};
 use opentelemetry::trace::Status;
 use opentelemetry::trace::{SpanContext, TraceState};
 use opentelemetry::{trace, KeyValue, SpanId, TraceFlags, TraceId};
 use opentelemetry_otlp::ExportConfig as OtlpExportConfig;
 use pyo3::types::PyString;
-use pyo3::types::{PyDict, PyModule, PyTuple};
+use pyo3::types::{PyDict, PyList, PyModule, PyTuple};
 use pyo3::{prelude::*, IntoPyObjectExt};
 use scouter_events::queue::ScouterQueue;
 use scouter_types::is_pydantic_basemodel;
@@ -582,6 +583,21 @@ pub(crate) fn py_obj_to_otel_keyvalue(
                 .cast::<PyDict>()
                 .map_err(|e| TraceError::DowncastError(e.to_string()))?;
             pydict_to_otel_keyvalue(dict)?
+        } else if attrs.is_instance_of::<PyList>() {
+            // Legacy: list of dicts e.g. [{"key": "val"}, ...] — merge into flat KV list
+            let list = attrs
+                .cast::<PyList>()
+                .map_err(|e| TraceError::DowncastError(e.to_string()))?;
+            let mut kvs = Vec::new();
+            for item in list.iter() {
+                if item.is_instance_of::<PyDict>() {
+                    let dict = item
+                        .cast::<PyDict>()
+                        .map_err(|e| TraceError::DowncastError(e.to_string()))?;
+                    kvs.extend(pydict_to_otel_keyvalue(dict)?);
+                }
+            }
+            kvs
         } else {
             return Err(TraceError::EventMustBeDict);
         }
@@ -660,4 +676,38 @@ pub(crate) fn parse_span_kind(kind: Option<&Bound<'_, PyAny>>) -> Result<SpanKin
     Err(TraceError::InvalidSpanKind(
         "Could not extract span kind value".to_string(),
     ))
+}
+
+/// Newtype injector for writing into a `HashMap<String, String>`.
+pub(crate) struct HashMapInjector<'a>(pub &'a mut HashMap<String, String>);
+
+impl Injector for HashMapInjector<'_> {
+    fn set(&mut self, key: &str, value: String) {
+        self.0.insert(key.to_lowercase(), value);
+    }
+}
+
+/// Newtype extractor for reading from a `HashMap<String, String>`.
+/// Checks both the original key and its lowercase variant to handle HTTP/2
+/// header normalisation.
+pub(crate) struct HashMapExtractor<'a>(pub &'a HashMap<String, String>);
+
+impl Extractor for HashMapExtractor<'_> {
+    fn get(&self, key: &str) -> Option<&str> {
+        // Fast path: exact match
+        if let Some(v) = self.0.get(key) {
+            return Some(v.as_str());
+        }
+        // Slow path: case-insensitive scan (handles HTTP/2 header normalisation
+        // where the map may contain "Traceparent" but the propagator asks for "traceparent")
+        let lower = key.to_lowercase();
+        self.0
+            .iter()
+            .find(|(k, _)| k.to_lowercase() == lower)
+            .map(|(_, v)| v.as_str())
+    }
+
+    fn keys(&self) -> Vec<&str> {
+        self.0.keys().map(String::as_str).collect()
+    }
 }

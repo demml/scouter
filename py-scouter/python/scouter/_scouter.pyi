@@ -10657,21 +10657,29 @@ class BaseTracer:
     def start_as_current_span(
         self,
         name: str,
+        context: Optional[Any] = None,
         kind: Optional[SpanKind] = SpanKind.Internal,
-        label: Optional[str] = None,
-        attributes: Optional[List[dict[str, str]]] = None,
+        attributes: Optional[Any] = None,
         baggage: Optional[List[dict[str, str]]] = None,
         tags: Optional[List[dict[str, str]]] = None,
+        label: Optional[str] = None,
         parent_context_id: Optional[str] = None,
         trace_id: Optional[str] = None,
         span_id: Optional[str] = None,
         remote_sampled: Optional[bool] = None,
+        headers: Optional[dict[str, str]] = None,
+        links: Optional[Any] = None,
+        start_time: Optional[int] = None,
+        record_exception: Optional[bool] = None,
+        set_status_on_exception: Optional[bool] = None,
     ) -> ActiveSpan:
         """Context manager to start a new span as the current span.
 
         Args:
             name (str):
                 The name of the span.
+            context (Optional[Any]):
+                OTel Python Context object from auto-instrumentors (StarletteInstrumentor, etc.).
             kind (Optional[SpanKind]):
                 The kind of span (e.g., "SERVER", "CLIENT").
             label (Optional[str]):
@@ -10691,6 +10699,17 @@ class BaseTracer:
                 Optional span ID to associate with the span. This will be the parent span ID.
             remote_sampled (Optional[bool]):
                 Optional flag indicating if the span was sampled remotely.
+            headers (Optional[dict[str, str]]):
+                W3C traceparent/tracestate headers from an upstream service.
+                Takes priority over explicit trace_id/span_id params.
+            links (Optional[Any]):
+                Accepted for OTel compatibility; not yet used.
+            start_time (Optional[int]):
+                Accepted for OTel compatibility; not yet used.
+            record_exception (Optional[bool]):
+                Accepted for OTel compatibility; not yet used.
+            set_status_on_exception (Optional[bool]):
+                Accepted for OTel compatibility; not yet used.
         Returns:
             ActiveSpan:
         """
@@ -11024,6 +11043,14 @@ def disable_local_span_capture() -> None:
 
 def drain_local_span_capture() -> List[TraceSpanRecord]:
     """Drain and return all locally captured spans, clearing the buffer."""
+
+def extract_span_context_from_headers(
+    headers: Dict[str, str],
+) -> Optional[Dict[str, str]]:
+    """Extract span context from W3C traceparent headers (or legacy trace_id/span_id keys).
+
+    Returns a dict with 'trace_id', 'span_id', 'is_sampled' keys, or None if no valid context found.
+    """
 
 ### evaluate.pyi ###
 class EvaluationTaskType:
@@ -19390,6 +19417,7 @@ __all__ = [
     "WriteConfig",
     "WriteLevel",
     "execute_agent_assertion_tasks",
+    "extract_span_context_from_headers",
     "flush_tracer",
     "init_tracer",
     "shutdown_tracer",
