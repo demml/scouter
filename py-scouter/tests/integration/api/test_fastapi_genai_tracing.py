@@ -40,9 +40,8 @@ def test_genai_tracing_api(scouter_grpc_openai_server):
             assert response.status_code == 200
             time.sleep(0.5)
         time.sleep(5)
-        client.wait_shutdown()
 
-    time.sleep(10)
+    time.sleep(20)
 
     request = DriftRequest(
         uid=profile.uid,

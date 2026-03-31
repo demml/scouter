@@ -18,13 +18,6 @@ use std::fmt;
 use std::sync::{Arc, OnceLock};
 use tracing::{error, instrument, warn};
 
-/// Lazy-initialised span exporter.
-///
-/// The connection to the Scouter backend is established on the **first export**,
-/// not at construction time. This ensures that `init_tracer()` (and therefore
-/// any OTel auto-instrumentor that calls `get_tracer()`) never fails due to a
-/// transient backend outage. If the backend is unavailable, spans are dropped
-/// with a warning — consistent with the OTel exporter contract.
 pub struct ScouterSpanExporter {
     transport_config: TransportConfig,
     resource: Resource,
@@ -45,25 +38,13 @@ impl ScouterSpanExporter {
             producer: Arc::new(OnceLock::new()),
         })
     }
-
-    /// Return an `Arc` to the producer, initialising it on first call.
-    ///
-    /// Returns a cloned `Arc` so the caller can move it into a spawned future
-    /// without lifetime conflicts.  If two concurrent exports race to initialise,
-    /// the loser's producer is silently discarded.
-    async fn get_or_init_producer(&self) -> Result<Arc<RustScouterProducer>, TraceError> {
-        if let Some(p) = self.producer.get() {
-            return Ok(p.clone());
-        }
-        let producer = Arc::new(RustScouterProducer::new(self.transport_config.clone()).await?);
-        let _ = self.producer.set(producer); // ignore Err — another task won the race
-        Ok(self.producer.get().expect("producer was just set").clone())
-    }
 }
 
 impl SpanExporter for ScouterSpanExporter {
     #[instrument(name = "ScouterSpanExporter::export", skip_all)]
     async fn export(&self, batch: Vec<SpanData>) -> OTelSdkResult {
+        let producer_lock = self.producer.clone();
+        let transport_config = self.transport_config.clone();
         let resource = self.resource.clone();
 
         // Fast path: local capture buffer (test / debug mode)
@@ -97,40 +78,45 @@ impl SpanExporter for ScouterSpanExporter {
             return Ok(());
         }
 
-        // Lazy-init the producer; drop spans with a warning if backend is unavailable.
-        let producer = match self.get_or_init_producer().await {
-            Ok(p) => p,
-            Err(e) => {
-                warn!(
-                    "ScouterSpanExporter: backend unavailable, dropping {} span(s): {}",
-                    batch.len(),
-                    e
-                );
-                return Ok(());
-            }
-        };
-
         let resource_spans = group_spans_by_resource_and_scope(
             batch,
             &ResourceAttributesWithSchema::from(&resource),
         );
-        let req = ExportTraceServiceRequest { resource_spans };
-        let record = TraceServerRecord { request: req };
-        let message = MessageRecord::TraceServerRecord(record);
+        let message = MessageRecord::TraceServerRecord(TraceServerRecord {
+            request: ExportTraceServiceRequest { resource_spans },
+        });
 
-        // Move both `producer` (Arc clone) and `message` into the spawned future
-        // to satisfy the `'static` bound required by `tokio::spawn`.
-        let runtime_handle = app_state().handle();
-        runtime_handle
+        // Producer init (if needed) and publish both happen inside the spawned future
+        // so they run on app_state()'s multi-threaded runtime — which has the reactor
+        // required by hyper/tonic for DNS and TCP. Awaiting the JoinHandle propagates
+        // publish errors back to the BatchSpanProcessor.
+        app_state()
+            .handle()
             .spawn(async move {
+                let producer = match producer_lock.get() {
+                    Some(p) => p.clone(),
+                    None => {
+                        match RustScouterProducer::new(transport_config).await {
+                            Ok(p) => {
+                                let _ = producer_lock.set(Arc::new(p));
+                                producer_lock.get().expect("just set").clone()
+                            }
+                            Err(e) => {
+                                warn!("ScouterSpanExporter: producer init failed, dropping spans: {e}");
+                                return Ok(());
+                            }
+                        }
+                    }
+                };
+
                 producer.publish(message).await.map_err(|e| {
-                    let msg = format!("Failed to publish message to scouter: {}", e);
-                    error!("{}", msg);
+                    let msg = format!("Failed to publish spans to scouter: {e}");
+                    error!("{msg}");
                     OTelSdkError::InternalFailure(msg)
                 })
             })
             .await
-            .map_err(|e| OTelSdkError::InternalFailure(format!("Task spawn failed: {}", e)))?
+            .map_err(|e| OTelSdkError::InternalFailure(format!("Task spawn failed: {e}")))?
     }
 
     fn shutdown(&mut self) -> OTelSdkResult {
