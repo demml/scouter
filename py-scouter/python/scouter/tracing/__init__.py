@@ -406,12 +406,13 @@ class TracerProvider(_OtelTracerProvider):
             Tracer: Python Tracer instance with decorator support
         """
 
-        if instrumenting_module_name in self._tracer_cache:
-            return self._tracer_cache[instrumenting_module_name]
+        cache_key = (instrumenting_module_name, instrumenting_library_version, schema_url)
+        if cache_key in self._tracer_cache:
+            return self._tracer_cache[cache_key]
 
         with self._tracer_cache_lock:
-            if instrumenting_module_name in self._tracer_cache:
-                return self._tracer_cache[instrumenting_module_name]
+            if cache_key in self._tracer_cache:
+                return self._tracer_cache[cache_key]
 
             tracer = cast(
                 _OtelTracer,
@@ -428,7 +429,7 @@ class TracerProvider(_OtelTracerProvider):
                     default_attributes=self.default_attributes,  # type: ignore
                 ),
             )
-            self._tracer_cache[instrumenting_module_name] = tracer
+            self._tracer_cache[cache_key] = tracer
             return tracer
 
     def force_flush(self, timeout_millis: int = 30000) -> bool:

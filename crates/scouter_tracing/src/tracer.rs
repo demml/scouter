@@ -997,7 +997,7 @@ impl BaseTracer {
                 let remote_span_context = SpanContext::new(
                     parsed_trace_id,
                     parsed_span_id,
-                    remote_sampled.map_or(TraceFlags::SAMPLED, |s| {
+                    remote_sampled.map_or(TraceFlags::default(), |s| {
                         if s {
                             TraceFlags::SAMPLED
                         } else {
