@@ -2,6 +2,7 @@
 # mypy: disable-error-code="attr-defined"
 
 import functools
+import threading
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -39,6 +40,7 @@ from .._scouter import (
     disable_local_span_capture,
     drain_local_span_capture,
     enable_local_span_capture,
+    extract_span_context_from_headers,
     flush_tracer,
     get_current_active_span,
     get_function_type,
@@ -46,6 +48,7 @@ from .._scouter import (
     init_tracer,
     shutdown_tracer,
 )
+from .middleware import ScouterTracingMiddleware
 
 SerializedType: TypeAlias = Union[str, int, float, dict, list]
 P = ParamSpec("P")
@@ -373,6 +376,8 @@ class TracerProvider(_OtelTracerProvider):
         self.sample_ratio = sample_ratio
         self.scouter_queue = scouter_queue
         self.default_attributes = default_attributes
+        self._tracer_cache: dict[tuple[str, str | None, str | None], _OtelTracer] = {}
+        self._tracer_cache_lock = threading.Lock()
 
     def get_tracer(
         self,
@@ -401,21 +406,31 @@ class TracerProvider(_OtelTracerProvider):
             Tracer: Python Tracer instance with decorator support
         """
 
-        return cast(
-            _OtelTracer,
-            init_tracer(
-                service_name=instrumenting_module_name,
-                scope=instrumenting_library_version,  # type: ignore
-                transport_config=self.transport_config,
-                exporter=self.exporter,
-                batch_config=self.batch_config,
-                sample_ratio=self.sample_ratio,
-                scouter_queue=self.scouter_queue,
-                schema_url=schema_url,
-                scope_attributes=attributes,  # type: ignore
-                default_attributes=self.default_attributes,  # type: ignore
-            ),
-        )
+        cache_key = (instrumenting_module_name, instrumenting_library_version, schema_url)
+        if cache_key in self._tracer_cache:
+            return self._tracer_cache[cache_key]
+
+        with self._tracer_cache_lock:
+            if cache_key in self._tracer_cache:
+                return self._tracer_cache[cache_key]
+
+            tracer = cast(
+                _OtelTracer,
+                init_tracer(
+                    service_name=instrumenting_module_name,
+                    scope=instrumenting_library_version,  # type: ignore
+                    transport_config=self.transport_config,
+                    exporter=self.exporter,
+                    batch_config=self.batch_config,
+                    sample_ratio=self.sample_ratio,
+                    scouter_queue=self.scouter_queue,
+                    schema_url=schema_url,
+                    scope_attributes=attributes,  # type: ignore
+                    default_attributes=self.default_attributes,  # type: ignore
+                ),
+            )
+            self._tracer_cache[cache_key] = tracer
+            return tracer
 
     def force_flush(self, timeout_millis: int = 30000) -> bool:
         """Force flush all pending spans."""
@@ -473,6 +488,13 @@ class ScouterInstrumentor(BaseInstrumentor):
             )
 
         if self._provider is not None:
+            import logging
+
+            logging.getLogger("scouter.tracing").warning(
+                "ScouterInstrumentor is already instrumented. "
+                "ScouterInstrumentor is process-wide — call uninstrument() first to reconfigure. "
+                "The existing provider will be used."
+            )
             return
 
         tracer_provider = kwargs.pop("tracer_provider", None)
@@ -491,9 +513,39 @@ class ScouterInstrumentor(BaseInstrumentor):
 
         from opentelemetry import trace
 
-        trace._TRACER_PROVIDER_SET_ONCE._done = False  # pylint: disable=protected-access
-        trace._TRACER_PROVIDER_SET_ONCE._lock = __import__("threading").Lock()  # pylint: disable=protected-access
+        try:
+            trace._TRACER_PROVIDER_SET_ONCE._done = False  # pylint: disable=protected-access
+            trace._TRACER_PROVIDER_SET_ONCE._lock = __import__("threading").Lock()  # pylint: disable=protected-access
+        except AttributeError:
+            import logging as _logging
+
+            _logging.getLogger("scouter.tracing").warning(
+                "Could not reset OTel provider guard — opentelemetry-api internals may have "
+                "changed. Proceeding anyway."
+            )
         set_tracer_provider(self._provider)  # type: ignore
+
+        # Register W3C TraceContext + Baggage propagators so that third-party
+        # instrumentors (StarletteInstrumentor, HTTPXInstrumentor, etc.) can
+        # inject and extract traceparent/tracestate headers transparently.
+        try:
+            from opentelemetry.baggage.propagation import W3CBaggagePropagator
+            from opentelemetry.propagate import set_global_textmap
+            from opentelemetry.propagators.composite import CompositePropagator
+            from opentelemetry.trace.propagation.tracecontext import (
+                TraceContextTextMapPropagator,
+            )
+
+            set_global_textmap(
+                CompositePropagator(
+                    [
+                        TraceContextTextMapPropagator(),
+                        W3CBaggagePropagator(),
+                    ]
+                )
+            )
+        except ImportError:
+            pass  # opentelemetry-api not fully installed; propagator setup skipped
 
     def instrument(
         self,
@@ -571,8 +623,11 @@ class ScouterInstrumentor(BaseInstrumentor):
 
         from opentelemetry import trace
 
-        trace._TRACER_PROVIDER = None  # pylint: disable=protected-access
-        trace._TRACER_PROVIDER_SET_ONCE._done = False  # pylint: disable=protected-access
+        try:
+            trace._TRACER_PROVIDER = None  # pylint: disable=protected-access
+            trace._TRACER_PROVIDER_SET_ONCE._done = False  # pylint: disable=protected-access
+        except AttributeError:
+            pass
 
         # Reset the singleton
         ScouterInstrumentor._instance = None
@@ -666,8 +721,10 @@ __all__ = [
     "BatchConfig",
     "shutdown_tracer",
     "get_tracing_headers_from_current_span",
+    "extract_span_context_from_headers",
     "get_current_active_span",
     "ScouterInstrumentor",
+    "ScouterTracingMiddleware",
     "instrument",
     "uninstrument",
     "enable_local_span_capture",

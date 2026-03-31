@@ -46,9 +46,9 @@ def test_api_kafka(kafka_scouter_server):
                     feature_3=1.0,
                 ).model_dump(),
             )
-        assert response.status_code == 200
+        assert response.status_code == 200  # type: ignore
         time.sleep(5)
-        client.wait_shutdown()
+        client.wait_shutdown()  # type: ignore
 
     request = DriftRequest(
         uid=profile.uid,
@@ -102,9 +102,9 @@ def test_api_http(http_scouter_server):
                     feature_3=1.0,
                 ).model_dump(),
             )
-        assert response.status_code == 200
+        assert response.status_code == 200  # type: ignore
         time.sleep(5)
-        client.wait_shutdown()
+        client.wait_shutdown()  # type: ignore
 
     request = DriftRequest(
         uid=profile.uid,
@@ -144,7 +144,7 @@ def test_api_http(http_scouter_server):
     scouter_client.get_trace_metrics(
         TraceMetricsRequest(
             start_time=first_trace.start_time,
-            end_time=first_trace.end_time,
+            end_time=first_trace.end_time,  # type: ignore
             bucket_interval="1 minutes",
         )
     )

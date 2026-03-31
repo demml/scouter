@@ -40,9 +40,8 @@ def test_genai_tracing_api(scouter_grpc_openai_server):
             assert response.status_code == 200
             time.sleep(0.5)
         time.sleep(5)
-        client.wait_shutdown()
 
-    time.sleep(10)
+    time.sleep(20)
 
     request = DriftRequest(
         uid=profile.uid,
@@ -62,7 +61,7 @@ def test_genai_tracing_api(scouter_grpc_openai_server):
     assert len(task_results["no_errors"].stats) == 1
 
     # get TestResponse record_uid from response
-    record_uid = response.json().get("record_uid")
+    record_uid = response.json().get("record_uid")  # type: ignore
     assert record_uid is not None
 
     spans = scouter_client.get_trace_spans_from_filters(filters=TraceFilters(queue_uid=record_uid))

@@ -15,11 +15,12 @@ use crate::utils::{
     capture_function_arguments, format_traceback, get_context_store, get_context_var,
     get_current_active_span, get_current_context_id, parse_span_kind, parse_status,
     set_current_span, set_function_attributes, set_function_type_attribute, ActiveSpanInner,
-    FunctionType, SpanContextExt,
+    FunctionType, HashMapExtractor, HashMapInjector, SpanContextExt,
 };
 
 use chrono::{DateTime, Utc};
 use opentelemetry::baggage::BaggageExt;
+use opentelemetry::propagation::TextMapPropagator;
 use opentelemetry::trace::Tracer as OTelTracer;
 use opentelemetry::trace::TracerProvider;
 use opentelemetry::InstrumentationScope;
@@ -28,6 +29,7 @@ use opentelemetry::{
     Context as OtelContext, KeyValue,
 };
 use opentelemetry::{SpanId, TraceFlags, TraceId};
+use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::trace::SdkTracer;
 use opentelemetry_sdk::trace::SdkTracerProvider;
 use opentelemetry_sdk::Resource;
@@ -116,42 +118,32 @@ impl TraceMetadataStore {
             .cloned())
     }
 
-    fn remove_trace(&self, trace_id: &str) -> Result<(), TraceError> {
-        self.inner
-            .write()
-            .map_err(|e| TraceError::PoisonError(e.to_string()))?
-            .remove(trace_id);
-        Ok(())
-    }
-
     fn increment_span_count(&self, trace_id: &str) -> Result<(), TraceError> {
-        if let Some(mut metadata) = self.get_trace_metadata(trace_id)? {
-            metadata.span_count += 1;
-            self.inner
-                .write()
-                .map_err(|e| TraceError::PoisonError(e.to_string()))?
-                .insert(trace_id.to_string(), metadata);
+        let mut map = self
+            .inner
+            .write()
+            .map_err(|e| TraceError::PoisonError(e.to_string()))?;
+        if let Some(m) = map.get_mut(trace_id) {
+            m.span_count += 1;
         }
         Ok(())
     }
 
     /// Decrements the span count for the given trace ID. If the span count reaches zero, the trace metadata is removed.
     fn decrement_span_count(&self, trace_id: &str) -> Result<(), TraceError> {
-        if let Some(mut metadata) = self.get_trace_metadata(trace_id)? {
-            if metadata.span_count > 0 {
-                metadata.span_count -= 1;
+        let mut map = self
+            .inner
+            .write()
+            .map_err(|e| TraceError::PoisonError(e.to_string()))?;
+        match map.get_mut(trace_id) {
+            Some(m) if m.span_count > 1 => {
+                m.span_count -= 1;
             }
-
-            if metadata.span_count == 0 {
-                self.remove_trace(trace_id)?;
-            } else {
-                self.inner
-                    .write()
-                    .map_err(|e| TraceError::PoisonError(e.to_string()))?
-                    .insert(trace_id.to_string(), metadata);
+            Some(_) => {
+                map.remove(trace_id);
             }
+            None => {}
         }
-
         Ok(())
     }
 
@@ -940,36 +932,90 @@ impl BaseTracer {
     /// * `baggage` - Optional baggage items as a dictionary
     /// * `tags` - Optional tags to prefix baggage items with as a dictionary
     /// * `parent_context_id` - Optional parent context ID to link the span to (this is automatically set if not provided)
-    #[pyo3(signature = (name, context=None, kind=None, attributes=vec![], baggage=vec![], tags=vec![], label=None,  parent_context_id=None, trace_id=None, span_id=None, remote_sampled=None))]
+    #[pyo3(signature = (
+        name,
+        context=None,
+        kind=None,
+        attributes=None,
+        baggage=vec![],
+        tags=vec![],
+        label=None,
+        parent_context_id=None,
+        trace_id=None,
+        span_id=None,
+        remote_sampled=None,
+        headers=None,
+        links=None,
+        start_time=None,
+        record_exception=None,
+        set_status_on_exception=None,
+    ))]
     #[allow(clippy::too_many_arguments)]
     #[instrument(skip_all)]
-    #[allow(unused_variables)]
     fn start_as_current_span(
         &self,
         py: Python<'_>,
         name: String,
-        context: Option<&Bound<'_, PyAny>>, // not used. Needed for otel compliance
+        context: Option<&Bound<'_, PyAny>>, // Python OTel Context from auto-instrumentors
         kind: Option<&Bound<'_, PyAny>>,    // can be either SpanKind enum or otel span kind object
-        attributes: Vec<HashMap<String, String>>,
+        attributes: Option<&Bound<'_, PyAny>>,
         baggage: Vec<HashMap<String, String>>,
         tags: Vec<HashMap<String, String>>,
         label: Option<String>,
         parent_context_id: Option<String>,
         trace_id: Option<String>,
         span_id: Option<String>,
-        remote_sampled: Option<bool>, // only used if both trace_id and span_id are provided (remote parent case)
+        remote_sampled: Option<bool>, // only used if both trace_id and span_id are provided
+        headers: Option<HashMap<String, String>>, // W3C traceparent dict
+        links: Option<&Bound<'_, PyAny>>, // accepted for OTel compat, not yet used
+        start_time: Option<i64>,      // accepted for OTel compat, not yet used
+        record_exception: Option<bool>, // accepted for OTel compat, not yet used
+        set_status_on_exception: Option<bool>, // accepted for OTel compat, not yet used
     ) -> Result<ActiveSpan, TraceError> {
+        let _ = (links, start_time, record_exception, set_status_on_exception);
         let kind = parse_span_kind(kind)?;
         // Get parent context if available
         let parent_id = parent_context_id.or_else(|| get_current_context_id(py).ok().flatten());
 
-        // Build the base context first
-        let base_ctx = if let (Some(tid), Some(sid)) = (&trace_id, &span_id) {
+        // Build the base context with the following priority:
+        // 1. OTel Python Context object (from StarletteInstrumentor, ASGI middleware, etc.)
+        // 2. W3C traceparent from headers dict
+        // 3. Legacy explicit trace_id + span_id params
+        // 4. Local in-process parent via context_id
+        // 5. Root span (no parent)
+        let base_ctx = if let Some(ctx) = context.and_then(|c| extract_otel_py_context(py, c)) {
+            OtelContext::current().with_remote_span_context(ctx)
+        } else if let Some(ref h) = headers {
+            let extracted = TraceContextPropagator::new().extract(&HashMapExtractor(h));
+            let sc = extracted.span().span_context().clone();
+            if sc.is_valid() {
+                OtelContext::current().with_remote_span_context(sc)
+            } else if let (Some(tid), Some(sid)) = (h.get("trace_id"), h.get("span_id")) {
+                // legacy scouter custom headers inside the headers dict
+                let parsed_trace_id = TraceId::from_hex(tid)?;
+                let parsed_span_id = SpanId::from_hex(sid)?;
+                let remote_span_context = SpanContext::new(
+                    parsed_trace_id,
+                    parsed_span_id,
+                    remote_sampled.map_or(TraceFlags::default(), |s| {
+                        if s {
+                            TraceFlags::SAMPLED
+                        } else {
+                            TraceFlags::NOT_SAMPLED
+                        }
+                    }),
+                    true,
+                    TraceState::default(),
+                );
+                OtelContext::current().with_remote_span_context(remote_span_context)
+            } else {
+                OtelContext::current()
+            }
+        } else if let (Some(tid), Some(sid)) = (&trace_id, &span_id) {
             // Both trace_id and span_id come from upstream service's headers
             let parsed_trace_id = TraceId::from_hex(tid)?;
             let parsed_span_id = SpanId::from_hex(sid)?; // This is the PARENT's span_id
 
-            // Create remote context that says:
             let remote_span_context = SpanContext::new(
                 parsed_trace_id, // The shared trace ID
                 parsed_span_id,  // The parent span's ID
@@ -991,8 +1037,12 @@ impl BaseTracer {
                 .get(&parent_id)?
                 .map(|parent_ctx| OtelContext::current().with_remote_span_context(parent_ctx))
                 .unwrap_or_else(OtelContext::current)
+        } else if let Some(sc) = get_otel_global_span_context(py) {
+            // Fall back to any span attached via OTel's Python context system
+            // (e.g. ASGI middleware, HTTPXInstrumentor, other OTel-compatible libraries)
+            OtelContext::current().with_remote_span_context(sc)
         } else {
-            // No parent - this is a root span
+            // No parent — root span
             OtelContext::current()
         };
 
@@ -1012,11 +1062,11 @@ impl BaseTracer {
 
         let mut span = BoxedSpan::new(span_builder.start_with_context(&self.tracer, &final_ctx));
 
-        attributes.iter().for_each(|attr_map| {
-            attr_map.iter().for_each(|(k, v)| {
-                span.set_attribute(KeyValue::new(k.clone(), v.clone()));
-            });
-        });
+        // Apply attributes — accepts both a flat dict and a list-of-dicts for OTel compat
+        if let Some(attrs) = attributes {
+            let kvs = py_obj_to_otel_keyvalue(py, Some(attrs.clone()))?;
+            kvs.into_iter().for_each(|kv| span.set_attribute(kv));
+        }
 
         // set default attributes from tracer configuration
         self.default_attributes.iter().for_each(|kv| {
@@ -1049,8 +1099,9 @@ impl BaseTracer {
     /// `end()` manually.
     #[pyo3(signature = (
         name,
+        context=None,
         kind=None,
-        attributes=vec![],
+        attributes=None,
         baggage=vec![],
         tags=vec![],
         label=None,
@@ -1058,14 +1109,20 @@ impl BaseTracer {
         trace_id=None,
         span_id=None,
         remote_sampled=None,
+        headers=None,
+        links=None,
+        start_time=None,
+        record_exception=None,
+        set_status_on_exception=None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn start_span(
         &self,
         py: Python<'_>,
         name: String,
+        context: Option<&Bound<'_, PyAny>>, // Python OTel Context from auto-instrumentors
         kind: Option<&Bound<'_, PyAny>>,
-        attributes: Vec<HashMap<String, String>>,
+        attributes: Option<&Bound<'_, PyAny>>,
         baggage: Vec<HashMap<String, String>>,
         tags: Vec<HashMap<String, String>>,
         label: Option<String>,
@@ -1073,11 +1130,44 @@ impl BaseTracer {
         trace_id: Option<String>,
         span_id: Option<String>,
         remote_sampled: Option<bool>,
+        headers: Option<HashMap<String, String>>,
+        links: Option<&Bound<'_, PyAny>>,
+        start_time: Option<i64>,
+        record_exception: Option<bool>,
+        set_status_on_exception: Option<bool>,
     ) -> Result<ActiveSpan, TraceError> {
+        let _ = (links, start_time, record_exception, set_status_on_exception);
         let kind = parse_span_kind(kind)?;
         let parent_id = parent_context_id.or_else(|| get_current_context_id(py).ok().flatten());
 
-        let base_ctx = if let (Some(tid), Some(sid)) = (&trace_id, &span_id) {
+        let base_ctx = if let Some(ctx) = context.and_then(|c| extract_otel_py_context(py, c)) {
+            OtelContext::current().with_remote_span_context(ctx)
+        } else if let Some(ref h) = headers {
+            let extracted = TraceContextPropagator::new().extract(&HashMapExtractor(h));
+            let sc = extracted.span().span_context().clone();
+            if sc.is_valid() {
+                OtelContext::current().with_remote_span_context(sc)
+            } else if let (Some(tid), Some(sid)) = (h.get("trace_id"), h.get("span_id")) {
+                let parsed_trace_id = TraceId::from_hex(tid)?;
+                let parsed_span_id = SpanId::from_hex(sid)?;
+                let remote_span_context = SpanContext::new(
+                    parsed_trace_id,
+                    parsed_span_id,
+                    remote_sampled.map_or(TraceFlags::SAMPLED, |s| {
+                        if s {
+                            TraceFlags::SAMPLED
+                        } else {
+                            TraceFlags::NOT_SAMPLED
+                        }
+                    }),
+                    true,
+                    TraceState::default(),
+                );
+                OtelContext::current().with_remote_span_context(remote_span_context)
+            } else {
+                OtelContext::current()
+            }
+        } else if let (Some(tid), Some(sid)) = (&trace_id, &span_id) {
             let parsed_trace_id = TraceId::from_hex(tid)?;
             let parsed_span_id = SpanId::from_hex(sid)?;
             let remote_span_context = SpanContext::new(
@@ -1099,6 +1189,8 @@ impl BaseTracer {
                 .get(&parent_id)?
                 .map(|parent_ctx| OtelContext::current().with_remote_span_context(parent_ctx))
                 .unwrap_or_else(OtelContext::current)
+        } else if let Some(sc) = get_otel_global_span_context(py) {
+            OtelContext::current().with_remote_span_context(sc)
         } else {
             OtelContext::current()
         };
@@ -1117,11 +1209,10 @@ impl BaseTracer {
 
         let mut span = BoxedSpan::new(span_builder.start_with_context(&self.tracer, &final_ctx));
 
-        attributes.iter().for_each(|attr_map| {
-            attr_map.iter().for_each(|(k, v)| {
-                span.set_attribute(KeyValue::new(k.clone(), v.clone()));
-            });
-        });
+        if let Some(attrs) = attributes {
+            let kvs = py_obj_to_otel_keyvalue(py, Some(attrs.clone()))?;
+            kvs.into_iter().for_each(|kv| span.set_attribute(kv));
+        }
 
         self.default_attributes.iter().for_each(|kv| {
             span.set_attribute(kv.clone());
@@ -1162,7 +1253,7 @@ impl BaseTracer {
         func,
         func_args,
         kind=None,
-        attributes=vec![],
+        attributes=None,
         baggage=vec![],
         tags=vec![],
         label=None,
@@ -1182,7 +1273,7 @@ impl BaseTracer {
         func: &Bound<'py, PyAny>,
         func_args: &Bound<'_, PyTuple>,
         kind: Option<&Bound<'_, PyAny>>,
-        attributes: Vec<HashMap<String, String>>,
+        attributes: Option<&Bound<'_, PyAny>>,
         baggage: Vec<HashMap<String, String>>,
         tags: Vec<HashMap<String, String>>,
         label: Option<String>,
@@ -1197,7 +1288,7 @@ impl BaseTracer {
         let mut span = self.start_as_current_span(
             py,
             name,
-            None,
+            None, // context
             kind,
             attributes,
             baggage,
@@ -1207,6 +1298,11 @@ impl BaseTracer {
             trace_id,
             span_id,
             remote_sampled,
+            None, // headers
+            None, // links
+            None, // start_time
+            None, // record_exception
+            None, // set_status_on_exception
         )?;
 
         set_function_attributes(func, &mut span)?;
@@ -1427,6 +1523,67 @@ fn get_tracer(scope: InstrumentationScope) -> Result<SdkTracer, TraceError> {
     Ok(provider_arc.tracer_with_scope(scope))
 }
 
+/// Check the global OTel Python context for a current span and return its `SpanContext`.
+///
+/// When third-party instrumentors (ASGI middleware, HTTPXInstrumentor, etc.) attach a span
+/// via `opentelemetry.context.attach(trace.set_span_in_context(span))`, that span lives in
+/// OTel's Python context system — not in Scouter's own `_otel_current_span` ContextVar.
+/// This helper bridges the two, so Scouter spans automatically parent to any span set by
+/// an OTel-compatible instrumentor.
+fn get_otel_global_span_context(py: Python<'_>) -> Option<SpanContext> {
+    let trace_mod = py.import("opentelemetry.trace").ok()?;
+    let current_span = trace_mod.call_method0("get_current_span").ok()?;
+    let span_ctx = current_span.call_method0("get_span_context").ok()?;
+
+    let trace_id_int: u128 = span_ctx.getattr("trace_id").ok()?.extract().ok()?;
+    let span_id_int: u64 = span_ctx.getattr("span_id").ok()?.extract().ok()?;
+    let flags_int: u8 = span_ctx.getattr("trace_flags").ok()?.extract().ok()?;
+
+    let sc = SpanContext::new(
+        TraceId::from(trace_id_int),
+        SpanId::from(span_id_int),
+        TraceFlags::new(flags_int),
+        false, // not remote — same process
+        TraceState::default(),
+    );
+    if sc.is_valid() {
+        Some(sc)
+    } else {
+        None
+    }
+}
+
+/// Extract a `SpanContext` from a Python OTel `Context` object.
+///
+/// Auto-instrumentors (ASGI, HTTPX, gRPC) call `tracer.start_span(context=ctx)`
+/// where `ctx` is an `opentelemetry.context.Context` dict containing the parent
+/// span extracted from incoming wire headers. This helper unpacks it into a Rust
+/// `SpanContext` so we can use it as the remote parent.
+fn extract_otel_py_context(py: Python<'_>, context: &Bound<'_, PyAny>) -> Option<SpanContext> {
+    let trace_mod = py.import("opentelemetry.trace").ok()?;
+    let current_span = trace_mod
+        .call_method1("get_current_span", (context,))
+        .ok()?;
+    let span_ctx = current_span.call_method0("get_span_context").ok()?;
+
+    let trace_id_int: u128 = span_ctx.getattr("trace_id").ok()?.extract().ok()?;
+    let span_id_int: u64 = span_ctx.getattr("span_id").ok()?.extract().ok()?;
+    let flags_int: u8 = span_ctx.getattr("trace_flags").ok()?.extract().ok()?;
+
+    let sc = SpanContext::new(
+        TraceId::from(trace_id_int),
+        SpanId::from(span_id_int),
+        TraceFlags::new(flags_int),
+        true, // is_remote — came from wire headers
+        TraceState::default(),
+    );
+    if sc.is_valid() {
+        Some(sc)
+    } else {
+        None
+    }
+}
+
 #[pyfunction]
 pub fn get_tracing_headers_from_current_span(
     py: Python<'_>,
@@ -1448,7 +1605,7 @@ pub fn get_tracing_headers_from_current_span(
     };
 
     // Inject into headers
-    // add trace_id and span_id for easier access
+    // add trace_id and span_id for easier access (legacy format, kept for backward compat)
     let mut headers: HashMap<String, String> = HashMap::new();
     headers.insert(
         "trace_id".to_string(),
@@ -1463,7 +1620,55 @@ pub fn get_tracing_headers_from_current_span(
     let is_sampled = &context_to_propagate.trace_flags().is_sampled().to_string();
     headers.insert("is_sampled".to_string(), is_sampled.to_string());
 
+    // Inject W3C traceparent + tracestate so HTTPXInstrumentor / StarletteInstrumentor
+    // can interop with Scouter spans transparently.
+    let otel_ctx = OtelContext::current().with_remote_span_context(context_to_propagate);
+    TraceContextPropagator::new().inject_context(&otel_ctx, &mut HashMapInjector(&mut headers));
+
     Ok(headers)
+}
+
+/// Extract span context fields from a headers dict, supporting both W3C `traceparent`
+/// and the legacy Scouter `trace_id`/`span_id` formats.
+///
+/// Returns `None` if no valid trace context is found.
+#[pyfunction]
+pub fn extract_span_context_from_headers(
+    headers: HashMap<String, String>,
+) -> Result<Option<HashMap<String, String>>, TraceError> {
+    // Try W3C traceparent first
+    let ctx = TraceContextPropagator::new().extract(&HashMapExtractor(&headers));
+    let sc = ctx.span().span_context().clone();
+    if sc.is_valid() {
+        let mut out = HashMap::new();
+        out.insert("trace_id".to_string(), sc.trace_id().to_string());
+        out.insert("span_id".to_string(), sc.span_id().to_string());
+        out.insert(
+            "is_sampled".to_string(),
+            sc.trace_flags().is_sampled().to_string(),
+        );
+        return Ok(Some(out));
+    }
+
+    // Fallback: legacy custom headers — validate hex before returning
+    if let (Some(tid), Some(sid)) = (headers.get("trace_id"), headers.get("span_id")) {
+        if TraceId::from_hex(tid).is_err() || SpanId::from_hex(sid).is_err() {
+            return Ok(None);
+        }
+        let mut out = HashMap::new();
+        out.insert("trace_id".to_string(), tid.clone());
+        out.insert("span_id".to_string(), sid.clone());
+        out.insert(
+            "is_sampled".to_string(),
+            headers
+                .get("is_sampled")
+                .cloned()
+                .unwrap_or_else(|| "false".to_string()),
+        );
+        return Ok(Some(out));
+    }
+
+    Ok(None)
 }
 
 fn is_tracer_initialized() -> bool {
