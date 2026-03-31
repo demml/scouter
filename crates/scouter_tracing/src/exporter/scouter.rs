@@ -95,18 +95,16 @@ impl SpanExporter for ScouterSpanExporter {
             .spawn(async move {
                 let producer = match producer_lock.get() {
                     Some(p) => p.clone(),
-                    None => {
-                        match RustScouterProducer::new(transport_config).await {
-                            Ok(p) => {
-                                let _ = producer_lock.set(Arc::new(p));
-                                producer_lock.get().expect("just set").clone()
-                            }
-                            Err(e) => {
-                                warn!("ScouterSpanExporter: producer init failed, dropping spans: {e}");
-                                return Ok(());
-                            }
+                    None => match RustScouterProducer::new(transport_config).await {
+                        Ok(p) => {
+                            let _ = producer_lock.set(Arc::new(p));
+                            producer_lock.get().expect("just set").clone()
                         }
-                    }
+                        Err(e) => {
+                            warn!("ScouterSpanExporter: producer init failed, dropping spans: {e}");
+                            return Ok(());
+                        }
+                    },
                 };
 
                 producer.publish(message).await.map_err(|e| {

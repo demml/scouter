@@ -376,7 +376,7 @@ class TracerProvider(_OtelTracerProvider):
         self.sample_ratio = sample_ratio
         self.scouter_queue = scouter_queue
         self.default_attributes = default_attributes
-        self._tracer_cache: dict[str, _OtelTracer] = {}
+        self._tracer_cache: dict[tuple[str, str | None, str | None], _OtelTracer] = {}
         self._tracer_cache_lock = threading.Lock()
 
     def get_tracer(

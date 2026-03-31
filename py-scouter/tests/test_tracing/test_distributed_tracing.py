@@ -49,7 +49,9 @@ def test_manual_cross_service_propagation(tracer, span_exporter):
         a_trace_id = format(sc.trace_id, "032x")
         a_span_id = format(sc.span_id, "016x")
 
-    assert "traceparent" in outgoing_headers, "outgoing headers must contain W3C traceparent"
+    assert "traceparent" in outgoing_headers, (
+        "outgoing headers must contain W3C traceparent"
+    )
     assert _W3C_RE.match(outgoing_headers["traceparent"])
 
     span_exporter.clear()
@@ -95,8 +97,12 @@ def test_outgoing_headers_include_legacy_and_w3c_keys(tracer, span_exporter):
         headers = get_tracing_headers_from_current_span()
 
     assert "traceparent" in headers, "W3C traceparent must be present"
-    assert "trace_id" in headers, "legacy trace_id must still be present (backward compat)"
-    assert "span_id" in headers, "legacy span_id must still be present (backward compat)"
+    assert "trace_id" in headers, (
+        "legacy trace_id must still be present (backward compat)"
+    )
+    assert "span_id" in headers, (
+        "legacy span_id must still be present (backward compat)"
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -136,12 +142,12 @@ async def test_middleware_cross_service_propagation(tracer, span_exporter):
 
     assert len(span_exporter.spans) == 1
     b_span = span_exporter.spans[0]
-    assert (
-        b_span.trace_id == a_trace_id
-    ), f"Middleware child must share trace_id. got={b_span.trace_id!r}, want={a_trace_id!r}"
-    assert (
-        b_span.parent_span_id == a_span_id
-    ), f"Middleware child parent must be Service A. got={b_span.parent_span_id!r}, want={a_span_id!r}"
+    assert b_span.trace_id == a_trace_id, (
+        f"Middleware child must share trace_id. got={b_span.trace_id!r}, want={a_trace_id!r}"
+    )
+    assert b_span.parent_span_id == a_span_id, (
+        f"Middleware child parent must be Service A. got={b_span.parent_span_id!r}, want={a_span_id!r}"
+    )
 
 
 @pytest.mark.asyncio
@@ -158,7 +164,12 @@ async def test_middleware_only_forwards_propagation_headers(tracer, span_exporte
         (b"authorization", b"Bearer secret-token"),
         (b"cookie", b"session=abc123"),
     ]
-    scope = {"type": "http", "method": "GET", "path": "/secure", "headers": asgi_headers}
+    scope = {
+        "type": "http",
+        "method": "GET",
+        "path": "/secure",
+        "headers": asgi_headers,
+    }
     await ScouterTracingMiddleware(app, tracer=tracer)(scope, None, None)
 
     assert len(span_exporter.spans) == 1
@@ -195,7 +206,7 @@ def test_global_propagator_inject_and_extract_do_not_raise():
     """Global inject()/extract() must work after instrument() — no exceptions."""
     from opentelemetry.propagate import extract, inject
 
-    carrier: dict[str, str] = {}
+    carrier: dict[str, str] = {}  # type: ignore
     inject(carrier)  # may inject empty traceparent if no active span
     ctx = extract(carrier)
     assert ctx is not None
