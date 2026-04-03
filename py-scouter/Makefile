@@ -80,4 +80,14 @@ publish.docs:
 	uv run python scripts/create_mkdocs_stubs.py
 	uv run mkdocs gh-deploy --force
 
+example.tracing.hello:
+	uv run uvicorn hello_service:app --app-dir examples/tracing --port 8001
 
+example.tracing.goodbye:
+	uv run uvicorn goodbye_service:app --app-dir examples/tracing --port 8002
+
+example.tracing.orchestrator:
+	uv run uvicorn orchestrator_service:app --app-dir examples/tracing --port 8000
+
+example.tracing:
+	bash examples/tracing/run_example.sh
