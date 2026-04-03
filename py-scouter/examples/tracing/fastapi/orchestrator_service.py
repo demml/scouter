@@ -46,7 +46,6 @@ import httpx
 from fastapi import FastAPI
 from opentelemetry import trace as otel_trace
 from pydantic import BaseModel
-
 from scouter.tracing import (
     BatchConfig,
     ScouterInstrumentor,

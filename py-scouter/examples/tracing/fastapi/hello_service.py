@@ -31,7 +31,6 @@ from typing import Any, Optional
 
 from fastapi import FastAPI
 from opentelemetry import trace as otel_trace
-
 from scouter.tracing import (
     BatchConfig,
     ScouterInstrumentor,
@@ -78,9 +77,7 @@ async def lifespan(app: FastAPI):
     # method internally — so ADK spans automatically flow to Scouter with zero
     # ADK-specific configuration.
     provider = otel_trace.get_tracer_provider()
-    assert isinstance(provider, TracerProvider), (
-        f"Expected Scouter TracerProvider, got {type(provider).__name__}."
-    )
+    assert isinstance(provider, TracerProvider), f"Expected Scouter TracerProvider, got {type(provider).__name__}."
     _tracer._inner = provider.get_tracer("hello-service")
 
     yield

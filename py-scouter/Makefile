@@ -81,13 +81,13 @@ publish.docs:
 	uv run mkdocs gh-deploy --force
 
 example.tracing.hello:
-	uv run uvicorn hello_service:app --app-dir examples/tracing --port 8001
+	uv run uvicorn hello_service:app --app-dir examples/tracing --port 8081
 
 example.tracing.goodbye:
-	uv run uvicorn goodbye_service:app --app-dir examples/tracing --port 8002
+	uv run uvicorn goodbye_service:app --app-dir examples/tracing --port 8082
 
 example.tracing.orchestrator:
-	uv run uvicorn orchestrator_service:app --app-dir examples/tracing --port 8000
+	uv run uvicorn orchestrator_service:app --app-dir examples/tracing --port 8083
 
 example.tracing:
 	bash examples/tracing/run_example.sh

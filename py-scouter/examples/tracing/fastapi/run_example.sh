@@ -10,7 +10,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$(dirname "$SCRIPT_DIR")"   # py-scouter/ root
+cd "$(dirname "$(dirname "$SCRIPT_DIR")")"   # py-scouter/ root
 
 HELLO_PORT=8081
 GOODBYE_PORT=8082
@@ -43,6 +43,8 @@ uv run uvicorn goodbye_service:app \
 pids+=($!)
 
 echo "Starting orchestrator-service on port ${ORCHESTRATOR_PORT}..."
+HELLO_SERVICE_URL="http://localhost:${HELLO_PORT}" \
+GOODBYE_SERVICE_URL="http://localhost:${GOODBYE_PORT}" \
 uv run uvicorn orchestrator_service:app \
     --app-dir examples/tracing --port "$ORCHESTRATOR_PORT" --log-level warning &
 pids+=($!)
