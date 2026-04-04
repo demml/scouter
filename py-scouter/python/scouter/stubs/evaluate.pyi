@@ -2138,30 +2138,37 @@ class EvalMetrics:
 
     Attributes:
         overall_pass_rate (float):
-            Weighted pass rate across all datasets and scenarios (0–1).
+            Average of output quality and internal workflow pass rates (0–1).
         dataset_pass_rates (Dict[str, float]):
-            Per-alias (sub-agent) pass rate (0–1), keyed by alias name.
+            Per-alias workflow pass rate (0–1), keyed by alias name.
         scenario_pass_rate (float):
-            Fraction of scenarios that fully passed (all tasks passed) (0–1).
+            Agent output matched expected results (0–1).
+        workflow_pass_rate (float):
+            Internal agent checks passed, averaged across aliases (0–1).
+            Only present when at least one alias has workflow data.
         total_scenarios (int):
             Total number of scenarios evaluated.
         passed_scenarios (int):
-            Number of scenarios where every task passed.
+            Number of scenarios where output matched expectations.
         scenario_task_pass_rates (Dict[str, Dict[str, float]]):
             Per-scenario, per-task pass rates. Maps scenario_id → task_id → pass_rate.
     """
 
     @property
     def overall_pass_rate(self) -> float:
-        """Weighted pass rate across all datasets and scenarios (0–1)."""
+        """Average of output quality and internal workflow pass rates (0–1)."""
 
     @property
     def dataset_pass_rates(self) -> Dict[str, float]:
-        """Per-alias pass rate (0–1), keyed by alias name."""
+        """Per-alias workflow pass rate (0–1), keyed by alias name."""
 
     @property
     def scenario_pass_rate(self) -> float:
-        """Fraction of scenarios that fully passed (0–1)."""
+        """Agent output matched expected results (0–1)."""
+
+    @property
+    def workflow_pass_rate(self) -> float:
+        """Internal agent checks passed, averaged across aliases (0–1)."""
 
     @property
     def total_scenarios(self) -> int:
@@ -2169,7 +2176,7 @@ class EvalMetrics:
 
     @property
     def passed_scenarios(self) -> int:
-        """Number of scenarios where every task passed."""
+        """Number of scenarios where output matched expectations."""
 
     @property
     def scenario_task_pass_rates(self) -> Dict[str, Dict[str, float]]:
@@ -2526,11 +2533,11 @@ class ScenarioEvalResults:
             RuntimeError: If comparison computation fails.
         """
 
-    def as_table(self, show_datasets: bool = False) -> None:
+    def as_table(self, show_workflow: bool = False) -> None:
         """Print a full evaluation summary (metrics + scenario table) to stdout.
 
         Args:
-            show_datasets: If True, also print per-dataset EvalResults tables.
+            show_workflow: If True, also print per-dataset workflow summary tables.
         """
 
 class EvalScenario:

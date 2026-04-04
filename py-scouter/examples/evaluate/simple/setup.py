@@ -6,6 +6,7 @@ you would have in your production agent — no special eval config needed.
 EvalOrchestrator switches the queue to local capture mode automatically.
 """
 
+import os
 from pathlib import Path
 from typing import Union
 
@@ -16,7 +17,6 @@ from scouter.genai import Prompt
 from scouter.queue import ScouterQueue
 from scouter.tracing import ScouterInstrumentor
 from scouter.transport import GrpcConfig, MockConfig
-import os
 
 _CWD = Path(__file__).parent
 

@@ -1100,8 +1100,8 @@ impl EvalSet {
             .collect()
     }
 
-    pub fn build_workflow_entries(&self) -> Vec<WorkflowResultTableEntry> {
-        vec![self.inner.to_table_entry()]
+    pub fn build_workflow_entries(&self, scenario_id: Option<&str>) -> Vec<WorkflowResultTableEntry> {
+        vec![self.inner.to_table_entry(scenario_id)]
     }
 
     pub fn new(records: Vec<EvalTaskResult>, inner: GenAIEvalWorkflowResult) -> Self {

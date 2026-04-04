@@ -451,6 +451,8 @@ impl BoxedEvalRecord {
 
 #[derive(Tabled)]
 pub struct WorkflowResultTableEntry {
+    #[tabled(rename = "Scenario ID")]
+    pub scenario_id: String,
     #[tabled(rename = "Created At")]
     pub created_at: String,
     #[tabled(rename = "Record UID")]
@@ -542,7 +544,7 @@ impl GenAIEvalWorkflowResult {
     }
 
     pub fn as_table(&self) {
-        let workflow_table = self.to_table_entry();
+        let workflow_table = self.to_table_entry(None);
         let mut table = Table::new(vec![workflow_table]);
         table.with(Style::sharp());
 
@@ -561,11 +563,16 @@ impl GenAIEvalWorkflowResult {
 }
 
 impl GenAIEvalWorkflowResult {
-    pub fn to_table_entry(&self) -> WorkflowResultTableEntry {
+    pub fn to_table_entry(&self, scenario_id: Option<&str>) -> WorkflowResultTableEntry {
         let pass_rate_display = format!("{:.1}%", self.pass_rate * 100.0);
         WorkflowResultTableEntry {
+            scenario_id: scenario_id.unwrap_or("").to_string(),
             created_at: self.created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-            record_uid: self.record_uid.truecolor(249, 179, 93).to_string(),
+            record_uid: {
+                let uid = &self.record_uid;
+                let suffix = uid[uid.len().saturating_sub(8)..].to_string();
+                suffix.truecolor(249, 179, 93).to_string()
+            },
             total_tasks: self.total_tasks.to_string(),
             passed_tasks: if self.passed_tasks > 0 {
                 self.passed_tasks.to_string().green().to_string()

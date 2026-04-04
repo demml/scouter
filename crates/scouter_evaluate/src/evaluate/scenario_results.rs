@@ -45,6 +45,9 @@ pub struct EvalMetrics {
     pub scenario_pass_rate: f64,
 
     #[pyo3(get)]
+    pub workflow_pass_rate: f64,
+
+    #[pyo3(get)]
     pub total_scenarios: usize,
 
     #[pyo3(get)]
@@ -60,6 +63,8 @@ struct MetricEntry {
     metric: String,
     #[tabled(rename = "Value")]
     value: String,
+    #[tabled(rename = "Description")]
+    description: String,
 }
 
 #[derive(Tabled)]
@@ -89,24 +94,45 @@ impl EvalMetrics {
     pub fn as_table(&self) {
         println!("\n{}", "Aggregate Metrics".truecolor(245, 77, 85).bold());
 
-        let entries = vec![
+        let overall_desc = if self.dataset_pass_rates.is_empty() {
+            "Agent output pass rate across all scenarios"
+        } else {
+            "Average of output quality and internal workflow pass rates"
+        };
+
+        let mut entries = vec![
             MetricEntry {
                 metric: "Overall Pass Rate".to_string(),
                 value: format!("{:.1}%", self.overall_pass_rate * 100.0),
+                description: overall_desc.to_string(),
             },
             MetricEntry {
                 metric: "Scenario Pass Rate".to_string(),
                 value: format!("{:.1}%", self.scenario_pass_rate * 100.0),
+                description: "Agent output matched expected results".to_string(),
             },
+        ];
+
+        if !self.dataset_pass_rates.is_empty() {
+            entries.push(MetricEntry {
+                metric: "Workflow Pass Rate".to_string(),
+                value: format!("{:.1}%", self.workflow_pass_rate * 100.0),
+                description: "Internal agent checks passed (averaged across aliases)".to_string(),
+            });
+        }
+
+        entries.extend([
             MetricEntry {
                 metric: "Total Scenarios".to_string(),
                 value: self.total_scenarios.to_string(),
+                description: "Scenarios evaluated".to_string(),
             },
             MetricEntry {
                 metric: "Passed Scenarios".to_string(),
                 value: self.passed_scenarios.to_string(),
+                description: "Scenarios where output matched expectations".to_string(),
             },
-        ];
+        ]);
 
         let mut table = Table::new(entries);
         table.with(Style::sharp());
@@ -811,8 +837,8 @@ impl ScenarioEvalResults {
         })
     }
 
-    #[pyo3(signature = (show_datasets=false))]
-    pub fn as_table(&mut self, show_datasets: bool) {
+    #[pyo3(signature = (show_workflow=false))]
+    pub fn as_table(&mut self, show_workflow: bool) {
         self.metrics.as_table();
 
         if !self.scenario_results.is_empty() {
@@ -863,7 +889,7 @@ impl ScenarioEvalResults {
             println!("{}", table);
         }
 
-        if show_datasets {
+        if show_workflow {
             let mut aliases: Vec<_> = self.dataset_results.keys().cloned().collect();
             aliases.sort();
             for alias in aliases {
@@ -894,6 +920,7 @@ mod tests {
             overall_pass_rate: overall,
             dataset_pass_rates: HashMap::new(),
             scenario_pass_rate,
+            workflow_pass_rate: 0.0,
             total_scenarios: total,
             passed_scenarios: passed,
             scenario_task_pass_rates: HashMap::new(),

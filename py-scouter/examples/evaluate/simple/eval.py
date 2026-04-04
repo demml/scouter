@@ -79,7 +79,7 @@ def main() -> None:
         f"Passed    : {results.metrics.passed_scenarios}  "
         f"Pass rate : {results.metrics.overall_pass_rate:.0%}"
     )
-    results.as_table(show_datasets=True)
+    results.as_table(show_workflow=True)
 
 
 if __name__ == "__main__":

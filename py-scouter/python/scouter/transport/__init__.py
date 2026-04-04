@@ -4,9 +4,9 @@ from .._scouter import (
     GrpcConfig,
     HttpConfig,
     KafkaConfig,
+    MockConfig,
     RabbitMQConfig,
     RedisConfig,
-    MockConfig,
 )
 
 __all__ = [
