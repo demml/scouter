@@ -1,24 +1,56 @@
-## GenAI Evaluation and Drift Detection Overview
+## GenAI evaluation
 
-Similar to PSI, SPC and Custom Drift Profiles, Scouter provides support for both offline and on-line GenAI evaluations/drift detection of GenAI services.
+GenAI outputs are stochastic. The same prompt produces different responses across runs, model versions drift, and "it worked in testing" stops being a meaningful claim once your agent is in production. You need a systematic way to measure quality — before you ship and while you're running.
 
+Scouter's eval framework gives you two views of your agent, captured in a single run.
 
-## Why monitor GenAI Services?
+---
 
-This point has been made multiple times by others, so we won't rehash it here, but evaluating GenAI services is critical for ensuring the quality and reliability of your LLM-powered applications. GenAI applications may hallucinate or output content that's not quite in line with what you expect. And for customer-facing applications, this can lead to poor user experiences or even harmful outcomes. So knowing when you service is drifting from expected behavior is crucial. Monitoring/Evaluating GenAI services is often important in offline settings as well, where you may want to run batch evaluations for regression testing or model comparisons.
+## Two ways to look at an agent
 
+Think of your agent like a car. A car either gets you from A to B or it doesn't — that's all a passenger cares about. But from the mechanic's perspective, the car arriving home doesn't mean it's healthy. It might have gotten there with a misfiring cylinder or low oil pressure. The passenger's view and the mechanic's view are both necessary, and neither replaces the other.
 
-## What does Scouter provide for GenAI Evaluation?
+Scouter formalizes this split:
 
-### Building Blocks for GenAI Evaluations
+**Scenario evaluation (the passenger's view)** treats your agent as a black box. Given this input, did the agent produce the right output? You don't care how it got there — which tools it called, how it routed between sub-agents, or what retrieval quality looked like. You only care that the response was correct. This is your end-to-end quality signal.
 
-Before going over offline and online evaluations, it's important to understand how tasks work in Scouter for GenAI evaluations. Scouter provides four task types: `AssertionTask` (deterministic rule-based checks), `LLMJudgeTask` (LLM-powered semantic evaluation), `TraceAssertionTask` (trace/span property validation), and `AgentAssertionTask` (deterministic assertions on agent tool calls and response properties — auto-detects OpenAI, Anthropic, and Google response formats). Tasks allow you to define expected outputs and evaluation criteria for your GenAI services and can be chained together to create complex evaluation workflows. More on this can be found in the [Task Building Blocks Section](/scouter/docs/monitoring/genai/tasks/).
+**Workflow evaluation (the mechanic's view)** opens the hood. Each sub-agent in your pipeline can emit structured records during execution — intermediate outputs, tool results, context data. Workflow tasks evaluate those records, giving you per-component health signals independent of whether the final output passed.
 
-### Offline Evaluation
+A single `EvalOrchestrator` run produces both. You don't have to choose between them.
 
-One of our goals with GenAI evaluations is to maintain parity between offline and online evaluations. This means you can define your evaluation tasks once and use them both for offline batch evaluations as well as on-line. This ensures consistency in how you measure your LLM's performance across different environments and versions. To run offline evaluations, you can use the `EvalDataset` along with the `EvalRecord` class and `LLMJudgeTask` and `AssertionTask` to run evaluations against a set of records. More on this can be found in the [Offline Evaluation Documentation](/scouter/docs/monitoring/genai/offline-evaluation/).
+---
 
+## Offline vs. online
 
-### Online Drift Detection
+**Offline evaluation** runs your agent against a fixed set of test scenarios before deployment. Use it to gate releases, catch regressions between model versions, and establish a quality baseline to compare future runs against.
 
-In line with our other drift tooling, Scouter provides a way to define GenAI Eval Profiles that can be used to monitor your LLM services in real-time. These profiles allow you to specify both tasks and alert criteria, so you can be notified when your LLM's performance degrades or drifts from expected behavior. This is done using the `GenAIEvalProfile`, `GenAIEvalConfig`, `LLMJudgeTask`, `AssertionTask`, and `AgentAssertionTask` classes. More on this can be found in the [Online Evaluation Documentation](/scouter/docs/monitoring/genai/online-evaluation/).
+**Online evaluation** samples production traffic and evaluates it asynchronously on the Scouter server. It catches distribution shift and real-world edge cases that don't show up in curated test scenarios.
+
+The task definitions are the same in both modes — write them once and reuse them. The difference is execution context: batch before deploy vs. sampled stream after deploy.
+
+---
+
+## Start here
+
+| You have... | Go to |
+|-------------|-------|
+| A callable agent function | [Offline evaluation](./offline-evaluation.md) |
+| Pre-generated records (no live agent) | [EvalDataset](./eval-dataset.md) |
+| A production service to monitor | [Online evaluation](./online-evaluation.md) |
+
+For most users: start with [offline evaluation](./offline-evaluation.md).
+
+---
+
+## Task types
+
+Tasks are what Scouter runs against your agent's outputs or records. They work the same whether you're evaluating offline or online.
+
+| Task | What it checks | Cost |
+|------|---------------|------|
+| `AssertionTask` | Deterministic rules — format, threshold, presence, pattern matching | None |
+| `LLMJudgeTask` | Semantic quality — relevance, faithfulness, tone — via an LLM call | One additional LLM call |
+| `TraceAssertionTask` | Span properties — execution order, retry counts, token budgets | None |
+| `AgentAssertionTask` | Tool calls and response structure — which tools ran, with what args, what they returned | None |
+
+Tasks can depend on each other and act as conditional gates to prevent expensive downstream calls when preconditions fail. Full reference: [Evaluation tasks](./tasks.md) · [Conditional gates](./gates.md).

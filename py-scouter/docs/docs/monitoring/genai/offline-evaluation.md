@@ -1,24 +1,12 @@
-# Offline Evaluation
+# Offline evaluation
 
-Offline evaluation runs your agent against a fixed set of test scenarios and measures quality across every sub-agent — before anything reaches production. Use it to catch regressions between model versions, validate prompt changes, and build a quality baseline to compare future runs against.
+Offline evaluation runs your agent against a fixed set of test scenarios and measures quality before anything reaches production. Use it to catch regressions between model versions, validate prompt changes, and build a quality baseline to compare future runs against.
 
----
-
-## Two Approaches
-
-| | `EvalOrchestrator` | `EvalDataset` |
-|---|---|---|
-| **Use when** | You have a callable agent to invoke | You have pre-generated records |
-| **Input** | `EvalScenarios` + your agent function | `EvalRecord` list + evaluation tasks |
-| **Output** | `ScenarioEvalResults` (save/load/compare) | `EvalResults` |
-| **Multi-agent** | Yes — one `GenAIEvalProfile` per sub-agent | Flat — single task list |
-| **Regression testing** | Built-in `compare_to()` | Not supported |
-
-For most agent workflows, **start with `EvalOrchestrator`**. `EvalDataset` is covered at the bottom for cases where you already have records.
+For pre-generated records without a live agent, see [EvalDataset](./eval-dataset.md).
 
 ---
 
-## Quick Start
+## Quick start
 
 ```python
 from scouter.drift import GenAIEvalProfile
@@ -30,9 +18,9 @@ from scouter.evaluate import (
     EvalScenario,
     EvalScenarios,
 )
-from scouter.mock import MockConfig
+from scouter.transport import MockConfig
 from scouter.queue import ScouterQueue
-from scouter.tracing import TestSpanExporter, init_tracer
+from scouter.tracing import init_tracer
 
 # 1. Define what to evaluate about your agent's outputs
 profile = GenAIEvalProfile(
@@ -48,12 +36,15 @@ profile = GenAIEvalProfile(
 )
 
 # 2. Create a queue from your profile
-queue = ScouterQueue.from_profile(profile=[profile],wait_for_startup=True)
+queue = ScouterQueue.from_profile(
+    profile=[profile],
+    transport_config=MockConfig(),
+)
 
 # 3. Initialize a tracer — your agent emits EvalRecords inside traced spans
-tracer = init_tracer( service_name="my-eval", scouter_queue=queue)
+tracer = init_tracer(service_name="my-eval", scouter_queue=queue)
 
-# 4. Your agent function — emits an EvalRecord, returns a response string
+# 4. Your agent — emits an EvalRecord, returns a response string
 def my_agent(query: str) -> str:
     with tracer.start_as_current_span("agent_call") as span:
         result = {"quality": 9, "text": "Paris is the capital of France."}
@@ -69,14 +60,13 @@ scenarios = EvalScenarios(scenarios=[
 ])
 
 # 6. Run
-orch = EvalOrchestrator(queue=queue, scenarios=scenarios, agent_fn=my_agent)
-results = orch.run()
+results = EvalOrchestrator(queue=queue, scenarios=scenarios, agent_fn=my_agent).run()
 results.as_table()
 ```
 
 ---
 
-## How It Works
+## How it works
 
 ### Execution lifecycle
 
@@ -102,15 +92,15 @@ EvalOrchestrator.run()
 └── disable_capture [always, even on exception]
 ```
 
-`EvalRunner` is the Rust engine. `EvalOrchestrator` is the Python lifecycle wrapper around it.
+`EvalRunner` is the Rust evaluation engine. `EvalOrchestrator` is the Python lifecycle wrapper around it.
 
 ### 3-level evaluation
 
 `EvalRunner.evaluate()` runs three levels in sequence:
 
-**Level 1 — Sub-agent evaluation (holistic)**
+**Level 1 — Sub-agent evaluation (workflow)**
 
-For each alias (sub-agent), all records collected across *all scenarios* are flattened into a single `EvalDataset` and evaluated together. This gives you a holistic quality signal per sub-agent — independent of which scenario produced which record.
+For each alias, all records collected across all scenarios are flattened into a single `EvalDataset` and evaluated together. This gives you a holistic quality signal per sub-agent, independent of which scenario produced each record.
 
 ```
 alias "retriever" → 5 records (one per scenario) → EvalDataset → EvalResults
@@ -131,7 +121,8 @@ scenario "capital_question" → build record from {response, expected_outcome}
 ```
 EvalMetrics:
   overall_pass_rate     # mean across all dataset + scenario pass rates
-  dataset_pass_rates    # per-alias pass rate (e.g. {"retriever": 0.9, "synthesizer": 0.6})
+  workflow_pass_rate    # mean across sub-agent profile pass rates
+  dataset_pass_rates    # per-alias pass rate, e.g. {"retriever": 0.9}
   scenario_pass_rate    # fraction of scenarios where all tasks passed
   total_scenarios       # count
   passed_scenarios      # count
@@ -154,7 +145,7 @@ During evaluate():
 
 ---
 
-## Core Concepts
+## Core concepts
 
 ### `EvalScenario`
 
@@ -162,10 +153,10 @@ A single test case. At minimum, supply `initial_query`.
 
 ```python
 EvalScenario(
-    id="scenario_id",                        # stable ID for regression tracking
+    id="scenario_id",                         # stable ID for regression tracking
     initial_query="Summarize this article.",
     expected_outcome="A 2-sentence summary.", # available as ${expected_outcome} in tasks
-    tasks=[                                  # evaluated against the agent's final response
+    tasks=[                                   # evaluated against the agent's final response
         AssertionTask(
             id="response_not_empty",
             context_path="response",
@@ -176,7 +167,7 @@ EvalScenario(
 )
 ```
 
-Scenario `tasks` evaluate the agent's **final response string**. They are separate from sub-agent profile tasks, which evaluate each sub-agent's `EvalRecord` context.
+Scenario `tasks` evaluate the agent's **final response string**. They're separate from profile tasks, which evaluate each sub-agent's `EvalRecord` context.
 
 ### `GenAIEvalProfile`
 
@@ -211,7 +202,7 @@ span.add_queue_item(
 
 ---
 
-## Multi-Agent Setup
+## Multi-agent setup
 
 One `GenAIEvalProfile` per sub-agent. Register all profiles on the queue.
 
@@ -228,9 +219,9 @@ from scouter.evaluate import (
     TraceAssertion,
     TraceAssertionTask,
 )
-from scouter.mock import MockConfig
+from scouter.transport import MockConfig
 from scouter.queue import ScouterQueue
-from scouter.tracing import ScouterInstrumentor, TestSpanExporter, init_tracer
+from scouter.tracing import ScouterInstrumentor, init_tracer
 
 retriever_profile = GenAIEvalProfile(
     alias="retriever",
@@ -264,20 +255,17 @@ synthesizer_profile = GenAIEvalProfile(
 
 queue = ScouterQueue.from_profile(
     profile=[retriever_profile, synthesizer_profile],
-    wait_for_startup=True,
+    transport_config=MockConfig(),
 )
 
-# ScouterInstrumentor is needed when using TraceAssertionTask
+# ScouterInstrumentor is required when your profiles include TraceAssertionTask.
+# For AssertionTask and LLMJudgeTask only, init_tracer alone is sufficient.
 instrumentor = ScouterInstrumentor().instrument(scouter_queue=queue)
 
-tracer = init_tracer(
-    service_name="my-agent",
-    scouter_queue=queue,
-)
+tracer = init_tracer(service_name="my-agent", scouter_queue=queue)
 
 
 def retriever_callback(query: str) -> dict:
-    """Sub-agent: retrieve documents and emit a record."""
     with tracer.start_as_current_span("retriever_call") as span:
         results = {"count": 5, "source": "internal_db"}
         span.add_queue_item("retriever", EvalRecord(context={"results": results}))
@@ -285,7 +273,6 @@ def retriever_callback(query: str) -> dict:
 
 
 def synthesizer_callback(query: str, context: dict) -> dict:
-    """Sub-agent: synthesize a response and emit a record."""
     with tracer.start_as_current_span("synthesizer_call") as span:
         output = {"quality": 9, "text": f"Answer for: {query}"}
         span.add_queue_item("synthesizer", EvalRecord(context={"response": output}))
@@ -304,18 +291,15 @@ scenarios = EvalScenarios(scenarios=[
     EvalScenario(id="attention", initial_query="How does attention work?"),
 ])
 
-orch = EvalOrchestrator(queue=queue, scenarios=scenarios, agent_fn=agent_fn)
-results = orch.run()
+results = EvalOrchestrator(queue=queue, scenarios=scenarios, agent_fn=agent_fn).run()
 results.as_table()
 
 instrumentor.uninstrument()
 ```
 
-`ScouterInstrumentor` is required when your profiles include `TraceAssertionTask`. If you only have `AssertionTask` and `LLMJudgeTask`, `init_tracer` alone is sufficient.
-
 ---
 
-## Multi-Turn Scenarios
+## Multi-turn scenarios
 
 Set `predefined_turns` with follow-up queries. The orchestrator calls `agent_fn` once for `initial_query`, then once per turn in order. The **last response** is used for scenario-level task evaluation.
 
@@ -330,13 +314,13 @@ EvalScenario(
 )
 ```
 
-`agent_fn` receives each query in isolation — no conversation history is managed automatically. To handle stateful agents, subclass `EvalOrchestrator` and override `execute_agent`.
+`agent_fn` receives each query in isolation — no conversation history is managed automatically. For stateful agents, subclass `EvalOrchestrator` and override `execute_agent`.
 
 ---
 
 ## Subclassing `EvalOrchestrator`
 
-Use `agent_fn` for simple agents. Subclass when you need stateful execution or custom data emission per scenario.
+Use `agent_fn` for simple synchronous agents. Subclass when you need async execution, stateful history, or custom setup per scenario.
 
 ```python
 class MyAgentEval(EvalOrchestrator):
@@ -354,13 +338,12 @@ class MyAgentEval(EvalOrchestrator):
         return response
 
 
-orch = MyAgentEval(queue=queue, scenarios=scenarios)
-results = orch.run()
+results = MyAgentEval(queue=queue, scenarios=scenarios).run()
 ```
 
 ### Lifecycle hooks
 
-Override these to add logging or post-processing without changing core execution:
+Override these to add logging or post-processing without touching core execution:
 
 ```python
 class MyEval(EvalOrchestrator):
@@ -375,11 +358,11 @@ class MyEval(EvalOrchestrator):
         return results
 ```
 
-Hook order per scenario: `on_scenario_start` → `execute_agent` → `on_scenario_complete`. `on_evaluation_complete` fires once after all scenarios.
+Hook order per scenario: `on_scenario_start` → `execute_agent` → `on_scenario_complete`. `on_evaluation_complete` fires once after all scenarios finish.
 
 ---
 
-## Saving, Loading, and Comparing Results
+## Saving, loading, and comparing results
 
 ```python
 # Save a baseline
@@ -412,6 +395,7 @@ loaded = ScenarioComparisonResults.load("comparison.json")
 | Property | Type | Description |
 |---|---|---|
 | `metrics.overall_pass_rate` | `float` | Mean pass rate across all datasets + scenario level (0–1) |
+| `metrics.workflow_pass_rate` | `float` | Mean pass rate across sub-agent profile evaluations |
 | `metrics.dataset_pass_rates` | `Dict[str, float]` | Per-alias pass rate, e.g. `{"retriever": 0.9}` |
 | `metrics.scenario_pass_rate` | `float` | Fraction of scenarios where all tasks passed |
 | `metrics.total_scenarios` | `int` | Total scenarios evaluated |
@@ -421,213 +405,19 @@ loaded = ScenarioComparisonResults.load("comparison.json")
 
 ```python
 results.as_table()
+results.as_table(show_workflow=True)  # include the Workflow Summary table
 
 detail = results.get_scenario_detail("rag_basics")
 print(detail.pass_rate)
 print(detail.passed)
 ```
 
+For a full explanation of what each table shows, see [Reading your results](./reading-results.md).
+
 ---
 
-## Using `EvalDataset` (Record-Based)
+## Working with pre-generated records
 
-`EvalDataset` is for cases where you already have records — no agent callable required. You supply `EvalRecord` objects directly alongside evaluation tasks. It supports the same task types but does not produce `ScenarioEvalResults` or comparison output.
+If you have records from a previous run or a separate data pipeline — no live agent needed — use `EvalDataset` instead. It takes `EvalRecord` objects directly alongside evaluation tasks.
 
-### Example: Appliance Customer Service Evaluation
-
-This example shows conditional routing across multiple product categories using `condition=True` on `AssertionTask`.
-
-#### Step 1: Generate Records
-
-```python
-import random
-from typing import List, Literal
-
-from pydantic import BaseModel
-from scouter.evaluate import AssertionTask, ComparisonOperator, EvalDataset, LLMJudgeTask
-from scouter.genai import Agent, Prompt, Provider
-from scouter.queue import EvalRecord
-
-categories = ["bath", "kitchen", "outdoor"]
-ApplianceCategory = Literal["kitchen", "bath", "outdoor"]
-
-
-class UserQuestion(BaseModel):
-    question: str
-    category: ApplianceCategory
-
-
-class AgentResponse(BaseModel):
-    answer: str
-    product_recommendations: List[str]
-    safety_notes: List[str]
-
-
-def simulate_agent_interaction(num_questions: int) -> List[EvalRecord]:
-    agent = Agent(Provider.Gemini)
-
-    question_prompt = Prompt(
-        messages=(
-            "Generate a realistic customer question about one of three appliance "
-            "categories: kitchen, bath, or outdoor. Category: ${category}"
-        ),
-        model="gemini-2.5-flash-lite",
-        provider="gemini",
-        output_type=UserQuestion,
-    )
-    response_prompt = Prompt(
-        messages=(
-            "You are a home appliance expert. Answer this customer question.\n\n"
-            "Question: ${user_question}"
-        ),
-        model="gemini-2.5-flash-lite",
-        provider="gemini",
-        output_type=AgentResponse,
-    )
-
-    records = []
-    for _ in range(num_questions):
-        category = categories[random.randint(0, 2)]
-        question = agent.execute_prompt(
-            prompt=question_prompt.bind(category=category),
-            output_type=UserQuestion,
-        ).structured_output
-
-        response = agent.execute_prompt(
-            prompt=response_prompt.bind(user_question=question.question),
-            output_type=AgentResponse,
-        ).structured_output
-
-        records.append(EvalRecord(context={
-            "user_input": question.question,
-            "agent_response": response.model_dump_json(),
-        }))
-
-    return records
-```
-
-#### Step 2: Define Evaluation Tasks
-
-```python
-from pydantic import BaseModel
-
-
-class CategoryValidation(BaseModel):
-    category: ApplianceCategory
-    reason: str
-    confidence: float
-
-
-class KitchenExpertValidation(BaseModel):
-    is_suitable: bool
-    reason: str
-    addresses_safety: bool
-    technical_accuracy_score: int
-
-
-# Base classification task — runs for every record
-classification_task = LLMJudgeTask(
-    id="category_classification",
-    prompt=Prompt(
-        messages=(
-            "Classify the appliance category (kitchen, bath, outdoor).\n\n"
-            "Question: ${user_input}\nResponse: ${agent_response}"
-        ),
-        model="gemini-2.5-flash-lite",
-        provider="gemini",
-        output_type=CategoryValidation,
-    ),
-    expected_value=None,
-    operator=ComparisonOperator.IsNotEmpty,
-    context_path="category",
-)
-
-# Kitchen validation chain — only runs when category_classification.category == "kitchen"
-kitchen_tasks = [
-    AssertionTask(
-        id="is_kitchen_category",
-        context_path="category_classification.category",
-        operator=ComparisonOperator.Equals,
-        expected_value="kitchen",
-        depends_on=["category_classification"],
-        condition=True,  # gates all downstream kitchen tasks
-    ),
-    LLMJudgeTask(
-        id="kitchen_expert_validation",
-        prompt=Prompt(
-            messages=(
-                "You are a kitchen appliance specialist. Evaluate this response.\n\n"
-                "Question: ${user_input}\nResponse: ${agent_response}"
-            ),
-            model="gemini-2.5-flash-lite",
-            provider="gemini",
-            output_type=KitchenExpertValidation,
-        ),
-        expected_value=True,
-        operator=ComparisonOperator.Equals,
-        context_path="is_suitable",
-        depends_on=["is_kitchen_category"],
-    ),
-    AssertionTask(
-        id="kitchen_technical_score",
-        context_path="kitchen_expert_validation.technical_accuracy_score",
-        operator=ComparisonOperator.GreaterThanOrEqual,
-        expected_value=7,
-        depends_on=["kitchen_expert_validation"],
-    ),
-]
-# Define bath_tasks and outdoor_tasks following the same pattern
-```
-
-#### Step 3: Assemble and Run
-
-```python
-records = simulate_agent_interaction(num_questions=10)
-
-dataset = EvalDataset(
-    records=records,
-    tasks=[classification_task] + kitchen_tasks,  # + bath_tasks + outdoor_tasks
-)
-
-dataset.print_execution_plan()
-results = dataset.evaluate()
-results.as_table()
-results.as_table(show_tasks=True)
-```
-
-### Conditional routing
-
-Tasks with `condition=True` act as gates. When a conditional task fails, all downstream tasks that depend on it are skipped — no LLM calls are wasted on the wrong category.
-
-```
-category_classification (always runs)
-    ├── is_kitchen_category (condition=True) → gates kitchen chain
-    │     └── kitchen_expert_validation → kitchen_technical_score
-    ├── is_bath_category (condition=True) → gates bath chain
-    │     └── bath_expert_validation → bath_installation_score
-    └── is_outdoor_category (condition=True) → gates outdoor chain
-          └── outdoor_expert_validation → outdoor_durability_score
-```
-
-### Context flow
-
-Each task only sees its `EvalRecord` base context plus the outputs of tasks it declares in `depends_on`. A task that does not declare a dependency cannot access that upstream task's output.
-
-```python
-# This task can read category_classification.category
-AssertionTask(
-    id="is_kitchen_category",
-    context_path="category_classification.category",
-    depends_on=["category_classification"],  # makes the output available
-    ...
-)
-
-# This task can read kitchen_expert_validation.technical_accuracy_score
-# but NOT category_classification (not in depends_on)
-AssertionTask(
-    id="kitchen_technical_score",
-    context_path="kitchen_expert_validation.technical_accuracy_score",
-    depends_on=["kitchen_expert_validation"],
-    ...
-)
-```
+→ [EvalDataset reference](./eval-dataset.md)

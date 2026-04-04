@@ -1,16 +1,8 @@
-# Online GenAI Evaluation with Scouter
+# Online evaluation
 
-Evaluate your GenAI services in real-time using the same evaluation tasks as offline testing. Online evaluation runs asynchronously on the Scouter server, providing continuous monitoring and observability without impacting your application's performance.
+Online evaluation runs the same evaluation tasks as offline, but against sampled production traffic — asynchronously, on the Scouter server, without adding latency to your application.
 
-## Overview
-
-Online GenAI evaluation enables:
-
-- **Real-time Monitoring**: Track service quality as traffic flows through your system
-- **Automated Alerting**: Get notified when metrics fall below acceptable thresholds
-- **Zero Latency Impact**: Evaluations run server-side without blocking your application
-- **Cost Control**: Configure sampling to balance monitoring coverage with evaluation costs (integrates with Scouter Tracing)
-- **Consistent Evaluation**: Use identical tasks from offline testing for production monitoring
+Use it to catch quality degradation and distribution shift after deployment. The task definitions are identical to offline; write them once and use them in both contexts.
 
 ## What is a GenAI Drift Profile?
 
@@ -401,7 +393,7 @@ config = GenAIEvalConfig(
     space="production",
     name="support_agent",
     version="2.0.0",
-    sample_ratio=10,
+    sample_ratio=0.1,  # evaluate 10% of requests
     alert_config=alert_config
 )
 
@@ -431,29 +423,13 @@ for user_query, model_response in production_requests:
     queue["support_agent"].insert(record)
 ```
 
-## Best Practices
+## Best practices
 
-### Sampling Strategy
+**Sampling**: High-traffic services should use lower `sample_ratio` values. For statistically meaningful alerts, ensure you're collecting enough samples per evaluation window — the right number depends on your traffic volume and how tight your thresholds are. To correlate evaluations with distributed traces, pass your `ScouterQueue` to the Scouter tracer. See [Tracing overview](/scouter/docs/tracing/overview/).
 
-- **High-traffic services**: Use lower sampling rates
-- **Critical metrics**: Higher sampling for important evaluations
-- **Cost management**: Balance evaluation costs against monitoring needs
-- **Statistical significance**: Ensure enough samples for meaningful alerts
-- **Tracing integration**: Add your `ScouterQueue` to the Scouter Tracer for correlated observability, sampling and evaluation. See [Tracing Overview](/scouter/docs/tracing/overview/) for details.
+**Task design**: Lead with `AssertionTask` before `LLMJudgeTask` — use `condition=True` to skip expensive LLM calls when cheap preconditions fail. Set `expected_value` thresholds based on what you observed in offline evaluation runs, not guesses.
 
-### Task Design
-
-- **Fast assertions first**: Use `AssertionTask` before expensive LLM calls
-- **Conditional execution**: Use `condition=True` to gate expensive evaluations
-- **Dependencies**: Chain tasks to build on previous results
-- **Baseline tuning**: Set `expected_value` based on offline evaluation results
-
-### Alert Configuration
-
-- **Reasonable thresholds**: Base alert conditions on actual performance distributions
-- **Alert frequency**: Match schedule to traffic patterns
-- **Actionable alerts**: Configure thresholds that indicate real quality issues
-- **Multiple channels**: Use appropriate dispatch for urgency level
+**Alert thresholds**: Base `baseline_value` and `delta` on real performance distributions. Thresholds set without data tend to alert on noise or miss real regressions. Match the alert schedule to your traffic pattern — hourly evaluation on a low-traffic service produces unreliable signal.
 
 ## Examples
 
