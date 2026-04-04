@@ -1942,6 +1942,14 @@ impl TasksFile {
         Ok(tasks_file)
     }
 
+    pub fn to_list<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyList>, TypeError> {
+        let list = PyList::empty(py);
+        for task in &self.tasks {
+            list.append(task.clone().into_bound_py_any(py)?)?;
+        }
+        Ok(list)
+    }
+
     pub fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
     }

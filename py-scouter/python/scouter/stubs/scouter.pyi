@@ -10,6 +10,7 @@ from .evaluate import (
     ComparisonOperator,
     EvaluationTaskType,
     LLMJudgeTask,
+    TasksFile,
     TraceAssertionTask,
 )
 from .header import Context
@@ -3190,6 +3191,8 @@ class GenAIEvalConfig:
                 LLM alert configuration
         """
 
+_TASK_TYPES = List[Union[AssertionTask, LLMJudgeTask, TraceAssertionTask]] | TasksFile
+
 class GenAIEvalProfile:
     """Profile for LLM evaluation and drift detection.
 
@@ -3491,7 +3494,7 @@ class GenAIEvalProfile:
 
     def __init__(
         self,
-        tasks: List[Union[AssertionTask, LLMJudgeTask, TraceAssertionTask]],
+        tasks: _TASK_TYPES,
         config: Optional[GenAIEvalConfig] = None,
         alias: Optional[str] = None,
     ):
@@ -3503,10 +3506,11 @@ class GenAIEvalProfile:
         Scouter server.
 
         Args:
-            tasks (List[Union[AssertionTask, LLMJudgeTask, TraceAssertionTask]]):
+            tasks (List[Union[AssertionTask, LLMJudgeTask, TraceAssertionTask]] | TasksFile):
                 List of evaluation tasks to include in the profile. Can contain
                 AssertionTask, LLMJudgeTask, and TraceAssertionTask instances.
                 At least one task (assertion, LLM judge, or trace assertion) is required.
+                Can also be provided as a TasksFile object.
             config (Optional[GenAIEvalConfig]):
                 Configuration for the GenAI drift profile containing space, name,
                 version, sample rate, and alert settings. If not provided,

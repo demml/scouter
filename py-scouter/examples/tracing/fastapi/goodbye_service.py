@@ -60,9 +60,7 @@ async def lifespan(app: FastAPI):
     )
 
     provider = otel_trace.get_tracer_provider()
-    assert isinstance(provider, TracerProvider), (
-        f"Expected Scouter TracerProvider, got {type(provider).__name__}."
-    )
+    assert isinstance(provider, TracerProvider), f"Expected Scouter TracerProvider, got {type(provider).__name__}."
     _tracer._inner = provider.get_tracer("goodbye-service")
 
     yield

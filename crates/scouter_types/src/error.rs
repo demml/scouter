@@ -394,6 +394,9 @@ pub enum ProfileError {
 
     #[error("Detected circular dependency in evaluation tasks")]
     CircularDependency,
+
+    #[error("Tasks must be provided as a list of tasks or a TasksFile object")]
+    InvalidTasksFormatError,
 }
 
 impl From<ProfileError> for PyErr {

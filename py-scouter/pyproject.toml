@@ -16,6 +16,13 @@ authors = [
 readme = "README.md"
 dependencies = []
 
+[project.optional-dependencies]
+opentelemetry = [
+    "opentelemetry-sdk>=1.36.0, <1.39.0",
+    "opentelemetry-exporter-otlp-proto-common",
+    "opentelemetry-instrumentation",
+]
+
 [dependency-groups]
 dev = [
     "maturin >= 1.4.0, < 2.0.0",
@@ -40,9 +47,6 @@ dev = [
     'pyarrow>=18.0.0',
     "httpx>=0.28.1",
     "pytest-benchmark>=5.2.3",
-    "opentelemetry-sdk>=1.36.0, <1.39.0",
-    "opentelemetry-exporter-otlp-proto-common",
-    "opentelemetry-instrumentation",
     "google-adk>=1.27.2",
     "pytest-asyncio>=1.3.0",
     "crewai>=1.6.1",

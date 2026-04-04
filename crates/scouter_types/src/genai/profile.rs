@@ -3,7 +3,7 @@ use crate::genai::alert::GenAIAlertConfig;
 use crate::genai::eval::{AssertionTask, EvaluationTask, LLMJudgeTask};
 use crate::genai::traits::{separate_tasks, ProfileExt, TaskAccessor};
 use crate::genai::utils::{extract_assertion_tasks_from_pylist, AssertionTasks};
-use crate::genai::{AgentAssertionTask, TraceAssertionTask};
+use crate::genai::{AgentAssertionTask, TasksFile, TraceAssertionTask};
 use crate::traits::ConfigExt;
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::{scouter_version, EvalTaskResult, GenAIEvalWorkflowResult, WorkflowResultTableEntry};
@@ -384,11 +384,22 @@ impl GenAIEvalProfile {
     /// * `ProfileError::MissingWorkflowError` - If the workflow is
     #[instrument(skip_all)]
     pub fn new_py(
-        tasks: &Bound<'_, PyList>,
+        tasks: &Bound<'_, PyAny>,
         config: Option<GenAIEvalConfig>,
         alias: Option<String>,
     ) -> Result<Self, ProfileError> {
-        let tasks = extract_assertion_tasks_from_pylist(tasks)?;
+        let task_list = if let Ok(list) = tasks.cast::<PyList>() {
+            list.clone()
+        } else if tasks.is_instance_of::<TasksFile>() {
+            tasks
+                .call_method0("to_list")?
+                .cast_into::<PyList>()
+                .map_err(|_| ProfileError::InvalidTasksFormatError)?
+        } else {
+            return Err(ProfileError::InvalidTasksFormatError);
+        };
+
+        let tasks = extract_assertion_tasks_from_pylist(&task_list)?;
 
         let (workflow, task_ids) =
             app_state().block_on(async { Self::build_profile(&tasks).await })?;

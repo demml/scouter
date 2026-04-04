@@ -48,19 +48,10 @@ profile = GenAIEvalProfile(
 )
 
 # 2. Create a queue from your profile
-queue = ScouterQueue.from_profile(
-    profile=[profile],
-    transport_config=MockConfig(),
-    wait_for_startup=True,
-)
+queue = ScouterQueue.from_profile(profile=[profile],wait_for_startup=True)
 
 # 3. Initialize a tracer — your agent emits EvalRecords inside traced spans
-tracer = init_tracer(
-    service_name="my-eval",
-    scouter_queue=queue,
-    transport_config=MockConfig(),
-    exporter=TestSpanExporter(batch_export=False),
-)
+tracer = init_tracer( service_name="my-eval", scouter_queue=queue)
 
 # 4. Your agent function — emits an EvalRecord, returns a response string
 def my_agent(query: str) -> str:
@@ -273,22 +264,15 @@ synthesizer_profile = GenAIEvalProfile(
 
 queue = ScouterQueue.from_profile(
     profile=[retriever_profile, synthesizer_profile],
-    transport_config=MockConfig(),
     wait_for_startup=True,
 )
 
 # ScouterInstrumentor is needed when using TraceAssertionTask
-instrumentor = ScouterInstrumentor()
-instrumentor.instrument(
-    scouter_queue=queue,
-    exporter=TestSpanExporter(batch_export=False),
-)
+instrumentor = ScouterInstrumentor().instrument(scouter_queue=queue)
 
 tracer = init_tracer(
     service_name="my-agent",
     scouter_queue=queue,
-    transport_config=MockConfig(),
-    exporter=TestSpanExporter(batch_export=False),
 )
 
 

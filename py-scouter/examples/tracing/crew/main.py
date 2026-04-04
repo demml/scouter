@@ -1,6 +1,7 @@
-from crewai import Agent, Crew, Task  # type: ignore
-from crewai import LLM  # type: ignore
 import os
+
+from crewai import LLM  # type: ignore
+from crewai import Agent, Crew, Task  # type: ignore
 from scouter.tracing import ScouterInstrumentor
 from scouter.transport import GrpcConfig
 

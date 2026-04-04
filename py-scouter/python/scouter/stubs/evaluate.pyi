@@ -1244,6 +1244,19 @@ class TraceAssertion:
             Use with appropriate operators for the value type.
         """
 
+    @staticmethod
+    def attribute_filter(key: str, task: "AttributeFilterTask", mode: "MultiResponseMode") -> "TraceAssertion":
+        """Filter spans by attribute and apply assertion to collected spans.
+
+        Args:
+            key (str):
+                Attribute key to filter spans.
+            task (AttributeFilterTask):
+                Assertion task to apply to the filtered spans.
+            mode (MultiResponseMode):
+                Mode to handle multiple spans matching the filter (e.g., apply to all, any).
+        """
+
 class TraceAssertionTask:
     """Trace-based evaluation task for behavioral assertions.
 

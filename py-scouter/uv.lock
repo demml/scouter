@@ -4660,6 +4660,13 @@ name = "scouter-ml"
 version = "0.25.0"
 source = { editable = "." }
 
+[package.optional-dependencies]
+opentelemetry = [
+    { name = "opentelemetry-exporter-otlp-proto-common" },
+    { name = "opentelemetry-instrumentation" },
+    { name = "opentelemetry-sdk" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "black" },
@@ -4671,9 +4678,6 @@ dev = [
     { name = "maturin" },
     { name = "mypy" },
     { name = "numpy" },
-    { name = "opentelemetry-exporter-otlp-proto-common" },
-    { name = "opentelemetry-instrumentation" },
-    { name = "opentelemetry-sdk" },
     { name = "pandas" },
     { name = "pandas-stubs" },
     { name = "pip" },
@@ -4696,6 +4700,12 @@ docs = [
 ]
 
 [package.metadata]
+requires-dist = [
+    { name = "opentelemetry-exporter-otlp-proto-common", marker = "extra == 'opentelemetry'" },
+    { name = "opentelemetry-instrumentation", marker = "extra == 'opentelemetry'" },
+    { name = "opentelemetry-sdk", marker = "extra == 'opentelemetry'", specifier = ">=1.36.0,<1.39.0" },
+]
+provides-extras = ["opentelemetry"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -4708,9 +4718,6 @@ dev = [
     { name = "maturin", specifier = ">=1.4.0,<2.0.0" },
     { name = "mypy", specifier = ">=1.0.0,<2.0.0" },
     { name = "numpy", marker = "python_full_version >= '3.10'", specifier = ">1.24.4" },
-    { name = "opentelemetry-exporter-otlp-proto-common" },
-    { name = "opentelemetry-instrumentation" },
-    { name = "opentelemetry-sdk", specifier = ">=1.36.0,<1.39.0" },
     { name = "pandas", marker = "python_full_version < '3.10'", specifier = ">=1.5.3,<3.0.0" },
     { name = "pandas", marker = "python_full_version >= '3.10'", specifier = ">=2.2.2" },
     { name = "pandas-stubs", specifier = ">=1.5.3.230214,<3.0.0" },
