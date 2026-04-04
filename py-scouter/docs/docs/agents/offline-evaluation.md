@@ -98,7 +98,7 @@ EvalOrchestrator.run()
 
 `EvalRunner.evaluate()` runs three levels in sequence:
 
-**Level 1 — Sub-agent evaluation (workflow)**
+**Level 1: Sub-agent evaluation (workflow)**
 
 For each alias, all records collected across all scenarios are flattened into a single `EvalDataset` and evaluated together. This gives you a holistic quality signal per sub-agent, independent of which scenario produced each record.
 
@@ -107,7 +107,7 @@ alias "retriever" → 5 records (one per scenario) → EvalDataset → EvalResul
 alias "synthesizer" → 5 records → EvalDataset → EvalResults
 ```
 
-**Level 2 — Scenario-level evaluation**
+**Level 2: Scenario-level evaluation**
 
 For each scenario that has `tasks`, a single `EvalRecord` is built from the scenario context (agent response + `expected_outcome`) and evaluated against those tasks. `TraceAssertionTask`s are resolved by matching `trace_id`s from the scenario's records to spans in the capture buffer.
 
@@ -116,7 +116,7 @@ scenario "capital_question" → build record from {response, expected_outcome}
   → evaluate scenario tasks → ScenarioResult { passed, pass_rate }
 ```
 
-**Level 3 — Aggregate metrics**
+**Level 3: Aggregate metrics**
 
 ```
 EvalMetrics:
@@ -314,7 +314,7 @@ EvalScenario(
 )
 ```
 
-`agent_fn` receives each query in isolation — no conversation history is managed automatically. For stateful agents, subclass `EvalOrchestrator` and override `execute_agent`.
+`agent_fn` receives each query in isolation. No conversation history is managed automatically. For stateful agents, subclass `EvalOrchestrator` and override `execute_agent`.
 
 ---
 
@@ -418,6 +418,6 @@ For a full explanation of what each table shows, see [Reading your results](./re
 
 ## Working with pre-generated records
 
-If you have records from a previous run or a separate data pipeline — no live agent needed — use `EvalDataset` instead. It takes `EvalRecord` objects directly alongside evaluation tasks.
+If you have records from a previous run or a separate data pipeline (no live agent needed), use `EvalDataset` instead. It takes `EvalRecord` objects directly alongside evaluation tasks.
 
 → [EvalDataset reference](./eval-dataset.md)

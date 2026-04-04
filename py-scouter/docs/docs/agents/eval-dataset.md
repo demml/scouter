@@ -2,9 +2,9 @@
 
 `EvalDataset` evaluates a set of pre-generated records — no callable agent required. You supply `EvalRecord` objects directly alongside evaluation tasks. Use it when you already have records from a previous run, a production log export, or a data pipeline, and you want to run eval tasks against them in batch.
 
-**When to use `EvalDataset` instead of `EvalOrchestrator`:**
+Use `EvalDataset` when:
 
-- You don't have a callable agent — only records.
+- You don't have a callable agent. Only records.
 - You're doing post-hoc analysis on production samples.
 - You want to run tasks against records that were generated separately from the eval run.
 
@@ -178,7 +178,7 @@ results.as_table(show_tasks=True)
 
 ## Conditional routing
 
-Tasks with `condition=True` act as gates. When a gate fails, all downstream tasks that depend on it are skipped — no LLM calls are wasted on records that don't match the expected category.
+Tasks with `condition=True` act as gates. When a gate fails, all downstream tasks that depend on it are skipped. No LLM calls are wasted on records that don't match the expected category.
 
 ```
 category_classification (always runs)
@@ -196,7 +196,7 @@ See [Conditional gates](./gates.md) for a full explanation of how gates interact
 
 ## Context flow
 
-Each task only sees its `EvalRecord` base context plus the outputs of tasks it declares in `depends_on`. A task that doesn't declare a dependency cannot access that upstream task's output — this is intentional to prevent implicit coupling.
+Each task only sees its `EvalRecord` base context plus the outputs of tasks it declares in `depends_on`. A task that doesn't declare a dependency cannot access that upstream task's output. This is intentional; it prevents implicit coupling between tasks.
 
 ```python
 # This task can read category_classification.category

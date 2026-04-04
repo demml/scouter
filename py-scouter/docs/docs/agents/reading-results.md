@@ -27,7 +27,7 @@ They measure different things. A scenario can pass (good final output) while wor
 
 ---
 
-## Aggregate Metrics
+## Aggregate metrics
 
 Printed by `results.as_table()`. Rolled-up numbers from both loops.
 
@@ -43,9 +43,9 @@ If you haven't defined any `GenAIEvalProfile` tasks, Workflow Pass Rate is omitt
 
 ---
 
-## Scenario Results
+## Scenario results
 
-One row per scenario task. This is the black-box view — output correctness only.
+One row per scenario task. This is the black-box view: output correctness only.
 
 Tasks come from `EvalScenario(tasks=[...])`. They run against the string `execute_agent()` returned for that scenario.
 
@@ -68,16 +68,16 @@ The `response` context key is populated automatically from the string your agent
 
 ---
 
-## Workflow Summary
+## Workflow summary
 
 Printed when you call `results.as_table(show_workflow=True)`. One row per `EvalRecord` emitted by a sub-agent across all scenarios.
 
-Tasks come from `GenAIEvalProfile(tasks=[...])` — the profile attached to your `ScouterQueue`. Each sub-agent that calls `span.add_queue_item(alias, record)` during execution produces rows here.
+Tasks come from `GenAIEvalProfile(tasks=[...])`, the profile attached to your `ScouterQueue`. Each sub-agent that calls `span.add_queue_item(alias, record)` during execution produces rows here.
 
 | Column | What it shows |
 |--------|--------------|
 | **Scenario ID** | Which scenario produced this record |
-| **Record UID** | Last 8 chars of the record UUID — enough to distinguish records within a scenario |
+| **Record UID** | Last 8 chars of the record UUID (enough to distinguish records within a scenario) |
 | **Alias** | The sub-agent name (matches what you passed to `span.add_queue_item`) |
 | **Task** | Which profile task was evaluated |
 | **Passed** | Whether that task passed for this record |
@@ -128,4 +128,4 @@ if comparison.regressed:
     raise SystemExit(1)
 ```
 
-`regression_threshold` is the minimum pass-rate drop that counts as a regression. Default is `0.05` — a 5-point drop. `ScenarioComparisonResults` also serializes to JSON.
+`regression_threshold` is the minimum pass-rate drop that counts as a regression. Default is `0.05`, a 5-point drop. `ScenarioComparisonResults` also serializes to JSON.
