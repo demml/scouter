@@ -51,6 +51,7 @@ class BaseModel(Protocol):
     def __str__(self) -> str:
         """String representation of the model"""
 
+
 ### logging.pyi ###
 class LogLevel:
     Debug: "LogLevel"
@@ -204,6 +205,7 @@ class RustyLogger:
             *args:
                 Additional arguments to log.
         """
+
 
 ### potato.pyi ###
 class Provider:
@@ -10005,6 +10007,7 @@ class LLMTestServer:
         Stop the mock server.
         """
 
+
 ### tracing.pyi ###
 class TagRecord:
     """Represents a single tag record associated with an entity."""
@@ -11051,6 +11054,7 @@ def extract_span_context_from_headers(
 
     Returns a dict with 'trace_id', 'span_id', 'is_sampled' keys, or None if no valid context found.
     """
+
 
 ### evaluate.pyi ###
 class EvaluationTaskType:
@@ -13897,6 +13901,7 @@ class EvalOrchestrator:
             ScenarioEvalResults with metrics across all scenarios.
         """
 
+
 ### mock.pyi ###
 class BifrostTestServer:
     def __init__(self, cleanup: bool = True) -> None: ...
@@ -14006,6 +14011,7 @@ def create_trace_with_errors() -> List["TraceSpan"]:
     Returns:
         List[TraceSpan]: A list of TraceSpan objects representing the trace.
     """
+
 
 ### scouter.pyi ###
 #################
@@ -15812,7 +15818,7 @@ class ScouterQueue:
         omitted from the result.
         """
 
-    def genai_profiles(self) -> Dict[str, AgentEvalProfile]:
+    def agent_profiles(self) -> Dict[str, AgentEvalProfile]:
         """Returns a mapping of alias → AgentEvalProfile for all AgentEvalProfiles registered in the queue."""
 
 class EvalRecord:
@@ -17937,7 +17943,7 @@ class Drifter:
             SpcDriftProfile, PsiDriftProfile or CustomDriftProfile
         """
 
-    def create_genai_drift_profile(
+    def create_agent_drift_profile(
         self,
         config: AgentEvalConfig,
         tasks: Sequence[LLMJudgeTask | AssertionTask | TraceAssertionTask | AgentAssertionTask],
@@ -17988,7 +17994,7 @@ class Drifter:
             ...         description="Ensure relevance score >= 7"
             ...     )
             ... ]
-            >>> profile = Drifter().create_genai_drift_profile(config, tasks)
+            >>> profile = Drifter().create_agent_drift_profile(config, tasks)
 
         """
 
@@ -18757,6 +18763,7 @@ class DataProfiler:
                     Optional interval for aggregating metrics (e.g., "1m", "5m").
             """
 
+
 ### bifrost.pyi ###
 class TableConfig:
     """Configuration for a dataset table, derived from a Pydantic model.
@@ -19034,6 +19041,7 @@ class Bifrost:
     @property
     def client(self) -> DatasetClient:
         """The underlying ``DatasetClient`` for full read API access."""
+
 
 ### GLOBAL EXPORTS ###
 __all__ = [

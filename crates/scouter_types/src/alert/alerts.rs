@@ -113,7 +113,7 @@ pub enum AlertMap {
     Custom(ComparisonMetricAlert),
     Psi(PsiFeatureAlert),
     Spc(SpcAlertEntry),
-    GenAI(ComparisonMetricAlert),
+    Agent(ComparisonMetricAlert),
 
     #[default]
     None,
@@ -129,7 +129,7 @@ impl AlertMap {
             AlertMap::Custom(alert) => &alert.metric_name,
             AlertMap::Psi(alert) => &alert.feature,
             AlertMap::Spc(alert) => &alert.feature,
-            AlertMap::GenAI(alert) => &alert.metric_name,
+            AlertMap::Agent(alert) => &alert.metric_name,
             AlertMap::None => "none",
         }
     }

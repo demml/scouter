@@ -299,7 +299,7 @@ def test_mock_adk_agent_e2e():
             for i, (query, _, _) in enumerate(ADK_SCENARIO_DATA)
         ]
     )
-    runner = EvalRunner(scenarios=scenarios, profiles=queue.genai_profiles())
+    runner = EvalRunner(scenarios=scenarios, profiles=queue.agent_profiles())
 
     # 5. Simulate mock ADK agent — span.add_queue_item auto-stamps trace_id onto EvalRecord
     for i, (query, quality, count) in enumerate(ADK_SCENARIO_DATA):

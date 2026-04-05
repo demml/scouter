@@ -1,7 +1,7 @@
 use crate::sql::error::SqlError;
 use chrono::{DateTime, Utc};
 use scouter_types::{
-    CustomMetricRecord, EvalRecord, EvalTaskResult, GenAIEvalWorkflowResult, IntoServerRecord,
+    CustomMetricRecord, EvalRecord, EvalTaskResult, AgentEvalWorkflowResult, IntoServerRecord,
     PsiRecord, RecordType, ServerRecords, SpcRecord,
 };
 use sqlx::postgres::PgRow;
@@ -38,14 +38,14 @@ pub fn parse_pg_rows(
         RecordType::Custom => {
             crate::sql::utils::pg_rows_to_server_records::<CustomMetricRecord>(rows, record_type)
         }
-        RecordType::GenAIEval => {
+        RecordType::AgentEval => {
             crate::sql::utils::pg_rows_to_server_records::<EvalRecord>(rows, record_type)
         }
-        RecordType::GenAITask => {
+        RecordType::AgentTask => {
             crate::sql::utils::pg_rows_to_server_records::<EvalTaskResult>(rows, record_type)
         }
-        RecordType::GenAIWorkflow => crate::sql::utils::pg_rows_to_server_records::<
-            GenAIEvalWorkflowResult,
+        RecordType::AgentWorkflow => crate::sql::utils::pg_rows_to_server_records::<
+            AgentEvalWorkflowResult,
         >(rows, record_type),
         _ => Err(SqlError::InvalidRecordTypeError(record_type.to_string())),
     }

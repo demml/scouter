@@ -1,5 +1,5 @@
 use crate::error::DataFrameError;
-use crate::parquet::agent::{GenAIEvalDataFrame, GenAITaskDataFrame, GenAIWorkflowDataFrame};
+use crate::parquet::agent::{AgentEvalDataFrame, AgentTaskDataFrame, AgentWorkflowDataFrame};
 use crate::parquet::custom::CustomMetricDataFrame;
 use crate::parquet::psi::PsiDataFrame;
 use crate::parquet::spc::SpcDataFrame;
@@ -15,9 +15,9 @@ pub enum ParquetDataFrame {
     CustomMetric(CustomMetricDataFrame),
     Psi(PsiDataFrame),
     Spc(SpcDataFrame),
-    GenAITask(GenAITaskDataFrame),
-    GenAIWorkflow(GenAIWorkflowDataFrame),
-    GenAIEval(GenAIEvalDataFrame),
+    AgentTask(AgentTaskDataFrame),
+    AgentWorkflow(AgentWorkflowDataFrame),
+    AgentEval(AgentEvalDataFrame),
 }
 
 impl ParquetDataFrame {
@@ -31,13 +31,13 @@ impl ParquetDataFrame {
             )?)),
             RecordType::Psi => Ok(ParquetDataFrame::Psi(PsiDataFrame::new(storage_settings)?)),
             RecordType::Spc => Ok(ParquetDataFrame::Spc(SpcDataFrame::new(storage_settings)?)),
-            RecordType::GenAITask => Ok(ParquetDataFrame::GenAITask(GenAITaskDataFrame::new(
+            RecordType::AgentTask => Ok(ParquetDataFrame::AgentTask(AgentTaskDataFrame::new(
                 storage_settings,
             )?)),
-            RecordType::GenAIWorkflow => Ok(ParquetDataFrame::GenAIWorkflow(
-                GenAIWorkflowDataFrame::new(storage_settings)?,
+            RecordType::AgentWorkflow => Ok(ParquetDataFrame::AgentWorkflow(
+                AgentWorkflowDataFrame::new(storage_settings)?,
             )),
-            RecordType::GenAIEval => Ok(ParquetDataFrame::GenAIEval(GenAIEvalDataFrame::new(
+            RecordType::AgentEval => Ok(ParquetDataFrame::AgentEval(AgentEvalDataFrame::new(
                 storage_settings,
             )?)),
 
@@ -66,9 +66,9 @@ impl ParquetDataFrame {
             ParquetDataFrame::CustomMetric(df) => df.write_parquet(rpath, records).await,
             ParquetDataFrame::Psi(df) => df.write_parquet(rpath, records).await,
             ParquetDataFrame::Spc(df) => df.write_parquet(rpath, records).await,
-            ParquetDataFrame::GenAITask(df) => df.write_parquet(rpath, records).await,
-            ParquetDataFrame::GenAIWorkflow(df) => df.write_parquet(rpath, records).await,
-            ParquetDataFrame::GenAIEval(df) => df.write_parquet(rpath, records).await,
+            ParquetDataFrame::AgentTask(df) => df.write_parquet(rpath, records).await,
+            ParquetDataFrame::AgentWorkflow(df) => df.write_parquet(rpath, records).await,
+            ParquetDataFrame::AgentEval(df) => df.write_parquet(rpath, records).await,
         }
     }
 
@@ -77,9 +77,9 @@ impl ParquetDataFrame {
             ParquetDataFrame::CustomMetric(df) => df.storage_root(),
             ParquetDataFrame::Psi(df) => df.storage_root(),
             ParquetDataFrame::Spc(df) => df.storage_root(),
-            ParquetDataFrame::GenAITask(df) => df.storage_root(),
-            ParquetDataFrame::GenAIWorkflow(df) => df.storage_root(),
-            ParquetDataFrame::GenAIEval(df) => df.storage_root(),
+            ParquetDataFrame::AgentTask(df) => df.storage_root(),
+            ParquetDataFrame::AgentWorkflow(df) => df.storage_root(),
+            ParquetDataFrame::AgentEval(df) => df.storage_root(),
         }
     }
 
@@ -89,9 +89,9 @@ impl ParquetDataFrame {
             ParquetDataFrame::CustomMetric(df) => df.object_store.clone(),
             ParquetDataFrame::Psi(df) => df.object_store.clone(),
             ParquetDataFrame::Spc(df) => df.object_store.clone(),
-            ParquetDataFrame::GenAITask(df) => df.object_store.clone(),
-            ParquetDataFrame::GenAIWorkflow(df) => df.object_store.clone(),
-            ParquetDataFrame::GenAIEval(df) => df.object_store.clone(),
+            ParquetDataFrame::AgentTask(df) => df.object_store.clone(),
+            ParquetDataFrame::AgentWorkflow(df) => df.object_store.clone(),
+            ParquetDataFrame::AgentEval(df) => df.object_store.clone(),
         }
     }
 
@@ -130,16 +130,16 @@ impl ParquetDataFrame {
                     .await
             }
 
-            ParquetDataFrame::GenAITask(df) => {
+            ParquetDataFrame::AgentTask(df) => {
                 df.get_binned_metrics(read_path, bin, start_time, end_time, entity_id)
                     .await
             }
-            ParquetDataFrame::GenAIWorkflow(df) => {
+            ParquetDataFrame::AgentWorkflow(df) => {
                 df.get_binned_metrics(read_path, bin, start_time, end_time, entity_id)
                     .await
             }
-            ParquetDataFrame::GenAIEval(_) => Err(DataFrameError::UnsupportedOperation(
-                "GenAI drift does not support binned metrics".to_string(),
+            ParquetDataFrame::AgentEval(_) => Err(DataFrameError::UnsupportedOperation(
+                "Agent drift does not support binned metrics".to_string(),
             )),
         }
     }
@@ -152,13 +152,13 @@ impl ParquetDataFrame {
             }
             ParquetDataFrame::Psi(df) => df.object_store.storage_settings.storage_type.clone(),
             ParquetDataFrame::Spc(df) => df.object_store.storage_settings.storage_type.clone(),
-            ParquetDataFrame::GenAITask(df) => {
+            ParquetDataFrame::AgentTask(df) => {
                 df.object_store.storage_settings.storage_type.clone()
             }
-            ParquetDataFrame::GenAIWorkflow(df) => {
+            ParquetDataFrame::AgentWorkflow(df) => {
                 df.object_store.storage_settings.storage_type.clone()
             }
-            ParquetDataFrame::GenAIEval(df) => {
+            ParquetDataFrame::AgentEval(df) => {
                 df.object_store.storage_settings.storage_type.clone()
             }
         }
@@ -185,7 +185,7 @@ mod tests {
     use scouter_types::{
         BoxedEvalRecord, EvalRecord, PsiRecord, ServerRecord, ServerRecords, SpcRecord, Status,
     };
-    use scouter_types::{CustomMetricRecord, EvalTaskResult, GenAIEvalWorkflowResult};
+    use scouter_types::{CustomMetricRecord, EvalTaskResult, AgentEvalWorkflowResult};
     use serde_json::Map;
     use serde_json::Value;
 
@@ -199,10 +199,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_write_genai_event_record_dataframe_local() {
+    async fn test_write_agent_event_record_dataframe_local() {
         cleanup();
         let storage_settings = ObjectStorageSettings::default();
-        let df = ParquetDataFrame::new(&storage_settings, &RecordType::GenAIEval).unwrap();
+        let df = ParquetDataFrame::new(&storage_settings, &RecordType::AgentEval).unwrap();
         let mut batch = Vec::new();
         let entity_id = rand::rng().random_range(0..100);
 
@@ -221,12 +221,12 @@ mod tests {
                 };
 
                 let boxed_record = BoxedEvalRecord::new(record);
-                batch.push(ServerRecord::GenAIEval(boxed_record));
+                batch.push(ServerRecord::AgentEval(boxed_record));
             }
         }
 
         let records = ServerRecords::new(batch);
-        let rpath = BinnedTableName::GenAIEval.to_string();
+        let rpath = BinnedTableName::AgentEval.to_string();
         df.write_parquet(&rpath, records.clone()).await.unwrap();
 
         // get canonical path
@@ -255,10 +255,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_write_genai_task_dataframe_local() {
+    async fn test_write_agent_task_dataframe_local() {
         cleanup();
         let storage_settings = ObjectStorageSettings::default();
-        let df = ParquetDataFrame::new(&storage_settings, &RecordType::GenAITask).unwrap();
+        let df = ParquetDataFrame::new(&storage_settings, &RecordType::AgentTask).unwrap();
         let mut batch = Vec::new();
         let start_utc = Utc::now();
         let end_utc_for_test = start_utc + chrono::Duration::hours(3);
@@ -267,7 +267,7 @@ mod tests {
         // create records
         for i in 0..3 {
             for j in 0..50 {
-                let record = ServerRecord::GenAITaskRecord(EvalTaskResult {
+                let record = ServerRecord::AgentTaskRecord(EvalTaskResult {
                     record_uid: format!("record_uid_{i}_{j}"),
                     created_at: Utc::now() + chrono::Duration::hours(i),
                     start_time: Utc::now() + chrono::Duration::hours(i),
@@ -294,7 +294,7 @@ mod tests {
         }
 
         let records = ServerRecords::new(batch);
-        let rpath = BinnedTableName::GenAITask.to_string();
+        let rpath = BinnedTableName::AgentTask.to_string();
         df.write_parquet(&rpath, records.clone()).await.unwrap();
 
         // get canonical path
@@ -306,7 +306,7 @@ mod tests {
         assert_eq!(files.len(), 3);
 
         // attempt to read the file
-        let new_df = ParquetDataFrame::new(&storage_settings, &RecordType::GenAITask).unwrap();
+        let new_df = ParquetDataFrame::new(&storage_settings, &RecordType::AgentTask).unwrap();
 
         let read_df = new_df
             .get_binned_metrics(&rpath, &0.01, &start_utc, &end_utc_for_test, &entity_id)
@@ -339,10 +339,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_write_genai_workflow_dataframe_local() {
+    async fn test_write_agent_workflow_dataframe_local() {
         cleanup();
         let storage_settings = ObjectStorageSettings::default();
-        let df = ParquetDataFrame::new(&storage_settings, &RecordType::GenAIWorkflow).unwrap();
+        let df = ParquetDataFrame::new(&storage_settings, &RecordType::AgentWorkflow).unwrap();
         let mut batch = Vec::new();
         let start_utc = Utc::now();
         let end_utc_for_test = start_utc + chrono::Duration::hours(3);
@@ -351,7 +351,7 @@ mod tests {
         // create records
         for i in 0..3 {
             for j in 0..50 {
-                let record = ServerRecord::GenAIWorkflowRecord(GenAIEvalWorkflowResult {
+                let record = ServerRecord::AgentWorkflowRecord(AgentEvalWorkflowResult {
                     record_uid: format!("record_uid_{i}_{j}"),
                     created_at: Utc::now() + chrono::Duration::hours(i),
                     entity_id,
@@ -370,7 +370,7 @@ mod tests {
         }
 
         let records = ServerRecords::new(batch);
-        let rpath = BinnedTableName::GenAIWorkflow.to_string();
+        let rpath = BinnedTableName::AgentWorkflow.to_string();
         df.write_parquet(&rpath, records.clone()).await.unwrap();
 
         // get canonical path
@@ -382,7 +382,7 @@ mod tests {
         assert_eq!(files.len(), 3);
 
         // attempt to read the file
-        let new_df = ParquetDataFrame::new(&storage_settings, &RecordType::GenAIWorkflow).unwrap();
+        let new_df = ParquetDataFrame::new(&storage_settings, &RecordType::AgentWorkflow).unwrap();
 
         let read_df = new_df
             .get_binned_metrics(&rpath, &0.01, &start_utc, &end_utc_for_test, &entity_id)

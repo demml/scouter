@@ -38,7 +38,7 @@ use scouter_types::{
         AgentAlertConfig, AgentEvalConfig, AgentEvalProfile, ComparisonOperator, EvaluationTasks,
         LLMJudgeTask,
     },
-    AlertMap, CustomMetricRecord, EvalTaskResult, GenAIEvalWorkflowResult, MessageRecord,
+    AlertMap, CustomMetricRecord, EvalTaskResult, AgentEvalWorkflowResult, MessageRecord,
     PsiRecord,
 };
 use scouter_types::{BoxedEvalRecord, EvalRecord, ServerRecord, ServerRecords, SpcRecord, Status};
@@ -82,13 +82,13 @@ pub async fn cleanup_tables(pool: &Pool<Postgres>) -> Result<(), anyhow::Error> 
         FROM scouter.psi_drift;
 
         DELETE
-        FROM scouter.genai_eval_record;
+        FROM scouter.agent_eval_record;
 
         DELETE
-        FROM scouter.genai_eval_workflow;
+        FROM scouter.agent_eval_workflow;
 
         DELETE
-        FROM scouter.genai_eval_task;
+        FROM scouter.agent_eval_task;
 
         DELETE
         FROM scouter.spans;
@@ -341,7 +341,7 @@ impl TestHelper {
         MessageRecord::ServerRecords(ServerRecords::new(records))
     }
 
-    pub fn get_genai_event_records(time_offset: Option<i64>, uid: &str) -> MessageRecord {
+    pub fn get_agent_event_records(time_offset: Option<i64>, uid: &str) -> MessageRecord {
         let mut records: Vec<ServerRecord> = Vec::new();
         let offset = time_offset.unwrap_or(0);
 
@@ -363,14 +363,14 @@ impl TestHelper {
                 };
 
                 let boxed_record = BoxedEvalRecord::new(record);
-                records.push(ServerRecord::GenAIEval(boxed_record));
+                records.push(ServerRecord::AgentEval(boxed_record));
             }
         }
 
         MessageRecord::ServerRecords(ServerRecords::new(records))
     }
 
-    pub fn get_genai_task_results(time_offset: Option<i64>, uid: &str) -> MessageRecord {
+    pub fn get_agent_task_results(time_offset: Option<i64>, uid: &str) -> MessageRecord {
         let mut records: Vec<ServerRecord> = Vec::new();
         let offset = time_offset.unwrap_or(0);
 
@@ -396,20 +396,20 @@ impl TestHelper {
                     start_time: Utc::now(),
                     end_time: Utc::now(),
                 };
-                records.push(ServerRecord::GenAITaskRecord(record));
+                records.push(ServerRecord::AgentTaskRecord(record));
             }
         }
 
         MessageRecord::ServerRecords(ServerRecords::new(records))
     }
 
-    pub fn get_genai_workflow_results(time_offset: Option<i64>, uid: &str) -> MessageRecord {
+    pub fn get_agent_workflow_results(time_offset: Option<i64>, uid: &str) -> MessageRecord {
         let mut records: Vec<ServerRecord> = Vec::new();
         let offset = time_offset.unwrap_or(0);
 
         for i in 0..2 {
             for j in 0..25 {
-                let record = GenAIEvalWorkflowResult {
+                let record = AgentEvalWorkflowResult {
                     record_uid: format!("record_uid_{i}_{j}"),
                     created_at: Utc::now() + chrono::Duration::microseconds(j as i64)
                         - chrono::Duration::days(offset),
@@ -423,14 +423,14 @@ impl TestHelper {
                     execution_plan: ExecutionPlan::default(),
                     id: 0,
                 };
-                records.push(ServerRecord::GenAIWorkflowRecord(record));
+                records.push(ServerRecord::AgentWorkflowRecord(record));
             }
         }
 
         MessageRecord::ServerRecords(ServerRecords::new(records))
     }
 
-    pub async fn create_genai_drift_profile() -> AgentEvalProfile {
+    pub async fn create_agent_drift_profile() -> AgentEvalProfile {
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
 
         let task1 = LLMJudgeTask::new_rs(
@@ -625,7 +625,7 @@ impl TestHelper {
         registered_response.uid
     }
 
-    pub fn populate_genai_records(
+    pub fn populate_agent_records(
         &self,
         uid: &str,
         runtime: &runtime::Runtime,
@@ -633,19 +633,19 @@ impl TestHelper {
         record_type: RecordType,
     ) {
         let body = match record_type {
-            RecordType::GenAITask => {
-                let records = TestHelper::get_genai_task_results(time_offset, uid);
+            RecordType::AgentTask => {
+                let records = TestHelper::get_agent_task_results(time_offset, uid);
                 serde_json::to_string(&records).unwrap()
             }
-            RecordType::GenAIWorkflow => {
-                let records = TestHelper::get_genai_workflow_results(time_offset, uid);
+            RecordType::AgentWorkflow => {
+                let records = TestHelper::get_agent_workflow_results(time_offset, uid);
                 serde_json::to_string(&records).unwrap()
             }
-            RecordType::GenAIEval => {
-                let records = TestHelper::get_genai_event_records(time_offset, uid);
+            RecordType::AgentEval => {
+                let records = TestHelper::get_agent_event_records(time_offset, uid);
                 serde_json::to_string(&records).unwrap()
             }
-            _ => panic!("Unsupported record type for GenAI task population"),
+            _ => panic!("Unsupported record type for agent task population"),
         };
 
         let request = Request::builder()

@@ -125,7 +125,7 @@ pub enum DriftError {
     ExpectedListOfEvalRecords(String),
 
     #[error("Failed to process GenAI evaluation: {0}")]
-    GenAIEvaluatorError(String),
+    AgentEvaluatorError(String),
 
     #[error(transparent)]
     TypeError(#[from] scouter_types::error::TypeError),

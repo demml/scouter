@@ -1,6 +1,6 @@
 #![allow(clippy::useless_conversion)]
 use crate::error::{EventError, PyEventError};
-use crate::queue::agent::GenAIQueue;
+use crate::queue::agent::AgentQueue;
 use crate::queue::bus::Task;
 use crate::queue::bus::{Event, QueueBus, TaskState};
 use crate::queue::custom::CustomQueue;
@@ -47,7 +47,7 @@ fn create_event_state(id: String) -> (TaskState<Event>, UnboundedReceiver<Event>
 struct QueueRegistry {
     queue_state: HashMap<String, TaskState<Event>>,
     queue_settings: HashMap<String, Arc<RwLock<QueueSettings>>>,
-    genai_profiles: HashMap<String, Arc<AgentEvalProfile>>,
+    agent_profiles: HashMap<String, Arc<AgentEvalProfile>>,
 }
 
 impl QueueRegistry {
@@ -55,7 +55,7 @@ impl QueueRegistry {
         Self {
             queue_state: HashMap::new(),
             queue_settings: HashMap::new(),
-            genai_profiles: HashMap::new(),
+            agent_profiles: HashMap::new(),
         }
     }
 }
@@ -64,7 +64,7 @@ pub enum QueueNum {
     Spc(SpcQueue),
     Psi(PsiQueue),
     Custom(CustomQueue),
-    GenAI(GenAIQueue),
+    Agent(AgentQueue),
 }
 // need to add queue running lock to each and return it to the queue bus
 impl QueueNum {
@@ -91,7 +91,7 @@ impl QueueNum {
                         .await?;
                 Ok(QueueNum::Custom(queue))
             }
-            DriftProfile::GenAI(genai_profile) => {
+            DriftProfile::Agent(genai_profile) => {
                 // settings cannot be None here
                 let queue_settings = match queue_settings {
                     Some(s) => s,
@@ -100,7 +100,7 @@ impl QueueNum {
                     }
                 };
 
-                let queue = GenAIQueue::new(
+                let queue = AgentQueue::new(
                     genai_profile,
                     transport_config,
                     queue_settings,
@@ -108,7 +108,7 @@ impl QueueNum {
                     identifier,
                 )
                 .await?;
-                Ok(QueueNum::GenAI(queue))
+                Ok(QueueNum::Agent(queue))
             }
         }
     }
@@ -126,7 +126,7 @@ impl QueueNum {
         match entity {
             QueueItem::Features(features) => self.insert_features(features).await,
             QueueItem::Metrics(metrics) => self.insert_metrics(metrics).await,
-            QueueItem::GenAI(genai_record) => self.insert_genai_record(*genai_record).await,
+            QueueItem::Agent(genai_record) => self.insert_agent_record(*genai_record).await,
         }
     }
 
@@ -162,12 +162,12 @@ impl QueueNum {
     /// # Arguments
     /// * `genai_record` - The LLM record to insert into the queue
     ///
-    pub async fn insert_genai_record(
+    pub async fn insert_agent_record(
         &mut self,
         genai_record: EvalRecord,
     ) -> Result<(), EventError> {
         match self {
-            QueueNum::GenAI(queue) => {
+            QueueNum::Agent(queue) => {
                 if !queue.should_insert() {
                     debug!("Skipping LLM record insertion due to sampling rate");
                     return Ok(());
@@ -185,7 +185,7 @@ impl QueueNum {
             QueueNum::Spc(queue) => queue.flush().await,
             QueueNum::Psi(queue) => queue.flush().await,
             QueueNum::Custom(queue) => queue.flush().await,
-            QueueNum::GenAI(queue) => queue.flush().await,
+            QueueNum::Agent(queue) => queue.flush().await,
         }
     }
 }
@@ -472,7 +472,7 @@ impl ScouterQueue {
     ///
     /// This is the Python-facing counterpart of `get_profiles()`. Returns cloned
     /// profiles so Python owns its copies independently of the queue's internal Arc.
-    pub fn genai_profiles(&self) -> HashMap<String, AgentEvalProfile> {
+    pub fn agent_profiles(&self) -> HashMap<String, AgentEvalProfile> {
         self.profiles
             .iter()
             .map(|(alias, arc)| (alias.clone(), arc.as_ref().clone()))
@@ -503,9 +503,9 @@ impl ScouterQueue {
         registry: &mut QueueRegistry,
         wait_for_startup: bool,
     ) -> Result<Py<QueueBus>, PyEventError> {
-        let settings = if let DriftProfile::GenAI(genai_profile) = &drift_profile {
+        let settings = if let DriftProfile::Agent(genai_profile) = &drift_profile {
             registry
-                .genai_profiles
+                .agent_profiles
                 .insert(id.clone(), Arc::new(genai_profile.clone()));
             let settings = Arc::new(RwLock::new(QueueSettings::new(
                 id.clone(),
@@ -621,7 +621,7 @@ impl ScouterQueue {
             transport_config: config,
             queue_state: Arc::new(registry.queue_state),
             settings: registry.queue_settings,
-            profiles: registry.genai_profiles,
+            profiles: registry.agent_profiles,
         })
     }
 
@@ -659,7 +659,7 @@ impl ScouterQueue {
             transport_config: config,
             queue_state: Arc::new(registry.queue_state),
             settings: registry.queue_settings,
-            profiles: registry.genai_profiles,
+            profiles: registry.agent_profiles,
         })
     }
 

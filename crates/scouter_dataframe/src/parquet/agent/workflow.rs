@@ -11,23 +11,23 @@ use chrono::{DateTime, Utc};
 use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::{GenAIEvalWorkflowResult, ServerRecords, StorageType, ToDriftRecords};
+use scouter_types::{AgentEvalWorkflowResult, ServerRecords, StorageType, ToDriftRecords};
 use std::sync::Arc;
 
-pub struct GenAIWorkflowDataFrame {
+pub struct AgentWorkflowDataFrame {
     schema: Arc<Schema>,
     pub object_store: ObjectStore,
 }
 
 #[async_trait]
-impl ParquetFrame for GenAIWorkflowDataFrame {
+impl ParquetFrame for AgentWorkflowDataFrame {
     fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, DataFrameError> {
-        GenAIWorkflowDataFrame::new(storage_settings)
+        AgentWorkflowDataFrame::new(storage_settings)
     }
 
     async fn get_dataframe(&self, records: ServerRecords) -> Result<DataFrame, DataFrameError> {
-        // Assuming ServerRecords has a method to_genai_workflow_records()
-        let records = records.to_genai_workflow_records()?;
+        // Assuming ServerRecords has a method to_agent_workflow_records()
+        let records = records.to_agent_workflow_records()?;
         let batch = self.build_batch(records)?;
 
         let ctx = self.object_store.get_session()?;
@@ -61,11 +61,11 @@ impl ParquetFrame for GenAIWorkflowDataFrame {
 
     fn table_name(&self) -> String {
         // Ensure this variant exists in your BinnedTableName enum
-        BinnedTableName::GenAIWorkflow.to_string()
+        BinnedTableName::AgentWorkflow.to_string()
     }
 }
 
-impl GenAIWorkflowDataFrame {
+impl AgentWorkflowDataFrame {
     pub fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, DataFrameError> {
         let schema = Arc::new(Schema::new(vec![
             Field::new("id", DataType::Int64, false),
@@ -87,7 +87,7 @@ impl GenAIWorkflowDataFrame {
 
         let object_store = ObjectStore::new(storage_settings)?;
 
-        Ok(GenAIWorkflowDataFrame {
+        Ok(AgentWorkflowDataFrame {
             schema,
             object_store,
         })
@@ -95,7 +95,7 @@ impl GenAIWorkflowDataFrame {
 
     fn build_batch(
         &self,
-        records: Vec<GenAIEvalWorkflowResult>,
+        records: Vec<AgentEvalWorkflowResult>,
     ) -> Result<RecordBatch, DataFrameError> {
         // id
         let id_array = arrow_array::Int64Array::from_iter_values(records.iter().map(|r| r.id));

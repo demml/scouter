@@ -1,6 +1,6 @@
 use crate::agent::EvalDataset;
 use crate::error::EvaluationError;
-use crate::evaluate::evaluator::GenAIEvaluator;
+use crate::evaluate::evaluator::AgentEvaluator;
 use crate::evaluate::types::{EvalResults, EvaluationConfig};
 use crate::tasks::evaluator::FieldEvaluator;
 use itertools::iproduct;
@@ -52,7 +52,7 @@ pub async fn spawn_evaluation_tasks_without_embeddings(
             );
 
             let result =
-                match GenAIEvaluator::process_event_record(record, profile_ref, spans_ref).await {
+                match AgentEvaluator::process_event_record(record, profile_ref, spans_ref).await {
                     Ok(eval_set) => Ok((eval_set, BTreeMap::new())),
                     Err(e) => Err(format!("Evaluation failed: {}", e)),
                 };
@@ -98,7 +98,7 @@ pub async fn spawn_evaluation_tasks_with_embeddings(
 
             // Execute evaluation
             let result =
-                match GenAIEvaluator::process_event_record(record, profile_ref, spans_ref).await {
+                match AgentEvaluator::process_event_record(record, profile_ref, spans_ref).await {
                     Ok(eval_set) => Ok((eval_set, embeddings)),
                     Err(e) => Err(format!("Evaluation failed: {}", e)),
                 };

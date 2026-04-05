@@ -22,7 +22,7 @@ pub enum DriftType {
     Spc,
     Psi,
     Custom,
-    GenAI,
+    Agent,
 }
 
 #[pymethods]
@@ -33,7 +33,7 @@ impl DriftType {
             "spc" => Some(DriftType::Spc),
             "psi" => Some(DriftType::Psi),
             "custom" => Some(DriftType::Custom),
-            "genai" => Some(DriftType::GenAI),
+            "agent" => Some(DriftType::Agent),
             _ => None,
         }
     }
@@ -44,7 +44,7 @@ impl DriftType {
             DriftType::Spc => "Spc",
             DriftType::Psi => "Psi",
             DriftType::Custom => "Custom",
-            DriftType::GenAI => "GenAI",
+            DriftType::Agent => "Agent",
         }
     }
 }
@@ -57,7 +57,7 @@ impl Deref for DriftType {
             DriftType::Spc => "spc",
             DriftType::Psi => "psi",
             DriftType::Custom => "custom",
-            DriftType::GenAI => "genai",
+            DriftType::Agent => "agent",
         }
     }
 }
@@ -70,7 +70,7 @@ impl FromStr for DriftType {
             "spc" => Ok(DriftType::Spc),
             "psi" => Ok(DriftType::Psi),
             "custom" => Ok(DriftType::Custom),
-            "genai" => Ok(DriftType::GenAI),
+            "agent" => Ok(DriftType::Agent),
             _ => Err(ProfileError::InvalidDriftTypeError),
         }
     }
@@ -82,7 +82,7 @@ impl Display for DriftType {
             DriftType::Spc => write!(f, "Spc"),
             DriftType::Psi => write!(f, "Psi"),
             DriftType::Custom => write!(f, "Custom"),
-            DriftType::GenAI => write!(f, "LLM"),
+            DriftType::Agent => write!(f, "Agent"),
         }
     }
 }
@@ -100,7 +100,7 @@ pub enum DriftProfile {
     Spc(SpcDriftProfile),
     Psi(PsiDriftProfile),
     Custom(CustomDriftProfile),
-    GenAI(AgentEvalProfile),
+    Agent(AgentEvalProfile),
 }
 
 #[pymethods]
@@ -111,7 +111,7 @@ impl DriftProfile {
             DriftProfile::Spc(profile) => Ok(profile.clone().into_bound_py_any(py)?),
             DriftProfile::Psi(profile) => Ok(profile.clone().into_bound_py_any(py)?),
             DriftProfile::Custom(profile) => Ok(profile.clone().into_bound_py_any(py)?),
-            DriftProfile::GenAI(profile) => Ok(profile.clone().into_bound_py_any(py)?),
+            DriftProfile::Agent(profile) => Ok(profile.clone().into_bound_py_any(py)?),
         }
     }
 }
@@ -142,9 +142,9 @@ impl DriftProfile {
                 let profile = serde_json::from_str(profile)?;
                 Ok(DriftProfile::Custom(profile))
             }
-            DriftType::GenAI => {
+            DriftType::Agent => {
                 let profile = serde_json::from_str(profile)?;
-                Ok(DriftProfile::GenAI(profile))
+                Ok(DriftProfile::Agent(profile))
             }
         }
     }
@@ -155,7 +155,7 @@ impl DriftProfile {
             DriftProfile::Spc(profile) => profile.get_base_args(),
             DriftProfile::Psi(profile) => profile.get_base_args(),
             DriftProfile::Custom(profile) => profile.get_base_args(),
-            DriftProfile::GenAI(profile) => profile.get_base_args(),
+            DriftProfile::Agent(profile) => profile.get_base_args(),
         }
     }
 
@@ -164,7 +164,7 @@ impl DriftProfile {
             DriftProfile::Spc(profile) => profile.to_value(),
             DriftProfile::Psi(profile) => profile.to_value(),
             DriftProfile::Custom(profile) => profile.to_value(),
-            DriftProfile::GenAI(profile) => profile.to_value(),
+            DriftProfile::Agent(profile) => profile.to_value(),
         }
     }
 
@@ -194,9 +194,9 @@ impl DriftProfile {
                 let profile = serde_json::from_value(body)?;
                 Ok(DriftProfile::Custom(profile))
             }
-            DriftType::GenAI => {
+            DriftType::Agent => {
                 let profile = serde_json::from_value(body)?;
-                Ok(DriftProfile::GenAI(profile))
+                Ok(DriftProfile::Agent(profile))
             }
         }
     }
@@ -216,9 +216,9 @@ impl DriftProfile {
                 let profile = profile.extract::<CustomDriftProfile>()?;
                 Ok(DriftProfile::Custom(profile))
             }
-            DriftType::GenAI => {
+            DriftType::Agent => {
                 let profile = profile.extract::<AgentEvalProfile>()?;
-                Ok(DriftProfile::GenAI(profile))
+                Ok(DriftProfile::Agent(profile))
             }
         }
     }
@@ -237,9 +237,9 @@ impl DriftProfile {
         }
     }
 
-    pub fn get_genai_profile(&self) -> Result<&AgentEvalProfile, ProfileError> {
+    pub fn get_agent_profile(&self) -> Result<&AgentEvalProfile, ProfileError> {
         match self {
-            DriftProfile::GenAI(profile) => Ok(profile),
+            DriftProfile::Agent(profile) => Ok(profile),
             _ => Err(ProfileError::InvalidDriftTypeError),
         }
     }
@@ -249,7 +249,7 @@ impl DriftProfile {
             DriftProfile::Spc(_) => DriftType::Spc,
             DriftProfile::Psi(_) => DriftType::Psi,
             DriftProfile::Custom(_) => DriftType::Custom,
-            DriftProfile::GenAI(_) => DriftType::GenAI,
+            DriftProfile::Agent(_) => DriftType::Agent,
         }
     }
 
@@ -284,7 +284,7 @@ impl DriftProfile {
             DriftProfile::Spc(profile) => Some(profile.config.version.clone()),
             DriftProfile::Psi(profile) => Some(profile.config.version.clone()),
             DriftProfile::Custom(profile) => Some(profile.config.version.clone()),
-            DriftProfile::GenAI(profile) => Some(profile.config.version.clone()),
+            DriftProfile::Agent(profile) => Some(profile.config.version.clone()),
         }
     }
 
@@ -308,7 +308,7 @@ impl DriftProfile {
                     profile.config.space, profile.config.name, profile.config.version
                 )
             }
-            DriftProfile::GenAI(profile) => {
+            DriftProfile::Agent(profile) => {
                 format!(
                     "{}/{}/v{}/genai",
                     profile.config.space, profile.config.name, profile.config.version
@@ -322,7 +322,7 @@ impl DriftProfile {
             DriftProfile::Spc(profile) => &profile.config.uid,
             DriftProfile::Psi(profile) => &profile.config.uid,
             DriftProfile::Custom(profile) => &profile.config.uid,
-            DriftProfile::GenAI(profile) => &profile.config.uid,
+            DriftProfile::Agent(profile) => &profile.config.uid,
         }
     }
 }

@@ -22,23 +22,23 @@ impl FeatureQueue for EvalRecordQueue {
         &self,
         batch: Vec<T>,
     ) -> Result<MessageRecord, FeatureQueueError> {
-        // Convert T to EvalRecord using QueueExt::into_genai_record
-        let genai_records: Vec<ServerRecord> = batch
+        // Convert T to EvalRecord using QueueExt::into_agent_record
+        let agent_records: Vec<ServerRecord> = batch
             .into_iter()
             .filter_map(|item| {
-                let record = item.into_genai_record();
+                let record = item.into_agent_record();
 
                 record.map(|r| {
                     // Set the entity_uid from the drift profile
                     let mut r = r;
                     r.entity_uid = self.drift_profile.config.uid.clone();
-                    ServerRecord::GenAIEval(BoxedEvalRecord::new(r))
+                    ServerRecord::AgentEval(BoxedEvalRecord::new(r))
                 })
             })
             .collect();
 
         Ok(MessageRecord::ServerRecords(ServerRecords::new(
-            genai_records,
+            agent_records,
         )))
     }
 }
@@ -50,7 +50,7 @@ mod tests {
     use scouter_types::EvalRecord;
 
     #[test]
-    fn test_feature_queue_genai_insert_record() {
+    fn test_feature_queue_agent_insert_record() {
         let profile = AgentEvalProfile::default();
         let feature_queue = EvalRecordQueue::new(profile);
 

@@ -428,7 +428,7 @@ impl PyScouterClient {
             DriftType::Custom => {
                 PyScouterClient::get_custom_binned_drift(py, &self.client.client, drift_request)
             }
-            DriftType::GenAI => PyScouterClient::get_genai_workflow_binned_drift(
+            DriftType::Agent => PyScouterClient::get_agent_workflow_binned_drift(
                 py,
                 &self.client.client,
                 drift_request,
@@ -436,12 +436,12 @@ impl PyScouterClient {
         }
     }
 
-    pub fn get_genai_task_binned_drift<'py>(
+    pub fn get_agent_task_binned_drift<'py>(
         &self,
         py: Python<'py>,
         drift_request: DriftRequest,
     ) -> Result<Bound<'py, PyAny>, ClientError> {
-        PyScouterClient::_get_genai_task_binned_drift(py, &self.client.client, drift_request)
+        PyScouterClient::_get_agent_task_binned_drift(py, &self.client.client, drift_request)
     }
 
     pub fn get_alerts(
@@ -633,7 +633,7 @@ impl PyScouterClient {
         Ok(results.into_bound_py_any(py).unwrap())
     }
 
-    fn _get_genai_task_binned_drift<'py>(
+    fn _get_agent_task_binned_drift<'py>(
         py: Python<'py>,
         client: &HttpClient,
         drift_request: DriftRequest,
@@ -641,7 +641,7 @@ impl PyScouterClient {
         let query_string = serde_qs::to_string(&drift_request)?;
 
         let response = client.request(
-            Routes::GenAITaskDrift,
+            Routes::AgentTaskDrift,
             RequestType::Get,
             None,
             Some(query_string),
@@ -659,7 +659,7 @@ impl PyScouterClient {
         Ok(results.into_bound_py_any(py).unwrap())
     }
 
-    fn get_genai_workflow_binned_drift<'py>(
+    fn get_agent_workflow_binned_drift<'py>(
         py: Python<'py>,
         client: &HttpClient,
         drift_request: DriftRequest,
@@ -667,7 +667,7 @@ impl PyScouterClient {
         let query_string = serde_qs::to_string(&drift_request)?;
 
         let response = client.request(
-            Routes::GenAIWorkflowDrift,
+            Routes::AgentWorkflowDrift,
             RequestType::Get,
             None,
             Some(query_string),

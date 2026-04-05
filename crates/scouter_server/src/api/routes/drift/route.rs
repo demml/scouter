@@ -12,7 +12,7 @@ use scouter_drift::psi::PsiDrifter;
 use scouter_settings::ScouterServerConfig;
 use scouter_sql::sql::{
     cache::entity_cache,
-    traits::{CustomMetricSqlLogic, GenAIDriftSqlLogic, ProfileSqlLogic, SpcSqlLogic},
+    traits::{CustomMetricSqlLogic, AgentDriftSqlLogic, ProfileSqlLogic, SpcSqlLogic},
 };
 use scouter_sql::PostgresClient;
 use scouter_types::{
@@ -181,9 +181,9 @@ pub async fn get_custom_drift(
     }
 }
 
-/// This route is used to get the latest GenAI drift records by page
+/// This route is used to get the latest agent drift records by page
 #[instrument(skip_all)]
-pub async fn query_genai_eval_records(
+pub async fn query_agent_eval_records(
     State(data): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
     Json(params): Json<EvalRecordPaginationRequest>,
@@ -202,7 +202,7 @@ pub async fn query_genai_eval_records(
         .await?;
 
     let metrics =
-        PostgresClient::get_paginated_genai_eval_records(&data.db_pool, &params, &entity_id).await;
+        PostgresClient::get_paginated_agent_eval_records(&data.db_pool, &params, &entity_id).await;
 
     match metrics {
         Ok(metrics) => Ok(Json(metrics)),
@@ -218,7 +218,7 @@ pub async fn query_genai_eval_records(
 }
 
 #[instrument(skip_all)]
-pub async fn get_genai_task_metrics(
+pub async fn get_agent_task_metrics(
     State(data): State<Arc<AppState>>,
     Query(params): Query<DriftRequest>,
     Extension(perms): Extension<UserPermissions>,
@@ -234,7 +234,7 @@ pub async fn get_genai_task_metrics(
 
     let entity_id = data.get_entity_id_for_request(&params.uid).await?;
 
-    let metrics = PostgresClient::get_binned_genai_task_values(
+    let metrics = PostgresClient::get_binned_agent_task_values(
         &data.db_pool,
         &params,
         &data.config.database_settings.retention_period,
@@ -246,7 +246,7 @@ pub async fn get_genai_task_metrics(
     match metrics {
         Ok(metrics) => Ok(Json(metrics)),
         Err(e) => {
-            error!("Failed to query genai eval task metrics: {:?}", e);
+            error!("Failed to query agent eval task metrics: {:?}", e);
 
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -257,7 +257,7 @@ pub async fn get_genai_task_metrics(
 }
 
 #[instrument(skip_all)]
-pub async fn get_genai_workflow_metrics(
+pub async fn get_agent_workflow_metrics(
     State(data): State<Arc<AppState>>,
     Query(params): Query<DriftRequest>,
     Extension(perms): Extension<UserPermissions>,
@@ -273,7 +273,7 @@ pub async fn get_genai_workflow_metrics(
 
     let entity_id = data.get_entity_id_for_request(&params.uid).await?;
 
-    let metrics = PostgresClient::get_binned_genai_workflow_values(
+    let metrics = PostgresClient::get_binned_agent_workflow_values(
         &data.db_pool,
         &params,
         &data.config.database_settings.retention_period,
@@ -322,12 +322,12 @@ pub async fn get_drift_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
             .route(&format!("{prefix}/drift/custom"), get(get_custom_drift))
             .route(&format!("{prefix}/drift/psi"), get(get_psi_drift))
             .route(
-                &format!("{prefix}/drift/genai/task"),
-                get(get_genai_task_metrics),
+                &format!("{prefix}/drift/agent/task"),
+                get(get_agent_task_metrics),
             )
             .route(
-                &format!("{prefix}/drift/genai/workflow"),
-                get(get_genai_workflow_metrics),
+                &format!("{prefix}/drift/agent/workflow"),
+                get(get_agent_workflow_metrics),
             )
     }));
 

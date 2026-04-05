@@ -303,7 +303,7 @@ async fn test_data_archive_custom() {
 }
 
 #[test]
-fn test_data_archive_genai_eval_record() {
+fn test_data_archive_agent_eval_record() {
     init_tracing();
     let runtime = tokio::runtime::Runtime::new().unwrap();
 
@@ -313,7 +313,7 @@ fn test_data_archive_genai_eval_record() {
 
         let helper = runtime.block_on(async { setup_test().await });
         let mut profile =
-            runtime.block_on(async { TestHelper::create_genai_drift_profile().await });
+            runtime.block_on(async { TestHelper::create_agent_drift_profile().await });
 
         let uid = runtime.block_on(async {
             helper
@@ -324,14 +324,14 @@ fn test_data_archive_genai_eval_record() {
         profile.config.uid = uid.clone();
 
         // 10 day old records
-        helper.populate_genai_records(
+        helper.populate_agent_records(
             &profile.config.uid,
             &runtime,
             Some(10),
-            RecordType::GenAIEval,
+            RecordType::AgentEval,
         );
         // 0 day old records
-        helper.populate_genai_records(&profile.config.uid, &runtime, None, RecordType::GenAIEval);
+        helper.populate_agent_records(&profile.config.uid, &runtime, None, RecordType::AgentEval);
 
         let record = runtime.block_on(async {
             sleep(Duration::from_secs(5)).await;
@@ -343,13 +343,13 @@ fn test_data_archive_genai_eval_record() {
         assert!(!record.spc);
         assert!(!record.psi);
         assert!(!record.custom);
-        assert!(!record.genai_task);
-        assert!(!record.genai_workflow);
-        assert!(record.genai_event);
+        assert!(!record.agent_task);
+        assert!(!record.agent_workflow);
+        assert!(record.agent_event);
 
         let df =
-            ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::GenAIEval).unwrap();
-        let path = format!("{}/{}", profile.config.uid, RecordType::GenAIEval.as_str());
+            ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::AgentEval).unwrap();
+        let path = format!("{}/{}", profile.config.uid, RecordType::AgentEval.as_str());
 
         let canonical_path = format!("{}/{}", df.storage_root(), path);
         let data_path = object_store::path::Path::from(canonical_path);
@@ -365,7 +365,7 @@ fn test_data_archive_genai_eval_record() {
 }
 
 #[test]
-fn test_data_archive_genai_tasks() {
+fn test_data_archive_agent_tasks() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
 
     retry_flaky_test_with_runtime!(runtime, {
@@ -375,7 +375,7 @@ fn test_data_archive_genai_tasks() {
         let helper = runtime.block_on(async { setup_test().await });
 
         let mut profile =
-            runtime.block_on(async { TestHelper::create_genai_drift_profile().await });
+            runtime.block_on(async { TestHelper::create_agent_drift_profile().await });
 
         let uid = runtime.block_on(async {
             helper
@@ -385,21 +385,21 @@ fn test_data_archive_genai_tasks() {
 
         profile.config.uid = uid.clone();
 
-        helper.populate_genai_records(
+        helper.populate_agent_records(
             &profile.config.uid,
             &runtime,
             Some(20),
-            RecordType::GenAITask,
+            RecordType::AgentTask,
         );
 
-        helper.populate_genai_records(
+        helper.populate_agent_records(
             &profile.config.uid,
             &runtime,
             Some(10),
-            RecordType::GenAITask,
+            RecordType::AgentTask,
         );
 
-        helper.populate_genai_records(&profile.config.uid, &runtime, None, RecordType::GenAITask);
+        helper.populate_agent_records(&profile.config.uid, &runtime, None, RecordType::AgentTask);
 
         let record = runtime.block_on(async {
             sleep(tokio::time::Duration::from_secs(5)).await;
@@ -411,13 +411,13 @@ fn test_data_archive_genai_tasks() {
         assert!(!record.spc);
         assert!(!record.psi);
         assert!(!record.custom);
-        assert!(record.genai_task);
-        assert!(!record.genai_event);
-        assert!(!record.genai_workflow);
+        assert!(record.agent_task);
+        assert!(!record.agent_event);
+        assert!(!record.agent_workflow);
 
         let df =
-            ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::GenAITask).unwrap();
-        let path = format!("{}/{}", profile.config.uid, RecordType::GenAITask.as_str());
+            ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::AgentTask).unwrap();
+        let path = format!("{}/{}", profile.config.uid, RecordType::AgentTask.as_str());
         let canonical_path = format!("{}/{}", df.storage_root(), path);
         let data_path = object_store::path::Path::from(canonical_path);
 
@@ -438,7 +438,7 @@ fn test_data_archive_genai_tasks() {
         let query_string = serde_qs::to_string(&params).unwrap();
 
         let request = Request::builder()
-            .uri(format!("/scouter/drift/genai/task?{query_string}"))
+            .uri(format!("/scouter/drift/agent/task?{query_string}"))
             .method("GET")
             .body(Body::empty())
             .unwrap();
@@ -461,7 +461,7 @@ fn test_data_archive_genai_tasks() {
 }
 
 #[test]
-fn test_data_archive_genai_workflow() {
+fn test_data_archive_agent_workflow() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
 
     retry_flaky_test_with_runtime!(runtime, {
@@ -471,7 +471,7 @@ fn test_data_archive_genai_workflow() {
         let helper = runtime.block_on(async { setup_test().await });
 
         let mut profile =
-            runtime.block_on(async { TestHelper::create_genai_drift_profile().await });
+            runtime.block_on(async { TestHelper::create_agent_drift_profile().await });
 
         let uid = runtime.block_on(async {
             helper
@@ -481,25 +481,25 @@ fn test_data_archive_genai_workflow() {
 
         profile.config.uid = uid.clone();
 
-        helper.populate_genai_records(
+        helper.populate_agent_records(
             &profile.config.uid,
             &runtime,
             Some(20),
-            RecordType::GenAIWorkflow,
+            RecordType::AgentWorkflow,
         );
 
-        helper.populate_genai_records(
+        helper.populate_agent_records(
             &profile.config.uid,
             &runtime,
             Some(10),
-            RecordType::GenAIWorkflow,
+            RecordType::AgentWorkflow,
         );
 
-        helper.populate_genai_records(
+        helper.populate_agent_records(
             &profile.config.uid,
             &runtime,
             None,
-            RecordType::GenAIWorkflow,
+            RecordType::AgentWorkflow,
         );
 
         let record = runtime.block_on(async {
@@ -512,16 +512,16 @@ fn test_data_archive_genai_workflow() {
         assert!(!record.spc);
         assert!(!record.psi);
         assert!(!record.custom);
-        assert!(!record.genai_task);
-        assert!(!record.genai_event);
-        assert!(record.genai_workflow);
+        assert!(!record.agent_task);
+        assert!(!record.agent_event);
+        assert!(record.agent_workflow);
 
-        let df = ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::GenAIWorkflow)
+        let df = ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::AgentWorkflow)
             .unwrap();
         let path = format!(
             "{}/{}",
             profile.config.uid,
-            RecordType::GenAIWorkflow.as_str()
+            RecordType::AgentWorkflow.as_str()
         );
         let canonical_path = format!("{}/{}", df.storage_root(), path);
         let data_path = object_store::path::Path::from(canonical_path);
@@ -543,7 +543,7 @@ fn test_data_archive_genai_workflow() {
         let query_string = serde_qs::to_string(&params).unwrap();
 
         let request = Request::builder()
-            .uri(format!("/scouter/drift/genai/workflow?{query_string}"))
+            .uri(format!("/scouter/drift/agent/workflow?{query_string}"))
             .method("GET")
             .body(Body::empty())
             .unwrap();

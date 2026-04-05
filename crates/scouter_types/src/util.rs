@@ -50,7 +50,7 @@ impl FileName {
             FileName::CustomDriftProfile => "custom_drift_profile.json",
             FileName::DataProfile => "data_profile.json",
             FileName::DriftProfile => "drift_profile.json",
-            FileName::AgentEvalProfile => "genai_drift_profile.json",
+            FileName::AgentEvalProfile => "agent_eval_profile.json",
         }
     }
 }
@@ -629,7 +629,7 @@ pub enum DataType {
     Numpy,
     Arrow,
     Unknown,
-    GenAI,
+    Agent,
 }
 
 impl Display for DataType {
@@ -640,7 +640,7 @@ impl Display for DataType {
             DataType::Numpy => write!(f, "numpy"),
             DataType::Arrow => write!(f, "arrow"),
             DataType::Unknown => write!(f, "unknown"),
-            DataType::GenAI => write!(f, "genai"),
+            DataType::Agent => write!(f, "agent"),
         }
     }
 }
@@ -652,7 +652,7 @@ impl DataType {
             "polars.dataframe.frame.DataFrame" => Ok(DataType::Polars),
             "numpy.ndarray" => Ok(DataType::Numpy),
             "pyarrow.lib.Table" => Ok(DataType::Arrow),
-            "scouter_drift.genai.EvalRecord" => Ok(DataType::GenAI),
+            "scouter_drift.agent.EvalRecord" => Ok(DataType::Agent),
             _ => Err(TypeError::InvalidDataType),
         }
     }

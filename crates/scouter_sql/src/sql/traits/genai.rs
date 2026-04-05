@@ -11,8 +11,8 @@ use scouter_types::contracts::DriftRequest;
 use scouter_types::BoxedEvalRecord;
 use scouter_types::EvalRecord;
 use scouter_types::EvalTaskResult;
-use scouter_types::GenAIEvalWorkflowPaginationResponse;
-use scouter_types::GenAIEvalWorkflowResult;
+use scouter_types::AgentEvalWorkflowPaginationResponse;
+use scouter_types::AgentEvalWorkflowResult;
 use scouter_types::Status;
 use scouter_types::{
     BinnedMetrics, EvalRecordPaginationRequest, EvalRecordPaginationResponse, RecordCursor,
@@ -61,7 +61,7 @@ pub trait GenAIDriftSqlLogic {
     /// # Returns
     async fn insert_genai_eval_workflow_record(
         pool: &Pool<Postgres>,
-        record: &GenAIEvalWorkflowResult,
+        record: &AgentEvalWorkflowResult,
         entity_id: &i32,
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertGenAIWorkflowResult.get_query();
@@ -335,12 +335,12 @@ pub trait GenAIDriftSqlLogic {
         pool: &Pool<Postgres>,
         params: &EvalRecordPaginationRequest,
         entity_id: &i32,
-    ) -> Result<GenAIEvalWorkflowPaginationResponse, SqlError> {
+    ) -> Result<AgentEvalWorkflowPaginationResponse, SqlError> {
         let query = Queries::GetPaginatedGenAIEvalWorkflow.get_query();
         let limit = params.limit.unwrap_or(50);
         let direction = params.direction.as_deref().unwrap_or("next");
 
-        let mut items: Vec<GenAIEvalWorkflowResult> = sqlx::query_as(query)
+        let mut items: Vec<AgentEvalWorkflowResult> = sqlx::query_as(query)
             .bind(entity_id)
             .bind(params.cursor_created_at)
             .bind(direction)
@@ -416,7 +416,7 @@ pub trait GenAIDriftSqlLogic {
             })
             .collect();
 
-        Ok(GenAIEvalWorkflowPaginationResponse {
+        Ok(AgentEvalWorkflowPaginationResponse {
             items: public_items,
             has_next,
             next_cursor,
@@ -605,9 +605,9 @@ pub trait GenAIDriftSqlLogic {
         entity_id: &i32,
     ) -> Result<BinnedMetrics, SqlError> {
         debug!("Getting archived GenAI metrics for params: {:?}", params);
-        let path = format!("{}/{}", params.uid, RecordType::GenAITask);
+        let path = format!("{}/{}", params.uid, RecordType::AgentTask);
         let bin = minutes as f64 / params.max_data_points as f64;
-        let archived_df = ParquetDataFrame::new(storage_settings, &RecordType::GenAITask)?
+        let archived_df = ParquetDataFrame::new(storage_settings, &RecordType::AgentTask)?
             .get_binned_metrics(&path, &bin, &begin, &end, entity_id)
             .await
             .inspect_err(|e| {
@@ -640,9 +640,9 @@ pub trait GenAIDriftSqlLogic {
         entity_id: &i32,
     ) -> Result<BinnedMetrics, SqlError> {
         debug!("Getting archived GenAI metrics for params: {:?}", params);
-        let path = format!("{}/{}", params.uid, RecordType::GenAIWorkflow);
+        let path = format!("{}/{}", params.uid, RecordType::AgentWorkflow);
         let bin = minutes as f64 / params.max_data_points as f64;
-        let archived_df = ParquetDataFrame::new(storage_settings, &RecordType::GenAIWorkflow)?
+        let archived_df = ParquetDataFrame::new(storage_settings, &RecordType::AgentWorkflow)?
             .get_binned_metrics(&path, &bin, &begin, &end, entity_id)
             .await
             .inspect_err(|e| {

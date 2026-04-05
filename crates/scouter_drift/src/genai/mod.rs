@@ -5,7 +5,7 @@ pub mod poller;
 pub mod drift;
 
 #[cfg(feature = "sql")]
-pub use drift::GenAIDrifter;
+pub use drift::AgentDrifter;
 
 #[cfg(feature = "sql")]
 pub use poller::AgentPoller;

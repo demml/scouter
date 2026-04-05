@@ -5,4 +5,4 @@ pub mod scenario_results;
 pub mod store;
 pub mod trace;
 pub mod types;
-pub use evaluator::GenAIEvaluator;
+pub use evaluator::AgentEvaluator;

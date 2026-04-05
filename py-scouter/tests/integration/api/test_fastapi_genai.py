@@ -7,7 +7,7 @@ from scouter.types import DriftType
 
 from tests.integration.api.conftest import ChatRequest
 
-from .conftest import create_and_register_genai_drift_profile, create_kafka_genai_app
+from .conftest import create_and_register_agent_drift_profile, create_kafka_agent_app
 
 
 def test_genai_api_kafka(kafka_scouter_openai_server):
@@ -17,14 +17,14 @@ def test_genai_api_kafka(kafka_scouter_openai_server):
     scouter_client = ScouterClient()
 
     # create the drift profile
-    profile = create_and_register_genai_drift_profile(
+    profile = create_and_register_agent_drift_profile(
         client=scouter_client,
         name=f"kafka_genai_test_{random_number}",
         with_trace_assertion=False,
     )
     drift_path = profile.save_to_json()
 
-    app = create_kafka_genai_app(drift_path)
+    app = create_kafka_agent_app(drift_path)
 
     # Configure the TestClient
     with TestClient(app) as client:
@@ -59,7 +59,7 @@ def test_genai_api_kafka(kafka_scouter_openai_server):
     # workflow metrics
     workflow_results = scouter_client.get_binned_drift(
         request,
-        drift_type=DriftType.GenAI,
+        drift_type=DriftType.Agent,
     )
 
     assert len(workflow_results["workflow"].stats) == 1

@@ -200,14 +200,14 @@ pub async fn archive_old_data(
                 // get the data from the database
                 record.custom = process_record_type(db_pool, &RecordType::Custom, config).await?;
             }
-            DriftType::GenAI => {
-                // process GenAI drift and metric records
-                record.genai_task =
-                    process_record_type(db_pool, &RecordType::GenAITask, config).await?;
-                record.genai_event =
-                    process_record_type(db_pool, &RecordType::GenAIEval, config).await?;
-                record.genai_workflow =
-                    process_record_type(db_pool, &RecordType::GenAIWorkflow, config).await?;
+            DriftType::Agent => {
+                // process agent drift and metric records
+                record.agent_task =
+                    process_record_type(db_pool, &RecordType::AgentTask, config).await?;
+                record.agent_event =
+                    process_record_type(db_pool, &RecordType::AgentEval, config).await?;
+                record.agent_workflow =
+                    process_record_type(db_pool, &RecordType::AgentWorkflow, config).await?;
             }
         }
     }

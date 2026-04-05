@@ -6,7 +6,7 @@ use crate::agent::{AgentAssertionTask, TasksFile, TraceAssertionTask};
 use crate::error::{ProfileError, TypeError};
 use crate::traits::ConfigExt;
 use crate::util::{json_to_pyobject, pyobject_to_json};
-use crate::{scouter_version, EvalTaskResult, GenAIEvalWorkflowResult, WorkflowResultTableEntry};
+use crate::{scouter_version, EvalTaskResult, AgentEvalWorkflowResult, WorkflowResultTableEntry};
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
     PyHelperFuncs, VersionRequest, DEFAULT_VERSION, MISSING,
@@ -53,7 +53,7 @@ fn default_uid() -> String {
 }
 
 fn default_drift_type() -> DriftType {
-    DriftType::GenAI
+    DriftType::Agent
 }
 
 fn default_alert_config() -> AgentAlertConfig {
@@ -145,7 +145,7 @@ impl AgentEvalConfig {
             uid: create_uuid7(),
             version: version.to_string(),
             alert_config,
-            drift_type: DriftType::GenAI,
+            drift_type: DriftType::Agent,
         })
     }
 
@@ -211,7 +211,7 @@ impl Default for AgentEvalConfig {
             version: DEFAULT_VERSION.to_string(),
             uid: create_uuid7(),
             alert_config: AgentAlertConfig::default(),
-            drift_type: DriftType::GenAI,
+            drift_type: DriftType::Agent,
         }
     }
 }
@@ -1084,7 +1084,7 @@ impl ProfileBaseArgs for AgentEvalProfile {
 pub struct EvalSet {
     #[pyo3(get)]
     pub records: Vec<EvalTaskResult>,
-    pub inner: GenAIEvalWorkflowResult,
+    pub inner: AgentEvalWorkflowResult,
 }
 
 impl EvalSet {
@@ -1107,14 +1107,14 @@ impl EvalSet {
         vec![self.inner.to_table_entry(scenario_id)]
     }
 
-    pub fn new(records: Vec<EvalTaskResult>, inner: GenAIEvalWorkflowResult) -> Self {
+    pub fn new(records: Vec<EvalTaskResult>, inner: AgentEvalWorkflowResult) -> Self {
         Self { records, inner }
     }
 
     pub fn empty() -> Self {
         Self {
             records: Vec::new(),
-            inner: GenAIEvalWorkflowResult {
+            inner: AgentEvalWorkflowResult {
                 created_at: Utc::now(),
                 record_uid: String::new(),
                 entity_id: 0,

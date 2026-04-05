@@ -131,7 +131,7 @@ def create_and_register_drift_profile(
     return profile
 
 
-def create_and_register_genai_drift_profile(
+def create_and_register_agent_drift_profile(
     client: ScouterClient,
     name: str,
     with_trace_assertion: bool = True,
@@ -183,7 +183,7 @@ def create_and_register_genai_drift_profile(
     drifter = Drifter()
 
     # create drift profile
-    profile = drifter.create_genai_drift_profile(config=config, tasks=tasks)
+    profile = drifter.create_agent_drift_profile(config=config, tasks=tasks)
     client.register_profile(profile, True)
 
     return profile
@@ -244,7 +244,7 @@ def create_kafka_app(profile_path: Path) -> FastAPI:
     return app
 
 
-def create_kafka_genai_app(profile_path: Path) -> FastAPI:
+def create_kafka_agent_app(profile_path: Path) -> FastAPI:
     config = KafkaConfig()
 
     @asynccontextmanager
@@ -264,7 +264,7 @@ def create_kafka_genai_app(profile_path: Path) -> FastAPI:
         )
 
         app.state.queue = ScouterQueue.from_path(
-            path={"genai": profile_path},
+            path={"agent": profile_path},
             transport_config=config,
         )
         yield
@@ -278,7 +278,7 @@ def create_kafka_genai_app(profile_path: Path) -> FastAPI:
 
     @app.post("/chat", response_model=TestResponse)
     async def chat(request: Request, payload: ChatRequest) -> TestResponse:
-        queue: Queue = request.app.state.queue["genai"]
+        queue: Queue = request.app.state.queue["agent"]
         agent: Agent = request.app.state.agent
         prompt: Prompt = request.app.state.prompt
 
@@ -354,7 +354,7 @@ def create_http_app(profile_path: Path) -> FastAPI:
     return app
 
 
-def create_tracing_genai_app(tracer: Tracer, profile_path: Path) -> FastAPI:
+def create_tracing_agent_app(tracer: Tracer, profile_path: Path) -> FastAPI:
     config = GrpcConfig()
 
     @asynccontextmanager
@@ -374,7 +374,7 @@ def create_tracing_genai_app(tracer: Tracer, profile_path: Path) -> FastAPI:
         )
 
         queue = ScouterQueue.from_path(
-            path={"genai": profile_path},
+            path={"agent": profile_path},
             transport_config=config,
         )
         tracer.set_scouter_queue(queue)
@@ -389,7 +389,7 @@ def create_tracing_genai_app(tracer: Tracer, profile_path: Path) -> FastAPI:
     @app.post("/chat", response_model=TestResponse)
     async def chat(request: Request, payload: ChatRequest) -> TestResponse:
         service_tracer = get_tracer("api-tracer")
-        with service_tracer.start_as_current_span("genai_service") as active_span:
+        with service_tracer.start_as_current_span("agent_service") as active_span:
             agent: Agent = request.app.state.agent
             prompt: Prompt = request.app.state.prompt
 
@@ -404,7 +404,7 @@ def create_tracing_genai_app(tracer: Tracer, profile_path: Path) -> FastAPI:
                     "assertion": 10,
                 },
             )
-            active_span.add_queue_item(alias="genai", item=queue_record)
+            active_span.add_queue_item(alias="agent", item=queue_record)
 
             return TestResponse(
                 message="success",

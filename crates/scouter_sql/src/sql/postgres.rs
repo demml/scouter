@@ -3,7 +3,7 @@ use crate::sql::cache::entity_cache;
 use crate::sql::cache::init_entity_cache;
 use crate::sql::error::SqlError;
 use crate::sql::traits::{
-    AlertSqlLogic, ArchiveSqlLogic, CustomMetricSqlLogic, GenAIDriftSqlLogic,
+    AgentDriftSqlLogic, AlertSqlLogic, ArchiveSqlLogic, CustomMetricSqlLogic,
     ObservabilitySqlLogic, ProfileSqlLogic, PsiSqlLogic, SpcSqlLogic, TagSqlLogic, TraceSqlLogic,
     UserSqlLogic,
 };
@@ -25,7 +25,7 @@ pub struct PostgresClient {}
 impl SpcSqlLogic for PostgresClient {}
 impl CustomMetricSqlLogic for PostgresClient {}
 impl PsiSqlLogic for PostgresClient {}
-impl GenAIDriftSqlLogic for PostgresClient {}
+impl AgentDriftSqlLogic for PostgresClient {}
 impl UserSqlLogic for PostgresClient {}
 impl ProfileSqlLogic for PostgresClient {}
 impl ObservabilitySqlLogic for PostgresClient {}
@@ -166,41 +166,41 @@ impl MessageHandler {
                 }
             }
 
-            RecordType::GenAIEval => {
-                debug!("LLM Drift record count: {:?}", records.len());
-                let records = records.to_genai_eval_records()?;
+            RecordType::AgentEval => {
+                debug!("Agent eval record count: {:?}", records.len());
+                let records = records.to_agent_eval_records()?;
                 for record in records {
-                    let _ = PostgresClient::insert_genai_eval_record(pool, record, &entity_id)
+                    let _ = PostgresClient::insert_agent_eval_record(pool, record, &entity_id)
                         .await
                         .map_err(|e| {
-                            error!("Failed to insert GenAI drift record: {:?}", e);
+                            error!("Failed to insert agent eval record: {:?}", e);
                         });
                 }
             }
 
-            RecordType::GenAITask => {
-                debug!("GenAI Task count: {:?}", records.len());
-                let records = records.to_genai_task_records()?;
+            RecordType::AgentTask => {
+                debug!("Agent task count: {:?}", records.len());
+                let records = records.to_agent_task_records()?;
                 for chunk in records.chunks(DEFAULT_BATCH_SIZE) {
                     PostgresClient::insert_eval_task_results_batch(pool, chunk, &entity_id)
                         .await
                         .map_err(|e| {
-                            error!("Failed to insert GenAI task records batch: {:?}", e);
+                            error!("Failed to insert agent task records batch: {:?}", e);
                             e
                         })?;
                 }
             }
 
-            RecordType::GenAIWorkflow => {
-                debug!("GenAI Workflow count: {:?}", records.len());
-                let records = records.to_genai_workflow_records()?;
+            RecordType::AgentWorkflow => {
+                debug!("Agent workflow count: {:?}", records.len());
+                let records = records.to_agent_workflow_records()?;
                 for record in records {
-                    let _ = PostgresClient::insert_genai_eval_workflow_record(
+                    let _ = PostgresClient::insert_agent_eval_workflow_record(
                         pool, &record, &entity_id,
                     )
                     .await
                     .map_err(|e| {
-                        error!("Failed to insert GenAI workflow record: {:?}", e);
+                        error!("Failed to insert agent workflow record: {:?}", e);
                     });
                 }
             }
@@ -330,13 +330,13 @@ mod tests {
             FROM scouter.user;
 
             DELETE
-            FROM scouter.genai_eval_record;
+            FROM scouter.agent_eval_record;
 
             DELETE
-            FROM scouter.genai_eval_task;
+            FROM scouter.agent_eval_task;
 
             DELETE
-            FROM scouter.genai_eval_workflow;
+            FROM scouter.agent_eval_workflow;
 
             DELETE
             FROM scouter.spans;
@@ -1006,7 +1006,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_postgres_genai_eval_record_reschedule() {
+    async fn test_postgres_agent_eval_record_reschedule() {
         let pool = db_pool().await;
 
         let (uid, entity_id) = PostgresClient::create_entity(
@@ -1014,7 +1014,7 @@ mod tests {
             SPACE,
             NAME,
             VERSION,
-            DriftType::GenAI.to_string(),
+            DriftType::Agent.to_string(),
         )
         .await
         .unwrap();
@@ -1041,20 +1041,20 @@ mod tests {
 
             let boxed = BoxedEvalRecord::new(record);
 
-            let result = PostgresClient::insert_genai_eval_record(&pool, boxed, &entity_id)
+            let result = PostgresClient::insert_agent_eval_record(&pool, boxed, &entity_id)
                 .await
                 .unwrap();
 
             assert_eq!(result.rows_affected(), 1);
         }
 
-        let features = PostgresClient::get_genai_eval_records(&pool, None, None, &entity_id)
+        let features = PostgresClient::get_agent_eval_records(&pool, None, None, &entity_id)
             .await
             .unwrap();
         assert_eq!(features.len(), 10);
 
         // get pending task
-        let pending_tasks = PostgresClient::get_pending_genai_eval_record(&pool)
+        let pending_tasks = PostgresClient::get_pending_agent_eval_record(&pool)
             .await
             .unwrap();
 
@@ -1066,7 +1066,7 @@ mod tests {
         assert_eq!(*task_input, "This is a test input".to_string());
 
         // reschedule task
-        PostgresClient::reschedule_genai_eval_record(
+        PostgresClient::reschedule_agent_eval_record(
             &pool,
             &pending_tasks.as_ref().unwrap().uid,
             Duration::seconds(30),
@@ -1076,7 +1076,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_postgres_genai_eval_record_insert_get() {
+    async fn test_postgres_agent_eval_record_insert_get() {
         let pool = db_pool().await;
 
         let (uid, entity_id) = PostgresClient::create_entity(
@@ -1084,7 +1084,7 @@ mod tests {
             SPACE,
             NAME,
             VERSION,
-            DriftType::GenAI.to_string(),
+            DriftType::Agent.to_string(),
         )
         .await
         .unwrap();
@@ -1110,20 +1110,20 @@ mod tests {
 
             let boxed = BoxedEvalRecord::new(record);
 
-            let result = PostgresClient::insert_genai_eval_record(&pool, boxed, &entity_id)
+            let result = PostgresClient::insert_agent_eval_record(&pool, boxed, &entity_id)
                 .await
                 .unwrap();
 
             assert_eq!(result.rows_affected(), 1);
         }
 
-        let features = PostgresClient::get_genai_eval_records(&pool, None, None, &entity_id)
+        let features = PostgresClient::get_agent_eval_records(&pool, None, None, &entity_id)
             .await
             .unwrap();
         assert_eq!(features.len(), 10);
 
         // get pending task
-        let pending_tasks = PostgresClient::get_pending_genai_eval_record(&pool)
+        let pending_tasks = PostgresClient::get_pending_agent_eval_record(&pool)
             .await
             .unwrap();
 
@@ -1135,7 +1135,7 @@ mod tests {
         assert_eq!(*task_input, "This is a test input".to_string());
 
         // update pending task
-        PostgresClient::update_genai_eval_record_status(
+        PostgresClient::update_agent_eval_record_status(
             &pool,
             &pending_tasks.unwrap(),
             Status::Processed,
@@ -1145,7 +1145,7 @@ mod tests {
         .unwrap();
 
         // query processed tasks
-        let processed_tasks = PostgresClient::get_genai_eval_records(
+        let processed_tasks = PostgresClient::get_agent_eval_records(
             &pool,
             None,
             Some(Status::Processed),
@@ -1159,7 +1159,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_postgres_genai_eval_record_pagination() {
+    async fn test_postgres_agent_eval_record_pagination() {
         let pool = db_pool().await;
 
         let (uid, entity_id) = PostgresClient::create_entity(
@@ -1167,7 +1167,7 @@ mod tests {
             SPACE,
             NAME,
             VERSION,
-            DriftType::GenAI.to_string(),
+            DriftType::Agent.to_string(),
         )
         .await
         .unwrap();
@@ -1194,7 +1194,7 @@ mod tests {
 
             let boxed = BoxedEvalRecord::new(record);
 
-            let result = PostgresClient::insert_genai_eval_record(&pool, boxed, &entity_id)
+            let result = PostgresClient::insert_agent_eval_record(&pool, boxed, &entity_id)
                 .await
                 .unwrap();
 
@@ -1211,7 +1211,7 @@ mod tests {
             ..Default::default()
         };
 
-        let page1 = PostgresClient::get_paginated_genai_eval_records(&pool, &params, &entity_id)
+        let page1 = PostgresClient::get_paginated_agent_eval_records(&pool, &params, &entity_id)
             .await
             .unwrap();
 
@@ -1244,7 +1244,7 @@ mod tests {
             ..Default::default()
         };
 
-        let page2 = PostgresClient::get_paginated_genai_eval_records(&pool, &params, &entity_id)
+        let page2 = PostgresClient::get_paginated_agent_eval_records(&pool, &params, &entity_id)
             .await
             .unwrap();
 
@@ -1294,7 +1294,7 @@ mod tests {
         };
 
         let page1_again =
-            PostgresClient::get_paginated_genai_eval_records(&pool, &params, &entity_id)
+            PostgresClient::get_paginated_agent_eval_records(&pool, &params, &entity_id)
                 .await
                 .unwrap();
 
@@ -1313,7 +1313,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_postgres_genai_eval_workflow_pagination() {
+    async fn test_postgres_agent_eval_workflow_pagination() {
         let pool = db_pool().await;
 
         let (_uid, entity_id) = PostgresClient::create_entity(
@@ -1321,14 +1321,14 @@ mod tests {
             SPACE,
             NAME,
             VERSION,
-            DriftType::GenAI.to_string(),
+            DriftType::Agent.to_string(),
         )
         .await
         .unwrap();
 
         // Insert 10 records with increasing timestamps
         for j in 0..10 {
-            let record = GenAIEvalWorkflowResult {
+            let record = AgentEvalWorkflowResult {
                 created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
                 record_uid: format!("test_{}", j),
                 entity_id,
@@ -1336,7 +1336,7 @@ mod tests {
             };
 
             let result =
-                PostgresClient::insert_genai_eval_workflow_record(&pool, &record, &entity_id)
+                PostgresClient::insert_agent_eval_workflow_record(&pool, &record, &entity_id)
                     .await
                     .unwrap();
 
@@ -1354,7 +1354,7 @@ mod tests {
         };
 
         let page1 =
-            PostgresClient::get_paginated_genai_eval_workflow_records(&pool, &params, &entity_id)
+            PostgresClient::get_paginated_agent_eval_workflow_records(&pool, &params, &entity_id)
                 .await
                 .unwrap();
 
@@ -1388,7 +1388,7 @@ mod tests {
         };
 
         let page2 =
-            PostgresClient::get_paginated_genai_eval_workflow_records(&pool, &params, &entity_id)
+            PostgresClient::get_paginated_agent_eval_workflow_records(&pool, &params, &entity_id)
                 .await
                 .unwrap();
 
@@ -1438,7 +1438,7 @@ mod tests {
         };
 
         let page1_again =
-            PostgresClient::get_paginated_genai_eval_workflow_records(&pool, &params, &entity_id)
+            PostgresClient::get_paginated_agent_eval_workflow_records(&pool, &params, &entity_id)
                 .await
                 .unwrap();
 
@@ -1457,7 +1457,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_postgres_genai_task_result_insert_get() {
+    async fn test_postgres_agent_task_result_insert_get() {
         let pool = db_pool().await;
 
         let timestamp = Utc::now();
@@ -1467,7 +1467,7 @@ mod tests {
             SPACE,
             NAME,
             VERSION,
-            DriftType::GenAI.to_string(),
+            DriftType::Agent.to_string(),
         )
         .await
         .unwrap();
@@ -1503,7 +1503,7 @@ mod tests {
             assert_eq!(result.rows_affected(), 25);
         }
 
-        let metrics = PostgresClient::get_genai_task_values(
+        let metrics = PostgresClient::get_agent_task_values(
             &pool,
             &timestamp,
             &["task1".to_string()],
@@ -1513,7 +1513,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(metrics.len(), 1);
-        let binned_records = PostgresClient::get_binned_genai_task_values(
+        let binned_records = PostgresClient::get_binned_agent_task_values(
             &pool,
             &DriftRequest {
                 uid: uid.clone(),
@@ -1530,7 +1530,7 @@ mod tests {
         //
         assert_eq!(binned_records.metrics.len(), 2);
 
-        let eval_task = PostgresClient::get_genai_eval_task(&pool, &records[0].record_uid)
+        let eval_task = PostgresClient::get_agent_eval_task(&pool, &records[0].record_uid)
             .await
             .unwrap();
 
@@ -1538,7 +1538,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_postgres_genai_workflow_result_insert_get() {
+    async fn test_postgres_agent_workflow_result_insert_get() {
         let pool = db_pool().await;
 
         let timestamp = Utc::now();
@@ -1548,14 +1548,14 @@ mod tests {
             SPACE,
             NAME,
             VERSION,
-            DriftType::GenAI.to_string(),
+            DriftType::Agent.to_string(),
         )
         .await
         .unwrap();
 
         for i in 0..2 {
             for j in 0..25 {
-                let record = GenAIEvalWorkflowResult {
+                let record = AgentEvalWorkflowResult {
                     record_uid: format!("record_uid_{i}_{j}"),
                     created_at: Utc::now() + chrono::Duration::hours(i),
                     entity_id,
@@ -1569,20 +1569,20 @@ mod tests {
                     id: 0,
                 };
                 let result =
-                    PostgresClient::insert_genai_eval_workflow_record(&pool, &record, &entity_id)
+                    PostgresClient::insert_agent_eval_workflow_record(&pool, &record, &entity_id)
                         .await
                         .unwrap();
                 assert_eq!(result.rows_affected(), 1);
             }
         }
 
-        let metric = PostgresClient::get_genai_workflow_value(&pool, &timestamp, &entity_id)
+        let metric = PostgresClient::get_agent_workflow_value(&pool, &timestamp, &entity_id)
             .await
             .unwrap();
 
         assert!(metric.is_some());
 
-        let binned_records = PostgresClient::get_binned_genai_workflow_values(
+        let binned_records = PostgresClient::get_binned_agent_workflow_values(
             &pool,
             &DriftRequest {
                 uid: uid.clone(),
