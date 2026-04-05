@@ -4,11 +4,11 @@ from pydantic import BaseModel
 from scouter._scouter import EvalResultSet
 from scouter.alert import AlertCondition, AlertThreshold
 from scouter.drift import (
+    AgentAlertConfig,
+    AgentEvalConfig,
+    AgentEvalProfile,
     ComparisonOperator,
     Drifter,
-    GenAIAlertConfig,
-    GenAIEvalConfig,
-    GenAIEvalProfile,
     LLMJudgeTask,
 )
 from scouter.genai import Prompt, Score
@@ -38,7 +38,7 @@ def test_genai_drift_profile_from_task():
             expected_value=3,
         )
 
-        profile = GenAIEvalProfile(tasks=[task], alias="test-profile")
+        profile = AgentEvalProfile(tasks=[task], alias="test-profile")
 
         # test scouterqueue from profile
         _queue = ScouterQueue.from_profile(
@@ -67,9 +67,9 @@ def test_genai_drifter():
             expected_value=3,
         )
 
-        profile = GenAIEvalProfile(
-            config=GenAIEvalConfig(
-                alert_config=GenAIAlertConfig(
+        profile = AgentEvalProfile(
+            config=AgentEvalConfig(
+                alert_config=AgentAlertConfig(
                     alert_condition=AlertCondition(
                         baseline_value=0.80,
                         alert_threshold=AlertThreshold.Below,

@@ -13810,7 +13810,7 @@ class EvalRunner:
 
     Args:
         scenarios: List of ``EvalScenario`` instances to evaluate.
-        profiles: Map of alias → ``GenAIEvalProfile`` for sub-agent evaluation.
+        profiles: Map of alias → ``AgentEvalProfile`` for sub-agent evaluation.
     """
 
     @property
@@ -13820,7 +13820,7 @@ class EvalRunner:
     def __init__(
         self,
         scenarios: "EvalScenarios",
-        profiles: Dict[str, "GenAIEvalProfile"],
+        profiles: Dict[str, "AgentEvalProfile"],
     ) -> None: ...
     def collect_scenario_data(
         self,
@@ -14451,7 +14451,7 @@ class CustomMetricAlertConfig:
     def alert_conditions(self, alert_conditions: dict[str, AlertCondition]) -> None:
         """Update the alert_condition that were set during metric definition"""
 
-class GenAIAlertConfig:
+class AgentAlertConfig:
     def __init__(
         self,
         dispatch_config: Optional[SlackDispatchConfig | OpsGenieDispatchConfig] = None,
@@ -15666,7 +15666,7 @@ class ScouterQueue:
                     • SpcDriftProfile    - Statistical Process Control monitoring
                     • PsiDriftProfile    - Population Stability Index monitoring
                     • CustomDriftProfile - Custom metric monitoring
-                    • GenAIEvalProfile    - LLM evaluation monitoring
+                    • AgentEvalProfile    - LLM evaluation monitoring
 
             transport_config (Union[KafkaConfig, RabbitMQConfig, RedisConfig, HttpConfig, GrpcConfig]):
                 Transport configuration for the queue publisher.
@@ -15731,7 +15731,7 @@ class ScouterQueue:
 
     @staticmethod
     def from_profile(
-        profile: Union[dict, list, SpcDriftProfile, PsiDriftProfile, CustomDriftProfile, GenAIEvalProfile],
+        profile: Union[dict, list, SpcDriftProfile, PsiDriftProfile, CustomDriftProfile, AgentEvalProfile],
         transport_config: Union[
             KafkaConfig,
             RabbitMQConfig,
@@ -15746,7 +15746,7 @@ class ScouterQueue:
         list of drift profiles, or a single drift profile.
 
         Args:
-            profile (Union[dict, list, SpcDriftProfile, PsiDriftProfile, CustomDriftProfile, GenAIEvalProfile]):
+            profile (Union[dict, list, SpcDriftProfile, PsiDriftProfile, CustomDriftProfile, AgentEvalProfile]):
                 Drift profile(s) to initialize the queue with. Can be a single profile,
                 a list of profiles, or a dictionary of profiles.
 
@@ -15812,8 +15812,8 @@ class ScouterQueue:
         omitted from the result.
         """
 
-    def genai_profiles(self) -> Dict[str, GenAIEvalProfile]:
-        """Returns a mapping of alias → GenAIEvalProfile for all GenAIEvalProfiles registered in the queue."""
+    def genai_profiles(self) -> Dict[str, AgentEvalProfile]:
+        """Returns a mapping of alias → AgentEvalProfile for all AgentEvalProfiles registered in the queue."""
 
 class EvalRecord:
     """LLM record containing context tied to a Large Language Model interaction
@@ -15838,7 +15838,7 @@ class EvalRecord:
         session_id: Optional[str] = None,
         trace_id: Optional[str] = None,
     ) -> None:
-        """Creates a new LLM record to associate with an `GenAIEvalProfile`.
+        """Creates a new LLM record to associate with an `AgentEvalProfile`.
         The record is sent to the `Scouter` server via the `ScouterQueue` and is
         then used to inject context into the evaluation prompts.
 
@@ -17070,14 +17070,14 @@ class CustomDriftProfile:
             None
         """
 
-class GenAIEvalConfig:
+class AgentEvalConfig:
     def __init__(
         self,
         space: str = "__missing__",
         name: str = "__missing__",
         version: str = "0.1.0",
         sample_ratio: float = 1.0,
-        alert_config: GenAIAlertConfig = GenAIAlertConfig(),
+        alert_config: AgentAlertConfig = AgentAlertConfig(),
     ):
         """Initialize drift config
         Args:
@@ -17131,15 +17131,15 @@ class GenAIEvalConfig:
         """Drift type"""
 
     @property
-    def alert_config(self) -> GenAIAlertConfig:
+    def alert_config(self) -> AgentAlertConfig:
         """get alert_config"""
 
     @alert_config.setter
-    def alert_config(self, alert_config: GenAIAlertConfig) -> None:
+    def alert_config(self, alert_config: AgentAlertConfig) -> None:
         """Set alert_config"""
 
     @staticmethod
-    def load_from_json_file(path: Path) -> "GenAIEvalConfig":
+    def load_from_json_file(path: Path) -> "AgentEvalConfig":
         """Load config from json file
         Args:
             path:
@@ -17157,7 +17157,7 @@ class GenAIEvalConfig:
         space: Optional[str] = None,
         name: Optional[str] = None,
         version: Optional[str] = None,
-        alert_config: Optional[GenAIAlertConfig] = None,
+        alert_config: Optional[AgentAlertConfig] = None,
     ) -> None:
         """Inplace operation that updates config args
         Args:
@@ -17173,10 +17173,10 @@ class GenAIEvalConfig:
 
 _TASK_TYPES = List[Union[AssertionTask, LLMJudgeTask, TraceAssertionTask]] | TasksFile
 
-class GenAIEvalProfile:
+class AgentEvalProfile:
     """Profile for LLM evaluation and drift detection.
 
-    GenAIEvalProfile combines assertion tasks, LLM judge tasks, and trace assertion
+    AgentEvalProfile combines assertion tasks, LLM judge tasks, and trace assertion
     tasks into a unified evaluation framework for monitoring LLM performance. Evaluations
     run asynchronously on the Scouter server, enabling scalable drift detection without
     blocking your application.
@@ -17252,7 +17252,7 @@ class GenAIEvalProfile:
     Examples:
         Pure assertion-based monitoring (no LLM calls):
 
-        >>> config = GenAIEvalConfig(
+        >>> config = AgentEvalConfig(
         ...     space="production",
         ...     name="chatbot",
         ...     version="1.0",
@@ -17276,7 +17276,7 @@ class GenAIEvalProfile:
         ...     )
         ... ]
         >>>
-        >>> profile = GenAIEvalProfile(
+        >>> profile = AgentEvalProfile(
         ...     config=config,
         ...     tasks=tasks
         ... )
@@ -17302,7 +17302,7 @@ class GenAIEvalProfile:
         ...     )
         ... ]
         >>>
-        >>> profile = GenAIEvalProfile(
+        >>> profile = AgentEvalProfile(
         ...     config=config,
         ...     tasks=judge_tasks
         ... )
@@ -17341,7 +17341,7 @@ class GenAIEvalProfile:
         ...     )
         ... ]
         >>>
-        >>> profile = GenAIEvalProfile(
+        >>> profile = AgentEvalProfile(
         ...     config=config,
         ...     tasks=assertion_tasks + judge_tasks
         ... )
@@ -17378,7 +17378,7 @@ class GenAIEvalProfile:
         ...     depends_on=["relevance", "toxicity"]  # Multiple deps
         ... )
         >>>
-        >>> profile = GenAIEvalProfile(
+        >>> profile = AgentEvalProfile(
         ...     config=config,
         ...     tasks=[relevance_task, toxicity_task, quality_task]
         ... )
@@ -17416,7 +17416,7 @@ class GenAIEvalProfile:
         ...     description="Ensure error-free execution"
         ... )
         >>>
-        >>> profile = GenAIEvalProfile(
+        >>> profile = AgentEvalProfile(
         ...     config=config,
         ...     tasks=[workflow_task, perf_task, error_task]
         ... )
@@ -17457,7 +17457,7 @@ class GenAIEvalProfile:
         ...     description="Quality assessment after validation"
         ... )
         >>>
-        >>> profile = GenAIEvalProfile(
+        >>> profile = AgentEvalProfile(
         ...     config=config,
         ...     tasks=[response_check, trace_check, quality_judge]
         ... )
@@ -17475,10 +17475,10 @@ class GenAIEvalProfile:
     def __init__(
         self,
         tasks: _TASK_TYPES,
-        config: Optional[GenAIEvalConfig] = None,
+        config: Optional[AgentEvalConfig] = None,
         alias: Optional[str] = None,
     ):
-        """Initialize a GenAIEvalProfile for LLM evaluation and drift detection.
+        """Initialize a AgentEvalProfile for LLM evaluation and drift detection.
 
         Creates a profile that combines assertion tasks, LLM judge tasks, and
         trace assertion tasks into a unified evaluation framework. LLM judge tasks
@@ -17491,7 +17491,7 @@ class GenAIEvalProfile:
                 AssertionTask, LLMJudgeTask, and TraceAssertionTask instances.
                 At least one task (assertion, LLM judge, or trace assertion) is required.
                 Can also be provided as a TasksFile object.
-            config (Optional[GenAIEvalConfig]):
+            config (Optional[AgentEvalConfig]):
                 Configuration for the GenAI drift profile containing space, name,
                 version, sample rate, and alert settings. If not provided,
                 defaults will be used.
@@ -17499,7 +17499,7 @@ class GenAIEvalProfile:
                 Optional alias for the profile.
 
         Returns:
-            GenAIEvalProfile: Configured profile ready for GenAI drift monitoring.
+            AgentEvalProfile: Configured profile ready for GenAI drift monitoring.
 
         Raises:
             ProfileError: If validation fails due to:
@@ -17510,12 +17510,12 @@ class GenAIEvalProfile:
         Examples:
             Assertion-only profile:
 
-            >>> config = GenAIEvalConfig(space="prod", name="bot", version="1.0")
+            >>> config = AgentEvalConfig(space="prod", name="bot", version="1.0")
             >>> assertions = [
             ...     AssertionTask(id="length_check", ...),
             ...     AssertionTask(id="confidence_check", ...)
             ... ]
-            >>> profile = GenAIEvalProfile(config, tasks=assertions)
+            >>> profile = AgentEvalProfile(config, tasks=assertions)
 
             LLM judge-only profile:
 
@@ -17523,7 +17523,7 @@ class GenAIEvalProfile:
             ...     LLMJudgeTask(id="relevance", prompt=..., ...),
             ...     LLMJudgeTask(id="quality", prompt=..., depends_on=["relevance"])
             ... ]
-            >>> profile = GenAIEvalProfile(config, tasks=judges)
+            >>> profile = AgentEvalProfile(config, tasks=judges)
 
             Trace assertion-only profile:
 
@@ -17541,11 +17541,11 @@ class GenAIEvalProfile:
             ...         expected_value=5000.0
             ...     )
             ... ]
-            >>> profile = GenAIEvalProfile(config, tasks=trace_tasks)
+            >>> profile = AgentEvalProfile(config, tasks=trace_tasks)
 
             Hybrid profile:
 
-            >>> profile = GenAIEvalProfile(
+            >>> profile = AgentEvalProfile(
             ...     config=config,
             ...     tasks=assertions + judges + trace_tasks
             ... )
@@ -17564,7 +17564,7 @@ class GenAIEvalProfile:
         """Set unique identifier for the drift profile."""
 
     @property
-    def config(self) -> GenAIEvalConfig:
+    def config(self) -> AgentEvalConfig:
         """Configuration for the drift profile.
 
         Contains space, name, version, sample rate, and alert settings.
@@ -17672,7 +17672,7 @@ class GenAIEvalProfile:
         """Print the execution plan for all tasks."""
 
     def __str__(self) -> str:
-        """String representation of GenAIEvalProfile.
+        """String representation of AgentEvalProfile.
 
         Returns:
             str: Human-readable string showing config and task counts.
@@ -17719,7 +17719,7 @@ class GenAIEvalProfile:
         """
 
     @staticmethod
-    def model_validate(data: Dict[str, Any]) -> "GenAIEvalProfile":
+    def model_validate(data: Dict[str, Any]) -> "AgentEvalProfile":
         """Load profile from dictionary.
 
         Args:
@@ -17727,18 +17727,18 @@ class GenAIEvalProfile:
                 Dictionary representation of the profile.
 
         Returns:
-            GenAIEvalProfile: Reconstructed profile instance.
+            AgentEvalProfile: Reconstructed profile instance.
 
         Raises:
             ProfileError: If dictionary structure is invalid or missing required fields.
 
         Example:
             >>> data = {"config": {...}, "assertion_tasks": [...]}
-            >>> profile = GenAIEvalProfile.model_validate(data)
+            >>> profile = AgentEvalProfile.model_validate(data)
         """
 
     @staticmethod
-    def model_validate_json(json_string: str) -> "GenAIEvalProfile":
+    def model_validate_json(json_string: str) -> "AgentEvalProfile":
         """Load profile from JSON string.
 
         Args:
@@ -17746,18 +17746,18 @@ class GenAIEvalProfile:
                 JSON string representation of the profile.
 
         Returns:
-            GenAIEvalProfile: Reconstructed profile instance.
+            AgentEvalProfile: Reconstructed profile instance.
 
         Raises:
             ProfileError: If JSON is malformed or invalid.
 
         Example:
             >>> json_str = '{"config": {...}, "assertion_tasks": [...]}'
-            >>> profile = GenAIEvalProfile.model_validate_json(json_str)
+            >>> profile = AgentEvalProfile.model_validate_json(json_str)
         """
 
     @staticmethod
-    def from_file(path: Path) -> "GenAIEvalProfile":
+    def from_file(path: Path) -> "AgentEvalProfile":
         """Load profile from JSON file.
 
         Args:
@@ -17765,13 +17765,13 @@ class GenAIEvalProfile:
                 Path to the JSON file containing the profile.
 
         Returns:
-            GenAIEvalProfile: Loaded profile instance.
+            AgentEvalProfile: Loaded profile instance.
 
         Raises:
             ProfileError: If file doesn't exist, is malformed, or invalid.
 
         Example:
-            >>> profile = GenAIEvalProfile.from_file(Path("my_profile.json"))
+            >>> profile = AgentEvalProfile.from_file(Path("my_profile.json"))
         """
 
     def update_config_args(
@@ -17780,7 +17780,7 @@ class GenAIEvalProfile:
         name: Optional[str] = None,
         version: Optional[str] = None,
         uid: Optional[str] = None,
-        alert_config: Optional[GenAIAlertConfig] = None,
+        alert_config: Optional[AgentAlertConfig] = None,
     ) -> None:
         """Update profile configuration in-place.
 
@@ -17797,13 +17797,13 @@ class GenAIEvalProfile:
                 New model version. If None, keeps existing value.
             uid (Optional[str]):
                 New unique identifier. If None, keeps existing value.
-            alert_config (Optional[GenAIAlertConfig]):
+            alert_config (Optional[AgentAlertConfig]):
                 New alert configuration. If None, keeps existing value.
 
         Example:
             >>> profile.update_config_args(
             ...     space="production",
-            ...     alert_config=GenAIAlertConfig(schedule="0 */6 * * *")
+            ...     alert_config=AgentAlertConfig(schedule="0 */6 * * *")
             ... )
         """
 
@@ -17939,11 +17939,11 @@ class Drifter:
 
     def create_genai_drift_profile(
         self,
-        config: GenAIEvalConfig,
+        config: AgentEvalConfig,
         tasks: Sequence[LLMJudgeTask | AssertionTask | TraceAssertionTask | AgentAssertionTask],
         alias: Optional[str] = None,
-    ) -> GenAIEvalProfile:
-        """Initialize a GenAIEvalProfile for LLM evaluation and drift detection.
+    ) -> AgentEvalProfile:
+        """Initialize a AgentEvalProfile for LLM evaluation and drift detection.
 
         LLM evaluations are run asynchronously on the scouter server.
 
@@ -17957,7 +17957,7 @@ class Drifter:
 
 
         Args:
-            config (GenAIEvalConfig):
+            config (AgentEvalConfig):
                 The configuration for the GenAI drift profile containing space, name,
                 version, and alert settings.
             tasks (List[LLMJudgeTask | AssertionTask]):
@@ -17968,7 +17968,7 @@ class Drifter:
                 Optional alias for the profile.
 
         Returns:
-            GenAIEvalProfile: Configured profile ready for GenAI drift monitoring.
+            AgentEvalProfile: Configured profile ready for GenAI drift monitoring.
 
         Raises:
             ProfileError: If workflow validation fails, metrics are empty when no
@@ -17977,7 +17977,7 @@ class Drifter:
         Examples:
             Basic usage with metrics only:
 
-            >>> config = GenAIEvalConfig("my_space", "my_model", "1.0")
+            >>> config = AgentEvalConfig("my_space", "my_model", "1.0")
             >>>  tasks = [
             ...     LLMJudgeTask(
             ...         id="response_relevance",
@@ -18040,7 +18040,7 @@ class Drifter:
     def compute_drift(
         self,
         data: List[EvalRecord],
-        drift_profile: GenAIEvalProfile,
+        drift_profile: AgentEvalProfile,
         data_type: Optional[ScouterDataType] = None,
     ) -> "EvalResultSet":
         """Create a drift map from data.
@@ -18048,7 +18048,7 @@ class Drifter:
         Args:
             data (List[EvalRecord]):
                 Data to create a data profile from. Data can be a list of EvalRecord.
-            profile (GenAIEvalProfile):
+            profile (AgentEvalProfile):
                 Drift profile to use to compute drift map
             data_type:
                 Optional data type. Inferred from data if not provided.
@@ -18060,7 +18060,7 @@ class Drifter:
     def compute_drift(  # type: ignore
         self,
         data: Any,
-        drift_profile: Union[SpcDriftProfile, PsiDriftProfile, GenAIEvalProfile],
+        drift_profile: Union[SpcDriftProfile, PsiDriftProfile, AgentEvalProfile],
         data_type: Optional[ScouterDataType] = None,
     ) -> Union[SpcDriftMap, PsiDriftMap, EvalResultSet]:
         """Create a drift map from data.
@@ -19047,8 +19047,11 @@ __all__ = [
     "AdkTranscription",
     "AdkUsageMetadata",
     "Agent",
+    "AgentAlertConfig",
     "AgentAssertion",
     "AgentAssertionTask",
+    "AgentEvalConfig",
+    "AgentEvalProfile",
     "AgentResponse",
     "AggregationType",
     "Alert",
@@ -19193,9 +19196,6 @@ __all__ = [
     "GeminiSettings",
     "GeminiThinkingConfig",
     "GeminiTool",
-    "GenAIAlertConfig",
-    "GenAIEvalConfig",
-    "GenAIEvalProfile",
     "GenerateContentResponse",
     "GenerationConfig",
     "GetProfileRequest",

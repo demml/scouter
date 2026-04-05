@@ -1,7 +1,7 @@
 import time
 
 import pytest
-from scouter.drift import GenAIEvalProfile
+from scouter.drift import AgentEvalProfile
 from scouter.evaluate import (
     AssertionTask,
     ComparisonOperator,
@@ -32,7 +32,7 @@ SCENARIO_DATA = [
 
 
 def _build_profiles():
-    retriever_profile = GenAIEvalProfile(
+    retriever_profile = AgentEvalProfile(
         tasks=[
             AssertionTask(
                 id="result_count",
@@ -49,7 +49,7 @@ def _build_profiles():
         ],
         alias="retriever",
     )
-    synthesizer_profile = GenAIEvalProfile(
+    synthesizer_profile = AgentEvalProfile(
         tasks=[
             AssertionTask(
                 id="quality_check",
@@ -176,7 +176,7 @@ def test_eval_runner_full_e2e(tracer):
 
 def test_eval_runner_no_trace_tasks():
     """Runner works end-to-end without any trace tasks or tracer fixture."""
-    retriever_profile = GenAIEvalProfile(
+    retriever_profile = AgentEvalProfile(
         tasks=[
             AssertionTask(
                 id="result_count",
@@ -233,7 +233,7 @@ def test_mock_adk_agent_e2e():
     ]
 
     # 1. Build profiles
-    retriever_profile = GenAIEvalProfile(
+    retriever_profile = AgentEvalProfile(
         tasks=[
             AssertionTask(
                 id="result_count",
@@ -250,7 +250,7 @@ def test_mock_adk_agent_e2e():
         ],
         alias="retriever",
     )
-    synthesizer_profile = GenAIEvalProfile(
+    synthesizer_profile = AgentEvalProfile(
         tasks=[
             AssertionTask(
                 id="quality_check",
@@ -363,7 +363,7 @@ def test_mock_adk_agent_e2e():
 
 def _run_eval(scenario_data: list[tuple[str, int, int]]) -> ScenarioEvalResults:
     """Helper: run a minimal eval and return results."""
-    profile = GenAIEvalProfile(
+    profile = AgentEvalProfile(
         tasks=[
             AssertionTask(
                 id="quality_check",

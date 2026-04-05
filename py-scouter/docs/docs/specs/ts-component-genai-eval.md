@@ -15,7 +15,7 @@ Both modes share a common task model (`AssertionTask`, `LLMJudgeTask`) and a com
 
 ### How it works
 
-Online evaluation integrates directly into the production inference path. A `GenAIEvalProfile` is registered with the Scouter server, defining what to evaluate and how. At inference time, the application inserts `EvalRecord` objects into a `ScouterQueue`. The server samples records based on a configurable `sample_ratio`, then runs evaluation tasks asynchronously via the GenAI poller background worker.
+Online evaluation integrates directly into the production inference path. A `AgentEvalProfile` is registered with the Scouter server, defining what to evaluate and how. At inference time, the application inserts `EvalRecord` objects into a `ScouterQueue`. The server samples records based on a configurable `sample_ratio`, then runs evaluation tasks asynchronously via the GenAI poller background worker.
 
 ```
 Inference request
@@ -54,17 +54,17 @@ record = EvalRecord(
 queue["my-genai-profile"].insert(record)
 ```
 
-### GenAIEvalProfile
+### AgentEvalProfile
 
 The profile defines the evaluation configuration, including tasks, alert thresholds, and sampling ratio.
 
 ```python
-from scouter.evaluate import GenAIEvalProfile, GenAIEvalConfig
+from scouter.evaluate import AgentEvalProfile, AgentEvalConfig
 from scouter.alert import ConsoleDispatchConfig
 from scouter.types import CommonCrons
 
-profile = GenAIEvalProfile(
-    config=GenAIEvalConfig(
+profile = AgentEvalProfile(
+    config=AgentEvalConfig(
         space="my-space",
         name="my-model",
         version="1.0.0",
@@ -86,10 +86,10 @@ Offline evaluation runs batch evaluation against a `EvalDataset`. This is useful
 ### Workflow
 
 ```python
-from scouter.evaluate import EvalDataset, GenAIEvalConfig
+from scouter.evaluate import EvalDataset, AgentEvalConfig
 
 dataset = EvalDataset(
-    config=GenAIEvalConfig(
+    config=AgentEvalConfig(
         space="my-space",
         name="my-model",
         version="1.0.0",

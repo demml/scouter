@@ -18,7 +18,7 @@ import asyncio
 
 from google.adk.models.llm_response import LlmResponse
 from google.genai import types
-from scouter.drift import GenAIEvalProfile
+from scouter.drift import AgentEvalProfile
 from scouter.evaluate import (
     AgentAssertion,
     AgentAssertionTask,
@@ -80,7 +80,7 @@ _RECIPE_RESPONSE = LlmResponse(
 
 # The router profile verifies the routing span was created and the correct
 # tool was called to hand off to the RecipeAgent.
-router_profile = GenAIEvalProfile(
+router_profile = AgentEvalProfile(
     alias="router",
     tasks=[
         TraceAssertionTask(
@@ -111,7 +111,7 @@ router_profile = GenAIEvalProfile(
 )
 
 # The recipe agent profile verifies that a recipe was generated with steps.
-recipe_profile = GenAIEvalProfile(
+recipe_profile = AgentEvalProfile(
     alias="recipe_agent",
     tasks=[
         AssertionTask(
@@ -128,7 +128,9 @@ recipe_profile = GenAIEvalProfile(
         ),
         TraceAssertionTask(
             id="recipe_span_exists",
-            assertion=TraceAssertion.span_count(SpanFilter.by_name("recipe_agent.generate")),
+            assertion=TraceAssertion.span_count(
+                SpanFilter.by_name("recipe_agent.generate")
+            ),
             operator=ComparisonOperator.GreaterThanOrEqual,
             expected_value=1,
         ),
@@ -268,7 +270,7 @@ def main() -> None:
         f"Passed: {results.metrics.passed_scenarios}  "
         f"Pass rate: {results.metrics.overall_pass_rate:.0%}"
     )
-    results.as_table(show_datasets=True)
+    results.as_table(show_workflow=True)
 
 
 if __name__ == "__main__":

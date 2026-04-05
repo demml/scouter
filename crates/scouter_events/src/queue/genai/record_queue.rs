@@ -1,18 +1,18 @@
 use crate::error::FeatureQueueError;
 use crate::queue::traits::FeatureQueue;
 use core::result::Result::Ok;
-use scouter_types::genai::GenAIEvalProfile;
+use scouter_types::genai::AgentEvalProfile;
 use scouter_types::BoxedEvalRecord;
 use scouter_types::QueueExt;
 use scouter_types::{MessageRecord, ServerRecord, ServerRecords};
 
 #[derive(Default)]
 pub struct EvalRecordQueue {
-    pub drift_profile: GenAIEvalProfile,
+    pub drift_profile: AgentEvalProfile,
 }
 
 impl EvalRecordQueue {
-    pub fn new(drift_profile: GenAIEvalProfile) -> Self {
+    pub fn new(drift_profile: AgentEvalProfile) -> Self {
         EvalRecordQueue { drift_profile }
     }
 }
@@ -51,7 +51,7 @@ mod tests {
 
     #[test]
     fn test_feature_queue_genai_insert_record() {
-        let profile = GenAIEvalProfile::default();
+        let profile = AgentEvalProfile::default();
         let feature_queue = EvalRecordQueue::new(profile);
 
         let mut record_batch = Vec::new();

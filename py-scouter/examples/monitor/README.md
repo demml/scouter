@@ -55,7 +55,7 @@ curl -X POST http://localhost:8000/predict \
 Monitors a two-stage LLM pipeline (query reformulation → response generation) for quality and relevance in production.
 
 **Files:**
-- `genai/api/profile/create_profile.py` — creates and registers the `GenAIEvalProfile`
+- `genai/api/profile/create_profile.py` — creates and registers the `AgentEvalProfile`
 - `genai/api/assets/prompts.py` — Gemini prompt templates and `PromptState`
 - `genai/api/main.py` — FastAPI app; runs the LLM pipeline and inserts `EvalRecord`
 - `genai/api/assets/genai_drift_profile.json` — saved profile loaded by the app
@@ -82,8 +82,8 @@ curl -X POST http://localhost:8000/predict \
 **What it shows:**
 
 - Defining `LLMJudgeTask` tasks that evaluate reformulation quality and response relevance
-- Configuring a `GenAIEvalProfile` with `sample_ratio` (fraction of traffic to evaluate)
-- Setting `GenAIAlertConfig` with a `baseline_value`, `AlertThreshold`, and `delta`
+- Configuring a `AgentEvalProfile` with `sample_ratio` (fraction of traffic to evaluate)
+- Setting `AgentAlertConfig` with a `baseline_value`, `AlertThreshold`, and `delta`
 - Registering the profile and saving it to JSON for the app to load
 - Inserting a `EvalRecord` with a multi-field context dict on each request
 - The server sampling records and running evaluation tasks asynchronously
@@ -94,9 +94,9 @@ curl -X POST http://localhost:8000/predict \
 
 | Class | Purpose |
 |-------|---------|
-| `GenAIEvalProfile` | Defines evaluation tasks and alert configuration |
-| `GenAIEvalConfig` | Profile identity (`space`, `name`, `version`) and `sample_ratio` |
+| `AgentEvalProfile` | Defines evaluation tasks and alert configuration |
+| `AgentEvalConfig` | Profile identity (`space`, `name`, `version`) and `sample_ratio` |
 | `LLMJudgeTask` | Semantic evaluation via LLM with structured output |
-| `GenAIAlertConfig` | Alert threshold and baseline for pass-rate monitoring |
+| `AgentAlertConfig` | Alert threshold and baseline for pass-rate monitoring |
 | `EvalRecord` | Captures inference context for evaluation |
 | `Agent` / `Prompt` | LLM call abstraction used in the application itself |

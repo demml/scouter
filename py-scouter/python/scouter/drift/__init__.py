@@ -1,6 +1,9 @@
 # mypy: disable-error-code="attr-defined"
 
 from .._scouter import (
+    AgentAlertConfig,
+    AgentEvalConfig,
+    AgentEvalProfile,
     AssertionTask,
     ComparisonOperator,
     CustomDriftProfile,
@@ -13,9 +16,6 @@ from .._scouter import (
     EvalRecord,
     FeatureMap,
     FreedmanDiaconis,
-    GenAIAlertConfig,
-    GenAIEvalConfig,
-    GenAIEvalProfile,
     LLMJudgeTask,
     Manual,
     PsiAlertConfig,
@@ -61,13 +61,13 @@ __all__ = [
     "TerrellScott",
     "FreedmanDiaconis",
     # genai
-    "GenAIEvalConfig",
-    "GenAIEvalProfile",
+    "AgentEvalConfig",
+    "AgentEvalProfile",
     "EvalRecord",
     "LLMJudgeTask",
     "AssertionTask",
     "ComparisonOperator",
-    "GenAIAlertConfig",
+    "AgentAlertConfig",
     "CustomMetricAlertConfig",
     "SpcAlertConfig",
     "PsiAlertConfig",

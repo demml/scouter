@@ -104,7 +104,7 @@ As you can see in the above example, the `ScouterQueue` expects either a `Featur
 |---------|----------------|-----------------------|
 | `Features` | Used for PSI and SPC monitoring, where you are monitoring 'features' | `PsiDriftProfile`, `SpcDriftProfile` |
 | `Metrics` | Used for custom metrics that you want to monitor | `CustomMetricProfile` |
-| `EvalRecord` | Used for LLM monitoring, where you are monitoring the performance of LLM services | `GenAIEvalProfile` |
+| `EvalRecord` | Used for LLM monitoring, where you are monitoring the performance of LLM services | `AgentEvalProfile` |
 
 ### How to create `Features`, `Metrics` and `EvalRecord` objects?
 
@@ -208,7 +208,7 @@ The `EvalRecord` object is used to send GenAI service records to the Scouter ser
 
 **Note**
 
- Context keys should match the context variables defined in your GenAIEvalProfile evaluation tasks. Context values can be any JSON serializable type (str, int, float, dict, list, bool, null).
+ Context keys should match the context variables defined in your AgentEvalProfile evaluation tasks. Context values can be any JSON serializable type (str, int, float, dict, list, bool, null).
 
 ```python
 

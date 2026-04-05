@@ -6,7 +6,7 @@ use scouter_evaluate::evaluate::GenAIEvaluator;
 use scouter_sql::sql::aggregator::get_trace_summary_service;
 use scouter_sql::sql::traits::{GenAIDriftSqlLogic, ProfileSqlLogic};
 use scouter_sql::PostgresClient;
-use scouter_types::genai::{EvalSet, GenAIEvalProfile};
+use scouter_types::genai::{EvalSet, AgentEvalProfile};
 use scouter_types::sql::{TraceFilters, TraceSpan};
 use scouter_types::{EvalRecord, Status, TraceId};
 use sqlx::{Pool, Postgres};
@@ -172,7 +172,7 @@ impl GenAIPoller {
     pub async fn process_event_record(
         &mut self,
         record: &EvalRecord,
-        profile: &GenAIEvalProfile,
+        profile: &AgentEvalProfile,
         spans: Arc<Vec<TraceSpan>>,
     ) -> Result<EvalSet, DriftError> {
         debug!("Processing workflow");
@@ -226,7 +226,7 @@ impl GenAIPoller {
         let mut genai_profile = if let Some(profile) =
             PostgresClient::get_drift_profile(&self.db_pool, &task.entity_id).await?
         {
-            let genai_profile: GenAIEvalProfile =
+            let genai_profile: AgentEvalProfile =
                 serde_json::from_value(profile).inspect_err(|e| {
                     error!("Failed to deserialize GenAI drift profile: {:?}", e);
                 })?;

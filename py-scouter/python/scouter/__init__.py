@@ -18,6 +18,8 @@ from . import (
     util,
 )
 from ._scouter import (  # dataset; genai
+    AgentEvalConfig,
+    AgentEvalProfile,
     AggregationType,
     AssertionTask,
     CommonCrons,
@@ -38,8 +40,6 @@ from ._scouter import (  # dataset; genai
     FeatureMap,
     Features,
     FreedmanDiaconis,
-    GenAIEvalConfig,
-    GenAIEvalProfile,
     GrpcConfig,
     HttpConfig,
     KafkaConfig,
@@ -156,8 +156,8 @@ __all__ = [
     "RabbitMQConfig",
     "RedisConfig",
     # genai
-    "GenAIEvalConfig",
-    "GenAIEvalProfile",
+    "AgentEvalConfig",
+    "AgentEvalProfile",
     "EvalRecord",
     "LLMJudgeTask",
     "AssertionTask",

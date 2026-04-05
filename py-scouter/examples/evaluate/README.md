@@ -4,7 +4,7 @@ These examples show how to use `EvalOrchestrator` to evaluate an AI agent offlin
 
 ## How it works
 
-1. Define a `GenAIEvalProfile` — the assertions that describe what "good" looks like for your agent.
+1. Define a `AgentEvalProfile` — the assertions that describe what "good" looks like for your agent.
 2. Wrap your agent in an `agent_fn(query: str) -> str` (or subclass `EvalOrchestrator` for async agents).
 3. Inside the agent, emit `EvalRecord` objects via `span.add_queue_item(alias, EvalRecord(...))`.
 4. Pass your existing `ScouterQueue` to `EvalOrchestrator`. It switches the queue to local capture mode automatically — no records are sent to the server during the run.
@@ -25,7 +25,7 @@ These examples show how to use `EvalOrchestrator` to evaluate an AI agent offlin
 
 ```
 overall_pass_rate
-├── dataset_pass_rates["alias"]   ← tasks in GenAIEvalProfile (per EvalRecord)
+├── dataset_pass_rates["alias"]   ← tasks in AgentEvalProfile (per EvalRecord)
 └── scenario_pass_rate            ← tasks in EvalScenario (per scenario response)
 ```
 

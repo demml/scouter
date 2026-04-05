@@ -24,8 +24,8 @@ pub use scouter_types::{
     genai::{
         utils::AssertionTasks, AgentAssertion, AgentAssertionTask, AggregationType,
         AssertionResult, AssertionResults, AssertionTask, AttributeFilterTask, ComparisonOperator,
-        EvalResultSet, EvalScenario, EvalSet, EvaluationTaskType, GenAIAlertConfig,
-        GenAIEvalConfig, GenAIEvalProfile, LLMJudgeTask, MultiResponseMode, SpanFilter, SpanStatus,
+        EvalResultSet, EvalScenario, EvalSet, EvaluationTaskType, AgentAlertConfig,
+        AgentEvalConfig, AgentEvalProfile, LLMJudgeTask, MultiResponseMode, SpanFilter, SpanStatus,
         TasksFile, TokenUsage, ToolCall, TraceAssertion, TraceAssertionTask,
     },
     is_pydantic_basemodel,

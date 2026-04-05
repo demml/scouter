@@ -35,7 +35,7 @@ use scouter_types::JwtToken;
 use scouter_types::RegisteredProfileResponse;
 use scouter_types::{
     genai::{
-        ComparisonOperator, EvaluationTasks, GenAIAlertConfig, GenAIEvalConfig, GenAIEvalProfile,
+        ComparisonOperator, EvaluationTasks, AgentAlertConfig, AgentEvalConfig, AgentEvalProfile,
         LLMJudgeTask,
     },
     AlertMap, CustomMetricRecord, EvalTaskResult, GenAIEvalWorkflowResult, MessageRecord,
@@ -430,7 +430,7 @@ impl TestHelper {
         MessageRecord::ServerRecords(ServerRecords::new(records))
     }
 
-    pub async fn create_genai_drift_profile() -> GenAIEvalProfile {
+    pub async fn create_genai_drift_profile() -> AgentEvalProfile {
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
 
         let task1 = LLMJudgeTask::new_rs(
@@ -462,12 +462,12 @@ impl TestHelper {
             .add_task(task2)
             .build();
 
-        let alert_config = GenAIAlertConfig::default();
+        let alert_config = AgentAlertConfig::default();
 
         let drift_config =
-            GenAIEvalConfig::new(SPACE, NAME, VERSION, 1.0, alert_config, None).unwrap();
+            AgentEvalConfig::new(SPACE, NAME, VERSION, 1.0, alert_config, None).unwrap();
 
-        GenAIEvalProfile::new(drift_config, tasks).await.unwrap()
+        AgentEvalProfile::new(drift_config, tasks).await.unwrap()
     }
 
     pub async fn insert_alerts(&self) -> Result<(String, String, String), anyhow::Error> {

@@ -14,7 +14,7 @@ Key concepts demonstrated:
 Replace GrpcConfig() and ChefAgent with your real setup.
 """
 
-from scouter.drift import GenAIEvalProfile
+from scouter.drift import AgentEvalProfile
 from scouter.evaluate import (
     AssertionTask,
     ComparisonOperator,
@@ -31,7 +31,7 @@ from scouter.transport import GrpcConfig
 # ---------------------------------------------------------------------------
 # 1. Profile — assertions run against every EvalRecord your agent emits.
 # ---------------------------------------------------------------------------
-profile = GenAIEvalProfile(
+profile = AgentEvalProfile(
     alias="chef_agent",
     tasks=[
         AssertionTask(
@@ -201,7 +201,9 @@ class ChefEvalOrchestrator(EvalOrchestrator):
     def on_scenario_complete(self, scenario: EvalScenario, response: str) -> None:
         print(f"  ✓ '{scenario.id}' complete — final response: {response[:60]!r}")
 
-    def on_evaluation_complete(self, results: ScenarioEvalResults) -> ScenarioEvalResults:
+    def on_evaluation_complete(
+        self, results: ScenarioEvalResults
+    ) -> ScenarioEvalResults:
         passed = results.metrics.passed_scenarios
         total = results.metrics.total_scenarios
         print(f"\n  Evaluation complete: {passed}/{total} scenarios passed")
@@ -221,7 +223,7 @@ def main() -> None:
     print(f"\nOverall pass rate : {results.metrics.overall_pass_rate:.0%}")
     print(f"Scenario pass rate: {results.metrics.scenario_pass_rate:.0%}")
     print()
-    results.as_table(show_datasets=True)
+    results.as_table(show_workflow=True)
 
 
 if __name__ == "__main__":

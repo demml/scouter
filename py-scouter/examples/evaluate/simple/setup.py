@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Union
 
 from pydantic import BaseModel, ConfigDict
-from scouter.drift import GenAIEvalProfile
+from scouter.drift import AgentEvalProfile
 from scouter.evaluate import TasksFile
 from scouter.genai import Prompt
 from scouter.queue import ScouterQueue
@@ -50,7 +50,7 @@ def setup() -> Config:
     prompt = Prompt.from_path(_CWD / "prompt.yaml")
     tasks = TasksFile.from_path(_CWD / "task.yaml")
 
-    profile = GenAIEvalProfile(
+    profile = AgentEvalProfile(
         alias="qa_agent",
         tasks=tasks,
     )

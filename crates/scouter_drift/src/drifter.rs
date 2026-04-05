@@ -236,8 +236,8 @@ mod tests {
 
     use potato_head::mock::{create_score_prompt, LLMTestServer};
     use scouter_types::genai::{
-        AssertionTask, ComparisonOperator, EvaluationTaskType, EvaluationTasks, GenAIAlertConfig,
-        GenAIEvalConfig, GenAIEvalProfile, LLMJudgeTask,
+        AssertionTask, ComparisonOperator, EvaluationTaskType, EvaluationTasks, AgentAlertConfig,
+        AgentEvalConfig, AgentEvalProfile, LLMJudgeTask,
     };
     use scouter_types::{AlertCondition, AlertThreshold, EvalRecord};
     use serde_json::Value;
@@ -644,18 +644,18 @@ mod tests {
             delta: Some(0.01), // Alert if 1% below baseline
         };
 
-        let alert_config = GenAIAlertConfig {
+        let alert_config = AgentAlertConfig {
             schedule: "* * * * * *".to_string(), // Every second for test
             dispatch_config: AlertDispatchConfig::default(),
             alert_condition: Some(alert_condition),
         };
 
         let drift_config =
-            GenAIEvalConfig::new("scouter", "genai_test", "0.1.0", 1.0, alert_config, None)
+            AgentEvalConfig::new("scouter", "genai_test", "0.1.0", 1.0, alert_config, None)
                 .unwrap();
 
         let profile = runtime
-            .block_on(async { GenAIEvalProfile::new(drift_config, tasks).await })
+            .block_on(async { AgentEvalProfile::new(drift_config, tasks).await })
             .unwrap();
         let drift_profile = DriftProfile::GenAI(profile.clone());
 

@@ -37,7 +37,7 @@ pub enum FileName {
     CustomDriftProfile,
     DriftProfile,
     DataProfile,
-    GenAIEvalProfile,
+    AgentEvalProfile,
 }
 
 impl FileName {
@@ -50,7 +50,7 @@ impl FileName {
             FileName::CustomDriftProfile => "custom_drift_profile.json",
             FileName::DataProfile => "data_profile.json",
             FileName::DriftProfile => "drift_profile.json",
-            FileName::GenAIEvalProfile => "genai_drift_profile.json",
+            FileName::AgentEvalProfile => "genai_drift_profile.json",
         }
     }
 }

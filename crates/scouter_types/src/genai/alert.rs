@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct GenAIAlertConfig {
+pub struct AgentAlertConfig {
     pub dispatch_config: AlertDispatchConfig,
 
     #[pyo3(get, set)]
@@ -21,10 +21,10 @@ pub struct GenAIAlertConfig {
     pub alert_condition: Option<AlertCondition>,
 }
 
-impl ValidateAlertConfig for GenAIAlertConfig {}
+impl ValidateAlertConfig for AgentAlertConfig {}
 
 #[pymethods]
-impl GenAIAlertConfig {
+impl AgentAlertConfig {
     #[new]
     #[pyo3(signature = (schedule=None, dispatch_config=None, alert_condition=None))]
     pub fn new(
@@ -78,8 +78,8 @@ impl GenAIAlertConfig {
     }
 }
 
-impl Default for GenAIAlertConfig {
-    fn default() -> GenAIAlertConfig {
+impl Default for AgentAlertConfig {
+    fn default() -> AgentAlertConfig {
         Self {
             dispatch_config: AlertDispatchConfig::default(),
             schedule: CommonCrons::EveryDay.cron(),
@@ -170,7 +170,7 @@ mod tests {
         });
         let schedule = "0 0 * * * *".to_string();
         let alert_condition = AlertCondition::new(5.0, AlertThreshold::Above, None);
-        let alert_config = GenAIAlertConfig {
+        let alert_config = AgentAlertConfig {
             dispatch_config,
             schedule,
             alert_condition: Some(alert_condition.clone()),

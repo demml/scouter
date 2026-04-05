@@ -9,7 +9,7 @@ use crate::scenario::EvalScenarios;
 use pyo3::prelude::*;
 use scouter_state::app_state;
 use scouter_types::genai::EvalScenario;
-use scouter_types::genai::{GenAIEvalConfig, GenAIEvalProfile};
+use scouter_types::genai::{AgentEvalConfig, AgentEvalProfile};
 use scouter_types::trace::build_trace_spans;
 use scouter_types::trace::sql::TraceSpan;
 use scouter_types::EvalRecord;
@@ -21,7 +21,7 @@ use tracing::{debug, error};
 
 struct AliasData {
     records: Vec<EvalRecord>,
-    profile: Option<Arc<GenAIEvalProfile>>,
+    profile: Option<Arc<AgentEvalProfile>>,
     spans: Vec<TraceSpan>,
 }
 
@@ -35,7 +35,7 @@ struct AliasData {
 #[derive(Debug)]
 #[pyclass]
 pub struct EvalRunner {
-    profiles: HashMap<String, Arc<GenAIEvalProfile>>,
+    profiles: HashMap<String, Arc<AgentEvalProfile>>,
     scenarios: EvalScenarios,
 }
 
@@ -43,8 +43,8 @@ pub struct EvalRunner {
 impl EvalRunner {
     #[new]
     #[pyo3(signature = (scenarios, profiles))]
-    pub fn new(scenarios: EvalScenarios, profiles: HashMap<String, GenAIEvalProfile>) -> Self {
-        let arc_profiles: HashMap<String, Arc<GenAIEvalProfile>> = profiles
+    pub fn new(scenarios: EvalScenarios, profiles: HashMap<String, AgentEvalProfile>) -> Self {
+        let arc_profiles: HashMap<String, Arc<AgentEvalProfile>> = profiles
             .into_iter()
             .map(|(k, v)| (k, Arc::new(v)))
             .collect();
@@ -349,8 +349,8 @@ impl EvalRunner {
             };
 
             // Build profile from scenario tasks
-            let profile = GenAIEvalProfile::build_from_parts_async(
-                GenAIEvalConfig::default(),
+            let profile = AgentEvalProfile::build_from_parts_async(
+                AgentEvalConfig::default(),
                 scenario.tasks.clone(),
                 None,
             )
@@ -561,9 +561,9 @@ mod tests {
         }
     }
 
-    fn make_default_profiles() -> HashMap<String, GenAIEvalProfile> {
+    fn make_default_profiles() -> HashMap<String, AgentEvalProfile> {
         let mut profiles = HashMap::new();
-        profiles.insert("agent_a".to_string(), GenAIEvalProfile::default());
+        profiles.insert("agent_a".to_string(), AgentEvalProfile::default());
         profiles
     }
 
@@ -636,7 +636,7 @@ mod tests {
     #[test]
     fn collect_scenario_data_multiple_aliases() {
         let mut profiles = make_default_profiles();
-        profiles.insert("agent_b".to_string(), GenAIEvalProfile::default());
+        profiles.insert("agent_b".to_string(), AgentEvalProfile::default());
 
         let mut runner = EvalRunner::new(
             EvalScenarios::new(vec![make_scenario("s1", "Hello")]),
