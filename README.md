@@ -353,7 +353,7 @@ from scouter import (
     ScouterClient,
     SlackDispatchConfig,
 )
-from scouter.evaluate import AgentEvalProfile
+from scouter.drift import AgentEvalProfile
 
 alert_config = AgentAlertConfig(
     dispatch_config=SlackDispatchConfig(channel="#ml-alerts"),

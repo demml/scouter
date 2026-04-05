@@ -867,7 +867,8 @@ results.as_table()
 Attach `AgentAssertionTask` to a `AgentEvalProfile` for real-time monitoring. The server samples `EvalRecord` objects at the configured `sample_ratio` and evaluates the tasks asynchronously.
 
 ```python
-from scouter.evaluate import AgentAssertion, AgentAssertionTask, AgentEvalProfile, EvalRecord
+from scouter.drift import AgentEvalProfile
+from scouter.evaluate import AgentAssertion, AgentAssertionTask, EvalRecord
 from scouter import AgentEvalConfig, GrpcConfig
 from scouter.queue import ScouterQueue
 from scouter.alert import ConsoleDispatchConfig
@@ -1120,7 +1121,7 @@ results.as_table()
 Tasks are included in a `AgentEvalProfile` for real-time monitoring:
 
 ```python
-from scouter.evaluate import AgentEvalProfile
+from scouter.drift import AgentEvalProfile
 from scouter import AgentEvalConfig
 
 profile = AgentEvalProfile(

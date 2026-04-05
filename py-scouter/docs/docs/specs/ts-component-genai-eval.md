@@ -59,7 +59,8 @@ queue["my-genai-profile"].insert(record)
 The profile defines the evaluation configuration, including tasks, alert thresholds, and sampling ratio.
 
 ```python
-from scouter.evaluate import AgentEvalProfile, AgentEvalConfig
+from scouter.drift import AgentEvalProfile
+from scouter.evaluate import AgentEvalConfig
 from scouter.alert import ConsoleDispatchConfig
 from scouter.types import CommonCrons
 

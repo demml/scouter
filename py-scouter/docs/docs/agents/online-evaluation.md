@@ -217,7 +217,7 @@ alert_config = AgentAlertConfig(schedule="0 */4 * * *")  # Every 4 hours
 Combine configuration and tasks:
 
 ```python
-from scouter.evaluate import AgentEvalProfile
+from scouter.drift import AgentEvalProfile
 
 profile = AgentEvalProfile(
     config=config,
