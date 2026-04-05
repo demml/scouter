@@ -17,7 +17,7 @@ use scouter_types::TraceId as ScouterTraceId;
 use serde_json::json;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
-use tracing::{debug, error, warn};
+use tracing::{debug, error};
 
 struct AliasData {
     records: Vec<EvalRecord>,
@@ -265,7 +265,7 @@ impl EvalRunner {
                 } else {
                     // First-seen profile wins per alias — warn when a subsequent scenario
                     // provides a different profile instance for the same alias.
-                    warn!(
+                    debug!(
                         "Alias '{}': profile already set — first-seen profile wins; ignoring profile from a subsequent scenario. Ensure all scenarios use the same profile for this alias.",
                         alias
                     );
@@ -430,7 +430,14 @@ fn compute_metrics(
         0.0
     };
 
-    let mut all_rates: Vec<f64> = dataset_pass_rates.values().copied().collect();
+    let workflow_rates: Vec<f64> = dataset_pass_rates.values().copied().collect();
+    let workflow_pass_rate = if workflow_rates.is_empty() {
+        0.0
+    } else {
+        workflow_rates.iter().sum::<f64>() / workflow_rates.len() as f64
+    };
+
+    let mut all_rates = workflow_rates.clone();
     if total_scenarios > 0 {
         all_rates.push(scenario_pass_rate);
     }
@@ -457,6 +464,7 @@ fn compute_metrics(
         overall_pass_rate,
         dataset_pass_rates,
         scenario_pass_rate,
+        workflow_pass_rate,
         total_scenarios,
         passed_scenarios,
         scenario_task_pass_rates,

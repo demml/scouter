@@ -676,7 +676,7 @@ impl EvalResults {
         let entries: Vec<WorkflowResultTableEntry> = self
             .aligned_results
             .iter()
-            .flat_map(|result| result.eval_set.build_workflow_entries())
+            .flat_map(|result| result.eval_set.build_workflow_entries(result.scenario_id.as_deref()))
             .collect();
 
         let mut table = Table::new(entries);
@@ -1012,6 +1012,9 @@ pub struct AlignedEvalResult {
     pub record_uid: String,
 
     #[pyo3(get)]
+    pub scenario_id: Option<String>,
+
+    #[pyo3(get)]
     pub eval_set: EvalSet,
 
     #[pyo3(get)]
@@ -1047,6 +1050,11 @@ impl AlignedEvalResult {
 }
 
 impl AlignedEvalResult {
+    fn extract_scenario_id(tags: &[String]) -> Option<String> {
+        tags.iter()
+            .find_map(|t| t.strip_prefix("scouter.eval.scenario_id=").map(str::to_owned))
+    }
+
     /// Create from successful evaluation
     pub fn from_success(
         record: &EvalRecord,
@@ -1056,6 +1064,7 @@ impl AlignedEvalResult {
         Self {
             record_uid: record.uid.clone(),
             record_id: record.record_id.clone(),
+            scenario_id: Self::extract_scenario_id(&record.tags),
             eval_set,
             embeddings,
             mean_embeddings: BTreeMap::new(),
@@ -1070,6 +1079,7 @@ impl AlignedEvalResult {
     pub fn from_failure(record: &EvalRecord, error: String) -> Self {
         Self {
             record_uid: record.uid.clone(),
+            scenario_id: Self::extract_scenario_id(&record.tags),
             eval_set: EvalSet::empty(),
             embeddings: BTreeMap::new(),
             mean_embeddings: BTreeMap::new(),

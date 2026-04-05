@@ -127,6 +127,7 @@ mod tests {
             overall_pass_rate: 1.0,
             dataset_pass_rates: HashMap::new(),
             scenario_pass_rate: 1.0,
+            workflow_pass_rate: 1.0,
             total_scenarios: 1,
             passed_scenarios: 1,
             scenario_task_pass_rates: HashMap::new(),

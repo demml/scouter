@@ -12270,6 +12270,19 @@ class TraceAssertion:
             Use with appropriate operators for the value type.
         """
 
+    @staticmethod
+    def attribute_filter(key: str, task: "AttributeFilterTask", mode: "MultiResponseMode") -> "TraceAssertion":
+        """Filter spans by attribute and apply assertion to collected spans.
+
+        Args:
+            key (str):
+                Attribute key to filter spans.
+            task (AttributeFilterTask):
+                Assertion task to apply to the filtered spans.
+            mode (MultiResponseMode):
+                Mode to handle multiple spans matching the filter (e.g., apply to all, any).
+        """
+
 class TraceAssertionTask:
     """Trace-based evaluation task for behavioral assertions.
 
@@ -13151,30 +13164,37 @@ class EvalMetrics:
 
     Attributes:
         overall_pass_rate (float):
-            Weighted pass rate across all datasets and scenarios (0–1).
+            Average of output quality and internal workflow pass rates (0–1).
         dataset_pass_rates (Dict[str, float]):
-            Per-alias (sub-agent) pass rate (0–1), keyed by alias name.
+            Per-alias workflow pass rate (0–1), keyed by alias name.
         scenario_pass_rate (float):
-            Fraction of scenarios that fully passed (all tasks passed) (0–1).
+            Agent output matched expected results (0–1).
+        workflow_pass_rate (float):
+            Internal agent checks passed, averaged across aliases (0–1).
+            Only present when at least one alias has workflow data.
         total_scenarios (int):
             Total number of scenarios evaluated.
         passed_scenarios (int):
-            Number of scenarios where every task passed.
+            Number of scenarios where output matched expectations.
         scenario_task_pass_rates (Dict[str, Dict[str, float]]):
             Per-scenario, per-task pass rates. Maps scenario_id → task_id → pass_rate.
     """
 
     @property
     def overall_pass_rate(self) -> float:
-        """Weighted pass rate across all datasets and scenarios (0–1)."""
+        """Average of output quality and internal workflow pass rates (0–1)."""
 
     @property
     def dataset_pass_rates(self) -> Dict[str, float]:
-        """Per-alias pass rate (0–1), keyed by alias name."""
+        """Per-alias workflow pass rate (0–1), keyed by alias name."""
 
     @property
     def scenario_pass_rate(self) -> float:
-        """Fraction of scenarios that fully passed (0–1)."""
+        """Agent output matched expected results (0–1)."""
+
+    @property
+    def workflow_pass_rate(self) -> float:
+        """Internal agent checks passed, averaged across aliases (0–1)."""
 
     @property
     def total_scenarios(self) -> int:
@@ -13182,7 +13202,7 @@ class EvalMetrics:
 
     @property
     def passed_scenarios(self) -> int:
-        """Number of scenarios where every task passed."""
+        """Number of scenarios where output matched expectations."""
 
     @property
     def scenario_task_pass_rates(self) -> Dict[str, Dict[str, float]]:
@@ -13539,11 +13559,11 @@ class ScenarioEvalResults:
             RuntimeError: If comparison computation fails.
         """
 
-    def as_table(self, show_datasets: bool = False) -> None:
+    def as_table(self, show_workflow: bool = False) -> None:
         """Print a full evaluation summary (metrics + scenario table) to stdout.
 
         Args:
-            show_datasets: If True, also print per-dataset EvalResults tables.
+            show_workflow: If True, also print per-dataset workflow summary tables.
         """
 
 class EvalScenario:
@@ -17151,6 +17171,8 @@ class GenAIEvalConfig:
                 LLM alert configuration
         """
 
+_TASK_TYPES = List[Union[AssertionTask, LLMJudgeTask, TraceAssertionTask]] | TasksFile
+
 class GenAIEvalProfile:
     """Profile for LLM evaluation and drift detection.
 
@@ -17452,7 +17474,7 @@ class GenAIEvalProfile:
 
     def __init__(
         self,
-        tasks: List[Union[AssertionTask, LLMJudgeTask, TraceAssertionTask]],
+        tasks: _TASK_TYPES,
         config: Optional[GenAIEvalConfig] = None,
         alias: Optional[str] = None,
     ):
@@ -17464,10 +17486,11 @@ class GenAIEvalProfile:
         Scouter server.
 
         Args:
-            tasks (List[Union[AssertionTask, LLMJudgeTask, TraceAssertionTask]]):
+            tasks (List[Union[AssertionTask, LLMJudgeTask, TraceAssertionTask]] | TasksFile):
                 List of evaluation tasks to include in the profile. Can contain
                 AssertionTask, LLMJudgeTask, and TraceAssertionTask instances.
                 At least one task (assertion, LLM judge, or trace assertion) is required.
+                Can also be provided as a TasksFile object.
             config (Optional[GenAIEvalConfig]):
                 Configuration for the GenAI drift profile containing space, name,
                 version, sample rate, and alert settings. If not provided,

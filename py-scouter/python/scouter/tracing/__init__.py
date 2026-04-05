@@ -703,6 +703,7 @@ def uninstrument() -> None:
 
 __all__ = [
     "Tracer",
+    "TracerProvider",
     "get_tracer",
     "init_tracer",
     "SpanKind",

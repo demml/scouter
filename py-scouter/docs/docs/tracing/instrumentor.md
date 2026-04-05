@@ -10,7 +10,7 @@ See the [overview comparison table](/scouter/docs/tracing/overview/#scouterinstr
 
 ```
 ImportError: OpenTelemetry is required for instrumentation.
-Install with: pip install opsml[opentelemetry]
+Install with: pip install scouter[opentelemetry] if using scouter, or opsml[opentelemetry] if using opsml.
 ```
 
 Install the dependency:
@@ -156,6 +156,82 @@ result = Runner.run_sync(agent, "What are the latest advances in transformer arc
 # Spans from the agent run are exported to Scouter
 ```
 
+### Google ADK
+
+Google ADK uses OpenTelemetry natively — it calls `opentelemetry.trace.get_tracer_provider().get_tracer(name)` internally. Calling `instrument()` before any ADK code is all that's needed; there's no separate instrumentation library to register.
+
+```bash
+pip install google-adk opentelemetry-sdk
+```
+
+```python
+# main.py
+import asyncio
+
+from google.adk.agents import Agent
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.genai import types
+from scouter.tracing import ScouterInstrumentor
+from scouter.transport import GrpcConfig
+
+# Sets Scouter as the global OTel TracerProvider before any ADK code runs.
+# ADK calls get_tracer_provider() internally — it picks this up automatically.
+ScouterInstrumentor().instrument(
+    transport_config=GrpcConfig(),
+    attributes={"service.name": "adk-hello-agent"},
+)
+
+
+def get_current_time(city: str) -> dict:
+    """Returns the current time in a specified city."""
+    return {"city": city, "time": "10:30 AM"}
+
+
+root_agent = Agent(
+    model="gemini-2.0-flash",
+    name="hello_agent",
+    description="Tells the current time in a specified city.",
+    instruction="You are a helpful assistant. Use get_current_time to answer questions about the current time.",
+    tools=[get_current_time],
+)
+
+
+async def main() -> None:
+    session_service = InMemorySessionService()
+    runner = Runner(
+        agent=root_agent,
+        app_name="hello_app",
+        session_service=session_service,
+    )
+
+    session = await session_service.create_session(
+        app_name="hello_app",
+        user_id="user_1",
+    )
+
+    message = types.Content(
+        role="user",
+        parts=[types.Part(text="What time is it in New York?")],
+    )
+
+    async for event in runner.run_async(
+        user_id="user_1",
+        session_id=session.id,
+        new_message=message,
+    ):
+        if event.is_final_response():
+            print(event.content.parts[0].text)
+
+    ScouterInstrumentor().uninstrument()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+`run_async` is an async generator that yields events for each step (tool calls, intermediate responses, the final answer). Filtering on `is_final_response()` gives you the displayable text. All spans — agent turns, tool invocations, LLM calls — are exported to Scouter automatically.
+
 ### LangChain
 
 Install `opentelemetry-instrumentation-langchain` then call `instrument()` before constructing chains:
@@ -189,67 +265,42 @@ chain = LLMChain(llm=llm, prompt=prompt)
 result = chain.run(text="OpenTelemetry is a set of APIs and SDKs...")
 ```
 
-### LlamaIndex
-
-LlamaIndex has built-in OTEL tracing support. Set up Scouter first, then configure LlamaIndex to use the global provider:
-
-```bash
-pip install llama-index opentelemetry-sdk
-```
-
-```python
-from scouter.tracing import ScouterInstrumentor
-from scouter import GrpcConfig
-from llama_index.core import Settings, VectorStoreIndex, SimpleDirectoryReader
-from opentelemetry import trace
-
-# Register Scouter as the global OTEL provider
-ScouterInstrumentor().instrument(
-    transport_config=GrpcConfig(),
-    attributes={"service.name": "llamaindex-service"},
-)
-
-# LlamaIndex picks up the global provider automatically
-documents = SimpleDirectoryReader("./docs").load_data()
-index = VectorStoreIndex.from_documents(documents)
-query_engine = index.as_query_engine()
-
-# Spans from the query are exported to Scouter
-response = query_engine.query("What is the main topic of these documents?")
-```
-
 ### CrewAI
 
-Install `opentelemetry-instrumentation-crewai` (if available for your version) and register Scouter first:
+CrewAI uses OpenTelemetry natively. Register Scouter first and all agent, task, and tool spans flow through automatically.
 
 ```bash
 pip install crewai opentelemetry-sdk
 ```
 
 ```python
+from crewai import Agent, Crew, Task
 from scouter.tracing import ScouterInstrumentor
-from scouter import GrpcConfig
-from crewai import Agent, Task, Crew
+from scouter.transport import GrpcConfig
 
 ScouterInstrumentor().instrument(
     transport_config=GrpcConfig(),
     attributes={"service.name": "crewai-service"},
 )
 
+# Agents and tasks defined after instrument() — spans route through Scouter
 researcher = Agent(
     role="Researcher",
-    goal="Find relevant information on the topic",
-    backstory="Expert at searching and synthesizing information",
-    tools=[...],
+    goal="Summarize what OpenTelemetry is in one paragraph",
+    backstory="Expert at reading technical documentation",
+    allow_delegation=False,
+    verbose=True,
 )
 
 task = Task(
-    description="Research the latest trends in vector databases",
+    description="Write a one-paragraph summary of what OpenTelemetry is.",
+    expected_output="A concise paragraph suitable for a developer README.",
     agent=researcher,
 )
 
-crew = Crew(agents=[researcher], tasks=[task])
+crew = Crew(agents=[researcher], tasks=[task], verbose=True)
 result = crew.kickoff()
+print(result)
 ```
 
 ### FastAPI
@@ -296,6 +347,90 @@ async def predict(input: str):
 ```
 
 HTTP request spans from FastAPI will appear in Scouter alongside any manual spans you create inside route handlers.
+
+## ScouterTracingMiddleware
+
+`ScouterTracingMiddleware` is a Starlette-compatible middleware that extracts W3C traceparent context from inbound HTTP requests and opens a `SERVER` span as the root for each request. Route handlers get that span as their active context, so any spans created inside are correctly nested as children — no per-endpoint header parsing required.
+
+The middleware works with any Starlette-based framework (FastAPI, Starlette, etc.).
+
+### Setup
+
+```python
+from fastapi import FastAPI
+from scouter.tracing import ScouterTracingMiddleware
+
+app = FastAPI(lifespan=lifespan)
+app.add_middleware(ScouterTracingMiddleware, tracer=tracer)
+```
+
+`tracer` must be a Scouter tracer (the return value of `otel_trace.get_tracer_provider().get_tracer(name)` after `instrument()` has been called, or `get_tracer(name)` directly).
+
+### Deferred initialization
+
+FastAPI evaluates `add_middleware()` at import time, before the `lifespan` event runs. If your tracer is set during `lifespan`, you need a proxy:
+
+```python
+from typing import Any, Optional
+from fastapi import FastAPI
+from scouter.tracing import ScouterTracingMiddleware, ScouterInstrumentor, TracerProvider
+from scouter.transport import GrpcConfig
+from opentelemetry import trace as otel_trace
+from contextlib import asynccontextmanager
+
+
+class _TracerProxy:
+    """Forwards attribute access to the real tracer once lifespan sets _inner."""
+
+    def __init__(self) -> None:
+        self._inner: Optional[Any] = None
+
+    def __getattr__(self, name: str) -> Any:
+        if self._inner is None:
+            raise RuntimeError("Tracer not initialized — instrument() must run first")
+        return getattr(self._inner, name)
+
+
+_instrumentor = ScouterInstrumentor()
+_tracer = _TracerProxy()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    _instrumentor.instrument(
+        transport_config=GrpcConfig(),
+        attributes={"service.name": "my-service"},
+    )
+    provider = otel_trace.get_tracer_provider()
+    _tracer._inner = provider.get_tracer("my-service")
+
+    yield
+
+    _instrumentor.uninstrument()
+    _tracer._inner = None
+
+
+app = FastAPI(lifespan=lifespan)
+
+# add_middleware runs at import time — _tracer is a proxy here,
+# not yet initialized. That's fine: it only resolves _inner at request time.
+app.add_middleware(ScouterTracingMiddleware, tracer=_tracer)
+```
+
+This is the same pattern used in the [distributed tracing examples](https://github.com/demml/scouter/tree/main/py-scouter/examples/tracing).
+
+### What the middleware produces
+
+For every inbound request, `ScouterTracingMiddleware`:
+
+1. Reads the W3C `traceparent` header (if present)
+2. Opens a `SERVER` span with `parent_span_id` set to the upstream caller's span
+3. Makes that span the active context for the request lifecycle
+4. Records the HTTP method and path on the span
+5. Sets span status to `ERROR` if the response status is `>= 500`
+6. Closes and exports the span when the response is sent
+
+If no `traceparent` header is present, the middleware opens a root `SERVER` span instead — so uninstrumented callers still get traced.
 
 ## Local Span Capture (Testing)
 

@@ -316,51 +316,86 @@ def child():
 1. Child automatically inherits parent's trace context
 2. parent_span_id automatically set to parent's span_id
 
-### Across Services
+### Across services
 
-Extract trace headers from the current span and inject into downstream requests:
+`get_tracing_headers_from_current_span()` returns a dict containing the W3C `traceparent` header (plus `tracestate` and `baggage` when present) for the currently active span. Pass it directly in outbound requests.
 
-=== "Client Side"
+On the receiving end, `ScouterTracingMiddleware` handles extraction. It reads the `traceparent` header on every inbound request and opens a `SERVER` span as the parent — so spans you create inside route handlers are already children of the upstream caller's span, with the correct `trace_id` and `parent_span_id` set.
+
+=== "Client (orchestrator)"
 
 ````python
-from scouter import get_tracing_headers_from_current_span
+from scouter.tracing import get_tracing_headers_from_current_span
 
-@tracer.span("service_a_request")
-async def call_service_b():
-    headers = get_tracing_headers_from_current_span()
-    # (1)
+async with httpx.AsyncClient() as client:
+    with tracer.start_as_current_span("orchestrator.greet") as span:
+        # Returns W3C traceparent headers for the active span.
+        propagation_headers = get_tracing_headers_from_current_span()
 
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            "http://service-b/api/endpoint",
-            headers=headers
+        response = await client.get(
+            "http://service-b/hello",
+            params={"name": "Alice"},
+            headers=propagation_headers,
         )
 ````
 
-1. Returns `{"trace_id": "...", "span_id": "...", "is_sampled": "true"}`
-
-=== "Server Side"
+=== "Server (downstream service)"
 
 ````python
-from fastapi import Header
+from fastapi import FastAPI
+from scouter.tracing import ScouterTracingMiddleware
 
-@app.post("/api/endpoint")
-async def endpoint(
-    trace_id: str = Header(None),
-    span_id: str = Header(None),
-    is_sampled: str = Header(None)
-):
-    with tracer.start_as_current_span(
-        name="service_b_handler",
-        trace_id=trace_id,
-        span_id=span_id,  # (1)
-        remote_sampled=is_sampled == "true"
-    ) as span:
-        span.set_tag("service", "service-b")
-        return process_request()
+app = FastAPI(lifespan=lifespan)
+
+# Middleware runs before every route handler.
+# It extracts traceparent and opens a SERVER span automatically.
+app.add_middleware(ScouterTracingMiddleware, tracer=tracer)
+
+@app.get("/hello")
+async def hello(name: str = "World") -> dict:
+    # The active span here is already a child of the orchestrator's span.
+    # No manual header parsing needed.
+    with tracer.start_as_current_span("hello.build_greeting") as span:
+        span.set_attribute("greeting.name", name)
+        return {"message": f"Hello, {name}!"}
 ````
 
-1. Becomes the parent span ID, linking spans across services
+!!! tip "Automatic header injection"
+    `instrument()` registers a W3C `TraceContext + Baggage` propagator as the global OTel `TextMapPropagator`. Install `opentelemetry-instrumentation-httpx` and call `HTTPXInstrumentor().instrument()` to skip the manual `get_tracing_headers_from_current_span()` call — headers are injected automatically on every outbound request.
+
+### Multi-service example
+
+The `examples/tracing/` directory contains a working 3-service setup: an orchestrator that fans out to a hello service and a goodbye service, all linked in a single distributed trace.
+
+```
+orchestrator.greet            [orchestrator-service]  root
+├── GET /hello                [hello-service]         child
+│   └── hello.build_greeting  [hello-service]         grandchild
+└── GET /goodbye              [goodbye-service]       child
+    └── goodbye.build_farewell [goodbye-service]      grandchild
+```
+
+Start all three services and send a demo request:
+
+```bash
+bash examples/tracing/run_example.sh
+# or from py-scouter/:
+make example.tracing
+```
+
+The script starts each service, waits for readiness, sends a `POST /greet` request, and prints the resulting trace ID. Use that ID to query the full span tree from the Scouter client:
+
+```python
+scouter_client.get_trace_spans_from_filters(TraceFilters(trace_id="<trace_id>"))
+```
+
+Individual services can also be started in isolation for debugging:
+
+```bash
+make example.tracing.hello        # port 8081
+make example.tracing.goodbye      # port 8082
+make example.tracing.orchestrator # port 8083
+```
 
 ## Span Attributes & Events
 

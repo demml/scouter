@@ -1,0 +1,9 @@
+tasks:
+  - task_type: Assertion
+    id: response_not_empty
+    context_path: response
+    operator: IsString
+    expected_value: true
+    description: Check that the response is a non-empty string
+    depends_on: []
+    condition: false

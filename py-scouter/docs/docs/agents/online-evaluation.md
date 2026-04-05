@@ -1,33 +1,20 @@
-# Online GenAI Evaluation with Scouter
+# Online evaluation
 
-Evaluate your GenAI services in real-time using the same evaluation tasks as offline testing. Online evaluation runs asynchronously on the Scouter server, providing continuous monitoring and observability without impacting your application's performance.
+Online evaluation runs the same evaluation tasks as offline, but against sampled production traffic. Evaluations run asynchronously on the Scouter server with no impact on application latency.
 
-## Overview
+Use it to catch quality degradation and distribution shift after deployment. The task definitions are identical to offline; write them once and use them in both contexts.
 
-Online GenAI evaluation enables:
+## What is a GenAI drift profile?
 
-- **Real-time Monitoring**: Track service quality as traffic flows through your system
-- **Automated Alerting**: Get notified when metrics fall below acceptable thresholds
-- **Zero Latency Impact**: Evaluations run server-side without blocking your application
-- **Cost Control**: Configure sampling to balance monitoring coverage with evaluation costs (integrates with Scouter Tracing)
-- **Consistent Evaluation**: Use identical tasks from offline testing for production monitoring
+A `GenAIEvalProfile` for online use pairs a `GenAIEvalConfig` (service metadata and alert settings) with your evaluation tasks (`LLMJudgeTask`, `AssertionTask`). The profile runs your tasks asynchronously on sampled traffic, stores results, and checks alert conditions on a configured schedule.
 
-## What is a GenAI Drift Profile?
+## Creating a GenAI drift profile
 
-A **GenAI Drift Profile** combines 2 components for online-evaluation:
-
-- **GenAIEvalConfig**: Service metadata and alert configuration
-- **Evaluation Tasks**: `LLMJudgeTask` and `AssertionTask` tasks to validate service context (same as offline)
-
-The profile executes your evaluation tasks asynchronously on sampled traffic, storing results and checking alert conditions on a configured schedule.
-
-## Creating a GenAI Drift Profile
-
-### 1. Define Evaluation Tasks
+### 1. Define evaluation tasks
 
 Use the same `LLMJudgeTask` and `AssertionTask` patterns from offline evaluation. Tasks support dependencies and conditional logic.
 
-**Simple LLM Judge:**
+#### Simple LLM judge
 
 ```python
 from scouter.evaluate import LLMJudgeTask, ComparisonOperator
@@ -55,7 +42,7 @@ relevance_task = LLMJudgeTask(
 )
 ```
 
-**Hybrid Evaluation:**
+#### Hybrid evaluation
 
 ```python
 from scouter.evaluate import AssertionTask
@@ -95,7 +82,7 @@ quality_task = LLMJudgeTask(
 tasks = [length_check, quality_task]
 ```
 
-**Multi-Stage Dependent Evaluation:**
+#### Multi-stage dependent evaluation
 
 ```python
 # Stage 1: Category classification
@@ -142,9 +129,9 @@ technical_quality_task = LLMJudgeTask(
 tasks = [category_task, technical_check, technical_quality_task]
 ```
 
-### 2. Configure Alert Conditions
+### 2. Configure alert conditions
 
-Define when alerts should trigger using `AlertCondition`. Alerts are triggerred based on the overall pass rate of your evaluation tasks. Meaning, if you have multiple tasks, the alert condition evaluates the aggregated workflow results.
+Define when alerts should trigger using `AlertCondition`. Alerts fire based on the overall pass rate across your evaluation tasks. With multiple tasks, the alert condition evaluates the aggregated workflow results.
 
 ```python
 from scouter import AlertThreshold, AlertCondition
@@ -165,7 +152,7 @@ alert_condition = AlertCondition(
 | `AlertThreshold.Above` | Alert when metric > `baseline_value + delta` |
 | `AlertThreshold.Outside` | Alert when metric outside `[baseline - delta, baseline + delta]` |
 
-### 3. Create GenAI Drift Config
+### 3. Create GenAI drift config
 
 Configure sampling rate, alerting schedule, and dispatch channels:
 
@@ -225,7 +212,7 @@ alert_config = GenAIAlertConfig(schedule=CommonCrons.EveryHour)
 alert_config = GenAIAlertConfig(schedule="0 */4 * * *")  # Every 4 hours
 ```
 
-### 4. Create the Profile
+### 4. Create the profile
 
 Combine configuration and tasks:
 
@@ -248,15 +235,16 @@ client.register_profile(
 )
 ```
 
-## Inserting Records for Evaluation
+## Inserting records for evaluation
 
-Use `EvalRecord` to send evaluation data to the queue. Queue insertion is meant for real-time applications that need to monitor ML/GenAI services without blocking. In these scenarios the typical flow is:
+For each request your service handles, create an `EvalRecord` and insert it into the queue. The queue is non-blocking; insertion takes nanoseconds and doesn't affect your application's response time. The Scouter server picks up records asynchronously and evaluates the sampled ones.
 
-1. Load your `ScouterQueue` with the profile path on application startup
-2. For each request/response, create a `EvalRecord` with the context and insert it into the queue which will be processed asynchronously by the Scouter server.
-3. The server executes the evaluation tasks on sampled records, stores results, and checks alert conditions on schedule.
+The typical setup:
+1. Load your `ScouterQueue` on application startup
+2. For each request/response, insert an `EvalRecord` into the queue
+3. The server evaluates sampled records, stores results, and checks alert conditions on schedule
 
-### Creating Records
+### Creating records
 
 ```python
 from scouter.queue import EvalRecord
@@ -286,7 +274,7 @@ context = QueryContext(
 record = EvalRecord(context=context)
 ```
 
-### Inserting into Queue
+### Inserting into queue
 
 ```python
 from scouter.queue import ScouterQueue
@@ -297,13 +285,9 @@ queue = ScouterQueue()
 queue["chatbot_service"].insert(record)
 ```
 
-**Important:**
+Context keys must match the `${variable}` names in your prompt templates (e.g., `${user_query}` requires `"user_query"` in the context dict). The queue name must match the `alias` in your `ScouterQueue` path configuration.
 
-- Context keys must match prompt parameter names (e.g., `${user_query}` → `"user_query"`)
-- Queue name must match `alias` define in ScouterQueue path configuration
-- Insertion adds minimal latency to your application (nanoseconds)
-
-## Evaluation Flow
+## Evaluation flow
 
 ```
 ┌───────────────────────────────────────────────────────────┐
@@ -331,7 +315,7 @@ queue["chatbot_service"].insert(record)
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## Complete Example: Multi-Category Support Agent
+## Complete example: multi-category support agent
 
 ```python
 from scouter import (
@@ -401,7 +385,7 @@ config = GenAIEvalConfig(
     space="production",
     name="support_agent",
     version="2.0.0",
-    sample_ratio=10,
+    sample_ratio=0.1,  # evaluate 10% of requests
     alert_config=alert_config
 )
 
@@ -431,29 +415,13 @@ for user_query, model_response in production_requests:
     queue["support_agent"].insert(record)
 ```
 
-## Best Practices
+## Best practices
 
-### Sampling Strategy
+**Sampling**: High-traffic services should use lower `sample_ratio` values. For statistically meaningful alerts, ensure you're collecting enough samples per evaluation window. The right number depends on your traffic volume and how tight your thresholds are. To correlate evaluations with distributed traces, pass your `ScouterQueue` to the Scouter tracer. See [Tracing overview](/scouter/docs/tracing/overview/).
 
-- **High-traffic services**: Use lower sampling rates
-- **Critical metrics**: Higher sampling for important evaluations
-- **Cost management**: Balance evaluation costs against monitoring needs
-- **Statistical significance**: Ensure enough samples for meaningful alerts
-- **Tracing integration**: Add your `ScouterQueue` to the Scouter Tracer for correlated observability, sampling and evaluation. See [Tracing Overview](/scouter/docs/tracing/overview/) for details.
+**Task design**: Lead with `AssertionTask` before `LLMJudgeTask`. Use `condition=True` to skip expensive LLM calls when cheap preconditions fail. Set `expected_value` thresholds based on what you observed in offline evaluation runs, not guesses.
 
-### Task Design
-
-- **Fast assertions first**: Use `AssertionTask` before expensive LLM calls
-- **Conditional execution**: Use `condition=True` to gate expensive evaluations
-- **Dependencies**: Chain tasks to build on previous results
-- **Baseline tuning**: Set `expected_value` based on offline evaluation results
-
-### Alert Configuration
-
-- **Reasonable thresholds**: Base alert conditions on actual performance distributions
-- **Alert frequency**: Match schedule to traffic patterns
-- **Actionable alerts**: Configure thresholds that indicate real quality issues
-- **Multiple channels**: Use appropriate dispatch for urgency level
+**Alert thresholds**: Base `baseline_value` and `delta` on real performance distributions. Thresholds set without data tend to alert on noise or miss real regressions. Match the alert schedule to your traffic pattern; hourly evaluation on a low-traffic service produces unreliable signal.
 
 ## Examples
 
