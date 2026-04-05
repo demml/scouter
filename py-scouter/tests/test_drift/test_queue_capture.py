@@ -1,8 +1,8 @@
 """Unit tests for ScouterQueue offline record capture (enable_capture / disable_capture / drain)."""
 
 import pytest
+from scouter.agent import Prompt, Score
 from scouter.drift import AgentEvalProfile, ComparisonOperator, LLMJudgeTask
-from scouter.genai import Prompt, Score
 from scouter.mock import LLMTestServer, MockConfig
 from scouter.queue import EvalRecord, ScouterQueue
 

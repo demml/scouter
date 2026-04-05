@@ -4,7 +4,7 @@ use crate::{error::EvaluationError, tasks::traits::EvaluationTask};
 use pyo3::prelude::*;
 use pyo3::pyfunction;
 use pythonize::depythonize;
-use scouter_types::genai::{AgentAssertionTask, AssertionResult, AssertionResults};
+use scouter_types::agent::{AgentAssertionTask, AssertionResult, AssertionResults};
 use serde_json::Value;
 use std::collections::HashMap;
 use tracing::error;

@@ -18,7 +18,7 @@ Use the same `LLMJudgeTask` and `AssertionTask` patterns from offline evaluation
 
 ```python
 from scouter.evaluate import LLMJudgeTask, ComparisonOperator
-from scouter.genai import Prompt, Provider, Score
+from scouter.agent import Prompt, Provider, Score
 
 relevance_prompt = Prompt(
     messages=(
@@ -331,7 +331,7 @@ from scouter.evaluate import (
     AssertionTask,
     ComparisonOperator,
 )
-from scouter.genai import Prompt, Provider, Score
+from scouter.agent import Prompt, Provider, Score
 from scouter.queue import ScouterQueue, EvalRecord
 
 # 1. Define category classification

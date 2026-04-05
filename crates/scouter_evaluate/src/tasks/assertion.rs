@@ -1,7 +1,7 @@
 use crate::tasks::evaluator::AssertionEvaluator;
 use crate::{error::EvaluationError, tasks::traits::EvaluationTask};
-use scouter_types::genai::AssertionResult;
-use scouter_types::genai::AssertionTask;
+use scouter_types::agent::AssertionResult;
+use scouter_types::agent::AssertionTask;
 use serde_json::Value;
 
 impl EvaluationTask for AssertionTask {

@@ -1,15 +1,15 @@
+use crate::agent::{evaluate_genai_dataset, EvalDataset};
 use crate::error::EvaluationError;
 use crate::evaluate::evaluator::GenAIEvaluator;
 use crate::evaluate::scenario_results::{
     EvalMetrics, ScenarioEvalResults, ScenarioResult, TaskSummary,
 };
 use crate::evaluate::types::{EvalResults, EvaluationConfig};
-use crate::genai::{evaluate_genai_dataset, EvalDataset};
 use crate::scenario::EvalScenarios;
 use pyo3::prelude::*;
 use scouter_state::app_state;
-use scouter_types::genai::EvalScenario;
-use scouter_types::genai::{AgentEvalConfig, AgentEvalProfile};
+use scouter_types::agent::EvalScenario;
+use scouter_types::agent::{AgentEvalConfig, AgentEvalProfile};
 use scouter_types::trace::build_trace_spans;
 use scouter_types::trace::sql::TraceSpan;
 use scouter_types::EvalRecord;
@@ -501,8 +501,8 @@ fn compute_pass_rate(results: &EvalResults) -> (bool, f64) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use scouter_types::genai::utils::AssertionTasks;
-    use scouter_types::genai::EvalScenario;
+    use scouter_types::agent::utils::AssertionTasks;
+    use scouter_types::agent::EvalScenario;
 
     fn empty_tasks() -> AssertionTasks {
         AssertionTasks {
@@ -528,7 +528,7 @@ mod tests {
     }
 
     fn make_scenario_with_tasks(id: &str, query: &str) -> EvalScenario {
-        use scouter_types::genai::{AssertionTask, ComparisonOperator, EvaluationTaskType};
+        use scouter_types::agent::{AssertionTask, ComparisonOperator, EvaluationTaskType};
 
         let task = AssertionTask {
             id: "check_response".to_string(),
@@ -847,7 +847,7 @@ mod tests {
     fn compute_pass_rate_zero_tasks() {
         let mut results = EvalResults::new();
         let record = EvalRecord::default();
-        let eval_set = scouter_types::genai::EvalSet::new(vec![], Default::default());
+        let eval_set = scouter_types::agent::EvalSet::new(vec![], Default::default());
         results.add_success(&record, eval_set, BTreeMap::new());
 
         let (passed, rate) = compute_pass_rate(&results);

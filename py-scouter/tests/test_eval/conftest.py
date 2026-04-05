@@ -1,7 +1,7 @@
 import pytest
+from scouter.agent import Prompt, Provider, Role, Score
+from scouter.agent.openai import ChatMessage
 from scouter.evaluate import AssertionTask, ComparisonOperator, EvalRecord, LLMJudgeTask
-from scouter.genai import Prompt, Provider, Role, Score
-from scouter.genai.openai import ChatMessage
 from scouter.mock import MockConfig
 from scouter.tracing import TestSpanExporter, get_tracer, init_tracer
 

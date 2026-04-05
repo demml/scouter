@@ -1,7 +1,7 @@
 use crate::error::EvaluationError;
 use crate::tasks::evaluator::AssertionEvaluator;
 use crate::tasks::traits::EvaluationTask;
-use scouter_types::genai::{AssertionResult, LLMJudgeTask};
+use scouter_types::agent::{AssertionResult, LLMJudgeTask};
 use serde_json::Value;
 
 impl EvaluationTask for LLMJudgeTask {

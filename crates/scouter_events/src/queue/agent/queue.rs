@@ -1,7 +1,7 @@
 use crate::error::EventError;
 use crate::producer::RustScouterProducer;
+use crate::queue::agent::record_queue::EvalRecordQueue;
 use crate::queue::bus::{Event, TaskState};
-use crate::queue::genai::record_queue::EvalRecordQueue;
 use crate::queue::traits::BackgroundTask;
 use crate::queue::traits::QueueMethods;
 use crate::queue::types::QueueSettings;
@@ -9,7 +9,7 @@ use crate::queue::types::TransportConfig;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use crossbeam_queue::ArrayQueue;
-use scouter_types::genai::AgentEvalProfile;
+use scouter_types::agent::AgentEvalProfile;
 use scouter_types::EvalRecord;
 use std::sync::Arc;
 use std::sync::RwLock;

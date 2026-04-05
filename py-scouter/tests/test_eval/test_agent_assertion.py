@@ -1,3 +1,4 @@
+from scouter.agent import Provider
 from scouter.evaluate import (
     AgentAssertion,
     AgentAssertionTask,
@@ -6,7 +7,6 @@ from scouter.evaluate import (
     EvalRecord,
     execute_agent_assertion_tasks,
 )
-from scouter.genai import Provider
 
 
 def test_tool_called():

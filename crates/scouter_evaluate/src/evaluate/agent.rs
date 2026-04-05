@@ -1,7 +1,7 @@
 use crate::error::EvaluationError;
 use crate::tasks::evaluator::{PATH_REGEX, REGEX_FIELD_PARSE_PATTERN};
 use potato_head::{ChatResponse, Provider};
-use scouter_types::genai::AgentAssertion;
+use scouter_types::agent::AgentAssertion;
 use serde_json::{json, Value};
 use tracing::error;
 
@@ -244,7 +244,7 @@ enum PathSegment {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use scouter_types::genai::PyValueWrapper;
+    use scouter_types::agent::PyValueWrapper;
 
     #[test]
     fn test_tool_called_assertion() {

@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use scouter_dispatch::AlertDispatcher;
 use scouter_sql::sql::traits::GenAIDriftSqlLogic;
 use scouter_sql::{sql::cache::entity_cache, PostgresClient};
-use scouter_types::{custom::ComparisonMetricAlert, genai::AgentEvalProfile};
+use scouter_types::{agent::AgentEvalProfile, custom::ComparisonMetricAlert};
 use scouter_types::{AlertMap, ProfileBaseArgs};
 use sqlx::{Pool, Postgres};
 use tracing::error;
@@ -143,8 +143,8 @@ impl GenAIDrifter {
 mod tests {
     use super::*;
     use potato_head::mock::create_score_prompt;
-    use scouter_types::genai::{ComparisonOperator, EvaluationTasks};
-    use scouter_types::genai::{AgentAlertConfig, AgentEvalConfig, AgentEvalProfile, LLMJudgeTask};
+    use scouter_types::agent::{AgentAlertConfig, AgentEvalConfig, AgentEvalProfile, LLMJudgeTask};
+    use scouter_types::agent::{ComparisonOperator, EvaluationTasks};
     use scouter_types::{
         AlertCondition, AlertDispatchConfig, AlertThreshold, ConsoleDispatchConfig,
     };

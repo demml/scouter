@@ -15,7 +15,7 @@ Both modes share a common task model (`AssertionTask`, `LLMJudgeTask`) and a com
 
 ### How it works
 
-Online evaluation integrates directly into the production inference path. A `AgentEvalProfile` is registered with the Scouter server, defining what to evaluate and how. At inference time, the application inserts `EvalRecord` objects into a `ScouterQueue`. The server samples records based on a configurable `sample_ratio`, then runs evaluation tasks asynchronously via the GenAI poller background worker.
+Online evaluation integrates directly into the production inference path. A `AgentEvalProfile` is registered with the Scouter server, defining what to evaluate and how. At inference time, the application inserts `EvalRecord` objects into a `ScouterQueue`. The server samples records based on a configurable `sample_ratio`, then runs evaluation tasks asynchronously via the Agent Poller background worker.
 
 ```
 Inference request
@@ -27,7 +27,7 @@ Application inserts EvalRecord into ScouterQueue
 Scouter server samples based on sample_ratio
       │
       ▼
-GenAI poller worker picks up sampled records
+Agent Poller worker picks up sampled records
       │
       ▼
 Evaluation tasks run (AssertionTask / LLMJudgeTask)
@@ -131,7 +131,7 @@ LLM-powered semantic evaluation. Sends context and a prompt to an LLM and extrac
 
 ```python
 from scouter.evaluate import LLMJudgeTask
-from scouter.genai import Prompt
+from scouter.agent import Prompt
 
 task = LLMJudgeTask(
     task_id="judge_helpfulness",
@@ -164,9 +164,9 @@ tasks = [
 
 ---
 
-## Background Worker: GenAI Poller
+## Background Worker: Agent Poller
 
-The `GenAIPollerSettings` controls the server-side worker that processes queued evaluation records.
+The `AgentPollerSettings` controls the server-side worker that processes queued evaluation records.
 
 | Setting | Env Var | Default | Description |
 |---------|---------|---------|-------------|

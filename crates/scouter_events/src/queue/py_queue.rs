@@ -1,9 +1,9 @@
 #![allow(clippy::useless_conversion)]
 use crate::error::{EventError, PyEventError};
+use crate::queue::agent::GenAIQueue;
 use crate::queue::bus::Task;
 use crate::queue::bus::{Event, QueueBus, TaskState};
 use crate::queue::custom::CustomQueue;
-use crate::queue::genai::GenAIQueue;
 use crate::queue::psi::PsiQueue;
 use crate::queue::spc::SpcQueue;
 use crate::queue::traits::queue::wait_for_background_task;
@@ -13,7 +13,7 @@ use crate::queue::types::{QueueSettings, TransportConfig};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyListMethods};
 use scouter_state::app_state;
-use scouter_types::genai::AgentEvalProfile;
+use scouter_types::agent::AgentEvalProfile;
 use scouter_types::{DriftProfile, EvalRecord, QueueItem};
 use scouter_types::{Features, Metrics};
 use std::collections::HashMap;

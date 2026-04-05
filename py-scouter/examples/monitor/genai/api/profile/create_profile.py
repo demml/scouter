@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from scouter._scouter import ComparisonOperator
+from scouter.agent import Prompt, Score
 from scouter.alert import AlertCondition, AlertThreshold
 from scouter.client import ScouterClient
 from scouter.drift import (
@@ -9,7 +10,6 @@ from scouter.drift import (
     AgentEvalProfile,
     LLMJudgeTask,
 )
-from scouter.genai import Prompt, Score
 
 
 def create_reformulation_evaluation_prompt():

@@ -145,11 +145,15 @@ scenarios = EvalScenarios(
 # ---------------------------------------------------------------------------
 _RESPONSES: dict[str, str] = {
     # pasta scenario
-    "Give me a quick pasta recipe.": "Here's a classic pasta: boil spaghetti, toss with olive oil, garlic, and parmesan. Done in 20 minutes.",
+    "Give me a quick pasta recipe.": (
+        "Here's a classic pasta: boil spaghetti, toss with olive oil, garlic, and parmesan. Done in 20 minutes."
+    ),
     "Make it vegetarian.": "It's already vegetarian! Swap parmesan for nutritional yeast if you want it vegan too.",
     "Cut it down to under 30 minutes.": "This pasta takes about 15 minutes total — well under 30.",
     # soup scenario
-    "Suggest a hearty soup for a cold day.": "Try a lentil soup: onion, carrot, celery, lentils, vegetable broth. Simmer 30 minutes.",
+    "Suggest a hearty soup for a cold day.": (
+        "Try a lentil soup: onion, carrot, celery, lentils, vegetable broth. Simmer 30 minutes."
+    ),
     "Make it vegan.": "Good news — it's already vegan. No dairy or meat involved.",
     "What can I prep ahead of time?": "Chop the vegetables and portion the lentils the night before. The soup reheats perfectly.",
     # dessert scenario
@@ -201,9 +205,7 @@ class ChefEvalOrchestrator(EvalOrchestrator):
     def on_scenario_complete(self, scenario: EvalScenario, response: str) -> None:
         print(f"  ✓ '{scenario.id}' complete — final response: {response[:60]!r}")
 
-    def on_evaluation_complete(
-        self, results: ScenarioEvalResults
-    ) -> ScenarioEvalResults:
+    def on_evaluation_complete(self, results: ScenarioEvalResults) -> ScenarioEvalResults:
         passed = results.metrics.passed_scenarios
         total = results.metrics.total_scenarios
         print(f"\n  Evaluation complete: {passed}/{total} scenarios passed")

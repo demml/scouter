@@ -2,7 +2,7 @@ use crate::evaluate::trace::TraceContextBuilder;
 use crate::tasks::evaluator::AssertionEvaluator;
 use crate::{error::EvaluationError, tasks::traits::EvaluationTask};
 use pyo3::pyfunction;
-use scouter_types::genai::{AssertionResult, AssertionResults, TraceAssertionTask};
+use scouter_types::agent::{AssertionResult, AssertionResults, TraceAssertionTask};
 use scouter_types::sql::TraceSpan;
 use serde_json::Value;
 use std::collections::HashMap;

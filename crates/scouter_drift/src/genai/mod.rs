@@ -8,4 +8,4 @@ pub mod drift;
 pub use drift::GenAIDrifter;
 
 #[cfg(feature = "sql")]
-pub use poller::GenAIPoller;
+pub use poller::AgentPoller;

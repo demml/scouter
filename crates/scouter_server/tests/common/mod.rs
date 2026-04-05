@@ -27,15 +27,15 @@ use scouter_sql::sql::traits::EntitySqlLogic;
 use scouter_sql::sql::traits::TagSqlLogic;
 use scouter_sql::PostgresClient;
 use scouter_tonic::{DatasetGrpcClient, GrpcClient};
+use scouter_types::agent::ExecutionPlan;
 use scouter_types::custom::ComparisonMetricAlert;
-use scouter_types::genai::ExecutionPlan;
 use scouter_types::spc::SpcDriftConfig;
 use scouter_types::spc::{SpcAlertConfig, SpcDriftProfile};
 use scouter_types::JwtToken;
 use scouter_types::RegisteredProfileResponse;
 use scouter_types::{
-    genai::{
-        ComparisonOperator, EvaluationTasks, AgentAlertConfig, AgentEvalConfig, AgentEvalProfile,
+    agent::{
+        AgentAlertConfig, AgentEvalConfig, AgentEvalProfile, ComparisonOperator, EvaluationTasks,
         LLMJudgeTask,
     },
     AlertMap, CustomMetricRecord, EvalTaskResult, GenAIEvalWorkflowResult, MessageRecord,
@@ -382,11 +382,11 @@ impl TestHelper {
                         - chrono::Duration::days(offset),
                     entity_id: ENTITY_ID_PLACEHOLDER,
                     task_id: format!("task{i}"),
-                    task_type: scouter_types::genai::EvaluationTaskType::Assertion,
+                    task_type: scouter_types::agent::EvaluationTaskType::Assertion,
                     passed: true,
                     value: j as f64,
                     assertion: scouter_types::Assertion::FieldPath(Some(format!("field.path.{i}"))),
-                    operator: scouter_types::genai::ComparisonOperator::Contains,
+                    operator: scouter_types::agent::ComparisonOperator::Contains,
                     expected: Value::Null,
                     actual: Value::Null,
                     message: "All good".to_string(),

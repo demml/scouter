@@ -2,7 +2,7 @@ use crate::error::EvaluationError;
 use crate::evaluate::agent::AgentContextBuilder;
 use crate::tasks::evaluator::AssertionEvaluator;
 use regex::Regex;
-use scouter_types::genai::{
+use scouter_types::agent::{
     AggregationType, AttributeFilterTask, MultiResponseMode, SpanFilter, SpanStatus, TraceAssertion,
 };
 use scouter_types::sql::TraceSpan;
@@ -429,7 +429,7 @@ impl TraceContextBuilder {
 
 #[cfg(test)]
 mod tests {
-    use scouter_types::genai::PyValueWrapper;
+    use scouter_types::agent::PyValueWrapper;
 
     use super::*;
 
@@ -439,7 +439,7 @@ mod tests {
         create_nested_trace, create_sequence_pattern_trace, create_simple_trace,
         create_trace_with_attributes, create_trace_with_errors,
     };
-    use scouter_types::genai::{
+    use scouter_types::agent::{
         AgentAssertion, AgentAssertionTask, AssertionTask, ComparisonOperator, EvaluationTaskType,
     };
 

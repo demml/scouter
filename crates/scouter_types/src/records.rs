@@ -1,7 +1,7 @@
-use crate::error::RecordError;
-use crate::genai::{
+use crate::agent::{
     AgentAssertion, ComparisonOperator, EvaluationTaskType, ExecutionPlan, TraceAssertion,
 };
+use crate::error::RecordError;
 use crate::trace::TraceServerRecord;
 use crate::{depythonize_object_to_value, DriftType, Status, TraceId};
 use crate::{EntityType, TagRecord};

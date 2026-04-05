@@ -8,6 +8,7 @@ import pandas as pd
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from scouter import HttpConfig, KafkaConfig, Queue, ScouterQueue
+from scouter.agent import Agent, Prompt, Provider, Score
 from scouter.alert import (
     AgentAlertConfig,
     AlertCondition,
@@ -29,7 +30,6 @@ from scouter.evaluate import (
     TraceAssertion,
     TraceAssertionTask,
 )
-from scouter.genai import Agent, Prompt, Provider, Score
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 from scouter.queue import EvalRecord
 from scouter.tracing import (

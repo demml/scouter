@@ -1,5 +1,5 @@
+use crate::agent::traits::TaskAccessor;
 use crate::error::TypeError;
-use crate::genai::traits::TaskAccessor;
 use crate::PyHelperFuncs;
 use core::fmt::Debug;
 use potato_head::prompt_types::Prompt;

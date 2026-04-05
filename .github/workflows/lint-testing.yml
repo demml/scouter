@@ -12,7 +12,7 @@ permissions:
 
 env:
   RUSTFLAGS: -C debuginfo=0 # Do not produce debug symbols to keep memory usage down
-  PYTHON_VERSION: "3.10"
+  PYTHON_VERSION: "3.13"
   TRACE_STALE_THRESHOLD_SECONDS: "1" # override default trace aggregation threshold for tests. Need to push traces faster.
   TRACE_FLUSH_INTERVAL_SECONDS: "1"
 
@@ -144,7 +144,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu, macos]
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.12", "3.13", "3.14"]
 
     runs-on: ${{ matrix.os }}-latest
     needs: [rust-lints-test]
@@ -205,7 +205,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows]
-        python-version: ["3.10", "3.11", "3.12.6"]
+        python-version: ["3.11", "3.12.6"]
 
     runs-on: ${{ matrix.os }}-latest
     needs: [rust-lints-test]

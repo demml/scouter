@@ -18,6 +18,7 @@ import asyncio
 
 from google.adk.models.llm_response import LlmResponse
 from google.genai import types
+from scouter.agent import Provider
 from scouter.drift import AgentEvalProfile
 from scouter.evaluate import (
     AgentAssertion,
@@ -34,7 +35,6 @@ from scouter.evaluate import (
     TraceAssertion,
     TraceAssertionTask,
 )
-from scouter.genai import Provider
 from scouter.queue import ScouterQueue
 from scouter.tracing import ScouterInstrumentor, init_tracer
 from scouter.transport import GrpcConfig
@@ -128,9 +128,7 @@ recipe_profile = AgentEvalProfile(
         ),
         TraceAssertionTask(
             id="recipe_span_exists",
-            assertion=TraceAssertion.span_count(
-                SpanFilter.by_name("recipe_agent.generate")
-            ),
+            assertion=TraceAssertion.span_count(SpanFilter.by_name("recipe_agent.generate")),
             operator=ComparisonOperator.GreaterThanOrEqual,
             expected_value=1,
         ),
@@ -249,7 +247,7 @@ class AdkEvalOrchestrator(EvalOrchestrator):
                 ),
             )
 
-        return f"[{data['dish']}] {_RECIPE_RESPONSE.content.parts[0].text}"  # type: ignore[union-attr]
+        return f"[{data['dish']}] {_RECIPE_RESPONSE.content.parts[0].text}"  # type: ignore[union-attr,index]
 
 
 def main() -> None:

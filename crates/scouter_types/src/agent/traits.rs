@@ -1,4 +1,4 @@
-use crate::genai::{
+use crate::agent::{
     utils::AssertionTasks, AgentAssertionTask, AssertionResult, AssertionTask, ComparisonOperator,
     EvaluationTask, EvaluationTaskType, LLMJudgeTask, TraceAssertionTask,
 };

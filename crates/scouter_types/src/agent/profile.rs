@@ -1,9 +1,9 @@
+use crate::agent::alert::AgentAlertConfig;
+use crate::agent::eval::{AssertionTask, EvaluationTask, LLMJudgeTask};
+use crate::agent::traits::{separate_tasks, ProfileExt, TaskAccessor};
+use crate::agent::utils::{extract_assertion_tasks_from_pylist, AssertionTasks};
+use crate::agent::{AgentAssertionTask, TasksFile, TraceAssertionTask};
 use crate::error::{ProfileError, TypeError};
-use crate::genai::alert::AgentAlertConfig;
-use crate::genai::eval::{AssertionTask, EvaluationTask, LLMJudgeTask};
-use crate::genai::traits::{separate_tasks, ProfileExt, TaskAccessor};
-use crate::genai::utils::{extract_assertion_tasks_from_pylist, AssertionTasks};
-use crate::genai::{AgentAssertionTask, TasksFile, TraceAssertionTask};
 use crate::traits::ConfigExt;
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::{scouter_version, EvalTaskResult, GenAIEvalWorkflowResult, WorkflowResultTableEntry};
@@ -1100,7 +1100,10 @@ impl EvalSet {
             .collect()
     }
 
-    pub fn build_workflow_entries(&self, scenario_id: Option<&str>) -> Vec<WorkflowResultTableEntry> {
+    pub fn build_workflow_entries(
+        &self,
+        scenario_id: Option<&str>,
+    ) -> Vec<WorkflowResultTableEntry> {
         vec![self.inner.to_table_entry(scenario_id)]
     }
 
@@ -1195,7 +1198,7 @@ impl EvalResultSet {
 mod tests {
 
     use super::*;
-    use crate::genai::{ComparisonOperator, EvaluationTasks};
+    use crate::agent::{ComparisonOperator, EvaluationTasks};
     use crate::{AlertDispatchConfig, OpsGenieDispatchConfig, SlackDispatchConfig};
 
     use potato_head::mock::create_score_prompt;

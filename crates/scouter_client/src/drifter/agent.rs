@@ -1,7 +1,7 @@
 use scouter_drift::error::DriftError;
 use scouter_evaluate::evaluate::GenAIEvaluator;
 use scouter_state::app_state;
-use scouter_types::genai::{EvalSet, AgentEvalProfile};
+use scouter_types::agent::{AgentEvalProfile, EvalSet};
 use scouter_types::EvalRecord;
 use std::sync::Arc;
 /// Using "ClientGenAIDrifter" to avoid confusion with the server-side GenAIDrifter

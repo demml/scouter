@@ -17,17 +17,17 @@ pub use scouter_types::dataset::{
     fingerprint_from_json_schema, inject_system_columns, json_schema_to_arrow,
 };
 pub use scouter_types::{
+    agent::{
+        utils::AssertionTasks, AgentAlertConfig, AgentAssertion, AgentAssertionTask,
+        AgentEvalConfig, AgentEvalProfile, AggregationType, AssertionResult, AssertionResults,
+        AssertionTask, AttributeFilterTask, ComparisonOperator, EvalResultSet, EvalScenario,
+        EvalSet, EvaluationTaskType, LLMJudgeTask, MultiResponseMode, SpanFilter, SpanStatus,
+        TasksFile, TokenUsage, ToolCall, TraceAssertion, TraceAssertionTask,
+    },
     alert::{Alert, Alerts, CompressionType},
     create_feature_map,
     cron::*,
     custom::{CustomDriftProfile, CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig},
-    genai::{
-        utils::AssertionTasks, AgentAssertion, AgentAssertionTask, AggregationType,
-        AssertionResult, AssertionResults, AssertionTask, AttributeFilterTask, ComparisonOperator,
-        EvalResultSet, EvalScenario, EvalSet, EvaluationTaskType, AgentAlertConfig,
-        AgentEvalConfig, AgentEvalProfile, LLMJudgeTask, MultiResponseMode, SpanFilter, SpanStatus,
-        TasksFile, TokenUsage, ToolCall, TraceAssertion, TraceAssertionTask,
-    },
     is_pydantic_basemodel,
     psi::{
         Bin, BinnedPsiFeatureMetrics, BinnedPsiMetric, PsiAlertConfig, PsiChiSquareThreshold,
@@ -70,7 +70,7 @@ pub use scouter_events::producer::{
 };
 pub use scouter_events::queue::bus::{Flushable, TaskState};
 pub use scouter_events::queue::{
-    custom::CustomMetricFeatureQueue, genai::EvalRecordQueue, psi::PsiFeatureQueue,
+    agent::EvalRecordQueue, custom::CustomMetricFeatureQueue, psi::PsiFeatureQueue,
     spc::SpcFeatureQueue, QueueBus, ScouterQueue,
 };
 
@@ -88,6 +88,7 @@ pub use scouter_profile::error::DataProfileError;
 pub use scouter_types::error::{ContractError, ProfileError, RecordError, TypeError, UtilError};
 
 pub use scouter_evaluate::{
+    agent::EvalDataset,
     error::EvaluationError,
     evaluate::scenario_results::{
         EvalMetrics, ScenarioComparisonResults, ScenarioDelta, ScenarioEvalResults, ScenarioResult,
@@ -97,7 +98,6 @@ pub use scouter_evaluate::{
         AlignedEvalResult, ComparisonResults, EvalResults, EvaluationConfig, MissingTask,
         TaskComparison, WorkflowComparison,
     },
-    genai::EvalDataset,
     runner::EvalRunner,
     scenario::EvalScenarios,
     tasks::agent::execute_agent_assertion_tasks,

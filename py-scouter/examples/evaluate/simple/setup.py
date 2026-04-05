@@ -11,9 +11,9 @@ from pathlib import Path
 from typing import Union
 
 from pydantic import BaseModel, ConfigDict
+from scouter.agent import Prompt
 from scouter.drift import AgentEvalProfile
 from scouter.evaluate import TasksFile
-from scouter.genai import Prompt
 from scouter.queue import ScouterQueue
 from scouter.tracing import ScouterInstrumentor
 from scouter.transport import GrpcConfig, MockConfig
@@ -38,7 +38,7 @@ class Config(BaseModel):
 
 def _get_transport_config() -> Union[GrpcConfig, MockConfig]:
     app_env = os.getenv("APP_ENV", "local")
-    if app_env == "staging" or app_env == "production":
+    if app_env in ("staging", "production"):
         return GrpcConfig()
 
     return MockConfig()

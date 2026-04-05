@@ -10,7 +10,7 @@ use pyo3::prelude::*;
 use pyo3::types::IntoPyDict;
 use pyo3::types::PyDict;
 use scouter_profile::{Histogram, NumProfiler};
-use scouter_types::genai::EvalSet;
+use scouter_types::agent::EvalSet;
 use scouter_types::{EvalRecord, TaskResultTableEntry, WorkflowResultTableEntry};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -676,7 +676,11 @@ impl EvalResults {
         let entries: Vec<WorkflowResultTableEntry> = self
             .aligned_results
             .iter()
-            .flat_map(|result| result.eval_set.build_workflow_entries(result.scenario_id.as_deref()))
+            .flat_map(|result| {
+                result
+                    .eval_set
+                    .build_workflow_entries(result.scenario_id.as_deref())
+            })
             .collect();
 
         let mut table = Table::new(entries);
@@ -1051,8 +1055,10 @@ impl AlignedEvalResult {
 
 impl AlignedEvalResult {
     fn extract_scenario_id(tags: &[String]) -> Option<String> {
-        tags.iter()
-            .find_map(|t| t.strip_prefix("scouter.eval.scenario_id=").map(str::to_owned))
+        tags.iter().find_map(|t| {
+            t.strip_prefix("scouter.eval.scenario_id=")
+                .map(str::to_owned)
+        })
     }
 
     /// Create from successful evaluation

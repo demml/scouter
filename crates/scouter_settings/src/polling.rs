@@ -28,7 +28,7 @@ impl Default for PollingSettings {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GenAIPollerSettings {
+pub struct AgentPollerSettings {
     pub max_retries: i32,
     pub genai_workers: usize,
     pub trace_wait_timeout: Duration,
@@ -36,7 +36,7 @@ pub struct GenAIPollerSettings {
     pub trace_reschedule_delay: Duration,
 }
 
-impl Default for GenAIPollerSettings {
+impl Default for AgentPollerSettings {
     fn default() -> Self {
         let genai_workers = std::env::var("GENAI_WORKER_COUNT")
             .unwrap_or_else(|_| "2".to_string())

@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Scouter** is a developer-first monitoring and observability toolkit for AAI workflows. It provides:
 - **Drift detection** (PSI, SPC, custom metrics) for data and model monitoring
 - **Distributed tracing** with OpenTelemetry-compatible span ingestion
-- **GenAI evaluation** — both online (production sampling) and offline (batch)
+- **Agentic evaluation** — both online (production sampling) and offline (batch)
 - **Alerting** via Slack, OpsGenie, or Console, driven by scheduled background workers
 
 The architecture is a Rust server + Python client. The Python package (`scouter-ml`) wraps Rust logic via PyO3. The server uses PostgreSQL for recent data and DataFusion for archival.
@@ -107,7 +107,7 @@ scouter/
 | Crate | Purpose |
 |-------|---------|
 | `scouter-server` | HTTP (Axum) + gRPC (Tonic) server; API routes in `src/api/` |
-| `scouter-sql` | PostgreSQL (sqlx), migrations, background workers (drift executor, GenAI poller) |
+| `scouter-sql` | PostgreSQL (sqlx), migrations, background workers (drift executor, Agent Poller) |
 | `scouter-drift` | PSI, SPC, custom metric drift algorithms + binning strategies |
 | `scouter-profile` | Data profiling (feature statistics, distributions) |
 | `scouter-evaluate` | GenAI eval: LLM judge tasks, assertion tasks, agent assertion tasks, comparison operators |
@@ -130,7 +130,7 @@ scouter/
 | `evaluate/` | `GenAIEvalProfile`, `EvalDataset`, `EvalRecord`, `AgentAssertionTask`, `AgentAssertion`, `execute_agent_assertion_tasks` |
 | `queue/` | `ScouterQueue` — real-time record insertion (<1µs, non-blocking) |
 | `tracing/` | `init_tracer`, `get_tracer`, `TraceContext`, `SpanContext` |
-| `genai/` | GenAI provider integrations (Anthropic, Google) |
+| `agent/` | Agent provider integrations (Anthropic, Google) |
 | `transport/` | `HttpTransportConfig`, `KafkaTransportConfig`, `RabbitMQTransportConfig` |
 | `alert/` | `SlackDispatchConfig`, `OpsGenieDispatchConfig`, `ConsoleDispatchConfig` |
 | `types/` | `Features`, `Metrics`, `CustomMetric`, `AlertThreshold` |
@@ -147,7 +147,7 @@ The server runs as a dual-protocol service with shared `Arc<AppState>`:
 
 Background workers (in `scouter-sql`):
 - **Drift Executor**: Scheduled via `pg_cron`; queries stored drift profiles, computes drift against recent data, triggers alerts
-- **GenAI Poller**: Picks up pending `EvalRecord` batches, runs evaluation tasks, checks alert conditions
+- **Agent Poller**: Picks up pending `EvalRecord` batches, runs evaluation tasks, checks alert conditions
 
 ### Event Bus
 

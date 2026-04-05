@@ -1,10 +1,10 @@
+use crate::agent::EvalDataset;
 use crate::error::EvaluationError;
 use crate::evaluate::scenario_results::{EvalMetrics, ScenarioResult};
 use crate::evaluate::types::EvalResults;
-use crate::genai::EvalDataset;
 use potato_head::PyHelperFuncs;
 use pyo3::prelude::*;
-use scouter_types::genai::EvalScenario;
+use scouter_types::agent::EvalScenario;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -87,7 +87,7 @@ impl EvalScenarios {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use scouter_types::genai::utils::AssertionTasks;
+    use scouter_types::agent::utils::AssertionTasks;
 
     fn make_scenario(id: &str, query: &str) -> EvalScenario {
         EvalScenario {

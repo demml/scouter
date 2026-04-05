@@ -1,4 +1,4 @@
-from scouter.genai.google import GeminiSettings
+from scouter.agent.google import GeminiSettings
 
 # just making sure imports work from potatohead
 

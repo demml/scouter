@@ -6,9 +6,9 @@ use crate::tasks::agent::execute_agent_assertions;
 use crate::tasks::trace::execute_trace_assertions;
 use crate::tasks::traits::EvaluationTask;
 use chrono::{DateTime, Utc};
-use scouter_types::genai::traits::ProfileExt;
-use scouter_types::genai::{
-    AgentAssertionTask, AssertionResult, EvalSet, ExecutionPlan, AgentEvalProfile,
+use scouter_types::agent::traits::ProfileExt;
+use scouter_types::agent::{
+    AgentAssertionTask, AgentEvalProfile, AssertionResult, EvalSet, ExecutionPlan,
     TraceAssertionTask,
 };
 use scouter_types::sql::TraceSpan;
@@ -436,7 +436,7 @@ impl TaskExecutor {
                         )
                     })
                     .collect();
-                scouter_types::genai::AssertionResults { results }
+                scouter_types::agent::AssertionResults { results }
             }
         };
 
@@ -833,14 +833,14 @@ mod tests {
         create_multi_service_trace, create_nested_trace, create_sequence_pattern_trace,
         create_simple_trace, create_trace_with_attributes, create_trace_with_errors, init_tracing,
     };
-    use scouter_types::genai::{
-        AggregationType, SpanFilter, SpanStatus, TraceAssertion, TraceAssertionTask,
-    };
-    use scouter_types::genai::{
-        AssertionTask, ComparisonOperator, AgentAlertConfig, AgentEvalConfig, AgentEvalProfile,
+    use scouter_types::agent::{
+        AgentAlertConfig, AgentEvalConfig, AgentEvalProfile, AssertionTask, ComparisonOperator,
         LLMJudgeTask,
     };
-    use scouter_types::genai::{EvaluationTaskType, EvaluationTasks};
+    use scouter_types::agent::{
+        AggregationType, SpanFilter, SpanStatus, TraceAssertion, TraceAssertionTask,
+    };
+    use scouter_types::agent::{EvaluationTaskType, EvaluationTasks};
     use scouter_types::EvalRecord;
     use serde_json::Value;
     use std::sync::Arc;

@@ -10,7 +10,7 @@ use scouter_dataframe::parquet::bifrost::manager::DatasetEngineManager;
 use scouter_dataframe::parquet::tracing::service::{init_trace_span_service, TraceSpanService};
 use scouter_dataframe::parquet::tracing::summary::TraceSummaryService;
 use scouter_settings::{
-    polling::GenAIPollerSettings, DatabaseSettings, PollingSettings, ScouterServerConfig,
+    polling::AgentPollerSettings, DatabaseSettings, PollingSettings, ScouterServerConfig,
 };
 use scouter_sql::sql::schema::User;
 use scouter_sql::sql::traits::UserSqlLogic;
@@ -467,7 +467,7 @@ impl ScouterSetupComponents {
     #[instrument(skip_all)]
     async fn setup_background_genai_drift_workers(
         db_pool: &Pool<Postgres>,
-        poll_settings: &GenAIPollerSettings,
+        poll_settings: &AgentPollerSettings,
         shutdown_rx: tokio::sync::watch::Receiver<()>,
     ) -> AnyhowResult<()> {
         BackgroundGenAIDriftManager::start_workers(db_pool, poll_settings, shutdown_rx).await?;

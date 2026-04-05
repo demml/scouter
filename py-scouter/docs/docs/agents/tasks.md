@@ -235,7 +235,7 @@ LLMJudgeTask(
 **Basic Quality Assessment:**
 
 ```python
-from scouter.genai import Score
+from scouter.agent import Score
 
 quality_prompt = Prompt(
     messages=(

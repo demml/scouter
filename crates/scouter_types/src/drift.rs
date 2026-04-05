@@ -1,6 +1,6 @@
+use crate::agent::profile::AgentEvalProfile;
 use crate::custom::CustomDriftProfile;
 use crate::error::ProfileError;
-use crate::genai::profile::AgentEvalProfile;
 use crate::psi::PsiDriftProfile;
 use crate::spc::SpcDriftProfile;
 use crate::util::ProfileBaseArgs;

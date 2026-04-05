@@ -199,7 +199,7 @@ from scouter.evaluate import (
     EvalDataset,
     LLMJudgeTask,
 )
-from scouter.genai import Prompt, Provider, Score
+from scouter.agent import Prompt, Provider, Score
 from scouter.queue import EvalRecord
 
 quality_prompt = Prompt(

@@ -2,6 +2,7 @@ from typing import cast
 
 from pydantic import BaseModel
 from scouter._scouter import EvalResultSet
+from scouter.agent import Prompt, Score
 from scouter.alert import AlertCondition, AlertThreshold
 from scouter.drift import (
     AgentAlertConfig,
@@ -11,7 +12,6 @@ from scouter.drift import (
     Drifter,
     LLMJudgeTask,
 )
-from scouter.genai import Prompt, Score
 from scouter.mock import LLMTestServer, MockConfig
 from scouter.queue import EvalRecord, ScouterQueue
 

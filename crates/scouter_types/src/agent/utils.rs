@@ -1,7 +1,7 @@
-use crate::error::TypeError;
-use crate::genai::{
+use crate::agent::{
     AgentAssertionTask, AssertionTask, LLMJudgeTask, TaskConfig, TasksFile, TraceAssertionTask,
 };
+use crate::error::TypeError;
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 use serde::{Deserialize, Serialize};

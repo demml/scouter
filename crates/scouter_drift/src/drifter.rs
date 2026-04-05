@@ -216,7 +216,7 @@ impl DriftExecutor {
 
 #[cfg(test)]
 mod tests {
-    use crate::GenAIPoller;
+    use crate::AgentPoller;
 
     use super::*;
     use chrono::Duration;
@@ -235,9 +235,9 @@ mod tests {
     use std::collections::HashMap;
 
     use potato_head::mock::{create_score_prompt, LLMTestServer};
-    use scouter_types::genai::{
-        AssertionTask, ComparisonOperator, EvaluationTaskType, EvaluationTasks, AgentAlertConfig,
-        AgentEvalConfig, AgentEvalProfile, LLMJudgeTask,
+    use scouter_types::agent::{
+        AgentAlertConfig, AgentEvalConfig, AgentEvalProfile, AssertionTask, ComparisonOperator,
+        EvaluationTaskType, EvaluationTasks, LLMJudgeTask,
     };
     use scouter_types::{AlertCondition, AlertThreshold, EvalRecord};
     use serde_json::Value;
@@ -716,7 +716,7 @@ mod tests {
         }
 
         // Insert all records and results into database and poll for tasks
-        let mut poller = GenAIPoller::new(
+        let mut poller = AgentPoller::new(
             &db_pool,
             3,
             Duration::seconds(10),

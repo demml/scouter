@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use scouter_types::genai::AssertionResult;
+use scouter_types::agent::AssertionResult;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,

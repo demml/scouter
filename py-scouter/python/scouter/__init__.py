@@ -1,12 +1,12 @@
 # mypy: disable-error-code="attr-defined"
 # pylint: disable=no-name-in-module
 from . import (
+    agent,
     alert,
     bifrost,
     client,
     drift,
     evaluate,
-    genai,
     logging,
     mock,
     observe,
@@ -98,7 +98,7 @@ __all__ = [
     "client",
     "drift",
     "evaluate",
-    "genai",
+    "agent",
     "logging",
     "mock",
     "observe",

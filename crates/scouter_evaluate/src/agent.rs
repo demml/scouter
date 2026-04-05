@@ -8,8 +8,8 @@ use pyo3::prelude::*;
 use pyo3::types::{PyList, PySlice};
 use pyo3::IntoPyObjectExt;
 use scouter_state::app_state;
-use scouter_types::genai::{
-    AgentAssertionTask, AssertionTask, AgentEvalProfile, LLMJudgeTask, TraceAssertionTask,
+use scouter_types::agent::{
+    AgentAssertionTask, AgentEvalProfile, AssertionTask, LLMJudgeTask, TraceAssertionTask,
 };
 use scouter_types::trace::sql::TraceSpan;
 use scouter_types::EvalRecord;
