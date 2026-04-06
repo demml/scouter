@@ -1,6 +1,8 @@
 import pandas as pd
 import polars as pl
 from scouter._scouter import ComparisonOperator
+from scouter.agent import Embedder, Provider
+from scouter.agent.openai import OpenAIEmbeddingConfig
 from scouter.evaluate import (
     AssertionTask,
     EvalDataset,
@@ -8,8 +10,6 @@ from scouter.evaluate import (
     EvalResults,
     EvaluationConfig,
 )
-from scouter.genai import Embedder, Provider
-from scouter.genai.openai import OpenAIEmbeddingConfig
 from scouter.mock import LLMTestServer
 
 

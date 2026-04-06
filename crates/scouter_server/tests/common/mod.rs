@@ -27,15 +27,15 @@ use scouter_sql::sql::traits::EntitySqlLogic;
 use scouter_sql::sql::traits::TagSqlLogic;
 use scouter_sql::PostgresClient;
 use scouter_tonic::{DatasetGrpcClient, GrpcClient};
+use scouter_types::agent::ExecutionPlan;
 use scouter_types::custom::ComparisonMetricAlert;
-use scouter_types::genai::ExecutionPlan;
 use scouter_types::spc::SpcDriftConfig;
 use scouter_types::spc::{SpcAlertConfig, SpcDriftProfile};
 use scouter_types::JwtToken;
 use scouter_types::RegisteredProfileResponse;
 use scouter_types::{
-    genai::{
-        ComparisonOperator, EvaluationTasks, GenAIAlertConfig, GenAIEvalConfig, GenAIEvalProfile,
+    agent::{
+        AgentAlertConfig, AgentEvalConfig, AgentEvalProfile, ComparisonOperator, EvaluationTasks,
         LLMJudgeTask,
     },
     AlertMap, CustomMetricRecord, EvalTaskResult, GenAIEvalWorkflowResult, MessageRecord,
@@ -382,11 +382,11 @@ impl TestHelper {
                         - chrono::Duration::days(offset),
                     entity_id: ENTITY_ID_PLACEHOLDER,
                     task_id: format!("task{i}"),
-                    task_type: scouter_types::genai::EvaluationTaskType::Assertion,
+                    task_type: scouter_types::agent::EvaluationTaskType::Assertion,
                     passed: true,
                     value: j as f64,
                     assertion: scouter_types::Assertion::FieldPath(Some(format!("field.path.{i}"))),
-                    operator: scouter_types::genai::ComparisonOperator::Contains,
+                    operator: scouter_types::agent::ComparisonOperator::Contains,
                     expected: Value::Null,
                     actual: Value::Null,
                     message: "All good".to_string(),
@@ -430,7 +430,7 @@ impl TestHelper {
         MessageRecord::ServerRecords(ServerRecords::new(records))
     }
 
-    pub async fn create_genai_drift_profile() -> GenAIEvalProfile {
+    pub async fn create_genai_drift_profile() -> AgentEvalProfile {
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
 
         let task1 = LLMJudgeTask::new_rs(
@@ -462,12 +462,12 @@ impl TestHelper {
             .add_task(task2)
             .build();
 
-        let alert_config = GenAIAlertConfig::default();
+        let alert_config = AgentAlertConfig::default();
 
         let drift_config =
-            GenAIEvalConfig::new(SPACE, NAME, VERSION, 1.0, alert_config, None).unwrap();
+            AgentEvalConfig::new(SPACE, NAME, VERSION, 1.0, alert_config, None).unwrap();
 
-        GenAIEvalProfile::new(drift_config, tasks).await.unwrap()
+        AgentEvalProfile::new(drift_config, tasks).await.unwrap()
     }
 
     pub async fn insert_alerts(&self) -> Result<(String, String, String), anyhow::Error> {

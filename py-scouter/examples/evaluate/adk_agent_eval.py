@@ -18,7 +18,8 @@ import asyncio
 
 from google.adk.models.llm_response import LlmResponse
 from google.genai import types
-from scouter.drift import GenAIEvalProfile
+from scouter.agent import Provider
+from scouter.drift import AgentEvalProfile
 from scouter.evaluate import (
     AgentAssertion,
     AgentAssertionTask,
@@ -34,7 +35,6 @@ from scouter.evaluate import (
     TraceAssertion,
     TraceAssertionTask,
 )
-from scouter.genai import Provider
 from scouter.queue import ScouterQueue
 from scouter.tracing import ScouterInstrumentor, init_tracer
 from scouter.transport import GrpcConfig
@@ -80,7 +80,7 @@ _RECIPE_RESPONSE = LlmResponse(
 
 # The router profile verifies the routing span was created and the correct
 # tool was called to hand off to the RecipeAgent.
-router_profile = GenAIEvalProfile(
+router_profile = AgentEvalProfile(
     alias="router",
     tasks=[
         TraceAssertionTask(
@@ -111,7 +111,7 @@ router_profile = GenAIEvalProfile(
 )
 
 # The recipe agent profile verifies that a recipe was generated with steps.
-recipe_profile = GenAIEvalProfile(
+recipe_profile = AgentEvalProfile(
     alias="recipe_agent",
     tasks=[
         AssertionTask(
@@ -247,7 +247,7 @@ class AdkEvalOrchestrator(EvalOrchestrator):
                 ),
             )
 
-        return f"[{data['dish']}] {_RECIPE_RESPONSE.content.parts[0].text}"  # type: ignore[union-attr]
+        return f"[{data['dish']}] {_RECIPE_RESPONSE.content.parts[0].text}"  # type: ignore[union-attr,index]
 
 
 def main() -> None:
@@ -268,7 +268,7 @@ def main() -> None:
         f"Passed: {results.metrics.passed_scenarios}  "
         f"Pass rate: {results.metrics.overall_pass_rate:.0%}"
     )
-    results.as_table(show_datasets=True)
+    results.as_table(show_workflow=True)
 
 
 if __name__ == "__main__":

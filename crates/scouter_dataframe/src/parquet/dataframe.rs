@@ -1,6 +1,6 @@
 use crate::error::DataFrameError;
+use crate::parquet::agent::{GenAIEvalDataFrame, GenAITaskDataFrame, GenAIWorkflowDataFrame};
 use crate::parquet::custom::CustomMetricDataFrame;
-use crate::parquet::genai::{GenAIEvalDataFrame, GenAITaskDataFrame, GenAIWorkflowDataFrame};
 use crate::parquet::psi::PsiDataFrame;
 use crate::parquet::spc::SpcDataFrame;
 use crate::parquet::traits::ParquetFrame;
@@ -276,11 +276,11 @@ mod tests {
                         + chrono::Duration::minutes(5),
                     entity_id,
                     task_id: format!("task{i}"),
-                    task_type: scouter_types::genai::EvaluationTaskType::Assertion,
+                    task_type: scouter_types::agent::EvaluationTaskType::Assertion,
                     passed: true,
                     value: j as f64,
                     assertion: Assertion::FieldPath(Some(format!("field.path.{i}"))),
-                    operator: scouter_types::genai::ComparisonOperator::Contains,
+                    operator: scouter_types::agent::ComparisonOperator::Contains,
                     expected: Value::Null,
                     actual: Value::Null,
                     message: "All good".to_string(),
@@ -361,7 +361,7 @@ mod tests {
                     pass_rate: 0.8,
                     duration_ms: 1500,
                     entity_uid: format!("entity_uid_{entity_id}"),
-                    execution_plan: scouter_types::genai::ExecutionPlan::default(),
+                    execution_plan: scouter_types::agent::ExecutionPlan::default(),
                     id: j,
                 });
 

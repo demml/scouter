@@ -4,34 +4,40 @@
   <br>
 </h1>
 
-<h2 align="center"><b>Developer-First ML Monitoring, Observability, and GenAI Evaluation</b></h2>
+<h2 align="center"><b>Developer-First ML Monitoring, Observability, and Agent Evaluation</b></h2>
 
 <h2 align="center"><a href="https://demml.github.io/scouter/">Doc Site</h2>
 
 ## Table of Contents
 
-- [What is it?](#what-is-it)
-- [Why Use It?](#why-use-it)
-- [Developer-First Experience](#developer-first-experience)
-- [Production Ready](#production-ready)
+- [Table of Contents](#table-of-contents)
+- [**What is it?**](#what-is-it)
+- [**Why Use It?**](#why-use-it)
+- [Check our current roadmap and tasks](#check-our-current-roadmap-and-tasks)
+  - [Developer-First Experience](#developer-first-experience)
+  - [Production Ready](#production-ready)
 - [Quick Start](#quick-start)
+  - [Install Scouter](#install-scouter)
   - [Traditional Monitoring](#traditional-monitoring)
+    - [Population Stability Index (PSI) — Detect Distribution Shift](#population-stability-index-psi--detect-distribution-shift)
+    - [Custom Metrics — Monitor Any Named Metric](#custom-metrics--monitor-any-named-metric)
   - [Distributed Tracing](#distributed-tracing)
-  - [GenAI Evaluation](#genai-evaluation)
-    - [Offline Evaluation](#offline-evaluation--regression-testing-before-you-ship)
-    - [Online Evaluation](#online-evaluation--continuous-production-monitoring)
+  - [Agent Evaluation](#agent-evaluation)
+    - [Offline Evaluation — Regression Testing Before You Ship](#offline-evaluation--regression-testing-before-you-ship)
+    - [Online Evaluation — Continuous Production Monitoring](#online-evaluation--continuous-production-monitoring)
 - [Supported Data Types](#supported-data-types)
 - [Architecture](#architecture)
+- [Contributing](#contributing)
 
 ---
 
 ## **What is it?**
 
-`Scouter` is a developer-first monitoring and observability toolkit for ML and AI workflows. It covers the full spectrum of production AI observability — from traditional data and model drift detection, to distributed tracing, to online and offline GenAI evaluation. Built entirely in `Rust` with `Postgres` as its primary data store, and exposed to Python via PyO3-generated stubs.
+`Scouter` is a developer-first monitoring and observability toolkit for ML and AI workflows. It covers the full spectrum of production AI observability — from traditional data and model drift detection, to distributed tracing, to online and offline Agent evaluation. Built entirely in `Rust` with `Postgres` as its primary data store, and exposed to Python via PyO3-generated stubs.
 
 ## **Why Use It?**
 
-Because you deploy ML and AI services that need to be monitored, and you want a single toolkit that handles drift detection, distributed tracing, and GenAI evaluation — without stitching together five different libraries.
+Because you deploy ML and AI services that need to be monitored, and you want a single toolkit that handles drift detection, distributed tracing, and Agent evaluation — without stitching together five different libraries.
 
 ## Check our current roadmap and tasks
 
@@ -41,9 +47,9 @@ Because you deploy ML and AI services that need to be monitored, and you want a 
 ### Developer-First Experience
 - **Zero-friction Integration** - Drop into existing ML and AI workflows in minutes
 - **Type-safe by Design** - The entire codebase is Rust<sup>*</sup>. Python users interact via PyO3-generated stubs. Catch errors before they hit production
-- **One Dependency** - Monitoring, tracing, and GenAI evaluation in a single library. No need to install multiple libraries
+- **One Dependency** - Monitoring, tracing, and Agent evaluation in a single library. No need to install multiple libraries
 - **Standardized Patterns** - Out of the box patterns for drift monitoring, distributed tracing, and LLM evaluation
-- **Offline → Online Parity** - Define your GenAI evaluation tasks once; run them as offline regression tests and as live production monitors
+- **Offline → Online Parity** - Define your Agent evaluation tasks once; run them as offline regression tests and as live production monitors
 - **Integrations** - Works out of the box with any Python API framework. Event-driven transport support for `Kafka`, `RabbitMQ`, and `Redis`
 
 ### Production Ready
@@ -208,7 +214,7 @@ init_tracer(
 
 ---
 
-### GenAI Evaluation
+### Agent Evaluation
 
 Scouter provides three evaluation primitives that work identically in offline batch tests and online production monitors:
 
@@ -229,7 +235,7 @@ from scouter.evaluate import (
     EvalDataset,
     LLMJudgeTask,
 )
-from scouter.genai import Prompt, Provider, Score
+from scouter.agent import Prompt, Provider, Score
 from scouter.queue import EvalRecord
 
 quality_prompt = Prompt(
@@ -342,14 +348,14 @@ Register the same task definitions as a production drift profile. The server sam
 from scouter import (
     AlertCondition,
     AlertThreshold,
-    GenAIAlertConfig,
-    GenAIEvalConfig,
+    AgentAlertConfig,
+    AgentEvalConfig,
     ScouterClient,
     SlackDispatchConfig,
 )
-from scouter.evaluate import GenAIEvalProfile
+from scouter.drift import AgentEvalProfile
 
-alert_config = GenAIAlertConfig(
+alert_config = AgentAlertConfig(
     dispatch_config=SlackDispatchConfig(channel="#ml-alerts"),
     schedule="0 */6 * * *",
     alert_condition=AlertCondition(
@@ -359,7 +365,7 @@ alert_config = GenAIAlertConfig(
     ),
 )
 
-config = GenAIEvalConfig(
+config = AgentEvalConfig(
     space="production",
     name="support_agent",
     version="1.0.0",
@@ -368,7 +374,7 @@ config = GenAIEvalConfig(
 )
 
 # Reuse the same tasks defined for offline regression testing
-profile = GenAIEvalProfile(config=config, tasks=tasks)
+profile = AgentEvalProfile(config=config, tasks=tasks)
 
 client = ScouterClient()
 client.register_profile(profile, set_active=True)
@@ -399,7 +405,7 @@ Server (Rust / Axum + Tonic)
     ├── PostgreSQL — storage + migrations
     └── Background workers
         ├── Drift Executor  — scheduled PSI/SPC/custom checks + alerts
-        └── GenAI Poller    — async evaluation task execution + alerting
+        └── Agent Poller    — async evaluation task execution + alerting
 ```
 
 ## Contributing

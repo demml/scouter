@@ -1,6 +1,6 @@
+use crate::agent::utils::{extract_assertion_tasks_from_pylist, AssertionTasks};
+use crate::agent::{AgentAssertionTask, AssertionTask, LLMJudgeTask, TraceAssertionTask};
 use crate::error::TypeError;
-use crate::genai::utils::{extract_assertion_tasks_from_pylist, AssertionTasks};
-use crate::genai::{AgentAssertionTask, AssertionTask, LLMJudgeTask, TraceAssertionTask};
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::PyHelperFuncs;
 use potato_head::create_uuid7;

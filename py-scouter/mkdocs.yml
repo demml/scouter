@@ -69,14 +69,16 @@ nav:
           - Theory: "docs/monitoring/spc/theory.md"
       - Custom Metric:
           - Overview: "docs/monitoring/custom/quickstart.md"
-      - GenAI:
-          - Overview: "docs/monitoring/genai/overview.md"
-          - Evaluation Tasks: "docs/monitoring/genai/tasks.md"
-          - Assertion Gates: "docs/monitoring/genai/gates.md"
-          - Offline: "docs/monitoring/genai/offline-evaluation.md"
-          - Online: "docs/monitoring/genai/online-evaluation.md"
       - Get to the Queue!:
           - Inference: "docs/monitoring/inference.md"
+  - Agents:
+      - Overview: "docs/agents/overview.md"
+      - Offline evaluation: "docs/agents/offline-evaluation.md"
+      - Online evaluation: "docs/agents/online-evaluation.md"
+      - Reading results: "docs/agents/reading-results.md"
+      - EvalDataset: "docs/agents/eval-dataset.md"
+      - Evaluation tasks: "docs/agents/tasks.md"
+      - Assertion gates: "docs/agents/gates.md"
   - Bifrost:
       - Overview: "docs/bifrost/overview.md"
       - Quickstart: "docs/bifrost/quickstart.md"
@@ -92,7 +94,7 @@ nav:
       - Archive: "docs/specs/ts-component-data-archive.md"
       - Queue: "docs/specs/ts-component-scouter-queue.md"
       - gRPC: "docs/specs/ts-component-scouter-grpc.md"
-      - GenAI Evaluation: "docs/specs/ts-component-genai-eval.md"
+      - Agent Evaluation: "docs/specs/ts-component-genai-eval.md"
   - API Documentation:
       - API: "docs/api/stubs.md"
 

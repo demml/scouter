@@ -1,7 +1,7 @@
 use crate::error::EvaluationError;
 use regex::Regex;
-use scouter_types::genai::ValueExt;
-use scouter_types::genai::{traits::TaskAccessor, AssertionResult, ComparisonOperator};
+use scouter_types::agent::ValueExt;
+use scouter_types::agent::{traits::TaskAccessor, AssertionResult, ComparisonOperator};
 use serde_json::Value;
 use std::sync::OnceLock;
 use tracing::instrument;
@@ -797,8 +797,8 @@ impl AssertionEvaluator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use scouter_types::genai::AssertionTask;
-    use scouter_types::genai::EvaluationTaskType;
+    use scouter_types::agent::AssertionTask;
+    use scouter_types::agent::EvaluationTaskType;
     use serde_json::json;
 
     // Test data matching your StructuredTaskOutput example

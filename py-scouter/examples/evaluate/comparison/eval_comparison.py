@@ -17,7 +17,7 @@ Replace GrpcConfig() and the simulated agent_fn functions with your real setup.
 
 import os
 
-from scouter.drift import GenAIEvalProfile
+from scouter.drift import AgentEvalProfile
 from scouter.evaluate import (
     AssertionTask,
     ComparisonOperator,
@@ -39,7 +39,7 @@ IMPROVED_PATH = "improved_results.json"
 # 1. Shared profile and scenarios — both runs use exactly the same definition.
 #    This is what makes the comparison valid: same criteria, same inputs.
 # ---------------------------------------------------------------------------
-profile = GenAIEvalProfile(
+profile = AgentEvalProfile(
     alias="product_agent",
     tasks=[
         AssertionTask(
@@ -208,7 +208,7 @@ def run_baseline() -> ScenarioEvalResults:
     ).run()
     results.save(BASELINE_PATH)
     print(f"  Saved → {BASELINE_PATH}")
-    results.as_table(show_datasets=True)
+    results.as_table(show_workflow=True)
     return results
 
 
@@ -224,7 +224,7 @@ def run_improved() -> ScenarioEvalResults:
     ).run()
     results.save(IMPROVED_PATH)
     print(f"  Saved → {IMPROVED_PATH}")
-    results.as_table(show_datasets=True)
+    results.as_table(show_workflow=True)
     return results
 
 

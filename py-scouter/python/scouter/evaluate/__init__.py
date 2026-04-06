@@ -3,6 +3,7 @@
 from .._scouter import (
     AgentAssertion,
     AgentAssertionTask,
+    AgentEvalConfig,
     AggregationType,
     AlignedEvalResult,
     AssertionTask,
@@ -20,7 +21,6 @@ from .._scouter import (
     EvalTaskResult,
     EvaluationConfig,
     EvaluationTaskType,
-    GenAIEvalConfig,
     LLMJudgeTask,
     MultiResponseMode,
     ScenarioComparisonResults,
@@ -41,7 +41,7 @@ from .runner import EvalOrchestrator
 
 __all__ = [
     "EvalOrchestrator",
-    "GenAIEvalConfig",
+    "AgentEvalConfig",
     "EvalResults",
     "EvaluationConfig",
     "EvalDataset",

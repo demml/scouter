@@ -6,7 +6,7 @@ Use it to catch quality degradation and distribution shift after deployment. The
 
 ## What is a GenAI drift profile?
 
-A `GenAIEvalProfile` for online use pairs a `GenAIEvalConfig` (service metadata and alert settings) with your evaluation tasks (`LLMJudgeTask`, `AssertionTask`). The profile runs your tasks asynchronously on sampled traffic, stores results, and checks alert conditions on a configured schedule.
+A `AgentEvalProfile` for online use pairs a `AgentEvalConfig` (service metadata and alert settings) with your evaluation tasks (`LLMJudgeTask`, `AssertionTask`). The profile runs your tasks asynchronously on sampled traffic, stores results, and checks alert conditions on a configured schedule.
 
 ## Creating a GenAI drift profile
 
@@ -18,7 +18,7 @@ Use the same `LLMJudgeTask` and `AssertionTask` patterns from offline evaluation
 
 ```python
 from scouter.evaluate import LLMJudgeTask, ComparisonOperator
-from scouter.genai import Prompt, Provider, Score
+from scouter.agent import Prompt, Provider, Score
 
 relevance_prompt = Prompt(
     messages=(
@@ -157,15 +157,15 @@ alert_condition = AlertCondition(
 Configure sampling rate, alerting schedule, and dispatch channels:
 
 ```python
-from scouter import GenAIEvalConfig, GenAIAlertConfig, SlackDispatchConfig
+from scouter import AgentEvalConfig, AgentAlertConfig, SlackDispatchConfig
 
-alert_config = GenAIAlertConfig(
+alert_config = AgentAlertConfig(
     dispatch_config=SlackDispatchConfig(channel="#ml-alerts"),
     schedule="0 */6 * * *",  # Every 6 hours (cron format)
     alert_condition=alert_condition
 )
 
-config = GenAIEvalConfig(
+config = AgentEvalConfig(
     space="production",
     name="chatbot_service",
     version="1.0.0",
@@ -182,7 +182,7 @@ config = GenAIEvalConfig(
 | `name` | `str` | `"__missing__"` | Service identifier |
 | `version` | `str` | `"0.1.0"` | Version for this profile |
 | `sample_ratio` | `float` | `1.0` | Percentage of requests to evaluate (0.0 to 1.0) |
-| `alert_config` | `GenAIAlertConfig` | Default console | Alert configuration |
+| `alert_config` | `AgentAlertConfig` | Default console | Alert configuration |
 
 **Alert Dispatch Options:**
 
@@ -206,10 +206,10 @@ console_config = ConsoleDispatchConfig()
 from scouter import CommonCrons
 
 # Predefined schedules
-alert_config = GenAIAlertConfig(schedule=CommonCrons.EveryHour)
+alert_config = AgentAlertConfig(schedule=CommonCrons.EveryHour)
 
 # Custom cron expressions
-alert_config = GenAIAlertConfig(schedule="0 */4 * * *")  # Every 4 hours
+alert_config = AgentAlertConfig(schedule="0 */4 * * *")  # Every 4 hours
 ```
 
 ### 4. Create the profile
@@ -217,9 +217,9 @@ alert_config = GenAIAlertConfig(schedule="0 */4 * * *")  # Every 4 hours
 Combine configuration and tasks:
 
 ```python
-from scouter.evaluate import GenAIEvalProfile
+from scouter.drift import AgentEvalProfile
 
-profile = GenAIEvalProfile(
+profile = AgentEvalProfile(
     config=config,
     tasks=tasks
 )
@@ -319,19 +319,19 @@ Context keys must match the `${variable}` names in your prompt templates (e.g., 
 
 ```python
 from scouter import (
-    GenAIEvalConfig,
-    GenAIAlertConfig,
+    AgentEvalConfig,
+    AgentAlertConfig,
     AlertCondition,
     AlertThreshold,
     SlackDispatchConfig,
 )
 from scouter.evaluate import (
-    GenAIEvalProfile,
+    AgentEvalProfile,
     LLMJudgeTask,
     AssertionTask,
     ComparisonOperator,
 )
-from scouter.genai import Prompt, Provider, Score
+from scouter.agent import Prompt, Provider, Score
 from scouter.queue import ScouterQueue, EvalRecord
 
 # 1. Define category classification
@@ -371,7 +371,7 @@ technical_quality = LLMJudgeTask(
 )
 
 # 3. Configure profile
-alert_config = GenAIAlertConfig(
+alert_config = AgentAlertConfig(
     dispatch_config=SlackDispatchConfig(channel="#support-quality"),
     schedule="0 */6 * * *",
     alert_condition=AlertCondition(
@@ -381,7 +381,7 @@ alert_config = GenAIAlertConfig(
     )
 )
 
-config = GenAIEvalConfig(
+config = AgentEvalConfig(
     space="production",
     name="support_agent",
     version="2.0.0",
@@ -389,7 +389,7 @@ config = GenAIEvalConfig(
     alert_config=alert_config
 )
 
-profile = GenAIEvalProfile(
+profile = AgentEvalProfile(
     config=config,
     tasks=[category_task, technical_gate, technical_quality]
 )

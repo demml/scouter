@@ -9,7 +9,7 @@ For pre-generated records without a live agent, see [EvalDataset](./eval-dataset
 ## Quick start
 
 ```python
-from scouter.drift import GenAIEvalProfile
+from scouter.drift import AgentEvalProfile
 from scouter.evaluate import (
     AssertionTask,
     ComparisonOperator,
@@ -23,7 +23,7 @@ from scouter.queue import ScouterQueue
 from scouter.tracing import init_tracer
 
 # 1. Define what to evaluate about your agent's outputs
-profile = GenAIEvalProfile(
+profile = AgentEvalProfile(
     alias="my_agent",  # matches the alias in span.add_queue_item()
     tasks=[
         AssertionTask(
@@ -169,12 +169,12 @@ EvalScenario(
 
 Scenario `tasks` evaluate the agent's **final response string**. They're separate from profile tasks, which evaluate each sub-agent's `EvalRecord` context.
 
-### `GenAIEvalProfile`
+### `AgentEvalProfile`
 
 Defines evaluation tasks for one sub-agent. The `alias` must match what you pass to `span.add_queue_item(alias, ...)`.
 
 ```python
-GenAIEvalProfile(
+AgentEvalProfile(
     alias="retriever",
     tasks=[
         AssertionTask(
@@ -204,10 +204,10 @@ span.add_queue_item(
 
 ## Multi-agent setup
 
-One `GenAIEvalProfile` per sub-agent. Register all profiles on the queue.
+One `AgentEvalProfile` per sub-agent. Register all profiles on the queue.
 
 ```python
-from scouter.drift import GenAIEvalProfile
+from scouter.drift import AgentEvalProfile
 from scouter.evaluate import (
     AssertionTask,
     ComparisonOperator,
@@ -223,7 +223,7 @@ from scouter.transport import MockConfig
 from scouter.queue import ScouterQueue
 from scouter.tracing import ScouterInstrumentor, init_tracer
 
-retriever_profile = GenAIEvalProfile(
+retriever_profile = AgentEvalProfile(
     alias="retriever",
     tasks=[
         AssertionTask(
@@ -241,7 +241,7 @@ retriever_profile = GenAIEvalProfile(
     ],
 )
 
-synthesizer_profile = GenAIEvalProfile(
+synthesizer_profile = AgentEvalProfile(
     alias="synthesizer",
     tasks=[
         AssertionTask(

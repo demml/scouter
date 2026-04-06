@@ -1,15 +1,15 @@
+use crate::agent::{evaluate_genai_dataset, EvalDataset};
 use crate::error::EvaluationError;
 use crate::evaluate::evaluator::GenAIEvaluator;
 use crate::evaluate::scenario_results::{
     EvalMetrics, ScenarioEvalResults, ScenarioResult, TaskSummary,
 };
 use crate::evaluate::types::{EvalResults, EvaluationConfig};
-use crate::genai::{evaluate_genai_dataset, EvalDataset};
 use crate::scenario::EvalScenarios;
 use pyo3::prelude::*;
 use scouter_state::app_state;
-use scouter_types::genai::EvalScenario;
-use scouter_types::genai::{GenAIEvalConfig, GenAIEvalProfile};
+use scouter_types::agent::EvalScenario;
+use scouter_types::agent::{AgentEvalConfig, AgentEvalProfile};
 use scouter_types::trace::build_trace_spans;
 use scouter_types::trace::sql::TraceSpan;
 use scouter_types::EvalRecord;
@@ -21,7 +21,7 @@ use tracing::{debug, error};
 
 struct AliasData {
     records: Vec<EvalRecord>,
-    profile: Option<Arc<GenAIEvalProfile>>,
+    profile: Option<Arc<AgentEvalProfile>>,
     spans: Vec<TraceSpan>,
 }
 
@@ -35,7 +35,7 @@ struct AliasData {
 #[derive(Debug)]
 #[pyclass]
 pub struct EvalRunner {
-    profiles: HashMap<String, Arc<GenAIEvalProfile>>,
+    profiles: HashMap<String, Arc<AgentEvalProfile>>,
     scenarios: EvalScenarios,
 }
 
@@ -43,8 +43,8 @@ pub struct EvalRunner {
 impl EvalRunner {
     #[new]
     #[pyo3(signature = (scenarios, profiles))]
-    pub fn new(scenarios: EvalScenarios, profiles: HashMap<String, GenAIEvalProfile>) -> Self {
-        let arc_profiles: HashMap<String, Arc<GenAIEvalProfile>> = profiles
+    pub fn new(scenarios: EvalScenarios, profiles: HashMap<String, AgentEvalProfile>) -> Self {
+        let arc_profiles: HashMap<String, Arc<AgentEvalProfile>> = profiles
             .into_iter()
             .map(|(k, v)| (k, Arc::new(v)))
             .collect();
@@ -349,8 +349,8 @@ impl EvalRunner {
             };
 
             // Build profile from scenario tasks
-            let profile = GenAIEvalProfile::build_from_parts_async(
-                GenAIEvalConfig::default(),
+            let profile = AgentEvalProfile::build_from_parts_async(
+                AgentEvalConfig::default(),
                 scenario.tasks.clone(),
                 None,
             )
@@ -501,8 +501,8 @@ fn compute_pass_rate(results: &EvalResults) -> (bool, f64) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use scouter_types::genai::utils::AssertionTasks;
-    use scouter_types::genai::EvalScenario;
+    use scouter_types::agent::utils::AssertionTasks;
+    use scouter_types::agent::EvalScenario;
 
     fn empty_tasks() -> AssertionTasks {
         AssertionTasks {
@@ -528,7 +528,7 @@ mod tests {
     }
 
     fn make_scenario_with_tasks(id: &str, query: &str) -> EvalScenario {
-        use scouter_types::genai::{AssertionTask, ComparisonOperator, EvaluationTaskType};
+        use scouter_types::agent::{AssertionTask, ComparisonOperator, EvaluationTaskType};
 
         let task = AssertionTask {
             id: "check_response".to_string(),
@@ -561,9 +561,9 @@ mod tests {
         }
     }
 
-    fn make_default_profiles() -> HashMap<String, GenAIEvalProfile> {
+    fn make_default_profiles() -> HashMap<String, AgentEvalProfile> {
         let mut profiles = HashMap::new();
-        profiles.insert("agent_a".to_string(), GenAIEvalProfile::default());
+        profiles.insert("agent_a".to_string(), AgentEvalProfile::default());
         profiles
     }
 
@@ -636,7 +636,7 @@ mod tests {
     #[test]
     fn collect_scenario_data_multiple_aliases() {
         let mut profiles = make_default_profiles();
-        profiles.insert("agent_b".to_string(), GenAIEvalProfile::default());
+        profiles.insert("agent_b".to_string(), AgentEvalProfile::default());
 
         let mut runner = EvalRunner::new(
             EvalScenarios::new(vec![make_scenario("s1", "Hello")]),
@@ -847,7 +847,7 @@ mod tests {
     fn compute_pass_rate_zero_tasks() {
         let mut results = EvalResults::new();
         let record = EvalRecord::default();
-        let eval_set = scouter_types::genai::EvalSet::new(vec![], Default::default());
+        let eval_set = scouter_types::agent::EvalSet::new(vec![], Default::default());
         results.add_success(&record, eval_set, BTreeMap::new());
 
         let (passed, rate) = compute_pass_rate(&results);

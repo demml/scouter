@@ -6,7 +6,7 @@ use scouter_evaluate::evaluate::GenAIEvaluator;
 use scouter_sql::sql::aggregator::get_trace_summary_service;
 use scouter_sql::sql::traits::{GenAIDriftSqlLogic, ProfileSqlLogic};
 use scouter_sql::PostgresClient;
-use scouter_types::genai::{EvalSet, GenAIEvalProfile};
+use scouter_types::agent::{AgentEvalProfile, EvalSet};
 use scouter_types::sql::{TraceFilters, TraceSpan};
 use scouter_types::{EvalRecord, Status, TraceId};
 use sqlx::{Pool, Postgres};
@@ -143,7 +143,7 @@ async fn wait_for_trace_spans_with_reschedule(
 /// 3. If spans are needed but not available, reschedule the record for later processing
 /// 4. If spans are available or not needed, process the record using GenAIEvaluator
 /// 5. Update the record status to "processed" or "failed" based on the outcome
-pub struct GenAIPoller {
+pub struct AgentPoller {
     db_pool: Pool<Postgres>,
     max_retries: i32,
     trace_wait_timeout: Duration,
@@ -151,7 +151,7 @@ pub struct GenAIPoller {
     trace_reschedule_delay: Duration,
 }
 
-impl GenAIPoller {
+impl AgentPoller {
     pub fn new(
         db_pool: &Pool<Postgres>,
         max_retries: i32,
@@ -159,7 +159,7 @@ impl GenAIPoller {
         trace_backoff: Duration,
         trace_reschedule_delay: Duration,
     ) -> Self {
-        GenAIPoller {
+        AgentPoller {
             db_pool: db_pool.clone(),
             max_retries,
             trace_wait_timeout,
@@ -172,7 +172,7 @@ impl GenAIPoller {
     pub async fn process_event_record(
         &mut self,
         record: &EvalRecord,
-        profile: &GenAIEvalProfile,
+        profile: &AgentEvalProfile,
         spans: Arc<Vec<TraceSpan>>,
     ) -> Result<EvalSet, DriftError> {
         debug!("Processing workflow");
@@ -226,7 +226,7 @@ impl GenAIPoller {
         let mut genai_profile = if let Some(profile) =
             PostgresClient::get_drift_profile(&self.db_pool, &task.entity_id).await?
         {
-            let genai_profile: GenAIEvalProfile =
+            let genai_profile: AgentEvalProfile =
                 serde_json::from_value(profile).inspect_err(|e| {
                     error!("Failed to deserialize GenAI drift profile: {:?}", e);
                 })?;

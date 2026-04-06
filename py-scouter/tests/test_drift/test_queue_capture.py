@@ -1,13 +1,13 @@
 """Unit tests for ScouterQueue offline record capture (enable_capture / disable_capture / drain)."""
 
 import pytest
-from scouter.drift import ComparisonOperator, GenAIEvalProfile, LLMJudgeTask
-from scouter.genai import Prompt, Score
+from scouter.agent import Prompt, Score
+from scouter.drift import AgentEvalProfile, ComparisonOperator, LLMJudgeTask
 from scouter.mock import LLMTestServer, MockConfig
 from scouter.queue import EvalRecord, ScouterQueue
 
 
-def _minimal_profile() -> GenAIEvalProfile:
+def _minimal_profile() -> AgentEvalProfile:
     prompt = Prompt(
         messages="${input} + ${response}?",
         system_instructions="You are a helpful assistant.",
@@ -22,7 +22,7 @@ def _minimal_profile() -> GenAIEvalProfile:
         operator=ComparisonOperator.GreaterThanOrEqual,
         expected_value=3,
     )
-    return GenAIEvalProfile(tasks=[task], alias="test")
+    return AgentEvalProfile(tasks=[task], alias="test")
 
 
 @pytest.fixture

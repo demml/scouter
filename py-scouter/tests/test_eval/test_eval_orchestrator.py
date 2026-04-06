@@ -3,7 +3,8 @@ import unittest.mock
 import pytest
 from google.adk.models.llm_response import LlmResponse
 from google.genai import types
-from scouter.drift import GenAIEvalProfile
+from scouter.agent import Provider
+from scouter.drift import AgentEvalProfile
 from scouter.evaluate import (
     AgentAssertion,
     AgentAssertionTask,
@@ -20,7 +21,6 @@ from scouter.evaluate import (
     TraceAssertion,
     TraceAssertionTask,
 )
-from scouter.genai import Provider
 from scouter.mock import MockConfig
 from scouter.queue import ScouterQueue
 from scouter.tracing import ScouterInstrumentor, TestSpanExporter, init_tracer
@@ -31,7 +31,7 @@ from scouter.tracing import ScouterInstrumentor, TestSpanExporter, init_tracer
 
 
 def _simple_profile(alias="agent"):
-    return GenAIEvalProfile(
+    return AgentEvalProfile(
         tasks=[
             AssertionTask(
                 id="quality_check",
@@ -425,7 +425,7 @@ def test_on_evaluation_complete_return_value_used():
 # ADK-style integration tests
 # ---------------------------------------------------------------------------
 
-_RETRIEVER_PROFILE = GenAIEvalProfile(
+_RETRIEVER_PROFILE = AgentEvalProfile(
     tasks=[
         AssertionTask(
             id="has_results",
@@ -443,7 +443,7 @@ _RETRIEVER_PROFILE = GenAIEvalProfile(
     alias="retriever",
 )
 
-_SYNTHESIZER_PROFILE = GenAIEvalProfile(
+_SYNTHESIZER_PROFILE = AgentEvalProfile(
     tasks=[
         AssertionTask(
             id="quality_score",
@@ -709,7 +709,7 @@ def test_multi_agent_trace_assertions():
         finish_reason=types.FinishReason.STOP,
     )
 
-    profile = GenAIEvalProfile(
+    profile = AgentEvalProfile(
         tasks=[
             AssertionTask(
                 id="placeholder",
@@ -842,4 +842,4 @@ def test_multi_agent_trace_assertions():
     assert results.metrics.total_scenarios == 2
 
     assert "agent" in results.dataset_results
-    results.as_table(show_datasets=True)
+    results.as_table(show_workflow=True)

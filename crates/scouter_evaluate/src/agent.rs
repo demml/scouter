@@ -8,8 +8,8 @@ use pyo3::prelude::*;
 use pyo3::types::{PyList, PySlice};
 use pyo3::IntoPyObjectExt;
 use scouter_state::app_state;
-use scouter_types::genai::{
-    AgentAssertionTask, AssertionTask, GenAIEvalProfile, LLMJudgeTask, TraceAssertionTask,
+use scouter_types::agent::{
+    AgentAssertionTask, AgentEvalProfile, AssertionTask, LLMJudgeTask, TraceAssertionTask,
 };
 use scouter_types::trace::sql::TraceSpan;
 use scouter_types::EvalRecord;
@@ -126,7 +126,7 @@ impl DatasetRecords {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EvalDataset {
     pub records: Arc<Vec<EvalRecord>>,
-    pub profile: Arc<GenAIEvalProfile>,
+    pub profile: Arc<AgentEvalProfile>,
     #[serde(skip)]
     pub spans: Arc<Vec<TraceSpan>>,
 }
@@ -139,7 +139,7 @@ impl EvalDataset {
         records: Vec<EvalRecord>,
         tasks: &Bound<'_, PyList>,
     ) -> Result<Self, EvaluationError> {
-        let profile = GenAIEvalProfile::new_py(tasks, None, None)?;
+        let profile = AgentEvalProfile::new_py(tasks, None, None)?;
 
         Ok(Self {
             records: Arc::new(records),

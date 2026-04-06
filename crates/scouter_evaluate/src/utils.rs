@@ -1,14 +1,14 @@
+use crate::agent::EvalDataset;
 use crate::error::EvaluationError;
 use crate::evaluate::evaluator::GenAIEvaluator;
 use crate::evaluate::types::{EvalResults, EvaluationConfig};
-use crate::genai::EvalDataset;
 use crate::tasks::evaluator::FieldEvaluator;
 use itertools::iproduct;
 use num_traits::FromPrimitive;
 use potato_head::{Embedder, EmbeddingInput, PyEmbedder};
 use pyo3::prelude::*;
 use rayon::prelude::*;
-use scouter_types::genai::EvalSet;
+use scouter_types::agent::EvalSet;
 use scouter_types::EvalRecord;
 use serde_json::Value;
 use simsimd::SpatialSimilarity;

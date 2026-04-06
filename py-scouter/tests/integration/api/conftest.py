@@ -8,18 +8,19 @@ import pandas as pd
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from scouter import HttpConfig, KafkaConfig, Queue, ScouterQueue
+from scouter.agent import Agent, Prompt, Provider, Score
 from scouter.alert import (
+    AgentAlertConfig,
     AlertCondition,
     AlertThreshold,
-    GenAIAlertConfig,
     SpcAlertConfig,
 )
 from scouter.client import ScouterClient
 from scouter.drift import (
+    AgentEvalConfig,
+    AgentEvalProfile,
     ComparisonOperator,
     Drifter,
-    GenAIEvalConfig,
-    GenAIEvalProfile,
     SpcDriftConfig,
     SpcDriftProfile,
 )
@@ -29,7 +30,6 @@ from scouter.evaluate import (
     TraceAssertion,
     TraceAssertionTask,
 )
-from scouter.genai import Agent, Prompt, Provider, Score
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 from scouter.queue import EvalRecord
 from scouter.tracing import (
@@ -135,14 +135,14 @@ def create_and_register_genai_drift_profile(
     client: ScouterClient,
     name: str,
     with_trace_assertion: bool = True,
-) -> GenAIEvalProfile:
+) -> AgentEvalProfile:
     # create drift config (usually associated with a model name, space name, version)
-    config = GenAIEvalConfig(
+    config = AgentEvalConfig(
         space="scouter",
         name=name,
         version="0.1.0",
         sample_ratio=1,
-        alert_config=GenAIAlertConfig(
+        alert_config=AgentAlertConfig(
             alert_condition=AlertCondition(
                 baseline_value=0.80,
                 alert_threshold=AlertThreshold.Below,

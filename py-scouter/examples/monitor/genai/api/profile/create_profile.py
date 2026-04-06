@@ -1,15 +1,15 @@
 from pathlib import Path
 
 from scouter._scouter import ComparisonOperator
+from scouter.agent import Prompt, Score
 from scouter.alert import AlertCondition, AlertThreshold
 from scouter.client import ScouterClient
 from scouter.drift import (
-    GenAIAlertConfig,
-    GenAIEvalConfig,
-    GenAIEvalProfile,
+    AgentAlertConfig,
+    AgentEvalConfig,
+    AgentEvalProfile,
     LLMJudgeTask,
 )
-from scouter.genai import Prompt, Score
 
 
 def create_reformulation_evaluation_prompt():
@@ -108,13 +108,13 @@ reformulation = LLMJudgeTask(
     description="Evaluate the quality of the query reformulation",
 )
 
-profile = GenAIEvalProfile(
-    config=GenAIEvalConfig(
+profile = AgentEvalProfile(
+    config=AgentEvalConfig(
         space="scouter",
         name="genai_metrics",
         version="0.0.1",
         sample_ratio=1,
-        alert_config=GenAIAlertConfig(
+        alert_config=AgentAlertConfig(
             alert_condition=AlertCondition(
                 baseline_value=0.80,
                 alert_threshold=AlertThreshold.Below,

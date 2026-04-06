@@ -3,18 +3,18 @@ use chrono::{DateTime, Utc};
 use scouter_dispatch::AlertDispatcher;
 use scouter_sql::sql::traits::GenAIDriftSqlLogic;
 use scouter_sql::{sql::cache::entity_cache, PostgresClient};
-use scouter_types::{custom::ComparisonMetricAlert, genai::GenAIEvalProfile};
+use scouter_types::{agent::AgentEvalProfile, custom::ComparisonMetricAlert};
 use scouter_types::{AlertMap, ProfileBaseArgs};
 use sqlx::{Pool, Postgres};
 use tracing::error;
 use tracing::info;
 
 pub struct GenAIDrifter {
-    profile: GenAIEvalProfile,
+    profile: AgentEvalProfile,
 }
 
 impl GenAIDrifter {
-    pub fn new(profile: GenAIEvalProfile) -> Self {
+    pub fn new(profile: AgentEvalProfile) -> Self {
         Self { profile }
     }
 
@@ -143,8 +143,8 @@ impl GenAIDrifter {
 mod tests {
     use super::*;
     use potato_head::mock::create_score_prompt;
-    use scouter_types::genai::{ComparisonOperator, EvaluationTasks};
-    use scouter_types::genai::{GenAIAlertConfig, GenAIEvalConfig, GenAIEvalProfile, LLMJudgeTask};
+    use scouter_types::agent::{AgentAlertConfig, AgentEvalConfig, AgentEvalProfile, LLMJudgeTask};
+    use scouter_types::agent::{ComparisonOperator, EvaluationTasks};
     use scouter_types::{
         AlertCondition, AlertDispatchConfig, AlertThreshold, ConsoleDispatchConfig,
     };
@@ -187,16 +187,16 @@ mod tests {
             alert_threshold: AlertThreshold::Below,
             delta: Some(1.0),
         };
-        let alert_config = GenAIAlertConfig {
+        let alert_config = AgentAlertConfig {
             schedule: "0 0 * * * *".to_string(),
             dispatch_config: AlertDispatchConfig::Console(ConsoleDispatchConfig { enabled: true }),
             alert_condition: Some(alert_condition),
         };
 
         let drift_config =
-            GenAIEvalConfig::new("scouter", "ML", "0.1.0", 1.0, alert_config, None).unwrap();
+            AgentEvalConfig::new("scouter", "ML", "0.1.0", 1.0, alert_config, None).unwrap();
 
-        let profile = GenAIEvalProfile::new(drift_config, tasks).await.unwrap();
+        let profile = AgentEvalProfile::new(drift_config, tasks).await.unwrap();
 
         GenAIDrifter::new(profile)
     }

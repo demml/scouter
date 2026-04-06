@@ -235,7 +235,7 @@ LLMJudgeTask(
 **Basic Quality Assessment:**
 
 ```python
-from scouter.genai import Score
+from scouter.agent import Score
 
 quality_prompt = Prompt(
     messages=(
@@ -864,17 +864,18 @@ results.as_table()
 
 ### Online Evaluation
 
-Attach `AgentAssertionTask` to a `GenAIEvalProfile` for real-time monitoring. The server samples `EvalRecord` objects at the configured `sample_ratio` and evaluates the tasks asynchronously.
+Attach `AgentAssertionTask` to a `AgentEvalProfile` for real-time monitoring. The server samples `EvalRecord` objects at the configured `sample_ratio` and evaluates the tasks asynchronously.
 
 ```python
-from scouter.evaluate import AgentAssertion, AgentAssertionTask, GenAIEvalProfile, EvalRecord
-from scouter import GenAIEvalConfig, GrpcConfig
+from scouter.drift import AgentEvalProfile
+from scouter.evaluate import AgentAssertion, AgentAssertionTask, EvalRecord
+from scouter import AgentEvalConfig, GrpcConfig
 from scouter.queue import ScouterQueue
 from scouter.alert import ConsoleDispatchConfig
 from scouter.types import CommonCrons
 
-profile = GenAIEvalProfile(
-    config=GenAIEvalConfig(
+profile = AgentEvalProfile(
+    config=AgentEvalConfig(
         space="production",
         name="search-agent",
         version="1.0.0",
@@ -1117,14 +1118,14 @@ results.as_table()
 
 ### Online Monitoring
 
-Tasks are included in a `GenAIEvalProfile` for real-time monitoring:
+Tasks are included in a `AgentEvalProfile` for real-time monitoring:
 
 ```python
-from scouter.evaluate import GenAIEvalProfile
-from scouter import GenAIEvalConfig
+from scouter.drift import AgentEvalProfile
+from scouter import AgentEvalConfig
 
-profile = GenAIEvalProfile(
-    config=GenAIEvalConfig(
+profile = AgentEvalProfile(
+    config=AgentEvalConfig(
         space="production",
         name="chatbot",
         sample_ratio=0.1  # Evaluate 10% of traffic

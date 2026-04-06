@@ -290,7 +290,7 @@ mod tests {
     use rand::Rng;
     use scouter_semver::VersionType;
     use scouter_settings::ObjectStorageSettings;
-    use scouter_types::genai::ExecutionPlan;
+    use scouter_types::agent::ExecutionPlan;
     use scouter_types::psi::{Bin, BinType, PsiDriftConfig, PsiFeatureDriftProfile};
     use scouter_types::spc::SpcDriftProfile;
     use scouter_types::*;
@@ -1482,11 +1482,11 @@ mod tests {
                     end_time: Utc::now() + chrono::Duration::seconds(1),
                     entity_id,
                     task_id: format!("task{i}"),
-                    task_type: scouter_types::genai::EvaluationTaskType::Assertion,
+                    task_type: scouter_types::agent::EvaluationTaskType::Assertion,
                     passed: true,
                     value: j as f64,
                     assertion: Assertion::FieldPath(Some(format!("field.path.{i}"))),
-                    operator: scouter_types::genai::ComparisonOperator::Contains,
+                    operator: scouter_types::agent::ComparisonOperator::Contains,
                     expected: Value::Null,
                     actual: Value::Null,
                     message: "All good".to_string(),

@@ -1,17 +1,17 @@
 use crate::data_utils::DataConverterEnum;
 use crate::drifter::{
-    custom::CustomDrifter, genai::ClientGenAIDrifter, psi::PsiDrifter, spc::SpcDrifter,
+    agent::ClientGenAIDrifter, custom::CustomDrifter, psi::PsiDrifter, spc::SpcDrifter,
 };
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 use pyo3::IntoPyObjectExt;
 use scouter_drift::error::DriftError;
 use scouter_drift::spc::SpcDriftMap;
-use scouter_types::genai::EvalResultSet;
+use scouter_types::agent::EvalResultSet;
 use scouter_types::spc::SpcDriftProfile;
 use scouter_types::{
+    agent::{AgentEvalConfig, AgentEvalProfile},
     custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
-    genai::{GenAIEvalConfig, GenAIEvalProfile},
     psi::{PsiDriftConfig, PsiDriftMap, PsiDriftProfile},
     spc::SpcDriftConfig,
     DataType, DriftProfile, DriftType, EvalRecord,
@@ -29,7 +29,7 @@ pub enum DriftMap {
 pub enum DriftConfig {
     Spc(Arc<RwLock<SpcDriftConfig>>),
     Psi(Arc<RwLock<PsiDriftConfig>>),
-    GenAI(GenAIEvalConfig),
+    GenAI(AgentEvalConfig),
     Custom(CustomMetricDriftConfig),
 }
 
@@ -55,7 +55,7 @@ impl DriftConfig {
         }
     }
 
-    pub fn genai_config(self) -> Result<GenAIEvalConfig, DriftError> {
+    pub fn genai_config(self) -> Result<AgentEvalConfig, DriftError> {
         match self {
             DriftConfig::GenAI(cfg) => Ok(cfg),
             _ => Err(DriftError::InvalidConfigError),
@@ -135,7 +135,7 @@ impl Drifter {
                 };
 
                 let tasks = data.cast::<PyList>()?;
-                let profile = GenAIEvalProfile::new_py(tasks, Some(config.genai_config()?), None)?;
+                let profile = AgentEvalProfile::new_py(tasks, Some(config.genai_config()?), None)?;
                 Ok(DriftProfile::GenAI(profile))
             }
         }
@@ -228,7 +228,7 @@ impl PyDrifter {
                     DriftConfig::Custom(config)
                 }
                 DriftType::GenAI => {
-                    let config = obj.extract::<GenAIEvalConfig>()?;
+                    let config = obj.extract::<AgentEvalConfig>()?;
                     DriftConfig::GenAI(config)
                 }
             };
@@ -274,10 +274,10 @@ impl PyDrifter {
         &mut self,
         py: Python<'py>,
         tasks: &Bound<'py, PyList>,
-        config: Option<GenAIEvalConfig>,
+        config: Option<AgentEvalConfig>,
         alias: Option<String>,
     ) -> Result<Bound<'py, PyAny>, DriftError> {
-        let profile = GenAIEvalProfile::new_py(tasks, config, alias)?;
+        let profile = AgentEvalProfile::new_py(tasks, config, alias)?;
         Ok(profile.into_bound_py_any(py)?)
     }
 
@@ -308,7 +308,7 @@ impl PyDrifter {
                 DriftProfile::Custom(profile)
             }
             DriftType::GenAI => {
-                let profile = drift_profile.extract::<GenAIEvalProfile>()?;
+                let profile = drift_profile.extract::<AgentEvalProfile>()?;
                 DriftProfile::GenAI(profile)
             }
         };

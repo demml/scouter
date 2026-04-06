@@ -21,7 +21,7 @@ EvalOrchestrator.run()
 
 **Scenario evaluation** is the passenger's view: did the car get from A to B? Tasks defined in `EvalScenario(tasks=[...])` run against the agent's final response string.
 
-**Workflow evaluation** is the mechanic's view: are the internals healthy? Tasks defined in `GenAIEvalProfile(tasks=[...])` run against the `EvalRecord` each sub-agent emitted during execution.
+**Workflow evaluation** is the mechanic's view: are the internals healthy? Tasks defined in `AgentEvalProfile(tasks=[...])` run against the `EvalRecord` each sub-agent emitted during execution.
 
 They measure different things. A scenario can pass (good final output) while workflow tasks fail — a sub-agent produced low-quality intermediate results but the final answer happened to be correct. You got lucky. Tracking both is the point.
 
@@ -39,7 +39,7 @@ Printed by `results.as_table()`. Rolled-up numbers from both loops.
 | **Total Scenarios** | Number of scenarios run |
 | **Passed Scenarios** | Scenarios where every scenario task passed |
 
-If you haven't defined any `GenAIEvalProfile` tasks, Workflow Pass Rate is omitted and Overall Pass Rate reflects only the scenario loop.
+If you haven't defined any `AgentEvalProfile` tasks, Workflow Pass Rate is omitted and Overall Pass Rate reflects only the scenario loop.
 
 ---
 
@@ -72,7 +72,7 @@ The `response` context key is populated automatically from the string your agent
 
 Printed when you call `results.as_table(show_workflow=True)`. One row per `EvalRecord` emitted by a sub-agent across all scenarios.
 
-Tasks come from `GenAIEvalProfile(tasks=[...])`, the profile attached to your `ScouterQueue`. Each sub-agent that calls `span.add_queue_item(alias, record)` during execution produces rows here.
+Tasks come from `AgentEvalProfile(tasks=[...])`, the profile attached to your `ScouterQueue`. Each sub-agent that calls `span.add_queue_item(alias, record)` during execution produces rows here.
 
 | Column | What it shows |
 |--------|--------------|
@@ -90,8 +90,8 @@ span.add_queue_item(
     EvalRecord(context={"results": {"count": 5, "source": "arxiv"}}),
 )
 
-# GenAIEvalProfile defines what to check on that record:
-GenAIEvalProfile(
+# AgentEvalProfile defines what to check on that record:
+AgentEvalProfile(
     alias="retriever",
     tasks=[
         AssertionTask(

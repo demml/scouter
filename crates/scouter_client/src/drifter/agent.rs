@@ -1,7 +1,7 @@
 use scouter_drift::error::DriftError;
 use scouter_evaluate::evaluate::GenAIEvaluator;
 use scouter_state::app_state;
-use scouter_types::genai::{EvalSet, GenAIEvalProfile};
+use scouter_types::agent::{AgentEvalProfile, EvalSet};
 use scouter_types::EvalRecord;
 use std::sync::Arc;
 /// Using "ClientGenAIDrifter" to avoid confusion with the server-side GenAIDrifter
@@ -20,7 +20,7 @@ impl ClientGenAIDrifter {
 
     pub async fn compute_drift_single(
         record: EvalRecord,
-        profile: &GenAIEvalProfile,
+        profile: &AgentEvalProfile,
     ) -> Result<EvalSet, DriftError> {
         let profile = Arc::new(profile.clone());
         Ok(GenAIEvaluator::process_event_record(&record, profile, Arc::new(vec![])).await?)
@@ -29,7 +29,7 @@ impl ClientGenAIDrifter {
     pub fn compute_drift(
         &mut self,
         data: Vec<EvalRecord>,
-        profile: &GenAIEvalProfile,
+        profile: &AgentEvalProfile,
     ) -> Result<Vec<EvalSet>, DriftError> {
         let results = app_state().handle().block_on(async move {
             let mut results = Vec::new();

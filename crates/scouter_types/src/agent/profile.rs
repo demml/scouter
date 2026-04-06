@@ -1,9 +1,9 @@
+use crate::agent::alert::AgentAlertConfig;
+use crate::agent::eval::{AssertionTask, EvaluationTask, LLMJudgeTask};
+use crate::agent::traits::{separate_tasks, ProfileExt, TaskAccessor};
+use crate::agent::utils::{extract_assertion_tasks_from_pylist, AssertionTasks};
+use crate::agent::{AgentAssertionTask, TasksFile, TraceAssertionTask};
 use crate::error::{ProfileError, TypeError};
-use crate::genai::alert::GenAIAlertConfig;
-use crate::genai::eval::{AssertionTask, EvaluationTask, LLMJudgeTask};
-use crate::genai::traits::{separate_tasks, ProfileExt, TaskAccessor};
-use crate::genai::utils::{extract_assertion_tasks_from_pylist, AssertionTasks};
-use crate::genai::{AgentAssertionTask, TasksFile, TraceAssertionTask};
 use crate::traits::ConfigExt;
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::{scouter_version, EvalTaskResult, GenAIEvalWorkflowResult, WorkflowResultTableEntry};
@@ -56,13 +56,13 @@ fn default_drift_type() -> DriftType {
     DriftType::GenAI
 }
 
-fn default_alert_config() -> GenAIAlertConfig {
-    GenAIAlertConfig::default()
+fn default_alert_config() -> AgentAlertConfig {
+    AgentAlertConfig::default()
 }
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct GenAIEvalConfig {
+pub struct AgentEvalConfig {
     #[pyo3(get, set)]
     #[serde(default = "default_sample_ratio")]
     pub sample_ratio: f64,
@@ -85,14 +85,14 @@ pub struct GenAIEvalConfig {
 
     #[pyo3(get, set)]
     #[serde(default = "default_alert_config")]
-    pub alert_config: GenAIAlertConfig,
+    pub alert_config: AgentAlertConfig,
 
     #[pyo3(get, set)]
     #[serde(default = "default_drift_type")]
     pub drift_type: DriftType,
 }
 
-impl ConfigExt for GenAIEvalConfig {
+impl ConfigExt for AgentEvalConfig {
     fn space(&self) -> &str {
         &self.space
     }
@@ -109,7 +109,7 @@ impl ConfigExt for GenAIEvalConfig {
     }
 }
 
-impl DispatchDriftConfig for GenAIEvalConfig {
+impl DispatchDriftConfig for AgentEvalConfig {
     fn get_drift_args(&self) -> DriftArgs {
         DriftArgs {
             name: self.name.clone(),
@@ -122,19 +122,19 @@ impl DispatchDriftConfig for GenAIEvalConfig {
 
 #[pymethods]
 #[allow(clippy::too_many_arguments)]
-impl GenAIEvalConfig {
+impl AgentEvalConfig {
     #[new]
-    #[pyo3(signature = (space=MISSING, name=MISSING, version=DEFAULT_VERSION, sample_ratio=1.0, alert_config=GenAIAlertConfig::default(), config_path=None))]
+    #[pyo3(signature = (space=MISSING, name=MISSING, version=DEFAULT_VERSION, sample_ratio=1.0, alert_config=AgentAlertConfig::default(), config_path=None))]
     pub fn new(
         space: &str,
         name: &str,
         version: &str,
         sample_ratio: f64,
-        alert_config: GenAIAlertConfig,
+        alert_config: AgentAlertConfig,
         config_path: Option<PathBuf>,
     ) -> Result<Self, ProfileError> {
         if let Some(config_path) = config_path {
-            let config = GenAIEvalConfig::load_from_json_file(config_path)?;
+            let config = AgentEvalConfig::load_from_json_file(config_path)?;
             return Ok(config);
         }
 
@@ -150,7 +150,7 @@ impl GenAIEvalConfig {
     }
 
     #[staticmethod]
-    pub fn load_from_json_file(path: PathBuf) -> Result<GenAIEvalConfig, ProfileError> {
+    pub fn load_from_json_file(path: PathBuf) -> Result<AgentEvalConfig, ProfileError> {
         // deserialize the string to a struct
 
         let file = std::fs::read_to_string(&path)?;
@@ -176,7 +176,7 @@ impl GenAIEvalConfig {
         name: Option<String>,
         version: Option<String>,
         uid: Option<String>,
-        alert_config: Option<GenAIAlertConfig>,
+        alert_config: Option<AgentAlertConfig>,
     ) -> Result<(), TypeError> {
         if name.is_some() {
             self.name = name.ok_or(TypeError::MissingNameError)?;
@@ -202,7 +202,7 @@ impl GenAIEvalConfig {
     }
 }
 
-impl Default for GenAIEvalConfig {
+impl Default for AgentEvalConfig {
     fn default() -> Self {
         Self {
             sample_ratio: 1.0,
@@ -210,7 +210,7 @@ impl Default for GenAIEvalConfig {
             name: "default_genai_profile".to_string(),
             version: DEFAULT_VERSION.to_string(),
             uid: create_uuid7(),
-            alert_config: GenAIAlertConfig::default(),
+            alert_config: AgentAlertConfig::default(),
             drift_type: DriftType::GenAI,
         }
     }
@@ -352,9 +352,9 @@ fn build_dependency_edges(
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct GenAIEvalProfile {
+pub struct AgentEvalProfile {
     #[pyo3(get)]
-    pub config: GenAIEvalConfig,
+    pub config: AgentEvalConfig,
 
     pub tasks: AssertionTasks,
 
@@ -369,23 +369,23 @@ pub struct GenAIEvalProfile {
 }
 
 #[pymethods]
-impl GenAIEvalProfile {
+impl AgentEvalProfile {
     #[new]
     #[pyo3(signature = (tasks, config=None, alias=None))]
-    /// Create a new GenAIEvalProfile
+    /// Create a new AgentEvalProfile
     /// GenAI evaluations are run asynchronously on the scouter server.
     /// # Arguments
-    /// * `config` - GenAIEvalConfig - The configuration for the GenAI drift profile
+    /// * `config` - AgentEvalConfig - The configuration for the GenAI drift profile
     /// * `tasks` - PyList - List of AssertionTask, LLMJudgeTask or ConditionalTask
     /// * `alias` - Option<String> - Optional alias for the profile
     /// # Returns
-    /// * `Result<Self, ProfileError>` - The GenAIEvalProfile
+    /// * `Result<Self, ProfileError>` - The AgentEvalProfile
     /// # Errors
     /// * `ProfileError::MissingWorkflowError` - If the workflow is
     #[instrument(skip_all)]
     pub fn new_py(
         tasks: &Bound<'_, PyAny>,
-        config: Option<GenAIEvalConfig>,
+        config: Option<AgentEvalConfig>,
         alias: Option<String>,
     ) -> Result<Self, ProfileError> {
         let task_list = if let Ok(list) = tasks.cast::<PyList>() {
@@ -482,12 +482,12 @@ impl GenAIEvalProfile {
         Ok(PyHelperFuncs::save_to_json(
             self,
             path,
-            FileName::GenAIEvalProfile.to_str(),
+            FileName::AgentEvalProfile.to_str(),
         )?)
     }
 
     #[staticmethod]
-    pub fn model_validate(data: &Bound<'_, PyDict>) -> GenAIEvalProfile {
+    pub fn model_validate(data: &Bound<'_, PyDict>) -> AgentEvalProfile {
         let json_value = pyobject_to_json(data).unwrap();
 
         let string = serde_json::to_string(&json_value).unwrap();
@@ -495,13 +495,13 @@ impl GenAIEvalProfile {
     }
 
     #[staticmethod]
-    pub fn model_validate_json(json_string: String) -> GenAIEvalProfile {
+    pub fn model_validate_json(json_string: String) -> AgentEvalProfile {
         // deserialize the string to a struct
         serde_json::from_str(&json_string).expect("Failed to load prompt drift profile")
     }
 
     #[staticmethod]
-    pub fn from_file(path: PathBuf) -> Result<GenAIEvalProfile, ProfileError> {
+    pub fn from_file(path: PathBuf) -> Result<AgentEvalProfile, ProfileError> {
         let file = std::fs::read_to_string(&path)?;
 
         Ok(serde_json::from_str(&file)?)
@@ -515,7 +515,7 @@ impl GenAIEvalProfile {
         name: Option<String>,
         version: Option<String>,
         uid: Option<String>,
-        alert_config: Option<GenAIAlertConfig>,
+        alert_config: Option<AgentAlertConfig>,
     ) -> Result<(), TypeError> {
         self.config
             .update_config_args(space, name, version, uid, alert_config)
@@ -824,10 +824,10 @@ impl GenAIEvalProfile {
     }
 }
 
-impl Default for GenAIEvalProfile {
+impl Default for AgentEvalProfile {
     fn default() -> Self {
         Self {
-            config: GenAIEvalConfig::default(),
+            config: AgentEvalConfig::default(),
             tasks: AssertionTasks {
                 assertion: Vec::new(),
                 judge: Vec::new(),
@@ -842,17 +842,17 @@ impl Default for GenAIEvalProfile {
     }
 }
 
-impl GenAIEvalProfile {
+impl AgentEvalProfile {
     /// Helper method to build profile from given tasks
     pub fn build_from_parts(
-        config: GenAIEvalConfig,
+        config: AgentEvalConfig,
         tasks: AssertionTasks,
         alias: Option<String>,
-    ) -> Result<GenAIEvalProfile, ProfileError> {
+    ) -> Result<AgentEvalProfile, ProfileError> {
         let (workflow, task_ids) =
-            app_state().block_on(async { GenAIEvalProfile::build_profile(&tasks).await })?;
+            app_state().block_on(async { AgentEvalProfile::build_profile(&tasks).await })?;
 
-        Ok(GenAIEvalProfile {
+        Ok(AgentEvalProfile {
             config,
             tasks,
             scouter_version: scouter_version(),
@@ -864,13 +864,13 @@ impl GenAIEvalProfile {
 
     /// Async version of `build_from_parts` — safe to call from within an async context.
     pub async fn build_from_parts_async(
-        config: GenAIEvalConfig,
+        config: AgentEvalConfig,
         tasks: AssertionTasks,
         alias: Option<String>,
-    ) -> Result<GenAIEvalProfile, ProfileError> {
-        let (workflow, task_ids) = GenAIEvalProfile::build_profile(&tasks).await?;
+    ) -> Result<AgentEvalProfile, ProfileError> {
+        let (workflow, task_ids) = AgentEvalProfile::build_profile(&tasks).await?;
 
-        Ok(GenAIEvalProfile {
+        Ok(AgentEvalProfile {
             config,
             tasks,
             scouter_version: scouter_version(),
@@ -882,7 +882,7 @@ impl GenAIEvalProfile {
 
     #[instrument(skip_all)]
     pub async fn new(
-        config: GenAIEvalConfig,
+        config: AgentEvalConfig,
         tasks: Vec<EvaluationTask>,
     ) -> Result<Self, ProfileError> {
         let tasks = separate_tasks(tasks);
@@ -994,7 +994,7 @@ impl GenAIEvalProfile {
     }
 }
 
-impl ProfileExt for GenAIEvalProfile {
+impl ProfileExt for AgentEvalProfile {
     #[inline]
     fn id(&self) -> &str {
         &self.config.uid
@@ -1057,8 +1057,8 @@ impl ProfileExt for GenAIEvalProfile {
     }
 }
 
-impl ProfileBaseArgs for GenAIEvalProfile {
-    type Config = GenAIEvalConfig;
+impl ProfileBaseArgs for AgentEvalProfile {
+    type Config = AgentEvalConfig;
 
     fn config(&self) -> &Self::Config {
         &self.config
@@ -1100,7 +1100,10 @@ impl EvalSet {
             .collect()
     }
 
-    pub fn build_workflow_entries(&self, scenario_id: Option<&str>) -> Vec<WorkflowResultTableEntry> {
+    pub fn build_workflow_entries(
+        &self,
+        scenario_id: Option<&str>,
+    ) -> Vec<WorkflowResultTableEntry> {
         vec![self.inner.to_table_entry(scenario_id)]
     }
 
@@ -1195,19 +1198,19 @@ impl EvalResultSet {
 mod tests {
 
     use super::*;
-    use crate::genai::{ComparisonOperator, EvaluationTasks};
+    use crate::agent::{ComparisonOperator, EvaluationTasks};
     use crate::{AlertDispatchConfig, OpsGenieDispatchConfig, SlackDispatchConfig};
 
     use potato_head::mock::create_score_prompt;
 
     #[test]
     fn test_genai_drift_config() {
-        let mut drift_config = GenAIEvalConfig::new(
+        let mut drift_config = AgentEvalConfig::new(
             MISSING,
             MISSING,
             "0.1.0",
             1.0,
-            GenAIAlertConfig::default(),
+            AgentAlertConfig::default(),
             None,
         )
         .unwrap();
@@ -1222,7 +1225,7 @@ mod tests {
         let test_slack_dispatch_config = SlackDispatchConfig {
             channel: "test-channel".to_string(),
         };
-        let new_alert_config = GenAIAlertConfig {
+        let new_alert_config = AgentAlertConfig {
             schedule: "0 0 * * * *".to_string(),
             dispatch_config: AlertDispatchConfig::Slack(test_slack_dispatch_config.clone()),
             ..Default::default()
@@ -1282,7 +1285,7 @@ mod tests {
             .add_task(task2)
             .build();
 
-        let alert_config = GenAIAlertConfig {
+        let alert_config = AgentAlertConfig {
             schedule: "0 0 * * * *".to_string(),
             dispatch_config: AlertDispatchConfig::OpsGenie(OpsGenieDispatchConfig {
                 team: "test-team".to_string(),
@@ -1292,9 +1295,9 @@ mod tests {
         };
 
         let drift_config =
-            GenAIEvalConfig::new("scouter", "ML", "0.1.0", 1.0, alert_config, None).unwrap();
+            AgentEvalConfig::new("scouter", "ML", "0.1.0", 1.0, alert_config, None).unwrap();
 
-        let profile = GenAIEvalProfile::new(drift_config, tasks).await.unwrap();
+        let profile = AgentEvalProfile::new(drift_config, tasks).await.unwrap();
 
         let _: Value =
             serde_json::from_str(&profile.model_dump_json()).expect("Failed to parse actual JSON");

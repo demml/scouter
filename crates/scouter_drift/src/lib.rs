@@ -14,4 +14,4 @@ pub mod drifter;
 pub use drifter::DriftExecutor;
 
 #[cfg(feature = "sql")]
-pub use genai::GenAIPoller;
+pub use genai::AgentPoller;

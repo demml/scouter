@@ -199,7 +199,7 @@ from scouter.evaluate import (
     EvalDataset,
     LLMJudgeTask,
 )
-from scouter.genai import Prompt, Provider, Score
+from scouter.agent import Prompt, Provider, Score
 from scouter.queue import EvalRecord
 
 quality_prompt = Prompt(
@@ -312,14 +312,14 @@ Register the same tasks as a production drift profile. The server samples traffi
 from scouter import (
     AlertCondition,
     AlertThreshold,
-    GenAIAlertConfig,
-    GenAIEvalConfig,
+    AgentAlertConfig,
+    AgentEvalConfig,
     ScouterClient,
     SlackDispatchConfig,
 )
-from scouter.evaluate import GenAIEvalProfile
+from scouter.drift import AgentEvalProfile
 
-alert_config = GenAIAlertConfig(
+alert_config = AgentAlertConfig(
     dispatch_config=SlackDispatchConfig(channel="#ml-alerts"),
     schedule="0 */6 * * *",
     alert_condition=AlertCondition(
@@ -329,7 +329,7 @@ alert_config = GenAIAlertConfig(
     ),
 )
 
-config = GenAIEvalConfig(
+config = AgentEvalConfig(
     space="production",
     name="support_agent",
     version="1.0.0",
@@ -338,7 +338,7 @@ config = GenAIEvalConfig(
 )
 
 # Reuse the same tasks defined for offline regression testing
-profile = GenAIEvalProfile(config=config, tasks=tasks)
+profile = AgentEvalProfile(config=config, tasks=tasks)
 
 client = ScouterClient()
 client.register_profile(profile, set_active=True)

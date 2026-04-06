@@ -30,9 +30,9 @@ class QaEvalOrchestrator(EvalOrchestrator):
         runner: Runner,
         session_service: InMemorySessionService,
         queue: ScouterQueue,
-        scenarios: EvalScenarios,
+        eval_scenarios: EvalScenarios,
     ) -> None:
-        super().__init__(queue=queue, scenarios=scenarios)
+        super().__init__(queue=queue, scenarios=eval_scenarios)
         self._runner = runner
         self._session_service = session_service
 
@@ -69,7 +69,7 @@ def main() -> None:
             runner=runner,
             session_service=session_service,
             queue=config.queue,
-            scenarios=scenarios,
+            eval_scenarios=scenarios,
         ).run()
     finally:
         config.instrumentor.uninstrument()

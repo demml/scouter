@@ -1,12 +1,12 @@
 # mypy: disable-error-code="attr-defined"
 # pylint: disable=no-name-in-module
 from . import (
+    agent,
     alert,
     bifrost,
     client,
     drift,
     evaluate,
-    genai,
     logging,
     mock,
     observe,
@@ -18,6 +18,8 @@ from . import (
     util,
 )
 from ._scouter import (  # dataset; genai
+    AgentEvalConfig,
+    AgentEvalProfile,
     AggregationType,
     AssertionTask,
     CommonCrons,
@@ -38,8 +40,6 @@ from ._scouter import (  # dataset; genai
     FeatureMap,
     Features,
     FreedmanDiaconis,
-    GenAIEvalConfig,
-    GenAIEvalProfile,
     GrpcConfig,
     HttpConfig,
     KafkaConfig,
@@ -98,7 +98,7 @@ __all__ = [
     "client",
     "drift",
     "evaluate",
-    "genai",
+    "agent",
     "logging",
     "mock",
     "observe",
@@ -156,8 +156,8 @@ __all__ = [
     "RabbitMQConfig",
     "RedisConfig",
     # genai
-    "GenAIEvalConfig",
-    "GenAIEvalProfile",
+    "AgentEvalConfig",
+    "AgentEvalProfile",
     "EvalRecord",
     "LLMJudgeTask",
     "AssertionTask",

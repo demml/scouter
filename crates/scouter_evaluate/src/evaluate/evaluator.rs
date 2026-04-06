@@ -6,9 +6,9 @@ use crate::tasks::agent::execute_agent_assertions;
 use crate::tasks::trace::execute_trace_assertions;
 use crate::tasks::traits::EvaluationTask;
 use chrono::{DateTime, Utc};
-use scouter_types::genai::traits::ProfileExt;
-use scouter_types::genai::{
-    AgentAssertionTask, AssertionResult, EvalSet, ExecutionPlan, GenAIEvalProfile,
+use scouter_types::agent::traits::ProfileExt;
+use scouter_types::agent::{
+    AgentAssertionTask, AgentEvalProfile, AssertionResult, EvalSet, ExecutionPlan,
     TraceAssertionTask,
 };
 use scouter_types::sql::TraceSpan;
@@ -259,7 +259,7 @@ impl DependencyChecker {
 
 struct TaskExecutor {
     context: ExecutionContext,
-    profile: Arc<GenAIEvalProfile>,
+    profile: Arc<AgentEvalProfile>,
     trace_context_builder: TraceContextBuilder,
     request_context_builder: Option<AgentContextBuilder>,
 }
@@ -267,7 +267,7 @@ struct TaskExecutor {
 impl TaskExecutor {
     fn new(
         context: ExecutionContext,
-        profile: Arc<GenAIEvalProfile>,
+        profile: Arc<AgentEvalProfile>,
         spans: Arc<Vec<TraceSpan>>,
     ) -> Self {
         debug!("Creating TaskExecutor");
@@ -436,7 +436,7 @@ impl TaskExecutor {
                         )
                     })
                     .collect();
-                scouter_types::genai::AssertionResults { results }
+                scouter_types::agent::AssertionResults { results }
             }
         };
 
@@ -485,7 +485,7 @@ impl TaskExecutor {
     async fn execute_assertion_task(
         task_id: &str,
         context: &ExecutionContext,
-        profile: &GenAIEvalProfile,
+        profile: &AgentEvalProfile,
     ) -> Result<(), EvaluationError> {
         let start_time = Utc::now();
 
@@ -507,7 +507,7 @@ impl TaskExecutor {
     async fn execute_llm_judge_task(
         task_id: &str,
         context: &ExecutionContext,
-        profile: &GenAIEvalProfile,
+        profile: &AgentEvalProfile,
     ) -> Result<(String, DateTime<Utc>, serde_json::Value), EvaluationError> {
         debug!("Starting LLM judge task: {}", task_id);
         let start_time = Utc::now();
@@ -567,7 +567,7 @@ impl ResultCollector {
     async fn build_eval_set(
         &self,
         record: &EvalRecord,
-        profile: &GenAIEvalProfile,
+        profile: &AgentEvalProfile,
         duration_ms: i64,
         execution_plan: ExecutionPlan,
     ) -> EvalSet {
@@ -751,7 +751,7 @@ impl GenAIEvaluator {
     #[instrument(skip_all, fields(record_uid = %record.uid))]
     pub async fn process_event_record(
         record: &EvalRecord,
-        profile: Arc<GenAIEvalProfile>,
+        profile: Arc<AgentEvalProfile>,
         spans: Arc<Vec<TraceSpan>>,
     ) -> Result<EvalSet, EvaluationError> {
         let begin = chrono::Utc::now();
@@ -793,7 +793,7 @@ impl GenAIEvaluator {
         Ok(eval_set)
     }
 
-    fn register_tasks(registry: &mut TaskRegistry, profile: &GenAIEvalProfile) {
+    fn register_tasks(registry: &mut TaskRegistry, profile: &AgentEvalProfile) {
         for task in &profile.tasks.assertion {
             registry.register(task.id.clone(), TaskType::Assertion, task.condition);
             if !task.depends_on.is_empty() {
@@ -833,21 +833,21 @@ mod tests {
         create_multi_service_trace, create_nested_trace, create_sequence_pattern_trace,
         create_simple_trace, create_trace_with_attributes, create_trace_with_errors, init_tracing,
     };
-    use scouter_types::genai::{
-        AggregationType, SpanFilter, SpanStatus, TraceAssertion, TraceAssertionTask,
-    };
-    use scouter_types::genai::{
-        AssertionTask, ComparisonOperator, GenAIAlertConfig, GenAIEvalConfig, GenAIEvalProfile,
+    use scouter_types::agent::{
+        AgentAlertConfig, AgentEvalConfig, AgentEvalProfile, AssertionTask, ComparisonOperator,
         LLMJudgeTask,
     };
-    use scouter_types::genai::{EvaluationTaskType, EvaluationTasks};
+    use scouter_types::agent::{
+        AggregationType, SpanFilter, SpanStatus, TraceAssertion, TraceAssertionTask,
+    };
+    use scouter_types::agent::{EvaluationTaskType, EvaluationTasks};
     use scouter_types::EvalRecord;
     use serde_json::Value;
     use std::sync::Arc;
 
     use crate::evaluate::GenAIEvaluator;
 
-    async fn create_assert_judge_profile() -> GenAIEvalProfile {
+    async fn create_assert_judge_profile() -> AgentEvalProfile {
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
 
         let assertion_level_1 = AssertionTask {
@@ -908,15 +908,15 @@ mod tests {
             .add_task(assert_query_reason)
             .build();
 
-        let alert_config = GenAIAlertConfig::default();
+        let alert_config = AgentAlertConfig::default();
 
         let drift_config =
-            GenAIEvalConfig::new("scouter", "ML", "0.1.0", 1.0, alert_config, None).unwrap();
+            AgentEvalConfig::new("scouter", "ML", "0.1.0", 1.0, alert_config, None).unwrap();
 
-        GenAIEvalProfile::new(drift_config, tasks).await.unwrap()
+        AgentEvalProfile::new(drift_config, tasks).await.unwrap()
     }
 
-    async fn create_assert_profile() -> GenAIEvalProfile {
+    async fn create_assert_profile() -> AgentEvalProfile {
         let assert1 = AssertionTask {
             id: "input_foo_check".to_string(),
             context_path: Some("input.foo".to_string()),
@@ -961,15 +961,15 @@ mod tests {
             .add_task(assert3)
             .build();
 
-        let alert_config = GenAIAlertConfig::default();
+        let alert_config = AgentAlertConfig::default();
 
         let drift_config =
-            GenAIEvalConfig::new("scouter", "ML", "0.1.0", 1.0, alert_config, None).unwrap();
+            AgentEvalConfig::new("scouter", "ML", "0.1.0", 1.0, alert_config, None).unwrap();
 
-        GenAIEvalProfile::new(drift_config, tasks).await.unwrap()
+        AgentEvalProfile::new(drift_config, tasks).await.unwrap()
     }
 
-    async fn create_trace_profile_simple() -> GenAIEvalProfile {
+    async fn create_trace_profile_simple() -> AgentEvalProfile {
         let trace_task = TraceAssertionTask {
             id: "check_span_sequence".to_string(),
             assertion: TraceAssertion::SpanSequence {
@@ -990,15 +990,15 @@ mod tests {
 
         let tasks = EvaluationTasks::new().add_task(trace_task).build();
 
-        let alert_config = GenAIAlertConfig::default();
+        let alert_config = AgentAlertConfig::default();
         let drift_config =
-            GenAIEvalConfig::new("scouter", "trace_test", "0.1.0", 1.0, alert_config, None)
+            AgentEvalConfig::new("scouter", "trace_test", "0.1.0", 1.0, alert_config, None)
                 .unwrap();
 
-        GenAIEvalProfile::new(drift_config, tasks).await.unwrap()
+        AgentEvalProfile::new(drift_config, tasks).await.unwrap()
     }
 
-    async fn create_trace_profile_with_filters() -> GenAIEvalProfile {
+    async fn create_trace_profile_with_filters() -> AgentEvalProfile {
         let span_count_task = TraceAssertionTask {
             id: "count_error_spans".to_string(),
             assertion: TraceAssertion::SpanCount {
@@ -1036,15 +1036,15 @@ mod tests {
             .add_task(span_exists_task)
             .build();
 
-        let alert_config = GenAIAlertConfig::default();
+        let alert_config = AgentAlertConfig::default();
         let drift_config =
-            GenAIEvalConfig::new("scouter", "trace_test", "0.1.0", 1.0, alert_config, None)
+            AgentEvalConfig::new("scouter", "trace_test", "0.1.0", 1.0, alert_config, None)
                 .unwrap();
 
-        GenAIEvalProfile::new(drift_config, tasks).await.unwrap()
+        AgentEvalProfile::new(drift_config, tasks).await.unwrap()
     }
 
-    async fn create_trace_profile_with_attributes() -> GenAIEvalProfile {
+    async fn create_trace_profile_with_attributes() -> AgentEvalProfile {
         let attribute_task = TraceAssertionTask {
             id: "check_model_name".to_string(),
             assertion: TraceAssertion::SpanAttribute {
@@ -1085,15 +1085,15 @@ mod tests {
             .add_task(aggregation_task)
             .build();
 
-        let alert_config = GenAIAlertConfig::default();
+        let alert_config = AgentAlertConfig::default();
         let drift_config =
-            GenAIEvalConfig::new("scouter", "trace_test", "0.1.0", 1.0, alert_config, None)
+            AgentEvalConfig::new("scouter", "trace_test", "0.1.0", 1.0, alert_config, None)
                 .unwrap();
 
-        GenAIEvalProfile::new(drift_config, tasks).await.unwrap()
+        AgentEvalProfile::new(drift_config, tasks).await.unwrap()
     }
 
-    async fn create_trace_profile_complex() -> GenAIEvalProfile {
+    async fn create_trace_profile_complex() -> AgentEvalProfile {
         let sequence_count_task = TraceAssertionTask {
             id: "count_tool_agent_sequence".to_string(),
             assertion: TraceAssertion::SpanCount {
@@ -1140,15 +1140,15 @@ mod tests {
             .add_task(service_count_task)
             .build();
 
-        let alert_config = GenAIAlertConfig::default();
+        let alert_config = AgentAlertConfig::default();
         let drift_config =
-            GenAIEvalConfig::new("scouter", "trace_test", "0.1.0", 1.0, alert_config, None)
+            AgentEvalConfig::new("scouter", "trace_test", "0.1.0", 1.0, alert_config, None)
                 .unwrap();
 
-        GenAIEvalProfile::new(drift_config, tasks).await.unwrap()
+        AgentEvalProfile::new(drift_config, tasks).await.unwrap()
     }
 
-    async fn create_trace_profile_with_dependencies() -> GenAIEvalProfile {
+    async fn create_trace_profile_with_dependencies() -> AgentEvalProfile {
         let error_check = TraceAssertionTask {
             id: "check_has_errors".to_string(),
             assertion: TraceAssertion::TraceErrorCount {},
@@ -1182,12 +1182,12 @@ mod tests {
             .add_task(recovery_check)
             .build();
 
-        let alert_config = GenAIAlertConfig::default();
+        let alert_config = AgentAlertConfig::default();
         let drift_config =
-            GenAIEvalConfig::new("scouter", "trace_test", "0.1.0", 1.0, alert_config, None)
+            AgentEvalConfig::new("scouter", "trace_test", "0.1.0", 1.0, alert_config, None)
                 .unwrap();
 
-        GenAIEvalProfile::new(drift_config, tasks).await.unwrap()
+        AgentEvalProfile::new(drift_config, tasks).await.unwrap()
     }
 
     #[test]
@@ -1418,13 +1418,13 @@ mod tests {
         };
 
         let tasks = EvaluationTasks::new().add_task(task).build();
-        let alert_config = GenAIAlertConfig::default();
+        let alert_config = AgentAlertConfig::default();
         let drift_config =
-            GenAIEvalConfig::new("scouter", "trace_test", "0.1.0", 1.0, alert_config, None)
+            AgentEvalConfig::new("scouter", "trace_test", "0.1.0", 1.0, alert_config, None)
                 .unwrap();
 
         let profile = runtime
-            .block_on(GenAIEvalProfile::new(drift_config, tasks))
+            .block_on(AgentEvalProfile::new(drift_config, tasks))
             .unwrap();
         let spans = Arc::new(create_multi_service_trace());
 
@@ -1472,13 +1472,13 @@ mod tests {
         };
 
         let tasks = EvaluationTasks::new().add_task(task).build();
-        let alert_config = GenAIAlertConfig::default();
+        let alert_config = AgentAlertConfig::default();
         let drift_config =
-            GenAIEvalConfig::new("scouter", "trace_test", "0.1.0", 1.0, alert_config, None)
+            AgentEvalConfig::new("scouter", "trace_test", "0.1.0", 1.0, alert_config, None)
                 .unwrap();
 
         let profile = runtime
-            .block_on(GenAIEvalProfile::new(drift_config, tasks))
+            .block_on(AgentEvalProfile::new(drift_config, tasks))
             .unwrap();
         let spans = Arc::new(create_simple_trace());
 
@@ -1538,13 +1538,13 @@ mod tests {
             .add_task(regular_assertion)
             .build();
 
-        let alert_config = GenAIAlertConfig::default();
+        let alert_config = AgentAlertConfig::default();
         let drift_config =
-            GenAIEvalConfig::new("scouter", "trace_test", "0.1.0", 1.0, alert_config, None)
+            AgentEvalConfig::new("scouter", "trace_test", "0.1.0", 1.0, alert_config, None)
                 .unwrap();
 
         let profile = runtime
-            .block_on(GenAIEvalProfile::new(drift_config, tasks))
+            .block_on(AgentEvalProfile::new(drift_config, tasks))
             .unwrap();
         let spans = Arc::new(create_nested_trace());
 
@@ -1597,13 +1597,13 @@ mod tests {
         };
 
         let tasks = EvaluationTasks::new().add_task(task).build();
-        let alert_config = GenAIAlertConfig::default();
+        let alert_config = AgentAlertConfig::default();
         let drift_config =
-            GenAIEvalConfig::new("scouter", "trace_test", "0.1.0", 1.0, alert_config, None)
+            AgentEvalConfig::new("scouter", "trace_test", "0.1.0", 1.0, alert_config, None)
                 .unwrap();
 
         let profile = runtime
-            .block_on(GenAIEvalProfile::new(drift_config, tasks))
+            .block_on(AgentEvalProfile::new(drift_config, tasks))
             .unwrap();
         let spans = Arc::new(create_nested_trace());
 

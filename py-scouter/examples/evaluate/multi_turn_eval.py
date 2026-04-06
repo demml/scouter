@@ -14,7 +14,7 @@ Key concepts demonstrated:
 Replace GrpcConfig() and ChefAgent with your real setup.
 """
 
-from scouter.drift import GenAIEvalProfile
+from scouter.drift import AgentEvalProfile
 from scouter.evaluate import (
     AssertionTask,
     ComparisonOperator,
@@ -31,7 +31,7 @@ from scouter.transport import GrpcConfig
 # ---------------------------------------------------------------------------
 # 1. Profile — assertions run against every EvalRecord your agent emits.
 # ---------------------------------------------------------------------------
-profile = GenAIEvalProfile(
+profile = AgentEvalProfile(
     alias="chef_agent",
     tasks=[
         AssertionTask(
@@ -145,11 +145,15 @@ scenarios = EvalScenarios(
 # ---------------------------------------------------------------------------
 _RESPONSES: dict[str, str] = {
     # pasta scenario
-    "Give me a quick pasta recipe.": "Here's a classic pasta: boil spaghetti, toss with olive oil, garlic, and parmesan. Done in 20 minutes.",
+    "Give me a quick pasta recipe.": (
+        "Here's a classic pasta: boil spaghetti, toss with olive oil, garlic, and parmesan. Done in 20 minutes."
+    ),
     "Make it vegetarian.": "It's already vegetarian! Swap parmesan for nutritional yeast if you want it vegan too.",
     "Cut it down to under 30 minutes.": "This pasta takes about 15 minutes total — well under 30.",
     # soup scenario
-    "Suggest a hearty soup for a cold day.": "Try a lentil soup: onion, carrot, celery, lentils, vegetable broth. Simmer 30 minutes.",
+    "Suggest a hearty soup for a cold day.": (
+        "Try a lentil soup: onion, carrot, celery, lentils, vegetable broth. Simmer 30 minutes."
+    ),
     "Make it vegan.": "Good news — it's already vegan. No dairy or meat involved.",
     "What can I prep ahead of time?": "Chop the vegetables and portion the lentils the night before. The soup reheats perfectly.",
     # dessert scenario
@@ -221,7 +225,7 @@ def main() -> None:
     print(f"\nOverall pass rate : {results.metrics.overall_pass_rate:.0%}")
     print(f"Scenario pass rate: {results.metrics.scenario_pass_rate:.0%}")
     print()
-    results.as_table(show_datasets=True)
+    results.as_table(show_workflow=True)
 
 
 if __name__ == "__main__":

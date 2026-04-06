@@ -24,7 +24,7 @@ from typing import List, Literal
 
 from pydantic import BaseModel
 from scouter.evaluate import AssertionTask, ComparisonOperator, EvalDataset, LLMJudgeTask
-from scouter.genai import Agent, Prompt, Provider
+from scouter.agent import Agent, Prompt, Provider
 from scouter.queue import EvalRecord
 
 categories = ["bath", "kitchen", "outdoor"]

@@ -1,9 +1,9 @@
 #![allow(clippy::useless_conversion)]
 use crate::error::{EventError, PyEventError};
+use crate::queue::agent::GenAIQueue;
 use crate::queue::bus::Task;
 use crate::queue::bus::{Event, QueueBus, TaskState};
 use crate::queue::custom::CustomQueue;
-use crate::queue::genai::GenAIQueue;
 use crate::queue::psi::PsiQueue;
 use crate::queue::spc::SpcQueue;
 use crate::queue::traits::queue::wait_for_background_task;
@@ -13,7 +13,7 @@ use crate::queue::types::{QueueSettings, TransportConfig};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyListMethods};
 use scouter_state::app_state;
-use scouter_types::genai::GenAIEvalProfile;
+use scouter_types::agent::AgentEvalProfile;
 use scouter_types::{DriftProfile, EvalRecord, QueueItem};
 use scouter_types::{Features, Metrics};
 use std::collections::HashMap;
@@ -47,7 +47,7 @@ fn create_event_state(id: String) -> (TaskState<Event>, UnboundedReceiver<Event>
 struct QueueRegistry {
     queue_state: HashMap<String, TaskState<Event>>,
     queue_settings: HashMap<String, Arc<RwLock<QueueSettings>>>,
-    genai_profiles: HashMap<String, Arc<GenAIEvalProfile>>,
+    genai_profiles: HashMap<String, Arc<AgentEvalProfile>>,
 }
 
 impl QueueRegistry {
@@ -296,7 +296,7 @@ pub struct ScouterQueue {
     settings: HashMap<String, Arc<RwLock<QueueSettings>>>,
     pub queue_state: Arc<HashMap<String, TaskState<Event>>>,
     // Profiles stored as Arc so EvalScenarios can share ownership without cloning
-    profiles: HashMap<String, Arc<GenAIEvalProfile>>,
+    profiles: HashMap<String, Arc<AgentEvalProfile>>,
 }
 
 #[pymethods]
@@ -472,7 +472,7 @@ impl ScouterQueue {
     ///
     /// This is the Python-facing counterpart of `get_profiles()`. Returns cloned
     /// profiles so Python owns its copies independently of the queue's internal Arc.
-    pub fn genai_profiles(&self) -> HashMap<String, GenAIEvalProfile> {
+    pub fn genai_profiles(&self) -> HashMap<String, AgentEvalProfile> {
         self.profiles
             .iter()
             .map(|(alias, arc)| (alias.clone(), arc.as_ref().clone()))
@@ -666,7 +666,7 @@ impl ScouterQueue {
     /// Returns Arc references to all registered GenAI evaluation profiles,
     /// keyed by alias. Used by EvalScenarios to share profile ownership
     /// without cloning the profile data.
-    pub fn get_profiles(&self) -> &HashMap<String, Arc<GenAIEvalProfile>> {
+    pub fn get_profiles(&self) -> &HashMap<String, Arc<AgentEvalProfile>> {
         &self.profiles
     }
 }
