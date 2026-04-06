@@ -38,7 +38,7 @@ use scouter_types::{
         AgentAlertConfig, AgentEvalConfig, AgentEvalProfile, ComparisonOperator, EvaluationTasks,
         LLMJudgeTask,
     },
-    AlertMap, CustomMetricRecord, EvalTaskResult, AgentEvalWorkflowResult, MessageRecord,
+    AgentEvalWorkflowResult, AlertMap, CustomMetricRecord, EvalTaskResult, MessageRecord,
     PsiRecord,
 };
 use scouter_types::{BoxedEvalRecord, EvalRecord, ServerRecord, ServerRecords, SpcRecord, Status};

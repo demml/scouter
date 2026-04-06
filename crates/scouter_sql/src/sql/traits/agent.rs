@@ -8,11 +8,11 @@ use scouter_dataframe::parquet::BinnedMetricsExtractor;
 use scouter_dataframe::parquet::ParquetDataFrame;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::contracts::DriftRequest;
+use scouter_types::AgentEvalWorkflowPaginationResponse;
+use scouter_types::AgentEvalWorkflowResult;
 use scouter_types::BoxedEvalRecord;
 use scouter_types::EvalRecord;
 use scouter_types::EvalTaskResult;
-use scouter_types::AgentEvalWorkflowPaginationResponse;
-use scouter_types::AgentEvalWorkflowResult;
 use scouter_types::Status;
 use scouter_types::{
     BinnedMetrics, EvalRecordPaginationRequest, EvalRecordPaginationResponse, RecordCursor,
@@ -511,7 +511,10 @@ pub trait AgentDriftSqlLogic {
         storage_settings: &ObjectStorageSettings,
         entity_id: &i32,
     ) -> Result<BinnedMetrics, SqlError> {
-        debug!("Getting archived agent task metrics for params: {:?}", params);
+        debug!(
+            "Getting archived agent task metrics for params: {:?}",
+            params
+        );
         let path = format!("{}/{}", params.uid, RecordType::AgentTask);
         let bin = minutes as f64 / params.max_data_points as f64;
         let archived_df = ParquetDataFrame::new(storage_settings, &RecordType::AgentTask)?
@@ -601,7 +604,10 @@ pub trait AgentDriftSqlLogic {
         storage_settings: &ObjectStorageSettings,
         entity_id: &i32,
     ) -> Result<BinnedMetrics, SqlError> {
-        debug!("Getting binned agent workflow drift records for {:?}", params);
+        debug!(
+            "Getting binned agent workflow drift records for {:?}",
+            params
+        );
 
         if !params.has_custom_interval() {
             let (start_dt, end_dt) = params.time_interval.to_begin_end_times()?;

@@ -1,7 +1,7 @@
 use crate::api::middleware::track_metrics;
 use crate::api::routes::auth::auth_api_middleware;
 use crate::api::routes::{
-    get_alert_router, get_auth_router, get_dataset_router, get_drift_router, get_agent_router,
+    get_agent_router, get_alert_router, get_auth_router, get_dataset_router, get_drift_router,
     get_health_router, get_message_router, get_observability_router, get_profile_router,
     get_tag_router, get_trace_router, get_user_router,
 };

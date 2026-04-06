@@ -41,8 +41,7 @@ const UPDATE_CUSTOM_ENTITIES: &str = include_str!("scripts/custom/update_data_to
 
 // agent
 // agent insert
-const INSERT_AGENT_TASK_RESULTS_BATCH: &str =
-    include_str!("scripts/agent/insert_task_results.sql");
+const INSERT_AGENT_TASK_RESULTS_BATCH: &str = include_str!("scripts/agent/insert_task_results.sql");
 const INSERT_AGENT_WORKFLOW_RESULT: &str = include_str!("scripts/agent/insert_workflow_result.sql");
 const INSERT_AGENT_EVAL_RECORD: &str = include_str!("scripts/agent/insert_eval_record.sql");
 
@@ -112,8 +111,7 @@ const UPDATE_ALERT_STATUS: &str = include_str!("scripts/alert/update_alert_statu
 
 // poll
 const GET_DRIFT_TASK: &str = include_str!("scripts/poll/poll_for_drift_task.sql");
-const GET_PENDING_AGENT_EVAL_TASK: &str =
-    include_str!("scripts/poll/poll_for_agent_eval_task.sql");
+const GET_PENDING_AGENT_EVAL_TASK: &str = include_str!("scripts/poll/poll_for_agent_eval_task.sql");
 
 // auth
 const INSERT_USER: &str = include_str!("scripts/user/insert_user.sql");

@@ -10,8 +10,8 @@ use scouter_auth::permission::UserPermissions;
 use scouter_sql::sql::traits::AgentDriftSqlLogic;
 use scouter_sql::PostgresClient;
 use scouter_types::{
-    EvalRecordPaginationRequest, EvalRecordPaginationResponse, AgentEvalTaskRequest,
-    AgentEvalWorkflowPaginationResponse,
+    AgentEvalTaskRequest, AgentEvalWorkflowPaginationResponse, EvalRecordPaginationRequest,
+    EvalRecordPaginationResponse,
 };
 use scouter_types::{AgentEvalTaskResponse, ScouterServerError};
 use std::panic::{catch_unwind, AssertUnwindSafe};

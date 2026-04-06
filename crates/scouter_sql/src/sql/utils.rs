@@ -1,7 +1,7 @@
 use crate::sql::error::SqlError;
 use chrono::{DateTime, Utc};
 use scouter_types::{
-    CustomMetricRecord, EvalRecord, EvalTaskResult, AgentEvalWorkflowResult, IntoServerRecord,
+    AgentEvalWorkflowResult, CustomMetricRecord, EvalRecord, EvalTaskResult, IntoServerRecord,
     PsiRecord, RecordType, ServerRecords, SpcRecord,
 };
 use sqlx::postgres::PgRow;

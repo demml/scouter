@@ -182,10 +182,10 @@ mod tests {
     use rand::Rng;
     use scouter_settings::ObjectStorageSettings;
     use scouter_types::Assertion;
+    use scouter_types::{AgentEvalWorkflowResult, CustomMetricRecord, EvalTaskResult};
     use scouter_types::{
         BoxedEvalRecord, EvalRecord, PsiRecord, ServerRecord, ServerRecords, SpcRecord, Status,
     };
-    use scouter_types::{CustomMetricRecord, EvalTaskResult, AgentEvalWorkflowResult};
     use serde_json::Map;
     use serde_json::Value;
 

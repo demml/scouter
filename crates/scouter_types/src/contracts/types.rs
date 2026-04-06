@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::error::{ContractError, TypeError};
 use crate::sql::{TraceListItem, TraceMetricBucket, TraceSpan};
-use crate::{Alert, EvalTaskResult, AgentEvalWorkflowResult};
+use crate::{AgentEvalWorkflowResult, Alert, EvalTaskResult};
 use crate::{CustomInterval, DriftProfile, EvalRecord, Status, Tag, TagRecord, TraceBaggageRecord};
 use crate::{DriftType, PyHelperFuncs, TimeInterval};
 use chrono::{DateTime, Utc};
