@@ -101,7 +101,7 @@ pub struct QueueBus {
 (5) **Error Handling**: Errors are logged and not returned to the user. This is to ensure that the spawned tasks do not block the main thread and can continue to process events. As a user, it's important to monitor these logs.
 
 
-(6) **Queue Insert**: After the `ScouterQueue` is created, the user can insert events into the queue by accessing the queue directly through its alias and calling the `insert` method. The insert method expects either a `Features` object, a `Metrics` object (for custom metrics) or an `EvalRecord` object (for genai as a judge workflows). Note - Scouter also provides a `FeatureMixin` class that can be used to convert a python object into a `Features` object. This is useful for converting a Pydantic BaseModel into a `Features` object. The `FeatureMixin` class is not required, but it is recommended for ease of use.
+(6) **Queue Insert**: After the `ScouterQueue` is created, the user can insert events into the queue by accessing the queue directly through its alias and calling the `insert` method. The insert method expects either a `Features` object, a `Metrics` object (for custom metrics) or an `EvalRecord` object (for agent evaluation workflows). Note - Scouter also provides a `FeatureMixin` class that can be used to convert a python object into a `Features` object. This is useful for converting a Pydantic BaseModel into a `Features` object. The `FeatureMixin` class is not required, but it is recommended for ease of use.
 
 ```rust
 #[pyclass]

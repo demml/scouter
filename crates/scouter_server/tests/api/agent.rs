@@ -7,8 +7,8 @@ use axum::{
 };
 use http_body_util::BodyExt;
 use potato_head::mock::LLMTestServer;
-use scouter_types::{EvalRecordPaginationRequest, AgentEvalTaskResponse, RecordType, ServiceInfo};
-use scouter_types::{EvalRecordPaginationResponse, AgentEvalWorkflowPaginationResponse};
+use scouter_types::{AgentEvalTaskResponse, EvalRecordPaginationRequest, RecordType, ServiceInfo};
+use scouter_types::{AgentEvalWorkflowPaginationResponse, EvalRecordPaginationResponse};
 use tokio::time::sleep;
 
 #[test]
@@ -47,7 +47,7 @@ fn test_agent_server_records() {
 
     let body = serde_json::to_string(&request).unwrap();
 
-    // get paginated GenAI eval records
+    // get paginated agent eval records
     let request = Request::builder()
         .uri("/scouter/agent/page/record")
         .method("POST")

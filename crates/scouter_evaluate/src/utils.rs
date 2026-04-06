@@ -70,7 +70,7 @@ pub async fn spawn_evaluation_tasks_without_embeddings(
 /// * `embedder` - The Embedder instance to use for generating embeddings.
 /// * `config` - The EvaluationConfig containing evaluation settings.
 /// # Returns
-/// A JoinSet containing GenAIEvalTaskResults for each record.
+/// A JoinSet containing EvalTaskResults for each record.
 pub async fn spawn_evaluation_tasks_with_embeddings(
     dataset: &EvalDataset,
     embedder: Arc<Embedder>,
@@ -110,7 +110,7 @@ pub async fn spawn_evaluation_tasks_with_embeddings(
     join_set
 }
 
-/// Helper for extracting embeddings for a single record. Used in the genai evaulation workflow.
+/// Helper for extracting embeddings for a single record. Used in the agent evaulation workflow.
 /// # Arguments
 /// * `record` - The EvalRecord to extract embeddings from.
 /// * `embedder` - The Embedder instance to use for generating embeddings.

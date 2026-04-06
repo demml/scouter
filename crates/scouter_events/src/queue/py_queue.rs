@@ -468,7 +468,7 @@ impl ScouterQueue {
         Ok(result)
     }
 
-    /// Return a copy of all registered GenAI evaluation profiles, keyed by alias.
+    /// Return a copy of all registered agent evaluation profiles, keyed by alias.
     ///
     /// This is the Python-facing counterpart of `get_profiles()`. Returns cloned
     /// profiles so Python owns its copies independently of the queue's internal Arc.
@@ -663,7 +663,7 @@ impl ScouterQueue {
         })
     }
 
-    /// Returns Arc references to all registered GenAI evaluation profiles,
+    /// Returns Arc references to all registered agent evaluation profiles,
     /// keyed by alias. Used by EvalScenarios to share profile ownership
     /// without cloning the profile data.
     pub fn get_profiles(&self) -> &HashMap<String, Arc<AgentEvalProfile>> {

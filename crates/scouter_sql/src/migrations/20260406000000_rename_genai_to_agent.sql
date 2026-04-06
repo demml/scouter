@@ -1,4 +1,4 @@
--- Rename GenAI eval tables to agent eval tables
+-- Rename agent eval tables to agent eval tables
 ALTER TABLE scouter.genai_eval_record RENAME TO agent_eval_record;
 ALTER TABLE scouter.genai_eval_workflow RENAME TO agent_eval_workflow;
 ALTER TABLE scouter.genai_eval_task RENAME TO agent_eval_task;

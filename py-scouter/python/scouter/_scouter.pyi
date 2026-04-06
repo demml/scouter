@@ -51,7 +51,6 @@ class BaseModel(Protocol):
     def __str__(self) -> str:
         """String representation of the model"""
 
-
 ### logging.pyi ###
 class LogLevel:
     Debug: "LogLevel"
@@ -205,7 +204,6 @@ class RustyLogger:
             *args:
                 Additional arguments to log.
         """
-
 
 ### potato.pyi ###
 class Provider:
@@ -429,7 +427,9 @@ class Prompt(Generic[OutputType]):
         model: str,
         provider: Provider | str,
         system_instructions: Optional[PromptMessage] = None,
-        model_settings: Optional[ModelSettings | OpenAIChatSettings | GeminiSettings | AnthropicSettings] = None,
+        model_settings: Optional[
+            ModelSettings | OpenAIChatSettings | GeminiSettings | AnthropicSettings
+        ] = None,
         output_type: Optional[Type[OutputType]] = None,
     ) -> None:
         """Initialize a Prompt object.
@@ -2760,7 +2760,9 @@ class ChatMessage:
     @property
     def content(
         self,
-    ) -> List[Union[TextContentPart, ImageContentPart, InputAudioContentPart, FileContentPart]]:
+    ) -> List[
+        Union[TextContentPart, ImageContentPart, InputAudioContentPart, FileContentPart]
+    ]:
         """The message content parts."""
 
     @property
@@ -7896,7 +7898,9 @@ class AdkLlmResponse:
         """Interaction identifier."""
 
     @property
-    def live_session_resumption_update(self) -> Optional[AdkLiveSessionResumptionUpdate]:
+    def live_session_resumption_update(
+        self,
+    ) -> Optional[AdkLiveSessionResumptionUpdate]:
         """Live session resumption update."""
 
     @property
@@ -10007,7 +10011,6 @@ class LLMTestServer:
         Stop the mock server.
         """
 
-
 ### tracing.pyi ###
 class TagRecord:
     """Represents a single tag record associated with an entity."""
@@ -10227,9 +10230,16 @@ def init_tracer(
     service_name: str = "scouter_service",
     scope: str = "scouter.tracer.{version}",
     transport_config: Optional[
-        HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig | GrpcConfig | MockConfig
+        HttpConfig
+        | KafkaConfig
+        | RabbitMQConfig
+        | RedisConfig
+        | GrpcConfig
+        | MockConfig
     ] = None,
-    exporter: Optional[HttpSpanExporter | GrpcSpanExporter | StdoutSpanExporter | TestSpanExporter] = None,
+    exporter: Optional[
+        HttpSpanExporter | GrpcSpanExporter | StdoutSpanExporter | TestSpanExporter
+    ] = None,
     batch_config: Optional[BatchConfig] = None,
     sample_ratio: Optional[float] = None,
     scouter_queue: Optional[ScouterQueue] = None,
@@ -10789,7 +10799,9 @@ class BaseTracer:
     def drain_local_spans(self) -> List[TraceSpanRecord]:
         """Drain and return all locally captured spans, clearing the buffer."""
 
-    def get_local_spans_by_trace_ids(self, trace_ids: List[str]) -> List[TraceSpanRecord]:
+    def get_local_spans_by_trace_ids(
+        self, trace_ids: List[str]
+    ) -> List[TraceSpanRecord]:
         """Return spans matching the given trace_ids without draining the buffer."""
 
 def get_current_active_span(self) -> ActiveSpan:
@@ -11054,7 +11066,6 @@ def extract_span_context_from_headers(
 
     Returns a dict with 'trace_id', 'span_id', 'is_sampled' keys, or None if no valid context found.
     """
-
 
 ### evaluate.pyi ###
 class EvaluationTaskType:
@@ -11920,7 +11931,9 @@ class SpanFilter:
         """
 
     @staticmethod
-    def with_duration(min_ms: Optional[float] = None, max_ms: Optional[float] = None) -> "SpanFilter":
+    def with_duration(
+        min_ms: Optional[float] = None, max_ms: Optional[float] = None
+    ) -> "SpanFilter":
         """Filter spans by duration constraints.
 
         Args:
@@ -12200,7 +12213,9 @@ class TraceAssertion:
         """
 
     @staticmethod
-    def span_aggregation(filter: SpanFilter, attribute_key: str, aggregation: AggregationType) -> "TraceAssertion":
+    def span_aggregation(
+        filter: SpanFilter, attribute_key: str, aggregation: AggregationType
+    ) -> "TraceAssertion":
         """Aggregate numeric attribute across filtered spans.
 
         Args:
@@ -12275,7 +12290,9 @@ class TraceAssertion:
         """
 
     @staticmethod
-    def attribute_filter(key: str, task: "AttributeFilterTask", mode: "MultiResponseMode") -> "TraceAssertion":
+    def attribute_filter(
+        key: str, task: "AttributeFilterTask", mode: "MultiResponseMode"
+    ) -> "TraceAssertion":
         """Filter spans by attribute and apply assertion to collected spans.
 
         Args:
@@ -13102,7 +13119,9 @@ class AssertionResults:
     def __str__(self): ...
     def __getitem__(self, key: str) -> AssertionResult: ...
 
-def execute_agent_assertion_tasks(tasks: List[AgentAssertionTask], context: Any) -> AssertionResults:
+def execute_agent_assertion_tasks(
+    tasks: List[AgentAssertionTask], context: Any
+) -> AssertionResults:
     """Execute agent assertion tasks against a provided request context.
 
     Args:
@@ -13119,7 +13138,9 @@ def execute_agent_assertion_tasks(tasks: List[AgentAssertionTask], context: Any)
         ValueError: If tasks list is empty or context cannot be deserialized.
     """
 
-def execute_trace_assertion_tasks(tasks: List[TraceAssertionTask], spans: List[TraceSpan]) -> AssertionResults:
+def execute_trace_assertion_tasks(
+    tasks: List[TraceAssertionTask], spans: List[TraceSpan]
+) -> AssertionResults:
     """Execute trace assertion tasks against provided spans.
 
     Args:
@@ -13747,7 +13768,12 @@ class TasksFile:
 
     def __getitem__(
         self, index: int | slice
-    ) -> AssertionTask | LLMJudgeTask | TraceAssertionTask | List[AssertionTask | LLMJudgeTask | TraceAssertionTask]:
+    ) -> (
+        AssertionTask
+        | LLMJudgeTask
+        | TraceAssertionTask
+        | List[AssertionTask | LLMJudgeTask | TraceAssertionTask]
+    ):
         """Get task(s) by index or slice."""
 
     def __len__(self) -> int:
@@ -13888,7 +13914,9 @@ class EvalOrchestrator:
     def on_scenario_complete(self, scenario: EvalScenario, response: str) -> None:
         """Hook called after a scenario is executed."""
 
-    def on_evaluation_complete(self, results: ScenarioEvalResults) -> ScenarioEvalResults:
+    def on_evaluation_complete(
+        self, results: ScenarioEvalResults
+    ) -> ScenarioEvalResults:
         """Hook called after evaluation completes. Override to post-process results."""
 
     def run(self, config: Optional[EvaluationConfig] = None) -> ScenarioEvalResults:
@@ -13900,7 +13928,6 @@ class EvalOrchestrator:
         Returns:
             ScenarioEvalResults with metrics across all scenarios.
         """
-
 
 ### mock.pyi ###
 class BifrostTestServer:
@@ -14012,7 +14039,6 @@ def create_trace_with_errors() -> List["TraceSpan"]:
         List[TraceSpan]: A list of TraceSpan objects representing the trace.
     """
 
-
 ### scouter.pyi ###
 #################
 # _scouter.types
@@ -14111,7 +14137,9 @@ class AlertDispatchType:
     def to_string() -> str:
         """Return the string representation of the alert dispatch type"""
 
-DispatchConfigType = ConsoleDispatchConfig | SlackDispatchConfig | OpsGenieDispatchConfig
+DispatchConfigType = (
+    ConsoleDispatchConfig | SlackDispatchConfig | OpsGenieDispatchConfig
+)
 
 class AlertZone:
     Zone1: "AlertZone"
@@ -14880,7 +14908,9 @@ class DriftRequest:
         """
 
 class ProfileStatusRequest:
-    def __init__(self, name: str, space: str, version: str, drift_type: DriftType, active: bool) -> None:
+    def __init__(
+        self, name: str, space: str, version: str, drift_type: DriftType, active: bool
+    ) -> None:
         """Initialize profile status request
 
         Args:
@@ -14897,7 +14927,9 @@ class ProfileStatusRequest:
         """
 
 class GetProfileRequest:
-    def __init__(self, name: str, space: str, version: str, drift_type: DriftType) -> None:
+    def __init__(
+        self, name: str, space: str, version: str, drift_type: DriftType
+    ) -> None:
         """Initialize get profile request
 
         Args:
@@ -14998,7 +15030,9 @@ class ScouterClient:
                 DriftRequest object
         """
 
-    def register_profile(self, profile: Any, set_active: bool = False, deactivate_others: bool = False) -> bool:
+    def register_profile(
+        self, profile: Any, set_active: bool = False, deactivate_others: bool = False
+    ) -> bool:
         """Registers a drift profile with the server
 
         Args:
@@ -15024,7 +15058,9 @@ class ScouterClient:
             boolean
         """
 
-    def get_alerts(self, request: DriftAlertPaginationRequest) -> DriftAlertPaginationResponse:
+    def get_alerts(
+        self, request: DriftAlertPaginationRequest
+    ) -> DriftAlertPaginationResponse:
         """Get alerts
 
         Args:
@@ -15737,7 +15773,14 @@ class ScouterQueue:
 
     @staticmethod
     def from_profile(
-        profile: Union[dict, list, SpcDriftProfile, PsiDriftProfile, CustomDriftProfile, AgentEvalProfile],
+        profile: Union[
+            dict,
+            list,
+            SpcDriftProfile,
+            PsiDriftProfile,
+            CustomDriftProfile,
+            AgentEvalProfile,
+        ],
         transport_config: Union[
             KafkaConfig,
             RabbitMQConfig,
@@ -16425,7 +16468,16 @@ class FreedmanDiaconis:
         For more information, please see: https://en.wikipedia.org/wiki/Histogram
         """
 
-EqualWidthMethods = Manual | SquareRoot | Sturges | Rice | Doane | Scott | TerrellScott | FreedmanDiaconis
+EqualWidthMethods = (
+    Manual
+    | SquareRoot
+    | Sturges
+    | Rice
+    | Doane
+    | Scott
+    | TerrellScott
+    | FreedmanDiaconis
+)
 
 class EqualWidthBinning:
     def __init__(self, method: EqualWidthMethods = Doane()):
@@ -16499,7 +16551,9 @@ class PsiDriftConfig:
         alert_config: PsiAlertConfig = PsiAlertConfig(),
         config_path: Optional[Path] = None,
         categorical_features: Optional[list[str]] = None,
-        binning_strategy: QuantileBinning | EqualWidthBinning = QuantileBinning(num_bins=10),
+        binning_strategy: QuantileBinning | EqualWidthBinning = QuantileBinning(
+            num_bins=10
+        ),
     ):
         """Initialize monitor config
 
@@ -16577,7 +16631,9 @@ class PsiDriftConfig:
         """binning_strategy"""
 
     @binning_strategy.setter
-    def binning_strategy(self, binning_strategy: QuantileBinning | EqualWidthBinning) -> None:
+    def binning_strategy(
+        self, binning_strategy: QuantileBinning | EqualWidthBinning
+    ) -> None:
         """Set binning_strategy"""
 
     @property
@@ -17921,7 +17977,9 @@ class Drifter:
     def create_drift_profile(  # type: ignore
         self,
         data: Any,
-        config: Optional[Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]] = None,
+        config: Optional[
+            Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]
+        ] = None,
         data_type: Optional[ScouterDataType] = None,
     ) -> Union[SpcDriftProfile, PsiDriftProfile, CustomDriftProfile]:
         """Create a drift profile from data.
@@ -17946,7 +18004,9 @@ class Drifter:
     def create_agent_drift_profile(
         self,
         config: AgentEvalConfig,
-        tasks: Sequence[LLMJudgeTask | AssertionTask | TraceAssertionTask | AgentAssertionTask],
+        tasks: Sequence[
+            LLMJudgeTask | AssertionTask | TraceAssertionTask | AgentAssertionTask
+        ],
         alias: Optional[str] = None,
     ) -> AgentEvalProfile:
         """Initialize a AgentEvalProfile for LLM evaluation and drift detection.
@@ -17954,7 +18014,7 @@ class Drifter:
         LLM evaluations are run asynchronously on the scouter server.
 
         Overview:
-            GenAI evaluations are defined using assertion tasks and LLM judge tasks.
+            Agent evaluations are defined using assertion tasks and LLM judge tasks.
             Assertion tasks evaluate specific metrics based on model responses, and do not require
             the use of an LLM judge or extra call. It is recommended to use assertion tasks whenever possible
             to reduce cost and latency. LLM judge tasks leverage an additional LLM call to evaluate
@@ -18151,7 +18211,9 @@ class EvalDataset:
     def __init__(
         self,
         records: Sequence[EvalRecord],
-        tasks: Sequence[LLMJudgeTask | AssertionTask | TraceAssertionTask | AgentAssertionTask],
+        tasks: Sequence[
+            LLMJudgeTask | AssertionTask | TraceAssertionTask | AgentAssertionTask
+        ],
     ):
         """Initialize the EvalDataset with records and tasks.
 
@@ -18503,7 +18565,9 @@ class EvalResults:
 
         """
 
-    def compare_to(self, baseline: "EvalResults", regression_threshold: float) -> ComparisonResults:
+    def compare_to(
+        self, baseline: "EvalResults", regression_threshold: float
+    ) -> ComparisonResults:
         """Compare the current evaluation results to a baseline with a regression threshold.
 
         Args:
@@ -18763,7 +18827,6 @@ class DataProfiler:
                     Optional interval for aggregating metrics (e.g., "1m", "5m").
             """
 
-
 ### bifrost.pyi ###
 class TableConfig:
     """Configuration for a dataset table, derived from a Pydantic model.
@@ -18883,7 +18946,9 @@ class DatasetClient:
         table_config: Optional table configuration. Required for ``read()``.
     """
 
-    def __init__(self, transport: Any, table_config: Optional[TableConfig] = None) -> None: ...
+    def __init__(
+        self, transport: Any, table_config: Optional[TableConfig] = None
+    ) -> None: ...
     def read(self, limit: Optional[int] = None) -> List[Any]:
         """Read all rows from the bound table as Pydantic model instances.
 
@@ -19031,7 +19096,9 @@ class Bifrost:
     def list_datasets(self) -> List[Dict[str, Any]]:
         """List all registered datasets on the server."""
 
-    def describe_dataset(self, catalog: str, schema_name: str, table: str) -> Dict[str, Any]:
+    def describe_dataset(
+        self, catalog: str, schema_name: str, table: str
+    ) -> Dict[str, Any]:
         """Get metadata and schema for a specific dataset."""
 
     @property
@@ -19041,7 +19108,6 @@ class Bifrost:
     @property
     def client(self) -> DatasetClient:
         """The underlying ``DatasetClient`` for full read API access."""
-
 
 ### GLOBAL EXPORTS ###
 __all__ = [

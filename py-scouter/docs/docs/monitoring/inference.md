@@ -202,9 +202,9 @@ Metrics(my_metrics.model_dump())
 
 
 #### EvalRecord
-The `EvalRecord` object is used to send GenAI service records to the Scouter server for online evaluation. It contains a context map of keys and relevant values for your GenAI service. For instance, if you are monitoring a question-answering service, you might want to include the following fields in your context:
-- `input`: The input question to the GenAI service
-- `response`: The response from the GenAI service
+The `EvalRecord` object is used to send agent service records to the Scouter server for online evaluation. It contains a context map of keys and relevant values for your agent service. For instance, if you are monitoring a question-answering service, you might want to include the following fields in your context:
+- `input`: The input question to the agent service
+- `response`: The response from the agent service
 
 **Note**
 
@@ -234,7 +234,7 @@ qa_record = QARecord(
 record = EvalRecord(context=qa_record)
 ```
 
-For more information on creating `EvalRecord` objects, please refer to the [GenAI Tasks Documentation](/scouter/docs/monitoring/genai/tasks/).
+For more information on creating `EvalRecord` objects, please refer to the [Agent Tasks Documentation](/scouter/docs/monitoring/genai/tasks/).
 
 ### Ready to go!
 

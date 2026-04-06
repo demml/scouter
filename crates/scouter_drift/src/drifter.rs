@@ -222,7 +222,7 @@ mod tests {
     use chrono::Duration;
     use rusty_logging::logger::{LogLevel, LoggingConfig, RustyLogger};
     use scouter_settings::DatabaseSettings;
-    use scouter_sql::sql::traits::{EntitySqlLogic, AgentDriftSqlLogic, SpcSqlLogic};
+    use scouter_sql::sql::traits::{AgentDriftSqlLogic, EntitySqlLogic, SpcSqlLogic};
     use scouter_sql::PostgresClient;
     use scouter_types::spc::SpcFeatureDriftProfile;
     use scouter_types::{
@@ -693,7 +693,7 @@ mod tests {
         // Wait for schedule to trigger (non-await)
         std::thread::sleep(std::time::Duration::from_secs(1));
 
-        // Create and insert GenAI evaluation records with low pass rate to trigger alert
+        // Create and insert Agent evaluation records with low pass rate to trigger alert
         let mut records = vec![];
         for i in 0..50 {
             // Create context that will cause failures

@@ -1,4 +1,4 @@
-The Scouter server is a Rust-based server designed to run independent of the Python client. It handles the event system (via Kafka, RabbitMQ, Redis, or the default HTTP queue), database CRUD operations, background drift detection, GenAI evaluation, and alerting.
+The Scouter server is a Rust-based server designed to run independent of the Python client. It handles the event system (via Kafka, RabbitMQ, Redis, or the default HTTP queue), database CRUD operations, background drift detection, Agent evaluation, and alerting.
 
 Features:
 
@@ -229,17 +229,17 @@ Background workers that run scheduled drift detection and alerting.
 | `POLLING_WORKER_COUNT` | Number of drift detection/alerting worker threads | `4` |
 | `MAX_RETRIES` | Maximum retries for failed polling tasks | `3` |
 
-### GenAI Polling Variables
+### Agent Polling Variables
 
-Background workers for asynchronous GenAI evaluation.
+Background workers for asynchronous Agent evaluation.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `GENAI_WORKER_COUNT` | Number of GenAI evaluation worker threads | `2` |
-| `GENAI_MAX_RETRIES` | Maximum retries for failed GenAI evaluation tasks | `3` |
+| `GENAI_WORKER_COUNT` | Number of agent evaluation worker threads | `2` |
+| `GENAI_MAX_RETRIES` | Maximum retries for failed agent evaluation tasks | `3` |
 | `GENAI_TRACE_WAIT_TIMEOUT_SECS` | Seconds to wait for a trace to arrive before timing out | `10` |
 | `GENAI_TRACE_BACKOFF_MILLIS` | Backoff delay (ms) between trace polling attempts | `100` |
-| `GENAI_TRACE_RESCHEDULE_DELAY_SECS` | Delay (seconds) before rescheduling a failed GenAI task | `30` |
+| `GENAI_TRACE_RESCHEDULE_DELAY_SECS` | Delay (seconds) before rescheduling a failed agent evaluation task | `30` |
 
 ### HTTP Queue Variables
 

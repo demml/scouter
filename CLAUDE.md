@@ -110,7 +110,7 @@ scouter/
 | `scouter-sql` | PostgreSQL (sqlx), migrations, background workers (drift executor, Agent Poller) |
 | `scouter-drift` | PSI, SPC, custom metric drift algorithms + binning strategies |
 | `scouter-profile` | Data profiling (feature statistics, distributions) |
-| `scouter-evaluate` | GenAI eval: LLM judge tasks, assertion tasks, agent assertion tasks, comparison operators |
+| `scouter-evaluate` | Agent eval: LLM judge tasks, assertion tasks, agent assertion tasks, comparison operators |
 | `scouter-types` | Shared types/contracts across all crates |
 | `scouter-events` | Kafka, RabbitMQ, Redis event bus adapters (feature-gated) |
 | `scouter-tonic` | gRPC proto definitions |
@@ -165,11 +165,11 @@ Each profile type has a config + per-feature profile:
 
 - **Custom (`CustomMetricDriftProfile`)** — User-defined named metrics with `AlertThreshold` (Below, Above, Outside). `sample_size` (default 25) controls aggregation before threshold check.
 
-### GenAI Evaluation
+### Agent Evaluation
 
 Two evaluation modes:
 
-**Online** (`GenAIEvalProfile`): Real-time monitoring. `EvalRecord` objects are inserted into `ScouterQueue` during inference. Server samples based on `sample_ratio`, runs evaluation tasks asynchronously, checks alert conditions on schedule.
+**Online** (`AgentEvalProfile`): Real-time monitoring. `EvalRecord` objects are inserted into `ScouterQueue` during inference. Server samples based on `sample_ratio`, runs evaluation tasks asynchronously, checks alert conditions on schedule.
 
 **Offline** (`EvalDataset`): Batch evaluation. Records → Tasks → Dataset → Execute → Review results.
 

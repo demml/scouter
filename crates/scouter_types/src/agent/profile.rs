@@ -6,7 +6,7 @@ use crate::agent::{AgentAssertionTask, TasksFile, TraceAssertionTask};
 use crate::error::{ProfileError, TypeError};
 use crate::traits::ConfigExt;
 use crate::util::{json_to_pyobject, pyobject_to_json};
-use crate::{scouter_version, EvalTaskResult, AgentEvalWorkflowResult, WorkflowResultTableEntry};
+use crate::{scouter_version, AgentEvalWorkflowResult, EvalTaskResult, WorkflowResultTableEntry};
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
     PyHelperFuncs, VersionRequest, DEFAULT_VERSION, MISSING,
@@ -373,7 +373,7 @@ impl AgentEvalProfile {
     #[new]
     #[pyo3(signature = (tasks, config=None, alias=None))]
     /// Create a new AgentEvalProfile
-    /// GenAI evaluations are run asynchronously on the scouter server.
+    /// Agent evaluations are run asynchronously on the scouter server.
     /// # Arguments
     /// * `config` - AgentEvalConfig - The configuration for the GenAI drift profile
     /// * `tasks` - PyList - List of AssertionTask, LLMJudgeTask or ConditionalTask

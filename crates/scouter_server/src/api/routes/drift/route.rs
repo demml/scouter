@@ -12,7 +12,7 @@ use scouter_drift::psi::PsiDrifter;
 use scouter_settings::ScouterServerConfig;
 use scouter_sql::sql::{
     cache::entity_cache,
-    traits::{CustomMetricSqlLogic, AgentDriftSqlLogic, ProfileSqlLogic, SpcSqlLogic},
+    traits::{AgentDriftSqlLogic, CustomMetricSqlLogic, ProfileSqlLogic, SpcSqlLogic},
 };
 use scouter_sql::PostgresClient;
 use scouter_types::{
@@ -285,7 +285,7 @@ pub async fn get_agent_workflow_metrics(
     match metrics {
         Ok(metrics) => Ok(Json(metrics)),
         Err(e) => {
-            error!("Failed to query genai eval workflow metrics: {:?}", e);
+            error!("Failed to query agent eval workflow metrics: {:?}", e);
 
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,

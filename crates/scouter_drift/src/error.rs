@@ -100,13 +100,13 @@ pub enum DriftError {
     #[error("Invalid content type. Expected a json string or value")]
     InvalidContentTypeError,
 
-    #[error("Failed to setup tokio runtime for computing GenAI drift: {0}")]
+    #[error("Failed to setup tokio runtime for computing Agent drift: {0}")]
     SetupTokioRuntimeError(#[source] io::Error),
 
     #[error("{0}")]
     InvalidDataConfiguration(String),
 
-    #[error("Workflow is missing for GenAI drift evaluation")]
+    #[error("Workflow is missing for Agent drift evaluation")]
     MissingWorkflow,
 
     #[error("Failed to acquire write lock on workflow")]
@@ -124,7 +124,7 @@ pub enum DriftError {
     #[error("Expected a list of EvalRecords. Received {0}")]
     ExpectedListOfEvalRecords(String),
 
-    #[error("Failed to process GenAI evaluation: {0}")]
+    #[error("Failed to process Agent evaluation: {0}")]
     AgentEvaluatorError(String),
 
     #[error(transparent)]
