@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 from scouter.client import ScouterClient, TraceMetricsRequest
 
-from .conftest import _wait_for_export  # type: ignore
+from .conftest import _wait_for_export
 
 
 def test_scouter_span_exporter(setup_scouter_trace_provider):
@@ -20,7 +20,7 @@ def test_scouter_span_exporter(setup_scouter_trace_provider):
     scouter_client = ScouterClient()
 
     # Get spans for specific trace
-    trace_spans = scouter_client.get_trace_spans(trace_id)  # type: ignore
+    trace_spans = scouter_client.get_trace_spans(trace_id)
     assert len(trace_spans.spans) > 0
 
     # Trace metrics (soft assert — summary table may be empty if archiver hasn't run)

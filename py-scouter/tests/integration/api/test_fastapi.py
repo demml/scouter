@@ -46,7 +46,7 @@ def test_api_kafka(kafka_scouter_server):
                     feature_3=1.0,
                 ).model_dump(),
             )
-        assert response.status_code == 200  # type: ignore
+        assert response.status_code == 200
         time.sleep(5)
         client.wait_shutdown()  # type: ignore
 
@@ -102,7 +102,7 @@ def test_api_http(http_scouter_server):
                     feature_3=1.0,
                 ).model_dump(),
             )
-        assert response.status_code == 200  # type: ignore
+        assert response.status_code == 200
         time.sleep(5)
         client.wait_shutdown()  # type: ignore
 

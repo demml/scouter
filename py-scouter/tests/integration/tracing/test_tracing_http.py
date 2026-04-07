@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 from scouter.client import ScouterClient
 from scouter.tracing import get_tracing_headers_from_current_span
 
-from .conftest import (  # type: ignore
+from .conftest import (
     _wait_for_export,
     create_service_a_app,
     get_trace_by_id,

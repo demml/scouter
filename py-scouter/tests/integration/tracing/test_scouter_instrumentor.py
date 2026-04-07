@@ -14,7 +14,7 @@ from opentelemetry import trace
 from scouter.client import ScouterClient, TraceFilters
 from scouter.tracing import TracerProvider
 
-from .conftest import (  # type: ignore
+from .conftest import (
     DEFAULT_TEST_ATTRIBUTES,
     INSTRUMENTOR_ATTRS_SERVICE,
     INSTRUMENTOR_HTTP_SERVICE,

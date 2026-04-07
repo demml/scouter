@@ -39,6 +39,7 @@ class DriftType:
     Psi: "DriftType"
     Custom: "DriftType"
     GenAI: "DriftType"
+    Agent: "DriftType"
 
     def value(self) -> str: ...
     @staticmethod

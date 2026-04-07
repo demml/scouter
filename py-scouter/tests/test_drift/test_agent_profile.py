@@ -1,5 +1,3 @@
-from typing import cast
-
 from pydantic import BaseModel
 from scouter._scouter import EvalResultSet
 from scouter.agent import Prompt, Score
@@ -88,7 +86,7 @@ def test_genai_drifter():
         )
 
         drifter = Drifter()
-        results = cast(EvalResultSet, drifter.compute_drift([record], profile))
+        results = drifter.compute_drift([record], profile)
 
         assert len(results.records) == 1
 

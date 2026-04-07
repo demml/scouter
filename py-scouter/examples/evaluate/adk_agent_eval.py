@@ -247,7 +247,7 @@ class AdkEvalOrchestrator(EvalOrchestrator):
                 ),
             )
 
-        return f"[{data['dish']}] {_RECIPE_RESPONSE.content.parts[0].text}"  # type: ignore[union-attr,index]
+        return f"[{data['dish']}] {_RECIPE_RESPONSE.content.parts[0].text}"  # type: ignore[union-attr,index]  # ty: ignore[not-subscriptable,unresolved-attribute]
 
 
 def main() -> None:

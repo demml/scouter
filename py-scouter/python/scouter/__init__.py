@@ -17,6 +17,8 @@ from . import (
     types,
     util,
 )
+from ._scouter import _get_log_level  # ty: ignore[unresolved-import]
+from ._scouter import _log_json  # ty: ignore[unresolved-import]
 from ._scouter import (  # dataset; genai
     AgentEvalConfig,
     AgentEvalProfile,
@@ -79,8 +81,6 @@ from ._scouter import (  # dataset; genai
     TraceAssertion,
     TraceAssertionTask,
     WriteConfig,
-    _get_log_level,
-    _log_json,
 )
 from .bifrost import Bifrost
 

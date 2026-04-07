@@ -61,7 +61,7 @@ def test_genai_tracing_api(scouter_grpc_openai_server):
     assert len(task_results["no_errors"].stats) == 1
 
     # get TestResponse record_uid from response
-    record_uid = response.json().get("record_uid")  # type: ignore
+    record_uid = response.json().get("record_uid")
     assert record_uid is not None
 
     spans = scouter_client.get_trace_spans_from_filters(filters=TraceFilters(queue_uid=record_uid))
