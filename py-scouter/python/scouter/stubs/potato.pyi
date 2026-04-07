@@ -1055,7 +1055,7 @@ class Workflow:
 class Embedder:
     """Class for creating embeddings."""
 
-    def __init__(  # type: ignore
+    def __init__(
         self,
         provider: Provider | str,
         config: Optional[OpenAIEmbeddingConfig | GeminiEmbeddingConfig] = None,

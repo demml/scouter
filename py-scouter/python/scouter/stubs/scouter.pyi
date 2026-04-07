@@ -1,5 +1,7 @@
 #### begin imports ####
+# ty:ignore[unresolved-import]
 
+import builtins
 import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Sequence, Union, overload
@@ -358,7 +360,7 @@ class SpcAlertConfig:
         """Set the features to monitor"""
 
 class SpcAlert:
-    def __init__(self, kind: SpcAlertType, zone: AlertZone):
+    def __init__(self, kind: Literal["SpcAlertType"], zone: AlertZone):
         """Initialize alert"""
 
     @property
@@ -1388,7 +1390,7 @@ class QueueFeature:
         """
 
     @staticmethod
-    def int(name: str, value: int) -> "QueueFeature":
+    def int(name: str, value: builtins.int) -> "QueueFeature":
         """Create an integer feature
 
         Args:
@@ -1399,7 +1401,7 @@ class QueueFeature:
         """
 
     @staticmethod
-    def float(name: str, value: float) -> "QueueFeature":
+    def float(name: str, value: builtins.float) -> "QueueFeature":
         """Create a float feature
 
         Args:
@@ -3932,7 +3934,7 @@ class Drifter:
             CustomDriftProfile
         """
 
-    def create_drift_profile(  # type: ignore
+    def create_drift_profile(  # type: ignore[misc]
         self,
         data: Any,
         config: Optional[Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]] = None,
@@ -4077,7 +4079,7 @@ class Drifter:
             EvalResultSet
         """
 
-    def compute_drift(  # type: ignore
+    def compute_drift(  # type: ignore[misc]
         self,
         data: Any,
         drift_profile: Union[SpcDriftProfile, PsiDriftProfile, AgentEvalProfile],

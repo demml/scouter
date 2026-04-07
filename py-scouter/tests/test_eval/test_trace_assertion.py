@@ -16,6 +16,7 @@ def test_trace_assertion():
 
     assertion = TraceAssertion.span_count(filter=filter1)
     assert isinstance(assertion, TraceAssertion.SpanCount)
+    assert isinstance(assertion.filter, SpanFilter.ByName)
     assert assertion.filter.name == "llm.generate"
 
 
@@ -159,6 +160,9 @@ def test_status_in_filter():
     error_filter = SpanFilter.with_status(SpanStatus.Error)
     unset_filter = SpanFilter.with_status(SpanStatus.Unset)
 
+    assert isinstance(ok_filter, SpanFilter.WithStatus)
+    assert isinstance(error_filter, SpanFilter.WithStatus)
+    assert isinstance(unset_filter, SpanFilter.WithStatus)
     assert ok_filter.status == SpanStatus.Ok
     assert error_filter.status == SpanStatus.Error
     assert unset_filter.status == SpanStatus.Unset
@@ -219,6 +223,7 @@ def test_span_attribute_assertion():
 
     assert isinstance(assertion, TraceAssertion.SpanAttribute)
     assert assertion.attribute_key == "model"
+    assert isinstance(assertion.filter, SpanFilter.ByName)
     assert assertion.filter.name == "llm.generate"
 
 
@@ -459,6 +464,7 @@ def test_model_validation_check():
         description="Verify gpt-4 was used",
     )
 
+    assert isinstance(task.assertion, TraceAssertion.SpanAttribute)
     assert task.assertion.attribute_key == "model"
 
 
@@ -475,6 +481,7 @@ def test_token_budget_check():
         description="Ensure total tokens under budget",
     )
 
+    assert isinstance(task.assertion, TraceAssertion.SpanAggregation)
     assert task.assertion.aggregation == AggregationType.Sum
 
 

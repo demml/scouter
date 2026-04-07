@@ -200,7 +200,7 @@ def test_global_propagator_inject_and_extract_do_not_raise():
     """Global inject()/extract() must work after instrument() — no exceptions."""
     from opentelemetry.propagate import extract, inject
 
-    carrier: dict[str, str] = {}  # type: ignore
+    carrier: dict[str, str] = {}
     inject(carrier)  # may inject empty traceparent if no active span
     ctx = extract(carrier)
     assert ctx is not None
