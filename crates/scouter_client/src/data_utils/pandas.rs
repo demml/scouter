@@ -18,7 +18,7 @@ impl DataConverter for PandasDataConverter {
             .str()?
             .to_string();
 
-        if !column_name_dtype.contains("object") {
+        if !column_name_dtype.contains("object") && !column_name_dtype.contains("str") {
             return Err(DataError::ColumnNamesMustBeStrings);
         }
 

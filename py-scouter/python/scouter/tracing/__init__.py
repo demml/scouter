@@ -55,9 +55,7 @@ P = ParamSpec("P")
 R = TypeVar("R")
 HAS_OPENTELEMETRY = True
 if TYPE_CHECKING:
-    from opentelemetry.instrumentation.instrumentor import (  # ty: ignore[unresolved-import]
-        BaseInstrumentor,
-    )
+    from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
     from opentelemetry.trace import Tracer as _OtelTracer
     from opentelemetry.trace import TracerProvider as _OtelTracerProvider
     from opentelemetry.trace import set_tracer_provider

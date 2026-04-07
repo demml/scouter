@@ -1,5 +1,4 @@
 from pydantic import BaseModel
-from scouter._scouter import EvalResultSet
 from scouter.agent import Prompt, Score
 from scouter.alert import AlertCondition, AlertThreshold
 from scouter.drift import (

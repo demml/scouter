@@ -246,15 +246,7 @@ impl PyDrifter {
         // This is for handling, numpy, pandas, pyarrow
         let data_type = match data_type {
             Some(data_type) => data_type,
-            None => {
-                let class = data.getattr("__class__")?;
-                let module = class.getattr("__module__")?.str()?.to_string();
-                let name = class.getattr("__name__")?.str()?.to_string();
-                let full_class_name = format!("{module}.{name}");
-
-                &DataType::from_module_name(&full_class_name).unwrap_or(DataType::Unknown)
-                // for handling custom
-            }
+            None => &DataType::from_object(data).unwrap_or(DataType::Unknown),
         };
 
         let profile = drift_helper.create_drift_profile(py, data, data_type, config_helper)?;
@@ -324,13 +316,7 @@ impl PyDrifter {
                     // For Agent, we will handle it separately in the create_agent_drift_profile method
                     &DataType::Agent
                 } else {
-                    let class = data.getattr("__class__")?;
-                    let module = class.getattr("__module__")?.str()?.to_string();
-                    let name = class.getattr("__name__")?.str()?.to_string();
-                    let full_class_name = format!("{module}.{name}");
-
-                    // for handling custom
-                    &DataType::from_module_name(&full_class_name).unwrap_or(DataType::Unknown)
+                    &DataType::from_object(data).unwrap_or(DataType::Unknown)
                 }
             }
         };
