@@ -1204,7 +1204,7 @@ mod tests {
     use potato_head::mock::create_score_prompt;
 
     #[test]
-    fn test_genai_drift_config() {
+    fn test_agent_drift_config() {
         let mut drift_config = AgentEvalConfig::new(
             MISSING,
             MISSING,
@@ -1253,7 +1253,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_genai_drift_profile_metric() {
+    async fn test_agent_drift_profile_metric() {
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
 
         let task1 = LLMJudgeTask::new_rs(

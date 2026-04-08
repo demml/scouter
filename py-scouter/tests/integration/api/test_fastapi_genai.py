@@ -10,7 +10,7 @@ from tests.integration.api.conftest import ChatRequest
 from .conftest import create_and_register_agent_drift_profile, create_kafka_agent_app
 
 
-def test_genai_api_kafka(kafka_scouter_openai_server):
+def test_agent_api_kafka(kafka_scouter_openai_server):
     random_number = np.random.randint(0, 10)
 
     # create the client

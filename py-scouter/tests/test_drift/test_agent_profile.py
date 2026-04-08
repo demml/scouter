@@ -17,7 +17,7 @@ class TaskOutput(BaseModel):
     task_output: str
 
 
-def test_genai_drift_profile_from_task():
+def test_agent_drift_profile_from_task():
     with LLMTestServer():
         prompt = Prompt(
             messages="${input} + ${response}?",
@@ -45,7 +45,7 @@ def test_genai_drift_profile_from_task():
         )
 
 
-def test_genai_drifter():
+def test_agent_drifter():
     with LLMTestServer():
         # this should bind the input and response context and return TaskOutput
         eval_prompt = Prompt(

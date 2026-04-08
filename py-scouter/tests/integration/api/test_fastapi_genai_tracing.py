@@ -10,7 +10,7 @@ from tests.integration.api.conftest import ChatRequest
 from .conftest import create_and_register_agent_drift_profile, create_tracing_agent_app
 
 
-def test_genai_tracing_api(scouter_grpc_openai_server):
+def test_agent_tracing_api(scouter_grpc_openai_server):
     tracer, _server = scouter_grpc_openai_server
     random_number = np.random.randint(0, 10)
 
@@ -64,7 +64,9 @@ def test_genai_tracing_api(scouter_grpc_openai_server):
     record_uid = response.json().get("record_uid")
     assert record_uid is not None
 
-    spans = scouter_client.get_trace_spans_from_filters(filters=TraceFilters(queue_uid=record_uid))
+    spans = scouter_client.get_trace_spans_from_filters(
+        filters=TraceFilters(queue_uid=record_uid)
+    )
 
     assert len(spans.spans) > 0
 

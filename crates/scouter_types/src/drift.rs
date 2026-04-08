@@ -310,7 +310,7 @@ impl DriftProfile {
             }
             DriftProfile::Agent(profile) => {
                 format!(
-                    "{}/{}/v{}/genai",
+                    "{}/{}/v{}/agent",
                     profile.config.space, profile.config.name, profile.config.version
                 )
             }

@@ -47,10 +47,10 @@ test.needs_sql: test.sql test.server test.evaluate test.drift.executor
 test.types:
 	cargo test -p scouter-types --all-features -- --nocapture --test-threads=1
 
-#### LLM profile tests
+#### agent profile tests
 .PHONY: test.genai
-test.genai:
-	cargo test -p scouter-types test_genai --all-features -- --nocapture --test-threads=1
+test.agent:
+	cargo test -p scouter-types test_agent --all-features -- --nocapture --test-threads=1
 
 .PHONY: test.dispatch
 test.dispatch:

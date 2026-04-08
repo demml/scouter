@@ -7,7 +7,7 @@ class Context(BaseModel):
     response: str
 
 
-def test_genai_record():
+def test_agent_record():
     """
     Test the EvalRecord class.
     """
