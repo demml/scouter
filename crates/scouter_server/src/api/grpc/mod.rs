@@ -1,14 +1,17 @@
 pub mod auth;
 pub mod dataset;
+pub mod eval_scenario;
 pub mod interceptor;
 pub mod message;
 use crate::api::state::AppState;
 use anyhow::Result;
 pub use auth::*;
 pub use dataset::*;
+pub use eval_scenario::*;
 pub use message::*;
 use scouter_tonic::AuthServiceServer;
 use scouter_tonic::DatasetServiceServer;
+use scouter_tonic::EvalScenarioServiceServer;
 use scouter_tonic::MessageServiceServer;
 use std::sync::Arc;
 use tonic::transport::Server;
@@ -31,6 +34,7 @@ pub async fn start_grpc_server(state: Arc<AppState>) -> Result<()> {
     // Create services
     let message_service = MessageGrpcService::new(state.clone()).into_server();
     let dataset_service = DatasetGrpcService::new(state.clone()).into_server();
+    let eval_scenario_service = EvalScenarioGrpcService::new(state.clone()).into_server();
     let auth_service = AuthServiceImpl::new(state.clone()).into_service();
 
     // Create auth interceptor
@@ -45,6 +49,9 @@ pub async fn start_grpc_server(state: Arc<AppState>) -> Result<()> {
         .await;
     health_reporter
         .set_serving::<DatasetServiceServer<DatasetGrpcService>>()
+        .await;
+    health_reporter
+        .set_serving::<EvalScenarioServiceServer<EvalScenarioGrpcService>>()
         .await;
 
     let reflection_service = Builder::configure()
@@ -65,6 +72,10 @@ pub async fn start_grpc_server(state: Arc<AppState>) -> Result<()> {
         ))
         .add_service(InterceptorFor::new(
             dataset_service,
+            auth_interceptor.clone(),
+        ))
+        .add_service(InterceptorFor::new(
+            eval_scenario_service,
             auth_interceptor.clone(),
         ))
         .serve_with_shutdown(addr, crate::api::shutdown::grpc_shutdown_signal())

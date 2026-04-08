@@ -29,6 +29,7 @@ regex = { workspace = true }
 pythonize = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+serde_yaml = { workspace = true }
 simsimd = { workspace = true }
 tabled = { workspace = true }
 thiserror = { workspace = true }

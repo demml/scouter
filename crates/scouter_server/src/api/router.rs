@@ -2,8 +2,8 @@ use crate::api::middleware::track_metrics;
 use crate::api::routes::auth::auth_api_middleware;
 use crate::api::routes::{
     get_agent_router, get_alert_router, get_auth_router, get_dataset_router, get_drift_router,
-    get_health_router, get_message_router, get_observability_router, get_profile_router,
-    get_tag_router, get_trace_router, get_user_router,
+    get_eval_scenario_router, get_health_router, get_message_router, get_observability_router,
+    get_profile_router, get_tag_router, get_trace_router, get_user_router,
 };
 use crate::api::state::AppState;
 use anyhow::Result;
@@ -47,6 +47,7 @@ pub async fn create_router(app_state: Arc<AppState>) -> Result<Router> {
     let observability_routes = get_observability_router(ROUTE_PREFIX).await?;
     let agent_routes = get_agent_router(ROUTE_PREFIX).await?;
     let dataset_routes = get_dataset_router(ROUTE_PREFIX);
+    let eval_scenario_routes = get_eval_scenario_router(ROUTE_PREFIX);
 
     let merged_routes = Router::new()
         .merge(drift_routes)
@@ -59,6 +60,7 @@ pub async fn create_router(app_state: Arc<AppState>) -> Result<Router> {
         .merge(agent_routes)
         .merge(message_routes)
         .merge(dataset_routes)
+        .merge(eval_scenario_routes)
         .route_layer(middleware::from_fn(track_metrics))
         .route_layer(middleware::from_fn_with_state(
             app_state.clone(),

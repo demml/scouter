@@ -2,6 +2,7 @@ pub mod agent;
 pub mod bifrost;
 pub mod control;
 pub mod custom;
+pub mod eval_scenarios;
 pub mod dataframe;
 pub mod psi;
 pub mod spc;

@@ -7,6 +7,7 @@ use scouter_auth::auth::AuthManager;
 use scouter_dataframe::parquet::bifrost::manager::DatasetEngineManager;
 use scouter_dataframe::parquet::tracing::service::TraceSpanService;
 use scouter_dataframe::parquet::tracing::summary::TraceSummaryService;
+use scouter_dataframe::EvalScenarioService;
 use scouter_settings::ScouterServerConfig;
 use scouter_sql::sql::aggregator::shutdown_trace_cache;
 use scouter_sql::sql::cache::entity_cache;
@@ -25,6 +26,7 @@ pub struct AppState {
     pub trace_service: Arc<TraceSpanService>,
     pub trace_summary_service: Arc<TraceSummaryService>,
     pub dataset_manager: Arc<DatasetEngineManager>,
+    pub eval_scenario_service: Arc<EvalScenarioService>,
 }
 
 impl AppState {
