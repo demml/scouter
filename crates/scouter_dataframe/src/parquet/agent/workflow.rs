@@ -1,7 +1,7 @@
 use crate::error::DataFrameError;
 use crate::parquet::traits::ParquetFrame;
 use crate::parquet::types::BinnedTableName;
-use crate::sql::helper::get_binned_genai_workflow_values_query;
+use crate::sql::helper::get_binned_agent_workflow_values_query;
 use crate::storage::ObjectStore;
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow_array::array::{Float64Array, Int32Array, StringArray, TimestampNanosecondArray};
@@ -56,7 +56,7 @@ impl ParquetFrame for AgentWorkflowDataFrame {
         entity_id: &i32,
     ) -> String {
         // You'll need to implement this helper for workflows specifically
-        get_binned_genai_workflow_values_query(bin, start_time, end_time, entity_id)
+        get_binned_agent_workflow_values_query(bin, start_time, end_time, entity_id)
     }
 
     fn table_name(&self) -> String {

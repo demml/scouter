@@ -26,9 +26,9 @@ test.sql:
 test.server:
 	cargo test -p scouter-server --all-features -- --nocapture --test-threads=1 --skip test_storage_integration_cloud
 
-.PHONY: test.server.archive.genai
-test.server.archive.genai:
-	cargo test -p scouter-server test_data_archive_genai --all-features -- --nocapture --test-threads=1
+.PHONY: test.server.archive.agent
+test.server.archive.agent:
+	cargo test -p scouter-server test_data_archive_agent --all-features -- --nocapture --test-threads=1
 
 
 .PHONY: test.server.cloud
