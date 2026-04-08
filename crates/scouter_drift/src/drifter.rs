@@ -766,7 +766,7 @@ mod tests {
         // Verify alert content
         let alert = &alerts.items[0];
 
-        assert_eq!(alert.alert.entity_name(), "genai_workflow_metric");
+        assert_eq!(alert.alert.entity_name(), "agent_workflow_metric");
 
         // Verify the observed value is below threshold
         let observed_value: f64 = match &alert.alert {
