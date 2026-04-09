@@ -219,8 +219,8 @@ def test_no_agent_fn_no_override_raises():
 # ---------------------------------------------------------------------------
 
 
-def test_reactive_raises():
-    """Reactive scenario (simulated_user_persona set) raises NotImplementedError."""
+def test_reactive_no_simulated_user_fn_raises():
+    """Reactive scenario without simulated_user_fn raises NotImplementedError."""
     queue = _make_queue(_simple_profile())
     scenarios = EvalScenarios(
         scenarios=[
@@ -241,8 +241,73 @@ def test_reactive_raises():
         ]
     )
     orch = EvalOrchestrator(queue=queue, scenarios=scenarios, agent_fn=lambda q: "response")
-    with pytest.raises(NotImplementedError, match="Reactive"):
+    with pytest.raises(NotImplementedError, match="simulated_user_fn"):
         orch.run()
+
+
+def test_reactive_terminates_on_signal():
+    """Reactive loop stops when simulated user response contains termination_signal."""
+    queue = _make_queue(_simple_profile())
+    turns = []
+    scenarios = EvalScenarios(
+        scenarios=[
+            EvalScenario(
+                initial_query="What is 2+2?",
+                simulated_user_persona="Math student",
+                termination_signal="DONE",
+                max_turns=10,
+                id="reactive_2",
+            )
+        ]
+    )
+
+    def agent(msg: str) -> str:
+        turns.append(msg)
+        return f"response to: {msg}"
+
+    call_count = 0
+
+    def user_sim(initial_query: str, agent_response: str) -> str:
+        nonlocal call_count
+        call_count += 1
+        if call_count >= 2:
+            return "DONE"
+        return "follow up question"
+
+    orch = EvalOrchestrator(
+        queue=queue, scenarios=scenarios, agent_fn=agent, simulated_user_fn=user_sim
+    )
+    results = orch.run()
+    assert len(turns) == 2
+    assert call_count == 2
+    assert results is not None
+
+
+def test_reactive_respects_max_turns():
+    """Reactive loop stops at max_turns even without termination signal."""
+    queue = _make_queue(_simple_profile())
+    turns = []
+    scenarios = EvalScenarios(
+        scenarios=[
+            EvalScenario(
+                initial_query="Tell me a story",
+                simulated_user_persona="Story lover",
+                termination_signal="STOP",
+                max_turns=3,
+                id="reactive_3",
+            )
+        ]
+    )
+
+    orch = EvalOrchestrator(
+        queue=queue,
+        scenarios=scenarios,
+        agent_fn=lambda msg: turns.append(msg) or "next part",
+        simulated_user_fn=lambda _q, _r: "keep going",
+    )
+    results = orch.run()
+    assert len(turns) == 3
+    assert results is not None
 
 
 # ---------------------------------------------------------------------------
