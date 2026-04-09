@@ -186,3 +186,36 @@ pub enum DatasetEngineError {
     #[error("Duplicate query ID: {0}")]
     DuplicateQueryId(String),
 }
+
+#[derive(Error, Debug)]
+pub enum EvalScenarioEngineError {
+    #[error(transparent)]
+    DataTableError(#[from] deltalake::DeltaTableError),
+
+    #[error(transparent)]
+    UrlParseError(#[from] url::ParseError),
+
+    #[error(transparent)]
+    StorageError(#[from] StorageError),
+
+    #[error(transparent)]
+    ArrowError(#[from] arrow::error::ArrowError),
+
+    #[error(transparent)]
+    IoError(#[from] std::io::Error),
+
+    #[error(transparent)]
+    DatafusionError(#[from] datafusion::error::DataFusionError),
+
+    #[error(transparent)]
+    SerdeError(#[from] serde_json::Error),
+
+    #[error("Channel closed")]
+    ChannelClosed,
+
+    #[error("No scenarios found for collection_id: {0}")]
+    NotFound(String),
+
+    #[error("Engine error: {0}")]
+    EngineError(String),
+}

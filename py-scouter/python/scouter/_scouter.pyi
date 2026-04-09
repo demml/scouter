@@ -13810,6 +13810,7 @@ class EvalScenarios:
     """
 
     scenarios: List[EvalScenario]
+    collection_id: str
     metrics: Optional[EvalMetrics]
 
     def __init__(self, scenarios: List[EvalScenario]) -> None: ...
@@ -13837,6 +13838,23 @@ class EvalScenarios:
     @staticmethod
     def model_validate_json(json_string: str) -> "EvalScenarios":
         """Deserialize from a JSON string."""
+
+    @staticmethod
+    def from_path(path: str) -> "EvalScenarios":
+        """Load eval scenarios from a file.
+
+        Supports ``.jsonl`` (one scenario per line with flat task list),
+        ``.json`` (array or ``{"collection_id": "...", "scenarios": [...]}``
+        wrapper), and ``.yaml``/``.yml``.
+
+        Tasks in the file use a flat list with a ``task_type`` discriminator
+        (``"Assertion"``, ``"LLMJudge"``, ``"TraceAssertion"``,
+        ``"AgentAssertion"``). If no ``collection_id`` is present a new UUID7
+        is generated automatically.
+
+        Args:
+            path: Path to the scenarios file.
+        """
 
 class EvalRunner:
     """Stateful evaluation engine that orchestrates scenario evaluation.
@@ -15152,6 +15170,30 @@ class ScouterClient:
 
         Returns:
             TagsResponse
+        """
+
+    def register_scenarios(self, scenarios: "EvalScenarios", grpc_config: "GrpcConfig") -> str:
+        """Register EvalScenarios with the Scouter server via gRPC.
+
+        Args:
+            scenarios:
+                EvalScenarios object to register
+            grpc_config:
+                gRPC configuration for connecting to the server
+
+        Returns:
+            collection_id of the registered scenarios
+        """
+
+    def get_scenarios(self, collection_id: str) -> "EvalScenarios":
+        """Fetch EvalScenarios by collection_id from the Scouter server.
+
+        Args:
+            collection_id:
+                UUID identifying the collection of scenarios
+
+        Returns:
+            EvalScenarios
         """
 
 class BinnedMetricStats:
