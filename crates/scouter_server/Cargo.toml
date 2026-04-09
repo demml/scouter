@@ -14,7 +14,8 @@ description = "Scouter server logic"
 [dependencies]
 scouter-dataframe = { workspace = true }
 scouter-auth = { workspace = true }
-scouter-events = { workspace = true, features = ["kafka", "rabbitmq", "sql"], default-features = false } 
+scouter-evaluate = { workspace = true }
+scouter-events = { workspace = true, features = ["kafka", "rabbitmq", "sql"], default-features = false }
 scouter-types = { workspace = true }
 scouter-dispatch = { workspace = true }
 scouter-drift = { workspace = true, features = ["sql"] }

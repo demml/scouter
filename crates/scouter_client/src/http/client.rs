@@ -1,7 +1,10 @@
 #![allow(clippy::useless_conversion)]
 use pyo3::{prelude::*, IntoPyObjectExt};
+use scouter_evaluate::scenario::EvalScenarios;
 use scouter_http::error::ClientError;
-use scouter_settings::http::HttpConfig;
+use scouter_settings::{grpc::GrpcConfig, http::HttpConfig};
+use scouter_state::app_state;
+use scouter_tonic::EvalScenarioGrpcClient;
 use scouter_types::contracts::{
     DriftAlertPaginationRequest, DriftAlertPaginationResponse, DriftRequest, GetProfileRequest,
     ProfileRequest, ProfileStatusRequest,
@@ -321,6 +324,29 @@ impl ScouterClient {
 
         Ok(tags_response)
     }
+
+    fn get_scenarios(&self, collection_id: &str) -> Result<EvalScenarios, ClientError> {
+        let query = serde_qs::to_string(&[("collection_id", collection_id)])?;
+        let response = self.client.request(
+            Routes::EvalScenarios,
+            RequestType::Get,
+            None,
+            Some(query),
+            None,
+        )?;
+
+        if !response.status().is_success() {
+            error!(
+                "Failed to get eval scenarios. Status: {:?}",
+                response.status()
+            );
+            return Err(ClientError::GetScenariosError);
+        }
+
+        let body = response.bytes()?;
+        let scenarios: EvalScenarios = serde_json::from_slice(&body)?;
+        Ok(scenarios)
+    }
 }
 
 #[pyclass(name = "ScouterClient")]
@@ -546,6 +572,32 @@ impl PyScouterClient {
             entity_id,
         };
         self.client.get_tags(tag_request)
+    }
+
+    pub fn register_scenarios(
+        &self,
+        scenarios: &EvalScenarios,
+        grpc_config: GrpcConfig,
+    ) -> Result<String, ClientError> {
+        let collection_id = scenarios.collection_id.clone();
+        let scenarios_json = scenarios
+            .model_dump_json()
+            .map_err(|e| ClientError::PyError(e.to_string()))?;
+
+        app_state().block_on(async move {
+            let mut client = EvalScenarioGrpcClient::new(grpc_config)
+                .await
+                .map_err(|e| ClientError::GrpcError(e.to_string()))?;
+            client
+                .register_scenarios(collection_id.clone(), scenarios_json)
+                .await
+                .map_err(|e| ClientError::GrpcError(e.to_string()))?;
+            Ok::<String, ClientError>(collection_id)
+        })
+    }
+
+    pub fn get_scenarios(&self, collection_id: &str) -> Result<EvalScenarios, ClientError> {
+        self.client.get_scenarios(collection_id)
     }
 }
 

@@ -1,0 +1,3 @@
+{"id": "capital_france", "initial_query": "What is the capital of France?", "expected_outcome": "Paris", "tasks": [{"task_type": "Assertion", "id": "mentions_paris", "context_path": "response", "operator": "Contains", "expected_value": "Paris"}]}
+{"id": "water_formula", "initial_query": "What is the chemical formula for water?", "expected_outcome": "H2O", "tasks": [{"task_type": "Assertion", "id": "mentions_h2o", "context_path": "response", "operator": "Contains", "expected_value": "H2O"}]}
+{"id": "speed_of_light", "initial_query": "What is the speed of light in a vacuum?", "expected_outcome": "approximately 300,000 km/s", "tasks": [{"task_type": "Assertion", "id": "mentions_speed", "context_path": "response", "operator": "Contains", "expected_value": "km/s"}]}

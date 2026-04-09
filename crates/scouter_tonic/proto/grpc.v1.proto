@@ -289,3 +289,20 @@ message ExplainQueryResponse {
   string physical_plan_text = 4;
   optional QueryExecutionMetadata execution_metadata = 5;
 }
+
+// ── Eval Scenario Service ────────────────────────────────────────────
+
+service EvalScenarioService {
+  rpc RegisterScenarios(RegisterScenariosRequest) returns (RegisterScenariosResponse);
+}
+
+message RegisterScenariosRequest {
+  string collection_id = 1;
+  string scenarios_json = 2;
+}
+
+message RegisterScenariosResponse {
+  string status = 1;
+  string collection_id = 2;
+  uint64 scenario_count = 3;
+}

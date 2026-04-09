@@ -9,6 +9,7 @@ use scouter_auth::util::generate_recovery_codes_with_hashes;
 use scouter_dataframe::parquet::bifrost::manager::DatasetEngineManager;
 use scouter_dataframe::parquet::tracing::service::{init_trace_span_service, TraceSpanService};
 use scouter_dataframe::parquet::tracing::summary::TraceSummaryService;
+use scouter_dataframe::EvalScenarioService;
 use scouter_settings::{
     polling::AgentPollerSettings, DatabaseSettings, PollingSettings, ScouterServerConfig,
 };
@@ -52,6 +53,7 @@ pub struct ScouterSetupComponents {
     pub trace_service: Arc<TraceSpanService>,
     pub trace_summary_service: Arc<TraceSummaryService>,
     pub dataset_manager: Arc<DatasetEngineManager>,
+    pub eval_scenario_service: Arc<EvalScenarioService>,
 }
 
 impl ScouterSetupComponents {
@@ -143,6 +145,8 @@ impl ScouterSetupComponents {
             .spawn(dataset_manager.start_discovery_loop(task_manager.get_shutdown_receiver()));
         info!("✅ Started DatasetEngineManager");
 
+        let eval_scenario_service = Self::start_eval_scenario_service(&config).await?;
+
         Ok(Self {
             server_config: config,
             db_pool,
@@ -151,6 +155,7 @@ impl ScouterSetupComponents {
             trace_service,
             trace_summary_service,
             dataset_manager,
+            eval_scenario_service,
         })
     }
 
@@ -189,6 +194,17 @@ impl ScouterSetupComponents {
 
         Ok((trace_service, trace_summary_service))
     }
+    #[instrument(skip_all)]
+    async fn start_eval_scenario_service(
+        config: &Arc<ScouterServerConfig>,
+    ) -> AnyhowResult<Arc<EvalScenarioService>> {
+        let service = EvalScenarioService::new(&config.storage_settings)
+            .await
+            .context("❌ Failed to initialize EvalScenarioService")?;
+        info!("✅ Started EvalScenarioService");
+        Ok(Arc::new(service))
+    }
+
     /// Setup logging for the application
     async fn setup_logging() -> AnyhowResult<()> {
         let log_level = LogLevel::from_str(
