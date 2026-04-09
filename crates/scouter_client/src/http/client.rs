@@ -326,7 +326,7 @@ impl ScouterClient {
     }
 
     fn get_scenarios(&self, collection_id: &str) -> Result<EvalScenarios, ClientError> {
-        let query = format!("collection_id={collection_id}");
+        let query = serde_qs::to_string(&[("collection_id", collection_id)])?;
         let response = self.client.request(
             Routes::EvalScenarios,
             RequestType::Get,

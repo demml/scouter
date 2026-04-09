@@ -42,6 +42,7 @@ impl AppState {
         self.trace_service.signal_shutdown().await;
         self.trace_summary_service.signal_shutdown().await;
         self.dataset_manager.shutdown().await;
+        self.eval_scenario_service.signal_shutdown().await;
         self.db_pool.close().await;
     }
 

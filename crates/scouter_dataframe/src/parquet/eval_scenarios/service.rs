@@ -53,4 +53,9 @@ impl EvalScenarioService {
     ) -> Result<Vec<EvalScenarioRecord>, EvalScenarioEngineError> {
         self.query_service.get_scenarios(collection_id).await
     }
+
+    pub async fn signal_shutdown(&self) {
+        info!("EvalScenarioService signaling shutdown");
+        let _ = self.engine_tx.send(TableCommand::Shutdown).await;
+    }
 }
