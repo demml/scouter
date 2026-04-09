@@ -48,7 +48,7 @@ test.types:
 	cargo test -p scouter-types --all-features -- --nocapture --test-threads=1
 
 #### agent profile tests
-.PHONY: test.genai
+.PHONY: test.agent
 test.agent:
 	cargo test -p scouter-types test_agent --all-features -- --nocapture --test-threads=1
 
