@@ -2754,7 +2754,7 @@ class TasksFile:
     def __getitem__(self, index: int) -> AssertionTask | LLMJudgeTask | TraceAssertionTask: ...
     @overload
     def __getitem__(self, index: slice) -> List[AssertionTask | LLMJudgeTask | TraceAssertionTask]: ...
-    def __getitem__(
+    def __getitem__( # type: ignore[misc]
         self, index: int | slice
     ) -> AssertionTask | LLMJudgeTask | TraceAssertionTask | List[AssertionTask | LLMJudgeTask | TraceAssertionTask]:
         """Get task(s) by index or slice."""
@@ -2812,6 +2812,23 @@ class EvalScenarios:
     @staticmethod
     def model_validate_json(json_string: str) -> "EvalScenarios":
         """Deserialize from a JSON string."""
+
+    @staticmethod
+    def from_path(path: str) -> "EvalScenarios":
+        """Load eval scenarios from a file.
+
+        Supports ``.jsonl`` (one scenario per line with flat task list),
+        ``.json`` (array or ``{"collection_id": "...", "scenarios": [...]}``
+        wrapper), and ``.yaml``/``.yml``.
+
+        Tasks in the file use a flat list with a ``task_type`` discriminator
+        (``"Assertion"``, ``"LLMJudge"``, ``"TraceAssertion"``,
+        ``"AgentAssertion"``). If no ``collection_id`` is present a new UUID7
+        is generated automatically.
+
+        Args:
+            path: Path to the scenarios file.
+        """
 
 class EvalRunner:
     """Stateful evaluation engine that orchestrates scenario evaluation.

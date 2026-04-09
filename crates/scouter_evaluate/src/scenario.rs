@@ -56,8 +56,7 @@ impl EvalScenarios {
     }
 
     #[staticmethod]
-    pub fn from_path(path: String) -> Result<Self, EvaluationError> {
-        let path = PathBuf::from(&path);
+    pub fn from_path(path: PathBuf) -> Result<Self, EvaluationError> {
         let ext = path.extension().and_then(|e| e.to_str()).ok_or_else(|| {
             EvaluationError::TypeError(scouter_types::error::TypeError::Error(format!(
                 "Cannot determine file extension for: {}",
@@ -332,7 +331,7 @@ mod tests {
         let path = dir.join("test_scenarios.jsonl");
         std::fs::write(&path, jsonl).unwrap();
 
-        let loaded = EvalScenarios::from_path(path.to_string_lossy().to_string()).unwrap();
+        let loaded = EvalScenarios::from_path(path).unwrap();
         assert_eq!(loaded.scenarios.len(), 2);
         assert_eq!(loaded.scenarios[0].id, "s1");
         assert_eq!(loaded.scenarios[1].id, "s2");
@@ -349,7 +348,7 @@ mod tests {
         let path = dir.join("test_scenarios_array.json");
         std::fs::write(&path, json).unwrap();
 
-        let loaded = EvalScenarios::from_path(path.to_string_lossy().to_string()).unwrap();
+        let loaded = EvalScenarios::from_path(path).unwrap();
         assert_eq!(loaded.scenarios.len(), 2);
     }
 
@@ -365,7 +364,7 @@ mod tests {
         let path = dir.join("test_scenarios_wrapped.json");
         std::fs::write(&path, &json).unwrap();
 
-        let loaded = EvalScenarios::from_path(path.to_string_lossy().to_string()).unwrap();
+        let loaded = EvalScenarios::from_path(path).unwrap();
         assert_eq!(loaded.collection_id, collection_id);
         assert_eq!(loaded.scenarios.len(), 1);
     }
@@ -380,7 +379,7 @@ mod tests {
         let path = dir.join("test_scenarios_roundtrip.json");
         std::fs::write(&path, &json).unwrap();
 
-        let loaded = EvalScenarios::from_path(path.to_string_lossy().to_string()).unwrap();
+        let loaded = EvalScenarios::from_path(path).unwrap();
         assert_eq!(loaded.collection_id, original_cid);
         assert_eq!(loaded.scenarios.len(), 1);
         assert_eq!(loaded.scenarios[0].id, "s1");
@@ -398,7 +397,7 @@ mod tests {
         let path = dir.join("test_scenarios_array.yaml");
         std::fs::write(&path, yaml).unwrap();
 
-        let loaded = EvalScenarios::from_path(path.to_string_lossy().to_string()).unwrap();
+        let loaded = EvalScenarios::from_path(path).unwrap();
         assert_eq!(loaded.scenarios.len(), 2);
         assert_eq!(loaded.scenarios[0].id, "s1");
         assert!(!loaded.collection_id.is_empty());
@@ -415,7 +414,7 @@ mod tests {
         let path = dir.join("test_scenarios_wrapped.yaml");
         std::fs::write(&path, &yaml).unwrap();
 
-        let loaded = EvalScenarios::from_path(path.to_string_lossy().to_string()).unwrap();
+        let loaded = EvalScenarios::from_path(path).unwrap();
         assert_eq!(loaded.collection_id, collection_id);
         assert_eq!(loaded.scenarios.len(), 1);
     }
@@ -426,7 +425,7 @@ mod tests {
         let path = dir.join("test_scenarios.csv");
         std::fs::write(&path, "id,query\ns1,hello\n").unwrap();
 
-        let err = EvalScenarios::from_path(path.to_string_lossy().to_string()).unwrap_err();
+        let err = EvalScenarios::from_path(path).unwrap_err();
         assert!(
             matches!(err, EvaluationError::TypeError(_)),
             "expected TypeError, got: {err:?}"
@@ -435,8 +434,8 @@ mod tests {
 
     #[test]
     fn from_path_nonexistent_file() {
-        let err =
-            EvalScenarios::from_path("/tmp/does_not_exist_abc123.jsonl".to_string()).unwrap_err();
+        let path = PathBuf::from("/tmp/does_not_exist_abc123.jsonl");
+        let err = EvalScenarios::from_path(path).unwrap_err();
         assert!(
             matches!(err, EvaluationError::IoError(_)),
             "expected IoError, got: {err:?}"
@@ -450,7 +449,7 @@ mod tests {
         let path = dir.join("test_malformed.jsonl");
         std::fs::write(&path, jsonl).unwrap();
 
-        let err = EvalScenarios::from_path(path.to_string_lossy().to_string()).unwrap_err();
+        let err = EvalScenarios::from_path(path).unwrap_err();
         let msg = format!("{err}");
         assert!(
             msg.contains("line 2"),
