@@ -2754,7 +2754,7 @@ class TasksFile:
     def __getitem__(self, index: int) -> AssertionTask | LLMJudgeTask | TraceAssertionTask: ...
     @overload
     def __getitem__(self, index: slice) -> List[AssertionTask | LLMJudgeTask | TraceAssertionTask]: ...
-    def __getitem__( # type: ignore[misc]
+    def __getitem__(  # type: ignore[misc]
         self, index: int | slice
     ) -> AssertionTask | LLMJudgeTask | TraceAssertionTask | List[AssertionTask | LLMJudgeTask | TraceAssertionTask]:
         """Get task(s) by index or slice."""
@@ -2814,7 +2814,7 @@ class EvalScenarios:
         """Deserialize from a JSON string."""
 
     @staticmethod
-    def from_path(path: str) -> "EvalScenarios":
+    def from_path(path: Path) -> "EvalScenarios":
         """Load eval scenarios from a file.
 
         Supports ``.jsonl`` (one scenario per line with flat task list),

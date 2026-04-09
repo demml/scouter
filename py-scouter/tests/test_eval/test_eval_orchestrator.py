@@ -267,16 +267,14 @@ def test_reactive_terminates_on_signal():
 
     call_count = 0
 
-    def user_sim(initial_query: str, agent_response: str) -> str:
+    def user_sim(initial_query: str, agent_response: str, history: list) -> str:
         nonlocal call_count
         call_count += 1
         if call_count >= 2:
             return "DONE"
         return "follow up question"
 
-    orch = EvalOrchestrator(
-        queue=queue, scenarios=scenarios, agent_fn=agent, simulated_user_fn=user_sim
-    )
+    orch = EvalOrchestrator(queue=queue, scenarios=scenarios, agent_fn=agent, simulated_user_fn=user_sim)
     results = orch.run()
     assert len(turns) == 2
     assert call_count == 2
@@ -303,7 +301,7 @@ def test_reactive_respects_max_turns():
         queue=queue,
         scenarios=scenarios,
         agent_fn=lambda msg: turns.append(msg) or "next part",
-        simulated_user_fn=lambda _q, _r: "keep going",
+        simulated_user_fn=lambda _q, _r, _h: "keep going",
     )
     results = orch.run()
     assert len(turns) == 3

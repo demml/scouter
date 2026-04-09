@@ -13779,7 +13779,7 @@ class TasksFile:
     def __getitem__(self, index: int) -> AssertionTask | LLMJudgeTask | TraceAssertionTask: ...
     @overload
     def __getitem__(self, index: slice) -> List[AssertionTask | LLMJudgeTask | TraceAssertionTask]: ...
-    def __getitem__(
+    def __getitem__(  # type: ignore[misc]
         self, index: int | slice
     ) -> AssertionTask | LLMJudgeTask | TraceAssertionTask | List[AssertionTask | LLMJudgeTask | TraceAssertionTask]:
         """Get task(s) by index or slice."""
@@ -13810,7 +13810,6 @@ class EvalScenarios:
     """
 
     scenarios: List[EvalScenario]
-    collection_id: str
     metrics: Optional[EvalMetrics]
 
     def __init__(self, scenarios: List[EvalScenario]) -> None: ...
@@ -13840,7 +13839,7 @@ class EvalScenarios:
         """Deserialize from a JSON string."""
 
     @staticmethod
-    def from_path(path: str) -> "EvalScenarios":
+    def from_path(path: Path) -> "EvalScenarios":
         """Load eval scenarios from a file.
 
         Supports ``.jsonl`` (one scenario per line with flat task list),
@@ -15042,7 +15041,7 @@ class ScouterClient:
         """
 
     def get_agent_task_binned_drift(self, drift_request: DriftRequest) -> Any:
-        """Get GenAI task drift map from server
+        """Get agent task drift map from server
         Args:
             drift_request:
                 DriftRequest object
@@ -15170,30 +15169,6 @@ class ScouterClient:
 
         Returns:
             TagsResponse
-        """
-
-    def register_scenarios(self, scenarios: "EvalScenarios", grpc_config: "GrpcConfig") -> str:
-        """Register EvalScenarios with the Scouter server via gRPC.
-
-        Args:
-            scenarios:
-                EvalScenarios object to register
-            grpc_config:
-                gRPC configuration for connecting to the server
-
-        Returns:
-            collection_id of the registered scenarios
-        """
-
-    def get_scenarios(self, collection_id: str) -> "EvalScenarios":
-        """Fetch EvalScenarios by collection_id from the Scouter server.
-
-        Args:
-            collection_id:
-                UUID identifying the collection of scenarios
-
-        Returns:
-            EvalScenarios
         """
 
 class BinnedMetricStats:

@@ -16,7 +16,8 @@ Run: uv run python -m examples.evaluate.react.adk.eval
 """
 
 import asyncio
-from typing import Optional
+from pathlib import Path
+from typing import Dict, List, Optional
 
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
@@ -26,8 +27,9 @@ from scouter.queue import ScouterQueue
 
 from .agents.customer import customer_agent
 from .agents.recipe import recipe_agent
-from .scenarios import scenarios
 from .setup import config
+
+_CWD = Path(__file__).parent
 
 
 class RecipeReactOrchestrator(EvalOrchestrator):
@@ -70,15 +72,16 @@ class RecipeReactOrchestrator(EvalOrchestrator):
         scenario: EvalScenario,
         initial_query: str,
         agent_response: str,
+        history: List[Dict[str, str]],
     ) -> str:
-        return asyncio.run(self._run_customer_turn(initial_query, agent_response))
+        return asyncio.run(self._run_customer_turn(initial_query, agent_response, history))
 
     async def _run_recipe_turn(self, message: str) -> str:
         content = types.Content(role="user", parts=[types.Part(text=message)])
         response_text = ""
         async for event in self._recipe_runner.run_async(
             user_id="eval_user",
-            session_id=self._recipe_session_id,
+            session_id=self._recipe_session_id,  # type: ignore
             new_message=content,
         ):
             if event.is_final_response() and event.content:
@@ -88,10 +91,23 @@ class RecipeReactOrchestrator(EvalOrchestrator):
                         break
         return response_text
 
-    async def _run_customer_turn(self, initial_query: str, agent_response: str) -> str:
+    async def _run_customer_turn(
+        self,
+        initial_query: str,
+        agent_response: str,
+        history: List[Dict[str, str]],
+    ) -> str:
+        history_text = ""
+        if history:
+            exchanges = "\n".join(
+                f"You: {h['user']}\nAssistant: {h['agent']}" for h in history
+            )
+            history_text = f"\nConversation so far:\n{exchanges}\n"
+
         prompt = (
-            f"Original goal: {initial_query}\n"
-            f"Cooking assistant's response: {agent_response}\n\n"
+            f"Original goal: {initial_query}"
+            f"{history_text}\n"
+            f"Latest response: {agent_response}\n\n"
             "What do you say next?"
         )
         session = await self._session_service.create_session(
@@ -125,6 +141,8 @@ def main() -> None:
         app_name="customer_app",
         session_service=session_service,
     )
+
+    scenarios = EvalScenarios.from_path(_CWD / "config" / "scenarios.jsonl")
 
     try:
         results = RecipeReactOrchestrator(

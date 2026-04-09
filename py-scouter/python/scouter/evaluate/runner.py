@@ -22,7 +22,9 @@ from ..tracing import get_tracer as _get_tracer
 SCENARIO_TAG_BAGGAGE_KEY = "scouter.eval.scenario_id"
 
 AgentFn = Callable[[str], str]
-SimulatedUserFn = Callable[[str, str], str]
+# (initial_query, agent_response, history) -> next user message or termination signal
+# history is a list of {"user": ..., "agent": ...} dicts for all prior exchanges
+SimulatedUserFn = Callable[[str, str, List[Dict[str, str]]], str]
 
 
 class EvalOrchestrator:
@@ -143,17 +145,24 @@ class EvalOrchestrator:
         scenario: EvalScenario,
         initial_query: str,
         agent_response: str,
+        history: List[Dict[str, str]],
     ) -> str:
         """Generate the next user message in a reactive loop.
 
-        Given the original intent and the agent's latest response, decide
-        whether to ask a follow-up or signal completion by returning a string
-        that contains ``scenario.termination_signal``.
+        Given the original intent, the agent's latest response, and all prior
+        exchanges, decide whether to ask a follow-up or signal completion by
+        returning a string that contains ``scenario.termination_signal``.
+
+        ``history`` is a list of ``{"user": ..., "agent": ...}`` dicts for all
+        exchanges that preceded the current ``agent_response``. Use it when
+        satisfaction depends on the cumulative conversation rather than any
+        single reply.
 
         Args:
             scenario: The scenario being executed.
             initial_query: The original query that started the conversation.
             agent_response: The agent's most recent response.
+            history: All prior ``(user_message, agent_response)`` exchanges.
 
         Returns:
             Next user message, or a string containing ``termination_signal`` to end the loop.
@@ -162,7 +171,7 @@ class EvalOrchestrator:
             raise NotImplementedError(
                 "Either pass simulated_user_fn to EvalOrchestrator() or subclass and override execute_simulated_user_turn()"
             )
-        return self._simulated_user_fn(initial_query, agent_response)
+        return self._simulated_user_fn(initial_query, agent_response, history)
 
     def on_scenario_start(self, scenario: EvalScenario) -> None:
         """Hook called before a scenario is executed. Override to add custom logic."""
@@ -231,11 +240,13 @@ class EvalOrchestrator:
 
         The agent is a black box: it receives a message and returns a response,
         managing its own session state internally. The simulated user drives
-        continuation based on the original intent and the agent's latest response.
+        continuation based on the original intent, the latest response, and the
+        full prior exchange history — enabling cumulative satisfaction decisions.
         All records emitted across all turns are drained once at the end.
         """
         message = scenario.initial_query
         response = ""
+        history: List[Dict[str, str]] = []
 
         for _ in range(scenario.max_turns):
             response = self._run_agent_turn(scenario, message)
@@ -244,7 +255,10 @@ class EvalOrchestrator:
                 scenario,
                 initial_query=scenario.initial_query,
                 agent_response=response,
+                history=history,
             )
+
+            history.append({"user": message, "agent": response})
 
             if self._check_termination(scenario, next_message):
                 break

@@ -18,9 +18,7 @@ from scouter.tracing import BaseTracer
 from ..setup import config
 
 
-def after_model_callback(
-    callback_context: CallbackContext, llm_response: LlmResponse
-) -> Optional[LlmResponse]:
+def after_model_callback(callback_context: CallbackContext, llm_response: LlmResponse) -> Optional[LlmResponse]:
     if llm_response.partial:
         return None
     if not llm_response.content or not llm_response.content.parts:
