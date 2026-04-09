@@ -64,9 +64,7 @@ def test_agent_tracing_api(scouter_grpc_openai_server):
     record_uid = response.json().get("record_uid")
     assert record_uid is not None
 
-    spans = scouter_client.get_trace_spans_from_filters(
-        filters=TraceFilters(queue_uid=record_uid)
-    )
+    spans = scouter_client.get_trace_spans_from_filters(filters=TraceFilters(queue_uid=record_uid))
 
     assert len(spans.spans) > 0
 
