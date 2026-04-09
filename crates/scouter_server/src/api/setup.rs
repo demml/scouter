@@ -1,6 +1,6 @@
 use crate::api::archive::DataArchiver;
+use crate::api::polling::agent_poller::BackgroundAgentDriftManager;
 use crate::api::polling::drift_poller::BackgroundDriftManager;
-use crate::api::polling::genai_poller::BackgroundGenAIDriftManager;
 use anyhow::{Context, Result as AnyhowResult};
 use flume::Sender;
 use password_auth::generate_hash;
@@ -470,7 +470,7 @@ impl ScouterSetupComponents {
         poll_settings: &AgentPollerSettings,
         shutdown_rx: tokio::sync::watch::Receiver<()>,
     ) -> AnyhowResult<()> {
-        BackgroundGenAIDriftManager::start_workers(db_pool, poll_settings, shutdown_rx).await?;
+        BackgroundAgentDriftManager::start_workers(db_pool, poll_settings, shutdown_rx).await?;
         info!("✅ Started background genai workers");
 
         Ok(())

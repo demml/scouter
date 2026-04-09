@@ -10,7 +10,7 @@ from typing import List, Optional
 
 import pandas as pd
 import polars as pl
-import pyarrow as pa  # type: ignore
+import pyarrow as pa
 import pytest
 from pydantic import BaseModel
 from scouter.bifrost import (

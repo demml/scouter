@@ -7,18 +7,18 @@ use axum::{
 };
 use http_body_util::BodyExt;
 use potato_head::mock::LLMTestServer;
-use scouter_types::{EvalRecordPaginationRequest, GenAIEvalTaskResponse, RecordType, ServiceInfo};
-use scouter_types::{EvalRecordPaginationResponse, GenAIEvalWorkflowPaginationResponse};
+use scouter_types::{AgentEvalTaskResponse, EvalRecordPaginationRequest, RecordType, ServiceInfo};
+use scouter_types::{AgentEvalWorkflowPaginationResponse, EvalRecordPaginationResponse};
 use tokio::time::sleep;
 
 #[test]
-fn test_genai_server_records() {
+fn test_agent_server_records() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let mut mock = LLMTestServer::new();
     mock.start_server().unwrap();
 
     let helper = runtime.block_on(async { setup_test().await });
-    let profile = runtime.block_on(async { TestHelper::create_genai_drift_profile().await });
+    let profile = runtime.block_on(async { TestHelper::create_agent_drift_profile().await });
 
     let uid = runtime.block_on(async {
         helper
@@ -27,9 +27,9 @@ fn test_genai_server_records() {
     });
 
     // populate the server with GenAI tasks and workflow records
-    helper.populate_genai_records(&uid, &runtime, None, RecordType::GenAIEval);
-    helper.populate_genai_records(&uid, &runtime, None, RecordType::GenAITask);
-    helper.populate_genai_records(&uid, &runtime, None, RecordType::GenAIWorkflow);
+    helper.populate_agent_records(&uid, &runtime, None, RecordType::AgentEval);
+    helper.populate_agent_records(&uid, &runtime, None, RecordType::AgentTask);
+    helper.populate_agent_records(&uid, &runtime, None, RecordType::AgentWorkflow);
     //
     //// Sleep for 2 seconds to allow the http consumer time to process all server records sent above.
     runtime.block_on(async { sleep(Duration::from_secs(5)).await });
@@ -47,9 +47,9 @@ fn test_genai_server_records() {
 
     let body = serde_json::to_string(&request).unwrap();
 
-    // get paginated GenAI eval records
+    // get paginated agent eval records
     let request = Request::builder()
-        .uri("/scouter/genai/page/record")
+        .uri("/scouter/agent/page/record")
         .method("POST")
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(body.clone()))
@@ -63,21 +63,21 @@ fn test_genai_server_records() {
 
     // get paginated GenAI workflow records
     let request = Request::builder()
-        .uri("/scouter/genai/page/workflow")
+        .uri("/scouter/agent/page/workflow")
         .method("POST")
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(body.clone()))
         .unwrap();
     let response = runtime.block_on(async { helper.send_oneshot(request).await });
     let val = runtime.block_on(async { response.into_body().collect().await.unwrap().to_bytes() });
-    let records: GenAIEvalWorkflowPaginationResponse = serde_json::from_slice(&val).unwrap();
+    let records: AgentEvalWorkflowPaginationResponse = serde_json::from_slice(&val).unwrap();
     assert!(!records.items.is_empty());
     assert!(records.has_next);
 
     // get first eval task for the first record, get record_uid and get tasks
     let first_record_uid = records.items[0].record_uid.clone();
     let request = Request::builder()
-        .uri(format!("/scouter/genai/task?record_uid={first_record_uid}"))
+        .uri(format!("/scouter/agent/task?record_uid={first_record_uid}"))
         .method("GET")
         .body(Body::empty())
         .unwrap();
@@ -85,7 +85,7 @@ fn test_genai_server_records() {
     // Get response body as bytes
     let val = runtime.block_on(async { response.into_body().collect().await.unwrap().to_bytes() });
 
-    let tasks: GenAIEvalTaskResponse = serde_json::from_slice(&val).unwrap();
+    let tasks: AgentEvalTaskResponse = serde_json::from_slice(&val).unwrap();
     assert!(!tasks.tasks.is_empty());
 
     mock.stop_server().unwrap();

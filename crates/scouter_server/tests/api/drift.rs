@@ -219,13 +219,13 @@ async fn test_custom_server_records() {
 }
 
 #[test]
-fn test_genai_server_records() {
+fn test_agent_server_records() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let mut mock = LLMTestServer::new();
     mock.start_server().unwrap();
 
     let helper = runtime.block_on(async { setup_test().await });
-    let profile = runtime.block_on(async { TestHelper::create_genai_drift_profile().await });
+    let profile = runtime.block_on(async { TestHelper::create_agent_drift_profile().await });
 
     let uid = runtime.block_on(async {
         helper
@@ -234,9 +234,9 @@ fn test_genai_server_records() {
     });
 
     // populate the server with GenAI tasks and workflow records
-    helper.populate_genai_records(&uid, &runtime, None, RecordType::GenAIEval);
-    helper.populate_genai_records(&uid, &runtime, None, RecordType::GenAITask);
-    helper.populate_genai_records(&uid, &runtime, None, RecordType::GenAIWorkflow);
+    helper.populate_agent_records(&uid, &runtime, None, RecordType::AgentEval);
+    helper.populate_agent_records(&uid, &runtime, None, RecordType::AgentTask);
+    helper.populate_agent_records(&uid, &runtime, None, RecordType::AgentWorkflow);
     //
     //// Sleep for 2 seconds to allow the http consumer time to process all server records sent above.
     runtime.block_on(async { sleep(Duration::from_secs(5)).await });
@@ -253,7 +253,7 @@ fn test_genai_server_records() {
     // Test getting binned task metrics
     let query_string = serde_qs::to_string(&params).unwrap();
     let request = Request::builder()
-        .uri(format!("/scouter/drift/genai/task?{query_string}"))
+        .uri(format!("/scouter/drift/agent/task?{query_string}"))
         .method("GET")
         .body(Body::empty())
         .unwrap();
@@ -269,7 +269,7 @@ fn test_genai_server_records() {
     // Test getting binned workflow metric
     let query_string = serde_qs::to_string(&params).unwrap();
     let request = Request::builder()
-        .uri(format!("/scouter/drift/genai/workflow?{query_string}"))
+        .uri(format!("/scouter/drift/agent/workflow?{query_string}"))
         .method("GET")
         .body(Body::empty())
         .unwrap();

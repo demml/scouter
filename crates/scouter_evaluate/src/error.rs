@@ -102,8 +102,8 @@ pub enum EvaluationError {
     #[error(transparent)]
     ProfileError(#[from] scouter_types::error::ProfileError),
 
-    #[error("Failed to process GenAI drift record: {0}")]
-    GenAIEvaluatorError(String),
+    #[error("Failed to process Agent drift record: {0}")]
+    AgentEvaluatorError(String),
 
     #[error("Task not found: {0}")]
     TaskNotFound(String),

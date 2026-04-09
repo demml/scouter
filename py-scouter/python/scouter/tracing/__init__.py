@@ -192,7 +192,7 @@ class Tracer(BaseTracer):
         # I'd prefer this entire decorator to be rust, but creating this type of decorator in rust
         # is a little bit of a pain when dealing with async
         def decorator(func: Callable[P, R]) -> Callable[P, R]:
-            span_name = name or f"{func.__module__}.{func.__qualname__}"
+            span_name = name or f"{func.__module__}.{getattr(func, '__qualname__', repr(func))}"
             function_type = get_function_type(func)
 
             if function_type == FunctionType.AsyncGenerator:
@@ -406,7 +406,11 @@ class TracerProvider(_OtelTracerProvider):
             Tracer: Python Tracer instance with decorator support
         """
 
-        cache_key = (instrumenting_module_name, instrumenting_library_version, schema_url)
+        cache_key = (
+            instrumenting_module_name,
+            instrumenting_library_version,
+            schema_url,
+        )
         if cache_key in self._tracer_cache:
             return self._tracer_cache[cache_key]
 
@@ -473,7 +477,7 @@ class ScouterInstrumentor(BaseInstrumentor):
 
     def __new__(cls) -> "ScouterInstrumentor":
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
+            cls._instance = object.__new__(cls)
         return cls._instance
 
     def instrumentation_dependencies(self) -> Collection[str]:
@@ -523,7 +527,7 @@ class ScouterInstrumentor(BaseInstrumentor):
                 "Could not reset OTel provider guard — opentelemetry-api internals may have "
                 "changed. Proceeding anyway."
             )
-        set_tracer_provider(self._provider)  # type: ignore
+        set_tracer_provider(self._provider)
 
         # Register W3C TraceContext + Baggage propagators so that third-party
         # instrumentors (StarletteInstrumentor, HTTPXInstrumentor, etc.) can

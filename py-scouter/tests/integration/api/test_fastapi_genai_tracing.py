@@ -7,10 +7,10 @@ from scouter.types import DriftType
 
 from tests.integration.api.conftest import ChatRequest
 
-from .conftest import create_and_register_genai_drift_profile, create_tracing_genai_app
+from .conftest import create_and_register_agent_drift_profile, create_tracing_agent_app
 
 
-def test_genai_tracing_api(scouter_grpc_openai_server):
+def test_agent_tracing_api(scouter_grpc_openai_server):
     tracer, _server = scouter_grpc_openai_server
     random_number = np.random.randint(0, 10)
 
@@ -18,14 +18,14 @@ def test_genai_tracing_api(scouter_grpc_openai_server):
     scouter_client = ScouterClient()
 
     # create the drift profile
-    profile = create_and_register_genai_drift_profile(
+    profile = create_and_register_agent_drift_profile(
         client=scouter_client,
         name=f"grpc_genai_test_{random_number}",
         with_trace_assertion=True,  # we are testing that spans are created
     )
     drift_path = profile.save_to_json()
 
-    app = create_tracing_genai_app(tracer, drift_path)
+    app = create_tracing_agent_app(tracer, drift_path)
     # Configure the TestClient
     with TestClient(app) as client:
         time.sleep(5)
@@ -52,16 +52,16 @@ def test_genai_tracing_api(scouter_grpc_openai_server):
 
     workflow_results = scouter_client.get_binned_drift(
         request,
-        drift_type=DriftType.GenAI,
+        drift_type=DriftType.Agent,
     )
 
     assert len(workflow_results["workflow"].stats) == 1
-    task_results = scouter_client.get_genai_task_binned_drift(request)
+    task_results = scouter_client.get_agent_task_binned_drift(request)
     assert len(task_results["coherence"].stats) == 1
     assert len(task_results["no_errors"].stats) == 1
 
     # get TestResponse record_uid from response
-    record_uid = response.json().get("record_uid")  # type: ignore
+    record_uid = response.json().get("record_uid")
     assert record_uid is not None
 
     spans = scouter_client.get_trace_spans_from_filters(filters=TraceFilters(queue_uid=record_uid))

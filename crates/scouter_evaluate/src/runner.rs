@@ -1,6 +1,6 @@
 use crate::agent::{evaluate_genai_dataset, EvalDataset};
 use crate::error::EvaluationError;
-use crate::evaluate::evaluator::GenAIEvaluator;
+use crate::evaluate::evaluator::AgentEvaluator;
 use crate::evaluate::scenario_results::{
     EvalMetrics, ScenarioEvalResults, ScenarioResult, TaskSummary,
 };
@@ -75,7 +75,7 @@ impl EvalRunner {
         let config = Arc::new(config.unwrap_or_default());
 
         if tokio::runtime::Handle::try_current().is_ok() {
-            return Err(EvaluationError::GenAIEvaluatorError(
+            return Err(EvaluationError::AgentEvaluatorError(
                 "EvalRunner.evaluate() cannot be called from within an async context. \
                  Use evaluate_async() or call from a synchronous Python context."
                     .to_string(),
@@ -364,7 +364,7 @@ impl EvalRunner {
                 .unwrap_or_else(|| Arc::new(Vec::new()));
 
             // Evaluate
-            match GenAIEvaluator::process_event_record(&record, profile, spans_arc).await {
+            match AgentEvaluator::process_event_record(&record, profile, spans_arc).await {
                 Ok(eval_set) => {
                     let task_results: Vec<TaskSummary> = eval_set
                         .records

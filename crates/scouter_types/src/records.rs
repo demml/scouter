@@ -35,9 +35,9 @@ pub enum RecordType {
     Psi,
     Observability,
     Custom,
-    GenAIEval,
-    GenAITask,
-    GenAIWorkflow,
+    AgentEval,
+    AgentTask,
+    AgentWorkflow,
     Trace,
 }
 
@@ -47,9 +47,9 @@ impl RecordType {
             RecordType::Spc => DriftType::Spc.to_string(),
             RecordType::Psi => DriftType::Psi.to_string(),
             RecordType::Custom => DriftType::Custom.to_string(),
-            RecordType::GenAIEval => DriftType::GenAI.to_string(),
-            RecordType::GenAITask => DriftType::GenAI.to_string(),
-            RecordType::GenAIWorkflow => DriftType::GenAI.to_string(),
+            RecordType::AgentEval => DriftType::Agent.to_string(),
+            RecordType::AgentTask => DriftType::Agent.to_string(),
+            RecordType::AgentWorkflow => DriftType::Agent.to_string(),
             _ => "unknown",
         }
     }
@@ -70,9 +70,9 @@ impl FromStr for RecordType {
             "psi" => Ok(RecordType::Psi),
             "observability" => Ok(RecordType::Observability),
             "custom" => Ok(RecordType::Custom),
-            "genai_event" => Ok(RecordType::GenAIEval),
-            "genai_task" => Ok(RecordType::GenAITask),
-            "genai_workflow" => Ok(RecordType::GenAIWorkflow),
+            "agent_event" => Ok(RecordType::AgentEval),
+            "agent_task" => Ok(RecordType::AgentTask),
+            "agent_workflow" => Ok(RecordType::AgentWorkflow),
             "trace" => Ok(RecordType::Trace),
             _ => Err(RecordError::InvalidDriftTypeError),
         }
@@ -86,9 +86,9 @@ impl RecordType {
             RecordType::Psi => "psi",
             RecordType::Observability => "observability",
             RecordType::Custom => "custom",
-            RecordType::GenAIEval => "genai_event",
-            RecordType::GenAITask => "genai_task",
-            RecordType::GenAIWorkflow => "genai_workflow",
+            RecordType::AgentEval => "agent_event",
+            RecordType::AgentTask => "agent_task",
+            RecordType::AgentWorkflow => "agent_workflow",
             RecordType::Trace => "trace",
         }
     }
@@ -265,7 +265,7 @@ impl EvalRecord {
     }
 
     pub fn get_record_type(&self) -> RecordType {
-        RecordType::GenAIEval
+        RecordType::AgentEval
     }
 
     pub fn model_dump_json(&self) -> String {
@@ -364,7 +364,7 @@ impl EvalRecord {
             entity_uid,
             entity_id: 0, // This is a placeholder, to be set when inserting into DB
             record_id: record_id.unwrap_or_default(),
-            entity_type: EntityType::GenAI,
+            entity_type: EntityType::Agent,
             session_id: session_id.unwrap_or_else(create_uuid7),
             retry_count: 0,
             trace_id: None,
@@ -394,7 +394,7 @@ impl Default for EvalRecord {
             entity_id: 0,
             entity_uid: String::new(),
             status: Status::Pending,
-            entity_type: EntityType::GenAI,
+            entity_type: EntityType::Agent,
             session_id: create_uuid7(),
             retry_count: 0,
             trace_id: None,
@@ -427,7 +427,7 @@ impl FromRow<'_, PgRow> for EvalRecord {
             entity_id: row.try_get("entity_id")?,
             entity_uid: String::new(), // mask entity_uid when loading from DB
             status,
-            entity_type: EntityType::GenAI,
+            entity_type: EntityType::Agent,
             retry_count: row.try_get("retry_count")?,
             trace_id: trace_id_str.and_then(|tid| TraceId::from_hex(&tid).ok()),
             tags: row.try_get::<Vec<String>, &str>("tags").unwrap_or_default(),
@@ -471,7 +471,7 @@ pub struct WorkflowResultTableEntry {
 
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct GenAIEvalWorkflowResult {
+pub struct AgentEvalWorkflowResult {
     #[pyo3(get)]
     pub created_at: DateTime<Utc>,
 
@@ -502,14 +502,14 @@ pub struct GenAIEvalWorkflowResult {
     pub id: i64,
 }
 
-impl GenAIEvalWorkflowResult {
+impl AgentEvalWorkflowResult {
     pub fn mask_sensitive_data(&mut self) {
         self.entity_id = -1;
     }
 }
 
 #[cfg(feature = "server")]
-impl FromRow<'_, PgRow> for GenAIEvalWorkflowResult {
+impl FromRow<'_, PgRow> for AgentEvalWorkflowResult {
     fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
         let execution_plan: ExecutionPlan = serde_json::from_value(row.try_get("execution_plan")?)
             .unwrap_or(ExecutionPlan {
@@ -517,7 +517,7 @@ impl FromRow<'_, PgRow> for GenAIEvalWorkflowResult {
                 nodes: HashMap::new(),
             });
 
-        Ok(GenAIEvalWorkflowResult {
+        Ok(AgentEvalWorkflowResult {
             created_at: row.try_get("created_at")?,
             record_uid: row.try_get("record_uid")?,
             entity_id: row.try_get("entity_id")?,
@@ -534,7 +534,7 @@ impl FromRow<'_, PgRow> for GenAIEvalWorkflowResult {
 }
 
 #[pymethods]
-impl GenAIEvalWorkflowResult {
+impl AgentEvalWorkflowResult {
     pub fn __str__(&self) -> String {
         PyHelperFuncs::__str__(self)
     }
@@ -562,7 +562,7 @@ impl GenAIEvalWorkflowResult {
     }
 }
 
-impl GenAIEvalWorkflowResult {
+impl AgentEvalWorkflowResult {
     pub fn to_table_entry(&self, scenario_id: Option<&str>) -> WorkflowResultTableEntry {
         let pass_rate_display = format!("{:.1}%", self.pass_rate * 100.0);
         WorkflowResultTableEntry {
@@ -1025,9 +1025,9 @@ pub enum ServerRecord {
     Psi(PsiRecord),
     Custom(CustomMetricRecord),
     Observability(ObservabilityMetrics),
-    GenAIEval(BoxedEvalRecord),
-    GenAITaskRecord(EvalTaskResult),
-    GenAIWorkflowRecord(GenAIEvalWorkflowResult),
+    AgentEval(BoxedEvalRecord),
+    AgentTaskRecord(EvalTaskResult),
+    AgentWorkflowRecord(AgentEvalWorkflowResult),
 }
 
 #[pymethods]
@@ -1041,15 +1041,15 @@ impl ServerRecord {
             ServerRecord::Observability(record) => {
                 Ok(PyHelperFuncs::to_bound_py_object(py, record)?)
             }
-            ServerRecord::GenAIEval(record) => {
+            ServerRecord::AgentEval(record) => {
                 // unbox the record
                 let record = record.record.as_ref();
                 Ok(PyHelperFuncs::to_bound_py_object(py, record)?)
             }
-            ServerRecord::GenAITaskRecord(record) => {
+            ServerRecord::AgentTaskRecord(record) => {
                 Ok(PyHelperFuncs::to_bound_py_object(py, record)?)
             }
-            ServerRecord::GenAIWorkflowRecord(record) => {
+            ServerRecord::AgentWorkflowRecord(record) => {
                 Ok(PyHelperFuncs::to_bound_py_object(py, record)?)
             }
         }
@@ -1062,9 +1062,9 @@ impl ServerRecord {
             ServerRecord::Psi(record) => record.__str__(),
             ServerRecord::Custom(record) => record.__str__(),
             ServerRecord::Observability(record) => record.__str__(),
-            ServerRecord::GenAIEval(record) => record.record.__str__(),
-            ServerRecord::GenAITaskRecord(record) => record.__str__(),
-            ServerRecord::GenAIWorkflowRecord(record) => record.__str__(),
+            ServerRecord::AgentEval(record) => record.record.__str__(),
+            ServerRecord::AgentTaskRecord(record) => record.__str__(),
+            ServerRecord::AgentWorkflowRecord(record) => record.__str__(),
         }
     }
 
@@ -1074,9 +1074,9 @@ impl ServerRecord {
             ServerRecord::Psi(_) => RecordType::Psi,
             ServerRecord::Custom(_) => RecordType::Custom,
             ServerRecord::Observability(_) => RecordType::Observability,
-            ServerRecord::GenAIEval(_) => RecordType::GenAIEval,
-            ServerRecord::GenAITaskRecord(_) => RecordType::GenAITask,
-            ServerRecord::GenAIWorkflowRecord(_) => RecordType::GenAIWorkflow,
+            ServerRecord::AgentEval(_) => RecordType::AgentEval,
+            ServerRecord::AgentTaskRecord(_) => RecordType::AgentTask,
+            ServerRecord::AgentWorkflowRecord(_) => RecordType::AgentWorkflow,
         }
     }
 }
@@ -1170,9 +1170,9 @@ impl ServerRecords {
                 ServerRecord::Psi(inner) => Ok(&inner.uid),
                 ServerRecord::Custom(inner) => Ok(&inner.uid),
                 ServerRecord::Observability(inner) => Ok(&inner.uid),
-                ServerRecord::GenAIEval(inner) => Ok(&inner.record.entity_uid), // this is the profile uid
-                ServerRecord::GenAITaskRecord(inner) => Ok(&inner.entity_uid),
-                ServerRecord::GenAIWorkflowRecord(inner) => Ok(&inner.entity_uid),
+                ServerRecord::AgentEval(inner) => Ok(&inner.record.entity_uid), // this is the profile uid
+                ServerRecord::AgentTaskRecord(inner) => Ok(&inner.entity_uid),
+                ServerRecord::AgentWorkflowRecord(inner) => Ok(&inner.entity_uid),
             }
         } else {
             Err(RecordError::EmptyServerRecordsError)
@@ -1205,18 +1205,18 @@ impl IntoServerRecord for CustomMetricRecord {
 
 impl IntoServerRecord for EvalRecord {
     fn into_server_record(self) -> ServerRecord {
-        ServerRecord::GenAIEval(BoxedEvalRecord::new(self))
+        ServerRecord::AgentEval(BoxedEvalRecord::new(self))
     }
 }
 
-impl IntoServerRecord for GenAIEvalWorkflowResult {
+impl IntoServerRecord for AgentEvalWorkflowResult {
     fn into_server_record(self) -> ServerRecord {
-        ServerRecord::GenAIWorkflowRecord(self)
+        ServerRecord::AgentWorkflowRecord(self)
     }
 }
 impl IntoServerRecord for EvalTaskResult {
     fn into_server_record(self) -> ServerRecord {
-        ServerRecord::GenAITaskRecord(self)
+        ServerRecord::AgentTaskRecord(self)
     }
 }
 
@@ -1226,9 +1226,9 @@ pub trait ToDriftRecords {
     fn to_observability_drift_records(self) -> Result<Vec<ObservabilityMetrics>, RecordError>;
     fn to_psi_drift_records(self) -> Result<Vec<PsiRecord>, RecordError>;
     fn to_custom_metric_drift_records(self) -> Result<Vec<CustomMetricRecord>, RecordError>;
-    fn to_genai_eval_records(self) -> Result<Vec<BoxedEvalRecord>, RecordError>;
-    fn to_genai_workflow_records(self) -> Result<Vec<GenAIEvalWorkflowResult>, RecordError>;
-    fn to_genai_task_records(self) -> Result<Vec<EvalTaskResult>, RecordError>;
+    fn to_agent_eval_records(self) -> Result<Vec<BoxedEvalRecord>, RecordError>;
+    fn to_agent_workflow_records(self) -> Result<Vec<AgentEvalWorkflowResult>, RecordError>;
+    fn to_agent_task_records(self) -> Result<Vec<EvalTaskResult>, RecordError>;
 }
 
 impl ToDriftRecords for ServerRecords {
@@ -1260,23 +1260,23 @@ impl ToDriftRecords for ServerRecords {
         })
     }
 
-    fn to_genai_eval_records(self) -> Result<Vec<BoxedEvalRecord>, RecordError> {
+    fn to_agent_eval_records(self) -> Result<Vec<BoxedEvalRecord>, RecordError> {
         extract_owned_records(self.records, |record| match record {
-            ServerRecord::GenAIEval(inner) => Some(inner),
+            ServerRecord::AgentEval(inner) => Some(inner),
             _ => None,
         })
     }
 
-    fn to_genai_workflow_records(self) -> Result<Vec<GenAIEvalWorkflowResult>, RecordError> {
+    fn to_agent_workflow_records(self) -> Result<Vec<AgentEvalWorkflowResult>, RecordError> {
         extract_owned_records(self.records, |record| match record {
-            ServerRecord::GenAIWorkflowRecord(inner) => Some(inner),
+            ServerRecord::AgentWorkflowRecord(inner) => Some(inner),
             _ => None,
         })
     }
 
-    fn to_genai_task_records(self) -> Result<Vec<EvalTaskResult>, RecordError> {
+    fn to_agent_task_records(self) -> Result<Vec<EvalTaskResult>, RecordError> {
         extract_owned_records(self.records, |record| match record {
-            ServerRecord::GenAITaskRecord(inner) => Some(inner),
+            ServerRecord::AgentTaskRecord(inner) => Some(inner),
             _ => None,
         })
     }

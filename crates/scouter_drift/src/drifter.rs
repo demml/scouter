@@ -1,5 +1,5 @@
 use crate::error::DriftError;
-use crate::{custom::CustomDrifter, genai::GenAIDrifter, psi::PsiDrifter, spc::SpcDrifter};
+use crate::{custom::CustomDrifter, genai::AgentDrifter, psi::PsiDrifter, spc::SpcDrifter};
 use chrono::{DateTime, Utc};
 use scouter_sql::sql::traits::{AlertSqlLogic, ProfileSqlLogic};
 use scouter_sql::{sql::schema::TaskRequest, PostgresClient};
@@ -15,7 +15,7 @@ pub enum Drifter {
     SpcDrifter(SpcDrifter),
     PsiDrifter(PsiDrifter),
     CustomDrifter(CustomDrifter),
-    GenAIDrifter(GenAIDrifter),
+    AgentDrifter(AgentDrifter),
 }
 
 impl Drifter {
@@ -30,7 +30,7 @@ impl Drifter {
             Drifter::CustomDrifter(drifter) => {
                 drifter.check_for_alerts(db_pool, previous_run).await
             }
-            Drifter::GenAIDrifter(drifter) => drifter.check_for_alerts(db_pool, previous_run).await,
+            Drifter::AgentDrifter(drifter) => drifter.check_for_alerts(db_pool, previous_run).await,
         }
     }
 }
@@ -58,8 +58,8 @@ impl GetDrifter for DriftProfile {
             DriftProfile::Custom(profile) => {
                 Drifter::CustomDrifter(CustomDrifter::new(profile.clone()))
             }
-            DriftProfile::GenAI(profile) => {
-                Drifter::GenAIDrifter(GenAIDrifter::new(profile.clone()))
+            DriftProfile::Agent(profile) => {
+                Drifter::AgentDrifter(AgentDrifter::new(profile.clone()))
             }
         }
     }
@@ -222,7 +222,7 @@ mod tests {
     use chrono::Duration;
     use rusty_logging::logger::{LogLevel, LoggingConfig, RustyLogger};
     use scouter_settings::DatabaseSettings;
-    use scouter_sql::sql::traits::{EntitySqlLogic, GenAIDriftSqlLogic, SpcSqlLogic};
+    use scouter_sql::sql::traits::{AgentDriftSqlLogic, EntitySqlLogic, SpcSqlLogic};
     use scouter_sql::PostgresClient;
     use scouter_types::spc::SpcFeatureDriftProfile;
     use scouter_types::{
@@ -267,13 +267,13 @@ mod tests {
                 FROM scouter.psi_drift;
 
                 DELETE
-                FROM scouter.genai_eval_workflow;
+                FROM scouter.agent_eval_workflow;
 
                 DELETE
-                FROM scouter.genai_eval_task;
+                FROM scouter.agent_eval_task;
 
                 DELETE
-                FROM scouter.genai_eval_record;
+                FROM scouter.agent_eval_record;
                 "#,
         )
         .fetch_all(pool)
@@ -574,7 +574,7 @@ mod tests {
     }
 
     #[test]
-    fn test_drift_executor_genai() {
+    fn test_drift_executor_agent() {
         // Setup mock LLM server
         let mut mock = LLMTestServer::new();
         mock.start_server().unwrap();
@@ -657,7 +657,7 @@ mod tests {
         let profile = runtime
             .block_on(async { AgentEvalProfile::new(drift_config, tasks).await })
             .unwrap();
-        let drift_profile = DriftProfile::GenAI(profile.clone());
+        let drift_profile = DriftProfile::Agent(profile.clone());
 
         // Register drift profile
         let profile_args = ProfileArgs {
@@ -666,7 +666,7 @@ mod tests {
             version: Some("0.1.0".to_string()),
             schedule: "* * * * * *".to_string(),
             scouter_version: "0.1.0".to_string(),
-            drift_type: DriftType::GenAI,
+            drift_type: DriftType::Agent,
         };
 
         let version = Version::new(0, 1, 0);
@@ -693,7 +693,7 @@ mod tests {
         // Wait for schedule to trigger (non-await)
         std::thread::sleep(std::time::Duration::from_secs(1));
 
-        // Create and insert GenAI evaluation records with low pass rate to trigger alert
+        // Create and insert Agent evaluation records with low pass rate to trigger alert
         let mut records = vec![];
         for i in 0..50 {
             // Create context that will cause failures
@@ -727,7 +727,7 @@ mod tests {
             // Insert eval record for poller to pick up
 
             runtime.block_on(async {
-                PostgresClient::insert_genai_eval_record(&db_pool, record, &entity_id)
+                PostgresClient::insert_agent_eval_record(&db_pool, record, &entity_id)
                     .await
                     .unwrap();
 
@@ -766,12 +766,12 @@ mod tests {
         // Verify alert content
         let alert = &alerts.items[0];
 
-        assert_eq!(alert.alert.entity_name(), "genai_workflow_metric");
+        assert_eq!(alert.alert.entity_name(), "agent_workflow_metric");
 
         // Verify the observed value is below threshold
         let observed_value: f64 = match &alert.alert {
-            AlertMap::GenAI(genai_alert) => genai_alert.observed_value,
-            _ => panic!("Expected GenAI alert map"),
+            AlertMap::Agent(genai_alert) => genai_alert.observed_value,
+            _ => panic!("Expected Agent alert map"),
         };
 
         assert!(

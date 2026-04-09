@@ -39,51 +39,51 @@ const GET_CUSTOM_DATA_FOR_ARCHIVE: &str =
     include_str!("scripts/custom/get_custom_metric_data_for_archive.sql");
 const UPDATE_CUSTOM_ENTITIES: &str = include_str!("scripts/custom/update_data_to_archived.sql");
 
-// genai
-// genai insert
-const INSERT_GENAI_TASK_RESULTS_BATCH: &str = include_str!("scripts/genai/insert_task_results.sql");
-const INSERT_GENAI_WORKFLOW_RESULT: &str = include_str!("scripts/genai/insert_workflow_result.sql");
-const INSERT_GENAI_EVAL_RECORD: &str = include_str!("scripts/genai/insert_eval_record.sql");
+// agent
+// agent insert
+const INSERT_AGENT_TASK_RESULTS_BATCH: &str = include_str!("scripts/agent/insert_task_results.sql");
+const INSERT_AGENT_WORKFLOW_RESULT: &str = include_str!("scripts/agent/insert_workflow_result.sql");
+const INSERT_AGENT_EVAL_RECORD: &str = include_str!("scripts/agent/insert_eval_record.sql");
 
-// genai query
-const GET_GENAI_EVAL_RECORDS: &str = include_str!("scripts/genai/get_eval_records.sql");
-const GET_GENAI_EVAL_TASKS: &str = include_str!("scripts/genai/get_eval_tasks.sql");
-const GET_GENAI_TASK_VALUES: &str = include_str!("scripts/genai/data/get_task_values.sql");
-const GET_GENAI_WORKFLOW_VALUES: &str = include_str!("scripts/genai/data/get_workflow_values.sql");
-const GET_BINNED_GENAI_WORKFLOW_VALUES: &str =
-    include_str!("scripts/genai/data/get_binned_workflow_values.sql");
-const GET_BINNED_GENAI_TASK_VALUES: &str =
-    include_str!("scripts/genai/data/get_binned_task_values.sql");
-const RESCHEDULE_GENAI_EVAL_RECORD: &str =
-    include_str!("scripts/genai/reschedule_genai_record.sql");
+// agent query
+const GET_AGENT_EVAL_RECORDS: &str = include_str!("scripts/agent/get_eval_records.sql");
+const GET_AGENT_EVAL_TASKS: &str = include_str!("scripts/agent/get_eval_tasks.sql");
+const GET_AGENT_TASK_VALUES: &str = include_str!("scripts/agent/data/get_task_values.sql");
+const GET_AGENT_WORKFLOW_VALUES: &str = include_str!("scripts/agent/data/get_workflow_values.sql");
+const GET_BINNED_AGENT_WORKFLOW_VALUES: &str =
+    include_str!("scripts/agent/data/get_binned_workflow_values.sql");
+const GET_BINNED_AGENT_TASK_VALUES: &str =
+    include_str!("scripts/agent/data/get_binned_task_values.sql");
+const RESCHEDULE_AGENT_EVAL_RECORD: &str =
+    include_str!("scripts/agent/reschedule_genai_record.sql");
 
-// genai paginated query
-const GET_PAGINATED_GENAI_EVAL_RECORDS: &str =
-    include_str!("scripts/genai/get_paginated_eval_records.sql");
-const GET_PAGINATED_GENAI_EVAL_WORKFLOW: &str =
-    include_str!("scripts/genai/get_paginated_eval_workflow.sql");
-const UPDATE_GENAI_EVAL_TASK: &str = include_str!("scripts/genai/update_eval_record.sql");
+// agent paginated query
+const GET_PAGINATED_AGENT_EVAL_RECORDS: &str =
+    include_str!("scripts/agent/get_paginated_eval_records.sql");
+const GET_PAGINATED_AGENT_EVAL_WORKFLOW: &str =
+    include_str!("scripts/agent/get_paginated_eval_workflow.sql");
+const UPDATE_AGENT_EVAL_TASK: &str = include_str!("scripts/agent/update_eval_record.sql");
 
 // Archive data
-const GET_GENAI_TASK_DATA_FOR_ARCHIVE: &str =
-    include_str!("scripts/genai/archive/get_task_data_for_archive.sql");
-const GET_GENAI_EVAL_RECORD_DATA_FOR_ARCHIVE: &str =
-    include_str!("scripts/genai/archive/get_eval_record_data_for_archive.sql");
-const GET_GENAI_WORKFLOW_DATA_FOR_ARCHIVE: &str =
-    include_str!("scripts/genai/archive/get_workflow_data_for_archive.sql");
-const GET_GENAI_EVAL_RECORD_ENTITIES: &str =
-    include_str!("scripts/genai/archive/get_eval_record_entities_for_archive.sql");
-const GET_GENAI_TASK_RECORD_ENTITIES: &str =
-    include_str!("scripts/genai/archive/get_task_entities_for_archive.sql");
-const GET_GENAI_WORKFLOW_ENTITIES: &str =
-    include_str!("scripts/genai/archive/get_workflow_entities_for_archive.sql");
-// genai update entities
-const UPDATE_GENAI_TASK_ENTITIES: &str =
-    include_str!("scripts/genai/archive/update_task_to_archived.sql");
-const UPDATE_GENAI_WORKFLOW_ENTITIES: &str =
-    include_str!("scripts/genai/archive/update_workflow_to_archived.sql");
-const UPDATE_GENAI_EVAL_ENTITIES: &str =
-    include_str!("scripts/genai/archive/update_eval_record_to_archived.sql");
+const GET_AGENT_TASK_DATA_FOR_ARCHIVE: &str =
+    include_str!("scripts/agent/archive/get_task_data_for_archive.sql");
+const GET_AGENT_EVAL_RECORD_DATA_FOR_ARCHIVE: &str =
+    include_str!("scripts/agent/archive/get_eval_record_data_for_archive.sql");
+const GET_AGENT_WORKFLOW_DATA_FOR_ARCHIVE: &str =
+    include_str!("scripts/agent/archive/get_workflow_data_for_archive.sql");
+const GET_AGENT_EVAL_RECORD_ENTITIES: &str =
+    include_str!("scripts/agent/archive/get_eval_record_entities_for_archive.sql");
+const GET_AGENT_TASK_RECORD_ENTITIES: &str =
+    include_str!("scripts/agent/archive/get_task_entities_for_archive.sql");
+const GET_AGENT_WORKFLOW_ENTITIES: &str =
+    include_str!("scripts/agent/archive/get_workflow_entities_for_archive.sql");
+// agent update entities
+const UPDATE_AGENT_TASK_ENTITIES: &str =
+    include_str!("scripts/agent/archive/update_task_to_archived.sql");
+const UPDATE_AGENT_WORKFLOW_ENTITIES: &str =
+    include_str!("scripts/agent/archive/update_workflow_to_archived.sql");
+const UPDATE_AGENT_EVAL_ENTITIES: &str =
+    include_str!("scripts/agent/archive/update_eval_record_to_archived.sql");
 
 // observability (experimental)
 const GET_BINNED_OBSERVABILITY_METRICS: &str =
@@ -111,7 +111,7 @@ const UPDATE_ALERT_STATUS: &str = include_str!("scripts/alert/update_alert_statu
 
 // poll
 const GET_DRIFT_TASK: &str = include_str!("scripts/poll/poll_for_drift_task.sql");
-const GET_PENDING_GENAI_EVAL_TASK: &str = include_str!("scripts/poll/poll_for_genai_eval_task.sql");
+const GET_PENDING_AGENT_EVAL_TASK: &str = include_str!("scripts/poll/poll_for_agent_eval_task.sql");
 
 // auth
 const INSERT_USER: &str = include_str!("scripts/user/insert_user.sql");
@@ -192,39 +192,39 @@ pub enum Queries {
     DeleteUser,
     UpdateAlertStatus,
 
-    // genai - query
+    // agent - query
     GetEvalRecords,
-    GetPendingGenAIEvalTask,
+    GetPendingAgentEvalTask,
     GetPaginatedEvalRecords,
-    GetPaginatedGenAIEvalWorkflow,
-    GetGenAIEvalTasks,
+    GetPaginatedAgentEvalWorkflow,
+    GetAgentEvalTasks,
     RescheduleEvalRecord,
 
-    // genai - data
-    GetGenAIWorkflowBinnedMetrics,
-    GetGenAITaskBinnedMetrics,
-    GetGenAIWorkflowValues,
-    GetGenAITaskValues,
+    // agent - data
+    GetAgentWorkflowBinnedMetrics,
+    GetAgentTaskBinnedMetrics,
+    GetAgentWorkflowValues,
+    GetAgentTaskValues,
 
-    // genai - insert
-    InsertGenAITaskResultsBatch,
-    InsertGenAIWorkflowResult,
+    // agent - insert
+    InsertAgentTaskResultsBatch,
+    InsertAgentWorkflowResult,
     InsertEvalRecord,
 
-    // genai - update
-    UpdateGenAIEvalTask,
+    // agent - update
+    UpdateAgentEvalTask,
 
-    // Genai - archive
+    // agent - archive
     GetEvalRecordEntitiesForArchive,
-    GetGenAIEvalTaskResultEntitiesForArchive,
-    GetGenAIEvalWorkflowEntitiesForArchive,
+    GetAgentEvalTaskResultEntitiesForArchive,
+    GetAgentEvalWorkflowEntitiesForArchive,
     GetEvalRecordDataForArchive,
-    GetGenAITaskResultDataForArchive,
-    GetGenAIWorkflowResultDataForArchive,
+    GetAgentTaskResultDataForArchive,
+    GetAgentWorkflowResultDataForArchive,
 
-    UpdateGenAIEvalEntities,
-    UpdateGenAITaskEntities,
-    UpdateGenAIWorkflowEntities,
+    UpdateAgentEvalEntities,
+    UpdateAgentTaskEntities,
+    UpdateAgentWorkflowEntities,
 
     // profile
     GetProfileVersions,
@@ -294,37 +294,37 @@ impl Queries {
             Queries::DeleteUser => DELETE_USER,
             Queries::UpdateAlertStatus => UPDATE_ALERT_STATUS,
 
-            //genai - data
-            Queries::GetGenAIWorkflowBinnedMetrics => GET_BINNED_GENAI_WORKFLOW_VALUES,
-            Queries::GetGenAITaskBinnedMetrics => GET_BINNED_GENAI_TASK_VALUES,
-            Queries::GetGenAIWorkflowValues => GET_GENAI_WORKFLOW_VALUES,
-            Queries::GetGenAITaskValues => GET_GENAI_TASK_VALUES,
+            //agent - data
+            Queries::GetAgentWorkflowBinnedMetrics => GET_BINNED_AGENT_WORKFLOW_VALUES,
+            Queries::GetAgentTaskBinnedMetrics => GET_BINNED_AGENT_TASK_VALUES,
+            Queries::GetAgentWorkflowValues => GET_AGENT_WORKFLOW_VALUES,
+            Queries::GetAgentTaskValues => GET_AGENT_TASK_VALUES,
 
-            //genai - insert
-            Queries::InsertGenAITaskResultsBatch => INSERT_GENAI_TASK_RESULTS_BATCH,
-            Queries::InsertGenAIWorkflowResult => INSERT_GENAI_WORKFLOW_RESULT,
-            Queries::InsertEvalRecord => INSERT_GENAI_EVAL_RECORD,
+            //agent - insert
+            Queries::InsertAgentTaskResultsBatch => INSERT_AGENT_TASK_RESULTS_BATCH,
+            Queries::InsertAgentWorkflowResult => INSERT_AGENT_WORKFLOW_RESULT,
+            Queries::InsertEvalRecord => INSERT_AGENT_EVAL_RECORD,
 
-            Queries::GetEvalRecords => GET_GENAI_EVAL_RECORDS,
-            Queries::GetPaginatedEvalRecords => GET_PAGINATED_GENAI_EVAL_RECORDS,
-            Queries::GetPaginatedGenAIEvalWorkflow => GET_PAGINATED_GENAI_EVAL_WORKFLOW,
-            Queries::GetPendingGenAIEvalTask => GET_PENDING_GENAI_EVAL_TASK,
-            Queries::GetGenAIEvalTasks => GET_GENAI_EVAL_TASKS,
-            Queries::RescheduleEvalRecord => RESCHEDULE_GENAI_EVAL_RECORD,
+            Queries::GetEvalRecords => GET_AGENT_EVAL_RECORDS,
+            Queries::GetPaginatedEvalRecords => GET_PAGINATED_AGENT_EVAL_RECORDS,
+            Queries::GetPaginatedAgentEvalWorkflow => GET_PAGINATED_AGENT_EVAL_WORKFLOW,
+            Queries::GetPendingAgentEvalTask => GET_PENDING_AGENT_EVAL_TASK,
+            Queries::GetAgentEvalTasks => GET_AGENT_EVAL_TASKS,
+            Queries::RescheduleEvalRecord => RESCHEDULE_AGENT_EVAL_RECORD,
 
-            Queries::GetEvalRecordEntitiesForArchive => GET_GENAI_EVAL_RECORD_ENTITIES,
-            Queries::GetEvalRecordDataForArchive => GET_GENAI_EVAL_RECORD_DATA_FOR_ARCHIVE,
-            Queries::UpdateGenAIEvalEntities => UPDATE_GENAI_EVAL_ENTITIES,
+            Queries::GetEvalRecordEntitiesForArchive => GET_AGENT_EVAL_RECORD_ENTITIES,
+            Queries::GetEvalRecordDataForArchive => GET_AGENT_EVAL_RECORD_DATA_FOR_ARCHIVE,
+            Queries::UpdateAgentEvalEntities => UPDATE_AGENT_EVAL_ENTITIES,
 
-            Queries::GetGenAIEvalTaskResultEntitiesForArchive => GET_GENAI_TASK_RECORD_ENTITIES,
-            Queries::GetGenAITaskResultDataForArchive => GET_GENAI_TASK_DATA_FOR_ARCHIVE,
-            Queries::UpdateGenAITaskEntities => UPDATE_GENAI_TASK_ENTITIES,
+            Queries::GetAgentEvalTaskResultEntitiesForArchive => GET_AGENT_TASK_RECORD_ENTITIES,
+            Queries::GetAgentTaskResultDataForArchive => GET_AGENT_TASK_DATA_FOR_ARCHIVE,
+            Queries::UpdateAgentTaskEntities => UPDATE_AGENT_TASK_ENTITIES,
 
-            Queries::GetGenAIEvalWorkflowEntitiesForArchive => GET_GENAI_WORKFLOW_ENTITIES,
-            Queries::GetGenAIWorkflowResultDataForArchive => GET_GENAI_WORKFLOW_DATA_FOR_ARCHIVE,
-            Queries::UpdateGenAIWorkflowEntities => UPDATE_GENAI_WORKFLOW_ENTITIES,
+            Queries::GetAgentEvalWorkflowEntitiesForArchive => GET_AGENT_WORKFLOW_ENTITIES,
+            Queries::GetAgentWorkflowResultDataForArchive => GET_AGENT_WORKFLOW_DATA_FOR_ARCHIVE,
+            Queries::UpdateAgentWorkflowEntities => UPDATE_AGENT_WORKFLOW_ENTITIES,
 
-            Queries::UpdateGenAIEvalTask => UPDATE_GENAI_EVAL_TASK,
+            Queries::UpdateAgentEvalTask => UPDATE_AGENT_EVAL_TASK,
 
             Queries::InsertCustomMetricValuesBatch => INSERT_CUSTOM_METRIC_VALUES_BATCH,
             Queries::InsertSpcDriftRecordBatch => INSERT_SPC_DRIFT_RECORD_BATCH,

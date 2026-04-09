@@ -365,7 +365,7 @@ impl TaskExecutor {
 
         while let Some(result) = join_set.join_next().await {
             result.map_err(|e| {
-                EvaluationError::GenAIEvaluatorError(format!("Task join error: {}", e))
+                EvaluationError::AgentEvaluatorError(format!("Task join error: {}", e))
             })??;
         }
 
@@ -472,7 +472,7 @@ impl TaskExecutor {
         let mut results = HashMap::with_capacity(task_ids.len());
         while let Some(result) = join_set.join_next().await {
             let (judge_id, start_time, response) = result.map_err(|e| {
-                EvaluationError::GenAIEvaluatorError(format!("Task join error: {}", e))
+                EvaluationError::AgentEvaluatorError(format!("Task join error: {}", e))
             })??;
             results.insert(judge_id, (start_time, response));
         }
@@ -519,7 +519,7 @@ impl TaskExecutor {
         let scoped_context = context.build_scoped_context(&judge.depends_on).await;
 
         let workflow = profile.workflow.as_ref().ok_or_else(|| {
-            EvaluationError::GenAIEvaluatorError("No workflow defined".to_string())
+            EvaluationError::AgentEvaluatorError("No workflow defined".to_string())
         })?;
 
         debug!("Executing workflow task: {}", task_id);
@@ -723,7 +723,7 @@ impl ResultCollector {
             }
         }
 
-        let workflow_record = scouter_types::GenAIEvalWorkflowResult {
+        let workflow_record = scouter_types::AgentEvalWorkflowResult {
             created_at: chrono::Utc::now(),
             id: record.id,
             entity_id: record.entity_id,
@@ -745,9 +745,9 @@ impl ResultCollector {
     }
 }
 
-pub struct GenAIEvaluator;
+pub struct AgentEvaluator;
 
-impl GenAIEvaluator {
+impl AgentEvaluator {
     #[instrument(skip_all, fields(record_uid = %record.uid))]
     pub async fn process_event_record(
         record: &EvalRecord,
@@ -845,7 +845,7 @@ mod tests {
     use serde_json::Value;
     use std::sync::Arc;
 
-    use crate::evaluate::GenAIEvaluator;
+    use crate::evaluate::AgentEvaluator;
 
     async fn create_assert_judge_profile() -> AgentEvalProfile {
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
@@ -1215,7 +1215,7 @@ mod tests {
         );
 
         let result_set = runtime.block_on(async {
-            GenAIEvaluator::process_event_record(&record, Arc::new(profile), Arc::new(vec![])).await
+            AgentEvaluator::process_event_record(&record, Arc::new(profile), Arc::new(vec![])).await
         });
 
         let eval_set = result_set.unwrap();
@@ -1253,7 +1253,7 @@ mod tests {
         );
 
         let result_set = runtime.block_on(async {
-            GenAIEvaluator::process_event_record(&record, Arc::new(profile), Arc::new(vec![])).await
+            AgentEvaluator::process_event_record(&record, Arc::new(profile), Arc::new(vec![])).await
         });
 
         let eval_set = result_set.unwrap();
@@ -1280,7 +1280,7 @@ mod tests {
             None,
         );
 
-        let result = runtime.block_on(GenAIEvaluator::process_event_record(
+        let result = runtime.block_on(AgentEvaluator::process_event_record(
             &record,
             Arc::new(profile),
             spans,
@@ -1307,7 +1307,7 @@ mod tests {
             None,
         );
 
-        let result = runtime.block_on(GenAIEvaluator::process_event_record(
+        let result = runtime.block_on(AgentEvaluator::process_event_record(
             &record,
             Arc::new(profile),
             spans,
@@ -1335,7 +1335,7 @@ mod tests {
             None,
         );
 
-        let result = runtime.block_on(GenAIEvaluator::process_event_record(
+        let result = runtime.block_on(AgentEvaluator::process_event_record(
             &record,
             Arc::new(profile),
             spans,
@@ -1363,7 +1363,7 @@ mod tests {
             None,
         );
 
-        let result = runtime.block_on(GenAIEvaluator::process_event_record(
+        let result = runtime.block_on(AgentEvaluator::process_event_record(
             &record,
             Arc::new(profile),
             spans,
@@ -1390,7 +1390,7 @@ mod tests {
             None,
         );
 
-        let result = runtime.block_on(GenAIEvaluator::process_event_record(
+        let result = runtime.block_on(AgentEvaluator::process_event_record(
             &record,
             Arc::new(profile),
             spans,
@@ -1438,7 +1438,7 @@ mod tests {
             None,
         );
 
-        let result = runtime.block_on(GenAIEvaluator::process_event_record(
+        let result = runtime.block_on(AgentEvaluator::process_event_record(
             &record,
             Arc::new(profile),
             spans,
@@ -1492,7 +1492,7 @@ mod tests {
             None,
         );
 
-        let result = runtime.block_on(GenAIEvaluator::process_event_record(
+        let result = runtime.block_on(AgentEvaluator::process_event_record(
             &record,
             Arc::new(profile),
             spans,
@@ -1563,7 +1563,7 @@ mod tests {
             None,
         );
 
-        let result = runtime.block_on(GenAIEvaluator::process_event_record(
+        let result = runtime.block_on(AgentEvaluator::process_event_record(
             &record,
             Arc::new(profile),
             spans,
@@ -1617,7 +1617,7 @@ mod tests {
             None,
         );
 
-        let result = runtime.block_on(GenAIEvaluator::process_event_record(
+        let result = runtime.block_on(AgentEvaluator::process_event_record(
             &record,
             Arc::new(profile),
             spans,

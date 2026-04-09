@@ -27,10 +27,10 @@ pub trait ArchiveSqlLogic {
             RecordType::Spc => Queries::GetSpcEntities.get_query(),
             RecordType::Psi => Queries::GetBinCountEntities.get_query(),
             RecordType::Custom => Queries::GetCustomEntities.get_query(),
-            RecordType::GenAIEval => Queries::GetEvalRecordEntitiesForArchive.get_query(),
-            RecordType::GenAITask => Queries::GetGenAIEvalTaskResultEntitiesForArchive.get_query(),
-            RecordType::GenAIWorkflow => {
-                Queries::GetGenAIEvalWorkflowEntitiesForArchive.get_query()
+            RecordType::AgentEval => Queries::GetEvalRecordEntitiesForArchive.get_query(),
+            RecordType::AgentTask => Queries::GetAgentEvalTaskResultEntitiesForArchive.get_query(),
+            RecordType::AgentWorkflow => {
+                Queries::GetAgentEvalWorkflowEntitiesForArchive.get_query()
             }
             _ => {
                 return Err(SqlError::InvalidRecordTypeError(record_type.to_string()));
@@ -67,9 +67,9 @@ pub trait ArchiveSqlLogic {
             RecordType::Spc => Queries::GetSpcDataForArchive.get_query(),
             RecordType::Psi => Queries::GetBinCountDataForArchive.get_query(),
             RecordType::Custom => Queries::GetCustomDataForArchive.get_query(),
-            RecordType::GenAIEval => Queries::GetEvalRecordDataForArchive.get_query(),
-            RecordType::GenAITask => Queries::GetGenAITaskResultDataForArchive.get_query(),
-            RecordType::GenAIWorkflow => Queries::GetGenAIWorkflowResultDataForArchive.get_query(),
+            RecordType::AgentEval => Queries::GetEvalRecordDataForArchive.get_query(),
+            RecordType::AgentTask => Queries::GetAgentTaskResultDataForArchive.get_query(),
+            RecordType::AgentWorkflow => Queries::GetAgentWorkflowResultDataForArchive.get_query(),
             _ => {
                 return Err(SqlError::InvalidRecordTypeError(record_type.to_string()));
             }
@@ -97,9 +97,9 @@ pub trait ArchiveSqlLogic {
             RecordType::Spc => Queries::UpdateSpcEntities.get_query(),
             RecordType::Psi => Queries::UpdateBinCountEntities.get_query(),
             RecordType::Custom => Queries::UpdateCustomEntities.get_query(),
-            RecordType::GenAIEval => Queries::UpdateGenAIEvalEntities.get_query(),
-            RecordType::GenAITask => Queries::UpdateGenAITaskEntities.get_query(),
-            RecordType::GenAIWorkflow => Queries::UpdateGenAIWorkflowEntities.get_query(),
+            RecordType::AgentEval => Queries::UpdateAgentEvalEntities.get_query(),
+            RecordType::AgentTask => Queries::UpdateAgentTaskEntities.get_query(),
+            RecordType::AgentWorkflow => Queries::UpdateAgentWorkflowEntities.get_query(),
             _ => {
                 return Err(SqlError::InvalidRecordTypeError(record_type.to_string()));
             }

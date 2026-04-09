@@ -1,6 +1,6 @@
-## GenAI evaluation
+## Agent Evaluation
 
-GenAI outputs are stochastic. The same prompt produces different responses across runs, model versions drift, and "it worked in testing" stops being a meaningful claim once your agent is in production. You need a systematic way to measure quality: before you ship and while you're running.
+Agent outputs are stochastic. The same prompt produces different responses across runs, model versions drift, and "it worked in testing" stops being a meaningful claim once your agent is in production. You need a systematic way to measure quality: before you ship and while you're running.
 
 Scouter's eval framework gives you two views of your agent, captured in a single run.
 

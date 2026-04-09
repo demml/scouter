@@ -1,4 +1,3 @@
-# type: ignore
 import pandas as pd
 import polars as pl
 from numpy.typing import NDArray

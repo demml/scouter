@@ -1,8 +1,8 @@
-# Technical Component Specification: GenAI Evaluation
+# Technical Component Specification: Agent Evaluation
 
 ## Overview
 
-The GenAI evaluation component provides two complementary workflows for assessing the quality, correctness, and safety of LLM-powered applications:
+The Agent evaluation component provides two complementary workflows for assessing the quality, correctness, and safety of LLM-powered applications:
 
 - **Online evaluation** — Real-time sampling and asynchronous evaluation of production inference traffic
 - **Offline evaluation** — Batch evaluation of datasets for pre-deployment testing, regression analysis, and benchmarking

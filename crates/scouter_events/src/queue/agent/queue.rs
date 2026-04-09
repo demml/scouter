@@ -31,7 +31,7 @@ const GENAI_MAX_QUEUE_SIZE: usize = 25;
 /// - `rt`: A Tokio runtime for executing asynchronous tasks.
 /// - `sample_size`: The size of the sample.
 /// - `sample`: A boolean indicating whether to sample metrics.
-pub struct GenAIQueue {
+pub struct AgentQueue {
     queue: Arc<ArrayQueue<EvalRecord>>,
     record_queue: Arc<EvalRecordQueue>,
     producer: RustScouterProducer,
@@ -40,7 +40,7 @@ pub struct GenAIQueue {
     settings: Arc<RwLock<QueueSettings>>,
 }
 
-impl GenAIQueue {
+impl AgentQueue {
     pub async fn new(
         drift_profile: AgentEvalProfile,
         config: TransportConfig,
@@ -48,7 +48,7 @@ impl GenAIQueue {
         task_state: &mut TaskState<Event>,
         identifier: String,
     ) -> Result<Self, EventError> {
-        debug!("Creating GenAI Drift Queue");
+        debug!("Creating Agent Eval Queue");
         // ArrayQueue size is based on sample rate
         let queue = Arc::new(ArrayQueue::new(GENAI_MAX_QUEUE_SIZE * 2));
         let record_queue = Arc::new(EvalRecordQueue::new(drift_profile));
@@ -57,7 +57,7 @@ impl GenAIQueue {
         let producer = RustScouterProducer::new(config).await?;
         let cancellation_token = CancellationToken::new();
 
-        let genai_queue = GenAIQueue {
+        let agent_queue = AgentQueue {
             queue: queue.clone(),
             record_queue: record_queue.clone(),
             producer,
@@ -66,12 +66,12 @@ impl GenAIQueue {
             settings,
         };
 
-        let handle = genai_queue.start_background_task(
+        let handle = agent_queue.start_background_task(
             queue,
             record_queue,
-            genai_queue.producer.clone(),
-            genai_queue.last_publish.clone(),
-            genai_queue.capacity,
+            agent_queue.producer.clone(),
+            agent_queue.last_publish.clone(),
+            agent_queue.capacity,
             identifier,
             task_state.clone(),
             cancellation_token.clone(),
@@ -80,7 +80,7 @@ impl GenAIQueue {
         task_state.add_background_abort_handle(handle);
         task_state.add_background_cancellation_token(cancellation_token);
 
-        Ok(genai_queue)
+        Ok(agent_queue)
     }
 
     pub fn should_insert(&self) -> bool {
@@ -96,14 +96,14 @@ impl GenAIQueue {
     }
 }
 
-impl BackgroundTask for GenAIQueue {
+impl BackgroundTask for AgentQueue {
     type DataItem = EvalRecord;
     type Processor = EvalRecordQueue;
 }
 
 #[async_trait]
 /// Implementing primary methods
-impl QueueMethods for GenAIQueue {
+impl QueueMethods for AgentQueue {
     type ItemType = EvalRecord;
     type FeatureQueue = EvalRecordQueue;
 

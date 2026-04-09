@@ -1,6 +1,6 @@
 use crate::agent::EvalDataset;
 use crate::error::EvaluationError;
-use crate::evaluate::evaluator::GenAIEvaluator;
+use crate::evaluate::evaluator::AgentEvaluator;
 use crate::evaluate::types::{EvalResults, EvaluationConfig};
 use crate::tasks::evaluator::FieldEvaluator;
 use itertools::iproduct;
@@ -52,7 +52,7 @@ pub async fn spawn_evaluation_tasks_without_embeddings(
             );
 
             let result =
-                match GenAIEvaluator::process_event_record(record, profile_ref, spans_ref).await {
+                match AgentEvaluator::process_event_record(record, profile_ref, spans_ref).await {
                     Ok(eval_set) => Ok((eval_set, BTreeMap::new())),
                     Err(e) => Err(format!("Evaluation failed: {}", e)),
                 };
@@ -70,7 +70,7 @@ pub async fn spawn_evaluation_tasks_without_embeddings(
 /// * `embedder` - The Embedder instance to use for generating embeddings.
 /// * `config` - The EvaluationConfig containing evaluation settings.
 /// # Returns
-/// A JoinSet containing GenAIEvalTaskResults for each record.
+/// A JoinSet containing EvalTaskResults for each record.
 pub async fn spawn_evaluation_tasks_with_embeddings(
     dataset: &EvalDataset,
     embedder: Arc<Embedder>,
@@ -98,7 +98,7 @@ pub async fn spawn_evaluation_tasks_with_embeddings(
 
             // Execute evaluation
             let result =
-                match GenAIEvaluator::process_event_record(record, profile_ref, spans_ref).await {
+                match AgentEvaluator::process_event_record(record, profile_ref, spans_ref).await {
                     Ok(eval_set) => Ok((eval_set, embeddings)),
                     Err(e) => Err(format!("Evaluation failed: {}", e)),
                 };
@@ -110,7 +110,7 @@ pub async fn spawn_evaluation_tasks_with_embeddings(
     join_set
 }
 
-/// Helper for extracting embeddings for a single record. Used in the genai evaulation workflow.
+/// Helper for extracting embeddings for a single record. Used in the agent evaulation workflow.
 /// # Arguments
 /// * `record` - The EvalRecord to extract embeddings from.
 /// * `embedder` - The Embedder instance to use for generating embeddings.

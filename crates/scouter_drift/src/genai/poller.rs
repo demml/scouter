@@ -2,9 +2,9 @@
 use crate::error::DriftError;
 use chrono::Duration;
 use scouter_dataframe::parquet::tracing::service::get_trace_span_service;
-use scouter_evaluate::evaluate::GenAIEvaluator;
+use scouter_evaluate::evaluate::AgentEvaluator;
 use scouter_sql::sql::aggregator::get_trace_summary_service;
-use scouter_sql::sql::traits::{GenAIDriftSqlLogic, ProfileSqlLogic};
+use scouter_sql::sql::traits::{AgentDriftSqlLogic, ProfileSqlLogic};
 use scouter_sql::PostgresClient;
 use scouter_types::agent::{AgentEvalProfile, EvalSet};
 use scouter_types::sql::{TraceFilters, TraceSpan};
@@ -33,11 +33,11 @@ async fn wait_for_trace_spans(
     let mut backoff = initial_backoff;
 
     let summary_service = get_trace_summary_service().ok_or_else(|| {
-        DriftError::GenAIEvaluatorError("TraceSummaryService not initialized".to_string())
+        DriftError::AgentEvaluatorError("TraceSummaryService not initialized".to_string())
     })?;
 
     let span_service = get_trace_span_service().ok_or_else(|| {
-        DriftError::GenAIEvaluatorError("TraceSpanService not initialized".to_string())
+        DriftError::AgentEvaluatorError("TraceSpanService not initialized".to_string())
     })?;
 
     loop {
@@ -62,7 +62,7 @@ async fn wait_for_trace_spans(
 
                 // Fetch full spans from Delta Lake
                 let trace_id_bytes = TraceId::hex_to_bytes(trace_id_hex).map_err(|e| {
-                    DriftError::GenAIEvaluatorError(format!("Invalid trace_id hex: {}", e))
+                    DriftError::AgentEvaluatorError(format!("Invalid trace_id hex: {}", e))
                 })?;
 
                 match span_service
@@ -128,7 +128,7 @@ async fn wait_for_trace_spans_with_reschedule(
     match wait_for_trace_spans(&task.uid, trace_wait_timeout, trace_backoff).await {
         Ok(spans) => Ok(TraceSpanResult::Ready(spans)),
         Err(DriftError::TraceSpansNotAvailable(_)) => {
-            PostgresClient::reschedule_genai_eval_record(pool, &task.uid, trace_reschedule_delay)
+            PostgresClient::reschedule_agent_eval_record(pool, &task.uid, trace_reschedule_delay)
                 .await?;
             Ok(TraceSpanResult::Reschedule)
         }
@@ -141,7 +141,7 @@ async fn wait_for_trace_spans_with_reschedule(
 /// 1. Poll the database for "pending" GenAI drift records
 /// 2. For each record, check if trace spans are needed and available
 /// 3. If spans are needed but not available, reschedule the record for later processing
-/// 4. If spans are available or not needed, process the record using GenAIEvaluator
+/// 4. If spans are available or not needed, process the record using AgentEvaluator
 /// 5. Update the record status to "processed" or "failed" based on the outcome
 pub struct AgentPoller {
     db_pool: Pool<Postgres>,
@@ -180,7 +180,7 @@ impl AgentPoller {
         // create arc mutex for profile
         let profile = Arc::new(profile.clone());
 
-        match GenAIEvaluator::process_event_record(record, profile, spans).await {
+        match AgentEvaluator::process_event_record(record, profile, spans).await {
             Ok(result_set) => {
                 // insert task results first
                 PostgresClient::insert_eval_task_results_batch(
@@ -194,28 +194,28 @@ impl AgentPoller {
                 })?;
 
                 // insert workflow record
-                PostgresClient::insert_genai_eval_workflow_record(
+                PostgresClient::insert_agent_eval_workflow_record(
                     &self.db_pool,
                     &result_set.inner,
                     &record.entity_id,
                 )
                 .await
                 .inspect_err(|e| {
-                    error!("Failed to insert GenAI workflow record: {:?}", e);
+                    error!("Failed to insert Agent workflow record: {:?}", e);
                 })?;
 
                 return Ok(result_set);
             }
             Err(e) => {
                 error!("Failed to process drift record: {:?}", e);
-                return Err(DriftError::GenAIEvaluatorError(e.to_string()));
+                return Err(DriftError::AgentEvaluatorError(e.to_string()));
             }
         };
     }
 
     #[instrument(skip_all)]
     pub async fn do_poll(&mut self) -> Result<bool, DriftError> {
-        let task = PostgresClient::get_pending_genai_eval_record(&self.db_pool).await?;
+        let task = PostgresClient::get_pending_agent_eval_record(&self.db_pool).await?;
 
         let Some(task) = task else {
             return Ok(false);
@@ -228,11 +228,11 @@ impl AgentPoller {
         {
             let genai_profile: AgentEvalProfile =
                 serde_json::from_value(profile).inspect_err(|e| {
-                    error!("Failed to deserialize GenAI drift profile: {:?}", e);
+                    error!("Failed to deserialize Agent drift profile: {:?}", e);
                 })?;
             genai_profile
         } else {
-            error!("No GenAI drift profile found for {}", task.uid);
+            error!("No Agent drift profile found for {}", task.uid);
             return Ok(false);
         };
 
@@ -264,7 +264,7 @@ impl AgentPoller {
                 }
                 TraceSpanResult::Failed => {
                     error!("Max retries exceeded for task {}", task.uid);
-                    PostgresClient::update_genai_eval_record_status(
+                    PostgresClient::update_agent_eval_record_status(
                         &self.db_pool,
                         &task,
                         Status::Failed,
@@ -284,7 +284,7 @@ impl AgentPoller {
                 .await
             {
                 Ok(result_set) => {
-                    PostgresClient::update_genai_eval_record_status(
+                    PostgresClient::update_agent_eval_record_status(
                         &self.db_pool,
                         &task,
                         Status::Processed,
@@ -303,14 +303,14 @@ impl AgentPoller {
                     retry_count += 1;
                     if retry_count >= self.max_retries {
                         // Update the record status to error
-                        PostgresClient::update_genai_eval_record_status(
+                        PostgresClient::update_agent_eval_record_status(
                             &self.db_pool,
                             &task,
                             Status::Failed,
                             &0,
                         )
                         .await?;
-                        return Err(DriftError::GenAIEvaluatorError(e.to_string()));
+                        return Err(DriftError::AgentEvaluatorError(e.to_string()));
                     } else {
                         // Exponential backoff before retrying
                         let val = 100 * 2_i64.pow(retry_count as u32);

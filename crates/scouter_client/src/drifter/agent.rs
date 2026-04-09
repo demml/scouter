@@ -1,19 +1,19 @@
 use scouter_drift::error::DriftError;
-use scouter_evaluate::evaluate::GenAIEvaluator;
+use scouter_evaluate::evaluate::AgentEvaluator;
 use scouter_state::app_state;
 use scouter_types::agent::{AgentEvalProfile, EvalSet};
 use scouter_types::EvalRecord;
 use std::sync::Arc;
-/// Using "ClientGenAIDrifter" to avoid confusion with the server-side GenAIDrifter
-pub struct ClientGenAIDrifter {}
+/// Using "ClientAgentDrifter" to avoid confusion with the server-side GenAIDrifter
+pub struct ClientAgentDrifter {}
 
-impl Default for ClientGenAIDrifter {
+impl Default for ClientAgentDrifter {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl ClientGenAIDrifter {
+impl ClientAgentDrifter {
     pub fn new() -> Self {
         Self {}
     }
@@ -23,7 +23,7 @@ impl ClientGenAIDrifter {
         profile: &AgentEvalProfile,
     ) -> Result<EvalSet, DriftError> {
         let profile = Arc::new(profile.clone());
-        Ok(GenAIEvaluator::process_event_record(&record, profile, Arc::new(vec![])).await?)
+        Ok(AgentEvaluator::process_event_record(&record, profile, Arc::new(vec![])).await?)
     }
 
     pub fn compute_drift(

@@ -14,7 +14,7 @@ from scouter.mock import LLMTestServer
 
 
 # maintain parity with rust tests
-def test_genai_eval_no_embedding(
+def test_agent_eval_no_embedding(
     assertion_task_foo,
     llm_judge_query_relevance,
     query_relevance_score_assertion_task,
@@ -52,7 +52,7 @@ def test_genai_eval_no_embedding(
         assert isinstance(df, pl.DataFrame)
 
 
-def test_genai_eval_no_embedding_one_fail(
+def test_agent_eval_no_embedding_one_fail(
     assertion_task_foo,
     llm_judge_query_relevance,
     query_relevance_score_assertion_task,
@@ -89,7 +89,7 @@ def test_genai_eval_no_embedding_one_fail(
         assert len(dataset.assertion_tasks) == 4
 
 
-def test_genai_eval_no_embedding_all_assertion(
+def test_agent_eval_no_embedding_all_assertion(
     assertion_task_foo,
     assertion_task_bar,
     assertion_task_baz,
@@ -121,7 +121,7 @@ def test_genai_eval_no_embedding_all_assertion(
         assert len(dataset.assertion_tasks) == 3
 
 
-def test_genai_eval_embedding_all_assertion(
+def test_agent_eval_embedding_all_assertion(
     assertion_task_foo,
     assertion_task_bar,
     assertion_task_baz,
@@ -384,7 +384,7 @@ def test_array_native_has_length_unaffected() -> None:
     assert results["has_length_native"].eval_set.failed_tasks == 0
 
 
-def test_genai_conditional_assertions():
+def test_agent_conditional_assertions():
     """Main goal of this test is to ensure that conditional assertions work as expected."""
 
     stage_1_tasks = [

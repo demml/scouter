@@ -3,6 +3,7 @@
 ### header.pyi ###
 # pylint: disable=redefined-builtin, invalid-name, dangerous-default-value, missing-final-newline
 
+import builtins
 import datetime
 from pathlib import Path
 from types import TracebackType
@@ -1242,7 +1243,7 @@ class Workflow:
 class Embedder:
     """Class for creating embeddings."""
 
-    def __init__(  # type: ignore
+    def __init__(
         self,
         provider: Provider | str,
         config: Optional[OpenAIEmbeddingConfig | GeminiEmbeddingConfig] = None,
@@ -11177,6 +11178,9 @@ class ComparisonOperator:
     IsZero: "ComparisonOperator"
     """Is zero"""
 
+    SequenceMatches: "ComparisonOperator"
+    """Check that span sequence matches the expected ordered list."""
+
     ContainsAll: "ComparisonOperator"
     """Contains all specified elements"""
 
@@ -11788,73 +11792,66 @@ class SpanFilter:
         - Attribute values are internally wrapped for type safety
     """
 
-    class ByName:
+    class ByName(SpanFilter):
         """Filter spans by exact name match."""
 
         name: str
-        def and_(self, other: SpanFilter) -> SpanFilter: ...
-        def or_(self, other: SpanFilter) -> SpanFilter: ...
+        def __new__(cls, name: str) -> "SpanFilter.ByName": ...
 
-    class ByNamePattern:
+    class ByNamePattern(SpanFilter):
         """Filter spans by regex name pattern."""
 
         pattern: str
-        def and_(self, other: SpanFilter) -> SpanFilter: ...
-        def or_(self, other: SpanFilter) -> SpanFilter: ...
+        def __new__(cls, pattern: str) -> "SpanFilter.ByNamePattern": ...
 
-    class WithAttribute:
+    class WithAttribute(SpanFilter):
         """Filter spans with specific attribute key."""
 
         key: str
-        def and_(self, other: SpanFilter) -> SpanFilter: ...
-        def or_(self, other: SpanFilter) -> SpanFilter: ...
+        def __new__(cls, key: str) -> "SpanFilter.WithAttribute": ...
 
-    class WithAttributeValue:
+    class WithAttributeValue(SpanFilter):
         """Filter spans with specific attribute key-value pair."""
 
         key: str
-        value: object  # PyValueWrapper is internal, expose as object
-        def and_(self, other: SpanFilter) -> SpanFilter: ...
-        def or_(self, other: SpanFilter) -> SpanFilter: ...
+        value: Any
+        def __new__(cls, key: str, value: Any) -> "SpanFilter.WithAttributeValue": ...
 
-    class WithStatus:
+    class WithStatus(SpanFilter):
         """Filter spans by status code."""
 
         status: SpanStatus
-        def and_(self, other: SpanFilter) -> SpanFilter: ...
-        def or_(self, other: SpanFilter) -> SpanFilter: ...
+        def __new__(cls, status: SpanStatus) -> "SpanFilter.WithStatus": ...
 
-    class WithDuration:
+    class WithDuration(SpanFilter):
         """Filter spans with duration constraints."""
 
         min_ms: Optional[float]
         max_ms: Optional[float]
-        def and_(self, other: SpanFilter) -> SpanFilter: ...
-        def or_(self, other: SpanFilter) -> SpanFilter: ...
+        def __new__(
+            cls, min_ms: Optional[float] = None, max_ms: Optional[float] = None
+        ) -> "SpanFilter.WithDuration": ...
 
-    class Sequence:
+    class Sequence(SpanFilter):
         """Match a sequence of span names in order."""
 
         names: List[str]
-        def and_(self, other: SpanFilter) -> SpanFilter: ...
-        def or_(self, other: SpanFilter) -> SpanFilter: ...
+        def __new__(cls, names: List[str]) -> "SpanFilter.Sequence": ...
 
-    class And:
+    class And(SpanFilter):
         """Combine multiple filters with AND logic."""
 
-        filters: List[SpanFilter]
-        def and_(self, other: SpanFilter) -> SpanFilter: ...
-        def or_(self, other: SpanFilter) -> SpanFilter: ...
+        filters: List["SpanFilter"]
+        def __new__(cls, filters: List["SpanFilter"]) -> "SpanFilter.And": ...
 
-    class Or:
+    class Or(SpanFilter):
         """Combine multiple filters with OR logic."""
 
-        filters: List[SpanFilter]
-        def and_(self, other: SpanFilter) -> SpanFilter: ...
-        def or_(self, other: SpanFilter) -> SpanFilter: ...
+        filters: List["SpanFilter"]
+        def __new__(cls, filters: List["SpanFilter"]) -> "SpanFilter.Or": ...
 
     @staticmethod
-    def by_name(name: str) -> "SpanFilter":
+    def by_name(name: str) -> "SpanFilter.ByName":
         """Filter spans by exact name match.
 
         Args:
@@ -11866,7 +11863,7 @@ class SpanFilter:
         """
 
     @staticmethod
-    def by_name_pattern(pattern: str) -> "SpanFilter":
+    def by_name_pattern(pattern: str) -> "SpanFilter.ByNamePattern":
         """Filter spans by regex name pattern.
 
         Args:
@@ -11878,7 +11875,7 @@ class SpanFilter:
         """
 
     @staticmethod
-    def with_attribute(key: str) -> "SpanFilter":
+    def with_attribute(key: str) -> "SpanFilter.WithAttribute":
         """Filter spans that have a specific attribute key.
 
         Args:
@@ -11890,7 +11887,7 @@ class SpanFilter:
         """
 
     @staticmethod
-    def with_attribute_value(key: str, value: "SerializedType") -> "SpanFilter":
+    def with_attribute_value(key: str, value: "SerializedType") -> "SpanFilter.WithAttributeValue":
         """Filter spans that have a specific attribute key-value pair.
 
         Args:
@@ -11904,7 +11901,7 @@ class SpanFilter:
         """
 
     @staticmethod
-    def with_status(status: SpanStatus) -> "SpanFilter":
+    def with_status(status: SpanStatus) -> "SpanFilter.WithStatus":
         """Filter spans by execution status.
 
         Args:
@@ -11916,7 +11913,7 @@ class SpanFilter:
         """
 
     @staticmethod
-    def with_duration(min_ms: Optional[float] = None, max_ms: Optional[float] = None) -> "SpanFilter":
+    def with_duration(min_ms: Optional[float] = None, max_ms: Optional[float] = None) -> "SpanFilter.WithDuration":
         """Filter spans by duration constraints.
 
         Args:
@@ -11931,7 +11928,7 @@ class SpanFilter:
         """
 
     @staticmethod
-    def sequence(names: List[str]) -> "SpanFilter":
+    def sequence(names: List[str]) -> "SpanFilter.Sequence":
         """Filter for spans appearing in specific order.
 
         Args:
@@ -12072,51 +12069,86 @@ class TraceAssertion:
         - Trace-level assertions evaluate the entire trace without filtering
     """
 
-    class SpanSequence:
+    class SpanSequence(TraceAssertion):
         """Extracts a sequence of span names in order."""
 
         span_names: List[str]
+        def __new__(cls, span_names: List[str]) -> "TraceAssertion.SpanSequence": ...
 
-    class SpanSet:
+    class SpanSet(TraceAssertion):
         """Checks for existence of all specified span names."""
 
         span_names: List[str]
+        def __new__(cls, span_names: List[str]) -> "TraceAssertion.SpanSet": ...
 
-    class SpanCount:
+    class SpanCount(TraceAssertion):
         """Counts spans matching a filter."""
 
         filter: SpanFilter
+        def __new__(cls, filter: SpanFilter) -> "TraceAssertion.SpanCount": ...
 
-    class SpanExists:
+    class SpanExists(TraceAssertion):
         """Checks if any span matches a filter."""
 
         filter: SpanFilter
+        def __new__(cls, filter: SpanFilter) -> "TraceAssertion.SpanExists": ...
 
-    class SpanAttribute:
+    class SpanAttribute(TraceAssertion):
         """Extracts attribute value from span matching filter."""
 
         filter: SpanFilter
         attribute_key: str
+        def __new__(cls, filter: SpanFilter, attribute_key: str) -> "TraceAssertion.SpanAttribute": ...
 
-    class SpanDuration:
+    class SpanDuration(TraceAssertion):
         """Extracts duration of span matching filter."""
 
         filter: SpanFilter
+        def __new__(cls, filter: SpanFilter) -> "TraceAssertion.SpanDuration": ...
 
-    class SpanAggregation:
+    class SpanAggregation(TraceAssertion):
         """Aggregates numeric attribute across filtered spans."""
 
         filter: SpanFilter
         attribute_key: str
         aggregation: AggregationType
+        def __new__(
+            cls, filter: SpanFilter, attribute_key: str, aggregation: AggregationType
+        ) -> "TraceAssertion.SpanAggregation": ...
 
-    class TraceAttribute:
+    class TraceAttribute(TraceAssertion):
         """Extracts trace-level attribute value."""
 
         attribute_key: str
+        def __new__(cls, attribute_key: str) -> "TraceAssertion.TraceAttribute": ...
+
+    class TraceDuration(TraceAssertion):
+        """Get total duration of the entire trace."""
+
+        def __new__(cls) -> "TraceAssertion.TraceDuration": ...
+
+    class TraceSpanCount(TraceAssertion):
+        """Count total spans in the trace."""
+
+        def __new__(cls) -> "TraceAssertion.TraceSpanCount": ...
+
+    class TraceErrorCount(TraceAssertion):
+        """Count spans with errors in the trace."""
+
+        def __new__(cls) -> "TraceAssertion.TraceErrorCount": ...
+
+    class TraceServiceCount(TraceAssertion):
+        """Count unique services in the trace."""
+
+        def __new__(cls) -> "TraceAssertion.TraceServiceCount": ...
+
+    class TraceMaxDepth(TraceAssertion):
+        """Get maximum span depth in the trace."""
+
+        def __new__(cls) -> "TraceAssertion.TraceMaxDepth": ...
 
     @staticmethod
-    def span_sequence(span_names: List[str]) -> "TraceAssertion":
+    def span_sequence(span_names: List[str]) -> "TraceAssertion.SpanSequence":
         """Assert spans appear in specific order.
 
         Args:
@@ -12129,7 +12161,7 @@ class TraceAssertion:
         """
 
     @staticmethod
-    def span_set(span_names: List[str]) -> "TraceAssertion":
+    def span_set(span_names: List[str]) -> "TraceAssertion.SpanSet":
         """Assert all specified spans exist (order independent).
 
         Args:
@@ -12142,7 +12174,7 @@ class TraceAssertion:
         """
 
     @staticmethod
-    def span_count(filter: SpanFilter) -> "TraceAssertion":
+    def span_count(filter: SpanFilter) -> "TraceAssertion.SpanCount":
         """Count spans matching the filter.
 
         Args:
@@ -12155,7 +12187,7 @@ class TraceAssertion:
         """
 
     @staticmethod
-    def span_exists(filter: SpanFilter) -> "TraceAssertion":
+    def span_exists(filter: SpanFilter) -> "TraceAssertion.SpanExists":
         """Check if any span matches the filter.
 
         Args:
@@ -12168,7 +12200,7 @@ class TraceAssertion:
         """
 
     @staticmethod
-    def span_attribute(filter: SpanFilter, attribute_key: str) -> "TraceAssertion":
+    def span_attribute(filter: SpanFilter, attribute_key: str) -> "TraceAssertion.SpanAttribute":
         """Get attribute value from span matching filter.
 
         Args:
@@ -12183,7 +12215,7 @@ class TraceAssertion:
         """
 
     @staticmethod
-    def span_duration(filter: SpanFilter) -> "TraceAssertion":
+    def span_duration(filter: SpanFilter) -> "TraceAssertion.SpanDuration":
         """Get duration of span matching filter.
 
         Args:
@@ -12196,7 +12228,9 @@ class TraceAssertion:
         """
 
     @staticmethod
-    def span_aggregation(filter: SpanFilter, attribute_key: str, aggregation: AggregationType) -> "TraceAssertion":
+    def span_aggregation(
+        filter: SpanFilter, attribute_key: str, aggregation: AggregationType
+    ) -> "TraceAssertion.SpanAggregation":
         """Aggregate numeric attribute across filtered spans.
 
         Args:
@@ -12213,7 +12247,7 @@ class TraceAssertion:
         """
 
     @staticmethod
-    def trace_duration() -> "TraceAssertion":
+    def trace_duration() -> "TraceAssertion.TraceDuration":
         """Get total duration of the entire trace.
 
         Returns:
@@ -12222,7 +12256,7 @@ class TraceAssertion:
         """
 
     @staticmethod
-    def trace_span_count() -> "TraceAssertion":
+    def trace_span_count() -> "TraceAssertion.TraceSpanCount":
         """Count total spans in the trace.
 
         Returns:
@@ -12231,7 +12265,7 @@ class TraceAssertion:
         """
 
     @staticmethod
-    def trace_error_count() -> "TraceAssertion":
+    def trace_error_count() -> "TraceAssertion.TraceErrorCount":
         """Count spans with error status in the trace.
 
         Returns:
@@ -12240,7 +12274,7 @@ class TraceAssertion:
         """
 
     @staticmethod
-    def trace_service_count() -> "TraceAssertion":
+    def trace_service_count() -> "TraceAssertion.TraceServiceCount":
         """Count unique services involved in the trace.
 
         Returns:
@@ -12249,7 +12283,7 @@ class TraceAssertion:
         """
 
     @staticmethod
-    def trace_max_depth() -> "TraceAssertion":
+    def trace_max_depth() -> "TraceAssertion.TraceMaxDepth":
         """Get maximum nesting depth of span tree.
 
         Returns:
@@ -12258,7 +12292,7 @@ class TraceAssertion:
         """
 
     @staticmethod
-    def trace_attribute(attribute_key: str) -> "TraceAssertion":
+    def trace_attribute(attribute_key: str) -> "TraceAssertion.TraceAttribute":
         """Get trace-level attribute value.
 
         Args:
@@ -13741,6 +13775,10 @@ class TasksFile:
     def __next__(self) -> AssertionTask | LLMJudgeTask | TraceAssertionTask:
         """Return the next task in the file, or raise StopIteration when done."""
 
+    @overload
+    def __getitem__(self, index: int) -> AssertionTask | LLMJudgeTask | TraceAssertionTask: ...
+    @overload
+    def __getitem__(self, index: slice) -> List[AssertionTask | LLMJudgeTask | TraceAssertionTask]: ...
     def __getitem__(
         self, index: int | slice
     ) -> AssertionTask | LLMJudgeTask | TraceAssertionTask | List[AssertionTask | LLMJudgeTask | TraceAssertionTask]:
@@ -14016,7 +14054,7 @@ class DriftType:
     Spc: "DriftType"
     Psi: "DriftType"
     Custom: "DriftType"
-    GenAI: "DriftType"
+    Agent: "DriftType"
 
     def value(self) -> str: ...
     @staticmethod
@@ -14338,7 +14376,7 @@ class SpcAlertConfig:
         """Set the features to monitor"""
 
 class SpcAlert:
-    def __init__(self, kind: SpcAlertType, zone: AlertZone):
+    def __init__(self, kind: Literal["SpcAlertType"], zone: AlertZone):
         """Initialize alert"""
 
     @property
@@ -14985,7 +15023,7 @@ class ScouterClient:
             Drift map of type BinnedMetrics | BinnedPsiFeatureMetrics | BinnedSpcFeatureMetrics
         """
 
-    def get_genai_task_binned_drift(self, drift_request: DriftRequest) -> Any:
+    def get_agent_task_binned_drift(self, drift_request: DriftRequest) -> Any:
         """Get GenAI task drift map from server
         Args:
             drift_request:
@@ -15163,7 +15201,7 @@ class BinnedSpcFeatureMetrics:
 class EntityType:
     Feature: "EntityType"
     Metric: "EntityType"
-    GenAI: "EntityType"
+    Agent: "EntityType"
 
 class RecordType:
     Spc: "RecordType"
@@ -15171,9 +15209,9 @@ class RecordType:
     Observability: "RecordType"
     Custom: "RecordType"
     Trace: "RecordType"
-    GenAIEval: "RecordType"
-    GenAITask: "RecordType"
-    GenAIWorkflow: "RecordType"
+    AgentEval: "RecordType"
+    AgentTask: "RecordType"
+    AgentWorkflow: "RecordType"
 
 class ServerRecord:
     def __init__(self, record: Any) -> None:
@@ -15368,7 +15406,7 @@ class QueueFeature:
         """
 
     @staticmethod
-    def int(name: str, value: int) -> "QueueFeature":
+    def int(name: str, value: builtins.int) -> "QueueFeature":
         """Create an integer feature
 
         Args:
@@ -15379,7 +15417,7 @@ class QueueFeature:
         """
 
     @staticmethod
-    def float(name: str, value: float) -> "QueueFeature":
+    def float(name: str, value: builtins.float) -> "QueueFeature":
         """Create a float feature
 
         Args:
@@ -15812,7 +15850,7 @@ class ScouterQueue:
         omitted from the result.
         """
 
-    def genai_profiles(self) -> Dict[str, AgentEvalProfile]:
+    def agent_profiles(self) -> Dict[str, AgentEvalProfile]:
         """Returns a mapping of alias → AgentEvalProfile for all AgentEvalProfiles registered in the queue."""
 
 class EvalRecord:
@@ -17912,7 +17950,7 @@ class Drifter:
             CustomDriftProfile
         """
 
-    def create_drift_profile(  # type: ignore
+    def create_drift_profile(  # type: ignore[misc]
         self,
         data: Any,
         config: Optional[Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]] = None,
@@ -17937,7 +17975,7 @@ class Drifter:
             SpcDriftProfile, PsiDriftProfile or CustomDriftProfile
         """
 
-    def create_genai_drift_profile(
+    def create_agent_drift_profile(
         self,
         config: AgentEvalConfig,
         tasks: Sequence[LLMJudgeTask | AssertionTask | TraceAssertionTask | AgentAssertionTask],
@@ -17948,7 +17986,7 @@ class Drifter:
         LLM evaluations are run asynchronously on the scouter server.
 
         Overview:
-            GenAI evaluations are defined using assertion tasks and LLM judge tasks.
+            Agent evaluations are defined using assertion tasks and LLM judge tasks.
             Assertion tasks evaluate specific metrics based on model responses, and do not require
             the use of an LLM judge or extra call. It is recommended to use assertion tasks whenever possible
             to reduce cost and latency. LLM judge tasks leverage an additional LLM call to evaluate
@@ -17988,7 +18026,7 @@ class Drifter:
             ...         description="Ensure relevance score >= 7"
             ...     )
             ... ]
-            >>> profile = Drifter().create_genai_drift_profile(config, tasks)
+            >>> profile = Drifter().create_agent_drift_profile(config, tasks)
 
         """
 
@@ -18057,7 +18095,7 @@ class Drifter:
             EvalResultSet
         """
 
-    def compute_drift(  # type: ignore
+    def compute_drift(  # type: ignore[misc]
         self,
         data: Any,
         drift_profile: Union[SpcDriftProfile, PsiDriftProfile, AgentEvalProfile],

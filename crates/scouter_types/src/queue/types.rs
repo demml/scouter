@@ -16,7 +16,7 @@ use tracing::error;
 pub enum EntityType {
     Feature,
     Metric,
-    GenAI,
+    Agent,
 }
 
 impl From<EntityType> for opentelemetry::Value {
@@ -24,7 +24,7 @@ impl From<EntityType> for opentelemetry::Value {
         match val {
             EntityType::Feature => opentelemetry::Value::String(StringValue::from("Feature")),
             EntityType::Metric => opentelemetry::Value::String(StringValue::from("Metric")),
-            EntityType::GenAI => opentelemetry::Value::String(StringValue::from("GenAI")),
+            EntityType::Agent => opentelemetry::Value::String(StringValue::from("Agent")),
         }
     }
 }
@@ -34,7 +34,7 @@ impl Display for EntityType {
         match self {
             EntityType::Feature => write!(f, "Feature"),
             EntityType::Metric => write!(f, "Metric"),
-            EntityType::GenAI => write!(f, "GenAI"),
+            EntityType::Agent => write!(f, "Agent"),
         }
     }
 }
@@ -407,7 +407,7 @@ impl Metrics {
 pub enum QueueItem {
     Features(Features),
     Metrics(Metrics),
-    GenAI(Box<EvalRecord>),
+    Agent(Box<EvalRecord>),
 }
 
 impl QueueItem {
@@ -427,10 +427,9 @@ impl QueueItem {
                 let metrics = entity.extract::<Metrics>()?;
                 Ok(QueueItem::Metrics(metrics))
             }
-            EntityType::GenAI => {
-                // LLM is not supported in this context
-                let genai = entity.extract::<EvalRecord>()?;
-                Ok(QueueItem::GenAI(Box::new(genai)))
+            EntityType::Agent => {
+                let agent = entity.extract::<EvalRecord>()?;
+                Ok(QueueItem::Agent(Box::new(agent)))
             }
         }
     }
@@ -439,7 +438,7 @@ impl QueueItem {
 pub trait QueueExt: Send + Sync {
     fn metrics(&self) -> &Vec<Metric>;
     fn features(&self) -> &Vec<Feature>;
-    fn into_genai_record(self) -> Option<EvalRecord>;
+    fn into_agent_record(self) -> Option<EvalRecord>;
 }
 
 impl QueueExt for Features {
@@ -454,7 +453,7 @@ impl QueueExt for Features {
         &self.features
     }
 
-    fn into_genai_record(self) -> Option<EvalRecord> {
+    fn into_agent_record(self) -> Option<EvalRecord> {
         // this is not a real implementation, just a placeholder
         // to satisfy the trait bound
         None
@@ -473,7 +472,7 @@ impl QueueExt for Metrics {
         &EMPTY
     }
 
-    fn into_genai_record(self) -> Option<EvalRecord> {
+    fn into_agent_record(self) -> Option<EvalRecord> {
         // this is not a real implementation, just a placeholder
         // to satisfy the trait bound
         None
@@ -495,7 +494,7 @@ impl QueueExt for EvalRecord {
         &EMPTY
     }
 
-    fn into_genai_record(self) -> Option<EvalRecord> {
+    fn into_agent_record(self) -> Option<EvalRecord> {
         Some(self)
     }
 }

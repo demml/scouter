@@ -1,6 +1,6 @@
 use crate::data_utils::DataConverterEnum;
 use crate::drifter::{
-    agent::ClientGenAIDrifter, custom::CustomDrifter, psi::PsiDrifter, spc::SpcDrifter,
+    agent::ClientAgentDrifter, custom::CustomDrifter, psi::PsiDrifter, spc::SpcDrifter,
 };
 use pyo3::prelude::*;
 use pyo3::types::PyList;
@@ -23,13 +23,13 @@ use std::sync::RwLock;
 pub enum DriftMap {
     Spc(SpcDriftMap),
     Psi(PsiDriftMap),
-    GenAI(EvalResultSet),
+    Agent(EvalResultSet),
 }
 
 pub enum DriftConfig {
     Spc(Arc<RwLock<SpcDriftConfig>>),
     Psi(Arc<RwLock<PsiDriftConfig>>),
-    GenAI(AgentEvalConfig),
+    Agent(AgentEvalConfig),
     Custom(CustomMetricDriftConfig),
 }
 
@@ -55,9 +55,9 @@ impl DriftConfig {
         }
     }
 
-    pub fn genai_config(self) -> Result<AgentEvalConfig, DriftError> {
+    pub fn agent_config(self) -> Result<AgentEvalConfig, DriftError> {
         match self {
-            DriftConfig::GenAI(cfg) => Ok(cfg),
+            DriftConfig::Agent(cfg) => Ok(cfg),
             _ => Err(DriftError::InvalidConfigError),
         }
     }
@@ -67,7 +67,7 @@ pub enum Drifter {
     Spc(SpcDrifter),
     Psi(PsiDrifter),
     Custom(CustomDrifter),
-    GenAI(ClientGenAIDrifter),
+    Agent(ClientAgentDrifter),
 }
 
 impl Debug for Drifter {
@@ -76,7 +76,7 @@ impl Debug for Drifter {
             Drifter::Spc(_) => write!(f, "SpcDrifter"),
             Drifter::Psi(_) => write!(f, "PsiDrifter"),
             Drifter::Custom(_) => write!(f, "CustomDrifter"),
-            Drifter::GenAI(_) => write!(f, "GenAIDrifter"),
+            Drifter::Agent(_) => write!(f, "AgentDrifter"),
         }
     }
 }
@@ -87,7 +87,7 @@ impl Drifter {
             DriftType::Spc => Ok(Drifter::Spc(SpcDrifter::new())),
             DriftType::Psi => Ok(Drifter::Psi(PsiDrifter::new())),
             DriftType::Custom => Ok(Drifter::Custom(CustomDrifter::new())),
-            DriftType::GenAI => Ok(Drifter::GenAI(ClientGenAIDrifter::new())),
+            DriftType::Agent => Ok(Drifter::Agent(ClientAgentDrifter::new())),
         }
     }
 
@@ -124,8 +124,8 @@ impl Drifter {
                 let profile = drifter.create_drift_profile(config.custom_config()?, data)?;
                 Ok(DriftProfile::Custom(profile))
             }
-            Drifter::GenAI(_drifter) => {
-                // GenAI drift profiles are created separately, so we will handle this in the create_genai_drift_profile method
+            Drifter::Agent(_drifter) => {
+                // Agent eval profiles are created separately, so we will handle this in the create_agent_drift_profile method
                 if !data.is_instance_of::<PyList>() {
                     // convert to pylist
                     let type_ = data.get_type().name()?;
@@ -135,8 +135,8 @@ impl Drifter {
                 };
 
                 let tasks = data.cast::<PyList>()?;
-                let profile = AgentEvalProfile::new_py(tasks, Some(config.genai_config()?), None)?;
-                Ok(DriftProfile::GenAI(profile))
+                let profile = AgentEvalProfile::new_py(tasks, Some(config.agent_config()?), None)?;
+                Ok(DriftProfile::Agent(profile))
             }
         }
     }
@@ -166,7 +166,7 @@ impl Drifter {
                 Err(DriftError::NotImplemented)
             }
 
-            Drifter::GenAI(drifter) => {
+            Drifter::Agent(drifter) => {
                 // extract data to be Vec<EvalRecord>
                 if !data.is_instance_of::<PyList>() {
                     // convert to pylist
@@ -175,9 +175,9 @@ impl Drifter {
                 };
 
                 let records = data.extract::<Vec<EvalRecord>>()?;
-                let records = drifter.compute_drift(records, profile.get_genai_profile()?)?;
+                let records = drifter.compute_drift(records, profile.get_agent_profile()?)?;
 
-                Ok(DriftMap::GenAI(EvalResultSet { records }))
+                Ok(DriftMap::Agent(EvalResultSet { records }))
             }
         }
     }
@@ -227,9 +227,9 @@ impl PyDrifter {
                     let config = obj.extract::<CustomMetricDriftConfig>()?;
                     DriftConfig::Custom(config)
                 }
-                DriftType::GenAI => {
+                DriftType::Agent => {
                     let config = obj.extract::<AgentEvalConfig>()?;
-                    DriftConfig::GenAI(config)
+                    DriftConfig::Agent(config)
                 }
             };
             (drift_config, drift_type)
@@ -246,15 +246,7 @@ impl PyDrifter {
         // This is for handling, numpy, pandas, pyarrow
         let data_type = match data_type {
             Some(data_type) => data_type,
-            None => {
-                let class = data.getattr("__class__")?;
-                let module = class.getattr("__module__")?.str()?.to_string();
-                let name = class.getattr("__name__")?.str()?.to_string();
-                let full_class_name = format!("{module}.{name}");
-
-                &DataType::from_module_name(&full_class_name).unwrap_or(DataType::Unknown)
-                // for handling custom
-            }
+            None => &DataType::from_object(data).unwrap_or(DataType::Unknown),
         };
 
         let profile = drift_helper.create_drift_profile(py, data, data_type, config_helper)?;
@@ -263,14 +255,14 @@ impl PyDrifter {
             DriftProfile::Spc(profile) => Ok(profile.into_bound_py_any(py)?),
             DriftProfile::Psi(profile) => Ok(profile.into_bound_py_any(py)?),
             DriftProfile::Custom(profile) => Ok(profile.into_bound_py_any(py)?),
-            DriftProfile::GenAI(profile) => Ok(profile.into_bound_py_any(py)?),
+            DriftProfile::Agent(profile) => Ok(profile.into_bound_py_any(py)?),
         }
     }
 
     // Specific method for creating GenAI drift profiles
     // This is to avoid confusion with the other drifters
     #[pyo3(signature = (tasks, config=None, alias=None))]
-    pub fn create_genai_drift_profile<'py>(
+    pub fn create_agent_drift_profile<'py>(
         &mut self,
         py: Python<'py>,
         tasks: &Bound<'py, PyList>,
@@ -307,9 +299,9 @@ impl PyDrifter {
                 let profile = drift_profile.extract::<CustomDriftProfile>()?;
                 DriftProfile::Custom(profile)
             }
-            DriftType::GenAI => {
+            DriftType::Agent => {
                 let profile = drift_profile.extract::<AgentEvalProfile>()?;
-                DriftProfile::GenAI(profile)
+                DriftProfile::Agent(profile)
             }
         };
 
@@ -320,17 +312,11 @@ impl PyDrifter {
         let data_type = match data_type {
             Some(data_type) => data_type,
             None => {
-                if drift_type == DriftType::GenAI {
-                    // For GenAI, we will handle it separately in the create_genai_drift_profile method
-                    &DataType::GenAI
+                if drift_type == DriftType::Agent {
+                    // For Agent, we will handle it separately in the create_agent_drift_profile method
+                    &DataType::Agent
                 } else {
-                    let class = data.getattr("__class__")?;
-                    let module = class.getattr("__module__")?.str()?.to_string();
-                    let name = class.getattr("__name__")?.str()?.to_string();
-                    let full_class_name = format!("{module}.{name}");
-
-                    // for handling custom
-                    &DataType::from_module_name(&full_class_name).unwrap_or(DataType::Unknown)
+                    &DataType::from_object(data).unwrap_or(DataType::Unknown)
                 }
             }
         };
@@ -342,7 +328,7 @@ impl PyDrifter {
         match drift_map {
             DriftMap::Spc(map) => Ok(map.into_bound_py_any(py)?),
             DriftMap::Psi(map) => Ok(map.into_bound_py_any(py)?),
-            DriftMap::GenAI(map) => Ok(map.into_bound_py_any(py)?),
+            DriftMap::Agent(map) => Ok(map.into_bound_py_any(py)?),
         }
     }
 }

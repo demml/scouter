@@ -22,7 +22,7 @@ pub fn execute_agent_assertion_tasks(
     context: &Bound<'_, PyAny>,
 ) -> Result<AssertionResults, EvaluationError> {
     let context: serde_json::Value = depythonize(context).map_err(|e| {
-        EvaluationError::GenAIEvaluatorError(format!("Failed to deserialize context: {}", e))
+        EvaluationError::AgentEvaluatorError(format!("Failed to deserialize context: {}", e))
     })?;
     let results: HashMap<String, AssertionResult> = tasks
         .iter()

@@ -247,7 +247,13 @@ class AdkEvalOrchestrator(EvalOrchestrator):
                 ),
             )
 
-        return f"[{data['dish']}] {_RECIPE_RESPONSE.content.parts[0].text}"  # type: ignore[union-attr,index]
+        recipe_content = _RECIPE_RESPONSE.content
+        assert recipe_content is not None
+
+        recipe_parts = recipe_content.parts
+        assert recipe_parts is not None and len(recipe_parts) > 0
+
+        return f"[{data['dish']}] {recipe_parts[0].text}"
 
 
 def main() -> None:

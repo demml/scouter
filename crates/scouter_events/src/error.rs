@@ -183,7 +183,7 @@ pub enum EventError {
     #[error(transparent)]
     GrpcClientError(#[from] scouter_tonic::error::ClientError),
 
-    #[error("Failed to get queue settings for GenAI queue")]
+    #[error("Failed to get queue settings for Agent queue")]
     MissingQueueSettingsError,
 
     #[error("Dataset fingerprint mismatch between client and server")]

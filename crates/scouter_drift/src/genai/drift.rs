@@ -1,7 +1,7 @@
 use crate::error::DriftError;
 use chrono::{DateTime, Utc};
 use scouter_dispatch::AlertDispatcher;
-use scouter_sql::sql::traits::GenAIDriftSqlLogic;
+use scouter_sql::sql::traits::AgentDriftSqlLogic;
 use scouter_sql::{sql::cache::entity_cache, PostgresClient};
 use scouter_types::{agent::AgentEvalProfile, custom::ComparisonMetricAlert};
 use scouter_types::{AlertMap, ProfileBaseArgs};
@@ -9,11 +9,11 @@ use sqlx::{Pool, Postgres};
 use tracing::error;
 use tracing::info;
 
-pub struct GenAIDrifter {
+pub struct AgentDrifter {
     profile: AgentEvalProfile,
 }
 
-impl GenAIDrifter {
+impl AgentDrifter {
     pub fn new(profile: AgentEvalProfile) -> Self {
         Self { profile }
     }
@@ -38,11 +38,11 @@ impl GenAIDrifter {
             .get_entity_id_from_uid(db_pool, &self.profile.config.uid)
             .await?;
 
-        PostgresClient::get_genai_workflow_value(db_pool, limit_datetime, &entity_id)
+        PostgresClient::get_agent_workflow_value(db_pool, limit_datetime, &entity_id)
             .await
             .inspect_err(|e| {
                 error!(
-                    "Unable to obtain genai metric data from DB for {}: {}",
+                    "Unable to obtain agent metric data from DB for {}: {}",
                     self.profile_id(),
                     e
                 );
@@ -60,7 +60,7 @@ impl GenAIDrifter {
 
         if value.is_none() {
             info!(
-                "No genai metric data found for {}. Skipping alert processing.",
+                "No agent metric data found for {}. Skipping alert processing.",
                 self.profile_id()
             );
         }
@@ -94,7 +94,7 @@ impl GenAIDrifter {
         }
 
         // Build comparison alert with owned data
-        let metric_name = "genai_workflow_metric".to_string();
+        let metric_name = "agent_workflow_metric".to_string();
         let comparison_alert = ComparisonMetricAlert {
             metric_name: metric_name.clone(),
             baseline_value: alert_condition.baseline_value,
@@ -120,7 +120,7 @@ impl GenAIDrifter {
             })?;
 
         // Convert to owned map before returning
-        Ok(Some(vec![AlertMap::GenAI(comparison_alert)]))
+        Ok(Some(vec![AlertMap::Agent(comparison_alert)]))
     }
 
     /// Checks for alerts based on metric value since previous run
@@ -150,7 +150,7 @@ mod tests {
     };
     use serde_json::Value;
 
-    async fn get_test_drifter() -> GenAIDrifter {
+    async fn get_test_drifter() -> AgentDrifter {
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
 
         let task1 = LLMJudgeTask::new_rs(
@@ -198,7 +198,7 @@ mod tests {
 
         let profile = AgentEvalProfile::new(drift_config, tasks).await.unwrap();
 
-        GenAIDrifter::new(profile)
+        AgentDrifter::new(profile)
     }
 
     #[tokio::test]
@@ -218,11 +218,11 @@ mod tests {
 
         let alert_map = &alerts.unwrap()[0];
         match alert_map {
-            AlertMap::GenAI(alert) => {
-                assert_eq!(alert.metric_name, "genai_workflow_metric");
+            AlertMap::Agent(alert) => {
+                assert_eq!(alert.metric_name, "agent_workflow_metric");
                 assert_eq!(alert.observed_value, observed_value);
             }
-            _ => panic!("Expected GenAI alert map"),
+            _ => panic!("Expected Agent alert map"),
         }
     }
 

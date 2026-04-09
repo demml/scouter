@@ -6,7 +6,7 @@ use crate::agent::{AgentAssertionTask, TasksFile, TraceAssertionTask};
 use crate::error::{ProfileError, TypeError};
 use crate::traits::ConfigExt;
 use crate::util::{json_to_pyobject, pyobject_to_json};
-use crate::{scouter_version, EvalTaskResult, GenAIEvalWorkflowResult, WorkflowResultTableEntry};
+use crate::{scouter_version, AgentEvalWorkflowResult, EvalTaskResult, WorkflowResultTableEntry};
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
     PyHelperFuncs, VersionRequest, DEFAULT_VERSION, MISSING,
@@ -53,7 +53,7 @@ fn default_uid() -> String {
 }
 
 fn default_drift_type() -> DriftType {
-    DriftType::GenAI
+    DriftType::Agent
 }
 
 fn default_alert_config() -> AgentAlertConfig {
@@ -145,7 +145,7 @@ impl AgentEvalConfig {
             uid: create_uuid7(),
             version: version.to_string(),
             alert_config,
-            drift_type: DriftType::GenAI,
+            drift_type: DriftType::Agent,
         })
     }
 
@@ -211,7 +211,7 @@ impl Default for AgentEvalConfig {
             version: DEFAULT_VERSION.to_string(),
             uid: create_uuid7(),
             alert_config: AgentAlertConfig::default(),
-            drift_type: DriftType::GenAI,
+            drift_type: DriftType::Agent,
         }
     }
 }
@@ -373,7 +373,7 @@ impl AgentEvalProfile {
     #[new]
     #[pyo3(signature = (tasks, config=None, alias=None))]
     /// Create a new AgentEvalProfile
-    /// GenAI evaluations are run asynchronously on the scouter server.
+    /// Agent evaluations are run asynchronously on the scouter server.
     /// # Arguments
     /// * `config` - AgentEvalConfig - The configuration for the GenAI drift profile
     /// * `tasks` - PyList - List of AssertionTask, LLMJudgeTask or ConditionalTask
@@ -1084,7 +1084,7 @@ impl ProfileBaseArgs for AgentEvalProfile {
 pub struct EvalSet {
     #[pyo3(get)]
     pub records: Vec<EvalTaskResult>,
-    pub inner: GenAIEvalWorkflowResult,
+    pub inner: AgentEvalWorkflowResult,
 }
 
 impl EvalSet {
@@ -1107,14 +1107,14 @@ impl EvalSet {
         vec![self.inner.to_table_entry(scenario_id)]
     }
 
-    pub fn new(records: Vec<EvalTaskResult>, inner: GenAIEvalWorkflowResult) -> Self {
+    pub fn new(records: Vec<EvalTaskResult>, inner: AgentEvalWorkflowResult) -> Self {
         Self { records, inner }
     }
 
     pub fn empty() -> Self {
         Self {
             records: Vec::new(),
-            inner: GenAIEvalWorkflowResult {
+            inner: AgentEvalWorkflowResult {
                 created_at: Utc::now(),
                 record_uid: String::new(),
                 entity_id: 0,
@@ -1204,7 +1204,7 @@ mod tests {
     use potato_head::mock::create_score_prompt;
 
     #[test]
-    fn test_genai_drift_config() {
+    fn test_agent_drift_config() {
         let mut drift_config = AgentEvalConfig::new(
             MISSING,
             MISSING,
@@ -1253,7 +1253,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_genai_drift_profile_metric() {
+    async fn test_agent_drift_profile_metric() {
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
 
         let task1 = LLMJudgeTask::new_rs(

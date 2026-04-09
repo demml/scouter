@@ -50,14 +50,7 @@ impl DataProfiler {
         // if data_type is None, try to infer it from the class name
         let data_type = match data_type {
             Some(data_type) => data_type,
-            None => {
-                let class = data.getattr("__class__")?;
-                let module = class.getattr("__module__")?.str()?.to_string();
-                let name = class.getattr("__name__")?.str()?.to_string();
-                let full_class_name = format!("{module}.{name}");
-
-                &DataType::from_module_name(&full_class_name)?
-            }
+            None => &DataType::from_object(data)?,
         };
 
         debug!("Converting data with type: {:?}", data_type);

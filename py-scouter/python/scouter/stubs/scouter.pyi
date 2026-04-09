@@ -1,5 +1,7 @@
 #### begin imports ####
+# ty:ignore[unresolved-import]
 
+import builtins
 import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Sequence, Union, overload
@@ -36,7 +38,7 @@ class DriftType:
     Spc: "DriftType"
     Psi: "DriftType"
     Custom: "DriftType"
-    GenAI: "DriftType"
+    Agent: "DriftType"
 
     def value(self) -> str: ...
     @staticmethod
@@ -358,7 +360,7 @@ class SpcAlertConfig:
         """Set the features to monitor"""
 
 class SpcAlert:
-    def __init__(self, kind: SpcAlertType, zone: AlertZone):
+    def __init__(self, kind: Literal["SpcAlertType"], zone: AlertZone):
         """Initialize alert"""
 
     @property
@@ -1005,8 +1007,8 @@ class ScouterClient:
             Drift map of type BinnedMetrics | BinnedPsiFeatureMetrics | BinnedSpcFeatureMetrics
         """
 
-    def get_genai_task_binned_drift(self, drift_request: DriftRequest) -> Any:
-        """Get GenAI task drift map from server
+    def get_agent_task_binned_drift(self, drift_request: DriftRequest) -> Any:
+        """Get agent task drift map from server
         Args:
             drift_request:
                 DriftRequest object
@@ -1183,7 +1185,7 @@ class BinnedSpcFeatureMetrics:
 class EntityType:
     Feature: "EntityType"
     Metric: "EntityType"
-    GenAI: "EntityType"
+    Agent: "EntityType"
 
 class RecordType:
     Spc: "RecordType"
@@ -1191,9 +1193,9 @@ class RecordType:
     Observability: "RecordType"
     Custom: "RecordType"
     Trace: "RecordType"
-    GenAIEval: "RecordType"
-    GenAITask: "RecordType"
-    GenAIWorkflow: "RecordType"
+    AgentEval: "RecordType"
+    AgentTask: "RecordType"
+    AgentWorkflow: "RecordType"
 
 class ServerRecord:
     def __init__(self, record: Any) -> None:
@@ -1388,7 +1390,7 @@ class QueueFeature:
         """
 
     @staticmethod
-    def int(name: str, value: int) -> "QueueFeature":
+    def int(name: str, value: builtins.int) -> "QueueFeature":
         """Create an integer feature
 
         Args:
@@ -1399,7 +1401,7 @@ class QueueFeature:
         """
 
     @staticmethod
-    def float(name: str, value: float) -> "QueueFeature":
+    def float(name: str, value: builtins.float) -> "QueueFeature":
         """Create a float feature
 
         Args:
@@ -1832,7 +1834,7 @@ class ScouterQueue:
         omitted from the result.
         """
 
-    def genai_profiles(self) -> Dict[str, AgentEvalProfile]:
+    def agent_profiles(self) -> Dict[str, AgentEvalProfile]:
         """Returns a mapping of alias → AgentEvalProfile for all AgentEvalProfiles registered in the queue."""
 
 class EvalRecord:
@@ -3932,7 +3934,7 @@ class Drifter:
             CustomDriftProfile
         """
 
-    def create_drift_profile(  # type: ignore
+    def create_drift_profile(  # type: ignore[misc]
         self,
         data: Any,
         config: Optional[Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]] = None,
@@ -3957,7 +3959,7 @@ class Drifter:
             SpcDriftProfile, PsiDriftProfile or CustomDriftProfile
         """
 
-    def create_genai_drift_profile(
+    def create_agent_drift_profile(
         self,
         config: AgentEvalConfig,
         tasks: Sequence[LLMJudgeTask | AssertionTask | TraceAssertionTask | AgentAssertionTask],
@@ -3968,7 +3970,7 @@ class Drifter:
         LLM evaluations are run asynchronously on the scouter server.
 
         Overview:
-            GenAI evaluations are defined using assertion tasks and LLM judge tasks.
+            Agent evaluations are defined using assertion tasks and LLM judge tasks.
             Assertion tasks evaluate specific metrics based on model responses, and do not require
             the use of an LLM judge or extra call. It is recommended to use assertion tasks whenever possible
             to reduce cost and latency. LLM judge tasks leverage an additional LLM call to evaluate
@@ -4008,7 +4010,7 @@ class Drifter:
             ...         description="Ensure relevance score >= 7"
             ...     )
             ... ]
-            >>> profile = Drifter().create_genai_drift_profile(config, tasks)
+            >>> profile = Drifter().create_agent_drift_profile(config, tasks)
 
         """
 
@@ -4077,7 +4079,7 @@ class Drifter:
             EvalResultSet
         """
 
-    def compute_drift(  # type: ignore
+    def compute_drift(  # type: ignore[misc]
         self,
         data: Any,
         drift_profile: Union[SpcDriftProfile, PsiDriftProfile, AgentEvalProfile],

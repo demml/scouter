@@ -50,7 +50,7 @@ impl FileName {
             FileName::CustomDriftProfile => "custom_drift_profile.json",
             FileName::DataProfile => "data_profile.json",
             FileName::DriftProfile => "drift_profile.json",
-            FileName::AgentEvalProfile => "genai_drift_profile.json",
+            FileName::AgentEvalProfile => "agent_eval_profile.json",
         }
     }
 }
@@ -629,7 +629,7 @@ pub enum DataType {
     Numpy,
     Arrow,
     Unknown,
-    GenAI,
+    Agent,
 }
 
 impl Display for DataType {
@@ -640,20 +640,73 @@ impl Display for DataType {
             DataType::Numpy => write!(f, "numpy"),
             DataType::Arrow => write!(f, "arrow"),
             DataType::Unknown => write!(f, "unknown"),
-            DataType::GenAI => write!(f, "genai"),
+            DataType::Agent => write!(f, "agent"),
         }
     }
 }
 
 impl DataType {
-    pub fn from_module_name(module_name: &str) -> Result<Self, TypeError> {
-        match module_name {
-            "pandas.core.frame.DataFrame" => Ok(DataType::Pandas),
-            "polars.dataframe.frame.DataFrame" => Ok(DataType::Polars),
-            "numpy.ndarray" => Ok(DataType::Numpy),
-            "pyarrow.lib.Table" => Ok(DataType::Arrow),
-            "scouter_drift.genai.EvalRecord" => Ok(DataType::GenAI),
-            _ => Err(TypeError::InvalidDataType),
+    fn is_pandas(obj: &Bound<'_, PyAny>) -> bool {
+        let py = obj.py();
+        let Ok(pandas) = py.import("pandas") else {
+            return false;
+        };
+        let Ok(dataframe) = pandas.getattr("DataFrame") else {
+            return false;
+        };
+        obj.is_instance(&dataframe).unwrap_or(false)
+    }
+
+    fn is_polars(obj: &Bound<'_, PyAny>) -> bool {
+        let py = obj.py();
+        let Ok(polars) = py.import("polars") else {
+            return false;
+        };
+        let Ok(dataframe) = polars.getattr("DataFrame") else {
+            return false;
+        };
+        obj.is_instance(&dataframe).unwrap_or(false)
+    }
+
+    fn is_numpy(obj: &Bound<'_, PyAny>) -> bool {
+        let py = obj.py();
+        let Ok(numpy) = py.import("numpy") else {
+            return false;
+        };
+        let Ok(ndarray) = numpy.getattr("ndarray") else {
+            return false;
+        };
+        obj.is_instance(&ndarray).unwrap_or(false)
+    }
+
+    fn is_pyarrow(obj: &Bound<'_, PyAny>) -> bool {
+        let py = obj.py();
+        let Ok(pyarrow) = py.import("pyarrow") else {
+            return false;
+        };
+        let Ok(table) = pyarrow.getattr("Table") else {
+            return false;
+        };
+        obj.is_instance(&table).unwrap_or(false)
+    }
+
+    fn is_eval_record(obj: &Bound<'_, PyAny>) -> bool {
+        obj.is_instance_of::<crate::EvalRecord>()
+    }
+
+    pub fn from_object(obj: &Bound<'_, PyAny>) -> Result<Self, TypeError> {
+        if Self::is_pandas(obj) {
+            Ok(DataType::Pandas)
+        } else if Self::is_polars(obj) {
+            Ok(DataType::Polars)
+        } else if Self::is_numpy(obj) {
+            Ok(DataType::Numpy)
+        } else if Self::is_pyarrow(obj) {
+            Ok(DataType::Arrow)
+        } else if Self::is_eval_record(obj) {
+            Ok(DataType::Agent)
+        } else {
+            Err(TypeError::InvalidDataType)
         }
     }
 }

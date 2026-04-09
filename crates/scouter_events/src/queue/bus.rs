@@ -341,7 +341,7 @@ impl QueueBus {
             self.identifier, extracted_item
         );
 
-        if let QueueItem::GenAI(ref mut record) = extracted_item {
+        if let QueueItem::Agent(ref mut record) = extracted_item {
             let trace_id = stamp_otel_trace_id(record);
             let scenario_tag = stamp_scenario_tag(record);
 
@@ -366,7 +366,7 @@ impl QueueBus {
         {
             let mut store = self.record_store.write().unwrap();
             if let Some(store) = store.as_mut() {
-                if matches!(extracted_item, QueueItem::GenAI(_)) {
+                if matches!(extracted_item, QueueItem::Agent(_)) {
                     store.push(item.clone().unbind());
                 }
             }

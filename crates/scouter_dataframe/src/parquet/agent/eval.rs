@@ -18,19 +18,19 @@ use scouter_types::ToDriftRecords;
 use scouter_types::{BoxedEvalRecord, ServerRecords, StorageType};
 use std::sync::Arc;
 
-pub struct GenAIEvalDataFrame {
+pub struct AgentEvalDataFrame {
     schema: Arc<Schema>,
     pub object_store: ObjectStore,
 }
 
 #[async_trait]
-impl ParquetFrame for GenAIEvalDataFrame {
+impl ParquetFrame for AgentEvalDataFrame {
     fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, DataFrameError> {
-        GenAIEvalDataFrame::new(storage_settings)
+        AgentEvalDataFrame::new(storage_settings)
     }
 
     async fn get_dataframe(&self, records: ServerRecords) -> Result<DataFrame, DataFrameError> {
-        let records = records.to_genai_eval_records()?;
+        let records = records.to_agent_eval_records()?;
         let batch = self.build_batch(records)?;
 
         let ctx = self.object_store.get_session()?;
@@ -63,11 +63,11 @@ impl ParquetFrame for GenAIEvalDataFrame {
     }
 
     fn table_name(&self) -> String {
-        BinnedTableName::GenAIEval.to_string()
+        BinnedTableName::AgentEval.to_string()
     }
 }
 
-impl GenAIEvalDataFrame {
+impl AgentEvalDataFrame {
     pub fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, DataFrameError> {
         let schema = Arc::new(Schema::new(vec![
             // Primary keys and identifiers
@@ -123,7 +123,7 @@ impl GenAIEvalDataFrame {
 
         let object_store = ObjectStore::new(storage_settings)?;
 
-        Ok(GenAIEvalDataFrame {
+        Ok(AgentEvalDataFrame {
             schema,
             object_store,
         })

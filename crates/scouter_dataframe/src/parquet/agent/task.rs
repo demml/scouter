@@ -1,7 +1,7 @@
 use crate::error::DataFrameError;
 use crate::parquet::traits::ParquetFrame;
 use crate::parquet::types::BinnedTableName;
-use crate::sql::helper::get_binned_genai_task_values_query;
+use crate::sql::helper::get_binned_agent_task_values_query;
 use crate::storage::ObjectStore;
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow_array::array::{
@@ -17,19 +17,19 @@ use scouter_settings::ObjectStorageSettings;
 use scouter_types::{EvalTaskResult, ServerRecords, StorageType, ToDriftRecords};
 use std::sync::Arc;
 
-pub struct GenAITaskDataFrame {
+pub struct AgentTaskDataFrame {
     schema: Arc<Schema>,
     pub object_store: ObjectStore,
 }
 
 #[async_trait]
-impl ParquetFrame for GenAITaskDataFrame {
+impl ParquetFrame for AgentTaskDataFrame {
     fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, DataFrameError> {
-        GenAITaskDataFrame::new(storage_settings)
+        AgentTaskDataFrame::new(storage_settings)
     }
 
     async fn get_dataframe(&self, records: ServerRecords) -> Result<DataFrame, DataFrameError> {
-        let records = records.to_genai_task_records()?;
+        let records = records.to_agent_task_records()?;
         let batch = self.build_batch(records)?;
 
         let ctx = self.object_store.get_session()?;
@@ -58,15 +58,15 @@ impl ParquetFrame for GenAITaskDataFrame {
         end_time: &DateTime<Utc>,
         entity_id: &i32,
     ) -> String {
-        get_binned_genai_task_values_query(bin, start_time, end_time, entity_id)
+        get_binned_agent_task_values_query(bin, start_time, end_time, entity_id)
     }
 
     fn table_name(&self) -> String {
-        BinnedTableName::GenAITask.to_string()
+        BinnedTableName::AgentTask.to_string()
     }
 }
 
-impl GenAITaskDataFrame {
+impl AgentTaskDataFrame {
     pub fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, DataFrameError> {
         let schema = Arc::new(Schema::new(vec![
             Field::new("entity_id", DataType::Int32, false),
@@ -114,7 +114,7 @@ impl GenAITaskDataFrame {
 
         let object_store = ObjectStore::new(storage_settings)?;
 
-        Ok(GenAITaskDataFrame {
+        Ok(AgentTaskDataFrame {
             schema,
             object_store,
         })

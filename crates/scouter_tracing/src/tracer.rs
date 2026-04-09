@@ -905,7 +905,7 @@ impl BaseTracer {
         queue: Py<ScouterQueue>,
     ) -> Result<(), TraceError> {
         // if queue is not none, we set sample_ratio to 1.0 to ensure we override the drift profile sampling ratio
-        // this mainly applies to genai evaluations as each insert checks if an eval record should be sampled
+        // this mainly applies to agent evaluations as each insert checks if an eval record should be sampled
         // When we use tracing, we want to let tracing control the sampling decision, so we need to set the queue
         // sample ratio to 1.0 so that all events that the tracer samples are sent to the queue
         let bound_queue = queue.bind(py);

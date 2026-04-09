@@ -1,6 +1,6 @@
-# Evaluation Tasks: Building Blocks for GenAI Evaluation
+# Evaluation Tasks: Building Blocks for Agent Evaluation
 
-Evaluation tasks are the core building blocks of Scouter's GenAI evaluation framework. They define what to evaluate, how to evaluate it, and what conditions must be met for an evaluation to pass. Tasks can be combined with dependencies to create sophisticated evaluation workflows that handle complex, multi-stage assessments.
+Evaluation tasks are the core building blocks of Scouter's agent evaluation framework. They define what to evaluate, how to evaluate it, and what conditions must be met for an evaluation to pass. Tasks can be combined with dependencies to create sophisticated evaluation workflows that handle complex, multi-stage assessments.
 
 ## Task Types
 
@@ -1197,7 +1197,7 @@ client.register_profile(profile, set_active=True)
 
 ## Next Steps
 
-Now that you understand evaluation tasks, explore how to build complete GenAI evaluation workflows:
+Now that you understand evaluation tasks, explore how to build complete agent evaluation workflows:
 
 - [Offline Evaluation](/scouter/docs/monitoring/genai/offline-evaluation/) - Batch evaluation with complex task chains
 - [Online Monitoring](/scouter/docs/monitoring/genai/online-evaluation/) - Production monitoring setup

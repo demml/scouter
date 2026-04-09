@@ -209,7 +209,7 @@ def test_double_instrument_logs_warning(caplog):
     inst = ScouterInstrumentor()
     original = inst._provider  # noqa: SLF001
     try:
-        inst._provider = object()  # noqa: SLF001  — simulate already-instrumented
+        inst._provider = object()  # noqa: SLF001  — simulate already-instrumented #ty: ignore[invalid-assignment]
         with caplog.at_level(logging.WARNING, logger="scouter.tracing"):
             inst._instrument()  # noqa: SLF001
         assert any(
@@ -225,7 +225,7 @@ def test_double_instrument_does_not_raise(caplog):
     inst = ScouterInstrumentor()
     original = inst._provider  # noqa: SLF001
     try:
-        inst._provider = object()  # noqa: SLF001
+        inst._provider = object()  # noqa: SLF001 #ty: ignore[invalid-assignment]
         with caplog.at_level(logging.WARNING, logger="scouter.tracing"):
             inst._instrument()  # must not raise
     finally:
@@ -377,7 +377,7 @@ def test_instrumentor_uninstrument_resets_provider():
     try:
         # Simulate an instrumented state without touching real teardown
         sentinel = object()
-        inst._provider = sentinel  # noqa: SLF001
+        inst._provider = sentinel  # noqa: SLF001 #ty: ignore[invalid-assignment]
         assert inst.is_instrumented
         inst._provider = None  # noqa: SLF001
         assert not inst.is_instrumented

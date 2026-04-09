@@ -526,7 +526,7 @@ async def lifespan(app: FastAPI):
     tracer = get_tracer(name="monitoring-service")
 
     queue ScouterQueue.from_path(
-        path={"genai": Path(...)},
+        path={"agent": Path(...)},
         transport_config=GrpcConfig(),
     )
 
@@ -545,7 +545,7 @@ def monitoring_task():
         # insert items into queue with the span
         span.insert_queue_item(
             "alias",  # (1)
-            GenAIEvaluationRecord(...) # (2)
+            EvalRecord(...) # (2)
         )
 ```
 

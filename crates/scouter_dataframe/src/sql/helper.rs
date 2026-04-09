@@ -58,7 +58,7 @@ GROUP BY metric;"#,
     )
 }
 
-pub fn get_binned_genai_task_values_query(
+pub fn get_binned_agent_task_values_query(
     bin: &f64,
     start_time: &DateTime<Utc>,
     end_time: &DateTime<Utc>,
@@ -71,7 +71,7 @@ pub fn get_binned_genai_task_values_query(
         task_id as metric,
         value,
         passed
-    FROM binned_genai_task
+    FROM binned_agent_task
     WHERE
         created_at BETWEEN TIMESTAMP '{}' AND TIMESTAMP '{}'
         AND entity_id = {}
@@ -116,7 +116,7 @@ GROUP BY metric;"#,
     )
 }
 
-pub fn get_binned_genai_workflow_values_query(
+pub fn get_binned_agent_workflow_values_query(
     bin: &f64,
     start_time: &DateTime<Utc>,
     end_time: &DateTime<Utc>,
@@ -128,7 +128,7 @@ pub fn get_binned_genai_workflow_values_query(
         date_bin(INTERVAL '{} minute', created_at, TIMESTAMP '1970-01-01') as created_at,
         metric,
         pass_rate as value
-    FROM binned_genai_workflow
+    FROM binned_agent_workflow
     WHERE
         1=1
         AND created_at between TIMESTAMP '{}' AND TIMESTAMP '{}'

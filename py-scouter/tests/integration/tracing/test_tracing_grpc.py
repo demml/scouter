@@ -2,7 +2,7 @@ import time
 
 from scouter.client import ScouterClient, TraceFilters
 
-from .conftest import _wait_for_export, get_traces_from_jaeger  # type: ignore
+from .conftest import _wait_for_export, get_traces_from_jaeger
 
 
 def test_tracer_grpc(setup_tracer_grpc):

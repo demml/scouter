@@ -1,7 +1,4 @@
-from typing import cast
-
 from pydantic import BaseModel
-from scouter._scouter import EvalResultSet
 from scouter.agent import Prompt, Score
 from scouter.alert import AlertCondition, AlertThreshold
 from scouter.drift import (
@@ -20,7 +17,7 @@ class TaskOutput(BaseModel):
     task_output: str
 
 
-def test_genai_drift_profile_from_task():
+def test_agent_drift_profile_from_task():
     with LLMTestServer():
         prompt = Prompt(
             messages="${input} + ${response}?",
@@ -48,7 +45,7 @@ def test_genai_drift_profile_from_task():
         )
 
 
-def test_genai_drifter():
+def test_agent_drifter():
     with LLMTestServer():
         # this should bind the input and response context and return TaskOutput
         eval_prompt = Prompt(
@@ -88,7 +85,7 @@ def test_genai_drifter():
         )
 
         drifter = Drifter()
-        results = cast(EvalResultSet, drifter.compute_drift([record], profile))
+        results = drifter.compute_drift([record], profile)
 
         assert len(results.records) == 1
 

@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::error::{ContractError, TypeError};
 use crate::sql::{TraceListItem, TraceMetricBucket, TraceSpan};
-use crate::{Alert, EvalTaskResult, GenAIEvalWorkflowResult};
+use crate::{AgentEvalWorkflowResult, Alert, EvalTaskResult};
 use crate::{CustomInterval, DriftProfile, EvalRecord, Status, Tag, TagRecord, TraceBaggageRecord};
 use crate::{DriftType, PyHelperFuncs, TimeInterval};
 use chrono::{DateTime, Utc};
@@ -537,12 +537,12 @@ pub struct UpdateAlertResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct GenAIEvalTaskRequest {
+pub struct AgentEvalTaskRequest {
     pub record_uid: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct GenAIEvalTaskResponse {
+pub struct AgentEvalTaskResponse {
     pub tasks: Vec<EvalTaskResult>,
 }
 
@@ -568,8 +568,8 @@ pub struct EvalRecordPaginationResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct GenAIEvalWorkflowPaginationResponse {
-    pub items: Vec<GenAIEvalWorkflowResult>,
+pub struct AgentEvalWorkflowPaginationResponse {
+    pub items: Vec<AgentEvalWorkflowResult>,
     pub has_next: bool,
     pub next_cursor: Option<RecordCursor>,
     pub has_previous: bool,

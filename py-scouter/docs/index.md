@@ -4,39 +4,42 @@
   <br>
 </h1>
 
-<h2 align="center"><b>Developer-First ML Monitoring, Observability, and GenAI Evaluation</b></h2>
+<h2 align="center"><b>Developer-First ML Monitoring, Observability, and Agent Evaluation</b></h2>
 
 ## Table of Contents
 
-- [What is it?](#what-is-it)
-- [Why Use It?](#why-use-it)
-- [Developer-First Experience](#developer-first-experience)
-- [Production Ready](#production-ready)
+- [Table of Contents](#table-of-contents)
+- [**What is it?**](#what-is-it)
+- [**Why Use It?**](#why-use-it)
+  - [Developer-First Experience](#developer-first-experience)
+  - [Production Ready](#production-ready)
 - [Quick Start](#quick-start)
-  - [Traditional Monitoring](#traditional-monitoring)
-  - [Distributed Tracing](#distributed-tracing)
-  - [GenAI Evaluation](#genai-evaluation)
-    - [Offline Evaluation](#offline-evaluation--regression-testing-before-you-ship)
-    - [Online Evaluation](#online-evaluation--continuous-production-monitoring)
+  - [Install Scouter](#install-scouter)
+- [Traditional Monitoring](#traditional-monitoring)
+  - [PSI Quickstart](#psi-quickstart)
+- [Distributed Tracing](#distributed-tracing)
+- [Agent Evaluation](#agent-evaluation)
+  - [Offline Evaluation — Regression Testing Before You Ship](#offline-evaluation--regression-testing-before-you-ship)
+  - [Online Evaluation — Continuous Production Monitoring](#online-evaluation--continuous-production-monitoring)
 - [Supported Data Types](#supported-data-types)
 
 ---
 
 ## **What is it?**
 
-`Scouter` is a developer-first monitoring and observability toolkit for ML and AI workflows. It covers the full spectrum of production AI observability — from traditional data and model drift detection, to distributed tracing, to online and offline GenAI evaluation. Built entirely in `Rust` with `Postgres` as its primary data store, and exposed to Python via PyO3-generated stubs.
+`Scouter` is a developer-first monitoring and observability toolkit for ML and AI workflows. It covers the full spectrum of production AI observability — from traditional data and model drift detection, to distributed tracing, to online and offline Agent evaluation. Built entirely in `Rust` with `Postgres` as its primary data store, and exposed to Python via PyO3-generated stubs.
 
 ## **Why Use It?**
 
-Because you deploy ML and AI services that need to be monitored, and you want a single toolkit that handles drift detection, distributed tracing, and GenAI evaluation — without stitching together five different libraries.
+Because you deploy ML and AI services that need to be monitored, and you want a single toolkit that handles drift detection, distributed tracing, and Agent evaluation — without stitching together five different libraries.
 
 
 ### Developer-First Experience
 - **Zero-friction Integration** - Drop into existing ML and AI workflows in minutes
 - **Type-safe by Design** - The entire codebase is Rust<sup>*</sup>. Python users interact via PyO3-generated stubs. Catch errors before they hit production
-- **One Dependency** - Monitoring, tracing, and GenAI evaluation in a single library. No need to install multiple libraries
+- **One Dependency** - Monitoring, tracing, and Agent evaluation in a single library. No need to install multiple libraries
 - **Standardized Patterns** - Out of the box patterns for drift monitoring, distributed tracing, and LLM evaluation
-- **Offline → Online Parity** - Define your GenAI evaluation tasks once; run them as offline regression tests and as live production monitors
+- **Offline → Online Parity** - Define your Agent evaluation tasks once; run them as offline regression tests and as live production monitors
 - **Integrations** - Works out of the box with any Python API framework. Event-driven transport support for `Kafka`, `RabbitMQ`, and `Redis`
 
 ### Production Ready
@@ -178,7 +181,7 @@ See the [Tracing Overview](docs/tracing/overview.md) for cross-service context p
 
 ---
 
-## GenAI Evaluation
+## Agent Evaluation
 
 Scouter provides three evaluation primitives that work identically in offline batch tests and online production monitors:
 
@@ -349,7 +352,7 @@ queue["support_agent"].insert(record)
 ```
 
 !!!success
-    That's it! Define your evaluation tasks once, use them both for pre-deployment regression testing and continuous production monitoring. See the [GenAI Evaluation docs](docs/monitoring/genai/overview.md) for task dependency graphs, conditional gates, and multi-stage evaluation workflows.
+    That's it! Define your evaluation tasks once, use them both for pre-deployment regression testing and continuous production monitoring. See the [Agent Evaluation docs](docs/monitoring/genai/overview.md) for task dependency graphs, conditional gates, and multi-stage evaluation workflows.
 
 ---
 

@@ -15,7 +15,7 @@ pub struct ArchiveRecord {
     pub custom: bool,
     pub psi: bool,
     pub spc: bool,
-    pub genai_event: bool,
-    pub genai_task: bool,
-    pub genai_workflow: bool,
+    pub agent_event: bool,
+    pub agent_task: bool,
+    pub agent_workflow: bool,
 }

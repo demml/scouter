@@ -8,11 +8,11 @@ use scouter_dataframe::parquet::BinnedMetricsExtractor;
 use scouter_dataframe::parquet::ParquetDataFrame;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::contracts::DriftRequest;
+use scouter_types::AgentEvalWorkflowPaginationResponse;
+use scouter_types::AgentEvalWorkflowResult;
 use scouter_types::BoxedEvalRecord;
 use scouter_types::EvalRecord;
 use scouter_types::EvalTaskResult;
-use scouter_types::GenAIEvalWorkflowPaginationResponse;
-use scouter_types::GenAIEvalWorkflowResult;
 use scouter_types::Status;
 use scouter_types::{
     BinnedMetrics, EvalRecordPaginationRequest, EvalRecordPaginationResponse, RecordCursor,
@@ -25,14 +25,8 @@ use tracing::error;
 use tracing::{debug, instrument};
 
 #[async_trait]
-pub trait GenAIDriftSqlLogic {
-    /// Inserts an GenAI drift record into the database.
-    /// # Arguments
-    /// * `pool` - The database connection pool
-    /// * `record` - The GenAI drift record to insert
-    /// # Returns
-    /// * A result containing the query result or an error
-    async fn insert_genai_eval_record(
+pub trait AgentDriftSqlLogic {
+    async fn insert_agent_eval_record(
         pool: &Pool<Postgres>,
         record: BoxedEvalRecord,
         entity_id: &i32,
@@ -53,18 +47,12 @@ pub trait GenAIDriftSqlLogic {
             .map_err(SqlError::SqlxError)
     }
 
-    /// Insert a single eval workflow record
-    /// # Arguments
-    /// * `pool` - The database connection pool
-    /// * `record` - The GenAI eval workflow record to insert
-    /// * `entity_id` - The entity ID associated with the record
-    /// # Returns
-    async fn insert_genai_eval_workflow_record(
+    async fn insert_agent_eval_workflow_record(
         pool: &Pool<Postgres>,
-        record: &GenAIEvalWorkflowResult,
+        record: &AgentEvalWorkflowResult,
         entity_id: &i32,
     ) -> Result<PgQueryResult, SqlError> {
-        let query = Queries::InsertGenAIWorkflowResult.get_query();
+        let query = Queries::InsertAgentWorkflowResult.get_query();
 
         sqlx::query(query)
             .bind(record.created_at)
@@ -81,11 +69,9 @@ pub trait GenAIDriftSqlLogic {
             .map_err(SqlError::SqlxError)
     }
 
-    /// Inserts a batch of GenAI metric values into the database.
-    /// This is the output from processing/evaluating the GenAI drift records.
     async fn insert_eval_task_results_batch(
         pool: &Pool<Postgres>,
-        records: &[EvalTaskResult], // Passed by slice for better ergonomics
+        records: &[EvalTaskResult],
         entity_id: &i32,
     ) -> Result<sqlx::postgres::PgQueryResult, SqlError> {
         if records.is_empty() {
@@ -94,7 +80,6 @@ pub trait GenAIDriftSqlLogic {
 
         let n = records.len();
 
-        // Pre-allocate vectors to avoid reallocations
         let mut created_ats = Vec::with_capacity(n);
         let mut start_times = Vec::with_capacity(n);
         let mut end_times = Vec::with_capacity(n);
@@ -131,7 +116,7 @@ pub trait GenAIDriftSqlLogic {
             stage.push(r.stage);
         }
 
-        let query = Queries::InsertGenAITaskResultsBatch.get_query();
+        let query = Queries::InsertAgentTaskResultsBatch.get_query();
 
         sqlx::query(query)
             .bind(&created_ats)
@@ -155,7 +140,7 @@ pub trait GenAIDriftSqlLogic {
             .map_err(SqlError::SqlxError)
     }
 
-    async fn get_genai_eval_records(
+    async fn get_agent_eval_records(
         pool: &Pool<Postgres>,
         limit_datetime: Option<&DateTime<Utc>>,
         status: Option<Status>,
@@ -180,7 +165,6 @@ pub trait GenAIDriftSqlLogic {
         if let Some(datetime) = limit_datetime {
             query = query.bind(datetime);
         }
-        // Bind status if provided
         if let Some(status) = status_value {
             query = query.bind(status);
         }
@@ -196,17 +180,8 @@ pub trait GenAIDriftSqlLogic {
             .collect())
     }
 
-    /// Retrieves a paginated list of GenAI drift records with bidirectional cursor support
-    ///
-    /// # Arguments
-    /// * `pool` - The database connection pool
-    /// * `params` - The pagination request containing limit, cursor, and direction
-    /// * `entity_id` - The entity ID to filter records
-    ///
-    /// # Returns
-    /// * Result with paginated response containing GenAI drift records
     #[instrument(skip_all)]
-    async fn get_paginated_genai_eval_records(
+    async fn get_paginated_agent_eval_records(
         pool: &Pool<Postgres>,
         params: &EvalRecordPaginationRequest,
         entity_id: &i32,
@@ -260,7 +235,6 @@ pub trait GenAIDriftSqlLogic {
                 )
             }
             _ => {
-                // Forward pagination (default)
                 let next_cursor = if has_more {
                     items.last().map(|last| RecordCursor {
                         created_at: last.created_at,
@@ -301,46 +275,29 @@ pub trait GenAIDriftSqlLogic {
         })
     }
 
-    /// Attempts to retrieve trace spans for a given trace ID.
-    /// # Arguments
-    /// * `pool` - The database connection pool
-    /// * `trace_id` - The trace ID to retrieve spans for
-    /// # Returns
-    /// * A vector of `TraceSpan` associated with the trace ID
-    async fn get_genai_eval_task(
+    async fn get_agent_eval_task(
         pool: &Pool<Postgres>,
         record_uid: &str,
     ) -> Result<Vec<EvalTaskResult>, SqlError> {
-        let query = Queries::GetGenAIEvalTasks.get_query();
-        let tasks: Result<Vec<EvalTaskResult>, SqlError> = sqlx::query_as(query)
+        let query = Queries::GetAgentEvalTasks.get_query();
+        sqlx::query_as(query)
             .bind(record_uid)
             .fetch_all(pool)
             .await
-            .map_err(SqlError::SqlxError);
-
-        tasks
+            .map_err(SqlError::SqlxError)
     }
 
-    /// Retrieves a paginated list of GenAI workflow records with bidirectional cursor support
-    ///
-    /// # Arguments
-    /// * `pool` - The database connection pool
-    /// * `params` - The pagination request containing limit, cursor, and direction
-    /// * `entity_id` - The entity ID to filter records
-    ///
-    /// # Returns
-    /// * Result with paginated response containing GenAI workflow records
     #[instrument(skip_all)]
-    async fn get_paginated_genai_eval_workflow_records(
+    async fn get_paginated_agent_eval_workflow_records(
         pool: &Pool<Postgres>,
         params: &EvalRecordPaginationRequest,
         entity_id: &i32,
-    ) -> Result<GenAIEvalWorkflowPaginationResponse, SqlError> {
-        let query = Queries::GetPaginatedGenAIEvalWorkflow.get_query();
+    ) -> Result<AgentEvalWorkflowPaginationResponse, SqlError> {
+        let query = Queries::GetPaginatedAgentEvalWorkflow.get_query();
         let limit = params.limit.unwrap_or(50);
         let direction = params.direction.as_deref().unwrap_or("next");
 
-        let mut items: Vec<GenAIEvalWorkflowResult> = sqlx::query_as(query)
+        let mut items: Vec<AgentEvalWorkflowResult> = sqlx::query_as(query)
             .bind(entity_id)
             .bind(params.cursor_created_at)
             .bind(direction)
@@ -384,7 +341,6 @@ pub trait GenAIDriftSqlLogic {
                 )
             }
             _ => {
-                // Forward pagination (default)
                 let next_cursor = if has_more {
                     items.last().map(|last| RecordCursor {
                         created_at: last.created_at,
@@ -416,7 +372,7 @@ pub trait GenAIDriftSqlLogic {
             })
             .collect();
 
-        Ok(GenAIEvalWorkflowPaginationResponse {
+        Ok(AgentEvalWorkflowPaginationResponse {
             items: public_items,
             has_next,
             next_cursor,
@@ -425,22 +381,14 @@ pub trait GenAIDriftSqlLogic {
         })
     }
 
-    /// Queries the database for GenAI task metric values based on a time window.
-    /// # Arguments
-    /// * `pool` - The database connection pool
-    /// * `limit_datetime` - The limit datetime to get metric values for
-    /// * `metrics` - The list of metric names to retrieve
-    /// * `entity_id` - The entity ID to filter records
-    /// # Returns
-    /// * A hashmap of metric names to their corresponding values
     #[instrument(skip_all)]
-    async fn get_genai_task_values(
+    async fn get_agent_task_values(
         pool: &Pool<Postgres>,
         limit_datetime: &DateTime<Utc>,
         metrics: &[String],
         entity_id: &i32,
     ) -> Result<HashMap<String, f64>, SqlError> {
-        let query = Queries::GetGenAITaskValues.get_query();
+        let query = Queries::GetAgentTaskValues.get_query();
 
         let records = sqlx::query(query)
             .bind(limit_datetime)
@@ -462,20 +410,13 @@ pub trait GenAIDriftSqlLogic {
         Ok(metric_map)
     }
 
-    /// Queries the database for GenAI workflow metric values based on a time window.
-    /// # Arguments
-    /// * `pool` - The database connection pool
-    /// * `limit_datetime` - The limit datetime to get metric values for
-    /// * `entity_id` - The entity ID to filter records
-    /// # Returns
-    /// * A hashmap of metric names to their corresponding values
     #[instrument(skip_all)]
-    async fn get_genai_workflow_value(
+    async fn get_agent_workflow_value(
         pool: &Pool<Postgres>,
         limit_datetime: &DateTime<Utc>,
         entity_id: &i32,
     ) -> Result<Option<f64>, SqlError> {
-        let query = Queries::GetGenAIWorkflowValues.get_query();
+        let query = Queries::GetAgentWorkflowValues.get_query();
 
         let records = sqlx::query(query)
             .bind(limit_datetime)
@@ -483,22 +424,12 @@ pub trait GenAIDriftSqlLogic {
             .fetch_optional(pool)
             .await
             .inspect_err(|e| {
-                error!("Error fetching GenAI workflow values: {:?}", e);
+                error!("Error fetching agent workflow values: {:?}", e);
             })?;
 
         Ok(records.and_then(|r| r.try_get("value").ok()))
     }
 
-    // Queries the database for GenAI workflow drift records based on a time window
-    /// and aggregation.
-    /// # Arguments
-    /// * `pool` - The database connection pool
-    /// * `params` - The drift request parameters
-    /// * `start_dt` - The start datetime of the time window
-    /// * `end_dt` - The end datetime of the time window
-    /// * `entity_id` - The entity ID to filter records
-    /// # Returns
-    /// * BinnedMetrics
     #[instrument(skip_all)]
     async fn get_binned_workflow_records(
         pool: &Pool<Postgres>,
@@ -510,7 +441,7 @@ pub trait GenAIDriftSqlLogic {
         let minutes = end_dt.signed_duration_since(start_dt).num_minutes() as f64;
         let bin = minutes / params.max_data_points as f64;
 
-        let query = Queries::GetGenAIWorkflowBinnedMetrics.get_query();
+        let query = Queries::GetAgentWorkflowBinnedMetrics.get_query();
 
         let records: Vec<BinnedMetricWrapper> = sqlx::query_as(query)
             .bind(bin)
@@ -526,16 +457,6 @@ pub trait GenAIDriftSqlLogic {
         ))
     }
 
-    // Queries the database for GenAI workflow drift records based on a time window
-    /// and aggregation.
-    /// # Arguments
-    /// * `pool` - The database connection pool
-    /// * `params` - The drift request parameters
-    /// * `start_dt` - The start datetime of the time window
-    /// * `end_dt` - The end datetime of the time window
-    /// * `entity_id` - The entity ID to filter records
-    /// # Returns
-    /// * BinnedMetrics
     #[instrument(skip_all)]
     async fn get_binned_task_records(
         pool: &Pool<Postgres>,
@@ -547,7 +468,7 @@ pub trait GenAIDriftSqlLogic {
         let minutes = end_dt.signed_duration_since(start_dt).num_minutes() as f64;
         let bin = minutes / params.max_data_points as f64;
 
-        let query = Queries::GetGenAITaskBinnedMetrics.get_query();
+        let query = Queries::GetAgentTaskBinnedMetrics.get_query();
 
         let records: Vec<BinnedMetricWrapper> = sqlx::query_as(query)
             .bind(bin)
@@ -563,7 +484,6 @@ pub trait GenAIDriftSqlLogic {
         ))
     }
 
-    /// Helper for merging custom drift records
     fn merge_feature_results(
         results: BinnedMetrics,
         map: &mut BinnedMetrics,
@@ -582,19 +502,6 @@ pub trait GenAIDriftSqlLogic {
         Ok(())
     }
 
-    /// DataFusion implementation for getting custom drift records from archived data.
-    /// Queries for task records
-    ///
-    /// # Arguments
-    /// * `params` - The drift request parameters
-    /// * `begin` - The start time of the time window
-    /// * `end` - The end time of the time window
-    /// * `minutes` - The number of minutes to bin the data
-    /// * `storage_settings` - The object storage settings
-    /// * `entity_id` - The entity ID to filter records
-    ///
-    /// # Returns
-    /// * A vector of drift records
     #[instrument(skip_all)]
     async fn get_archived_task_records(
         params: &DriftRequest,
@@ -604,32 +511,22 @@ pub trait GenAIDriftSqlLogic {
         storage_settings: &ObjectStorageSettings,
         entity_id: &i32,
     ) -> Result<BinnedMetrics, SqlError> {
-        debug!("Getting archived GenAI metrics for params: {:?}", params);
-        let path = format!("{}/{}", params.uid, RecordType::GenAITask);
+        debug!(
+            "Getting archived agent task metrics for params: {:?}",
+            params
+        );
+        let path = format!("{}/{}", params.uid, RecordType::AgentTask);
         let bin = minutes as f64 / params.max_data_points as f64;
-        let archived_df = ParquetDataFrame::new(storage_settings, &RecordType::GenAITask)?
+        let archived_df = ParquetDataFrame::new(storage_settings, &RecordType::AgentTask)?
             .get_binned_metrics(&path, &bin, &begin, &end, entity_id)
             .await
             .inspect_err(|e| {
-                error!("Failed to get archived GenAI metrics: {:?}", e);
+                error!("Failed to get archived agent task metrics: {:?}", e);
             })?;
 
         Ok(BinnedMetricsExtractor::dataframe_to_binned_metrics(archived_df).await?)
     }
 
-    /// DataFusion implementation for getting custom drift records from archived data.
-    /// Queries for task records
-    ///
-    /// # Arguments
-    /// * `params` - The drift request parameters
-    /// * `begin` - The start time of the time window
-    /// * `end` - The end time of the time window
-    /// * `minutes` - The number of minutes to bin the data
-    /// * `storage_settings` - The object storage settings
-    /// * `entity_id` - The entity ID to filter records
-    ///
-    /// # Returns
-    /// * A vector of drift records
     #[instrument(skip_all)]
     async fn get_archived_workflow_records(
         params: &DriftRequest,
@@ -639,50 +536,41 @@ pub trait GenAIDriftSqlLogic {
         storage_settings: &ObjectStorageSettings,
         entity_id: &i32,
     ) -> Result<BinnedMetrics, SqlError> {
-        debug!("Getting archived GenAI metrics for params: {:?}", params);
-        let path = format!("{}/{}", params.uid, RecordType::GenAIWorkflow);
+        debug!(
+            "Getting archived agent workflow metrics for params: {:?}",
+            params
+        );
+        let path = format!("{}/{}", params.uid, RecordType::AgentWorkflow);
         let bin = minutes as f64 / params.max_data_points as f64;
-        let archived_df = ParquetDataFrame::new(storage_settings, &RecordType::GenAIWorkflow)?
+        let archived_df = ParquetDataFrame::new(storage_settings, &RecordType::AgentWorkflow)?
             .get_binned_metrics(&path, &bin, &begin, &end, entity_id)
             .await
             .inspect_err(|e| {
-                error!("Failed to get archived GenAI metrics: {:?}", e);
+                error!("Failed to get archived agent workflow metrics: {:?}", e);
             })?;
 
         Ok(BinnedMetricsExtractor::dataframe_to_binned_metrics(archived_df).await?)
     }
 
-    // Queries the database for drift records based on a time window and aggregation
-    //
-    // # Arguments
-    //
-    // * `name` - The name of the service to query drift records for
-    // * `params` - The drift request parameters
-    // # Returns
-    //
-    // * A vector of drift records
     #[instrument(skip_all)]
-    async fn get_binned_genai_task_values(
+    async fn get_binned_agent_task_values(
         pool: &Pool<Postgres>,
         params: &DriftRequest,
         retention_period: &i32,
         storage_settings: &ObjectStorageSettings,
         entity_id: &i32,
     ) -> Result<BinnedMetrics, SqlError> {
-        debug!("Getting binned task drift records for {:?}", params);
+        debug!("Getting binned agent task drift records for {:?}", params);
 
         if !params.has_custom_interval() {
-            debug!("No custom interval provided, using default");
             let (start_dt, end_dt) = params.time_interval.to_begin_end_times()?;
             return Self::get_binned_task_records(pool, params, start_dt, end_dt, entity_id).await;
         }
 
-        debug!("Custom interval provided, using custom interval");
         let interval = params.clone().to_custom_interval().unwrap();
         let timestamps = split_custom_interval(interval.begin, interval.end, retention_period)?;
         let mut custom_metric_map = BinnedMetrics::default();
 
-        // get data from postgres
         if let Some((active_begin, active_end)) = timestamps.active_range {
             let current_results =
                 Self::get_binned_task_records(pool, params, active_begin, active_end, entity_id)
@@ -690,7 +578,6 @@ pub trait GenAIDriftSqlLogic {
             Self::merge_feature_results(current_results, &mut custom_metric_map)?;
         }
 
-        // get archived data
         if let Some((archive_begin, archive_end)) = timestamps.archived_range {
             if let Some(archived_minutes) = timestamps.archived_minutes {
                 let archived_results = Self::get_archived_task_records(
@@ -710,28 +597,28 @@ pub trait GenAIDriftSqlLogic {
     }
 
     #[instrument(skip_all)]
-    async fn get_binned_genai_workflow_values(
+    async fn get_binned_agent_workflow_values(
         pool: &Pool<Postgres>,
         params: &DriftRequest,
         retention_period: &i32,
         storage_settings: &ObjectStorageSettings,
         entity_id: &i32,
     ) -> Result<BinnedMetrics, SqlError> {
-        debug!("Getting binned workflow drift records for {:?}", params);
+        debug!(
+            "Getting binned agent workflow drift records for {:?}",
+            params
+        );
 
         if !params.has_custom_interval() {
-            debug!("No custom interval provided, using default");
             let (start_dt, end_dt) = params.time_interval.to_begin_end_times()?;
             return Self::get_binned_workflow_records(pool, params, start_dt, end_dt, entity_id)
                 .await;
         }
 
-        debug!("Custom interval provided, using custom interval");
         let interval = params.clone().to_custom_interval().unwrap();
         let timestamps = split_custom_interval(interval.begin, interval.end, retention_period)?;
         let mut custom_metric_map = BinnedMetrics::default();
 
-        // get data from postgres
         if let Some((active_begin, active_end)) = timestamps.active_range {
             let current_results = Self::get_binned_workflow_records(
                 pool,
@@ -744,7 +631,6 @@ pub trait GenAIDriftSqlLogic {
             Self::merge_feature_results(current_results, &mut custom_metric_map)?;
         }
 
-        // get archived data
         if let Some((archive_begin, archive_end)) = timestamps.archived_range {
             if let Some(archived_minutes) = timestamps.archived_minutes {
                 let archived_results = Self::get_archived_workflow_records(
@@ -768,44 +654,43 @@ pub trait GenAIDriftSqlLogic {
         Ok(custom_metric_map)
     }
 
-    /// Retrieves the next pending GenAI drift task from drift_records.
-    async fn get_pending_genai_eval_record(
+    async fn get_pending_agent_eval_record(
         pool: &Pool<Postgres>,
     ) -> Result<Option<EvalRecord>, SqlError> {
-        let query = Queries::GetPendingGenAIEvalTask.get_query();
+        let query = Queries::GetPendingAgentEvalTask.get_query();
         let result: Option<EvalRecord> = sqlx::query_as(query)
             .fetch_optional(pool)
             .await
             .map_err(SqlError::SqlxError)?;
 
-        debug!("Fetched pending GenAI drift record: {:?}", result);
+        debug!("Fetched pending agent eval record: {:?}", result);
 
         Ok(result)
     }
 
     #[instrument(skip_all)]
-    async fn update_genai_eval_record_status(
+    async fn update_agent_eval_record_status(
         pool: &Pool<Postgres>,
         record: &EvalRecord,
         status: Status,
         workflow_duration: &i64,
     ) -> Result<(), SqlError> {
-        let query = Queries::UpdateGenAIEvalTask.get_query();
-        let _query_result = sqlx::query(query)
+        let query = Queries::UpdateAgentEvalTask.get_query();
+        sqlx::query(query)
             .bind(status.as_str())
             .bind(workflow_duration)
             .bind(&record.uid)
             .execute(pool)
             .await
             .inspect_err(|e| {
-                error!("Failed to update GenAI drift record status: {:?}", e);
+                error!("Failed to update agent eval record status: {:?}", e);
             })?;
 
         Ok(())
     }
 
     #[instrument(skip_all)]
-    async fn reschedule_genai_eval_record(
+    async fn reschedule_agent_eval_record(
         pool: &Pool<Postgres>,
         uid: &str,
         delay: Duration,
@@ -819,7 +704,7 @@ pub trait GenAIDriftSqlLogic {
             .execute(pool)
             .await
             .inspect_err(|e| {
-                error!("Failed to reschedule GenAI eval record: {:?}", e);
+                error!("Failed to reschedule agent eval record: {:?}", e);
             })?;
 
         Ok(())

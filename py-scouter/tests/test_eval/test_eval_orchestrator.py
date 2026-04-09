@@ -162,7 +162,7 @@ def test_multi_turn():
     assert results.metrics.total_scenarios == 1
 
     # Verify execute_agent returns the last turn's response, not the initial query's
-    turn_log: list = []  # type: ignore
+    turn_log: list = []
 
     def turn_counting_agent(query):
         turn_log.append(query)
@@ -378,7 +378,7 @@ def test_teardown_runs_on_exception():
 def test_mid_loop_failure_propagates():
     """Failure on scenario N does not silently skip to scenario N+1."""
     queue = _make_queue(_simple_profile())
-    executed: list = []  # type: ignore
+    executed: list = []
 
     def agent(query):
         executed.append(query)
