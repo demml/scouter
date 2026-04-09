@@ -14074,7 +14074,6 @@ class DriftType:
     Custom: "DriftType"
     Agent: "DriftType"
 
-
     def value(self) -> str: ...
     @staticmethod
     def from_value(value: str) -> "DriftType": ...
