@@ -1,5 +1,7 @@
 use crate::error::EvalScenarioEngineError;
-use crate::parquet::eval_scenarios::engine::{EvalScenarioDBEngine, EvalScenarioRecord, TableCommand};
+use crate::parquet::eval_scenarios::engine::{
+    EvalScenarioDBEngine, EvalScenarioRecord, TableCommand,
+};
 use crate::parquet::eval_scenarios::queries::EvalScenarioQueries;
 use scouter_settings::ObjectStorageSettings;
 use tokio::sync::{mpsc, oneshot};
@@ -41,7 +43,8 @@ impl EvalScenarioService {
             .await
             .map_err(|_| EvalScenarioEngineError::ChannelClosed)?;
 
-        rx.await.map_err(|_| EvalScenarioEngineError::ChannelClosed)?
+        rx.await
+            .map_err(|_| EvalScenarioEngineError::ChannelClosed)?
     }
 
     pub async fn get_scenarios(

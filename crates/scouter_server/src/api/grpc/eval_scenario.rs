@@ -1,5 +1,7 @@
 use crate::api::state::AppState;
 use chrono::Utc;
+
+const MAX_MESSAGE_SIZE: usize = 64 * 1024 * 1024; // 64 MB
 use scouter_dataframe::EvalScenarioRecord;
 use scouter_evaluate::scenario::EvalScenarios;
 use scouter_tonic::{
@@ -22,6 +24,8 @@ impl EvalScenarioGrpcService {
 
     pub fn into_server(self) -> EvalScenarioServiceServer<Self> {
         EvalScenarioServiceServer::new(self)
+            .max_decoding_message_size(MAX_MESSAGE_SIZE)
+            .max_encoding_message_size(MAX_MESSAGE_SIZE)
     }
 }
 
@@ -34,29 +38,28 @@ impl EvalScenarioService for EvalScenarioGrpcService {
     ) -> Result<Response<RegisterScenariosResponse>, Status> {
         let req = request.into_inner();
 
-        let scenarios: EvalScenarios =
-            serde_json::from_str(&req.scenarios_json).map_err(|e| {
-                error!(error = %e, "Failed to deserialize EvalScenarios");
-                Status::invalid_argument(format!("Invalid scenarios JSON: {e}"))
-            })?;
+        let scenarios: EvalScenarios = serde_json::from_str(&req.scenarios_json).map_err(|e| {
+            error!(error = %e, "Failed to deserialize EvalScenarios");
+            Status::invalid_argument("Invalid request payload")
+        })?;
 
         let collection_id = req.collection_id.clone();
         let created_at = Utc::now();
         let scenario_count = scenarios.scenarios.len() as u64;
 
-        let records: Vec<EvalScenarioRecord> = scenarios
-            .scenarios
-            .iter()
-            .map(|s| {
-                let scenario_json = serde_json::to_string(s).unwrap_or_default();
-                EvalScenarioRecord {
-                    collection_id: collection_id.clone(),
-                    scenario_id: s.id.clone(),
-                    scenario_json,
-                    created_at,
-                }
-            })
-            .collect();
+        let mut records: Vec<EvalScenarioRecord> = Vec::with_capacity(scenarios.scenarios.len());
+        for s in &scenarios.scenarios {
+            let scenario_json = serde_json::to_string(s).map_err(|e| {
+                error!(error = %e, scenario_id = %s.id, "Failed to serialize EvalScenario");
+                Status::internal("Failed to serialize scenario")
+            })?;
+            records.push(EvalScenarioRecord {
+                collection_id: collection_id.clone(),
+                scenario_id: s.id.clone(),
+                scenario_json,
+                created_at,
+            });
+        }
 
         self.state
             .eval_scenario_service
@@ -64,7 +67,7 @@ impl EvalScenarioService for EvalScenarioGrpcService {
             .await
             .map_err(|e| {
                 error!(error = ?e, "Failed to write eval scenarios");
-                Status::internal(format!("Failed to write scenarios: {e}"))
+                Status::internal("Internal error")
             })?;
 
         Ok(Response::new(RegisterScenariosResponse {

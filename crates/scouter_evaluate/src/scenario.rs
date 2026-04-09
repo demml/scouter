@@ -58,15 +58,12 @@ impl EvalScenarios {
     #[staticmethod]
     pub fn from_path(path: String) -> Result<Self, EvaluationError> {
         let path = PathBuf::from(&path);
-        let ext = path
-            .extension()
-            .and_then(|e| e.to_str())
-            .ok_or_else(|| {
-                EvaluationError::TypeError(scouter_types::error::TypeError::Error(format!(
-                    "Cannot determine file extension for: {}",
-                    path.display()
-                )))
-            })?;
+        let ext = path.extension().and_then(|e| e.to_str()).ok_or_else(|| {
+            EvaluationError::TypeError(scouter_types::error::TypeError::Error(format!(
+                "Cannot determine file extension for: {}",
+                path.display()
+            )))
+        })?;
 
         match ext.to_lowercase().as_str() {
             "jsonl" => load_from_jsonl(&path),
@@ -191,8 +188,7 @@ fn scenarios_from_raw(raw: ScenariosFileRaw) -> EvalScenarios {
             collection_id,
             scenarios,
         } => {
-            let mut s =
-                EvalScenarios::new(scenarios.into_iter().map(EvalScenario::from).collect());
+            let mut s = EvalScenarios::new(scenarios.into_iter().map(EvalScenario::from).collect());
             s.collection_id = collection_id;
             s
         }
@@ -202,16 +198,24 @@ fn scenarios_from_raw(raw: ScenariosFileRaw) -> EvalScenarios {
     }
 }
 
+/// Load scenarios from a `.jsonl` file. One `EvalScenario` JSON object per non-empty line.
+/// Note: a `collection_id` field in the file is not read — the collection ID is always
+/// auto-generated. Use `.json` or `.yaml` with the wrapped format to preserve a specific ID.
 fn load_from_jsonl(path: &PathBuf) -> Result<EvalScenarios, EvaluationError> {
     let content = std::fs::read_to_string(path)?;
     let scenarios: Vec<EvalScenario> = content
         .lines()
-        .filter(|l| !l.trim().is_empty())
-        .map(|line| {
-            let entry: ScenarioEntry = serde_json::from_str(line)?;
+        .enumerate()
+        .filter(|(_, l)| !l.trim().is_empty())
+        .map(|(i, line)| {
+            let entry: ScenarioEntry =
+                serde_json::from_str(line).map_err(|e| EvaluationError::ParseLineError {
+                    line: i + 1,
+                    reason: e.to_string(),
+                })?;
             Ok(EvalScenario::from(entry))
         })
-        .collect::<Result<Vec<_>, serde_json::Error>>()?;
+        .collect::<Result<Vec<_>, EvaluationError>>()?;
     Ok(EvalScenarios::new(scenarios))
 }
 
@@ -233,8 +237,8 @@ fn load_from_yaml(path: &PathBuf) -> Result<EvalScenarios, EvaluationError> {
         return Ok(s);
     }
     // Fall back to flat-task format
-    let raw: ScenariosFileRaw = serde_yaml::from_str(&content)
-        .map_err(scouter_types::error::TypeError::from)?;
+    let raw: ScenariosFileRaw =
+        serde_yaml::from_str(&content).map_err(scouter_types::error::TypeError::from)?;
     Ok(scenarios_from_raw(raw))
 }
 
@@ -338,7 +342,8 @@ mod tests {
 
     #[test]
     fn from_path_json_array() {
-        let json = r#"[{"id": "s1", "initial_query": "Hello?"}, {"id": "s2", "initial_query": "Bye?"}]"#;
+        let json =
+            r#"[{"id": "s1", "initial_query": "Hello?"}, {"id": "s2", "initial_query": "Bye?"}]"#;
 
         let dir = std::env::temp_dir();
         let path = dir.join("test_scenarios_array.json");
@@ -379,5 +384,77 @@ mod tests {
         assert_eq!(loaded.collection_id, original_cid);
         assert_eq!(loaded.scenarios.len(), 1);
         assert_eq!(loaded.scenarios[0].id, "s1");
+    }
+
+    #[test]
+    fn from_path_yaml_array() {
+        let yaml = r#"
+- id: s1
+  initial_query: "Hello?"
+- id: s2
+  initial_query: "Bye?"
+"#;
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_scenarios_array.yaml");
+        std::fs::write(&path, yaml).unwrap();
+
+        let loaded = EvalScenarios::from_path(path.to_string_lossy().to_string()).unwrap();
+        assert_eq!(loaded.scenarios.len(), 2);
+        assert_eq!(loaded.scenarios[0].id, "s1");
+        assert!(!loaded.collection_id.is_empty());
+    }
+
+    #[test]
+    fn from_path_yaml_wrapped_with_collection_id() {
+        let collection_id = "yaml-custom-id";
+        let yaml = format!(
+            "collection_id: {}\nscenarios:\n  - id: s1\n    initial_query: Hi?\n",
+            collection_id
+        );
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_scenarios_wrapped.yaml");
+        std::fs::write(&path, &yaml).unwrap();
+
+        let loaded = EvalScenarios::from_path(path.to_string_lossy().to_string()).unwrap();
+        assert_eq!(loaded.collection_id, collection_id);
+        assert_eq!(loaded.scenarios.len(), 1);
+    }
+
+    #[test]
+    fn from_path_unsupported_extension() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_scenarios.csv");
+        std::fs::write(&path, "id,query\ns1,hello\n").unwrap();
+
+        let err = EvalScenarios::from_path(path.to_string_lossy().to_string()).unwrap_err();
+        assert!(
+            matches!(err, EvaluationError::TypeError(_)),
+            "expected TypeError, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn from_path_nonexistent_file() {
+        let err =
+            EvalScenarios::from_path("/tmp/does_not_exist_abc123.jsonl".to_string()).unwrap_err();
+        assert!(
+            matches!(err, EvaluationError::IoError(_)),
+            "expected IoError, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn from_path_malformed_jsonl_reports_line_number() {
+        let jsonl = "{\"id\": \"s1\", \"initial_query\": \"ok\"}\n{bad json on line 2}";
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_malformed.jsonl");
+        std::fs::write(&path, jsonl).unwrap();
+
+        let err = EvalScenarios::from_path(path.to_string_lossy().to_string()).unwrap_err();
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("line 2"),
+            "expected error to mention 'line 2', got: {msg}"
+        );
     }
 }

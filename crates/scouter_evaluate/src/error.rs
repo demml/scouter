@@ -188,6 +188,9 @@ pub enum EvaluationError {
 
     #[error("Too many path segments: {0} (max 32)")]
     TooManyPathSegments(usize),
+
+    #[error("Parse error on line {line}: {reason}")]
+    ParseLineError { line: usize, reason: String },
 }
 
 impl From<pythonize::PythonizeError> for EvaluationError {

@@ -108,15 +108,9 @@ impl EvalScenarioBatchBuilder {
 fn build_writer_props() -> WriterProperties {
     WriterProperties::builder()
         .set_max_row_group_size(32_768)
-        .set_column_bloom_filter_enabled(
-            ColumnPath::new(vec![COLLECTION_ID_COL.to_string()]),
-            true,
-        )
+        .set_column_bloom_filter_enabled(ColumnPath::new(vec![COLLECTION_ID_COL.to_string()]), true)
         .set_column_bloom_filter_fpp(ColumnPath::new(vec![COLLECTION_ID_COL.to_string()]), 0.01)
-        .set_column_bloom_filter_ndv(
-            ColumnPath::new(vec![COLLECTION_ID_COL.to_string()]),
-            10_000,
-        )
+        .set_column_bloom_filter_ndv(ColumnPath::new(vec![COLLECTION_ID_COL.to_string()]), 10_000)
         .set_compression(Compression::ZSTD(ZstdLevel::try_new(3).unwrap()))
         .build()
 }
@@ -220,7 +214,7 @@ pub struct EvalScenarioDBEngine {
     pub object_store: ObjectStore,
     table: Arc<AsyncRwLock<DeltaTable>>,
     ctx: Arc<SessionContext>,
-    pub catalog: Arc<TraceCatalogProvider>,
+    catalog: Arc<TraceCatalogProvider>,
     control: ControlTableEngine,
 }
 
@@ -232,10 +226,8 @@ impl EvalScenarioDBEngine {
         let schema = Arc::new(create_schema());
         let delta_table = build_or_create_table(&object_store, schema.clone()).await?;
 
-        let ctx = object_store.get_session_with_catalog(
-            EVAL_SCENARIO_CATALOG_NAME,
-            EVAL_SCENARIO_DEFAULT_SCHEMA,
-        )?;
+        let ctx = object_store
+            .get_session_with_catalog(EVAL_SCENARIO_CATALOG_NAME, EVAL_SCENARIO_DEFAULT_SCHEMA)?;
 
         let catalog = Arc::new(TraceCatalogProvider::new());
         ctx.register_catalog(
@@ -310,6 +302,7 @@ impl EvalScenarioDBEngine {
 
     async fn optimize_table(&self) -> Result<(), EvalScenarioEngineError> {
         let mut table_guard = self.table.write().await;
+
         let current_table = table_guard.clone();
 
         let (updated_table, _metrics) = current_table
@@ -321,8 +314,10 @@ impl EvalScenarioDBEngine {
             .with_writer_properties(build_writer_props())
             .await?;
 
-        self.catalog
-            .swap(EVAL_SCENARIO_TABLE_NAME, updated_table.table_provider().await?);
+        self.catalog.swap(
+            EVAL_SCENARIO_TABLE_NAME,
+            updated_table.table_provider().await?,
+        );
         updated_table.update_datafusion_session(&self.ctx.state())?;
         *table_guard = updated_table;
 
@@ -335,12 +330,14 @@ impl EvalScenarioDBEngine {
         let (updated_table, _metrics) = table_guard
             .clone()
             .vacuum()
-            .with_retention_period(chrono::Duration::zero())
+            .with_retention_period(chrono::Duration::days(7))
             .with_enforce_retention_duration(false)
             .await?;
 
-        self.catalog
-            .swap(EVAL_SCENARIO_TABLE_NAME, updated_table.table_provider().await?);
+        self.catalog.swap(
+            EVAL_SCENARIO_TABLE_NAME,
+            updated_table.table_provider().await?,
+        );
         updated_table.update_datafusion_session(&self.ctx.state())?;
         *table_guard = updated_table;
 

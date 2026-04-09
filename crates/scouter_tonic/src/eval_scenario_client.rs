@@ -10,7 +10,7 @@ use std::time::Duration;
 use tonic::metadata::MetadataValue;
 use tonic::transport::Channel;
 use tonic::Request;
-use tracing::{debug, error, instrument};
+use tracing::{debug, error, instrument, warn};
 
 async fn build_channel(config: &GrpcConfig) -> Result<Channel, ClientError> {
     let mut endpoint = Channel::from_shared(config.server_uri.clone())
@@ -40,6 +40,7 @@ async fn build_channel(config: &GrpcConfig) -> Result<Channel, ClientError> {
             .await
             .map_err(|e| ClientError::GrpcError(format!("Failed to connect (TLS): {e}")))
     } else {
+        warn!("Connecting to gRPC server without TLS — use https:// in production");
         endpoint
             .connect()
             .await
@@ -110,10 +111,12 @@ impl EvalScenarioGrpcClient {
     fn update_token(&self, token: String) {
         if let Ok(mut guard) = self.auth_token.write() {
             *guard = token;
+        } else {
+            error!("Failed to acquire write lock for token update");
         }
     }
 
-    fn maybe_refresh_token(&self, headers: &tonic::metadata::MetadataMap) {
+    fn handle_refreshed_token(&self, headers: &tonic::metadata::MetadataMap) {
         if let Some(new_token) = headers.get(X_REFRESHED_TOKEN) {
             if let Ok(token_str) = new_token.to_str() {
                 self.update_token(token_str.to_string());
@@ -121,14 +124,12 @@ impl EvalScenarioGrpcClient {
         }
     }
 
-    fn authorized_request<T>(&self, inner: T) -> Result<Request<T>, ClientError> {
+    fn authenticated_request<T>(&self, inner: T) -> Result<Request<T>, ClientError> {
         let mut request = Request::new(inner);
         let token = self.get_token();
         let header_value = MetadataValue::try_from(format!("Bearer {token}"))
             .map_err(|e| ClientError::GrpcError(format!("Invalid token: {e}")))?;
-        request
-            .metadata_mut()
-            .insert(AUTHORIZATION, header_value);
+        request.metadata_mut().insert(AUTHORIZATION, header_value);
         Ok(request)
     }
 
@@ -138,7 +139,7 @@ impl EvalScenarioGrpcClient {
         collection_id: String,
         scenarios_json: String,
     ) -> Result<RegisterScenariosResponse, ClientError> {
-        let request = self.authorized_request(RegisterScenariosRequest {
+        let request = self.authenticated_request(RegisterScenariosRequest {
             collection_id,
             scenarios_json,
         })?;
@@ -149,7 +150,7 @@ impl EvalScenarioGrpcClient {
             .await
             .map_err(|e| ClientError::GrpcError(format!("RegisterScenarios failed: {e}")))?;
 
-        self.maybe_refresh_token(response.metadata());
+        self.handle_refreshed_token(response.metadata());
         Ok(response.into_inner())
     }
 }

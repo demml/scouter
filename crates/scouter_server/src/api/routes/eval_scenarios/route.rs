@@ -31,9 +31,9 @@ pub async fn get_eval_scenarios(
             error!(error = ?e, "Failed to get eval scenarios");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ScouterServerError::new(format!(
-                    "Failed to get eval scenarios: {e}"
-                ))),
+                Json(ScouterServerError::new(
+                    "Failed to get eval scenarios".to_string(),
+                )),
             )
         })?;
 
@@ -56,9 +56,9 @@ pub async fn get_eval_scenarios(
             error!(error = %e, "Failed to deserialize scenario JSON");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ScouterServerError::new(format!(
-                    "Failed to deserialize scenario: {e}"
-                ))),
+                Json(ScouterServerError::new(
+                    "Failed to deserialize scenario".to_string(),
+                )),
             )
         })?;
 
@@ -70,10 +70,7 @@ pub async fn get_eval_scenarios(
 
 pub fn get_eval_scenario_router(prefix: &str) -> Router<Arc<AppState>> {
     catch_unwind(AssertUnwindSafe(|| {
-        Router::new().route(
-            &format!("{prefix}/eval/scenarios"),
-            get(get_eval_scenarios),
-        )
+        Router::new().route(&format!("{prefix}/eval/scenarios"), get(get_eval_scenarios))
     }))
     .expect("Failed to create eval scenario router")
 }
