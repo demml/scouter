@@ -14,7 +14,7 @@ use std::collections::HashSet;
 use std::fmt::Display;
 use tracing::error;
 
-#[pyclass(eq)]
+#[pyclass(from_py_object, eq)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, std::cmp::Eq, Hash, Default)]
 pub enum AlertZone {
     Zone1,
@@ -37,7 +37,7 @@ impl Display for AlertZone {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct SpcAlertRule {
     #[pyo3(get, set)]
@@ -78,7 +78,7 @@ impl Default for SpcAlertRule {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct SpcAlertConfig {
     #[pyo3(get, set)]
@@ -166,7 +166,7 @@ impl Default for SpcAlertConfig {
     }
 }
 
-#[pyclass(eq)]
+#[pyclass(from_py_object, eq)]
 #[derive(Debug, Eq, Hash, PartialEq, Serialize, Deserialize, Default, Clone, Copy)]
 pub enum SpcAlertType {
     #[default]
@@ -189,7 +189,7 @@ impl Display for SpcAlertType {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Serialize, Deserialize, Debug, Default, Clone, Eq, Hash, PartialEq)]
 pub struct SpcAlert {
     #[pyo3(get)]

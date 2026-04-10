@@ -6,7 +6,7 @@ use num_traits::{Float, FromPrimitive};
 use pyo3::{pyclass, Bound, IntoPyObjectExt, PyAny, PyResult, Python};
 use serde::{Deserialize, Serialize};
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum BinningStrategy {
     QuantileBinning(QuantileBinning),

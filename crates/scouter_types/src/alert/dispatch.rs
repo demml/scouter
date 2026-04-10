@@ -4,14 +4,14 @@ use pyo3::{prelude::*, IntoPyObjectExt};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::str::FromStr;
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct ConsoleDispatchConfig {
     #[pyo3(get, set)]
     pub enabled: bool,
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct SlackDispatchConfig {
     #[pyo3(get, set)]
@@ -26,7 +26,7 @@ impl SlackDispatchConfig {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct OpsGenieDispatchConfig {
     #[pyo3(get, set)]
@@ -79,7 +79,7 @@ impl Default for AlertDispatchConfig {
     }
 }
 
-#[pyclass(eq)]
+#[pyclass(from_py_object, eq)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub enum AlertDispatchType {
     Slack,
@@ -117,7 +117,7 @@ pub trait DispatchDriftConfig {
     fn get_drift_args(&self) -> DriftArgs;
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum TransportType {
     Kafka,
@@ -128,7 +128,7 @@ pub enum TransportType {
     Grpc,
 }
 
-#[pyclass(eq)]
+#[pyclass(from_py_object, eq)]
 #[derive(PartialEq, Clone, Debug, Serialize)]
 pub enum CompressionType {
     NA,

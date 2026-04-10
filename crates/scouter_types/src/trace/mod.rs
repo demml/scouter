@@ -261,7 +261,7 @@ impl sqlx::Encode<'_, sqlx::Postgres> for SpanId {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct TraceRecord {
     #[pyo3(get)]
     pub created_at: DateTime<Utc>,
@@ -311,7 +311,7 @@ impl TraceRecord {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct TraceSpanRecord {
     #[pyo3(get)]
     pub created_at: chrono::DateTime<Utc>,
@@ -422,7 +422,7 @@ impl TraceSpanRecord {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
-#[pyclass]
+#[pyclass(from_py_object)]
 #[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct TraceBaggageRecord {
     #[pyo3(get)]
@@ -964,7 +964,7 @@ impl TraceServerRecord {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct Attribute {
     #[pyo3(get)]
     pub key: String,
@@ -1006,7 +1006,7 @@ impl Attribute {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct SpanEvent {
     #[pyo3(get)]
     pub timestamp: chrono::DateTime<Utc>,
@@ -1026,7 +1026,7 @@ impl SpanEvent {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct SpanLink {
     #[pyo3(get)]
     pub trace_id: String,
@@ -1048,7 +1048,7 @@ impl SpanLink {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct Tag {
     #[pyo3(get)]
     pub key: String,
@@ -1064,7 +1064,7 @@ impl Tag {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, Hash, PartialEq)]
-#[pyclass]
+#[pyclass(from_py_object)]
 #[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct TagRecord {
     #[pyo3(get)]

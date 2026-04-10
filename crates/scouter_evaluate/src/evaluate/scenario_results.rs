@@ -13,7 +13,7 @@ use tabled::{
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct TaskSummary {
     #[pyo3(get)]
     pub task_id: String,
@@ -33,7 +33,7 @@ impl TaskSummary {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct EvalMetrics {
     #[pyo3(get)]
     pub overall_pass_rate: f64,
@@ -175,7 +175,7 @@ impl EvalMetrics {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct ScenarioResult {
     #[pyo3(get)]
     pub scenario_id: String,
@@ -219,7 +219,7 @@ impl ScenarioResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct ScenarioDelta {
     #[pyo3(get)]
     pub scenario_id: String,
@@ -251,7 +251,7 @@ impl ScenarioDelta {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct ScenarioComparisonResults {
     pub dataset_comparisons: HashMap<String, ComparisonResults>,
 
@@ -651,7 +651,7 @@ impl ScenarioComparisonResults {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct ScenarioEvalResults {
     pub dataset_results: HashMap<String, EvalResults>,
 

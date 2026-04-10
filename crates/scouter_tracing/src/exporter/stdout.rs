@@ -8,7 +8,7 @@ use pyo3::prelude::*;
 use scouter_types::PyHelperFuncs;
 use serde::Serialize;
 #[derive(Debug, Clone, Serialize, Default)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct StdoutSpanExporter {
     #[pyo3(get)]
     pub sample_ratio: Option<f64>,

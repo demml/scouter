@@ -349,7 +349,7 @@ impl ScouterClient {
     }
 }
 
-#[pyclass(name = "ScouterClient")]
+#[pyclass(skip_from_py_object, name = "ScouterClient")]
 pub struct PyScouterClient {
     client: ScouterClient,
 }

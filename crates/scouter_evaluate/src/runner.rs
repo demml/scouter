@@ -34,7 +34,7 @@ struct AliasData {
 /// - `evaluate()`: Runs multi-level evaluation (sub-agent + scenario + aggregate),
 ///   pulling captured spans from the global buffer automatically.
 #[derive(Debug)]
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 pub struct EvalRunner {
     profiles: HashMap<String, Arc<AgentEvalProfile>>,
     scenarios: EvalScenarios,

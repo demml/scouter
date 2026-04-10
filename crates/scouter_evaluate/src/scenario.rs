@@ -17,7 +17,7 @@ use std::path::PathBuf;
 /// - The scenario definitions (`Vec<EvalScenario>`)
 /// - Internal state populated by `EvalRunner::collect_scenario_data()` (not serialized)
 /// - Output populated by `EvalRunner::evaluate()` (serialized)
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EvalScenarios {
     #[pyo3(get)]

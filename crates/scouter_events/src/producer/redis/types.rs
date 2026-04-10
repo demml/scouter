@@ -1,7 +1,7 @@
 use pyo3::prelude::*;
 use scouter_types::TransportType;
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone)]
 pub struct RedisConfig {
     #[pyo3(get)]

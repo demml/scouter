@@ -422,7 +422,7 @@ impl DatasetService for MockDatasetGrpcService {
 // BifrostTestServer
 // ---------------------------------------------------------------------------
 
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 #[allow(dead_code)]
 pub struct BifrostTestServer {
     #[cfg(feature = "server")]

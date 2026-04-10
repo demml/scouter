@@ -49,7 +49,7 @@ impl From<PyErr> for TestServerError {
     }
 }
 
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 #[allow(dead_code)]
 pub struct ScouterTestServer {
     #[cfg(feature = "server")]

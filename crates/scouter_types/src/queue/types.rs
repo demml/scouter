@@ -11,7 +11,7 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 use tracing::error;
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum EntityType {
     Feature,
@@ -39,7 +39,7 @@ impl Display for EntityType {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct IntFeature {
     pub name: String,
@@ -59,7 +59,7 @@ impl IntFeature {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct FloatFeature {
     pub name: String,
@@ -73,7 +73,7 @@ impl FloatFeature {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct StringFeature {
     pub name: String,
@@ -116,7 +116,7 @@ impl StringFeature {
         self.to_numeric::<i32>(feature_map)
     }
 }
-#[pyclass(name = "QueueFeature")]
+#[pyclass(from_py_object, name = "QueueFeature")]
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum Feature {
     Int(IntFeature),
@@ -234,7 +234,7 @@ impl Display for Feature {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone, Debug, Serialize)]
 pub struct Features {
     #[pyo3(get)]
@@ -298,7 +298,7 @@ impl Features {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct FeatureMap {
     #[pyo3(get)]
@@ -313,7 +313,7 @@ impl FeatureMap {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone, Serialize, Debug)]
 pub struct Metric {
     pub name: String,
@@ -352,7 +352,7 @@ impl Metric {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone, Serialize, Debug)]
 pub struct Metrics {
     #[pyo3(get)]

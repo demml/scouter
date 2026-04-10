@@ -22,7 +22,7 @@ struct RouteLatency {
     status_codes: HashMap<usize, i64>,
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone, Debug)]
 pub struct Observer {
     uid: String,

@@ -27,7 +27,7 @@ use tabled::{
     Table,
 };
 
-#[pyclass(eq)]
+#[pyclass(from_py_object, eq)]
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub enum RecordType {
     #[default]
@@ -94,7 +94,7 @@ impl RecordType {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct SpcRecord {
@@ -151,7 +151,7 @@ impl SpcRecord {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct PsiRecord {
@@ -198,7 +198,7 @@ impl PsiRecord {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EvalRecord {
     #[pyo3(get, set)]
@@ -435,7 +435,7 @@ impl FromRow<'_, PgRow> for EvalRecord {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BoxedEvalRecord {
     pub record: Box<EvalRecord>,
@@ -469,7 +469,7 @@ pub struct WorkflowResultTableEntry {
     pub duration_ms: String,
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AgentEvalWorkflowResult {
     #[pyo3(get)]
@@ -663,7 +663,7 @@ pub enum Assertion {
 }
 
 // Detailed result for an individual evaluation task within a workflow
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EvalTaskResult {
     #[pyo3(get)]
@@ -885,7 +885,7 @@ impl FromRow<'_, PgRow> for EvalTaskResult {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct CustomMetricRecord {
@@ -940,7 +940,7 @@ impl CustomMetricRecord {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct LatencyMetrics {
     #[pyo3(get)]
@@ -959,7 +959,7 @@ pub struct LatencyMetrics {
     pub p99: f64,
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct RouteMetrics {
     #[pyo3(get)]
@@ -981,7 +981,7 @@ pub struct RouteMetrics {
     pub status_codes: HashMap<usize, i64>,
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct ObservabilityMetrics {
@@ -1017,7 +1017,7 @@ impl ObservabilityMetrics {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[allow(clippy::large_enum_variant)]
 pub enum ServerRecord {
@@ -1081,7 +1081,7 @@ impl ServerRecord {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ServerRecords {
     #[pyo3(get)]

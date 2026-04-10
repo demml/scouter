@@ -14,7 +14,7 @@ The Scouter Queue is the primary interface for sending real-time data to the Sco
 
 ```rust
 
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct ScouterQueue {
     queues: HashMap<String, Py<QueueBus>>,
     _shared_runtime: Arc<tokio::runtime::Runtime>,
@@ -88,7 +88,7 @@ pub trait BackgroundTask: Send + Sync + 'static {
 (4) **QueueBus**: Everything discussed so far has focused on the Rust background tasks that run independent of the python runtime. So how do we bridge the gap and get events to rust from python. For every `DriftProfile`, a `QueueBus` is created that exposes an `insert` method to the user. This method will accept any of the allowed data types for monitoring (`Features`, `Metrics`, `EvalRecord`). The data types are extracted and published as an `Event` enum to the event channel, which is then read by the event receiver (`tokio::sync:mpsc`) embedded within the rust `event_handler`. This publishing happens asynchronously, which allows the user on the python side to continue accepting api requests without impacting latency. On the rust side, the event receiver will then process the event and add it to the background queue.
 
 ```rust
-#[pyclass(name = "Queue")]
+#[pyclass(skip_from_py_object, name = "Queue")]
 pub struct QueueBus {
     pub task_state: TaskState,
 
@@ -104,7 +104,7 @@ pub struct QueueBus {
 (6) **Queue Insert**: After the `ScouterQueue` is created, the user can insert events into the queue by accessing the queue directly through its alias and calling the `insert` method. The insert method expects either a `Features` object, a `Metrics` object (for custom metrics) or an `EvalRecord` object (for agent evaluation workflows). Note - Scouter also provides a `FeatureMixin` class that can be used to convert a python object into a `Features` object. This is useful for converting a Pydantic BaseModel into a `Features` object. The `FeatureMixin` class is not required, but it is recommended for ease of use.
 
 ```rust
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone, Debug, Serialize)]
 pub struct Features {
     #[pyo3(get)]
@@ -115,7 +115,7 @@ pub struct Features {
 }
 
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum Feature {
     Int(IntFeature),
@@ -147,7 +147,7 @@ impl Feature {
 
 
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone, Serialize, Debug)]
 pub struct Metric {
     pub name: String,
@@ -180,7 +180,7 @@ impl Metric {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone, Serialize, Debug)]
 pub struct Metrics {
     #[pyo3(get)]
@@ -191,7 +191,7 @@ pub struct Metrics {
 }
 
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone, Serialize, Debug)]
 pub struct EvalRecord {
     pub uid: String,

@@ -18,7 +18,7 @@ use tracing::{debug, info};
 use super::config::{TableConfig, WriteConfig};
 use super::error::DatasetClientError;
 
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 pub struct DatasetProducer {
     task_state: Option<TaskState<DatasetEvent>>,
     namespace: DatasetNamespace,

@@ -23,7 +23,7 @@ use tabled::{
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct MissingTask {
     #[pyo3(get)]
     pub task_id: String,
@@ -36,7 +36,7 @@ pub struct MissingTask {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct TaskComparison {
     #[pyo3(get)]
     pub task_id: String,
@@ -55,7 +55,7 @@ pub struct TaskComparison {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct WorkflowComparison {
     #[pyo3(get)]
     pub baseline_id: String,
@@ -96,7 +96,7 @@ struct WorkflowComparisonEntry {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct TaskAggregateStats {
     #[pyo3(get)]
     pub task_id: String,
@@ -137,7 +137,7 @@ struct TaskAggregateEntry {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct ComparisonResults {
     #[pyo3(get)]
     pub workflow_comparisons: Vec<WorkflowComparison>,
@@ -505,7 +505,7 @@ struct TaskStatusChangeEntry {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct EvalResults {
     /// Aligned results in original record order
     pub aligned_results: Vec<AlignedEvalResult>,
@@ -854,7 +854,7 @@ pub fn array_to_dict<'py>(
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct ClusterData {
     #[pyo3(get)]
     pub x: Vec<f64>,
@@ -1007,7 +1007,7 @@ impl ArrayDataset {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct AlignedEvalResult {
     #[pyo3(get)]
     pub record_id: String,
@@ -1210,7 +1210,7 @@ impl AlignedEvalResult {
 }
 
 #[derive(Debug, Clone, Default)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct EvaluationConfig {
     // optional embedder for embedding-based evaluations
     pub embedder: Option<Arc<Embedder>>,
