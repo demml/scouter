@@ -79,10 +79,20 @@ EvalOrchestrator.run()
 │
 │   for each scenario:
 │   ├── on_scenario_start(scenario)
-│   ├── execute_agent(scenario)          ← calls agent_fn(initial_query)
+│   │
+│   ├── [non-reactive] execute_agent(scenario)
 │   │     └── agent emits EvalRecords via span.add_queue_item()
-│   ├── queue.drain_all_records()        ← collect records for this scenario
-│   ├── EvalRunner.collect_scenario_data()
+│   ├── [non-reactive] queue.drain_all_records()   ← per scenario
+│   ├── [non-reactive] EvalRunner.collect_scenario_data()
+│   │
+│   ├── [reactive] for each turn (up to max_turns):
+│   │   ├── execute_agent_turn(scenario, message)
+│   │   │     └── agent emits EvalRecords via span.add_queue_item()
+│   │   ├── execute_simulated_user_turn(scenario, initial_query, response, history)
+│   │   └── check termination_signal → break if matched
+│   ├── [reactive] queue.drain_all_records()       ← once, after all turns
+│   ├── [reactive] EvalRunner.collect_scenario_data()
+│   │
 │   ├── on_scenario_complete(scenario, response)
 │
 ├── flush_tracer()                       ← ensure spans are in the capture buffer
@@ -318,6 +328,80 @@ EvalScenario(
 
 ---
 
+## Reactive scenarios
+
+Reactive scenarios let a simulated user drive the conversation instead of a fixed script. The agent runs in a loop: it receives a message, responds, and the simulated user decides whether to ask a follow-up or signal that it's done. This is how you evaluate agents that maintain session state across turns, where the quality of the final answer depends on the whole exchange rather than a single response.
+
+A scenario is reactive when `simulated_user_persona` or `termination_signal` is set — check `scenario.is_reactive()` if you need to branch on it yourself.
+
+### Simple case: `simulated_user_fn`
+
+For stateless agents and simple user simulations, pass `simulated_user_fn` to the constructor. It receives `(initial_query, agent_response, history)` and returns the next user message. Return a string containing `termination_signal` to end the loop.
+
+```python
+def simulate_user(initial_query: str, agent_response: str, history: list[dict]) -> str:
+    # Call your user-simulation LLM here.
+    # Return a string containing "DONE" to stop.
+    ...
+
+scenarios = EvalScenarios(scenarios=[
+    EvalScenario(
+        id="dinner_planning_reactive",
+        initial_query="Plan a dinner for 4 people.",
+        termination_signal="DONE",
+        max_turns=6,
+    ),
+])
+
+results = EvalOrchestrator(
+    queue=queue,
+    scenarios=scenarios,
+    agent_fn=my_agent,
+    simulated_user_fn=simulate_user,
+).run()
+```
+
+`history` is a list of `{"user": ..., "agent": ...}` dicts for all exchanges that preceded the current response — ordered oldest-first. It's empty on the first call. Use it when satisfaction depends on the cumulative conversation rather than any single reply.
+
+### Stateful agents: subclassing
+
+If your agent needs its own session (framework runners, async clients, persistent context), subclass and override `execute_agent_turn` and `execute_simulated_user_turn`. The `simulated_user_fn` shortcut is just a wrapper around `execute_simulated_user_turn` — override the method directly if you need more control.
+
+```python
+class MyReactiveEval(EvalOrchestrator):
+    def on_scenario_start(self, scenario: EvalScenario) -> None:
+        # Create a fresh session per scenario so state doesn't bleed between runs.
+        self._session_id = self._session_service.create()
+
+    def execute_agent_turn(self, scenario: EvalScenario, message: str) -> str:
+        # Called once per turn. The agent manages its own history internally.
+        return self._agent_client.chat(message, session_id=self._session_id)
+
+    def execute_simulated_user_turn(
+        self,
+        scenario: EvalScenario,
+        initial_query: str,
+        agent_response: str,
+        history: list[dict],
+    ) -> str:
+        # Return a string containing termination_signal to stop.
+        return self._user_llm.respond(initial_query, agent_response, history)
+```
+
+`on_scenario_start` is the right place to create per-scenario session state — it fires before `execute_agent_turn` is called for the first time.
+
+### Record collection
+
+Records are drained once at the end of the loop, not per-turn. This means all `EvalRecord`s emitted across every turn are evaluated together as a single dataset for the scenario. Don't expect per-turn granularity in the results — if you need that, emit records with structured context that carries turn information.
+
+### `max_turns` and termination
+
+The loop stops when either `termination_signal` appears in the simulated user's response or `max_turns` is reached. The scenario-level tasks run against the **last agent response**, regardless of which condition ended the loop.
+
+If `termination_signal` is `None`, the loop always runs for `max_turns` iterations. Default is 10.
+
+---
+
 ## Loading scenarios from a file
 
 If your test scenarios live in a file (checked into source control, generated by a pipeline, or maintained by a separate team), use `EvalScenarios.from_path()` instead of building the list in Python:
@@ -426,11 +510,17 @@ All `EvalScenario` fields are supported in files. `id` is auto-generated if omit
 
 ## Subclassing `EvalOrchestrator`
 
-Use `agent_fn` for simple synchronous agents. Subclass when you need async execution, stateful history, or custom setup per scenario.
+Use `agent_fn` / `simulated_user_fn` for simple synchronous agents. Subclass when you need async execution, framework runners, or per-scenario session setup.
+
+There are two overridable execution methods depending on scenario type:
+
+- `execute_agent(scenario)` — called for non-reactive scenarios (predefined turns or single-turn). Receives the full scenario and is responsible for all turns.
+- `execute_agent_turn(scenario, message)` — called once per turn in reactive scenarios. Use this when your agent maintains its own session state and just needs to receive the next message.
 
 ```python
+# Non-reactive: manage predefined turns yourself
 class MyAgentEval(EvalOrchestrator):
-    def execute_agent(self, scenario: EvalScenario) -> str:
+    def execute_agent(self, scenario: EvalScenario) -> Any:
         history = []
         response = my_stateful_agent.run(scenario.initial_query, history=history)
         history.append({"role": "user", "content": scenario.initial_query})
@@ -444,7 +534,22 @@ class MyAgentEval(EvalOrchestrator):
         return response
 
 
-results = MyAgentEval(queue=queue, scenarios=scenarios).run()
+# Reactive: agent receives one message at a time, manages its own history
+class MyReactiveEval(EvalOrchestrator):
+    def on_scenario_start(self, scenario: EvalScenario) -> None:
+        self._session_id = self._session_service.create()
+
+    def execute_agent_turn(self, scenario: EvalScenario, message: str) -> Any:
+        return my_stateful_agent.run(message, session_id=self._session_id)
+
+    def execute_simulated_user_turn(
+        self,
+        scenario: EvalScenario,
+        initial_query: str,
+        agent_response: Any,
+        history: list[dict],
+    ) -> str:
+        return my_user_llm.respond(initial_query, agent_response, history)
 ```
 
 ### Lifecycle hooks
@@ -456,7 +561,7 @@ class MyEval(EvalOrchestrator):
     def on_scenario_start(self, scenario: EvalScenario) -> None:
         print(f"Starting: {scenario.id}")
 
-    def on_scenario_complete(self, scenario: EvalScenario, response: str) -> None:
+    def on_scenario_complete(self, scenario: EvalScenario, response: Any) -> None:
         print(f"Done: {scenario.id}")
 
     def on_evaluation_complete(self, results: ScenarioEvalResults) -> ScenarioEvalResults:
@@ -464,7 +569,57 @@ class MyEval(EvalOrchestrator):
         return results
 ```
 
-Hook order per scenario: `on_scenario_start` → `execute_agent` → `on_scenario_complete`. `on_evaluation_complete` fires once after all scenarios finish.
+Hook order per scenario: `on_scenario_start` → execution → `on_scenario_complete`. For reactive scenarios, `on_scenario_start` fires before the first turn — use it to initialize per-scenario state like session IDs. `on_evaluation_complete` fires once after all scenarios finish.
+
+---
+
+## Structured and transformed responses
+
+`execute_agent` and `execute_agent_turn` return `Any` — not just `str`. You can return a dict, list, number, Pydantic model, or any JSON-serializable value. Whatever you return lands in the scenario context under `"response"`, and `context_path` expressions navigate into it normally.
+
+```python
+class StructuredAgent(EvalOrchestrator):
+    def execute_agent(self, scenario: EvalScenario) -> dict:
+        return {"answer": "Paris", "confidence": 0.97, "sources": ["wiki"]}
+```
+
+With scenario tasks using `context_path = "response.confidence"`, the evaluator will see `0.97` directly — no manual serialization needed.
+
+### `build_scenario_response`
+
+By default, whatever `execute_agent` or `execute_agent_turn` returns is passed straight to the evaluator. Override `build_scenario_response` when you want to transform or replace that value before evaluation — for example, to post-process the response, inject metadata, or for reactive scenarios, build an evaluation context from the full conversation history rather than just the final reply.
+
+```python
+def build_scenario_response(
+    self,
+    scenario: EvalScenario,
+    response: Any,
+    history: list[dict],
+) -> Any:
+    return response  # default: pass through unchanged
+```
+
+`history` is a list of `{"user": str, "agent": Any}` dicts for all turns. For non-reactive scenarios it's always `[]`. For reactive scenarios it contains every turn up to (but not including) the final agent response.
+
+**Example: evaluate conversation quality instead of the final reply**
+
+```python
+class ConversationEval(EvalOrchestrator):
+    def execute_agent_turn(self, scenario: EvalScenario, message: str) -> str:
+        return my_agent.chat(message)
+
+    def execute_simulated_user_turn(self, scenario, initial_query, agent_response, history) -> str:
+        return my_user_llm.respond(initial_query, agent_response, history)
+
+    def build_scenario_response(self, scenario, response, history) -> dict:
+        return {
+            "final_response": response,
+            "turn_count": len(history) + 1,
+            "all_turns": history + [{"user": "...", "agent": response}],
+        }
+```
+
+Scenario tasks can then use `context_path = "response.turn_count"` or `context_path = "response.final_response"`. An LLM judge task could receive the entire `"response"` object and evaluate the full arc of the conversation.
 
 ---
 

@@ -10,11 +10,12 @@ use pyo3::prelude::*;
 use scouter_state::app_state;
 use scouter_types::agent::EvalScenario;
 use scouter_types::agent::{AgentEvalConfig, AgentEvalProfile};
+use scouter_types::depythonize_object_to_value;
 use scouter_types::trace::build_trace_spans;
 use scouter_types::trace::sql::TraceSpan;
 use scouter_types::EvalRecord;
 use scouter_types::TraceId as ScouterTraceId;
-use serde_json::json;
+use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 use tracing::{debug, error};
@@ -89,15 +90,33 @@ impl EvalRunner {
 
     /// Populate scenario data into the internal `EvalScenarios` container.
     ///
+    /// Accepts any Python object as `response` — strings, dicts, lists, Pydantic
+    /// models, numbers — and converts to `serde_json::Value` via
+    /// `depythonize_object_to_value`. Scenario tasks navigate the result via
+    /// `context_path = "response.<field>"`.
+    ///
     /// # Arguments
     /// * `records` - Map of alias → eval records for this scenario
-    /// * `response` - The agent's final response for this scenario
+    /// * `response` - The agent's final response (any JSON-serializable Python object)
     /// * `scenario` - Reference to the scenario definition
     #[pyo3(signature = (records, response, scenario))]
     pub fn collect_scenario_data(
         &mut self,
+        py: Python<'_>,
         records: HashMap<String, Vec<EvalRecord>>,
-        response: String,
+        response: Bound<'_, PyAny>,
+        scenario: &EvalScenario,
+    ) -> Result<(), EvaluationError> {
+        let response_val = depythonize_object_to_value(py, &response)?;
+        self.collect_scenario_data_value(records, response_val, scenario)
+    }
+}
+
+impl EvalRunner {
+    pub(crate) fn collect_scenario_data_value(
+        &mut self,
+        records: HashMap<String, Vec<EvalRecord>>,
+        response: Value,
         scenario: &EvalScenario,
     ) -> Result<(), EvaluationError> {
         let mut alias_datasets: HashMap<String, EvalDataset> = HashMap::new();
@@ -152,9 +171,7 @@ impl EvalRunner {
 
         Ok(())
     }
-}
 
-impl EvalRunner {
     async fn evaluate_async(
         &mut self,
         config: &Arc<EvaluationConfig>,
@@ -581,7 +598,7 @@ mod tests {
         let scenario = runner.scenarios.scenarios[0].clone();
 
         runner
-            .collect_scenario_data(records, "Agent response".to_string(), &scenario)
+            .collect_scenario_data_value(records, json!("Agent response"), &scenario)
             .unwrap();
 
         assert!(runner.scenarios.scenario_datasets.contains_key("s1"));
@@ -609,9 +626,10 @@ mod tests {
         let scenario = runner.scenarios.scenarios[0].clone();
 
         runner
-            .collect_scenario_data(records.clone(), "Response".to_string(), &scenario)
+            .collect_scenario_data_value(records.clone(), json!("Response"), &scenario)
             .unwrap();
-        let result = runner.collect_scenario_data(records, "Response again".to_string(), &scenario);
+        let result =
+            runner.collect_scenario_data_value(records, json!("Response again"), &scenario);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("already has data"));
     }
@@ -628,7 +646,7 @@ mod tests {
 
         let scenario = runner.scenarios.scenarios[0].clone();
 
-        let result = runner.collect_scenario_data(records, "Response".to_string(), &scenario);
+        let result = runner.collect_scenario_data_value(records, json!("Response"), &scenario);
 
         assert!(result.is_err());
     }
@@ -652,7 +670,7 @@ mod tests {
 
         let scenario = runner.scenarios.scenarios[0].clone();
         runner
-            .collect_scenario_data(records, "Response".to_string(), &scenario)
+            .collect_scenario_data_value(records, json!("Response"), &scenario)
             .unwrap();
 
         let datasets = &runner.scenarios.scenario_datasets["s1"];
@@ -672,7 +690,7 @@ mod tests {
 
         let scenario = runner.scenarios.scenarios[0].clone();
         runner
-            .collect_scenario_data(records, "Response".to_string(), &scenario)
+            .collect_scenario_data_value(records, json!("Response"), &scenario)
             .unwrap();
 
         let result = runner.evaluate(None).unwrap();

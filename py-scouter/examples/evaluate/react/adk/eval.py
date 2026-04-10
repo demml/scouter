@@ -99,9 +99,7 @@ class RecipeReactOrchestrator(EvalOrchestrator):
     ) -> str:
         history_text = ""
         if history:
-            exchanges = "\n".join(
-                f"You: {h['user']}\nAssistant: {h['agent']}" for h in history
-            )
+            exchanges = "\n".join(f"You: {h['user']}\nAssistant: {h['agent']}" for h in history)
             history_text = f"\nConversation so far:\n{exchanges}\n"
 
         prompt = (

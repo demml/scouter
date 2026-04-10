@@ -1,6 +1,6 @@
 # mypy: disable-error-code="attr-defined"
 
-from typing import Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from .._scouter import (
     EvalRecord,
@@ -21,10 +21,10 @@ from ..tracing import get_tracer as _get_tracer
 # Baggage key injected into each scenario span so ScouterQueue can tag EvalRecords by scenario.
 SCENARIO_TAG_BAGGAGE_KEY = "scouter.eval.scenario_id"
 
-AgentFn = Callable[[str], str]
+AgentFn = Callable[[str], Any]
 # (initial_query, agent_response, history) -> next user message or termination signal
-# history is a list of {"user": ..., "agent": ...} dicts for all prior exchanges
-SimulatedUserFn = Callable[[str, str, List[Dict[str, str]]], str]
+# history is a list of {"user": str, "agent": Any} dicts for all prior exchanges
+SimulatedUserFn = Callable[[str, Any, List[Dict[str, Any]]], str]
 
 
 class EvalOrchestrator:
@@ -94,19 +94,19 @@ class EvalOrchestrator:
             profiles=queue.agent_profiles(),
         )
 
-    def execute_agent(self, scenario: EvalScenario) -> str:
+    def execute_agent(self, scenario: EvalScenario) -> Any:
         """Execute the agent for a scenario.
 
         The default implementation calls ``agent_fn`` with ``initial_query``,
         then once per entry in ``predefined_turns``, returning the final
         response.  Override to customize execution (e.g. stateful agents,
-        custom history management).
+        custom history management, or returning structured output).
 
         Args:
             scenario: The scenario to execute.
 
         Returns:
-            The agent's final response string.
+            The agent's final response. Can be any JSON-serializable value.
         """
         if self._agent_fn is None:
             raise NotImplementedError(
@@ -121,7 +121,7 @@ class EvalOrchestrator:
 
         return response
 
-    def execute_agent_turn(self, scenario: EvalScenario, message: str) -> str:
+    def execute_agent_turn(self, scenario: EvalScenario, message: str) -> Any:
         """Execute one agent turn in a reactive loop.
 
         Default: calls ``agent_fn(message)``. Override for frameworks that
@@ -132,7 +132,7 @@ class EvalOrchestrator:
             message: The current user message to send to the agent.
 
         Returns:
-            The agent's response string.
+            The agent's response. Can be any JSON-serializable value.
         """
         if self._agent_fn is None:
             raise NotImplementedError(
@@ -144,8 +144,8 @@ class EvalOrchestrator:
         self,
         scenario: EvalScenario,
         initial_query: str,
-        agent_response: str,
-        history: List[Dict[str, str]],
+        agent_response: Any,
+        history: List[Dict[str, Any]],
     ) -> str:
         """Generate the next user message in a reactive loop.
 
@@ -153,7 +153,7 @@ class EvalOrchestrator:
         exchanges, decide whether to ask a follow-up or signal completion by
         returning a string that contains ``scenario.termination_signal``.
 
-        ``history`` is a list of ``{"user": ..., "agent": ...}`` dicts for all
+        ``history`` is a list of ``{"user": str, "agent": Any}`` dicts for all
         exchanges that preceded the current ``agent_response``. Use it when
         satisfaction depends on the cumulative conversation rather than any
         single reply.
@@ -161,7 +161,7 @@ class EvalOrchestrator:
         Args:
             scenario: The scenario being executed.
             initial_query: The original query that started the conversation.
-            agent_response: The agent's most recent response.
+            agent_response: The agent's most recent response (any type).
             history: All prior ``(user_message, agent_response)`` exchanges.
 
         Returns:
@@ -176,12 +176,33 @@ class EvalOrchestrator:
     def on_scenario_start(self, scenario: EvalScenario) -> None:
         """Hook called before a scenario is executed. Override to add custom logic."""
 
-    def on_scenario_complete(self, scenario: EvalScenario, response: str) -> None:
+    def on_scenario_complete(self, scenario: EvalScenario, response: Any) -> None:
         """Hook called after a scenario is executed. Override to add custom logic."""
 
     def on_evaluation_complete(self, results: ScenarioEvalResults) -> ScenarioEvalResults:
         """Hook called after evaluation completes. Override to post-process results."""
         return results
+
+    def build_scenario_response(
+        self,
+        scenario: EvalScenario,
+        response: Any,
+        history: List[Dict[str, Any]],
+    ) -> Any:
+        """Transform the agent output before scenario-level task evaluation.
+
+        Override to return a dict, list, number, Pydantic model, or the full
+        conversation history. The return value is what scenario task
+        ``context_path`` expressions navigate against via ``"response.<field>"``.
+
+        ``history`` is a list of ``{"user": str, "agent": Any}`` dicts for all
+        exchanges in the scenario. For non-reactive scenarios it is always
+        empty ``[]``. For reactive scenarios it contains every turn up to (but
+        not including) the final agent response.
+
+        Default: returns ``response`` unchanged (backward compatible).
+        """
+        return response
 
     def _setup_capture(self) -> None:
         self._queue.enable_capture()
@@ -197,7 +218,7 @@ class EvalOrchestrator:
         except Exception:  # noqa: BLE001 pylint: disable=broad-except
             pass
 
-    def _execute_with_baggage(self, scenario: EvalScenario) -> str:
+    def _execute_with_baggage(self, scenario: EvalScenario) -> Any:
         """Run execute_agent inside a span with scenario_id baggage (if tracer available)."""
         try:
             eval_tracer = _get_tracer("scouter.eval")
@@ -210,12 +231,13 @@ class EvalOrchestrator:
         with span_ctx:
             return self.execute_agent(scenario)
 
-    def _run_agent_turn(self, scenario: EvalScenario, message: str) -> str:
+    def _run_agent_turn(self, scenario: EvalScenario, message: str) -> Any:
         """Run execute_agent_turn inside a scenario span if a tracer is available."""
         try:
             eval_tracer = _get_tracer("scouter.eval")
             span_ctx = eval_tracer.start_as_current_span(
                 f"scouter.eval.scenario.{scenario.id}",
+                baggage=[{SCENARIO_TAG_BAGGAGE_KEY: scenario.id}],
             )
         except Exception:  # noqa: BLE001 pylint: disable=broad-except
             return self.execute_agent_turn(scenario, message)
@@ -227,7 +249,7 @@ class EvalOrchestrator:
             return False
         return scenario.termination_signal in user_message
 
-    def _collect_scenario_data(self, scenario: EvalScenario, response: str) -> None:
+    def _collect_scenario_data(self, scenario: EvalScenario, response: Any) -> None:
         records: Dict[str, List[EvalRecord]] = self._queue.drain_all_records()
         self._engine.collect_scenario_data(
             records=records,
@@ -235,7 +257,7 @@ class EvalOrchestrator:
             scenario=scenario,
         )
 
-    def _execute_reactive(self, scenario: EvalScenario) -> str:
+    def _execute_reactive(self, scenario: EvalScenario) -> Any:
         """Run a reactive agent↔simulated-user loop.
 
         The agent is a black box: it receives a message and returns a response,
@@ -245,8 +267,8 @@ class EvalOrchestrator:
         All records emitted across all turns are drained once at the end.
         """
         message = scenario.initial_query
-        response = ""
-        history: List[Dict[str, str]] = []
+        response: Any = ""
+        history: List[Dict[str, Any]] = []
 
         for _ in range(scenario.max_turns):
             response = self._run_agent_turn(scenario, message)
@@ -265,7 +287,8 @@ class EvalOrchestrator:
 
             message = next_message
 
-        self._collect_scenario_data(scenario, response)
+        scenario_response = self.build_scenario_response(scenario, response, history)
+        self._collect_scenario_data(scenario, scenario_response)
         return response
 
     def run(self, config: Optional[EvaluationConfig] = None) -> ScenarioEvalResults:
@@ -290,7 +313,8 @@ class EvalOrchestrator:
                     response = self._execute_reactive(scenario)
                 else:
                     response = self._execute_with_baggage(scenario)
-                    self._collect_scenario_data(scenario, response)
+                    scenario_response = self.build_scenario_response(scenario, response, [])
+                    self._collect_scenario_data(scenario, scenario_response)
 
                 self.on_scenario_complete(scenario, response)
 

@@ -13880,7 +13880,7 @@ class EvalRunner:
     def collect_scenario_data(
         self,
         records: Dict[str, List["EvalRecord"]],
-        response: str,
+        response: Any,
         scenario: "EvalScenario",
     ) -> None:
         """Populate scenario data for evaluation."""
