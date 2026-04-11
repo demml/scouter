@@ -1,14 +1,13 @@
 use crate::error::EvaluationError;
+use crate::evaluate::agent::AgentContextBuilder;
 use crate::evaluate::store::{AssertionResultStore, LLMResponseStore, TaskRegistry, TaskType};
 use crate::evaluate::trace::TraceContextBuilder;
-use crate::tasks::agent::execute_agent_assertions;
 use crate::tasks::trace::execute_trace_assertions;
 use crate::tasks::traits::EvaluationTask;
 use chrono::{DateTime, Utc};
 use scouter_types::agent::traits::ProfileExt;
 use scouter_types::agent::{
-    AgentAssertionTask, AgentEvalProfile, AssertionResult, EvalSet, ExecutionPlan,
-    TraceAssertionTask,
+    AgentEvalProfile, AssertionResult, EvalSet, ExecutionPlan, TraceAssertionTask,
 };
 use scouter_types::sql::TraceSpan;
 use scouter_types::{Assertion, EvalRecord};
@@ -393,27 +392,53 @@ impl TaskExecutor {
             return Ok(());
         }
 
-        let tasks: Vec<AgentAssertionTask> = task_ids
-            .iter()
-            .filter_map(|&task_id| self.profile.get_agent_assertion_by_id(task_id))
-            .cloned()
-            .collect();
+        let mut join_set = JoinSet::new();
 
-        debug!("Executing {} agent assertion tasks", tasks.len());
+        for &task_id in task_ids {
+            let task_id = task_id.to_string();
+            let context = self.context.clone();
+            let profile = self.profile.clone();
 
-        let start_time = Utc::now();
-        let results = execute_agent_assertions(self.context.base_context.as_ref(), &tasks)
-            .inspect_err(|e| {
-                error!("Failed to execute agent assertions: {:?}", e);
-            })?;
-
-        let end_time = Utc::now();
-        for (task_id, result) in results.results {
-            self.context
-                .store_assertion(task_id, start_time, end_time, result)
-                .await;
+            join_set.spawn(async move {
+                Self::execute_agent_assertion_task(&task_id, &context, &profile).await
+            });
         }
 
+        while let Some(result) = join_set.join_next().await {
+            result.map_err(|e| {
+                EvaluationError::AgentEvaluatorError(format!("Task join error: {}", e))
+            })??;
+        }
+
+        Ok(())
+    }
+
+    #[instrument(skip_all, fields(task_id = %task_id))]
+    async fn execute_agent_assertion_task(
+        task_id: &str,
+        context: &ExecutionContext,
+        profile: &AgentEvalProfile,
+    ) -> Result<(), EvaluationError> {
+        let start_time = Utc::now();
+
+        let task = profile
+            .get_agent_assertion_by_id(task_id)
+            .ok_or_else(|| EvaluationError::TaskNotFound(task_id.to_string()))?;
+
+        let scoped_context = context.build_scoped_context(&task.depends_on).await;
+
+        let ctx_builder = AgentContextBuilder::from_context(
+            &scoped_context,
+            task.provider.as_ref(),
+            task.context_path.as_deref(),
+        )?;
+        let resolved = ctx_builder.build_context(&task.assertion)?;
+        let result = task.execute(&resolved)?;
+
+        let end_time = Utc::now();
+        context
+            .store_assertion(task_id.to_string(), start_time, end_time, result)
+            .await;
         Ok(())
     }
 

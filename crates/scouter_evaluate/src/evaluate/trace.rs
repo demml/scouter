@@ -403,8 +403,11 @@ impl TraceContextBuilder {
                 Ok(result.passed)
             }
             AttributeFilterTask::AgentAssertion(agent_task) => {
-                let context_builder =
-                    AgentContextBuilder::from_context(&parsed, agent_task.provider.as_ref(), agent_task.context_path.as_deref())?;
+                let context_builder = AgentContextBuilder::from_context(
+                    &parsed,
+                    agent_task.provider.as_ref(),
+                    agent_task.context_path.as_deref(),
+                )?;
                 let resolved = context_builder.build_context(&agent_task.assertion)?;
                 let result = AssertionEvaluator::evaluate_assertion(&resolved, agent_task)?;
                 Ok(result.passed)
