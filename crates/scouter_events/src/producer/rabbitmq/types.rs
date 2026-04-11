@@ -1,7 +1,7 @@
 use pyo3::prelude::*;
 use scouter_types::TransportType;
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone, Debug)]
 pub struct RabbitMQConfig {
     #[pyo3(get, set)]

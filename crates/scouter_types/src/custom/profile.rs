@@ -18,7 +18,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct CustomMetricDriftConfig {
     #[pyo3(get, set)]
@@ -159,7 +159,7 @@ impl CustomMetricDriftConfig {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct CustomDriftProfile {
     #[pyo3(get)]

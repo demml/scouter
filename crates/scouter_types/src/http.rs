@@ -37,6 +37,7 @@ pub enum Routes {
     RefreshTraceSummary,
     TraceMetrics,
     Tags,
+    EvalScenarios,
 }
 
 impl Routes {
@@ -64,6 +65,7 @@ impl Routes {
             Routes::RefreshTraceSummary => "trace/refresh-summary",
             Routes::TraceMetrics => "trace/metrics",
             Routes::Tags => "tags",
+            Routes::EvalScenarios => "eval/scenarios",
         }
     }
 }

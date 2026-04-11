@@ -21,7 +21,7 @@ use super::query_result::QueryResult;
 /// and enables `read()` for Pydantic model deserialization.
 /// When omitted, works as a general-purpose query client: `sql()`, `list_datasets()`,
 /// and `describe_dataset()` all work without a table binding.
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 pub struct DatasetClient {
     client: Arc<Mutex<DatasetGrpcClient>>,
     namespace: Option<DatasetNamespace>,

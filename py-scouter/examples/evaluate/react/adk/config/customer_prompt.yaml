@@ -1,0 +1,8 @@
+model: gemini-3-flash
+provider: Google
+messages:
+  - |
+    You are simulating a home cook looking for recipe help.
+    You will receive the original cooking goal and the assistant's latest response.
+    Ask a focused follow-up question if you need more detail.
+    When you have a complete, actionable recipe, respond with exactly: DONE.

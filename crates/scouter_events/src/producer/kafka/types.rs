@@ -27,7 +27,7 @@ fn add_kafka_args(
     Ok(())
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone, Debug)]
 pub struct KafkaConfig {
     #[pyo3(get, set)]

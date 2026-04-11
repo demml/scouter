@@ -35,13 +35,15 @@ pub use generated::scouter::grpc::v1::{
     LoginResponse, PlanNode, PlanNodeField, PlanNodeMetrics, PreviewTableRequest,
     PreviewTableResponse, QueryDatasetRequest, QueryDatasetResponse, QueryExecutionMetadata,
     RefreshTokenRequest, RefreshTokenResponse, RegisterDatasetRequest, RegisterDatasetResponse,
-    SchemaInfo, TableStats, TableSummary, ValidateTokenRequest, ValidateTokenResponse,
+    RegisterScenariosRequest, RegisterScenariosResponse, SchemaInfo, TableStats, TableSummary,
+    ValidateTokenRequest, ValidateTokenResponse,
 };
 
 // Re-export client types when feature is enabled
 #[cfg(feature = "client")]
 pub use generated::scouter::grpc::v1::{
     auth_service_client::AuthServiceClient, dataset_service_client::DatasetServiceClient,
+    eval_scenario_service_client::EvalScenarioServiceClient,
     message_service_client::MessageServiceClient,
 };
 #[cfg(feature = "client")]
@@ -57,6 +59,12 @@ pub mod dataset_client;
 pub use dataset_client::DatasetGrpcClient;
 
 #[cfg(feature = "client")]
+pub mod eval_scenario_client;
+
+#[cfg(feature = "client")]
+pub use eval_scenario_client::EvalScenarioGrpcClient;
+
+#[cfg(feature = "client")]
 pub mod error;
 
 // Re-export server types when feature is enabled
@@ -64,6 +72,7 @@ pub mod error;
 pub use generated::scouter::grpc::v1::{
     auth_service_server::{AuthService, AuthServiceServer},
     dataset_service_server::{DatasetService, DatasetServiceServer},
+    eval_scenario_service_server::{EvalScenarioService, EvalScenarioServiceServer},
     message_service_server::{MessageService, MessageServiceServer},
 };
 

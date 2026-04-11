@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Distinct {
     #[pyo3(get)]
@@ -19,7 +19,7 @@ pub struct Distinct {
     pub percent: f64,
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct NumericStats {
     #[pyo3(get)]
@@ -44,7 +44,7 @@ pub struct NumericStats {
     pub histogram: Histogram,
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CharStats {
     #[pyo3(get)]
@@ -60,14 +60,14 @@ pub struct CharStats {
     pub mean_length: f64,
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct WordStats {
     #[pyo3(get)]
     pub words: HashMap<String, Distinct>,
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StringStats {
     #[pyo3(get)]
@@ -80,7 +80,7 @@ pub struct StringStats {
     pub word_stats: WordStats,
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FeatureProfile {
     #[pyo3(get)]
@@ -113,7 +113,7 @@ impl FeatureProfile {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DataProfile {
     #[pyo3(get)]
@@ -154,7 +154,7 @@ impl DataProfile {
 /// * `quant_99` - The 99th percentile
 ///
 ///
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Quantiles {
     #[pyo3(get)]
@@ -177,7 +177,7 @@ pub struct Quantiles {
 /// * `bins` - A vector of bins
 /// * `bin_counts` - A vector of bin counts
 ///
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Histogram {
     #[pyo3(get)]

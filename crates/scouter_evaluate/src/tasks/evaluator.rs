@@ -8,6 +8,8 @@ use tracing::instrument;
 
 pub(crate) const REGEX_FIELD_PARSE_PATTERN: &str = r"[a-zA-Z_][a-zA-Z0-9_]*|\[[0-9]+\]";
 pub(crate) static PATH_REGEX: OnceLock<Regex> = OnceLock::new();
+pub(crate) const MAX_PATH_LEN: usize = 512;
+pub(crate) const MAX_PATH_SEGMENTS: usize = 32;
 
 pub struct FieldEvaluator;
 
@@ -48,6 +50,10 @@ impl FieldEvaluator {
     /// # Returns
     /// A vector of PathSegment enums representing the parsed path
     fn parse_field_path(path: &str) -> Result<Vec<PathSegment>, EvaluationError> {
+        if path.len() > MAX_PATH_LEN {
+            return Err(EvaluationError::PathTooLong(path.len()));
+        }
+
         let regex = PATH_REGEX.get_or_init(|| {
             Regex::new(REGEX_FIELD_PARSE_PATTERN)
                 .expect("Invalid regex pattern in REGEX_FIELD_PARSE_PATTERN")
@@ -59,20 +65,22 @@ impl FieldEvaluator {
             let segment_str = capture.as_str();
 
             if segment_str.starts_with('[') && segment_str.ends_with(']') {
-                // Array index: [0], [1], etc.
                 let index_str = &segment_str[1..segment_str.len() - 1];
                 let index: usize = index_str
                     .parse()
                     .map_err(|_| EvaluationError::InvalidArrayIndex(index_str.to_string()))?;
                 segments.push(PathSegment::Index(index));
             } else {
-                // Field name: field, subfield, etc.
                 segments.push(PathSegment::Field(segment_str.to_string()));
             }
         }
 
         if segments.is_empty() {
             return Err(EvaluationError::EmptyFieldPath);
+        }
+
+        if segments.len() > MAX_PATH_SEGMENTS {
+            return Err(EvaluationError::TooManyPathSegments(segments.len()));
         }
 
         Ok(segments)

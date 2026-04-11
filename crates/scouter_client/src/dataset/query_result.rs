@@ -6,7 +6,7 @@ use pyo3::types::PyBytes;
 /// Provides zero-copy conversion to `pyarrow.Table`, `polars.DataFrame`,
 /// and `pandas.DataFrame`. The IPC bytes are stored once; each conversion
 /// reads from the same buffer.
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 pub struct QueryResult {
     ipc_data: Vec<u8>,
 }

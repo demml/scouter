@@ -7,7 +7,6 @@ use pythonize::depythonize;
 use scouter_types::agent::{AgentAssertionTask, AssertionResult, AssertionResults};
 use serde_json::Value;
 use std::collections::HashMap;
-use tracing::error;
 
 impl EvaluationTask for AgentAssertionTask {
     fn execute(&self, context: &Value) -> Result<AssertionResult, EvaluationError> {
@@ -27,38 +26,16 @@ pub fn execute_agent_assertion_tasks(
     let results: HashMap<String, AssertionResult> = tasks
         .iter()
         .map(|task| {
-            let context_builder =
-                AgentContextBuilder::from_context(&context, task.provider.as_ref())?;
+            let context_builder = AgentContextBuilder::from_context(
+                &context,
+                task.provider.as_ref(),
+                task.context_path.as_deref(),
+            )?;
             let resolved = context_builder.build_context(&task.assertion)?;
             task.execute(&resolved)
                 .map(|result| (task.id.clone(), result))
         })
         .collect::<Result<HashMap<String, AssertionResult>, EvaluationError>>()?;
-
-    Ok(AssertionResults { results })
-}
-
-pub(crate) fn execute_agent_assertions(
-    context: &AgentContextBuilder,
-    tasks: &[AgentAssertionTask],
-) -> Result<AssertionResults, EvaluationError> {
-    if tasks.is_empty() {
-        return Ok(AssertionResults {
-            results: HashMap::new(),
-        });
-    }
-
-    let results: HashMap<String, AssertionResult> = tasks
-        .iter()
-        .map(|task| {
-            let resolved = context.build_context(&task.assertion)?;
-            task.execute(&resolved)
-                .map(|result| (task.id.clone(), result))
-        })
-        .collect::<Result<HashMap<String, AssertionResult>, EvaluationError>>()
-        .inspect_err(|e| {
-            error!("Error executing agent assertions: {:?}", e);
-        })?;
 
     Ok(AssertionResults { results })
 }

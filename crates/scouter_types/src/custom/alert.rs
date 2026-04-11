@@ -12,7 +12,7 @@ use pyo3::types::PyString;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CustomMetric {
     #[pyo3(get, set)]
@@ -60,7 +60,7 @@ impl CustomMetric {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct CustomMetricAlertConfig {
     pub dispatch_config: AlertDispatchConfig,

@@ -19,7 +19,7 @@ pub struct TestRecords {
 }
 
 #[derive(Debug, Clone)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct TestSpanExporter {
     records: Arc<RwLock<TestRecords>>,
     batch_export: bool,

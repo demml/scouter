@@ -15,7 +15,7 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 use tracing::{debug, error, instrument};
 
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 pub struct DataProfiler {
     num_profiler: NumProfiler,
     string_profiler: StringProfiler,

@@ -9,7 +9,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyString;
 use serde::{Deserialize, Serialize};
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct AgentAlertConfig {
     pub dispatch_config: AlertDispatchConfig,

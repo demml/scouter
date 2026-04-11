@@ -60,7 +60,7 @@ fn default_alert_config() -> AgentAlertConfig {
     AgentAlertConfig::default()
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct AgentEvalConfig {
     #[pyo3(get, set)]
@@ -300,7 +300,7 @@ fn validate_workflow(workflow: &Workflow) -> Result<(), ProfileError> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct ExecutionNode {
     pub id: String,
     pub stage: usize,
@@ -309,7 +309,7 @@ pub struct ExecutionNode {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct ExecutionPlan {
     #[pyo3(get)]
     pub stages: Vec<Vec<String>>,
@@ -350,7 +350,7 @@ fn build_dependency_edges(
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct AgentEvalProfile {
     #[pyo3(get)]
@@ -1079,7 +1079,7 @@ impl ProfileBaseArgs for AgentEvalProfile {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EvalSet {
     #[pyo3(get)]
@@ -1174,7 +1174,7 @@ impl EvalSet {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EvalResultSet {
     #[pyo3(get)]

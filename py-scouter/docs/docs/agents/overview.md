@@ -35,6 +35,7 @@ The task definitions are the same in both modes. Write them once and reuse them.
 | You have... | Go to |
 |-------------|-------|
 | A callable agent function | [Offline evaluation](./offline-evaluation.md) |
+| Scenarios in a file (JSONL, JSON, YAML) | [Loading from a file](./offline-evaluation.md#loading-scenarios-from-a-file) |
 | Pre-generated records (no live agent) | [EvalDataset](./eval-dataset.md) |
 | A production service to monitor | [Online evaluation](./online-evaluation.md) |
 

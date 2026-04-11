@@ -72,6 +72,12 @@ pub enum ClientError {
 
     #[error("Invalid drift type for GenAI workflow request")]
     GetTraceSpansFromFiltersError,
+
+    #[error("Failed to get eval scenarios")]
+    GetScenariosError,
+
+    #[error("gRPC error: {0}")]
+    GrpcError(String),
 }
 
 impl From<ClientError> for PyErr {

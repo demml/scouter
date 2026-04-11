@@ -33,7 +33,7 @@ pub(crate) fn to_json_str(schema: &Bound<'_, PyAny>) -> Result<String, DatasetEr
 ///
 /// Eagerly computes Arrow schema and fingerprint at construction from a
 /// Pydantic `BaseModel` class.
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct TableConfig {
     #[pyo3(get)]
     pub catalog: String,
@@ -165,7 +165,7 @@ impl TableConfig {
 // ---------------------------------------------------------------------------
 
 /// Optional write-side configuration with sensible defaults.
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone, Debug)]
 pub struct WriteConfig {
     #[pyo3(get)]

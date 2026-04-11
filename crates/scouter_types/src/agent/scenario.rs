@@ -48,7 +48,7 @@ fn default_tasks() -> AssertionTasks {
 /// `simulated_user_persona` and `termination_signal` are placeholder fields
 /// for future ReAct support. Setting them has no effect in the current
 /// implementation.
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct EvalScenario {
     #[pyo3(get, set)]

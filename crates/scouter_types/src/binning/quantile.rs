@@ -4,7 +4,7 @@ use num_traits::{Float, FromPrimitive};
 use pyo3::{pyclass, pymethods, PyResult};
 use serde::{Deserialize, Serialize};
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct QuantileBinning {
     #[pyo3(get, set)]
