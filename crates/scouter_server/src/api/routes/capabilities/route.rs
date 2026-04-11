@@ -53,6 +53,10 @@ pub struct EndpointsInfo {
     pub openapi_spec: &'static str,
     #[schema(value_type = String)]
     pub swagger_ui: &'static str,
+    #[schema(value_type = String)]
+    pub docs: &'static str,
+    #[schema(value_type = String)]
+    pub docs_search: &'static str,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
@@ -101,6 +105,8 @@ pub async fn capabilities() -> Json<CapabilitiesResponse> {
             observability_metrics: "GET /scouter/observability/metrics",
             openapi_spec: "/scouter/api/v1/openapi.json",
             swagger_ui: "/scouter/api/v1/docs/ui",
+            docs: "/scouter/api/v1/docs",
+            docs_search: "/scouter/api/v1/docs/search?q=",
         },
         auth: AuthInfo {
             auth_type: "bearer",

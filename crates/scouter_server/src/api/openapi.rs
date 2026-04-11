@@ -99,6 +99,10 @@ impl utoipa::Modify for SecurityAddon {
         crate::api::routes::eval_scenarios::route::get_eval_scenarios,
         // capabilities
         crate::api::routes::capabilities::route::capabilities,
+        // docs
+        crate::api::routes::docs::route::list_docs,
+        crate::api::routes::docs::route::search_docs,
+        crate::api::routes::docs::route::get_doc,
     ),
     components(schemas(
         // scouter_types contracts
@@ -154,6 +158,12 @@ impl utoipa::Modify for SecurityAddon {
         crate::api::routes::capabilities::route::FeaturesInfo,
         crate::api::routes::capabilities::route::EndpointsInfo,
         crate::api::routes::capabilities::route::AuthInfo,
+        // docs
+        crate::api::routes::docs::route::DocListResponse,
+        crate::api::routes::docs::route::DocSummary,
+        crate::api::routes::docs::route::DocResponse,
+        crate::api::routes::docs::route::DocSearchResponse,
+        crate::api::routes::docs::route::DocSearchResult,
     )),
     tags(
         (name = "health", description = "Health check endpoints"),
@@ -170,6 +180,7 @@ impl utoipa::Modify for SecurityAddon {
         (name = "datasets", description = "Dataset management endpoints"),
         (name = "eval", description = "Evaluation scenario endpoints"),
         (name = "capabilities", description = "Server capabilities and discovery"),
+        (name = "docs", description = "Embedded documentation and search"),
     ),
     modifiers(&SecurityAddon)
 )]

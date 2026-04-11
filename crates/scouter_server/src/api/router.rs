@@ -3,9 +3,9 @@ use crate::api::openapi::openapi_router;
 use crate::api::routes::auth::auth_api_middleware;
 use crate::api::routes::{
     get_agent_router, get_alert_router, get_auth_router, get_capabilities_router,
-    get_dataset_router, get_drift_router, get_eval_scenario_router, get_health_router,
-    get_message_router, get_observability_router, get_profile_router, get_tag_router,
-    get_trace_router, get_user_router,
+    get_dataset_router, get_docs_router, get_drift_router, get_eval_scenario_router,
+    get_health_router, get_message_router, get_observability_router, get_profile_router,
+    get_tag_router, get_trace_router, get_user_router,
 };
 use crate::api::state::AppState;
 use anyhow::Result;
@@ -53,6 +53,7 @@ pub async fn create_router(app_state: Arc<AppState>) -> Result<Router> {
     let dataset_routes = get_dataset_router(ROUTE_PREFIX);
     let eval_scenario_routes = get_eval_scenario_router(ROUTE_PREFIX);
     let capabilities_routes = get_capabilities_router(ROUTE_PREFIX);
+    let docs_routes = get_docs_router(ROUTE_PREFIX);
     let openapi_routes = openapi_router();
 
     let merged_routes = Router::new()
@@ -78,6 +79,7 @@ pub async fn create_router(app_state: Arc<AppState>) -> Result<Router> {
         .merge(health_routes)
         .merge(auth_routes)
         .merge(capabilities_routes)
+        .merge(docs_routes)
         .merge(openapi_routes)
         .layer(middleware::from_fn(add_api_version_header))
         .layer(cors)

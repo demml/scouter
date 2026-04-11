@@ -108,6 +108,12 @@ impl EvalScenarios {
         serde_json::from_str(&json_string).map_err(Into::into)
     }
 
+    // set uid
+    #[setter]
+    pub fn set_collection_id(&mut self, collection_id: String) {
+        self.collection_id = collection_id;
+    }
+
     pub fn __str__(&self) -> String {
         PyHelperFuncs::__str__(self)
     }
