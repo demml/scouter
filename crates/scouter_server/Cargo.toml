@@ -16,7 +16,7 @@ scouter-dataframe = { workspace = true }
 scouter-auth = { workspace = true }
 scouter-evaluate = { workspace = true }
 scouter-events = { workspace = true, features = ["kafka", "rabbitmq", "sql"], default-features = false }
-scouter-types = { workspace = true }
+scouter-types = { workspace = true, features = ["server"] }
 scouter-dispatch = { workspace = true }
 scouter-drift = { workspace = true, features = ["sql"] }
 scouter-observability = { workspace = true }
@@ -54,6 +54,9 @@ thiserror = { workspace = true }
 tokio = { workspace = true }
 tower-http = { workspace = true }
 tracing = { workspace = true }
+utoipa = { workspace = true }
+utoipa-axum = { workspace = true }
+utoipa-swagger-ui = { workspace = true }
 
 # gRPC/Tonic dependencies
 tonic = { workspace = true }

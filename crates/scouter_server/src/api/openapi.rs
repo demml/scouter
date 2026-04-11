@@ -137,7 +137,6 @@ impl utoipa::Modify for SecurityAddon {
         scouter_types::contracts::BinnedMetric,
         scouter_types::contracts::BinnedMetricStats,
         scouter_types::JwtToken,
-        scouter_types::MessageRecord,
         scouter_types::trace::sql::TraceFilters,
         scouter_types::psi::BinnedPsiFeatureMetrics,
         scouter_types::spc::SpcDriftFeatures,

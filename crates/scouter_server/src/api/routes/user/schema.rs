@@ -1,7 +1,7 @@
 use scouter_sql::sql::schema::User;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, utoipa::ToSchema)]
 pub struct CreateUserRequest {
     pub username: String,
     pub password: String,
@@ -12,7 +12,7 @@ pub struct CreateUserRequest {
     pub active: Option<bool>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct UpdateUserRequest {
     pub password: Option<String>,
     pub permissions: Option<Vec<String>>,
@@ -21,7 +21,7 @@ pub struct UpdateUserRequest {
     pub favorite_spaces: Option<Vec<String>>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default, utoipa::ToSchema)]
 pub struct UserResponse {
     pub username: String,
     pub email: String,
@@ -47,12 +47,12 @@ impl From<User> for UserResponse {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct UserListResponse {
     pub users: Vec<UserResponse>,
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, utoipa::ToSchema)]
 pub struct CreateUserResponse {
     pub user: UserResponse,
     pub recovery_codes: Vec<String>,

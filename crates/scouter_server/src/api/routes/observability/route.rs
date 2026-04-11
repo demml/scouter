@@ -17,6 +17,17 @@ use scouter_sql::sql::traits::ObservabilitySqlLogic;
 use scouter_sql::PostgresClient;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
+#[utoipa::path(
+    get,
+    path = "/scouter/observability/metrics",
+    params(ObservabilityMetricRequest),
+    responses(
+        (status = 200, description = "Observability metrics"),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "observability",
+    security(("bearer_token" = []))
+)]
 pub async fn get_observability_metrics(
     State(data): State<Arc<AppState>>,
     params: Query<ObservabilityMetricRequest>,

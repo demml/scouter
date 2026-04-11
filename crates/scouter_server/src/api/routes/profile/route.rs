@@ -26,6 +26,19 @@ use scouter_sql::PostgresClient;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
 /// Insert a drift profile into the database
+#[utoipa::path(
+    post,
+    path = "/scouter/profile",
+    request_body = ProfileRequest,
+    responses(
+        (status = 200, description = "Profile registered", body = RegisteredProfileResponse),
+        (status = 400, description = "Bad request", body = ScouterServerError),
+        (status = 403, description = "Forbidden", body = ScouterServerError),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "profile",
+    security(("bearer_token" = []))
+)]
 #[instrument(skip_all)]
 pub async fn insert_drift_profile(
     State(data): State<Arc<AppState>>,
@@ -134,6 +147,19 @@ pub async fn insert_drift_profile(
 /// * `data` - Arc<AppState> - Application state
 /// * `body` - Json<ProfileRequest> - Profile request
 ///
+#[utoipa::path(
+    put,
+    path = "/scouter/profile",
+    request_body = ProfileRequest,
+    responses(
+        (status = 200, description = "Profile updated", body = ScouterResponse),
+        (status = 400, description = "Bad request", body = ScouterServerError),
+        (status = 403, description = "Forbidden", body = ScouterServerError),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "profile",
+    security(("bearer_token" = []))
+)]
 #[instrument(skip_all)]
 pub async fn update_drift_profile(
     State(data): State<Arc<AppState>>,
@@ -191,6 +217,19 @@ pub async fn update_drift_profile(
 /// # Returns
 ///
 /// * `Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)>` - Result of the request
+#[utoipa::path(
+    get,
+    path = "/scouter/profile",
+    params(GetProfileRequest),
+    responses(
+        (status = 200, description = "Drift profile", body = serde_json::Value),
+        (status = 403, description = "Forbidden", body = ScouterServerError),
+        (status = 404, description = "Profile not found", body = ScouterServerError),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "profile",
+    security(("bearer_token" = []))
+)]
 #[instrument(skip_all)]
 pub async fn get_profile(
     State(data): State<Arc<AppState>>,
@@ -256,6 +295,19 @@ pub async fn get_profile(
 /// # Returns
 ///
 /// * `Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)>` - Result of the request
+#[utoipa::path(
+    post,
+    path = "/scouter/profiles",
+    request_body = ListProfilesRequest,
+    responses(
+        (status = 200, description = "List of drift profiles"),
+        (status = 403, description = "Forbidden", body = ScouterServerError),
+        (status = 404, description = "No profiles found", body = ScouterServerError),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "profile",
+    security(("bearer_token" = []))
+)]
 #[instrument(skip_all)]
 #[axum::debug_handler]
 pub async fn list_profiles(
@@ -303,6 +355,18 @@ pub async fn list_profiles(
 /// # Returns
 ///
 /// * `Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)>` - Result of the request
+#[utoipa::path(
+    put,
+    path = "/scouter/profile/status",
+    request_body = ProfileStatusRequest,
+    responses(
+        (status = 200, description = "Profile status updated", body = ScouterResponse),
+        (status = 403, description = "Forbidden", body = ScouterServerError),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "profile",
+    security(("bearer_token" = []))
+)]
 #[instrument(skip_all)]
 pub async fn update_drift_profile_status(
     State(data): State<Arc<AppState>>,

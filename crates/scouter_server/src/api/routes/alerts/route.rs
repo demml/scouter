@@ -21,6 +21,17 @@ use tracing::error;
 /// # Returns
 ///
 /// * `Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)>` - Result of the request
+#[utoipa::path(
+    post,
+    path = "/scouter/alerts",
+    request_body = DriftAlertPaginationRequest,
+    responses(
+        (status = 200, description = "Paginated drift alerts", body = DriftAlertPaginationResponse),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "alerts",
+    security(("bearer_token" = []))
+)]
 pub async fn drift_alerts(
     State(data): State<Arc<AppState>>,
     Json(params): Json<DriftAlertPaginationRequest>,
@@ -40,6 +51,18 @@ pub async fn drift_alerts(
     Ok(Json(alerts))
 }
 
+#[utoipa::path(
+    put,
+    path = "/scouter/alerts",
+    request_body = UpdateAlertStatus,
+    responses(
+        (status = 200, description = "Alert status updated", body = UpdateAlertResponse),
+        (status = 400, description = "Bad request", body = ScouterServerError),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "alerts",
+    security(("bearer_token" = []))
+)]
 pub async fn update_alert_status(
     State(data): State<Arc<AppState>>,
     Json(body): Json<UpdateAlertStatus>,

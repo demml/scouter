@@ -18,6 +18,17 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 use tracing::{debug, error, instrument};
 
+#[utoipa::path(
+    get,
+    path = "/scouter/tags",
+    params(TagsRequest),
+    responses(
+        (status = 200, description = "Tags for entity", body = TagsResponse),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "tags",
+    security(("bearer_token" = []))
+)]
 #[instrument(skip_all)]
 pub async fn get_tags(
     State(data): State<Arc<AppState>>,
@@ -36,6 +47,17 @@ pub async fn get_tags(
     Ok(Json(TagsResponse { tags }))
 }
 
+#[utoipa::path(
+    post,
+    path = "/scouter/tags",
+    request_body = InsertTagsRequest,
+    responses(
+        (status = 200, description = "Tags inserted", body = ScouterResponse),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "tags",
+    security(("bearer_token" = []))
+)]
 #[instrument(skip_all)]
 pub async fn insert_tags(
     State(data): State<Arc<AppState>>,
@@ -57,6 +79,17 @@ pub async fn insert_tags(
     }))
 }
 
+#[utoipa::path(
+    post,
+    path = "/scouter/tags/entity",
+    request_body = EntityIdTagsRequest,
+    responses(
+        (status = 200, description = "Entity IDs matching tags", body = EntityIdTagsResponse),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "tags",
+    security(("bearer_token" = []))
+)]
 #[instrument(skip_all)]
 pub async fn entity_id_from_tags(
     State(data): State<Arc<AppState>>,

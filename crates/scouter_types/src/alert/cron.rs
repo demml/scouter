@@ -99,6 +99,7 @@ impl CustomInterval {
 
 #[pyclass(from_py_object, eq)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub enum TimeInterval {
     FifteenMinutes,
     ThirtyMinutes,

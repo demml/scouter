@@ -33,6 +33,7 @@ potato-head = { workspace = true }
 pyo3 = {workspace = true }
 pythonize = { workspace = true }
 sqlx = { workspace = true, optional = true }
+utoipa = { workspace = true, optional = true }
 strum = { workspace = true }
 strum_macros = { workspace = true }
 tabled = { workspace = true }
@@ -48,7 +49,7 @@ ndarray = { workspace = true }
 
 [features]
 mock = ["potato-head/mock"]
-server = ["sqlx"]
+server = ["sqlx", "utoipa"]
 
 [dev-dependencies]
 tempfile = { workspace = true }

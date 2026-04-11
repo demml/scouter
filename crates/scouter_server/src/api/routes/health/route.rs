@@ -8,14 +8,18 @@ use serde::{Deserialize, Serialize};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct Alive {
     pub alive: bool,
+    pub version: String,
 }
 
 impl Default for Alive {
     fn default() -> Self {
-        Self { alive: true }
+        Self {
+            alive: true,
+            version: env!("CARGO_PKG_VERSION").to_string(),
+        }
     }
 }
 
@@ -26,6 +30,14 @@ impl IntoResponse for Alive {
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/scouter/healthcheck",
+    responses(
+        (status = 200, description = "Server is healthy", body = Alive),
+    ),
+    tag = "health"
+)]
 pub async fn health_check() -> Alive {
     Alive::default()
 }

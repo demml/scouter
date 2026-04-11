@@ -17,6 +17,7 @@ use std::str::FromStr;
 use strum_macros::EnumIter;
 #[pyclass(from_py_object, eq)]
 #[derive(Debug, EnumIter, PartialEq, Serialize, Deserialize, Clone, Default, Eq, Hash)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub enum DriftType {
     #[default]
     Spc,

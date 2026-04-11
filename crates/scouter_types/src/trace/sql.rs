@@ -191,6 +191,7 @@ impl FromRow<'_, PgRow> for TraceSpan {
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[pyclass(from_py_object)]
 pub struct TraceFilters {
     #[pyo3(get, set)]
