@@ -1,6 +1,7 @@
 pub mod agent;
 pub mod alerts;
 pub mod auth;
+pub mod capabilities;
 pub mod dataset;
 pub mod drift;
 pub mod eval_scenarios;
@@ -15,6 +16,7 @@ pub mod user;
 pub use agent::get_agent_router;
 pub use alerts::get_alert_router;
 pub use auth::get_auth_router;
+pub use capabilities::get_capabilities_router;
 pub use dataset::get_dataset_router;
 pub use drift::get_drift_router;
 pub use eval_scenarios::get_eval_scenario_router;

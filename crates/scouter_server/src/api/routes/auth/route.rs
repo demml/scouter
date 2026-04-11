@@ -24,6 +24,16 @@ use tracing::{debug, error, instrument};
 /// # Returns
 ///
 /// Returns a `Result` containing either the JWT token or an error
+#[utoipa::path(
+    get,
+    path = "/scouter/auth/login",
+    responses(
+        (status = 200, description = "JWT token issued", body = JwtToken),
+        (status = 400, description = "Missing or invalid credentials", body = ScouterServerError),
+        (status = 401, description = "Invalid credentials", body = ScouterServerError),
+    ),
+    tag = "auth"
+)]
 #[instrument(skip_all)]
 pub async fn api_login_handler(
     State(state): State<Arc<AppState>>,
@@ -130,6 +140,15 @@ pub async fn api_login_handler(
 /// # Returns
 ///
 /// Returns a `Result` containing either the JWT token or an error
+#[utoipa::path(
+    get,
+    path = "/scouter/auth/refresh",
+    responses(
+        (status = 200, description = "JWT token refreshed", body = JwtToken),
+        (status = 401, description = "Invalid or missing token", body = ScouterServerError),
+    ),
+    tag = "auth"
+)]
 #[instrument(skip_all)]
 pub async fn api_refresh_token_handler(
     State(state): State<Arc<AppState>>,
@@ -186,8 +205,17 @@ pub async fn api_refresh_token_handler(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/scouter/auth/validate",
+    responses(
+        (status = 200, description = "Token is valid", body = Authenticated),
+        (status = 401, description = "Invalid or missing token", body = ScouterServerError),
+    ),
+    tag = "auth"
+)]
 #[instrument(skip_all)]
-async fn validate_jwt_token(
+pub async fn validate_jwt_token(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Result<Json<Authenticated>, (StatusCode, Json<ScouterServerError>)> {

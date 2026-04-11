@@ -16,8 +16,8 @@ use tracing::{error, instrument};
 
 // ── Request / Response types ────────────────────────────────────────
 
-#[derive(serde::Deserialize)]
-struct RegisterDatasetHttpRequest {
+#[derive(serde::Deserialize, utoipa::ToSchema)]
+pub struct RegisterDatasetHttpRequest {
     catalog: String,
     schema_name: String,
     table: String,
@@ -25,24 +25,24 @@ struct RegisterDatasetHttpRequest {
     partition_columns: Option<Vec<String>>,
 }
 
-#[derive(serde::Serialize)]
-struct RegisterDatasetHttpResponse {
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct RegisterDatasetHttpResponse {
     status: String,
     fingerprint: String,
 }
 
-#[derive(serde::Deserialize)]
-struct QueryDatasetHttpRequest {
+#[derive(serde::Deserialize, utoipa::ToSchema)]
+pub struct QueryDatasetHttpRequest {
     sql: String,
 }
 
-#[derive(serde::Serialize)]
-struct InsertBatchHttpResponse {
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct InsertBatchHttpResponse {
     rows_accepted: u64,
 }
 
-#[derive(serde::Serialize)]
-struct DatasetInfoResponse {
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct DatasetInfoResponse {
     catalog: String,
     schema_name: String,
     table: String,
@@ -53,38 +53,38 @@ struct DatasetInfoResponse {
     updated_at: String,
 }
 
-#[derive(serde::Serialize)]
-struct ListDatasetsResponse {
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct ListDatasetsResponse {
     datasets: Vec<DatasetInfoResponse>,
 }
 
 // ── Catalog browser types ───────────────────────────────────────────
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, utoipa::ToSchema)]
 struct CatalogInfoResponse {
     catalog: String,
     schema_count: u32,
     table_count: u32,
 }
 
-#[derive(serde::Serialize)]
-struct ListCatalogsResponse {
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct ListCatalogsResponse {
     catalogs: Vec<CatalogInfoResponse>,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, utoipa::ToSchema)]
 struct SchemaInfoResponse {
     catalog: String,
     schema_name: String,
     table_count: u32,
 }
 
-#[derive(serde::Serialize)]
-struct ListSchemasResponse {
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct ListSchemasResponse {
     schemas: Vec<SchemaInfoResponse>,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, utoipa::ToSchema)]
 struct TableSummaryResponse {
     catalog: String,
     schema_name: String,
@@ -94,12 +94,12 @@ struct TableSummaryResponse {
     updated_at: String,
 }
 
-#[derive(serde::Serialize)]
-struct ListTablesResponse {
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct ListTablesResponse {
     tables: Vec<TableSummaryResponse>,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, utoipa::ToSchema)]
 struct ColumnInfoResponse {
     name: String,
     arrow_type: String,
@@ -108,7 +108,7 @@ struct ColumnInfoResponse {
     is_system: bool,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, utoipa::ToSchema)]
 struct TableStatsResponse {
     row_count: Option<u64>,
     file_count: Option<u64>,
@@ -116,20 +116,20 @@ struct TableStatsResponse {
     delta_version: Option<u64>,
 }
 
-#[derive(serde::Serialize)]
-struct TableDetailResponse {
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct TableDetailResponse {
     info: DatasetInfoResponse,
     columns: Vec<ColumnInfoResponse>,
     stats: TableStatsResponse,
 }
 
-#[derive(serde::Deserialize)]
-struct PreviewQueryParams {
+#[derive(serde::Deserialize, utoipa::ToSchema, utoipa::IntoParams)]
+pub struct PreviewQueryParams {
     max_rows: Option<u32>,
 }
 
-#[derive(serde::Serialize)]
-struct PreviewResponse {
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct PreviewResponse {
     columns: Vec<ColumnInfoResponse>,
     rows: Vec<Vec<serde_json::Value>>,
     row_count: u64,
@@ -137,14 +137,14 @@ struct PreviewResponse {
 
 // ── Enhanced query types ────────────────────────────────────────────
 
-#[derive(serde::Deserialize)]
-struct ExecuteQueryHttpRequest {
+#[derive(serde::Deserialize, utoipa::ToSchema)]
+pub struct ExecuteQueryHttpRequest {
     sql: String,
     query_id: Option<String>,
     max_rows: Option<u32>,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, utoipa::ToSchema)]
 struct QueryMetadataResponse {
     query_id: String,
     rows_returned: u64,
@@ -153,33 +153,33 @@ struct QueryMetadataResponse {
     bytes_scanned: Option<u64>,
 }
 
-#[derive(serde::Serialize)]
-struct ExecuteQueryHttpResponse {
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct ExecuteQueryHttpResponse {
     columns: Vec<ColumnInfoResponse>,
     rows: Vec<Vec<serde_json::Value>>,
     metadata: QueryMetadataResponse,
 }
 
-#[derive(serde::Deserialize)]
-struct CancelQueryHttpRequest {
+#[derive(serde::Deserialize, utoipa::ToSchema)]
+pub struct CancelQueryHttpRequest {
     query_id: String,
 }
 
-#[derive(serde::Serialize)]
-struct CancelQueryHttpResponse {
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct CancelQueryHttpResponse {
     cancelled: bool,
 }
 
 // ── Explain types ───────────────────────────────────────────────────
 
-#[derive(serde::Deserialize)]
-struct ExplainQueryHttpRequest {
+#[derive(serde::Deserialize, utoipa::ToSchema)]
+pub struct ExplainQueryHttpRequest {
     sql: String,
     analyze: Option<bool>,
     max_rows: Option<u32>,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, utoipa::ToSchema)]
 struct PlanNodeResponse {
     node_type: String,
     description: String,
@@ -187,7 +187,7 @@ struct PlanNodeResponse {
     metrics: Option<PlanNodeMetricsResponse>,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, utoipa::ToSchema)]
 struct PlanNodeMetricsResponse {
     output_rows: Option<u64>,
     elapsed_ms: Option<f64>,
@@ -195,8 +195,8 @@ struct PlanNodeMetricsResponse {
     spill_bytes: Option<u64>,
 }
 
-#[derive(serde::Serialize)]
-struct ExplainQueryHttpResponse {
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct ExplainQueryHttpResponse {
     logical_plan: PlanNodeResponse,
     physical_plan: PlanNodeResponse,
     logical_plan_text: String,
@@ -332,8 +332,20 @@ fn plan_node_to_response(
 
 // ── Handlers ────────────────────────────────────────────────────────
 
+#[utoipa::path(
+    post,
+    path = "/scouter/datasets/register",
+    request_body = RegisterDatasetHttpRequest,
+    responses(
+        (status = 200, description = "Dataset registered", body = RegisterDatasetHttpResponse),
+        (status = 400, description = "Invalid schema or namespace", body = ScouterServerError),
+        (status = 500, description = "Internal error", body = ScouterServerError),
+    ),
+    security(("bearer_token" = [])),
+    tag = "datasets"
+)]
 #[instrument(skip_all)]
-async fn register_dataset(
+pub async fn register_dataset(
     State(data): State<Arc<AppState>>,
     Json(body): Json<RegisterDatasetHttpRequest>,
 ) -> Result<Json<RegisterDatasetHttpResponse>, (StatusCode, Json<ScouterServerError>)> {
@@ -377,8 +389,25 @@ async fn register_dataset(
     }))
 }
 
+#[utoipa::path(
+    post,
+    path = "/scouter/datasets/{catalog}/{schema}/{table}/records",
+    params(
+        ("catalog" = String, Path, description = "Catalog name"),
+        ("schema" = String, Path, description = "Schema name"),
+        ("table" = String, Path, description = "Table name"),
+    ),
+    request_body(content = inline(Vec<u8>), description = "Arrow IPC bytes", content_type = "application/octet-stream"),
+    responses(
+        (status = 200, description = "Batch inserted", body = InsertBatchHttpResponse),
+        (status = 400, description = "Invalid data", body = ScouterServerError),
+        (status = 500, description = "Internal error", body = ScouterServerError),
+    ),
+    security(("bearer_token" = [])),
+    tag = "datasets"
+)]
 #[instrument(skip_all)]
-async fn insert_batch(
+pub async fn insert_batch(
     State(data): State<Arc<AppState>>,
     Path((catalog, schema_name, table)): Path<(String, String, String)>,
     headers: HeaderMap,
@@ -412,8 +441,20 @@ async fn insert_batch(
     }))
 }
 
+#[utoipa::path(
+    post,
+    path = "/scouter/datasets/sql",
+    request_body = QueryDatasetHttpRequest,
+    responses(
+        (status = 200, description = "Query results as Arrow IPC bytes"),
+        (status = 400, description = "Invalid SQL", body = ScouterServerError),
+        (status = 500, description = "Internal error", body = ScouterServerError),
+    ),
+    security(("bearer_token" = [])),
+    tag = "datasets"
+)]
 #[instrument(skip_all)]
-async fn query_dataset(
+pub async fn query_dataset(
     State(data): State<Arc<AppState>>,
     Json(body): Json<QueryDatasetHttpRequest>,
 ) -> Result<(StatusCode, axum::body::Bytes), (StatusCode, Json<ScouterServerError>)> {
@@ -429,8 +470,18 @@ async fn query_dataset(
     Ok((StatusCode::OK, axum::body::Bytes::from(ipc_data)))
 }
 
+#[utoipa::path(
+    get,
+    path = "/scouter/datasets",
+    responses(
+        (status = 200, description = "List of registered datasets", body = ListDatasetsResponse),
+        (status = 500, description = "Internal error", body = ScouterServerError),
+    ),
+    security(("bearer_token" = [])),
+    tag = "datasets"
+)]
 #[instrument(skip_all)]
-async fn list_datasets_handler(
+pub async fn list_datasets_handler(
     State(data): State<Arc<AppState>>,
 ) -> Result<Json<ListDatasetsResponse>, (StatusCode, Json<ScouterServerError>)> {
     let datasets = data.dataset_manager.list_datasets();
@@ -440,8 +491,24 @@ async fn list_datasets_handler(
     Ok(Json(ListDatasetsResponse { datasets: items }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/scouter/datasets/{catalog}/{schema}/{table}/info",
+    params(
+        ("catalog" = String, Path, description = "Catalog name"),
+        ("schema" = String, Path, description = "Schema name"),
+        ("table" = String, Path, description = "Table name"),
+    ),
+    responses(
+        (status = 200, description = "Dataset info", body = DatasetInfoResponse),
+        (status = 404, description = "Dataset not found", body = ScouterServerError),
+        (status = 500, description = "Internal error", body = ScouterServerError),
+    ),
+    security(("bearer_token" = [])),
+    tag = "datasets"
+)]
 #[instrument(skip_all)]
-async fn get_dataset_info(
+pub async fn get_dataset_info(
     State(data): State<Arc<AppState>>,
     Path((catalog, schema_name, table)): Path<(String, String, String)>,
 ) -> Result<Json<DatasetInfoResponse>, (StatusCode, Json<ScouterServerError>)> {
@@ -466,8 +533,18 @@ async fn get_dataset_info(
 
 // ── Catalog browser handlers ────────────────────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/scouter/datasets/catalogs",
+    responses(
+        (status = 200, description = "List of catalogs", body = ListCatalogsResponse),
+        (status = 500, description = "Internal error", body = ScouterServerError),
+    ),
+    security(("bearer_token" = [])),
+    tag = "datasets"
+)]
 #[instrument(skip_all)]
-async fn list_catalogs(
+pub async fn list_catalogs(
     State(data): State<Arc<AppState>>,
 ) -> Result<Json<ListCatalogsResponse>, (StatusCode, Json<ScouterServerError>)> {
     let catalogs = data
@@ -484,8 +561,19 @@ async fn list_catalogs(
     Ok(Json(ListCatalogsResponse { catalogs }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/scouter/datasets/catalogs/{catalog}/schemas",
+    params(("catalog" = String, Path, description = "Catalog name")),
+    responses(
+        (status = 200, description = "List of schemas", body = ListSchemasResponse),
+        (status = 500, description = "Internal error", body = ScouterServerError),
+    ),
+    security(("bearer_token" = [])),
+    tag = "datasets"
+)]
 #[instrument(skip_all)]
-async fn list_schemas(
+pub async fn list_schemas(
     State(data): State<Arc<AppState>>,
     Path(catalog): Path<String>,
 ) -> Result<Json<ListSchemasResponse>, (StatusCode, Json<ScouterServerError>)> {
@@ -503,8 +591,22 @@ async fn list_schemas(
     Ok(Json(ListSchemasResponse { schemas }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/scouter/datasets/catalogs/{catalog}/schemas/{schema}/tables",
+    params(
+        ("catalog" = String, Path, description = "Catalog name"),
+        ("schema" = String, Path, description = "Schema name"),
+    ),
+    responses(
+        (status = 200, description = "List of tables", body = ListTablesResponse),
+        (status = 500, description = "Internal error", body = ScouterServerError),
+    ),
+    security(("bearer_token" = [])),
+    tag = "datasets"
+)]
 #[instrument(skip_all)]
-async fn list_tables(
+pub async fn list_tables(
     State(data): State<Arc<AppState>>,
     Path((catalog, schema_name)): Path<(String, String)>,
 ) -> Result<Json<ListTablesResponse>, (StatusCode, Json<ScouterServerError>)> {
@@ -525,8 +627,24 @@ async fn list_tables(
     Ok(Json(ListTablesResponse { tables }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/scouter/datasets/catalogs/{catalog}/schemas/{schema}/tables/{table}",
+    params(
+        ("catalog" = String, Path, description = "Catalog name"),
+        ("schema" = String, Path, description = "Schema name"),
+        ("table" = String, Path, description = "Table name"),
+    ),
+    responses(
+        (status = 200, description = "Table detail", body = TableDetailResponse),
+        (status = 404, description = "Table not found", body = ScouterServerError),
+        (status = 500, description = "Internal error", body = ScouterServerError),
+    ),
+    security(("bearer_token" = [])),
+    tag = "datasets"
+)]
 #[instrument(skip_all)]
-async fn get_table_detail(
+pub async fn get_table_detail(
     State(data): State<Arc<AppState>>,
     Path((catalog, schema_name, table)): Path<(String, String, String)>,
 ) -> Result<Json<TableDetailResponse>, (StatusCode, Json<ScouterServerError>)> {
@@ -563,8 +681,25 @@ async fn get_table_detail(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/scouter/datasets/catalogs/{catalog}/schemas/{schema}/tables/{table}/preview",
+    params(
+        ("catalog" = String, Path, description = "Catalog name"),
+        ("schema" = String, Path, description = "Schema name"),
+        ("table" = String, Path, description = "Table name"),
+        PreviewQueryParams,
+    ),
+    responses(
+        (status = 200, description = "Table preview", body = PreviewResponse),
+        (status = 404, description = "Table not found", body = ScouterServerError),
+        (status = 500, description = "Internal error", body = ScouterServerError),
+    ),
+    security(("bearer_token" = [])),
+    tag = "datasets"
+)]
 #[instrument(skip_all)]
-async fn preview_table(
+pub async fn preview_table(
     State(data): State<Arc<AppState>>,
     Path((catalog, schema_name, table)): Path<(String, String, String)>,
     Query(params): Query<PreviewQueryParams>,
@@ -593,8 +728,20 @@ async fn preview_table(
 
 // ── Enhanced query handlers ─────────────────────────────────────────
 
+#[utoipa::path(
+    post,
+    path = "/scouter/datasets/query",
+    request_body = ExecuteQueryHttpRequest,
+    responses(
+        (status = 200, description = "Query results", body = ExecuteQueryHttpResponse),
+        (status = 400, description = "Invalid query", body = ScouterServerError),
+        (status = 500, description = "Internal error", body = ScouterServerError),
+    ),
+    security(("bearer_token" = [])),
+    tag = "datasets"
+)]
 #[instrument(skip_all)]
-async fn execute_query(
+pub async fn execute_query(
     State(data): State<Arc<AppState>>,
     Json(body): Json<ExecuteQueryHttpRequest>,
 ) -> Result<Json<ExecuteQueryHttpResponse>, (StatusCode, Json<ScouterServerError>)> {
@@ -625,8 +772,19 @@ async fn execute_query(
     }))
 }
 
+#[utoipa::path(
+    post,
+    path = "/scouter/datasets/query/cancel",
+    request_body = CancelQueryHttpRequest,
+    responses(
+        (status = 200, description = "Query cancellation result", body = CancelQueryHttpResponse),
+        (status = 500, description = "Internal error", body = ScouterServerError),
+    ),
+    security(("bearer_token" = [])),
+    tag = "datasets"
+)]
 #[instrument(skip_all)]
-async fn cancel_query(
+pub async fn cancel_query(
     State(data): State<Arc<AppState>>,
     Json(body): Json<CancelQueryHttpRequest>,
 ) -> Result<Json<CancelQueryHttpResponse>, (StatusCode, Json<ScouterServerError>)> {
@@ -636,8 +794,20 @@ async fn cancel_query(
 
 // ── Explain handler ─────────────────────────────────────────────────
 
+#[utoipa::path(
+    post,
+    path = "/scouter/datasets/query/explain",
+    request_body = ExplainQueryHttpRequest,
+    responses(
+        (status = 200, description = "Query execution plan", body = ExplainQueryHttpResponse),
+        (status = 400, description = "Invalid query", body = ScouterServerError),
+        (status = 500, description = "Internal error", body = ScouterServerError),
+    ),
+    security(("bearer_token" = [])),
+    tag = "datasets"
+)]
 #[instrument(skip_all)]
-async fn explain_query(
+pub async fn explain_query(
     State(data): State<Arc<AppState>>,
     Json(body): Json<ExplainQueryHttpRequest>,
 ) -> Result<Json<ExplainQueryHttpResponse>, (StatusCode, Json<ScouterServerError>)> {

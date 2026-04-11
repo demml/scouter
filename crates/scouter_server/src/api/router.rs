@@ -1,20 +1,23 @@
 use crate::api::middleware::track_metrics;
+use crate::api::openapi::openapi_router;
 use crate::api::routes::auth::auth_api_middleware;
 use crate::api::routes::{
-    get_agent_router, get_alert_router, get_auth_router, get_dataset_router, get_drift_router,
-    get_eval_scenario_router, get_health_router, get_message_router, get_observability_router,
-    get_profile_router, get_tag_router, get_trace_router, get_user_router,
+    get_agent_router, get_alert_router, get_auth_router, get_capabilities_router,
+    get_dataset_router, get_drift_router, get_eval_scenario_router, get_health_router,
+    get_message_router, get_observability_router, get_profile_router, get_tag_router,
+    get_trace_router, get_user_router,
 };
 use crate::api::state::AppState;
 use anyhow::Result;
 use axum::http::{
     header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE},
-    Method,
+    HeaderName, Method,
 };
 use axum::middleware;
 use axum::Router;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
+use tower_http::set_header::SetResponseHeaderLayer;
 
 const ROUTE_PREFIX: &str = "/scouter";
 
@@ -48,6 +51,13 @@ pub async fn create_router(app_state: Arc<AppState>) -> Result<Router> {
     let agent_routes = get_agent_router(ROUTE_PREFIX).await?;
     let dataset_routes = get_dataset_router(ROUTE_PREFIX);
     let eval_scenario_routes = get_eval_scenario_router(ROUTE_PREFIX);
+    let capabilities_routes = get_capabilities_router(ROUTE_PREFIX);
+    let openapi_routes = openapi_router();
+
+    let version_header_layer = SetResponseHeaderLayer::if_not_present(
+        HeaderName::from_static("x-scouter-api-version"),
+        axum::http::HeaderValue::from_static("1.0.0"),
+    );
 
     let merged_routes = Router::new()
         .merge(drift_routes)
@@ -71,6 +81,9 @@ pub async fn create_router(app_state: Arc<AppState>) -> Result<Router> {
         .merge(merged_routes)
         .merge(health_routes)
         .merge(auth_routes)
+        .merge(capabilities_routes)
+        .merge(openapi_routes)
         .layer(cors)
+        .layer(version_header_layer)
         .with_state(app_state))
 }

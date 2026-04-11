@@ -2,6 +2,7 @@ pub mod archive;
 pub mod error;
 pub mod grpc;
 pub mod middleware;
+pub mod openapi;
 pub mod polling;
 pub mod router;
 pub mod routes;
