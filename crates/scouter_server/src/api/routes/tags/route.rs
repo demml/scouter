@@ -34,6 +34,18 @@ pub async fn get_tags(
     State(data): State<Arc<AppState>>,
     Query(params): Query<TagsRequest>,
 ) -> Result<Json<TagsResponse>, (StatusCode, Json<ScouterServerError>)> {
+    if params.entity_id.len() > 200 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ScouterServerError {
+                error: "Query parameter exceeds 200 character limit".to_string(),
+                code: "BAD_REQUEST",
+                suggested_action: None,
+                retry: Some(false),
+            }),
+        ));
+    }
+
     let tags = PostgresClient::get_tags(&data.db_pool, &params.entity_type, &params.entity_id)
         .await
         .map_err(|e| {

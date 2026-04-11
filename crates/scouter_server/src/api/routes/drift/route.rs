@@ -55,6 +55,18 @@ pub async fn get_spc_drift(
         ));
     }
 
+    if params.uid.len() > 200 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ScouterServerError {
+                error: "Query parameter exceeds 200 character limit".to_string(),
+                code: "BAD_REQUEST",
+                suggested_action: None,
+                retry: Some(false),
+            }),
+        ));
+    }
+
     let entity_id = data.get_entity_id_for_request(&params.uid).await?;
 
     let query_result = PostgresClient::get_binned_spc_drift_records(
@@ -149,6 +161,19 @@ pub async fn get_psi_drift(
             Json(ScouterServerError::permission_denied()),
         ));
     }
+
+    if params.uid.len() > 200 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ScouterServerError {
+                error: "Query parameter exceeds 200 character limit".to_string(),
+                code: "BAD_REQUEST",
+                suggested_action: None,
+                retry: Some(false),
+            }),
+        ));
+    }
+
     // validate time window
     debug!("Querying drift records: {:?}", params);
     let feature_metrics =
@@ -191,6 +216,18 @@ pub async fn get_custom_drift(
         return Err((
             StatusCode::FORBIDDEN,
             Json(ScouterServerError::permission_denied()),
+        ));
+    }
+
+    if params.uid.len() > 200 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ScouterServerError {
+                error: "Query parameter exceeds 200 character limit".to_string(),
+                code: "BAD_REQUEST",
+                suggested_action: None,
+                retry: Some(false),
+            }),
         ));
     }
 
@@ -292,6 +329,18 @@ pub async fn get_agent_task_metrics(
         ));
     }
 
+    if params.uid.len() > 200 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ScouterServerError {
+                error: "Query parameter exceeds 200 character limit".to_string(),
+                code: "BAD_REQUEST",
+                suggested_action: None,
+                retry: Some(false),
+            }),
+        ));
+    }
+
     let entity_id = data.get_entity_id_for_request(&params.uid).await?;
 
     let metrics = PostgresClient::get_binned_agent_task_values(
@@ -340,6 +389,18 @@ pub async fn get_agent_workflow_metrics(
         return Err((
             StatusCode::FORBIDDEN,
             Json(ScouterServerError::permission_denied()),
+        ));
+    }
+
+    if params.uid.len() > 200 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ScouterServerError {
+                error: "Query parameter exceeds 200 character limit".to_string(),
+                code: "BAD_REQUEST",
+                suggested_action: None,
+                retry: Some(false),
+            }),
         ));
     }
 

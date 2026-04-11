@@ -243,6 +243,18 @@ pub async fn get_profile(
         ));
     }
 
+    if params.name.len() > 200 || params.space.len() > 200 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ScouterServerError {
+                error: "Query parameter exceeds 200 character limit".to_string(),
+                code: "BAD_REQUEST",
+                suggested_action: None,
+                retry: Some(false),
+            }),
+        ));
+    }
+
     debug!("Getting drift profile: {:?}", &params);
     let entity_id = data
         .get_entity_id_for_request_from_args(
@@ -319,6 +331,18 @@ pub async fn list_profiles(
         return Err((
             StatusCode::FORBIDDEN,
             Json(ScouterServerError::permission_denied()),
+        ));
+    }
+
+    if request.name.len() > 200 || request.space.len() > 200 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ScouterServerError {
+                error: "Query parameter exceeds 200 character limit".to_string(),
+                code: "BAD_REQUEST",
+                suggested_action: None,
+                retry: Some(false),
+            }),
         ));
     }
 
