@@ -46,7 +46,7 @@ def _get_transport_config() -> Union[GrpcConfig, MockConfig]:
 def setup() -> Config:
     recipe_prompt = Prompt.from_path(_CWD / "config" / "recipe_prompt.yaml")
     customer_prompt = Prompt.from_path(_CWD / "config" / "customer_prompt.yaml")
-    tasks = TasksFile.from_path(_CWD / "config" / "tasks.yaml")
+    tasks = TasksFile.from_path(_CWD / "config" / "receipe_tasks.yaml")
 
     profile = AgentEvalProfile(
         alias="recipe_agent",

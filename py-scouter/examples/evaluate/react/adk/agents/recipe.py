@@ -36,7 +36,10 @@ def after_model_callback(callback_context: CallbackContext, llm_response: LlmRes
         span.add_queue_item(
             "recipe_agent",
             EvalRecord(
-                context={"response": text},
+                context={
+                    "response": text,  # raw text (used in assertion task)
+                    "adk_response": llm_response,  # entire response (used in AgentAssertionTask)
+                },
                 id=f"recipe_{abs(hash(text)) % 10_000}",
             ),
         )

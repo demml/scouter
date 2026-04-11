@@ -393,8 +393,10 @@ struct LLMJudgeTaskConfig {
     pub operator: ComparisonOperator,
     pub context_path: Option<String>,
     pub description: Option<String>,
+    #[serde(default)]
     pub depends_on: Vec<String>,
     pub max_retries: Option<u32>,
+    #[serde(default)]
     pub condition: bool,
 }
 
@@ -433,10 +435,12 @@ struct LLMJudgeTaskInternal {
     pub expected_value: Value,
     pub operator: ComparisonOperator,
     pub task_type: EvaluationTaskType,
+    #[serde(default)]
     pub depends_on: Vec<String>,
     pub max_retries: Option<u32>,
     pub result: Option<AssertionResult>,
     pub description: Option<String>,
+    #[serde(default)]
     pub condition: bool,
 }
 impl LLMJudgeTaskInternal {
@@ -1351,12 +1355,16 @@ pub struct AgentAssertionTask {
     #[pyo3(get, set)]
     #[serde(default)]
     pub provider: Option<Provider>,
+
+    #[pyo3(get, set)]
+    #[serde(default)]
+    pub context_path: Option<String>,
 }
 
 #[pymethods]
 impl AgentAssertionTask {
     #[new]
-    #[pyo3(signature = (id, assertion, expected_value, operator, description=None, depends_on=None, condition=None, provider=None))]
+    #[pyo3(signature = (id, assertion, expected_value, operator, description=None, depends_on=None, condition=None, provider=None, context_path=None))]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: String,
@@ -1367,6 +1375,7 @@ impl AgentAssertionTask {
         depends_on: Option<Vec<String>>,
         condition: Option<bool>,
         provider: Option<Provider>,
+        context_path: Option<String>,
     ) -> Result<Self, TypeError> {
         let expected_value = depythonize(expected_value)?;
 
@@ -1381,6 +1390,7 @@ impl AgentAssertionTask {
             result: None,
             condition: condition.unwrap_or(false),
             provider,
+            context_path,
         })
     }
 

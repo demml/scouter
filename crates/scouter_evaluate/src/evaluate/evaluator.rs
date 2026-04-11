@@ -1,5 +1,4 @@
 use crate::error::EvaluationError;
-use crate::evaluate::agent::AgentContextBuilder;
 use crate::evaluate::store::{AssertionResultStore, LLMResponseStore, TaskRegistry, TaskType};
 use crate::evaluate::trace::TraceContextBuilder;
 use crate::tasks::agent::execute_agent_assertions;
@@ -261,7 +260,6 @@ struct TaskExecutor {
     context: ExecutionContext,
     profile: Arc<AgentEvalProfile>,
     trace_context_builder: TraceContextBuilder,
-    request_context_builder: Option<AgentContextBuilder>,
 }
 
 impl TaskExecutor {
@@ -271,22 +269,10 @@ impl TaskExecutor {
         spans: Arc<Vec<TraceSpan>>,
     ) -> Self {
         debug!("Creating TaskExecutor");
-        let trace_context_builder = TraceContextBuilder::new(spans);
-
-        // Build request context builder from the eval record context if there are request assertions
-        let request_context_builder = if profile.has_agent_assertions() {
-            AgentContextBuilder::from_context(context.base_context.as_ref(), None)
-                .inspect_err(|e| error!("Failed to build request context: {:?}", e))
-                .ok()
-        } else {
-            None
-        };
-
         Self {
             context,
             profile,
-            trace_context_builder,
-            request_context_builder,
+            trace_context_builder: TraceContextBuilder::new(spans),
         }
     }
 
@@ -416,29 +402,10 @@ impl TaskExecutor {
         debug!("Executing {} agent assertion tasks", tasks.len());
 
         let start_time = Utc::now();
-        let results = match &self.request_context_builder {
-            Some(ctx) => execute_agent_assertions(ctx, &tasks).inspect_err(|e| {
+        let results = execute_agent_assertions(self.context.base_context.as_ref(), &tasks)
+            .inspect_err(|e| {
                 error!("Failed to execute agent assertions: {:?}", e);
-            })?,
-            None => {
-                // No request context available - fail all tasks
-                let results = tasks
-                    .iter()
-                    .map(|task| {
-                        (
-                            task.id.clone(),
-                            AssertionResult {
-                                passed: false,
-                                actual: serde_json::Value::Null,
-                                expected: serde_json::Value::Null,
-                                message: "No request context available for evaluation".to_string(),
-                            },
-                        )
-                    })
-                    .collect();
-                scouter_types::agent::AssertionResults { results }
-            }
-        };
+            })?;
 
         let end_time = Utc::now();
         for (task_id, result) in results.results {

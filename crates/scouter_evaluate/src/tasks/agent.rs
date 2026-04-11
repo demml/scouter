@@ -27,8 +27,11 @@ pub fn execute_agent_assertion_tasks(
     let results: HashMap<String, AssertionResult> = tasks
         .iter()
         .map(|task| {
-            let context_builder =
-                AgentContextBuilder::from_context(&context, task.provider.as_ref())?;
+            let context_builder = AgentContextBuilder::from_context(
+                &context,
+                task.provider.as_ref(),
+                task.context_path.as_deref(),
+            )?;
             let resolved = context_builder.build_context(&task.assertion)?;
             task.execute(&resolved)
                 .map(|result| (task.id.clone(), result))
@@ -39,7 +42,7 @@ pub fn execute_agent_assertion_tasks(
 }
 
 pub(crate) fn execute_agent_assertions(
-    context: &AgentContextBuilder,
+    context: &Value,
     tasks: &[AgentAssertionTask],
 ) -> Result<AssertionResults, EvaluationError> {
     if tasks.is_empty() {
@@ -51,7 +54,12 @@ pub(crate) fn execute_agent_assertions(
     let results: HashMap<String, AssertionResult> = tasks
         .iter()
         .map(|task| {
-            let resolved = context.build_context(&task.assertion)?;
+            let ctx_builder = AgentContextBuilder::from_context(
+                context,
+                task.provider.as_ref(),
+                task.context_path.as_deref(),
+            )?;
+            let resolved = ctx_builder.build_context(&task.assertion)?;
             task.execute(&resolved)
                 .map(|result| (task.id.clone(), result))
         })

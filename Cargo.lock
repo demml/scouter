@@ -824,7 +824,7 @@ dependencies = [
 [[package]]
 name = "baked-potato"
 version = "0.21.0"
-source = "git+https://github.com/demml/potatohead?branch=update-pyo3#7324a5e2194773c36def0eb4560e94183cf396bb"
+source = "git+https://github.com/demml/potatohead?branch=update-pyo3#8410006e2d94299c46361181551a06d43a3b0f09"
 dependencies = [
  "async-trait",
  "chrono",
@@ -5184,7 +5184,7 @@ dependencies = [
 [[package]]
 name = "potato-agent"
 version = "0.21.0"
-source = "git+https://github.com/demml/potatohead?branch=update-pyo3#7324a5e2194773c36def0eb4560e94183cf396bb"
+source = "git+https://github.com/demml/potatohead?branch=update-pyo3#8410006e2d94299c46361181551a06d43a3b0f09"
 dependencies = [
  "async-trait",
  "base64",
@@ -5210,7 +5210,7 @@ dependencies = [
 [[package]]
 name = "potato-head"
 version = "0.21.0"
-source = "git+https://github.com/demml/potatohead?branch=update-pyo3#7324a5e2194773c36def0eb4560e94183cf396bb"
+source = "git+https://github.com/demml/potatohead?branch=update-pyo3#8410006e2d94299c46361181551a06d43a3b0f09"
 dependencies = [
  "baked-potato",
  "potato-agent",
@@ -5224,7 +5224,7 @@ dependencies = [
 [[package]]
 name = "potato-provider"
 version = "0.21.0"
-source = "git+https://github.com/demml/potatohead?branch=update-pyo3#7324a5e2194773c36def0eb4560e94183cf396bb"
+source = "git+https://github.com/demml/potatohead?branch=update-pyo3#8410006e2d94299c46361181551a06d43a3b0f09"
 dependencies = [
  "base64",
  "gcloud-auth",
@@ -5246,7 +5246,7 @@ dependencies = [
 [[package]]
 name = "potato-spec"
 version = "0.21.0"
-source = "git+https://github.com/demml/potatohead?branch=update-pyo3#7324a5e2194773c36def0eb4560e94183cf396bb"
+source = "git+https://github.com/demml/potatohead?branch=update-pyo3#8410006e2d94299c46361181551a06d43a3b0f09"
 dependencies = [
  "potato-agent",
  "potato-type",
@@ -5262,7 +5262,7 @@ dependencies = [
 [[package]]
 name = "potato-state"
 version = "0.21.0"
-source = "git+https://github.com/demml/potatohead?branch=update-pyo3#7324a5e2194773c36def0eb4560e94183cf396bb"
+source = "git+https://github.com/demml/potatohead?branch=update-pyo3#8410006e2d94299c46361181551a06d43a3b0f09"
 dependencies = [
  "thiserror 2.0.18",
  "tokio",
@@ -5272,7 +5272,7 @@ dependencies = [
 [[package]]
 name = "potato-type"
 version = "0.21.0"
-source = "git+https://github.com/demml/potatohead?branch=update-pyo3#7324a5e2194773c36def0eb4560e94183cf396bb"
+source = "git+https://github.com/demml/potatohead?branch=update-pyo3#8410006e2d94299c46361181551a06d43a3b0f09"
 dependencies = [
  "async-trait",
  "potato-util",
@@ -5291,7 +5291,7 @@ dependencies = [
 [[package]]
 name = "potato-util"
 version = "0.21.0"
-source = "git+https://github.com/demml/potatohead?branch=update-pyo3#7324a5e2194773c36def0eb4560e94183cf396bb"
+source = "git+https://github.com/demml/potatohead?branch=update-pyo3#8410006e2d94299c46361181551a06d43a3b0f09"
 dependencies = [
  "colored_json",
  "pyo3",
@@ -5307,7 +5307,7 @@ dependencies = [
 [[package]]
 name = "potato-workflow"
 version = "0.21.0"
-source = "git+https://github.com/demml/potatohead?branch=update-pyo3#7324a5e2194773c36def0eb4560e94183cf396bb"
+source = "git+https://github.com/demml/potatohead?branch=update-pyo3#8410006e2d94299c46361181551a06d43a3b0f09"
 dependencies = [
  "chrono",
  "potato-agent",
@@ -5327,7 +5327,7 @@ dependencies = [
 [[package]]
 name = "potatohead-macro"
 version = "0.21.0"
-source = "git+https://github.com/demml/potatohead?branch=update-pyo3#7324a5e2194773c36def0eb4560e94183cf396bb"
+source = "git+https://github.com/demml/potatohead?branch=update-pyo3#8410006e2d94299c46361181551a06d43a3b0f09"
 dependencies = [
  "thiserror 2.0.18",
 ]
@@ -6344,9 +6344,9 @@ checksum = "f87165f0995f63a9fbeea62b64d10b4d9d8e78ec6d7d51fb2125fda7bb36788f"
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.10"
+version = "0.103.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df33b2b81ac578cabaf06b89b0631153a3f416b0a886e8a7a1707fb51abbd1ef"
+checksum = "20a6af516fea4b20eccceaf166e8aa666ac996208e8a644ce3ef5aa783bc7cd4"
 dependencies = [
  "aws-lc-rs",
  "ring",
