@@ -26,14 +26,14 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 use tracing::debug;
 
-#[pyclass(eq)]
+#[pyclass(from_py_object, eq)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum BinType {
     Numeric,
     Category,
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct PsiDriftConfig {
     #[pyo3(get, set)]
@@ -259,7 +259,7 @@ impl DispatchDriftConfig for PsiDriftConfig {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone, PartialEq)]
 pub struct Bin {
     #[pyo3(get)]
@@ -404,7 +404,7 @@ impl<'de> Deserialize<'de> for Bin {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct PsiFeatureDriftProfile {
     #[pyo3(get)]
@@ -420,7 +420,7 @@ pub struct PsiFeatureDriftProfile {
     pub bin_type: BinType,
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct PsiDriftProfile {
     #[pyo3(get)]
@@ -563,7 +563,7 @@ impl PsiDriftProfile {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PsiDriftMap {
     #[pyo3(get)]

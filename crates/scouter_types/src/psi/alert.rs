@@ -42,7 +42,7 @@ impl Default for PsiThreshold {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PsiNormalThreshold {
     #[pyo3(get, set)]
@@ -86,7 +86,7 @@ impl PsiNormalThreshold {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PsiChiSquareThreshold {
     #[pyo3(get, set)]
@@ -126,7 +126,7 @@ impl PsiChiSquareThreshold {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PsiFixedThreshold {
     #[pyo3(get, set)]
@@ -153,7 +153,7 @@ impl PsiFixedThreshold {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PsiAlertConfig {
     #[pyo3(get, set)]

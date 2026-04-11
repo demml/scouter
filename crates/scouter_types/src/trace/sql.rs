@@ -12,7 +12,7 @@ use serde_json::Value;
 use sqlx::{postgres::PgRow, FromRow, Row};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct TraceListItem {
     #[pyo3(get)]
     pub trace_id: String,
@@ -82,7 +82,7 @@ impl TraceListItem {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct TraceSpan {
     #[pyo3(get)]
     pub trace_id: String,
@@ -191,7 +191,7 @@ impl FromRow<'_, PgRow> for TraceSpan {
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct TraceFilters {
     #[pyo3(get, set)]
     pub service_name: Option<String>,
@@ -380,7 +380,7 @@ impl TraceFilters {
 
 #[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct TraceMetricBucket {
     #[pyo3(get)]
     pub bucket_start: DateTime<Utc>,

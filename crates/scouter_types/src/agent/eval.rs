@@ -52,7 +52,7 @@ fn default_agent_assertion_task_type() -> EvaluationTaskType {
     EvaluationTaskType::AgentAssertion
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AssertionResult {
     #[pyo3(get)]
@@ -102,7 +102,7 @@ impl AssertionResult {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AssertionResults {
     #[pyo3(get)]
@@ -126,7 +126,7 @@ impl AssertionResults {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AssertionTask {
     #[pyo3(get, set)]
@@ -338,7 +338,7 @@ impl ValueExt for Value {
 }
 
 /// Primary class for defining an LLM as a Judge in evaluation workflows
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Clone, PartialEq)]
 pub struct LLMJudgeTask {
     #[pyo3(get, set)]
@@ -393,8 +393,10 @@ struct LLMJudgeTaskConfig {
     pub operator: ComparisonOperator,
     pub context_path: Option<String>,
     pub description: Option<String>,
+    #[serde(default)]
     pub depends_on: Vec<String>,
     pub max_retries: Option<u32>,
+    #[serde(default)]
     pub condition: bool,
 }
 
@@ -433,10 +435,12 @@ struct LLMJudgeTaskInternal {
     pub expected_value: Value,
     pub operator: ComparisonOperator,
     pub task_type: EvaluationTaskType,
+    #[serde(default)]
     pub depends_on: Vec<String>,
     pub max_retries: Option<u32>,
     pub result: Option<AssertionResult>,
     pub description: Option<String>,
+    #[serde(default)]
     pub condition: bool,
 }
 impl LLMJudgeTaskInternal {
@@ -618,7 +622,7 @@ impl TaskAccessor for LLMJudgeTask {
     }
 }
 
-#[pyclass(eq, eq_int)]
+#[pyclass(from_py_object, eq, eq_int)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum SpanStatus {
     Ok,
@@ -649,7 +653,7 @@ impl<'a, 'py> FromPyObject<'a, 'py> for PyValueWrapper {
 }
 
 /// Filter configuration for selecting spans to assert on
-#[pyclass(eq)]
+#[pyclass(from_py_object, eq)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum SpanFilter {
     /// Match spans by exact name
@@ -753,7 +757,7 @@ impl SpanFilter {
     }
 }
 
-#[pyclass(eq, eq_int)]
+#[pyclass(from_py_object, eq, eq_int)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum AggregationType {
     Count,
@@ -766,7 +770,7 @@ pub enum AggregationType {
 }
 
 /// Mode for aggregating results across multiple attribute values
-#[pyclass(eq)]
+#[pyclass(from_py_object, eq)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum MultiResponseMode {
     /// At least one value must pass
@@ -776,7 +780,7 @@ pub enum MultiResponseMode {
 }
 
 /// Inner task to run on each extracted attribute value
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum AttributeFilterTask {
     /// Run a deterministic assertion on the raw attribute value
@@ -799,7 +803,7 @@ impl AttributeFilterTask {
 }
 
 /// Unified assertion target that can operate on traces or filtered spans
-#[pyclass(eq)]
+#[pyclass(from_py_object, eq)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[allow(clippy::large_enum_variant)]
 pub enum TraceAssertion {
@@ -958,7 +962,7 @@ impl TraceAssertion {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TraceAssertionTask {
     #[pyo3(get, set)]
@@ -1129,7 +1133,7 @@ pub struct ToolCall {
     pub call_id: Option<String>,
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TokenUsage {
     #[pyo3(get, set)]
@@ -1163,7 +1167,7 @@ impl TokenUsage {
     }
 }
 
-#[pyclass(eq)]
+#[pyclass(from_py_object, eq)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum AgentAssertion {
     /// Check if a specific tool was called
@@ -1315,7 +1319,7 @@ impl AgentAssertion {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AgentAssertionTask {
     #[pyo3(get, set)]
@@ -1351,12 +1355,16 @@ pub struct AgentAssertionTask {
     #[pyo3(get, set)]
     #[serde(default)]
     pub provider: Option<Provider>,
+
+    #[pyo3(get, set)]
+    #[serde(default)]
+    pub context_path: Option<String>,
 }
 
 #[pymethods]
 impl AgentAssertionTask {
     #[new]
-    #[pyo3(signature = (id, assertion, expected_value, operator, description=None, depends_on=None, condition=None, provider=None))]
+    #[pyo3(signature = (id, assertion, expected_value, operator, description=None, depends_on=None, condition=None, provider=None, context_path=None))]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: String,
@@ -1367,6 +1375,7 @@ impl AgentAssertionTask {
         depends_on: Option<Vec<String>>,
         condition: Option<bool>,
         provider: Option<Provider>,
+        context_path: Option<String>,
     ) -> Result<Self, TypeError> {
         let expected_value = depythonize(expected_value)?;
 
@@ -1381,6 +1390,7 @@ impl AgentAssertionTask {
             result: None,
             condition: condition.unwrap_or(false),
             provider,
+            context_path,
         })
     }
 
@@ -1581,7 +1591,7 @@ impl Default for EvaluationTasks {
     }
 }
 
-#[pyclass(eq, eq_int)]
+#[pyclass(from_py_object, eq, eq_int)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ComparisonOperator {
     // Existing operators
@@ -1785,7 +1795,7 @@ impl ComparisonOperator {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum AssertionValue {
     String(String),
@@ -1871,7 +1881,7 @@ pub fn assertion_value_from_py(value: &Bound<'_, PyAny>) -> Result<AssertionValu
     ))
 }
 
-#[pyclass(eq, eq_int)]
+#[pyclass(from_py_object, eq, eq_int)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum EvaluationTaskType {
     Assertion,
@@ -1925,7 +1935,7 @@ impl EvaluationTaskType {
     }
 }
 
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 #[derive(Debug, Serialize)]
 pub struct TasksFile {
     pub tasks: Vec<TaskConfig>,

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
 
-#[pyclass(eq)]
+#[pyclass(from_py_object, eq)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum CommonCrons {
     Every1Minute,
@@ -97,7 +97,7 @@ impl CustomInterval {
     }
 }
 
-#[pyclass(eq)]
+#[pyclass(from_py_object, eq)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub enum TimeInterval {
     FifteenMinutes,

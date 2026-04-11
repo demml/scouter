@@ -218,7 +218,7 @@ def test_execute_tool_called_openai():
                 operator=ComparisonOperator.Equals,
             ),
         ],
-        context={"response": context},
+        context=context,
     )
 
     assert results["search_called"].passed
@@ -267,7 +267,7 @@ def test_execute_tool_called_with_args():
                 operator=ComparisonOperator.Equals,
             ),
         ],
-        context={"response": context},
+        context=context,
     )
 
     assert results["partial_match"].passed
@@ -613,12 +613,14 @@ def test_response_sub_key():
                 assertion=AgentAssertion.response_model(),
                 expected_value="gpt-4o",
                 operator=ComparisonOperator.Equals,
+                context_path="response",
             ),
             AgentAssertionTask(
                 id="check_content",
                 assertion=AgentAssertion.response_content(),
                 expected_value="Hello!",
                 operator=ComparisonOperator.Equals,
+                context_path="response",
             ),
         ],
         context=context,
@@ -635,16 +637,14 @@ def test_response_field_escape_hatch():
     so it must be relative to the response object itself.
     """
     context = {
-        "response": {
-            "candidates": [
-                {
-                    "content": {"role": "model", "parts": [{"text": "hello"}]},
-                    "finishReason": "STOP",
-                    "safety_ratings": [{"category": "HARM_CATEGORY_SAFE"}],
-                }
-            ],
-            "usageMetadata": {"promptTokenCount": 5, "candidatesTokenCount": 2},
-        }
+        "candidates": [
+            {
+                "content": {"role": "model", "parts": [{"text": "hello"}]},
+                "finishReason": "STOP",
+                "safety_ratings": [{"category": "HARM_CATEGORY_SAFE"}],
+            }
+        ],
+        "usageMetadata": {"promptTokenCount": 5, "candidatesTokenCount": 2},
     }
 
     results = execute_agent_assertion_tasks(
@@ -673,30 +673,35 @@ def test_eval_dataset_with_agent_assertions():
             assertion=AgentAssertion.tool_called("web_search"),
             expected_value=True,
             operator=ComparisonOperator.Equals,
+            context_path="response",
         ),
         AgentAssertionTask(
             id="check_content",
             assertion=AgentAssertion.response_content(),
             expected_value="Rayleigh",
             operator=ComparisonOperator.Contains,
+            context_path="response",
         ),
         AgentAssertionTask(
             id="check_model",
             assertion=AgentAssertion.response_model(),
             expected_value="gpt-4o",
             operator=ComparisonOperator.Equals,
+            context_path="response",
         ),
         AgentAssertionTask(
             id="no_delete",
             assertion=AgentAssertion.tool_not_called("delete_user"),
             expected_value=True,
             operator=ComparisonOperator.Equals,
+            context_path="response",
         ),
         AgentAssertionTask(
             id="check_tokens",
             assertion=AgentAssertion.response_output_tokens(),
             expected_value=1000,
             operator=ComparisonOperator.LessThan,
+            context_path="response",
         ),
     ]
 
@@ -750,18 +755,21 @@ def test_eval_dataset_google_adk_format():
             assertion=AgentAssertion.response_content(),
             expected_value="Rayleigh scattering",
             operator=ComparisonOperator.Contains,
+            context_path="response",
         ),
         AgentAssertionTask(
             id="search_called",
             assertion=AgentAssertion.tool_called("web_search"),
             expected_value=True,
             operator=ComparisonOperator.Equals,
+            context_path="response",
         ),
         AgentAssertionTask(
             id="check_args",
             assertion=AgentAssertion.tool_called_with_args("web_search", {"query": "sky color science"}),
             expected_value=True,
             operator=ComparisonOperator.Equals,
+            context_path="response",
         ),
     ]
 
@@ -828,6 +836,7 @@ def test_eval_dataset_mixed_task_types():
             assertion=AgentAssertion.tool_called("web_search"),
             expected_value=True,
             operator=ComparisonOperator.Equals,
+            context_path="response",
         ),
     ]
 
@@ -912,7 +921,7 @@ def test_agent_assertion_explicit_google_adk_provider_tool_called():
                 provider=Provider.GoogleAdk,
             )
         ],
-        context={"response": _ADK_FUNC_CALL_RESPONSE},
+        context=_ADK_FUNC_CALL_RESPONSE,
     )
     assert results["tool_called"].passed
 
@@ -929,7 +938,7 @@ def test_agent_assertion_explicit_google_adk_provider_tool_not_called():
                 provider=Provider.GoogleAdk,
             )
         ],
-        context={"response": _ADK_TEXT_RESPONSE},
+        context=_ADK_TEXT_RESPONSE,
     )
     assert results["no_tool"].passed
 
@@ -946,6 +955,6 @@ def test_agent_assertion_explicit_google_adk_provider_finish_reason():
                 provider=Provider.GoogleAdk,
             )
         ],
-        context={"response": _ADK_TEXT_RESPONSE},
+        context=_ADK_TEXT_RESPONSE,
     )
     assert results["finish_reason"].passed

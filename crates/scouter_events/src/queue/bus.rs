@@ -234,7 +234,7 @@ type PyQueueItem = Py<PyAny>;
 /// QueueBus is an mpsc bus that allows for publishing events to subscribers.
 /// It leverage an unbounded channel
 /// Primary way to publish non-blocking events to background queues with ScouterQueue
-#[pyclass(name = "Queue")]
+#[pyclass(skip_from_py_object, name = "Queue")]
 pub struct QueueBus {
     pub task_state: TaskState<Event>,
 

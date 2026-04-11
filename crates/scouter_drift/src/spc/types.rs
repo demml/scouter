@@ -19,7 +19,7 @@ use std::path::PathBuf;
 /// * `samples` - A vector of samples
 /// * `drift` - A vector of drift values
 ///
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SpcFeatureDrift {
     #[pyo3(get)]
@@ -42,7 +42,7 @@ impl SpcFeatureDrift {
 ///
 /// * `features` - A hashmap of feature names and their drift
 ///
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SpcDriftMap {
     #[pyo3(get)]

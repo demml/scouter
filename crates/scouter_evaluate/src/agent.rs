@@ -60,7 +60,7 @@ pub async fn evaluate_genai_dataset(
     Ok(results)
 }
 
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 pub struct DatasetRecords {
     records: Arc<Vec<EvalRecord>>,
     index: usize,
@@ -122,7 +122,7 @@ impl DatasetRecords {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EvalDataset {
     pub records: Arc<Vec<EvalRecord>>,

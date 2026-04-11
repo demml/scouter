@@ -14,7 +14,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::time::Duration;
 #[derive(Debug, Clone, Serialize)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct GrpcSpanExporter {
     #[pyo3(get)]
     pub sample_ratio: Option<f64>,

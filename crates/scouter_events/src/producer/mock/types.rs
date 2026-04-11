@@ -3,7 +3,7 @@ use pyo3::types::PyDict;
 use scouter_types::TransportType;
 use tracing::debug;
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone)]
 pub struct MockConfig {
     #[pyo3(get)]

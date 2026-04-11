@@ -3,7 +3,7 @@ use scouter_types::PyHelperFuncs;
 use scouter_types::TransportType;
 use serde::Serialize;
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone, Serialize)]
 pub struct HttpConfig {
     #[pyo3(get, set)]

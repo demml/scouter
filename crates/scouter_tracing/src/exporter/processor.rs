@@ -30,7 +30,7 @@ impl SpanProcessor for EnrichSpanWithBaggageProcessor {
     fn on_end(&self, _span: opentelemetry_sdk::trace::SpanData) {}
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(PartialEq, Clone, Debug)]
 pub struct BatchConfig {
     pub max_queue_size: usize,

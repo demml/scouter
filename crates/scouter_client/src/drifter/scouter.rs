@@ -183,7 +183,7 @@ impl Drifter {
     }
 }
 
-#[pyclass(name = "Drifter")]
+#[pyclass(skip_from_py_object, name = "Drifter")]
 #[derive(Debug, Default)]
 pub struct PyDrifter {}
 

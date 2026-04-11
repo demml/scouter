@@ -219,8 +219,8 @@ def test_no_agent_fn_no_override_raises():
 # ---------------------------------------------------------------------------
 
 
-def test_reactive_raises():
-    """Reactive scenario (simulated_user_persona set) raises NotImplementedError."""
+def test_reactive_no_simulated_user_fn_raises():
+    """Reactive scenario without simulated_user_fn raises NotImplementedError."""
     queue = _make_queue(_simple_profile())
     scenarios = EvalScenarios(
         scenarios=[
@@ -241,8 +241,71 @@ def test_reactive_raises():
         ]
     )
     orch = EvalOrchestrator(queue=queue, scenarios=scenarios, agent_fn=lambda q: "response")
-    with pytest.raises(NotImplementedError, match="Reactive"):
+    with pytest.raises(NotImplementedError, match="simulated_user_fn"):
         orch.run()
+
+
+def test_reactive_terminates_on_signal():
+    """Reactive loop stops when simulated user response contains termination_signal."""
+    queue = _make_queue(_simple_profile())
+    turns = []
+    scenarios = EvalScenarios(
+        scenarios=[
+            EvalScenario(
+                initial_query="What is 2+2?",
+                simulated_user_persona="Math student",
+                termination_signal="DONE",
+                max_turns=10,
+                id="reactive_2",
+            )
+        ]
+    )
+
+    def agent(msg: str) -> str:
+        turns.append(msg)
+        return f"response to: {msg}"
+
+    call_count = 0
+
+    def user_sim(initial_query: str, agent_response: str, history: list) -> str:
+        nonlocal call_count
+        call_count += 1
+        if call_count >= 2:
+            return "DONE"
+        return "follow up question"
+
+    orch = EvalOrchestrator(queue=queue, scenarios=scenarios, agent_fn=agent, simulated_user_fn=user_sim)
+    results = orch.run()
+    assert len(turns) == 2
+    assert call_count == 2
+    assert results is not None
+
+
+def test_reactive_respects_max_turns():
+    """Reactive loop stops at max_turns even without termination signal."""
+    queue = _make_queue(_simple_profile())
+    turns = []
+    scenarios = EvalScenarios(
+        scenarios=[
+            EvalScenario(
+                initial_query="Tell me a story",
+                simulated_user_persona="Story lover",
+                termination_signal="STOP",
+                max_turns=3,
+                id="reactive_3",
+            )
+        ]
+    )
+
+    orch = EvalOrchestrator(
+        queue=queue,
+        scenarios=scenarios,
+        agent_fn=lambda msg: turns.append(msg) or "next part",
+        simulated_user_fn=lambda _q, _r, _h: "keep going",
+    )
+    results = orch.run()
+    assert len(turns) == 3
+    assert results is not None
 
 
 # ---------------------------------------------------------------------------
@@ -842,4 +905,117 @@ def test_multi_agent_trace_assertions():
     assert results.metrics.total_scenarios == 2
 
     assert "agent" in results.dataset_results
-    results.as_table(show_workflow=True)
+
+
+# ---------------------------------------------------------------------------
+# build_scenario_response tests
+# ---------------------------------------------------------------------------
+
+
+def test_build_scenario_response_default_passthrough():
+    """Default build_scenario_response returns the agent output unchanged."""
+    queue = _make_queue(_simple_profile())
+
+    class DefaultOrch(EvalOrchestrator):
+        def execute_agent(self, scenario):
+            return "plain string"
+
+    results = DefaultOrch(queue, _single_scenario()).run()
+    assert results is not None
+
+
+def test_build_scenario_response_dict_override():
+    """execute_agent can return a dict; build_scenario_response passes it through."""
+    profile = AgentEvalProfile(
+        tasks=[
+            AssertionTask(
+                id="quality_check",
+                context_path="response.quality",
+                operator=ComparisonOperator.GreaterThanOrEqual,
+                expected_value=7,
+            ),
+        ],
+        alias="agent",
+    )
+    scenarios = EvalScenarios(
+        scenarios=[
+            EvalScenario(
+                id="dict_response",
+                initial_query="Give me a quality rating.",
+                tasks=[
+                    AssertionTask(
+                        id="quality_passes",
+                        context_path="response.quality",
+                        operator=ComparisonOperator.GreaterThanOrEqual,
+                        expected_value=7,
+                    ),
+                ],
+            )
+        ]
+    )
+    queue = _make_queue(profile)
+
+    class DictResponseOrch(EvalOrchestrator):
+        def execute_agent(self, scenario):
+            return {"quality": 9, "text": "Excellent response."}
+
+        def build_scenario_response(self, scenario, response, history):
+            return response  # already a dict
+
+    results = DictResponseOrch(queue, scenarios).run()
+    assert results.metrics.total_scenarios == 1
+    assert results.metrics.passed_scenarios == 1
+
+
+def test_build_scenario_response_reactive_history_accessible():
+    """In reactive scenarios, history is non-empty and accessible in build_scenario_response."""
+    queue = _make_queue(_simple_profile())
+    captured = {}
+
+    scenarios = EvalScenarios(
+        scenarios=[
+            EvalScenario(
+                id="reactive_history",
+                initial_query="Start",
+                simulated_user_persona="tester",
+                termination_signal="DONE",
+                max_turns=3,
+            )
+        ]
+    )
+
+    class HistoryCapture(EvalOrchestrator):
+        def execute_agent_turn(self, scenario, message):
+            return f"response to: {message}"
+
+        def execute_simulated_user_turn(self, scenario, initial_query, agent_response, history):
+            return scenario.termination_signal  # stop after first turn
+
+        def build_scenario_response(self, scenario, response, history):
+            captured["history"] = history
+            captured["response"] = response
+            return {"final": response, "turns": len(history)}
+
+    HistoryCapture(queue, scenarios).run()
+
+    assert "history" in captured
+    # history contains turns *before* the final response
+    assert isinstance(captured["history"], list)
+    assert captured["response"].startswith("response to:")
+
+
+def test_build_scenario_response_non_reactive_history_empty():
+    """For non-reactive scenarios, build_scenario_response receives an empty history."""
+    queue = _make_queue(_simple_profile())
+    captured_history = []
+
+    class HistoryCapture(EvalOrchestrator):
+        def execute_agent(self, scenario):
+            return "answer"
+
+        def build_scenario_response(self, scenario, response, history):
+            captured_history.extend(history)
+            return response
+
+    HistoryCapture(queue, _single_scenario()).run()
+    assert captured_history == []

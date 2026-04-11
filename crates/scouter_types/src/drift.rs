@@ -15,7 +15,7 @@ use std::ops::Deref;
 use std::path::PathBuf;
 use std::str::FromStr;
 use strum_macros::EnumIter;
-#[pyclass(eq)]
+#[pyclass(from_py_object, eq)]
 #[derive(Debug, EnumIter, PartialEq, Serialize, Deserialize, Clone, Default, Eq, Hash)]
 pub enum DriftType {
     #[default]
@@ -94,7 +94,7 @@ pub struct DriftArgs {
     pub dispatch_config: AlertDispatchConfig,
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum DriftProfile {
     Spc(SpcDriftProfile),

@@ -287,7 +287,7 @@ async fn spawn_queue_event_handler(
 }
 
 // need to add version here
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 pub struct ScouterQueue {
     queues: HashMap<String, Py<QueueBus>>,
     transport_config: TransportConfig,

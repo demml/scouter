@@ -6,7 +6,7 @@ use pyo3::prelude::PyAnyMethods;
 use pyo3::{pyclass, pymethods, Bound, IntoPyObjectExt, PyAny, PyResult, Python};
 use serde::{Deserialize, Serialize};
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Manual {
     #[pyo3(get, set)]
@@ -27,7 +27,7 @@ impl Manual {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct SquareRoot;
 
@@ -52,7 +52,7 @@ impl SquareRoot {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Sturges;
 
@@ -77,7 +77,7 @@ impl Sturges {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Rice;
 
@@ -101,7 +101,7 @@ impl Rice {
         (2.0 * n.powf(1.0 / 3.0)).ceil() as usize
     }
 }
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Doane;
 
@@ -135,7 +135,7 @@ impl Doane {
         k.round() as usize
     }
 }
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Scott;
 
@@ -171,7 +171,7 @@ impl Scott {
         (range / bin_width).ceil() as usize
     }
 }
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct TerrellScott;
 
@@ -196,7 +196,7 @@ impl TerrellScott {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct FreedmanDiaconis;
 
@@ -242,7 +242,7 @@ impl FreedmanDiaconis {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum EqualWidthMethod {
     Manual(Manual),
@@ -279,7 +279,7 @@ impl Default for EqualWidthMethod {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct EqualWidthBinning {
     pub method: EqualWidthMethod,

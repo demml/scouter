@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 
-#[pyclass(eq)]
+#[pyclass(from_py_object, eq)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub enum AlertThreshold {
     #[default]
@@ -42,7 +42,7 @@ impl AlertThreshold {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct AlertCondition {
     /// The reference value to compare against
@@ -135,7 +135,7 @@ impl AlertMap {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Alert {
     #[pyo3(get)]

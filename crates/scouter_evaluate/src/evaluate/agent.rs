@@ -1,22 +1,19 @@
 use crate::error::EvaluationError;
-use crate::tasks::evaluator::{PATH_REGEX, REGEX_FIELD_PARSE_PATTERN};
+use crate::tasks::evaluator::FieldEvaluator;
 use potato_head::{ChatResponse, Provider};
 use scouter_types::agent::AgentAssertion;
 use serde_json::{json, Value};
 use tracing::error;
 
-const MAX_PATH_LEN: usize = 512;
-const MAX_PATH_SEGMENTS: usize = 32;
-
 /// Builds evaluation context from vendor LLM request/response data.
 /// Normalizes vendor-specific formats into a standard structure for assertion evaluation.
 #[derive(Debug, Clone)]
-pub struct AgentContextBuilder {
+pub struct AgentContextBuilder<'a> {
     response: ChatResponse,
-    raw: Value,
+    raw: &'a Value,
 }
 
-impl AgentContextBuilder {
+impl<'a> AgentContextBuilder<'a> {
     /// Build an AgentContextBuilder from raw context JSON.
     ///
     /// Extraction strategy (priority order):
@@ -26,19 +23,20 @@ impl AgentContextBuilder {
     /// 4. Google/Gemini format — candidates[].content.parts[] with function_call
     /// 5. Fallback — walk JSON tree for known patterns
     pub fn from_context(
-        context: &Value,
+        context: &'a Value,
         provider: Option<&Provider>,
+        context_path: Option<&str>,
     ) -> Result<Self, EvaluationError> {
-        let response_val = context.get("response").unwrap_or(context);
-        let response =
-            ChatResponse::from_response_value(response_val.clone(), provider).map_err(|e| {
-                error!("Failed to parse response: {}", e);
-                EvaluationError::InvalidProviderResponse
-            })?;
-        Ok(Self {
-            response,
-            raw: response_val.clone(),
-        })
+        let raw: &'a Value = if let Some(path) = context_path {
+            FieldEvaluator::extract_field_value(context, path)?
+        } else {
+            context
+        };
+        let response = ChatResponse::from_response_value(raw.clone(), provider).map_err(|e| {
+            error!("Failed to parse response: {}", e);
+            EvaluationError::InvalidProviderResponse
+        })?;
+        Ok(Self { response, raw })
     }
 
     /// Resolve an AgentAssertion variant to a JSON value for the shared AssertionEvaluator.
@@ -150,7 +148,7 @@ impl AgentContextBuilder {
                 .total_tokens()
                 .map(|t| json!(t))
                 .unwrap_or(Value::Null)),
-            AgentAssertion::ResponseField { path } => Self::extract_by_path(&self.raw, path),
+            AgentAssertion::ResponseField { path } => Self::extract_by_path(self.raw, path),
         }
     }
 
@@ -176,69 +174,9 @@ impl AgentContextBuilder {
         }
     }
 
-    /// Extract a value from JSON using dot-notation path with array indexing.
-    /// Supports: "foo.bar", "foo[0].bar", "candidates[0].content.parts[0].text"
     fn extract_by_path(val: &Value, path: &str) -> Result<Value, EvaluationError> {
-        let mut current = val.clone();
-
-        for segment in Self::parse_path_segments(path)? {
-            match segment {
-                PathSegment::Key(key) => {
-                    current = current.get(&key).cloned().unwrap_or(Value::Null);
-                }
-                PathSegment::Index(idx) => {
-                    current = current
-                        .as_array()
-                        .and_then(|arr| arr.get(idx))
-                        .cloned()
-                        .unwrap_or(Value::Null);
-                }
-            }
-        }
-
-        Ok(current)
+        FieldEvaluator::extract_field_value(val, path).cloned()
     }
-
-    fn parse_path_segments(path: &str) -> Result<Vec<PathSegment>, EvaluationError> {
-        if path.len() > MAX_PATH_LEN {
-            return Err(EvaluationError::PathTooLong(path.len()));
-        }
-
-        let regex = PATH_REGEX.get_or_init(|| {
-            regex::Regex::new(REGEX_FIELD_PARSE_PATTERN)
-                .expect("Invalid regex pattern in REGEX_FIELD_PARSE_PATTERN")
-        });
-
-        let mut segments = Vec::new();
-
-        for capture in regex.find_iter(path) {
-            let s = capture.as_str();
-            if s.starts_with('[') && s.ends_with(']') {
-                let idx_str = &s[1..s.len() - 1];
-                let idx = idx_str
-                    .parse::<usize>()
-                    .map_err(|_| EvaluationError::InvalidArrayIndex(idx_str.to_string()))?;
-                segments.push(PathSegment::Index(idx));
-            } else {
-                segments.push(PathSegment::Key(s.to_string()));
-            }
-        }
-
-        if segments.is_empty() {
-            return Err(EvaluationError::EmptyFieldPath);
-        }
-
-        if segments.len() > MAX_PATH_SEGMENTS {
-            return Err(EvaluationError::TooManyPathSegments(segments.len()));
-        }
-
-        Ok(segments)
-    }
-}
-
-enum PathSegment {
-    Key(String),
-    Index(usize),
 }
 
 #[cfg(test)]
@@ -264,7 +202,7 @@ mod tests {
             }]
         });
 
-        let builder = AgentContextBuilder::from_context(&context, None).unwrap();
+        let builder = AgentContextBuilder::from_context(&context, None, None).unwrap();
 
         let result = builder
             .build_context(&AgentAssertion::ToolCalled {
@@ -304,7 +242,7 @@ mod tests {
             }]
         });
 
-        let builder = AgentContextBuilder::from_context(&context, None).unwrap();
+        let builder = AgentContextBuilder::from_context(&context, None, None).unwrap();
 
         // Partial match - only checking "query"
         let result = builder
@@ -343,7 +281,7 @@ mod tests {
             }]
         });
 
-        let builder = AgentContextBuilder::from_context(&context, None).unwrap();
+        let builder = AgentContextBuilder::from_context(&context, None, None).unwrap();
 
         let result = builder
             .build_context(&AgentAssertion::ToolCallSequence {
@@ -378,9 +316,8 @@ mod tests {
             }
         });
 
-        let builder = AgentContextBuilder::from_context(&context, None).unwrap();
+        let builder = AgentContextBuilder::from_context(&context, None, Some("response")).unwrap();
 
-        // Path is relative to response_val (the candidates object), not the full context
         let result = builder
             .build_context(&AgentAssertion::ResponseField {
                 path: "candidates[0].safety_ratings[0].category".to_string(),
@@ -402,7 +339,7 @@ mod tests {
             }]
         });
 
-        let builder = AgentContextBuilder::from_context(&context, None).unwrap();
+        let builder = AgentContextBuilder::from_context(&context, None, None).unwrap();
 
         let result = builder
             .build_context(&AgentAssertion::ToolNotCalled {
@@ -416,7 +353,7 @@ mod tests {
     fn test_from_context_invalid_json() {
         // Empty object has no recognizable vendor keys
         let context = json!({});
-        let result = AgentContextBuilder::from_context(&context, None);
+        let result = AgentContextBuilder::from_context(&context, None, None);
         assert!(result.is_err());
         assert!(matches!(
             result,
@@ -443,7 +380,7 @@ mod tests {
             }]
         });
 
-        let builder = AgentContextBuilder::from_context(&context, None).unwrap();
+        let builder = AgentContextBuilder::from_context(&context, None, None).unwrap();
 
         // Non-contiguous in-order subsequence should pass
         let result = builder
@@ -467,22 +404,23 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_path_segments_errors() {
-        // Empty string -> EmptyFieldPath
-        let result = AgentContextBuilder::parse_path_segments("");
+    fn test_path_extraction_errors() {
+        use crate::tasks::evaluator::{FieldEvaluator, MAX_PATH_LEN, MAX_PATH_SEGMENTS};
+
+        let context = json!({});
+
+        let result = FieldEvaluator::extract_field_value(&context, "");
         assert!(matches!(result, Err(EvaluationError::EmptyFieldPath)));
 
-        // Path exceeding max length
         let long_path = "a".repeat(MAX_PATH_LEN + 1);
-        let result = AgentContextBuilder::parse_path_segments(&long_path);
+        let result = FieldEvaluator::extract_field_value(&context, &long_path);
         assert!(matches!(result, Err(EvaluationError::PathTooLong(_))));
 
-        // Too many segments
         let many_segments = (0..MAX_PATH_SEGMENTS + 1)
             .map(|i| format!("seg{}", i))
             .collect::<Vec<_>>()
             .join(".");
-        let result = AgentContextBuilder::parse_path_segments(&many_segments);
+        let result = FieldEvaluator::extract_field_value(&context, &many_segments);
         assert!(matches!(
             result,
             Err(EvaluationError::TooManyPathSegments(_))
@@ -502,7 +440,7 @@ mod tests {
             }]
         });
 
-        let builder = AgentContextBuilder::from_context(&context, None).unwrap();
+        let builder = AgentContextBuilder::from_context(&context, None, None).unwrap();
         let result = builder
             .build_context(&AgentAssertion::ResponseContent {})
             .unwrap();
@@ -527,7 +465,7 @@ mod tests {
             }]
         });
 
-        let builder = AgentContextBuilder::from_context(&context, None).unwrap();
+        let builder = AgentContextBuilder::from_context(&context, None, None).unwrap();
 
         // Nested partial match - only check inner "name"
         let result = builder
@@ -568,7 +506,7 @@ mod tests {
             }]
         });
 
-        let builder = AgentContextBuilder::from_context(&context, None).unwrap();
+        let builder = AgentContextBuilder::from_context(&context, None, None).unwrap();
 
         // Named tool with no result -> Null
         let result = builder
@@ -605,7 +543,7 @@ mod tests {
             }]
         });
 
-        let builder = AgentContextBuilder::from_context(&context, None).unwrap();
+        let builder = AgentContextBuilder::from_context(&context, None, None).unwrap();
 
         let result = builder
             .build_context(&AgentAssertion::ToolArgument {

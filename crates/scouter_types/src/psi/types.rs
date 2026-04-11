@@ -4,7 +4,7 @@ use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct BinnedPsiMetric {
     #[pyo3(get)]
@@ -28,7 +28,7 @@ impl BinnedPsiMetric {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct BinnedPsiFeatureMetrics {
     #[pyo3(get)]

@@ -31,7 +31,7 @@ use std::path::PathBuf;
 /// * `lcl` - The lower control limit
 /// * `timestamp` - The timestamp value
 ///
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct SpcFeatureDriftProfile {
     #[pyo3(get)]
@@ -74,7 +74,7 @@ pub struct SpcFeatureDriftProfile {
 /// * `schedule` - The cron schedule for monitoring
 /// * `alert_rule` - The alerting rule to use for monitoring
 ///
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct SpcDriftConfig {
     #[pyo3(get, set)]
@@ -278,7 +278,7 @@ impl DispatchDriftConfig for SpcDriftConfig {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct SpcDriftProfile {
     #[pyo3(get)]

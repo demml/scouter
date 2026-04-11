@@ -84,7 +84,7 @@ impl SpanContextExt for SpanContext {
     }
 }
 
-#[pyclass(eq)]
+#[pyclass(from_py_object, eq)]
 #[derive(PartialEq, Clone, Debug)]
 pub enum FunctionType {
     Async,
@@ -366,7 +366,7 @@ pub fn get_current_active_span(py: Python<'_>) -> Result<Bound<'_, PyAny>, Trace
     }
 }
 
-#[pyclass(eq)]
+#[pyclass(from_py_object, eq)]
 #[derive(PartialEq, Clone, Debug)]
 pub enum SpanKind {
     Client,
@@ -407,7 +407,7 @@ pub(crate) struct ActiveSpanInner {
     pub queue: Option<Py<ScouterQueue>>,
 }
 
-#[pyclass(eq)]
+#[pyclass(from_py_object, eq)]
 #[derive(PartialEq, Clone, Debug, Default, Serialize)]
 pub enum OtelProtocol {
     #[default]
@@ -425,7 +425,7 @@ impl OtelProtocol {
 }
 
 #[derive(Debug)]
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 pub struct OtelExportConfig {
     #[pyo3(get)]
     pub endpoint: Option<String>,

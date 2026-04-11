@@ -4,7 +4,7 @@ use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SpcDriftFeature {
     #[pyo3(get)]
@@ -22,7 +22,7 @@ impl SpcDriftFeature {
     }
 }
 
-#[pyclass(name = "BinnedSpcFeatureMetrics")]
+#[pyclass(skip_from_py_object, name = "BinnedSpcFeatureMetrics")]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SpcDriftFeatures {
     #[pyo3(get)]

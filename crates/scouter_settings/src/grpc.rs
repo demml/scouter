@@ -7,7 +7,7 @@ fn redact<S: Serializer>(_: &str, s: S) -> Result<S::Ok, S::Error> {
     s.serialize_str("***")
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone, Serialize)]
 pub struct GrpcConfig {
     #[pyo3(get, set)]

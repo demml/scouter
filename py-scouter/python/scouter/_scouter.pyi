@@ -12907,6 +12907,7 @@ class AgentAssertionTask:
         depends_on: Optional[List[str]] = None,
         condition: Optional[bool] = None,
         provider: Optional[Any] = None,
+        context_path: Optional[str] = None,
     ) -> None:
         """Create an AgentAssertionTask.
 
@@ -12928,6 +12929,9 @@ class AgentAssertionTask:
             provider (Optional[Provider]):
                 Optional LLM provider hint (e.g. Provider.GoogleAdk) for
                 accurate response parsing.
+            context_path (Optional[str]):
+                Dot-notation path to extract a sub-field from the context
+                before evaluation (e.g. ``"response"``).
 
         Raises:
             TypeError: If expected_value is not JSON-serializable or if
@@ -13779,7 +13783,7 @@ class TasksFile:
     def __getitem__(self, index: int) -> AssertionTask | LLMJudgeTask | TraceAssertionTask: ...
     @overload
     def __getitem__(self, index: slice) -> List[AssertionTask | LLMJudgeTask | TraceAssertionTask]: ...
-    def __getitem__(
+    def __getitem__(  # type: ignore[misc]
         self, index: int | slice
     ) -> AssertionTask | LLMJudgeTask | TraceAssertionTask | List[AssertionTask | LLMJudgeTask | TraceAssertionTask]:
         """Get task(s) by index or slice."""
@@ -13838,6 +13842,23 @@ class EvalScenarios:
     def model_validate_json(json_string: str) -> "EvalScenarios":
         """Deserialize from a JSON string."""
 
+    @staticmethod
+    def from_path(path: Path) -> "EvalScenarios":
+        """Load eval scenarios from a file.
+
+        Supports ``.jsonl`` (one scenario per line with flat task list),
+        ``.json`` (array or ``{"collection_id": "...", "scenarios": [...]}``
+        wrapper), and ``.yaml``/``.yml``.
+
+        Tasks in the file use a flat list with a ``task_type`` discriminator
+        (``"Assertion"``, ``"LLMJudge"``, ``"TraceAssertion"``,
+        ``"AgentAssertion"``). If no ``collection_id`` is present a new UUID7
+        is generated automatically.
+
+        Args:
+            path: Path to the scenarios file.
+        """
+
 class EvalRunner:
     """Stateful evaluation engine that orchestrates scenario evaluation.
 
@@ -13863,7 +13884,7 @@ class EvalRunner:
     def collect_scenario_data(
         self,
         records: Dict[str, List["EvalRecord"]],
-        response: str,
+        response: Any,
         scenario: "EvalScenario",
     ) -> None:
         """Populate scenario data for evaluation."""
@@ -15024,7 +15045,7 @@ class ScouterClient:
         """
 
     def get_agent_task_binned_drift(self, drift_request: DriftRequest) -> Any:
-        """Get GenAI task drift map from server
+        """Get agent task drift map from server
         Args:
             drift_request:
                 DriftRequest object

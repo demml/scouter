@@ -3,6 +3,7 @@ pub mod bifrost;
 pub mod control;
 pub mod custom;
 pub mod dataframe;
+pub mod eval_scenarios;
 pub mod psi;
 pub mod spc;
 pub mod tracing;

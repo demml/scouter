@@ -27,7 +27,7 @@ pub struct ListedProfile {
     pub active: bool,
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetProfileRequest {
     pub name: String,
@@ -50,7 +50,7 @@ impl GetProfileRequest {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct DriftRequest {
     // this is the uid for a specific space, name, version, drift_type profile
@@ -132,7 +132,7 @@ impl Default for VersionRequest {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProfileRequest {
     pub space: String,
@@ -147,7 +147,7 @@ pub struct ProfileRequest {
     pub deactivate_others: bool,
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProfileStatusRequest {
     pub name: String,
@@ -182,7 +182,7 @@ impl ProfileStatusRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct DriftAlertPaginationRequest {
     pub uid: String,
     pub active: Option<bool>,
@@ -223,7 +223,7 @@ impl DriftAlertPaginationRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct RecordCursor {
     #[pyo3(get)]
     pub created_at: DateTime<Utc>,
@@ -241,7 +241,7 @@ impl RecordCursor {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct DriftAlertPaginationResponse {
     #[pyo3(get)]
     pub items: Vec<Alert>,
@@ -576,7 +576,7 @@ pub struct AgentEvalWorkflowPaginationResponse {
     pub previous_cursor: Option<RecordCursor>,
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct BinnedMetricStats {
     #[pyo3(get)]
@@ -597,7 +597,7 @@ impl BinnedMetricStats {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct BinnedMetric {
     #[pyo3(get)]
@@ -618,7 +618,7 @@ impl BinnedMetric {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct BinnedMetrics {
     #[pyo3(get)]
@@ -681,7 +681,7 @@ pub struct InsertTagsRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct TraceRequest {
     pub trace_id: String,
     pub service_name: Option<String>,
@@ -692,7 +692,7 @@ pub struct TraceRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct SpansFromTagsRequest {
     pub entity_type: String,
     pub tag_filters: Vec<HashMap<String, String>>,
@@ -701,7 +701,7 @@ pub struct SpansFromTagsRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct TraceMetricsRequest {
     pub service_name: Option<String>,
     pub start_time: DateTime<Utc>,
@@ -735,7 +735,7 @@ impl TraceMetricsRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct TracePaginationResponse {
     #[pyo3(get)]
     pub items: Vec<TraceListItem>,
@@ -754,7 +754,7 @@ pub struct TracePaginationResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct TraceCursor {
     #[pyo3(get)]
     pub start_time: DateTime<Utc>,
@@ -782,7 +782,7 @@ impl TracePaginationResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct TraceBaggageResponse {
     #[pyo3(get)]
     pub baggage: Vec<TraceBaggageRecord>,
@@ -796,7 +796,7 @@ impl TraceBaggageResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct TraceSpansResponse {
     #[pyo3(get)]
     pub spans: Vec<TraceSpan>,
@@ -819,7 +819,7 @@ impl TraceSpansResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct TraceMetricsResponse {
     #[pyo3(get)]
     pub metrics: Vec<TraceMetricBucket>,
@@ -832,7 +832,7 @@ impl TraceMetricsResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass]
+#[pyclass(from_py_object)]
 pub struct TagsResponse {
     #[pyo3(get)]
     pub tags: Vec<TagRecord>,

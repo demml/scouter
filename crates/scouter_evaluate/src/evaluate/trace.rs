@@ -403,8 +403,11 @@ impl TraceContextBuilder {
                 Ok(result.passed)
             }
             AttributeFilterTask::AgentAssertion(agent_task) => {
-                let context_builder =
-                    AgentContextBuilder::from_context(&parsed, agent_task.provider.as_ref())?;
+                let context_builder = AgentContextBuilder::from_context(
+                    &parsed,
+                    agent_task.provider.as_ref(),
+                    agent_task.context_path.as_deref(),
+                )?;
                 let resolved = context_builder.build_context(&agent_task.assertion)?;
                 let result = AssertionEvaluator::evaluate_assertion(&resolved, agent_task)?;
                 Ok(result.passed)
@@ -759,6 +762,7 @@ mod tests {
                 result: None,
                 condition: false,
                 provider: None,
+                context_path: None,
             }),
             mode: MultiResponseMode::Any,
         };
@@ -786,6 +790,7 @@ mod tests {
                 result: None,
                 condition: false,
                 provider: None,
+                context_path: None,
             }),
             mode: MultiResponseMode::All,
         };
@@ -869,6 +874,7 @@ mod tests {
                 result: None,
                 condition: false,
                 provider: None,
+                context_path: None,
             }),
             mode: MultiResponseMode::All,
         };
@@ -899,6 +905,7 @@ mod tests {
                 result: None,
                 condition: false,
                 provider: Some(Provider::GoogleAdk),
+                context_path: None,
             }),
             mode: MultiResponseMode::Any,
         };
@@ -953,6 +960,7 @@ mod tests {
                 result: None,
                 condition: false,
                 provider: Some(Provider::GoogleAdk),
+                context_path: None,
             }),
             mode: MultiResponseMode::All,
         };

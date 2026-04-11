@@ -323,7 +323,7 @@ fn add_entity_event_to_span(
 
 /// ActiveSpan where all the magic happens
 /// The active Span attempts to maintain compatibility with the OpenTelemetry Span API
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 pub struct ActiveSpan {
     inner: Arc<RwLock<ActiveSpanInner>>,
 }
