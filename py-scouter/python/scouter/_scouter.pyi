@@ -12907,6 +12907,7 @@ class AgentAssertionTask:
         depends_on: Optional[List[str]] = None,
         condition: Optional[bool] = None,
         provider: Optional[Any] = None,
+        context_path: Optional[str] = None,
     ) -> None:
         """Create an AgentAssertionTask.
 
@@ -12928,6 +12929,9 @@ class AgentAssertionTask:
             provider (Optional[Provider]):
                 Optional LLM provider hint (e.g. Provider.GoogleAdk) for
                 accurate response parsing.
+            context_path (Optional[str]):
+                Dot-notation path to extract a sub-field from the context
+                before evaluation (e.g. ``"response"``).
 
         Raises:
             TypeError: If expected_value is not JSON-serializable or if
