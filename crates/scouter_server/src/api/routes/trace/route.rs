@@ -21,6 +21,17 @@ use std::sync::Arc;
 use tracing::instrument;
 use tracing::{debug, error};
 
+#[utoipa::path(
+    get,
+    path = "/scouter/trace/baggage",
+    params(TraceRequest),
+    responses(
+        (status = 200, description = "Trace baggage records", body = TraceBaggageResponse),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "traces",
+    security(("bearer_token" = []))
+)]
 pub async fn get_trace_baggage(
     State(data): State<Arc<AppState>>,
     Query(params): Query<TraceRequest>,
@@ -38,6 +49,17 @@ pub async fn get_trace_baggage(
     Ok(Json(TraceBaggageResponse { baggage }))
 }
 
+#[utoipa::path(
+    post,
+    path = "/scouter/trace/paginated",
+    request_body = TraceFilters,
+    responses(
+        (status = 200, description = "Paginated traces", body = TracePaginationResponse),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "traces",
+    security(("bearer_token" = []))
+)]
 #[instrument(skip_all)]
 pub async fn paginated_traces(
     State(data): State<Arc<AppState>>,
@@ -68,6 +90,20 @@ pub async fn paginated_traces(
     Ok(Json(pagination_response))
 }
 
+#[utoipa::path(
+    get,
+    path = "/scouter/v1/traces/{id}/spans",
+    params(
+        ("id" = String, Path, description = "Trace ID (hex-encoded)")
+    ),
+    responses(
+        (status = 200, description = "Trace spans by ID", body = TraceSpansResponse),
+        (status = 400, description = "Invalid trace ID", body = ScouterServerError),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "traces",
+    security(("bearer_token" = []))
+)]
 #[instrument(skip_all)]
 pub async fn get_trace_spans_by_id(
     State(data): State<Arc<AppState>>,
@@ -98,6 +134,18 @@ pub async fn get_trace_spans_by_id(
     Ok(Json(TraceSpansResponse { spans }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/scouter/trace/spans",
+    params(TraceRequest),
+    responses(
+        (status = 200, description = "Trace spans", body = TraceSpansResponse),
+        (status = 400, description = "Invalid trace ID", body = ScouterServerError),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "traces",
+    security(("bearer_token" = []))
+)]
 #[instrument(skip_all)]
 pub async fn get_trace_spans(
     State(data): State<Arc<AppState>>,
@@ -153,6 +201,17 @@ pub async fn get_trace_spans(
     Ok(Json(TraceSpansResponse { spans }))
 }
 
+#[utoipa::path(
+    post,
+    path = "/scouter/trace/spans/tags",
+    request_body = SpansFromTagsRequest,
+    responses(
+        (status = 200, description = "Trace spans matching tags", body = TraceSpansResponse),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "traces",
+    security(("bearer_token" = []))
+)]
 #[instrument(skip_all)]
 pub async fn query_trace_spans_from_tags(
     State(data): State<Arc<AppState>>,
@@ -219,6 +278,17 @@ pub async fn query_trace_spans_from_tags(
     Ok(Json(TraceSpansResponse { spans: all_spans }))
 }
 
+#[utoipa::path(
+    post,
+    path = "/scouter/trace/metrics",
+    request_body = TraceMetricsRequest,
+    responses(
+        (status = 200, description = "Trace metrics", body = TraceMetricsResponse),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "traces",
+    security(("bearer_token" = []))
+)]
 #[instrument(skip_all)]
 pub async fn trace_metrics(
     State(data): State<Arc<AppState>>,
@@ -263,6 +333,17 @@ pub async fn trace_metrics(
     Ok(Json(TraceMetricsResponse { metrics }))
 }
 
+#[utoipa::path(
+    post,
+    path = "/scouter/trace/spans/filters",
+    request_body = TraceFilters,
+    responses(
+        (status = 200, description = "Trace spans matching filters", body = TraceSpansResponse),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "traces",
+    security(("bearer_token" = []))
+)]
 #[instrument(skip_all)]
 pub async fn query_spans_from_filters(
     State(data): State<Arc<AppState>>,
@@ -284,6 +365,15 @@ pub async fn query_spans_from_filters(
     Ok(Json(TraceSpansResponse { spans }))
 }
 
+#[utoipa::path(
+    post,
+    path = "/scouter/v1/traces",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Traces received", body = TraceReceivedResponse),
+    ),
+    tag = "traces"
+)]
 #[instrument(skip_all)]
 pub async fn v1_otel_traces(
     State(_data): State<Arc<AppState>>,
@@ -294,6 +384,16 @@ pub async fn v1_otel_traces(
     Ok(Json(TraceReceivedResponse { received: true }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/scouter/trace/debug/recent",
+    responses(
+        (status = 200, description = "Recent traces (last 24h, limit 10)", body = TracePaginationResponse),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "traces",
+    security(("bearer_token" = []))
+)]
 #[instrument(skip_all)]
 pub async fn debug_recent_traces(
     State(data): State<Arc<AppState>>,

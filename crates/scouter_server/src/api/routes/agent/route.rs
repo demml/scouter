@@ -19,6 +19,18 @@ use std::sync::Arc;
 use tracing::{debug, error, instrument};
 
 /// This route is used to get the latest GenAI drift records by page
+#[utoipa::path(
+    post,
+    path = "/scouter/agent/page/record",
+    request_body = EvalRecordPaginationRequest,
+    responses(
+        (status = 200, description = "Paginated agent eval records", body = EvalRecordPaginationResponse),
+        (status = 403, description = "Forbidden", body = ScouterServerError),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "agent",
+    security(("bearer_token" = []))
+)]
 #[instrument(skip_all)]
 pub async fn query_agent_eval_records(
     State(data): State<Arc<AppState>>,
@@ -60,6 +72,17 @@ pub async fn query_agent_eval_records(
 }
 
 /// This route is used to get the latest GenAI drift records by page
+#[utoipa::path(
+    post,
+    path = "/scouter/agent/page/workflow",
+    request_body = EvalRecordPaginationRequest,
+    responses(
+        (status = 200, description = "Paginated agent eval workflow records", body = AgentEvalWorkflowPaginationResponse),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "agent",
+    security(("bearer_token" = []))
+)]
 #[instrument(skip_all)]
 pub async fn query_agent_eval_workflow(
     State(data): State<Arc<AppState>>,
@@ -91,6 +114,17 @@ pub async fn query_agent_eval_workflow(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/scouter/agent/task",
+    params(AgentEvalTaskRequest),
+    responses(
+        (status = 200, description = "Agent eval tasks", body = AgentEvalTaskResponse),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "agent",
+    security(("bearer_token" = []))
+)]
 #[instrument(skip_all)]
 pub async fn get_agent_tasks(
     State(data): State<Arc<AppState>>,

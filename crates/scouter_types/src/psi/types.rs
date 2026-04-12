@@ -30,8 +30,10 @@ impl BinnedPsiMetric {
 
 #[pyclass(from_py_object)]
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct BinnedPsiFeatureMetrics {
     #[pyo3(get)]
+    #[cfg_attr(feature = "utoipa", schema(value_type = serde_json::Value))]
     pub features: BTreeMap<String, BinnedPsiMetric>,
 }
 

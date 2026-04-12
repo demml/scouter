@@ -15,6 +15,7 @@ use std::collections::HashMap;
 use tracing::error;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct ListProfilesRequest {
     pub space: String,
     pub name: String,
@@ -22,13 +23,16 @@ pub struct ListProfilesRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct ListedProfile {
+    #[cfg_attr(feature = "utoipa", schema(value_type = serde_json::Value))]
     pub profile: DriftProfile,
     pub active: bool,
 }
 
 #[pyclass(from_py_object)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema, utoipa::IntoParams))]
 pub struct GetProfileRequest {
     pub name: String,
     pub space: String,
@@ -52,6 +56,7 @@ impl GetProfileRequest {
 
 #[pyclass(from_py_object)]
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::IntoParams))]
 pub struct DriftRequest {
     // this is the uid for a specific space, name, version, drift_type profile
     pub uid: String,
@@ -114,8 +119,10 @@ impl DriftRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct VersionRequest {
     pub version: Option<String>,
+    #[cfg_attr(feature = "utoipa", schema(value_type = String))]
     pub version_type: VersionType,
     pub pre_tag: Option<String>,
     pub build_tag: Option<String>,
@@ -134,6 +141,7 @@ impl Default for VersionRequest {
 
 #[pyclass(from_py_object)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct ProfileRequest {
     pub space: String,
     pub drift_type: DriftType,
@@ -149,6 +157,7 @@ pub struct ProfileRequest {
 
 #[pyclass(from_py_object)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct ProfileStatusRequest {
     pub name: String,
     pub space: String,
@@ -182,6 +191,7 @@ impl ProfileStatusRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[pyclass(from_py_object)]
 pub struct DriftAlertPaginationRequest {
     pub uid: String,
@@ -223,6 +233,7 @@ impl DriftAlertPaginationRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[pyclass(from_py_object)]
 pub struct RecordCursor {
     #[pyo3(get)]
@@ -241,9 +252,11 @@ impl RecordCursor {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[pyclass(from_py_object)]
 pub struct DriftAlertPaginationResponse {
     #[pyo3(get)]
+    #[cfg_attr(feature = "utoipa", schema(value_type = Vec<serde_json::Value>))]
     pub items: Vec<Alert>,
 
     #[pyo3(get)]
@@ -267,6 +280,7 @@ impl DriftAlertPaginationResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct ServiceInfo {
     pub space: String,
     pub uid: String,
@@ -282,6 +296,7 @@ pub struct DriftTaskInfo {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::IntoParams))]
 pub struct ObservabilityMetricRequest {
     pub uid: String,
     pub time_interval: String,
@@ -289,6 +304,7 @@ pub struct ObservabilityMetricRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct UpdateAlertStatus {
     pub id: i32, // this is the unique id for the alert record, not entity_id
     pub active: bool,
@@ -297,14 +313,24 @@ pub struct UpdateAlertStatus {
 
 /// Common struct for returning errors from scouter server (axum response)
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct ScouterServerError {
     pub error: String,
+    pub code: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "utoipa", schema(value_type = Option<String>))]
+    pub suggested_action: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retry: Option<bool>,
 }
 
 impl ScouterServerError {
     pub fn permission_denied() -> Self {
         ScouterServerError {
             error: "Permission denied".to_string(),
+            code: "PERMISSION_DENIED",
+            suggested_action: Some("Ensure your token has the required permissions"),
+            retry: Some(false),
         }
     }
 
@@ -312,12 +338,18 @@ impl ScouterServerError {
         error!("User does not have admin permissions");
         ScouterServerError {
             error: "Need admin permission".to_string(),
+            code: "ADMIN_REQUIRED",
+            suggested_action: Some("Contact your administrator"),
+            retry: Some(false),
         }
     }
 
     pub fn user_already_exists() -> Self {
         ScouterServerError {
             error: "User already exists".to_string(),
+            code: "CONFLICT",
+            suggested_action: Some("Use a different username"),
+            retry: Some(false),
         }
     }
 
@@ -325,12 +357,18 @@ impl ScouterServerError {
         error!("Failed to create user: {}", e);
         ScouterServerError {
             error: "Failed to create user".to_string(),
+            code: "INTERNAL_ERROR",
+            suggested_action: None,
+            retry: Some(false),
         }
     }
 
     pub fn user_not_found() -> Self {
         ScouterServerError {
             error: "User not found".to_string(),
+            code: "NOT_FOUND",
+            suggested_action: Some("Call GET /scouter/user to list available users"),
+            retry: Some(false),
         }
     }
 
@@ -338,6 +376,9 @@ impl ScouterServerError {
         error!("Failed to get user: {}", e);
         ScouterServerError {
             error: "Failed to get user".to_string(),
+            code: "QUERY_ERROR",
+            suggested_action: None,
+            retry: Some(true),
         }
     }
 
@@ -345,6 +386,9 @@ impl ScouterServerError {
         error!("Failed to list users: {}", e);
         ScouterServerError {
             error: "Failed to list users".to_string(),
+            code: "QUERY_ERROR",
+            suggested_action: None,
+            retry: Some(true),
         }
     }
 
@@ -352,12 +396,18 @@ impl ScouterServerError {
         error!("Failed to update user: {}", e);
         ScouterServerError {
             error: "Failed to update user".to_string(),
+            code: "INTERNAL_ERROR",
+            suggested_action: None,
+            retry: Some(false),
         }
     }
     pub fn delete_user_error<T: Display>(e: T) -> Self {
         error!("Failed to delete user: {}", e);
         ScouterServerError {
             error: "Failed to delete user".to_string(),
+            code: "INTERNAL_ERROR",
+            suggested_action: None,
+            retry: Some(false),
         }
     }
 
@@ -365,6 +415,9 @@ impl ScouterServerError {
         error!("Failed to check admin status: {}", e);
         ScouterServerError {
             error: "Failed to check admin status".to_string(),
+            code: "INTERNAL_ERROR",
+            suggested_action: None,
+            retry: Some(false),
         }
     }
 
@@ -372,12 +425,18 @@ impl ScouterServerError {
         error!("Cannot delete the last admin user");
         ScouterServerError {
             error: "Cannot delete the last admin user".to_string(),
+            code: "CONFLICT",
+            suggested_action: Some("Assign admin role to another user first"),
+            retry: Some(false),
         }
     }
     pub fn username_header_not_found() -> Self {
         error!("Username header not found");
         ScouterServerError {
             error: "Username header not found".to_string(),
+            code: "BAD_REQUEST",
+            suggested_action: Some("Include X-Username header"),
+            retry: Some(false),
         }
     }
 
@@ -385,6 +444,9 @@ impl ScouterServerError {
         error!("Invalid username format");
         ScouterServerError {
             error: "Invalid username format".to_string(),
+            code: "BAD_REQUEST",
+            suggested_action: Some("Username must be alphanumeric with underscores/hyphens only"),
+            retry: Some(false),
         }
     }
 
@@ -392,12 +454,18 @@ impl ScouterServerError {
         error!("Password header not found");
         ScouterServerError {
             error: "Password header not found".to_string(),
+            code: "BAD_REQUEST",
+            suggested_action: Some("Include X-Password header"),
+            retry: Some(false),
         }
     }
     pub fn invalid_password_format() -> Self {
         error!("Invalid password format");
         ScouterServerError {
             error: "Invalid password format".to_string(),
+            code: "BAD_REQUEST",
+            suggested_action: Some("Password must be at least 8 characters"),
+            retry: Some(false),
         }
     }
 
@@ -405,6 +473,9 @@ impl ScouterServerError {
         error!("User validation failed");
         ScouterServerError {
             error: "User validation failed".to_string(),
+            code: "BAD_REQUEST",
+            suggested_action: None,
+            retry: Some(false),
         }
     }
 
@@ -412,6 +483,9 @@ impl ScouterServerError {
         error!("Failed to validate token");
         ScouterServerError {
             error: "Failed to validate token".to_string(),
+            code: "UNAUTHORIZED",
+            suggested_action: Some("Re-authenticate via GET /scouter/auth/login"),
+            retry: Some(false),
         }
     }
 
@@ -419,6 +493,9 @@ impl ScouterServerError {
         error!("Bearer token not found");
         ScouterServerError {
             error: "Bearer token not found".to_string(),
+            code: "UNAUTHORIZED",
+            suggested_action: Some("Include Authorization: Bearer <token> header"),
+            retry: Some(false),
         }
     }
 
@@ -426,6 +503,9 @@ impl ScouterServerError {
         error!("Failed to refresh token: {}", e);
         ScouterServerError {
             error: "Failed to refresh token".to_string(),
+            code: "UNAUTHORIZED",
+            suggested_action: Some("Re-authenticate via GET /scouter/auth/login"),
+            retry: Some(false),
         }
     }
 
@@ -433,6 +513,9 @@ impl ScouterServerError {
         error!("Unauthorized: {}", e);
         ScouterServerError {
             error: "Unauthorized".to_string(),
+            code: "UNAUTHORIZED",
+            suggested_action: Some("Re-authenticate via GET /scouter/auth/login"),
+            retry: Some(false),
         }
     }
 
@@ -440,6 +523,9 @@ impl ScouterServerError {
         error!("Failed to decode JWT token: {}", e);
         ScouterServerError {
             error: "Failed to decode JWT token".to_string(),
+            code: "UNAUTHORIZED",
+            suggested_action: None,
+            retry: Some(false),
         }
     }
 
@@ -447,69 +533,133 @@ impl ScouterServerError {
         error!("No refresh token provided");
         ScouterServerError {
             error: "No refresh token provided".to_string(),
+            code: "UNAUTHORIZED",
+            suggested_action: Some("Include X-Refresh-Token header"),
+            retry: Some(false),
         }
     }
 
     pub fn new(error: String) -> Self {
-        ScouterServerError { error }
+        ScouterServerError {
+            error,
+            code: "INTERNAL_ERROR",
+            suggested_action: None,
+            retry: Some(false),
+        }
     }
 
     pub fn query_records_error<T: Display>(e: T) -> Self {
-        let msg = format!("Failed to query records: {e}");
-        ScouterServerError { error: msg }
+        error!("Failed to query records: {}", e);
+        ScouterServerError {
+            error: "Failed to query records".to_string(),
+            code: "QUERY_ERROR",
+            suggested_action: None,
+            retry: Some(true),
+        }
     }
 
     pub fn query_alerts_error<T: Display>(e: T) -> Self {
-        let msg = format!("Failed to query alerts: {e}");
-        ScouterServerError { error: msg }
+        error!("Failed to query alerts: {}", e);
+        ScouterServerError {
+            error: "Failed to query alerts".to_string(),
+            code: "QUERY_ERROR",
+            suggested_action: None,
+            retry: Some(true),
+        }
     }
 
     pub fn query_profile_error<T: Display>(e: T) -> Self {
-        let msg = format!("Failed to query profile: {e}");
-        ScouterServerError { error: msg }
+        error!("Failed to query profile: {}", e);
+        ScouterServerError {
+            error: "Failed to query profile".to_string(),
+            code: "QUERY_ERROR",
+            suggested_action: None,
+            retry: Some(true),
+        }
     }
     pub fn query_tags_error<T: Display>(e: T) -> Self {
-        let msg = format!("Failed to query tags: {e}");
-        ScouterServerError { error: msg }
+        error!("Failed to query tags: {}", e);
+        ScouterServerError {
+            error: "Failed to query tags".to_string(),
+            code: "QUERY_ERROR",
+            suggested_action: None,
+            retry: Some(true),
+        }
     }
 
     pub fn get_baggage_error<T: Display>(e: T) -> Self {
-        let msg = format!("Failed to get trace baggage records: {e}");
-        ScouterServerError { error: msg }
+        error!("Failed to get trace baggage records: {}", e);
+        ScouterServerError {
+            error: "Failed to get trace baggage".to_string(),
+            code: "QUERY_ERROR",
+            suggested_action: None,
+            retry: Some(true),
+        }
     }
 
     pub fn get_paginated_traces_error<T: Display>(e: T) -> Self {
-        let msg = format!("Failed to get paginated traces: {e}");
-        ScouterServerError { error: msg }
+        error!("Failed to get paginated traces: {}", e);
+        ScouterServerError {
+            error: "Failed to get paginated traces".to_string(),
+            code: "QUERY_ERROR",
+            suggested_action: None,
+            retry: Some(true),
+        }
     }
 
     pub fn get_trace_spans_error<T: Display>(e: T) -> Self {
-        let msg = format!("Failed to get trace spans: {e}");
-        ScouterServerError { error: msg }
+        error!("Failed to get trace spans: {}", e);
+        ScouterServerError {
+            error: "Failed to get trace spans".to_string(),
+            code: "QUERY_ERROR",
+            suggested_action: None,
+            retry: Some(true),
+        }
     }
 
     pub fn get_trace_metrics_error<T: Display>(e: T) -> Self {
-        let msg = format!("Failed to get trace metrics: {e}");
-        ScouterServerError { error: msg }
+        error!("Failed to get trace metrics: {}", e);
+        ScouterServerError {
+            error: "Failed to get trace metrics".to_string(),
+            code: "QUERY_ERROR",
+            suggested_action: None,
+            retry: Some(true),
+        }
     }
 
     pub fn insert_tags_error<T: Display>(e: T) -> Self {
-        let msg = format!("Failed to insert tags: {e}");
-        ScouterServerError { error: msg }
+        error!("Failed to insert tags: {}", e);
+        ScouterServerError {
+            error: "Failed to insert tags".to_string(),
+            code: "INTERNAL_ERROR",
+            suggested_action: None,
+            retry: Some(false),
+        }
     }
 
     pub fn get_entity_id_by_tags_error<T: Display>(e: T) -> Self {
-        let msg = format!("Failed to get entity IDs by tags: {e}");
-        ScouterServerError { error: msg }
+        error!("Failed to get entity IDs by tags: {}", e);
+        ScouterServerError {
+            error: "Failed to get entity IDs by tags".to_string(),
+            code: "QUERY_ERROR",
+            suggested_action: None,
+            retry: Some(true),
+        }
     }
 
     pub fn refresh_trace_summary_error<T: Display>(e: T) -> Self {
-        let msg = format!("Failed to refresh trace summary: {e}");
-        ScouterServerError { error: msg }
+        error!("Failed to refresh trace summary: {}", e);
+        ScouterServerError {
+            error: "Failed to refresh trace summary".to_string(),
+            code: "INTERNAL_ERROR",
+            suggested_action: None,
+            retry: Some(false),
+        }
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct ScouterResponse {
     pub status: String,
     pub message: String,
@@ -522,6 +672,7 @@ impl ScouterResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct RegisteredProfileResponse {
     pub space: String,
     pub name: String,
@@ -532,21 +683,26 @@ pub struct RegisteredProfileResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct UpdateAlertResponse {
     pub updated: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema, utoipa::IntoParams))]
 pub struct AgentEvalTaskRequest {
     pub record_uid: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct AgentEvalTaskResponse {
+    #[cfg_attr(feature = "utoipa", schema(value_type = Vec<serde_json::Value>))]
     pub tasks: Vec<EvalTaskResult>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct EvalRecordPaginationRequest {
     pub service_info: ServiceInfo,
     pub status: Option<Status>,
@@ -559,7 +715,9 @@ pub struct EvalRecordPaginationRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct EvalRecordPaginationResponse {
+    #[cfg_attr(feature = "utoipa", schema(value_type = Vec<serde_json::Value>))]
     pub items: Vec<EvalRecord>,
     pub has_next: bool,
     pub next_cursor: Option<RecordCursor>,
@@ -568,7 +726,9 @@ pub struct EvalRecordPaginationResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct AgentEvalWorkflowPaginationResponse {
+    #[cfg_attr(feature = "utoipa", schema(value_type = Vec<serde_json::Value>))]
     pub items: Vec<AgentEvalWorkflowResult>,
     pub has_next: bool,
     pub next_cursor: Option<RecordCursor>,
@@ -578,6 +738,7 @@ pub struct AgentEvalWorkflowPaginationResponse {
 
 #[pyclass(from_py_object)]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct BinnedMetricStats {
     #[pyo3(get)]
     pub avg: f64,
@@ -599,6 +760,7 @@ impl BinnedMetricStats {
 
 #[pyclass(from_py_object)]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct BinnedMetric {
     #[pyo3(get)]
     pub metric: String,
@@ -620,6 +782,7 @@ impl BinnedMetric {
 
 #[pyclass(from_py_object)]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct BinnedMetrics {
     #[pyo3(get)]
     pub metrics: BTreeMap<String, BinnedMetric>,
@@ -658,12 +821,14 @@ impl BinnedMetrics {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema, utoipa::IntoParams))]
 pub struct TagsRequest {
     pub entity_type: String,
     pub entity_id: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct EntityIdTagsRequest {
     pub entity_type: String,
     pub tags: Vec<Tag>,
@@ -671,16 +836,19 @@ pub struct EntityIdTagsRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct EntityIdTagsResponse {
     pub entity_id: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct InsertTagsRequest {
     pub tags: Vec<TagRecord>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::IntoParams))]
 #[pyclass(from_py_object)]
 pub struct TraceRequest {
     pub trace_id: String,
@@ -692,6 +860,7 @@ pub struct TraceRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[pyclass(from_py_object)]
 pub struct SpansFromTagsRequest {
     pub entity_type: String,
@@ -701,6 +870,7 @@ pub struct SpansFromTagsRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[pyclass(from_py_object)]
 pub struct TraceMetricsRequest {
     pub service_name: Option<String>,
@@ -735,9 +905,11 @@ impl TraceMetricsRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[pyclass(from_py_object)]
 pub struct TracePaginationResponse {
     #[pyo3(get)]
+    #[cfg_attr(feature = "utoipa", schema(value_type = Vec<serde_json::Value>))]
     pub items: Vec<TraceListItem>,
 
     #[pyo3(get)]
@@ -754,6 +926,7 @@ pub struct TracePaginationResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[pyclass(from_py_object)]
 pub struct TraceCursor {
     #[pyo3(get)]
@@ -782,9 +955,11 @@ impl TracePaginationResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[pyclass(from_py_object)]
 pub struct TraceBaggageResponse {
     #[pyo3(get)]
+    #[cfg_attr(feature = "utoipa", schema(value_type = Vec<serde_json::Value>))]
     pub baggage: Vec<TraceBaggageRecord>,
 }
 
@@ -796,9 +971,11 @@ impl TraceBaggageResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[pyclass(from_py_object)]
 pub struct TraceSpansResponse {
     #[pyo3(get)]
+    #[cfg_attr(feature = "utoipa", schema(value_type = Vec<serde_json::Value>))]
     pub spans: Vec<TraceSpan>,
 }
 
@@ -819,9 +996,11 @@ impl TraceSpansResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[pyclass(from_py_object)]
 pub struct TraceMetricsResponse {
     #[pyo3(get)]
+    #[cfg_attr(feature = "utoipa", schema(value_type = Vec<serde_json::Value>))]
     pub metrics: Vec<TraceMetricBucket>,
 }
 #[pymethods]
@@ -832,6 +1011,7 @@ impl TraceMetricsResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[pyclass(from_py_object)]
 pub struct TagsResponse {
     #[pyo3(get)]
@@ -846,6 +1026,7 @@ impl TagsResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct TraceReceivedResponse {
     pub received: bool,
 }

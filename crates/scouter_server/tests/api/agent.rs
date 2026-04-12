@@ -17,8 +17,8 @@ fn test_agent_server_records() {
     let mut mock = LLMTestServer::new();
     mock.start_server().unwrap();
 
-    let helper = runtime.block_on(async { setup_test().await });
-    let profile = runtime.block_on(async { TestHelper::create_agent_drift_profile().await });
+    let helper = runtime.block_on(Box::pin(setup_test()));
+    let profile = runtime.block_on(Box::pin(TestHelper::create_agent_drift_profile()));
 
     let uid = runtime.block_on(async {
         helper

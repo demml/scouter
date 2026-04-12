@@ -1,4 +1,6 @@
 pub mod agent;
+pub mod capabilities;
+pub mod docs;
 pub mod alert;
 pub mod archive;
 pub mod archive_cloud;

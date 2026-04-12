@@ -24,8 +24,10 @@ impl SpcDriftFeature {
 
 #[pyclass(skip_from_py_object, name = "BinnedSpcFeatureMetrics")]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct SpcDriftFeatures {
     #[pyo3(get)]
+    #[cfg_attr(feature = "utoipa", schema(value_type = serde_json::Value))]
     pub features: BTreeMap<String, SpcDriftFeature>,
 }
 

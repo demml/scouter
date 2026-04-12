@@ -26,6 +26,18 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 use tracing::{debug, error, instrument};
 
+#[utoipa::path(
+    get,
+    path = "/scouter/drift/spc",
+    params(DriftRequest),
+    responses(
+        (status = 200, description = "SPC drift features", body = SpcDriftFeatures),
+        (status = 403, description = "Forbidden", body = ScouterServerError),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "drift",
+    security(("bearer_token" = []))
+)]
 #[instrument(skip_all)]
 pub async fn get_spc_drift(
     State(data): State<Arc<AppState>>,
@@ -40,6 +52,18 @@ pub async fn get_spc_drift(
         return Err((
             StatusCode::FORBIDDEN,
             Json(ScouterServerError::permission_denied()),
+        ));
+    }
+
+    if params.uid.len() > 200 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ScouterServerError {
+                error: "Query parameter exceeds 200 character limit".to_string(),
+                code: "BAD_REQUEST",
+                suggested_action: None,
+                retry: Some(false),
+            }),
         ));
     }
 
@@ -110,6 +134,18 @@ async fn get_binned_psi_feature_metrics(
 /// This route is used to get the drift data for the PSI visualization
 ///
 /// The route will both psi calculations for each feature and time interval as well as overall bin proportions
+#[utoipa::path(
+    get,
+    path = "/scouter/drift/psi",
+    params(DriftRequest),
+    responses(
+        (status = 200, description = "PSI drift feature metrics", body = BinnedPsiFeatureMetrics),
+        (status = 403, description = "Forbidden", body = ScouterServerError),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "drift",
+    security(("bearer_token" = []))
+)]
 #[instrument(skip_all)]
 pub async fn get_psi_drift(
     State(data): State<Arc<AppState>>,
@@ -125,6 +161,19 @@ pub async fn get_psi_drift(
             Json(ScouterServerError::permission_denied()),
         ));
     }
+
+    if params.uid.len() > 200 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ScouterServerError {
+                error: "Query parameter exceeds 200 character limit".to_string(),
+                code: "BAD_REQUEST",
+                suggested_action: None,
+                retry: Some(false),
+            }),
+        ));
+    }
+
     // validate time window
     debug!("Querying drift records: {:?}", params);
     let feature_metrics =
@@ -143,6 +192,18 @@ pub async fn get_psi_drift(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/scouter/drift/custom",
+    params(DriftRequest),
+    responses(
+        (status = 200, description = "Custom drift binned metrics", body = BinnedMetrics),
+        (status = 403, description = "Forbidden", body = ScouterServerError),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "drift",
+    security(("bearer_token" = []))
+)]
 #[instrument(skip_all)]
 pub async fn get_custom_drift(
     State(data): State<Arc<AppState>>,
@@ -155,6 +216,18 @@ pub async fn get_custom_drift(
         return Err((
             StatusCode::FORBIDDEN,
             Json(ScouterServerError::permission_denied()),
+        ));
+    }
+
+    if params.uid.len() > 200 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ScouterServerError {
+                error: "Query parameter exceeds 200 character limit".to_string(),
+                code: "BAD_REQUEST",
+                suggested_action: None,
+                retry: Some(false),
+            }),
         ));
     }
 
@@ -182,6 +255,18 @@ pub async fn get_custom_drift(
 }
 
 /// This route is used to get the latest agent drift records by page
+#[utoipa::path(
+    post,
+    path = "/scouter/drift/agent/records",
+    request_body = EvalRecordPaginationRequest,
+    responses(
+        (status = 200, description = "Paginated agent eval records", body = EvalRecordPaginationResponse),
+        (status = 403, description = "Forbidden", body = ScouterServerError),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "drift",
+    security(("bearer_token" = []))
+)]
 #[instrument(skip_all)]
 pub async fn query_agent_eval_records(
     State(data): State<Arc<AppState>>,
@@ -217,6 +302,18 @@ pub async fn query_agent_eval_records(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/scouter/drift/agent/task",
+    params(DriftRequest),
+    responses(
+        (status = 200, description = "Agent task drift metrics", body = BinnedMetrics),
+        (status = 403, description = "Forbidden", body = ScouterServerError),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "drift",
+    security(("bearer_token" = []))
+)]
 #[instrument(skip_all)]
 pub async fn get_agent_task_metrics(
     State(data): State<Arc<AppState>>,
@@ -229,6 +326,18 @@ pub async fn get_agent_task_metrics(
         return Err((
             StatusCode::FORBIDDEN,
             Json(ScouterServerError::permission_denied()),
+        ));
+    }
+
+    if params.uid.len() > 200 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ScouterServerError {
+                error: "Query parameter exceeds 200 character limit".to_string(),
+                code: "BAD_REQUEST",
+                suggested_action: None,
+                retry: Some(false),
+            }),
         ));
     }
 
@@ -256,6 +365,18 @@ pub async fn get_agent_task_metrics(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/scouter/drift/agent/workflow",
+    params(DriftRequest),
+    responses(
+        (status = 200, description = "Agent workflow drift metrics", body = BinnedMetrics),
+        (status = 403, description = "Forbidden", body = ScouterServerError),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "drift",
+    security(("bearer_token" = []))
+)]
 #[instrument(skip_all)]
 pub async fn get_agent_workflow_metrics(
     State(data): State<Arc<AppState>>,
@@ -268,6 +389,18 @@ pub async fn get_agent_workflow_metrics(
         return Err((
             StatusCode::FORBIDDEN,
             Json(ScouterServerError::permission_denied()),
+        ));
+    }
+
+    if params.uid.len() > 200 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ScouterServerError {
+                error: "Query parameter exceeds 200 character limit".to_string(),
+                code: "BAD_REQUEST",
+                suggested_action: None,
+                retry: Some(false),
+            }),
         ));
     }
 
@@ -295,6 +428,17 @@ pub async fn get_agent_workflow_metrics(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/scouter/drift",
+    request_body(content = serde_json::Value, description = "Drift records (ServerRecords | TraceServerRecord | TagRecord)", content_type = "application/json"),
+    responses(
+        (status = 200, description = "Drift records queued", body = ScouterResponse),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "drift",
+    security(("bearer_token" = []))
+)]
 #[instrument(skip_all)]
 pub async fn insert_drift(
     State(data): State<Arc<AppState>>,

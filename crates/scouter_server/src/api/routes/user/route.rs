@@ -56,8 +56,21 @@ pub async fn initialize_users(
 /// Create a new user via SDK
 ///
 /// Requires admin permissions
+#[utoipa::path(
+    post,
+    path = "/scouter/user",
+    request_body = CreateUserRequest,
+    responses(
+        (status = 200, description = "User created", body = CreateUserResponse),
+        (status = 403, description = "Admin required", body = ScouterServerError),
+        (status = 409, description = "User already exists", body = ScouterServerError),
+        (status = 500, description = "Internal error", body = ScouterServerError),
+    ),
+    security(("bearer_token" = [])),
+    tag = "users"
+)]
 #[instrument(skip_all)]
-async fn create_user(
+pub async fn create_user(
     State(state): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
     Json(create_req): Json<CreateUserRequest>,
@@ -117,8 +130,21 @@ async fn create_user(
 }
 
 /// Get a user by username
+#[utoipa::path(
+    get,
+    path = "/scouter/user/{username}",
+    params(("username" = String, Path, description = "Username")),
+    responses(
+        (status = 200, description = "User details", body = UserResponse),
+        (status = 403, description = "Permission denied", body = ScouterServerError),
+        (status = 404, description = "User not found", body = ScouterServerError),
+        (status = 500, description = "Internal error", body = ScouterServerError),
+    ),
+    security(("bearer_token" = [])),
+    tag = "users"
+)]
 #[instrument(skip_all)]
-async fn get_user(
+pub async fn get_user(
     State(state): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
     Path(username): Path<String>,
@@ -157,8 +183,19 @@ async fn get_user(
 /// List all users
 ///
 /// Requires admin permissions
+#[utoipa::path(
+    get,
+    path = "/scouter/user",
+    responses(
+        (status = 200, description = "List of users", body = UserListResponse),
+        (status = 403, description = "Admin required", body = ScouterServerError),
+        (status = 500, description = "Internal error", body = ScouterServerError),
+    ),
+    security(("bearer_token" = [])),
+    tag = "users"
+)]
 #[instrument(skip_all)]
-async fn list_users(
+pub async fn list_users(
     State(state): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
 ) -> Result<Json<UserListResponse>, (StatusCode, Json<ScouterServerError>)> {
@@ -189,8 +226,21 @@ async fn list_users(
 }
 
 /// Update a user
+#[utoipa::path(
+    put,
+    path = "/scouter/user/{username}",
+    params(("username" = String, Path, description = "Username")),
+    request_body = UpdateUserRequest,
+    responses(
+        (status = 200, description = "User updated", body = UserResponse),
+        (status = 403, description = "Permission denied", body = ScouterServerError),
+        (status = 500, description = "Internal error", body = ScouterServerError),
+    ),
+    security(("bearer_token" = [])),
+    tag = "users"
+)]
 #[instrument(skip_all)]
-async fn update_user(
+pub async fn update_user(
     State(state): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
     Path(username): Path<String>,
@@ -254,8 +304,20 @@ async fn update_user(
 /// Delete a user
 ///
 /// Requires admin permissions
+#[utoipa::path(
+    delete,
+    path = "/scouter/user/{username}",
+    params(("username" = String, Path, description = "Username")),
+    responses(
+        (status = 200, description = "User deleted", body = ScouterResponse),
+        (status = 403, description = "Permission denied or last admin", body = ScouterServerError),
+        (status = 500, description = "Internal error", body = ScouterServerError),
+    ),
+    security(("bearer_token" = [])),
+    tag = "users"
+)]
 #[instrument(skip_all)]
-async fn delete_user(
+pub async fn delete_user(
     State(state): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
     Path(username): Path<String>,

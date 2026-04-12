@@ -13,11 +13,23 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 use tracing::{error, instrument};
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::IntoParams)]
 pub struct CollectionIdQuery {
     pub collection_id: String,
 }
 
+#[utoipa::path(
+    get,
+    path = "/scouter/eval/scenarios",
+    params(CollectionIdQuery),
+    responses(
+        (status = 200, description = "Evaluation scenarios for collection"),
+        (status = 404, description = "No scenarios found", body = ScouterServerError),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "eval",
+    security(("bearer_token" = []))
+)]
 #[instrument(skip_all)]
 pub async fn get_eval_scenarios(
     State(data): State<Arc<AppState>>,

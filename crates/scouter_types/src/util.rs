@@ -716,6 +716,7 @@ pub fn get_utc_datetime() -> DateTime<Utc> {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub enum Status {
     #[default]
     All,

@@ -6,6 +6,17 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 use tracing::instrument;
 
+#[utoipa::path(
+    post,
+    path = "/scouter/message",
+    request_body(content = serde_json::Value, description = "Message record (ServerRecords | TraceServerRecord | TagRecord)", content_type = "application/json"),
+    responses(
+        (status = 200, description = "Message queued", body = ScouterResponse),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "messages",
+    security(("bearer_token" = []))
+)]
 #[instrument(skip_all)]
 pub async fn insert_message(
     State(data): State<Arc<AppState>>,

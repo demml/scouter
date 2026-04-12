@@ -1048,6 +1048,7 @@ impl SpanLink {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[pyclass(from_py_object)]
 pub struct Tag {
     #[pyo3(get)]
@@ -1064,6 +1065,7 @@ impl Tag {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[pyclass(from_py_object)]
 #[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct TagRecord {
