@@ -9,7 +9,7 @@ pub mod google;
 pub mod openai;
 use pyo3::prelude::*;
 
-pub fn add_genai_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
+pub fn add_agent_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // prompt interface
     m.add_class::<Prompt>()?;
     m.add_class::<Role>()?;

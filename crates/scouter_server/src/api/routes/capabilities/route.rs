@@ -1,5 +1,5 @@
-use axum::{routing::get, Json, Router};
 use crate::api::state::AppState;
+use axum::{routing::get, Json, Router};
 use serde::Serialize;
 use std::sync::Arc;
 
@@ -118,8 +118,5 @@ pub async fn capabilities() -> Json<CapabilitiesResponse> {
 }
 
 pub fn get_capabilities_router(prefix: &str) -> Router<Arc<AppState>> {
-    Router::new().route(
-        &format!("{prefix}/api/v1/capabilities"),
-        get(capabilities),
-    )
+    Router::new().route(&format!("{prefix}/api/v1/capabilities"), get(capabilities))
 }

@@ -67,9 +67,7 @@ static DOCS: &[DocEntry] = &[
         id: "agents/online-evaluation",
         title: "Online Evaluation",
         category: "agents",
-        content: include_str!(
-            "../../../../../../py-scouter/docs/docs/agents/online-evaluation.md"
-        ),
+        content: include_str!("../../../../../../py-scouter/docs/docs/agents/online-evaluation.md"),
     },
     DocEntry {
         id: "agents/gates",
@@ -87,9 +85,7 @@ static DOCS: &[DocEntry] = &[
         id: "agents/reading-results",
         title: "Reading Results",
         category: "agents",
-        content: include_str!(
-            "../../../../../../py-scouter/docs/docs/agents/reading-results.md"
-        ),
+        content: include_str!("../../../../../../py-scouter/docs/docs/agents/reading-results.md"),
     },
     // Monitoring
     DocEntry {
@@ -116,9 +112,7 @@ static DOCS: &[DocEntry] = &[
         id: "monitoring/psi/theory",
         title: "PSI Theory",
         category: "monitoring",
-        content: include_str!(
-            "../../../../../../py-scouter/docs/docs/monitoring/psi/theory.md"
-        ),
+        content: include_str!("../../../../../../py-scouter/docs/docs/monitoring/psi/theory.md"),
     },
     DocEntry {
         id: "monitoring/psi/drift-config",
@@ -148,9 +142,7 @@ static DOCS: &[DocEntry] = &[
         id: "monitoring/spc/theory",
         title: "SPC Theory",
         category: "monitoring",
-        content: include_str!(
-            "../../../../../../py-scouter/docs/docs/monitoring/spc/theory.md"
-        ),
+        content: include_str!("../../../../../../py-scouter/docs/docs/monitoring/spc/theory.md"),
     },
     DocEntry {
         id: "monitoring/spc/drift-config",

@@ -103,21 +103,26 @@ impl DatasetService for DatasetGrpcService {
         let namespace = DatasetNamespace::new(&req.catalog, &req.schema_name, &req.table)
             .map_err(|e| Status::invalid_argument(e.to_string()))?;
 
-        let arrow_schema =
-            scouter_types::dataset::schema::json_schema_to_arrow(&req.json_schema)
+        let json_schema = req.json_schema.clone();
+        let (_, arrow_schema_json, fingerprint) =
+            tokio::task::spawn_blocking(move || -> Result<_, Status> {
+                let arrow_schema = scouter_types::dataset::schema::json_schema_to_arrow(
+                    &json_schema,
+                )
                 .map_err(|e| Status::invalid_argument(format!("Invalid JSON schema: {e}")))?;
-
-        let arrow_schema_with_sys = inject_system_columns(arrow_schema).map_err(|e| {
-            Status::invalid_argument(format!("Failed to inject system columns: {e}"))
-        })?;
-
-        let arrow_schema_json = serde_json::to_string(&arrow_schema_with_sys).map_err(|e| {
-            error!("Failed to serialize Arrow schema: {e}");
-            Status::internal("Internal server error")
-        })?;
-
-        let fingerprint = fingerprint_from_json_schema(&req.json_schema)
-            .map_err(|e| Status::invalid_argument(format!("Failed to compute fingerprint: {e}")))?;
+                let schema_with_sys = inject_system_columns(arrow_schema).map_err(|e| {
+                    Status::invalid_argument(format!("Failed to inject system columns: {e}"))
+                })?;
+                let schema_json = serde_json::to_string(&schema_with_sys).map_err(|e| {
+                    Status::internal(format!("Failed to serialize Arrow schema: {e}"))
+                })?;
+                let fp = fingerprint_from_json_schema(&json_schema).map_err(|e| {
+                    Status::invalid_argument(format!("Failed to compute fingerprint: {e}"))
+                })?;
+                Ok((schema_with_sys, schema_json, fp))
+            })
+            .await
+            .map_err(|e| Status::internal(e.to_string()))??;
 
         let registration = DatasetRegistration::new(
             namespace,
@@ -157,7 +162,10 @@ impl DatasetService for DatasetGrpcService {
 
         let fingerprint = DatasetFingerprint(req.fingerprint);
 
-        let batches = ipc_bytes_to_batches(&req.ipc_data)
+        let ipc_data = req.ipc_data;
+        let batches = tokio::task::spawn_blocking(move || ipc_bytes_to_batches(&ipc_data))
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?
             .map_err(|e| Status::invalid_argument(format!("Invalid IPC data: {e}")))?;
 
         let mut total_rows: u64 = 0;
@@ -189,10 +197,10 @@ impl DatasetService for DatasetGrpcService {
             .await
             .map_err(map_dataset_error)?;
 
-        let ipc_data = batches_to_ipc_bytes(&batches).map_err(|e| {
-            error!("Failed to serialize query results: {e}");
-            Status::internal("Internal server error")
-        })?;
+        let ipc_data = tokio::task::spawn_blocking(move || batches_to_ipc_bytes(&batches))
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?
+            .map_err(|e| Status::internal(format!("Failed to serialize query results: {e}")))?;
 
         Ok(Response::new(QueryDatasetResponse { ipc_data }))
     }
@@ -392,10 +400,10 @@ impl DatasetService for DatasetGrpcService {
 
         let row_count: u64 = batches.iter().map(|b| b.num_rows() as u64).sum();
 
-        let ipc_data = batches_to_ipc_bytes(&batches).map_err(|e| {
-            error!("Failed to serialize preview data: {e}");
-            Status::internal("Internal server error")
-        })?;
+        let ipc_data = tokio::task::spawn_blocking(move || batches_to_ipc_bytes(&batches))
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?
+            .map_err(|e| Status::internal(format!("Failed to serialize query results: {e}")))?;
 
         Ok(Response::new(PreviewTableResponse {
             ipc_data,
@@ -432,19 +440,21 @@ impl DatasetService for DatasetGrpcService {
             .await
             .map_err(map_dataset_error)?;
 
-        let ipc_data = batches_to_ipc_bytes(&result.batches).map_err(|e| {
-            error!("Failed to serialize query results: {e}");
-            Status::internal("Internal server error")
-        })?;
+        let batches = result.batches;
+        let metadata = result.metadata;
+        let ipc_data = tokio::task::spawn_blocking(move || batches_to_ipc_bytes(&batches))
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?
+            .map_err(|e| Status::internal(format!("Failed to serialize query results: {e}")))?;
 
         Ok(Response::new(ExecuteQueryResponse {
             ipc_data,
             metadata: Some(QueryExecutionMetadata {
-                query_id: result.metadata.query_id,
-                rows_returned: result.metadata.rows_returned,
-                truncated: result.metadata.truncated,
-                execution_time_ms: result.metadata.execution_time_ms,
-                bytes_scanned: result.metadata.bytes_scanned,
+                query_id: metadata.query_id,
+                rows_returned: metadata.rows_returned,
+                truncated: metadata.truncated,
+                execution_time_ms: metadata.execution_time_ms,
+                bytes_scanned: metadata.bytes_scanned,
             }),
         }))
     }

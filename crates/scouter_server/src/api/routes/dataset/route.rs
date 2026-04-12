@@ -353,17 +353,22 @@ pub async fn register_dataset(
     let namespace = DatasetNamespace::new(&body.catalog, &body.schema_name, &body.table)
         .map_err(|e| bad_request(e.to_string()))?;
 
-    let arrow_schema = scouter_types::dataset::schema::json_schema_to_arrow(&body.json_schema)
-        .map_err(|e| bad_request(format!("Invalid JSON schema: {e}")))?;
-
-    let arrow_schema_with_sys = inject_system_columns(arrow_schema)
-        .map_err(|e| bad_request(format!("Failed to inject system columns: {e}")))?;
-
-    let arrow_schema_json = serde_json::to_string(&arrow_schema_with_sys)
-        .map_err(|e| internal_error("Failed to serialize Arrow schema", e))?;
-
-    let fingerprint = fingerprint_from_json_schema(&body.json_schema)
-        .map_err(|e| bad_request(format!("Failed to compute fingerprint: {e}")))?;
+    let json_schema = body.json_schema.clone();
+    let (_, arrow_schema_json, fingerprint) = tokio::task::spawn_blocking(
+        move || -> Result<_, (StatusCode, Json<ScouterServerError>)> {
+            let arrow_schema = scouter_types::dataset::schema::json_schema_to_arrow(&json_schema)
+                .map_err(|e| bad_request(format!("Invalid JSON schema: {e}")))?;
+            let schema_with_sys = inject_system_columns(arrow_schema)
+                .map_err(|e| bad_request(format!("Failed to inject system columns: {e}")))?;
+            let schema_json = serde_json::to_string(&schema_with_sys)
+                .map_err(|e| internal_error("Failed to serialize Arrow schema", e))?;
+            let fp = fingerprint_from_json_schema(&json_schema)
+                .map_err(|e| bad_request(format!("Failed to compute fingerprint: {e}")))?;
+            Ok((schema_with_sys, schema_json, fp))
+        },
+    )
+    .await
+    .map_err(|e| internal_error("spawn error", e))??;
 
     let registration = DatasetRegistration::new(
         namespace,
@@ -424,8 +429,10 @@ pub async fn insert_batch(
 
     let fingerprint = DatasetFingerprint(fingerprint_str.to_string());
 
-    let batches =
-        ipc_bytes_to_batches(&body).map_err(|e| bad_request(format!("Invalid IPC data: {e}")))?;
+    let batches = tokio::task::spawn_blocking(move || ipc_bytes_to_batches(&body))
+        .await
+        .map_err(|e| internal_error("spawn error", e))?
+        .map_err(|e| bad_request(format!("Invalid IPC data: {e}")))?;
 
     // TODO(perf): activate engine once outside loop; currently insert_batch activates on each call
     let mut total_rows: u64 = 0;
@@ -465,7 +472,9 @@ pub async fn query_dataset(
         .await
         .map_err(map_dataset_error)?;
 
-    let ipc_data = batches_to_ipc_bytes(&batches)
+    let ipc_data = tokio::task::spawn_blocking(move || batches_to_ipc_bytes(&batches))
+        .await
+        .map_err(|e| internal_error("spawn error", e))?
         .map_err(|e| internal_error("Failed to serialize query results", e))?;
 
     Ok((StatusCode::OK, axum::body::Bytes::from(ipc_data)))
@@ -717,7 +726,9 @@ pub async fn preview_table(
         .map_err(map_dataset_error)?;
 
     let row_count: u64 = batches.iter().map(|b| b.num_rows() as u64).sum();
-    let (columns, rows) = batches_to_json_rows(&batches)
+    let (columns, rows) = tokio::task::spawn_blocking(move || batches_to_json_rows(&batches))
+        .await
+        .map_err(|e| internal_error("spawn error", e))?
         .map_err(|e| internal_error("JSON serialization error", e))?;
 
     Ok(Json(PreviewResponse {
@@ -757,7 +768,10 @@ pub async fn execute_query(
         .await
         .map_err(map_dataset_error)?;
 
-    let (columns, rows) = batches_to_json_rows(&result.batches)
+    let batches = result.batches;
+    let (columns, rows) = tokio::task::spawn_blocking(move || batches_to_json_rows(&batches))
+        .await
+        .map_err(|e| internal_error("spawn error", e))?
         .map_err(|e| internal_error("JSON serialization error", e))?;
 
     Ok(Json(ExecuteQueryHttpResponse {
