@@ -183,6 +183,7 @@ pub struct ExplainQueryHttpRequest {
 struct PlanNodeResponse {
     node_type: String,
     description: String,
+    #[schema(value_type = Vec<Object>)]
     children: Vec<PlanNodeResponse>,
     metrics: Option<PlanNodeMetricsResponse>,
 }

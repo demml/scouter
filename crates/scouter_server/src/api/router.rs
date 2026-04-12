@@ -54,7 +54,9 @@ pub async fn create_router(app_state: Arc<AppState>) -> Result<Router> {
     let eval_scenario_routes = get_eval_scenario_router(ROUTE_PREFIX);
     let capabilities_routes = get_capabilities_router(ROUTE_PREFIX);
     let docs_routes = get_docs_router(ROUTE_PREFIX);
-    let openapi_routes = openapi_router();
+    let openapi_routes = tokio::task::spawn_blocking(openapi_router)
+        .await
+        .expect("Failed to build OpenAPI router");
 
     let merged_routes = Router::new()
         .merge(drift_routes)
