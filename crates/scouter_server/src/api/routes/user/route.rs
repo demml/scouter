@@ -93,9 +93,20 @@ pub async fn create_user(
     }
 
     // Hash the password
-    let password_hash = generate_hash(&create_req.password);
-
-    let (recovery_codes, hashed_recovery_codes) = generate_recovery_codes_with_hashes(4);
+    let password = create_req.password.clone();
+    let (password_hash, (recovery_codes, hashed_recovery_codes)) =
+        tokio::task::spawn_blocking(move || {
+            let hash = generate_hash(&password);
+            let codes = generate_recovery_codes_with_hashes(4);
+            (hash, codes)
+        })
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::create_user_error(e)),
+            )
+        })?;
 
     // Create the user
     let mut user = User::new(
@@ -262,7 +273,14 @@ pub async fn update_user(
 
     // Update fields based on request
     if let Some(password) = update_req.password {
-        user.password_hash = generate_hash(&password);
+        user.password_hash = tokio::task::spawn_blocking(move || generate_hash(&password))
+            .await
+            .map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ScouterServerError::update_user_error(e)),
+                )
+            })?;
     }
 
     if let Some(favorite_spaces) = update_req.favorite_spaces {

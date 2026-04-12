@@ -38,24 +38,38 @@ impl EvalScenarioService for EvalScenarioGrpcService {
     ) -> Result<Response<RegisterScenariosResponse>, Status> {
         let req = request.into_inner();
 
-        let scenarios: EvalScenarios = serde_json::from_str(&req.scenarios_json).map_err(|e| {
-            error!(error = %e, "Failed to deserialize EvalScenarios");
-            Status::invalid_argument("Invalid request payload")
-        })?;
+        let scenarios_json = req.scenarios_json.clone();
+        let serialized_scenarios: Vec<(String, String)> =
+            tokio::task::spawn_blocking(move || -> Result<Vec<(String, String)>, Status> {
+                let scenarios: EvalScenarios = serde_json::from_str(&scenarios_json).map_err(|e| {
+                    error!(error = %e, "Failed to deserialize EvalScenarios");
+                    Status::invalid_argument("Invalid request payload")
+                })?;
+                scenarios
+                    .scenarios
+                    .iter()
+                    .map(|s| {
+                        serde_json::to_string(s)
+                            .map(|json| (s.id.clone(), json))
+                            .map_err(|e| {
+                                error!(error = %e, scenario_id = %s.id, "Failed to serialize EvalScenario");
+                                Status::internal("Failed to serialize scenario")
+                            })
+                    })
+                    .collect()
+            })
+            .await
+            .map_err(|e| Status::internal(e.to_string()))??;
 
         let collection_id = req.collection_id.clone();
         let created_at = Utc::now();
-        let scenario_count = scenarios.scenarios.len() as u64;
+        let scenario_count = serialized_scenarios.len() as u64;
 
-        let mut records: Vec<EvalScenarioRecord> = Vec::with_capacity(scenarios.scenarios.len());
-        for s in &scenarios.scenarios {
-            let scenario_json = serde_json::to_string(s).map_err(|e| {
-                error!(error = %e, scenario_id = %s.id, "Failed to serialize EvalScenario");
-                Status::internal("Failed to serialize scenario")
-            })?;
+        let mut records: Vec<EvalScenarioRecord> = Vec::with_capacity(serialized_scenarios.len());
+        for (scenario_id, scenario_json) in serialized_scenarios {
             records.push(EvalScenarioRecord {
                 collection_id: collection_id.clone(),
-                scenario_id: s.id.clone(),
+                scenario_id,
                 scenario_json,
                 created_at,
             });

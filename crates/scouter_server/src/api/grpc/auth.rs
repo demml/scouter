@@ -43,37 +43,53 @@ impl scouter_tonic::AuthService for AuthServiceImpl {
                 Status::not_found(format!("User not found: {:?}", e))
             })?;
 
-        // Validate password
-        self.state
-            .auth_manager
-            .validate_user(&user, &login_req.password)
-            .map_err(|e| {
-                error!("Failed to validate user: {}", e);
-                Status::unauthenticated(format!("Invalid credentials: {}", e))
-            })?;
+        // Validate password + generate tokens in a blocking thread (Argon2 is CPU-bound)
+        let state_clone = Arc::clone(&self.state);
+        let user_clone = user.clone();
+        let password = login_req.password.clone();
+
+        let (jwt_token, new_refresh_token) = tokio::task::spawn_blocking(move || {
+            state_clone
+                .auth_manager
+                .validate_user(&user_clone, &password)
+                .map_err(|e| {
+                    error!("Failed to validate user: {}", e);
+                    Status::unauthenticated(format!("Invalid credentials: {}", e))
+                })?;
+
+            let jwt = state_clone.auth_manager.generate_jwt(&user_clone);
+
+            // Check if existing refresh token is still valid; only generate a new one if not
+            let new_refresh = if let Some(ref existing) = user_clone.refresh_token {
+                if state_clone
+                    .auth_manager
+                    .validate_refresh_token(existing)
+                    .is_ok()
+                {
+                    None
+                } else {
+                    Some(state_clone.auth_manager.generate_refresh_token(&user_clone))
+                }
+            } else {
+                Some(state_clone.auth_manager.generate_refresh_token(&user_clone))
+            };
+
+            Ok::<_, Status>((jwt, new_refresh))
+        })
+        .await
+        .map_err(|e| Status::internal(e.to_string()))??;
 
         debug!("User {} validated successfully", login_req.username);
 
-        // Generate JWT token
-        let jwt_token = self.state.auth_manager.generate_jwt(&user);
+        // If refresh token was still valid, return immediately without a DB write
+        let Some(refresh_token) = new_refresh_token else {
+            return Ok(Response::new(LoginResponse {
+                token: jwt_token,
+                status: "success".to_string(),
+                message: "Login successful".to_string(),
+            }));
+        };
 
-        // Check if refresh token is valid, generate new one if needed
-        if let Some(refresh_token) = &user.refresh_token {
-            if self
-                .state
-                .auth_manager
-                .validate_refresh_token(refresh_token)
-                .is_ok()
-            {
-                return Ok(Response::new(LoginResponse {
-                    token: jwt_token,
-                    status: "success".to_string(),
-                    message: "Login successful".to_string(),
-                }));
-            }
-        }
-
-        let refresh_token = self.state.auth_manager.generate_refresh_token(&user);
         user.refresh_token = Some(refresh_token);
 
         // Update user in database
@@ -113,9 +129,17 @@ impl scouter_tonic::AuthService for AuthServiceImpl {
             Status::not_found(format!("User not found: {:?}", e))
         })?;
 
-        // Generate new tokens
-        let jwt_token = self.state.auth_manager.generate_jwt(&user);
-        let refresh_token = self.state.auth_manager.generate_refresh_token(&user);
+        // Generate new tokens in a blocking thread (HMAC-SHA256 encoding)
+        let state_clone = Arc::clone(&self.state);
+        let user_clone = user.clone();
+
+        let (jwt_token, refresh_token) = tokio::task::spawn_blocking(move || {
+            let jwt = state_clone.auth_manager.generate_jwt(&user_clone);
+            let refresh = state_clone.auth_manager.generate_refresh_token(&user_clone);
+            (jwt, refresh)
+        })
+        .await
+        .map_err(|e| Status::internal(e.to_string()))?;
 
         user.refresh_token = Some(refresh_token);
 
