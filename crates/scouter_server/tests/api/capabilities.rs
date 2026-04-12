@@ -78,13 +78,8 @@ async fn test_error_response_has_code() {
 
     // `name` param is 201 bytes — triggers the 200-char validation guard in get_profile
     let long_name = "a".repeat(201);
-    let uri = format!(
-        "/scouter/profile?name={long_name}&space=test&version=1.0.0&drift_type=spc"
-    );
-    let request = Request::builder()
-        .uri(uri)
-        .body(Body::empty())
-        .unwrap();
+    let uri = format!("/scouter/profile?name={long_name}&space=test&version=1.0.0&drift_type=Spc");
+    let request = Request::builder().uri(uri).body(Body::empty()).unwrap();
 
     let response = helper.send_oneshot(request).await;
 

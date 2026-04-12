@@ -65,7 +65,10 @@ async fn test_get_doc_by_id() {
     assert_eq!(v["id"], "agents/overview");
     assert_eq!(v["category"], "agents");
     assert!(
-        v["content"].as_str().map(|s| !s.is_empty()).unwrap_or(false),
+        v["content"]
+            .as_str()
+            .map(|s| !s.is_empty())
+            .unwrap_or(false),
         "content should be non-empty markdown"
     );
 }
@@ -109,7 +112,10 @@ async fn test_search_docs() {
 
     assert_eq!(v["query"], "drift");
     let results = v["results"].as_array().expect("results should be an array");
-    assert!(!results.is_empty(), "searching 'drift' should return results");
+    assert!(
+        !results.is_empty(),
+        "searching 'drift' should return results"
+    );
 
     for result in results {
         assert!(result["id"].as_str().is_some(), "result must have id");
@@ -126,10 +132,7 @@ async fn test_search_docs_query_too_long() {
 
     let long_query = "x".repeat(201);
     let uri = format!("/scouter/api/v1/docs/search?q={long_query}");
-    let request = Request::builder()
-        .uri(uri)
-        .body(Body::empty())
-        .unwrap();
+    let request = Request::builder().uri(uri).body(Body::empty()).unwrap();
 
     let response = helper.send_oneshot(request).await;
 

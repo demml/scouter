@@ -1,9 +1,9 @@
+pub mod agent;
 pub mod alert;
 pub mod client;
 pub mod dataset;
 pub mod drift;
 pub mod evaluate;
-pub mod genai;
 pub mod logging;
 pub mod mock;
 pub mod observe;
@@ -27,7 +27,7 @@ fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     profile::add_profile_module(m)?;
     observe::add_observe_module(m)?;
     mock::add_mock_module(m)?;
-    genai::add_genai_module(m)?;
+    agent::add_agent_module(m)?;
     evaluate::add_evaluate_module(m)?;
     tracing::add_tracing_module(m)?;
     transport::add_transport_module(m)?;

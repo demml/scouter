@@ -354,8 +354,8 @@ pub async fn register_dataset(
         .map_err(|e| bad_request(e.to_string()))?;
 
     let json_schema = body.json_schema.clone();
-    let (_, arrow_schema_json, fingerprint) =
-        tokio::task::spawn_blocking(move || -> Result<_, (StatusCode, Json<ScouterServerError>)> {
+    let (_, arrow_schema_json, fingerprint) = tokio::task::spawn_blocking(
+        move || -> Result<_, (StatusCode, Json<ScouterServerError>)> {
             let arrow_schema = scouter_types::dataset::schema::json_schema_to_arrow(&json_schema)
                 .map_err(|e| bad_request(format!("Invalid JSON schema: {e}")))?;
             let schema_with_sys = inject_system_columns(arrow_schema)
@@ -365,9 +365,10 @@ pub async fn register_dataset(
             let fp = fingerprint_from_json_schema(&json_schema)
                 .map_err(|e| bad_request(format!("Failed to compute fingerprint: {e}")))?;
             Ok((schema_with_sys, schema_json, fp))
-        })
-        .await
-        .map_err(|e| internal_error("spawn error", e))??;
+        },
+    )
+    .await
+    .map_err(|e| internal_error("spawn error", e))??;
 
     let registration = DatasetRegistration::new(
         namespace,

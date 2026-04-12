@@ -106,16 +106,19 @@ impl DatasetService for DatasetGrpcService {
         let json_schema = req.json_schema.clone();
         let (_, arrow_schema_json, fingerprint) =
             tokio::task::spawn_blocking(move || -> Result<_, Status> {
-                let arrow_schema = scouter_types::dataset::schema::json_schema_to_arrow(&json_schema)
-                    .map_err(|e| Status::invalid_argument(format!("Invalid JSON schema: {e}")))?;
+                let arrow_schema = scouter_types::dataset::schema::json_schema_to_arrow(
+                    &json_schema,
+                )
+                .map_err(|e| Status::invalid_argument(format!("Invalid JSON schema: {e}")))?;
                 let schema_with_sys = inject_system_columns(arrow_schema).map_err(|e| {
                     Status::invalid_argument(format!("Failed to inject system columns: {e}"))
                 })?;
                 let schema_json = serde_json::to_string(&schema_with_sys).map_err(|e| {
                     Status::internal(format!("Failed to serialize Arrow schema: {e}"))
                 })?;
-                let fp = fingerprint_from_json_schema(&json_schema)
-                    .map_err(|e| Status::invalid_argument(format!("Failed to compute fingerprint: {e}")))?;
+                let fp = fingerprint_from_json_schema(&json_schema).map_err(|e| {
+                    Status::invalid_argument(format!("Failed to compute fingerprint: {e}"))
+                })?;
                 Ok((schema_with_sys, schema_json, fp))
             })
             .await
