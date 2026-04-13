@@ -39,7 +39,7 @@ pub async fn get_tags(
             StatusCode::BAD_REQUEST,
             Json(ScouterServerError {
                 error: "Query parameter exceeds 200 character limit".to_string(),
-                code: "BAD_REQUEST",
+                code: "BAD_REQUEST".to_string(),
                 suggested_action: None,
                 retry: Some(false),
             }),

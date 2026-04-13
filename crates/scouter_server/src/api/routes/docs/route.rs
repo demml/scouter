@@ -327,7 +327,7 @@ pub async fn search_docs(
             StatusCode::BAD_REQUEST,
             Json(ScouterServerError {
                 error: "Search query exceeds 200 character limit".to_string(),
-                code: "BAD_REQUEST",
+                code: "BAD_REQUEST".to_string(),
                 suggested_action: None,
                 retry: Some(false),
             }),
@@ -398,9 +398,9 @@ pub async fn get_doc(
                 StatusCode::NOT_FOUND,
                 Json(ScouterServerError {
                     error: format!("Doc '{id}' not found"),
-                    code: "NOT_FOUND",
+                    code: "NOT_FOUND".to_string(),
                     suggested_action: Some(
-                        "Call GET /scouter/api/v1/docs to list all available doc IDs",
+                        "Call GET /scouter/api/v1/docs to list all available doc IDs".to_string(),
                     ),
                     retry: Some(false),
                 }),

@@ -316,10 +316,9 @@ pub struct UpdateAlertStatus {
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct ScouterServerError {
     pub error: String,
-    pub code: &'static str,
+    pub code: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "utoipa", schema(value_type = Option<String>))]
-    pub suggested_action: Option<&'static str>,
+    pub suggested_action: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub retry: Option<bool>,
 }
@@ -328,8 +327,8 @@ impl ScouterServerError {
     pub fn permission_denied() -> Self {
         ScouterServerError {
             error: "Permission denied".to_string(),
-            code: "PERMISSION_DENIED",
-            suggested_action: Some("Ensure your token has the required permissions"),
+            code: "PERMISSION_DENIED".to_string(),
+            suggested_action: Some("Ensure your token has the required permissions".to_string()),
             retry: Some(false),
         }
     }
@@ -338,8 +337,8 @@ impl ScouterServerError {
         error!("User does not have admin permissions");
         ScouterServerError {
             error: "Need admin permission".to_string(),
-            code: "ADMIN_REQUIRED",
-            suggested_action: Some("Contact your administrator"),
+            code: "ADMIN_REQUIRED".to_string(),
+            suggested_action: Some("Contact your administrator".to_string()),
             retry: Some(false),
         }
     }
@@ -347,8 +346,8 @@ impl ScouterServerError {
     pub fn user_already_exists() -> Self {
         ScouterServerError {
             error: "User already exists".to_string(),
-            code: "CONFLICT",
-            suggested_action: Some("Use a different username"),
+            code: "CONFLICT".to_string(),
+            suggested_action: Some("Use a different username".to_string()),
             retry: Some(false),
         }
     }
@@ -357,7 +356,7 @@ impl ScouterServerError {
         error!("Failed to create user: {}", e);
         ScouterServerError {
             error: "Failed to create user".to_string(),
-            code: "INTERNAL_ERROR",
+            code: "INTERNAL_ERROR".to_string(),
             suggested_action: None,
             retry: Some(false),
         }
@@ -366,8 +365,8 @@ impl ScouterServerError {
     pub fn user_not_found() -> Self {
         ScouterServerError {
             error: "User not found".to_string(),
-            code: "NOT_FOUND",
-            suggested_action: Some("Call GET /scouter/user to list available users"),
+            code: "NOT_FOUND".to_string(),
+            suggested_action: Some("Call GET /scouter/user to list available users".to_string()),
             retry: Some(false),
         }
     }
@@ -376,7 +375,7 @@ impl ScouterServerError {
         error!("Failed to get user: {}", e);
         ScouterServerError {
             error: "Failed to get user".to_string(),
-            code: "QUERY_ERROR",
+            code: "QUERY_ERROR".to_string(),
             suggested_action: None,
             retry: Some(true),
         }
@@ -386,7 +385,7 @@ impl ScouterServerError {
         error!("Failed to list users: {}", e);
         ScouterServerError {
             error: "Failed to list users".to_string(),
-            code: "QUERY_ERROR",
+            code: "QUERY_ERROR".to_string(),
             suggested_action: None,
             retry: Some(true),
         }
@@ -396,7 +395,7 @@ impl ScouterServerError {
         error!("Failed to update user: {}", e);
         ScouterServerError {
             error: "Failed to update user".to_string(),
-            code: "INTERNAL_ERROR",
+            code: "INTERNAL_ERROR".to_string(),
             suggested_action: None,
             retry: Some(false),
         }
@@ -405,7 +404,7 @@ impl ScouterServerError {
         error!("Failed to delete user: {}", e);
         ScouterServerError {
             error: "Failed to delete user".to_string(),
-            code: "INTERNAL_ERROR",
+            code: "INTERNAL_ERROR".to_string(),
             suggested_action: None,
             retry: Some(false),
         }
@@ -415,7 +414,7 @@ impl ScouterServerError {
         error!("Failed to check admin status: {}", e);
         ScouterServerError {
             error: "Failed to check admin status".to_string(),
-            code: "INTERNAL_ERROR",
+            code: "INTERNAL_ERROR".to_string(),
             suggested_action: None,
             retry: Some(false),
         }
@@ -425,8 +424,8 @@ impl ScouterServerError {
         error!("Cannot delete the last admin user");
         ScouterServerError {
             error: "Cannot delete the last admin user".to_string(),
-            code: "CONFLICT",
-            suggested_action: Some("Assign admin role to another user first"),
+            code: "CONFLICT".to_string(),
+            suggested_action: Some("Assign admin role to another user first".to_string()),
             retry: Some(false),
         }
     }
@@ -434,8 +433,8 @@ impl ScouterServerError {
         error!("Username header not found");
         ScouterServerError {
             error: "Username header not found".to_string(),
-            code: "BAD_REQUEST",
-            suggested_action: Some("Include X-Username header"),
+            code: "BAD_REQUEST".to_string(),
+            suggested_action: Some("Include X-Username header".to_string()),
             retry: Some(false),
         }
     }
@@ -444,8 +443,10 @@ impl ScouterServerError {
         error!("Invalid username format");
         ScouterServerError {
             error: "Invalid username format".to_string(),
-            code: "BAD_REQUEST",
-            suggested_action: Some("Username must be alphanumeric with underscores/hyphens only"),
+            code: "BAD_REQUEST".to_string(),
+            suggested_action: Some(
+                "Username must be alphanumeric with underscores/hyphens only".to_string(),
+            ),
             retry: Some(false),
         }
     }
@@ -454,8 +455,8 @@ impl ScouterServerError {
         error!("Password header not found");
         ScouterServerError {
             error: "Password header not found".to_string(),
-            code: "BAD_REQUEST",
-            suggested_action: Some("Include X-Password header"),
+            code: "BAD_REQUEST".to_string(),
+            suggested_action: Some("Include X-Password header".to_string()),
             retry: Some(false),
         }
     }
@@ -463,8 +464,8 @@ impl ScouterServerError {
         error!("Invalid password format");
         ScouterServerError {
             error: "Invalid password format".to_string(),
-            code: "BAD_REQUEST",
-            suggested_action: Some("Password must be at least 8 characters"),
+            code: "BAD_REQUEST".to_string(),
+            suggested_action: Some("Password must be at least 8 characters".to_string()),
             retry: Some(false),
         }
     }
@@ -473,7 +474,7 @@ impl ScouterServerError {
         error!("User validation failed");
         ScouterServerError {
             error: "User validation failed".to_string(),
-            code: "BAD_REQUEST",
+            code: "BAD_REQUEST".to_string(),
             suggested_action: None,
             retry: Some(false),
         }
@@ -483,8 +484,8 @@ impl ScouterServerError {
         error!("Failed to validate token");
         ScouterServerError {
             error: "Failed to validate token".to_string(),
-            code: "UNAUTHORIZED",
-            suggested_action: Some("Re-authenticate via GET /scouter/auth/login"),
+            code: "UNAUTHORIZED".to_string(),
+            suggested_action: Some("Re-authenticate via GET /scouter/auth/login".to_string()),
             retry: Some(false),
         }
     }
@@ -493,8 +494,8 @@ impl ScouterServerError {
         error!("Bearer token not found");
         ScouterServerError {
             error: "Bearer token not found".to_string(),
-            code: "UNAUTHORIZED",
-            suggested_action: Some("Include Authorization: Bearer <token> header"),
+            code: "UNAUTHORIZED".to_string(),
+            suggested_action: Some("Include Authorization: Bearer <token> header".to_string()),
             retry: Some(false),
         }
     }
@@ -503,8 +504,8 @@ impl ScouterServerError {
         error!("Failed to refresh token: {}", e);
         ScouterServerError {
             error: "Failed to refresh token".to_string(),
-            code: "UNAUTHORIZED",
-            suggested_action: Some("Re-authenticate via GET /scouter/auth/login"),
+            code: "UNAUTHORIZED".to_string(),
+            suggested_action: Some("Re-authenticate via GET /scouter/auth/login".to_string()),
             retry: Some(false),
         }
     }
@@ -513,8 +514,8 @@ impl ScouterServerError {
         error!("Unauthorized: {}", e);
         ScouterServerError {
             error: "Unauthorized".to_string(),
-            code: "UNAUTHORIZED",
-            suggested_action: Some("Re-authenticate via GET /scouter/auth/login"),
+            code: "UNAUTHORIZED".to_string(),
+            suggested_action: Some("Re-authenticate via GET /scouter/auth/login".to_string()),
             retry: Some(false),
         }
     }
@@ -523,7 +524,7 @@ impl ScouterServerError {
         error!("Failed to decode JWT token: {}", e);
         ScouterServerError {
             error: "Failed to decode JWT token".to_string(),
-            code: "UNAUTHORIZED",
+            code: "UNAUTHORIZED".to_string(),
             suggested_action: None,
             retry: Some(false),
         }
@@ -533,8 +534,8 @@ impl ScouterServerError {
         error!("No refresh token provided");
         ScouterServerError {
             error: "No refresh token provided".to_string(),
-            code: "UNAUTHORIZED",
-            suggested_action: Some("Include X-Refresh-Token header"),
+            code: "UNAUTHORIZED".to_string(),
+            suggested_action: Some("Include X-Refresh-Token header".to_string()),
             retry: Some(false),
         }
     }
@@ -542,7 +543,7 @@ impl ScouterServerError {
     pub fn new(error: String) -> Self {
         ScouterServerError {
             error,
-            code: "INTERNAL_ERROR",
+            code: "INTERNAL_ERROR".to_string(),
             suggested_action: None,
             retry: Some(false),
         }
@@ -552,7 +553,7 @@ impl ScouterServerError {
         error!("Failed to query records: {}", e);
         ScouterServerError {
             error: "Failed to query records".to_string(),
-            code: "QUERY_ERROR",
+            code: "QUERY_ERROR".to_string(),
             suggested_action: None,
             retry: Some(true),
         }
@@ -562,7 +563,7 @@ impl ScouterServerError {
         error!("Failed to query alerts: {}", e);
         ScouterServerError {
             error: "Failed to query alerts".to_string(),
-            code: "QUERY_ERROR",
+            code: "QUERY_ERROR".to_string(),
             suggested_action: None,
             retry: Some(true),
         }
@@ -572,7 +573,7 @@ impl ScouterServerError {
         error!("Failed to query profile: {}", e);
         ScouterServerError {
             error: "Failed to query profile".to_string(),
-            code: "QUERY_ERROR",
+            code: "QUERY_ERROR".to_string(),
             suggested_action: None,
             retry: Some(true),
         }
@@ -581,7 +582,7 @@ impl ScouterServerError {
         error!("Failed to query tags: {}", e);
         ScouterServerError {
             error: "Failed to query tags".to_string(),
-            code: "QUERY_ERROR",
+            code: "QUERY_ERROR".to_string(),
             suggested_action: None,
             retry: Some(true),
         }
@@ -591,7 +592,7 @@ impl ScouterServerError {
         error!("Failed to get trace baggage records: {}", e);
         ScouterServerError {
             error: "Failed to get trace baggage".to_string(),
-            code: "QUERY_ERROR",
+            code: "QUERY_ERROR".to_string(),
             suggested_action: None,
             retry: Some(true),
         }
@@ -601,7 +602,7 @@ impl ScouterServerError {
         error!("Failed to get paginated traces: {}", e);
         ScouterServerError {
             error: "Failed to get paginated traces".to_string(),
-            code: "QUERY_ERROR",
+            code: "QUERY_ERROR".to_string(),
             suggested_action: None,
             retry: Some(true),
         }
@@ -611,7 +612,7 @@ impl ScouterServerError {
         error!("Failed to get trace spans: {}", e);
         ScouterServerError {
             error: "Failed to get trace spans".to_string(),
-            code: "QUERY_ERROR",
+            code: "QUERY_ERROR".to_string(),
             suggested_action: None,
             retry: Some(true),
         }
@@ -621,7 +622,7 @@ impl ScouterServerError {
         error!("Failed to get trace metrics: {}", e);
         ScouterServerError {
             error: "Failed to get trace metrics".to_string(),
-            code: "QUERY_ERROR",
+            code: "QUERY_ERROR".to_string(),
             suggested_action: None,
             retry: Some(true),
         }
@@ -631,7 +632,7 @@ impl ScouterServerError {
         error!("Failed to insert tags: {}", e);
         ScouterServerError {
             error: "Failed to insert tags".to_string(),
-            code: "INTERNAL_ERROR",
+            code: "INTERNAL_ERROR".to_string(),
             suggested_action: None,
             retry: Some(false),
         }
@@ -641,7 +642,7 @@ impl ScouterServerError {
         error!("Failed to get entity IDs by tags: {}", e);
         ScouterServerError {
             error: "Failed to get entity IDs by tags".to_string(),
-            code: "QUERY_ERROR",
+            code: "QUERY_ERROR".to_string(),
             suggested_action: None,
             retry: Some(true),
         }
@@ -651,7 +652,7 @@ impl ScouterServerError {
         error!("Failed to refresh trace summary: {}", e);
         ScouterServerError {
             error: "Failed to refresh trace summary".to_string(),
-            code: "INTERNAL_ERROR",
+            code: "INTERNAL_ERROR".to_string(),
             suggested_action: None,
             retry: Some(false),
         }
