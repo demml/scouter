@@ -5562,6 +5562,7 @@ dependencies = [
  "reqwest 0.12.28",
  "rusty-logging",
  "scouter-client",
+ "scouter-dataframe",
  "scouter-mocks",
  "scouter-server",
  "scouter-tracing",
@@ -6593,6 +6594,7 @@ dependencies = [
  "object_store",
  "potato-head",
  "rand 0.9.3",
+ "regex",
  "scouter-mocks",
  "scouter-settings",
  "scouter-types",
@@ -6605,6 +6607,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
+ "utoipa",
  "uuid",
 ]
 

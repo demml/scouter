@@ -8,6 +8,7 @@ pub mod docs;
 pub mod drift;
 pub mod health;
 pub mod profile;
+pub mod service_map;
 pub mod tags;
 pub mod tonic;
 pub mod trace;

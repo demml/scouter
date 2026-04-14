@@ -95,6 +95,8 @@ impl utoipa::Modify for SecurityAddon {
         crate::api::routes::dataset::route::execute_query,
         crate::api::routes::dataset::route::cancel_query,
         crate::api::routes::dataset::route::explain_query,
+        // service map
+        crate::api::routes::service_map::route::get_service_graph,
         // eval scenarios
         crate::api::routes::eval_scenarios::route::get_eval_scenarios,
         // capabilities

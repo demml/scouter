@@ -52,6 +52,7 @@ class BaseModel(Protocol):
     def __str__(self) -> str:
         """String representation of the model"""
 
+
 ### logging.pyi ###
 class LogLevel:
     Debug: "LogLevel"
@@ -205,6 +206,7 @@ class RustyLogger:
             *args:
                 Additional arguments to log.
         """
+
 
 ### potato.pyi ###
 class Provider:
@@ -10006,6 +10008,7 @@ class LLMTestServer:
         Stop the mock server.
         """
 
+
 ### tracing.pyi ###
 class TagRecord:
     """Represents a single tag record associated with an entity."""
@@ -11052,6 +11055,7 @@ def extract_span_context_from_headers(
 
     Returns a dict with 'trace_id', 'span_id', 'is_sampled' keys, or None if no valid context found.
     """
+
 
 ### evaluate.pyi ###
 class EvaluationTaskType:
@@ -13956,6 +13960,7 @@ class EvalOrchestrator:
             ScenarioEvalResults with metrics across all scenarios.
         """
 
+
 ### mock.pyi ###
 class BifrostTestServer:
     def __init__(self, cleanup: bool = True) -> None: ...
@@ -14065,6 +14070,7 @@ def create_trace_with_errors() -> List["TraceSpan"]:
     Returns:
         List[TraceSpan]: A list of TraceSpan objects representing the trace.
     """
+
 
 ### scouter.pyi ###
 #################
@@ -18816,6 +18822,7 @@ class DataProfiler:
                     Optional interval for aggregating metrics (e.g., "1m", "5m").
             """
 
+
 ### bifrost.pyi ###
 class TableConfig:
     """Configuration for a dataset table, derived from a Pydantic model.
@@ -19093,6 +19100,27 @@ class Bifrost:
     @property
     def client(self) -> DatasetClient:
         """The underlying ``DatasetClient`` for full read API access."""
+
+
+### service_map.pyi ###
+def py_normalize_endpoint(path: str) -> str:
+    """Strip UUID and integer path segments to prevent cardinality explosion.
+
+    ``/users/12345/orders`` → ``/users/{id}/orders``
+    """
+
+def py_extract_trace_id(traceparent: str) -> Optional[str]:
+    """Extract the trace ID from a W3C ``traceparent`` header value.
+
+    Returns ``None`` if the header is absent, malformed, or empty.
+    """
+
+def py_infer_schema(body: bytes) -> Optional[str]:
+    """Inspect a JSON object body and return a JSON-encoded ``{field: type}`` map.
+
+    Returns ``None`` if the body is not valid JSON or is not a top-level object.
+    """
+
 
 ### GLOBAL EXPORTS ###
 __all__ = [
@@ -19502,5 +19530,8 @@ __all__ = [
     "extract_span_context_from_headers",
     "flush_tracer",
     "init_tracer",
+    "py_extract_trace_id",
+    "py_infer_schema",
+    "py_normalize_endpoint",
     "shutdown_tracer",
 ]
