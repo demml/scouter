@@ -14,10 +14,8 @@ static TRACEPARENT_RE: OnceLock<Regex> = OnceLock::new();
 
 fn uuid_re() -> &'static Regex {
     UUID_RE.get_or_init(|| {
-        Regex::new(
-            r"(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-        )
-        .expect("UUID regex is valid")
+        Regex::new(r"(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+            .expect("UUID regex is valid")
     })
 }
 
@@ -92,7 +90,9 @@ pub fn infer_schema(body: &[u8]) -> Option<String> {
 /// identifier contexts (column/table names).
 // TODO: Replace string interpolation with DataFusion parameterized queries in a future pass.
 fn sanitize_string_filter_value(s: &str) -> Result<&str, String> {
-    if s.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
+    if s.chars()
+        .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+    {
         Ok(s)
     } else {
         Err(
@@ -122,8 +122,7 @@ pub fn build_topology_sql(
         // RFC 3339 is structurally incapable of containing SQL-hostile characters;
         // chrono rejects anything non-conforming.
         // TODO: replace with DataFusion parameterized queries.
-        DateTime::parse_from_rfc3339(s)
-            .map_err(|e| format!("Invalid 'since' datetime: {e}"))?;
+        DateTime::parse_from_rfc3339(s).map_err(|e| format!("Invalid 'since' datetime: {e}"))?;
         predicates.push(format!("scouter_created_at >= '{s}'"));
     }
 
@@ -438,8 +437,12 @@ mod tests {
                 Arc::new(StringArray::from(vec!["svc-b"])),
                 Arc::new(StringArray::from(vec!["/health"])),
                 Arc::new(Int64Array::from(vec![3i64])),
-                Arc::new(TimestampMicrosecondArray::from(vec![1_700_000_000_000_000i64])),
-                Arc::new(TimestampMicrosecondArray::from(vec![1_700_000_001_000_000i64])),
+                Arc::new(TimestampMicrosecondArray::from(vec![
+                    1_700_000_000_000_000i64,
+                ])),
+                Arc::new(TimestampMicrosecondArray::from(vec![
+                    1_700_000_001_000_000i64,
+                ])),
                 Arc::new(Float64Array::from(vec![12.5f64])),
                 Arc::new(Int64Array::from(vec![0i64])),
                 Arc::new(Float64Array::from(vec![0.0f64])),
@@ -462,15 +465,14 @@ mod tests {
         use arrow_array::{RecordBatch, StringArray};
         use std::sync::Arc;
 
-        let schema = Arc::new(Schema::new(vec![
-            Field::new("source_service", DataType::Utf8, false),
-        ]));
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "source_service",
+            DataType::Utf8,
+            false,
+        )]));
 
-        let batch = RecordBatch::try_new(
-            schema,
-            vec![Arc::new(StringArray::from(vec!["svc-a"]))],
-        )
-        .unwrap();
+        let batch =
+            RecordBatch::try_new(schema, vec![Arc::new(StringArray::from(vec!["svc-a"]))]).unwrap();
 
         let result = batches_to_edges(&[batch]);
         assert!(result.is_err());

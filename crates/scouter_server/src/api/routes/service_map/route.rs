@@ -6,8 +6,8 @@ use axum::{
     Json, Router,
 };
 use chrono::Utc;
-use scouter_dataframe::{batches_to_edges, build_topology_sql, ServiceGraphEdge};
 use scouter_dataframe::error::DatasetEngineError;
+use scouter_dataframe::{batches_to_edges, build_topology_sql, ServiceGraphEdge};
 use scouter_types::contracts::ScouterServerError;
 use std::sync::Arc;
 use tracing::{error, info, instrument};
@@ -34,7 +34,10 @@ fn map_dataset_error(e: DatasetEngineError) -> (StatusCode, Json<ScouterServerEr
         }
         DatasetEngineError::SqlValidationError(_) => {
             error!("Service map SQL validation error: {:?}", e);
-            (StatusCode::BAD_REQUEST, "Invalid query parameters".to_string())
+            (
+                StatusCode::BAD_REQUEST,
+                "Invalid query parameters".to_string(),
+            )
         }
         DatasetEngineError::ChannelClosed => {
             error!("Service map dataset channel closed: {:?}", e);
@@ -115,8 +118,5 @@ pub async fn get_service_graph(
 }
 
 pub fn get_service_map_router(prefix: &str) -> Router<Arc<AppState>> {
-    Router::new().route(
-        &format!("{prefix}/service/graph"),
-        get(get_service_graph),
-    )
+    Router::new().route(&format!("{prefix}/service/graph"), get(get_service_graph))
 }

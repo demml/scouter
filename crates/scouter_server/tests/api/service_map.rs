@@ -74,9 +74,9 @@ fn service_map_ipc_bytes(records: &[TestRecord]) -> Vec<u8> {
                 "latency_ms" => Arc::new(Float64Array::from(
                     records.iter().map(|r| r.5).collect::<Vec<_>>(),
                 )),
-                "timestamp" => Arc::new(
-                    TimestampMicrosecondArray::from(vec![ts; n]).with_timezone("UTC"),
-                ),
+                "timestamp" => {
+                    Arc::new(TimestampMicrosecondArray::from(vec![ts; n]).with_timezone("UTC"))
+                }
                 "trace_id" => Arc::new(StringViewArray::from(vec![None::<&str>; n])),
                 "error" => Arc::new(BooleanArray::from(
                     records.iter().map(|r| r.6).collect::<Vec<_>>(),
@@ -84,9 +84,9 @@ fn service_map_ipc_bytes(records: &[TestRecord]) -> Vec<u8> {
                 "source_verified" => Arc::new(BooleanArray::from(vec![false; n])),
                 "tags" => Arc::new(StringViewArray::from(vec![None::<&str>; n])),
                 "request_schema" => Arc::new(StringViewArray::from(vec![None::<&str>; n])),
-                SCOUTER_CREATED_AT => Arc::new(
-                    TimestampMicrosecondArray::from(vec![ts; n]).with_timezone("UTC"),
-                ),
+                SCOUTER_CREATED_AT => {
+                    Arc::new(TimestampMicrosecondArray::from(vec![ts; n]).with_timezone("UTC"))
+                }
                 SCOUTER_PARTITION_DATE => Arc::new(Date32Array::from(vec![epoch_days; n])),
                 SCOUTER_BATCH_ID => Arc::new(StringArray::from(vec!["batch-1"; n])),
                 other => panic!("Unexpected schema field: {other}"),
@@ -98,10 +98,7 @@ fn service_map_ipc_bytes(records: &[TestRecord]) -> Vec<u8> {
     batches_to_ipc_bytes(std::slice::from_ref(&batch)).unwrap()
 }
 
-async fn register_and_insert(
-    helper: &crate::common::TestHelper,
-    records: &[TestRecord<'_>],
-) {
+async fn register_and_insert(helper: &crate::common::TestHelper, records: &[TestRecord<'_>]) {
     let mut client = helper.create_dataset_grpc_client().await;
     let reg = client
         .register_dataset(
