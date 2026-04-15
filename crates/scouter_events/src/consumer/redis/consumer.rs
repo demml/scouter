@@ -1,6 +1,6 @@
 #[cfg(all(feature = "redis_events", feature = "sql"))]
 pub mod redis_consumer {
-    use crate::consumer::utils::process_message_record;
+    use crate::consumer::utils::{process_server_records, process_tag_record, process_trace_record};
     use crate::error::EventError;
     use crate::producer::redis::producer::redis_producer::RedisMessageBroker;
     use futures_util::StreamExt;
@@ -34,9 +34,7 @@ pub mod redis_consumer {
         }
     }
 
-    /// Create a new RabbitMQ consumer manager
-    ///
-    /// This function creates a new RabbitMQ consumer manager that will start a number of workers to consume messages from RabbitMQ
+    /// Redis consumer manager
     pub struct RedisConsumerManager {
         pub workers: Vec<JoinHandle<()>>,
     }
@@ -136,8 +134,12 @@ pub mod redis_consumer {
 
         // Process messages. If processing fails, log the error, record metrics, and continue
         match process_message(&payload).await {
-            Ok(Some(records)) => {
-                process_message_record(id, records, db_pool).await;
+            Ok(Some(record)) => {
+                let _ = match record {
+                    MessageRecord::ServerRecords(r) => process_server_records(id, r, db_pool).await,
+                    MessageRecord::TraceServerRecord(r) => process_trace_record(id, r, db_pool).await,
+                    MessageRecord::TagServerRecord(r) => process_tag_record(id, r, db_pool).await,
+                };
             }
             Ok(None) => {
                 // No records to process

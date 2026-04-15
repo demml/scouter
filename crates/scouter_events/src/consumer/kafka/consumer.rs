@@ -1,5 +1,5 @@
 pub mod kafka_consumer {
-    use crate::consumer::utils::process_message_record;
+    use crate::consumer::utils::{process_server_records, process_tag_record, process_trace_record};
     use crate::error::EventError;
     use metrics::counter;
     use rdkafka::config::ClientConfig;
@@ -46,12 +46,16 @@ pub mod kafka_consumer {
                                     continue;
                                 }
 
-                                if let Ok(Some(records)) = process_message(&msg).await {
-                                    if process_message_record(id, records, &db_pool).await {
+                                if let Ok(Some(record)) = process_message(&msg).await {
+                                    let success = match record {
+                                        MessageRecord::ServerRecords(r) => process_server_records(id, r, &db_pool).await,
+                                        MessageRecord::TraceServerRecord(r) => process_trace_record(id, r, &db_pool).await,
+                                        MessageRecord::TagServerRecord(r) => process_tag_record(id, r, &db_pool).await,
+                                    };
+                                    if success {
                                         if let Err(e) = consumer.commit_message(&msg, CommitMode::Async) {
                                             error!("Worker {}: Failed to commit message: {:?}", id, e);
                                         }
-
                                     }
                                 }
                             }

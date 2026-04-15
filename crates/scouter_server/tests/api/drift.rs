@@ -5,9 +5,8 @@ use axum::{
     body::Body,
     http::{header, Request, StatusCode},
 };
-use potato_head::mock::LLMTestServer;
-
 use http_body_util::BodyExt;
+use potato_head::mock::LLMTestServer;
 use scouter_drift::psi::PsiMonitor;
 use scouter_types::contracts::DriftRequest;
 use scouter_types::custom::{
@@ -284,4 +283,45 @@ fn test_agent_server_records() {
 
     mock.stop_server().unwrap();
     TestHelper::cleanup_storage();
+}
+
+#[tokio::test]
+async fn test_spc_via_drift_endpoint() {
+    let helper = setup_test().await;
+    let profile = helper.create_drift_profile().await;
+    let records = helper.get_spc_drift_records(None, &profile.config.uid);
+    let body = serde_json::to_string(&records).unwrap();
+
+    let request = Request::builder()
+        .uri("/scouter/drift")
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body))
+        .unwrap();
+
+    let response = helper.send_oneshot(request).await;
+    assert_eq!(response.status(), StatusCode::OK);
+
+    sleep(Duration::from_secs(2)).await;
+
+    let params = scouter_types::contracts::DriftRequest {
+        space: SPACE.to_string(),
+        uid: profile.config.uid.clone(),
+        time_interval: scouter_types::TimeInterval::FifteenMinutes,
+        max_data_points: 100,
+        ..Default::default()
+    };
+    let query_string = serde_qs::to_string(&params).unwrap();
+    let request = Request::builder()
+        .uri(format!("/scouter/drift/spc?{query_string}"))
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+
+    let response = helper.send_oneshot(request).await;
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let results: scouter_types::spc::SpcDriftFeatures = serde_json::from_slice(&body).unwrap();
+    assert_eq!(results.features.len(), 10, "SPC records should be inserted via /scouter/drift");
 }
