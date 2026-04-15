@@ -228,7 +228,7 @@ pub fn batches_to_edges(
 
 fn extract_string(col: &dyn arrow_array::Array, i: usize) -> Result<String, String> {
     use arrow::datatypes::DataType;
-    use arrow_array::{DictionaryArray, StringArray};
+    use arrow_array::{DictionaryArray, StringArray, StringViewArray};
 
     match col.data_type() {
         DataType::Utf8 => col
@@ -236,6 +236,11 @@ fn extract_string(col: &dyn arrow_array::Array, i: usize) -> Result<String, Stri
             .downcast_ref::<StringArray>()
             .map(|a| a.value(i).to_string())
             .ok_or_else(|| format!("Failed to read Utf8 at {i}")),
+        DataType::Utf8View => col
+            .as_any()
+            .downcast_ref::<StringViewArray>()
+            .map(|a| a.value(i).to_string())
+            .ok_or_else(|| format!("Failed to read Utf8View at {i}")),
         DataType::Dictionary(_, _) => {
             let dict = col
                 .as_any()
