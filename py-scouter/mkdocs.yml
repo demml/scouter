@@ -95,6 +95,8 @@ nav:
       - Queue: "docs/specs/ts-component-scouter-queue.md"
       - gRPC: "docs/specs/ts-component-scouter-grpc.md"
       - Agent Evaluation: "docs/specs/ts-component-genai-eval.md"
+  - Architecture:
+      - System Overview: "docs/architecture/overview.md"
   - API Documentation:
       - API: "docs/api/stubs.md"
 
