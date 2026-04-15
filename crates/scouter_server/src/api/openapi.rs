@@ -183,6 +183,7 @@ impl utoipa::Modify for SecurityAddon {
         (name = "eval", description = "Evaluation scenario endpoints"),
         (name = "capabilities", description = "Server capabilities and discovery"),
         (name = "docs", description = "Embedded documentation and search"),
+        (name = "service_map", description = "Service dependency map endpoints"),
     ),
     modifiers(&SecurityAddon)
 )]

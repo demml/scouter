@@ -187,7 +187,10 @@ class ServiceMapMiddleware:
         content_type = headers.get("content-type", "")
         if self._capture_schema and content_type.startswith("application/json"):
             content_length = headers.get("content-length")
-            skip = content_length is not None and int(content_length) > self._max_body_bytes
+            try:
+                skip = content_length is not None and int(content_length) > self._max_body_bytes
+            except (ValueError, OverflowError):
+                skip = False
             if not skip:
                 body, receive = await _buffer_body(receive, self._max_body_bytes)
                 if body:
