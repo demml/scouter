@@ -32,7 +32,7 @@ fn traceparent_re() -> &'static Regex {
 
 /// Strip UUIDs and integer path segments to prevent cardinality explosion.
 ///
-/// `/users/12345/orders/abc-def` → `/users/{id}/orders/{id}`
+/// `/users/12345/orders/abc-def` → `/users/{id}/orders/abc-def`
 pub fn normalize_endpoint(path: &str) -> String {
     let normalized = path
         .split('/')
@@ -90,6 +90,9 @@ pub fn infer_schema(body: &[u8]) -> Option<String> {
 /// identifier contexts (column/table names).
 // TODO: Replace string interpolation with DataFusion parameterized queries in a future pass.
 fn sanitize_string_filter_value(s: &str) -> Result<&str, String> {
+    if s.is_empty() {
+        return Err("Invalid service_name: must not be empty".to_string());
+    }
     if s.chars()
         .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
     {
