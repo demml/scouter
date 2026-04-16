@@ -49,6 +49,8 @@ async def _buffer_body(receive: Any, max_bytes: int) -> tuple[bytes, Any]:
     while True:
         msg = await receive()
         messages.append(msg)
+        if msg["type"] == "http.disconnect":
+            break
         if msg["type"] == "http.request":
             chunk = msg.get("body", b"")
             if chunk:
@@ -59,7 +61,6 @@ async def _buffer_body(receive: Any, max_bytes: int) -> tuple[bytes, Any]:
                 chunks.append(chunk)
             if not msg.get("more_body", False):
                 break
-        # other ASGI message types (e.g. http.disconnect extensions): accumulate and continue
 
     body = b"" if exceeded else b"".join(chunks)
     idx = 0
