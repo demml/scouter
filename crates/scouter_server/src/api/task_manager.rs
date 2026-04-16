@@ -29,13 +29,11 @@ impl TaskManager {
     }
 
     pub async fn shutdown(&self) {
-        // Signal all tasks to shut down gracefully
         let _ = self.shutdown_tx.send(());
-
-        // Give tasks some time to clean up
-        tokio::time::sleep(Duration::from_millis(500)).await;
-
-        // Then abort any remaining tasks
+        // Allow workers time to drain in-flight and queued messages before aborting.
+        // Workers drain their local channel queue on shutdown, so 5s covers all but
+        // pathologically slow DB inserts.
+        tokio::time::sleep(Duration::from_secs(5)).await;
         for task in &self.tasks {
             task.abort();
         }

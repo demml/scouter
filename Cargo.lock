@@ -6855,6 +6855,7 @@ dependencies = [
  "ndarray",
  "ndarray-rand",
  "object_store",
+ "opentelemetry-proto",
  "password-auth",
  "potato-head",
  "rand 0.9.3",

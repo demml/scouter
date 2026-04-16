@@ -3,11 +3,16 @@ use std::time::Duration;
 
 use axum::{
     body::Body,
-    http::{Request, StatusCode},
+    http::{header, Request, StatusCode},
 };
 use http_body_util::BodyExt;
+use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
+use opentelemetry_proto::tonic::common::v1::{any_value, AnyValue, KeyValue};
+use opentelemetry_proto::tonic::resource::v1::Resource;
+use opentelemetry_proto::tonic::trace::v1::{ResourceSpans, ScopeSpans, Span};
+use potato_head::create_uuid7;
 use scouter_drift::psi::PsiMonitor;
-
+use scouter_sql::sql::aggregator::shutdown_trace_cache;
 use scouter_types::contracts::DriftRequest;
 use scouter_types::custom::{
     CustomDriftProfile, CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig,
@@ -15,7 +20,11 @@ use scouter_types::custom::{
 use scouter_types::psi::BinnedPsiFeatureMetrics;
 use scouter_types::psi::{PsiAlertConfig, PsiDriftConfig};
 use scouter_types::spc::SpcDriftFeatures;
-use scouter_types::{AlertThreshold, BinnedMetrics, TimeInterval};
+use scouter_types::{
+    sql::TraceFilters, AlertThreshold, BinnedMetrics, MessageRecord, TagRecord, TimeInterval,
+    TracePaginationResponse, TraceServerRecord,
+};
+use scouter_types::{TagsRequest, TagsResponse};
 use tokio::time::sleep;
 
 #[tokio::test]
@@ -193,4 +202,135 @@ async fn test_grpc_insert_custom_records() {
     let results: BinnedMetrics = serde_json::from_slice(&val).unwrap();
 
     assert!(!results.metrics.is_empty());
+}
+
+fn make_grpc_trace_record() -> MessageRecord {
+    let trace_id: Vec<u8> = (0u8..16).collect();
+    let span_id: Vec<u8> = (0u8..8).collect();
+
+    let service_name_kv = KeyValue {
+        key: "service.name".to_string(),
+        value: Some(AnyValue {
+            value: Some(any_value::Value::StringValue("grpc-test-service".to_string())),
+        }),
+    };
+
+    let span = Span {
+        trace_id,
+        span_id,
+        name: "grpc-test-span".to_string(),
+        start_time_unix_nano: 1_000_000_000,
+        end_time_unix_nano: 2_000_000_000,
+        ..Default::default()
+    };
+
+    let resource_spans = ResourceSpans {
+        resource: Some(Resource {
+            attributes: vec![service_name_kv],
+            ..Default::default()
+        }),
+        scope_spans: vec![ScopeSpans {
+            spans: vec![span],
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+
+    MessageRecord::TraceServerRecord(TraceServerRecord {
+        request: ExportTraceServiceRequest {
+            resource_spans: vec![resource_spans],
+        },
+    })
+}
+
+#[tokio::test]
+async fn test_grpc_insert_trace_record() {
+    let helper = setup_test().await;
+    let client = helper.create_grpc_client().await;
+
+    let record = make_grpc_trace_record();
+    let response = client
+        .insert_message(serde_json::to_vec(&record).unwrap())
+        .await;
+    assert!(response.is_ok(), "gRPC trace insert should succeed");
+
+    sleep(Duration::from_secs(3)).await;
+    let _ = shutdown_trace_cache(&helper.pool).await;
+
+    let filters = TraceFilters {
+        limit: Some(10),
+        ..Default::default()
+    };
+    let body = serde_json::to_string(&filters).unwrap();
+    let request = Request::builder()
+        .uri("/scouter/trace/paginated")
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body))
+        .unwrap();
+
+    let response = helper.send_oneshot(request).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    let page: TracePaginationResponse = serde_json::from_slice(&bytes).unwrap();
+    assert!(!page.items.is_empty(), "Trace record should appear after gRPC ingest");
+}
+
+#[tokio::test]
+async fn test_grpc_insert_tag_record() {
+    let helper = setup_test().await;
+    let client = helper.create_grpc_client().await;
+
+    let entity_id = create_uuid7();
+    let tag = TagRecord {
+        entity_id: entity_id.clone(),
+        entity_type: "pipeline".to_string(),
+        key: "owner".to_string(),
+        value: "ml-team".to_string(),
+    };
+
+    let record = MessageRecord::TagServerRecord(tag);
+    let response = client
+        .insert_message(serde_json::to_vec(&record).unwrap())
+        .await;
+    assert!(response.is_ok(), "gRPC tag insert should succeed");
+
+    sleep(Duration::from_secs(2)).await;
+
+    let tag_request = TagsRequest {
+        entity_type: "pipeline".to_string(),
+        entity_id: entity_id.clone(),
+    };
+    let query_string = serde_qs::to_string(&tag_request).unwrap();
+    let request = Request::builder()
+        .uri(format!("/scouter/tags?{query_string}"))
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+
+    let response = helper.send_oneshot(request).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    let tags_response: TagsResponse = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(tags_response.tags.len(), 1, "Tag should be present after gRPC ingest");
+    assert_eq!(tags_response.tags[0].value, "ml-team");
+}
+
+#[tokio::test]
+async fn test_grpc_insert_invalid_message() {
+    let helper = setup_test().await;
+    let client = helper.create_grpc_client().await;
+
+    let response = client
+        .insert_message(b"not valid json".to_vec())
+        .await;
+
+    assert!(response.is_err(), "Invalid bytes should return an error");
+    // GrpcClient wraps tonic::Status into ClientError::GrpcError — verify the error
+    // string contains the expected status code so the deserialization error path is exercised.
+    let err_str = format!("{:?}", response.unwrap_err());
+    assert!(
+        err_str.contains("InvalidArgument") || err_str.contains("invalid"),
+        "Expected InvalidArgument gRPC status for malformed payload, got: {err_str}"
+    );
 }
