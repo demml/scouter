@@ -12,6 +12,7 @@ from . import (
     observe,
     profile,
     queue,
+    service_map,
     tracing,
     transport,
     types,
@@ -83,6 +84,7 @@ from ._scouter import (  # dataset; genai
     WriteConfig,
 )
 from .bifrost import Bifrost
+from .service_map import ServiceConnectionRecord, ServiceMapMiddleware
 
 # Configure Rust logging for Python based on environment variables
 RustyLogger.setup_logging(
@@ -168,4 +170,8 @@ __all__ = [
     "SpanStatus",
     "AggregationType",
     "SpanFilter",
+    # service map
+    "service_map",
+    "ServiceConnectionRecord",
+    "ServiceMapMiddleware",
 ]

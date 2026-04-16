@@ -5,6 +5,7 @@ pub mod custom;
 pub mod dataframe;
 pub mod eval_scenarios;
 pub mod psi;
+pub mod service_map;
 pub mod spc;
 pub mod tracing;
 pub mod traits;

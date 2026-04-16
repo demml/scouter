@@ -9,6 +9,7 @@ pub mod mock;
 pub mod observe;
 pub mod profile;
 pub mod queue;
+pub mod service_map;
 pub mod tracing;
 pub mod transport;
 pub mod types;
@@ -29,6 +30,7 @@ fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     mock::add_mock_module(m)?;
     agent::add_agent_module(m)?;
     evaluate::add_evaluate_module(m)?;
+    service_map::add_service_map_module(m)?;
     tracing::add_tracing_module(m)?;
     transport::add_transport_module(m)?;
 

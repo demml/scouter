@@ -6,9 +6,6 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum DataError {
-    #[error(transparent)]
-    PyErr(#[from] pyo3::PyErr),
-
     #[error("Failed to downcast Python object: {0}")]
     DowncastError(String),
 
@@ -23,12 +20,21 @@ pub enum DataError {
 
     #[error("Detected missing, Nan, or infinite values in the data. Scouter does not currently support these value types")]
     MissingNanOrInfiniteValues,
+
+    #[error("{0}")]
+    PyError(String),
 }
 
 impl From<DataError> for PyErr {
     fn from(err: DataError) -> PyErr {
         let msg = err.to_string();
         PyRuntimeError::new_err(msg)
+    }
+}
+
+impl From<PyErr> for DataError {
+    fn from(err: PyErr) -> Self {
+        DataError::PyError(err.to_string())
     }
 }
 

@@ -13,6 +13,7 @@ STUB_FILES = [
     "mock.pyi",
     "scouter.pyi",
     "bifrost.pyi",
+    "service_map.pyi",
 ]
 
 
