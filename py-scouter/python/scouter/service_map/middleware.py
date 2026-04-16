@@ -171,7 +171,7 @@ class ServiceMapMiddleware:
             )
 
             ctx = otel_trace.get_current_span().get_span_context()
-            if ctx.is_valid():
+            if ctx.is_valid:
                 trace_id = format(ctx.trace_id, "032x")
         except ImportError:
             pass
