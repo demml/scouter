@@ -84,22 +84,23 @@ pub fn infer_schema(body: &[u8]) -> Option<String> {
 
 /// Validate that a string is safe to embed as a single-quoted SQL string literal.
 ///
-/// Allows alphanumeric characters, underscores, and hyphens — the character set
-/// used by real service names (e.g. `recommendation-api`). Safe because the value
-/// is always interpolated inside single quotes; this is NOT safe for unquoted SQL
-/// identifier contexts (column/table names).
+/// Allows alphanumeric characters, underscores, hyphens, and dots — the character
+/// set used by real service names (e.g. `recommendation-api`, `api.v2`,
+/// `my-service.namespace.svc.cluster.local`). Safe because the value is always
+/// interpolated inside single quotes; this is NOT safe for unquoted SQL identifier
+/// contexts (column/table names).
 // TODO: Replace string interpolation with DataFusion parameterized queries in a future pass.
 fn sanitize_string_filter_value(s: &str) -> Result<&str, String> {
     if s.is_empty() {
         return Err("Invalid service_name: must not be empty".to_string());
     }
     if s.chars()
-        .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+        .all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c == '.')
     {
         Ok(s)
     } else {
         Err(
-            "Invalid service_name: must contain only alphanumeric characters, underscores, or hyphens"
+            "Invalid service_name: must contain only alphanumeric characters, underscores, hyphens, or dots"
                 .to_string(),
         )
     }
@@ -402,6 +403,15 @@ mod tests {
     fn build_topology_sql_rejects_invalid_service_name() {
         assert!(build_topology_sql(Some("'; DROP TABLE"), None).is_err());
         assert!(build_topology_sql(Some("svc b"), None).is_err());
+        assert!(build_topology_sql(Some(""), None).is_err());
+    }
+
+    #[test]
+    fn build_topology_sql_accepts_dotted_service_name() {
+        let sql = build_topology_sql(Some("my-service.namespace.svc.cluster.local"), None).unwrap();
+        assert!(sql.contains("destination_service = 'my-service.namespace.svc.cluster.local'"));
+        let sql2 = build_topology_sql(Some("api.v2"), None).unwrap();
+        assert!(sql2.contains("destination_service = 'api.v2'"));
     }
 
     #[test]
