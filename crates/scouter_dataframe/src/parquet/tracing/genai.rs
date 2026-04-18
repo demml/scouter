@@ -2170,6 +2170,7 @@ mod tests {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn make_genai_record(
         trace_id: &TraceId,
         span_id: SpanId,
@@ -2199,6 +2200,7 @@ mod tests {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn make_genai_span(
         trace_id: &TraceId,
         span_id: SpanId,
@@ -2457,27 +2459,28 @@ mod tests {
         let service =
             GenAiSpanService::new(&env.object_store, 24, env.ctx, env.catalog, 10, None).await?;
 
-        let mut records = Vec::new();
-        records.push(make_genai_record(
-            &TraceId::from_bytes([40u8; 16]),
-            SpanId::from_bytes([40u8; 8]),
-            "test-svc",
-            "chat",
-            "anthropic",
-            "claude-3",
-            100,
-            200,
-        ));
-        records.push(make_genai_record(
-            &TraceId::from_bytes([41u8; 16]),
-            SpanId::from_bytes([41u8; 8]),
-            "test-svc",
-            "execute_tool",
-            "anthropic",
-            "claude-3",
-            50,
-            100,
-        ));
+        let records = vec![
+            make_genai_record(
+                &TraceId::from_bytes([40u8; 16]),
+                SpanId::from_bytes([40u8; 8]),
+                "test-svc",
+                "chat",
+                "anthropic",
+                "claude-3",
+                100,
+                200,
+            ),
+            make_genai_record(
+                &TraceId::from_bytes([41u8; 16]),
+                SpanId::from_bytes([41u8; 8]),
+                "test-svc",
+                "execute_tool",
+                "anthropic",
+                "claude-3",
+                50,
+                100,
+            ),
+        ];
         service.write_records(records).await?;
         tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
 
