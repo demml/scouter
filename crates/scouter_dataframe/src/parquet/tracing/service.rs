@@ -1,11 +1,12 @@
 use crate::error::TraceEngineError;
 use crate::parquet::tracing::catalog::TraceCatalogProvider;
 use crate::parquet::tracing::engine::{TableCommand, TraceSpanDBEngine};
+use crate::parquet::tracing::genai::GenAiTableCommand;
 use crate::parquet::tracing::queries::TraceQueries;
 use crate::storage::ObjectStore;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::TraceSpanRecord;
+use scouter_types::{extract_gen_ai_span, TraceSpanRecord};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::time::{interval, Duration};
@@ -85,6 +86,7 @@ pub struct TraceSpanService {
     /// Shared ObjectStore — passed to TraceSummaryService so both engines use the same
     /// CachingStore instance, preventing stale reads on cloud backends (GCS/S3).
     pub object_store: ObjectStore,
+    genai_tx: Arc<std::sync::RwLock<Option<mpsc::Sender<GenAiTableCommand>>>>,
 }
 
 impl TraceSpanService {
@@ -123,12 +125,17 @@ impl TraceSpanService {
         let (span_tx, span_rx) = mpsc::channel::<Vec<TraceSpanRecord>>(100);
         let (shutdown_tx, shutdown_rx) = mpsc::channel::<()>(1);
 
+        let genai_tx: Arc<std::sync::RwLock<Option<mpsc::Sender<GenAiTableCommand>>>> =
+            Arc::new(std::sync::RwLock::new(None));
+        let genai_tx_for_actor = Arc::clone(&genai_tx);
+
         let buffer_handle = Self::start_buffering_actor(
             engine_tx.clone(),
             span_rx,
             shutdown_rx,
             flush_interval_secs,
             buffer_size,
+            genai_tx_for_actor,
         );
 
         Ok(TraceSpanService {
@@ -141,6 +148,7 @@ impl TraceSpanService {
             ctx,
             catalog,
             object_store,
+            genai_tx,
         })
     }
 
@@ -150,6 +158,7 @@ impl TraceSpanService {
         mut shutdown_rx: mpsc::Receiver<()>,
         flush_interval_secs: Option<u64>,
         buffer_size: usize,
+        genai_tx: Arc<std::sync::RwLock<Option<mpsc::Sender<GenAiTableCommand>>>>,
     ) -> tokio::task::JoinHandle<()> {
         tokio::spawn(async move {
             let mut buffer: Vec<TraceSpanRecord> = Vec::with_capacity(buffer_size);
@@ -163,20 +172,20 @@ impl TraceSpanService {
                     Some(spans) = span_rx.recv() => {
                         buffer.extend(spans);
                         if buffer.len() >= buffer_size {
-                            Self::flush_buffer(&engine_tx, &mut buffer).await;
+                            Self::flush_buffer(&engine_tx, &mut buffer, &genai_tx).await;
                         }
                     }
                     _ = flush_ticker.tick() => {
                         if !buffer.is_empty() {
                             info!("Flushing spans buffer with {} spans", buffer.len());
-                            Self::flush_buffer(&engine_tx, &mut buffer).await;
+                            Self::flush_buffer(&engine_tx, &mut buffer, &genai_tx).await;
                         }
                     }
                     _ = shutdown_rx.recv() => {
                         info!("Buffer actor received shutdown signal");
                         if !buffer.is_empty() {
                             info!("Flushing final {} spans before shutdown", buffer.len());
-                            Self::flush_buffer(&engine_tx, &mut buffer).await;
+                            Self::flush_buffer(&engine_tx, &mut buffer, &genai_tx).await;
                         }
                         break;
                     }
@@ -190,6 +199,7 @@ impl TraceSpanService {
     async fn flush_buffer(
         engine_tx: &mpsc::Sender<TableCommand>,
         buffer: &mut Vec<TraceSpanRecord>,
+        genai_tx: &Arc<std::sync::RwLock<Option<mpsc::Sender<GenAiTableCommand>>>>,
     ) {
         if buffer.is_empty() {
             return;
@@ -200,6 +210,19 @@ impl TraceSpanService {
         let span_count = spans_to_write.len();
 
         debug!("Sending write command to engine for {} spans", span_count);
+
+        // Extract GenAI records before moving spans_to_write into the write command
+        let genai_records: Vec<scouter_types::GenAiSpanRecord> = {
+            let guard = genai_tx.read().unwrap();
+            if guard.is_some() {
+                spans_to_write
+                    .iter()
+                    .filter_map(extract_gen_ai_span)
+                    .collect()
+            } else {
+                Vec::new()
+            }
+        };
 
         let (tx, rx) = tokio::sync::oneshot::channel();
 
@@ -215,10 +238,33 @@ impl TraceSpanService {
         }
 
         match rx.await {
-            Ok(Ok(())) => info!("Successfully flushed {} spans", span_count),
+            Ok(Ok(())) => {
+                info!("Successfully flushed {} spans", span_count);
+                if !genai_records.is_empty() {
+                    let guard = genai_tx.read().unwrap();
+                    if let Some(gtx) = guard.as_ref() {
+                        let (resp_tx, _) = tokio::sync::oneshot::channel();
+                        if let Err(e) = gtx.try_send(GenAiTableCommand::Write {
+                            records: genai_records,
+                            respond_to: resp_tx,
+                        }) {
+                            tracing::warn!(
+                                "GenAI write channel full or closed: {}",
+                                e
+                            );
+                        }
+                    }
+                }
+            }
             Ok(Err(e)) => tracing::error!("Write failed: {}", e),
             Err(e) => tracing::error!("Failed to receive write response: {}", e),
         }
+    }
+
+    /// Wire the GenAiSpanService engine channel into the buffer flush path.
+    /// Call this after constructing GenAiSpanService, before first write.
+    pub fn register_genai_tx(&self, tx: mpsc::Sender<GenAiTableCommand>) {
+        *self.genai_tx.write().unwrap() = Some(tx);
     }
 
     /// Send spans to the buffering actor for async write to Delta Lake.
@@ -833,6 +879,130 @@ mod tests {
             filtered_count
         );
 
+        service.shutdown().await?;
+        cleanup();
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_flush_buffer_genai_integration() -> Result<(), TraceEngineError> {
+        cleanup();
+
+        use crate::parquet::tracing::genai::GenAiSpanService;
+
+        let storage_settings = ObjectStorageSettings::default();
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+
+        let genai_service = GenAiSpanService::new(
+            &service.object_store,
+            24,
+            service.ctx.clone(),
+            service.catalog.clone(),
+            10,
+            None,
+        )
+        .await?;
+
+        service.register_genai_tx(genai_service.engine_tx.clone());
+
+        let trace_id = TraceId::from_bytes([0xCC_u8; 16]);
+        let now = chrono::Utc::now();
+
+        let genai_span = TraceSpanRecord {
+            created_at: now,
+            trace_id,
+            span_id: SpanId::from_bytes([0xCC_u8; 8]),
+            parent_span_id: None,
+            flags: 1,
+            trace_state: String::new(),
+            scope_name: "test.scope".to_string(),
+            scope_version: None,
+            span_name: "chat".to_string(),
+            span_kind: "CLIENT".to_string(),
+            start_time: now,
+            end_time: now + chrono::Duration::milliseconds(200),
+            duration_ms: 200,
+            status_code: 0,
+            status_message: String::new(),
+            attributes: vec![
+                Attribute {
+                    key: "gen_ai.operation.name".to_string(),
+                    value: Value::String("chat".to_string()),
+                },
+                Attribute {
+                    key: "gen_ai.provider.name".to_string(),
+                    value: Value::String("anthropic".to_string()),
+                },
+                Attribute {
+                    key: "gen_ai.usage.input_tokens".to_string(),
+                    value: serde_json::json!(100),
+                },
+                Attribute {
+                    key: "gen_ai.usage.output_tokens".to_string(),
+                    value: serde_json::json!(50),
+                },
+            ],
+            events: vec![],
+            links: vec![],
+            label: None,
+            input: Value::Null,
+            output: Value::Null,
+            service_name: "test-service".to_string(),
+            resource_attributes: vec![],
+        };
+
+        let plain_span = TraceSpanRecord {
+            created_at: now,
+            trace_id: TraceId::from_bytes([0xDD_u8; 16]),
+            span_id: SpanId::from_bytes([0xDD_u8; 8]),
+            parent_span_id: None,
+            flags: 1,
+            trace_state: String::new(),
+            scope_name: "test.scope".to_string(),
+            scope_version: None,
+            span_name: "http_request".to_string(),
+            span_kind: "SERVER".to_string(),
+            start_time: now,
+            end_time: now + chrono::Duration::milliseconds(100),
+            duration_ms: 100,
+            status_code: 0,
+            status_message: String::new(),
+            attributes: vec![],
+            events: vec![],
+            links: vec![],
+            label: None,
+            input: Value::Null,
+            output: Value::Null,
+            service_name: "test-service".to_string(),
+            resource_attributes: vec![],
+        };
+
+        service.write_spans(vec![genai_span, plain_span]).await?;
+        tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+
+        let start = now - chrono::Duration::hours(1);
+        let end = now + chrono::Duration::hours(1);
+
+        let trace_metrics = service
+            .query_service
+            .get_trace_metrics(None, start, end, "hour", None, None)
+            .await?;
+        let total_traces: i64 = trace_metrics.iter().map(|m| m.trace_count).sum();
+        assert_eq!(total_traces, 2, "Expected 2 traces (both plain + genai)");
+
+        let genai_metrics = genai_service
+            .query_service
+            .get_token_metrics(None, start, end, "hour", None, None)
+            .await?;
+        let total_input: i64 = genai_metrics.iter().map(|m| m.total_input_tokens).sum();
+        assert_eq!(total_input, 100, "Expected 100 input tokens from genai span");
+        assert_eq!(
+            genai_metrics.iter().map(|m| m.span_count).sum::<i64>(),
+            1,
+            "Expected only 1 genai span, not the plain span"
+        );
+
+        genai_service.signal_shutdown().await;
         service.shutdown().await?;
         cleanup();
         Ok(())

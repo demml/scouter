@@ -758,7 +758,9 @@ impl GenAiSpanDBEngine {
                     (Utc::now() - chrono::Duration::days(retention_days as i64)).date_naive();
                 match self.expire_table(cutoff).await {
                     Ok(()) => {
-                        let _ = self.vacuum_table(0).await;
+                        if let Err(e) = self.vacuum_table(0).await {
+                            error!("Failed to vacuum after retention: {}", e);
+                        }
                         let _ = self
                             .control
                             .release_task(TASK_GENAI_RETENTION, chrono::Duration::hours(24))
@@ -1306,16 +1308,14 @@ impl GenAiQueries {
                 sum(col(INPUT_TOKENS_COL)).alias("total_input_tokens"),
                 sum(col(OUTPUT_TOKENS_COL)).alias("total_output_tokens"),
                 datafusion::functions_aggregate::expr_fn::approx_percentile_cont(
-                    datafusion::logical_expr::cast(col(DURATION_MS_COL), DataType::Float64)
-                        .sort(true, false),
-                    lit(0.5f64),
+                    col(DURATION_MS_COL).sort(true, false),
+                    lit(0.5_f64),
                     None,
                 )
                 .alias("p50_duration_ms"),
                 datafusion::functions_aggregate::expr_fn::approx_percentile_cont(
-                    datafusion::logical_expr::cast(col(DURATION_MS_COL), DataType::Float64)
-                        .sort(true, false),
-                    lit(0.95f64),
+                    col(DURATION_MS_COL).sort(true, false),
+                    lit(0.95_f64),
                     None,
                 )
                 .alias("p95_duration_ms"),
@@ -1824,8 +1824,7 @@ impl GenAiQueries {
         let df = df.limit(0, Some(filters.limit.unwrap_or(100)))?;
 
         let batches = df.collect().await?;
-        let schema = Arc::new(create_genai_schema());
-        batches_to_genai_records(batches, &schema)
+        batches_to_genai_records(batches)
     }
 
     pub async fn get_conversation_spans(
@@ -1852,8 +1851,7 @@ impl GenAiQueries {
         let df = df.sort(vec![col(START_TIME_COL).sort(true, true)])?;
 
         let batches = df.collect().await?;
-        let schema = Arc::new(create_genai_schema());
-        batches_to_genai_records(batches, &schema)
+        batches_to_genai_records(batches)
     }
 }
 
@@ -1905,7 +1903,6 @@ fn cast_to_string_array(
 
 fn batches_to_genai_records(
     batches: Vec<RecordBatch>,
-    _schema: &SchemaRef,
 ) -> Result<Vec<GenAiSpanRecord>, TraceEngineError> {
     let mut records = Vec::new();
 
