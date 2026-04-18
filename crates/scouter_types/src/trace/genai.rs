@@ -65,7 +65,7 @@ pub struct GenAiSpanRecord {
 
 fn attr_as_i64(v: &serde_json::Value) -> Option<i64> {
     match v {
-        serde_json::Value::Number(n) => n.as_i64(),
+        serde_json::Value::Number(n) => n.as_i64().or_else(|| n.as_f64().map(|f| f as i64)),
         serde_json::Value::String(s) => s.parse().ok(),
         _ => None,
     }
@@ -113,15 +113,6 @@ fn parse_finish_reasons(v: &serde_json::Value) -> Vec<String> {
 /// Returns None if gen_ai.operation.name is not present in span attributes.
 /// Scans attributes once, extracting all gen_ai.* fields.
 pub fn extract_gen_ai_span(record: &TraceSpanRecord) -> Option<GenAiSpanRecord> {
-    // Quick check: must have gen_ai.operation.name
-    let has_operation = record
-        .attributes
-        .iter()
-        .any(|a| a.key == GEN_AI_OPERATION_NAME);
-    if !has_operation {
-        return None;
-    }
-
     let mut out = GenAiSpanRecord {
         trace_id: record.trace_id,
         span_id: record.span_id.clone(),
@@ -239,6 +230,8 @@ pub fn extract_gen_ai_span(record: &TraceSpanRecord) -> Option<GenAiSpanRecord> 
         }
     }
 
+    out.operation_name.as_ref()?;
+
     Some(out)
 }
 
@@ -284,7 +277,7 @@ pub struct GenAiAgentActivity {
     pub span_count: i64,
     pub total_input_tokens: i64,
     pub total_output_tokens: i64,
-    pub last_seen: DateTime<Utc>,
+    pub last_seen: Option<DateTime<Utc>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -438,6 +431,18 @@ mod tests {
             Some(100)
         );
         assert_eq!(attr_as_i64(&serde_json::Value::Null), None);
+    }
+
+    #[test]
+    fn test_attr_as_i64_float_encoded() {
+        assert_eq!(attr_as_i64(&serde_json::json!(100.0)), Some(100));
+        assert_eq!(attr_as_i64(&serde_json::json!(0.0)), Some(0));
+    }
+
+    #[test]
+    fn test_parse_finish_reasons_plain_string() {
+        let result = parse_finish_reasons(&serde_json::Value::String("stop".to_string()));
+        assert_eq!(result, Vec::<String>::new());
     }
 
     #[test]
