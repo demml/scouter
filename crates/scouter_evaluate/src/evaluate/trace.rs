@@ -22,11 +22,10 @@ fn collect_filter_regexes<'a>(
     out: &mut HashMap<&'a str, Regex>,
 ) -> Result<(), EvaluationError> {
     match filter {
-        SpanFilter::ByNamePattern { pattern } => {
-            if !out.contains_key(pattern.as_str()) {
-                out.insert(pattern.as_str(), Regex::new(pattern)?);
-            }
+        SpanFilter::ByNamePattern { pattern } if !out.contains_key(pattern.as_str()) => {
+            out.insert(pattern.as_str(), Regex::new(pattern)?);
         }
+
         SpanFilter::And { filters } | SpanFilter::Or { filters } => {
             for f in filters {
                 collect_filter_regexes(f, out)?;
