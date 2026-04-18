@@ -1,4 +1,6 @@
+pub mod genai;
 pub mod sql;
+pub use genai::*;
 
 use crate::error::RecordError;
 use crate::otel_value_to_serde_value;
