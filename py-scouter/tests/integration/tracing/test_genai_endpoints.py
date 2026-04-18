@@ -1,4 +1,3 @@
-# type: ignore
 """Integration tests for GenAI semantic-convention endpoints.
 
 These tests start a real ScouterTestServer, seed GenAI spans via the scouter
