@@ -101,6 +101,30 @@ def _seed_genai_spans(tracer) -> None:
         for key, value in tool_attrs.items():
             span.set_attribute(key, value)
 
+    # One invoke_agent span
+    agent_attrs = {
+        "gen_ai.operation.name": "invoke_agent",
+        "gen_ai.provider.name": "anthropic",
+        "gen_ai.request.model": "claude-3-5-sonnet",
+        "gen_ai.agent.name": "test-agent",
+        "gen_ai.conversation.id": CONVERSATION_ID,
+    }
+    with tracer.start_as_current_span("agent_call") as span:
+        for key, value in agent_attrs.items():
+            span.set_attribute(key, value)
+
+    # One error span
+    error_attrs = {
+        "gen_ai.operation.name": "chat",
+        "gen_ai.provider.name": "anthropic",
+        "gen_ai.request.model": "claude-3-5-sonnet",
+        "gen_ai.conversation.id": CONVERSATION_ID,
+        "error.type": "test_error",
+    }
+    with tracer.start_as_current_span("error_call") as span:
+        for key, value in error_attrs.items():
+            span.set_attribute(key, value)
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -127,9 +151,10 @@ def genai_server_with_data():
         url = _server_url()
         session = _make_session(url)
 
-        yield url, session
-
-        shutdown_tracer()
+        try:
+            yield session, url, CONVERSATION_ID
+        finally:
+            shutdown_tracer()
 
 
 # ---------------------------------------------------------------------------
@@ -139,7 +164,7 @@ def genai_server_with_data():
 
 def test_genai_token_metrics_endpoint(genai_server_with_data):
     """POST /scouter/genai/metrics/tokens returns 200 with a 'buckets' list."""
-    url, session = genai_server_with_data
+    session, url, _ = genai_server_with_data
     body = {
         "service_name": SERVICE_NAME,
         **_time_range(),
@@ -150,11 +175,13 @@ def test_genai_token_metrics_endpoint(genai_server_with_data):
     data = resp.json()
     assert "buckets" in data
     assert isinstance(data["buckets"], list)
+    assert len(data["buckets"]) >= 1
+    assert sum(b["total_input_tokens"] for b in data["buckets"]) > 0
 
 
 def test_genai_model_usage_endpoint(genai_server_with_data):
     """POST /scouter/genai/metrics/models returns 200 with a 'models' list."""
-    url, session = genai_server_with_data
+    session, url, _ = genai_server_with_data
     body = {
         "service_name": SERVICE_NAME,
         **_time_range(),
@@ -164,11 +191,12 @@ def test_genai_model_usage_endpoint(genai_server_with_data):
     data = resp.json()
     assert "models" in data
     assert isinstance(data["models"], list)
+    assert len(data["models"]) >= 1
 
 
 def test_genai_operation_breakdown_endpoint(genai_server_with_data):
     """POST /scouter/genai/metrics/operations returns 200 with an 'operations' list."""
-    url, session = genai_server_with_data
+    session, url, _ = genai_server_with_data
     body = {
         "service_name": SERVICE_NAME,
         **_time_range(),
@@ -178,11 +206,12 @@ def test_genai_operation_breakdown_endpoint(genai_server_with_data):
     data = resp.json()
     assert "operations" in data
     assert isinstance(data["operations"], list)
+    assert len(data["operations"]) >= 1
 
 
 def test_genai_spans_explorer_endpoint(genai_server_with_data):
     """POST /scouter/genai/spans returns 200 with a 'spans' list."""
-    url, session = genai_server_with_data
+    session, url, _ = genai_server_with_data
     body = {
         "service_name": SERVICE_NAME,
         **_time_range(),
@@ -193,18 +222,19 @@ def test_genai_spans_explorer_endpoint(genai_server_with_data):
     data = resp.json()
     assert "spans" in data
     assert isinstance(data["spans"], list)
+    assert len(data["spans"]) >= 1
 
 
 def test_genai_conversation_endpoint(genai_server_with_data):
     """GET /scouter/genai/conversation/{id} returns 200 with a 'spans' list."""
-    url, session = genai_server_with_data
+    session, url, conv_id = genai_server_with_data
     time_range = _time_range()
     params = {
         "start_time": time_range["start_time"],
         "end_time": time_range["end_time"],
     }
     resp = session.get(
-        f"{url}/scouter/genai/conversation/{CONVERSATION_ID}",
+        f"{url}/scouter/genai/conversation/{conv_id}",
         params=params,
         timeout=15,
     )
@@ -212,3 +242,59 @@ def test_genai_conversation_endpoint(genai_server_with_data):
     data = resp.json()
     assert "spans" in data
     assert isinstance(data["spans"], list)
+    assert len(data["spans"]) >= 1
+    assert all(s.get("conversation_id") == conv_id for s in data["spans"])
+
+
+def test_genai_agent_activity_endpoint(genai_server_with_data):
+    session, base_url, _ = genai_server_with_data
+    now = datetime.now(timezone.utc)
+    payload = {
+        "service_name": SERVICE_NAME,
+        "start_time": (now - timedelta(hours=1)).isoformat(),
+        "end_time": (now + timedelta(hours=1)).isoformat(),
+    }
+    resp = session.post(f"{base_url}/scouter/genai/metrics/agents", json=payload)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "agents" in data
+    assert isinstance(data["agents"], list)
+    assert len(data["agents"]) >= 1
+
+
+def test_genai_tool_activity_endpoint(genai_server_with_data):
+    session, base_url, _ = genai_server_with_data
+    now = datetime.now(timezone.utc)
+    payload = {
+        "service_name": SERVICE_NAME,
+        "start_time": (now - timedelta(hours=1)).isoformat(),
+        "end_time": (now + timedelta(hours=1)).isoformat(),
+    }
+    resp = session.post(f"{base_url}/scouter/genai/metrics/tools", json=payload)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "tools" in data
+    assert isinstance(data["tools"], list)
+    assert len(data["tools"]) >= 1
+
+
+def test_genai_error_breakdown_endpoint(genai_server_with_data):
+    session, base_url, _ = genai_server_with_data
+    now = datetime.now(timezone.utc)
+    payload = {
+        "service_name": SERVICE_NAME,
+        "start_time": (now - timedelta(hours=1)).isoformat(),
+        "end_time": (now + timedelta(hours=1)).isoformat(),
+    }
+    resp = session.post(f"{base_url}/scouter/genai/metrics/errors", json=payload)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "errors" in data
+    assert isinstance(data["errors"], list)
+    assert len(data["errors"]) >= 1
+
+
+def test_genai_conversation_bad_timestamp(genai_server_with_data):
+    session, base_url, _ = genai_server_with_data
+    resp = session.get(f"{base_url}/scouter/genai/conversation/test-id?start_time=not-a-date")
+    assert resp.status_code == 400
