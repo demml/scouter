@@ -113,3 +113,7 @@ pub use scouter_tracing::utils::{
     get_current_active_span, get_function_type, FunctionType, OtelExportConfig, OtelProtocol,
     SpanKind,
 };
+
+pub mod potato_head {
+    pub use ::potato_head::prelude;
+}

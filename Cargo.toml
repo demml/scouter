@@ -17,6 +17,7 @@ authors = [
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/demml/scouter"
+autoexamples = false
 
 
 [workspace.dependencies]

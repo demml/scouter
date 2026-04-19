@@ -5,6 +5,7 @@ use axum::Json;
 use flume::Sender;
 use scouter_auth::auth::AuthManager;
 use scouter_dataframe::parquet::bifrost::manager::DatasetEngineManager;
+use scouter_dataframe::parquet::tracing::genai::GenAiSpanService;
 use scouter_dataframe::parquet::tracing::service::TraceSpanService;
 use scouter_dataframe::parquet::tracing::summary::TraceSummaryService;
 use scouter_dataframe::EvalScenarioService;
@@ -25,6 +26,7 @@ pub struct AppState {
     pub http_consumer_tx: Sender<MessageRecord>,
     pub trace_service: Arc<TraceSpanService>,
     pub trace_summary_service: Arc<TraceSummaryService>,
+    pub genai_service: Arc<GenAiSpanService>,
     pub dataset_manager: Arc<DatasetEngineManager>,
     pub eval_scenario_service: Arc<EvalScenarioService>,
 }
@@ -41,6 +43,7 @@ impl AppState {
             });
         self.trace_service.signal_shutdown().await;
         self.trace_summary_service.signal_shutdown().await;
+        self.genai_service.signal_shutdown().await;
         self.dataset_manager.shutdown().await;
         self.eval_scenario_service.signal_shutdown().await;
         self.db_pool.close().await;

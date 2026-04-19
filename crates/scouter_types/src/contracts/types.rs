@@ -657,6 +657,86 @@ impl ScouterServerError {
             retry: Some(false),
         }
     }
+
+    pub fn get_genai_token_metrics_error<T: Display>(e: T) -> Self {
+        error!("Failed to get genai token metrics: {}", e);
+        ScouterServerError {
+            error: "Failed to get genai token metrics".to_string(),
+            code: "QUERY_ERROR".to_string(),
+            suggested_action: None,
+            retry: Some(true),
+        }
+    }
+
+    pub fn get_genai_operation_breakdown_error<T: Display>(e: T) -> Self {
+        error!("Failed to get genai operation breakdown: {}", e);
+        ScouterServerError {
+            error: "Failed to get genai operation breakdown".to_string(),
+            code: "QUERY_ERROR".to_string(),
+            suggested_action: None,
+            retry: Some(true),
+        }
+    }
+
+    pub fn get_genai_model_usage_error<T: Display>(e: T) -> Self {
+        error!("Failed to get genai model usage: {}", e);
+        ScouterServerError {
+            error: "Failed to get genai model usage".to_string(),
+            code: "QUERY_ERROR".to_string(),
+            suggested_action: None,
+            retry: Some(true),
+        }
+    }
+
+    pub fn get_genai_agent_activity_error<T: Display>(e: T) -> Self {
+        error!("Failed to get genai agent activity: {}", e);
+        ScouterServerError {
+            error: "Failed to get genai agent activity".to_string(),
+            code: "QUERY_ERROR".to_string(),
+            suggested_action: None,
+            retry: Some(true),
+        }
+    }
+
+    pub fn get_genai_tool_activity_error<T: Display>(e: T) -> Self {
+        error!("Failed to get genai tool activity: {}", e);
+        ScouterServerError {
+            error: "Failed to get genai tool activity".to_string(),
+            code: "QUERY_ERROR".to_string(),
+            suggested_action: None,
+            retry: Some(true),
+        }
+    }
+
+    pub fn get_genai_error_breakdown_error<T: Display>(e: T) -> Self {
+        error!("Failed to get genai error breakdown: {}", e);
+        ScouterServerError {
+            error: "Failed to get genai error breakdown".to_string(),
+            code: "QUERY_ERROR".to_string(),
+            suggested_action: None,
+            retry: Some(true),
+        }
+    }
+
+    pub fn get_genai_spans_error<T: Display>(e: T) -> Self {
+        error!("Failed to get genai spans: {}", e);
+        ScouterServerError {
+            error: "Failed to get genai spans".to_string(),
+            code: "QUERY_ERROR".to_string(),
+            suggested_action: None,
+            retry: Some(true),
+        }
+    }
+
+    pub fn get_genai_conversation_error<T: Display>(e: T) -> Self {
+        error!("Failed to get genai conversation spans: {}", e);
+        ScouterServerError {
+            error: "Failed to get genai conversation spans".to_string(),
+            code: "QUERY_ERROR".to_string(),
+            suggested_action: None,
+            retry: Some(true),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

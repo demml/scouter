@@ -3,13 +3,14 @@ name = "scouter-drift"
 version = { workspace = true }
 edition = { workspace = true }
 repository = { workspace = true }
-
 authors = [
   "Steven Forrester <sjforrester32@gmail.com>"
 ]
-
 license = "MIT"
 description = "Drift logic for Scouter"
+
+[lib]
+doctest = false
 
 [dependencies]
 scouter-dispatch = { workspace = true }

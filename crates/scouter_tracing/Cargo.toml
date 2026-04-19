@@ -3,13 +3,14 @@ name = "scouter-tracing"
 version = { workspace = true }
 edition = { workspace = true }
 repository = { workspace = true }
-
 authors = [
   "Steven Forrester <sjforrester32@gmail.com>"
 ]
-
 license = "MIT"
 description = "Helper crate for tracing instrumentation"
+
+[lib]
+doctest = false
 
 [dependencies]
 chrono = { workspace = true }

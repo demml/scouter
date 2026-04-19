@@ -3,18 +3,19 @@ name = "scouter-dataframe"
 version = { workspace = true }
 edition = { workspace = true }
 repository = { workspace = true }
-
 authors = [
   "Steven Forrester <sjforrester32@gmail.com>"
 ]
-
 license = "MIT"
 description = "DataFusion client for long-term storage of scouter data"
+
+[lib]
+doctest = false
 
 [dependencies]
 scouter-settings = { workspace = true }
 scouter-types = { workspace = true }
-
+ahash = "0.8"
 arrow = { workspace = true }
 hex = { workspace = true }
 arrow-array  = { workspace = true }
@@ -69,3 +70,4 @@ harness = false
 [[bench]]
 name = "dataset_benchmark"
 harness = false
+

@@ -11,10 +11,11 @@ authors = [
 license = "MIT"
 description = "Scouter profile logic"
 
+[lib]
+doctest = false
+
 [dependencies]
 scouter-types = { workspace = true }
-
-
 pyo3 = { workspace = true }
 serde = { workspace = true }
 itertools = { workspace = true }

@@ -29,5 +29,6 @@ pub use observability::get_observability_router;
 pub use profile::get_profile_router;
 pub use service_map::get_service_map_router;
 pub use tags::get_tag_router;
+pub use trace::genai::get_genai_router;
 pub use trace::get_trace_router;
 pub use user::get_user_router;
