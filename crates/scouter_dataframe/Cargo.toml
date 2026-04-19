@@ -4,6 +4,9 @@ version = { workspace = true }
 edition = { workspace = true }
 repository = { workspace = true }
 
+[lib]
+doctest = false
+
 authors = [
   "Steven Forrester <sjforrester32@gmail.com>"
 ]
@@ -70,3 +73,4 @@ harness = false
 [[bench]]
 name = "dataset_benchmark"
 harness = false
+

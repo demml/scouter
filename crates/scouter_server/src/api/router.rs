@@ -5,8 +5,7 @@ use crate::api::routes::{
     get_agent_router, get_alert_router, get_auth_router, get_capabilities_router,
     get_dataset_router, get_docs_router, get_drift_router, get_eval_scenario_router,
     get_genai_router, get_health_router, get_message_router, get_observability_router,
-    get_profile_router, get_service_map_router, get_tag_router, get_trace_router,
-    get_user_router,
+    get_profile_router, get_service_map_router, get_tag_router, get_trace_router, get_user_router,
 };
 use crate::api::state::AppState;
 use anyhow::Result;

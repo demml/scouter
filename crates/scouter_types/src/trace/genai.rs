@@ -476,10 +476,7 @@ mod tests {
 
     #[test]
     fn test_attr_as_i64_variants() {
-        assert_eq!(
-            attr_as_i64(&serde_json::Value::Number(42.into())),
-            Some(42)
-        );
+        assert_eq!(attr_as_i64(&serde_json::Value::Number(42.into())), Some(42));
         assert_eq!(
             attr_as_i64(&serde_json::Value::String("100".to_string())),
             Some(100)

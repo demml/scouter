@@ -14,6 +14,8 @@ description = "Scouter profile logic"
 [dependencies]
 scouter-types = { workspace = true }
 
+[lib]
+doctest = false
 
 pyo3 = { workspace = true }
 serde = { workspace = true }

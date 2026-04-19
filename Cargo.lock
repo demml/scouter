@@ -6569,6 +6569,7 @@ dependencies = [
 name = "scouter-dataframe"
 version = "0.25.0"
 dependencies = [
+ "ahash",
  "arrow",
  "arrow-array",
  "async-trait",
@@ -6792,23 +6793,9 @@ name = "scouter-profile"
 version = "0.25.0"
 dependencies = [
  "approx",
- "chrono",
- "indicatif",
- "itertools 0.14.0",
- "ndarray",
  "ndarray-rand",
- "ndarray-stats",
- "noisy_float",
- "num-traits",
- "numpy",
- "pyo3",
  "rand 0.9.4",
- "rayon",
  "scouter-types",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tracing",
 ]
 
 [[package]]

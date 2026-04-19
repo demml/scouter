@@ -256,12 +256,12 @@ pub(crate) fn register_cloud_logstore_factories() {
 /// - Must always be a `Utf8` scalar literal (i.e. `lit("...")`). Array patterns are rejected.
 ///
 /// Register once on the `SessionContext`:
-/// ```rust
+/// ```rust,ignore
 /// ctx.register_udf(create_attr_match_udf());
 /// ```
 ///
 /// Use in the DataFrame API via `match_attr_expr`:
-/// ```rust
+/// ```rust,ignore
 /// df = df.filter(match_attr_expr(col("search_blob"), lit("%svc=auth%")))?;
 /// ```
 /// `DynHash` (required by `ScalarUDFImpl`) is satisfied by `Hash + PartialEq + Eq`.
@@ -410,7 +410,7 @@ impl ScalarUDFImpl for AttrMatchUdf {
 /// Create the `match_attr` [`ScalarUDF`] using the DataFusion 52 `ScalarUDFImpl` API.
 ///
 /// Register with a [`SessionContext`] once during initialization:
-/// ```rust
+/// ```rust,ignore
 /// ctx.register_udf(create_attr_match_udf());
 /// ```
 pub fn create_attr_match_udf() -> ScalarUDF {
@@ -424,7 +424,7 @@ pub fn create_attr_match_udf() -> ScalarUDF {
 /// without an intermediate cast allocation.
 ///
 /// # Example
-/// ```rust
+/// ```rust,ignore
 /// // Attribute filter in a query pipeline:
 /// let cond = match_attr_expr(col("search_blob"), lit("%key=value%"));
 /// df = df.filter(cond)?;

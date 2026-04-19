@@ -992,7 +992,10 @@ mod tests {
             .get_token_metrics(None, start, end, "hour", None, None)
             .await?;
         let total_input: i64 = genai_metrics.iter().map(|m| m.total_input_tokens).sum();
-        assert_eq!(total_input, 100, "Expected 100 input tokens from genai span");
+        assert_eq!(
+            total_input, 100,
+            "Expected 100 input tokens from genai span"
+        );
         assert_eq!(
             genai_metrics.iter().map(|m| m.span_count).sum::<i64>(),
             1,

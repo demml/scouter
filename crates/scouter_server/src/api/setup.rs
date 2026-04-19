@@ -166,7 +166,11 @@ impl ScouterSetupComponents {
     #[instrument(skip_all)]
     async fn start_trace_services(
         config: &Arc<ScouterServerConfig>,
-    ) -> AnyhowResult<(Arc<TraceSpanService>, Arc<TraceSummaryService>, Arc<GenAiSpanService>)> {
+    ) -> AnyhowResult<(
+        Arc<TraceSpanService>,
+        Arc<TraceSummaryService>,
+        Arc<GenAiSpanService>,
+    )> {
         let compaction_hours = config.storage_settings.trace_compaction_interval_hours;
         let flush_secs = config.storage_settings.trace_flush_interval_secs;
         let refresh_secs = config.storage_settings.trace_refresh_interval_secs;

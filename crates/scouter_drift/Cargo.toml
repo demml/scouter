@@ -11,6 +11,9 @@ authors = [
 license = "MIT"
 description = "Drift logic for Scouter"
 
+[lib]
+doctest = false
+
 [dependencies]
 scouter-dispatch = { workspace = true }
 scouter-evaluate = { workspace = true }

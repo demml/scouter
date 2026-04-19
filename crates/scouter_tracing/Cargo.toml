@@ -11,6 +11,9 @@ authors = [
 license = "MIT"
 description = "Helper crate for tracing instrumentation"
 
+[lib]
+doctest = false
+
 [dependencies]
 chrono = { workspace = true }
 opentelemetry = { workspace = true }

@@ -8,9 +8,8 @@ use axum::{
 };
 use scouter_types::{
     contracts::ScouterServerError, GenAiAgentActivityResponse, GenAiErrorBreakdownResponse,
-    GenAiErrorCount, GenAiMetricsRequest, GenAiModelUsageResponse,
-    GenAiOperationBreakdownResponse, GenAiSpanFilters, GenAiSpansResponse,
-    GenAiTokenMetricsResponse, GenAiToolActivityResponse,
+    GenAiErrorCount, GenAiMetricsRequest, GenAiModelUsageResponse, GenAiOperationBreakdownResponse,
+    GenAiSpanFilters, GenAiSpansResponse, GenAiTokenMetricsResponse, GenAiToolActivityResponse,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -138,11 +137,7 @@ pub async fn get_tool_activity(
     let tools = data
         .genai_service
         .query_service
-        .get_tool_activity(
-            body.service_name.as_deref(),
-            body.start_time,
-            body.end_time,
-        )
+        .get_tool_activity(body.service_name.as_deref(), body.start_time, body.end_time)
         .await
         .map_err(|e| {
             (
@@ -213,27 +208,45 @@ pub async fn get_conversation_spans(
     if id.len() > 256 {
         return Err((
             StatusCode::BAD_REQUEST,
-            Json(ScouterServerError::new("conversation_id exceeds maximum length".to_string())),
+            Json(ScouterServerError::new(
+                "conversation_id exceeds maximum length".to_string(),
+            )),
         ));
     }
 
-    let start_time = params.start_time.as_deref().map(|s| {
-        chrono::DateTime::parse_from_rfc3339(s)
-            .map(|dt| dt.with_timezone(&chrono::Utc))
-            .map_err(|_| (
-                StatusCode::BAD_REQUEST,
-                Json(ScouterServerError::new("Invalid start_time: expected RFC3339 format".to_string())),
-            ))
-    }).transpose()?;
+    let start_time = params
+        .start_time
+        .as_deref()
+        .map(|s| {
+            chrono::DateTime::parse_from_rfc3339(s)
+                .map(|dt| dt.with_timezone(&chrono::Utc))
+                .map_err(|_| {
+                    (
+                        StatusCode::BAD_REQUEST,
+                        Json(ScouterServerError::new(
+                            "Invalid start_time: expected RFC3339 format".to_string(),
+                        )),
+                    )
+                })
+        })
+        .transpose()?;
 
-    let end_time = params.end_time.as_deref().map(|s| {
-        chrono::DateTime::parse_from_rfc3339(s)
-            .map(|dt| dt.with_timezone(&chrono::Utc))
-            .map_err(|_| (
-                StatusCode::BAD_REQUEST,
-                Json(ScouterServerError::new("Invalid end_time: expected RFC3339 format".to_string())),
-            ))
-    }).transpose()?;
+    let end_time = params
+        .end_time
+        .as_deref()
+        .map(|s| {
+            chrono::DateTime::parse_from_rfc3339(s)
+                .map(|dt| dt.with_timezone(&chrono::Utc))
+                .map_err(|_| {
+                    (
+                        StatusCode::BAD_REQUEST,
+                        Json(ScouterServerError::new(
+                            "Invalid end_time: expected RFC3339 format".to_string(),
+                        )),
+                    )
+                })
+        })
+        .transpose()?;
 
     let spans = data
         .genai_service

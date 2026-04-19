@@ -5,6 +5,7 @@ use crate::parquet::tracing::queries::{date_lit, ts_lit};
 use crate::parquet::tracing::traits::arrow_schema_to_delta;
 use crate::parquet::utils::register_cloud_logstore_factories;
 use crate::storage::ObjectStore;
+use ahash::AHasher;
 use arrow::array::*;
 use arrow::compute;
 use arrow::datatypes::*;
@@ -24,7 +25,6 @@ use scouter_types::{
     GenAiAgentActivity, GenAiModelUsage, GenAiOperationBreakdown, GenAiSpanFilters,
     GenAiSpanRecord, GenAiTokenBucket, GenAiToolActivity, SpanId, TraceId,
 };
-use ahash::AHasher;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::time::Duration;
@@ -562,10 +562,7 @@ impl GenAiSpanDBEngine {
                 ColumnPath::new(vec![SERVICE_NAME_COL.to_string()]),
                 true,
             )
-            .set_column_bloom_filter_fpp(
-                ColumnPath::new(vec![SERVICE_NAME_COL.to_string()]),
-                0.01,
-            )
+            .set_column_bloom_filter_fpp(ColumnPath::new(vec![SERVICE_NAME_COL.to_string()]), 0.01)
             .set_column_bloom_filter_ndv(ColumnPath::new(vec![SERVICE_NAME_COL.to_string()]), 256)
             // Bloom filter on conversation_id
             .set_column_bloom_filter_enabled(
@@ -602,10 +599,7 @@ impl GenAiSpanDBEngine {
             .build()
     }
 
-    fn build_batch(
-        &self,
-        records: Vec<GenAiSpanRecord>,
-    ) -> Result<RecordBatch, TraceEngineError> {
+    fn build_batch(&self, records: Vec<GenAiSpanRecord>) -> Result<RecordBatch, TraceEngineError> {
         let mut builder = GenAiBatchBuilder::new(self.schema.clone(), records.len());
         for rec in &records {
             builder.append(rec)?;
@@ -613,10 +607,7 @@ impl GenAiSpanDBEngine {
         builder.finish()
     }
 
-    async fn write_records(
-        &self,
-        records: Vec<GenAiSpanRecord>,
-    ) -> Result<(), TraceEngineError> {
+    async fn write_records(&self, records: Vec<GenAiSpanRecord>) -> Result<(), TraceEngineError> {
         let count = records.len();
         info!("Writing {} gen_ai spans", count);
         let batch = self.build_batch(records)?;
@@ -679,8 +670,7 @@ impl GenAiSpanDBEngine {
     async fn expire_table(&self, cutoff_date: chrono::NaiveDate) -> Result<(), TraceEngineError> {
         use chrono::TimeZone;
         let mut table_guard = self.table.write().await;
-        let cutoff_dt =
-            chrono::Utc.from_utc_datetime(&cutoff_date.and_hms_opt(0, 0, 0).unwrap());
+        let cutoff_dt = chrono::Utc.from_utc_datetime(&cutoff_date.and_hms_opt(0, 0, 0).unwrap());
         let predicate = col(PARTITION_DATE_COL).lt(date_lit(&cutoff_dt));
         let (updated_table, metrics) = table_guard
             .clone()
@@ -789,10 +779,7 @@ impl GenAiSpanDBEngine {
         compaction_interval_hours: u64,
         retention_days: Option<u32>,
         refresh_interval_secs: u64,
-    ) -> (
-        mpsc::Sender<GenAiTableCommand>,
-        tokio::task::JoinHandle<()>,
-    ) {
+    ) -> (mpsc::Sender<GenAiTableCommand>, tokio::task::JoinHandle<()>) {
         let (tx, mut rx) = mpsc::channel::<GenAiTableCommand>(10_000);
 
         let handle = tokio::spawn(async move {
@@ -874,10 +861,12 @@ impl GenAiSpanService {
         refresh_interval_secs: u64,
         retention_days: Option<u32>,
     ) -> Result<Self, TraceEngineError> {
-        let engine =
-            GenAiSpanDBEngine::new(object_store, ctx.clone(), catalog).await?;
-        let (engine_tx, engine_handle) =
-            engine.start_actor(compaction_interval_hours, retention_days, refresh_interval_secs);
+        let engine = GenAiSpanDBEngine::new(object_store, ctx.clone(), catalog).await?;
+        let (engine_tx, engine_handle) = engine.start_actor(
+            compaction_interval_hours,
+            retention_days,
+            refresh_interval_secs,
+        );
 
         Ok(GenAiSpanService {
             engine_tx,
@@ -1022,10 +1011,7 @@ impl GenAiQueries {
 
         let df = df.with_column(
             "bucket_start",
-            datafusion::functions::expr_fn::date_trunc(
-                lit(bucket_interval),
-                col(START_TIME_COL),
-            ),
+            datafusion::functions::expr_fn::date_trunc(lit(bucket_interval), col(START_TIME_COL)),
         )?;
 
         let df = df.aggregate(
@@ -1110,10 +1096,9 @@ impl GenAiQueries {
                 })?;
 
             for i in 0..batch.num_rows() {
-                let bucket_start = DateTime::from_timestamp_micros(bucket_starts.value(i))
-                    .ok_or(TraceEngineError::InvalidTimestamp(
-                        "out-of-range bucket_start timestamp",
-                    ))?;
+                let bucket_start = DateTime::from_timestamp_micros(bucket_starts.value(i)).ok_or(
+                    TraceEngineError::InvalidTimestamp("out-of-range bucket_start timestamp"),
+                )?;
                 results.push(GenAiTokenBucket {
                     bucket_start,
                     total_input_tokens: if input_tokens.is_null(i) {
@@ -1182,9 +1167,7 @@ impl GenAiQueries {
         for batch in &batches {
             let op_arr = compute::cast(
                 batch.column_by_name(OPERATION_NAME_COL).ok_or_else(|| {
-                    TraceEngineError::UnsupportedOperation(
-                        "missing operation_name column".into(),
-                    )
+                    TraceEngineError::UnsupportedOperation("missing operation_name column".into())
                 })?,
                 &DataType::Utf8,
             )?;
@@ -1199,9 +1182,7 @@ impl GenAiQueries {
 
             let prov_arr = compute::cast(
                 batch.column_by_name(PROVIDER_NAME_COL).ok_or_else(|| {
-                    TraceEngineError::UnsupportedOperation(
-                        "missing provider_name column".into(),
-                    )
+                    TraceEngineError::UnsupportedOperation("missing provider_name column".into())
                 })?,
                 &DataType::Utf8,
             )?;
@@ -1357,11 +1338,9 @@ impl GenAiQueries {
         let mut results = Vec::new();
         for batch in &batches {
             let model_arr = compute::cast(
-                batch
-                    .column_by_name("model")
-                    .ok_or_else(|| {
-                        TraceEngineError::UnsupportedOperation("missing model column".into())
-                    })?,
+                batch.column_by_name("model").ok_or_else(|| {
+                    TraceEngineError::UnsupportedOperation("missing model column".into())
+                })?,
                 &DataType::Utf8,
             )?;
             let models = model_arr
@@ -1375,9 +1354,7 @@ impl GenAiQueries {
 
             let prov_arr = compute::cast(
                 batch.column_by_name(PROVIDER_NAME_COL).ok_or_else(|| {
-                    TraceEngineError::UnsupportedOperation(
-                        "missing provider_name column".into(),
-                    )
+                    TraceEngineError::UnsupportedOperation("missing provider_name column".into())
                 })?,
                 &DataType::Utf8,
             )?;
@@ -1489,10 +1466,7 @@ impl GenAiQueries {
         // Filter: operation is agent-related OR agent_name is present
         let df = df.filter(
             col(OPERATION_NAME_COL)
-                .in_list(
-                    vec![lit("invoke_agent"), lit("create_agent")],
-                    false,
-                )
+                .in_list(vec![lit("invoke_agent"), lit("create_agent")], false)
                 .or(col(AGENT_NAME_COL).is_not_null()),
         )?;
 
@@ -1547,13 +1521,9 @@ impl GenAiQueries {
                 })?;
 
             let conv_ids_arr = compute::cast(
-                batch
-                    .column_by_name(CONVERSATION_ID_COL)
-                    .ok_or_else(|| {
-                        TraceEngineError::UnsupportedOperation(
-                            "missing conversation_id column".into(),
-                        )
-                    })?,
+                batch.column_by_name(CONVERSATION_ID_COL).ok_or_else(|| {
+                    TraceEngineError::UnsupportedOperation("missing conversation_id column".into())
+                })?,
                 &DataType::Utf8,
             )?;
             let conv_ids = conv_ids_arr
@@ -1815,12 +1785,10 @@ impl GenAiQueries {
             df
         };
 
-        let df = Self::apply_optional_filter(df, SERVICE_NAME_COL, filters.service_name.as_deref())?;
-        let df = Self::apply_optional_filter(
-            df,
-            OPERATION_NAME_COL,
-            filters.operation_name.as_deref(),
-        )?;
+        let df =
+            Self::apply_optional_filter(df, SERVICE_NAME_COL, filters.service_name.as_deref())?;
+        let df =
+            Self::apply_optional_filter(df, OPERATION_NAME_COL, filters.operation_name.as_deref())?;
         let df =
             Self::apply_optional_filter(df, PROVIDER_NAME_COL, filters.provider_name.as_deref())?;
         let df = Self::apply_optional_filter(
@@ -1828,12 +1796,9 @@ impl GenAiQueries {
             CONVERSATION_ID_COL,
             filters.conversation_id.as_deref(),
         )?;
-        let df =
-            Self::apply_optional_filter(df, AGENT_NAME_COL, filters.agent_name.as_deref())?;
-        let df =
-            Self::apply_optional_filter(df, TOOL_NAME_COL, filters.tool_name.as_deref())?;
-        let df =
-            Self::apply_optional_filter(df, ERROR_TYPE_COL, filters.error_type.as_deref())?;
+        let df = Self::apply_optional_filter(df, AGENT_NAME_COL, filters.agent_name.as_deref())?;
+        let df = Self::apply_optional_filter(df, TOOL_NAME_COL, filters.tool_name.as_deref())?;
+        let df = Self::apply_optional_filter(df, ERROR_TYPE_COL, filters.error_type.as_deref())?;
 
         // model filter: match either request_model or response_model
         let df = if let Some(model) = &filters.model {
@@ -2031,17 +1996,13 @@ fn batches_to_genai_records(
             .column_by_name(REQUEST_TEMPERATURE_COL)
             .and_then(|c| c.as_any().downcast_ref::<Float64Array>())
             .ok_or_else(|| {
-                TraceEngineError::UnsupportedOperation(
-                    "missing request_temperature column".into(),
-                )
+                TraceEngineError::UnsupportedOperation("missing request_temperature column".into())
             })?;
         let request_max_tokens_arr = batch
             .column_by_name(REQUEST_MAX_TOKENS_COL)
             .and_then(|c| c.as_any().downcast_ref::<Int64Array>())
             .ok_or_else(|| {
-                TraceEngineError::UnsupportedOperation(
-                    "missing request_max_tokens column".into(),
-                )
+                TraceEngineError::UnsupportedOperation("missing request_max_tokens column".into())
             })?;
         let request_top_ps = batch
             .column_by_name(REQUEST_TOP_P_COL)
@@ -2073,19 +2034,16 @@ fn batches_to_genai_records(
                 SpanId::default()
             };
 
-            let start_time = DateTime::from_timestamp_micros(start_times.value(i))
-                .ok_or(TraceEngineError::InvalidTimestamp(
-                    "out-of-range start_time timestamp",
-                ))?;
+            let start_time = DateTime::from_timestamp_micros(start_times.value(i)).ok_or(
+                TraceEngineError::InvalidTimestamp("out-of-range start_time timestamp"),
+            )?;
 
             let end_time = if end_times.is_null(i) {
                 None
             } else {
-                Some(
-                    DateTime::from_timestamp_micros(end_times.value(i)).ok_or(
-                        TraceEngineError::InvalidTimestamp("out-of-range end_time timestamp"),
-                    )?,
-                )
+                Some(DateTime::from_timestamp_micros(end_times.value(i)).ok_or(
+                    TraceEngineError::InvalidTimestamp("out-of-range end_time timestamp"),
+                )?)
             };
 
             let finish_reasons = if let Some(list) = finish_reasons_list {
@@ -2344,12 +2302,10 @@ mod tests {
             end_time: Utc::now() + chrono::Duration::milliseconds(50),
             duration_ms: 50,
             status_code: 0,
-            attributes: vec![
-                Attribute {
-                    key: "http.method".to_string(),
-                    value: serde_json::Value::String("GET".to_string()),
-                },
-            ],
+            attributes: vec![Attribute {
+                key: "http.method".to_string(),
+                value: serde_json::Value::String("GET".to_string()),
+            }],
             ..Default::default()
         };
         assert!(
@@ -2519,7 +2475,10 @@ mod tests {
             .await?;
 
         assert_eq!(breakdown.len(), 2, "Expected 2 operation breakdown rows");
-        let ops: Vec<&str> = breakdown.iter().map(|b| b.operation_name.as_str()).collect();
+        let ops: Vec<&str> = breakdown
+            .iter()
+            .map(|b| b.operation_name.as_str())
+            .collect();
         assert!(ops.contains(&"chat"), "Expected chat operation");
         assert!(
             ops.contains(&"execute_tool"),
@@ -2655,11 +2614,17 @@ mod tests {
 
         assert_eq!(breakdown.len(), 2, "Expected 2 operation rows");
         let chat_row = breakdown.iter().find(|b| b.operation_name == "chat");
-        let tool_row = breakdown.iter().find(|b| b.operation_name == "execute_tool");
+        let tool_row = breakdown
+            .iter()
+            .find(|b| b.operation_name == "execute_tool");
         assert!(chat_row.is_some(), "Expected chat row");
         assert!(tool_row.is_some(), "Expected execute_tool row");
         assert_eq!(chat_row.unwrap().span_count, 2, "Expected 2 chat spans");
-        assert_eq!(tool_row.unwrap().span_count, 3, "Expected 3 execute_tool spans");
+        assert_eq!(
+            tool_row.unwrap().span_count,
+            3,
+            "Expected 3 execute_tool spans"
+        );
 
         service.shutdown().await?;
         Ok(())
