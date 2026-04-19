@@ -254,7 +254,7 @@ def test_genai_agent_activity_endpoint(genai_server_with_data):
         "start_time": (now - timedelta(hours=1)).isoformat(),
         "end_time": (now + timedelta(hours=1)).isoformat(),
     }
-    resp = session.post(f"{base_url}/scouter/genai/metrics/agents", json=payload)
+    resp = session.post(f"{base_url}/scouter/genai/metrics/agents", json=payload, timeout=15)
     assert resp.status_code == 200
     data = resp.json()
     assert "agents" in data
@@ -270,7 +270,7 @@ def test_genai_tool_activity_endpoint(genai_server_with_data):
         "start_time": (now - timedelta(hours=1)).isoformat(),
         "end_time": (now + timedelta(hours=1)).isoformat(),
     }
-    resp = session.post(f"{base_url}/scouter/genai/metrics/tools", json=payload)
+    resp = session.post(f"{base_url}/scouter/genai/metrics/tools", json=payload, timeout=15)
     assert resp.status_code == 200
     data = resp.json()
     assert "tools" in data
@@ -286,7 +286,7 @@ def test_genai_error_breakdown_endpoint(genai_server_with_data):
         "start_time": (now - timedelta(hours=1)).isoformat(),
         "end_time": (now + timedelta(hours=1)).isoformat(),
     }
-    resp = session.post(f"{base_url}/scouter/genai/metrics/errors", json=payload)
+    resp = session.post(f"{base_url}/scouter/genai/metrics/errors", json=payload, timeout=15)
     assert resp.status_code == 200
     data = resp.json()
     assert "errors" in data
