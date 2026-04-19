@@ -7,48 +7,14 @@ use axum::{
     Json, Router,
 };
 use scouter_types::{
-    contracts::ScouterServerError, GenAiAgentActivity, GenAiMetricsRequest, GenAiModelUsage,
-    GenAiOperationBreakdown, GenAiSpanFilters, GenAiSpanRecord, GenAiTokenBucket,
-    GenAiToolActivity,
+    contracts::ScouterServerError, GenAiAgentActivityResponse, GenAiErrorBreakdownResponse,
+    GenAiErrorCount, GenAiMetricsRequest, GenAiModelUsageResponse,
+    GenAiOperationBreakdownResponse, GenAiSpanFilters, GenAiSpansResponse,
+    GenAiTokenMetricsResponse, GenAiToolActivityResponse,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::sync::Arc;
 use tracing::instrument;
-
-#[derive(Serialize)]
-pub struct TokenMetricsResponse {
-    pub buckets: Vec<GenAiTokenBucket>,
-}
-
-#[derive(Serialize)]
-pub struct OperationBreakdownResponse {
-    pub operations: Vec<GenAiOperationBreakdown>,
-}
-
-#[derive(Serialize)]
-pub struct ModelUsageResponse {
-    pub models: Vec<GenAiModelUsage>,
-}
-
-#[derive(Serialize)]
-pub struct AgentActivityResponse {
-    pub agents: Vec<GenAiAgentActivity>,
-}
-
-#[derive(Serialize)]
-pub struct ToolActivityResponse {
-    pub tools: Vec<GenAiToolActivity>,
-}
-
-#[derive(Serialize)]
-pub struct ErrorBreakdownResponse {
-    pub errors: Vec<(String, i64)>,
-}
-
-#[derive(Serialize)]
-pub struct GenAiSpansResponse {
-    pub spans: Vec<GenAiSpanRecord>,
-}
 
 #[derive(Deserialize)]
 pub struct AgentActivityQuery {
@@ -65,7 +31,7 @@ pub struct ConversationQuery {
 pub async fn get_token_metrics(
     State(data): State<Arc<AppState>>,
     Json(body): Json<GenAiMetricsRequest>,
-) -> Result<Json<TokenMetricsResponse>, (StatusCode, Json<ScouterServerError>)> {
+) -> Result<Json<GenAiTokenMetricsResponse>, (StatusCode, Json<ScouterServerError>)> {
     let buckets = data
         .genai_service
         .query_service
@@ -85,14 +51,14 @@ pub async fn get_token_metrics(
             )
         })?;
 
-    Ok(Json(TokenMetricsResponse { buckets }))
+    Ok(Json(GenAiTokenMetricsResponse { buckets }))
 }
 
 #[instrument(skip_all)]
 pub async fn get_operation_breakdown(
     State(data): State<Arc<AppState>>,
     Json(body): Json<GenAiMetricsRequest>,
-) -> Result<Json<OperationBreakdownResponse>, (StatusCode, Json<ScouterServerError>)> {
+) -> Result<Json<GenAiOperationBreakdownResponse>, (StatusCode, Json<ScouterServerError>)> {
     let operations = data
         .genai_service
         .query_service
@@ -110,14 +76,14 @@ pub async fn get_operation_breakdown(
             )
         })?;
 
-    Ok(Json(OperationBreakdownResponse { operations }))
+    Ok(Json(GenAiOperationBreakdownResponse { operations }))
 }
 
 #[instrument(skip_all)]
 pub async fn get_model_usage(
     State(data): State<Arc<AppState>>,
     Json(body): Json<GenAiMetricsRequest>,
-) -> Result<Json<ModelUsageResponse>, (StatusCode, Json<ScouterServerError>)> {
+) -> Result<Json<GenAiModelUsageResponse>, (StatusCode, Json<ScouterServerError>)> {
     let models = data
         .genai_service
         .query_service
@@ -135,7 +101,7 @@ pub async fn get_model_usage(
             )
         })?;
 
-    Ok(Json(ModelUsageResponse { models }))
+    Ok(Json(GenAiModelUsageResponse { models }))
 }
 
 #[instrument(skip_all)]
@@ -143,7 +109,7 @@ pub async fn get_agent_activity(
     State(data): State<Arc<AppState>>,
     Query(params): Query<AgentActivityQuery>,
     Json(body): Json<GenAiMetricsRequest>,
-) -> Result<Json<AgentActivityResponse>, (StatusCode, Json<ScouterServerError>)> {
+) -> Result<Json<GenAiAgentActivityResponse>, (StatusCode, Json<ScouterServerError>)> {
     let agents = data
         .genai_service
         .query_service
@@ -161,14 +127,14 @@ pub async fn get_agent_activity(
             )
         })?;
 
-    Ok(Json(AgentActivityResponse { agents }))
+    Ok(Json(GenAiAgentActivityResponse { agents }))
 }
 
 #[instrument(skip_all)]
 pub async fn get_tool_activity(
     State(data): State<Arc<AppState>>,
     Json(body): Json<GenAiMetricsRequest>,
-) -> Result<Json<ToolActivityResponse>, (StatusCode, Json<ScouterServerError>)> {
+) -> Result<Json<GenAiToolActivityResponse>, (StatusCode, Json<ScouterServerError>)> {
     let tools = data
         .genai_service
         .query_service
@@ -185,15 +151,15 @@ pub async fn get_tool_activity(
             )
         })?;
 
-    Ok(Json(ToolActivityResponse { tools }))
+    Ok(Json(GenAiToolActivityResponse { tools }))
 }
 
 #[instrument(skip_all)]
 pub async fn get_error_breakdown(
     State(data): State<Arc<AppState>>,
     Json(body): Json<GenAiMetricsRequest>,
-) -> Result<Json<ErrorBreakdownResponse>, (StatusCode, Json<ScouterServerError>)> {
-    let errors = data
+) -> Result<Json<GenAiErrorBreakdownResponse>, (StatusCode, Json<ScouterServerError>)> {
+    let raw_errors = data
         .genai_service
         .query_service
         .get_error_breakdown(
@@ -210,7 +176,12 @@ pub async fn get_error_breakdown(
             )
         })?;
 
-    Ok(Json(ErrorBreakdownResponse { errors }))
+    let errors = raw_errors
+        .into_iter()
+        .map(|(error_type, count)| GenAiErrorCount { error_type, count })
+        .collect();
+
+    Ok(Json(GenAiErrorBreakdownResponse { errors }))
 }
 
 #[instrument(skip_all)]
@@ -239,12 +210,19 @@ pub async fn get_conversation_spans(
     Path(id): Path<String>,
     Query(params): Query<ConversationQuery>,
 ) -> Result<Json<GenAiSpansResponse>, (StatusCode, Json<ScouterServerError>)> {
+    if id.len() > 256 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ScouterServerError::new("conversation_id exceeds maximum length".to_string())),
+        ));
+    }
+
     let start_time = params.start_time.as_deref().map(|s| {
         chrono::DateTime::parse_from_rfc3339(s)
             .map(|dt| dt.with_timezone(&chrono::Utc))
             .map_err(|_| (
                 StatusCode::BAD_REQUEST,
-                Json(ScouterServerError::new(format!("Invalid start_time: {s}"))),
+                Json(ScouterServerError::new("Invalid start_time: expected RFC3339 format".to_string())),
             ))
     }).transpose()?;
 
@@ -253,7 +231,7 @@ pub async fn get_conversation_spans(
             .map(|dt| dt.with_timezone(&chrono::Utc))
             .map_err(|_| (
                 StatusCode::BAD_REQUEST,
-                Json(ScouterServerError::new(format!("Invalid end_time: {s}"))),
+                Json(ScouterServerError::new("Invalid end_time: expected RFC3339 format".to_string())),
             ))
     }).transpose()?;
 
