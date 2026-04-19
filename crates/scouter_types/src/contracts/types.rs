@@ -737,6 +737,26 @@ impl ScouterServerError {
             retry: Some(true),
         }
     }
+
+    pub fn get_agent_dashboard_error<T: Display>(e: T) -> Self {
+        error!("Failed to get agent dashboard metrics: {}", e);
+        ScouterServerError {
+            error: "Failed to get agent dashboard metrics".to_string(),
+            code: "QUERY_ERROR".to_string(),
+            suggested_action: None,
+            retry: Some(true),
+        }
+    }
+
+    pub fn get_tool_dashboard_error<T: Display>(e: T) -> Self {
+        error!("Failed to get tool dashboard metrics: {}", e);
+        ScouterServerError {
+            error: "Failed to get tool dashboard metrics".to_string(),
+            code: "QUERY_ERROR".to_string(),
+            suggested_action: None,
+            retry: Some(true),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

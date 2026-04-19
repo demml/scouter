@@ -87,6 +87,9 @@ nav:
       - Schema Reference: "docs/bifrost/schema.md"
   - Tracing:
       - Overview: "docs/tracing/overview.md"
+      - GenAI semantic conventions: "docs/tracing/genai-semantics.md"
+      - ScouterInstrumentor: "docs/tracing/instrumentor.md"
+      - Storage architecture: "docs/tracing/storage-architecture.md"
   - Profiling:
       - Data Profile: "docs/profiling/overview.md"
   - Tech Specs:
