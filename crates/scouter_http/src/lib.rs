@@ -185,4 +185,16 @@ impl HttpClient {
 
         Ok(response)
     }
+
+    pub fn raw_get(&self, path: &str, query_string: Option<String>) -> Result<Response, ClientError> {
+        let url = format!("{}/{}", self.base_path, path);
+        let url = if let Some(qs) = query_string {
+            format!("{url}?{qs}")
+        } else {
+            url
+        };
+        let response = self.client.get(url).bearer_auth(self.get_current_token()).send()?;
+        self.update_token_from_response(&response);
+        Ok(response)
+    }
 }

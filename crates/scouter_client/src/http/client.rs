@@ -347,6 +347,7 @@ impl ScouterClient {
         let scenarios: EvalScenarios = serde_json::from_slice(&body)?;
         Ok(scenarios)
     }
+
 }
 
 #[pyclass(skip_from_py_object, name = "ScouterClient")]
@@ -599,6 +600,7 @@ impl PyScouterClient {
     pub fn get_scenarios(&self, collection_id: &str) -> Result<EvalScenarios, ClientError> {
         self.client.get_scenarios(collection_id)
     }
+
 }
 
 impl PyScouterClient {

@@ -78,6 +78,30 @@ pub enum ClientError {
 
     #[error("gRPC error: {0}")]
     GrpcError(String),
+
+    #[error("Failed to get GenAI token metrics")]
+    GetGenAiTokenMetricsError,
+
+    #[error("Failed to get GenAI operation breakdown")]
+    GetGenAiOperationBreakdownError,
+
+    #[error("Failed to get GenAI model usage")]
+    GetGenAiModelUsageError,
+
+    #[error("Failed to get GenAI agent activity")]
+    GetGenAiAgentActivityError,
+
+    #[error("Failed to get GenAI tool activity")]
+    GetGenAiToolActivityError,
+
+    #[error("Failed to get GenAI error breakdown")]
+    GetGenAiErrorBreakdownError,
+
+    #[error("Failed to get GenAI spans")]
+    GetGenAiSpansError,
+
+    #[error("Failed to get GenAI conversation spans")]
+    GetGenAiConversationSpansError,
 }
 
 impl From<ClientError> for PyErr {
