@@ -65,7 +65,15 @@ pub struct GenAiSpanRecord {
 
 fn attr_as_i64(v: &serde_json::Value) -> Option<i64> {
     match v {
-        serde_json::Value::Number(n) => n.as_i64().or_else(|| n.as_f64().map(|f| f as i64)),
+        serde_json::Value::Number(n) => n.as_i64().or_else(|| {
+            n.as_f64().and_then(|f| {
+                if f.is_finite() && f >= i64::MIN as f64 && f <= i64::MAX as f64 {
+                    Some(f as i64)
+                } else {
+                    None
+                }
+            })
+        }),
         serde_json::Value::String(s) => s.parse().ok(),
         _ => None,
     }
@@ -103,7 +111,7 @@ fn parse_finish_reasons(v: &serde_json::Value) -> Vec<String> {
                     })
                     .collect()
             } else {
-                vec![]
+                vec![s.clone()]
             }
         }
         _ => vec![],
@@ -289,11 +297,16 @@ pub struct GenAiToolActivity {
     pub error_rate: f64,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+fn default_bucket_interval() -> String {
+    "hour".to_string()
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GenAiMetricsRequest {
     pub service_name: Option<String>,
     pub start_time: DateTime<Utc>,
     pub end_time: DateTime<Utc>,
+    #[serde(default = "default_bucket_interval")]
     pub bucket_interval: String,
     pub operation_name: Option<String>,
     pub provider_name: Option<String>,
@@ -313,6 +326,47 @@ pub struct GenAiSpanFilters {
     pub tool_name: Option<String>,
     pub error_type: Option<String>,
     pub limit: Option<usize>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct GenAiErrorCount {
+    pub error_type: String,
+    pub count: i64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct GenAiTokenMetricsResponse {
+    pub buckets: Vec<GenAiTokenBucket>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct GenAiOperationBreakdownResponse {
+    pub operations: Vec<GenAiOperationBreakdown>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct GenAiModelUsageResponse {
+    pub models: Vec<GenAiModelUsage>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct GenAiAgentActivityResponse {
+    pub agents: Vec<GenAiAgentActivity>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct GenAiToolActivityResponse {
+    pub tools: Vec<GenAiToolActivity>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct GenAiErrorBreakdownResponse {
+    pub errors: Vec<GenAiErrorCount>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct GenAiSpansResponse {
+    pub spans: Vec<GenAiSpanRecord>,
 }
 
 #[cfg(test)]
@@ -442,7 +496,14 @@ mod tests {
     #[test]
     fn test_parse_finish_reasons_plain_string() {
         let result = parse_finish_reasons(&serde_json::Value::String("stop".to_string()));
-        assert_eq!(result, Vec::<String>::new());
+        assert_eq!(result, vec!["stop".to_string()]);
+    }
+
+    #[test]
+    fn test_parse_finish_reasons_mixed_array() {
+        let v = serde_json::json!(["stop", 1, null, "length"]);
+        let result = parse_finish_reasons(&v);
+        assert_eq!(result, vec!["stop".to_string(), "length".to_string()]);
     }
 
     #[test]
