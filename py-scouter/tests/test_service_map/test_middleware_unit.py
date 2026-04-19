@@ -3,7 +3,6 @@
 Tests the middleware logic in isolation — no Bifrost server or gRPC needed.
 Bifrost.insert is patched to capture emitted records.
 """
-
 from __future__ import annotations
 
 import json
@@ -11,6 +10,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 
 # ---------------------------------------------------------------------------
 # ASGI helpers

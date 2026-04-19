@@ -1,11 +1,9 @@
 pub mod genai;
 pub mod sql;
 pub use genai::{
-    extract_gen_ai_span, GenAiAgentActivity, GenAiAgentActivityResponse, GenAiErrorBreakdownResponse,
-    GenAiErrorCount, GenAiMetricsRequest, GenAiModelUsage, GenAiModelUsageResponse,
-    GenAiOperationBreakdown, GenAiOperationBreakdownResponse, GenAiSpanFilters, GenAiSpanRecord,
-    GenAiSpansResponse, GenAiTokenBucket, GenAiTokenMetricsResponse, GenAiToolActivity,
-    GenAiToolActivityResponse, GEN_AI_AGENT_ID, GEN_AI_AGENT_NAME, GEN_AI_CONVERSATION_ID,
+    extract_gen_ai_span, GenAiAgentActivity, GenAiMetricsRequest, GenAiModelUsage,
+    GenAiOperationBreakdown, GenAiSpanFilters, GenAiSpanRecord, GenAiTokenBucket,
+    GenAiToolActivity, GEN_AI_AGENT_ID, GEN_AI_AGENT_NAME, GEN_AI_CONVERSATION_ID,
     GEN_AI_ERROR_TYPE, GEN_AI_OPERATION_NAME, GEN_AI_OUTPUT_TYPE, GEN_AI_PROVIDER_NAME,
     GEN_AI_REQUEST_MAX_TOKENS, GEN_AI_REQUEST_MODEL, GEN_AI_REQUEST_TEMPERATURE,
     GEN_AI_REQUEST_TOP_P, GEN_AI_RESPONSE_FINISH_REASONS, GEN_AI_RESPONSE_ID,

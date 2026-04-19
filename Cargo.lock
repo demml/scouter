@@ -833,8 +833,7 @@ dependencies = [
 [[package]]
 name = "baked-potato"
 version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23aa1d2907b13a9ddeba3c80d1343c607531aeef4c5f9b2816f8e89326ba873a"
+source = "git+https://github.com/demml/potatohead.git?branch=prelude#c49eba06bee061a89dc4205134fa4527d46dd484"
 dependencies = [
  "async-trait",
  "chrono",
@@ -5210,8 +5209,7 @@ dependencies = [
 [[package]]
 name = "potato-agent"
 version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0bc5dc699a357f3c4d8b673c3ff4cdeec4f5375e73f6182833c2518d58780369"
+source = "git+https://github.com/demml/potatohead.git?branch=prelude#c49eba06bee061a89dc4205134fa4527d46dd484"
 dependencies = [
  "async-trait",
  "base64",
@@ -5237,8 +5235,7 @@ dependencies = [
 [[package]]
 name = "potato-head"
 version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "180319751d313d1253f5e063db0a37a20f79533f0e28bac12bd672d3b39fc5ea"
+source = "git+https://github.com/demml/potatohead.git?branch=prelude#c49eba06bee061a89dc4205134fa4527d46dd484"
 dependencies = [
  "baked-potato",
  "potato-agent",
@@ -5252,8 +5249,7 @@ dependencies = [
 [[package]]
 name = "potato-provider"
 version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6f9a3390d951a980d437a11f9232dfa8bfac6f733051a6574a65548d94c1e8a"
+source = "git+https://github.com/demml/potatohead.git?branch=prelude#c49eba06bee061a89dc4205134fa4527d46dd484"
 dependencies = [
  "base64",
  "gcloud-auth",
@@ -5275,8 +5271,7 @@ dependencies = [
 [[package]]
 name = "potato-spec"
 version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d30bea2226ea3614534dab9be8f5750f10914b3f308a2546063e4cab808dfdeb"
+source = "git+https://github.com/demml/potatohead.git?branch=prelude#c49eba06bee061a89dc4205134fa4527d46dd484"
 dependencies = [
  "potato-agent",
  "potato-type",
@@ -5292,8 +5287,7 @@ dependencies = [
 [[package]]
 name = "potato-state"
 version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0bf8e13fb4166efa80c30e4c6f95d963c930653358cbb6e2e1a6c5836b6b9f43"
+source = "git+https://github.com/demml/potatohead.git?branch=prelude#c49eba06bee061a89dc4205134fa4527d46dd484"
 dependencies = [
  "thiserror 2.0.18",
  "tokio",
@@ -5303,8 +5297,7 @@ dependencies = [
 [[package]]
 name = "potato-type"
 version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd119d77dec04754f4786a69478f92cf926d88798f476695c23433fcddcf1ee8"
+source = "git+https://github.com/demml/potatohead.git?branch=prelude#c49eba06bee061a89dc4205134fa4527d46dd484"
 dependencies = [
  "async-trait",
  "potato-util",
@@ -5323,8 +5316,7 @@ dependencies = [
 [[package]]
 name = "potato-util"
 version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a9347dd955c2e2dbec8cb743cb651806bc33fdb8dabebdbddd44578b1bb31ee4"
+source = "git+https://github.com/demml/potatohead.git?branch=prelude#c49eba06bee061a89dc4205134fa4527d46dd484"
 dependencies = [
  "colored_json",
  "pyo3",
@@ -5340,8 +5332,7 @@ dependencies = [
 [[package]]
 name = "potato-workflow"
 version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9b06c8dbf1deee8347284e227063806a1aa58ef49fb76ad8da2ad1da965c25f"
+source = "git+https://github.com/demml/potatohead.git?branch=prelude#c49eba06bee061a89dc4205134fa4527d46dd484"
 dependencies = [
  "chrono",
  "potato-agent",
@@ -5361,8 +5352,7 @@ dependencies = [
 [[package]]
 name = "potatohead-macro"
 version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57544b09d26a1ae94b0643e8e88d171b5bc15aca21118b8e6bb5942c79e9cc14"
+source = "git+https://github.com/demml/potatohead.git?branch=prelude#c49eba06bee061a89dc4205134fa4527d46dd484"
 dependencies = [
  "thiserror 2.0.18",
 ]
@@ -6579,7 +6569,6 @@ dependencies = [
 name = "scouter-dataframe"
 version = "0.25.0"
 dependencies = [
- "ahash",
  "arrow",
  "arrow-array",
  "async-trait",

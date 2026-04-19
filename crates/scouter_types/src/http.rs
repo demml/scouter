@@ -39,14 +39,6 @@ pub enum Routes {
     TraceMetrics,
     Tags,
     EvalScenarios,
-    GenAiTokenMetrics,
-    GenAiOperationBreakdown,
-    GenAiModelUsage,
-    GenAiAgentActivity,
-    GenAiToolActivity,
-    GenAiErrorBreakdown,
-    GenAiSpans,
-    GenAiConversation,
 }
 
 impl Routes {
@@ -75,14 +67,6 @@ impl Routes {
             Routes::TraceMetrics => "trace/metrics",
             Routes::Tags => "tags",
             Routes::EvalScenarios => "eval/scenarios",
-            Routes::GenAiTokenMetrics => "genai/metrics/tokens",
-            Routes::GenAiOperationBreakdown => "genai/metrics/operations",
-            Routes::GenAiModelUsage => "genai/metrics/models",
-            Routes::GenAiAgentActivity => "genai/metrics/agents",
-            Routes::GenAiToolActivity => "genai/metrics/tools",
-            Routes::GenAiErrorBreakdown => "genai/metrics/errors",
-            Routes::GenAiSpans => "genai/spans",
-            Routes::GenAiConversation => "genai/conversation",
         }
     }
 }
