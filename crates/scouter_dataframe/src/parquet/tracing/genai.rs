@@ -22,8 +22,8 @@ use deltalake::operations::optimize::OptimizeType;
 use deltalake::{DeltaTable, DeltaTableBuilder, TableProperty};
 use mini_moka::sync::Cache;
 use scouter_types::{
-    GenAiAgentActivity, GenAiModelUsage, GenAiOperationBreakdown, GenAiSpanFilters,
-    GenAiSpanRecord, GenAiTokenBucket, GenAiToolActivity, SpanId, TraceId,
+    GenAiAgentActivity, GenAiEvalResult, GenAiModelUsage, GenAiOperationBreakdown,
+    GenAiSpanFilters, GenAiSpanRecord, GenAiTokenBucket, GenAiToolActivity, SpanId, TraceId,
 };
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
@@ -71,6 +71,21 @@ const ERROR_TYPE_COL: &str = "error_type";
 const OPENAI_API_TYPE_COL: &str = "openai_api_type";
 const OPENAI_SERVICE_TIER_COL: &str = "openai_service_tier";
 const LABEL_COL: &str = "label";
+const AGENT_DESCRIPTION_COL: &str = "agent_description";
+const AGENT_VERSION_COL: &str = "agent_version";
+const DATA_SOURCE_ID_COL: &str = "data_source_id";
+const REQUEST_CHOICE_COUNT_COL: &str = "request_choice_count";
+const REQUEST_SEED_COL: &str = "request_seed";
+const REQUEST_FREQUENCY_PENALTY_COL: &str = "request_frequency_penalty";
+const REQUEST_PRESENCE_PENALTY_COL: &str = "request_presence_penalty";
+const REQUEST_STOP_SEQUENCES_COL: &str = "request_stop_sequences";
+const SERVER_ADDRESS_COL: &str = "server_address";
+const SERVER_PORT_COL: &str = "server_port";
+const INPUT_MESSAGES_COL: &str = "input_messages";
+const OUTPUT_MESSAGES_COL: &str = "output_messages";
+const SYSTEM_INSTRUCTIONS_COL: &str = "system_instructions";
+const TOOL_DEFINITIONS_COL: &str = "tool_definitions";
+const EVAL_RESULTS_COL: &str = "eval_results";
 const PARTITION_DATE_COL: &str = "partition_date";
 
 // ── Schema ───────────────────────────────────────────────────────────────────
@@ -164,6 +179,25 @@ fn create_genai_schema() -> Schema {
         ),
         Field::new(OPENAI_SERVICE_TIER_COL, DataType::Utf8, true),
         Field::new(LABEL_COL, DataType::Utf8, true),
+        Field::new(AGENT_DESCRIPTION_COL, DataType::Utf8View, true),
+        Field::new(AGENT_VERSION_COL, DataType::Utf8View, true),
+        Field::new(DATA_SOURCE_ID_COL, DataType::Utf8View, true),
+        Field::new(REQUEST_CHOICE_COUNT_COL, DataType::Int64, true),
+        Field::new(REQUEST_SEED_COL, DataType::Int64, true),
+        Field::new(REQUEST_FREQUENCY_PENALTY_COL, DataType::Float64, true),
+        Field::new(REQUEST_PRESENCE_PENALTY_COL, DataType::Float64, true),
+        Field::new(
+            REQUEST_STOP_SEQUENCES_COL,
+            DataType::List(Arc::new(Field::new("item", DataType::Utf8, true))),
+            true,
+        ),
+        Field::new(SERVER_ADDRESS_COL, DataType::Utf8View, true),
+        Field::new(SERVER_PORT_COL, DataType::Int64, true),
+        Field::new(INPUT_MESSAGES_COL, DataType::Utf8View, true),
+        Field::new(OUTPUT_MESSAGES_COL, DataType::Utf8View, true),
+        Field::new(SYSTEM_INSTRUCTIONS_COL, DataType::Utf8View, true),
+        Field::new(TOOL_DEFINITIONS_COL, DataType::Utf8View, true),
+        Field::new(EVAL_RESULTS_COL, DataType::Utf8View, true),
         Field::new(PARTITION_DATE_COL, DataType::Date32, false),
     ])
 }
@@ -203,6 +237,21 @@ struct GenAiBatchBuilder {
     openai_api_type: StringDictionaryBuilder<Int8Type>,
     openai_service_tier: StringBuilder,
     label: StringBuilder,
+    agent_description: StringViewBuilder,
+    agent_version: StringViewBuilder,
+    data_source_id: StringViewBuilder,
+    request_choice_count: Int64Builder,
+    request_seed: Int64Builder,
+    request_frequency_penalty: Float64Builder,
+    request_presence_penalty: Float64Builder,
+    request_stop_sequences: ListBuilder<StringBuilder>,
+    server_address: StringViewBuilder,
+    server_port: Int64Builder,
+    input_messages: StringViewBuilder,
+    output_messages: StringViewBuilder,
+    system_instructions: StringViewBuilder,
+    tool_definitions: StringViewBuilder,
+    eval_results: StringViewBuilder,
     partition_date: Date32Builder,
 }
 
@@ -241,6 +290,21 @@ impl GenAiBatchBuilder {
             openai_api_type: StringDictionaryBuilder::new(),
             openai_service_tier: StringBuilder::with_capacity(capacity, capacity * 16),
             label: StringBuilder::with_capacity(capacity, capacity * 16),
+            agent_description: StringViewBuilder::new(),
+            agent_version: StringViewBuilder::new(),
+            data_source_id: StringViewBuilder::new(),
+            request_choice_count: Int64Builder::with_capacity(capacity),
+            request_seed: Int64Builder::with_capacity(capacity),
+            request_frequency_penalty: Float64Builder::with_capacity(capacity),
+            request_presence_penalty: Float64Builder::with_capacity(capacity),
+            request_stop_sequences: ListBuilder::new(StringBuilder::new()),
+            server_address: StringViewBuilder::new(),
+            server_port: Int64Builder::with_capacity(capacity),
+            input_messages: StringViewBuilder::new(),
+            output_messages: StringViewBuilder::new(),
+            system_instructions: StringViewBuilder::new(),
+            tool_definitions: StringViewBuilder::new(),
+            eval_results: StringViewBuilder::new(),
             partition_date: Date32Builder::with_capacity(capacity),
         }
     }
@@ -345,6 +409,65 @@ impl GenAiBatchBuilder {
             None => self.label.append_null(),
         }
 
+        match &rec.agent_description {
+            Some(v) => self.agent_description.append_value(v),
+            None => self.agent_description.append_null(),
+        }
+        match &rec.agent_version {
+            Some(v) => self.agent_version.append_value(v),
+            None => self.agent_version.append_null(),
+        }
+        match &rec.data_source_id {
+            Some(v) => self.data_source_id.append_value(v),
+            None => self.data_source_id.append_null(),
+        }
+        self.request_choice_count
+            .append_option(rec.request_choice_count);
+        self.request_seed.append_option(rec.request_seed);
+        self.request_frequency_penalty
+            .append_option(rec.request_frequency_penalty);
+        self.request_presence_penalty
+            .append_option(rec.request_presence_penalty);
+
+        if rec.request_stop_sequences.is_empty() {
+            self.request_stop_sequences.append(false);
+        } else {
+            for s in &rec.request_stop_sequences {
+                self.request_stop_sequences.values().append_value(s);
+            }
+            self.request_stop_sequences.append(true);
+        }
+
+        match &rec.server_address {
+            Some(v) => self.server_address.append_value(v),
+            None => self.server_address.append_null(),
+        }
+        self.server_port.append_option(rec.server_port);
+
+        match &rec.input_messages {
+            Some(v) => self.input_messages.append_value(v),
+            None => self.input_messages.append_null(),
+        }
+        match &rec.output_messages {
+            Some(v) => self.output_messages.append_value(v),
+            None => self.output_messages.append_null(),
+        }
+        match &rec.system_instructions {
+            Some(v) => self.system_instructions.append_value(v),
+            None => self.system_instructions.append_null(),
+        }
+        match &rec.tool_definitions {
+            Some(v) => self.tool_definitions.append_value(v),
+            None => self.tool_definitions.append_null(),
+        }
+
+        let eval_json = if rec.eval_results.is_empty() {
+            None
+        } else {
+            serde_json::to_string(&rec.eval_results).ok()
+        };
+        self.eval_results.append_option(eval_json.as_deref());
+
         let days = rec.start_time.date_naive().num_days_from_ce() - UNIX_EPOCH_DAYS;
         self.partition_date.append_value(days);
         Ok(())
@@ -383,6 +506,21 @@ impl GenAiBatchBuilder {
             Arc::new(self.openai_api_type.finish()),
             Arc::new(self.openai_service_tier.finish()),
             Arc::new(self.label.finish()),
+            Arc::new(self.agent_description.finish()),
+            Arc::new(self.agent_version.finish()),
+            Arc::new(self.data_source_id.finish()),
+            Arc::new(self.request_choice_count.finish()),
+            Arc::new(self.request_seed.finish()),
+            Arc::new(self.request_frequency_penalty.finish()),
+            Arc::new(self.request_presence_penalty.finish()),
+            Arc::new(self.request_stop_sequences.finish()),
+            Arc::new(self.server_address.finish()),
+            Arc::new(self.server_port.finish()),
+            Arc::new(self.input_messages.finish()),
+            Arc::new(self.output_messages.finish()),
+            Arc::new(self.system_instructions.finish()),
+            Arc::new(self.tool_definitions.finish()),
+            Arc::new(self.eval_results.finish()),
             Arc::new(self.partition_date.finish()),
         ];
         RecordBatch::try_new(self.schema, columns).map_err(Into::into)
@@ -2015,6 +2153,53 @@ fn batches_to_genai_records(
             .column_by_name(FINISH_REASONS_COL)
             .and_then(|c| c.as_any().downcast_ref::<ListArray>());
 
+        let agent_descriptions = cast_to_string_array(batch, AGENT_DESCRIPTION_COL)?;
+        let agent_versions = cast_to_string_array(batch, AGENT_VERSION_COL)?;
+        let data_source_ids = cast_to_string_array(batch, DATA_SOURCE_ID_COL)?;
+        let request_choice_counts = batch
+            .column_by_name(REQUEST_CHOICE_COUNT_COL)
+            .and_then(|c| c.as_any().downcast_ref::<Int64Array>())
+            .ok_or_else(|| {
+                TraceEngineError::UnsupportedOperation("missing request_choice_count column".into())
+            })?;
+        let request_seeds = batch
+            .column_by_name(REQUEST_SEED_COL)
+            .and_then(|c| c.as_any().downcast_ref::<Int64Array>())
+            .ok_or_else(|| {
+                TraceEngineError::UnsupportedOperation("missing request_seed column".into())
+            })?;
+        let request_freq_penalties = batch
+            .column_by_name(REQUEST_FREQUENCY_PENALTY_COL)
+            .and_then(|c| c.as_any().downcast_ref::<Float64Array>())
+            .ok_or_else(|| {
+                TraceEngineError::UnsupportedOperation(
+                    "missing request_frequency_penalty column".into(),
+                )
+            })?;
+        let request_pres_penalties = batch
+            .column_by_name(REQUEST_PRESENCE_PENALTY_COL)
+            .and_then(|c| c.as_any().downcast_ref::<Float64Array>())
+            .ok_or_else(|| {
+                TraceEngineError::UnsupportedOperation(
+                    "missing request_presence_penalty column".into(),
+                )
+            })?;
+        let stop_sequences_list = batch
+            .column_by_name(REQUEST_STOP_SEQUENCES_COL)
+            .and_then(|c| c.as_any().downcast_ref::<ListArray>());
+        let server_addresses = cast_to_string_array(batch, SERVER_ADDRESS_COL)?;
+        let server_ports = batch
+            .column_by_name(SERVER_PORT_COL)
+            .and_then(|c| c.as_any().downcast_ref::<Int64Array>())
+            .ok_or_else(|| {
+                TraceEngineError::UnsupportedOperation("missing server_port column".into())
+            })?;
+        let input_messages_col = cast_to_string_array(batch, INPUT_MESSAGES_COL)?;
+        let output_messages_col = cast_to_string_array(batch, OUTPUT_MESSAGES_COL)?;
+        let system_instructions_col = cast_to_string_array(batch, SYSTEM_INSTRUCTIONS_COL)?;
+        let tool_definitions_col = cast_to_string_array(batch, TOOL_DEFINITIONS_COL)?;
+        let eval_results_col = cast_to_string_array(batch, EVAL_RESULTS_COL)?;
+
         for i in 0..batch.num_rows() {
             let trace_id_bytes = trace_ids.value(i);
             let trace_id = if trace_id_bytes.len() == 16 {
@@ -2066,6 +2251,32 @@ fn batches_to_genai_records(
                 vec![]
             };
 
+            let request_stop_sequences = if let Some(list) = stop_sequences_list {
+                if list.is_null(i) {
+                    vec![]
+                } else {
+                    let inner = list.value(i);
+                    let str_arr = compute::cast(&inner, &DataType::Utf8)
+                        .ok()
+                        .and_then(|a| a.as_any().downcast_ref::<StringArray>().cloned());
+                    match str_arr {
+                        Some(arr) => (0..arr.len())
+                            .filter(|j| !arr.is_null(*j))
+                            .map(|j| arr.value(j).to_string())
+                            .collect(),
+                        None => vec![],
+                    }
+                }
+            } else {
+                vec![]
+            };
+
+            let eval_results: Vec<GenAiEvalResult> = if eval_results_col.is_null(i) {
+                vec![]
+            } else {
+                serde_json::from_str(eval_results_col.value(i)).unwrap_or_default()
+            };
+
             records.push(GenAiSpanRecord {
                 trace_id,
                 span_id,
@@ -2098,6 +2309,21 @@ fn batches_to_genai_records(
                 openai_api_type: nullable_string(&openai_api_types, i),
                 openai_service_tier: nullable_string(&openai_service_tiers, i),
                 label: nullable_string(&labels, i),
+                agent_description: nullable_string(&agent_descriptions, i),
+                agent_version: nullable_string(&agent_versions, i),
+                data_source_id: nullable_string(&data_source_ids, i),
+                request_choice_count: nullable_i64(request_choice_counts, i),
+                request_seed: nullable_i64(request_seeds, i),
+                request_frequency_penalty: nullable_f64(request_freq_penalties, i),
+                request_presence_penalty: nullable_f64(request_pres_penalties, i),
+                request_stop_sequences,
+                server_address: nullable_string(&server_addresses, i),
+                server_port: nullable_i64(server_ports, i),
+                input_messages: nullable_string(&input_messages_col, i),
+                output_messages: nullable_string(&output_messages_col, i),
+                system_instructions: nullable_string(&system_instructions_col, i),
+                tool_definitions: nullable_string(&tool_definitions_col, i),
+                eval_results,
             });
         }
     }

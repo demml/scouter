@@ -24,6 +24,9 @@ jobs:
           version: "33.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Install Rust toolchain
+        run: rustup override set stable && rustup update
+
       - name: Install build dependencies
         run: |
           sudo apt-get update
