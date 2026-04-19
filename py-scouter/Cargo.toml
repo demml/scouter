@@ -2,14 +2,13 @@
 name = "py-scouter"
 version = { workspace = true }
 edition = "2021"
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
 [lib]
 name = "scouter"
 crate-type = ["cdylib"]
 
 [dependencies]
-
 pyo3 = { workspace = true }
 numpy = { workspace = true }
 num-traits = { workspace = true }

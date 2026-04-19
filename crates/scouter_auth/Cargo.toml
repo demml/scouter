@@ -7,7 +7,6 @@ repository = { workspace = true }
 license = "MIT"
 description = "Rust Scouter authentication logic"
 
-
 [lib]
 doctest = false
 
