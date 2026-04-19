@@ -396,6 +396,9 @@ pub enum GenAiTableCommand {
         records: Vec<GenAiSpanRecord>,
         respond_to: oneshot::Sender<Result<(), TraceEngineError>>,
     },
+    WriteNoAck {
+        records: Vec<GenAiSpanRecord>,
+    },
     Optimize {
         respond_to: oneshot::Sender<Result<(), TraceEngineError>>,
     },
@@ -811,6 +814,11 @@ impl GenAiSpanDBEngine {
                                     error!("gen_ai write failed: {}", e);
                                 }
                                 let _ = respond_to.send(result);
+                            }
+                            GenAiTableCommand::WriteNoAck { records } => {
+                                if let Err(e) = self.write_records(records).await {
+                                    tracing::error!("GenAI fire-and-forget write failed: {}", e);
+                                }
                             }
                             GenAiTableCommand::Optimize { respond_to } => {
                                 let _ = respond_to.send(self.optimize_table().await);

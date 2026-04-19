@@ -86,6 +86,8 @@ pub struct TraceSpanService {
     /// Shared ObjectStore — passed to TraceSummaryService so both engines use the same
     /// CachingStore instance, preventing stale reads on cloud backends (GCS/S3).
     pub object_store: ObjectStore,
+    // std::sync::RwLock intentional: write-once init slot set synchronously at startup;
+    // never held across .await points.
     genai_tx: Arc<std::sync::RwLock<Option<mpsc::Sender<GenAiTableCommand>>>>,
 }
 
@@ -243,15 +245,10 @@ impl TraceSpanService {
                 if !genai_records.is_empty() {
                     let guard = genai_tx.read().unwrap();
                     if let Some(gtx) = guard.as_ref() {
-                        let (resp_tx, _) = tokio::sync::oneshot::channel();
-                        if let Err(e) = gtx.try_send(GenAiTableCommand::Write {
+                        if let Err(e) = gtx.try_send(GenAiTableCommand::WriteNoAck {
                             records: genai_records,
-                            respond_to: resp_tx,
                         }) {
-                            tracing::warn!(
-                                "GenAI write channel full or closed: {}",
-                                e
-                            );
+                            tracing::warn!("GenAI write channel full or closed: {}", e);
                         }
                     }
                 }
