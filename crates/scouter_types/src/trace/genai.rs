@@ -72,6 +72,7 @@ pub const GEN_AI_EVALUATION_EXPLANATION: &str = "gen_ai.evaluation.explanation";
 
 /// Result from a gen_ai.evaluation.result event attached to a span.
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiEvalResult {
     pub name: String,
     pub score_label: Option<String>,
@@ -83,6 +84,7 @@ pub struct GenAiEvalResult {
 // ── GenAiSpanRecord ───────────────────────────────────────────────────────────
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiSpanRecord {
     pub trace_id: TraceId,
     pub span_id: SpanId,
@@ -542,6 +544,7 @@ pub fn extract_gen_ai_span(record: &TraceSpanRecord) -> Option<GenAiSpanRecord> 
 // ── Response / aggregation types ──────────────────────────────────────────────
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiTokenBucket {
     pub bucket_start: DateTime<Utc>,
     pub total_input_tokens: i64,
@@ -553,6 +556,7 @@ pub struct GenAiTokenBucket {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiOperationBreakdown {
     pub operation_name: String,
     pub provider_name: Option<String>,
@@ -564,6 +568,7 @@ pub struct GenAiOperationBreakdown {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiModelUsage {
     pub model: String,
     pub provider_name: Option<String>,
@@ -576,6 +581,7 @@ pub struct GenAiModelUsage {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiAgentActivity {
     pub agent_name: Option<String>,
     pub agent_id: Option<String>,
@@ -587,6 +593,7 @@ pub struct GenAiAgentActivity {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiToolActivity {
     pub tool_name: Option<String>,
     pub tool_type: Option<String>,
@@ -600,6 +607,7 @@ fn default_bucket_interval() -> String {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiMetricsRequest {
     pub service_name: Option<String>,
     pub start_time: DateTime<Utc>,
@@ -612,6 +620,7 @@ pub struct GenAiMetricsRequest {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiSpanFilters {
     pub service_name: Option<String>,
     pub start_time: Option<DateTime<Utc>>,
@@ -627,44 +636,180 @@ pub struct GenAiSpanFilters {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiErrorCount {
     pub error_type: String,
     pub count: i64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiTokenMetricsResponse {
     pub buckets: Vec<GenAiTokenBucket>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiOperationBreakdownResponse {
     pub operations: Vec<GenAiOperationBreakdown>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiModelUsageResponse {
     pub models: Vec<GenAiModelUsage>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiAgentActivityResponse {
     pub agents: Vec<GenAiAgentActivity>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiToolActivityResponse {
     pub tools: Vec<GenAiToolActivity>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiErrorBreakdownResponse {
     pub errors: Vec<GenAiErrorCount>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiSpansResponse {
     pub spans: Vec<GenAiSpanRecord>,
+}
+
+// ── Agent dashboard ───────────────────────────────────────────────────────────
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+pub struct ModelPricing {
+    pub input_per_million: f64,
+    pub output_per_million: f64,
+    pub cache_creation_per_million: f64,
+    pub cache_read_per_million: f64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+pub struct AgentDashboardRequest {
+    pub service_name: Option<String>,
+    pub start_time: DateTime<Utc>,
+    pub end_time: DateTime<Utc>,
+    #[serde(default = "default_bucket_interval")]
+    pub bucket_interval: String,
+    pub agent_name: Option<String>,
+    pub provider_name: Option<String>,
+    #[serde(default)]
+    pub model_pricing: std::collections::HashMap<String, ModelPricing>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+pub struct AgentMetricBucket {
+    pub bucket_start: DateTime<Utc>,
+    pub span_count: i64,
+    pub error_count: i64,
+    pub error_rate: f64,
+    pub avg_duration_ms: f64,
+    pub p50_duration_ms: Option<f64>,
+    pub p95_duration_ms: Option<f64>,
+    pub p99_duration_ms: Option<f64>,
+    pub total_input_tokens: i64,
+    pub total_output_tokens: i64,
+    pub total_cache_creation_tokens: i64,
+    pub total_cache_read_tokens: i64,
+    pub total_cost: Option<f64>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+pub struct ModelCostBreakdown {
+    pub model: String,
+    pub total_input_tokens: i64,
+    pub total_output_tokens: i64,
+    pub total_cache_creation_tokens: i64,
+    pub total_cache_read_tokens: i64,
+    pub total_cost: Option<f64>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+pub struct AgentDashboardSummary {
+    pub total_requests: i64,
+    pub avg_duration_ms: f64,
+    pub p50_duration_ms: Option<f64>,
+    pub p95_duration_ms: Option<f64>,
+    pub p99_duration_ms: Option<f64>,
+    pub overall_error_rate: f64,
+    pub total_input_tokens: i64,
+    pub total_output_tokens: i64,
+    pub total_cache_creation_tokens: i64,
+    pub total_cache_read_tokens: i64,
+    pub unique_agent_count: i64,
+    pub unique_conversation_count: i64,
+    pub cost_by_model: Vec<ModelCostBreakdown>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+pub struct AgentDashboardResponse {
+    pub summary: AgentDashboardSummary,
+    pub buckets: Vec<AgentMetricBucket>,
+}
+
+// ── Tool dashboard ────────────────────────────────────────────────────────────
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+pub struct ToolDashboardRequest {
+    pub service_name: Option<String>,
+    pub start_time: DateTime<Utc>,
+    pub end_time: DateTime<Utc>,
+    #[serde(default = "default_bucket_interval")]
+    pub bucket_interval: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+pub struct ToolTimeBucket {
+    pub bucket_start: DateTime<Utc>,
+    pub tool_name: Option<String>,
+    pub tool_type: Option<String>,
+    pub call_count: i64,
+    pub avg_duration_ms: f64,
+    pub error_rate: f64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+pub struct ToolDashboardResponse {
+    pub aggregates: Vec<GenAiToolActivity>,
+    pub time_series: Vec<ToolTimeBucket>,
+}
+
+// ── Internal query row (not exposed via API) ──────────────────────────────────
+
+#[derive(Clone, Debug, Default)]
+pub struct AgentBucketRow {
+    pub bucket_start: DateTime<Utc>,
+    pub model: Option<String>,
+    pub span_count: i64,
+    pub error_count: i64,
+    pub error_rate: f64,
+    pub avg_duration_ms: f64,
+    pub p50_duration_ms: Option<f64>,
+    pub p95_duration_ms: Option<f64>,
+    pub p99_duration_ms: Option<f64>,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub cache_creation_tokens: i64,
+    pub cache_read_tokens: i64,
 }
 
 #[cfg(test)]

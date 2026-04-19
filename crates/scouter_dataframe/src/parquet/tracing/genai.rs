@@ -22,8 +22,9 @@ use deltalake::operations::optimize::OptimizeType;
 use deltalake::{DeltaTable, DeltaTableBuilder, TableProperty};
 use mini_moka::sync::Cache;
 use scouter_types::{
-    GenAiAgentActivity, GenAiEvalResult, GenAiModelUsage, GenAiOperationBreakdown,
-    GenAiSpanFilters, GenAiSpanRecord, GenAiTokenBucket, GenAiToolActivity, SpanId, TraceId,
+    AgentBucketRow, GenAiAgentActivity, GenAiEvalResult, GenAiModelUsage, GenAiOperationBreakdown,
+    GenAiSpanFilters, GenAiSpanRecord, GenAiTokenBucket, GenAiToolActivity, ToolTimeBucket, SpanId,
+    TraceId,
 };
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
@@ -1069,6 +1070,8 @@ pub struct GenAiQueries {
     ctx: Arc<SessionContext>,
     metrics_cache: Cache<u64, Arc<Vec<GenAiTokenBucket>>>,
     model_cache: Cache<u64, Arc<Vec<GenAiModelUsage>>>,
+    agent_bucket_cache: Cache<u64, Arc<Vec<AgentBucketRow>>>,
+    tool_ts_cache: Cache<u64, Arc<Vec<ToolTimeBucket>>>,
 }
 
 impl GenAiQueries {
@@ -1080,6 +1083,14 @@ impl GenAiQueries {
                 .time_to_live(Duration::from_secs(30))
                 .build(),
             model_cache: Cache::builder()
+                .max_capacity(64)
+                .time_to_live(Duration::from_secs(30))
+                .build(),
+            agent_bucket_cache: Cache::builder()
+                .max_capacity(64)
+                .time_to_live(Duration::from_secs(30))
+                .build(),
+            tool_ts_cache: Cache::builder()
                 .max_capacity(64)
                 .time_to_live(Duration::from_secs(30))
                 .build(),
@@ -1982,6 +1993,542 @@ impl GenAiQueries {
 
         let batches = df.collect().await?;
         batches_to_genai_records(batches)
+    }
+
+    pub async fn get_agent_metrics_by_bucket(
+        &self,
+        service_name: Option<&str>,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+        bucket_interval: &str,
+        agent_name: Option<&str>,
+        provider_name: Option<&str>,
+    ) -> Result<Vec<AgentBucketRow>, TraceEngineError> {
+        let key = cache_key(&(
+            "agent_bucket",
+            service_name,
+            start.timestamp_micros(),
+            end.timestamp_micros(),
+            bucket_interval,
+            agent_name,
+            provider_name,
+        ));
+        if let Some(cached) = self.agent_bucket_cache.get(&key) {
+            return Ok((*cached).clone());
+        }
+
+        const VALID_INTERVALS: &[&str] =
+            &["second", "minute", "hour", "day", "week", "month", "year"];
+        if !VALID_INTERVALS.contains(&bucket_interval) {
+            return Err(TraceEngineError::UnsupportedOperation(format!(
+                "Invalid bucket_interval '{}'. Must be one of: {}",
+                bucket_interval,
+                VALID_INTERVALS.join(", ")
+            )));
+        }
+
+        let df = self.ctx.table(GEN_AI_TABLE_NAME).await?;
+        let df = Self::apply_time_filters(df, &start, &end)?;
+        let df = Self::apply_optional_filter(df, SERVICE_NAME_COL, service_name)?;
+        let df = Self::apply_optional_filter(df, AGENT_NAME_COL, agent_name)?;
+        let df = Self::apply_optional_filter(df, PROVIDER_NAME_COL, provider_name)?;
+
+        let df = df.filter(
+            col(OPERATION_NAME_COL)
+                .in_list(vec![lit("invoke_agent"), lit("create_agent")], false)
+                .or(col(AGENT_NAME_COL).is_not_null()),
+        )?;
+
+        let df = df.with_column(
+            "model",
+            datafusion::functions::core::expr_fn::coalesce(vec![
+                col(RESPONSE_MODEL_COL),
+                col(REQUEST_MODEL_COL),
+            ]),
+        )?;
+
+        let df = df.with_column(
+            "bucket_start",
+            datafusion::functions::expr_fn::date_trunc(lit(bucket_interval), col(START_TIME_COL)),
+        )?;
+
+        let df = df.aggregate(
+            vec![col("bucket_start"), col("model")],
+            vec![
+                count(lit(1)).alias("span_count"),
+                sum(datafusion::logical_expr::cast(
+                    col(ERROR_TYPE_COL).is_not_null(),
+                    DataType::Int64,
+                ))
+                .alias("error_count"),
+                avg(datafusion::logical_expr::cast(
+                    col(ERROR_TYPE_COL).is_not_null(),
+                    DataType::Float64,
+                ))
+                .alias("error_rate"),
+                avg(col(DURATION_MS_COL)).alias("avg_duration_ms"),
+                datafusion::functions_aggregate::expr_fn::approx_percentile_cont(
+                    datafusion::logical_expr::expr::Sort {
+                        expr: col(DURATION_MS_COL),
+                        asc: true,
+                        nulls_first: false,
+                    },
+                    lit(0.5_f64),
+                    None,
+                )
+                .alias("p50_duration_ms"),
+                datafusion::functions_aggregate::expr_fn::approx_percentile_cont(
+                    datafusion::logical_expr::expr::Sort {
+                        expr: col(DURATION_MS_COL),
+                        asc: true,
+                        nulls_first: false,
+                    },
+                    lit(0.95_f64),
+                    None,
+                )
+                .alias("p95_duration_ms"),
+                datafusion::functions_aggregate::expr_fn::approx_percentile_cont(
+                    datafusion::logical_expr::expr::Sort {
+                        expr: col(DURATION_MS_COL),
+                        asc: true,
+                        nulls_first: false,
+                    },
+                    lit(0.99_f64),
+                    None,
+                )
+                .alias("p99_duration_ms"),
+                sum(col(INPUT_TOKENS_COL)).alias("input_tokens"),
+                sum(col(OUTPUT_TOKENS_COL)).alias("output_tokens"),
+                sum(col(CACHE_CREATION_INPUT_TOKENS_COL)).alias("cache_creation_tokens"),
+                sum(col(CACHE_READ_INPUT_TOKENS_COL)).alias("cache_read_tokens"),
+            ],
+        )?;
+
+        let df = df.sort(vec![col("bucket_start").sort(true, true)])?;
+        let batches = df.collect().await?;
+
+        let mut results = Vec::new();
+        for batch in &batches {
+            let raw_bucket = batch.column_by_name("bucket_start").ok_or_else(|| {
+                TraceEngineError::UnsupportedOperation("missing bucket_start column".into())
+            })?;
+            let bucket_casted = compute::cast(
+                raw_bucket,
+                &DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".into())),
+            )?;
+            let bucket_starts = bucket_casted
+                .as_any()
+                .downcast_ref::<TimestampMicrosecondArray>()
+                .ok_or_else(|| {
+                    TraceEngineError::UnsupportedOperation(
+                        "bucket_start cast to TimestampMicrosecondArray failed".into(),
+                    )
+                })?;
+
+            let model_arr = compute::cast(
+                batch.column_by_name("model").ok_or_else(|| {
+                    TraceEngineError::UnsupportedOperation("missing model column".into())
+                })?,
+                &DataType::Utf8,
+            )?;
+            let models = model_arr
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .ok_or_else(|| {
+                    TraceEngineError::UnsupportedOperation(
+                        "model cast to StringArray failed".into(),
+                    )
+                })?;
+
+            let span_counts = batch
+                .column_by_name("span_count")
+                .and_then(|c| c.as_any().downcast_ref::<Int64Array>())
+                .ok_or_else(|| {
+                    TraceEngineError::UnsupportedOperation("missing span_count column".into())
+                })?;
+            let error_counts = batch
+                .column_by_name("error_count")
+                .and_then(|c| c.as_any().downcast_ref::<Int64Array>())
+                .ok_or_else(|| {
+                    TraceEngineError::UnsupportedOperation("missing error_count column".into())
+                })?;
+            let error_rates = batch
+                .column_by_name("error_rate")
+                .and_then(|c| c.as_any().downcast_ref::<Float64Array>())
+                .ok_or_else(|| {
+                    TraceEngineError::UnsupportedOperation("missing error_rate column".into())
+                })?;
+            let avg_durations = batch
+                .column_by_name("avg_duration_ms")
+                .and_then(|c| c.as_any().downcast_ref::<Float64Array>())
+                .ok_or_else(|| {
+                    TraceEngineError::UnsupportedOperation("missing avg_duration_ms column".into())
+                })?;
+            let p50 = batch
+                .column_by_name("p50_duration_ms")
+                .and_then(|c| c.as_any().downcast_ref::<Float64Array>());
+            let p95 = batch
+                .column_by_name("p95_duration_ms")
+                .and_then(|c| c.as_any().downcast_ref::<Float64Array>());
+            let p99 = batch
+                .column_by_name("p99_duration_ms")
+                .and_then(|c| c.as_any().downcast_ref::<Float64Array>());
+            let input_tokens = batch
+                .column_by_name("input_tokens")
+                .and_then(|c| c.as_any().downcast_ref::<Int64Array>())
+                .ok_or_else(|| {
+                    TraceEngineError::UnsupportedOperation("missing input_tokens column".into())
+                })?;
+            let output_tokens = batch
+                .column_by_name("output_tokens")
+                .and_then(|c| c.as_any().downcast_ref::<Int64Array>())
+                .ok_or_else(|| {
+                    TraceEngineError::UnsupportedOperation("missing output_tokens column".into())
+                })?;
+            let cache_creation = batch
+                .column_by_name("cache_creation_tokens")
+                .and_then(|c| c.as_any().downcast_ref::<Int64Array>())
+                .ok_or_else(|| {
+                    TraceEngineError::UnsupportedOperation(
+                        "missing cache_creation_tokens column".into(),
+                    )
+                })?;
+            let cache_read = batch
+                .column_by_name("cache_read_tokens")
+                .and_then(|c| c.as_any().downcast_ref::<Int64Array>())
+                .ok_or_else(|| {
+                    TraceEngineError::UnsupportedOperation(
+                        "missing cache_read_tokens column".into(),
+                    )
+                })?;
+
+            for i in 0..batch.num_rows() {
+                let bucket_start =
+                    DateTime::from_timestamp_micros(bucket_starts.value(i)).ok_or(
+                        TraceEngineError::InvalidTimestamp("out-of-range bucket_start timestamp"),
+                    )?;
+                results.push(AgentBucketRow {
+                    bucket_start,
+                    model: if models.is_null(i) {
+                        None
+                    } else {
+                        Some(models.value(i).to_string())
+                    },
+                    span_count: span_counts.value(i),
+                    error_count: if error_counts.is_null(i) {
+                        0
+                    } else {
+                        error_counts.value(i)
+                    },
+                    error_rate: if error_rates.is_null(i) {
+                        0.0
+                    } else {
+                        error_rates.value(i)
+                    },
+                    avg_duration_ms: if avg_durations.is_null(i) {
+                        0.0
+                    } else {
+                        avg_durations.value(i)
+                    },
+                    p50_duration_ms: p50.and_then(|a| {
+                        if a.is_null(i) {
+                            None
+                        } else {
+                            Some(a.value(i))
+                        }
+                    }),
+                    p95_duration_ms: p95.and_then(|a| {
+                        if a.is_null(i) {
+                            None
+                        } else {
+                            Some(a.value(i))
+                        }
+                    }),
+                    p99_duration_ms: p99.and_then(|a| {
+                        if a.is_null(i) {
+                            None
+                        } else {
+                            Some(a.value(i))
+                        }
+                    }),
+                    input_tokens: if input_tokens.is_null(i) {
+                        0
+                    } else {
+                        input_tokens.value(i)
+                    },
+                    output_tokens: if output_tokens.is_null(i) {
+                        0
+                    } else {
+                        output_tokens.value(i)
+                    },
+                    cache_creation_tokens: if cache_creation.is_null(i) {
+                        0
+                    } else {
+                        cache_creation.value(i)
+                    },
+                    cache_read_tokens: if cache_read.is_null(i) {
+                        0
+                    } else {
+                        cache_read.value(i)
+                    },
+                });
+            }
+        }
+
+        self.agent_bucket_cache
+            .insert(key, Arc::new(results.clone()));
+        Ok(results)
+    }
+
+    pub async fn get_agent_unique_counts(
+        &self,
+        service_name: Option<&str>,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+        agent_name: Option<&str>,
+        provider_name: Option<&str>,
+    ) -> Result<(i64, i64), TraceEngineError> {
+        let df = self.ctx.table(GEN_AI_TABLE_NAME).await?;
+        let df = Self::apply_time_filters(df, &start, &end)?;
+        let df = Self::apply_optional_filter(df, SERVICE_NAME_COL, service_name)?;
+        let df = Self::apply_optional_filter(df, AGENT_NAME_COL, agent_name)?;
+        let df = Self::apply_optional_filter(df, PROVIDER_NAME_COL, provider_name)?;
+
+        let df = df.filter(
+            col(OPERATION_NAME_COL)
+                .in_list(vec![lit("invoke_agent"), lit("create_agent")], false)
+                .or(col(AGENT_NAME_COL).is_not_null()),
+        )?;
+
+        let df = df.aggregate(
+            vec![],
+            vec![
+                datafusion::functions_aggregate::expr_fn::approx_distinct(col(AGENT_NAME_COL))
+                    .alias("unique_agents"),
+                datafusion::functions_aggregate::expr_fn::approx_distinct(col(
+                    CONVERSATION_ID_COL,
+                ))
+                .alias("unique_conversations"),
+            ],
+        )?;
+
+        let batches = df.collect().await?;
+        let mut unique_agents = 0i64;
+        let mut unique_conversations = 0i64;
+
+        for batch in &batches {
+            if batch.num_rows() > 0 {
+                let agents_col = compute::cast(
+                    batch.column_by_name("unique_agents").ok_or_else(|| {
+                        TraceEngineError::UnsupportedOperation(
+                            "missing unique_agents column".into(),
+                        )
+                    })?,
+                    &DataType::Int64,
+                )?;
+                let agents_arr = agents_col
+                    .as_any()
+                    .downcast_ref::<Int64Array>()
+                    .ok_or_else(|| {
+                        TraceEngineError::UnsupportedOperation(
+                            "unique_agents cast to Int64Array failed".into(),
+                        )
+                    })?;
+
+                let convos_col = compute::cast(
+                    batch
+                        .column_by_name("unique_conversations")
+                        .ok_or_else(|| {
+                            TraceEngineError::UnsupportedOperation(
+                                "missing unique_conversations column".into(),
+                            )
+                        })?,
+                    &DataType::Int64,
+                )?;
+                let convos_arr = convos_col
+                    .as_any()
+                    .downcast_ref::<Int64Array>()
+                    .ok_or_else(|| {
+                        TraceEngineError::UnsupportedOperation(
+                            "unique_conversations cast to Int64Array failed".into(),
+                        )
+                    })?;
+
+                if !agents_arr.is_null(0) {
+                    unique_agents = agents_arr.value(0);
+                }
+                if !convos_arr.is_null(0) {
+                    unique_conversations = convos_arr.value(0);
+                }
+            }
+        }
+
+        Ok((unique_agents, unique_conversations))
+    }
+
+    pub async fn get_tool_metrics_timeseries(
+        &self,
+        service_name: Option<&str>,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+        bucket_interval: &str,
+    ) -> Result<Vec<ToolTimeBucket>, TraceEngineError> {
+        let key = cache_key(&(
+            "tool_ts",
+            service_name,
+            start.timestamp_micros(),
+            end.timestamp_micros(),
+            bucket_interval,
+        ));
+        if let Some(cached) = self.tool_ts_cache.get(&key) {
+            return Ok((*cached).clone());
+        }
+
+        const VALID_INTERVALS: &[&str] =
+            &["second", "minute", "hour", "day", "week", "month", "year"];
+        if !VALID_INTERVALS.contains(&bucket_interval) {
+            return Err(TraceEngineError::UnsupportedOperation(format!(
+                "Invalid bucket_interval '{}'. Must be one of: {}",
+                bucket_interval,
+                VALID_INTERVALS.join(", ")
+            )));
+        }
+
+        let df = self.ctx.table(GEN_AI_TABLE_NAME).await?;
+        let df = Self::apply_time_filters(df, &start, &end)?;
+        let df = Self::apply_optional_filter(df, SERVICE_NAME_COL, service_name)?;
+
+        let df = df.filter(
+            col(TOOL_NAME_COL)
+                .is_not_null()
+                .or(col(OPERATION_NAME_COL).eq(lit("execute_tool"))),
+        )?;
+
+        let df = df.with_column(
+            "bucket_start",
+            datafusion::functions::expr_fn::date_trunc(lit(bucket_interval), col(START_TIME_COL)),
+        )?;
+
+        let df = df.aggregate(
+            vec![col("bucket_start"), col(TOOL_NAME_COL), col(TOOL_TYPE_COL)],
+            vec![
+                count(lit(1)).alias("call_count"),
+                avg(col(DURATION_MS_COL)).alias("avg_duration_ms"),
+                avg(datafusion::logical_expr::cast(
+                    col(ERROR_TYPE_COL).is_not_null(),
+                    DataType::Float64,
+                ))
+                .alias("error_rate"),
+            ],
+        )?;
+
+        let df = df.sort(vec![
+            col("bucket_start").sort(true, true),
+            col(TOOL_NAME_COL).sort(true, true),
+        ])?;
+        let batches = df.collect().await?;
+
+        let mut results = Vec::new();
+        for batch in &batches {
+            let raw_bucket = batch.column_by_name("bucket_start").ok_or_else(|| {
+                TraceEngineError::UnsupportedOperation("missing bucket_start column".into())
+            })?;
+            let bucket_casted = compute::cast(
+                raw_bucket,
+                &DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".into())),
+            )?;
+            let bucket_starts = bucket_casted
+                .as_any()
+                .downcast_ref::<TimestampMicrosecondArray>()
+                .ok_or_else(|| {
+                    TraceEngineError::UnsupportedOperation(
+                        "bucket_start cast to TimestampMicrosecondArray failed".into(),
+                    )
+                })?;
+
+            let tool_name_arr = compute::cast(
+                batch.column_by_name(TOOL_NAME_COL).ok_or_else(|| {
+                    TraceEngineError::UnsupportedOperation("missing tool_name column".into())
+                })?,
+                &DataType::Utf8,
+            )?;
+            let tool_names = tool_name_arr
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .ok_or_else(|| {
+                    TraceEngineError::UnsupportedOperation(
+                        "tool_name cast to StringArray failed".into(),
+                    )
+                })?;
+
+            let tool_type_arr = compute::cast(
+                batch.column_by_name(TOOL_TYPE_COL).ok_or_else(|| {
+                    TraceEngineError::UnsupportedOperation("missing tool_type column".into())
+                })?,
+                &DataType::Utf8,
+            )?;
+            let tool_types = tool_type_arr
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .ok_or_else(|| {
+                    TraceEngineError::UnsupportedOperation(
+                        "tool_type cast to StringArray failed".into(),
+                    )
+                })?;
+
+            let call_counts = batch
+                .column_by_name("call_count")
+                .and_then(|c| c.as_any().downcast_ref::<Int64Array>())
+                .ok_or_else(|| {
+                    TraceEngineError::UnsupportedOperation("missing call_count column".into())
+                })?;
+            let avg_durations = batch
+                .column_by_name("avg_duration_ms")
+                .and_then(|c| c.as_any().downcast_ref::<Float64Array>())
+                .ok_or_else(|| {
+                    TraceEngineError::UnsupportedOperation("missing avg_duration_ms column".into())
+                })?;
+            let error_rates = batch
+                .column_by_name("error_rate")
+                .and_then(|c| c.as_any().downcast_ref::<Float64Array>())
+                .ok_or_else(|| {
+                    TraceEngineError::UnsupportedOperation("missing error_rate column".into())
+                })?;
+
+            for i in 0..batch.num_rows() {
+                let bucket_start =
+                    DateTime::from_timestamp_micros(bucket_starts.value(i)).ok_or(
+                        TraceEngineError::InvalidTimestamp("out-of-range bucket_start timestamp"),
+                    )?;
+                results.push(ToolTimeBucket {
+                    bucket_start,
+                    tool_name: if tool_names.is_null(i) {
+                        None
+                    } else {
+                        Some(tool_names.value(i).to_string())
+                    },
+                    tool_type: if tool_types.is_null(i) {
+                        None
+                    } else {
+                        Some(tool_types.value(i).to_string())
+                    },
+                    call_count: call_counts.value(i),
+                    avg_duration_ms: if avg_durations.is_null(i) {
+                        0.0
+                    } else {
+                        avg_durations.value(i)
+                    },
+                    error_rate: if error_rates.is_null(i) {
+                        0.0
+                    } else {
+                        error_rates.value(i)
+                    },
+                });
+            }
+        }
+
+        self.tool_ts_cache.insert(key, Arc::new(results.clone()));
+        Ok(results)
     }
 }
 
@@ -3190,6 +3737,319 @@ mod tests {
                 "All spans should have conversation_id == conv-abc"
             );
         }
+
+        service.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_agent_metrics_by_bucket() -> Result<(), TraceEngineError> {
+        let env = make_test_env();
+        let service =
+            GenAiSpanService::new(&env.object_store, 24, env.ctx, env.catalog, 10, None).await?;
+
+        let now = Utc::now();
+        let mut records = Vec::new();
+
+        // 3 agent spans — invoke_agent operation, with agent_name
+        for i in 0..3u8 {
+            records.push(GenAiSpanRecord {
+                trace_id: TraceId::from_bytes([120 + i; 16]),
+                span_id: SpanId::from_bytes([120 + i; 8]),
+                service_name: "agent-svc".to_string(),
+                start_time: now + chrono::Duration::milliseconds(i as i64 * 10),
+                end_time: Some(now + chrono::Duration::milliseconds(i as i64 * 10 + 150)),
+                duration_ms: 150,
+                status_code: 0,
+                operation_name: Some("invoke_agent".to_string()),
+                provider_name: Some("anthropic".to_string()),
+                request_model: Some("claude-3-5-sonnet".to_string()),
+                response_model: Some("claude-3-5-sonnet".to_string()),
+                input_tokens: Some(100),
+                output_tokens: Some(200),
+                agent_name: Some("research-agent".to_string()),
+                conversation_id: Some(format!("conv-{}", i)),
+                ..Default::default()
+            });
+        }
+
+        // 1 non-agent span — should be excluded from agent metrics
+        records.push(make_genai_record(
+            &TraceId::from_bytes([130u8; 16]),
+            SpanId::from_bytes([130u8; 8]),
+            "agent-svc",
+            "chat",
+            "anthropic",
+            "claude-3-5-sonnet",
+            50,
+            100,
+        ));
+
+        // 1 agent span with error — error_type set
+        records.push(GenAiSpanRecord {
+            trace_id: TraceId::from_bytes([131u8; 16]),
+            span_id: SpanId::from_bytes([131u8; 8]),
+            service_name: "agent-svc".to_string(),
+            start_time: now + chrono::Duration::milliseconds(50),
+            end_time: Some(now + chrono::Duration::milliseconds(250)),
+            duration_ms: 200,
+            status_code: 2,
+            operation_name: Some("invoke_agent".to_string()),
+            provider_name: Some("anthropic".to_string()),
+            request_model: Some("claude-3-5-sonnet".to_string()),
+            response_model: Some("claude-3-5-sonnet".to_string()),
+            input_tokens: Some(10),
+            output_tokens: Some(20),
+            agent_name: Some("research-agent".to_string()),
+            error_type: Some("rate_limit_exceeded".to_string()),
+            ..Default::default()
+        });
+
+        service.write_records(records).await?;
+        tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+
+        let start = now - chrono::Duration::hours(1);
+        let end = now + chrono::Duration::hours(1);
+        let rows = service
+            .query_service
+            .get_agent_metrics_by_bucket(Some("agent-svc"), start, end, "hour", None, None)
+            .await?;
+
+        assert!(!rows.is_empty(), "Expected at least one bucket row");
+
+        let total_spans: i64 = rows.iter().map(|r| r.span_count).sum();
+        let total_errors: i64 = rows.iter().map(|r| r.error_count).sum();
+        let total_input: i64 = rows.iter().map(|r| r.input_tokens).sum();
+        let total_output: i64 = rows.iter().map(|r| r.output_tokens).sum();
+
+        // 3 normal agent spans + 1 error agent span = 4 total (non-agent chat excluded)
+        assert_eq!(total_spans, 4, "Expected 4 agent spans (non-agent excluded)");
+        assert_eq!(total_errors, 1, "Expected 1 error span");
+        assert_eq!(
+            total_input,
+            310,
+            "Expected 100*3 + 10 = 310 total input tokens"
+        );
+        assert_eq!(
+            total_output,
+            620,
+            "Expected 200*3 + 20 = 620 total output tokens"
+        );
+
+        // All rows should have a model
+        for row in &rows {
+            assert!(
+                row.model.is_some(),
+                "Expected model to be set on all bucket rows"
+            );
+        }
+
+        service.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_agent_unique_counts() -> Result<(), TraceEngineError> {
+        let env = make_test_env();
+        let service =
+            GenAiSpanService::new(&env.object_store, 24, env.ctx, env.catalog, 10, None).await?;
+
+        let now = Utc::now();
+        let mut records = Vec::new();
+
+        // 2 distinct agent names, 3 distinct conversation IDs
+        let agents = ["alpha-agent", "alpha-agent", "beta-agent"];
+        let convos = ["conv-1", "conv-2", "conv-3"];
+        for (i, (agent, convo)) in agents.iter().zip(convos.iter()).enumerate() {
+            records.push(GenAiSpanRecord {
+                trace_id: TraceId::from_bytes([140 + i as u8; 16]),
+                span_id: SpanId::from_bytes([140 + i as u8; 8]),
+                service_name: "count-svc".to_string(),
+                start_time: now + chrono::Duration::milliseconds(i as i64 * 10),
+                end_time: Some(now + chrono::Duration::milliseconds(i as i64 * 10 + 100)),
+                duration_ms: 100,
+                status_code: 0,
+                operation_name: Some("invoke_agent".to_string()),
+                agent_name: Some(agent.to_string()),
+                conversation_id: Some(convo.to_string()),
+                ..Default::default()
+            });
+        }
+
+        service.write_records(records).await?;
+        tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+
+        let start = now - chrono::Duration::hours(1);
+        let end = now + chrono::Duration::hours(1);
+        let (unique_agents, unique_convos) = service
+            .query_service
+            .get_agent_unique_counts(Some("count-svc"), start, end, None, None)
+            .await?;
+
+        // approx_distinct has some error margin but should be ≥ 1 for each
+        assert!(unique_agents >= 1, "Expected at least 1 unique agent");
+        assert!(unique_convos >= 1, "Expected at least 1 unique conversation");
+        // Upper bound sanity check
+        assert!(unique_agents <= 3, "Cannot have more agents than records");
+        assert!(unique_convos <= 3, "Cannot have more convos than records");
+
+        service.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_tool_metrics_timeseries() -> Result<(), TraceEngineError> {
+        let env = make_test_env();
+        let service =
+            GenAiSpanService::new(&env.object_store, 24, env.ctx, env.catalog, 10, None).await?;
+
+        let now = Utc::now();
+        let mut records = Vec::new();
+
+        // 3 spans for "web_search" tool
+        for i in 0..3u8 {
+            records.push(GenAiSpanRecord {
+                trace_id: TraceId::from_bytes([150 + i; 16]),
+                span_id: SpanId::from_bytes([150 + i; 8]),
+                service_name: "tool-svc".to_string(),
+                start_time: now + chrono::Duration::milliseconds(i as i64 * 10),
+                end_time: Some(now + chrono::Duration::milliseconds(i as i64 * 10 + 80)),
+                duration_ms: 80,
+                status_code: 0,
+                tool_name: Some("web_search".to_string()),
+                tool_type: Some("function".to_string()),
+                ..Default::default()
+            });
+        }
+
+        // 2 spans for "code_exec" tool, one with an error
+        for i in 0..2u8 {
+            records.push(GenAiSpanRecord {
+                trace_id: TraceId::from_bytes([160 + i; 16]),
+                span_id: SpanId::from_bytes([160 + i; 8]),
+                service_name: "tool-svc".to_string(),
+                start_time: now + chrono::Duration::milliseconds(i as i64 * 10),
+                end_time: Some(now + chrono::Duration::milliseconds(i as i64 * 10 + 200)),
+                duration_ms: 200,
+                status_code: if i == 1 { 2 } else { 0 },
+                tool_name: Some("code_exec".to_string()),
+                tool_type: Some("function".to_string()),
+                error_type: if i == 1 {
+                    Some("timeout".to_string())
+                } else {
+                    None
+                },
+                ..Default::default()
+            });
+        }
+
+        service.write_records(records).await?;
+        tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+
+        let start = now - chrono::Duration::hours(1);
+        let end = now + chrono::Duration::hours(1);
+        let buckets = service
+            .query_service
+            .get_tool_metrics_timeseries(Some("tool-svc"), start, end, "hour")
+            .await?;
+
+        assert!(!buckets.is_empty(), "Expected at least one tool bucket");
+
+        // Collect by tool name
+        let web_search_total: i64 = buckets
+            .iter()
+            .filter(|b| b.tool_name.as_deref() == Some("web_search"))
+            .map(|b| b.call_count)
+            .sum();
+        let code_exec_total: i64 = buckets
+            .iter()
+            .filter(|b| b.tool_name.as_deref() == Some("code_exec"))
+            .map(|b| b.call_count)
+            .sum();
+
+        assert_eq!(web_search_total, 3, "Expected 3 web_search calls");
+        assert_eq!(code_exec_total, 2, "Expected 2 code_exec calls");
+
+        // code_exec should have non-zero error rate
+        let code_exec_error_rate: f64 = buckets
+            .iter()
+            .filter(|b| b.tool_name.as_deref() == Some("code_exec"))
+            .map(|b| b.error_rate)
+            .sum::<f64>()
+            / buckets
+                .iter()
+                .filter(|b| b.tool_name.as_deref() == Some("code_exec"))
+                .count()
+                .max(1) as f64;
+        assert!(
+            code_exec_error_rate > 0.0,
+            "Expected non-zero error rate for code_exec"
+        );
+
+        service.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_agent_bucket_service_filter() -> Result<(), TraceEngineError> {
+        let env = make_test_env();
+        let service =
+            GenAiSpanService::new(&env.object_store, 24, env.ctx, env.catalog, 10, None).await?;
+
+        let now = Utc::now();
+        let mut records = Vec::new();
+
+        // 2 spans for "svc-a"
+        for i in 0..2u8 {
+            records.push(GenAiSpanRecord {
+                trace_id: TraceId::from_bytes([170 + i; 16]),
+                span_id: SpanId::from_bytes([170 + i; 8]),
+                service_name: "svc-a".to_string(),
+                start_time: now + chrono::Duration::milliseconds(i as i64 * 10),
+                end_time: Some(now + chrono::Duration::milliseconds(i as i64 * 10 + 100)),
+                duration_ms: 100,
+                status_code: 0,
+                operation_name: Some("invoke_agent".to_string()),
+                agent_name: Some("my-agent".to_string()),
+                input_tokens: Some(10),
+                output_tokens: Some(20),
+                ..Default::default()
+            });
+        }
+
+        // 3 spans for "svc-b" — should be excluded when filtering by "svc-a"
+        for i in 0..3u8 {
+            records.push(GenAiSpanRecord {
+                trace_id: TraceId::from_bytes([180 + i; 16]),
+                span_id: SpanId::from_bytes([180 + i; 8]),
+                service_name: "svc-b".to_string(),
+                start_time: now + chrono::Duration::milliseconds(i as i64 * 10),
+                end_time: Some(now + chrono::Duration::milliseconds(i as i64 * 10 + 100)),
+                duration_ms: 100,
+                status_code: 0,
+                operation_name: Some("invoke_agent".to_string()),
+                agent_name: Some("other-agent".to_string()),
+                input_tokens: Some(99),
+                output_tokens: Some(99),
+                ..Default::default()
+            });
+        }
+
+        service.write_records(records).await?;
+        tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+
+        let start = now - chrono::Duration::hours(1);
+        let end = now + chrono::Duration::hours(1);
+        let rows = service
+            .query_service
+            .get_agent_metrics_by_bucket(Some("svc-a"), start, end, "hour", None, None)
+            .await?;
+
+        let total_spans: i64 = rows.iter().map(|r| r.span_count).sum();
+        assert_eq!(total_spans, 2, "Service filter should exclude svc-b spans");
+
+        let total_input: i64 = rows.iter().map(|r| r.input_tokens).sum();
+        assert_eq!(total_input, 20, "Should only count svc-a tokens (2 × 10)");
 
         service.shutdown().await?;
         Ok(())

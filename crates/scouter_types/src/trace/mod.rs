@@ -1,11 +1,13 @@
 pub mod genai;
 pub mod sql;
 pub use genai::{
-    extract_gen_ai_span, GenAiAgentActivity, GenAiAgentActivityResponse,
+    extract_gen_ai_span, AgentBucketRow, AgentDashboardRequest, AgentDashboardResponse,
+    AgentDashboardSummary, AgentMetricBucket, GenAiAgentActivity, GenAiAgentActivityResponse,
     GenAiErrorBreakdownResponse, GenAiErrorCount, GenAiEvalResult, GenAiMetricsRequest,
     GenAiModelUsage, GenAiModelUsageResponse, GenAiOperationBreakdown,
     GenAiOperationBreakdownResponse, GenAiSpanFilters, GenAiSpanRecord, GenAiSpansResponse,
     GenAiTokenBucket, GenAiTokenMetricsResponse, GenAiToolActivity, GenAiToolActivityResponse,
+    ModelCostBreakdown, ModelPricing, ToolDashboardRequest, ToolDashboardResponse, ToolTimeBucket,
     GEN_AI_AGENT_ID, GEN_AI_AGENT_NAME, GEN_AI_CONVERSATION_ID, GEN_AI_ERROR_TYPE,
     GEN_AI_OPERATION_NAME, GEN_AI_OUTPUT_TYPE, GEN_AI_PROVIDER_NAME, GEN_AI_REQUEST_MAX_TOKENS,
     GEN_AI_REQUEST_MODEL, GEN_AI_REQUEST_TEMPERATURE, GEN_AI_REQUEST_TOP_P,
@@ -71,6 +73,8 @@ pub struct ScouterEntityAttribute {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "utoipa", schema(value_type = String))]
 pub struct TraceId([u8; 16]);
 
 impl TraceId {
@@ -174,6 +178,8 @@ impl sqlx::Encode<'_, sqlx::Postgres> for TraceId {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "utoipa", schema(value_type = String))]
 pub struct SpanId([u8; 8]);
 
 impl SpanId {
