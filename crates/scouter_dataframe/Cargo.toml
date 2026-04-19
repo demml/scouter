@@ -15,6 +15,7 @@ description = "DataFusion client for long-term storage of scouter data"
 scouter-settings = { workspace = true }
 scouter-types = { workspace = true }
 
+ahash = "0.8"
 arrow = { workspace = true }
 hex = { workspace = true }
 arrow-array  = { workspace = true }

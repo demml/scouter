@@ -24,7 +24,7 @@ use scouter_types::{
     GenAiAgentActivity, GenAiModelUsage, GenAiOperationBreakdown, GenAiSpanFilters,
     GenAiSpanRecord, GenAiTokenBucket, GenAiToolActivity, SpanId, TraceId,
 };
-use std::collections::hash_map::DefaultHasher;
+use ahash::AHasher;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::time::Duration;
@@ -674,11 +674,11 @@ impl GenAiSpanDBEngine {
     }
 
     async fn expire_table(&self, cutoff_date: chrono::NaiveDate) -> Result<(), TraceEngineError> {
+        use chrono::TimeZone;
         let mut table_guard = self.table.write().await;
-        let predicate = format!(
-            "partition_date < CAST('{}' AS DATE)",
-            cutoff_date.format("%Y-%m-%d")
-        );
+        let cutoff_dt =
+            chrono::Utc.from_utc_datetime(&cutoff_date.and_hms_opt(0, 0, 0).unwrap());
+        let predicate = col(PARTITION_DATE_COL).lt(date_lit(&cutoff_dt));
         let (updated_table, metrics) = table_guard
             .clone()
             .delete()
@@ -790,7 +790,7 @@ impl GenAiSpanDBEngine {
         mpsc::Sender<GenAiTableCommand>,
         tokio::task::JoinHandle<()>,
     ) {
-        let (tx, mut rx) = mpsc::channel::<GenAiTableCommand>(100);
+        let (tx, mut rx) = mpsc::channel::<GenAiTableCommand>(10_000);
 
         let handle = tokio::spawn(async move {
             info!(refresh_interval_secs, "GenAiSpanDBEngine actor started");
@@ -924,7 +924,7 @@ impl GenAiSpanService {
 // ── Queries ──────────────────────────────────────────────────────────────────
 
 fn cache_key<H: Hash>(params: &H) -> u64 {
-    let mut hasher = DefaultHasher::new();
+    let mut hasher = AHasher::default();
     params.hash(&mut hasher);
     hasher.finish()
 }
@@ -994,6 +994,16 @@ impl GenAiQueries {
         ));
         if let Some(cached) = self.metrics_cache.get(&key) {
             return Ok((*cached).clone());
+        }
+
+        const VALID_INTERVALS: &[&str] =
+            &["second", "minute", "hour", "day", "week", "month", "year"];
+        if !VALID_INTERVALS.contains(&bucket_interval) {
+            return Err(TraceEngineError::UnsupportedOperation(format!(
+                "Invalid bucket_interval '{}'. Must be one of: {}",
+                bucket_interval,
+                VALID_INTERVALS.join(", ")
+            )));
         }
 
         let df = self.ctx.table(GEN_AI_TABLE_NAME).await?;
@@ -1308,13 +1318,21 @@ impl GenAiQueries {
                 sum(col(INPUT_TOKENS_COL)).alias("total_input_tokens"),
                 sum(col(OUTPUT_TOKENS_COL)).alias("total_output_tokens"),
                 datafusion::functions_aggregate::expr_fn::approx_percentile_cont(
-                    col(DURATION_MS_COL).sort(true, false),
+                    datafusion::logical_expr::expr::Sort {
+                        expr: col(DURATION_MS_COL),
+                        asc: true,
+                        nulls_first: false,
+                    },
                     lit(0.5_f64),
                     None,
                 )
                 .alias("p50_duration_ms"),
                 datafusion::functions_aggregate::expr_fn::approx_percentile_cont(
-                    col(DURATION_MS_COL).sort(true, false),
+                    datafusion::logical_expr::expr::Sort {
+                        expr: col(DURATION_MS_COL),
+                        asc: true,
+                        nulls_first: false,
+                    },
                     lit(0.95_f64),
                     None,
                 )
@@ -1821,7 +1839,7 @@ impl GenAiQueries {
         };
 
         let df = df.sort(vec![col(START_TIME_COL).sort(false, false)])?;
-        let df = df.limit(0, Some(filters.limit.unwrap_or(100)))?;
+        let df = df.limit(0, Some(filters.limit.unwrap_or(100).min(10_000)))?;
 
         let batches = df.collect().await?;
         batches_to_genai_records(batches)
@@ -1849,6 +1867,7 @@ impl GenAiQueries {
 
         let df = df.filter(col(CONVERSATION_ID_COL).eq(lit(conversation_id)))?;
         let df = df.sort(vec![col(START_TIME_COL).sort(true, true)])?;
+        let df = df.limit(0, Some(1_000))?;
 
         let batches = df.collect().await?;
         batches_to_genai_records(batches)
@@ -2553,6 +2572,425 @@ mod tests {
             .await?;
         let beta_spans: i64 = beta_metrics.iter().map(|b| b.span_count).sum();
         assert_eq!(beta_spans, 2, "Expected 2 spans for svc-beta");
+
+        service.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_operation_breakdown() -> Result<(), TraceEngineError> {
+        let env = make_test_env();
+        let service =
+            GenAiSpanService::new(&env.object_store, 24, env.ctx, env.catalog, 10, None).await?;
+
+        let records = vec![
+            make_genai_record(
+                &TraceId::from_bytes([70u8; 16]),
+                SpanId::from_bytes([70u8; 8]),
+                "test_service",
+                "chat",
+                "anthropic",
+                "claude-3",
+                100,
+                200,
+            ),
+            make_genai_record(
+                &TraceId::from_bytes([71u8; 16]),
+                SpanId::from_bytes([71u8; 8]),
+                "test_service",
+                "chat",
+                "anthropic",
+                "claude-3",
+                100,
+                200,
+            ),
+            make_genai_record(
+                &TraceId::from_bytes([72u8; 16]),
+                SpanId::from_bytes([72u8; 8]),
+                "test_service",
+                "execute_tool",
+                "anthropic",
+                "claude-3",
+                50,
+                100,
+            ),
+            make_genai_record(
+                &TraceId::from_bytes([73u8; 16]),
+                SpanId::from_bytes([73u8; 8]),
+                "test_service",
+                "execute_tool",
+                "anthropic",
+                "claude-3",
+                50,
+                100,
+            ),
+            make_genai_record(
+                &TraceId::from_bytes([74u8; 16]),
+                SpanId::from_bytes([74u8; 8]),
+                "test_service",
+                "execute_tool",
+                "anthropic",
+                "claude-3",
+                50,
+                100,
+            ),
+        ];
+        service.write_records(records).await?;
+        tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+
+        let start = Utc::now() - chrono::Duration::hours(1);
+        let end = Utc::now() + chrono::Duration::hours(1);
+        let breakdown = service
+            .query_service
+            .get_operation_breakdown(Some("test_service"), start, end, None)
+            .await?;
+
+        assert_eq!(breakdown.len(), 2, "Expected 2 operation rows");
+        let chat_row = breakdown.iter().find(|b| b.operation_name == "chat");
+        let tool_row = breakdown.iter().find(|b| b.operation_name == "execute_tool");
+        assert!(chat_row.is_some(), "Expected chat row");
+        assert!(tool_row.is_some(), "Expected execute_tool row");
+        assert_eq!(chat_row.unwrap().span_count, 2, "Expected 2 chat spans");
+        assert_eq!(tool_row.unwrap().span_count, 3, "Expected 3 execute_tool spans");
+
+        service.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_model_usage() -> Result<(), TraceEngineError> {
+        let env = make_test_env();
+        let service =
+            GenAiSpanService::new(&env.object_store, 24, env.ctx, env.catalog, 10, None).await?;
+
+        let mut records = Vec::new();
+        for i in 0..2u8 {
+            records.push(make_genai_record(
+                &TraceId::from_bytes([80 + i; 16]),
+                SpanId::from_bytes([80 + i; 8]),
+                "test_service",
+                "chat",
+                "anthropic",
+                "claude-3-5-sonnet",
+                100,
+                200,
+            ));
+        }
+        records.push(make_genai_record(
+            &TraceId::from_bytes([82u8; 16]),
+            SpanId::from_bytes([82u8; 8]),
+            "test_service",
+            "chat",
+            "openai",
+            "gpt-4o",
+            150,
+            250,
+        ));
+        service.write_records(records).await?;
+        tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+
+        let start = Utc::now() - chrono::Duration::hours(1);
+        let end = Utc::now() + chrono::Duration::hours(1);
+        let usage = service
+            .query_service
+            .get_model_usage(None, start, end, None)
+            .await?;
+
+        assert_eq!(usage.len(), 2, "Expected 2 model rows");
+        let sonnet_row = usage.iter().find(|u| u.model == "claude-3-5-sonnet");
+        let gpt_row = usage.iter().find(|u| u.model == "gpt-4o");
+        assert!(sonnet_row.is_some(), "Expected claude-3-5-sonnet row");
+        assert!(gpt_row.is_some(), "Expected gpt-4o row");
+        assert_eq!(
+            sonnet_row.unwrap().total_input_tokens,
+            200,
+            "Expected 200 input tokens for sonnet"
+        );
+        assert_eq!(
+            gpt_row.unwrap().total_input_tokens,
+            150,
+            "Expected 150 input tokens for gpt-4o"
+        );
+
+        service.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_agent_activity() -> Result<(), TraceEngineError> {
+        let env = make_test_env();
+        let service =
+            GenAiSpanService::new(&env.object_store, 24, env.ctx, env.catalog, 10, None).await?;
+
+        let now = Utc::now();
+        let record = GenAiSpanRecord {
+            trace_id: TraceId::from_bytes([90u8; 16]),
+            span_id: SpanId::from_bytes([90u8; 8]),
+            service_name: "test_service".to_string(),
+            start_time: now,
+            end_time: Some(now + chrono::Duration::milliseconds(100)),
+            duration_ms: 100,
+            status_code: 0,
+            operation_name: Some("invoke_agent".to_string()),
+            provider_name: Some("anthropic".to_string()),
+            request_model: Some("claude-3".to_string()),
+            response_model: Some("claude-3".to_string()),
+            input_tokens: Some(100),
+            output_tokens: Some(200),
+            agent_name: Some("test-agent".to_string()),
+            conversation_id: Some("conv-123".to_string()),
+            ..Default::default()
+        };
+        service.write_records(vec![record]).await?;
+        tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+
+        let start = Utc::now() - chrono::Duration::hours(1);
+        let end = Utc::now() + chrono::Duration::hours(1);
+        let activity = service
+            .query_service
+            .get_agent_activity(None, start, end, None)
+            .await?;
+
+        assert_eq!(activity.len(), 1, "Expected 1 agent activity row");
+        assert_eq!(
+            activity[0].agent_name.as_deref(),
+            Some("test-agent"),
+            "Expected agent_name == test-agent"
+        );
+
+        service.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_tool_activity() -> Result<(), TraceEngineError> {
+        let env = make_test_env();
+        let service =
+            GenAiSpanService::new(&env.object_store, 24, env.ctx, env.catalog, 10, None).await?;
+
+        let now = Utc::now();
+        let record = GenAiSpanRecord {
+            trace_id: TraceId::from_bytes([91u8; 16]),
+            span_id: SpanId::from_bytes([91u8; 8]),
+            service_name: "test_service".to_string(),
+            start_time: now,
+            end_time: Some(now + chrono::Duration::milliseconds(50)),
+            duration_ms: 50,
+            status_code: 0,
+            operation_name: Some("execute_tool".to_string()),
+            provider_name: Some("anthropic".to_string()),
+            request_model: Some("claude-3".to_string()),
+            response_model: Some("claude-3".to_string()),
+            input_tokens: Some(10),
+            output_tokens: Some(20),
+            tool_name: Some("web_search".to_string()),
+            tool_type: Some("function".to_string()),
+            ..Default::default()
+        };
+        service.write_records(vec![record]).await?;
+        tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+
+        let start = Utc::now() - chrono::Duration::hours(1);
+        let end = Utc::now() + chrono::Duration::hours(1);
+        let activity = service
+            .query_service
+            .get_tool_activity(None, start, end)
+            .await?;
+
+        assert_eq!(activity.len(), 1, "Expected 1 tool activity row");
+        assert_eq!(
+            activity[0].tool_name.as_deref(),
+            Some("web_search"),
+            "Expected tool_name == web_search"
+        );
+
+        service.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_error_breakdown() -> Result<(), TraceEngineError> {
+        let env = make_test_env();
+        let service =
+            GenAiSpanService::new(&env.object_store, 24, env.ctx, env.catalog, 10, None).await?;
+
+        let now = Utc::now();
+        let mut records = Vec::new();
+        for i in 0..2u8 {
+            records.push(GenAiSpanRecord {
+                trace_id: TraceId::from_bytes([92 + i; 16]),
+                span_id: SpanId::from_bytes([92 + i; 8]),
+                service_name: "test_service".to_string(),
+                start_time: now,
+                end_time: Some(now + chrono::Duration::milliseconds(100)),
+                duration_ms: 100,
+                status_code: 1,
+                operation_name: Some("chat".to_string()),
+                error_type: Some("timeout".to_string()),
+                ..Default::default()
+            });
+        }
+        records.push(GenAiSpanRecord {
+            trace_id: TraceId::from_bytes([94u8; 16]),
+            span_id: SpanId::from_bytes([94u8; 8]),
+            service_name: "test_service".to_string(),
+            start_time: now,
+            end_time: Some(now + chrono::Duration::milliseconds(100)),
+            duration_ms: 100,
+            status_code: 1,
+            operation_name: Some("chat".to_string()),
+            error_type: Some("rate_limit".to_string()),
+            ..Default::default()
+        });
+        for i in 0..2u8 {
+            records.push(make_genai_record(
+                &TraceId::from_bytes([95 + i; 16]),
+                SpanId::from_bytes([95 + i; 8]),
+                "test_service",
+                "chat",
+                "anthropic",
+                "claude-3",
+                100,
+                200,
+            ));
+        }
+        service.write_records(records).await?;
+        tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+
+        let start = Utc::now() - chrono::Duration::hours(1);
+        let end = Utc::now() + chrono::Duration::hours(1);
+        let breakdown = service
+            .query_service
+            .get_error_breakdown(None, start, end, None)
+            .await?;
+
+        assert_eq!(breakdown.len(), 2, "Expected 2 error type rows");
+        let timeout_row = breakdown.iter().find(|(et, _)| et == "timeout");
+        let rate_limit_row = breakdown.iter().find(|(et, _)| et == "rate_limit");
+        assert!(timeout_row.is_some(), "Expected timeout error type");
+        assert!(rate_limit_row.is_some(), "Expected rate_limit error type");
+        assert_eq!(timeout_row.unwrap().1, 2, "Expected 2 timeout errors");
+        assert_eq!(rate_limit_row.unwrap().1, 1, "Expected 1 rate_limit error");
+
+        service.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_genai_spans_filtered() -> Result<(), TraceEngineError> {
+        let env = make_test_env();
+        let service =
+            GenAiSpanService::new(&env.object_store, 24, env.ctx, env.catalog, 10, None).await?;
+
+        let mut records = Vec::new();
+        for i in 0..3u8 {
+            records.push(make_genai_record(
+                &TraceId::from_bytes([100 + i; 16]),
+                SpanId::from_bytes([100 + i; 8]),
+                "service_alpha",
+                "chat",
+                "anthropic",
+                "claude-3",
+                100,
+                200,
+            ));
+        }
+        for i in 0..2u8 {
+            records.push(make_genai_record(
+                &TraceId::from_bytes([103 + i; 16]),
+                SpanId::from_bytes([103 + i; 8]),
+                "service_beta",
+                "chat",
+                "openai",
+                "gpt-4",
+                150,
+                250,
+            ));
+        }
+        service.write_records(records).await?;
+        tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+
+        let start = Utc::now() - chrono::Duration::hours(1);
+        let end = Utc::now() + chrono::Duration::hours(1);
+        let spans = service
+            .query_service
+            .get_genai_spans(&GenAiSpanFilters {
+                service_name: Some("service_alpha".to_string()),
+                start_time: Some(start),
+                end_time: Some(end),
+                ..Default::default()
+            })
+            .await?;
+
+        assert_eq!(spans.len(), 3, "Expected 3 spans for service_alpha");
+        for span in &spans {
+            assert_eq!(
+                span.service_name, "service_alpha",
+                "All spans should belong to service_alpha"
+            );
+        }
+
+        service.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_conversation_spans() -> Result<(), TraceEngineError> {
+        let env = make_test_env();
+        let service =
+            GenAiSpanService::new(&env.object_store, 24, env.ctx, env.catalog, 10, None).await?;
+
+        let now = Utc::now();
+        let mut records = Vec::new();
+        for i in 0..3u8 {
+            records.push(GenAiSpanRecord {
+                trace_id: TraceId::from_bytes([110 + i; 16]),
+                span_id: SpanId::from_bytes([110 + i; 8]),
+                service_name: "test_service".to_string(),
+                start_time: now + chrono::Duration::milliseconds(i as i64 * 10),
+                end_time: Some(now + chrono::Duration::milliseconds(i as i64 * 10 + 100)),
+                duration_ms: 100,
+                status_code: 0,
+                operation_name: Some("chat".to_string()),
+                provider_name: Some("anthropic".to_string()),
+                request_model: Some("claude-3".to_string()),
+                response_model: Some("claude-3".to_string()),
+                input_tokens: Some(100),
+                output_tokens: Some(200),
+                conversation_id: Some("conv-abc".to_string()),
+                ..Default::default()
+            });
+        }
+        for i in 0..2u8 {
+            records.push(make_genai_record(
+                &TraceId::from_bytes([113 + i; 16]),
+                SpanId::from_bytes([113 + i; 8]),
+                "test_service",
+                "chat",
+                "anthropic",
+                "claude-3",
+                100,
+                200,
+            ));
+        }
+        service.write_records(records).await?;
+        tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+
+        let start = Utc::now() - chrono::Duration::hours(1);
+        let end = Utc::now() + chrono::Duration::hours(1);
+        let spans = service
+            .query_service
+            .get_conversation_spans("conv-abc", Some(start), Some(end))
+            .await?;
+
+        assert_eq!(spans.len(), 3, "Expected 3 spans for conv-abc");
+        for span in &spans {
+            assert_eq!(
+                span.conversation_id.as_deref(),
+                Some("conv-abc"),
+                "All spans should have conversation_id == conv-abc"
+            );
+        }
 
         service.shutdown().await?;
         Ok(())
