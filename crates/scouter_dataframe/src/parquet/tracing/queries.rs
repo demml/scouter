@@ -720,7 +720,7 @@ fn metrics_cache_key(
     attribute_filters: Option<&[String]>,
     entity_uid: Option<&str>,
 ) -> u64 {
-    let mut h = std::collections::hash_map::DefaultHasher::new();
+    let mut h = ahash::AHasher::default();
     service_name.hash(&mut h);
     start_time.timestamp_micros().hash(&mut h);
     end_time.timestamp_micros().hash(&mut h);
