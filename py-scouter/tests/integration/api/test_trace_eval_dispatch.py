@@ -161,21 +161,8 @@ def _get_attr_value(span_attributes: list[Any], key: str) -> Any:
     return None
 
 
-def _apply_active_profile_baggage_to_span(span: Any) -> None:
-    try:
-        from opentelemetry import baggage
-        from opentelemetry import context as context_api
-    except ImportError:
-        return
-
-    for key, value in baggage.get_all(context=context_api.get_current()).items():
-        if key.startswith("scouter.entity.") and value is not None:
-            span.set_attribute(key, str(value))
-
-
 def _run_mock_agent_workflow(tracer: Any, agent_name: str) -> str:
     with tracer.start_as_current_span("mock_agent_workflow") as span:
-        _apply_active_profile_baggage_to_span(span)
         span.set_attribute("agent.name", agent_name)
         span.set_attribute("workflow.kind", "integration_test")
         return str(span.trace_id)
@@ -207,7 +194,7 @@ def test_trace_eval_dispatch_from_auto_instrumented_trace(_fast_trace_eval_env: 
 
             spans = scouter_client.get_trace_spans(trace_id).spans
             assert len(spans) > 0
-            entity_key = f"scouter.entity.{profile.config.name}"
+            entity_key = f"scouter.entity.{profile.config.uid}"
             assert any(
                 str(_get_attr_value(span.attributes, entity_key)) == profile.config.uid for span in spans
             ), "Expected span attributes to include the profile entity UID tag"
@@ -237,14 +224,14 @@ def test_trace_eval_dispatch_multi_agent_active_profile_switching(_fast_trace_ev
             transport_config=GrpcConfig(),
             exporter=GrpcSpanExporter(),
             batch_config=BatchConfig(scheduled_delay_ms=200),
+            eval_profiles=[profile_a, profile_b],
             propagate_baggage=True,
         )
 
         try:
             tracer = trace.get_tracer("trace-eval-multi")
 
-            with active_profile(profile_a):
-                trace_id_a = _run_mock_agent_workflow(tracer=tracer, agent_name="alpha_agent")
+            trace_id_a = _run_mock_agent_workflow(tracer=tracer, agent_name="alpha_agent")
 
             with active_profile(profile_b):
                 trace_id_b = _run_mock_agent_workflow(tracer=tracer, agent_name="beta_agent")
@@ -264,8 +251,8 @@ def test_trace_eval_dispatch_multi_agent_active_profile_switching(_fast_trace_ev
             spans_b = scouter_client.get_trace_spans(trace_id_b).spans
             assert len(spans_a) > 0 and len(spans_b) > 0
 
-            key_a = f"scouter.entity.{profile_a.config.name}"
-            key_b = f"scouter.entity.{profile_b.config.name}"
+            key_a = f"scouter.entity.{profile_a.config.uid}"
+            key_b = f"scouter.entity.{profile_b.config.uid}"
 
             assert any(str(_get_attr_value(span.attributes, key_a)) == profile_a.config.uid for span in spans_a)
             assert any(str(_get_attr_value(span.attributes, key_b)) == profile_b.config.uid for span in spans_b)

@@ -10234,6 +10234,7 @@ def init_tracer(
     schema_url: Optional[str] = None,
     scope_attributes: Optional[SerializedType] = None,
     default_attributes: Optional[SerializedType] = None,
+    default_entity_uid: Optional[str] = None,
 ) -> "BaseTracer":
     """
     Initialize the tracer for a service with dual export capability.

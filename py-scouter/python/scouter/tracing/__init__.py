@@ -54,6 +54,7 @@ from .middleware import ScouterTracingMiddleware
 SerializedType: TypeAlias = Union[str, int, float, dict, list]
 P = ParamSpec("P")
 R = TypeVar("R")
+SCOUTER_ACTIVE_ENTITY_UID_BAGGAGE_KEY = "scouter.active.entity_uid"
 HAS_OPENTELEMETRY = True
 if TYPE_CHECKING:
     from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
@@ -370,6 +371,7 @@ class TracerProvider(_OtelTracerProvider):
         sample_ratio: Optional[float] = None,
         scouter_queue: Optional[Any] = None,
         default_attributes: Optional[Attributes] = None,
+        default_entity_uid: Optional[str] = None,
     ):
         """Initialize TracerProvider and underlying Rust tracer."""
 
@@ -379,6 +381,7 @@ class TracerProvider(_OtelTracerProvider):
         self.sample_ratio = sample_ratio
         self.scouter_queue = scouter_queue
         self.default_attributes = default_attributes
+        self.default_entity_uid = default_entity_uid
         self._tracer_cache: dict[tuple[str, str | None, str | None], _OtelTracer] = {}
         self._tracer_cache_lock = threading.Lock()
 
@@ -434,6 +437,7 @@ class TracerProvider(_OtelTracerProvider):
                     schema_url=schema_url,
                     scope_attributes=attributes,  # type: ignore
                     default_attributes=self.default_attributes,  # type: ignore
+                    default_entity_uid=self.default_entity_uid,
                 ),
             )
             self._tracer_cache[cache_key] = tracer
@@ -509,11 +513,7 @@ class ScouterInstrumentor(BaseInstrumentor):
 
         eval_profiles: Optional[List["AgentEvalProfile"]] = kwargs.pop("eval_profiles", None)
         if eval_profiles:
-            entity_attrs: dict[str, str] = {}
-            for profile in eval_profiles:
-                entity_attrs[f"scouter.entity.{profile.config.name}"] = profile.config.uid
-            existing = kwargs.get("attributes") or {}
-            kwargs["attributes"] = {**entity_attrs, **existing}
+            kwargs["default_entity_uid"] = eval_profiles[0].config.uid
 
         tracer_provider = kwargs.pop("tracer_provider", None)
 
@@ -527,6 +527,7 @@ class ScouterInstrumentor(BaseInstrumentor):
                 sample_ratio=kwargs.pop("sample_ratio", None),
                 scouter_queue=kwargs.pop("scouter_queue", None),
                 default_attributes=kwargs.pop("attributes", None),
+                default_entity_uid=kwargs.pop("default_entity_uid", None),
             )
 
         from opentelemetry import trace
@@ -606,8 +607,10 @@ class ScouterInstrumentor(BaseInstrumentor):
             attributes (Optional[Attributes]):
                 Optional attributes to set on every span created by this tracer
             eval_profiles (Optional[List[AgentEvalProfile]]):
-                Optional agent eval profiles whose UIDs are attached as default
-                `scouter.entity.*` span attributes.
+                Optional agent eval profiles. The first profile UID becomes the
+                default entity tag materialized on each span as
+                `scouter.entity.{uid}={uid}` unless overridden by
+                `active_profile(...)`.
             propagate_baggage (bool):
                 Whether W3C baggage propagation should be globally enabled.
             **kwargs:
@@ -710,8 +713,10 @@ def instrument(
         attributes (Optional[Attributes]):
             Optional attributes to set on every span created by this tracer
         eval_profiles (Optional[List[AgentEvalProfile]]):
-            Optional agent eval profiles whose UIDs are attached as default
-            `scouter.entity.*` span attributes.
+            Optional agent eval profiles. The first profile UID becomes the
+            default entity tag materialized on each span as
+            `scouter.entity.{uid}={uid}` unless overridden by
+            `active_profile(...)`.
         propagate_baggage (bool):
             Whether W3C baggage propagation should be globally enabled.
 
@@ -751,11 +756,12 @@ def uninstrument() -> None:
 
 @contextmanager
 def active_profile(profile: "AgentEvalProfile") -> Generator[None, None, None]:
-    """Set the active agent eval profile in OTel baggage context.
+    """Set the active agent eval profile UID in OTel baggage context.
 
-    This context manager attaches the profile's UID as OTel baggage under the
-    key ``scouter.entity.{profile.config.name}``. The baggage is propagated to
-    downstream spans and automatically detached on context exit.
+    This context manager attaches the profile UID as OTel baggage under the
+    canonical key ``scouter.active.entity_uid``. Rust span creation reads this
+    baggage value and materializes the authoritative span attribute
+    ``scouter.entity.{profile.config.uid}={profile.config.uid}``.
 
     If ``opentelemetry`` is not installed, the context manager is a no-op.
 
@@ -770,9 +776,11 @@ def active_profile(profile: "AgentEvalProfile") -> Generator[None, None, None]:
         yield
         return
 
-    key = f"scouter.entity.{profile.config.name}"
-    uid = profile.config.uid
-    ctx = baggage.set_baggage(key, uid, context=context_api.get_current())
+    ctx = baggage.set_baggage(
+        SCOUTER_ACTIVE_ENTITY_UID_BAGGAGE_KEY,
+        profile.config.uid,
+        context=context_api.get_current(),
+    )
     token = context_api.attach(ctx)
     try:
         yield

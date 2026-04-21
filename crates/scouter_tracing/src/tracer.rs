@@ -43,10 +43,11 @@ use scouter_settings::grpc::GrpcConfig;
 
 use scouter_types::SCOUTER_QUEUE_RECORD;
 use scouter_types::{
-    pyobject_to_otel_value, pyobject_to_tracing_json, EntityType, TraceId as ScouterTraceId,
-    TraceSpanRecord, BAGGAGE_PREFIX, EXCEPTION_TRACEBACK, SCOUTER_ENTITY, SCOUTER_QUEUE_EVENT,
-    SCOUTER_SCOPE, SCOUTER_SCOPE_DEFAULT, SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT,
-    SCOUTER_TRACING_LABEL, SCOUTER_TRACING_OUTPUT, SPAN_ERROR, TRACE_START_TIME_KEY,
+    pyobject_to_otel_value, pyobject_to_tracing_json, EntityType,
+    TraceId as ScouterTraceId, TraceSpanRecord, BAGGAGE_PREFIX, EXCEPTION_TRACEBACK,
+    SCOUTER_ACTIVE_ENTITY_UID_BAGGAGE_KEY, SCOUTER_ENTITY, SCOUTER_QUEUE_EVENT, SCOUTER_SCOPE,
+    SCOUTER_SCOPE_DEFAULT, SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL,
+    SCOUTER_TRACING_OUTPUT, SPAN_ERROR, TRACE_START_TIME_KEY,
 };
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
@@ -175,6 +176,7 @@ fn get_trace_metadata_store() -> &'static TraceMetadataStore {
 /// * `schema_url` - Optional schema URL for the tracer's instrumentation scope
 /// * `scope_attributes` - Optional attributes to set on the tracer's instrumentation scope
 /// * `default_attributes` - Optional attributes to set on every span created by this tracer
+/// * `default_entity_uid` - Optional default entity UID to materialize on every span
 #[pyfunction]
 #[pyo3(signature = (
     service_name="scouter_service".to_string(),
@@ -187,6 +189,7 @@ fn get_trace_metadata_store() -> &'static TraceMetadataStore {
     schema_url=None,
     scope_attributes=None,
     default_attributes=None,
+    default_entity_uid=None,
 ))]
 #[instrument(skip_all)]
 #[allow(clippy::too_many_arguments)]
@@ -202,6 +205,7 @@ pub fn init_tracer(
     schema_url: Option<String>,
     scope_attributes: Option<Bound<'_, PyAny>>,
     default_attributes: Option<Bound<'_, PyAny>>,
+    default_entity_uid: Option<String>,
 ) -> Result<BaseTracer, TraceError> {
     debug!("Initializing tracer");
 
@@ -281,6 +285,7 @@ pub fn init_tracer(
         service_name,
         schema_url,
         default_attributes,
+        default_entity_uid,
         scope_attributes,
         scouter_queue,
     )
@@ -775,6 +780,7 @@ pub struct BaseTracer {
     tracer: SdkTracer,
     queue: Option<Py<ScouterQueue>>,
     default_attributes: Vec<KeyValue>,
+    default_entity_uid: Option<String>,
 }
 
 impl BaseTracer {
@@ -841,6 +847,56 @@ impl BaseTracer {
         });
         keyval_baggage
     }
+
+    fn has_entity_attribute(attributes: &[KeyValue]) -> bool {
+        attributes
+            .iter()
+            .any(|kv| kv.key.as_str().starts_with(SCOUTER_ENTITY))
+    }
+
+    fn extract_active_entity_uid_from_context(
+        py: Python<'_>,
+        context: Option<&Bound<'_, PyAny>>,
+    ) -> Option<String> {
+        let baggage_mod = py.import("opentelemetry.baggage").ok()?;
+
+        let value = if let Some(context) = context {
+            let kwargs = PyDict::new(py);
+            kwargs.set_item("context", context).ok()?;
+            baggage_mod
+                .call_method(
+                    "get_baggage",
+                    (SCOUTER_ACTIVE_ENTITY_UID_BAGGAGE_KEY,),
+                    Some(&kwargs),
+                )
+                .ok()?
+        } else {
+            baggage_mod
+                .call_method1("get_baggage", (SCOUTER_ACTIVE_ENTITY_UID_BAGGAGE_KEY,))
+                .ok()?
+        };
+
+        value.extract::<Option<String>>().ok().flatten()
+    }
+
+    fn resolve_entity_attribute(
+        &self,
+        py: Python<'_>,
+        context: Option<&Bound<'_, PyAny>>,
+        explicit_attributes: &[KeyValue],
+    ) -> Option<KeyValue> {
+        if Self::has_entity_attribute(explicit_attributes) {
+            return None;
+        }
+
+        let entity_uid = Self::extract_active_entity_uid_from_context(py, context)
+            .or_else(|| self.default_entity_uid.clone())?;
+
+        Some(KeyValue::new(
+            format!("{}.{}", SCOUTER_ENTITY, entity_uid),
+            entity_uid,
+        ))
+    }
 }
 
 #[pymethods]
@@ -851,6 +907,7 @@ impl BaseTracer {
     schema_url=None,
     // default span attributes that are applied to every span created by this tracer
     default_attributes=None,
+    default_entity_uid=None,
     // scope attributes that are applied to the tracer's instrumentation scope
     scope_attributes=None,
     queue=None,
@@ -861,6 +918,7 @@ impl BaseTracer {
         name: String,
         schema_url: Option<String>,
         default_attributes: Option<Bound<'_, PyAny>>,
+        default_entity_uid: Option<String>,
         scope_attributes: Option<Bound<'_, PyAny>>,
         queue: Option<Py<ScouterQueue>>,
     ) -> Result<Self, TraceError> {
@@ -896,6 +954,7 @@ impl BaseTracer {
             tracer,
             queue: final_queue,
             default_attributes,
+            default_entity_uid,
         })
     }
 
@@ -1063,9 +1122,18 @@ impl BaseTracer {
         let mut span = BoxedSpan::new(span_builder.start_with_context(&self.tracer, &final_ctx));
 
         // Apply attributes — accepts both a flat dict and a list-of-dicts for OTel compat
-        if let Some(attrs) = attributes {
-            let kvs = py_obj_to_otel_keyvalue(py, Some(attrs.clone()))?;
-            kvs.into_iter().for_each(|kv| span.set_attribute(kv));
+        let explicit_attributes = if let Some(attrs) = attributes {
+            py_obj_to_otel_keyvalue(py, Some(attrs.clone()))?
+        } else {
+            Vec::new()
+        };
+        explicit_attributes
+            .iter()
+            .cloned()
+            .for_each(|kv| span.set_attribute(kv));
+
+        if let Some(entity_kv) = self.resolve_entity_attribute(py, context, &explicit_attributes) {
+            span.set_attribute(entity_kv);
         }
 
         // set default attributes from tracer configuration
@@ -1209,9 +1277,18 @@ impl BaseTracer {
 
         let mut span = BoxedSpan::new(span_builder.start_with_context(&self.tracer, &final_ctx));
 
-        if let Some(attrs) = attributes {
-            let kvs = py_obj_to_otel_keyvalue(py, Some(attrs.clone()))?;
-            kvs.into_iter().for_each(|kv| span.set_attribute(kv));
+        let explicit_attributes = if let Some(attrs) = attributes {
+            py_obj_to_otel_keyvalue(py, Some(attrs.clone()))?
+        } else {
+            Vec::new()
+        };
+        explicit_attributes
+            .iter()
+            .cloned()
+            .for_each(|kv| span.set_attribute(kv));
+
+        if let Some(entity_kv) = self.resolve_entity_attribute(py, context, &explicit_attributes) {
+            span.set_attribute(entity_kv);
         }
 
         self.default_attributes.iter().for_each(|kv| {
