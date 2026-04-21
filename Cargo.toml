@@ -89,7 +89,7 @@ opentelemetry-otlp = { version = "0.31.0", features = ["grpc-tonic", "trace"] }
 owo-colors = "4.*"
 parquet = { version = ">=55.*", features = ["arrow"] }
 password-auth = "1.*"
-potato-head = { git = "https://github.com/demml/potatohead.git" , branch = "bug" }
+potato-head = { git = "https://github.com/demml/potatohead.git", rev = "bae806e8e84ed03903c513307744cc64a93de701" }
 pyo3 = { version = "0.28.3", features = ["abi3-py310", "chrono", "anyhow", "extension-module"] }
 pyo3-async-runtimes = { version = "0.*", features = ["tokio-runtime"] }
 pythonize = "0.*"

@@ -11,12 +11,10 @@ Requires:
   GEMINI_API_KEY in environment
 """
 
-from chromadb.telemetry.opentelemetry import tracer
-
 import os
 from pathlib import Path
 
-from openinference.instrumentation.crewai import CrewAIInstrumentor  # type: ignore
+from openinference.instrumentation.crewai import CrewAIInstrumentor
 from pydantic import BaseModel, ConfigDict
 from scouter.agent import Prompt
 from scouter.drift import AgentEvalProfile

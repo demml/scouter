@@ -120,7 +120,7 @@ async fn wait_for_trace_spans(
             "No spans found yet for {}, waiting {:?} before retry",
             task_uid, backoff
         );
-        sleep(backoff.to_std().unwrap()).await;
+        sleep(backoff.to_std().unwrap_or(std::time::Duration::from_millis(100))).await;
         backoff = std::cmp::min(backoff * 2, Duration::seconds(5));
     }
 }

@@ -52,10 +52,7 @@ pub async fn get_eval_scenarios(
     if records.is_empty() {
         return Err((
             StatusCode::NOT_FOUND,
-            Json(ScouterServerError::new(format!(
-                "No scenarios found for collection_id: {}",
-                params.collection_id
-            ))),
+            Json(ScouterServerError::new("No scenarios found for the given collection_id".to_string())),
         ));
     }
 

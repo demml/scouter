@@ -91,7 +91,7 @@ def test_instrument_eval_profiles_single_agent():
     ):
         instrumentor._instrument()
 
-    attrs = captured_provider_kwargs.get("default_attributes") or {}
+    attrs = captured_provider_kwargs["default_attributes"]
     assert key in attrs
     assert attrs[key] == profile.config.uid
 

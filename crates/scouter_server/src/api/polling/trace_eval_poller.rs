@@ -15,7 +15,7 @@ impl BackgroundTraceEvalManager {
         poll_settings: &TraceEvalPollerSettings,
         shutdown_rx: watch::Receiver<()>,
     ) -> Result<(), ServerError> {
-        let num_workers = poll_settings.workers;
+        let num_workers = poll_settings.num_workers;
         info!("Starting {} trace eval poller workers", num_workers);
 
         for id in 0..num_workers {

@@ -4,7 +4,7 @@ use serde::Serialize;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TraceEvalPollerSettings {
-    pub workers: usize,
+    pub num_workers: usize,
     pub poll_interval_secs: u64,
     pub lookback_secs: u64,
 }
@@ -27,7 +27,7 @@ impl Default for TraceEvalPollerSettings {
             .unwrap_or(7200u64);
 
         Self {
-            workers,
+            num_workers: workers,
             poll_interval_secs,
             lookback_secs,
         }

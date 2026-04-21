@@ -525,6 +525,17 @@ impl ScouterSetupComponents {
         Ok(())
     }
 
+    /// Helper to setup the background trace eval worker
+    /// This worker will continually run and check if there are any trace eval records to process
+    /// and will run the trace eval tasks
+    ///
+    /// Arguments:
+    /// * `db_pool` - The database pool to use for the worker
+    /// * `poll_settings` - The polling settings to use for the worker
+    /// * `shutdown_rx` - The shutdown receiver to use for the worker
+    ///
+    /// Returns:
+    /// * `AnyhowResult<()>` - The result of the setup
     #[instrument(skip_all)]
     async fn setup_background_trace_eval_workers(
         db_pool: &Pool<Postgres>,
