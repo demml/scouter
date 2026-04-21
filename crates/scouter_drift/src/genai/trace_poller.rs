@@ -113,3 +113,29 @@ impl TraceEvalPoller {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hex_to_bytes_error_on_invalid_input() {
+        let result = TraceId::hex_to_bytes("not-hex");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn hex_to_bytes_success_on_valid_input() {
+        let valid_hex = "deadbeefcafebabe0123456789abcdef";
+        let result = TraceId::hex_to_bytes(valid_hex);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().len(), 16);
+    }
+
+    #[test]
+    fn hex_to_bytes_error_on_wrong_length() {
+        let short_hex = "deadbeef";
+        let result = TraceId::hex_to_bytes(short_hex);
+        assert!(result.is_err());
+    }
+}

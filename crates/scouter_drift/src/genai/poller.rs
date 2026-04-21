@@ -363,3 +363,41 @@ impl AgentPoller {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn get_trace_spans_by_id_fails_when_service_not_initialized() {
+        let trace_id = TraceId::from_bytes([0u8; 16]);
+        let result = get_trace_spans_by_id(&trace_id).await;
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("TraceSpanService not initialized"),
+            "unexpected error: {}",
+            err_msg
+        );
+    }
+
+    #[test]
+    fn eval_record_trace_id_none_by_default() {
+        let record = EvalRecord {
+            trace_id: None,
+            ..Default::default()
+        };
+        assert!(record.trace_id.is_none());
+    }
+
+    #[test]
+    fn eval_record_trace_id_some_when_set() {
+        let trace_id = TraceId::from_bytes([1u8; 16]);
+        let record = EvalRecord {
+            trace_id: Some(trace_id.clone()),
+            ..Default::default()
+        };
+        assert!(record.trace_id.is_some());
+        assert_eq!(record.trace_id.unwrap().to_hex(), trace_id.to_hex());
+    }
+}
