@@ -7,34 +7,19 @@ use scouter_types::agent::AgentEvalProfile;
 use scouter_types::sql::TraceFilters;
 use scouter_types::TraceId;
 use sqlx::{Pool, Postgres};
-use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, instrument};
 
 pub struct TraceEvalPoller {
     db_pool: Pool<Postgres>,
     lookback: Duration,
-    poll_interval: std::time::Duration,
 }
 
 impl TraceEvalPoller {
-    pub fn new(
-        db_pool: &Pool<Postgres>,
-        lookback: Duration,
-        poll_interval: std::time::Duration,
-    ) -> Self {
+    pub fn new(db_pool: &Pool<Postgres>, lookback: Duration) -> Self {
         TraceEvalPoller {
             db_pool: db_pool.clone(),
             lookback,
-            poll_interval,
         }
-    }
-
-    pub fn with_defaults(db_pool: &Pool<Postgres>) -> Self {
-        Self::new(
-            db_pool,
-            Duration::hours(2),
-            std::time::Duration::from_secs(30),
-        )
     }
 
     #[instrument(skip_all)]
@@ -130,19 +115,10 @@ impl TraceEvalPoller {
     }
 
     #[instrument(skip_all)]
-    pub async fn poll_for_tasks(&self, shutdown: CancellationToken) {
-        loop {
-            tokio::select! {
-                _ = shutdown.cancelled() => {
-                    debug!("TraceEvalPoller shutting down");
-                    break;
-                }
-                _ = tokio::time::sleep(self.poll_interval) => {
-                    if let Err(e) = self.do_poll().await {
-                        error!(error = %e, "TraceEvalPoller: cycle failed");
-                    }
-                }
-            }
+    pub async fn poll_for_tasks(&self) -> Result<(), DriftError> {
+        if let Err(e) = self.do_poll().await {
+            error!(error = %e, "TraceEvalPoller: cycle failed");
         }
+        Ok(())
     }
 }
