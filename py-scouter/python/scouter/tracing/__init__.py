@@ -3,6 +3,7 @@
 
 import functools
 import threading
+from contextlib import contextmanager
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -60,6 +61,8 @@ if TYPE_CHECKING:
     from opentelemetry.trace import TracerProvider as _OtelTracerProvider
     from opentelemetry.trace import set_tracer_provider
     from opentelemetry.util.types import Attributes
+
+    from .._scouter import AgentEvalProfile
 else:
     # Try to import OpenTelemetry, but provide fallbacks if not available
     try:
@@ -475,10 +478,13 @@ class ScouterInstrumentor(BaseInstrumentor):
     _instance: Optional["ScouterInstrumentor"] = None
     _provider: Optional[TracerProvider] = None
 
-    def __new__(cls) -> "ScouterInstrumentor":
+    def __new__(cls, eval_profiles: Optional[List["AgentEvalProfile"]] = None) -> "ScouterInstrumentor":
         if cls._instance is None:
             cls._instance = object.__new__(cls)
         return cls._instance
+
+    def __init__(self, eval_profiles: Optional[List["AgentEvalProfile"]] = None) -> None:
+        self._eval_profiles = eval_profiles
 
     def instrumentation_dependencies(self) -> Collection[str]:
         """Return list of packages required for instrumentation."""
@@ -500,6 +506,13 @@ class ScouterInstrumentor(BaseInstrumentor):
                 "The existing provider will be used."
             )
             return
+
+        if self._eval_profiles:
+            entity_attrs: dict[str, str] = {}
+            for profile in self._eval_profiles:
+                entity_attrs[f"scouter.entity.{profile.config.name}"] = profile.config.uid
+            existing = kwargs.get("attributes") or {}
+            kwargs["attributes"] = {**entity_attrs, **existing}
 
         tracer_provider = kwargs.pop("tracer_provider", None)
 
@@ -705,6 +718,23 @@ def uninstrument() -> None:
     ScouterInstrumentor().uninstrument()
 
 
+@contextmanager
+def active_profile(profile: "AgentEvalProfile") -> Generator[None, None, None]:
+    try:
+        from opentelemetry import baggage, context as context_api
+
+        key = f"scouter.entity.{profile.config.name}"
+        uid = profile.config.uid
+        ctx = baggage.set_baggage(key, uid, context=context_api.get_current())
+        token = context_api.attach(ctx)
+        try:
+            yield
+        finally:
+            context_api.detach(token)
+    except ImportError:
+        yield
+
+
 __all__ = [
     "Tracer",
     "TracerProvider",
@@ -732,6 +762,7 @@ __all__ = [
     "ScouterTracingMiddleware",
     "instrument",
     "uninstrument",
+    "active_profile",
     "enable_local_span_capture",
     "disable_local_span_capture",
     "drain_local_span_capture",
