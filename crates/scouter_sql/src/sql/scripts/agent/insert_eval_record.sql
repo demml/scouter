@@ -17,5 +17,4 @@ VALUES (
     $6, -- session_id
     $7, -- trace_id
     $8  -- tags
-)
-ON CONFLICT ON CONSTRAINT idx_agent_eval_record_entity_trace DO NOTHING;
+);

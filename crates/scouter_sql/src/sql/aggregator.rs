@@ -3,6 +3,9 @@ use crate::sql::query::Queries;
 use crate::sql::utils::UuidBytea;
 use chrono::{DateTime, Duration, Utc};
 use dashmap::DashMap;
+use scouter_dataframe::parquet::tracing::dispatch::{
+    DispatchEventType, TraceDispatchRecord, TraceDispatchService,
+};
 use scouter_dataframe::parquet::tracing::summary::TraceSummaryService;
 use scouter_types::{
     Attribute, TraceId, TraceSpanRecord, TraceSummaryRecord, SCOUTER_ENTITY, SCOUTER_QUEUE_RECORD,
@@ -20,6 +23,8 @@ const TRACE_BATCH_SIZE: usize = 1000;
 /// Uses `RwLock<Option<...>>` so tests can re-initialize with a fresh service.
 static TRACE_SUMMARY_SERVICE: std::sync::RwLock<Option<Arc<TraceSummaryService>>> =
     std::sync::RwLock::new(None);
+static TRACE_DISPATCH_SERVICE: std::sync::RwLock<Option<Arc<TraceDispatchService>>> =
+    std::sync::RwLock::new(None);
 
 /// Register the global TraceSummaryService. Replaces any previously registered instance.
 pub fn init_trace_summary_service(service: Arc<TraceSummaryService>) -> Result<(), SqlError> {
@@ -34,6 +39,21 @@ pub fn init_trace_summary_service(service: Arc<TraceSummaryService>) -> Result<(
 /// Retrieve the global TraceSummaryService (if initialized).
 pub fn get_trace_summary_service() -> Option<Arc<TraceSummaryService>> {
     TRACE_SUMMARY_SERVICE.read().ok()?.clone()
+}
+
+/// Register the global TraceDispatchService. Replaces any previously registered instance.
+pub fn init_trace_dispatch_service(service: Arc<TraceDispatchService>) -> Result<(), SqlError> {
+    let mut guard = TRACE_DISPATCH_SERVICE
+        .write()
+        .map_err(|e| SqlError::TraceCacheError(format!("Failed to acquire write lock: {}", e)))?;
+    *guard = Some(service);
+    info!("TraceDispatchService global singleton registered in aggregator");
+    Ok(())
+}
+
+/// Retrieve the global TraceDispatchService (if initialized).
+pub fn get_trace_dispatch_service() -> Option<Arc<TraceDispatchService>> {
+    TRACE_DISPATCH_SERVICE.read().ok()?.clone()
 }
 
 const MAX_TOTAL_SPANS: u64 = 1_000_000;
@@ -304,6 +324,8 @@ impl TraceCache {
         pool: &PgPool,
         traces: &[(TraceId, TraceAggregator)],
     ) -> Result<(), SqlError> {
+        let now = Utc::now();
+
         // ── Delta Lake: write summary records ────────────────────────────────
         if let Some(summary_service) = get_trace_summary_service() {
             let records: Vec<TraceSummaryRecord> = traces
@@ -315,11 +337,37 @@ impl TraceCache {
             }
         }
 
+        // ── Delta Lake: append dispatch/index records for trace-eval flow ────
+        if let Some(dispatch_service) = get_trace_dispatch_service() {
+            let mut dispatch_records = Vec::new();
+            for (trace_id, agg) in traces {
+                // Dispatch outbox only needs trace-eval candidates:
+                // traces with entity tags that did not flow through queue ingestion.
+                if agg.queue_tags.is_empty() {
+                    for entity_uid in &agg.entity_tags {
+                        dispatch_records.push(TraceDispatchRecord {
+                            trace_id: *trace_id.as_bytes(),
+                            entity_uid: *entity_uid.as_bytes(),
+                            start_time: agg.start_time,
+                            event_type: DispatchEventType::Candidate,
+                            created_at: now,
+                        });
+                    }
+                }
+            }
+
+            if let Err(e) = dispatch_service.write_records(dispatch_records).await {
+                error!(
+                    "Failed to write trace dispatch records to Delta Lake: {:?}",
+                    e
+                );
+            }
+        }
+
         // ── Postgres: entity tag associations only ────────────────────────────
         let mut entity_trace_ids = Vec::new();
         let mut entity_uids = Vec::new();
         let mut entity_tagged_ats = Vec::new();
-        let now = Utc::now();
 
         for (trace_id, agg) in traces {
             for entity_uid in &agg.entity_tags {

@@ -18,7 +18,7 @@ use scouter_types::EvalTaskResult;
 use scouter_types::Status;
 use scouter_types::{
     BinnedMetrics, EvalRecordPaginationRequest, EvalRecordPaginationResponse, RecordCursor,
-    RecordType,
+    RecordType, TraceId,
 };
 use sqlx::types::Json;
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
@@ -757,28 +757,72 @@ pub trait AgentDriftSqlLogic {
         pool: &Pool<Postgres>,
         entity_id: i32,
         trace_id: &[u8],
-    ) -> Result<(), SqlError> {
-        let query = Queries::InsertEvalRecord.get_query();
+    ) -> Result<bool, SqlError> {
+        let trace_id = TraceId::from_slice(trace_id)?;
+        let insert_eval_query = Queries::InsertEvalRecord.get_query();
+        let trace_uuid =
+            uuid::Uuid::from_slice(trace_id.as_bytes()).map_err(SqlError::UuidError)?;
+        let synthetic_key = format!("trace-dispatch:{}:{}", entity_id, trace_uuid);
+
+        let mut first_half = [0u8; 8];
+        first_half.copy_from_slice(&trace_id.as_bytes()[0..8]);
+        let mut second_half = [0u8; 8];
+        second_half.copy_from_slice(&trace_id.as_bytes()[8..16]);
+        let advisory_lock_key = i64::from_be_bytes(first_half)
+            ^ i64::from_be_bytes(second_half)
+            ^ ((entity_id as i64) << 32);
+
+        let empty_context = serde_json::Value::Object(Default::default());
         let uid = create_uuid7();
         let now = Utc::now();
-        let empty_context = serde_json::Value::Object(Default::default());
-        let record_id = create_uuid7();
-        let session_id = create_uuid7();
         let tags: Vec<String> = Vec::new();
 
-        sqlx::query(query)
+        let mut tx = pool.begin().await.map_err(SqlError::SqlxError)?;
+
+        let lock_acquired: bool = sqlx::query_scalar("SELECT pg_try_advisory_xact_lock($1)")
+            .bind(advisory_lock_key)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(SqlError::SqlxError)?;
+        if !lock_acquired {
+            tx.rollback().await.map_err(SqlError::SqlxError)?;
+            return Ok(false);
+        }
+
+        let existing: Option<i32> = sqlx::query_scalar(
+            "SELECT 1
+             FROM scouter.agent_eval_record
+             WHERE entity_id = $1
+               AND record_id = $2
+               AND session_id = $3
+             LIMIT 1",
+        )
+        .bind(entity_id)
+        .bind(&synthetic_key)
+        .bind(&synthetic_key)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(SqlError::SqlxError)?;
+
+        if existing.is_some() {
+            tx.commit().await.map_err(SqlError::SqlxError)?;
+            return Ok(false);
+        }
+
+        sqlx::query(insert_eval_query)
             .bind(uid)
             .bind(now)
             .bind(entity_id)
             .bind(Json(empty_context))
-            .bind(record_id)
-            .bind(session_id)
-            .bind(trace_id)
+            .bind(&synthetic_key)
+            .bind(&synthetic_key)
+            .bind(trace_id.as_bytes().as_slice())
             .bind(&tags)
-            .execute(pool)
+            .execute(&mut *tx)
             .await
             .map_err(SqlError::SqlxError)?;
 
-        Ok(())
+        tx.commit().await.map_err(SqlError::SqlxError)?;
+        Ok(true)
     }
 }

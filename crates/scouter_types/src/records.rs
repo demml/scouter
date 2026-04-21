@@ -411,7 +411,17 @@ impl FromRow<'_, PgRow> for EvalRecord {
         // load status from string
         let status_string = row.try_get::<String, &str>("status")?;
         let status = Status::from_str(&status_string).unwrap_or(Status::Pending);
-        let trace_id_str = row.try_get::<Option<String>, &str>("trace_id")?;
+        let trace_id = row
+            .try_get::<Option<Vec<u8>>, &str>("trace_id")
+            .ok()
+            .flatten()
+            .and_then(|bytes| TraceId::from_slice(&bytes).ok())
+            .or_else(|| {
+                row.try_get::<Option<String>, &str>("trace_id")
+                    .ok()
+                    .flatten()
+                    .and_then(|hex| TraceId::from_hex(&hex).ok())
+            });
 
         Ok(EvalRecord {
             record_id: row.try_get("record_id")?,
@@ -429,7 +439,7 @@ impl FromRow<'_, PgRow> for EvalRecord {
             status,
             entity_type: EntityType::Agent,
             retry_count: row.try_get("retry_count")?,
-            trace_id: trace_id_str.and_then(|tid| TraceId::from_hex(&tid).ok()),
+            trace_id,
             tags: row.try_get::<Vec<String>, &str>("tags").unwrap_or_default(),
         })
     }

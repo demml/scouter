@@ -478,13 +478,13 @@ class ScouterInstrumentor(BaseInstrumentor):
     _instance: Optional["ScouterInstrumentor"] = None
     _provider: Optional[TracerProvider] = None
 
-    def __new__(cls, eval_profiles: Optional[List["AgentEvalProfile"]] = None) -> "ScouterInstrumentor":
+    def __new__(cls) -> "ScouterInstrumentor":
         if cls._instance is None:
             cls._instance = object.__new__(cls)
         return cls._instance
 
-    def __init__(self, eval_profiles: Optional[List["AgentEvalProfile"]] = None) -> None:
-        self._eval_profiles = eval_profiles
+    def __init__(self) -> None:
+        pass
 
     def instrumentation_dependencies(self) -> Collection[str]:
         """Return list of packages required for instrumentation."""
@@ -507,9 +507,10 @@ class ScouterInstrumentor(BaseInstrumentor):
             )
             return
 
-        if self._eval_profiles:
+        eval_profiles: Optional[List["AgentEvalProfile"]] = kwargs.pop("eval_profiles", None)
+        if eval_profiles:
             entity_attrs: dict[str, str] = {}
-            for profile in self._eval_profiles:
+            for profile in eval_profiles:
                 entity_attrs[f"scouter.entity.{profile.config.name}"] = profile.config.uid
             existing = kwargs.get("attributes") or {}
             kwargs["attributes"] = {**entity_attrs, **existing}
@@ -542,25 +543,37 @@ class ScouterInstrumentor(BaseInstrumentor):
             )
         set_tracer_provider(self._provider)
 
+        propagate_baggage = kwargs.pop("propagate_baggage", True)
+
         # Register W3C TraceContext + Baggage propagators so that third-party
         # instrumentors (StarletteInstrumentor, HTTPXInstrumentor, etc.) can
         # inject and extract traceparent/tracestate headers transparently.
         try:
-            from opentelemetry.baggage.propagation import W3CBaggagePropagator
             from opentelemetry.propagate import set_global_textmap
             from opentelemetry.propagators.composite import CompositePropagator
             from opentelemetry.trace.propagation.tracecontext import (
                 TraceContextTextMapPropagator,
             )
 
-            set_global_textmap(
-                CompositePropagator(
-                    [
-                        TraceContextTextMapPropagator(),
-                        W3CBaggagePropagator(),
-                    ]
+            if propagate_baggage:
+                from opentelemetry.baggage.propagation import W3CBaggagePropagator
+
+                set_global_textmap(
+                    CompositePropagator(
+                        [
+                            TraceContextTextMapPropagator(),
+                            W3CBaggagePropagator(),
+                        ]
+                    )
                 )
-            )
+            else:
+                set_global_textmap(
+                    CompositePropagator(
+                        [
+                            TraceContextTextMapPropagator(),
+                        ]
+                    )
+                )
         except ImportError:
             pass  # opentelemetry-api not fully installed; propagator setup skipped
 
@@ -572,6 +585,8 @@ class ScouterInstrumentor(BaseInstrumentor):
         sample_ratio: Optional[float] = None,
         scouter_queue: Optional[Any] = None,
         attributes: Optional[Attributes] = None,
+        eval_profiles: Optional[List["AgentEvalProfile"]] = None,
+        propagate_baggage: bool = True,
         **kwargs,
     ) -> None:
         """
@@ -590,6 +605,11 @@ class ScouterInstrumentor(BaseInstrumentor):
                 Optional ScouterQueue for buffering
             attributes (Optional[Attributes]):
                 Optional attributes to set on every span created by this tracer
+            eval_profiles (Optional[List[AgentEvalProfile]]):
+                Optional agent eval profiles whose UIDs are attached as default
+                `scouter.entity.*` span attributes.
+            propagate_baggage (bool):
+                Whether W3C baggage propagation should be globally enabled.
             **kwargs:
                 Additional keyword arguments for TracerProvider initialization
 
@@ -601,6 +621,8 @@ class ScouterInstrumentor(BaseInstrumentor):
             sample_ratio=sample_ratio,
             scouter_queue=scouter_queue,
             attributes=attributes,
+            eval_profiles=eval_profiles,
+            propagate_baggage=propagate_baggage,
             **kwargs,
         )
 
@@ -665,6 +687,8 @@ def instrument(
     sample_ratio: Optional[float] = None,
     scouter_queue: Optional[Any] = None,
     attributes: Optional[Attributes] = None,
+    eval_profiles: Optional[List["AgentEvalProfile"]] = None,
+    propagate_baggage: bool = True,
 ) -> None:
     """
     Convenience function to instrument with Scouter tracing.
@@ -685,6 +709,11 @@ def instrument(
             Optional ScouterQueue for buffering
         attributes (Optional[Attributes]):
             Optional attributes to set on every span created by this tracer
+        eval_profiles (Optional[List[AgentEvalProfile]]):
+            Optional agent eval profiles whose UIDs are attached as default
+            `scouter.entity.*` span attributes.
+        propagate_baggage (bool):
+            Whether W3C baggage propagation should be globally enabled.
 
     Examples:
         >>> from scouter.tracing import instrument
@@ -705,6 +734,8 @@ def instrument(
         sample_ratio=sample_ratio,
         scouter_queue=scouter_queue,
         attributes=attributes,
+        eval_profiles=eval_profiles,
+        propagate_baggage=propagate_baggage,
     )
 
 
@@ -733,7 +764,8 @@ def active_profile(profile: "AgentEvalProfile") -> Generator[None, None, None]:
             The agent eval profile to activate.
     """
     try:
-        from opentelemetry import baggage, context as context_api
+        from opentelemetry import baggage
+        from opentelemetry import context as context_api
     except ImportError:
         yield
         return

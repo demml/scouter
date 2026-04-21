@@ -56,8 +56,7 @@ const GET_BINNED_AGENT_TASK_VALUES: &str =
     include_str!("scripts/agent/data/get_binned_task_values.sql");
 const RESCHEDULE_AGENT_EVAL_RECORD: &str =
     include_str!("scripts/agent/reschedule_genai_record.sql");
-const GET_ACTIVE_AGENT_PROFILES: &str =
-    include_str!("scripts/agent/get_active_agent_profiles.sql");
+const GET_ACTIVE_AGENT_PROFILES: &str = include_str!("scripts/agent/get_active_agent_profiles.sql");
 const GET_KNOWN_TRACE_IDS_FOR_ENTITY: &str =
     include_str!("scripts/agent/get_known_trace_ids_for_entity.sql");
 

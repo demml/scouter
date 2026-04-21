@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 
 from openinference.instrumentation.crewai import CrewAIInstrumentor
+from opentelemetry.trace import get_tracer_provider
 from pydantic import BaseModel, ConfigDict
 from scouter.agent import Prompt
 from scouter.drift import AgentEvalProfile
@@ -22,7 +23,6 @@ from scouter.evaluate import TasksFile
 from scouter.queue import ScouterQueue
 from scouter.tracing import ScouterInstrumentor
 from scouter.transport import GrpcConfig, MockConfig
-from opentelemetry.sdk.trace import TracerProvider
 
 _DIR = Path(__file__).parent
 
@@ -66,7 +66,7 @@ def setup() -> Config:
     crewai_instrumentor = CrewAIInstrumentor()
     crewai_instrumentor.instrument(
         skip_dep_check=True,
-        tracer_provider=TracerProvider(),
+        tracer_provider=get_tracer_provider(),
     )
 
     return Config(

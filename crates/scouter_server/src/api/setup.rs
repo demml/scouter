@@ -8,6 +8,7 @@ use password_auth::generate_hash;
 use rusty_logging::logger::{LogLevel, LoggingConfig, RustyLogger};
 use scouter_auth::util::generate_recovery_codes_with_hashes;
 use scouter_dataframe::parquet::bifrost::manager::DatasetEngineManager;
+use scouter_dataframe::parquet::tracing::dispatch::TraceDispatchService;
 use scouter_dataframe::parquet::tracing::genai::GenAiSpanService;
 use scouter_dataframe::parquet::tracing::service::{init_trace_span_service, TraceSpanService};
 use scouter_dataframe::parquet::tracing::summary::TraceSummaryService;
@@ -48,6 +49,13 @@ use scouter_events::consumer::http::consumer::HttpConsumerManager;
 use scouter_settings::events::HttpConsumerSettings;
 use scouter_types::MessageRecord;
 
+type TraceServices = (
+    Arc<TraceSpanService>,
+    Arc<TraceSummaryService>,
+    Arc<TraceDispatchService>,
+    Arc<GenAiSpanService>,
+);
+
 pub struct ScouterSetupComponents {
     pub server_config: Arc<ScouterServerConfig>,
     pub db_pool: Pool<Postgres>,
@@ -55,6 +63,7 @@ pub struct ScouterSetupComponents {
     pub http_consumer_tx: Sender<MessageRecord>,
     pub trace_service: Arc<TraceSpanService>,
     pub trace_summary_service: Arc<TraceSummaryService>,
+    pub trace_dispatch_service: Arc<TraceDispatchService>,
     pub genai_service: Arc<GenAiSpanService>,
     pub dataset_manager: Arc<DatasetEngineManager>,
     pub eval_scenario_service: Arc<EvalScenarioService>,
@@ -115,6 +124,10 @@ impl ScouterSetupComponents {
             .await?;
         }
 
+        // Initialize Delta Lake trace services (retention is now handled inside the actor)
+        let (trace_service, trace_summary_service, trace_dispatch_service, genai_service) =
+            Self::start_trace_services(&config).await?;
+
         // If GenAI is enabled, set up the GenAI drift workers
         if config.genai_enabled() {
             Self::setup_background_genai_drift_workers(
@@ -145,10 +158,6 @@ impl ScouterSetupComponents {
 
         Self::setup_background_data_archive_worker(&db_pool, &config, &mut task_manager).await?;
 
-        // Initialize Delta Lake trace services (retention is now handled inside the actor)
-        let (trace_service, trace_summary_service, genai_service) =
-            Self::start_trace_services(&config).await?;
-
         // Initialize dataset engine manager
         let dataset_manager = Arc::new(
             DatasetEngineManager::new(&config.storage_settings)
@@ -169,6 +178,7 @@ impl ScouterSetupComponents {
             http_consumer_tx: http_consumer_manager.tx.clone(),
             trace_service,
             trace_summary_service,
+            trace_dispatch_service,
             genai_service,
             dataset_manager,
             eval_scenario_service,
@@ -178,11 +188,7 @@ impl ScouterSetupComponents {
     #[instrument(skip_all)]
     async fn start_trace_services(
         config: &Arc<ScouterServerConfig>,
-    ) -> AnyhowResult<(
-        Arc<TraceSpanService>,
-        Arc<TraceSummaryService>,
-        Arc<GenAiSpanService>,
-    )> {
+    ) -> AnyhowResult<TraceServices> {
         let compaction_hours = config.storage_settings.trace_compaction_interval_hours;
         let flush_secs = config.storage_settings.trace_flush_interval_secs;
         let refresh_secs = config.storage_settings.trace_refresh_interval_secs;
@@ -212,6 +218,18 @@ impl ScouterSetupComponents {
         scouter_sql::sql::aggregator::init_trace_summary_service(trace_summary_service.clone())
             .context("❌ Failed to register TraceSummaryService")?;
 
+        let trace_dispatch_service = Arc::new(
+            TraceDispatchService::new(
+                &trace_service.object_store,
+                trace_service.ctx.clone(),
+                trace_service.catalog.clone(),
+            )
+            .await
+            .context("❌ Failed to initialize TraceDispatchService")?,
+        );
+        scouter_sql::sql::aggregator::init_trace_dispatch_service(trace_dispatch_service.clone())
+            .context("❌ Failed to register TraceDispatchService")?;
+
         let genai_service = Arc::new(
             GenAiSpanService::new(
                 &trace_service.object_store,
@@ -227,7 +245,12 @@ impl ScouterSetupComponents {
         trace_service.register_genai_tx(genai_service.engine_tx.clone());
         info!("✅ Started GenAiSpanService");
 
-        Ok((trace_service, trace_summary_service, genai_service))
+        Ok((
+            trace_service,
+            trace_summary_service,
+            trace_dispatch_service,
+            genai_service,
+        ))
     }
     #[instrument(skip_all)]
     async fn start_eval_scenario_service(

@@ -512,7 +512,7 @@ fn fold_agent_buckets(
         total_output_tokens: total_output,
         total_cache_creation_tokens: total_cache_creation,
         total_cache_read_tokens: total_cache_read,
-        unique_agent_count: 0,    // filled by caller after get_agent_unique_counts
+        unique_agent_count: 0, // filled by caller after get_agent_unique_counts
         unique_conversation_count: 0,
         cost_by_model,
     };
@@ -597,15 +597,19 @@ pub async fn get_tool_dashboard(
     Json(body): Json<ToolDashboardRequest>,
 ) -> Result<Json<ToolDashboardResponse>, (StatusCode, Json<ScouterServerError>)> {
     let (aggregates, time_series) = tokio::try_join!(
-        data.genai_service
-            .query_service
-            .get_tool_activity(body.service_name.as_deref(), body.start_time, body.end_time),
-        data.genai_service.query_service.get_tool_metrics_timeseries(
+        data.genai_service.query_service.get_tool_activity(
             body.service_name.as_deref(),
             body.start_time,
-            body.end_time,
-            &body.bucket_interval,
+            body.end_time
         ),
+        data.genai_service
+            .query_service
+            .get_tool_metrics_timeseries(
+                body.service_name.as_deref(),
+                body.start_time,
+                body.end_time,
+                &body.bucket_interval,
+            ),
     )
     .map_err(|e| {
         (

@@ -9,9 +9,10 @@ LLM config (model, provider, system instruction) comes from scouter Prompt objec
 loaded in setup.py. provider.as_str() maps to the LiteLLM prefix used by CrewAI.
 """
 
-from typing import cast
 import os
-from crewai import Agent, Crew, LLM, Process, Task
+from typing import cast
+
+from crewai import LLM, Agent, Crew, Process, Task
 from crewai.tasks.task_output import TaskOutput
 from opentelemetry import trace
 from scouter.agent import Prompt

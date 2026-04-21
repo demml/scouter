@@ -1,4 +1,9 @@
-from scouter.drift import AgentEvalConfig, AgentEvalProfile, AssertionTask, ComparisonOperator
+from scouter.drift import (
+    AgentEvalConfig,
+    AgentEvalProfile,
+    AssertionTask,
+    ComparisonOperator,
+)
 from scouter.tracing import ScouterInstrumentor, active_profile
 
 
@@ -20,7 +25,8 @@ def _make_profile(name: str = "agent") -> AgentEvalProfile:
 
 
 def test_active_profile_sets_baggage():
-    from opentelemetry import baggage, context as context_api
+    from opentelemetry import baggage
+    from opentelemetry import context as context_api
 
     profile = _make_profile("agent")
     key = f"scouter.entity.{profile.config.name}"
@@ -32,7 +38,8 @@ def test_active_profile_sets_baggage():
 
 
 def test_active_profile_clears_on_exit():
-    from opentelemetry import baggage, context as context_api
+    from opentelemetry import baggage
+    from opentelemetry import context as context_api
 
     profile = _make_profile("agent")
     key = f"scouter.entity.{profile.config.name}"
@@ -45,7 +52,8 @@ def test_active_profile_clears_on_exit():
 
 
 def test_active_profile_sequential_multi_agent():
-    from opentelemetry import baggage, context as context_api
+    from opentelemetry import baggage
+    from opentelemetry import context as context_api
 
     profile_a = _make_profile("alpha")
     profile_b = _make_profile("beta")
@@ -68,7 +76,8 @@ def test_active_profile_sequential_multi_agent():
 
 
 def test_active_profile_nested():
-    from opentelemetry import baggage, context as context_api
+    from opentelemetry import baggage
+    from opentelemetry import context as context_api
 
     outer = _make_profile("outer")
     inner = _make_profile("inner")
@@ -99,8 +108,7 @@ def test_instrument_eval_profiles_single_agent():
     profile = _make_profile("bot")
     key = f"scouter.entity.{profile.config.name}"
 
-    instrumentor = ScouterInstrumentor(eval_profiles=[profile])
-    assert instrumentor._eval_profiles == [profile]
+    instrumentor = ScouterInstrumentor()
 
     captured_provider_kwargs: dict = {}
 
@@ -112,7 +120,7 @@ def test_instrument_eval_profiles_single_agent():
         patch("scouter.tracing.TracerProvider", _FakeTracerProvider),
         patch("scouter.tracing.set_tracer_provider"),
     ):
-        instrumentor._instrument()
+        instrumentor._instrument(eval_profiles=[profile])
 
     attrs = captured_provider_kwargs["default_attributes"]
     assert key in attrs

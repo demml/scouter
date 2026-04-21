@@ -61,9 +61,10 @@ fn span_matches_filter_inner(
             Ok(span.attributes.iter().any(|attr| attr.key == *key))
         }
 
-        SpanFilter::WithAttributeValue { key, value } => {
-            Ok(span.attributes.iter().any(|attr| attr.key == *key && attr.value == value.0))
-        }
+        SpanFilter::WithAttributeValue { key, value } => Ok(span
+            .attributes
+            .iter()
+            .any(|attr| attr.key == *key && attr.value == value.0)),
 
         SpanFilter::WithStatus { status } => {
             let mapped = match span.status_code {
@@ -106,7 +107,10 @@ fn span_matches_filter_inner(
     }
 }
 
-pub fn spans_match_filter(spans: &[TraceSpan], filter: &SpanFilter) -> Result<bool, EvaluationError> {
+pub fn spans_match_filter(
+    spans: &[TraceSpan],
+    filter: &SpanFilter,
+) -> Result<bool, EvaluationError> {
     let mut regexes: HashMap<&str, Regex> = HashMap::new();
     collect_filter_regexes(filter, &mut regexes)?;
     for span in spans {
@@ -452,7 +456,6 @@ impl TraceContextBuilder {
             _ => SpanStatus::Unset,
         }
     }
-
 }
 
 #[cfg(test)]
