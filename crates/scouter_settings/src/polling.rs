@@ -14,17 +14,17 @@ impl Default for TraceEvalPollerSettings {
         let workers = std::env::var("TRACE_EVAL_WORKER_COUNT")
             .unwrap_or_else(|_| "1".to_string())
             .parse::<usize>()
-            .unwrap();
+            .unwrap_or(1usize);
 
         let poll_interval_secs = std::env::var("TRACE_EVAL_POLL_INTERVAL_SECS")
             .unwrap_or_else(|_| "30".to_string())
             .parse::<u64>()
-            .unwrap();
+            .unwrap_or(30u64);
 
         let lookback_secs = std::env::var("TRACE_EVAL_LOOKBACK_SECS")
             .unwrap_or_else(|_| "7200".to_string())
             .parse::<u64>()
-            .unwrap();
+            .unwrap_or(7200u64);
 
         Self {
             workers,
