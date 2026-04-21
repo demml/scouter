@@ -53,10 +53,6 @@ impl TraceEvalPoller {
             return Ok(0);
         }
 
-        let known_ids =
-            PostgresClient::get_known_trace_ids_for_entity(&self.db_pool, entity_id, lookback_start)
-                .await?;
-
         let mut inserted = 0usize;
 
         for item in &response.items {
@@ -65,11 +61,6 @@ impl TraceEvalPoller {
                     trace_id = %item.trace_id,
                     "Skipping trace with queue_ids — queue path handles it"
                 );
-                continue;
-            }
-
-            if known_ids.contains(&item.trace_id) {
-                debug!(trace_id = %item.trace_id, "Trace already known, skipping");
                 continue;
             }
 
