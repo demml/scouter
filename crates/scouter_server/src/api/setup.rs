@@ -126,12 +126,14 @@ impl ScouterSetupComponents {
         }
 
         // Set up the trace eval poller workers
-        Self::setup_background_trace_eval_workers(
-            &db_pool,
-            &config.trace_eval_poller_settings,
-            tokio_shutdown_rx.clone(),
-        )
-        .await?;
+        if config.trace_eval_poller_settings.num_workers > 0 {
+            Self::setup_background_trace_eval_workers(
+                &db_pool,
+                &config.trace_eval_poller_settings,
+                tokio_shutdown_rx.clone(),
+            )
+            .await?;
+        }
 
         // Set up the background drift workers
         Self::setup_background_drift_workers(

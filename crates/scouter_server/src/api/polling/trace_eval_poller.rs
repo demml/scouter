@@ -5,7 +5,7 @@ use scouter_settings::TraceEvalPollerSettings;
 use sqlx::{Pool, Postgres};
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 pub struct BackgroundTraceEvalManager;
 
@@ -15,7 +15,10 @@ impl BackgroundTraceEvalManager {
         poll_settings: &TraceEvalPollerSettings,
         shutdown_rx: watch::Receiver<()>,
     ) -> Result<(), ServerError> {
-        let num_workers = poll_settings.num_workers;
+        let num_workers = poll_settings.num_workers.min(32);
+        if num_workers < poll_settings.num_workers {
+            warn!("TRACE_EVAL_WORKER_COUNT capped at 32 (was {})", poll_settings.num_workers);
+        }
         info!("Starting {} trace eval poller workers", num_workers);
 
         for id in 0..num_workers {
