@@ -21,6 +21,21 @@ enum TraceSpanResult {
 }
 
 #[instrument(skip_all)]
+async fn get_trace_spans_by_id(trace_id: &TraceId) -> Result<Arc<Vec<TraceSpan>>, DriftError> {
+    let span_service = get_trace_span_service().ok_or_else(|| {
+        DriftError::AgentEvaluatorError("TraceSpanService not initialized".to_string())
+    })?;
+
+    let spans = span_service
+        .query_service
+        .get_trace_spans(Some(trace_id.as_bytes().as_slice()), None, None, None, None)
+        .await
+        .map_err(|e| DriftError::AgentEvaluatorError(format!("Error fetching spans: {}", e)))?;
+
+    Ok(Arc::new(spans))
+}
+
+#[instrument(skip_all)]
 /// Helper function to wait for trace spans associated with a task UID.
 /// Queries Delta Lake: first finds the trace summary by queue_uid, then fetches
 /// full spans from the trace_spans table.
@@ -244,34 +259,38 @@ impl AgentPoller {
         }
 
         let spans = if genai_profile.has_trace_assertions() {
-            match wait_for_trace_spans_with_reschedule(
-                &self.db_pool,
-                &task,
-                &self.max_retries,
-                self.trace_wait_timeout,
-                self.trace_backoff,
-                self.trace_reschedule_delay,
-            )
-            .await?
-            {
-                TraceSpanResult::Ready(spans) => spans,
-                TraceSpanResult::Reschedule => {
-                    debug!(
-                        "Traces not yet available for task {}, rescheduled",
-                        task.uid
-                    );
-                    return Ok(true);
-                }
-                TraceSpanResult::Failed => {
-                    error!("Max retries exceeded for task {}", task.uid);
-                    PostgresClient::update_agent_eval_record_status(
-                        &self.db_pool,
-                        &task,
-                        Status::Failed,
-                        &0,
-                    )
-                    .await?;
-                    return Err(DriftError::TraceSpansNotAvailable(task.uid.clone()));
+            if let Some(ref trace_id) = task.trace_id {
+                get_trace_spans_by_id(trace_id).await?
+            } else {
+                match wait_for_trace_spans_with_reschedule(
+                    &self.db_pool,
+                    &task,
+                    &self.max_retries,
+                    self.trace_wait_timeout,
+                    self.trace_backoff,
+                    self.trace_reschedule_delay,
+                )
+                .await?
+                {
+                    TraceSpanResult::Ready(spans) => spans,
+                    TraceSpanResult::Reschedule => {
+                        debug!(
+                            "Traces not yet available for task {}, rescheduled",
+                            task.uid
+                        );
+                        return Ok(true);
+                    }
+                    TraceSpanResult::Failed => {
+                        error!("Max retries exceeded for task {}", task.uid);
+                        PostgresClient::update_agent_eval_record_status(
+                            &self.db_pool,
+                            &task,
+                            Status::Failed,
+                            &0,
+                        )
+                        .await?;
+                        return Err(DriftError::TraceSpansNotAvailable(task.uid.clone()));
+                    }
                 }
             }
         } else {
