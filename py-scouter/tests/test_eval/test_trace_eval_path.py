@@ -67,6 +67,29 @@ def test_active_profile_sequential_multi_agent():
     assert uid_a_during_b is None
 
 
+def test_active_profile_nested():
+    from opentelemetry import baggage, context as context_api
+
+    outer = _make_profile("outer")
+    inner = _make_profile("inner")
+
+    key_outer = f"scouter.entity.{outer.config.name}"
+    key_inner = f"scouter.entity.{inner.config.name}"
+
+    with active_profile(outer):
+        with active_profile(inner):
+            val_outer_inside_inner = baggage.get_baggage(key_outer, context=context_api.get_current())
+            val_inner_inside_inner = baggage.get_baggage(key_inner, context=context_api.get_current())
+
+        val_inner_after_inner = baggage.get_baggage(key_inner, context=context_api.get_current())
+        val_outer_after_inner = baggage.get_baggage(key_outer, context=context_api.get_current())
+
+    assert val_outer_inside_inner == outer.config.uid
+    assert val_inner_inside_inner == inner.config.uid
+    assert val_inner_after_inner is None
+    assert val_outer_after_inner == outer.config.uid
+
+
 def test_instrument_eval_profiles_single_agent():
     from unittest.mock import patch
 

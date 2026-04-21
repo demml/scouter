@@ -394,7 +394,7 @@ mod tests {
     fn eval_record_trace_id_some_when_set() {
         let trace_id = TraceId::from_bytes([1u8; 16]);
         let record = EvalRecord {
-            trace_id: Some(trace_id.clone()),
+            trace_id: Some(trace_id),
             ..Default::default()
         };
         assert!(record.trace_id.is_some());

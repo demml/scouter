@@ -23,6 +23,12 @@ fn collect_filter_regexes<'a>(
 ) -> Result<(), EvaluationError> {
     match filter {
         SpanFilter::ByNamePattern { pattern } if !out.contains_key(pattern.as_str()) => {
+            if pattern.len() > 512 {
+                return Err(EvaluationError::InvalidFilter(format!(
+                    "ByNamePattern too long (max 512 chars): {}",
+                    &pattern[..50.min(pattern.len())]
+                )));
+            }
             out.insert(pattern.as_str(), Regex::new(pattern)?);
         }
 
