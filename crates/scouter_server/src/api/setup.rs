@@ -70,6 +70,10 @@ pub struct ScouterSetupComponents {
 }
 
 impl ScouterSetupComponents {
+    fn trace_eval_workers_enabled(settings: &TraceEvalPollerSettings) -> bool {
+        settings.num_workers > 0
+    }
+
     pub async fn new() -> AnyhowResult<Self> {
         let config = Arc::new(ScouterServerConfig::new().await);
 
@@ -139,7 +143,7 @@ impl ScouterSetupComponents {
         }
 
         // Set up the trace eval poller workers
-        if config.trace_eval_poller_settings.num_workers > 0 {
+        if Self::trace_eval_workers_enabled(&config.trace_eval_poller_settings) {
             Self::setup_background_trace_eval_workers(
                 &db_pool,
                 &config.trace_eval_poller_settings,
@@ -585,5 +589,33 @@ impl ScouterSetupComponents {
         info!("✅ Started Redis workers");
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ScouterSetupComponents;
+    use scouter_settings::TraceEvalPollerSettings;
+
+    #[test]
+    fn trace_eval_workers_disabled_when_zero() {
+        let settings = TraceEvalPollerSettings {
+            num_workers: 0,
+            ..TraceEvalPollerSettings::default()
+        };
+        assert!(!ScouterSetupComponents::trace_eval_workers_enabled(
+            &settings
+        ));
+    }
+
+    #[test]
+    fn trace_eval_workers_enabled_when_non_zero() {
+        let settings = TraceEvalPollerSettings {
+            num_workers: 1,
+            ..TraceEvalPollerSettings::default()
+        };
+        assert!(ScouterSetupComponents::trace_eval_workers_enabled(
+            &settings
+        ));
     }
 }

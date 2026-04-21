@@ -13,6 +13,7 @@ use ndarray_rand::RandomExt;
 use potato_head::{create_uuid7, mock::create_score_prompt};
 use rand::Rng;
 use scouter_dataframe::parquet::tracing::service::TraceSpanService;
+use scouter_dataframe::EvalScenarioService;
 use scouter_drift::spc::SpcMonitor;
 use scouter_mocks::util::generate_trace_with_spans;
 use scouter_server::api::grpc::start_grpc_server;
@@ -118,6 +119,7 @@ pub struct TestHelper {
     pub pool: PgPool,
     pub config: Arc<ScouterServerConfig>,
     pub trace_service: Arc<TraceSpanService>,
+    pub eval_scenario_service: Arc<EvalScenarioService>,
 }
 
 impl TestHelper {
@@ -214,6 +216,7 @@ impl TestHelper {
             pool: db_pool,
             config: app_state.config.clone(),
             trace_service: app_state.trace_service.clone(),
+            eval_scenario_service: app_state.eval_scenario_service.clone(),
         })
     }
 

@@ -9,7 +9,7 @@ use scouter_sql::sql::utils::UuidBytea;
 use scouter_sql::PostgresClient;
 use scouter_types::agent::{AgentEvalProfile, EvalSet};
 use scouter_types::sql::{TraceFilters, TraceSpan};
-use scouter_types::{EvalRecord, Status, TraceId};
+use scouter_types::{EvalRecord, EvalRecordSource, Status, TraceId};
 use sqlx::{Pool, Postgres};
 use std::sync::Arc;
 use tokio::time::sleep;
@@ -317,14 +317,15 @@ impl AgentPoller {
 
         let spans = if genai_profile.has_trace_assertions() {
             if let Some(ref trace_id) = task.trace_id {
-                let is_synthetic_trace_eval = task.record_id.starts_with("trace-dispatch:");
+                let validate_entity =
+                    !matches!(task.record_source, EvalRecordSource::TraceDispatch);
                 match wait_for_trace_spans_by_id_with_reschedule(
                     &self.db_pool,
                     &task,
                     &self.max_retries,
                     trace_id,
                     &genai_profile.config.uid,
-                    is_synthetic_trace_eval,
+                    validate_entity,
                     self.trace_reschedule_delay,
                 )
                 .await?

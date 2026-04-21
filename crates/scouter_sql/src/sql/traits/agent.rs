@@ -17,14 +17,21 @@ use scouter_types::EvalRecord;
 use scouter_types::EvalTaskResult;
 use scouter_types::Status;
 use scouter_types::{
-    BinnedMetrics, EvalRecordPaginationRequest, EvalRecordPaginationResponse, RecordCursor,
-    RecordType, TraceId,
+    BinnedMetrics, EvalRecordPaginationRequest, EvalRecordPaginationResponse, EvalRecordSource,
+    RecordCursor, RecordType, TraceId,
 };
 use sqlx::types::Json;
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
 use std::collections::{HashMap, HashSet};
 use tracing::error;
 use tracing::{debug, instrument};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SyntheticInsertOutcome {
+    Inserted,
+    AlreadyExists,
+    RetryLater,
+}
 
 #[async_trait]
 pub trait AgentDriftSqlLogic {
@@ -43,6 +50,7 @@ pub trait AgentDriftSqlLogic {
             .bind(&record.record.record_id)
             .bind(&record.record.session_id)
             .bind(record.record.trace_id.map(|t| t.as_bytes().to_vec()))
+            .bind(EvalRecordSource::Queue.as_str())
             .bind(&record.record.tags)
             .execute(pool)
             .await
@@ -757,20 +765,12 @@ pub trait AgentDriftSqlLogic {
         pool: &Pool<Postgres>,
         entity_id: i32,
         trace_id: &[u8],
-    ) -> Result<bool, SqlError> {
+    ) -> Result<SyntheticInsertOutcome, SqlError> {
         let trace_id = TraceId::from_slice(trace_id)?;
         let insert_eval_query = Queries::InsertEvalRecord.get_query();
         let trace_uuid =
             uuid::Uuid::from_slice(trace_id.as_bytes()).map_err(SqlError::UuidError)?;
         let synthetic_key = format!("trace-dispatch:{}:{}", entity_id, trace_uuid);
-
-        let mut first_half = [0u8; 8];
-        first_half.copy_from_slice(&trace_id.as_bytes()[0..8]);
-        let mut second_half = [0u8; 8];
-        second_half.copy_from_slice(&trace_id.as_bytes()[8..16]);
-        let advisory_lock_key = i64::from_be_bytes(first_half)
-            ^ i64::from_be_bytes(second_half)
-            ^ ((entity_id as i64) << 32);
 
         let empty_context = serde_json::Value::Object(Default::default());
         let uid = create_uuid7();
@@ -779,14 +779,15 @@ pub trait AgentDriftSqlLogic {
 
         let mut tx = pool.begin().await.map_err(SqlError::SqlxError)?;
 
-        let lock_acquired: bool = sqlx::query_scalar("SELECT pg_try_advisory_xact_lock($1)")
-            .bind(advisory_lock_key)
-            .fetch_one(&mut *tx)
-            .await
-            .map_err(SqlError::SqlxError)?;
+        let lock_acquired: bool =
+            sqlx::query_scalar("SELECT pg_try_advisory_xact_lock(hashtextextended($1, 0))")
+                .bind(&synthetic_key)
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(SqlError::SqlxError)?;
         if !lock_acquired {
             tx.rollback().await.map_err(SqlError::SqlxError)?;
-            return Ok(false);
+            return Ok(SyntheticInsertOutcome::RetryLater);
         }
 
         let existing: Option<i32> = sqlx::query_scalar(
@@ -806,7 +807,7 @@ pub trait AgentDriftSqlLogic {
 
         if existing.is_some() {
             tx.commit().await.map_err(SqlError::SqlxError)?;
-            return Ok(false);
+            return Ok(SyntheticInsertOutcome::AlreadyExists);
         }
 
         sqlx::query(insert_eval_query)
@@ -817,12 +818,13 @@ pub trait AgentDriftSqlLogic {
             .bind(&synthetic_key)
             .bind(&synthetic_key)
             .bind(trace_id.as_bytes().as_slice())
+            .bind(EvalRecordSource::TraceDispatch.as_str())
             .bind(&tags)
             .execute(&mut *tx)
             .await
             .map_err(SqlError::SqlxError)?;
 
         tx.commit().await.map_err(SqlError::SqlxError)?;
-        Ok(true)
+        Ok(SyntheticInsertOutcome::Inserted)
     }
 }

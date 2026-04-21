@@ -12,19 +12,24 @@ pub struct BackgroundTraceEvalManager {
 }
 
 impl BackgroundTraceEvalManager {
+    fn effective_worker_count(requested_workers: usize) -> (usize, usize) {
+        let capped_workers = requested_workers.min(32);
+        let num_workers = capped_workers.min(1);
+        (capped_workers, num_workers)
+    }
+
     pub async fn start_workers(
         db_pool: &Pool<Postgres>,
         poll_settings: &TraceEvalPollerSettings,
         shutdown_rx: watch::Receiver<()>,
     ) -> Result<(), ServerError> {
-        let capped_workers = poll_settings.num_workers.min(32);
+        let (capped_workers, num_workers) = Self::effective_worker_count(poll_settings.num_workers);
         if capped_workers < poll_settings.num_workers {
             warn!(
                 "TRACE_EVAL_WORKER_COUNT capped at 32 (was {})",
                 poll_settings.num_workers
             );
         }
-        let num_workers = capped_workers.min(1);
         if num_workers < capped_workers {
             warn!(
                 "TRACE_EVAL_WORKER_COUNT forced to 1 for dispatch scanner path (was {})",
@@ -80,5 +85,31 @@ impl BackgroundTraceEvalManager {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BackgroundTraceEvalManager;
+
+    #[test]
+    fn effective_worker_count_zero() {
+        let (capped, workers) = BackgroundTraceEvalManager::effective_worker_count(0);
+        assert_eq!(capped, 0);
+        assert_eq!(workers, 0);
+    }
+
+    #[test]
+    fn effective_worker_count_one() {
+        let (capped, workers) = BackgroundTraceEvalManager::effective_worker_count(1);
+        assert_eq!(capped, 1);
+        assert_eq!(workers, 1);
+    }
+
+    #[test]
+    fn effective_worker_count_caps_and_forces_single() {
+        let (capped, workers) = BackgroundTraceEvalManager::effective_worker_count(64);
+        assert_eq!(capped, 32);
+        assert_eq!(workers, 1);
     }
 }

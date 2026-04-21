@@ -6,6 +6,7 @@ pub mod capabilities;
 pub mod dataset;
 pub mod docs;
 pub mod drift;
+pub mod eval_scenarios;
 pub mod health;
 pub mod profile;
 pub mod service_map;

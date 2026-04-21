@@ -198,6 +198,37 @@ impl PsiRecord {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub enum EvalRecordSource {
+    #[default]
+    User,
+    Queue,
+    TraceDispatch,
+}
+
+impl EvalRecordSource {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            EvalRecordSource::User => "user",
+            EvalRecordSource::Queue => "queue",
+            EvalRecordSource::TraceDispatch => "trace_dispatch",
+        }
+    }
+}
+
+impl FromStr for EvalRecordSource {
+    type Err = RecordError;
+
+    fn from_str(source: &str) -> Result<Self, Self::Err> {
+        match source.to_lowercase().as_str() {
+            "user" => Ok(EvalRecordSource::User),
+            "queue" => Ok(EvalRecordSource::Queue),
+            "trace_dispatch" => Ok(EvalRecordSource::TraceDispatch),
+            _ => Err(RecordError::InvalidDriftTypeError),
+        }
+    }
+}
+
 #[pyclass(from_py_object)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EvalRecord {
@@ -222,6 +253,8 @@ pub struct EvalRecord {
     pub entity_type: EntityType,
     pub retry_count: i32,
     pub trace_id: Option<TraceId>,
+    #[serde(default)]
+    pub record_source: EvalRecordSource,
     #[pyo3(get)]
     #[serde(default)]
     pub tags: Vec<String>,
@@ -368,6 +401,7 @@ impl EvalRecord {
             session_id: session_id.unwrap_or_else(create_uuid7),
             retry_count: 0,
             trace_id: None,
+            record_source: EvalRecordSource::User,
             tags: Vec::new(),
         }
     }
@@ -398,6 +432,7 @@ impl Default for EvalRecord {
             session_id: create_uuid7(),
             retry_count: 0,
             trace_id: None,
+            record_source: EvalRecordSource::User,
             tags: Vec::new(),
         }
     }
@@ -440,6 +475,11 @@ impl FromRow<'_, PgRow> for EvalRecord {
             entity_type: EntityType::Agent,
             retry_count: row.try_get("retry_count")?,
             trace_id,
+            record_source: row
+                .try_get::<String, &str>("record_source")
+                .ok()
+                .and_then(|value| EvalRecordSource::from_str(&value).ok())
+                .unwrap_or(EvalRecordSource::User),
             tags: row.try_get::<Vec<String>, &str>("tags").unwrap_or_default(),
         })
     }

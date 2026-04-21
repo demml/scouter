@@ -11,7 +11,7 @@ pub mod tag;
 pub mod trace;
 pub mod user;
 
-pub use agent::AgentDriftSqlLogic;
+pub use agent::{AgentDriftSqlLogic, SyntheticInsertOutcome};
 pub use alert::AlertSqlLogic;
 pub use archive::ArchiveSqlLogic;
 pub use custom::CustomMetricSqlLogic;

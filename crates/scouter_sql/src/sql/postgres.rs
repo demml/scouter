@@ -284,7 +284,7 @@ mod tests {
 
     use super::*;
     use crate::sql::schema::User;
-    use crate::sql::traits::EntitySqlLogic;
+    use crate::sql::traits::{EntitySqlLogic, SyntheticInsertOutcome};
     use chrono::{Duration, Utc};
     use potato_head::create_uuid7;
     use rand::Rng;
@@ -1064,6 +1064,10 @@ mod tests {
         // get pending task with space, name, version
         let task_input = &pending_tasks.as_ref().unwrap().context["input"];
         assert_eq!(*task_input, "This is a test input".to_string());
+        assert!(matches!(
+            pending_tasks.as_ref().unwrap().record_source,
+            EvalRecordSource::Queue
+        ));
 
         // reschedule task
         PostgresClient::reschedule_agent_eval_record(
@@ -1310,6 +1314,42 @@ mod tests {
             page1_first.id,
             "Should return to the same first record"
         );
+    }
+
+    #[tokio::test]
+    async fn test_postgres_insert_synthetic_eval_record_outcomes_and_source() {
+        let pool = db_pool().await;
+
+        let (_uid, entity_id) = PostgresClient::create_entity(
+            &pool,
+            SPACE,
+            NAME,
+            VERSION,
+            DriftType::Agent.to_string(),
+        )
+        .await
+        .unwrap();
+
+        let trace_id = [7_u8; 16];
+        let first = PostgresClient::insert_synthetic_eval_record(&pool, entity_id, &trace_id)
+            .await
+            .unwrap();
+        assert_eq!(first, SyntheticInsertOutcome::Inserted);
+
+        let second = PostgresClient::insert_synthetic_eval_record(&pool, entity_id, &trace_id)
+            .await
+            .unwrap();
+        assert_eq!(second, SyntheticInsertOutcome::AlreadyExists);
+
+        let pending = PostgresClient::get_pending_agent_eval_record(&pool)
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert!(matches!(
+            pending.record_source,
+            EvalRecordSource::TraceDispatch
+        ));
     }
 
     #[tokio::test]
