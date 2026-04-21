@@ -1,6 +1,7 @@
 use crate::api::archive::DataArchiver;
 use crate::api::polling::agent_poller::BackgroundAgentDriftManager;
 use crate::api::polling::drift_poller::BackgroundDriftManager;
+use crate::api::polling::trace_eval_poller::BackgroundTraceEvalManager;
 use anyhow::{Context, Result as AnyhowResult};
 use flume::Sender;
 use password_auth::generate_hash;
@@ -13,6 +14,7 @@ use scouter_dataframe::parquet::tracing::summary::TraceSummaryService;
 use scouter_dataframe::EvalScenarioService;
 use scouter_settings::{
     polling::AgentPollerSettings, DatabaseSettings, PollingSettings, ScouterServerConfig,
+    TraceEvalPollerSettings,
 };
 use scouter_sql::sql::schema::User;
 use scouter_sql::sql::traits::UserSqlLogic;
@@ -122,6 +124,14 @@ impl ScouterSetupComponents {
             )
             .await?;
         }
+
+        // Set up the trace eval poller workers
+        Self::setup_background_trace_eval_workers(
+            &db_pool,
+            &config.trace_eval_poller_settings,
+            tokio_shutdown_rx.clone(),
+        )
+        .await?;
 
         // Set up the background drift workers
         Self::setup_background_drift_workers(
@@ -511,6 +521,18 @@ impl ScouterSetupComponents {
     ) -> AnyhowResult<()> {
         BackgroundAgentDriftManager::start_workers(db_pool, poll_settings, shutdown_rx).await?;
         info!("✅ Started background genai workers");
+
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    async fn setup_background_trace_eval_workers(
+        db_pool: &Pool<Postgres>,
+        poll_settings: &TraceEvalPollerSettings,
+        shutdown_rx: tokio::sync::watch::Receiver<()>,
+    ) -> AnyhowResult<()> {
+        BackgroundTraceEvalManager::start_workers(db_pool, poll_settings, shutdown_rx).await?;
+        info!("✅ Started background trace eval workers");
 
         Ok(())
     }
