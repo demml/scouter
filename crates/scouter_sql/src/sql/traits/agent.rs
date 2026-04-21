@@ -4,9 +4,11 @@ use crate::sql::schema::BinnedMetricWrapper;
 use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
+use potato_head::create_uuid7;
 use scouter_dataframe::parquet::BinnedMetricsExtractor;
 use scouter_dataframe::parquet::ParquetDataFrame;
 use scouter_settings::ObjectStorageSettings;
+use scouter_types::agent::profile::AgentEvalProfile;
 use scouter_types::contracts::DriftRequest;
 use scouter_types::AgentEvalWorkflowPaginationResponse;
 use scouter_types::AgentEvalWorkflowResult;
@@ -20,7 +22,7 @@ use scouter_types::{
 };
 use sqlx::types::Json;
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use tracing::error;
 use tracing::{debug, instrument};
 
@@ -706,6 +708,76 @@ pub trait AgentDriftSqlLogic {
             .inspect_err(|e| {
                 error!("Failed to reschedule agent eval record: {:?}", e);
             })?;
+
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    async fn get_active_agent_profiles(
+        pool: &Pool<Postgres>,
+    ) -> Result<Vec<(i32, AgentEvalProfile)>, SqlError> {
+        let query = Queries::GetActiveAgentProfiles.get_query();
+
+        let rows: Vec<(i32, serde_json::Value)> = sqlx::query_as(query)
+            .fetch_all(pool)
+            .await
+            .map_err(SqlError::SqlxError)?;
+
+        rows.into_iter()
+            .map(|(entity_id, value)| {
+                let profile: AgentEvalProfile = serde_json::from_value(value)?;
+                Ok((entity_id, profile))
+            })
+            .collect()
+    }
+
+    #[instrument(skip_all)]
+    async fn get_known_trace_ids_for_entity(
+        pool: &Pool<Postgres>,
+        entity_id: i32,
+        lookback: DateTime<Utc>,
+    ) -> Result<HashSet<String>, SqlError> {
+        let query = Queries::GetKnownTraceIdsForEntity.get_query();
+
+        let rows = sqlx::query(query)
+            .bind(entity_id)
+            .bind(lookback)
+            .fetch_all(pool)
+            .await
+            .map_err(SqlError::SqlxError)?;
+
+        Ok(rows
+            .into_iter()
+            .filter_map(|row| row.try_get::<String, _>("trace_id_hex").ok())
+            .collect())
+    }
+
+    #[instrument(skip_all)]
+    async fn insert_synthetic_eval_record(
+        pool: &Pool<Postgres>,
+        entity_id: i32,
+        trace_id: &[u8],
+    ) -> Result<(), SqlError> {
+        let query = Queries::InsertEvalRecord.get_query();
+        let uid = create_uuid7();
+        let now = Utc::now();
+        let empty_context = serde_json::Value::Object(Default::default());
+        let record_id = create_uuid7();
+        let session_id = create_uuid7();
+        let tags: Vec<String> = Vec::new();
+
+        sqlx::query(query)
+            .bind(uid)
+            .bind(now)
+            .bind(entity_id)
+            .bind(Json(empty_context))
+            .bind(record_id)
+            .bind(session_id)
+            .bind(trace_id)
+            .bind(&tags)
+            .execute(pool)
+            .await
+            .map_err(SqlError::SqlxError)?;
 
         Ok(())
     }
