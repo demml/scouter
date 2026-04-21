@@ -720,19 +720,32 @@ def uninstrument() -> None:
 
 @contextmanager
 def active_profile(profile: "AgentEvalProfile") -> Generator[None, None, None]:
+    """Set the active agent eval profile in OTel baggage context.
+
+    This context manager attaches the profile's UID as OTel baggage under the
+    key ``scouter.entity.{profile.config.name}``. The baggage is propagated to
+    downstream spans and automatically detached on context exit.
+
+    If ``opentelemetry`` is not installed, the context manager is a no-op.
+
+    Args:
+        profile (AgentEvalProfile):
+            The agent eval profile to activate.
+    """
     try:
         from opentelemetry import baggage, context as context_api
-
-        key = f"scouter.entity.{profile.config.name}"
-        uid = profile.config.uid
-        ctx = baggage.set_baggage(key, uid, context=context_api.get_current())
-        token = context_api.attach(ctx)
-        try:
-            yield
-        finally:
-            context_api.detach(token)
     except ImportError:
         yield
+        return
+
+    key = f"scouter.entity.{profile.config.name}"
+    uid = profile.config.uid
+    ctx = baggage.set_baggage(key, uid, context=context_api.get_current())
+    token = context_api.attach(ctx)
+    try:
+        yield
+    finally:
+        context_api.detach(token)
 
 
 __all__ = [
