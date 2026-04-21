@@ -3150,6 +3150,48 @@ wheels = [
 ]
 
 [[package]]
+name = "openinference-instrumentation"
+version = "0.1.46"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "openinference-semantic-conventions" },
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-sdk" },
+    { name = "wrapt" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/64/8d/9b76b43e8b2ee2ccf1fe15b21c924095f9c0e4839919bcd4951b1c99c2ab/openinference_instrumentation-0.1.46.tar.gz", hash = "sha256:0b520002a1c682c525dcab49005c209bfd71611e8e4e4933b49779d5e899e6db", size = 23937, upload-time = "2026-03-04T10:13:48.883Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/25/d1/f6668492152a4180492044313e2dc427fbc237904f6bb1629abd030e3469/openinference_instrumentation-0.1.46-py3-none-any.whl", hash = "sha256:f7b63ccd5f93ce82e4e40035c9faa6b021984cbe06ad791f4cf033551533bc48", size = 30124, upload-time = "2026-03-04T10:13:47.613Z" },
+]
+
+[[package]]
+name = "openinference-instrumentation-crewai"
+version = "1.1.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "openinference-instrumentation" },
+    { name = "openinference-semantic-conventions" },
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-instrumentation" },
+    { name = "opentelemetry-semantic-conventions" },
+    { name = "typing-extensions" },
+    { name = "wrapt" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/44/ca/42599adfc31c4c1c814ba1ec08d0bf3c730df0c07de4b9f28be3fa67ed91/openinference_instrumentation_crewai-1.1.2.tar.gz", hash = "sha256:82c84df3aff19dc4f92790c4766ca3dc454e0bfd0e9d7cb210304f9f4fdf2d6f", size = 25935, upload-time = "2026-04-09T01:14:31.833Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/34/20/fae9e67bb6ad84e0d5ae3f866a856255f2749deb79528312d24551176974/openinference_instrumentation_crewai-1.1.2-py3-none-any.whl", hash = "sha256:4316283e8ce8a7facd884d18026b0b5d64c8de3080800ee6b25d6c3d1b20357b", size = 28783, upload-time = "2026-04-09T01:14:30.996Z" },
+]
+
+[[package]]
+name = "openinference-semantic-conventions"
+version = "0.1.28"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/df/32/c79bf8bd3ea5a00e492449b31ca600bbc2a8e88a301e42c872af925a156c/openinference_semantic_conventions-0.1.28.tar.gz", hash = "sha256:6388465174e8ab3f27ebc6a9e9bb2e1b804d30caefb57234e16db874da1c6a7b", size = 12893, upload-time = "2026-03-11T04:45:46.543Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/04/40/34b570462c3ce250277254bb0cca655eb39b64c0dffe63cd7751f103f8d6/openinference_semantic_conventions-0.1.28-py3-none-any.whl", hash = "sha256:a2fed5bb167aa56c1c7448cdb7a8d775f989339ba1f8b04a7b45d4f8388cccfb", size = 10522, upload-time = "2026-03-11T04:45:45.423Z" },
+]
+
+[[package]]
 name = "openpyxl"
 version = "3.1.5"
 source = { registry = "https://pypi.org/simple" }
@@ -5068,6 +5110,7 @@ dev = [
     { name = "maturin" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "openinference-instrumentation-crewai" },
     { name = "pandas", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "pandas", version = "3.0.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pandas-stubs" },
@@ -5109,6 +5152,7 @@ dev = [
     { name = "isort", specifier = ">=5.13.2,<6.0.0" },
     { name = "maturin", specifier = ">=1.4.0,<2.0.0" },
     { name = "numpy", marker = "python_full_version >= '3.10'", specifier = ">1.24.4" },
+    { name = "openinference-instrumentation-crewai", specifier = ">=1.1.2" },
     { name = "pandas", marker = "python_full_version < '3.10'", specifier = ">=1.5.3,<3.0.0" },
     { name = "pandas", marker = "python_full_version >= '3.10'", specifier = ">=2.2.2" },
     { name = "pandas-stubs", specifier = ">=1.5.3.230214,<3.0.0" },

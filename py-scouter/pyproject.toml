@@ -50,6 +50,7 @@ dev = [
     "pytest-asyncio>=1.3.0",
     "crewai>=1.6.1",
     "ty>=0.0.29",
+    "openinference-instrumentation-crewai>=1.1.2",
 ]
 docs = [
     "mkdocs-material >= 9.5.4, < 10.0.0",

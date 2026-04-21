@@ -16,7 +16,7 @@ use tokio::task::JoinHandle;
 use tokio::time::timeout;
 use tokio::time::{sleep, Duration};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, info_span, Instrument};
+use tracing::{debug, debug_span, error, info, Instrument};
 pub trait FeatureQueue: Send + Sync {
     fn create_drift_records_from_batch<T: QueueExt>(
         &self,
@@ -40,7 +40,7 @@ pub trait BackgroundTask: Send + Sync + 'static {
         task_state: TaskState<Event>,
         cancellation_token: CancellationToken,
     ) -> Result<JoinHandle<()>, EventError> {
-        let span = info_span!("background_task", task = %identifier);
+        let span = debug_span!("background_task", task = %identifier);
 
         let future = async move {
             debug!("Starting background task for {}", identifier);
