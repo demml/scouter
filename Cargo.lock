@@ -6762,6 +6762,7 @@ dependencies = [
  "scouter-tonic",
  "scouter-types",
  "serde_json",
+ "sqlx",
  "tempfile",
  "thiserror 2.0.18",
  "tokio",

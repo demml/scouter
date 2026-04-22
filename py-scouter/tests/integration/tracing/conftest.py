@@ -28,9 +28,9 @@ def _wait_for_export(seconds: float = 3.0) -> None:
 
 
 @pytest.fixture()
-def setup_scouter_trace_provider():
+def setup_scouter_trace_provider(isolated_server_config):
     """Initialize tracer with grpc exporter for each test."""
-    with ScouterTestServer() as server:
+    with ScouterTestServer(**isolated_server_config) as server:
         provider = TracerProvider(
             transport_config=GrpcConfig(),
             batch_config=BatchConfig(scheduled_delay_ms=200),
@@ -52,15 +52,15 @@ def http_span_exporter():
 
 
 @pytest.fixture()
-def http_scouter_server():
-    with ScouterTestServer() as server:
+def http_scouter_server(isolated_server_config):
+    with ScouterTestServer(**isolated_server_config) as server:
         yield server
 
 
 @pytest.fixture()
-def setup_tracer_http(http_span_exporter):
+def setup_tracer_http(http_span_exporter, isolated_server_config):
     """Initialize tracer with http exporter for each test."""
-    with ScouterTestServer() as server:
+    with ScouterTestServer(**isolated_server_config) as server:
         init_tracer(
             service_name="tracing-http",
             exporter=http_span_exporter,
@@ -80,9 +80,9 @@ def grpc_span_exporter():
 
 
 @pytest.fixture()
-def setup_tracer_grpc(grpc_span_exporter):
+def setup_tracer_grpc(grpc_span_exporter, isolated_server_config):
     """Initialize tracer with grpc exporter for each test."""
-    with ScouterTestServer() as server:
+    with ScouterTestServer(**isolated_server_config) as server:
         init_tracer(
             service_name="tracing-grpc",
             transport_config=GrpcConfig(),
@@ -95,9 +95,9 @@ def setup_tracer_grpc(grpc_span_exporter):
 
 
 @pytest.fixture()
-def setup_tracer_grpc_sample():
+def setup_tracer_grpc_sample(isolated_server_config):
     """Initialize tracer with grpc exporter for each test."""
-    with ScouterTestServer() as server:
+    with ScouterTestServer(**isolated_server_config) as server:
         init_tracer(
             service_name="tracing-grpc-sample",
             transport_config=GrpcConfig(),
@@ -163,7 +163,7 @@ DEFAULT_TEST_ATTRIBUTES = {"env": "test", "provider": "scouter", "version": "1.0
 
 
 @pytest.fixture()
-def setup_instrumentor_http():
+def setup_instrumentor_http(isolated_server_config):
     """Set up ScouterInstrumentor with HTTP transport (no external OTLP exporter).
 
     This exercises the full instrument() -> trace -> uninstrument() path
@@ -171,7 +171,7 @@ def setup_instrumentor_http():
     """
     # Ensure no singleton state leaks in from a previous test.
     ScouterInstrumentor._instance = None
-    with ScouterTestServer() as server:
+    with ScouterTestServer(**isolated_server_config) as server:
         instrumentor = ScouterInstrumentor()
         instrumentor.instrument(
             transport_config=GrpcConfig(),
@@ -184,14 +184,14 @@ def setup_instrumentor_http():
 
 
 @pytest.fixture()
-def setup_instrumentor_with_default_attrs():
+def setup_instrumentor_with_default_attrs(isolated_server_config):
     """Set up ScouterInstrumentor with default attributes and gRPC transport.
 
     Exercises default_attributes propagation: every span created through this
     provider must carry the declared key-value pairs as span attributes.
     """
     ScouterInstrumentor._instance = None
-    with ScouterTestServer() as server:
+    with ScouterTestServer(**isolated_server_config) as server:
         instrumentor = ScouterInstrumentor()
         instrumentor.instrument(
             transport_config=GrpcConfig(),

@@ -48,7 +48,6 @@ def test_api_kafka(kafka_scouter_server):
             )
         assert response.status_code == 200
         time.sleep(5)
-        client.wait_shutdown()  # type: ignore
 
     request = DriftRequest(
         uid=profile.uid,
@@ -104,7 +103,6 @@ def test_api_http(http_scouter_server):
             )
         assert response.status_code == 200
         time.sleep(5)
-        client.wait_shutdown()  # type: ignore
 
     request = DriftRequest(
         uid=profile.uid,

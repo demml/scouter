@@ -148,8 +148,8 @@ def dataset_server():
 
 
 @pytest.fixture()
-def scouter_server():
-    with ScouterTestServer() as server:
+def scouter_server(isolated_server_config):
+    with ScouterTestServer(**isolated_server_config) as server:
         yield server
 
 

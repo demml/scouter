@@ -168,10 +168,13 @@ def _run_mock_agent_workflow(tracer: Any, agent_name: str) -> str:
         return str(span.trace_id)
 
 
-def test_trace_eval_dispatch_from_auto_instrumented_trace(_fast_trace_eval_env: None):
+def test_trace_eval_dispatch_from_auto_instrumented_trace(
+    _fast_trace_eval_env: None,
+    isolated_server_config,
+):
     profile = _make_trace_profile(f"trace_eval_auto_{uuid.uuid4().hex[:8]}")
 
-    with ScouterTestServer() as _server:
+    with ScouterTestServer(**isolated_server_config) as _server:
         base_url = _server_url()
         session = _auth_session(base_url)
 
@@ -207,11 +210,14 @@ def test_trace_eval_dispatch_from_auto_instrumented_trace(_fast_trace_eval_env: 
             instrumentor.uninstrument()
 
 
-def test_trace_eval_dispatch_multi_agent_active_profile_switching(_fast_trace_eval_env: None):
+def test_trace_eval_dispatch_multi_agent_active_profile_switching(
+    _fast_trace_eval_env: None,
+    isolated_server_config,
+):
     profile_a = _make_trace_profile(f"trace_eval_alpha_{uuid.uuid4().hex[:8]}")
     profile_b = _make_trace_profile(f"trace_eval_beta_{uuid.uuid4().hex[:8]}")
 
-    with ScouterTestServer() as _server:
+    with ScouterTestServer(**isolated_server_config) as _server:
         base_url = _server_url()
         session = _auth_session(base_url)
 
