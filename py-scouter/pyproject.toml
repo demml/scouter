@@ -51,6 +51,7 @@ dev = [
     "crewai>=1.6.1",
     "ty>=0.0.29",
     "openinference-instrumentation-crewai>=1.1.2",
+    "openai-agents>=0.14.4",
 ]
 docs = [
     "mkdocs-material >= 9.5.4, < 10.0.0",

@@ -1,0 +1,18 @@
+tasks:
+  - task_type: Assertion
+    id: response_is_string
+    context_path: response
+    operator: IsString
+    expected_value: true
+    description: Validate that each turn returns a textual response.
+    depends_on: []
+    condition: false
+  - task_type: TraceAssertion
+    id: trace_latency_budget
+    operator: LessThan
+    expected_value: 7000.0
+    description: Validate that interactive traces stay under 7 seconds.
+    depends_on: []
+    condition: false
+    assertion:
+      TraceDuration: {}

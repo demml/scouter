@@ -1,0 +1,5 @@
+model: gemini-2.5-flash
+provider: Google
+messages:
+  - "You are a practical assistant. Ask clarifying questions when needed, then provide actionable final guidance."
+

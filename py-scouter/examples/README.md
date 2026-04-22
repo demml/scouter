@@ -1,39 +1,22 @@
-# Scouter Python Examples
+# Examples
 
-Runnable examples covering the three main Scouter workflows: data profiling, online drift monitoring, and offline GenAI evaluation.
+If you are working on agent evaluation, start with `examples/evaluate/simple`.
 
-## Prerequisites
+That folder keeps the contract tight:
 
-- A running Scouter server (see [server setup](../docs/docs/server/index.md))
-- Python 3.10+, managed via `uv`
+- shared `prompt.yaml`
+- shared `task.yaml`
+- shared `scenarios.jsonl`
+- one shared `setup.py`
+- one framework-specific eval runner per agent framework
 
-```bash
-# From py-scouter/
-make setup.project   # builds the Rust extension and syncs Python deps
-```
+## Recommended paths
 
-Point the client at your server:
-
-```bash
-export SCOUTER_SERVER_URI=http://localhost:8000
-export SCOUTER_USERNAME=admin
-export SCOUTER_PASSWORD=admin
-```
-
-## Examples
-
-| Directory | What it covers |
-|-----------|---------------|
-| [`profile/`](profile/) | Computing a `DataProfile` from a Pandas DataFrame |
-| [`monitor/`](monitor/) | Online drift monitoring via a live FastAPI service |
-| [`evaluate/`](evaluate/) | Offline batch GenAI evaluation with `AssertionTask` and `LLMJudgeTask` |
-
-## Running an example
-
-```bash
-cd py-scouter
-uv run python examples/profile/pandas_dataframe.py
-uv run python examples/evaluate/customer_support.py
-```
-
-For the FastAPI monitor examples, a running server is required and the profile must be registered first — see the [`monitor/` README](monitor/README.md).
+| Path | Use it for |
+|---|---|
+| `examples/evaluate/simple/` | Canonical single-agent offline eval examples for ADK, CrewAI, and OpenAI Agents SDK |
+| `examples/evaluate/multi_agent/` | Multi-agent CrewAI reference example |
+| `examples/evaluate/react/adk/` | Reactive ADK evaluation pattern |
+| `examples/tracing/` | Tracing-only setup and framework instrumentation |
+| `examples/monitor/` | Drift monitoring examples |
+| `examples/profile/` | Profile creation examples |
