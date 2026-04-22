@@ -44,6 +44,20 @@ def _simple_profile(alias="agent"):
     )
 
 
+def _trace_only_profile(alias="agent"):
+    return AgentEvalProfile(
+        tasks=[
+            TraceAssertionTask(
+                id="trace_only_span_exists",
+                assertion=TraceAssertion.span_count(SpanFilter.by_name("trace_only_work")),
+                operator=ComparisonOperator.GreaterThanOrEqual,
+                expected_value=1,
+            ),
+        ],
+        alias=alias,
+    )
+
+
 def _simple_scenarios(queries):
     return EvalScenarios(
         scenarios=[
@@ -482,6 +496,57 @@ def test_on_evaluation_complete_return_value_used():
             return sentinel
 
     assert CustomOrch(queue, _single_scenario()).run() is sentinel
+
+
+def test_trace_only_eval_synthesizes_offline_dispatch_record():
+    """Trace-only spans (no queue record) should synthesize one eval record offline."""
+    profile = _trace_only_profile()
+    queue = _make_queue(profile)
+    scenarios = _single_scenario()
+    tracer = init_tracer(
+        service_name="trace-only-offline",
+        scouter_queue=queue,
+        transport_config=MockConfig(),
+        exporter=TestSpanExporter(batch_export=False),
+    )
+
+    entity_key = f"scouter.entity.{profile.config.uid}"
+
+    def trace_only_agent(_query):
+        with tracer.start_as_current_span("trace_only_work") as span:
+            span.set_attribute(entity_key, profile.config.uid)
+        return "trace-only response"
+
+    results = EvalOrchestrator(queue=queue, scenarios=scenarios, agent_fn=trace_only_agent).run()
+    assert "agent" in results.dataset_results
+    dataset_results = results.dataset_results["agent"]
+    assert dataset_results.successful_count + dataset_results.failed_count == 1
+
+
+def test_trace_only_eval_does_not_duplicate_queue_backed_trace():
+    """Queue-backed traces should not receive an additional synthetic offline record."""
+    profile = _trace_only_profile()
+    queue = _make_queue(profile)
+    scenarios = _single_scenario()
+    tracer = init_tracer(
+        service_name="trace-only-offline-queue",
+        scouter_queue=queue,
+        transport_config=MockConfig(),
+        exporter=TestSpanExporter(batch_export=False),
+    )
+
+    entity_key = f"scouter.entity.{profile.config.uid}"
+
+    def queue_backed_agent(_query):
+        with tracer.start_as_current_span("trace_only_work") as span:
+            span.set_attribute(entity_key, profile.config.uid)
+            span.add_queue_item("agent", EvalRecord(context={"response": "ok"}, id="queue-record"))
+        return "queue-backed response"
+
+    results = EvalOrchestrator(queue=queue, scenarios=scenarios, agent_fn=queue_backed_agent).run()
+    assert "agent" in results.dataset_results
+    dataset_results = results.dataset_results["agent"]
+    assert dataset_results.successful_count + dataset_results.failed_count == 1
 
 
 # ---------------------------------------------------------------------------
