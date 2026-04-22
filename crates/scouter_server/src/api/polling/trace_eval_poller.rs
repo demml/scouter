@@ -12,10 +12,8 @@ pub struct BackgroundTraceEvalManager {
 }
 
 impl BackgroundTraceEvalManager {
-    fn effective_worker_count(requested_workers: usize) -> (usize, usize) {
-        let capped_workers = requested_workers.min(32);
-        let num_workers = capped_workers.min(1);
-        (capped_workers, num_workers)
+    fn effective_worker_count(requested_workers: usize) -> usize {
+        if requested_workers > 0 { 1 } else { 0 }
     }
 
     pub async fn start_workers(
@@ -23,17 +21,11 @@ impl BackgroundTraceEvalManager {
         poll_settings: &TraceEvalPollerSettings,
         shutdown_rx: watch::Receiver<()>,
     ) -> Result<(), ServerError> {
-        let (capped_workers, num_workers) = Self::effective_worker_count(poll_settings.num_workers);
-        if capped_workers < poll_settings.num_workers {
-            warn!(
-                "TRACE_EVAL_WORKER_COUNT capped at 32 (was {})",
-                poll_settings.num_workers
-            );
-        }
-        if num_workers < capped_workers {
+        let num_workers = Self::effective_worker_count(poll_settings.num_workers);
+        if poll_settings.num_workers > 1 {
             warn!(
                 "TRACE_EVAL_WORKER_COUNT forced to 1 for dispatch scanner path (was {})",
-                capped_workers
+                poll_settings.num_workers
             );
         }
         info!("Starting {} trace eval poller workers", num_workers);
@@ -94,22 +86,19 @@ mod tests {
 
     #[test]
     fn effective_worker_count_zero() {
-        let (capped, workers) = BackgroundTraceEvalManager::effective_worker_count(0);
-        assert_eq!(capped, 0);
+        let workers = BackgroundTraceEvalManager::effective_worker_count(0);
         assert_eq!(workers, 0);
     }
 
     #[test]
     fn effective_worker_count_one() {
-        let (capped, workers) = BackgroundTraceEvalManager::effective_worker_count(1);
-        assert_eq!(capped, 1);
+        let workers = BackgroundTraceEvalManager::effective_worker_count(1);
         assert_eq!(workers, 1);
     }
 
     #[test]
-    fn effective_worker_count_caps_and_forces_single() {
-        let (capped, workers) = BackgroundTraceEvalManager::effective_worker_count(64);
-        assert_eq!(capped, 32);
+    fn effective_worker_count_forces_single() {
+        let workers = BackgroundTraceEvalManager::effective_worker_count(64);
         assert_eq!(workers, 1);
     }
 }
