@@ -23,7 +23,7 @@ from scouter.evaluate import (
 )
 from scouter.mock import MockConfig
 from scouter.queue import ScouterQueue
-from scouter.tracing import ScouterInstrumentor, TestSpanExporter, init_tracer
+from scouter.tracing import ScouterInstrumentor, TestSpanExporter, active_profile, init_tracer
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -93,6 +93,13 @@ def _single_scenario():
 
 def _three_scenarios():
     return _simple_scenarios(["Q1", "Q2", "Q3"])
+
+
+def _get_attr_value(span_attributes, key):
+    for attr in span_attributes:
+        if attr.key == key:
+            return attr.value
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -514,13 +521,13 @@ def test_trace_only_eval_synthesizes_offline_dispatch_record():
 
     def trace_only_agent(_query):
         with tracer.start_as_current_span("trace_only_work") as span:
+            span.set_attribute("scouter.eval.scenario_id", "scenario_1")
             span.set_attribute(entity_key, profile.config.uid)
         return "trace-only response"
 
     results = EvalOrchestrator(queue=queue, scenarios=scenarios, agent_fn=trace_only_agent).run()
-    assert "agent" in results.dataset_results
-    dataset_results = results.dataset_results["agent"]
-    assert dataset_results.successful_count + dataset_results.failed_count == 1
+    assert results.metrics.total_scenarios == 1
+    assert results.metrics.passed_scenarios == 1
 
 
 def test_trace_only_eval_does_not_duplicate_queue_backed_trace():
@@ -539,14 +546,108 @@ def test_trace_only_eval_does_not_duplicate_queue_backed_trace():
 
     def queue_backed_agent(_query):
         with tracer.start_as_current_span("trace_only_work") as span:
+            span.set_attribute("scouter.eval.scenario_id", "scenario_1")
             span.set_attribute(entity_key, profile.config.uid)
             span.add_queue_item("agent", EvalRecord(context={"response": "ok"}, id="queue-record"))
         return "queue-backed response"
 
     results = EvalOrchestrator(queue=queue, scenarios=scenarios, agent_fn=queue_backed_agent).run()
-    assert "agent" in results.dataset_results
-    dataset_results = results.dataset_results["agent"]
-    assert dataset_results.successful_count + dataset_results.failed_count == 1
+    assert results.metrics.total_scenarios == 1
+    assert results.metrics.passed_scenarios == 1
+
+
+def test_eval_orchestrator_instrumentor_auto_sets_default_entity_uid():
+    """ScouterInstrumentor should auto-tag spans with default profile entity UID."""
+    profile = _trace_only_profile("agent")
+    queue = _make_queue(profile)
+    scenarios = _single_scenario()
+    instrumentor = ScouterInstrumentor()
+    instrumentor.instrument(
+        scouter_queue=queue,
+        exporter=TestSpanExporter(batch_export=False),
+        eval_profiles=[profile],
+    )
+    from opentelemetry import trace
+
+    tracer = trace.get_tracer("trace-only-auto-entity")
+    seen_trace_ids = []
+
+    class AutoEntityOrchestrator(EvalOrchestrator):
+        def on_scenario_complete(self, scenario, response):
+            seen_trace_ids.append(response)
+            spans = instrumentor.get_local_spans_by_trace_ids([response])
+            entity_key = f"scouter.entity.{profile.config.uid}"
+            agent_spans = [span for span in spans if span.span_name == "trace_only_work"]
+            assert len(agent_spans) == 1, f"Expected 1 agent span for trace {response}, found {len(agent_spans)}"
+            assert any(
+                str(_get_attr_value(span.attributes, entity_key)) == profile.config.uid for span in spans
+            ), "Expected instrumentor to set default entity UID span attribute automatically"
+
+    def trace_only_agent(_query):
+        with tracer.start_as_current_span("trace_only_work") as span:
+            return format(span.get_span_context().trace_id, "032x")
+
+    try:
+        AutoEntityOrchestrator(queue=queue, scenarios=scenarios, agent_fn=trace_only_agent).run()
+        assert len(seen_trace_ids) == 1
+    finally:
+        instrumentor.uninstrument()
+
+
+def test_multi_agent_offline_active_profile_switching_sets_distinct_entity_uids_without_dup():
+    """active_profile should switch entity UID tags across traces with no duplicate synthetic records."""
+    profile_a = _trace_only_profile("alpha")
+    profile_b = _trace_only_profile("beta")
+    queue = _make_queue([profile_a, profile_b])
+    scenarios = _simple_scenarios(["alpha query", "beta query"])
+    instrumentor = ScouterInstrumentor()
+    instrumentor.instrument(
+        scouter_queue=queue,
+        exporter=TestSpanExporter(batch_export=False),
+        eval_profiles=[profile_a, profile_b],
+        propagate_baggage=True,
+    )
+    from opentelemetry import trace
+
+    tracer = trace.get_tracer("trace-only-active-profile-switch")
+
+    expected_profile_by_scenario = {
+        "scenario_1": profile_a,
+        "scenario_2": profile_b,
+    }
+    seen_trace_ids = []
+
+    class ProfileSwitchOrchestrator(EvalOrchestrator):
+        def on_scenario_complete(self, scenario, response):
+            seen_trace_ids.append(response)
+            spans = instrumentor.get_local_spans_by_trace_ids([response])
+            expected = expected_profile_by_scenario[scenario.id]
+            expected_key = f"scouter.entity.{expected.config.uid}"
+            other = profile_b if expected.alias == "alpha" else profile_a
+            other_key = f"scouter.entity.{other.config.uid}"
+            agent_spans = [span for span in spans if span.span_name == "trace_only_work"]
+            assert len(agent_spans) == 1, f"Expected 1 agent span for trace {response}, found {len(agent_spans)}"
+            assert any(
+                str(_get_attr_value(span.attributes, expected_key)) == expected.config.uid for span in spans
+            ), f"Expected {expected.alias} entity UID to be present on scenario trace"
+            assert not any(
+                str(_get_attr_value(span.attributes, other_key)) == other.config.uid for span in spans
+            ), f"Did not expect {other.alias} entity UID on {expected.alias} trace"
+
+    def switched_agent(query):
+        if query == "beta query":
+            with active_profile(profile_b):
+                with tracer.start_as_current_span("trace_only_work") as span:
+                    return format(span.get_span_context().trace_id, "032x")
+        with tracer.start_as_current_span("trace_only_work") as span:
+            return format(span.get_span_context().trace_id, "032x")
+
+    try:
+        ProfileSwitchOrchestrator(queue=queue, scenarios=scenarios, agent_fn=switched_agent).run()
+        assert len(seen_trace_ids) == 2
+        assert len(set(seen_trace_ids)) == 2
+    finally:
+        instrumentor.uninstrument()
 
 
 # ---------------------------------------------------------------------------
