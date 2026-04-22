@@ -43,11 +43,11 @@ use scouter_settings::grpc::GrpcConfig;
 
 use scouter_types::SCOUTER_QUEUE_RECORD;
 use scouter_types::{
-    pyobject_to_otel_value, pyobject_to_tracing_json, EntityType, TraceId as ScouterTraceId,
-    TraceSpanRecord, BAGGAGE_PREFIX, EXCEPTION_TRACEBACK, SCOUTER_ACTIVE_ENTITY_UID_BAGGAGE_KEY,
-    SCOUTER_ENTITY, SCOUTER_QUEUE_EVENT, SCOUTER_SCOPE, SCOUTER_SCOPE_DEFAULT, SCOUTER_TAG_PREFIX,
-    SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL, SCOUTER_TRACING_OUTPUT, SPAN_ERROR,
-    TRACE_START_TIME_KEY,
+    pyobject_to_otel_value, pyobject_to_tracing_json, EntityType, EvalRecord,
+    TraceId as ScouterTraceId, TraceSpanRecord, BAGGAGE_PREFIX, EXCEPTION_TRACEBACK,
+    SCOUTER_ACTIVE_ENTITY_UID_BAGGAGE_KEY, SCOUTER_ENTITY, SCOUTER_QUEUE_EVENT, SCOUTER_SCOPE,
+    SCOUTER_SCOPE_DEFAULT, SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL,
+    SCOUTER_TRACING_OUTPUT, SPAN_ERROR, TRACE_START_TIME_KEY,
 };
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
@@ -459,6 +459,14 @@ impl ActiveSpan {
                 true => {
                     if let Some(queue) = &inner.queue {
                         let bound_queue = queue.bind(py).get_item(&alias)?;
+                        if let Ok(py_record) = item.cast::<EvalRecord>() {
+                            let mut borrowed = py_record.borrow_mut();
+                            if borrowed.trace_id.is_none() {
+                                borrowed.trace_id = Some(ScouterTraceId::from_bytes(
+                                    inner.span.span_context().trace_id().to_bytes(),
+                                ));
+                            }
+                        }
 
                         // insert into queue
                         bound_queue.call_method1("insert", (item,))?;

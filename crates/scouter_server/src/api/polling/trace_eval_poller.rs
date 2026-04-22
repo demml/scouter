@@ -13,7 +13,11 @@ pub struct BackgroundTraceEvalManager {
 
 impl BackgroundTraceEvalManager {
     fn effective_worker_count(requested_workers: usize) -> usize {
-        if requested_workers > 0 { 1 } else { 0 }
+        if requested_workers > 0 {
+            1
+        } else {
+            0
+        }
     }
 
     pub async fn start_workers(

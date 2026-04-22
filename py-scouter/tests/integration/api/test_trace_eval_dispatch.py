@@ -8,15 +8,26 @@ from typing import Any
 import pytest
 import requests
 from opentelemetry import trace
+from scouter import ScouterQueue
 from scouter.client import ScouterClient
 from scouter.drift import AgentEvalConfig, AgentEvalProfile, ComparisonOperator
-from scouter.evaluate import SpanFilter, TraceAssertion, TraceAssertionTask
+from scouter.evaluate import (
+    AssertionTask,
+    EvalRecord,
+    SpanFilter,
+    TraceAssertion,
+    TraceAssertionTask,
+)
 from scouter.mock import ScouterTestServer
 from scouter.tracing import (
     BatchConfig,
     GrpcSpanExporter,
     ScouterInstrumentor,
+    Tracer,
     active_profile,
+    get_tracer,
+    init_tracer,
+    shutdown_tracer,
 )
 from scouter.transport import GrpcConfig
 
@@ -30,6 +41,7 @@ def _fast_trace_eval_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GENAI_TRACE_WAIT_TIMEOUT_SECS", "2")
     monkeypatch.setenv("GENAI_TRACE_BACKOFF_MILLIS", "50")
     monkeypatch.setenv("GENAI_TRACE_RESCHEDULE_DELAY_SECS", "1")
+    monkeypatch.setenv("SCOUTER_QUEUE_PUBLISH_INTERVAL_SECS", "1")
     monkeypatch.setenv("SCOUTER_TRACE_REFRESH_INTERVAL_SECS", "1")
 
 
@@ -51,7 +63,11 @@ def _server_url() -> str:
     return os.environ.get("SCOUTER_SERVER_URI", "http://localhost:3000")
 
 
-def _make_trace_profile(name: str) -> AgentEvalProfile:
+def _make_trace_profile(
+    name: str,
+    *,
+    span_name: str = "mock_agent_workflow",
+) -> AgentEvalProfile:
     return AgentEvalProfile(
         config=AgentEvalConfig(
             space="scouter",
@@ -62,7 +78,7 @@ def _make_trace_profile(name: str) -> AgentEvalProfile:
         tasks=[
             TraceAssertionTask(
                 id="has_workflow_span",
-                assertion=TraceAssertion.span_exists(SpanFilter.by_name("mock_agent_workflow")),
+                assertion=TraceAssertion.span_exists(SpanFilter.by_name(span_name)),
                 expected_value=True,
                 operator=ComparisonOperator.Equals,
             ),
@@ -76,13 +92,32 @@ def _make_trace_profile(name: str) -> AgentEvalProfile:
     )
 
 
+def _make_queue_profile(name: str) -> AgentEvalProfile:
+    return AgentEvalProfile(
+        config=AgentEvalConfig(
+            space="scouter",
+            name=name,
+            version="0.1.0",
+            sample_ratio=1.0,
+        ),
+        tasks=[
+            AssertionTask(
+                id="assertion_ok",
+                expected_value=10,
+                context_path="assertion",
+                operator=ComparisonOperator.Equals,
+            ),
+        ],
+    )
+
+
 def _query_agent_eval_records(
     session: requests.Session,
     base_url: str,
     profile: AgentEvalProfile,
     status: str | None = "Processed",
 ) -> list[dict[str, Any]]:
-    body = {
+    body: dict[str, Any] = {
         "service_info": {"space": profile.config.space, "uid": profile.uid},
         "limit": 200,
     }
@@ -308,6 +343,69 @@ def _wait_for_processed_trace_evals(
     )
 
 
+def _normalize_record_source(value: Any) -> str:
+    return str(value or "").replace("_", "").lower()
+
+
+def _wait_for_processed_agent_evals(
+    session: requests.Session,
+    base_url: str,
+    profile: AgentEvalProfile,
+    trace_ids: list[str],
+    scouter_client: ScouterClient,
+    expected_tasks: set[str],
+    expected_source: str,
+    timeout_secs: float = 90.0,
+    related_profiles: list[AgentEvalProfile] | None = None,
+) -> dict[str, dict[str, Any]]:
+    wanted = set(trace_ids)
+    deadline = time.time() + timeout_secs
+    normalized_source = _normalize_record_source(expected_source)
+
+    while time.time() < deadline:
+        records = _query_agent_eval_records(session, base_url, profile)
+        matched: dict[str, dict[str, Any]] = {}
+        counts: Counter[str] = Counter()
+
+        for record in records:
+            trace_id = record.get("trace_id")
+            if trace_id not in wanted:
+                continue
+            if _normalize_record_source(record.get("record_source")) != normalized_source:
+                continue
+
+            counts[trace_id] += 1
+            record_uid = record.get("uid") or record.get("record_uid")
+            if not record_uid:
+                continue
+
+            tasks = _query_agent_tasks(session, base_url, record_uid)
+            pass_map = _task_pass_map(tasks)
+            if expected_tasks.issubset(pass_map.keys()) and all(pass_map[task] for task in expected_tasks):
+                matched[trace_id] = record
+
+        if len(matched) == len(wanted):
+            for trace_id in wanted:
+                assert counts[trace_id] == 1, f"Duplicate eval records found for trace_id={trace_id}"
+            return matched
+
+        time.sleep(1.0)
+
+    debug_state = _collect_trace_eval_debug_state(
+        session,
+        base_url,
+        profile,
+        trace_ids,
+        scouter_client,
+        related_profiles=related_profiles,
+    )
+    raise AssertionError(
+        "Timed out waiting for processed agent eval records "
+        f"for traces={sorted(wanted)} profile={profile.config.name} expected_source={expected_source}\n"
+        f"debug_state={json.dumps(debug_state, indent=2, sort_keys=True)}"
+    )
+
+
 def _get_attr_value(span_attributes: list[Any], key: str) -> Any:
     for attr in span_attributes:
         if attr.key == key:
@@ -320,6 +418,44 @@ def _run_mock_agent_workflow(tracer: Any, agent_name: str) -> str:
         span.set_attribute("agent.name", agent_name)
         span.set_attribute("workflow.kind", "integration_test")
         return str(span.trace_id)
+
+
+def _run_mixed_agent_workflow(
+    tracer: Tracer,
+    planner_profile: AgentEvalProfile,
+) -> str:
+    with tracer.start_as_current_span("agent_1_orchestrator") as orchestrator_span:
+        orchestrator_span.set_attribute("agent.name", "orchestrator")
+        orchestrator_span.set_attribute("workflow.kind", "integration_test")
+        orchestrator_span.add_queue_item(
+            alias="orchestrator",
+            item=EvalRecord(
+                context={
+                    "agent": "orchestrator",
+                    "assertion": 10,
+                },
+            ),
+        )
+
+        with active_profile(planner_profile):
+            with tracer.start_as_current_span("agent_2_planner") as planner_span:
+                planner_span.set_attribute("agent.name", "planner")
+                planner_span.set_attribute("workflow.kind", "integration_test")
+
+        with tracer.start_as_current_span("agent_3_analyzer") as analyzer_span:
+            analyzer_span.set_attribute("agent.name", "analyzer")
+            analyzer_span.set_attribute("workflow.kind", "integration_test")
+            analyzer_span.add_queue_item(
+                alias="analyzer",
+                item=EvalRecord(
+                    context={
+                        "agent": "analyzer",
+                        "assertion": 10,
+                    },
+                ),
+            )
+
+        return str(orchestrator_span.trace_id)
 
 
 def test_trace_eval_dispatch_from_auto_instrumented_trace(
@@ -482,3 +618,144 @@ def test_trace_eval_dispatch_multi_agent_active_profile_switching(
             assert sum(1 for record in records_b_after if record.get("trace_id") == trace_id_b) == 1
         finally:
             instrumentor.uninstrument()
+
+
+def test_trace_eval_dispatch_mixed_queue_and_synthetic_entities(
+    _fast_trace_eval_env: None,
+    isolated_server_config,
+):
+    orchestrator_profile = _make_queue_profile(f"trace_eval_orchestrator_{uuid.uuid4().hex[:8]}")
+    planner_profile = _make_trace_profile(
+        f"trace_eval_planner_{uuid.uuid4().hex[:8]}",
+        span_name="agent_2_planner",
+    )
+    analyzer_profile = _make_queue_profile(f"trace_eval_analyzer_{uuid.uuid4().hex[:8]}")
+
+    with ScouterTestServer(**isolated_server_config) as _server:
+        base_url = _server_url()
+        session = _auth_session(base_url)
+        scouter_client = ScouterClient()
+
+        assert scouter_client.register_profile(orchestrator_profile, set_active=True, deactivate_others=False)
+        assert scouter_client.register_profile(planner_profile, set_active=True, deactivate_others=False)
+        assert scouter_client.register_profile(analyzer_profile, set_active=True, deactivate_others=False)
+
+        base_path = isolated_server_config["base_path"]
+        orchestrator_path = orchestrator_profile.save_to_json(
+            base_path / f"{orchestrator_profile.config.uid}_orchestrator"
+        )
+        analyzer_path = analyzer_profile.save_to_json(base_path / f"{analyzer_profile.config.uid}_analyzer")
+        queue = ScouterQueue.from_path(
+            path={
+                "orchestrator": orchestrator_path,
+                "analyzer": analyzer_path,
+            },
+            transport_config=GrpcConfig(),
+        )
+
+        try:
+            init_tracer(
+                service_name="mixed-trace-eval-test",
+                exporter=GrpcSpanExporter(),
+                batch_config=BatchConfig(scheduled_delay_ms=200),
+            )
+            tracer = get_tracer("mixed-trace-eval-test")
+            tracer.set_scouter_queue(queue)
+
+            trace_id = _run_mixed_agent_workflow(
+                tracer=tracer,
+                planner_profile=planner_profile,
+            )
+            time.sleep(2.0)
+            queue.shutdown()
+            shutdown_tracer()
+
+            _wait_for_trace_spans_visible(
+                scouter_client,
+                [trace_id],
+                [
+                    orchestrator_profile.config.uid,
+                    planner_profile.config.uid,
+                    analyzer_profile.config.uid,
+                ],
+                timeout_secs=30.0,
+            )
+
+            _wait_for_trace_eval_records_written(
+                session,
+                base_url,
+                planner_profile,
+                [trace_id],
+                scouter_client,
+                timeout_secs=30.0,
+                related_profiles=[orchestrator_profile, analyzer_profile],
+            )
+
+            _wait_for_processed_agent_evals(
+                session,
+                base_url,
+                orchestrator_profile,
+                [trace_id],
+                scouter_client,
+                expected_tasks={"assertion_ok"},
+                expected_source="queue",
+                timeout_secs=90.0,
+                related_profiles=[planner_profile, analyzer_profile],
+            )
+            _wait_for_processed_trace_evals(
+                session,
+                base_url,
+                planner_profile,
+                [trace_id],
+                scouter_client,
+                timeout_secs=90.0,
+                related_profiles=[orchestrator_profile, analyzer_profile],
+            )
+            _wait_for_processed_agent_evals(
+                session,
+                base_url,
+                analyzer_profile,
+                [trace_id],
+                scouter_client,
+                expected_tasks={"assertion_ok"},
+                expected_source="queue",
+                timeout_secs=90.0,
+                related_profiles=[orchestrator_profile, planner_profile],
+            )
+
+            spans = scouter_client.get_trace_spans(trace_id).spans
+            assert len(spans) > 0
+
+            planner_key = f"scouter.entity.{planner_profile.config.uid}"
+
+            assert any(
+                str(_get_attr_value(span.attributes, planner_key)) == planner_profile.config.uid for span in spans
+            ), "Expected planner span attributes to include the trace-only entity UID tag"
+
+            orchestrator_records = _query_agent_eval_records(session, base_url, orchestrator_profile)
+            planner_records = _query_agent_eval_records(session, base_url, planner_profile)
+            analyzer_records = _query_agent_eval_records(session, base_url, analyzer_profile)
+
+            assert sum(1 for record in orchestrator_records if record.get("trace_id") == trace_id) == 1
+            assert sum(1 for record in planner_records if record.get("trace_id") == trace_id) == 1
+            assert sum(1 for record in analyzer_records if record.get("trace_id") == trace_id) == 1
+            assert any(
+                _normalize_record_source(record.get("record_source")) == "queue"
+                for record in orchestrator_records
+                if record.get("trace_id") == trace_id
+            )
+            assert any(
+                _normalize_record_source(record.get("record_source")) == "tracedispatch"
+                for record in planner_records
+                if record.get("trace_id") == trace_id
+            )
+            assert any(
+                _normalize_record_source(record.get("record_source")) == "queue"
+                for record in analyzer_records
+                if record.get("trace_id") == trace_id
+            )
+        finally:
+            queue.shutdown()
+            shutdown_tracer()
+            orchestrator_path.unlink(missing_ok=True)
+            analyzer_path.unlink(missing_ok=True)
