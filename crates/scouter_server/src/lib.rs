@@ -129,36 +129,23 @@ pub async fn start_server() -> Result<(), anyhow::Error> {
 /// Start server in background with handle for management
 #[instrument(skip_all)]
 pub fn start_server_in_background() -> Arc<Mutex<Option<JoinHandle<()>>>> {
-    let handle = Arc::new(Mutex::new(None));
-    let handle_clone = handle.clone();
-
-    tokio::spawn(async move {
-        let server_handle = tokio::spawn(async {
-            if let Err(e) = start_server().await {
-                error!("Server error: {}", e);
-            }
-        });
-
-        *handle_clone.lock().await = Some(server_handle);
-    });
-
-    handle
+    Arc::new(Mutex::new(Some(tokio::spawn(async {
+        if let Err(e) = start_server().await {
+            error!("Server error: {}", e);
+        }
+    }))))
 }
 
 /// Stop the background server gracefully
 pub async fn stop_server(handle: Arc<Mutex<Option<JoinHandle<()>>>>) {
     if let Some(handle) = handle.lock().await.take() {
-        // Send shutdown signal (already handled by signal handlers)
         warn!("Initiating server shutdown...");
+        handle.abort();
 
-        // Wait for graceful shutdown to complete
-        match tokio::time::timeout(std::time::Duration::from_secs(30), handle).await {
-            Ok(Ok(())) => info!("Server stopped gracefully"),
-            Ok(Err(e)) => error!("Server task panicked: {:?}", e),
-            Err(_) => {
-                warn!("Shutdown timeout exceeded, forcing termination");
-                // Force termination after timeout
-            }
+        match handle.await {
+            Ok(()) => info!("Server stopped gracefully"),
+            Err(e) if e.is_cancelled() => info!("Server task cancelled"),
+            Err(e) => error!("Server task panicked: {:?}", e),
         }
     }
 }

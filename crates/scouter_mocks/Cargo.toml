@@ -19,6 +19,7 @@ scouter-client = { workspace = true }
 scouter-server = { workspace = true , optional = true, features = ["kafka", "rabbitmq", "redis_events"] }
 scouter-types = { workspace = true }
 serde_json = { workspace = true }
+sqlx = { workspace = true, optional = true }
 tempfile = { workspace = true, optional = true }
 thiserror = { workspace = true }
 tonic = { workspace = true, optional = true }
@@ -40,6 +41,7 @@ server = [
     "scouter-settings",
     "scouter-sql",
     "scouter-tonic/all",
+    "sqlx",
     "tempfile",
     "tonic",
     "tonic-health",

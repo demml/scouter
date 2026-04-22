@@ -20,7 +20,7 @@ pub struct RabbitMQConfig {
 #[pymethods]
 impl RabbitMQConfig {
     #[new]
-    #[pyo3(signature = (host=None, port=None, username=None, password=None, queue="scouter_monitoring".to_string(), max_retries=3))]
+    #[pyo3(signature = (host=None, port=None, username=None, password=None, queue=None, max_retries=3))]
     pub fn new(
         host: Option<String>,
         port: Option<u16>,
@@ -65,6 +65,48 @@ impl RabbitMQConfig {
             queue,
             max_retries: max_retries.unwrap_or(3),
             transport_type: TransportType::RabbitMQ,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RabbitMQConfig;
+
+    #[test]
+    fn rabbitmq_config_uses_env_queue_when_not_provided() {
+        unsafe {
+            std::env::set_var("RABBITMQ_QUEUE", "isolated_queue");
+        }
+
+        let config = RabbitMQConfig::new(None, None, None, None, None, None);
+
+        assert_eq!(config.queue, "isolated_queue");
+
+        unsafe {
+            std::env::remove_var("RABBITMQ_QUEUE");
+        }
+    }
+
+    #[test]
+    fn rabbitmq_config_prefers_explicit_queue() {
+        unsafe {
+            std::env::set_var("RABBITMQ_QUEUE", "isolated_queue");
+        }
+
+        let config = RabbitMQConfig::new(
+            None,
+            None,
+            None,
+            None,
+            Some("explicit_queue".to_string()),
+            None,
+        );
+
+        assert_eq!(config.queue, "explicit_queue");
+
+        unsafe {
+            std::env::remove_var("RABBITMQ_QUEUE");
         }
     }
 }

@@ -35,13 +35,13 @@ def _make_record(i: int) -> BenchRecord:
     )
 
 
-@pytest.fixture(scope="module")
-def bench_server():
-    with ScouterTestServer() as server:
+@pytest.fixture()
+def bench_server(isolated_server_config):
+    with ScouterTestServer(**isolated_server_config) as server:
         yield server
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def seeded_table(bench_server):
     """Register and seed a table with 1000 rows for read benchmarks."""
     config = TableConfig(
