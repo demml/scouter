@@ -666,9 +666,11 @@ pub trait AgentDriftSqlLogic {
 
     async fn get_pending_agent_eval_record(
         pool: &Pool<Postgres>,
+        max_retries: i32,
     ) -> Result<Option<EvalRecord>, SqlError> {
         let query = Queries::GetPendingAgentEvalTask.get_query();
         let result: Option<EvalRecord> = sqlx::query_as(query)
+            .bind(max_retries)
             .fetch_optional(pool)
             .await
             .map_err(SqlError::SqlxError)?;

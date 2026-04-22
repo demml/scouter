@@ -287,7 +287,8 @@ impl AgentPoller {
 
     #[instrument(skip_all)]
     pub async fn do_poll(&mut self) -> Result<bool, DriftError> {
-        let task = PostgresClient::get_pending_agent_eval_record(&self.db_pool).await?;
+        let task =
+            PostgresClient::get_pending_agent_eval_record(&self.db_pool, self.max_retries).await?;
 
         let Some(task) = task else {
             return Ok(false);

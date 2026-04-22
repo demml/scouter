@@ -1,3 +1,4 @@
+import json
 import os
 import time
 import uuid
@@ -22,6 +23,7 @@ from scouter.transport import GrpcConfig
 
 @pytest.fixture()
 def _fast_trace_eval_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GENAI_MAX_RETRIES", "5")
     monkeypatch.setenv("TRACE_EVAL_POLL_INTERVAL_SECS", "1")
     monkeypatch.setenv("TRACE_EVAL_LOOKBACK_SECS", "1200")
     monkeypatch.setenv("TRACE_EVAL_PROFILE_CACHE_TTL_SECS", "1")
@@ -78,12 +80,14 @@ def _query_agent_eval_records(
     session: requests.Session,
     base_url: str,
     profile: AgentEvalProfile,
+    status: str | None = "Processed",
 ) -> list[dict[str, Any]]:
     body = {
         "service_info": {"space": profile.config.space, "uid": profile.uid},
         "limit": 200,
-        "status": "Processed",
     }
+    if status is not None:
+        body["status"] = status
     response = session.post(
         f"{base_url}/scouter/agent/page/record",
         json=body,
@@ -111,12 +115,152 @@ def _task_pass_map(tasks: list[dict[str, Any]]) -> dict[str, bool]:
     return {task.get("task_id", ""): bool(task.get("passed", False)) for task in tasks}
 
 
+def _query_trace_debug(
+    scouter_client: ScouterClient,
+    trace_id: str,
+    profile_uids: list[str],
+) -> dict[str, Any]:
+    try:
+        spans = scouter_client.get_trace_spans(trace_id).spans
+    except Exception as exc:  # pragma: no cover - debug-only path
+        return {"error": str(exc)}
+
+    return {
+        "span_count": len(spans),
+        "span_names": [getattr(span, "span_name", "") for span in spans[:10]],
+        "entity_tags_present": {
+            profile_uid: any(
+                str(_get_attr_value(span.attributes, f"scouter.entity.{profile_uid}")) == profile_uid for span in spans
+            )
+            for profile_uid in profile_uids
+        },
+    }
+
+
+def _collect_trace_eval_debug_state(
+    session: requests.Session,
+    base_url: str,
+    profile: AgentEvalProfile,
+    trace_ids: list[str],
+    scouter_client: ScouterClient,
+    related_profiles: list[AgentEvalProfile] | None = None,
+) -> dict[str, Any]:
+    wanted = set(trace_ids)
+    profiles = [profile, *(related_profiles or [])]
+    profile_uids = [item.config.uid for item in profiles]
+    status_debug: dict[str, list[dict[str, Any]]] = {}
+
+    for status in ("Pending", "Processing", "Processed", "Failed"):
+        records = _query_agent_eval_records(session, base_url, profile, status=status)
+        matched_records = []
+
+        for record in records:
+            trace_id = record.get("trace_id")
+            if trace_id not in wanted:
+                continue
+
+            record_uid = record.get("uid") or record.get("record_uid")
+            tasks = _query_agent_tasks(session, base_url, record_uid) if record_uid else []
+            matched_records.append(
+                {
+                    "trace_id": trace_id,
+                    "record_uid": record_uid,
+                    "record_source": record.get("record_source"),
+                    "retry_count": record.get("retry_count"),
+                    "processing_started_at": record.get("processing_started_at"),
+                    "processing_ended_at": record.get("processing_ended_at"),
+                    "processing_duration": record.get("processing_duration"),
+                    "tasks": _task_pass_map(tasks),
+                }
+            )
+
+        status_debug[status] = matched_records
+
+    return {
+        "profile_name": profile.config.name,
+        "profile_uid": profile.config.uid,
+        "wanted_trace_ids": sorted(wanted),
+        "records_by_status": status_debug,
+        "trace_debug": {
+            trace_id: _query_trace_debug(scouter_client, trace_id, profile_uids) for trace_id in sorted(wanted)
+        },
+    }
+
+
+def _wait_for_trace_spans_visible(
+    scouter_client: ScouterClient,
+    trace_ids: list[str],
+    profile_uids: list[str],
+    timeout_secs: float = 30.0,
+) -> dict[str, dict[str, Any]]:
+    wanted = set(trace_ids)
+    deadline = time.time() + timeout_secs
+
+    while time.time() < deadline:
+        trace_debug = {
+            trace_id: _query_trace_debug(scouter_client, trace_id, profile_uids) for trace_id in sorted(wanted)
+        }
+        if all(trace_debug[trace_id].get("span_count", 0) > 0 for trace_id in wanted):
+            return trace_debug
+        time.sleep(1.0)
+
+    raise AssertionError(
+        "Timed out waiting for trace spans to become visible "
+        f"for traces={sorted(wanted)} "
+        f"trace_debug={json.dumps(trace_debug, indent=2, sort_keys=True)}"
+    )
+
+
+def _wait_for_trace_eval_records_written(
+    session: requests.Session,
+    base_url: str,
+    profile: AgentEvalProfile,
+    trace_ids: list[str],
+    scouter_client: ScouterClient,
+    timeout_secs: float = 30.0,
+    related_profiles: list[AgentEvalProfile] | None = None,
+) -> dict[str, str]:
+    wanted = set(trace_ids)
+    deadline = time.time() + timeout_secs
+
+    while time.time() < deadline:
+        status_by_trace: dict[str, str] = {}
+
+        for status in ("Pending", "Processing", "Processed", "Failed"):
+            records = _query_agent_eval_records(session, base_url, profile, status=status)
+            for record in records:
+                trace_id = record.get("trace_id")
+                if trace_id in wanted and trace_id not in status_by_trace:
+                    status_by_trace[trace_id] = status
+
+        if len(status_by_trace) == len(wanted):
+            return status_by_trace
+
+        time.sleep(1.0)
+
+    debug_state = _collect_trace_eval_debug_state(
+        session,
+        base_url,
+        profile,
+        trace_ids,
+        scouter_client,
+        related_profiles=related_profiles,
+    )
+    raise AssertionError(
+        "Timed out waiting for trace eval records to be created "
+        f"for traces={sorted(wanted)} profile={profile.config.name}\n"
+        f"debug_state={json.dumps(debug_state, indent=2, sort_keys=True)}"
+    )
+
+
 def _wait_for_processed_trace_evals(
     session: requests.Session,
     base_url: str,
     profile: AgentEvalProfile,
     trace_ids: list[str],
+    scouter_client: ScouterClient,
     timeout_secs: float = 90.0,
+    related_profiles: list[AgentEvalProfile] | None = None,
 ) -> dict[str, dict[str, Any]]:
     expected_tasks = {"has_workflow_span", "no_errors"}
     wanted = set(trace_ids)
@@ -149,8 +293,18 @@ def _wait_for_processed_trace_evals(
 
         time.sleep(1.0)
 
+    debug_state = _collect_trace_eval_debug_state(
+        session,
+        base_url,
+        profile,
+        trace_ids,
+        scouter_client,
+        related_profiles=related_profiles,
+    )
     raise AssertionError(
-        f"Timed out waiting for processed trace eval records for traces={sorted(wanted)} profile={profile.config.name}"
+        "Timed out waiting for processed trace eval records "
+        f"for traces={sorted(wanted)} profile={profile.config.name}\n"
+        f"debug_state={json.dumps(debug_state, indent=2, sort_keys=True)}"
     )
 
 
@@ -193,7 +347,23 @@ def test_trace_eval_dispatch_from_auto_instrumented_trace(
             tracer = trace.get_tracer("trace-eval-auto")
             trace_id = _run_mock_agent_workflow(tracer=tracer, agent_name="single_agent")
 
-            _wait_for_processed_trace_evals(session, base_url, profile, [trace_id], timeout_secs=90.0)
+            _wait_for_trace_spans_visible(scouter_client, [trace_id], [profile.config.uid], timeout_secs=30.0)
+            _wait_for_trace_eval_records_written(
+                session,
+                base_url,
+                profile,
+                [trace_id],
+                scouter_client,
+                timeout_secs=30.0,
+            )
+            _wait_for_processed_trace_evals(
+                session,
+                base_url,
+                profile,
+                [trace_id],
+                scouter_client,
+                timeout_secs=90.0,
+            )
 
             spans = scouter_client.get_trace_spans(trace_id).spans
             assert len(spans) > 0
@@ -242,8 +412,48 @@ def test_trace_eval_dispatch_multi_agent_active_profile_switching(
             with active_profile(profile_b):
                 trace_id_b = _run_mock_agent_workflow(tracer=tracer, agent_name="beta_agent")
 
-            _wait_for_processed_trace_evals(session, base_url, profile_a, [trace_id_a], timeout_secs=90.0)
-            _wait_for_processed_trace_evals(session, base_url, profile_b, [trace_id_b], timeout_secs=90.0)
+            _wait_for_trace_spans_visible(
+                scouter_client,
+                [trace_id_a, trace_id_b],
+                [profile_a.config.uid, profile_b.config.uid],
+                timeout_secs=30.0,
+            )
+            _wait_for_trace_eval_records_written(
+                session,
+                base_url,
+                profile_a,
+                [trace_id_a],
+                scouter_client,
+                timeout_secs=30.0,
+                related_profiles=[profile_b],
+            )
+            _wait_for_trace_eval_records_written(
+                session,
+                base_url,
+                profile_b,
+                [trace_id_b],
+                scouter_client,
+                timeout_secs=30.0,
+                related_profiles=[profile_a],
+            )
+            _wait_for_processed_trace_evals(
+                session,
+                base_url,
+                profile_a,
+                [trace_id_a],
+                scouter_client,
+                timeout_secs=90.0,
+                related_profiles=[profile_b],
+            )
+            _wait_for_processed_trace_evals(
+                session,
+                base_url,
+                profile_b,
+                [trace_id_b],
+                scouter_client,
+                timeout_secs=90.0,
+                related_profiles=[profile_a],
+            )
 
             records_a = _query_agent_eval_records(session, base_url, profile_a)
             records_b = _query_agent_eval_records(session, base_url, profile_b)
