@@ -354,18 +354,25 @@ impl ScouterTestServer {
     }
 
     fn cleanup(&self) -> PyResult<()> {
-        let storage_dir = self.storage_dir();
-
         // unset env vars
         self.remove_env_vars_for_client()?;
 
         #[cfg(feature = "server")]
-        self.runtime
-            .block_on(self.cleanup_database())
-            .map_err(PyErr::from)?;
+        {
+            let storage_dir = self.storage_dir();
 
-        if storage_dir.exists() {
-            std::fs::remove_dir_all(storage_dir).unwrap();
+            self.runtime
+                .block_on(self.cleanup_database())
+                .map_err(PyErr::from)?;
+
+            if storage_dir.exists() {
+                std::fs::remove_dir_all(&storage_dir).map_err(|e| {
+                    PyErr::from(TestServerError::RuntimeError(format!(
+                        "Failed to remove storage dir {}: {e}",
+                        storage_dir.display()
+                    )))
+                })?;
+            }
         }
 
         Ok(())

@@ -1,7 +1,4 @@
 use pyo3::prelude::*;
-use std::sync::Arc;
-use thiserror::Error;
-use tracing::instrument;
 
 #[cfg(feature = "server")]
 use scouter_auth::auth::AuthManager;
@@ -38,9 +35,12 @@ use scouter_types::StorageType;
 #[cfg(feature = "server")]
 use std::net::TcpListener as StdTcpListener;
 #[cfg(feature = "server")]
+use std::sync::Arc;
+#[cfg(feature = "server")]
 use std::thread::sleep;
 #[cfg(feature = "server")]
 use std::time::Duration;
+use thiserror::Error;
 #[cfg(feature = "server")]
 use tonic::transport::{Channel, Server};
 #[cfg(feature = "server")]
@@ -49,6 +49,7 @@ use tonic::{Request, Response, Status};
 use tonic_health::server::health_reporter;
 #[cfg(feature = "server")]
 use tracing::error;
+use tracing::instrument;
 
 // ---------------------------------------------------------------------------
 // Errors
