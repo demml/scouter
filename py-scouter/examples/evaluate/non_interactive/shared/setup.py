@@ -1,7 +1,7 @@
 from __future__ import annotations
+from pydantic import BaseModel, ConfigDict
 
 import os
-from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Union
@@ -17,12 +17,13 @@ _BASE_DIR = Path(__file__).resolve().parent
 TransportConfig = Union[GrpcConfig, MockConfig]
 
 
-@dataclass(frozen=True)
-class SharedConfig:
+class SharedConfig(BaseModel):
     queue: ScouterQueue
     prompt: Prompt
     scenarios: EvalScenarios
     instrumentor: ScouterInstrumentor
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 def _transport_config() -> TransportConfig:
