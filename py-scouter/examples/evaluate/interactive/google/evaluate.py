@@ -1,10 +1,21 @@
-from scouter.evaluate import EvalOrchestrator
+"""Interactive evaluation entrypoint for the Google ADK example.
+
+This keeps the ADK runtime on one event loop for the full evaluation and
+reuses the same service object that powers the FastAPI example.
+"""
+
+from __future__ import annotations
+
+import asyncio
+
+from scouter.evaluate import EvalOrchestrator, EvalScenario
 
 from ..shared import get_shared_config, teardown_shared_config
-from .agent import run_agent
+from .agent import GoogleAgentService, build_agent_service
 
 
 def simulated_user_turn(initial_query: str, agent_response: str, history: list[dict[str, str]]) -> str:
+    """Drive a short reactive conversation for the shared interactive scenarios."""
     del initial_query
 
     if len(history) >= 2:
@@ -16,16 +27,38 @@ def simulated_user_turn(initial_query: str, agent_response: str, history: list[d
     return "Add one risk to watch for and then return DONE."
 
 
-def main() -> None:
-    config = get_shared_config()
-    try:
-        results = EvalOrchestrator(
+class GoogleInteractiveEvalOrchestrator(EvalOrchestrator):
+    """Bridge the sync eval runner to one persistent ADK async runtime."""
+
+    def __init__(self) -> None:
+        config = get_shared_config()
+        super().__init__(
             queue=config.queue,
             scenarios=config.scenarios,
-            agent_fn=run_agent,
             simulated_user_fn=simulated_user_turn,
-        ).run()
+        )
+        self._loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self._loop)
+        self._service: GoogleAgentService = build_agent_service()
+
+    def execute_agent_turn(self, scenario: EvalScenario, message: str) -> str:
+        """Run each reactive turn on the same event loop and service instance."""
+        del scenario
+        return self._loop.run_until_complete(self._service.run(message))
+
+    def close(self) -> None:
+        """Close the loop after evaluation completes."""
+        self._loop.close()
+        asyncio.set_event_loop(None)
+
+
+def main() -> None:
+    """Run the shared interactive scenarios against the Google example."""
+    orchestrator = GoogleInteractiveEvalOrchestrator()
+    try:
+        results = orchestrator.run()
     finally:
+        orchestrator.close()
         teardown_shared_config()
 
     print(
