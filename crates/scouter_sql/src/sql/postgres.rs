@@ -1054,7 +1054,7 @@ mod tests {
         assert_eq!(features.len(), 10);
 
         // get pending task
-        let pending_tasks = PostgresClient::get_pending_agent_eval_record(&pool)
+        let pending_tasks = PostgresClient::get_pending_agent_eval_record(&pool, 3)
             .await
             .unwrap();
 
@@ -1127,7 +1127,7 @@ mod tests {
         assert_eq!(features.len(), 10);
 
         // get pending task
-        let pending_tasks = PostgresClient::get_pending_agent_eval_record(&pool)
+        let pending_tasks = PostgresClient::get_pending_agent_eval_record(&pool, 3)
             .await
             .unwrap();
 
@@ -1341,7 +1341,7 @@ mod tests {
             .unwrap();
         assert_eq!(second, SyntheticInsertOutcome::AlreadyExists);
 
-        let pending = PostgresClient::get_pending_agent_eval_record(&pool)
+        let pending = PostgresClient::get_pending_agent_eval_record(&pool, 3)
             .await
             .unwrap()
             .unwrap();
@@ -1350,6 +1350,46 @@ mod tests {
             pending.record_source,
             EvalRecordSource::TraceDispatch
         ));
+    }
+
+    #[tokio::test]
+    async fn test_postgres_pending_agent_eval_record_uses_configured_max_retries() {
+        let pool = db_pool().await;
+
+        let (_uid, entity_id) = PostgresClient::create_entity(
+            &pool,
+            SPACE,
+            NAME,
+            VERSION,
+            DriftType::Agent.to_string(),
+        )
+        .await
+        .unwrap();
+
+        let trace_id = [9_u8; 16];
+        let first = PostgresClient::insert_synthetic_eval_record(&pool, entity_id, &trace_id)
+            .await
+            .unwrap();
+        assert_eq!(first, SyntheticInsertOutcome::Inserted);
+
+        for _ in 0..3 {
+            let task = PostgresClient::get_pending_agent_eval_record(&pool, 5)
+                .await
+                .unwrap()
+                .unwrap();
+
+            PostgresClient::reschedule_agent_eval_record(&pool, &task.uid, Duration::seconds(-1))
+                .await
+                .unwrap();
+        }
+
+        let task = PostgresClient::get_pending_agent_eval_record(&pool, 5)
+            .await
+            .unwrap();
+        assert!(
+            task.is_some(),
+            "record should remain eligible when max retries exceeds the historical default"
+        );
     }
 
     #[tokio::test]

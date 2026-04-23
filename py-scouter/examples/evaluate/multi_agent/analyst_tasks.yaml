@@ -1,9 +1,0 @@
-tasks:
-  - task_type: Assertion
-    id: analyst_response_is_string
-    context_path: response
-    operator: IsString
-    expected_value: true
-    description: "Analyst output is a non-empty string"
-    depends_on: []
-    condition: false

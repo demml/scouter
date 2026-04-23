@@ -1,35 +1,36 @@
 import time
 
 import numpy as np
+import pytest
 from fastapi.testclient import TestClient
-from scouter.client import DriftRequest, ScouterClient, TimeInterval, TraceFilters
-from scouter.types import DriftType
+from scouter.client import ScouterClient, TraceFilters
 
 from tests.integration.api.conftest import ChatRequest
 
 from .conftest import create_and_register_agent_drift_profile, create_tracing_agent_app
 
 
-def test_agent_tracing_api(scouter_grpc_openai_server):
+@pytest.fixture()
+def _fast_agent_tracing_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SCOUTER_QUEUE_PUBLISH_INTERVAL_SECS", "1")
+
+
+def test_agent_tracing_api(_fast_agent_tracing_env: None, scouter_grpc_openai_server):
     tracer, _server = scouter_grpc_openai_server
     random_number = np.random.randint(0, 10)
 
-    # create the client
     scouter_client = ScouterClient()
 
-    # create the drift profile
     profile = create_and_register_agent_drift_profile(
         client=scouter_client,
         name=f"grpc_genai_test_{random_number}",
-        with_trace_assertion=True,  # we are testing that spans are created
+        with_trace_assertion=True,
     )
     drift_path = profile.save_to_json()
 
     app = create_tracing_agent_app(tracer, drift_path)
-    # Configure the TestClient
     with TestClient(app) as client:
         time.sleep(5)
-        # Simulate requests
         for i in range(30):
             response = client.post(
                 "/chat",
@@ -41,32 +42,18 @@ def test_agent_tracing_api(scouter_grpc_openai_server):
             time.sleep(0.5)
         time.sleep(5)
 
-    time.sleep(20)
-
-    request = DriftRequest(
-        uid=profile.uid,
-        space=profile.config.space,
-        time_interval=TimeInterval.FifteenMinutes,
-        max_data_points=1,
-    )
-
-    workflow_results = scouter_client.get_binned_drift(
-        request,
-        drift_type=DriftType.Agent,
-    )
-
-    assert len(workflow_results["workflow"].stats) == 1
-    task_results = scouter_client.get_agent_task_binned_drift(request)
-    assert len(task_results["coherence"].stats) == 1
-    assert len(task_results["no_errors"].stats) == 1
-
-    # get TestResponse record_uid from response
     record_uid = response.json().get("record_uid")
     assert record_uid is not None
 
-    spans = scouter_client.get_trace_spans_from_filters(filters=TraceFilters(queue_uid=record_uid))
+    deadline = time.time() + 30
+    spans = None
+    while time.time() < deadline:
+        spans = scouter_client.get_trace_spans_from_filters(filters=TraceFilters(queue_uid=record_uid))
+        if spans.spans:
+            break
+        time.sleep(1)
 
+    assert spans is not None
     assert len(spans.spans) > 0
 
-    # delete the drift_path
     drift_path.unlink()

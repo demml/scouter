@@ -1,0 +1,18 @@
+tasks:
+  - task_type: Assertion
+    id: response_is_string
+    context_path: response
+    operator: IsString
+    expected_value: true
+    description: Validate that the agent returned a textual response.
+    depends_on: []
+    condition: false
+  - task_type: TraceAssertion
+    id: trace_latency_budget
+    operator: LessThan
+    expected_value: 10000.0
+    expected_value: 10000.0
+    description: Validate that end-to-end trace latency stays under 10 seconds.
+    condition: false
+    assertion:
+      TraceDuration: {}

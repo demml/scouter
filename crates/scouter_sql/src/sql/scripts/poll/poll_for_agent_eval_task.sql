@@ -9,7 +9,7 @@ WITH selected_task AS (
     FROM scouter.agent_eval_record
     WHERE 1=1
         AND status = 'pending'
-        AND (retry_count IS NULL OR retry_count < 3)
+        AND (retry_count IS NULL OR retry_count < $1)
         AND scheduled_at <= CURRENT_TIMESTAMP
     ORDER BY
         COALESCE(retry_count, 0) ASC,

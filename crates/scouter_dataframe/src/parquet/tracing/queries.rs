@@ -777,7 +777,9 @@ impl TraceQueries {
                 let result = self
                     .query_spans(Some(tid), service_name, start_time, end_time, limit)
                     .await?;
-                self.span_cache.insert(key, Arc::new(result.clone()));
+                if !result.is_empty() {
+                    self.span_cache.insert(key, Arc::new(result.clone()));
+                }
                 return Ok(result);
             }
         }

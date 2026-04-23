@@ -44,44 +44,64 @@ pub trait SpanContextExt {
 }
 
 impl SpanContextExt for SpanContext {
-    /// This is hacky for now
     fn from_py_span_context(py_ctx: &Bound<'_, PyAny>) -> Result<SpanContext, TraceError> {
-        let trace_id = py_ctx
-            .getattr("trace_id")?
-            .extract::<String>()
-            .map_err(|e| TraceError::DowncastError(e.to_string()))?;
-
-        let span_id = py_ctx
-            .getattr("span_id")?
-            .extract::<String>()
-            .map_err(|e| TraceError::DowncastError(e.to_string()))?;
+        let trace_id = parse_trace_id(&py_ctx.getattr("trace_id")?)?;
+        let span_id = parse_span_id(&py_ctx.getattr("span_id")?)?;
 
         let trace_flags = py_ctx
             .getattr("trace_flags")?
             .extract::<u8>()
             .map_err(|e| TraceError::DowncastError(e.to_string()))?;
 
-        // convert to VecDeque
+        let is_remote = py_ctx
+            .getattr("is_remote")
+            .ok()
+            .and_then(|value| value.extract::<bool>().ok())
+            .unwrap_or(false);
 
-        let trace_state = py_ctx.getattr("trace_state")?.cast::<PyDict>()?.clone();
-        let trace_state_vec: Vec<(String, String)> = trace_state
-            .iter()
-            .map(|(k, v)| {
-                let key = k.extract::<String>()?;
-                let value = v.extract::<String>()?;
-                Ok((key, value))
+        let trace_state_items = py_ctx.getattr("trace_state")?.call_method0("items")?;
+        let trace_state_vec: Vec<(String, String)> = trace_state_items
+            .try_iter()?
+            .map(|item| {
+                let item = item?;
+                let pair = item.cast::<PyTuple>()?;
+                let key = pair.get_item(0)?.extract::<String>()?;
+                let value = pair.get_item(1)?.extract::<String>()?;
+                Ok::<(String, String), PyErr>((key, value))
             })
             .collect::<Result<Vec<(String, String)>, PyErr>>()?;
 
         Ok(SpanContext::new(
-            TraceId::from_hex(&trace_id)?,
-            SpanId::from_hex(&span_id)?,
+            trace_id,
+            span_id,
             TraceFlags::new(trace_flags),
-            false,
+            is_remote,
             TraceState::from_key_value(trace_state_vec)
                 .map_err(|e| TraceError::TraceStateError(e.to_string()))?,
         ))
     }
+}
+
+fn parse_trace_id(value: &Bound<'_, PyAny>) -> Result<TraceId, TraceError> {
+    if let Ok(trace_id) = value.extract::<u128>() {
+        return Ok(TraceId::from(trace_id));
+    }
+
+    let trace_id = value
+        .extract::<String>()
+        .map_err(|e| TraceError::DowncastError(e.to_string()))?;
+    TraceId::from_hex(&trace_id).map_err(TraceError::from)
+}
+
+fn parse_span_id(value: &Bound<'_, PyAny>) -> Result<SpanId, TraceError> {
+    if let Ok(span_id) = value.extract::<u64>() {
+        return Ok(SpanId::from(span_id));
+    }
+
+    let span_id = value
+        .extract::<String>()
+        .map_err(|e| TraceError::DowncastError(e.to_string()))?;
+    SpanId::from_hex(&span_id).map_err(TraceError::from)
 }
 
 #[pyclass(from_py_object, eq)]
@@ -352,17 +372,38 @@ pub(crate) fn get_current_context_id(py: Python<'_>) -> PyResult<Option<String>>
 
 /// Get the current active span from the context variable.
 /// Returns TraceError::NoActiveSpan if no active span is set.
+fn get_current_active_span_from_otel(py: Python<'_>) -> Result<Option<Bound<'_, PyAny>>, TraceError> {
+    let trace_mod = py.import("opentelemetry.trace")?;
+    let current_span = trace_mod.call_method0("get_current_span")?;
+
+    if current_span.is_none() {
+        return Ok(None);
+    }
+
+    if let Ok(active_span) = current_span.getattr("active_span") {
+        if !active_span.is_none() {
+            return Ok(Some(active_span));
+        }
+    }
+
+    if current_span.extract::<PyRef<'_, ActiveSpan>>().is_ok() {
+        return Ok(Some(current_span));
+    }
+
+    Ok(None)
+}
+
 #[pyfunction]
 pub fn get_current_active_span(py: Python<'_>) -> Result<Bound<'_, PyAny>, TraceError> {
     match get_context_var(py)?.bind(py).call_method0("get") {
         Ok(val) => {
             if val.is_none() {
-                Err(TraceError::NoActiveSpan)
+                get_current_active_span_from_otel(py)?.ok_or(TraceError::NoActiveSpan)
             } else {
                 Ok(val)
             }
         }
-        Err(_) => Err(TraceError::NoActiveSpan),
+        Err(_) => get_current_active_span_from_otel(py)?.ok_or(TraceError::NoActiveSpan),
     }
 }
 
@@ -402,9 +443,11 @@ impl SpanKind {
 
 pub(crate) struct ActiveSpanInner {
     pub context_id: String,
+    pub parent_context_id: Option<String>,
     pub span: BoxedSpan,
     pub context_token: Option<Py<PyAny>>,
     pub queue: Option<Py<ScouterQueue>>,
+    pub cleanup_complete: bool,
 }
 
 #[pyclass(from_py_object, eq)]

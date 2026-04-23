@@ -1,6 +1,6 @@
 # Distributed Tracing
 
-Scouter provides OpenTelemetry-compatible distributed tracing built on Rust with a Python interface. The system supports synchronous and asynchronous code, automatic context propagation, and dual-export to Scouter's backend and external OTEL collectors.
+Scouter provides OpenTelemetry-compatible distributed tracing built on a Rust core with Python OTEL wrappers. The recommended setup is to install Scouter as the process-wide OpenTelemetry `TracerProvider` with `ScouterInstrumentor()`, then get tracers from `opentelemetry.trace`.
 
 Traces captured by Scouter can be evaluated offline or in production using [`TraceAssertionTask`](/scouter/docs/monitoring/genai/tasks/#traceassertionask) — validating span execution order, latency SLAs, token budgets, and more.
 
@@ -9,20 +9,20 @@ Traces captured by Scouter can be evaluated offline or in production using [`Tra
 ```mermaid
 graph TB
     subgraph "Python Layer"
-        A[Application Code] --> B[Tracer Decorator/Context Manager]
-        B --> C[ActiveSpan]
+        A[Application Code] --> B[ScouterInstrumentor]
+        B --> C[ScouterTracerProvider]
+        C --> D[ScouterTracer / ScouterSpan]
     end
 
     subgraph "Rust Core"
-        C --> D[BaseTracer]
-        D --> E[SpanContext Store]
-        D --> F[Context Propagation]
-        F --> G[AsyncIO ContextVar]
+        D --> E[BaseTracer / ActiveSpan]
+        E --> F[SpanContext Store]
+        E --> G[W3C Propagation]
     end
 
     subgraph "Export Pipeline"
-        D --> H[Scouter Exporter<br/>Required]
-        D --> I[OTEL Exporter<br/>Optional]
+        E --> H[Scouter Exporter<br/>Required]
+        E --> I[OTEL Exporter<br/>Optional]
         H --> J[(Scouter Backend)]
         I --> K[(OTEL Collector)]
     end
@@ -42,74 +42,98 @@ Every span is **always** exported to Scouter's backend while **optionally** expo
 
 ## Core Components
 
-### Initialization
+### Recommended setup
 
-=== "Scouter Only"
-
-    ````python
-    from scouter import init_tracer
-
-    init_tracer(service_name="my-service")
-    ````
-
-=== "Scouter + OTEL Collector"
+=== "Scouter runtime"
 
     ````python
-    from scouter import (
-        init_tracer,
-        HttpConfig,
-        HttpSpanExporter,
-        OtelExportConfig
+    from opentelemetry import trace
+    from scouter.tracing import ScouterInstrumentor
+
+    ScouterInstrumentor().instrument(
+        attributes={"service.name": "my-service"},
     )
 
-    init_tracer(
-        service_name="my-service",
+    tracer = trace.get_tracer("my-service")
+    ````
+
+=== "Scouter + OTEL collector"
+
+    ````python
+    from opentelemetry import trace
+    from scouter import HttpConfig
+    from scouter.tracing import (
+        HttpSpanExporter,
+        OtelExportConfig,
+        ScouterInstrumentor,
+    )
+
+    ScouterInstrumentor().instrument(
         transport_config=HttpConfig(uri="http://scouter:8000"),
         exporter=HttpSpanExporter(
             export_config=OtelExportConfig(
                 endpoint="http://otel-collector:4318"
             )
-        )
+        ),
+        attributes={"service.name": "my-service"},
     )
+
+    tracer = trace.get_tracer("my-service")
     ````
 
-=== "Kafka Transport"
+=== "Low-level manual setup"
 
     ````python
-    from scouter import init_tracer, KafkaConfig
+    from scouter import KafkaConfig
+    from scouter.tracing import ScouterTracer, init_tracer
 
-    init_tracer(
+    base_tracer = init_tracer(
         service_name="my-service",
         transport_config=KafkaConfig(brokers="kafka:9092")
     )
+
+    tracer = ScouterTracer(base_tracer)
     ````
+
+Use the manual path when you are writing low-level tests or intentionally managing tracing without the global OTEL provider. For normal application code, prefer `ScouterInstrumentor().instrument(...)` and `trace.get_tracer(...)`.
 
 ### Tracer Lifecycle
 
 ```mermaid
 sequenceDiagram
     participant App as Application
-    participant Tracer as BaseTracer
-    participant Store as Context Store
+    participant Inst as ScouterInstrumentor
+    participant OTel as OTEL TracerProvider
+    participant Tracer as ScouterTracer/BaseTracer
     participant Exp as Exporters
 
-    App->>Tracer: init_tracer()
-    Tracer->>Store: Initialize global state
-    Tracer->>Exp: Configure exporters
+    App->>Inst: instrument()
+    Inst->>OTel: Register global provider
+    Inst->>Exp: Configure exporters
 
+    App->>OTel: trace.get_tracer(...)
+    OTel-->>App: ScouterTracer
     App->>Tracer: start_as_current_span()
-    Tracer->>Store: Register span context
-    Store-->>App: ActiveSpan
 
     App->>App: Execute logic
 
-    App->>Store: __exit__()
-    Store->>Exp: Export span data
-    Store->>Store: Cleanup context
+    App->>Tracer: __exit__()
+    Tracer->>Exp: Export span data
 
-    App->>Tracer: shutdown_tracer()
-    Tracer->>Exp: Flush & shutdown
+    App->>Inst: uninstrument()
+    Inst->>Exp: Flush & shutdown
 ```
+
+### Recommended lifecycle
+
+Treat tracing as process-wide state:
+
+1. Call `ScouterInstrumentor().instrument(...)` once at process startup.
+2. Get tracers with `trace.get_tracer("...")`.
+3. Use standard OTEL APIs like `start_span()` and `start_as_current_span()`.
+4. Shut tracing down once at process exit with `ScouterInstrumentor().uninstrument()`.
+
+Existing tracer handles should be treated as stale after `uninstrument()` or `shutdown_tracer()`. Re-initializing tracing in the same process is supported for tests and controlled reconfiguration, but it is not the normal OTEL runtime pattern.
 
 ## OpenTelemetry Compatibility
 
@@ -180,16 +204,17 @@ ScouterInstrumentor().uninstrument()
 
 ### ScouterInstrumentor vs init_tracer
 
-Both paths initialize Scouter tracing and produce identical span output. The difference is integration scope:
+Both paths use the same Rust tracing core. The difference is lifecycle and integration scope:
 
 | | `init_tracer()` | `ScouterInstrumentor` |
 |--|-----------------|----------------------|
 | Registers global OTEL provider | No | Yes |
 | Works with OTEL auto-instrumentation libraries | No | Yes |
-| Idiomatic for greenfield Scouter-only code | Yes | No |
+| Recommended for application/runtime code | No | Yes |
+| Useful for low-level/manual tests | Yes | Sometimes |
 | Follows OTel `BaseInstrumentor` lifecycle | No | Yes |
 
-Use `ScouterInstrumentor` when your application uses OTEL auto-instrumentation libraries (e.g., `opentelemetry-instrumentation-fastapi`, `opentelemetry-instrumentation-httpx`) and you want their spans to flow through Scouter. Use `init_tracer()` for simpler setups where you instrument everything manually.
+Use `ScouterInstrumentor` for normal application code, especially when third-party OTEL libraries are involved. Use `init_tracer()` when you need a low-level tracer in tests or in narrowly controlled manual setups.
 
 ### Using Scouter as a TracerProvider
 
@@ -197,12 +222,11 @@ You can construct a `TracerProvider` directly and set it as the global provider:
 
 ```python
 from opentelemetry import trace
-from opentelemetry.sdk.trace.export import set_tracer_provider
 from scouter.tracing import TracerProvider
 from scouter import GrpcConfig
 
 provider = TracerProvider(transport_config=GrpcConfig())
-set_tracer_provider(provider)
+trace.set_tracer_provider(provider)
 
 # Any OTEL-instrumented library now routes spans through Scouter
 tracer = trace.get_tracer(__name__)
@@ -219,10 +243,9 @@ Scouter's tracing system fully supports both synchronous and asynchronous code p
 === "Decorator"
 
     ````python
-    from scouter.tracing import get_tracer
+    from opentelemetry import trace
 
-    # init_tracer(...) must be called beforehand
-    tracer = get_tracer(name="sync-service")
+    tracer = trace.get_tracer("sync-service")
 
     @tracer.span("process_data")
     def process_data(items: list[dict]) -> dict:  # (1)
@@ -236,9 +259,9 @@ Scouter's tracing system fully supports both synchronous and asynchronous code p
 === "Context Manager"
 
     ````python
-    from scouter.tracing import get_tracer
+    from opentelemetry import trace
 
-    tracer = get_tracer(name="sync-service")
+    tracer = trace.get_tracer("sync-service")
 
     with tracer.start_as_current_span("manual_work") as span:
         span.set_attribute("worker_id", "123")
@@ -251,9 +274,9 @@ Scouter's tracing system fully supports both synchronous and asynchronous code p
 === "Decorator"
 
     ````python
-    from scouter.tracing import get_tracer
+    from opentelemetry import trace
 
-    tracer = get_tracer(name="async-service")
+    tracer = trace.get_tracer("async-service")
 
     @tracer.span("fetch_data")
     async def fetch_data(url: str) -> dict:
@@ -301,7 +324,7 @@ Scouter's tracing system fully supports both synchronous and asynchronous code p
 
 ### Within Process
 
-Context automatically propagates through the call stack using Python's `contextvars`:
+Context automatically propagates through the call stack using OpenTelemetry context management. Under the hood, Python context-local state is preserved across sync and async boundaries:
 
 ```python
 @tracer.span("parent_operation")
@@ -510,11 +533,9 @@ In addition to standard span methods, Scouter provides additional convenience me
 
 ```python
 
+from opentelemetry import trace
 from scouter.queue import ScouterQueue
-from scouter.tracing import get_tracer, init_tracer
-
-# usually called once at app startup
-init_tracer(service_name="monitoring-service")
+from scouter.tracing import ScouterInstrumentor
 
 
 # example fastapi lifespan
@@ -522,25 +543,31 @@ init_tracer(service_name="monitoring-service")
 async def lifespan(app: FastAPI):
     logger.info("Starting up FastAPI app")
 
-    # get tracer
-    tracer = get_tracer(name="monitoring-service")
+    ScouterInstrumentor().instrument(
+        transport_config=GrpcConfig(),
+        attributes={"service.name": "monitoring-service"},
+    )
+    app.state.tracer = trace.get_tracer("monitoring-service")
 
-    queue ScouterQueue.from_path(
+    queue = ScouterQueue.from_path(
         path={"agent": Path(...)},
         transport_config=GrpcConfig(),
     )
 
     # set the queue on the tracer
-    tracer.set_scouter_queue(queue)
+    app.state.tracer.set_scouter_queue(queue)
+    app.state.queue = queue
 
     yield
 
     logger.info("Shutting down FastAPI app")
-    queue.shutdown()
-    tracer.shutdown()
+    app.state.queue.shutdown()
+    ScouterInstrumentor().uninstrument()
 
 
-def monitoring_task():
+def monitoring_task(app: FastAPI):
+    tracer = app.state.tracer
+
     with tracer.start_as_current_span("monitoring_task") as span:
         # insert items into queue with the span
         span.insert_queue_item(
@@ -559,42 +586,52 @@ def monitoring_task():
 
 Control trace sampling rates to balance performance and observability
 
-Each OTEL exporter can be instantiated with a sampling ratio between 0.0 and 1.0:
+Each OTEL exporter can be instantiated with a sampling ratio between `0.0` and `1.0`:
 
 ```python
-from scouter.tracing import init_tracer, HttpSpanExporter, GrpcSpanExporter
-
-init_tracer(
-    service_name="sampled-service",
-    exporter=HttpSpanExporter(
-        sample_ratio=0.25,  # (1)
-    )
+from scouter.tracing import (
+    HttpSpanExporter,
+    GrpcSpanExporter,
+    ScouterInstrumentor,
 )
 
-init_tracer(
-    service_name="sampled-service-grpc",
-    exporter=GrpcSpanExporter(
-        sample_ratio=0.25,
-    )
+# HTTP OTEL exporter sampling
+ScouterInstrumentor().instrument(
+    exporter=HttpSpanExporter(
+        sample_ratio=0.25,  # (1)
+    ),
+    attributes={"service.name": "sampled-service"},
 )
 ```
 
 1. 25% of spans exported to OTEL collector
 
+```python
+from scouter.tracing import GrpcSpanExporter, ScouterInstrumentor
+
+# gRPC OTEL exporter sampling
+ScouterInstrumentor().instrument(
+    exporter=GrpcSpanExporter(
+        sample_ratio=0.25,
+    ),
+    attributes={"service.name": "sampled-service-grpc"},
+)
+```
+
 !!! note
 
-    Sample ratio in the above example only affects the OTEL exporter. If you wish to enforce the same sampling ratio for both Scouter and OTEL exporters, you must set the `sample_ratio` parameter in the init_tracer function directly.
+    Exporter-level `sample_ratio` only affects the optional OTEL exporter. To enforce the same ratio for both Scouter and OTEL export, set `sample_ratio` on `instrument()` or `init_tracer()` directly.
 
 
 **Enforce Global Sampling Ratio** for both Scouter and OTEL exporters:
 
 ```python
-from scouter import init_tracer, HttpSpanExporter
+from scouter.tracing import HttpSpanExporter, ScouterInstrumentor
 
-init_tracer(
-    service_name="globally-sampled-service",
+ScouterInstrumentor().instrument(
     sample_ratio=0.1,  # (1)
-    exporter=HttpSpanExporter()
+    exporter=HttpSpanExporter(),
+    attributes={"service.name": "globally-sampled-service"},
 )
 ```
 
@@ -607,22 +644,26 @@ Scouter provides a BatchConfig to optimize span exporting:
 **Batch is enabled by default.** Customize batch settings as needed:
 
 ```python
-from scouter.tracing import BatchConfig, init_tracer, GrpcSpanExporter
+from scouter.tracing import BatchConfig, GrpcSpanExporter, ScouterInstrumentor
 
-init_tracer(
-    service_name="high-throughput-service",
+# Explicit batch tuning
+ScouterInstrumentor().instrument(
     batch_config=BatchConfig(
         max_queue_size=4096,
         scheduled_delay_ms=1000,  # (1)
         max_export_batch_size=1024
     ),
-    exporter=GrpcSpanExporter(batch_export=True) # (2)
+    exporter=GrpcSpanExporter(batch_export=True), # (2)
+    attributes={"service.name": "high-throughput-service"},
 
 )
+```
 
-init_tracer(
-    service_name="high-throughput-service",
-    exporter=GrpcSpanExporter(batch_export=True) # (3)
+```python
+# Default batch exporter settings
+ScouterInstrumentor().instrument(
+    exporter=GrpcSpanExporter(batch_export=True), # (3)
+    attributes={"service.name": "high-throughput-service"},
 
 )
 ```

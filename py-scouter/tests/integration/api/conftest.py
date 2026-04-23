@@ -34,8 +34,8 @@ from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 from scouter.queue import EvalRecord
 from scouter.tracing import (
     BatchConfig,
+    ScouterTracer,
     TestSpanExporter,
-    Tracer,
     get_tracer,
     init_tracer,
     shutdown_tracer,
@@ -354,7 +354,7 @@ def create_http_app(profile_path: Path) -> FastAPI:
     return app
 
 
-def create_tracing_agent_app(tracer: Tracer, profile_path: Path) -> FastAPI:
+def create_tracing_agent_app(tracer: ScouterTracer, profile_path: Path) -> FastAPI:
     config = GrpcConfig()
 
     @asynccontextmanager

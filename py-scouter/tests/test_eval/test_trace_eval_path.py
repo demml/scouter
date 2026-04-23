@@ -121,7 +121,7 @@ def test_instrument_eval_profiles_single_agent():
             captured_provider_kwargs.update(kwargs)
 
     with (
-        patch("scouter.tracing.TracerProvider", _FakeTracerProvider),
+        patch("scouter.tracing.ScouterTracerProvider", _FakeTracerProvider),
         patch("scouter.tracing.set_tracer_provider"),
     ):
         instrumentor._instrument(eval_profiles=[profile])
@@ -148,7 +148,7 @@ def test_instrument_eval_profiles_uses_first_profile_as_default():
             captured_provider_kwargs.update(kwargs)
 
     with (
-        patch("scouter.tracing.TracerProvider", _FakeTracerProvider),
+        patch("scouter.tracing.ScouterTracerProvider", _FakeTracerProvider),
         patch("scouter.tracing.set_tracer_provider"),
     ):
         instrumentor._instrument(eval_profiles=[first, second])
