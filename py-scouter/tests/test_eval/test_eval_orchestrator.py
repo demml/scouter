@@ -241,19 +241,19 @@ def test_no_agent_fn_no_override_raises():
 
 
 # ---------------------------------------------------------------------------
-# Unit Tests — reactive scenario
+# Unit Tests — interactive scenario
 # ---------------------------------------------------------------------------
 
 
-def test_reactive_no_simulated_user_fn_raises():
-    """Reactive scenario without simulated_user_fn raises NotImplementedError."""
+def test_interactive_no_simulated_user_fn_raises():
+    """Interactive scenario without simulated_user_fn raises NotImplementedError."""
     queue = _make_queue(_simple_profile())
     scenarios = EvalScenarios(
         scenarios=[
             EvalScenario(
                 initial_query="Hello",
                 simulated_user_persona="Curious student",
-                id="reactive_1",
+                id="interactive_1",
                 expected_outcome="conversation",
                 tasks=[
                     AssertionTask(
@@ -271,8 +271,8 @@ def test_reactive_no_simulated_user_fn_raises():
         orch.run()
 
 
-def test_reactive_terminates_on_signal():
-    """Reactive loop stops when simulated user response contains termination_signal."""
+def test_interactive_terminates_on_signal():
+    """Interactive loop stops when simulated user response contains termination_signal."""
     queue = _make_queue(_simple_profile())
     turns = []
     scenarios = EvalScenarios(
@@ -282,7 +282,7 @@ def test_reactive_terminates_on_signal():
                 simulated_user_persona="Math student",
                 termination_signal="DONE",
                 max_turns=10,
-                id="reactive_2",
+                id="interactive_2",
             )
         ]
     )
@@ -307,8 +307,8 @@ def test_reactive_terminates_on_signal():
     assert results is not None
 
 
-def test_reactive_respects_max_turns():
-    """Reactive loop stops at max_turns even without termination signal."""
+def test_interactive_respects_max_turns():
+    """Interactive loop stops at max_turns even without termination signal."""
     queue = _make_queue(_simple_profile())
     turns = []
     scenarios = EvalScenarios(
@@ -318,7 +318,7 @@ def test_reactive_respects_max_turns():
                 simulated_user_persona="Story lover",
                 termination_signal="STOP",
                 max_turns=3,
-                id="reactive_3",
+                id="interactive_3",
             )
         ]
     )
@@ -1138,15 +1138,15 @@ def test_build_scenario_response_dict_override():
     assert results.metrics.passed_scenarios == 1
 
 
-def test_build_scenario_response_reactive_history_accessible():
-    """In reactive scenarios, history is non-empty and accessible in build_scenario_response."""
+def test_build_scenario_response_interactive_history_accessible():
+    """In interactive scenarios, history is non-empty and accessible in build_scenario_response."""
     queue = _make_queue(_simple_profile())
     captured = {}
 
     scenarios = EvalScenarios(
         scenarios=[
             EvalScenario(
-                id="reactive_history",
+                id="interactive_history",
                 initial_query="Start",
                 simulated_user_persona="tester",
                 termination_signal="DONE",
@@ -1175,8 +1175,8 @@ def test_build_scenario_response_reactive_history_accessible():
     assert captured["response"].startswith("response to:")
 
 
-def test_build_scenario_response_non_reactive_history_empty():
-    """For non-reactive scenarios, build_scenario_response receives an empty history."""
+def test_build_scenario_response_non_interactive_history_empty():
+    """For non-interactive scenarios, build_scenario_response receives an empty history."""
     queue = _make_queue(_simple_profile())
     captured_history = []
 

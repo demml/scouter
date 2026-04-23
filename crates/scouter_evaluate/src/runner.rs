@@ -520,7 +520,7 @@ impl EvalRunner {
                 .unwrap_or_else(|| Arc::new(Vec::new()));
 
             // Evaluate
-            match AgentEvaluator::process_event_record(&record, profile, spans_arc).await {
+            match AgentEvaluator::process_event_record(&record, profile, spans_arc.clone()).await {
                 Ok(eval_set) => {
                     let task_results: Vec<TaskSummary> = eval_set
                         .records
@@ -544,6 +544,7 @@ impl EvalRunner {
                         passed,
                         pass_rate,
                         task_results,
+                        traces: spans_arc.as_ref().clone(),
                     });
                 }
                 Err(e) => {
@@ -558,6 +559,7 @@ impl EvalRunner {
                         passed: false,
                         pass_rate: 0.0,
                         task_results: vec![],
+                        traces: spans_arc.as_ref().clone(),
                     });
                 }
             }
@@ -1089,6 +1091,7 @@ mod tests {
                     value: 1.0,
                 },
             ],
+            traces: vec![],
         };
 
         let scenario_results = vec![make_result("s1", true), make_result("s2", false)];
@@ -1175,6 +1178,7 @@ mod tests {
                 passed: true,
                 pass_rate: 1.0,
                 task_results: vec![],
+                traces: vec![],
             },
             ScenarioResult {
                 scenario_id: "s2".to_string(),
@@ -1183,6 +1187,7 @@ mod tests {
                 passed: false,
                 pass_rate: 0.5,
                 task_results: vec![],
+                traces: vec![],
             },
         ];
 

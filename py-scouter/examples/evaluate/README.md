@@ -10,7 +10,7 @@ This directory is organized around the workflows teams use when building and shi
 ## Layout
 
 - `non_interactive/`: fixed-scenario offline evaluation.
-- `interactive/`: reactive evaluation with `simulated_user_fn`.
+- `interactive/`: interactive evaluation with `simulated_user_fn`.
 - `comparison/`: regression checks between agent variants.
 
 ## Run
@@ -26,4 +26,3 @@ Each framework folder includes:
 
 - `agent.py`: deployable FastAPI agent surface.
 - `evaluate.py`: `EvalOrchestrator` entrypoint that imports `run_agent` from `agent.py`.
-

@@ -75,7 +75,6 @@ nav:
       - Overview: "docs/agents/overview.md"
       - Offline evaluation: "docs/agents/offline-evaluation.md"
       - Online evaluation: "docs/agents/online-evaluation.md"
-      - Trace and eval lifecycle: "docs/agents/trace-eval-lifecycle.md"
       - Reading results: "docs/agents/reading-results.md"
       - EvalDataset: "docs/agents/eval-dataset.md"
       - Evaluation tasks: "docs/agents/tasks.md"

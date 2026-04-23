@@ -44,10 +44,10 @@ fn default_tasks() -> AssertionTasks {
 /// Populate `predefined_turns` with follow-up queries (executed in order after
 /// `initial_query`). Leave empty for single-turn evaluation.
 ///
-/// ## ReAct / simulated-user scenarios
-/// `simulated_user_persona` and `termination_signal` are placeholder fields
-/// for future ReAct support. Setting them has no effect in the current
-/// implementation.
+/// ## Interactive scenarios
+/// Set `simulated_user_persona` and `termination_signal` to enable
+/// interactive evaluation with a simulated user driving multi-turn
+/// conversations.
 #[pyclass(from_py_object)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct EvalScenario {
@@ -193,11 +193,11 @@ impl EvalScenario {
         !self.predefined_turns.is_empty()
     }
 
-    /// Returns `true` when a `simulated_user_persona` is set (ReAct/reactive scenario).
+    /// Returns `true` when a `simulated_user_persona` is set (interactive scenario).
     ///
-    /// Note: ReAct execution is deferred — this field is a placeholder until
-    /// potato_head supports simulated user LLMs.
-    pub fn is_reactive(&self) -> bool {
+    /// Interactive scenarios use a simulated user to drive multi-turn
+    /// conversations, mimicking real production usage patterns.
+    pub fn is_interactive(&self) -> bool {
         self.simulated_user_persona.is_some()
     }
 }
@@ -231,7 +231,7 @@ mod tests {
 
         assert_eq!(s.max_turns, 10);
         assert!(!s.is_multi_turn());
-        assert!(!s.is_reactive());
+        assert!(!s.is_interactive());
         assert!(!s.has_tasks());
     }
 
@@ -250,11 +250,11 @@ mod tests {
         };
 
         assert!(s.is_multi_turn());
-        assert!(!s.is_reactive());
+        assert!(!s.is_interactive());
     }
 
     #[test]
-    fn reactive_detection() {
+    fn interactive_detection() {
         let s = EvalScenario {
             id: "t".to_string(),
             initial_query: "Hello".to_string(),
@@ -268,7 +268,7 @@ mod tests {
         };
 
         assert!(!s.is_multi_turn());
-        assert!(s.is_reactive());
+        assert!(s.is_interactive());
     }
 
     #[test]

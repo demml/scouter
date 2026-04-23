@@ -4,6 +4,7 @@ use crate::evaluate::types::{ComparisonResults, EvalResults};
 use owo_colors::OwoColorize;
 use potato_head::PyHelperFuncs;
 use pyo3::prelude::*;
+use scouter_types::trace::sql::TraceSpan;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tabled::Tabled;
@@ -73,6 +74,40 @@ struct DatasetPassRateEntry {
     alias: String,
     #[tabled(rename = "Pass Rate")]
     pass_rate: String,
+}
+
+#[derive(Tabled)]
+struct TraceSpanEntry {
+    #[tabled(rename = "Span Name")]
+    span_name: String,
+    #[tabled(rename = "Duration (ms)")]
+    duration_ms: String,
+    #[tabled(rename = "Depth")]
+    depth: String,
+    #[tabled(rename = "Status")]
+    status: String,
+    #[tabled(rename = "Service")]
+    service: String,
+    #[tabled(rename = "Attrs")]
+    attr_count: String,
+    #[tabled(rename = "Events")]
+    event_count: String,
+}
+
+#[derive(Tabled)]
+struct AttributeEntry {
+    #[tabled(rename = "Attribute")]
+    key: String,
+    #[tabled(rename = "Value")]
+    value: String,
+}
+
+#[derive(Tabled)]
+struct EventEntry {
+    #[tabled(rename = "Event")]
+    name: String,
+    #[tabled(rename = "Timestamp")]
+    timestamp: String,
 }
 
 #[pymethods]
@@ -194,6 +229,10 @@ pub struct ScenarioResult {
     #[pyo3(get)]
     #[serde(default)]
     pub task_results: Vec<TaskSummary>,
+
+    #[pyo3(get)]
+    #[serde(default)]
+    pub traces: Vec<TraceSpan>,
 }
 
 impl PartialEq for ScenarioResult {
@@ -215,6 +254,131 @@ impl ScenarioResult {
     #[getter]
     pub fn eval_results(&self) -> EvalResults {
         self.eval_results.clone()
+    }
+
+    pub fn traces_as_table(&self) {
+        if self.traces.is_empty() {
+            println!("No traces captured for scenario '{}'", self.scenario_id);
+            return;
+        }
+
+        println!(
+            "\n{}",
+            format!("Traces — {}", self.scenario_id)
+                .truecolor(245, 77, 85)
+                .bold()
+        );
+
+        let mut entries: Vec<TraceSpanEntry> = self
+            .traces
+            .iter()
+            .map(|s| {
+                let status = match s.status_code {
+                    0 => "UNSET".to_string(),
+                    1 => "OK".green().to_string(),
+                    2 => "ERROR".red().to_string(),
+                    code => code.to_string(),
+                };
+                TraceSpanEntry {
+                    span_name: s.span_name.clone(),
+                    duration_ms: s.duration_ms.to_string(),
+                    depth: s.depth.to_string(),
+                    status,
+                    service: s.service_name.clone(),
+                    attr_count: s.attributes.len().to_string(),
+                    event_count: s.events.len().to_string(),
+                }
+            })
+            .collect();
+        entries.sort_by_key(|e| e.depth.parse::<i32>().unwrap_or(0));
+
+        let mut table = Table::new(entries);
+        table.with(Style::sharp());
+        table.modify(
+            Rows::new(0..1),
+            (
+                Format::content(|s: &str| s.truecolor(245, 77, 85).bold().to_string()),
+                Alignment::center(),
+                Color::BOLD,
+            ),
+        );
+        println!("{}", table);
+    }
+
+    pub fn trace_detail(&self, span_name: &str) {
+        let matches: Vec<_> = self
+            .traces
+            .iter()
+            .filter(|s| s.span_name == span_name)
+            .collect();
+
+        if matches.is_empty() {
+            println!("No span named '{}' found", span_name);
+            return;
+        }
+
+        for span in matches {
+            println!(
+                "\n{}",
+                format!("Span: {} ({}ms)", span.span_name, span.duration_ms)
+                    .truecolor(245, 77, 85)
+                    .bold()
+            );
+
+            if !span.attributes.is_empty() {
+                let attr_entries: Vec<AttributeEntry> = span
+                    .attributes
+                    .iter()
+                    .map(|a| {
+                        let value_str = a.value.to_string();
+                        let truncated = if value_str.len() > 200 {
+                            format!("{}...", &value_str[..200])
+                        } else {
+                            value_str
+                        };
+                        AttributeEntry {
+                            key: a.key.clone(),
+                            value: truncated,
+                        }
+                    })
+                    .collect();
+
+                let mut attr_table = Table::new(attr_entries);
+                attr_table.with(Style::sharp());
+                attr_table.modify(
+                    Rows::new(0..1),
+                    (
+                        Format::content(|s: &str| s.truecolor(245, 77, 85).bold().to_string()),
+                        Alignment::center(),
+                        Color::BOLD,
+                    ),
+                );
+                println!("{}", attr_table);
+            }
+
+            if !span.events.is_empty() {
+                let event_entries: Vec<EventEntry> = span
+                    .events
+                    .iter()
+                    .map(|e| EventEntry {
+                        name: e.name.clone(),
+                        timestamp: e.timestamp.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string(),
+                    })
+                    .collect();
+
+                let mut event_table = Table::new(event_entries);
+                event_table.with(Style::sharp());
+                event_table.modify(
+                    Rows::new(0..1),
+                    (
+                        Format::content(|s: &str| s.truecolor(245, 77, 85).bold().to_string()),
+                        Alignment::center(),
+                        Color::BOLD,
+                    ),
+                );
+                println!("{}", event_table);
+            }
+        }
     }
 }
 
@@ -935,6 +1099,7 @@ mod tests {
             passed,
             pass_rate,
             task_results: vec![],
+            traces: vec![],
         }
     }
 

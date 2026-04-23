@@ -1,7 +1,7 @@
 """Google ADK API example for interactive evaluation.
 
 This mirrors the non-interactive API example, but the prompts and scenarios are
-reactive. The same service object owns:
+interactive. The same service object owns:
 
 1. the ADK runner/session service
 2. the callback that emits `EvalRecord`s

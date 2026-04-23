@@ -80,18 +80,18 @@ EvalOrchestrator.run()
 │   for each scenario:
 │   ├── on_scenario_start(scenario)
 │   │
-│   ├── [non-reactive] execute_agent(scenario)
+│   ├── [non-interactive] execute_agent(scenario)
 │   │     └── agent emits EvalRecords via span.add_queue_item()
-│   ├── [non-reactive] queue.drain_all_records()   ← per scenario
-│   ├── [non-reactive] EvalRunner.collect_scenario_data()
+│   ├── [non-interactive] queue.drain_all_records()   ← per scenario
+│   ├── [non-interactive] EvalRunner.collect_scenario_data()
 │   │
-│   ├── [reactive] for each turn (up to max_turns):
+│   ├── [interactive] for each turn (up to max_turns):
 │   │   ├── execute_agent_turn(scenario, message)
 │   │   │     └── agent emits EvalRecords via span.add_queue_item()
 │   │   ├── execute_simulated_user_turn(scenario, initial_query, response, history)
 │   │   └── check termination_signal → break if matched
-│   ├── [reactive] queue.drain_all_records()       ← once, after all turns
-│   ├── [reactive] EvalRunner.collect_scenario_data()
+│   ├── [interactive] queue.drain_all_records()       ← once, after all turns
+│   ├── [interactive] EvalRunner.collect_scenario_data()
 │   │
 │   ├── on_scenario_complete(scenario, response)
 │
@@ -328,11 +328,11 @@ EvalScenario(
 
 ---
 
-## Reactive scenarios
+## Interactive scenarios
 
-Reactive scenarios let a simulated user drive the conversation instead of a fixed script. The agent runs in a loop: it receives a message, responds, and the simulated user decides whether to ask a follow-up or signal that it's done. This is how you evaluate agents that maintain session state across turns, where the quality of the final answer depends on the whole exchange rather than a single response.
+Interactive scenarios let a simulated user drive the conversation instead of a fixed script. The agent runs in a loop: it receives a message, responds, and the simulated user decides whether to ask a follow-up or signal that it's done. This is how you evaluate agents that maintain session state across turns, where the quality of the final answer depends on the whole exchange rather than a single response.
 
-A scenario is reactive when `simulated_user_persona` or `termination_signal` is set — check `scenario.is_reactive()` if you need to branch on it yourself.
+A scenario is interactive when `simulated_user_persona` or `termination_signal` is set — check `scenario.is_interactive()` if you need to branch on it yourself.
 
 ### Simple case: `simulated_user_fn`
 
@@ -346,7 +346,7 @@ def simulate_user(initial_query: str, agent_response: str, history: list[dict]) 
 
 scenarios = EvalScenarios(scenarios=[
     EvalScenario(
-        id="dinner_planning_reactive",
+        id="dinner_planning_interactive",
         initial_query="Plan a dinner for 4 people.",
         termination_signal="DONE",
         max_turns=6,
@@ -368,7 +368,7 @@ results = EvalOrchestrator(
 If your agent needs its own session (framework runners, async clients, persistent context), subclass and override `execute_agent_turn` and `execute_simulated_user_turn`. The `simulated_user_fn` shortcut is just a wrapper around `execute_simulated_user_turn` — override the method directly if you need more control.
 
 ```python
-class MyReactiveEval(EvalOrchestrator):
+class MyInteractiveEval(EvalOrchestrator):
     def on_scenario_start(self, scenario: EvalScenario) -> None:
         # Create a fresh session per scenario so state doesn't bleed between runs.
         self._session_id = self._session_service.create()
@@ -514,11 +514,11 @@ Use `agent_fn` / `simulated_user_fn` for simple synchronous agents. Subclass whe
 
 There are two overridable execution methods depending on scenario type:
 
-- `execute_agent(scenario)` — called for non-reactive scenarios (predefined turns or single-turn). Receives the full scenario and is responsible for all turns.
-- `execute_agent_turn(scenario, message)` — called once per turn in reactive scenarios. Use this when your agent maintains its own session state and just needs to receive the next message.
+- `execute_agent(scenario)` — called for non-interactive scenarios (predefined turns or single-turn). Receives the full scenario and is responsible for all turns.
+- `execute_agent_turn(scenario, message)` — called once per turn in interactive scenarios. Use this when your agent maintains its own session state and just needs to receive the next message.
 
 ```python
-# Non-reactive: manage predefined turns yourself
+# Non-interactive: manage predefined turns yourself
 class MyAgentEval(EvalOrchestrator):
     def execute_agent(self, scenario: EvalScenario) -> Any:
         history = []
@@ -534,8 +534,8 @@ class MyAgentEval(EvalOrchestrator):
         return response
 
 
-# Reactive: agent receives one message at a time, manages its own history
-class MyReactiveEval(EvalOrchestrator):
+# Interactive: agent receives one message at a time, manages its own history
+class MyInteractiveEval(EvalOrchestrator):
     def on_scenario_start(self, scenario: EvalScenario) -> None:
         self._session_id = self._session_service.create()
 
@@ -569,7 +569,7 @@ class MyEval(EvalOrchestrator):
         return results
 ```
 
-Hook order per scenario: `on_scenario_start` → execution → `on_scenario_complete`. For reactive scenarios, `on_scenario_start` fires before the first turn — use it to initialize per-scenario state like session IDs. `on_evaluation_complete` fires once after all scenarios finish.
+Hook order per scenario: `on_scenario_start` → execution → `on_scenario_complete`. For interactive scenarios, `on_scenario_start` fires before the first turn — use it to initialize per-scenario state like session IDs. `on_evaluation_complete` fires once after all scenarios finish.
 
 ---
 
@@ -587,7 +587,7 @@ With scenario tasks using `context_path = "response.confidence"`, the evaluator 
 
 ### `build_scenario_response`
 
-By default, whatever `execute_agent` or `execute_agent_turn` returns is passed straight to the evaluator. Override `build_scenario_response` when you want to transform or replace that value before evaluation — for example, to post-process the response, inject metadata, or for reactive scenarios, build an evaluation context from the full conversation history rather than just the final reply.
+By default, whatever `execute_agent` or `execute_agent_turn` returns is passed straight to the evaluator. Override `build_scenario_response` when you want to transform or replace that value before evaluation — for example, to post-process the response, inject metadata, or for interactive scenarios, build an evaluation context from the full conversation history rather than just the final reply.
 
 ```python
 def build_scenario_response(
@@ -599,7 +599,7 @@ def build_scenario_response(
     return response  # default: pass through unchanged
 ```
 
-`history` is a list of `{"user": str, "agent": Any}` dicts for all turns. For non-reactive scenarios it's always `[]`. For reactive scenarios it contains every turn up to (but not including) the final agent response.
+`history` is a list of `{"user": str, "agent": Any}` dicts for all turns. For non-interactive scenarios it's always `[]`. For interactive scenarios it contains every turn up to (but not including) the final agent response.
 
 **Example: evaluate conversation quality instead of the final reply**
 

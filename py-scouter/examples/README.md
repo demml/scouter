@@ -16,7 +16,7 @@ That folder keeps the contract tight:
 |---|---|
 | `examples/evaluate/simple/` | Canonical single-agent offline eval examples for ADK, CrewAI, and OpenAI Agents SDK |
 | `examples/evaluate/multi_agent/` | Multi-agent CrewAI reference example |
-| `examples/evaluate/react/adk/` | Reactive ADK evaluation pattern |
+| `examples/evaluate/react/adk/` | Interactive ADK evaluation pattern |
 | `examples/tracing/` | Tracing-only setup and framework instrumentation |
 | `examples/monitor/` | Drift monitoring examples |
 | `examples/profile/` | Profile creation examples |

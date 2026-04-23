@@ -20,7 +20,7 @@ def simulated_user_turn(
     agent_response: Any,
     history: list[dict[str, Any]],
 ) -> str:
-    """Drive a short reactive conversation for the shared interactive scenarios."""
+    """Drive a short interactive conversation for the shared interactive scenarios."""
     del initial_query
 
     if len(history) >= 2:
@@ -46,7 +46,7 @@ class GoogleInteractiveEvalOrchestrator(EvalOrchestrator):
         self._service: GoogleAgentService = build_agent_service()
 
     def execute_agent_turn(self, scenario: EvalScenario, message: str) -> str:
-        """Run each reactive turn on the same event loop and service instance."""
+        """Run each interactive turn on the same event loop and service instance."""
         del scenario
         return self._runner.run(self._service.run(message))
 
