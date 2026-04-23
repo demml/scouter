@@ -372,7 +372,9 @@ pub(crate) fn get_current_context_id(py: Python<'_>) -> PyResult<Option<String>>
 
 /// Get the current active span from the context variable.
 /// Returns TraceError::NoActiveSpan if no active span is set.
-fn get_current_active_span_from_otel(py: Python<'_>) -> Result<Option<Bound<'_, PyAny>>, TraceError> {
+fn get_current_active_span_from_otel(
+    py: Python<'_>,
+) -> Result<Option<Bound<'_, PyAny>>, TraceError> {
     let trace_mod = py.import("opentelemetry.trace")?;
     let current_span = trace_mod.call_method0("get_current_span")?;
 

@@ -23,7 +23,12 @@ from scouter.evaluate import (
 )
 from scouter.mock import MockConfig
 from scouter.queue import ScouterQueue
-from scouter.tracing import ScouterInstrumentor, TestSpanExporter, active_profile, init_tracer
+from scouter.tracing import (
+    ScouterInstrumentor,
+    TestSpanExporter,
+    active_profile,
+    init_tracer,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers

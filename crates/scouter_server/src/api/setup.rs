@@ -132,8 +132,11 @@ impl ScouterSetupComponents {
         let (trace_service, trace_summary_service, trace_dispatch_service, genai_service) =
             Self::start_trace_services(&config).await?;
 
-        // If GenAI is enabled, set up the GenAI drift workers
-        if config.genai_enabled() {
+        // Start agent eval workers when GenAI is configured or trace eval is enabled.
+        // TraceAssertionTask records don't need an LLM provider — the AgentPoller handles both.
+        if config.genai_enabled()
+            || Self::trace_eval_workers_enabled(&config.trace_eval_poller_settings)
+        {
             Self::setup_background_genai_drift_workers(
                 &db_pool,
                 &config.genai_polling_settings,

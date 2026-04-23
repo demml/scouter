@@ -59,11 +59,11 @@ def test_tracer_grpc_sampling(setup_tracer_grpc_sample):
             task_one()
             task_two()
 
+    _wait_for_export()
+
     traces = get_traces_from_jaeger("tracing-grpc-sample")
     assert len(traces) > 0
     assert len(traces) < 20
-
-    _wait_for_export()
 
     scouter_client = ScouterClient()
     traces = scouter_client.get_paginated_traces(TraceFilters(service_name="tracing-grpc-sample"))

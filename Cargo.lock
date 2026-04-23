@@ -832,8 +832,9 @@ dependencies = [
 
 [[package]]
 name = "baked-potato"
-version = "0.22.0"
-source = "git+https://github.com/demml/potatohead.git?rev=bae806e8e84ed03903c513307744cc64a93de701#bae806e8e84ed03903c513307744cc64a93de701"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ede6c7d68f44ad9bfd07d3b9389e740a4b12e917673a874b4e4278af8b7d739"
 dependencies = [
  "async-trait",
  "chrono",
@@ -5208,8 +5209,9 @@ dependencies = [
 
 [[package]]
 name = "potato-agent"
-version = "0.22.0"
-source = "git+https://github.com/demml/potatohead.git?rev=bae806e8e84ed03903c513307744cc64a93de701#bae806e8e84ed03903c513307744cc64a93de701"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cab18a6515161d97efe775fcf2dc29eb0376f3d49541241cbec0d0911bcf4285"
 dependencies = [
  "async-trait",
  "base64",
@@ -5234,8 +5236,9 @@ dependencies = [
 
 [[package]]
 name = "potato-head"
-version = "0.22.0"
-source = "git+https://github.com/demml/potatohead.git?rev=bae806e8e84ed03903c513307744cc64a93de701#bae806e8e84ed03903c513307744cc64a93de701"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32d9f8eb0ada6b9443b5b72f1c8758e8d2816df708c15531367173aca1267537"
 dependencies = [
  "baked-potato",
  "potato-agent",
@@ -5248,8 +5251,9 @@ dependencies = [
 
 [[package]]
 name = "potato-provider"
-version = "0.22.0"
-source = "git+https://github.com/demml/potatohead.git?rev=bae806e8e84ed03903c513307744cc64a93de701#bae806e8e84ed03903c513307744cc64a93de701"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43eac6db8ae77623a2f034065da9ccd1f5776908064b3817452c4b58bfa1df9e"
 dependencies = [
  "base64",
  "gcloud-auth",
@@ -5270,8 +5274,9 @@ dependencies = [
 
 [[package]]
 name = "potato-spec"
-version = "0.22.0"
-source = "git+https://github.com/demml/potatohead.git?rev=bae806e8e84ed03903c513307744cc64a93de701#bae806e8e84ed03903c513307744cc64a93de701"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fef0c5c8de070460bf40d7fc6002fcf353394042fd2cf0c81fed5a2b28a635cb"
 dependencies = [
  "potato-agent",
  "potato-type",
@@ -5286,8 +5291,9 @@ dependencies = [
 
 [[package]]
 name = "potato-state"
-version = "0.22.0"
-source = "git+https://github.com/demml/potatohead.git?rev=bae806e8e84ed03903c513307744cc64a93de701#bae806e8e84ed03903c513307744cc64a93de701"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c76b46d15610d88909850b1fe29a1919d99a6f37bfd3e1a5e7b084ea5e8856e3"
 dependencies = [
  "thiserror 2.0.18",
  "tokio",
@@ -5296,8 +5302,9 @@ dependencies = [
 
 [[package]]
 name = "potato-type"
-version = "0.22.0"
-source = "git+https://github.com/demml/potatohead.git?rev=bae806e8e84ed03903c513307744cc64a93de701#bae806e8e84ed03903c513307744cc64a93de701"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fc6a6022c81fe8e58ec04a25d6d42e6bdf1ed22eff4a3c19b1c80d83bb34fe1f"
 dependencies = [
  "async-trait",
  "potato-util",
@@ -5315,8 +5322,9 @@ dependencies = [
 
 [[package]]
 name = "potato-util"
-version = "0.22.0"
-source = "git+https://github.com/demml/potatohead.git?rev=bae806e8e84ed03903c513307744cc64a93de701#bae806e8e84ed03903c513307744cc64a93de701"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fdc95975eadba23e94058a4c4c17a6e54b8f7ba0355b9d05727cfd663622593d"
 dependencies = [
  "colored_json",
  "pyo3",
@@ -5331,8 +5339,9 @@ dependencies = [
 
 [[package]]
 name = "potato-workflow"
-version = "0.22.0"
-source = "git+https://github.com/demml/potatohead.git?rev=bae806e8e84ed03903c513307744cc64a93de701#bae806e8e84ed03903c513307744cc64a93de701"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "654e8f49fd85bd443d40c52a678193e74842f8e15ff1dc68f35ca305f60d8727"
 dependencies = [
  "chrono",
  "potato-agent",
@@ -5351,8 +5360,9 @@ dependencies = [
 
 [[package]]
 name = "potatohead-macro"
-version = "0.22.0"
-source = "git+https://github.com/demml/potatohead.git?rev=bae806e8e84ed03903c513307744cc64a93de701#bae806e8e84ed03903c513307744cc64a93de701"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4e554331d780bfd9be09ef997502773d7481b8b977c656731005eeda34a3722d"
 dependencies = [
  "thiserror 2.0.18",
 ]
