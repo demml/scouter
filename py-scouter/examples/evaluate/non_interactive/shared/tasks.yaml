@@ -11,8 +11,8 @@ tasks:
     id: trace_latency_budget
     operator: LessThan
     expected_value: 10000.0
-    description: Validate that end-to-end trace latency stays under 5 seconds.
-    depends_on: []
+    expected_value: 10000.0
+    description: Validate that end-to-end trace latency stays under 10 seconds.
     condition: false
     assertion:
       TraceDuration: {}
