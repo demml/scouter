@@ -48,14 +48,18 @@ pub async fn insert_message(
             counter!("channel_full").increment(1);
             Err((
                 StatusCode::TOO_MANY_REQUESTS,
-                Json(ScouterServerError::new("Service busy, retry later".to_string())),
+                Json(ScouterServerError::new(
+                    "Service busy, retry later".to_string(),
+                )),
             ))
         }
         Err(false) => {
             error!("Channel disconnected while enqueuing message");
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ScouterServerError::new("Failed to enqueue message".to_string())),
+                Json(ScouterServerError::new(
+                    "Failed to enqueue message".to_string(),
+                )),
             ))
         }
     }

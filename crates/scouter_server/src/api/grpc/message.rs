@@ -43,18 +43,39 @@ impl MessageService for MessageGrpcService {
         })?;
 
         let enqueue_result: Result<(), Status> = match message_record {
-            MessageRecord::ServerRecords(r) => self.state.server_record_tx.try_send(r).map_err(|e| match e {
-                flume::TrySendError::Full(_) => Status::resource_exhausted("Service busy, retry later"),
-                flume::TrySendError::Disconnected(_) => Status::internal("Failed to enqueue message"),
-            }),
-            MessageRecord::TraceServerRecord(r) => self.state.trace_record_tx.try_send(r).map_err(|e| match e {
-                flume::TrySendError::Full(_) => Status::resource_exhausted("Service busy, retry later"),
-                flume::TrySendError::Disconnected(_) => Status::internal("Failed to enqueue message"),
-            }),
-            MessageRecord::TagServerRecord(r) => self.state.tag_record_tx.try_send(r).map_err(|e| match e {
-                flume::TrySendError::Full(_) => Status::resource_exhausted("Service busy, retry later"),
-                flume::TrySendError::Disconnected(_) => Status::internal("Failed to enqueue message"),
-            }),
+            MessageRecord::ServerRecords(r) => {
+                self.state
+                    .server_record_tx
+                    .try_send(r)
+                    .map_err(|e| match e {
+                        flume::TrySendError::Full(_) => {
+                            Status::resource_exhausted("Service busy, retry later")
+                        }
+                        flume::TrySendError::Disconnected(_) => {
+                            Status::internal("Failed to enqueue message")
+                        }
+                    })
+            }
+            MessageRecord::TraceServerRecord(r) => {
+                self.state.trace_record_tx.try_send(r).map_err(|e| match e {
+                    flume::TrySendError::Full(_) => {
+                        Status::resource_exhausted("Service busy, retry later")
+                    }
+                    flume::TrySendError::Disconnected(_) => {
+                        Status::internal("Failed to enqueue message")
+                    }
+                })
+            }
+            MessageRecord::TagServerRecord(r) => {
+                self.state.tag_record_tx.try_send(r).map_err(|e| match e {
+                    flume::TrySendError::Full(_) => {
+                        Status::resource_exhausted("Service busy, retry later")
+                    }
+                    flume::TrySendError::Disconnected(_) => {
+                        Status::internal("Failed to enqueue message")
+                    }
+                })
+            }
         };
         if let Err(ref status) = enqueue_result {
             if status.code() == tonic::Code::ResourceExhausted {

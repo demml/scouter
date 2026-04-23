@@ -187,9 +187,7 @@ impl Default for HttpConsumerSettings {
                 .and_then(|v| {
                     v.parse::<usize>()
                         .map_err(|_| {
-                            tracing::warn!(
-                                "Invalid value for {var}, using default {default}"
-                            );
+                            tracing::warn!("Invalid value for {var}, using default {default}");
                         })
                         .ok()
                 })

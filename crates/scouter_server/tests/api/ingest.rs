@@ -10,8 +10,8 @@ use opentelemetry_proto::tonic::resource::v1::Resource;
 use opentelemetry_proto::tonic::trace::v1::{ResourceSpans, ScopeSpans, Span};
 use potato_head::create_uuid7;
 use scouter_sql::sql::aggregator::shutdown_trace_cache;
-use scouter_types::{MessageRecord, TagRecord, TagsRequest, TagsResponse, TraceServerRecord};
 use scouter_types::{sql::TraceFilters, TracePaginationResponse};
+use scouter_types::{MessageRecord, TagRecord, TagsRequest, TagsResponse, TraceServerRecord};
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -99,7 +99,10 @@ async fn test_trace_ingest_via_message_channel() {
 
     let bytes = response.into_body().collect().await.unwrap().to_bytes();
     let page: TracePaginationResponse = serde_json::from_slice(&bytes).unwrap();
-    assert!(!page.items.is_empty(), "Trace record should appear after channel ingest");
+    assert!(
+        !page.items.is_empty(),
+        "Trace record should appear after channel ingest"
+    );
 }
 
 #[tokio::test]
@@ -147,7 +150,11 @@ async fn test_tag_ingest_via_message_channel() {
 
     let bytes = response.into_body().collect().await.unwrap().to_bytes();
     let tags_response: TagsResponse = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(tags_response.tags.len(), 1, "Tag should be present after channel ingest");
+    assert_eq!(
+        tags_response.tags.len(),
+        1,
+        "Tag should be present after channel ingest"
+    );
     assert_eq!(tags_response.tags[0].key, "env");
 }
 
@@ -188,7 +195,10 @@ async fn test_trace_ingest_via_drift_endpoint() {
 
     let bytes = response.into_body().collect().await.unwrap().to_bytes();
     let page: TracePaginationResponse = serde_json::from_slice(&bytes).unwrap();
-    assert!(!page.items.is_empty(), "Trace record should appear via /scouter/drift ingest");
+    assert!(
+        !page.items.is_empty(),
+        "Trace record should appear via /scouter/drift ingest"
+    );
 }
 
 #[tokio::test]
@@ -234,5 +244,9 @@ async fn test_tag_ingest_via_drift_endpoint() {
 
     let bytes = response.into_body().collect().await.unwrap().to_bytes();
     let tags_response: TagsResponse = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(tags_response.tags.len(), 1, "Tag should be present via /scouter/drift ingest");
+    assert_eq!(
+        tags_response.tags.len(),
+        1,
+        "Tag should be present via /scouter/drift ingest"
+    );
 }

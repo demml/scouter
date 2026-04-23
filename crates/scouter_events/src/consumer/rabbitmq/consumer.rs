@@ -72,7 +72,9 @@ pub mod rabbitmq_consumer {
             Ok(Some(record)) => {
                 let success = match record {
                     MessageRecord::ServerRecords(r) => process_server_records(id, r, db_pool).await,
-                    MessageRecord::TraceServerRecord(r) => process_trace_record(id, r, db_pool).await,
+                    MessageRecord::TraceServerRecord(r) => {
+                        process_trace_record(id, r, db_pool).await
+                    }
                     MessageRecord::TagServerRecord(r) => process_tag_record(id, r, db_pool).await,
                 };
                 if success {

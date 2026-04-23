@@ -1,6 +1,8 @@
 #[cfg(all(feature = "redis_events", feature = "sql"))]
 pub mod redis_consumer {
-    use crate::consumer::utils::{process_server_records, process_tag_record, process_trace_record};
+    use crate::consumer::utils::{
+        process_server_records, process_tag_record, process_trace_record,
+    };
     use crate::error::EventError;
     use crate::producer::redis::producer::redis_producer::RedisMessageBroker;
     use futures_util::StreamExt;
@@ -137,7 +139,9 @@ pub mod redis_consumer {
             Ok(Some(record)) => {
                 let _ = match record {
                     MessageRecord::ServerRecords(r) => process_server_records(id, r, db_pool).await,
-                    MessageRecord::TraceServerRecord(r) => process_trace_record(id, r, db_pool).await,
+                    MessageRecord::TraceServerRecord(r) => {
+                        process_trace_record(id, r, db_pool).await
+                    }
                     MessageRecord::TagServerRecord(r) => process_tag_record(id, r, db_pool).await,
                 };
             }

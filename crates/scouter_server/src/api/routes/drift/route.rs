@@ -7,6 +7,7 @@ use axum::{
     routing::{get, post},
     Extension, Json, Router,
 };
+use metrics::counter;
 use scouter_auth::permission::UserPermissions;
 use scouter_drift::psi::PsiDrifter;
 use scouter_settings::ScouterServerConfig;
@@ -24,7 +25,6 @@ use scouter_types::{DriftRequest, ScouterResponse, ScouterServerError};
 use sqlx::{Pool, Postgres};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
-use metrics::counter;
 use tracing::{debug, error, instrument};
 
 #[utoipa::path(
@@ -255,7 +255,6 @@ pub async fn get_custom_drift(
     }
 }
 
-
 #[utoipa::path(
     get,
     path = "/scouter/drift/agent/task",
@@ -422,14 +421,18 @@ pub async fn insert_drift(
             counter!("channel_full").increment(1);
             Err((
                 StatusCode::TOO_MANY_REQUESTS,
-                Json(ScouterServerError::new("Service busy, retry later".to_string())),
+                Json(ScouterServerError::new(
+                    "Service busy, retry later".to_string(),
+                )),
             ))
         }
         Err(false) => {
             error!("Channel disconnected while enqueuing drift records");
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ScouterServerError::new("Failed to enqueue drift records".to_string())),
+                Json(ScouterServerError::new(
+                    "Failed to enqueue drift records".to_string(),
+                )),
             ))
         }
     }

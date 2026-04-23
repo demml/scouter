@@ -211,7 +211,9 @@ fn make_grpc_trace_record() -> MessageRecord {
     let service_name_kv = KeyValue {
         key: "service.name".to_string(),
         value: Some(AnyValue {
-            value: Some(any_value::Value::StringValue("grpc-test-service".to_string())),
+            value: Some(any_value::Value::StringValue(
+                "grpc-test-service".to_string(),
+            )),
         }),
     };
 
@@ -273,7 +275,10 @@ async fn test_grpc_insert_trace_record() {
     assert_eq!(response.status(), StatusCode::OK);
     let bytes = response.into_body().collect().await.unwrap().to_bytes();
     let page: TracePaginationResponse = serde_json::from_slice(&bytes).unwrap();
-    assert!(!page.items.is_empty(), "Trace record should appear after gRPC ingest");
+    assert!(
+        !page.items.is_empty(),
+        "Trace record should appear after gRPC ingest"
+    );
 }
 
 #[tokio::test]
@@ -312,7 +317,11 @@ async fn test_grpc_insert_tag_record() {
     assert_eq!(response.status(), StatusCode::OK);
     let bytes = response.into_body().collect().await.unwrap().to_bytes();
     let tags_response: TagsResponse = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(tags_response.tags.len(), 1, "Tag should be present after gRPC ingest");
+    assert_eq!(
+        tags_response.tags.len(),
+        1,
+        "Tag should be present after gRPC ingest"
+    );
     assert_eq!(tags_response.tags[0].value, "ml-team");
 }
 
@@ -321,9 +330,7 @@ async fn test_grpc_insert_invalid_message() {
     let helper = setup_test().await;
     let client = helper.create_grpc_client().await;
 
-    let response = client
-        .insert_message(b"not valid json".to_vec())
-        .await;
+    let response = client.insert_message(b"not valid json".to_vec()).await;
 
     assert!(response.is_err(), "Invalid bytes should return an error");
     // GrpcClient wraps tonic::Status into ClientError::GrpcError — verify the error

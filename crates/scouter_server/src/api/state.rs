@@ -13,7 +13,9 @@ use scouter_dataframe::EvalScenarioService;
 use scouter_settings::ScouterServerConfig;
 use scouter_sql::sql::aggregator::shutdown_trace_cache;
 use scouter_sql::sql::cache::entity_cache;
-use scouter_types::{contracts::ScouterServerError, DriftType, ServerRecords, TagRecord, TraceServerRecord};
+use scouter_types::{
+    contracts::ScouterServerError, DriftType, ServerRecords, TagRecord, TraceServerRecord,
+};
 use sqlx::{Pool, Postgres};
 use std::sync::Arc;
 use tracing::error;

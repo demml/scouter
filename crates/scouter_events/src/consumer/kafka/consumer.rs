@@ -1,5 +1,7 @@
 pub mod kafka_consumer {
-    use crate::consumer::utils::{process_server_records, process_tag_record, process_trace_record};
+    use crate::consumer::utils::{
+        process_server_records, process_tag_record, process_trace_record,
+    };
     use crate::error::EventError;
     use metrics::counter;
     use rdkafka::config::ClientConfig;

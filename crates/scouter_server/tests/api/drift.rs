@@ -323,5 +323,9 @@ async fn test_spc_via_drift_endpoint() {
 
     let body = response.into_body().collect().await.unwrap().to_bytes();
     let results: scouter_types::spc::SpcDriftFeatures = serde_json::from_slice(&body).unwrap();
-    assert_eq!(results.features.len(), 10, "SPC records should be inserted via /scouter/drift");
+    assert_eq!(
+        results.features.len(),
+        10,
+        "SPC records should be inserted via /scouter/drift"
+    );
 }
