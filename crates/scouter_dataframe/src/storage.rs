@@ -10,6 +10,7 @@ use object_store::local::LocalFileSystem;
 use object_store::path::Path;
 use object_store::ClientOptions;
 use object_store::ObjectStore as ObjStore;
+use object_store::ObjectStoreExt;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::StorageType;
 use std::sync::Arc;
@@ -140,12 +141,15 @@ impl StorageProvider {
                 } else {
                     std::env::current_dir()?.join(storage_path)
                 };
+                let canonical_path = absolute_path
+                    .canonicalize()
+                    .unwrap_or_else(|_| absolute_path.clone());
 
                 // Create file:// URL with absolute path
-                let url = Url::from_file_path(&absolute_path).map_err(|_| {
+                let url = Url::from_file_path(&canonical_path).map_err(|_| {
                     StorageError::InvalidUrl(format!(
                         "Failed to create file URL from path: {:?}",
-                        absolute_path
+                        canonical_path
                     ))
                 })?;
                 Ok(url)

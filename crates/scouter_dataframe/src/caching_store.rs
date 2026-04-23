@@ -1,11 +1,13 @@
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::BoxStream;
+use futures::StreamExt;
 use mini_moka::sync::Cache;
 use object_store::path::Path;
 use object_store::{
-    GetOptions, GetResult, ListResult, MultipartUpload, ObjectMeta, ObjectStore,
-    PutMultipartOptions, PutOptions, PutPayload, PutResult, Result,
+    CopyOptions, GetOptions, GetRange, GetResult, GetResultPayload, ListResult, MultipartUpload,
+    ObjectMeta, ObjectStore, ObjectStoreExt, PutMultipartOptions, PutOptions, PutPayload,
+    PutResult, Result,
 };
 use std::fmt;
 use std::sync::Arc;
@@ -72,6 +74,15 @@ impl<T: ObjectStore> CachingStore<T> {
     }
 }
 
+fn is_plain_request(options: &GetOptions) -> bool {
+    options.if_match.is_none()
+        && options.if_none_match.is_none()
+        && options.if_modified_since.is_none()
+        && options.if_unmodified_since.is_none()
+        && options.version.is_none()
+        && options.extensions.is_empty()
+}
+
 impl<T: ObjectStore> fmt::Display for CachingStore<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "CachingStore({})", self.inner)
@@ -100,14 +111,87 @@ impl<T: ObjectStore> ObjectStore for CachingStore<T> {
     }
 
     async fn get_opts(&self, location: &Path, options: GetOptions) -> Result<GetResult> {
+        let key: Arc<str> = location.to_string().into();
+
+        if options.head && options.range.is_none() && is_plain_request(&options) {
+            if let Some(meta) = self.head_cache.get(&key) {
+                return Ok(GetResult {
+                    payload: GetResultPayload::Stream(futures::stream::empty().boxed()),
+                    meta,
+                    range: 0..0,
+                    attributes: Default::default(),
+                });
+            }
+
+            let result = self.inner.get_opts(location, options).await?;
+            self.head_cache.insert(key, result.meta.clone());
+            return Ok(result);
+        }
+
+        if let Some(GetRange::Bounded(range)) = options.range.as_ref() {
+            let len = range.end.saturating_sub(range.start);
+            if !options.head && is_plain_request(&options) && len <= MAX_CACHEABLE_BYTES {
+                let meta = match self.head_cache.get(&key) {
+                    Some(meta) => meta,
+                    None => {
+                        let meta = self.inner.head(location).await?;
+                        self.head_cache.insert(key.clone(), meta.clone());
+                        meta
+                    }
+                };
+
+                if range.end <= meta.size {
+                    let range_key = RangeCacheKey {
+                        path: key,
+                        start: range.start,
+                        end: range.end,
+                    };
+
+                    if let Some(bytes) = self.range_cache.get(&range_key) {
+                        return Ok(GetResult {
+                            payload: GetResultPayload::Stream(
+                                futures::stream::once(async move { Ok(bytes) }).boxed(),
+                            ),
+                            meta,
+                            range: range.clone(),
+                            attributes: Default::default(),
+                        });
+                    }
+
+                    let bytes = self.inner.get_range(location, range.clone()).await?;
+                    self.range_cache.insert(range_key, bytes.clone());
+                    return Ok(GetResult {
+                        payload: GetResultPayload::Stream(
+                            futures::stream::once(async move { Ok(bytes) }).boxed(),
+                        ),
+                        meta,
+                        range: range.clone(),
+                        attributes: Default::default(),
+                    });
+                }
+            }
+        }
+
         self.inner.get_opts(location, options).await
     }
 
-    async fn delete(&self, location: &Path) -> Result<()> {
-        // Invalidate caches for the deleted path.
-        let key: Arc<str> = location.to_string().into();
-        self.head_cache.invalidate(&key);
-        self.inner.delete(location).await
+    fn delete_stream(
+        &self,
+        locations: BoxStream<'static, Result<Path>>,
+    ) -> BoxStream<'static, Result<Path>> {
+        let head_cache = self.head_cache.clone();
+        let range_cache = self.range_cache.clone();
+        self.inner
+            .delete_stream(locations)
+            .map(move |result| {
+                if let Ok(location) = &result {
+                    let key: Arc<str> = location.to_string().into();
+                    head_cache.invalidate(&key);
+                    range_cache.invalidate_all();
+                }
+                result
+            })
+            .boxed()
     }
 
     fn list(&self, prefix: Option<&Path>) -> BoxStream<'static, Result<ObjectMeta>> {
@@ -118,49 +202,12 @@ impl<T: ObjectStore> ObjectStore for CachingStore<T> {
         self.inner.list_with_delimiter(prefix).await
     }
 
-    async fn copy(&self, from: &Path, to: &Path) -> Result<()> {
-        self.inner.copy(from, to).await
-    }
-
-    async fn copy_if_not_exists(&self, from: &Path, to: &Path) -> Result<()> {
-        self.inner.copy_if_not_exists(from, to).await
-    }
-
-    // ── Cached methods ──────────────────────────────────────────────────
-
-    async fn head(&self, location: &Path) -> Result<ObjectMeta> {
-        let key: Arc<str> = location.to_string().into();
-
-        if let Some(meta) = self.head_cache.get(&key) {
-            return Ok(meta);
-        }
-
-        let meta = self.inner.head(location).await?;
-        self.head_cache.insert(key, meta.clone());
-        Ok(meta)
-    }
-
-    async fn get_range(&self, location: &Path, range: std::ops::Range<u64>) -> Result<Bytes> {
-        let len = range.end.saturating_sub(range.start);
-
-        // Only cache small reads (footer-sized). Large column data reads pass through.
-        if len > MAX_CACHEABLE_BYTES {
-            return self.inner.get_range(location, range).await;
-        }
-
-        let key = RangeCacheKey {
-            path: location.to_string().into(),
-            start: range.start,
-            end: range.end,
-        };
-
-        if let Some(bytes) = self.range_cache.get(&key) {
-            return Ok(bytes);
-        }
-
-        let bytes = self.inner.get_range(location, range).await?;
-        self.range_cache.insert(key, bytes.clone());
-        Ok(bytes)
+    async fn copy_opts(&self, from: &Path, to: &Path, options: CopyOptions) -> Result<()> {
+        self.inner.copy_opts(from, to, options).await?;
+        let to_key: Arc<str> = to.to_string().into();
+        self.head_cache.invalidate(&to_key);
+        self.range_cache.invalidate_all();
+        Ok(())
     }
 }
 

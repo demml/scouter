@@ -276,7 +276,7 @@ impl TraceSpanDBEngine {
         WriterProperties::builder()
             // Row group size: creates ~4 groups per 128MB file so bloom + page stats
             // prune within files, not just across files.
-            .set_max_row_group_size(32_768)
+            .set_max_row_group_row_count(Some(32_768))
             // Bloom filter on trace_id: skips ~99% of row groups for trace_id equality lookups.
             .set_column_bloom_filter_enabled(ColumnPath::new(vec!["trace_id".to_string()]), true)
             .set_column_bloom_filter_fpp(ColumnPath::new(vec!["trace_id".to_string()]), 0.01)
@@ -436,7 +436,8 @@ impl TraceSpanDBEngine {
 
         info!(
             "Expired {} rows older than {}",
-            metrics.num_deleted_rows, cutoff_date
+            metrics.num_deleted_rows.unwrap_or_default(),
+            cutoff_date
         );
 
         self.catalog

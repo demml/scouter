@@ -100,10 +100,6 @@ pub fn extract_stats_from_snapshot(
         row_count: if has_row_stats { Some(row_count) } else { None },
         file_count: Some(file_count),
         size_bytes: Some(size_bytes),
-        delta_version: if version >= 0 {
-            Some(version as u64)
-        } else {
-            None
-        },
+        delta_version: Some(version),
     })
 }

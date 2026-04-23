@@ -47,9 +47,9 @@ anyhow = "1.*"
 axum = { version = "0.*", features = ["macros"] }
 axum-extra = { version =  ">=0.10, <1.0", features = ["cookie"] }
 approx = "0.5.1"
-arrow = { version = "57.*" }
-arrow-array = { version = "57.*" }
-arrow-json = { version = "57.*" }
+arrow = { version = "58.*" }
+arrow-array = { version = "58.*" }
+arrow-json = { version = "58.*" }
 async-trait = ">=0.1"
 base64 = ">=0.22"
 bytes = "1"
@@ -60,7 +60,7 @@ cron = "0.*"
 crossbeam-queue = "0.*"
 dashmap = "6.*"
 deltalake = { version = "0.*", features = ["datafusion"] }
-datafusion = { version = "52.*", features = ["parquet"] }
+datafusion = { version = "53.*", features = ["parquet"] }
 futures-util = { version = "0.*" }
 flume = "0.11.*"
 futures = "0.*"
@@ -80,7 +80,7 @@ ndarray-stats = "0.*"
 noisy_float = "0.*"
 numpy = "0.*"
 num-traits = "0.*"
-object_store = { version = "0.12.4", features = ["aws", "azure", "gcp" ] }
+object_store = { version = "0.*", features = ["aws", "azure", "gcp" ] }
 opentelemetry = { version = "0.31.0" }
 opentelemetry-stdout = "0.31.0"
 opentelemetry_sdk = { version = "0.31.0", features = ["trace"] }
