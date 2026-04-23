@@ -6554,6 +6554,7 @@ dependencies = [
  "potato-head",
  "pyo3",
  "reqwest 0.12.28",
+ "scouter-dataframe",
  "scouter-dispatch",
  "scouter-drift",
  "scouter-evaluate",

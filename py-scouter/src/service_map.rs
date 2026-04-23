@@ -1,5 +1,5 @@
 use pyo3::prelude::*;
-use scouter_dataframe::{extract_trace_id, infer_schema, normalize_endpoint};
+use scouter_client::{extract_trace_id, infer_schema, normalize_endpoint};
 
 #[pyfunction]
 fn py_normalize_endpoint(path: &str) -> String {

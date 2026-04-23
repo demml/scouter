@@ -18,14 +18,10 @@ def _wait_for_jaeger_traces(service_name: str, timeout_seconds: float = 10.0):
 def _wait_for_scouter_traces(service_name: str, timeout_seconds: float = 10.0):
     scouter_client = ScouterClient()
     deadline = time.time() + timeout_seconds
-    response = scouter_client.get_paginated_traces(
-        TraceFilters(service_name=service_name)
-    )
+    response = scouter_client.get_paginated_traces(TraceFilters(service_name=service_name))
     while len(response.items) == 0 and time.time() < deadline:
         time.sleep(0.5)
-        response = scouter_client.get_paginated_traces(
-            TraceFilters(service_name=service_name)
-        )
+        response = scouter_client.get_paginated_traces(TraceFilters(service_name=service_name))
     return response
 
 
