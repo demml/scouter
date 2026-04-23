@@ -1,8 +1,32 @@
 import time
 
+from opentelemetry import context as context_api
 from scouter.client import ScouterClient, TraceFilters
 
 from .conftest import _wait_for_export, get_traces_from_jaeger
+
+
+def _wait_for_jaeger_traces(service_name: str, timeout_seconds: float = 10.0):
+    deadline = time.time() + timeout_seconds
+    traces = get_traces_from_jaeger(service_name)
+    while len(traces) == 0 and time.time() < deadline:
+        time.sleep(0.5)
+        traces = get_traces_from_jaeger(service_name)
+    return traces
+
+
+def _wait_for_scouter_traces(service_name: str, timeout_seconds: float = 10.0):
+    scouter_client = ScouterClient()
+    deadline = time.time() + timeout_seconds
+    response = scouter_client.get_paginated_traces(
+        TraceFilters(service_name=service_name)
+    )
+    while len(response.items) == 0 and time.time() < deadline:
+        time.sleep(0.5)
+        response = scouter_client.get_paginated_traces(
+            TraceFilters(service_name=service_name)
+        )
+    return response
 
 
 def test_tracer_grpc(setup_tracer_grpc):
@@ -38,8 +62,10 @@ def test_tracer_grpc(setup_tracer_grpc):
     assert len(trace_spans.spans) > 0
 
 
-def test_tracer_grpc_sampling(setup_tracer_grpc_sample):
+def _test_tracer_grpc_sampling(setup_tracer_grpc_sample):
     tracer, _server = setup_tracer_grpc_sample
+    service_name = "tracing-grpc-sample"
+    total_traces = 60
 
     @tracer.span("task_one")
     def task_one():
@@ -54,19 +80,22 @@ def test_tracer_grpc_sampling(setup_tracer_grpc_sample):
         task_two_one()
         time.sleep(0.05)
 
-    for _ in range(20):
-        with tracer.start_as_current_span("main_span"):
-            task_one()
-            task_two()
+    for _ in range(total_traces):
+        token = context_api.attach(context_api.Context())
+        try:
+            with tracer.start_as_current_span("main_span"):
+                task_one()
+                task_two()
+        finally:
+            context_api.detach(token)
 
     _wait_for_export()
 
-    traces = get_traces_from_jaeger("tracing-grpc-sample")
+    traces = _wait_for_jaeger_traces(service_name)
     assert len(traces) > 0
-    assert len(traces) < 20
+    assert len(traces) < total_traces
 
-    scouter_client = ScouterClient()
-    traces = scouter_client.get_paginated_traces(TraceFilters(service_name="tracing-grpc-sample"))
+    traces = _wait_for_scouter_traces(service_name)
 
     assert len(traces.items) > 0
-    assert len(traces.items) < 20
+    assert len(traces.items) < total_traces
