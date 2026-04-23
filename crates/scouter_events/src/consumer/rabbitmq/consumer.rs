@@ -110,7 +110,10 @@ pub mod rabbitmq_consumer {
         channel
             .queue_declare(
                 &settings.queue,
-                QueueDeclareOptions::default(),
+                QueueDeclareOptions {
+                    durable: true,
+                    ..QueueDeclareOptions::default()
+                },
                 FieldTable::default(),
             )
             .await
