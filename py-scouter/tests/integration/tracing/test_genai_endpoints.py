@@ -132,9 +132,9 @@ def _seed_genai_spans(tracer) -> None:
 
 
 @pytest.fixture()
-def genai_server_with_data():
+def genai_server_with_data(isolated_server_config):
     """Start ScouterTestServer, seed GenAI spans, wait for flush, yield session."""
-    with ScouterTestServer() as _server:
+    with ScouterTestServer(**isolated_server_config) as _server:
         init_tracer(
             service_name=SERVICE_NAME,
             transport_config=GrpcConfig(),

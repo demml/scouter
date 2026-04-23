@@ -1,51 +1,29 @@
-# Offline Evaluation Examples
+# Evaluation Examples
 
-These examples show how to use `EvalOrchestrator` to evaluate an AI agent offline against a fixed set of scenarios before deploying to production.
+This directory is organized around the workflows teams use when building and shipping agents with Scouter:
 
-## How it works
+1. Instrument an API-style agent with `ScouterInstrumentor` and OpenTelemetry.
+2. Run non-interactive offline evaluation against fixed scenarios.
+3. Run interactive evaluation with simulated user turns.
+4. Compare two agents on the same tasks and scenarios.
 
-1. Define a `AgentEvalProfile` — the assertions that describe what "good" looks like for your agent.
-2. Wrap your agent in an `agent_fn(query: str) -> str` (or subclass `EvalOrchestrator` for async agents).
-3. Inside the agent, emit `EvalRecord` objects via `span.add_queue_item(alias, EvalRecord(...))`.
-4. Pass your existing `ScouterQueue` to `EvalOrchestrator`. It switches the queue to local capture mode automatically — no records are sent to the server during the run.
-5. Call `.run()` to execute all scenarios and get back `ScenarioEvalResults`.
+## Layout
 
-## Examples
+- `non_interactive/`: fixed-scenario offline evaluation.
+- `interactive/`: reactive evaluation with `simulated_user_fn`.
+- `comparison/`: regression checks between agent variants.
 
-| File | What it demonstrates |
-|------|---------------------|
-| [`simple_eval.py`](simple_eval.py) | Minimal setup: single-turn scenarios, profile assertions, lifecycle |
-| [`multi_turn_eval.py`](multi_turn_eval.py) | Multi-turn dialogue, lifecycle hooks (`on_scenario_start` etc.) |
-| [`adk_agent_eval.py`](adk_agent_eval.py) | Async Google ADK agent, trace assertions, tool-call verification |
-| [`comparison/eval_comparison.py`](comparison/eval_comparison.py) | Baseline vs improved: save to JSON, load, `compare_to()` |
+## Run
 
-## Evaluation levels
-
-`ScenarioEvalResults` surfaces three levels of metrics:
-
-```
-overall_pass_rate
-├── dataset_pass_rates["alias"]   ← tasks in AgentEvalProfile (per EvalRecord)
-└── scenario_pass_rate            ← tasks in EvalScenario (per scenario response)
+```bash
+cd py-scouter
+uv run python -m examples.evaluate.non_interactive.google.evaluate
+uv run python -m examples.evaluate.interactive.google.evaluate
+uv run python -m examples.evaluate.comparison.google_vs_openai.evaluate
 ```
 
-## Task types
+Each framework folder includes:
 
-| Type | Use for |
-|------|---------|
-| `AssertionTask` | Deterministic checks (field value, string contains, numeric threshold) |
-| `TraceAssertionTask` | Span-level assertions (span exists, span count, attribute value) |
-| `AgentAssertionTask` | Tool-call assertions on LLM responses (tool called, args, sequence) |
-| `LLMJudgeTask` | Semantic evaluation via a judge LLM (see docs for setup) |
+- `agent.py`: deployable FastAPI agent surface.
+- `evaluate.py`: `EvalOrchestrator` entrypoint that imports `run_agent` from `agent.py`.
 
-## Comparing runs
-
-Save any `ScenarioEvalResults` to disk, load it later, and call `compare_to()`:
-
-```python
-baseline = ScenarioEvalResults.load("baseline.json")
-current  = ScenarioEvalResults.load("current.json")
-comp = current.compare_to(baseline)
-comp.as_table()
-print("regressed:", comp.regressed)
-```

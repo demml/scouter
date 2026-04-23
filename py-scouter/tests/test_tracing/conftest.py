@@ -1,7 +1,13 @@
 import pytest
 from pydantic import BaseModel
 from scouter.mock import MockConfig
-from scouter.tracing import TestSpanExporter, get_tracer, init_tracer, shutdown_tracer
+from scouter.tracing import (
+    ScouterInstrumentor,
+    ScouterTracer,
+    TestSpanExporter,
+    init_tracer,
+    shutdown_tracer,
+)
 
 
 class ChatInput(BaseModel):
@@ -15,21 +21,37 @@ class EventData(BaseModel):
     baz: float
 
 
-@pytest.fixture(scope="session")
+def _reset_tracing_state() -> None:
+    """Reset both the Rust provider store and Python OTel globals."""
+    try:
+        instrumentor = ScouterInstrumentor()
+        if instrumentor.is_instrumented:
+            instrumentor.uninstrument()
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        shutdown_tracer()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+@pytest.fixture()
 def span_exporter():
     """Create a fresh test span exporter for each test."""
     return TestSpanExporter(batch_export=False)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture()
 def tracer(span_exporter):
-    """Initialize tracer with test exporter for each test."""
-    # Shut down any previously initialized tracer (e.g. from test_eval/conftest.py
-    # which runs first alphabetically and sets up the global TRACER_PROVIDER_STORE).
-    shutdown_tracer()
-    init_tracer(
+    """Initialize an isolated low-level tracer for each test."""
+    _reset_tracing_state()
+    base_tracer = init_tracer(
         service_name="test-service",
         transport_config=MockConfig(),
         exporter=span_exporter,
     )
-    return get_tracer("test-tracer")
+    tracer = ScouterTracer(base_tracer)
+    try:
+        yield tracer
+    finally:
+        _reset_tracing_state()

@@ -23,6 +23,12 @@ fn collect_filter_regexes<'a>(
 ) -> Result<(), EvaluationError> {
     match filter {
         SpanFilter::ByNamePattern { pattern } if !out.contains_key(pattern.as_str()) => {
+            if pattern.len() > 512 {
+                return Err(EvaluationError::InvalidFilter(format!(
+                    "ByNamePattern too long (max 512 chars): {}",
+                    &pattern[..50.min(pattern.len())]
+                )));
+            }
             out.insert(pattern.as_str(), Regex::new(pattern)?);
         }
 
@@ -34,6 +40,85 @@ fn collect_filter_regexes<'a>(
         _ => {}
     }
     Ok(())
+}
+
+fn span_matches_filter_inner(
+    span: &TraceSpan,
+    filter: &SpanFilter,
+    regexes: &HashMap<&str, Regex>,
+) -> Result<bool, EvaluationError> {
+    match filter {
+        SpanFilter::ByName { name } => Ok(span.span_name == *name),
+
+        SpanFilter::ByNamePattern { pattern } => {
+            let regex = regexes
+                .get(pattern.as_str())
+                .expect("regex pre-compiled by collect_filter_regexes");
+            Ok(regex.is_match(&span.span_name))
+        }
+
+        SpanFilter::WithAttribute { key } => {
+            Ok(span.attributes.iter().any(|attr| attr.key == *key))
+        }
+
+        SpanFilter::WithAttributeValue { key, value } => Ok(span
+            .attributes
+            .iter()
+            .any(|attr| attr.key == *key && attr.value == value.0)),
+
+        SpanFilter::WithStatus { status } => {
+            let mapped = match span.status_code {
+                0 => SpanStatus::Unset,
+                1 => SpanStatus::Ok,
+                2 => SpanStatus::Error,
+                _ => SpanStatus::Unset,
+            };
+            Ok(mapped == *status)
+        }
+
+        SpanFilter::WithDuration { min_ms, max_ms } => {
+            let duration_f64 = span.duration_ms as f64;
+            let min_ok = min_ms.is_none_or(|min| duration_f64 >= min);
+            let max_ok = max_ms.is_none_or(|max| duration_f64 <= max);
+            Ok(min_ok && max_ok)
+        }
+
+        SpanFilter::And { filters } => {
+            for f in filters {
+                if !span_matches_filter_inner(span, f, regexes)? {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        }
+
+        SpanFilter::Or { filters } => {
+            for f in filters {
+                if span_matches_filter_inner(span, f, regexes)? {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        }
+
+        SpanFilter::Sequence { .. } => Err(EvaluationError::InvalidFilter(
+            "Sequence filter not applicable to individual spans".to_string(),
+        )),
+    }
+}
+
+pub fn spans_match_filter(
+    spans: &[TraceSpan],
+    filter: &SpanFilter,
+) -> Result<bool, EvaluationError> {
+    let mut regexes: HashMap<&str, Regex> = HashMap::new();
+    collect_filter_regexes(filter, &mut regexes)?;
+    for span in spans {
+        if span_matches_filter_inner(span, filter, &regexes)? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 impl TraceContextBuilder {
@@ -101,59 +186,7 @@ impl TraceContextBuilder {
         filter: &SpanFilter,
         regexes: &HashMap<&str, Regex>,
     ) -> Result<bool, EvaluationError> {
-        match filter {
-            SpanFilter::ByName { name } => Ok(span.span_name == *name),
-
-            SpanFilter::ByNamePattern { pattern } => {
-                let regex = regexes
-                    .get(pattern.as_str())
-                    .expect("regex pre-compiled by collect_filter_regexes");
-                Ok(regex.is_match(&span.span_name))
-            }
-
-            SpanFilter::WithAttribute { key } => {
-                Ok(span.attributes.iter().any(|attr| attr.key == *key))
-            }
-
-            SpanFilter::WithAttributeValue { key, value } => {
-                Ok(span.attributes.iter().any(|attr| {
-                    attr.key == *key && self.attribute_value_matches(&attr.value, &value.0)
-                }))
-            }
-
-            SpanFilter::WithStatus { status } => {
-                Ok(self.map_status_code(span.status_code) == *status)
-            }
-
-            SpanFilter::WithDuration { min_ms, max_ms } => {
-                let duration_f64 = span.duration_ms as f64;
-                let min_ok = min_ms.is_none_or(|min| duration_f64 >= min);
-                let max_ok = max_ms.is_none_or(|max| duration_f64 <= max);
-                Ok(min_ok && max_ok)
-            }
-
-            SpanFilter::And { filters } => {
-                for f in filters {
-                    if !self.matches_filter(span, f, regexes)? {
-                        return Ok(false);
-                    }
-                }
-                Ok(true)
-            }
-
-            SpanFilter::Or { filters } => {
-                for f in filters {
-                    if self.matches_filter(span, f, regexes)? {
-                        return Ok(true);
-                    }
-                }
-                Ok(false)
-            }
-
-            SpanFilter::Sequence { .. } => Err(EvaluationError::InvalidFilter(
-                "Sequence filter not applicable to individual spans".to_string(),
-            )),
-        }
+        span_matches_filter_inner(span, filter, regexes)
     }
 
     /// Get ordered list of span names
@@ -422,10 +455,6 @@ impl TraceContextBuilder {
             2 => SpanStatus::Error,
             _ => SpanStatus::Unset,
         }
-    }
-
-    fn attribute_value_matches(&self, attr_value: &Value, expected: &Value) -> bool {
-        attr_value == expected
     }
 }
 

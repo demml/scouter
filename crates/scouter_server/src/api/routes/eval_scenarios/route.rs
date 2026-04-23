@@ -52,27 +52,38 @@ pub async fn get_eval_scenarios(
     if records.is_empty() {
         return Err((
             StatusCode::NOT_FOUND,
-            Json(ScouterServerError::new(format!(
-                "No scenarios found for collection_id: {}",
-                params.collection_id
-            ))),
+            Json(ScouterServerError::new(
+                "No scenarios found for the given collection_id".to_string(),
+            )),
         ));
     }
 
     let collection_id = params.collection_id.clone();
-    let scenarios = records
-        .into_iter()
-        .map(|r| serde_json::from_str(&r.scenario_json))
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| {
-            error!(error = %e, "Failed to deserialize scenario JSON");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ScouterServerError::new(
-                    "Failed to deserialize scenario".to_string(),
-                )),
-            )
-        })?;
+    let scenarios = tokio::task::spawn_blocking(move || {
+        records
+            .into_iter()
+            .map(|r| serde_json::from_str(&r.scenario_json))
+            .collect::<Result<Vec<_>, _>>()
+    })
+    .await
+    .map_err(|e| {
+        error!(error = %e, "spawn_blocking join error deserializing scenarios");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ScouterServerError::new(
+                "Failed to deserialize scenario".to_string(),
+            )),
+        )
+    })?
+    .map_err(|e| {
+        error!(error = %e, "Failed to deserialize scenario JSON");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ScouterServerError::new(
+                "Failed to deserialize scenario".to_string(),
+            )),
+        )
+    })?;
 
     let mut eval_scenarios = EvalScenarios::new(scenarios);
     eval_scenarios.collection_id = collection_id;

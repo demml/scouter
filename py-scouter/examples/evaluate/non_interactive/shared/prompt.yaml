@@ -1,0 +1,5 @@
+model: gemini-2.5-flash
+provider: Google
+messages:
+  - "You are a factual support assistant. Answer directly and clearly in one to three sentences."
+

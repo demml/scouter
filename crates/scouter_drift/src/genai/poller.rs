@@ -3,12 +3,13 @@ use crate::error::DriftError;
 use chrono::Duration;
 use scouter_dataframe::parquet::tracing::service::get_trace_span_service;
 use scouter_evaluate::evaluate::AgentEvaluator;
-use scouter_sql::sql::aggregator::get_trace_summary_service;
+use scouter_sql::sql::aggregator::{get_trace_dispatch_service, get_trace_summary_service};
 use scouter_sql::sql::traits::{AgentDriftSqlLogic, ProfileSqlLogic};
+use scouter_sql::sql::utils::UuidBytea;
 use scouter_sql::PostgresClient;
 use scouter_types::agent::{AgentEvalProfile, EvalSet};
 use scouter_types::sql::{TraceFilters, TraceSpan};
-use scouter_types::{EvalRecord, Status, TraceId};
+use scouter_types::{EvalRecord, EvalRecordSource, Status, TraceId};
 use sqlx::{Pool, Postgres};
 use std::sync::Arc;
 use tokio::time::sleep;
@@ -18,6 +19,21 @@ enum TraceSpanResult {
     Ready(Arc<Vec<TraceSpan>>),
     Reschedule,
     Failed,
+}
+
+#[instrument(skip_all)]
+async fn get_trace_spans_by_id(trace_id: &TraceId) -> Result<Arc<Vec<TraceSpan>>, DriftError> {
+    let span_service = get_trace_span_service().ok_or_else(|| {
+        DriftError::AgentEvaluatorError("TraceSpanService not initialized".to_string())
+    })?;
+
+    let spans = span_service
+        .query_service
+        .get_trace_spans(Some(trace_id.as_bytes().as_slice()), None, None, None, None)
+        .await
+        .map_err(|e| DriftError::AgentEvaluatorError(format!("Error fetching spans: {}", e)))?;
+
+    Ok(Arc::new(spans))
 }
 
 #[instrument(skip_all)]
@@ -105,7 +121,12 @@ async fn wait_for_trace_spans(
             "No spans found yet for {}, waiting {:?} before retry",
             task_uid, backoff
         );
-        sleep(backoff.to_std().unwrap()).await;
+        sleep(
+            backoff
+                .to_std()
+                .unwrap_or(std::time::Duration::from_millis(100)),
+        )
+        .await;
         backoff = std::cmp::min(backoff * 2, Duration::seconds(5));
     }
 }
@@ -134,6 +155,57 @@ async fn wait_for_trace_spans_with_reschedule(
         }
         Err(e) => Err(e),
     }
+}
+
+#[instrument(skip_all)]
+async fn wait_for_trace_spans_by_id_with_reschedule(
+    pool: &Pool<Postgres>,
+    task: &EvalRecord,
+    max_retries: &i32,
+    trace_id: &TraceId,
+    entity_uid: &str,
+    validate_entity: bool,
+    trace_reschedule_delay: Duration,
+) -> Result<TraceSpanResult, DriftError> {
+    if task.retry_count >= *max_retries {
+        return Ok(TraceSpanResult::Failed);
+    }
+
+    if validate_entity {
+        let dispatch_service = get_trace_dispatch_service().ok_or_else(|| {
+            DriftError::AgentEvaluatorError("TraceDispatchService not initialized".to_string())
+        })?;
+
+        let entity_uid = UuidBytea::from_uuid(entity_uid).map_err(|e| {
+            DriftError::AgentEvaluatorError(format!(
+                "Invalid profile entity uid '{}': {}",
+                entity_uid, e
+            ))
+        })?;
+
+        let belongs_to_entity = dispatch_service
+            .query_service
+            .trace_belongs_to_entity(trace_id.as_bytes(), entity_uid.as_bytes())
+            .await
+            .map_err(|e| {
+                DriftError::AgentEvaluatorError(format!("Dispatch entity lookup failed: {}", e))
+            })?;
+
+        if !belongs_to_entity {
+            PostgresClient::reschedule_agent_eval_record(pool, &task.uid, trace_reschedule_delay)
+                .await?;
+            return Ok(TraceSpanResult::Reschedule);
+        }
+    }
+
+    let spans = get_trace_spans_by_id(trace_id).await?;
+    if spans.is_empty() {
+        PostgresClient::reschedule_agent_eval_record(pool, &task.uid, trace_reschedule_delay)
+            .await?;
+        return Ok(TraceSpanResult::Reschedule);
+    }
+
+    Ok(TraceSpanResult::Ready(spans))
 }
 
 /// Poller struct for processing GenAI drift records
@@ -215,7 +287,8 @@ impl AgentPoller {
 
     #[instrument(skip_all)]
     pub async fn do_poll(&mut self) -> Result<bool, DriftError> {
-        let task = PostgresClient::get_pending_agent_eval_record(&self.db_pool).await?;
+        let task =
+            PostgresClient::get_pending_agent_eval_record(&self.db_pool, self.max_retries).await?;
 
         let Some(task) = task else {
             return Ok(false);
@@ -244,34 +317,71 @@ impl AgentPoller {
         }
 
         let spans = if genai_profile.has_trace_assertions() {
-            match wait_for_trace_spans_with_reschedule(
-                &self.db_pool,
-                &task,
-                &self.max_retries,
-                self.trace_wait_timeout,
-                self.trace_backoff,
-                self.trace_reschedule_delay,
-            )
-            .await?
-            {
-                TraceSpanResult::Ready(spans) => spans,
-                TraceSpanResult::Reschedule => {
-                    debug!(
-                        "Traces not yet available for task {}, rescheduled",
-                        task.uid
-                    );
-                    return Ok(true);
+            if let Some(ref trace_id) = task.trace_id {
+                let validate_entity =
+                    !matches!(task.record_source, EvalRecordSource::TraceDispatch);
+                match wait_for_trace_spans_by_id_with_reschedule(
+                    &self.db_pool,
+                    &task,
+                    &self.max_retries,
+                    trace_id,
+                    &genai_profile.config.uid,
+                    validate_entity,
+                    self.trace_reschedule_delay,
+                )
+                .await?
+                {
+                    TraceSpanResult::Ready(spans) => spans,
+                    TraceSpanResult::Reschedule => {
+                        debug!(
+                            trace_id = %trace_id.to_hex(),
+                            "Traces not yet available for task {}, rescheduled",
+                            task.uid
+                        );
+                        return Ok(true);
+                    }
+                    TraceSpanResult::Failed => {
+                        error!("Max retries exceeded for task {}", task.uid);
+                        PostgresClient::update_agent_eval_record_status(
+                            &self.db_pool,
+                            &task,
+                            Status::Failed,
+                            &0,
+                        )
+                        .await?;
+                        return Err(DriftError::TraceSpansNotAvailable(task.uid.clone()));
+                    }
                 }
-                TraceSpanResult::Failed => {
-                    error!("Max retries exceeded for task {}", task.uid);
-                    PostgresClient::update_agent_eval_record_status(
-                        &self.db_pool,
-                        &task,
-                        Status::Failed,
-                        &0,
-                    )
-                    .await?;
-                    return Err(DriftError::TraceSpansNotAvailable(task.uid.clone()));
+            } else {
+                match wait_for_trace_spans_with_reschedule(
+                    &self.db_pool,
+                    &task,
+                    &self.max_retries,
+                    self.trace_wait_timeout,
+                    self.trace_backoff,
+                    self.trace_reschedule_delay,
+                )
+                .await?
+                {
+                    TraceSpanResult::Ready(spans) => spans,
+                    TraceSpanResult::Reschedule => {
+                        debug!(
+                            "Traces not yet available for task {}, rescheduled",
+                            task.uid
+                        );
+                        return Ok(true);
+                    }
+                    TraceSpanResult::Failed => {
+                        error!("Max retries exceeded for task {}", task.uid);
+                        PostgresClient::update_agent_eval_record_status(
+                            &self.db_pool,
+                            &task,
+                            Status::Failed,
+                            &0,
+                        )
+                        .await?;
+                        return Err(DriftError::TraceSpansNotAvailable(task.uid.clone()));
+                    }
                 }
             }
         } else {
@@ -342,5 +452,43 @@ impl AgentPoller {
                 Ok(())
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn get_trace_spans_by_id_fails_when_service_not_initialized() {
+        let trace_id = TraceId::from_bytes([0u8; 16]);
+        let result = get_trace_spans_by_id(&trace_id).await;
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("TraceSpanService not initialized"),
+            "unexpected error: {}",
+            err_msg
+        );
+    }
+
+    #[test]
+    fn eval_record_trace_id_none_by_default() {
+        let record = EvalRecord {
+            trace_id: None,
+            ..Default::default()
+        };
+        assert!(record.trace_id.is_none());
+    }
+
+    #[test]
+    fn eval_record_trace_id_some_when_set() {
+        let trace_id = TraceId::from_bytes([1u8; 16]);
+        let record = EvalRecord {
+            trace_id: Some(trace_id),
+            ..Default::default()
+        };
+        assert!(record.trace_id.is_some());
+        assert_eq!(record.trace_id.unwrap().to_hex(), trace_id.to_hex());
     }
 }

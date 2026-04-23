@@ -4,9 +4,11 @@ use crate::sql::schema::BinnedMetricWrapper;
 use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
+use potato_head::create_uuid7;
 use scouter_dataframe::parquet::BinnedMetricsExtractor;
 use scouter_dataframe::parquet::ParquetDataFrame;
 use scouter_settings::ObjectStorageSettings;
+use scouter_types::agent::profile::AgentEvalProfile;
 use scouter_types::contracts::DriftRequest;
 use scouter_types::AgentEvalWorkflowPaginationResponse;
 use scouter_types::AgentEvalWorkflowResult;
@@ -15,14 +17,21 @@ use scouter_types::EvalRecord;
 use scouter_types::EvalTaskResult;
 use scouter_types::Status;
 use scouter_types::{
-    BinnedMetrics, EvalRecordPaginationRequest, EvalRecordPaginationResponse, RecordCursor,
-    RecordType,
+    BinnedMetrics, EvalRecordPaginationRequest, EvalRecordPaginationResponse, EvalRecordSource,
+    RecordCursor, RecordType, TraceId,
 };
 use sqlx::types::Json;
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use tracing::error;
 use tracing::{debug, instrument};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SyntheticInsertOutcome {
+    Inserted,
+    AlreadyExists,
+    RetryLater,
+}
 
 #[async_trait]
 pub trait AgentDriftSqlLogic {
@@ -41,6 +50,7 @@ pub trait AgentDriftSqlLogic {
             .bind(&record.record.record_id)
             .bind(&record.record.session_id)
             .bind(record.record.trace_id.map(|t| t.as_bytes().to_vec()))
+            .bind(EvalRecordSource::Queue.as_str())
             .bind(&record.record.tags)
             .execute(pool)
             .await
@@ -656,9 +666,11 @@ pub trait AgentDriftSqlLogic {
 
     async fn get_pending_agent_eval_record(
         pool: &Pool<Postgres>,
+        max_retries: i32,
     ) -> Result<Option<EvalRecord>, SqlError> {
         let query = Queries::GetPendingAgentEvalTask.get_query();
         let result: Option<EvalRecord> = sqlx::query_as(query)
+            .bind(max_retries)
             .fetch_optional(pool)
             .await
             .map_err(SqlError::SqlxError)?;
@@ -708,5 +720,113 @@ pub trait AgentDriftSqlLogic {
             })?;
 
         Ok(())
+    }
+
+    #[instrument(skip_all)]
+    async fn get_active_agent_profiles(
+        pool: &Pool<Postgres>,
+    ) -> Result<Vec<(i32, AgentEvalProfile)>, SqlError> {
+        let query = Queries::GetActiveAgentProfiles.get_query();
+
+        let rows: Vec<(i32, serde_json::Value)> = sqlx::query_as(query)
+            .fetch_all(pool)
+            .await
+            .map_err(SqlError::SqlxError)?;
+
+        rows.into_iter()
+            .map(|(entity_id, value)| {
+                let profile: AgentEvalProfile = serde_json::from_value(value)?;
+                Ok((entity_id, profile))
+            })
+            .collect()
+    }
+
+    #[instrument(skip_all)]
+    async fn get_known_trace_ids_for_entity(
+        pool: &Pool<Postgres>,
+        entity_id: i32,
+        lookback: DateTime<Utc>,
+    ) -> Result<HashSet<String>, SqlError> {
+        let query = Queries::GetKnownTraceIdsForEntity.get_query();
+
+        let rows = sqlx::query(query)
+            .bind(entity_id)
+            .bind(lookback)
+            .fetch_all(pool)
+            .await
+            .map_err(SqlError::SqlxError)?;
+
+        Ok(rows
+            .into_iter()
+            .filter_map(|row| row.try_get::<String, _>("trace_id_hex").ok())
+            .collect())
+    }
+
+    #[instrument(skip_all)]
+    async fn insert_synthetic_eval_record(
+        pool: &Pool<Postgres>,
+        entity_id: i32,
+        trace_id: &[u8],
+    ) -> Result<SyntheticInsertOutcome, SqlError> {
+        let trace_id = TraceId::from_slice(trace_id)?;
+        let insert_eval_query = Queries::InsertEvalRecord.get_query();
+        let trace_uuid =
+            uuid::Uuid::from_slice(trace_id.as_bytes()).map_err(SqlError::UuidError)?;
+        let synthetic_key = format!("trace-dispatch:{}:{}", entity_id, trace_uuid);
+
+        let empty_context = serde_json::Value::Object(Default::default());
+        let uid = create_uuid7();
+        let now = Utc::now();
+        let tags: Vec<String> = Vec::new();
+
+        let mut tx = pool.begin().await.map_err(SqlError::SqlxError)?;
+
+        let lock_acquired: bool =
+            sqlx::query_scalar("SELECT pg_try_advisory_xact_lock(hashtextextended($1, 0))")
+                .bind(&synthetic_key)
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(SqlError::SqlxError)?;
+        if !lock_acquired {
+            tx.rollback().await.map_err(SqlError::SqlxError)?;
+            return Ok(SyntheticInsertOutcome::RetryLater);
+        }
+
+        let existing: Option<i32> = sqlx::query_scalar(
+            "SELECT 1
+             FROM scouter.agent_eval_record
+             WHERE entity_id = $1
+               AND record_id = $2
+               AND session_id = $3
+             LIMIT 1",
+        )
+        .bind(entity_id)
+        .bind(&synthetic_key)
+        .bind(&synthetic_key)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(SqlError::SqlxError)?;
+
+        if existing.is_some() {
+            tx.commit().await.map_err(SqlError::SqlxError)?;
+            return Ok(SyntheticInsertOutcome::AlreadyExists);
+        }
+
+        sqlx::query(insert_eval_query)
+            .bind(uid)
+            .bind(now)
+            .bind(entity_id)
+            .bind(Json(empty_context))
+            .bind(&synthetic_key)
+            .bind(&synthetic_key)
+            .bind(trace_id.as_bytes().as_slice())
+            .bind(EvalRecordSource::TraceDispatch.as_str())
+            .bind(&tags)
+            .execute(&mut *tx)
+            .await
+            .map_err(SqlError::SqlxError)?;
+
+        tx.commit().await.map_err(SqlError::SqlxError)?;
+        Ok(SyntheticInsertOutcome::Inserted)
     }
 }

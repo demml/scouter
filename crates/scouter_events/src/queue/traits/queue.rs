@@ -9,6 +9,7 @@ use crossbeam_queue::ArrayQueue;
 use scouter_state::app_state;
 use scouter_types::MessageRecord;
 use scouter_types::QueueExt;
+use std::env;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -16,7 +17,18 @@ use tokio::task::JoinHandle;
 use tokio::time::timeout;
 use tokio::time::{sleep, Duration};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, info_span, Instrument};
+use tracing::{debug, debug_span, error, info, Instrument};
+
+const DEFAULT_BACKGROUND_PUBLISH_INTERVAL_SECS: i64 = 30;
+
+fn background_publish_interval_secs() -> i64 {
+    env::var("SCOUTER_QUEUE_PUBLISH_INTERVAL_SECS")
+        .ok()
+        .and_then(|value| value.parse::<i64>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_BACKGROUND_PUBLISH_INTERVAL_SECS)
+}
+
 pub trait FeatureQueue: Send + Sync {
     fn create_drift_records_from_batch<T: QueueExt>(
         &self,
@@ -40,7 +52,8 @@ pub trait BackgroundTask: Send + Sync + 'static {
         task_state: TaskState<Event>,
         cancellation_token: CancellationToken,
     ) -> Result<JoinHandle<()>, EventError> {
-        let span = info_span!("background_task", task = %identifier);
+        let span = debug_span!("background_task", task = %identifier);
+        let publish_interval_secs = background_publish_interval_secs();
 
         let future = async move {
             debug!("Starting background task for {}", identifier);
@@ -62,7 +75,7 @@ pub trait BackgroundTask: Send + Sync + 'static {
                         // Scope the read guard to drop it before the future is sent
                         let should_process = {
                             if let Ok(last) = last_publish.read() {
-                                (now - *last).num_seconds() >= 30
+                                (now - *last).num_seconds() >= publish_interval_secs
                             } else {
                                 false
                             }

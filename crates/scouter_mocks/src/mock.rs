@@ -8,7 +8,11 @@ use tracing::instrument;
 #[cfg(feature = "server")]
 use scouter_server::{start_server_in_background, stop_server};
 #[cfg(feature = "server")]
+use scouter_settings::DatabaseSettings;
+#[cfg(feature = "server")]
 use scouter_tonic::GrpcClient;
+#[cfg(feature = "server")]
+use sqlx::postgres::PgPoolOptions;
 #[cfg(feature = "server")]
 use std::net::TcpListener as StdTcpListener;
 #[cfg(feature = "server")]
@@ -62,6 +66,59 @@ pub struct ScouterTestServer {
     rabbit_mq: bool,
     kafka: bool,
     openai: bool,
+}
+
+impl ScouterTestServer {
+    #[cfg(feature = "server")]
+    fn storage_dir(&self) -> PathBuf {
+        self.base_path
+            .clone()
+            .unwrap_or_else(|| std::env::current_dir().unwrap().join("scouter_storage"))
+    }
+
+    #[cfg(feature = "server")]
+    async fn cleanup_database(&self) -> Result<(), TestServerError> {
+        let database_settings = DatabaseSettings::default();
+        let pool = PgPoolOptions::new()
+            .max_connections(1)
+            .connect(&database_settings.connection_uri)
+            .await
+            .map_err(|e| {
+                TestServerError::RuntimeError(format!("Failed to connect to database: {e}"))
+            })?;
+
+        sqlx::raw_sql(
+            r#"
+            DO $$
+            BEGIN
+                IF to_regclass('scouter.agent_eval_task') IS NOT NULL THEN
+                    TRUNCATE TABLE
+                        scouter.agent_eval_task,
+                        scouter.agent_eval_workflow,
+                        scouter.agent_eval_record,
+                        scouter.trace_entities,
+                        scouter.trace_baggage,
+                        scouter.tags,
+                        scouter.drift_alert,
+                        scouter.spc_drift,
+                        scouter.observability_metric,
+                        scouter.custom_drift,
+                        scouter.psi_drift,
+                        scouter.drift_profile,
+                        scouter.drift_entities,
+                        scouter.user
+                    RESTART IDENTITY CASCADE;
+                END IF;
+            END $$;
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| TestServerError::RuntimeError(format!("Failed to cleanup database: {e}")))?;
+
+        pool.close().await;
+        Ok(())
+    }
 }
 
 #[pymethods]
@@ -121,9 +178,9 @@ impl ScouterTestServer {
                 std::env::set_var("TRACE_STALE_THRESHOLD_SECONDS", "1");
                 std::env::set_var("TRACE_FLUSH_INTERVAL_SECONDS", "1");
                 std::env::set_var("SCOUTER_TRACE_FLUSH_INTERVAL_SECS", "1");
-                // Pin storage to an absolute path so the server and cleanup()
-                // always refer to the same directory regardless of CWD.
-                let storage_path = std::env::current_dir().unwrap().join("scouter_storage");
+                // Pin storage to a test-owned absolute path so each fixture can
+                // isolate Delta tables while still sharing Docker backends.
+                let storage_path = self.storage_dir();
                 std::env::set_var("SCOUTER_STORAGE_URI", storage_path.to_str().unwrap());
             }
 
@@ -297,17 +354,25 @@ impl ScouterTestServer {
     }
 
     fn cleanup(&self) -> PyResult<()> {
-        // Remove the pinned absolute storage path first (set by start_server),
-        // falling back to the relative default so both cases are covered.
-        let storage_dir = std::env::var("SCOUTER_STORAGE_URI")
-            .map(std::path::PathBuf::from)
-            .unwrap_or_else(|_| std::env::current_dir().unwrap().join("scouter_storage"));
-
         // unset env vars
         self.remove_env_vars_for_client()?;
 
-        if storage_dir.exists() {
-            std::fs::remove_dir_all(storage_dir).unwrap();
+        #[cfg(feature = "server")]
+        {
+            let storage_dir = self.storage_dir();
+
+            self.runtime
+                .block_on(self.cleanup_database())
+                .map_err(PyErr::from)?;
+
+            if storage_dir.exists() {
+                std::fs::remove_dir_all(&storage_dir).map_err(|e| {
+                    PyErr::from(TestServerError::RuntimeError(format!(
+                        "Failed to remove storage dir {}: {e}",
+                        storage_dir.display()
+                    )))
+                })?;
+            }
         }
 
         Ok(())

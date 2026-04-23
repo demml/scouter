@@ -98,10 +98,15 @@ The four opt-in content fields (`input_messages`, `output_messages`, `system_ins
 Don't turn them on without a reason. A multi-turn conversation with tool call results can be hundreds of kilobytes per span, and that adds up fast under load. For most observability needs — cost tracking, latency analysis, error rates — the scalar fields are all you need. Turn the content fields on when you actually need the message bodies: building evaluation datasets from production traces, debugging prompt regressions, conversation replay.
 
 ```python
-from scouter.tracing import get_tracer
 import json
+from opentelemetry import trace
+from scouter.tracing import ScouterInstrumentor
 
-tracer = get_tracer("my-llm-service")
+ScouterInstrumentor().instrument(
+    attributes={"service.name": "my-llm-service"},
+)
+
+tracer = trace.get_tracer("my-llm-service")
 
 with tracer.start_as_current_span("llm_call") as span:
     span.set_attribute("gen_ai.operation.name", "chat")
@@ -207,12 +212,12 @@ See the [ScouterInstrumentor guide](../tracing/instrumentor.md) for full setup a
 
 ## Adding attributes manually
 
-If your code calls an LLM directly without a pre-instrumented SDK, set the attributes yourself. The only hard requirement is `gen_ai.operation.name`.
+If your code calls an LLM directly without a pre-instrumented SDK, set the attributes yourself. The only hard requirement is `gen_ai.operation.name`. The example below assumes you already called `ScouterInstrumentor().instrument(...)` during startup.
 
 ```python
-from scouter.tracing import get_tracer
+from opentelemetry import trace
 
-tracer = get_tracer("my-llm-service")
+tracer = trace.get_tracer("my-llm-service")
 
 with tracer.start_as_current_span("llm_call") as span:
     span.set_attribute("gen_ai.operation.name", "chat")

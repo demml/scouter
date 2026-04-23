@@ -1,3 +1,5 @@
+"""Scouter Python package exports."""
+
 # mypy: disable-error-code="attr-defined"
 # pylint: disable=no-name-in-module
 from . import (
@@ -13,6 +15,7 @@ from . import (
     profile,
     queue,
     service_map,
+    trace,
     tracing,
     transport,
     types,
@@ -106,6 +109,7 @@ __all__ = [
     "observe",
     "profile",
     "queue",
+    "trace",
     "tracing",
     "transport",
     "types",

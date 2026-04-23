@@ -23,7 +23,7 @@ use deltalake::{DeltaTable, DeltaTableBuilder, TableProperty};
 use mini_moka::sync::Cache;
 use scouter_types::{
     AgentBucketRow, GenAiAgentActivity, GenAiEvalResult, GenAiModelUsage, GenAiOperationBreakdown,
-    GenAiSpanFilters, GenAiSpanRecord, GenAiTokenBucket, GenAiToolActivity, ToolTimeBucket, SpanId,
+    GenAiSpanFilters, GenAiSpanRecord, GenAiTokenBucket, GenAiToolActivity, SpanId, ToolTimeBucket,
     TraceId,
 };
 use std::hash::{Hash, Hasher};
@@ -2203,10 +2203,9 @@ impl GenAiQueries {
                 })?;
 
             for i in 0..batch.num_rows() {
-                let bucket_start =
-                    DateTime::from_timestamp_micros(bucket_starts.value(i)).ok_or(
-                        TraceEngineError::InvalidTimestamp("out-of-range bucket_start timestamp"),
-                    )?;
+                let bucket_start = DateTime::from_timestamp_micros(bucket_starts.value(i)).ok_or(
+                    TraceEngineError::InvalidTimestamp("out-of-range bucket_start timestamp"),
+                )?;
                 results.push(AgentBucketRow {
                     bucket_start,
                     model: if models.is_null(i) {
@@ -2305,10 +2304,8 @@ impl GenAiQueries {
             vec![
                 datafusion::functions_aggregate::expr_fn::approx_distinct(col(AGENT_NAME_COL))
                     .alias("unique_agents"),
-                datafusion::functions_aggregate::expr_fn::approx_distinct(col(
-                    CONVERSATION_ID_COL,
-                ))
-                .alias("unique_conversations"),
+                datafusion::functions_aggregate::expr_fn::approx_distinct(col(CONVERSATION_ID_COL))
+                    .alias("unique_conversations"),
             ],
         )?;
 
@@ -2496,10 +2493,9 @@ impl GenAiQueries {
                 })?;
 
             for i in 0..batch.num_rows() {
-                let bucket_start =
-                    DateTime::from_timestamp_micros(bucket_starts.value(i)).ok_or(
-                        TraceEngineError::InvalidTimestamp("out-of-range bucket_start timestamp"),
-                    )?;
+                let bucket_start = DateTime::from_timestamp_micros(bucket_starts.value(i)).ok_or(
+                    TraceEngineError::InvalidTimestamp("out-of-range bucket_start timestamp"),
+                )?;
                 results.push(ToolTimeBucket {
                     bucket_start,
                     tool_name: if tool_names.is_null(i) {
@@ -3823,16 +3819,17 @@ mod tests {
         let total_output: i64 = rows.iter().map(|r| r.output_tokens).sum();
 
         // 3 normal agent spans + 1 error agent span = 4 total (non-agent chat excluded)
-        assert_eq!(total_spans, 4, "Expected 4 agent spans (non-agent excluded)");
+        assert_eq!(
+            total_spans, 4,
+            "Expected 4 agent spans (non-agent excluded)"
+        );
         assert_eq!(total_errors, 1, "Expected 1 error span");
         assert_eq!(
-            total_input,
-            310,
+            total_input, 310,
             "Expected 100*3 + 10 = 310 total input tokens"
         );
         assert_eq!(
-            total_output,
-            620,
+            total_output, 620,
             "Expected 200*3 + 20 = 620 total output tokens"
         );
 
@@ -3888,7 +3885,10 @@ mod tests {
 
         // approx_distinct has some error margin but should be ≥ 1 for each
         assert!(unique_agents >= 1, "Expected at least 1 unique agent");
-        assert!(unique_convos >= 1, "Expected at least 1 unique conversation");
+        assert!(
+            unique_convos >= 1,
+            "Expected at least 1 unique conversation"
+        );
         // Upper bound sanity check
         assert!(unique_agents <= 3, "Cannot have more agents than records");
         assert!(unique_convos <= 3, "Cannot have more convos than records");

@@ -13,6 +13,7 @@ SELECT
     session_id,
     retry_count,
     trace_id,
+    record_source,
     tags
 FROM scouter.agent_eval_record
 WHERE entity_id = $1

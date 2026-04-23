@@ -492,6 +492,50 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn test_trace_queries_do_not_cache_empty_results() -> Result<(), TraceEngineError> {
+        cleanup();
+
+        let storage_settings = ObjectStorageSettings::default();
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+
+        let trace_id = TraceId::from_bytes([0xAB_u8; 16]);
+        let trace_id_bytes = trace_id.as_bytes();
+
+        let initial: Vec<TraceSpan> = service
+            .query_service
+            .get_trace_spans(Some(trace_id_bytes.as_slice()), None, None, None, None)
+            .await?;
+        assert!(
+            initial.is_empty(),
+            "expected no spans before any data is written"
+        );
+
+        let span = make_span(
+            &trace_id,
+            SpanId::from_bytes([0xCD_u8; 8]),
+            None,
+            "svc",
+            "cache_after_write",
+            vec![],
+        );
+        service.write_spans(vec![span]).await?;
+        tokio::time::sleep(Duration::from_secs(5)).await;
+
+        let after_write: Vec<TraceSpan> = service
+            .query_service
+            .get_trace_spans(Some(trace_id_bytes.as_slice()), None, None, None, None)
+            .await?;
+        assert!(
+            !after_write.is_empty(),
+            "expected the second lookup to see newly written spans instead of a cached empty result"
+        );
+
+        service.shutdown().await?;
+        cleanup();
+        Ok(())
+    }
+
     /// Verify that `build_span_tree` returns spans in DFS (depth-first) order with correct
     /// depth, path, and root_span_id fields — matching what the Postgres recursive CTE produced.
     #[tokio::test]

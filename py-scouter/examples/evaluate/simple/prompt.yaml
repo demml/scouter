@@ -1,4 +1,0 @@
-model: gemini-2.5-flash
-provider: Google
-messages:
-  - "Answer the question directly in one or two sentences. Be factual and concise."

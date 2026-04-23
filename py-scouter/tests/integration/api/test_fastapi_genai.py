@@ -45,8 +45,6 @@ def test_agent_api_kafka(kafka_scouter_openai_server):
         response = client.post("/flush")
         assert response.status_code == 200
 
-        client.wait_shutdown()  # type: ignore
-
     time.sleep(10)
 
     request = DriftRequest(
