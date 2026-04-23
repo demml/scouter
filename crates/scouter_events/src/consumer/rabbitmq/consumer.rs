@@ -1,6 +1,9 @@
 #[cfg(all(feature = "rabbitmq", feature = "sql"))]
 pub mod rabbitmq_consumer {
-    use crate::{consumer::utils::process_message_record, error::EventError};
+    use crate::{
+        consumer::utils::{process_server_records, process_tag_record, process_trace_record},
+        error::EventError,
+    };
     use futures::StreamExt;
     use lapin::{
         message::Delivery, options::*, types::FieldTable, Connection, ConnectionProperties,
@@ -66,8 +69,13 @@ pub mod rabbitmq_consumer {
 
         // Process messages. If processing fails, log the error, record metrics, and continue
         match process_message(&msg.data).await {
-            Ok(Some(records)) => {
-                if process_message_record(id, records, db_pool).await {
+            Ok(Some(record)) => {
+                let success = match record {
+                    MessageRecord::ServerRecords(r) => process_server_records(id, r, db_pool).await,
+                    MessageRecord::TraceServerRecord(r) => process_trace_record(id, r, db_pool).await,
+                    MessageRecord::TagServerRecord(r) => process_tag_record(id, r, db_pool).await,
+                };
+                if success {
                     if let Err(e) = msg.ack(BasicAckOptions::default()).await {
                         error!("Worker {}: Failed to ack message: {:?}", id, e);
                         counter!("message_ack_errors").increment(1);

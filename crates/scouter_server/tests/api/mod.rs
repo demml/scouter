@@ -8,6 +8,7 @@ pub mod docs;
 pub mod drift;
 pub mod eval_scenarios;
 pub mod health;
+pub mod ingest;
 pub mod profile;
 pub mod service_map;
 pub mod tags;
