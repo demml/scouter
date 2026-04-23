@@ -44,7 +44,10 @@ def get_shared_config() -> SharedConfig:
     )
 
     instrumentor = ScouterInstrumentor()
-    instrumentor.instrument(scouter_queue=queue)
+    instrumentor.instrument(
+        transport_config=_transport_config(),
+        scouter_queue=queue,
+    )
 
     return SharedConfig(
         queue=queue,

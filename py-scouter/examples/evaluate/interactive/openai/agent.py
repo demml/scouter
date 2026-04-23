@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from opentelemetry import trace
 from pydantic import BaseModel
 from scouter.evaluate import EvalRecord
-from scouter.tracing import BaseTracer
+from scouter.tracing import ScouterTracer
 
 from ..shared import get_shared_config, teardown_shared_config
 
@@ -26,7 +26,7 @@ class AgentResponse(BaseModel):
 
 
 def _emit_eval_record(query: str, response: str) -> None:
-    tracer = cast(BaseTracer, trace.get_tracer("evaluate.interactive.openai"))
+    tracer = cast(ScouterTracer, trace.get_tracer("evaluate.interactive.openai"))
     with tracer.start_as_current_span("openai.callback") as span:
         span.add_queue_item(
             "interactive_support_agent",

@@ -14,7 +14,7 @@ from scouter.tracing import (
     GrpcSpanExporter,
     HttpSpanExporter,
     ScouterInstrumentor,
-    TracerProvider,
+    ScouterTracerProvider,
     get_tracer,
     init_tracer,
     shutdown_tracer,
@@ -31,7 +31,7 @@ def _wait_for_export(seconds: float = 3.0) -> None:
 def setup_scouter_trace_provider(isolated_server_config):
     """Initialize tracer with grpc exporter for each test."""
     with ScouterTestServer(**isolated_server_config) as server:
-        provider = TracerProvider(
+        provider = ScouterTracerProvider(
             transport_config=GrpcConfig(),
             batch_config=BatchConfig(scheduled_delay_ms=200),
         )

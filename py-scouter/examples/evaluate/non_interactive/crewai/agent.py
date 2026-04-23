@@ -1,21 +1,19 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Callable, cast
+from typing import Any, Callable
 
 from fastapi import FastAPI
 from openinference.instrumentation.crewai import CrewAIInstrumentor
-from opentelemetry import trace
-from opentelemetry.trace import get_tracer_provider
 from pydantic import BaseModel
+from scouter import trace
 from scouter.evaluate import EvalRecord
-from scouter.tracing import BaseTracer
 
 from ..shared import get_shared_config, teardown_shared_config
 
 config = get_shared_config()
 _crewai_instrumentor = CrewAIInstrumentor()
-_crewai_instrumentor.instrument(skip_dep_check=True, tracer_provider=get_tracer_provider())
+_crewai_instrumentor.instrument(skip_dep_check=True, tracer_provider=trace.get_tracer_provider())
 
 AgentCallback = Callable[[str, str], None]
 
@@ -29,7 +27,7 @@ class AgentResponse(BaseModel):
 
 
 def _emit_eval_record(query: str, response: str) -> None:
-    tracer = cast(BaseTracer, trace.get_tracer("evaluate.non_interactive.crewai"))
+    tracer = trace.get_tracer("evaluate.non_interactive.crewai")
     with tracer.start_as_current_span("crewai.callback") as span:
         span.add_queue_item(
             "support_agent",
@@ -46,7 +44,6 @@ def _build_crew(query: str, callback: AgentCallback):
 
     llm = LLM(
         model="gemini/gemini-2.5-flash",
-        api_key=os.getenv("GOOGLE_API_KEY"),
         temperature=0.0,
     )
     qa_agent = Agent(

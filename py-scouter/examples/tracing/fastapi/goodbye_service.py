@@ -26,8 +26,8 @@ from opentelemetry import trace as otel_trace
 from scouter.tracing import (
     BatchConfig,
     ScouterInstrumentor,
+    ScouterTracerProvider,
     ScouterTracingMiddleware,
-    TracerProvider,
 )
 from scouter.transport import GrpcConfig
 
@@ -60,7 +60,9 @@ async def lifespan(app: FastAPI):
     )
 
     provider = otel_trace.get_tracer_provider()
-    assert isinstance(provider, TracerProvider), f"Expected Scouter TracerProvider, got {type(provider).__name__}."
+    assert isinstance(
+        provider, ScouterTracerProvider
+    ), f"Expected ScouterTracerProvider, got {type(provider).__name__}."
     _tracer._inner = provider.get_tracer("goodbye-service")
 
     yield

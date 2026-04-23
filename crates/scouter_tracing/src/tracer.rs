@@ -35,7 +35,7 @@ use opentelemetry_sdk::trace::SdkTracerProvider;
 use opentelemetry_sdk::Resource;
 use potato_head::create_uuid7;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyTuple};
+use pyo3::types::{PyDict, PyList, PyTuple};
 use pyo3::IntoPyObjectExt;
 use scouter_events::queue::types::TransportConfig;
 use scouter_events::queue::ScouterQueue;
@@ -293,8 +293,11 @@ pub fn init_tracer(
 
 fn reset_current_context(py: Python, token: &Py<PyAny>) -> PyResult<()> {
     let context_var = get_context_var(py)?;
-    context_var.bind(py).call_method1("reset", (token,))?;
-    Ok(())
+    match context_var.bind(py).call_method1("reset", (token,)) {
+        Ok(_) => Ok(()),
+        Err(e) if e.is_instance_of::<pyo3::exceptions::PyValueError>(py) => Ok(()),
+        Err(e) => Err(e),
+    }
 }
 
 /// Helper function to create an entity event on a span when adding an item to a queue.
@@ -348,6 +351,11 @@ impl ActiveSpan {
     #[getter]
     fn context_id(&self) -> Result<String, TraceError> {
         self.with_inner(|inner| inner.context_id.clone())
+    }
+
+    #[getter]
+    fn parent_context_id(&self) -> Result<Option<String>, TraceError> {
+        self.with_inner(|inner| inner.parent_context_id.clone())
     }
 
     /// Set the input attribute on the span
@@ -525,54 +533,40 @@ impl ActiveSpan {
         exc_tb: Option<Py<PyAny>>,
     ) -> Result<bool, TraceError> {
         debug!("Exiting span context: {}", self.context_id()?);
-        let (context_id, trace_id, context_token) = {
+        {
             let mut inner = self
                 .inner
                 .write()
                 .map_err(|e| TraceError::PoisonError(e.to_string()))?;
 
-            // Handle exceptions and end span
-            if let Some(exc_type) = exc_type {
-                inner.span.set_status(Status::error("Exception occurred"));
-                let mut error_attributes = vec![];
+            if !inner.cleanup_complete {
+                // Handle exceptions and end span
+                if let Some(exc_type) = exc_type {
+                    inner.span.set_status(Status::error("Exception occurred"));
+                    let mut error_attributes = vec![];
 
-                error_attributes.push(KeyValue::new("exception.type", exc_type.to_string()));
+                    error_attributes.push(KeyValue::new("exception.type", exc_type.to_string()));
 
-                if let Some(exc_val) = exc_val {
-                    error_attributes.push(KeyValue::new("exception.value", exc_val.to_string()));
+                    if let Some(exc_val) = exc_val {
+                        error_attributes
+                            .push(KeyValue::new("exception.value", exc_val.to_string()));
+                    }
+
+                    if let Some(exc_tb) = exc_tb {
+                        let tb = format_traceback(py, &exc_tb)?;
+                        error_attributes.push(KeyValue::new(EXCEPTION_TRACEBACK, tb));
+                    }
+
+                    inner.span.add_event(SPAN_ERROR, error_attributes);
                 }
-
-                if let Some(exc_tb) = exc_tb {
-                    let tb = format_traceback(py, &exc_tb)?;
-                    error_attributes.push(KeyValue::new(EXCEPTION_TRACEBACK, tb));
+                // else set status to ok
+                else {
+                    inner.span.set_status(Status::Ok);
                 }
-
-                inner.span.add_event(SPAN_ERROR, error_attributes);
             }
-            // else set status to ok
-            else {
-                inner.span.set_status(Status::Ok);
-            }
-
-            inner.span.end();
-
-            // Extract values before dropping the lock
-            let context_id = inner.context_id.clone();
-            let trace_id = inner.span.span_context().trace_id().to_string();
-            let context_token = inner.context_token.take();
-            inner.queue.take();
-
-            (context_id, trace_id, context_token)
-        };
-
-        let store = get_trace_metadata_store();
-        store.decrement_span_count(&trace_id)?;
-
-        if let Some(token) = context_token {
-            reset_current_context(py, &token)?;
         }
 
-        get_context_store().remove(&context_id)?;
+        self.complete_span(py, None, true)?;
         Ok(false)
     }
 
@@ -600,16 +594,13 @@ impl ActiveSpan {
         pyo3_async_runtimes::tokio::future_into_py(py, async move { Ok(py_result) })
     }
 
-    fn end(&self, end_time: Option<i64>) -> Result<(), TraceError> {
-        self.with_inner_mut(|inner| {
-            if let Some(ts) = end_time {
-                let system_time =
-                    SystemTime::UNIX_EPOCH + std::time::Duration::from_nanos(ts as u64);
-                inner.span.end_with_timestamp(system_time);
-            } else {
-                inner.span.end();
-            }
-        })
+    fn end(&self, py: Python<'_>, end_time: Option<i64>) -> Result<(), TraceError> {
+        self.complete_span(py, end_time, false)
+    }
+
+    #[pyo3(name = "_end_with_cleanup", signature = (end_time=None))]
+    fn end_with_cleanup(&self, py: Python<'_>, end_time: Option<i64>) -> Result<(), TraceError> {
+        self.complete_span(py, end_time, false)
     }
 
     /// Returns an OTel-compatible SpanContext for this span.
@@ -622,6 +613,7 @@ impl ActiveSpan {
         let span_id_int = u64::from_be_bytes(span_ctx.span_id().to_bytes());
         let is_remote = span_ctx.is_remote();
         let trace_flags_u8 = span_ctx.trace_flags().to_u8();
+        let trace_state_header = span_ctx.trace_state().header();
 
         let otel_trace = py.import("opentelemetry.trace")?;
         let trace_flags_cls = otel_trace.getattr("TraceFlags")?;
@@ -629,7 +621,15 @@ impl ActiveSpan {
         let span_ctx_cls = otel_trace.getattr("SpanContext")?;
 
         let py_trace_flags = trace_flags_cls.call1((trace_flags_u8,))?;
-        let py_trace_state = trace_state_cls.call0()?;
+        let trace_state_entries = PyList::empty(py);
+        if !trace_state_header.is_empty() {
+            for member in trace_state_header.split(',') {
+                if let Some((key, value)) = member.split_once('=') {
+                    trace_state_entries.append((key, value))?;
+                }
+            }
+        }
+        let py_trace_state = trace_state_cls.call1((trace_state_entries,))?;
 
         let ctx = span_ctx_cls.call1((
             trace_id_int,
@@ -746,6 +746,65 @@ impl ActiveSpan {
 }
 
 impl ActiveSpan {
+    fn complete_span(
+        &self,
+        py: Python<'_>,
+        end_time: Option<i64>,
+        reset_context: bool,
+    ) -> Result<(), TraceError> {
+        let (context_id, trace_id, context_token, should_cleanup) = {
+            let mut inner = self
+                .inner
+                .write()
+                .map_err(|e| TraceError::PoisonError(e.to_string()))?;
+
+            if inner.cleanup_complete {
+                let token = if reset_context {
+                    inner.context_token.take()
+                } else {
+                    None
+                };
+                (None, None, token, false)
+            } else {
+                if let Some(ts) = end_time {
+                    let system_time =
+                        SystemTime::UNIX_EPOCH + std::time::Duration::from_nanos(ts as u64);
+                    inner.span.end_with_timestamp(system_time);
+                } else {
+                    inner.span.end();
+                }
+
+                let context_token = if reset_context {
+                    inner.context_token.take()
+                } else {
+                    None
+                };
+
+                let context_id = inner.context_id.clone();
+                let trace_id = inner.span.span_context().trace_id().to_string();
+                inner.queue.take();
+                inner.cleanup_complete = true;
+
+                (Some(context_id), Some(trace_id), context_token, true)
+            }
+        };
+
+        if let Some(token) = context_token {
+            reset_current_context(py, &token)?;
+        }
+
+        if should_cleanup {
+            if let Some(trace_id) = trace_id {
+                get_trace_metadata_store().decrement_span_count(&trace_id)?;
+            }
+            if let Some(context_id) = context_id {
+                get_context_store().remove(&context_id)?;
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn set_attribute_static(
         &mut self,
         key: &'static str,
@@ -1098,10 +1157,10 @@ impl BaseTracer {
             );
 
             OtelContext::current().with_remote_span_context(remote_span_context)
-        } else if let Some(parent_id) = parent_id {
+        } else if let Some(parent_id) = parent_id.as_ref() {
             // Use local parent (within same Python process)
             get_context_store()
-                .get(&parent_id)?
+                .get(parent_id)?
                 .map(|parent_ctx| OtelContext::current().with_remote_span_context(parent_ctx))
                 .unwrap_or_else(OtelContext::current)
         } else if let Some(sc) = get_otel_global_span_context(py) {
@@ -1157,9 +1216,11 @@ impl BaseTracer {
 
         let inner = Arc::new(RwLock::new(ActiveSpanInner {
             context_id,
+            parent_context_id: parent_id,
             span,
             context_token: None,
             queue: self.queue.as_ref().map(|q| q.clone_ref(py)),
+            cleanup_complete: false,
         }));
 
         // set as current span
@@ -1260,9 +1321,9 @@ impl BaseTracer {
                 TraceState::default(),
             );
             OtelContext::current().with_remote_span_context(remote_span_context)
-        } else if let Some(parent_id) = parent_id {
+        } else if let Some(parent_id) = parent_id.as_ref() {
             get_context_store()
-                .get(&parent_id)?
+                .get(parent_id)?
                 .map(|parent_ctx| OtelContext::current().with_remote_span_context(parent_ctx))
                 .unwrap_or_else(OtelContext::current)
         } else if let Some(sc) = get_otel_global_span_context(py) {
@@ -1311,9 +1372,11 @@ impl BaseTracer {
 
         let inner = Arc::new(RwLock::new(ActiveSpanInner {
             context_id,
+            parent_context_id: parent_id,
             span,
             context_token: None, // not pushed onto the context stack
             queue: self.queue.as_ref().map(|q| q.clone_ref(py)),
+            cleanup_complete: false,
         }));
 
         Ok(ActiveSpan { inner })
@@ -1619,18 +1682,7 @@ fn get_otel_global_span_context(py: Python<'_>) -> Option<SpanContext> {
     let trace_mod = py.import("opentelemetry.trace").ok()?;
     let current_span = trace_mod.call_method0("get_current_span").ok()?;
     let span_ctx = current_span.call_method0("get_span_context").ok()?;
-
-    let trace_id_int: u128 = span_ctx.getattr("trace_id").ok()?.extract().ok()?;
-    let span_id_int: u64 = span_ctx.getattr("span_id").ok()?.extract().ok()?;
-    let flags_int: u8 = span_ctx.getattr("trace_flags").ok()?.extract().ok()?;
-
-    let sc = SpanContext::new(
-        TraceId::from(trace_id_int),
-        SpanId::from(span_id_int),
-        TraceFlags::new(flags_int),
-        false, // not remote — same process
-        TraceState::default(),
-    );
+    let sc = SpanContext::from_py_span_context(&span_ctx).ok()?;
     if sc.is_valid() {
         Some(sc)
     } else {
@@ -1650,18 +1702,7 @@ fn extract_otel_py_context(py: Python<'_>, context: &Bound<'_, PyAny>) -> Option
         .call_method1("get_current_span", (context,))
         .ok()?;
     let span_ctx = current_span.call_method0("get_span_context").ok()?;
-
-    let trace_id_int: u128 = span_ctx.getattr("trace_id").ok()?.extract().ok()?;
-    let span_id_int: u64 = span_ctx.getattr("span_id").ok()?.extract().ok()?;
-    let flags_int: u8 = span_ctx.getattr("trace_flags").ok()?.extract().ok()?;
-
-    let sc = SpanContext::new(
-        TraceId::from(trace_id_int),
-        SpanId::from(span_id_int),
-        TraceFlags::new(flags_int),
-        true, // is_remote — came from wire headers
-        TraceState::default(),
-    );
+    let sc = SpanContext::from_py_span_context(&span_ctx).ok()?;
     if sc.is_valid() {
         Some(sc)
     } else {

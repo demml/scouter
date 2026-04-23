@@ -23,7 +23,7 @@ from scouter.tracing import (
     BatchConfig,
     GrpcSpanExporter,
     ScouterInstrumentor,
-    Tracer,
+    ScouterTracer,
     active_profile,
     get_tracer,
     init_tracer,
@@ -421,7 +421,7 @@ def _run_mock_agent_workflow(tracer: Any, agent_name: str) -> str:
 
 
 def _run_mixed_agent_workflow(
-    tracer: Tracer,
+    tracer: ScouterTracer,
     planner_profile: AgentEvalProfile,
 ) -> str:
     with tracer.start_as_current_span("agent_1_orchestrator") as orchestrator_span:

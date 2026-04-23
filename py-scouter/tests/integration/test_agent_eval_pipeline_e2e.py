@@ -175,10 +175,7 @@ def _wait_for_drift_results(
         time.sleep(2)
 
     task_keys = list(task_results.keys()) if task_results is not None else []
-    raise AssertionError(
-        "Timed out waiting for drift results. "
-        f"workflow={workflow_results} task_keys={task_keys}"
-    )
+    raise AssertionError("Timed out waiting for drift results. " f"workflow={workflow_results} task_keys={task_keys}")
 
 
 def _wait_for_trace_spans_visible(
@@ -205,7 +202,7 @@ def test_agent_eval_pipeline_e2e_with_instrumentor(
         sample_ratio=1.0,
     )
 
-    tasks = [
+    tasks: list[LLMJudgeTask | AssertionTask | TraceAssertionTask | AgentAssertionTask] = [
         AssertionTask(
             id="assertion_ok",
             expected_value=10,

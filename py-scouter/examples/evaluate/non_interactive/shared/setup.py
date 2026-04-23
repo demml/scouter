@@ -1,11 +1,11 @@
 from __future__ import annotations
-from pydantic import BaseModel, ConfigDict
 
 import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Union
 
+from pydantic import BaseModel, ConfigDict
 from scouter.agent import Prompt
 from scouter.drift import AgentEvalProfile
 from scouter.evaluate import EvalScenarios, TasksFile
@@ -45,7 +45,10 @@ def get_shared_config() -> SharedConfig:
     )
 
     instrumentor = ScouterInstrumentor()
-    instrumentor.instrument(scouter_queue=queue)
+    instrumentor.instrument(
+        transport_config=_transport_config(),
+        scouter_queue=queue,
+    )
 
     return SharedConfig(
         queue=queue,

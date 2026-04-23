@@ -9,7 +9,7 @@ from opentelemetry import trace
 from opentelemetry.trace import get_tracer_provider
 from pydantic import BaseModel
 from scouter.evaluate import EvalRecord
-from scouter.tracing import BaseTracer
+from scouter.tracing import ScouterTracer
 
 from ..shared import get_shared_config, teardown_shared_config
 
@@ -29,7 +29,7 @@ class AgentResponse(BaseModel):
 
 
 def _emit_eval_record(query: str, response: str) -> None:
-    tracer = cast(BaseTracer, trace.get_tracer("evaluate.interactive.crewai"))
+    tracer = cast(ScouterTracer, trace.get_tracer("evaluate.interactive.crewai"))
     with tracer.start_as_current_span("crewai.callback") as span:
         span.add_queue_item(
             "interactive_support_agent",

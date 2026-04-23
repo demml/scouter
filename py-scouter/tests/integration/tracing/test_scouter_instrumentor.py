@@ -12,7 +12,7 @@ from typing import Any, List, Optional
 
 from opentelemetry import trace
 from scouter.client import ScouterClient, TraceFilters
-from scouter.tracing import TracerProvider
+from scouter.tracing import ScouterTracerProvider
 
 from .conftest import (
     DEFAULT_TEST_ATTRIBUTES,
@@ -37,14 +37,14 @@ def _find_attr(attributes: List[Any], key: str) -> Optional[Any]:
 
 
 def test_instrumentor_sets_global_otel_provider(setup_instrumentor_http):
-    """ScouterInstrumentor must register a TracerProvider as the global OTel provider."""
+    """ScouterInstrumentor must register a ScouterTracerProvider as the global OTel provider."""
     _tracer, _server, instrumentor = setup_instrumentor_http
 
     assert instrumentor.is_instrumented, "Expected instrumentor.is_instrumented == True"
 
     global_provider = trace.get_tracer_provider()
-    assert isinstance(global_provider, TracerProvider), (
-        f"Expected global OTel provider to be TracerProvider, " f"got {type(global_provider).__name__}"
+    assert isinstance(global_provider, ScouterTracerProvider), (
+        f"Expected global OTel provider to be ScouterTracerProvider, " f"got {type(global_provider).__name__}"
     )
 
 

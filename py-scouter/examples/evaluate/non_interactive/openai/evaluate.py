@@ -15,11 +15,6 @@ def main() -> None:
     finally:
         teardown_shared_config()
 
-    print(
-        f"\nScenarios : {results.metrics.total_scenarios}  "
-        f"Passed    : {results.metrics.passed_scenarios}  "
-        f"Pass rate : {results.metrics.overall_pass_rate:.0%}"
-    )
     results.as_table(show_workflow=True)
 
 

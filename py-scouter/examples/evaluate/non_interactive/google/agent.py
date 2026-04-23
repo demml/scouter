@@ -13,7 +13,7 @@ offline evaluation run through the same agent code.
 from __future__ import annotations
 
 import os
-from typing import Callable, Optional, cast
+from typing import Callable, Optional
 
 from fastapi import FastAPI
 from google.adk.agents import Agent
@@ -22,10 +22,9 @@ from google.adk.models.llm_response import LlmResponse
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
-from opentelemetry import trace
 from pydantic import BaseModel
+from scouter import trace
 from scouter.evaluate import EvalRecord
-from scouter.tracing import BaseTracer
 
 from ..shared import get_shared_config, teardown_shared_config
 
@@ -49,7 +48,7 @@ class AgentResponse(BaseModel):
 
 def _emit_eval_record(query: str, response: str) -> None:
     """Emit the record users would normally send from a production callback."""
-    tracer = cast(BaseTracer, trace.get_tracer("evaluate.non_interactive.google"))
+    tracer = trace.get_tracer("evaluate.non_interactive.google")
     with tracer.start_as_current_span("google.callback") as span:
         span.add_queue_item(
             "support_agent",
@@ -73,14 +72,15 @@ class GoogleAgentService:
         llm_response: LlmResponse,
     ) -> Optional[LlmResponse]:
         """Emit an eval record after the model returns its final text."""
-        del callback_context
-
         if llm_response.partial:
             return None
         if not llm_response.content or not llm_response.content.parts:
             return None
 
-        text = next((part.text for part in llm_response.content.parts if part.text), None)
+        text = next(
+            (part.text for part in llm_response.content.parts if part.text),
+            None,
+        )
         if text:
             query = str(callback_context.state.get(QUERY_STATE_KEY, ""))
             self._callback(query, text)
@@ -132,9 +132,6 @@ class GoogleAgentService:
                 for part in event.content.parts:  # type: ignore
                     if part.text:
                         response = part.text
-                        break
-                if response:
-                    break
 
         if not response:
             response = self._fallback_response(query)

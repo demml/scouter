@@ -7,6 +7,7 @@ reuses the same service object that powers the FastAPI example.
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 from scouter.evaluate import EvalOrchestrator, EvalScenario
 
@@ -14,7 +15,11 @@ from ..shared import get_shared_config, teardown_shared_config
 from .agent import GoogleAgentService, build_agent_service
 
 
-def simulated_user_turn(initial_query: str, agent_response: str, history: list[dict[str, str]]) -> str:
+def simulated_user_turn(
+    initial_query: str,
+    agent_response: Any,
+    history: list[dict[str, Any]],
+) -> str:
     """Drive a short reactive conversation for the shared interactive scenarios."""
     del initial_query
 
@@ -37,19 +42,17 @@ class GoogleInteractiveEvalOrchestrator(EvalOrchestrator):
             scenarios=config.scenarios,
             simulated_user_fn=simulated_user_turn,
         )
-        self._loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self._loop)
+        self._runner = asyncio.Runner()
         self._service: GoogleAgentService = build_agent_service()
 
     def execute_agent_turn(self, scenario: EvalScenario, message: str) -> str:
         """Run each reactive turn on the same event loop and service instance."""
         del scenario
-        return self._loop.run_until_complete(self._service.run(message))
+        return self._runner.run(self._service.run(message))
 
     def close(self) -> None:
         """Close the loop after evaluation completes."""
-        self._loop.close()
-        asyncio.set_event_loop(None)
+        self._runner.close()
 
 
 def main() -> None:

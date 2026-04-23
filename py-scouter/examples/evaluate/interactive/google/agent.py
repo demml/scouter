@@ -23,7 +23,7 @@ from google.genai import types
 from opentelemetry import trace
 from pydantic import BaseModel
 from scouter.evaluate import EvalRecord
-from scouter.tracing import BaseTracer
+from scouter.tracing import ScouterTracer
 
 from ..shared import get_shared_config, teardown_shared_config
 
@@ -47,7 +47,7 @@ class AgentResponse(BaseModel):
 
 def _emit_eval_record(query: str, response: str) -> None:
     """Emit the record users would normally send from a production callback."""
-    tracer = cast(BaseTracer, trace.get_tracer("evaluate.interactive.google"))
+    tracer = cast(ScouterTracer, trace.get_tracer("evaluate.interactive.google"))
     with tracer.start_as_current_span("google.callback") as span:
         span.add_queue_item(
             "interactive_support_agent",
@@ -71,14 +71,15 @@ class GoogleAgentService:
         llm_response: LlmResponse,
     ) -> Optional[LlmResponse]:
         """Emit an eval record after the model returns its final text."""
-        del callback_context
-
         if llm_response.partial:
             return None
         if not llm_response.content or not llm_response.content.parts:
             return None
 
-        text = next((part.text for part in llm_response.content.parts if part.text), None)
+        text = next(
+            (part.text for part in llm_response.content.parts if part.text),
+            None,
+        )
         if text:
             query = str(callback_context.state.get(QUERY_STATE_KEY, ""))
             self._callback(query, text)
@@ -127,7 +128,10 @@ class GoogleAgentService:
             new_message=message,
         ):
             if event.is_final_response() and event.content:
-                for part in event.content.parts:
+                parts = event.content.parts
+                if not isinstance(parts, list):
+                    continue
+                for part in parts:
                     if part.text:
                         response = part.text
                         break

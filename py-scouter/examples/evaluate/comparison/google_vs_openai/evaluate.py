@@ -2,7 +2,7 @@ from pathlib import Path
 
 from scouter.evaluate import EvalOrchestrator, ScenarioEvalResults
 
-from ...non_interactive.google.agent import run_agent as run_google_agent
+from ...non_interactive.google.evaluate import GoogleEvalOrchestrator
 from ...non_interactive.openai.agent import run_agent as run_openai_agent
 from ...non_interactive.shared import get_shared_config, teardown_shared_config
 
@@ -11,12 +11,11 @@ _COMPARISON_PATH = Path(__file__).with_name("openai_results.json")
 
 
 def _run_google() -> ScenarioEvalResults:
-    config = get_shared_config()
-    results = EvalOrchestrator(
-        queue=config.queue,
-        scenarios=config.scenarios,
-        agent_fn=run_google_agent,
-    ).run()
+    orchestrator = GoogleEvalOrchestrator()
+    try:
+        results = orchestrator.run()
+    finally:
+        orchestrator.close()
     results.save(str(_BASELINE_PATH))
     return results
 

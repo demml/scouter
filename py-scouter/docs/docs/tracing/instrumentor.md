@@ -1,8 +1,10 @@
 # ScouterInstrumentor
 
-`ScouterInstrumentor` implements the standard OpenTelemetry `BaseInstrumentor` interface. Once instrumented, it registers Scouter's `TracerProvider` as the global OTEL provider — any library that calls `opentelemetry.trace.get_tracer()` routes spans through Scouter automatically.
+`ScouterInstrumentor` implements the standard OpenTelemetry `BaseInstrumentor` interface. Once instrumented, it registers Scouter's `TracerProvider` as the global OTEL provider, so any library that calls `opentelemetry.trace.get_tracer()` routes spans through Scouter automatically.
 
 See the [overview comparison table](/scouter/docs/tracing/overview/#scouterinstrumentor-vs-init_tracer) for when to use `ScouterInstrumentor` vs `init_tracer()`.
+
+For normal application code, this is the recommended tracing entrypoint. Call `instrument()` once at startup, get tracers from `opentelemetry.trace`, and shut the provider down once at process exit.
 
 ## Installation
 
@@ -24,10 +26,13 @@ Framework-specific instrumentation libraries are installed separately — see th
 ## Basic Usage
 
 ```python
+from opentelemetry import trace
 from scouter.tracing import ScouterInstrumentor
 
 instrumentor = ScouterInstrumentor()
 instrumentor.instrument()
+
+tracer = trace.get_tracer("my-service")
 ```
 
 Or use the convenience function:
@@ -39,6 +44,16 @@ instrument()
 ```
 
 `ScouterInstrumentor` is a singleton. Multiple calls to `ScouterInstrumentor()` return the same instance. Calling `instrument()` when already instrumented is a no-op.
+
+## What It Installs
+
+`instrument()` does three things:
+
+1. Installs Scouter as the global OTEL `TracerProvider`.
+2. Configures Scouter export plus any optional OTEL exporter you pass in.
+3. Makes `trace.get_tracer(...)` return a Scouter-backed tracer implementation.
+
+That means manual spans, framework spans, and spans from OTEL-aware libraries all flow through the same provider and share the same context propagation behavior.
 
 ## API Reference
 
@@ -72,6 +87,8 @@ instrumentor.uninstrument()
 
 Flushes pending spans, shuts down the `TracerProvider`, and resets the global OTEL provider. The singleton is also reset, so the next call to `ScouterInstrumentor()` creates a fresh instance.
 
+Treat tracer handles acquired before `uninstrument()` as stale. If you re-instrument later, get a fresh tracer from `trace.get_tracer(...)` instead of reusing an old handle.
+
 ### `is_instrumented`
 
 ```python
@@ -102,6 +119,20 @@ instrument(transport_config=GrpcConfig(), batch_config=BatchConfig())
 # ... later ...
 uninstrument()
 ```
+
+## Lifecycle Guidance
+
+The recommended OTEL lifecycle is:
+
+1. `instrument()` once during process startup.
+2. `trace.get_tracer(...)` wherever you need a tracer.
+3. `uninstrument()` once during shutdown.
+
+Re-instrumenting within the same process is supported for tests and tightly controlled reconfiguration, but it should not be your normal runtime pattern.
+
+## Low-level Alternative
+
+If you need to manage tracing without the global OTEL provider, use `init_tracer()` directly. That path is still useful for low-level tests and manual setups, but it is not the preferred application-facing API anymore.
 
 ## Default Attributes
 
@@ -364,7 +395,7 @@ app = FastAPI(lifespan=lifespan)
 app.add_middleware(ScouterTracingMiddleware, tracer=tracer)
 ```
 
-`tracer` must be a Scouter tracer (the return value of `otel_trace.get_tracer_provider().get_tracer(name)` after `instrument()` has been called, or `get_tracer(name)` directly).
+`tracer` should be the tracer returned by `otel_trace.get_tracer("name")` after `instrument()` has been called. If you are on the low-level manual path, a directly constructed `ScouterTracer` also works.
 
 ### Deferred initialization
 
@@ -373,7 +404,7 @@ FastAPI evaluates `add_middleware()` at import time, before the `lifespan` event
 ```python
 from typing import Any, Optional
 from fastapi import FastAPI
-from scouter.tracing import ScouterTracingMiddleware, ScouterInstrumentor, TracerProvider
+from scouter.tracing import ScouterTracingMiddleware, ScouterInstrumentor
 from scouter.transport import GrpcConfig
 from opentelemetry import trace as otel_trace
 from contextlib import asynccontextmanager
@@ -401,8 +432,7 @@ async def lifespan(app: FastAPI):
         transport_config=GrpcConfig(),
         attributes={"service.name": "my-service"},
     )
-    provider = otel_trace.get_tracer_provider()
-    _tracer._inner = provider.get_tracer("my-service")
+    _tracer._inner = otel_trace.get_tracer("my-service")
 
     yield
 

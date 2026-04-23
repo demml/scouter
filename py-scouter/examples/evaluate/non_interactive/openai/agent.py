@@ -1,18 +1,20 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Callable, cast
+from typing import Any, Callable
 
 from agents import Agent, RunHooks, Runner
 from fastapi import FastAPI
-from opentelemetry import trace
+from opentelemetry.instrumentation.openai_agents import OpenAIAgentsInstrumentor
 from pydantic import BaseModel
+from scouter import trace
 from scouter.evaluate import EvalRecord
-from scouter.tracing import BaseTracer
 
 from ..shared import get_shared_config, teardown_shared_config
 
 config = get_shared_config()
+_openai_instrumentor = OpenAIAgentsInstrumentor()
+_openai_instrumentor.instrument(tracer_provider=trace.get_tracer_provider())
 
 AgentCallback = Callable[[str, str], None]
 
@@ -26,7 +28,7 @@ class AgentResponse(BaseModel):
 
 
 def _emit_eval_record(query: str, response: str) -> None:
-    tracer = cast(BaseTracer, trace.get_tracer("evaluate.non_interactive.openai"))
+    tracer = trace.get_tracer("evaluate.non_interactive.openai")
     with tracer.start_as_current_span("openai.callback") as span:
         span.add_queue_item(
             "support_agent",
@@ -74,8 +76,7 @@ def run_agent(query: str, callback: AgentCallback | None = None) -> str:
         on_response(query, response)
         return response
 
-    with trace.get_tracer("evaluate.non_interactive.openai").start_as_current_span("openai.agent.run"):
-        result = Runner.run_sync(_agent, query, hooks=EvalHooks(query=query, callback=on_response))
+    result = Runner.run_sync(_agent, query, hooks=EvalHooks(query=query, callback=on_response))
     return str(result.final_output)
 
 
@@ -88,4 +89,5 @@ def ask(request: AgentRequest) -> AgentResponse:
 
 
 def shutdown() -> None:
+    _openai_instrumentor.uninstrument()
     teardown_shared_config()
