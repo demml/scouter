@@ -11,7 +11,7 @@ interactive. The same service object owns:
 from __future__ import annotations
 
 import os
-from typing import Callable, Optional, cast
+from typing import Callable, Optional
 
 from fastapi import FastAPI
 from google.adk.agents import Agent
@@ -20,10 +20,9 @@ from google.adk.models.llm_response import LlmResponse
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
-from opentelemetry import trace
 from pydantic import BaseModel
 from scouter.evaluate import EvalRecord
-from scouter.tracing import ScouterTracer
+from scouter import trace
 
 from ..shared import get_shared_config, teardown_shared_config
 
@@ -47,7 +46,7 @@ class AgentResponse(BaseModel):
 
 def _emit_eval_record(query: str, response: str) -> None:
     """Emit the record users would normally send from a production callback."""
-    tracer = cast(ScouterTracer, trace.get_tracer("evaluate.interactive.google"))
+    tracer = trace.get_tracer("evaluate.interactive.google")
     with tracer.start_as_current_span("google.callback") as span:
         span.add_queue_item(
             "interactive_support_agent",

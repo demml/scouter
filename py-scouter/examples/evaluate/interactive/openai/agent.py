@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Callable, cast
+from typing import Any, Callable
 
 from agents import Agent, RunHooks, Runner
 from fastapi import FastAPI
-from opentelemetry import trace
 from pydantic import BaseModel
 from scouter.evaluate import EvalRecord
-from scouter.tracing import ScouterTracer
+from scouter import trace
 
 from ..shared import get_shared_config, teardown_shared_config
 
@@ -26,7 +25,7 @@ class AgentResponse(BaseModel):
 
 
 def _emit_eval_record(query: str, response: str) -> None:
-    tracer = cast(ScouterTracer, trace.get_tracer("evaluate.interactive.openai"))
+    tracer = trace.get_tracer("evaluate.interactive.openai")
     with tracer.start_as_current_span("openai.callback") as span:
         span.add_queue_item(
             "interactive_support_agent",
@@ -72,8 +71,12 @@ def run_agent(query: str, callback: AgentCallback | None = None) -> str:
         on_response(query, response)
         return response
 
-    with trace.get_tracer("evaluate.interactive.openai").start_as_current_span("openai.agent.run"):
-        result = Runner.run_sync(_agent, query, hooks=EvalHooks(query=query, callback=on_response))
+    with trace.get_tracer("evaluate.interactive.openai").start_as_current_span(
+        "openai.agent.run"
+    ):
+        result = Runner.run_sync(
+            _agent, query, hooks=EvalHooks(query=query, callback=on_response)
+        )
     return str(result.final_output)
 
 
