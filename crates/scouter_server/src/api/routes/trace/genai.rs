@@ -7,27 +7,16 @@ use axum::{
     Json, Router,
 };
 use scouter_types::{
-    contracts::ScouterServerError, AgentBucketRow, AgentDashboardRequest, AgentDashboardResponse,
-    AgentDashboardSummary, AgentMetricBucket, GenAiAgentActivityResponse,
-    GenAiErrorBreakdownResponse, GenAiErrorCount, GenAiMetricsRequest, GenAiModelUsageResponse,
-    GenAiOperationBreakdownResponse, GenAiSpanFilters, GenAiSpansResponse,
+    contracts::ScouterServerError, AgentActivityQuery, AgentBucketRow, AgentDashboardRequest,
+    AgentDashboardResponse, AgentDashboardSummary, AgentMetricBucket, ConversationQuery,
+    GenAiAgentActivityResponse, GenAiErrorBreakdownResponse, GenAiErrorCount, GenAiMetricsRequest,
+    GenAiModelUsageResponse, GenAiOperationBreakdownResponse, GenAiSpanFilters, GenAiSpansResponse,
     GenAiTokenMetricsResponse, GenAiToolActivityResponse, ModelCostBreakdown, ModelPricing,
     ToolDashboardRequest, ToolDashboardResponse,
 };
-use serde::Deserialize;
+
 use std::sync::Arc;
 use tracing::instrument;
-
-#[derive(Deserialize, utoipa::IntoParams)]
-pub struct AgentActivityQuery {
-    pub agent_name: Option<String>,
-}
-
-#[derive(Deserialize, utoipa::IntoParams)]
-pub struct ConversationQuery {
-    pub start_time: Option<String>,
-    pub end_time: Option<String>,
-}
 
 #[utoipa::path(
     post,

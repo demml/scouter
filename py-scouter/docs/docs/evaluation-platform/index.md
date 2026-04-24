@@ -82,7 +82,7 @@ Both should run in a single pass. A passing scenario with failing workflow tasks
 
 ## What a production evaluation system needs
 
-If you're evaluating agents in a notebook and eyeballing results, that works for prototyping. It doesn't work when you have agents in production serving real traffic. Here's what the gap looks like:
+If you're evaluating agents in a notebook and eyeballing results, that works for prototyping. It doesn't work when you have agents in production serving real traffic.
 
 **Offline evaluation.** Gate releases. Catch regressions. Establish quality baselines you can compare future runs against. Run a fixed set of test scenarios before deployment, diff pass rates, and block CI if quality drops.
 
@@ -100,7 +100,7 @@ If you're evaluating agents in a notebook and eyeballing results, that works for
 
 **Multi-vendor support.** Agents use different LLM providers. Evaluation shouldn't lock you into one vendor for the judge, and it should understand response formats from OpenAI, Anthropic, Google, and others without manual format wrangling.
 
-**Performance.** Evaluation infrastructure must not affect application latency. Sub-microsecond queue insertion. Async server-side processing. If your monitoring slows down the thing it's monitoring, you've created a new problem.
+**Performance.** Evaluation infrastructure must not affect application latency. Queue insertion should be sub-microsecond, with async server-side processing. If your monitoring slows down the thing it's monitoring, you've created a new problem.
 
 ---
 
@@ -122,7 +122,7 @@ For a detailed feature-by-feature comparison, see [Platform comparison](./compar
 
 Scouter is a self-hosted evaluation platform built to close the gaps above. The server is Rust, the client is Python, and evaluation runs the same way whether you're gating a release or monitoring production traffic.
 
-Here's what it covers:
+What that looks like in practice:
 
 **Four task types** that span the full evaluation surface. `AssertionTask` for deterministic rule-based checks (format, thresholds, patterns). `LLMJudgeTask` for semantic evaluation via any LLM provider. `TraceAssertionTask` for assertions on OpenTelemetry span properties. `AgentAssertionTask` for vendor-agnostic tool call and response structure verification — auto-detects OpenAI, Anthropic, and Google formats from the response JSON. All four work in both offline and online modes without modification.
 

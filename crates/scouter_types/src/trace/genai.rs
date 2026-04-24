@@ -812,6 +812,19 @@ pub struct AgentBucketRow {
     pub cache_read_tokens: i64,
 }
 
+#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::IntoParams))]
+pub struct AgentActivityQuery {
+    pub agent_name: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::IntoParams))]
+pub struct ConversationQuery {
+    pub start_time: Option<String>,
+    pub end_time: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
