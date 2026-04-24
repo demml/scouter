@@ -332,7 +332,8 @@ impl ScenarioResult {
                     .map(|a| {
                         let value_str = a.value.to_string();
                         let truncated = if value_str.len() > 200 {
-                            format!("{}...", &value_str[..200])
+                            let boundary = value_str.floor_char_boundary(200);
+                            format!("{}...", &value_str[..boundary])
                         } else {
                             value_str
                         };
