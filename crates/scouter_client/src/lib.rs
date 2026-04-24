@@ -28,6 +28,7 @@ pub use scouter_types::{
     create_feature_map,
     cron::*,
     custom::{CustomDriftProfile, CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig},
+    genai::*,
     is_pydantic_basemodel,
     psi::{
         Bin, BinnedPsiFeatureMetrics, BinnedPsiMetric, PsiAlertConfig, PsiChiSquareThreshold,
