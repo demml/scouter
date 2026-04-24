@@ -22,9 +22,9 @@ Several things make this harder than it looks:
 
 **Session state.** Multi-turn agents accumulate context. The quality of turn 5 depends on turns 1 through 4. You can't evaluate a single turn in isolation and draw conclusions about the conversation.
 
-**External dependencies.** Model provider updates, API changes, rate limit adjustments — any of these can degrade quality without a single line of your code changing. You need to detect this in production, not just in pre-deployment tests.
+**External dependencies.** Model provider updates, API changes, rate limit adjustments: any of these can degrade quality without a single line of your code changing. You need to detect this in production, not just in pre-deployment tests.
 
-Think of it like a car. A passenger cares about one thing: did I get from A to B? A mechanic cares about what happened under the hood. The car arriving home doesn't mean the engine is healthy. It might have gotten there with a misfiring cylinder, low oil pressure, and a transmission that's about to fail. Agent evaluation needs both views — the passenger's and the mechanic's.
+Think of it like a car. A passenger cares about one thing: did I get from A to B? A mechanic cares about what happened under the hood. The car arriving home doesn't mean the engine is healthy. It might have gotten there with a misfiring cylinder, low oil pressure, and a transmission that's about to fail. Agent evaluation needs both views: the passenger's and the mechanic's.
 
 ```mermaid
 graph LR
@@ -56,27 +56,27 @@ The traditional pipeline has one evaluation point. The agent pipeline has many, 
 
 Agent evaluation isn't one problem. It's several, and they overlap in ways that make "just add some assertions" insufficient.
 
-**Single-agent evaluation.** One agent, one task, one set of quality criteria. This is the simplest case, and it maps reasonably well to traditional eval — but it's not enough for pipelines.
+**Single-agent evaluation.** One agent, one task, one set of quality criteria. This is the simplest case, and it maps reasonably well to traditional eval, but it's not enough for pipelines.
 
 **Multi-agent pipeline evaluation.** A retriever feeds a synthesizer which feeds a validator. Each sub-agent has different quality requirements. A passing end-to-end result doesn't mean each component is healthy. You need per-component signals, and you need them from the same evaluation run.
 
 **Prompt-level evaluation.** Did this specific prompt produce the right output? You're checking template variable substitution, context extraction, deterministic format constraints. Assertions work well here.
 
-**Session-level evaluation.** Multi-turn conversations where quality depends on the full exchange. You need simulated user personas, termination signals, and evaluation of the conversation arc — not just individual turns.
+**Session-level evaluation.** Multi-turn conversations where quality depends on the full exchange. You need simulated user personas, termination signals, and evaluation of the conversation arc, not just individual turns.
 
 **Scenario vs. workflow evaluation.** This is the passenger-vs-mechanic split, and it's worth being explicit about:
 
 - *Scenario evaluation* treats the agent as a black box. Given this input, did it produce the right output? This is your end-to-end quality signal.
 - *Workflow evaluation* opens the hood. Per-component health signals from structured records emitted during execution. Each sub-agent gets its own pass rate.
 
-Both should run in a single pass. A passing scenario with failing workflow tasks means you got lucky — not that your agent is healthy.
+Both should run in a single pass. A passing scenario with failing workflow tasks means you got lucky, not that your agent is healthy.
 
 | Dimension | What varies | Why it matters |
 |---|---|---|
 | Single vs. multi-agent | Number of components with independent quality requirements | A pipeline can pass end-to-end while individual components degrade |
 | Prompt vs. session | Evaluation scope (one turn vs. full conversation) | Session quality depends on accumulated context, not isolated responses |
 | Scenario vs. workflow | Black-box output vs. per-component internals | You need both to distinguish "correct answer" from "healthy system" |
-| Offline vs. online | When evaluation runs (pre-deploy vs. production) | Different failure modes surface in each — curated tests miss distribution shift, production sampling misses edge cases in your test set |
+| Offline vs. online | When evaluation runs (pre-deploy vs. production) | Different failure modes surface in each. Curated tests miss distribution shift; production sampling misses edge cases in your test set |
 
 ---
 
@@ -90,13 +90,13 @@ If you're evaluating agents in a notebook and eyeballing results, that works for
 
 **Unified task definitions.** Write evaluation tasks once, use them in both offline and online modes. Your offline quality bar and your production quality bar should be the same bar. If they diverge, you're maintaining two evaluation systems and hoping they agree.
 
-**Eval registries and profiles.** Versioned evaluation configurations tied to service identity — not ad-hoc scripts in a notebook. When a profile changes, you know what changed, who changed it, and what version of evaluation is running against what version of the agent.
+**Eval registries and profiles.** Versioned evaluation configurations tied to service identity, not ad-hoc scripts in a notebook. When a profile changes, you know what changed, who changed it, and what version of evaluation is running against what version of the agent.
 
 **Regression tracking.** Save baseline results from a known-good run. Diff against new runs. Flag regressions above configurable thresholds. Gate CI/CD on eval pass rates. Without this, you're comparing against vibes.
 
-**Alerting.** Evaluations without alerts are dashboards nobody looks at. Scheduled checks on a cron, dispatched to Slack, OpsGenie, or console. When pass rates drop below your baseline, you want to know within the hour — not when a customer reports it.
+**Alerting.** Evaluations without alerts are dashboards nobody looks at. Scheduled checks on a cron, dispatched to Slack, OpsGenie, or console. When pass rates drop below your baseline, you want to know within the hour, not when a customer reports it.
 
-**Trace-aware evaluation.** You can't evaluate agent behavior you can't observe. Tracing is not optional for agents — it's the only way to know *how* the agent arrived at an answer, not just *what* it returned. And trace data should feed directly into the evaluation pipeline, not sit in a separate observability silo.
+**Trace-aware evaluation.** You can't evaluate agent behavior you can't observe. Tracing is not optional for agents. It's the only way to know *how* the agent arrived at an answer, not just *what* it returned. And trace data should feed directly into the evaluation pipeline, not sit in a separate observability silo.
 
 **Multi-vendor support.** Agents use different LLM providers. Evaluation shouldn't lock you into one vendor for the judge, and it should understand response formats from OpenAI, Anthropic, Google, and others without manual format wrangling.
 
@@ -106,13 +106,13 @@ If you're evaluating agents in a notebook and eyeballing results, that works for
 
 ## Where existing tools fall short
 
-Most platforms do one half well. MLflow and Google ADK have solid offline evaluation — run a batch, compute metrics, compare results. Datadog has strong online observability with per-span scoring. LangSmith and Langfuse sit somewhere in between. But none of them share task definitions between offline and online modes. You end up writing evaluation logic twice: once for your CI pipeline, once for production monitoring. When the two definitions drift apart — and they will — you lose confidence that pre-deployment tests reflect production behavior.
+Most platforms do one half well. MLflow and Google ADK have solid offline evaluation (run a batch, compute metrics, compare results). Datadog has strong online observability with per-span scoring. LangSmith and Langfuse sit somewhere in between. MLflow shares scorer objects across modes (a stated design goal), but most others don't. You end up writing evaluation logic twice: once for your CI pipeline, once for production monitoring. When the two definitions drift apart (and they will), you lose confidence that pre-deployment tests reflect production behavior.
 
 Trace-based evaluation is treated as a separate concern everywhere else. You can view traces in one tool and run evaluations in another, but asserting on span properties (execution order, retry counts, token budgets per span) as part of the same evaluation pipeline that checks output quality? That requires bridging two systems manually.
 
-Agent-specific assertions — "was this tool called with these arguments," "did the tools execute in this order," "what model produced this response" — are either missing or vendor-locked. Most platforms parse one vendor's format natively and leave you to normalize the rest yourself.
+Agent-specific assertions ("was this tool called with these arguments," "did the tools execute in this order," "what model produced this response") are either missing or vendor-locked. Most platforms parse one vendor's format natively and leave you to normalize the rest yourself.
 
-And then there's pricing. SaaS platforms like Datadog and LangSmith add per-span or per-trace costs that scale linearly with traffic. Self-hosted options like Langfuse and MLflow avoid that, but they lack the evaluation orchestration or online monitoring pieces — you get storage and visualization, not a complete eval system.
+And then there's pricing. SaaS platforms like Datadog and LangSmith add per-span or per-trace costs that scale linearly with traffic. Self-hosted options like Langfuse and MLflow avoid that, but they lack the evaluation orchestration or online monitoring pieces. You get storage and visualization, not a complete eval system.
 
 For a detailed feature-by-feature comparison, see [Platform comparison](./comparison.md).
 
@@ -124,17 +124,19 @@ Scouter is a self-hosted evaluation platform built to close the gaps above. The 
 
 What that looks like in practice:
 
-**Four task types** that span the full evaluation surface. `AssertionTask` for deterministic rule-based checks (format, thresholds, patterns). `LLMJudgeTask` for semantic evaluation via any LLM provider. `TraceAssertionTask` for assertions on OpenTelemetry span properties. `AgentAssertionTask` for vendor-agnostic tool call and response structure verification — auto-detects OpenAI, Anthropic, and Google formats from the response JSON. All four work in both offline and online modes without modification.
+**Four task types** that span the full evaluation surface. `AssertionTask` for deterministic rule-based checks (format, thresholds, patterns). `LLMJudgeTask` for semantic evaluation via any LLM provider. `TraceAssertionTask` for assertions on OpenTelemetry span properties. `AgentAssertionTask` for vendor-agnostic tool call and response structure verification. It auto-detects OpenAI, Anthropic, and Google formats from the response JSON. All four work in both offline and online modes without modification.
 
 **46 comparison operators.** Not a toy assertion library. Numeric comparisons, string matching, regex, collection operations, type validation, format checks (email, URL, UUID, ISO 8601, JSON), range checks, length constraints, and approximate equality. Enough to express real-world validation rules without reaching for custom code.
 
-**Dependency DAGs and conditional gates.** Tasks can depend on upstream results, and any task can act as a gate — if a cheap format check fails, the expensive LLM judge never runs. The engine topologically sorts the DAG and executes independent tasks in parallel.
+The operator count matters less than what you can compose with it. Scouter's four task types (assertions, trace assertions, agent assertions, LLM judges) can be mixed freely in any combination within a single evaluation profile. Tasks can be organized into dependency DAGs where conditional gates short-circuit expensive work when cheap checks fail. Profiles can be defined programmatically via the Python SDK or declaratively via JSON/YAML spec files. This composability is the real differentiator: you express complex, multi-layered evaluation logic as a single portable unit, not a pile of ad-hoc scripts wired together with glue code.
 
-**Freeform context with path extraction.** `EvalRecord` takes a freeform dict. Put whatever you want in it — model outputs, metadata, ground truth labels, intermediate results. Tasks read from it via `context_path` (dot-notation into nested fields) and template variable substitution (`${field.path}`). No fixed schema to conform to.
+**Dependency DAGs and conditional gates.** Tasks can depend on upstream results, and any task can act as a gate. If a cheap format check fails, the expensive LLM judge never runs. The engine topologically sorts the DAG and executes independent tasks in parallel.
+
+**Freeform context with path extraction.** `EvalRecord` takes a freeform dict. Put whatever you want in it: model outputs, metadata, ground truth labels, intermediate results. Tasks read from it via `context_path` (dot-notation into nested fields) and template variable substitution (`${field.path}`). No fixed schema to conform to.
 
 **Offline evaluation with scenarios.** `EvalOrchestrator` runs your agent against test scenarios (single-turn, multi-turn, or interactive), collects records, evaluates tasks at three levels (sub-agent, scenario, aggregate), and produces pass rates you can diff against a baseline. Regression comparison flags degraded aliases above configurable thresholds.
 
-**Online evaluation with zero application impact.** Non-blocking queue insertion (sub-microsecond), server-side async evaluation via `AgentPoller` workers, configurable sampling via `sample_ratio`, and scheduled alert dispatch (Slack, OpsGenie, Console) on a cron. Records flow through gRPC or HTTP to PostgreSQL; the poller picks them up independently.
+**Online evaluation with zero application impact.** Non-blocking queue insertion (sub-microsecond), server-side async evaluation via `AgentPoller` workers, configurable sampling via `sample_ratio`, and scheduled alert dispatch (Slack, OpsGenie, Console) on a cron. Records flow through gRPC or HTTP to PostgreSQL, and the poller picks them up independently.
 
 **Trace storage on Delta Lake.** Spans land in a columnar store queried via DataFusion. Bloom filters on trace_id, time-partitioned, auto-compacted. `TraceEvalPoller` creates synthetic `EvalRecord`s from traces, bridging the observability and evaluation pipelines.
 
