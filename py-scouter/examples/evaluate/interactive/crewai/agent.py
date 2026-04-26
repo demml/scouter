@@ -7,16 +7,14 @@ from fastapi import FastAPI
 from openinference.instrumentation.crewai import CrewAIInstrumentor
 from opentelemetry.trace import get_tracer_provider
 from pydantic import BaseModel
-from scouter.evaluate import EvalRecord
 from scouter import trace
+from scouter.evaluate import EvalRecord
 
 from ..shared import get_shared_config, teardown_shared_config
 
 config = get_shared_config()
 _crewai_instrumentor = CrewAIInstrumentor()
-_crewai_instrumentor.instrument(
-    skip_dep_check=True, tracer_provider=get_tracer_provider()
-)
+_crewai_instrumentor.instrument(skip_dep_check=True, tracer_provider=get_tracer_provider())
 
 AgentCallback = Callable[[str, str], None]
 

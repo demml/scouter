@@ -1,6 +1,7 @@
 use super::{Attribute, SpanId, TraceId, TraceSpanRecord};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 // ── Span attribute key constants ─────────────────────────────────────────────
 pub const GEN_AI_OPERATION_NAME: &str = "gen_ai.operation.name";
@@ -682,6 +683,32 @@ pub struct GenAiErrorBreakdownResponse {
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiSpansResponse {
     pub spans: Vec<GenAiSpanRecord>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+pub struct GenAiTraceMetricsRequest {
+    pub start_time: Option<DateTime<Utc>>,
+    pub end_time: Option<DateTime<Utc>>,
+    #[serde(default = "default_bucket_interval")]
+    pub bucket_interval: String,
+    #[serde(default)]
+    pub model_pricing: HashMap<String, ModelPricing>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+pub struct GenAiTraceMetricsResponse {
+    pub trace_id: String,
+    pub has_genai_spans: bool,
+    pub spans: Vec<GenAiSpanRecord>,
+    pub token_metrics: GenAiTokenMetricsResponse,
+    pub operation_breakdown: GenAiOperationBreakdownResponse,
+    pub model_usage: GenAiModelUsageResponse,
+    pub agent_activity: GenAiAgentActivityResponse,
+    pub agent_dashboard: AgentDashboardResponse,
+    pub tool_dashboard: ToolDashboardResponse,
+    pub error_breakdown: GenAiErrorBreakdownResponse,
 }
 
 // ── Agent dashboard ───────────────────────────────────────────────────────────

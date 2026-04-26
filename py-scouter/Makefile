@@ -28,11 +28,8 @@ build.stubs:
 	uv run ruff check --silent --exit-zero ${SOURCE_OBJECTS}
 
 setup.project: build.stubs
-	uv sync --all-extras --group dev --group docs
+	uv sync --all-extras --group dev
 	uv run maturin develop --features server
-
-setup.docs:
-	uv sync --all-extras --group dev --group docs
 
 test.unit:
 	uv run pytest \
@@ -67,18 +64,6 @@ uv.sub.pre.tag:
 	@sed -i "s/$(VER)/$(REL_CANDIDATE)/" pyproject.toml
 
 prep.pre.patch: uv.pre.patch uv.sub.pre.tag
-
-build.docs:
-	uv run python scripts/create_mkdocs_stubs.py
-	uv run mkdocs build
-
-serve.docs:
-	uv run python scripts/create_mkdocs_stubs.py
-	uv run mkdocs serve
-
-publish.docs:
-	uv run python scripts/create_mkdocs_stubs.py
-	uv run mkdocs gh-deploy --force
 
 example.tracing.hello:
 	uv run uvicorn hello_service:app --app-dir examples/tracing --port 8081

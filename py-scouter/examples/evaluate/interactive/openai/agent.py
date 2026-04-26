@@ -6,8 +6,8 @@ from typing import Any, Callable
 from agents import Agent, RunHooks, Runner
 from fastapi import FastAPI
 from pydantic import BaseModel
-from scouter.evaluate import EvalRecord
 from scouter import trace
+from scouter.evaluate import EvalRecord
 
 from ..shared import get_shared_config, teardown_shared_config
 
@@ -71,12 +71,8 @@ def run_agent(query: str, callback: AgentCallback | None = None) -> str:
         on_response(query, response)
         return response
 
-    with trace.get_tracer("evaluate.interactive.openai").start_as_current_span(
-        "openai.agent.run"
-    ):
-        result = Runner.run_sync(
-            _agent, query, hooks=EvalHooks(query=query, callback=on_response)
-        )
+    with trace.get_tracer("evaluate.interactive.openai").start_as_current_span("openai.agent.run"):
+        result = Runner.run_sync(_agent, query, hooks=EvalHooks(query=query, callback=on_response))
     return str(result.final_output)
 
 

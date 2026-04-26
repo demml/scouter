@@ -738,6 +738,16 @@ impl ScouterServerError {
         }
     }
 
+    pub fn get_genai_trace_metrics_error<T: Display>(e: T) -> Self {
+        error!("Failed to get genai trace metrics: {}", e);
+        ScouterServerError {
+            error: "Failed to get genai trace metrics".to_string(),
+            code: "QUERY_ERROR".to_string(),
+            suggested_action: None,
+            retry: Some(true),
+        }
+    }
+
     pub fn get_agent_dashboard_error<T: Display>(e: T) -> Self {
         error!("Failed to get agent dashboard metrics: {}", e);
         ScouterServerError {

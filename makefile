@@ -2,6 +2,22 @@
 format:
 	cargo fmt --all
 
+.PHONY: docs.install
+docs.install:
+	pnpm --dir docs install
+
+.PHONY: docs.dev
+docs.dev:
+	pnpm --dir docs dev --host
+
+.PHONY: docs.build
+docs.build:
+	pnpm --dir docs build
+
+.PHONY: docs.preview
+docs.preview: docs.build
+	pnpm --dir docs preview --host
+
 .PHONY: lints
 lints:
 	cargo clippy --workspace --all-targets --all-features -- -D warnings
@@ -152,4 +168,3 @@ prepend.changelog:
 	# get version from Cargo.toml
 	@VERSION=$(shell grep '^version =' Cargo.toml | cut -d '"' -f 2) && \
 	git cliff --unreleased --tag $$VERSION --prepend CHANGELOG.md
-

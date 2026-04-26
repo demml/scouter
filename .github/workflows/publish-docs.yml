@@ -1,47 +1,45 @@
-name: Publish-Github-Pages
+name: Publish Docs
 
 on:
   push:
     branches:
       - main
-
   release:
     types: [published]
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "github-pages"
+  cancel-in-progress: false
 
 jobs:
-  PublishDocs:
+  build:
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v5
 
-      - name: Install Protocol Buffers Compiler
-        uses: arduino/setup-protoc@v3
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Install, build, and upload the Astro site
+        uses: withastro/action@v6
         with:
-          version: "33.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          path: docs
+          node-version: 22
 
-      - name: Install Rust toolchain
-        run: rustup override set stable && rustup update
-
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libcurl4-openssl-dev pkg-config
-
-      - name: Set up uv
-        run: curl -LsSf https://astral.sh/uv/install.sh | sh
-
-      - name: set up python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Publish Docs
-        working-directory: ./py-scouter
-        run: |
-          make setup.project
-          make publish.docs
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

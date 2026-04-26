@@ -6,7 +6,7 @@
 
 <h2 align="center"><b>Developer-First ML Monitoring, Observability, and Agent Evaluation</b></h2>
 
-<h2 align="center"><a href="https://demml.github.io/scouter/">Doc Site</h2>
+<h2 align="center"><a href="https://docs.demml.io/scouter/">Doc Site</h2>
 
 ## Table of Contents
 
@@ -411,4 +411,3 @@ Server (Rust / Axum + Tonic)
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
-

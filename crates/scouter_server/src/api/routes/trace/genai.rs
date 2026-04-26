@@ -10,11 +10,16 @@ use scouter_types::{
     contracts::ScouterServerError, AgentActivityQuery, AgentBucketRow, AgentDashboardRequest,
     AgentDashboardResponse, AgentDashboardSummary, AgentMetricBucket, ConversationQuery,
     GenAiAgentActivityResponse, GenAiErrorBreakdownResponse, GenAiErrorCount, GenAiMetricsRequest,
-    GenAiModelUsageResponse, GenAiOperationBreakdownResponse, GenAiSpanFilters, GenAiSpansResponse,
-    GenAiTokenMetricsResponse, GenAiToolActivityResponse, ModelCostBreakdown, ModelPricing,
-    ToolDashboardRequest, ToolDashboardResponse,
+    GenAiModelUsage, GenAiModelUsageResponse, GenAiOperationBreakdown,
+    GenAiOperationBreakdownResponse, GenAiSpanFilters, GenAiSpanRecord, GenAiSpansResponse,
+    GenAiTokenBucket, GenAiTokenMetricsResponse, GenAiToolActivity, GenAiToolActivityResponse,
+    GenAiTraceMetricsRequest, GenAiTraceMetricsResponse, ModelCostBreakdown, ModelPricing,
+    ToolDashboardRequest, ToolDashboardResponse, ToolTimeBucket, TraceId,
 };
 
+use chrono::{DateTime, Datelike, TimeZone, Timelike, Utc};
+use std::cmp::Reverse;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tracing::instrument;
 
@@ -348,6 +353,482 @@ pub async fn get_conversation_spans(
     Ok(Json(GenAiSpansResponse { spans }))
 }
 
+const VALID_BUCKET_INTERVALS: &[&str] =
+    &["second", "minute", "hour", "day", "week", "month", "year"];
+
+type OperationGroupKey = (String, Option<String>);
+type OperationGroupTotals = (i64, i64, i64, i64, i64);
+type AgentActivityKey = (Option<String>, Option<String>, Option<String>);
+type AgentActivityTotals = (i64, i64, i64, Option<DateTime<Utc>>);
+type ToolGroupKey = (Option<String>, Option<String>);
+type ToolTimeGroupKey = (DateTime<Utc>, Option<String>, Option<String>);
+
+fn validate_bucket_interval(bucket_interval: &str) -> Result<(), String> {
+    if VALID_BUCKET_INTERVALS.contains(&bucket_interval) {
+        Ok(())
+    } else {
+        Err(format!(
+            "Invalid bucket_interval '{}'. Must be one of: {}",
+            bucket_interval,
+            VALID_BUCKET_INTERVALS.join(", ")
+        ))
+    }
+}
+
+fn truncate_to_bucket(
+    timestamp: DateTime<Utc>,
+    bucket_interval: &str,
+) -> Result<DateTime<Utc>, String> {
+    let date = timestamp.date_naive();
+    let bucket = match bucket_interval {
+        "second" => date.and_hms_opt(timestamp.hour(), timestamp.minute(), timestamp.second()),
+        "minute" => date.and_hms_opt(timestamp.hour(), timestamp.minute(), 0),
+        "hour" => date.and_hms_opt(timestamp.hour(), 0, 0),
+        "day" => date.and_hms_opt(0, 0, 0),
+        "week" => {
+            let week_start =
+                date - chrono::Duration::days(timestamp.weekday().num_days_from_monday() as i64);
+            week_start.and_hms_opt(0, 0, 0)
+        }
+        "month" => chrono::NaiveDate::from_ymd_opt(timestamp.year(), timestamp.month(), 1)
+            .and_then(|d| d.and_hms_opt(0, 0, 0)),
+        "year" => chrono::NaiveDate::from_ymd_opt(timestamp.year(), 1, 1)
+            .and_then(|d| d.and_hms_opt(0, 0, 0)),
+        _ => return Err(format!("Invalid bucket_interval '{bucket_interval}'")),
+    }
+    .ok_or_else(|| format!("Failed to truncate timestamp for bucket '{bucket_interval}'"))?;
+
+    Ok(Utc.from_utc_datetime(&bucket))
+}
+
+fn percentile(values: &[i64], quantile: f64) -> Option<f64> {
+    if values.is_empty() {
+        return None;
+    }
+    let mut sorted = values.to_vec();
+    sorted.sort_unstable();
+    let idx = ((sorted.len() - 1) as f64 * quantile).round() as usize;
+    Some(sorted[idx] as f64)
+}
+
+fn model_for_span(span: &GenAiSpanRecord) -> String {
+    span.response_model
+        .clone()
+        .or_else(|| span.request_model.clone())
+        .unwrap_or_else(|| "unknown".to_string())
+}
+
+fn is_agent_span(span: &GenAiSpanRecord) -> bool {
+    matches!(
+        span.operation_name.as_deref(),
+        Some("invoke_agent" | "create_agent")
+    ) || span.agent_name.is_some()
+}
+
+fn is_tool_span(span: &GenAiSpanRecord) -> bool {
+    span.tool_name.is_some() || matches!(span.operation_name.as_deref(), Some("execute_tool"))
+}
+
+fn build_token_metrics(
+    spans: &[GenAiSpanRecord],
+    bucket_interval: &str,
+) -> Result<GenAiTokenMetricsResponse, String> {
+    let mut buckets: HashMap<DateTime<Utc>, GenAiTokenBucket> = HashMap::new();
+    for span in spans {
+        let bucket_start = truncate_to_bucket(span.start_time, bucket_interval)?;
+        let bucket = buckets
+            .entry(bucket_start)
+            .or_insert_with(|| GenAiTokenBucket {
+                bucket_start,
+                ..Default::default()
+            });
+        bucket.total_input_tokens += span.input_tokens.unwrap_or_default();
+        bucket.total_output_tokens += span.output_tokens.unwrap_or_default();
+        bucket.total_cache_creation_tokens += span.cache_creation_input_tokens.unwrap_or_default();
+        bucket.total_cache_read_tokens += span.cache_read_input_tokens.unwrap_or_default();
+        bucket.span_count += 1;
+        if span.error_type.is_some() {
+            bucket.error_rate += 1.0;
+        }
+    }
+
+    let mut buckets: Vec<_> = buckets
+        .into_values()
+        .map(|mut bucket| {
+            if bucket.span_count > 0 {
+                bucket.error_rate /= bucket.span_count as f64;
+            }
+            bucket
+        })
+        .collect();
+    buckets.sort_by_key(|bucket| bucket.bucket_start);
+    Ok(GenAiTokenMetricsResponse { buckets })
+}
+
+fn build_operation_breakdown(spans: &[GenAiSpanRecord]) -> GenAiOperationBreakdownResponse {
+    let mut groups: HashMap<OperationGroupKey, OperationGroupTotals> = HashMap::new();
+    for span in spans {
+        let key = (
+            span.operation_name.clone().unwrap_or_default(),
+            span.provider_name.clone(),
+        );
+        let entry = groups.entry(key).or_default();
+        entry.0 += 1;
+        entry.1 += span.duration_ms;
+        entry.2 += span.input_tokens.unwrap_or_default();
+        entry.3 += span.output_tokens.unwrap_or_default();
+        if span.error_type.is_some() {
+            entry.4 += 1;
+        }
+    }
+
+    let mut operations: Vec<_> = groups
+        .into_iter()
+        .map(
+            |((operation_name, provider_name), (count, duration, input, output, errors))| {
+                GenAiOperationBreakdown {
+                    operation_name,
+                    provider_name,
+                    span_count: count,
+                    avg_duration_ms: if count > 0 {
+                        duration as f64 / count as f64
+                    } else {
+                        0.0
+                    },
+                    total_input_tokens: input,
+                    total_output_tokens: output,
+                    error_rate: if count > 0 {
+                        errors as f64 / count as f64
+                    } else {
+                        0.0
+                    },
+                }
+            },
+        )
+        .collect();
+    operations.sort_by_key(|operation| Reverse(operation.span_count));
+    GenAiOperationBreakdownResponse { operations }
+}
+
+fn build_model_usage(spans: &[GenAiSpanRecord]) -> GenAiModelUsageResponse {
+    let mut groups: HashMap<(String, Option<String>), Vec<&GenAiSpanRecord>> = HashMap::new();
+    for span in spans {
+        groups
+            .entry((model_for_span(span), span.provider_name.clone()))
+            .or_default()
+            .push(span);
+    }
+
+    let mut models: Vec<_> = groups
+        .into_iter()
+        .map(|((model, provider_name), rows)| {
+            let durations: Vec<i64> = rows.iter().map(|span| span.duration_ms).collect();
+            let span_count = rows.len() as i64;
+            let errors = rows.iter().filter(|span| span.error_type.is_some()).count() as i64;
+            GenAiModelUsage {
+                model,
+                provider_name,
+                span_count,
+                total_input_tokens: rows
+                    .iter()
+                    .map(|span| span.input_tokens.unwrap_or_default())
+                    .sum(),
+                total_output_tokens: rows
+                    .iter()
+                    .map(|span| span.output_tokens.unwrap_or_default())
+                    .sum(),
+                p50_duration_ms: percentile(&durations, 0.5),
+                p95_duration_ms: percentile(&durations, 0.95),
+                error_rate: if span_count > 0 {
+                    errors as f64 / span_count as f64
+                } else {
+                    0.0
+                },
+            }
+        })
+        .collect();
+    models.sort_by_key(|model| Reverse(model.span_count));
+    GenAiModelUsageResponse { models }
+}
+
+fn build_agent_activity(spans: &[GenAiSpanRecord]) -> GenAiAgentActivityResponse {
+    let mut groups: HashMap<AgentActivityKey, AgentActivityTotals> = HashMap::new();
+
+    for span in spans.iter().filter(|span| is_agent_span(span)) {
+        let key = (
+            span.agent_name.clone(),
+            span.agent_id.clone(),
+            span.conversation_id.clone(),
+        );
+        let entry = groups.entry(key).or_default();
+        entry.0 += 1;
+        entry.1 += span.input_tokens.unwrap_or_default();
+        entry.2 += span.output_tokens.unwrap_or_default();
+        entry.3 = Some(
+            entry
+                .3
+                .map_or(span.start_time, |last| last.max(span.start_time)),
+        );
+    }
+
+    let agents = groups
+        .into_iter()
+        .map(
+            |((agent_name, agent_id, conversation_id), (span_count, input, output, last_seen))| {
+                scouter_types::GenAiAgentActivity {
+                    agent_name,
+                    agent_id,
+                    conversation_id,
+                    span_count,
+                    total_input_tokens: input,
+                    total_output_tokens: output,
+                    last_seen,
+                }
+            },
+        )
+        .collect();
+
+    GenAiAgentActivityResponse { agents }
+}
+
+fn build_agent_dashboard(
+    spans: &[GenAiSpanRecord],
+    bucket_interval: &str,
+    model_pricing: &std::collections::HashMap<String, ModelPricing>,
+) -> Result<AgentDashboardResponse, String> {
+    let agent_spans: Vec<_> = spans.iter().filter(|span| is_agent_span(span)).collect();
+    let mut groups: HashMap<(DateTime<Utc>, String), Vec<&GenAiSpanRecord>> = HashMap::new();
+    let mut unique_agents = HashSet::new();
+    let mut unique_conversations = HashSet::new();
+
+    for span in agent_spans {
+        if let Some(agent_name) = &span.agent_name {
+            unique_agents.insert(agent_name.clone());
+        }
+        if let Some(conversation_id) = &span.conversation_id {
+            unique_conversations.insert(conversation_id.clone());
+        }
+        groups
+            .entry((
+                truncate_to_bucket(span.start_time, bucket_interval)?,
+                model_for_span(span),
+            ))
+            .or_default()
+            .push(span);
+    }
+
+    let rows: Vec<_> = groups
+        .into_iter()
+        .map(|((bucket_start, model), rows)| {
+            let span_count = rows.len() as i64;
+            let error_count = rows.iter().filter(|span| span.error_type.is_some()).count() as i64;
+            let durations: Vec<i64> = rows.iter().map(|span| span.duration_ms).collect();
+            AgentBucketRow {
+                bucket_start,
+                model: Some(model),
+                span_count,
+                error_count,
+                error_rate: if span_count > 0 {
+                    error_count as f64 / span_count as f64
+                } else {
+                    0.0
+                },
+                avg_duration_ms: if span_count > 0 {
+                    durations.iter().sum::<i64>() as f64 / span_count as f64
+                } else {
+                    0.0
+                },
+                p50_duration_ms: percentile(&durations, 0.5),
+                p95_duration_ms: percentile(&durations, 0.95),
+                p99_duration_ms: percentile(&durations, 0.99),
+                input_tokens: rows
+                    .iter()
+                    .map(|span| span.input_tokens.unwrap_or_default())
+                    .sum(),
+                output_tokens: rows
+                    .iter()
+                    .map(|span| span.output_tokens.unwrap_or_default())
+                    .sum(),
+                cache_creation_tokens: rows
+                    .iter()
+                    .map(|span| span.cache_creation_input_tokens.unwrap_or_default())
+                    .sum(),
+                cache_read_tokens: rows
+                    .iter()
+                    .map(|span| span.cache_read_input_tokens.unwrap_or_default())
+                    .sum(),
+            }
+        })
+        .collect();
+
+    let mut response = fold_agent_buckets(&rows, model_pricing);
+    response.summary.unique_agent_count = unique_agents.len() as i64;
+    response.summary.unique_conversation_count = unique_conversations.len() as i64;
+    Ok(response)
+}
+
+fn build_tool_dashboard(
+    spans: &[GenAiSpanRecord],
+    bucket_interval: &str,
+) -> Result<ToolDashboardResponse, String> {
+    let tool_spans: Vec<_> = spans.iter().filter(|span| is_tool_span(span)).collect();
+    let mut aggregate_groups: HashMap<ToolGroupKey, Vec<&GenAiSpanRecord>> = HashMap::new();
+    let mut time_groups: HashMap<ToolTimeGroupKey, Vec<&GenAiSpanRecord>> = HashMap::new();
+
+    for span in tool_spans {
+        let key = (span.tool_name.clone(), span.tool_type.clone());
+        aggregate_groups.entry(key.clone()).or_default().push(span);
+        time_groups
+            .entry((
+                truncate_to_bucket(span.start_time, bucket_interval)?,
+                key.0,
+                key.1,
+            ))
+            .or_default()
+            .push(span);
+    }
+
+    let aggregates = aggregate_groups
+        .into_iter()
+        .map(|((tool_name, tool_type), rows)| {
+            let call_count = rows.len() as i64;
+            let error_count = rows.iter().filter(|span| span.error_type.is_some()).count() as i64;
+            GenAiToolActivity {
+                tool_name,
+                tool_type,
+                call_count,
+                avg_duration_ms: if call_count > 0 {
+                    rows.iter().map(|span| span.duration_ms).sum::<i64>() as f64 / call_count as f64
+                } else {
+                    0.0
+                },
+                error_rate: if call_count > 0 {
+                    error_count as f64 / call_count as f64
+                } else {
+                    0.0
+                },
+            }
+        })
+        .collect();
+
+    let mut time_series: Vec<_> = time_groups
+        .into_iter()
+        .map(|((bucket_start, tool_name, tool_type), rows)| {
+            let call_count = rows.len() as i64;
+            let error_count = rows.iter().filter(|span| span.error_type.is_some()).count() as i64;
+            ToolTimeBucket {
+                bucket_start,
+                tool_name,
+                tool_type,
+                call_count,
+                avg_duration_ms: if call_count > 0 {
+                    rows.iter().map(|span| span.duration_ms).sum::<i64>() as f64 / call_count as f64
+                } else {
+                    0.0
+                },
+                error_rate: if call_count > 0 {
+                    error_count as f64 / call_count as f64
+                } else {
+                    0.0
+                },
+            }
+        })
+        .collect();
+    time_series.sort_by_key(|bucket| bucket.bucket_start);
+
+    Ok(ToolDashboardResponse {
+        aggregates,
+        time_series,
+    })
+}
+
+fn build_error_breakdown(spans: &[GenAiSpanRecord]) -> GenAiErrorBreakdownResponse {
+    let mut groups: HashMap<String, i64> = HashMap::new();
+    for error_type in spans.iter().filter_map(|span| span.error_type.as_ref()) {
+        *groups.entry(error_type.clone()).or_default() += 1;
+    }
+    let mut errors: Vec<_> = groups
+        .into_iter()
+        .map(|(error_type, count)| GenAiErrorCount { error_type, count })
+        .collect();
+    errors.sort_by_key(|error| Reverse(error.count));
+    GenAiErrorBreakdownResponse { errors }
+}
+
+fn build_trace_metrics_response(
+    trace_id: String,
+    spans: Vec<GenAiSpanRecord>,
+    bucket_interval: &str,
+    model_pricing: &std::collections::HashMap<String, ModelPricing>,
+) -> Result<GenAiTraceMetricsResponse, String> {
+    validate_bucket_interval(bucket_interval)?;
+    let token_metrics = build_token_metrics(&spans, bucket_interval)?;
+    let agent_dashboard = build_agent_dashboard(&spans, bucket_interval, model_pricing)?;
+    let tool_dashboard = build_tool_dashboard(&spans, bucket_interval)?;
+
+    Ok(GenAiTraceMetricsResponse {
+        trace_id,
+        has_genai_spans: !spans.is_empty(),
+        operation_breakdown: build_operation_breakdown(&spans),
+        model_usage: build_model_usage(&spans),
+        agent_activity: build_agent_activity(&spans),
+        error_breakdown: build_error_breakdown(&spans),
+        spans,
+        token_metrics,
+        agent_dashboard,
+        tool_dashboard,
+    })
+}
+
+#[utoipa::path(
+    post,
+    path = "/scouter/genai/traces/{id}/metrics",
+    params(
+        ("id" = String, Path, description = "Trace ID (hex-encoded)")
+    ),
+    request_body = GenAiTraceMetricsRequest,
+    responses(
+        (status = 200, description = "Trace-scoped GenAI spans and aggregate metrics", body = GenAiTraceMetricsResponse),
+        (status = 400, description = "Invalid trace ID or request", body = ScouterServerError),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "genai",
+    security(("bearer_token" = []))
+)]
+#[instrument(skip_all)]
+pub async fn get_genai_trace_metrics(
+    State(data): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(body): Json<GenAiTraceMetricsRequest>,
+) -> Result<Json<GenAiTraceMetricsResponse>, (StatusCode, Json<ScouterServerError>)> {
+    let trace_id = TraceId::from_hex(&id).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ScouterServerError::new(format!("Invalid trace_id: {e}"))),
+        )
+    })?;
+    validate_bucket_interval(&body.bucket_interval)
+        .map_err(|e| (StatusCode::BAD_REQUEST, Json(ScouterServerError::new(e))))?;
+
+    let spans = data
+        .genai_service
+        .query_service
+        .get_genai_spans_by_trace_id(&trace_id, body.start_time, body.end_time)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::get_genai_trace_metrics_error(e)),
+            )
+        })?;
+
+    let response =
+        build_trace_metrics_response(id, spans, &body.bucket_interval, &body.model_pricing)
+            .map_err(|e| (StatusCode::BAD_REQUEST, Json(ScouterServerError::new(e))))?;
+
+    Ok(Json(response))
+}
+
 fn compute_cost(
     input: i64,
     output: i64,
@@ -652,4 +1133,103 @@ pub fn get_genai_router(prefix: &str) -> Router<Arc<AppState>> {
             &format!("{prefix}/genai/tool/metrics"),
             post(get_tool_dashboard),
         )
+        .route(
+            &format!("{prefix}/genai/traces/{{id}}/metrics"),
+            post(get_genai_trace_metrics),
+        )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use scouter_types::{GenAiEvalResult, SpanId};
+
+    fn make_trace_span(
+        trace_id: TraceId,
+        span_id: u8,
+        start_time: DateTime<Utc>,
+    ) -> GenAiSpanRecord {
+        GenAiSpanRecord {
+            trace_id,
+            span_id: SpanId::from_bytes([span_id; 8]),
+            service_name: "svc".to_string(),
+            start_time,
+            end_time: Some(start_time + chrono::Duration::milliseconds(100)),
+            duration_ms: 100,
+            status_code: 0,
+            operation_name: Some("invoke_agent".to_string()),
+            provider_name: Some("openai".to_string()),
+            request_model: Some("gpt-4".to_string()),
+            response_model: Some("gpt-4o".to_string()),
+            input_tokens: Some(10),
+            output_tokens: Some(20),
+            cache_creation_input_tokens: Some(2),
+            cache_read_input_tokens: Some(3),
+            conversation_id: Some("conv-1".to_string()),
+            agent_name: Some("agent-a".to_string()),
+            agent_id: Some("agent-id-a".to_string()),
+            tool_name: Some("search".to_string()),
+            tool_type: Some("function".to_string()),
+            input_messages: Some(r#"[{"role":"user","content":"hi"}]"#.to_string()),
+            output_messages: Some(r#"[{"role":"assistant","content":"hello"}]"#.to_string()),
+            eval_results: vec![GenAiEvalResult {
+                name: "quality".to_string(),
+                score_label: Some("pass".to_string()),
+                score_value: Some(1.0),
+                explanation: Some("ok".to_string()),
+                response_id: Some("resp-1".to_string()),
+            }],
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn test_trace_metrics_response_preserves_spans_and_adds_aggregates() {
+        let trace_id = TraceId::from_bytes([7u8; 16]);
+        let start = Utc.with_ymd_and_hms(2026, 1, 1, 12, 30, 0).unwrap();
+        let spans = vec![
+            make_trace_span(trace_id, 1, start),
+            GenAiSpanRecord {
+                error_type: Some("timeout".to_string()),
+                duration_ms: 200,
+                input_tokens: Some(5),
+                output_tokens: Some(15),
+                ..make_trace_span(trace_id, 2, start + chrono::Duration::minutes(5))
+            },
+        ];
+
+        let response =
+            build_trace_metrics_response(trace_id.to_hex(), spans, "hour", &HashMap::new())
+                .expect("trace metrics should build");
+
+        assert!(response.has_genai_spans);
+        assert_eq!(response.spans.len(), 2);
+        assert_eq!(
+            response.spans[0].input_messages.as_deref(),
+            Some(r#"[{"role":"user","content":"hi"}]"#)
+        );
+        assert_eq!(response.spans[0].eval_results.len(), 1);
+        assert_eq!(response.token_metrics.buckets.len(), 1);
+        assert_eq!(response.token_metrics.buckets[0].total_input_tokens, 15);
+        assert_eq!(response.operation_breakdown.operations[0].span_count, 2);
+        assert_eq!(response.model_usage.models[0].model, "gpt-4o");
+        assert_eq!(response.agent_activity.agents[0].span_count, 2);
+        assert_eq!(response.agent_dashboard.summary.total_requests, 2);
+        assert_eq!(response.tool_dashboard.aggregates[0].call_count, 2);
+        assert_eq!(response.error_breakdown.errors[0].error_type, "timeout");
+    }
+
+    #[test]
+    fn test_trace_metrics_response_empty_state() {
+        let trace_id = TraceId::from_bytes([8u8; 16]);
+        let response =
+            build_trace_metrics_response(trace_id.to_hex(), Vec::new(), "hour", &HashMap::new())
+                .expect("empty trace metrics should build");
+
+        assert!(!response.has_genai_spans);
+        assert!(response.spans.is_empty());
+        assert!(response.token_metrics.buckets.is_empty());
+        assert!(response.agent_dashboard.buckets.is_empty());
+        assert!(response.tool_dashboard.aggregates.is_empty());
+    }
 }

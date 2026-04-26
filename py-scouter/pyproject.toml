@@ -54,11 +54,6 @@ dev = [
     "openai-agents>=0.14.4",
     "opentelemetry-instrumentation-openai-agents-v2>=0.1.0",
 ]
-docs = [
-    "mkdocs-material >= 9.5.4, < 10.0.0",
-    "mkdocstrings[python] >= 0.26.0, < 1.0.0",
-]
-
 [tool.isort]
 profile = "black"
 
