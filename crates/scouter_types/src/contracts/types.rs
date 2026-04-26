@@ -628,6 +628,16 @@ impl ScouterServerError {
         }
     }
 
+    pub fn get_trace_facets_error<T: Display>(e: T) -> Self {
+        error!("Failed to get trace facets: {}", e);
+        ScouterServerError {
+            error: "Failed to get trace facets".to_string(),
+            code: "QUERY_ERROR".to_string(),
+            suggested_action: None,
+            retry: Some(true),
+        }
+    }
+
     pub fn insert_tags_error<T: Display>(e: T) -> Self {
         error!("Failed to insert tags: {}", e);
         ScouterServerError {
@@ -1132,6 +1142,44 @@ pub struct TraceMetricsResponse {
 }
 #[pymethods]
 impl TraceMetricsResponse {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+#[pyclass(from_py_object)]
+pub struct TraceFacetDimension {
+    #[pyo3(get)]
+    pub value: String,
+    #[pyo3(get)]
+    pub count: i64,
+}
+
+#[pymethods]
+impl TraceFacetDimension {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+#[pyclass(from_py_object)]
+pub struct TraceFacetsResponse {
+    #[pyo3(get)]
+    #[cfg_attr(feature = "utoipa", schema(value_type = Vec<serde_json::Value>))]
+    pub services: Vec<TraceFacetDimension>,
+    #[pyo3(get)]
+    #[cfg_attr(feature = "utoipa", schema(value_type = Vec<serde_json::Value>))]
+    pub status_codes: Vec<TraceFacetDimension>,
+    #[pyo3(get)]
+    pub total_count: i64,
+}
+
+#[pymethods]
+impl TraceFacetsResponse {
     pub fn __str__(&self) -> String {
         PyHelperFuncs::__str__(self)
     }

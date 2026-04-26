@@ -13,7 +13,7 @@ use scouter_sql::sql::traits::{TagSqlLogic, TraceSqlLogic};
 use scouter_sql::PostgresClient;
 use scouter_types::{
     contracts::ScouterServerError, sql::TraceFilters, SpansFromTagsRequest, Tag,
-    TraceBaggageResponse, TraceId, TraceMetricsRequest, TraceMetricsResponse,
+    TraceBaggageResponse, TraceFacetsResponse, TraceId, TraceMetricsRequest, TraceMetricsResponse,
     TracePaginationResponse, TraceReceivedResponse, TraceRequest, TraceSpansResponse,
 };
 use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -337,6 +337,36 @@ pub async fn trace_metrics(
 
 #[utoipa::path(
     post,
+    path = "/scouter/trace/facets",
+    request_body = TraceFilters,
+    responses(
+        (status = 200, description = "Trace facets", body = TraceFacetsResponse),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "traces",
+    security(("bearer_token" = []))
+)]
+#[instrument(skip_all)]
+pub async fn get_trace_facets(
+    State(data): State<Arc<AppState>>,
+    Json(body): Json<TraceFilters>,
+) -> Result<Json<TraceFacetsResponse>, (StatusCode, Json<ScouterServerError>)> {
+    data.trace_summary_service
+        .query_service
+        .get_trace_facets(&body)
+        .await
+        .map(Json)
+        .map_err(|e| {
+            error!("Failed to get trace facets: {:?}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::get_trace_facets_error(e)),
+            )
+        })
+}
+
+#[utoipa::path(
+    post,
     path = "/scouter/trace/spans/filters",
     request_body = TraceFilters,
     responses(
@@ -441,6 +471,7 @@ pub async fn get_trace_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
                 post(query_spans_from_filters),
             )
             .route(&format!("{prefix}/trace/metrics"), post(trace_metrics))
+            .route(&format!("{prefix}/trace/facets"), post(get_trace_facets))
             .route(&format!("{prefix}/v1/traces"), post(v1_otel_traces))
             .route(
                 &format!("{prefix}/trace/debug/recent"),

@@ -14924,6 +14924,15 @@ class TraceMetricsResponse:
 
     metrics: List[TraceMetricBucket]
 
+class TraceFacetDimension:
+    value: str
+    count: int
+
+class TraceFacetsResponse:
+    services: List[TraceFacetDimension]
+    status_codes: List[TraceFacetDimension]
+    total_count: int
+
 class TagsResponse:
     """Response structure containing a list of tag records."""
 
@@ -19513,6 +19522,8 @@ __all__ = [
     "TraceAssertionTask",
     "TraceBaggageRecord",
     "TraceBaggageResponse",
+    "TraceFacetDimension",
+    "TraceFacetsResponse",
     "TraceFilters",
     "TraceListItem",
     "TraceMetricBucket",

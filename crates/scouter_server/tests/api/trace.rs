@@ -9,8 +9,9 @@ use http_body_util::BodyExt;
 use scouter_server::api::routes::user::schema::CreateUserRequest;
 use scouter_sql::sql::aggregator::shutdown_trace_cache;
 use scouter_types::{
-    sql::TraceFilters, GenAiSpanRecord, SpanId, SpansFromTagsRequest, TraceId, TraceMetricsRequest,
-    TraceMetricsResponse, TracePaginationResponse, TraceRequest, TraceSpansResponse,
+    sql::TraceFilters, GenAiSpanRecord, SpanId, SpansFromTagsRequest, TraceFacetsResponse, TraceId,
+    TraceMetricsRequest, TraceMetricsResponse, TracePaginationResponse, TraceRequest,
+    TraceSpansResponse,
 };
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
@@ -36,6 +37,20 @@ async fn fetch_spans_from_filters(
     let body = serde_json::to_string(filters).unwrap();
     let request = Request::builder()
         .uri("/scouter/trace/spans/filters")
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body))
+        .unwrap();
+    let response = helper.send_oneshot(request).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    serde_json::from_slice(&body).unwrap()
+}
+
+async fn fetch_facets(helper: &TestHelper, filters: &TraceFilters) -> TraceFacetsResponse {
+    let body = serde_json::to_string(filters).unwrap();
+    let request = Request::builder()
+        .uri("/scouter/trace/facets")
         .method("POST")
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(body))
@@ -944,4 +959,66 @@ async fn test_genai_trace_metrics_route_validation_errors() {
         .to_bytes();
     let clamp_json: serde_json::Value = serde_json::from_slice(&clamp_body).unwrap();
     assert_eq!(clamp_json["span_limit"], 5_000);
+}
+
+#[tokio::test]
+async fn test_trace_facets() {
+    let helper = setup_test().await;
+    helper.generate_trace_data().await.unwrap();
+
+    wait_for_paginated_count(&helper, 100).await;
+
+    // Unfiltered: expect 100 traces total, services sum to 100, status_codes non-empty
+    let facets = fetch_facets(&helper, &TraceFilters::default()).await;
+    assert_eq!(facets.total_count, 100, "expected 100 total traces");
+    assert!(
+        !facets.services.is_empty(),
+        "should have at least one service"
+    );
+    let service_sum: i64 = facets.services.iter().map(|d| d.count).sum();
+    assert_eq!(
+        service_sum, 100,
+        "service counts should sum to total_count"
+    );
+    assert!(
+        !facets.status_codes.is_empty(),
+        "should have at least one status_code bucket"
+    );
+    assert!(
+        facets
+            .status_codes
+            .iter()
+            .any(|d| d.value == "UNSET" || d.value == "OK" || d.value == "ERROR"),
+        "status_code buckets should contain known labels"
+    );
+
+    // Service filter: single service → services.len() == 1, consistent count
+    let first_svc = facets.services[0].value.clone();
+    let svc_facets = fetch_facets(
+        &helper,
+        &TraceFilters {
+            service_name: Some(first_svc),
+            ..Default::default()
+        },
+    )
+    .await;
+    assert_eq!(svc_facets.services.len(), 1, "filtered to one service");
+    assert_eq!(
+        svc_facets.services[0].count, svc_facets.total_count,
+        "single-service count == total_count"
+    );
+
+    // Duration filter: narrow range should reduce total
+    let duration_facets = fetch_facets(
+        &helper,
+        &TraceFilters {
+            duration_min_ms: Some(500),
+            ..Default::default()
+        },
+    )
+    .await;
+    assert!(
+        duration_facets.total_count <= 100,
+        "duration filter should not exceed 100"
+    );
 }

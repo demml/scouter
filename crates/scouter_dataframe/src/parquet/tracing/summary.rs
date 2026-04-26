@@ -17,7 +17,10 @@ use datafusion::scalar::ScalarValue;
 use deltalake::operations::optimize::OptimizeType;
 use deltalake::{DeltaTable, DeltaTableBuilder, TableProperty};
 use scouter_types::sql::{TraceFilters, TraceListItem};
-use scouter_types::{Attribute, TraceCursor, TraceId, TracePaginationResponse, TraceSummaryRecord};
+use scouter_types::{
+    Attribute, TraceCursor, TraceFacetDimension, TraceFacetsResponse, TraceId,
+    TracePaginationResponse, TraceSummaryRecord,
+};
 use std::sync::Arc;
 use tokio::sync::oneshot;
 use tokio::sync::{mpsc, RwLock as AsyncRwLock};
@@ -1086,6 +1089,157 @@ impl TraceSummaryQueries {
             previous_cursor,
         })
     }
+
+    pub async fn get_trace_facets(
+        &self,
+        filters: &TraceFilters,
+    ) -> Result<TraceFacetsResponse, TraceEngineError> {
+        use crate::parquet::tracing::queries::{date_lit, ts_lit};
+        use datafusion::functions_aggregate::expr_fn::count;
+
+        let mut df = self.ctx.table(SUMMARY_TABLE_NAME).await?;
+
+        if let Some(start) = filters.start_time {
+            df = df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
+            df = df.filter(col(START_TIME_COL).gt_eq(ts_lit(&start)))?;
+        }
+        if let Some(end) = filters.end_time {
+            df = df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end)))?;
+            df = df.filter(col(START_TIME_COL).lt(ts_lit(&end)))?;
+        }
+
+        if let Some(ref svc) = filters.service_name {
+            df = df.filter(col(SERVICE_NAME_COL).eq(lit(svc.as_str())))?;
+        }
+        match filters.has_errors {
+            Some(true) => {
+                df = df.filter(col(ERROR_COUNT_COL).gt(lit(0i64)))?;
+            }
+            Some(false) => {
+                df = df.filter(col(ERROR_COUNT_COL).eq(lit(0i64)))?;
+            }
+            None => {}
+        }
+        if let Some(sc) = filters.status_code {
+            df = df.filter(col(STATUS_CODE_COL).eq(lit(sc)))?;
+        }
+        if let Some(ref uid) = filters.entity_uid {
+            df = df.filter(datafusion::functions_nested::expr_fn::array_has(
+                col(ENTITY_IDS_COL),
+                lit(uid.as_str()),
+            ))?;
+        }
+        if let Some(ref uid) = filters.queue_uid {
+            df = df.filter(datafusion::functions_nested::expr_fn::array_has(
+                col(QUEUE_IDS_COL),
+                lit(uid.as_str()),
+            ))?;
+        }
+        if let Some(min_ms) = filters.duration_min_ms {
+            df = df.filter(col(DURATION_MS_COL).gt_eq(lit(min_ms)))?;
+        }
+        if let Some(max_ms) = filters.duration_max_ms {
+            df = df.filter(col(DURATION_MS_COL).lt_eq(lit(max_ms)))?;
+        }
+
+        if let Some(ref attr_filters) = filters.attribute_filters {
+            if !attr_filters.is_empty() {
+                let mut spans_df = self.ctx.table("trace_spans").await?.select_columns(&[
+                    TRACE_ID_COL,
+                    START_TIME_COL,
+                    SEARCH_BLOB_COL,
+                ])?;
+                if let Some(start) = filters.start_time {
+                    spans_df = spans_df.filter(col(START_TIME_COL).gt_eq(lit(
+                        ScalarValue::TimestampMicrosecond(
+                            Some(start.timestamp_micros()),
+                            Some("UTC".into()),
+                        ),
+                    )))?;
+                }
+                if let Some(end) = filters.end_time {
+                    spans_df = spans_df.filter(col(START_TIME_COL).lt(lit(
+                        ScalarValue::TimestampMicrosecond(
+                            Some(end.timestamp_micros()),
+                            Some("UTC".into()),
+                        ),
+                    )))?;
+                }
+                let mut attr_expr: Option<Expr> = None;
+                for f in attr_filters {
+                    let pattern = crate::parquet::tracing::queries::normalize_attr_filter(f);
+                    let cond = match_attr_expr(col(SEARCH_BLOB_COL), lit(pattern));
+                    attr_expr = Some(match attr_expr {
+                        None => cond,
+                        Some(e) => e.or(cond),
+                    });
+                }
+                if let Some(expr) = attr_expr {
+                    spans_df = spans_df.filter(expr)?;
+                }
+                let span_batches = spans_df.select_columns(&[TRACE_ID_COL])?.collect().await?;
+                let mut seen_ids: std::collections::HashSet<Vec<u8>> =
+                    std::collections::HashSet::new();
+                let mut binary_ids: Vec<Expr> = Vec::new();
+                for batch in &span_batches {
+                    if let Some(col_ref) = batch.column_by_name(TRACE_ID_COL) {
+                        let casted = compute::cast(col_ref, &DataType::Binary)?;
+                        let col_arr =
+                            casted
+                                .as_any()
+                                .downcast_ref::<BinaryArray>()
+                                .ok_or_else(|| {
+                                    TraceEngineError::DowncastError("trace_id to BinaryArray")
+                                })?;
+                        for i in 0..batch.num_rows() {
+                            let id_bytes = col_arr.value(i).to_vec();
+                            if seen_ids.insert(id_bytes.clone()) {
+                                binary_ids.push(lit(ScalarValue::Binary(Some(id_bytes))));
+                            }
+                        }
+                    }
+                }
+                if !binary_ids.is_empty() {
+                    df = df.filter(col(TRACE_ID_COL).in_list(binary_ids, false))?;
+                } else {
+                    df = df.filter(lit(false))?;
+                }
+            }
+        }
+
+        let base = df;
+
+        let svc_batches = base
+            .clone()
+            .aggregate(
+                vec![col(SERVICE_NAME_COL)],
+                vec![count(col(TRACE_ID_COL)).alias("trace_count")],
+            )?
+            .sort(vec![col("trace_count").sort(false, false)])?
+            .collect()
+            .await?;
+
+        let sc_batches = base
+            .clone()
+            .aggregate(
+                vec![col(STATUS_CODE_COL)],
+                vec![count(col(TRACE_ID_COL)).alias("trace_count")],
+            )?
+            .sort(vec![col(STATUS_CODE_COL).sort(true, true)])?
+            .collect()
+            .await?;
+
+        let total_batches = base
+            .aggregate(vec![], vec![count(col(TRACE_ID_COL)).alias("total")])?
+            .collect()
+            .await?;
+
+        Ok(TraceFacetsResponse {
+            services: batches_to_facet_dimensions(svc_batches, SERVICE_NAME_COL)?,
+            status_codes: batches_to_status_code_dimensions(sc_batches)?,
+            total_count: extract_total_count(total_batches)?,
+        })
+    }
 }
 
 // ── Arrow → TraceListItem conversion ─────────────────────────────────────────
@@ -1348,6 +1502,84 @@ fn batches_to_trace_list_items(
     }
 
     Ok(items)
+}
+
+fn batches_to_facet_dimensions(
+    batches: Vec<RecordBatch>,
+    value_col: &str,
+) -> Result<Vec<TraceFacetDimension>, TraceEngineError> {
+    let mut dims = Vec::new();
+    for batch in &batches {
+        let val_arr = compute::cast(
+            batch.column_by_name(value_col).ok_or_else(|| {
+                TraceEngineError::UnsupportedOperation(
+                    format!("missing {value_col} column"),
+                )
+            })?,
+            &DataType::Utf8,
+        )?;
+        let values = val_arr
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .ok_or_else(|| TraceEngineError::DowncastError("facet value to StringArray"))?;
+        let counts = batch
+            .column_by_name("trace_count")
+            .and_then(|c| c.as_any().downcast_ref::<Int64Array>())
+            .ok_or_else(|| TraceEngineError::DowncastError("trace_count to Int64Array"))?;
+        for i in 0..batch.num_rows() {
+            dims.push(TraceFacetDimension {
+                value: values.value(i).to_string(),
+                count: counts.value(i),
+            });
+        }
+    }
+    Ok(dims)
+}
+
+fn batches_to_status_code_dimensions(
+    batches: Vec<RecordBatch>,
+) -> Result<Vec<TraceFacetDimension>, TraceEngineError> {
+    let mut dims = Vec::new();
+    for batch in &batches {
+        let codes = batch
+            .column_by_name(STATUS_CODE_COL)
+            .and_then(|c| c.as_any().downcast_ref::<Int32Array>())
+            .ok_or_else(|| TraceEngineError::DowncastError("status_code to Int32Array"))?;
+        let counts = batch
+            .column_by_name("trace_count")
+            .and_then(|c| c.as_any().downcast_ref::<Int64Array>())
+            .ok_or_else(|| TraceEngineError::DowncastError("trace_count to Int64Array"))?;
+        for i in 0..batch.num_rows() {
+            let label = match codes.value(i) {
+                0 => "UNSET",
+                1 => "OK",
+                2 => "ERROR",
+                other => {
+                    tracing::warn!("unknown status_code value: {}", other);
+                    "UNKNOWN"
+                }
+            };
+            dims.push(TraceFacetDimension {
+                value: label.to_string(),
+                count: counts.value(i),
+            });
+        }
+    }
+    Ok(dims)
+}
+
+fn extract_total_count(batches: Vec<RecordBatch>) -> Result<i64, TraceEngineError> {
+    for batch in &batches {
+        if batch.num_rows() == 0 {
+            continue;
+        }
+        let col = batch
+            .column_by_name("total")
+            .and_then(|c| c.as_any().downcast_ref::<Int64Array>())
+            .ok_or_else(|| TraceEngineError::DowncastError("total to Int64Array"))?;
+        return Ok(col.value(0));
+    }
+    Ok(0)
 }
 
 fn micros_to_datetime(micros: i64) -> Result<DateTime<Utc>, TraceEngineError> {
