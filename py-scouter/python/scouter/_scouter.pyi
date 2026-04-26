@@ -13960,6 +13960,32 @@ class BifrostTestServer:
     def __enter__(self) -> "BifrostTestServer": ...
     def __exit__(self, exc_type, exc_value, traceback) -> None: ...
 
+class ScouterDataFrameTestServer:
+    def __init__(self, cleanup: bool = True) -> None: ...
+    def start_server(self) -> None: ...
+    def stop_server(self) -> None: ...
+    def genai_spans_json(
+        self,
+        service_name: Optional[str] = None,
+        start_time: Optional[str] = None,
+        end_time: Optional[str] = None,
+        operation_name: Optional[str] = None,
+        provider_name: Optional[str] = None,
+        model: Optional[str] = None,
+        conversation_id: Optional[str] = None,
+        agent_name: Optional[str] = None,
+        limit: int = 100,
+    ) -> str: ...
+    def genai_trace_metrics_json(
+        self,
+        trace_id: str,
+        start_time: Optional[str] = None,
+        end_time: Optional[str] = None,
+        limit: int = 500,
+    ) -> str: ...
+    def __enter__(self) -> "ScouterDataFrameTestServer": ...
+    def __exit__(self, exc_type, exc_value, traceback) -> None: ...
+
 class ScouterTestServer:
     def __init__(
         self,

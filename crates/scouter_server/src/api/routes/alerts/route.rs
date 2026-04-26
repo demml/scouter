@@ -51,6 +51,7 @@ pub async fn drift_alerts(
     Ok(Json(alerts))
 }
 
+/// Update the status of a drift alert
 #[utoipa::path(
     put,
     path = "/scouter/alerts",

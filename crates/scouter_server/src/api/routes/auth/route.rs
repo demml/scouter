@@ -205,6 +205,7 @@ pub async fn api_refresh_token_handler(
     }
 }
 
+/// Route for validating JWT token
 #[utoipa::path(
     get,
     path = "/scouter/auth/validate",

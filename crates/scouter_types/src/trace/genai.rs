@@ -6,6 +6,7 @@ use std::collections::HashMap;
 // ── Span attribute key constants ─────────────────────────────────────────────
 pub const GEN_AI_OPERATION_NAME: &str = "gen_ai.operation.name";
 pub const GEN_AI_PROVIDER_NAME: &str = "gen_ai.provider.name";
+pub const GEN_AI_SYSTEM: &str = "gen_ai.system";
 pub const GEN_AI_REQUEST_MODEL: &str = "gen_ai.request.model";
 pub const GEN_AI_RESPONSE_MODEL: &str = "gen_ai.response.model";
 pub const GEN_AI_RESPONSE_ID: &str = "gen_ai.response.id";
@@ -374,6 +375,11 @@ pub fn extract_gen_ai_span(record: &TraceSpanRecord) -> Option<GenAiSpanRecord> 
                     out.provider_name = Some(s.clone());
                 }
             }
+            GEN_AI_SYSTEM if out.provider_name.is_none() => {
+                if let serde_json::Value::String(s) = value {
+                    out.provider_name = Some(s.clone());
+                }
+            }
             GEN_AI_REQUEST_MODEL => {
                 if let serde_json::Value::String(s) = value {
                     out.request_model = Some(s.clone());
@@ -607,6 +613,10 @@ fn default_bucket_interval() -> String {
     "hour".to_string()
 }
 
+fn default_trace_span_limit() -> usize {
+    500
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiMetricsRequest {
@@ -694,6 +704,10 @@ pub struct GenAiTraceMetricsRequest {
     pub bucket_interval: String,
     #[serde(default)]
     pub model_pricing: HashMap<String, ModelPricing>,
+    #[serde(default = "default_trace_span_limit")]
+    pub span_limit: usize,
+    #[serde(default)]
+    pub include_sensitive_content: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -702,6 +716,9 @@ pub struct GenAiTraceMetricsResponse {
     pub trace_id: String,
     pub has_genai_spans: bool,
     pub spans: Vec<GenAiSpanRecord>,
+    pub span_limit: usize,
+    pub spans_truncated: bool,
+    pub sensitive_content_redacted: bool,
     pub token_metrics: GenAiTokenMetricsResponse,
     pub operation_breakdown: GenAiOperationBreakdownResponse,
     pub model_usage: GenAiModelUsageResponse,
@@ -839,13 +856,13 @@ pub struct AgentBucketRow {
     pub cache_read_tokens: i64,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::IntoParams))]
 pub struct AgentActivityQuery {
     pub agent_name: Option<String>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::IntoParams))]
 pub struct ConversationQuery {
     pub start_time: Option<String>,
@@ -944,6 +961,44 @@ mod tests {
         assert_eq!(result.output_tokens, Some(200));
         assert_eq!(result.service_name, "test-service");
         assert_eq!(result.duration_ms, 1000);
+    }
+
+    #[test]
+    fn test_extract_gen_ai_span_uses_system_as_provider_fallback() {
+        let span = make_span(vec![
+            (
+                GEN_AI_OPERATION_NAME,
+                serde_json::Value::String("generate_content".to_string()),
+            ),
+            (
+                GEN_AI_SYSTEM,
+                serde_json::Value::String("gemini".to_string()),
+            ),
+        ]);
+
+        let result = extract_gen_ai_span(&span).expect("should extract");
+        assert_eq!(result.provider_name.as_deref(), Some("gemini"));
+    }
+
+    #[test]
+    fn test_extract_gen_ai_span_keeps_provider_name_over_system() {
+        let span = make_span(vec![
+            (
+                GEN_AI_OPERATION_NAME,
+                serde_json::Value::String("generate_content".to_string()),
+            ),
+            (
+                GEN_AI_PROVIDER_NAME,
+                serde_json::Value::String("google".to_string()),
+            ),
+            (
+                GEN_AI_SYSTEM,
+                serde_json::Value::String("gemini".to_string()),
+            ),
+        ]);
+
+        let result = extract_gen_ai_span(&span).expect("should extract");
+        assert_eq!(result.provider_name.as_deref(), Some("google"));
     }
 
     #[test]

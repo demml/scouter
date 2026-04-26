@@ -1075,6 +1075,12 @@ pub struct GenAiQueries {
     tool_ts_cache: Cache<u64, Arc<Vec<ToolTimeBucket>>>,
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct TraceSpanQueryResult {
+    pub spans: Vec<GenAiSpanRecord>,
+    pub spans_truncated: bool,
+}
+
 impl GenAiQueries {
     pub fn new(ctx: Arc<SessionContext>) -> Self {
         Self {
@@ -1119,29 +1125,6 @@ impl GenAiQueries {
             Some(v) => Ok(df.filter(col(column).eq(lit(v)))?),
             None => Ok(df),
         }
-    }
-
-    fn apply_optional_time_filters(
-        mut df: DataFrame,
-        start: Option<&DateTime<Utc>>,
-        end: Option<&DateTime<Utc>>,
-    ) -> Result<DataFrame, TraceEngineError> {
-        if let Some(start) = start {
-            df = df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(start)))?;
-            df = df.filter(col(START_TIME_COL).gt_eq(ts_lit(start)))?;
-        }
-        if let Some(end) = end {
-            df = df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(end)))?;
-            df = df.filter(col(START_TIME_COL).lt(ts_lit(end)))?;
-        }
-        Ok(df)
-    }
-
-    fn apply_trace_id_filter(
-        df: DataFrame,
-        trace_id: &TraceId,
-    ) -> Result<DataFrame, TraceEngineError> {
-        Ok(df.filter(col(TRACE_ID_COL).eq(lit(trace_id.as_bytes().as_slice())))?)
     }
 
     pub async fn get_token_metrics(
@@ -1994,16 +1977,27 @@ impl GenAiQueries {
     pub async fn get_genai_spans_by_trace_id(
         &self,
         trace_id: &TraceId,
-        start: Option<DateTime<Utc>>,
-        end: Option<DateTime<Utc>>,
-    ) -> Result<Vec<GenAiSpanRecord>, TraceEngineError> {
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+        limit: usize,
+    ) -> Result<TraceSpanQueryResult, TraceEngineError> {
+        let clamped_limit = limit.clamp(1, 10_000);
         let df = self.ctx.table(GEN_AI_TABLE_NAME).await?;
-        let df = Self::apply_optional_time_filters(df, start.as_ref(), end.as_ref())?;
-        let df = Self::apply_trace_id_filter(df, trace_id)?;
+        let df = Self::apply_time_filters(df, &start, &end)?;
+        let df = df.filter(col(TRACE_ID_COL).eq(lit(trace_id.as_bytes().as_slice())))?;
         let df = df.sort(vec![col(START_TIME_COL).sort(true, true)])?;
+        let df = df.limit(0, Some(clamped_limit + 1))?;
 
         let batches = df.collect().await?;
-        batches_to_genai_records(batches)
+        let mut spans = batches_to_genai_records(batches)?;
+        let spans_truncated = spans.len() > clamped_limit;
+        if spans_truncated {
+            spans.truncate(clamped_limit);
+        }
+        Ok(TraceSpanQueryResult {
+            spans,
+            spans_truncated,
+        })
     }
 
     pub async fn get_conversation_spans(
@@ -3795,16 +3789,19 @@ mod tests {
         service.write_records(records).await?;
         tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
 
-        let spans = service
+        let query_result = service
             .query_service
             .get_genai_spans_by_trace_id(
                 &trace_id,
-                Some(now - chrono::Duration::hours(1)),
-                Some(now + chrono::Duration::hours(1)),
+                now - chrono::Duration::hours(1),
+                now + chrono::Duration::hours(1),
+                100,
             )
             .await?;
 
+        let spans = query_result.spans;
         assert_eq!(spans.len(), 1, "Expected only the requested trace");
+        assert!(!query_result.spans_truncated);
         let span = &spans[0];
         assert_eq!(span.trace_id, trace_id);
         assert_eq!(span.response_model.as_deref(), Some("gpt-4o"));
@@ -3816,6 +3813,48 @@ mod tests {
             Some(r#"[{"name":"search"}]"#)
         );
         assert_eq!(span.eval_results.len(), 1);
+
+        service.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_genai_spans_by_trace_id_applies_limit() -> Result<(), TraceEngineError> {
+        let env = make_test_env();
+        let service =
+            GenAiSpanService::new(&env.object_store, 24, env.ctx, env.catalog, 10, None).await?;
+
+        let trace_id = TraceId::from_bytes([108u8; 16]);
+        let now = Utc::now();
+        let mut records = Vec::new();
+        for i in 0..5u8 {
+            records.push(make_genai_record(
+                &trace_id,
+                SpanId::from_bytes([200 + i; 8]),
+                "trace_service",
+                "chat",
+                "openai",
+                "gpt-4",
+                10,
+                20,
+            ));
+        }
+
+        service.write_records(records).await?;
+        tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+
+        let query_result = service
+            .query_service
+            .get_genai_spans_by_trace_id(
+                &trace_id,
+                now - chrono::Duration::hours(1),
+                now + chrono::Duration::hours(1),
+                3,
+            )
+            .await?;
+
+        assert_eq!(query_result.spans.len(), 3);
+        assert!(query_result.spans_truncated);
 
         service.shutdown().await?;
         Ok(())

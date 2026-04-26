@@ -40,7 +40,7 @@ pub fn init_tracing() {
 }
 
 #[cfg(feature = "python")]
-pub use dataset_server::BifrostTestServer;
+pub use dataset_server::{BifrostTestServer, ScouterDataFrameTestServer};
 #[cfg(feature = "python")]
 pub use mock::ScouterTestServer;
 #[cfg(feature = "python")]
