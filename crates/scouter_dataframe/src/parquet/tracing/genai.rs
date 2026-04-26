@@ -3,7 +3,7 @@ use crate::parquet::control::{get_pod_id, ControlTableEngine};
 use crate::parquet::tracing::catalog::TraceCatalogProvider;
 use crate::parquet::tracing::queries::{date_lit, ts_lit};
 use crate::parquet::tracing::traits::arrow_schema_to_delta;
-use crate::parquet::utils::register_cloud_logstore_factories;
+use crate::parquet::utils::{register_cloud_logstore_factories, run_delta_init};
 use crate::storage::ObjectStore;
 use ahash::AHasher;
 use arrow::array::*;
@@ -600,8 +600,16 @@ async fn build_or_create_genai_table(
     object_store: &ObjectStore,
     schema: SchemaRef,
 ) -> Result<DeltaTable, TraceEngineError> {
+    let object_store = object_store.clone();
+    run_delta_init(build_or_create_genai_table_inner(object_store, schema)).await
+}
+
+async fn build_or_create_genai_table_inner(
+    object_store: ObjectStore,
+    schema: SchemaRef,
+) -> Result<DeltaTable, TraceEngineError> {
     register_cloud_logstore_factories();
-    let table_url = build_genai_url(object_store).await?;
+    let table_url = build_genai_url(&object_store).await?;
     info!(
         "Loading gen_ai_spans table [{}://.../{} ]",
         table_url.scheme(),
@@ -650,7 +658,7 @@ async fn build_or_create_genai_table(
             .map_err(Into::into)
     } else {
         info!("gen_ai_spans table does not exist, creating new table");
-        create_genai_table(object_store, table_url, schema).await
+        create_genai_table(&object_store, table_url, schema).await
     }
 }
 

@@ -3,7 +3,7 @@ use crate::parquet::control::{get_pod_id, ControlTableEngine};
 use crate::parquet::tracing::catalog::TraceCatalogProvider;
 use crate::parquet::tracing::traits::{arrow_schema_to_delta, resource_attribute_field};
 use crate::parquet::utils::match_attr_expr;
-use crate::parquet::utils::register_cloud_logstore_factories;
+use crate::parquet::utils::{register_cloud_logstore_factories, run_delta_init};
 use crate::storage::ObjectStore;
 use arrow::array::*;
 use arrow::compute;
@@ -305,8 +305,16 @@ async fn build_or_create_summary_table(
     object_store: &ObjectStore,
     schema: SchemaRef,
 ) -> Result<DeltaTable, TraceEngineError> {
+    let object_store = object_store.clone();
+    run_delta_init(build_or_create_summary_table_inner(object_store, schema)).await
+}
+
+async fn build_or_create_summary_table_inner(
+    object_store: ObjectStore,
+    schema: SchemaRef,
+) -> Result<DeltaTable, TraceEngineError> {
     register_cloud_logstore_factories();
-    let table_url = build_summary_url(object_store).await?;
+    let table_url = build_summary_url(&object_store).await?;
     info!(
         "Loading trace summary table [{}://.../{} ]",
         table_url.scheme(),
@@ -316,10 +324,6 @@ async fn build_or_create_summary_table(
             .unwrap_or(SUMMARY_TABLE_NAME)
     );
 
-    // Check whether a Delta log actually exists. For local tables, check the
-    // filesystem directly. For remote tables, attempt a full load with the
-    // explicit storage backend — required for S3/GCS/Azure where Delta Lake
-    // cannot infer the object store from the URL scheme alone.
     let is_delta_table = if table_url.scheme() == "file" {
         if let Ok(path) = table_url.to_file_path() {
             if !path.exists() {
@@ -359,7 +363,7 @@ async fn build_or_create_summary_table(
             .map_err(Into::into)
     } else {
         info!("Summary table does not exist, creating new table");
-        create_summary_table(object_store, table_url, schema).await
+        create_summary_table(&object_store, table_url, schema).await
     }
 }
 
