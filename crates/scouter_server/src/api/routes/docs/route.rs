@@ -20,7 +20,7 @@ fn sanitize_doc_content(content: &str) -> String {
 
     if sanitized.starts_with("---\n") {
         if let Some(end) = sanitized[4..].find("\n---\n") {
-            sanitized = &sanitized[end + 8..];
+            sanitized = &sanitized[end + 9..];
         }
     }
 
