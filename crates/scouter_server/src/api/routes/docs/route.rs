@@ -26,7 +26,7 @@ fn sanitize_doc_content(content: &str) -> String {
 
     let filtered = sanitized
         .lines()
-        .skip_while(|line| line.trim_start().starts_with("import "))
+        .skip_while(|line| line.trim().is_empty() || line.trim_start().starts_with("import "))
         .collect::<Vec<_>>()
         .join("\n");
 
