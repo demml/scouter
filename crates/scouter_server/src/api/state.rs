@@ -13,8 +13,9 @@ use scouter_dataframe::EvalScenarioService;
 use scouter_settings::ScouterServerConfig;
 use scouter_sql::sql::aggregator::shutdown_trace_cache;
 use scouter_sql::sql::cache::entity_cache;
-use scouter_types::MessageRecord;
-use scouter_types::{contracts::ScouterServerError, DriftType};
+use scouter_types::{
+    contracts::ScouterServerError, DriftType, ServerRecords, TagRecord, TraceServerRecord,
+};
 use sqlx::{Pool, Postgres};
 use std::sync::Arc;
 use tracing::error;
@@ -24,7 +25,9 @@ pub struct AppState {
     pub auth_manager: AuthManager,
     pub task_manager: TaskManager,
     pub config: Arc<ScouterServerConfig>,
-    pub http_consumer_tx: Sender<MessageRecord>,
+    pub server_record_tx: Sender<ServerRecords>,
+    pub trace_record_tx: Sender<TraceServerRecord>,
+    pub tag_record_tx: Sender<TagRecord>,
     pub trace_service: Arc<TraceSpanService>,
     pub trace_summary_service: Arc<TraceSummaryService>,
     pub trace_dispatch_service: Arc<TraceDispatchService>,

@@ -1,5 +1,6 @@
 use crate::api::state::AppState;
 use anyhow::Result;
+use metrics::counter;
 use scouter_tonic::{
     InsertMessageRequest, InsertMessageResponse, MessageService, MessageServiceServer,
 };
@@ -41,14 +42,49 @@ impl MessageService for MessageGrpcService {
             Status::invalid_argument(format!("Invalid message format: {e}"))
         })?;
 
-        self.state
-            .http_consumer_tx
-            .send_async(message_record)
-            .await
-            .map_err(|e| {
-                error!(error = ?e, "Failed to enqueue message");
-                Status::internal(format!("Failed to enqueue message: {e:?}"))
-            })?;
+        let enqueue_result: Result<(), Status> = match message_record {
+            MessageRecord::ServerRecords(r) => {
+                self.state
+                    .server_record_tx
+                    .try_send(r)
+                    .map_err(|e| match e {
+                        flume::TrySendError::Full(_) => {
+                            Status::resource_exhausted("Service busy, retry later")
+                        }
+                        flume::TrySendError::Disconnected(_) => {
+                            Status::internal("Failed to enqueue message")
+                        }
+                    })
+            }
+            MessageRecord::TraceServerRecord(r) => {
+                self.state.trace_record_tx.try_send(r).map_err(|e| match e {
+                    flume::TrySendError::Full(_) => {
+                        Status::resource_exhausted("Service busy, retry later")
+                    }
+                    flume::TrySendError::Disconnected(_) => {
+                        Status::internal("Failed to enqueue message")
+                    }
+                })
+            }
+            MessageRecord::TagServerRecord(r) => {
+                self.state.tag_record_tx.try_send(r).map_err(|e| match e {
+                    flume::TrySendError::Full(_) => {
+                        Status::resource_exhausted("Service busy, retry later")
+                    }
+                    flume::TrySendError::Disconnected(_) => {
+                        Status::internal("Failed to enqueue message")
+                    }
+                })
+            }
+        };
+        if let Err(ref status) = enqueue_result {
+            if status.code() == tonic::Code::ResourceExhausted {
+                counter!("channel_full").increment(1);
+            } else {
+                error!("Failed to enqueue message");
+            }
+            return Err(enqueue_result.unwrap_err());
+        }
 
         debug!("Message successfully queued for processing");
 

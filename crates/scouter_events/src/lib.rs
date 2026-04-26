@@ -1,8 +1,4 @@
-#[cfg(any(
-    all(feature = "rabbitmq", feature = "sql"),
-    all(feature = "kafka", feature = "sql"),
-    all(feature = "redis_events", feature = "sql")
-))]
+#[cfg(feature = "sql")]
 pub mod consumer;
 
 pub mod producer;

@@ -107,7 +107,7 @@ impl EvalScenarioBatchBuilder {
 
 fn build_writer_props() -> WriterProperties {
     WriterProperties::builder()
-        .set_max_row_group_size(32_768)
+        .set_max_row_group_row_count(Some(32_768))
         .set_column_bloom_filter_enabled(ColumnPath::new(vec![COLLECTION_ID_COL.to_string()]), true)
         .set_column_bloom_filter_fpp(ColumnPath::new(vec![COLLECTION_ID_COL.to_string()]), 0.01)
         .set_column_bloom_filter_ndv(ColumnPath::new(vec![COLLECTION_ID_COL.to_string()]), 10_000)

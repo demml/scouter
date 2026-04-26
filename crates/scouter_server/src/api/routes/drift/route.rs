@@ -7,6 +7,7 @@ use axum::{
     routing::{get, post},
     Extension, Json, Router,
 };
+use metrics::counter;
 use scouter_auth::permission::UserPermissions;
 use scouter_drift::psi::PsiDrifter;
 use scouter_settings::ScouterServerConfig;
@@ -18,7 +19,7 @@ use scouter_sql::PostgresClient;
 use scouter_types::{
     psi::{BinnedPsiFeatureMetrics, PsiDriftProfile},
     spc::SpcDriftFeatures,
-    BinnedMetrics, EvalRecordPaginationRequest, EvalRecordPaginationResponse, MessageRecord,
+    BinnedMetrics, MessageRecord,
 };
 use scouter_types::{DriftRequest, ScouterResponse, ScouterServerError};
 use sqlx::{Pool, Postgres};
@@ -254,54 +255,6 @@ pub async fn get_custom_drift(
     }
 }
 
-/// This route is used to get the latest agent drift records by page
-#[utoipa::path(
-    post,
-    path = "/scouter/drift/agent/records",
-    request_body = EvalRecordPaginationRequest,
-    responses(
-        (status = 200, description = "Paginated agent eval records", body = EvalRecordPaginationResponse),
-        (status = 403, description = "Forbidden", body = ScouterServerError),
-        (status = 500, description = "Internal server error", body = ScouterServerError),
-    ),
-    tag = "drift",
-    security(("bearer_token" = []))
-)]
-#[instrument(skip_all)]
-pub async fn query_agent_eval_records(
-    State(data): State<Arc<AppState>>,
-    Extension(perms): Extension<UserPermissions>,
-    Json(params): Json<EvalRecordPaginationRequest>,
-) -> Result<Json<EvalRecordPaginationResponse>, (StatusCode, Json<ScouterServerError>)> {
-    // validate time window
-
-    if !perms.has_read_permission(&params.service_info.space) {
-        return Err((
-            StatusCode::FORBIDDEN,
-            Json(ScouterServerError::permission_denied()),
-        ));
-    }
-
-    let entity_id = data
-        .get_entity_id_for_request(&params.service_info.uid)
-        .await?;
-
-    let metrics =
-        PostgresClient::get_paginated_agent_eval_records(&data.db_pool, &params, &entity_id).await;
-
-    match metrics {
-        Ok(metrics) => Ok(Json(metrics)),
-        Err(e) => {
-            error!("Failed to query drift records: {:?}", e);
-
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ScouterServerError::query_records_error(e)),
-            ))
-        }
-    }
-}
-
 #[utoipa::path(
     get,
     path = "/scouter/drift/agent/task",
@@ -434,6 +387,7 @@ pub async fn get_agent_workflow_metrics(
     request_body(content = serde_json::Value, description = "Drift records (ServerRecords | TraceServerRecord | TagRecord)", content_type = "application/json"),
     responses(
         (status = 200, description = "Drift records queued", body = ScouterResponse),
+        (status = 429, description = "Channel full, retry later", body = ScouterServerError),
         (status = 500, description = "Internal server error", body = ScouterServerError),
     ),
     tag = "drift",
@@ -444,17 +398,43 @@ pub async fn insert_drift(
     State(data): State<Arc<AppState>>,
     Json(body): Json<MessageRecord>,
 ) -> Result<Json<ScouterResponse>, (StatusCode, Json<ScouterServerError>)> {
-    match data.http_consumer_tx.send_async(body).await {
+    let enqueue_result: Result<(), bool> = match body {
+        MessageRecord::ServerRecords(r) => data
+            .server_record_tx
+            .try_send(r)
+            .map_err(|e| matches!(e, flume::TrySendError::Full(_))),
+        MessageRecord::TraceServerRecord(r) => data
+            .trace_record_tx
+            .try_send(r)
+            .map_err(|e| matches!(e, flume::TrySendError::Full(_))),
+        MessageRecord::TagServerRecord(r) => data
+            .tag_record_tx
+            .try_send(r)
+            .map_err(|e| matches!(e, flume::TrySendError::Full(_))),
+    };
+    match enqueue_result {
         Ok(_) => Ok(Json(ScouterResponse {
             status: "success".to_string(),
             message: "Drift records queued for processing".to_string(),
         })),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ScouterServerError::new(format!(
-                "Failed to enqueue drift records: {e:?}"
-            ))),
-        )),
+        Err(true) => {
+            counter!("channel_full").increment(1);
+            Err((
+                StatusCode::TOO_MANY_REQUESTS,
+                Json(ScouterServerError::new(
+                    "Service busy, retry later".to_string(),
+                )),
+            ))
+        }
+        Err(false) => {
+            error!("Channel disconnected while enqueuing drift records");
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::new(
+                    "Failed to enqueue drift records".to_string(),
+                )),
+            ))
+        }
     }
 }
 

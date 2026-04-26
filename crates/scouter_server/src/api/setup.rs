@@ -45,9 +45,9 @@ use scouter_settings::RabbitMQSettings;
 use scouter_events::consumer::redis::RedisConsumerManager;
 
 use crate::api::task_manager::TaskManager;
-use scouter_events::consumer::http::consumer::HttpConsumerManager;
+use scouter_events::consumer::http::consumer::MessageConsumerManager;
 use scouter_settings::events::HttpConsumerSettings;
-use scouter_types::MessageRecord;
+use scouter_types::{ServerRecords, TagRecord, TraceServerRecord};
 
 type TraceServices = (
     Arc<TraceSpanService>,
@@ -60,7 +60,9 @@ pub struct ScouterSetupComponents {
     pub server_config: Arc<ScouterServerConfig>,
     pub db_pool: Pool<Postgres>,
     pub task_manager: TaskManager,
-    pub http_consumer_tx: Sender<MessageRecord>,
+    pub server_record_tx: Sender<ServerRecords>,
+    pub trace_record_tx: Sender<TraceServerRecord>,
+    pub tag_record_tx: Sender<TagRecord>,
     pub trace_service: Arc<TraceSpanService>,
     pub trace_summary_service: Arc<TraceSummaryService>,
     pub trace_dispatch_service: Arc<TraceDispatchService>,
@@ -132,8 +134,11 @@ impl ScouterSetupComponents {
         let (trace_service, trace_summary_service, trace_dispatch_service, genai_service) =
             Self::start_trace_services(&config).await?;
 
-        // If GenAI is enabled, set up the GenAI drift workers
-        if config.genai_enabled() {
+        // Start agent eval workers when GenAI is configured or trace eval is enabled.
+        // TraceAssertionTask records don't need an LLM provider — the AgentPoller handles both.
+        if config.genai_enabled()
+            || Self::trace_eval_workers_enabled(&config.trace_eval_poller_settings)
+        {
             Self::setup_background_genai_drift_workers(
                 &db_pool,
                 &config.genai_polling_settings,
@@ -179,7 +184,9 @@ impl ScouterSetupComponents {
             server_config: config,
             db_pool,
             task_manager,
-            http_consumer_tx: http_consumer_manager.tx.clone(),
+            server_record_tx: http_consumer_manager.server_record_tx,
+            trace_record_tx: http_consumer_manager.trace_record_tx,
+            tag_record_tx: http_consumer_manager.tag_record_tx,
             trace_service,
             trace_summary_service,
             trace_dispatch_service,
@@ -473,37 +480,52 @@ impl ScouterSetupComponents {
         Ok(())
     }
 
-    /// Helper to set up the default http consumer used in the absense of Kafka and Rabbitmq
-    ///
-    /// Arguments:
-    /// * `settings` - The http consumer settings
-    /// * `db_pool` - The pg db pool used by the consumers
-    /// * `task_manager` - The task manager to use for the consumer
-    ///
-    /// Returns:
-    /// * `AnyhowResult<HttpConsumerManager>` - http consumer manager struct containing the flume channel transmitter
     #[instrument(skip_all)]
     async fn setup_http_consumer_manager(
         settings: &HttpConsumerSettings,
         db_pool: &Pool<Postgres>,
         task_manager: &mut TaskManager,
-    ) -> AnyhowResult<HttpConsumerManager> {
-        let (tx, rx) = flume::bounded(1000);
-        let num_workers = settings.num_workers;
-
-        for id in 0..num_workers {
-            let consumer = rx.clone();
-            let worker_shutdown_rx = task_manager.get_shutdown_receiver();
-            let db_pool_clone = db_pool.clone();
-
+    ) -> AnyhowResult<MessageConsumerManager> {
+        let (server_tx, server_rx) = flume::bounded::<ServerRecords>(1000);
+        for id in 0..settings.server_record_workers {
+            let rx = server_rx.clone();
+            let pool = db_pool.clone();
+            let shutdown = task_manager.get_shutdown_receiver();
             task_manager.spawn(async move {
-                HttpConsumerManager::start_worker(id, consumer, db_pool_clone, worker_shutdown_rx)
-                    .await;
+                MessageConsumerManager::start_server_record_worker(id, rx, pool, shutdown).await;
             });
         }
 
-        info!("✅ Started {} HTTP consumers", num_workers);
-        Ok(HttpConsumerManager { tx })
+        let (trace_tx, trace_rx) = flume::bounded::<TraceServerRecord>(500);
+        for id in 0..settings.trace_workers {
+            let rx = trace_rx.clone();
+            let pool = db_pool.clone();
+            let shutdown = task_manager.get_shutdown_receiver();
+            task_manager.spawn(async move {
+                MessageConsumerManager::start_trace_worker(id, rx, pool, shutdown).await;
+            });
+        }
+
+        let (tag_tx, tag_rx) = flume::bounded::<TagRecord>(200);
+        for id in 0..settings.tag_workers {
+            let rx = tag_rx.clone();
+            let pool = db_pool.clone();
+            let shutdown = task_manager.get_shutdown_receiver();
+            task_manager.spawn(async move {
+                MessageConsumerManager::start_tag_worker(id, rx, pool, shutdown).await;
+            });
+        }
+
+        info!(
+            "✅ Started message consumers: {} server-record, {} trace, {} tag",
+            settings.server_record_workers, settings.trace_workers, settings.tag_workers
+        );
+
+        Ok(MessageConsumerManager {
+            server_record_tx: server_tx,
+            trace_record_tx: trace_tx,
+            tag_record_tx: tag_tx,
+        })
     }
 
     /// Helper to setup the background drift worker

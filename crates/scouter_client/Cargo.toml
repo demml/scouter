@@ -17,6 +17,7 @@ arrow-json = { workspace = true }
 chrono = { workspace = true }
 crossbeam-queue = { workspace = true }
 reqwest = { workspace = true}
+scouter-dataframe = { workspace = true }
 scouter-dispatch = { workspace = true }
 scouter-drift = { workspace = true, default-features = false }
 scouter-evaluate = { workspace = true }

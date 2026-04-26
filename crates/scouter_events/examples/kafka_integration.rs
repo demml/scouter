@@ -106,22 +106,33 @@ async fn main() {
     helper.start_background_producer(&entity_uid).await;
 
     let start = Instant::now();
+    let timeout = Duration::from_secs(60);
 
     loop {
-        if start.elapsed() < Duration::from_secs(15) {
-            // Warming up
-        } else {
-            let records = PostgresClient::get_spc_drift_records(
-                &helper.db_pool,
-                &timestamp,
-                &["feature".to_string()],
-                &entity_id,
-            )
-            .await
-            .unwrap();
-
-            assert!(records.features["feature"].values.len() > 5000);
-            break;
+        if start.elapsed() > timeout {
+            panic!("Timed out waiting for Kafka records after {timeout:?}");
         }
+
+        if start.elapsed() < Duration::from_secs(15) {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            continue;
+        }
+
+        let records = PostgresClient::get_spc_drift_records(
+            &helper.db_pool,
+            &timestamp,
+            &["feature".to_string()],
+            &entity_id,
+        )
+        .await
+        .unwrap();
+
+        if let Some(feature) = records.features.get("feature") {
+            if feature.values.len() > 5000 {
+                break;
+            }
+        }
+
+        tokio::time::sleep(Duration::from_millis(500)).await;
     }
 }

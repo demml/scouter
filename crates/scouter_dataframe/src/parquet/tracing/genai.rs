@@ -691,7 +691,7 @@ impl GenAiSpanDBEngine {
 
     fn build_writer_props() -> WriterProperties {
         WriterProperties::builder()
-            .set_max_row_group_size(32_768)
+            .set_max_row_group_row_count(Some(32_768))
             // Bloom filter on trace_id
             .set_column_bloom_filter_enabled(ColumnPath::new(vec![TRACE_ID_COL.to_string()]), true)
             .set_column_bloom_filter_fpp(ColumnPath::new(vec![TRACE_ID_COL.to_string()]), 0.01)
@@ -819,7 +819,8 @@ impl GenAiSpanDBEngine {
 
         info!(
             "Expired {} gen_ai rows older than {}",
-            metrics.num_deleted_rows, cutoff_date
+            metrics.num_deleted_rows.unwrap_or_default(),
+            cutoff_date
         );
 
         self.catalog

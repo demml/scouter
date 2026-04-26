@@ -166,17 +166,78 @@ impl Default for RedisSettings {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct HttpConsumerSettings {
-    pub num_workers: usize,
+    pub server_record_workers: usize,
+    pub trace_workers: usize,
+    pub tag_workers: usize,
 }
+
+impl HttpConsumerSettings {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+}
+
 impl Default for HttpConsumerSettings {
     fn default() -> Self {
-        let num_workers = std::env::var("HTTP_CONSUMER_WORKER_COUNT")
-            .unwrap_or_else(|_| "1".to_string())
-            .parse::<usize>()
-            .unwrap();
+        let parse_worker_count = |var: &str, default: usize| -> usize {
+            std::env::var(var)
+                .ok()
+                .and_then(|v| {
+                    v.parse::<usize>()
+                        .map_err(|_| {
+                            tracing::warn!("Invalid value for {var}, using default {default}");
+                        })
+                        .ok()
+                })
+                .unwrap_or(default)
+        };
 
-        Self { num_workers }
+        Self {
+            server_record_workers: parse_worker_count("SERVER_RECORD_CONSUMER_WORKERS", 4),
+            trace_workers: parse_worker_count("TRACE_CONSUMER_WORKERS", 2),
+            tag_workers: parse_worker_count("TAG_CONSUMER_WORKERS", 1),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_http_consumer_settings_defaults() {
+        // Unset env vars → defaults
+        std::env::remove_var("SERVER_RECORD_CONSUMER_WORKERS");
+        std::env::remove_var("TRACE_CONSUMER_WORKERS");
+        std::env::remove_var("TAG_CONSUMER_WORKERS");
+        let s = HttpConsumerSettings::default();
+        assert_eq!(s.server_record_workers, 4);
+        assert_eq!(s.trace_workers, 2);
+        assert_eq!(s.tag_workers, 1);
+    }
+
+    #[test]
+    fn test_http_consumer_settings_env_override() {
+        std::env::set_var("SERVER_RECORD_CONSUMER_WORKERS", "8");
+        std::env::set_var("TRACE_CONSUMER_WORKERS", "3");
+        std::env::set_var("TAG_CONSUMER_WORKERS", "2");
+        let s = HttpConsumerSettings::default();
+        assert_eq!(s.server_record_workers, 8);
+        assert_eq!(s.trace_workers, 3);
+        assert_eq!(s.tag_workers, 2);
+        std::env::remove_var("SERVER_RECORD_CONSUMER_WORKERS");
+        std::env::remove_var("TRACE_CONSUMER_WORKERS");
+        std::env::remove_var("TAG_CONSUMER_WORKERS");
+    }
+
+    #[test]
+    fn test_http_consumer_settings_invalid_env_falls_back_to_default() {
+        std::env::set_var("SERVER_RECORD_CONSUMER_WORKERS", "not-a-number");
+        let s = HttpConsumerSettings::default();
+        // Falls back to default instead of panicking
+        assert_eq!(s.server_record_workers, 4);
+        std::env::remove_var("SERVER_RECORD_CONSUMER_WORKERS");
     }
 }

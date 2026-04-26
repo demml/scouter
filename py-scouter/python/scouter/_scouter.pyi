@@ -10827,139 +10827,6 @@ class BaseTracer:
     def get_local_spans_by_trace_ids(self, trace_ids: List[str]) -> List[TraceSpanRecord]:
         """Return spans matching the given trace_ids without draining the buffer."""
 
-class ScouterSpan:
-    trace_id: str
-    span_id: str
-    context_id: str
-    parent_context_id: Optional[str]
-
-    @property
-    def active_span(self) -> ActiveSpan: ...
-    def get_span_context(self) -> "SpanContext": ...
-    def is_recording(self) -> bool: ...
-    def set_status(self, status: Any, description: Optional[str] = None) -> None: ...
-    def set_attribute(self, key: str, value: SerializedType) -> None: ...
-    def set_attributes(self, attributes: Dict[str, SerializedType]) -> None: ...
-    def add_event(
-        self,
-        name: str,
-        attributes: Optional[Dict[str, SerializedType]] = None,
-        timestamp: Optional[int] = None,
-    ) -> None: ...
-    def add_link(
-        self,
-        context: "SpanContext",
-        attributes: Optional[Dict[str, SerializedType]] = None,
-    ) -> None: ...
-    def update_name(self, name: str) -> None: ...
-    def end(self, end_time: Optional[int] = None) -> None: ...
-    def record_exception(
-        self,
-        exception: Exception,
-        attributes: Optional[Dict[str, SerializedType]] = None,
-        timestamp: Optional[int] = None,
-        escaped: bool = False,
-    ) -> None: ...
-    def set_input(self, value: Any, max_length: int = 1000) -> None: ...
-    def set_output(self, value: Any, max_length: int = 1000) -> None: ...
-    def set_entity(self, entity_id: str) -> None: ...
-    def set_tag(self, key: str, value: SerializedType) -> None: ...
-    def add_queue_item(
-        self,
-        alias: str,
-        item: Union[Features, Metrics, EvalRecord],
-    ) -> None: ...
-
-class ScouterTracer:
-    @property
-    def base_tracer(self) -> BaseTracer: ...
-    @property
-    def current_span(self) -> ScouterSpan: ...
-    def start_span(
-        self,
-        name: str,
-        context: Optional[Any] = None,
-        kind: Optional[Any] = None,
-        attributes: Optional[Any] = None,
-        links: Optional[Any] = None,
-        start_time: Optional[int] = None,
-        record_exception: bool = True,
-        set_status_on_exception: bool = True,
-        baggage: Optional[List[dict[str, str]]] = None,
-        tags: Optional[List[dict[str, str]]] = None,
-        label: Optional[str] = None,
-        parent_context_id: Optional[str] = None,
-        trace_id: Optional[str] = None,
-        span_id: Optional[str] = None,
-        remote_sampled: Optional[bool] = None,
-        headers: Optional[dict[str, str]] = None,
-    ) -> ScouterSpan: ...
-    def start_as_current_span(
-        self,
-        name: str,
-        context: Optional[Any] = None,
-        kind: Optional[Any] = None,
-        attributes: Optional[Any] = None,
-        links: Optional[Any] = None,
-        start_time: Optional[int] = None,
-        record_exception: bool = True,
-        set_status_on_exception: bool = True,
-        end_on_exit: bool = True,
-        baggage: Optional[List[dict[str, str]]] = None,
-        tags: Optional[List[dict[str, str]]] = None,
-        label: Optional[str] = None,
-        parent_context_id: Optional[str] = None,
-        trace_id: Optional[str] = None,
-        span_id: Optional[str] = None,
-        remote_sampled: Optional[bool] = None,
-        headers: Optional[dict[str, str]] = None,
-    ) -> Any: ...
-    def span(
-        self,
-        name: Optional[str] = None,
-        kind: Optional[Any] = None,
-        attributes: List[dict[str, str]] = [],
-        baggage: List[dict[str, str]] = [],
-        tags: List[dict[str, str]] = [],
-        label: Optional[str] = None,
-        parent_context_id: Optional[str] = None,
-        trace_id: Optional[str] = None,
-        max_length: int = 1000,
-        capture_last_stream_item: bool = False,
-        join_stream_items: bool = False,
-        **kwargs: Any,
-    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]: ...
-    def set_scouter_queue(self, queue: ScouterQueue) -> None: ...
-    def shutdown(self) -> None: ...
-    def enable_local_capture(self) -> None: ...
-    def disable_local_capture(self) -> None: ...
-    def drain_local_spans(self) -> List[TraceSpanRecord]: ...
-    def get_local_spans_by_trace_ids(self, trace_ids: List[str]) -> List[TraceSpanRecord]: ...
-
-class ScouterTracerProvider:
-    def __init__(
-        self,
-        transport_config: Optional[Any] = None,
-        exporter: Optional[Any] = None,
-        batch_config: Optional[BatchConfig] = None,
-        sample_ratio: Optional[float] = None,
-        scouter_queue: Optional[Any] = None,
-        default_attributes: Optional[Dict[str, SerializedType]] = None,
-        default_entity_uid: Optional[str] = None,
-    ) -> None: ...
-    def get_tracer(
-        self,
-        instrumenting_module_name: str,
-        instrumenting_library_version: Optional[str] = None,
-        schema_url: Optional[str] = None,
-        attributes: Optional[Dict[str, SerializedType]] = None,
-    ) -> ScouterTracer: ...
-    def force_flush(self, timeout_millis: int = 30000) -> bool: ...
-    def shutdown(self) -> None: ...
-
-def get_tracer(name: str) -> ScouterTracer:
-    """Get an OTel-compliant Scouter tracer by name."""
-
 def get_current_active_span(self) -> ActiveSpan:
     """Get the current active span.
 
@@ -13467,6 +13334,20 @@ class ScenarioResult:
     def task_results(self) -> List["TaskSummary"]:
         """Per-task pass/fail summaries for this scenario."""
 
+    @property
+    def traces(self) -> List["TraceSpan"]:
+        """Trace spans captured during this scenario's execution."""
+
+    def traces_as_table(self) -> None:
+        """Print a summary table of trace spans to stdout."""
+
+    def trace_detail(self, span_name: str) -> None:
+        """Print attributes and events for matching span(s).
+
+        Values longer than 200 characters are truncated in the table.
+        Access ``self.traces[i].attributes`` directly for full values.
+        """
+
     def __str__(self) -> str:
         """Return a pretty-printed JSON string representation."""
 
@@ -13790,10 +13671,10 @@ class EvalScenario:
         Populate ``predefined_turns`` with follow-up queries (executed in order
         after ``initial_query``). Leave empty for single-turn evaluation.
 
-    ReAct / simulated-user scenarios:
-        ``simulated_user_persona`` and ``termination_signal`` are placeholder
-        fields for future ReAct support. Setting them has no effect in the
-        current implementation.
+    Interactive scenarios:
+        Set ``simulated_user_persona`` and ``termination_signal`` to enable
+        interactive evaluation with a simulated user driving multi-turn
+        conversations.
 
     Args:
         initial_query (str):
@@ -13811,9 +13692,9 @@ class EvalScenario:
             Scripted follow-up queries for multi-turn scenarios (executed in
             order after ``initial_query``).
         simulated_user_persona (Optional[str]):
-            Placeholder for future ReAct simulated-user support. No effect now.
+            Persona description for the simulated user in interactive scenarios.
         termination_signal (Optional[str]):
-            Placeholder for future ReAct termination detection. No effect now.
+            String that signals the simulated user wants to end the conversation.
         max_turns (int):
             Maximum number of turns for multi-turn evaluation. Defaults to 10.
         metadata (Optional[Dict[str, Any]]):
@@ -13875,8 +13756,8 @@ class EvalScenario:
     def is_multi_turn(self) -> bool:
         """Return True when ``predefined_turns`` is non-empty."""
 
-    def is_reactive(self) -> bool:
-        """Return True when ``simulated_user_persona`` is set (ReAct placeholder)."""
+    def is_interactive(self) -> bool:
+        """Return True when ``simulated_user_persona`` is set (interactive scenario)."""
 
     @property
     def id(self) -> str:
@@ -13898,13 +13779,13 @@ class EvalScenario:
     def predefined_turns(self, value: List[str]) -> None: ...
     @property
     def simulated_user_persona(self) -> Optional[str]:
-        """Simulated user persona string (ReAct placeholder)."""
+        """Simulated user persona string for interactive scenarios."""
 
     @simulated_user_persona.setter
     def simulated_user_persona(self, value: Optional[str]) -> None: ...
     @property
     def termination_signal(self) -> Optional[str]:
-        """Termination signal string (ReAct placeholder)."""
+        """Termination signal string for interactive scenarios."""
 
     @termination_signal.setter
     def termination_signal(self, value: Optional[str]) -> None: ...
@@ -14069,61 +13950,6 @@ class EvalRunner:
 
         Args:
             config: Optional evaluation configuration.
-        """
-
-AgentFn = Callable[[str], str]
-
-class EvalOrchestrator:
-    """Manages the capture lifecycle, routes scenario types, and delegates to the Rust EvalRunner.
-
-    Works out of the box — pass ``agent_fn`` and call ``run()``.
-
-    Args:
-        queue: ScouterQueue instance (source of profiles + capture lifecycle).
-        scenarios: Scenario definitions to evaluate.
-        agent_fn: Optional callable ``(query) -> response_str``.  Called once
-            for ``initial_query`` and once per ``predefined_turns`` entry.
-    """
-
-    def __init__(
-        self,
-        queue: "ScouterQueue",
-        scenarios: EvalScenarios,
-        agent_fn: Optional[AgentFn] = None,
-    ) -> None: ...
-    def execute_agent(
-        self,
-        scenario: EvalScenario,
-    ) -> str:
-        """Execute the agent for a scenario.
-
-        Default calls ``agent_fn(initial_query)`` then each
-        ``predefined_turns`` entry.  Override to customize.
-
-        Args:
-            scenario: The scenario to execute.
-
-        Returns:
-            The agent's final response string.
-        """
-
-    def on_scenario_start(self, scenario: EvalScenario) -> None:
-        """Hook called before a scenario is executed."""
-
-    def on_scenario_complete(self, scenario: EvalScenario, response: str) -> None:
-        """Hook called after a scenario is executed."""
-
-    def on_evaluation_complete(self, results: ScenarioEvalResults) -> ScenarioEvalResults:
-        """Hook called after evaluation completes. Override to post-process results."""
-
-    def run(self, config: Optional[EvaluationConfig] = None) -> ScenarioEvalResults:
-        """Execute all scenarios and return evaluation results.
-
-        Args:
-            config: Optional evaluation configuration.
-
-        Returns:
-            ScenarioEvalResults with metrics across all scenarios.
         """
 
 ### mock.pyi ###
@@ -19404,7 +19230,6 @@ __all__ = [
     "EqualWidthBinning",
     "EvalDataset",
     "EvalMetrics",
-    "EvalOrchestrator",
     "EvalRecord",
     "EvalResultSet",
     "EvalResults",
@@ -19584,9 +19409,6 @@ __all__ = [
     "ScouterClient",
     "ScouterDataType",
     "ScouterQueue",
-    "ScouterSpan",
-    "ScouterTracer",
-    "ScouterTracerProvider",
     "SearchEntryPoint",
     "SearchResultBlockParam",
     "Segment",
@@ -19693,7 +19515,6 @@ __all__ = [
     "execute_agent_assertion_tasks",
     "extract_span_context_from_headers",
     "flush_tracer",
-    "get_tracer",
     "init_tracer",
     "py_extract_trace_id",
     "py_infer_schema",

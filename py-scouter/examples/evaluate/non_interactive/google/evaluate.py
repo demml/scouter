@@ -49,6 +49,10 @@ def main() -> None:
 
     results.as_table(show_workflow=True)
 
+    results.get_scenario_detail(
+        "largest_planet",
+    ).traces_as_table()
+
 
 if __name__ == "__main__":
     main()

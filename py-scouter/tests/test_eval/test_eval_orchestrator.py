@@ -23,7 +23,12 @@ from scouter.evaluate import (
 )
 from scouter.mock import MockConfig
 from scouter.queue import ScouterQueue
-from scouter.tracing import ScouterInstrumentor, TestSpanExporter, init_tracer
+from scouter.tracing import (
+    ScouterInstrumentor,
+    TestSpanExporter,
+    active_profile,
+    init_tracer,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -38,6 +43,20 @@ def _simple_profile(alias="agent"):
                 context_path="response.quality",
                 operator=ComparisonOperator.GreaterThanOrEqual,
                 expected_value=7,
+            ),
+        ],
+        alias=alias,
+    )
+
+
+def _trace_only_profile(alias="agent"):
+    return AgentEvalProfile(
+        tasks=[
+            TraceAssertionTask(
+                id="trace_only_span_exists",
+                assertion=TraceAssertion.span_count(SpanFilter.by_name("trace_only_work")),
+                operator=ComparisonOperator.GreaterThanOrEqual,
+                expected_value=1,
             ),
         ],
         alias=alias,
@@ -79,6 +98,13 @@ def _single_scenario():
 
 def _three_scenarios():
     return _simple_scenarios(["Q1", "Q2", "Q3"])
+
+
+def _get_attr_value(span_attributes, key):
+    for attr in span_attributes:
+        if attr.key == key:
+            return attr.value
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -215,19 +241,19 @@ def test_no_agent_fn_no_override_raises():
 
 
 # ---------------------------------------------------------------------------
-# Unit Tests — reactive scenario
+# Unit Tests — interactive scenario
 # ---------------------------------------------------------------------------
 
 
-def test_reactive_no_simulated_user_fn_raises():
-    """Reactive scenario without simulated_user_fn raises NotImplementedError."""
+def test_interactive_no_simulated_user_fn_raises():
+    """Interactive scenario without simulated_user_fn raises NotImplementedError."""
     queue = _make_queue(_simple_profile())
     scenarios = EvalScenarios(
         scenarios=[
             EvalScenario(
                 initial_query="Hello",
                 simulated_user_persona="Curious student",
-                id="reactive_1",
+                id="interactive_1",
                 expected_outcome="conversation",
                 tasks=[
                     AssertionTask(
@@ -245,8 +271,8 @@ def test_reactive_no_simulated_user_fn_raises():
         orch.run()
 
 
-def test_reactive_terminates_on_signal():
-    """Reactive loop stops when simulated user response contains termination_signal."""
+def test_interactive_terminates_on_signal():
+    """Interactive loop stops when simulated user response contains termination_signal."""
     queue = _make_queue(_simple_profile())
     turns = []
     scenarios = EvalScenarios(
@@ -256,7 +282,7 @@ def test_reactive_terminates_on_signal():
                 simulated_user_persona="Math student",
                 termination_signal="DONE",
                 max_turns=10,
-                id="reactive_2",
+                id="interactive_2",
             )
         ]
     )
@@ -281,8 +307,8 @@ def test_reactive_terminates_on_signal():
     assert results is not None
 
 
-def test_reactive_respects_max_turns():
-    """Reactive loop stops at max_turns even without termination signal."""
+def test_interactive_respects_max_turns():
+    """Interactive loop stops at max_turns even without termination signal."""
     queue = _make_queue(_simple_profile())
     turns = []
     scenarios = EvalScenarios(
@@ -292,7 +318,7 @@ def test_reactive_respects_max_turns():
                 simulated_user_persona="Story lover",
                 termination_signal="STOP",
                 max_turns=3,
-                id="reactive_3",
+                id="interactive_3",
             )
         ]
     )
@@ -482,6 +508,151 @@ def test_on_evaluation_complete_return_value_used():
             return sentinel
 
     assert CustomOrch(queue, _single_scenario()).run() is sentinel
+
+
+def test_trace_only_eval_synthesizes_offline_dispatch_record():
+    """Trace-only spans (no queue record) should synthesize one eval record offline."""
+    profile = _trace_only_profile()
+    queue = _make_queue(profile)
+    scenarios = _single_scenario()
+    tracer = init_tracer(
+        service_name="trace-only-offline",
+        scouter_queue=queue,
+        transport_config=MockConfig(),
+        exporter=TestSpanExporter(batch_export=False),
+    )
+
+    entity_key = f"scouter.entity.{profile.config.uid}"
+
+    def trace_only_agent(_query):
+        with tracer.start_as_current_span("trace_only_work") as span:
+            span.set_attribute("scouter.eval.scenario_id", "scenario_1")
+            span.set_attribute(entity_key, profile.config.uid)
+        return "trace-only response"
+
+    results = EvalOrchestrator(queue=queue, scenarios=scenarios, agent_fn=trace_only_agent).run()
+    assert results.metrics.total_scenarios == 1
+    assert results.metrics.passed_scenarios == 1
+
+
+def test_trace_only_eval_does_not_duplicate_queue_backed_trace():
+    """Queue-backed traces should not receive an additional synthetic offline record."""
+    profile = _trace_only_profile()
+    queue = _make_queue(profile)
+    scenarios = _single_scenario()
+    tracer = init_tracer(
+        service_name="trace-only-offline-queue",
+        scouter_queue=queue,
+        transport_config=MockConfig(),
+        exporter=TestSpanExporter(batch_export=False),
+    )
+
+    entity_key = f"scouter.entity.{profile.config.uid}"
+
+    def queue_backed_agent(_query):
+        with tracer.start_as_current_span("trace_only_work") as span:
+            span.set_attribute("scouter.eval.scenario_id", "scenario_1")
+            span.set_attribute(entity_key, profile.config.uid)
+            span.add_queue_item("agent", EvalRecord(context={"response": "ok"}, id="queue-record"))
+        return "queue-backed response"
+
+    results = EvalOrchestrator(queue=queue, scenarios=scenarios, agent_fn=queue_backed_agent).run()
+    assert results.metrics.total_scenarios == 1
+    assert results.metrics.passed_scenarios == 1
+
+
+def test_eval_orchestrator_instrumentor_auto_sets_default_entity_uid():
+    """ScouterInstrumentor should auto-tag spans with default profile entity UID."""
+    profile = _trace_only_profile("agent")
+    queue = _make_queue(profile)
+    scenarios = _single_scenario()
+    instrumentor = ScouterInstrumentor()
+    instrumentor.instrument(
+        scouter_queue=queue,
+        exporter=TestSpanExporter(batch_export=False),
+        eval_profiles=[profile],
+    )
+    from opentelemetry import trace
+
+    tracer = trace.get_tracer("trace-only-auto-entity")
+    seen_trace_ids = []
+
+    class AutoEntityOrchestrator(EvalOrchestrator):
+        def on_scenario_complete(self, scenario, response):
+            seen_trace_ids.append(response)
+            spans = instrumentor.get_local_spans_by_trace_ids([response])
+            entity_key = f"scouter.entity.{profile.config.uid}"
+            agent_spans = [span for span in spans if span.span_name == "trace_only_work"]
+            assert len(agent_spans) == 1, f"Expected 1 agent span for trace {response}, found {len(agent_spans)}"
+            assert any(
+                str(_get_attr_value(span.attributes, entity_key)) == profile.config.uid for span in spans
+            ), "Expected instrumentor to set default entity UID span attribute automatically"
+
+    def trace_only_agent(_query):
+        with tracer.start_as_current_span("trace_only_work") as span:
+            return format(span.get_span_context().trace_id, "032x")
+
+    try:
+        AutoEntityOrchestrator(queue=queue, scenarios=scenarios, agent_fn=trace_only_agent).run()
+        assert len(seen_trace_ids) == 1
+    finally:
+        instrumentor.uninstrument()
+
+
+def test_multi_agent_offline_active_profile_switching_sets_distinct_entity_uids_without_dup():
+    """active_profile should switch entity UID tags across traces with no duplicate synthetic records."""
+    profile_a = _trace_only_profile("alpha")
+    profile_b = _trace_only_profile("beta")
+    queue = _make_queue([profile_a, profile_b])
+    scenarios = _simple_scenarios(["alpha query", "beta query"])
+    instrumentor = ScouterInstrumentor()
+    instrumentor.instrument(
+        scouter_queue=queue,
+        exporter=TestSpanExporter(batch_export=False),
+        eval_profiles=[profile_a, profile_b],
+        propagate_baggage=True,
+    )
+    from opentelemetry import trace
+
+    tracer = trace.get_tracer("trace-only-active-profile-switch")
+
+    expected_profile_by_scenario = {
+        "scenario_1": profile_a,
+        "scenario_2": profile_b,
+    }
+    seen_trace_ids = []
+
+    class ProfileSwitchOrchestrator(EvalOrchestrator):
+        def on_scenario_complete(self, scenario, response):
+            seen_trace_ids.append(response)
+            spans = instrumentor.get_local_spans_by_trace_ids([response])
+            expected = expected_profile_by_scenario[scenario.id]
+            expected_key = f"scouter.entity.{expected.config.uid}"
+            other = profile_b if expected.alias == "alpha" else profile_a
+            other_key = f"scouter.entity.{other.config.uid}"
+            agent_spans = [span for span in spans if span.span_name == "trace_only_work"]
+            assert len(agent_spans) == 1, f"Expected 1 agent span for trace {response}, found {len(agent_spans)}"
+            assert any(
+                str(_get_attr_value(span.attributes, expected_key)) == expected.config.uid for span in spans
+            ), f"Expected {expected.alias} entity UID to be present on scenario trace"
+            assert not any(
+                str(_get_attr_value(span.attributes, other_key)) == other.config.uid for span in spans
+            ), f"Did not expect {other.alias} entity UID on {expected.alias} trace"
+
+    def switched_agent(query):
+        if query == "beta query":
+            with active_profile(profile_b):
+                with tracer.start_as_current_span("trace_only_work") as span:
+                    return format(span.get_span_context().trace_id, "032x")
+        with tracer.start_as_current_span("trace_only_work") as span:
+            return format(span.get_span_context().trace_id, "032x")
+
+    try:
+        ProfileSwitchOrchestrator(queue=queue, scenarios=scenarios, agent_fn=switched_agent).run()
+        assert len(seen_trace_ids) == 2
+        assert len(set(seen_trace_ids)) == 2
+    finally:
+        instrumentor.uninstrument()
 
 
 # ---------------------------------------------------------------------------
@@ -967,15 +1138,15 @@ def test_build_scenario_response_dict_override():
     assert results.metrics.passed_scenarios == 1
 
 
-def test_build_scenario_response_reactive_history_accessible():
-    """In reactive scenarios, history is non-empty and accessible in build_scenario_response."""
+def test_build_scenario_response_interactive_history_accessible():
+    """In interactive scenarios, history is non-empty and accessible in build_scenario_response."""
     queue = _make_queue(_simple_profile())
     captured = {}
 
     scenarios = EvalScenarios(
         scenarios=[
             EvalScenario(
-                id="reactive_history",
+                id="interactive_history",
                 initial_query="Start",
                 simulated_user_persona="tester",
                 termination_signal="DONE",
@@ -1004,8 +1175,8 @@ def test_build_scenario_response_reactive_history_accessible():
     assert captured["response"].startswith("response to:")
 
 
-def test_build_scenario_response_non_reactive_history_empty():
-    """For non-reactive scenarios, build_scenario_response receives an empty history."""
+def test_build_scenario_response_non_interactive_history_empty():
+    """For non-interactive scenarios, build_scenario_response receives an empty history."""
     queue = _make_queue(_simple_profile())
     captured_history = []
 

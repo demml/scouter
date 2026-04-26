@@ -7,6 +7,7 @@ tasks:
     description: Validate that the agent returned a textual response.
     depends_on: []
     condition: false
+
   - task_type: TraceAssertion
     id: trace_latency_budget
     operator: LessThan
@@ -16,3 +17,20 @@ tasks:
     condition: false
     assertion:
       TraceDuration: {}
+
+  - task_type: LLMJudge
+    id: quality_judge
+    operator: Equals
+    expected_value: 1
+    description: Use LLM to judge the quality of the response.
+    max_retries: 3
+    prompt:
+      model: gemini-2.5-flash
+      provider: Google
+      messages:
+        - |
+          Analyze the sentiment of the provided text and determine if it answers the users question effectively.
+          Respond with 1 if the response is of high quality and effectively addresses the user's question, and 0 if it does not.
+
+          User's question: ${query}
+          Agent's response: ${response}

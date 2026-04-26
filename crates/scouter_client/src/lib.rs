@@ -87,6 +87,7 @@ pub use scouter_http::error::ClientError;
 pub use scouter_profile::error::DataProfileError;
 pub use scouter_types::error::{ContractError, ProfileError, RecordError, TypeError, UtilError};
 
+pub use scouter_dataframe::{extract_trace_id, infer_schema, normalize_endpoint};
 pub use scouter_evaluate::{
     agent::EvalDataset,
     error::EvaluationError,

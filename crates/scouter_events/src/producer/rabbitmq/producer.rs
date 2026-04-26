@@ -36,7 +36,10 @@ pub mod rabbitmq_producer {
             channel
                 .queue_declare(
                     &config.queue,
-                    QueueDeclareOptions::default(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..QueueDeclareOptions::default()
+                    },
                     FieldTable::default(),
                 )
                 .await

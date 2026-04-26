@@ -136,7 +136,7 @@ fn build_data_skipping_columns(partition_columns: &[String]) -> String {
 /// or `_key` (Utf8/Utf8View) get bloom filters automatically.
 pub fn build_writer_props(schema: &Schema) -> WriterProperties {
     let mut builder = WriterProperties::builder()
-        .set_max_row_group_size(32_768)
+        .set_max_row_group_row_count(Some(32_768))
         .set_compression(Compression::ZSTD(ZstdLevel::try_new(3).unwrap()))
         .set_column_encoding(
             ColumnPath::new(vec![SCOUTER_CREATED_AT.to_string()]),

@@ -1,6 +1,6 @@
 # Interactive Evaluation
 
-This directory demonstrates reactive evaluation with `EvalOrchestrator`:
+This directory demonstrates interactive evaluation with `EvalOrchestrator`:
 
 - the agent receives one message at a time
 - a simulated user decides the next turn based on prior exchanges
@@ -16,4 +16,3 @@ uv run python -m examples.evaluate.interactive.google.evaluate
 uv run python -m examples.evaluate.interactive.openai.evaluate
 uv run python -m examples.evaluate.interactive.crewai.evaluate
 ```
-
