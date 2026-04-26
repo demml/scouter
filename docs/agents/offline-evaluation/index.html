@@ -1,0 +1,3912 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://docs.demml.io/scouter/docs/agents/offline-evaluation/">
+      
+      
+        <link rel="prev" href="../overview/">
+      
+      
+        <link rel="next" href="../online-evaluation/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Offline evaluation - Scouter</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../css/custom.css">
+    
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
+      <link rel="stylesheet" href="../../css/termynal.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="stylesheets/extra.css" data-md-color-accent="stylesheets/extra.css">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#offline-evaluation" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Scouter" class="md-header__button md-logo" aria-label="Scouter" data-md-component="logo">
+      
+  <img src="../../images/scouter-icon.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Scouter
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Offline evaluation
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="stylesheets/extra.css" data-md-color-accent="stylesheets/extra.css"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="scouter-light" data-md-color-primary="stylesheets/extra.css" data-md-color-accent="stylesheets/extra.css"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="scouter-dark" data-md-color-primary="stylesheets/extra.css" data-md-color-accent="stylesheets/extra.css"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/demml/scouter" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    scouter
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Overview
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../installation/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Installation
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../server/" class="md-tabs__link">
+          
+  
+  
+  Server
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../monitoring/" class="md-tabs__link">
+          
+  
+  
+  Monitoring
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../overview/" class="md-tabs__link">
+          
+  
+  
+  Agents
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../bifrost/overview/" class="md-tabs__link">
+          
+  
+  
+  Bifrost
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../tracing/overview/" class="md-tabs__link">
+          
+  
+  
+  Tracing
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../profiling/overview/" class="md-tabs__link">
+          
+  
+  
+  Profiling
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../specs/Readme/" class="md-tabs__link">
+          
+  
+  
+  Tech Specs
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../architecture/overview/" class="md-tabs__link">
+          
+  
+  
+  Architecture
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../api/stubs/" class="md-tabs__link">
+          
+  
+  
+  API Documentation
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Scouter" class="md-nav__button md-logo" aria-label="Scouter" data-md-component="logo">
+      
+  <img src="../../images/scouter-icon.svg" alt="logo">
+
+    </a>
+    Scouter
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/demml/scouter" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    scouter
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Server
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Server
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../server/postgres/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Postgres
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Monitoring
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Monitoring
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PSI
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    PSI
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/psi/quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/psi/drift_config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drift Config
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/psi/drift_profile/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drift Profile
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/psi/theory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Theory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SPC
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    SPC
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/spc/quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/spc/drift_config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drift Config
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/spc/drift_profile/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drift Profile
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/spc/theory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Theory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_4" id="__nav_4_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Metric
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Custom Metric
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/custom/quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_5" id="__nav_4_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Get to the Queue!
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Get to the Queue!
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../monitoring/inference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Agents
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Offline evaluation
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Offline evaluation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+  
+
+<nav class="md-nav md-nav--secondary" aria-label="Page contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Page contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick start
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it works
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How it works">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#execution-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Execution lifecycle
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-level-evaluation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3-level evaluation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-trace_id-correlation-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How trace_id correlation works
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#core-concepts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core concepts
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Core concepts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#evalscenario" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        EvalScenario
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agentevalprofile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AgentEvalProfile
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#evalrecord" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        EvalRecord
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-agent-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-agent setup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-turn-scenarios" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-turn scenarios
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#interactive-scenarios" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interactive scenarios
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Interactive scenarios">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#simple-case-simulated_user_fn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Simple case: simulated_user_fn
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stateful-agents-subclassing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stateful agents: subclassing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#record-collection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Record collection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#max_turns-and-termination" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        max_turns and termination
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#loading-scenarios-from-a-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Loading scenarios from a file
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Loading scenarios from a file">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#jsonl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        JSONL
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        JSON
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#yaml" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        YAML
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scenario-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scenario fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#subclassing-evalorchestrator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Subclassing EvalOrchestrator
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Subclassing EvalOrchestrator">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#lifecycle-hooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lifecycle hooks
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#structured-and-transformed-responses" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Structured and transformed responses
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Structured and transformed responses">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#build_scenario_response" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_scenario_response
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#saving-loading-and-comparing-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Saving, loading, and comparing results
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Saving, loading, and comparing results">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#scenarioevalresults-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ScenarioEvalResults reference
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#working-with-pre-generated-records" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Working with pre-generated records
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../online-evaluation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Online evaluation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reading-results/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reading results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../eval-dataset/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    EvalDataset
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Evaluation tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Assertion gates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bifrost
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Bifrost
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../bifrost/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../bifrost/quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../bifrost/writing-data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../bifrost/reading-data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reading Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../bifrost/schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Schema Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tracing
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tracing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tracing/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tracing/genai-semantics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GenAI semantic conventions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tracing/instrumentor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ScouterInstrumentor
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tracing/storage-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Storage architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Profiling
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Profiling
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../profiling/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Profile
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tech Specs
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tech Specs
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../specs/Readme/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../specs/ts-component-data-archive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Archive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../specs/ts-component-scouter-queue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Queue
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../specs/ts-component-scouter-grpc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gRPC
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../specs/ts-component-genai-eval/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Evaluation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Documentation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Documentation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/stubs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+  
+
+<nav class="md-nav md-nav--secondary" aria-label="Page contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Page contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick start
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it works
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How it works">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#execution-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Execution lifecycle
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-level-evaluation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3-level evaluation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-trace_id-correlation-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How trace_id correlation works
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#core-concepts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core concepts
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Core concepts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#evalscenario" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        EvalScenario
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agentevalprofile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AgentEvalProfile
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#evalrecord" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        EvalRecord
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-agent-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-agent setup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-turn-scenarios" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-turn scenarios
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#interactive-scenarios" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interactive scenarios
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Interactive scenarios">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#simple-case-simulated_user_fn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Simple case: simulated_user_fn
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stateful-agents-subclassing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stateful agents: subclassing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#record-collection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Record collection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#max_turns-and-termination" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        max_turns and termination
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#loading-scenarios-from-a-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Loading scenarios from a file
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Loading scenarios from a file">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#jsonl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        JSONL
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        JSON
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#yaml" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        YAML
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scenario-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scenario fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#subclassing-evalorchestrator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Subclassing EvalOrchestrator
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Subclassing EvalOrchestrator">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#lifecycle-hooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lifecycle hooks
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#structured-and-transformed-responses" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Structured and transformed responses
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Structured and transformed responses">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#build_scenario_response" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_scenario_response
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#saving-loading-and-comparing-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Saving, loading, and comparing results
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Saving, loading, and comparing results">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#scenarioevalresults-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ScenarioEvalResults reference
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#working-with-pre-generated-records" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Working with pre-generated records
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../../.." class="md-path__link">
+        
+  <span class="md-ellipsis">
+    Overview
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../overview/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Agents
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="offline-evaluation">Offline evaluation<a class="headerlink" href="#offline-evaluation" title="Permanent link">&para;</a></h1>
+<p>Offline evaluation runs your agent against a fixed set of test scenarios and measures quality before anything reaches production. Use it to catch regressions between model versions, validate prompt changes, and build a quality baseline to compare future runs against.</p>
+<p>For pre-generated records without a live agent, see <a href="../eval-dataset/">EvalDataset</a>.</p>
+<hr />
+<h2 id="quick-start">Quick start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">scouter.drift</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgentEvalProfile</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">scouter.evaluate</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">AssertionTask</span><span class="p">,</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">ComparisonOperator</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">EvalOrchestrator</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">EvalRecord</span><span class="p">,</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">EvalScenario</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">EvalScenarios</span><span class="p">,</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="kn">from</span><span class="w"> </span><span class="nn">scouter.transport</span><span class="w"> </span><span class="kn">import</span> <span class="n">MockConfig</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="kn">from</span><span class="w"> </span><span class="nn">scouter.queue</span><span class="w"> </span><span class="kn">import</span> <span class="n">ScouterQueue</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="kn">from</span><span class="w"> </span><span class="nn">scouter.tracing</span><span class="w"> </span><span class="kn">import</span> <span class="n">init_tracer</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="c1"># 1. Define what to evaluate about your agent&#39;s outputs</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="n">profile</span> <span class="o">=</span> <span class="n">AgentEvalProfile</span><span class="p">(</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">alias</span><span class="o">=</span><span class="s2">&quot;my_agent&quot;</span><span class="p">,</span>  <span class="c1"># matches the alias in span.add_queue_item()</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">tasks</span><span class="o">=</span><span class="p">[</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>        <span class="n">AssertionTask</span><span class="p">(</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>            <span class="nb">id</span><span class="o">=</span><span class="s2">&quot;quality_check&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>            <span class="n">context_path</span><span class="o">=</span><span class="s2">&quot;response.quality&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>            <span class="n">operator</span><span class="o">=</span><span class="n">ComparisonOperator</span><span class="o">.</span><span class="n">GreaterThanOrEqual</span><span class="p">,</span>
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>            <span class="n">expected_value</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span>
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>        <span class="p">),</span>
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>    <span class="p">],</span>
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="p">)</span>
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a><span class="c1"># 2. Create a queue from your profile</span>
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a><span class="n">queue</span> <span class="o">=</span> <span class="n">ScouterQueue</span><span class="o">.</span><span class="n">from_profile</span><span class="p">(</span>
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>    <span class="n">profile</span><span class="o">=</span><span class="p">[</span><span class="n">profile</span><span class="p">],</span>
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>    <span class="n">transport_config</span><span class="o">=</span><span class="n">MockConfig</span><span class="p">(),</span>
+<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a><span class="p">)</span>
+<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>
+<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a><span class="c1"># 3. Initialize a tracer — your agent emits EvalRecords inside traced spans</span>
+<a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a><span class="n">tracer</span> <span class="o">=</span> <span class="n">init_tracer</span><span class="p">(</span><span class="n">service_name</span><span class="o">=</span><span class="s2">&quot;my-eval&quot;</span><span class="p">,</span> <span class="n">scouter_queue</span><span class="o">=</span><span class="n">queue</span><span class="p">)</span>
+<a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a>
+<a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a><span class="c1"># 4. Your agent — emits an EvalRecord, returns a response string</span>
+<a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a><span class="k">def</span><span class="w"> </span><span class="nf">my_agent</span><span class="p">(</span><span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a>    <span class="k">with</span> <span class="n">tracer</span><span class="o">.</span><span class="n">start_as_current_span</span><span class="p">(</span><span class="s2">&quot;agent_call&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">span</span><span class="p">:</span>
+<a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a>        <span class="n">result</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;quality&quot;</span><span class="p">:</span> <span class="mi">9</span><span class="p">,</span> <span class="s2">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;Paris is the capital of France.&quot;</span><span class="p">}</span>
+<a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a>        <span class="n">span</span><span class="o">.</span><span class="n">add_queue_item</span><span class="p">(</span><span class="s2">&quot;my_agent&quot;</span><span class="p">,</span> <span class="n">EvalRecord</span><span class="p">(</span><span class="n">context</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;response&quot;</span><span class="p">:</span> <span class="n">result</span><span class="p">}))</span>
+<a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a>    <span class="k">return</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;text&quot;</span><span class="p">]</span>
+<a id="__codelineno-0-42" name="__codelineno-0-42" href="#__codelineno-0-42"></a>
+<a id="__codelineno-0-43" name="__codelineno-0-43" href="#__codelineno-0-43"></a><span class="c1"># 5. Define test scenarios</span>
+<a id="__codelineno-0-44" name="__codelineno-0-44" href="#__codelineno-0-44"></a><span class="n">scenarios</span> <span class="o">=</span> <span class="n">EvalScenarios</span><span class="p">(</span><span class="n">scenarios</span><span class="o">=</span><span class="p">[</span>
+<a id="__codelineno-0-45" name="__codelineno-0-45" href="#__codelineno-0-45"></a>    <span class="n">EvalScenario</span><span class="p">(</span>
+<a id="__codelineno-0-46" name="__codelineno-0-46" href="#__codelineno-0-46"></a>        <span class="nb">id</span><span class="o">=</span><span class="s2">&quot;capital_question&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-47" name="__codelineno-0-47" href="#__codelineno-0-47"></a>        <span class="n">initial_query</span><span class="o">=</span><span class="s2">&quot;What is the capital of France?&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-48" name="__codelineno-0-48" href="#__codelineno-0-48"></a>    <span class="p">),</span>
+<a id="__codelineno-0-49" name="__codelineno-0-49" href="#__codelineno-0-49"></a><span class="p">])</span>
+<a id="__codelineno-0-50" name="__codelineno-0-50" href="#__codelineno-0-50"></a>
+<a id="__codelineno-0-51" name="__codelineno-0-51" href="#__codelineno-0-51"></a><span class="c1"># 6. Run</span>
+<a id="__codelineno-0-52" name="__codelineno-0-52" href="#__codelineno-0-52"></a><span class="n">results</span> <span class="o">=</span> <span class="n">EvalOrchestrator</span><span class="p">(</span><span class="n">queue</span><span class="o">=</span><span class="n">queue</span><span class="p">,</span> <span class="n">scenarios</span><span class="o">=</span><span class="n">scenarios</span><span class="p">,</span> <span class="n">agent_fn</span><span class="o">=</span><span class="n">my_agent</span><span class="p">)</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+<a id="__codelineno-0-53" name="__codelineno-0-53" href="#__codelineno-0-53"></a><span class="n">results</span><span class="o">.</span><span class="n">as_table</span><span class="p">()</span>
+</code></pre></div>
+<hr />
+<h2 id="how-it-works">How it works<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h2>
+<h3 id="execution-lifecycle">Execution lifecycle<a class="headerlink" href="#execution-lifecycle" title="Permanent link">&para;</a></h3>
+<p><code>EvalOrchestrator.run()</code> manages the full lifecycle:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>EvalOrchestrator.run()
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>│
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>├── enable_capture on queue + span capture buffer
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>│
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>│   for each scenario:
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>│   ├── on_scenario_start(scenario)
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>│   │
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>│   ├── [non-interactive] execute_agent(scenario)
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>│   │     └── agent emits EvalRecords via span.add_queue_item()
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>│   ├── [non-interactive] queue.drain_all_records()   ← per scenario
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>│   ├── [non-interactive] EvalRunner.collect_scenario_data()
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>│   │
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>│   ├── [interactive] for each turn (up to max_turns):
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>│   │   ├── execute_agent_turn(scenario, message)
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>│   │   │     └── agent emits EvalRecords via span.add_queue_item()
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>│   │   ├── execute_simulated_user_turn(scenario, initial_query, response, history)
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>│   │   └── check termination_signal → break if matched
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>│   ├── [interactive] queue.drain_all_records()       ← once, after all turns
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>│   ├── [interactive] EvalRunner.collect_scenario_data()
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>│   │
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>│   ├── on_scenario_complete(scenario, response)
+<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a>│
+<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a>├── flush_tracer()                       ← ensure spans are in the capture buffer
+<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>├── EvalRunner.evaluate()                ← 3-level Rust evaluation engine
+<a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a>├── on_evaluation_complete(results)
+<a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a>│
+<a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a>└── disable_capture [always, even on exception]
+</code></pre></div>
+<p><code>EvalRunner</code> is the Rust evaluation engine. <code>EvalOrchestrator</code> is the Python lifecycle wrapper around it.</p>
+<h3 id="3-level-evaluation">3-level evaluation<a class="headerlink" href="#3-level-evaluation" title="Permanent link">&para;</a></h3>
+<p><code>EvalRunner.evaluate()</code> runs three levels in sequence:</p>
+<p><strong>Level 1: Sub-agent evaluation (workflow)</strong></p>
+<p>For each alias, all records collected across all scenarios are flattened into a single <code>EvalDataset</code> and evaluated together. This gives you a holistic quality signal per sub-agent, independent of which scenario produced each record.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>alias &quot;retriever&quot; → 5 records (one per scenario) → EvalDataset → EvalResults
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>alias &quot;synthesizer&quot; → 5 records → EvalDataset → EvalResults
+</code></pre></div>
+<p><strong>Level 2: Scenario-level evaluation</strong></p>
+<p>For each scenario that has <code>tasks</code>, a single <code>EvalRecord</code> is built from the scenario context (agent response + <code>expected_outcome</code>) and evaluated against those tasks. <code>TraceAssertionTask</code>s are resolved by matching <code>trace_id</code>s from the scenario's records to spans in the capture buffer.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>scenario &quot;capital_question&quot; → build record from {response, expected_outcome}
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>  → evaluate scenario tasks → ScenarioResult { passed, pass_rate }
+</code></pre></div>
+<p><strong>Level 3: Aggregate metrics</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>EvalMetrics:
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>  overall_pass_rate     # mean across all dataset + scenario pass rates
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>  workflow_pass_rate    # mean across sub-agent profile pass rates
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>  dataset_pass_rates    # per-alias pass rate, e.g. {&quot;retriever&quot;: 0.9}
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>  scenario_pass_rate    # fraction of scenarios where all tasks passed
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>  total_scenarios       # count
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>  passed_scenarios      # count
+</code></pre></div>
+<h3 id="how-trace_id-correlation-works">How <code>trace_id</code> correlation works<a class="headerlink" href="#how-trace_id-correlation-works" title="Permanent link">&para;</a></h3>
+<p>When your agent calls <code>span.add_queue_item(alias, record)</code> inside a traced span, the <code>trace_id</code> from the active OTel span is automatically stamped onto the <code>EvalRecord</code>. This is what connects records to spans for <code>TraceAssertionTask</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>span &quot;agent_call&quot;  →  trace_id = &quot;abc123&quot;
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>  span.add_queue_item(&quot;retriever&quot;, record)
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    └── record.trace_id is auto-set to &quot;abc123&quot;
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>During evaluate():
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>  scenario &quot;q1&quot; has records with trace_id = &quot;abc123&quot;
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>  TraceAssertionTask filters captured spans by those trace_ids
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>  → evaluates span assertions against the matching spans
+</code></pre></div>
+<hr />
+<h2 id="core-concepts">Core concepts<a class="headerlink" href="#core-concepts" title="Permanent link">&para;</a></h2>
+<h3 id="evalscenario"><code>EvalScenario</code><a class="headerlink" href="#evalscenario" title="Permanent link">&para;</a></h3>
+<p>A single test case. At minimum, supply <code>initial_query</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">EvalScenario</span><span class="p">(</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="nb">id</span><span class="o">=</span><span class="s2">&quot;scenario_id&quot;</span><span class="p">,</span>                         <span class="c1"># stable ID for regression tracking</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="n">initial_query</span><span class="o">=</span><span class="s2">&quot;Summarize this article.&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="n">expected_outcome</span><span class="o">=</span><span class="s2">&quot;A 2-sentence summary.&quot;</span><span class="p">,</span> <span class="c1"># available as ${expected_outcome} in tasks</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="n">tasks</span><span class="o">=</span><span class="p">[</span>                                   <span class="c1"># evaluated against the agent&#39;s final response</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>        <span class="n">AssertionTask</span><span class="p">(</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>            <span class="nb">id</span><span class="o">=</span><span class="s2">&quot;response_not_empty&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>            <span class="n">context_path</span><span class="o">=</span><span class="s2">&quot;response&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>            <span class="n">operator</span><span class="o">=</span><span class="n">ComparisonOperator</span><span class="o">.</span><span class="n">IsString</span><span class="p">,</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>            <span class="n">expected_value</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>        <span class="p">),</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>    <span class="p">],</span>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="p">)</span>
+</code></pre></div>
+<p>Scenario <code>tasks</code> evaluate the agent's <strong>final response string</strong>. They're separate from profile tasks, which evaluate each sub-agent's <code>EvalRecord</code> context.</p>
+<h3 id="agentevalprofile"><code>AgentEvalProfile</code><a class="headerlink" href="#agentevalprofile" title="Permanent link">&para;</a></h3>
+<p>Defines evaluation tasks for one sub-agent. The <code>alias</code> must match what you pass to <code>span.add_queue_item(alias, ...)</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">AgentEvalProfile</span><span class="p">(</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="n">alias</span><span class="o">=</span><span class="s2">&quot;retriever&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="n">tasks</span><span class="o">=</span><span class="p">[</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>        <span class="n">AssertionTask</span><span class="p">(</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>            <span class="nb">id</span><span class="o">=</span><span class="s2">&quot;has_results&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>            <span class="n">context_path</span><span class="o">=</span><span class="s2">&quot;results.count&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>            <span class="n">operator</span><span class="o">=</span><span class="n">ComparisonOperator</span><span class="o">.</span><span class="n">GreaterThanOrEqual</span><span class="p">,</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>            <span class="n">expected_value</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>        <span class="p">),</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>    <span class="p">],</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="p">)</span>
+</code></pre></div>
+<h3 id="evalrecord"><code>EvalRecord</code><a class="headerlink" href="#evalrecord" title="Permanent link">&para;</a></h3>
+<p>The data your sub-agent emits during execution. Contains a <code>context</code> dict that tasks read via <code>context_path</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># Inside a traced span:</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">span</span><span class="o">.</span><span class="n">add_queue_item</span><span class="p">(</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="s2">&quot;retriever&quot;</span><span class="p">,</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="n">EvalRecord</span><span class="p">(</span><span class="n">context</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;results&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;count&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span> <span class="s2">&quot;source&quot;</span><span class="p">:</span> <span class="s2">&quot;arxiv&quot;</span><span class="p">}}),</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="p">)</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="c1"># trace_id is stamped automatically from the active span</span>
+</code></pre></div>
+<hr />
+<h2 id="multi-agent-setup">Multi-agent setup<a class="headerlink" href="#multi-agent-setup" title="Permanent link">&para;</a></h2>
+<p>One <code>AgentEvalProfile</code> per sub-agent. Register all profiles on the queue.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">scouter.drift</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgentEvalProfile</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">scouter.evaluate</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="n">AssertionTask</span><span class="p">,</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>    <span class="n">ComparisonOperator</span><span class="p">,</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="n">EvalOrchestrator</span><span class="p">,</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>    <span class="n">EvalRecord</span><span class="p">,</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>    <span class="n">EvalScenario</span><span class="p">,</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>    <span class="n">EvalScenarios</span><span class="p">,</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>    <span class="n">SpanFilter</span><span class="p">,</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>    <span class="n">TraceAssertion</span><span class="p">,</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>    <span class="n">TraceAssertionTask</span><span class="p">,</span>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="p">)</span>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="kn">from</span><span class="w"> </span><span class="nn">scouter.transport</span><span class="w"> </span><span class="kn">import</span> <span class="n">MockConfig</span>
+<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="kn">from</span><span class="w"> </span><span class="nn">scouter.queue</span><span class="w"> </span><span class="kn">import</span> <span class="n">ScouterQueue</span>
+<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="kn">from</span><span class="w"> </span><span class="nn">scouter.tracing</span><span class="w"> </span><span class="kn">import</span> <span class="n">ScouterInstrumentor</span><span class="p">,</span> <span class="n">init_tracer</span>
+<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a>
+<a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a><span class="n">retriever_profile</span> <span class="o">=</span> <span class="n">AgentEvalProfile</span><span class="p">(</span>
+<a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a>    <span class="n">alias</span><span class="o">=</span><span class="s2">&quot;retriever&quot;</span><span class="p">,</span>
+<a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a>    <span class="n">tasks</span><span class="o">=</span><span class="p">[</span>
+<a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a>        <span class="n">AssertionTask</span><span class="p">(</span>
+<a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a>            <span class="nb">id</span><span class="o">=</span><span class="s2">&quot;has_results&quot;</span><span class="p">,</span>
+<a id="__codelineno-9-22" name="__codelineno-9-22" href="#__codelineno-9-22"></a>            <span class="n">context_path</span><span class="o">=</span><span class="s2">&quot;results.count&quot;</span><span class="p">,</span>
+<a id="__codelineno-9-23" name="__codelineno-9-23" href="#__codelineno-9-23"></a>            <span class="n">operator</span><span class="o">=</span><span class="n">ComparisonOperator</span><span class="o">.</span><span class="n">GreaterThanOrEqual</span><span class="p">,</span>
+<a id="__codelineno-9-24" name="__codelineno-9-24" href="#__codelineno-9-24"></a>            <span class="n">expected_value</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-9-25" name="__codelineno-9-25" href="#__codelineno-9-25"></a>        <span class="p">),</span>
+<a id="__codelineno-9-26" name="__codelineno-9-26" href="#__codelineno-9-26"></a>        <span class="n">TraceAssertionTask</span><span class="p">(</span>
+<a id="__codelineno-9-27" name="__codelineno-9-27" href="#__codelineno-9-27"></a>            <span class="nb">id</span><span class="o">=</span><span class="s2">&quot;retriever_span_emitted&quot;</span><span class="p">,</span>
+<a id="__codelineno-9-28" name="__codelineno-9-28" href="#__codelineno-9-28"></a>            <span class="n">assertion</span><span class="o">=</span><span class="n">TraceAssertion</span><span class="o">.</span><span class="n">span_count</span><span class="p">(</span><span class="n">SpanFilter</span><span class="o">.</span><span class="n">by_name</span><span class="p">(</span><span class="s2">&quot;retriever_call&quot;</span><span class="p">)),</span>
+<a id="__codelineno-9-29" name="__codelineno-9-29" href="#__codelineno-9-29"></a>            <span class="n">operator</span><span class="o">=</span><span class="n">ComparisonOperator</span><span class="o">.</span><span class="n">GreaterThanOrEqual</span><span class="p">,</span>
+<a id="__codelineno-9-30" name="__codelineno-9-30" href="#__codelineno-9-30"></a>            <span class="n">expected_value</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-9-31" name="__codelineno-9-31" href="#__codelineno-9-31"></a>        <span class="p">),</span>
+<a id="__codelineno-9-32" name="__codelineno-9-32" href="#__codelineno-9-32"></a>    <span class="p">],</span>
+<a id="__codelineno-9-33" name="__codelineno-9-33" href="#__codelineno-9-33"></a><span class="p">)</span>
+<a id="__codelineno-9-34" name="__codelineno-9-34" href="#__codelineno-9-34"></a>
+<a id="__codelineno-9-35" name="__codelineno-9-35" href="#__codelineno-9-35"></a><span class="n">synthesizer_profile</span> <span class="o">=</span> <span class="n">AgentEvalProfile</span><span class="p">(</span>
+<a id="__codelineno-9-36" name="__codelineno-9-36" href="#__codelineno-9-36"></a>    <span class="n">alias</span><span class="o">=</span><span class="s2">&quot;synthesizer&quot;</span><span class="p">,</span>
+<a id="__codelineno-9-37" name="__codelineno-9-37" href="#__codelineno-9-37"></a>    <span class="n">tasks</span><span class="o">=</span><span class="p">[</span>
+<a id="__codelineno-9-38" name="__codelineno-9-38" href="#__codelineno-9-38"></a>        <span class="n">AssertionTask</span><span class="p">(</span>
+<a id="__codelineno-9-39" name="__codelineno-9-39" href="#__codelineno-9-39"></a>            <span class="nb">id</span><span class="o">=</span><span class="s2">&quot;quality_score&quot;</span><span class="p">,</span>
+<a id="__codelineno-9-40" name="__codelineno-9-40" href="#__codelineno-9-40"></a>            <span class="n">context_path</span><span class="o">=</span><span class="s2">&quot;response.quality&quot;</span><span class="p">,</span>
+<a id="__codelineno-9-41" name="__codelineno-9-41" href="#__codelineno-9-41"></a>            <span class="n">operator</span><span class="o">=</span><span class="n">ComparisonOperator</span><span class="o">.</span><span class="n">GreaterThanOrEqual</span><span class="p">,</span>
+<a id="__codelineno-9-42" name="__codelineno-9-42" href="#__codelineno-9-42"></a>            <span class="n">expected_value</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span>
+<a id="__codelineno-9-43" name="__codelineno-9-43" href="#__codelineno-9-43"></a>        <span class="p">),</span>
+<a id="__codelineno-9-44" name="__codelineno-9-44" href="#__codelineno-9-44"></a>    <span class="p">],</span>
+<a id="__codelineno-9-45" name="__codelineno-9-45" href="#__codelineno-9-45"></a><span class="p">)</span>
+<a id="__codelineno-9-46" name="__codelineno-9-46" href="#__codelineno-9-46"></a>
+<a id="__codelineno-9-47" name="__codelineno-9-47" href="#__codelineno-9-47"></a><span class="n">queue</span> <span class="o">=</span> <span class="n">ScouterQueue</span><span class="o">.</span><span class="n">from_profile</span><span class="p">(</span>
+<a id="__codelineno-9-48" name="__codelineno-9-48" href="#__codelineno-9-48"></a>    <span class="n">profile</span><span class="o">=</span><span class="p">[</span><span class="n">retriever_profile</span><span class="p">,</span> <span class="n">synthesizer_profile</span><span class="p">],</span>
+<a id="__codelineno-9-49" name="__codelineno-9-49" href="#__codelineno-9-49"></a>    <span class="n">transport_config</span><span class="o">=</span><span class="n">MockConfig</span><span class="p">(),</span>
+<a id="__codelineno-9-50" name="__codelineno-9-50" href="#__codelineno-9-50"></a><span class="p">)</span>
+<a id="__codelineno-9-51" name="__codelineno-9-51" href="#__codelineno-9-51"></a>
+<a id="__codelineno-9-52" name="__codelineno-9-52" href="#__codelineno-9-52"></a><span class="c1"># ScouterInstrumentor is required when your profiles include TraceAssertionTask.</span>
+<a id="__codelineno-9-53" name="__codelineno-9-53" href="#__codelineno-9-53"></a><span class="c1"># For AssertionTask and LLMJudgeTask only, init_tracer alone is sufficient.</span>
+<a id="__codelineno-9-54" name="__codelineno-9-54" href="#__codelineno-9-54"></a><span class="n">instrumentor</span> <span class="o">=</span> <span class="n">ScouterInstrumentor</span><span class="p">()</span><span class="o">.</span><span class="n">instrument</span><span class="p">(</span><span class="n">scouter_queue</span><span class="o">=</span><span class="n">queue</span><span class="p">)</span>
+<a id="__codelineno-9-55" name="__codelineno-9-55" href="#__codelineno-9-55"></a>
+<a id="__codelineno-9-56" name="__codelineno-9-56" href="#__codelineno-9-56"></a><span class="n">tracer</span> <span class="o">=</span> <span class="n">init_tracer</span><span class="p">(</span><span class="n">service_name</span><span class="o">=</span><span class="s2">&quot;my-agent&quot;</span><span class="p">,</span> <span class="n">scouter_queue</span><span class="o">=</span><span class="n">queue</span><span class="p">)</span>
+<a id="__codelineno-9-57" name="__codelineno-9-57" href="#__codelineno-9-57"></a>
+<a id="__codelineno-9-58" name="__codelineno-9-58" href="#__codelineno-9-58"></a>
+<a id="__codelineno-9-59" name="__codelineno-9-59" href="#__codelineno-9-59"></a><span class="k">def</span><span class="w"> </span><span class="nf">retriever_callback</span><span class="p">(</span><span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<a id="__codelineno-9-60" name="__codelineno-9-60" href="#__codelineno-9-60"></a>    <span class="k">with</span> <span class="n">tracer</span><span class="o">.</span><span class="n">start_as_current_span</span><span class="p">(</span><span class="s2">&quot;retriever_call&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">span</span><span class="p">:</span>
+<a id="__codelineno-9-61" name="__codelineno-9-61" href="#__codelineno-9-61"></a>        <span class="n">results</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;count&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span> <span class="s2">&quot;source&quot;</span><span class="p">:</span> <span class="s2">&quot;internal_db&quot;</span><span class="p">}</span>
+<a id="__codelineno-9-62" name="__codelineno-9-62" href="#__codelineno-9-62"></a>        <span class="n">span</span><span class="o">.</span><span class="n">add_queue_item</span><span class="p">(</span><span class="s2">&quot;retriever&quot;</span><span class="p">,</span> <span class="n">EvalRecord</span><span class="p">(</span><span class="n">context</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;results&quot;</span><span class="p">:</span> <span class="n">results</span><span class="p">}))</span>
+<a id="__codelineno-9-63" name="__codelineno-9-63" href="#__codelineno-9-63"></a>    <span class="k">return</span> <span class="n">results</span>
+<a id="__codelineno-9-64" name="__codelineno-9-64" href="#__codelineno-9-64"></a>
+<a id="__codelineno-9-65" name="__codelineno-9-65" href="#__codelineno-9-65"></a>
+<a id="__codelineno-9-66" name="__codelineno-9-66" href="#__codelineno-9-66"></a><span class="k">def</span><span class="w"> </span><span class="nf">synthesizer_callback</span><span class="p">(</span><span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">context</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<a id="__codelineno-9-67" name="__codelineno-9-67" href="#__codelineno-9-67"></a>    <span class="k">with</span> <span class="n">tracer</span><span class="o">.</span><span class="n">start_as_current_span</span><span class="p">(</span><span class="s2">&quot;synthesizer_call&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">span</span><span class="p">:</span>
+<a id="__codelineno-9-68" name="__codelineno-9-68" href="#__codelineno-9-68"></a>        <span class="n">output</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;quality&quot;</span><span class="p">:</span> <span class="mi">9</span><span class="p">,</span> <span class="s2">&quot;text&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;Answer for: </span><span class="si">{</span><span class="n">query</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">}</span>
+<a id="__codelineno-9-69" name="__codelineno-9-69" href="#__codelineno-9-69"></a>        <span class="n">span</span><span class="o">.</span><span class="n">add_queue_item</span><span class="p">(</span><span class="s2">&quot;synthesizer&quot;</span><span class="p">,</span> <span class="n">EvalRecord</span><span class="p">(</span><span class="n">context</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;response&quot;</span><span class="p">:</span> <span class="n">output</span><span class="p">}))</span>
+<a id="__codelineno-9-70" name="__codelineno-9-70" href="#__codelineno-9-70"></a>    <span class="k">return</span> <span class="n">output</span>
+<a id="__codelineno-9-71" name="__codelineno-9-71" href="#__codelineno-9-71"></a>
+<a id="__codelineno-9-72" name="__codelineno-9-72" href="#__codelineno-9-72"></a>
+<a id="__codelineno-9-73" name="__codelineno-9-73" href="#__codelineno-9-73"></a><span class="k">def</span><span class="w"> </span><span class="nf">agent_fn</span><span class="p">(</span><span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<a id="__codelineno-9-74" name="__codelineno-9-74" href="#__codelineno-9-74"></a>    <span class="k">with</span> <span class="n">tracer</span><span class="o">.</span><span class="n">start_as_current_span</span><span class="p">(</span><span class="s2">&quot;orchestrator&quot;</span><span class="p">):</span>
+<a id="__codelineno-9-75" name="__codelineno-9-75" href="#__codelineno-9-75"></a>        <span class="n">retrieval</span> <span class="o">=</span> <span class="n">retriever_callback</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+<a id="__codelineno-9-76" name="__codelineno-9-76" href="#__codelineno-9-76"></a>        <span class="n">synthesis</span> <span class="o">=</span> <span class="n">synthesizer_callback</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">retrieval</span><span class="p">)</span>
+<a id="__codelineno-9-77" name="__codelineno-9-77" href="#__codelineno-9-77"></a>    <span class="k">return</span> <span class="n">synthesis</span><span class="p">[</span><span class="s2">&quot;text&quot;</span><span class="p">]</span>
+<a id="__codelineno-9-78" name="__codelineno-9-78" href="#__codelineno-9-78"></a>
+<a id="__codelineno-9-79" name="__codelineno-9-79" href="#__codelineno-9-79"></a>
+<a id="__codelineno-9-80" name="__codelineno-9-80" href="#__codelineno-9-80"></a><span class="n">scenarios</span> <span class="o">=</span> <span class="n">EvalScenarios</span><span class="p">(</span><span class="n">scenarios</span><span class="o">=</span><span class="p">[</span>
+<a id="__codelineno-9-81" name="__codelineno-9-81" href="#__codelineno-9-81"></a>    <span class="n">EvalScenario</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="s2">&quot;rag_basics&quot;</span><span class="p">,</span> <span class="n">initial_query</span><span class="o">=</span><span class="s2">&quot;What is RAG?&quot;</span><span class="p">),</span>
+<a id="__codelineno-9-82" name="__codelineno-9-82" href="#__codelineno-9-82"></a>    <span class="n">EvalScenario</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="s2">&quot;attention&quot;</span><span class="p">,</span> <span class="n">initial_query</span><span class="o">=</span><span class="s2">&quot;How does attention work?&quot;</span><span class="p">),</span>
+<a id="__codelineno-9-83" name="__codelineno-9-83" href="#__codelineno-9-83"></a><span class="p">])</span>
+<a id="__codelineno-9-84" name="__codelineno-9-84" href="#__codelineno-9-84"></a>
+<a id="__codelineno-9-85" name="__codelineno-9-85" href="#__codelineno-9-85"></a><span class="n">results</span> <span class="o">=</span> <span class="n">EvalOrchestrator</span><span class="p">(</span><span class="n">queue</span><span class="o">=</span><span class="n">queue</span><span class="p">,</span> <span class="n">scenarios</span><span class="o">=</span><span class="n">scenarios</span><span class="p">,</span> <span class="n">agent_fn</span><span class="o">=</span><span class="n">agent_fn</span><span class="p">)</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+<a id="__codelineno-9-86" name="__codelineno-9-86" href="#__codelineno-9-86"></a><span class="n">results</span><span class="o">.</span><span class="n">as_table</span><span class="p">()</span>
+<a id="__codelineno-9-87" name="__codelineno-9-87" href="#__codelineno-9-87"></a>
+<a id="__codelineno-9-88" name="__codelineno-9-88" href="#__codelineno-9-88"></a><span class="n">instrumentor</span><span class="o">.</span><span class="n">uninstrument</span><span class="p">()</span>
+</code></pre></div>
+<hr />
+<h2 id="multi-turn-scenarios">Multi-turn scenarios<a class="headerlink" href="#multi-turn-scenarios" title="Permanent link">&para;</a></h2>
+<p>Set <code>predefined_turns</code> with follow-up queries. The orchestrator calls <code>agent_fn</code> once for <code>initial_query</code>, then once per turn in order. The <strong>last response</strong> is used for scenario-level task evaluation.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="n">EvalScenario</span><span class="p">(</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    <span class="nb">id</span><span class="o">=</span><span class="s2">&quot;dinner_planning&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    <span class="n">initial_query</span><span class="o">=</span><span class="s2">&quot;Plan a dinner for 4 people.&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    <span class="n">predefined_turns</span><span class="o">=</span><span class="p">[</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>        <span class="s2">&quot;Make it vegetarian.&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>        <span class="s2">&quot;Add a dessert.&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>    <span class="p">],</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="p">)</span>
+</code></pre></div>
+<p><code>agent_fn</code> receives each query in isolation. No conversation history is managed automatically. For stateful agents, subclass <code>EvalOrchestrator</code> and override <code>execute_agent</code>.</p>
+<hr />
+<h2 id="interactive-scenarios">Interactive scenarios<a class="headerlink" href="#interactive-scenarios" title="Permanent link">&para;</a></h2>
+<p>Interactive scenarios let a simulated user drive the conversation instead of a fixed script. The agent runs in a loop: it receives a message, responds, and the simulated user decides whether to ask a follow-up or signal that it's done. This is how you evaluate agents that maintain session state across turns, where the quality of the final answer depends on the whole exchange rather than a single response.</p>
+<p>A scenario is interactive when <code>simulated_user_persona</code> or <code>termination_signal</code> is set — check <code>scenario.is_interactive()</code> if you need to branch on it yourself.</p>
+<h3 id="simple-case-simulated_user_fn">Simple case: <code>simulated_user_fn</code><a class="headerlink" href="#simple-case-simulated_user_fn" title="Permanent link">&para;</a></h3>
+<p>For stateless agents and simple user simulations, pass <code>simulated_user_fn</code> to the constructor. It receives <code>(initial_query, agent_response, history)</code> and returns the next user message. Return a string containing <code>termination_signal</code> to end the loop.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">simulate_user</span><span class="p">(</span><span class="n">initial_query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">agent_response</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">history</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>    <span class="c1"># Call your user-simulation LLM here.</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>    <span class="c1"># Return a string containing &quot;DONE&quot; to stop.</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>    <span class="o">...</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="n">scenarios</span> <span class="o">=</span> <span class="n">EvalScenarios</span><span class="p">(</span><span class="n">scenarios</span><span class="o">=</span><span class="p">[</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>    <span class="n">EvalScenario</span><span class="p">(</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>        <span class="nb">id</span><span class="o">=</span><span class="s2">&quot;dinner_planning_interactive&quot;</span><span class="p">,</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>        <span class="n">initial_query</span><span class="o">=</span><span class="s2">&quot;Plan a dinner for 4 people.&quot;</span><span class="p">,</span>
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>        <span class="n">termination_signal</span><span class="o">=</span><span class="s2">&quot;DONE&quot;</span><span class="p">,</span>
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>        <span class="n">max_turns</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span>
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>    <span class="p">),</span>
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="p">])</span>
+<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>
+<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a><span class="n">results</span> <span class="o">=</span> <span class="n">EvalOrchestrator</span><span class="p">(</span>
+<a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a>    <span class="n">queue</span><span class="o">=</span><span class="n">queue</span><span class="p">,</span>
+<a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a>    <span class="n">scenarios</span><span class="o">=</span><span class="n">scenarios</span><span class="p">,</span>
+<a id="__codelineno-11-18" name="__codelineno-11-18" href="#__codelineno-11-18"></a>    <span class="n">agent_fn</span><span class="o">=</span><span class="n">my_agent</span><span class="p">,</span>
+<a id="__codelineno-11-19" name="__codelineno-11-19" href="#__codelineno-11-19"></a>    <span class="n">simulated_user_fn</span><span class="o">=</span><span class="n">simulate_user</span><span class="p">,</span>
+<a id="__codelineno-11-20" name="__codelineno-11-20" href="#__codelineno-11-20"></a><span class="p">)</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+</code></pre></div>
+<p><code>history</code> is a list of <code>{"user": ..., "agent": ...}</code> dicts for all exchanges that preceded the current response — ordered oldest-first. It's empty on the first call. Use it when satisfaction depends on the cumulative conversation rather than any single reply.</p>
+<h3 id="stateful-agents-subclassing">Stateful agents: subclassing<a class="headerlink" href="#stateful-agents-subclassing" title="Permanent link">&para;</a></h3>
+<p>If your agent needs its own session (framework runners, async clients, persistent context), subclass and override <code>execute_agent_turn</code> and <code>execute_simulated_user_turn</code>. The <code>simulated_user_fn</code> shortcut is just a wrapper around <code>execute_simulated_user_turn</code> — override the method directly if you need more control.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyInteractiveEval</span><span class="p">(</span><span class="n">EvalOrchestrator</span><span class="p">):</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">on_scenario_start</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scenario</span><span class="p">:</span> <span class="n">EvalScenario</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>        <span class="c1"># Create a fresh session per scenario so state doesn&#39;t bleed between runs.</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_session_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_session_service</span><span class="o">.</span><span class="n">create</span><span class="p">()</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">execute_agent_turn</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scenario</span><span class="p">:</span> <span class="n">EvalScenario</span><span class="p">,</span> <span class="n">message</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>        <span class="c1"># Called once per turn. The agent manages its own history internally.</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_agent_client</span><span class="o">.</span><span class="n">chat</span><span class="p">(</span><span class="n">message</span><span class="p">,</span> <span class="n">session_id</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_session_id</span><span class="p">)</span>
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">execute_simulated_user_turn</span><span class="p">(</span>
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>        <span class="bp">self</span><span class="p">,</span>
+<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a>        <span class="n">scenario</span><span class="p">:</span> <span class="n">EvalScenario</span><span class="p">,</span>
+<a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a>        <span class="n">initial_query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a>        <span class="n">agent_response</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a>        <span class="n">history</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span>
+<a id="__codelineno-12-16" name="__codelineno-12-16" href="#__codelineno-12-16"></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<a id="__codelineno-12-17" name="__codelineno-12-17" href="#__codelineno-12-17"></a>        <span class="c1"># Return a string containing termination_signal to stop.</span>
+<a id="__codelineno-12-18" name="__codelineno-12-18" href="#__codelineno-12-18"></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_user_llm</span><span class="o">.</span><span class="n">respond</span><span class="p">(</span><span class="n">initial_query</span><span class="p">,</span> <span class="n">agent_response</span><span class="p">,</span> <span class="n">history</span><span class="p">)</span>
+</code></pre></div>
+<p><code>on_scenario_start</code> is the right place to create per-scenario session state — it fires before <code>execute_agent_turn</code> is called for the first time.</p>
+<h3 id="record-collection">Record collection<a class="headerlink" href="#record-collection" title="Permanent link">&para;</a></h3>
+<p>Records are drained once at the end of the loop, not per-turn. This means all <code>EvalRecord</code>s emitted across every turn are evaluated together as a single dataset for the scenario. Don't expect per-turn granularity in the results — if you need that, emit records with structured context that carries turn information.</p>
+<h3 id="max_turns-and-termination"><code>max_turns</code> and termination<a class="headerlink" href="#max_turns-and-termination" title="Permanent link">&para;</a></h3>
+<p>The loop stops when either <code>termination_signal</code> appears in the simulated user's response or <code>max_turns</code> is reached. The scenario-level tasks run against the <strong>last agent response</strong>, regardless of which condition ended the loop.</p>
+<p>If <code>termination_signal</code> is <code>None</code>, the loop always runs for <code>max_turns</code> iterations. Default is 10.</p>
+<hr />
+<h2 id="loading-scenarios-from-a-file">Loading scenarios from a file<a class="headerlink" href="#loading-scenarios-from-a-file" title="Permanent link">&para;</a></h2>
+<p>If your test scenarios live in a file (checked into source control, generated by a pipeline, or maintained by a separate team), use <code>EvalScenarios.from_path()</code> instead of building the list in Python:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="n">scenarios</span> <span class="o">=</span> <span class="n">EvalScenarios</span><span class="o">.</span><span class="n">from_path</span><span class="p">(</span><span class="s2">&quot;scenarios/qa_suite.jsonl&quot;</span><span class="p">)</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="n">results</span> <span class="o">=</span> <span class="n">EvalOrchestrator</span><span class="p">(</span><span class="n">queue</span><span class="o">=</span><span class="n">queue</span><span class="p">,</span> <span class="n">scenarios</span><span class="o">=</span><span class="n">scenarios</span><span class="p">,</span> <span class="n">agent_fn</span><span class="o">=</span><span class="n">my_agent</span><span class="p">)</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="n">results</span><span class="o">.</span><span class="n">as_table</span><span class="p">()</span>
+</code></pre></div>
+<p>Supported formats: <code>.jsonl</code>, <code>.json</code>, <code>.yaml</code>, <code>.yml</code>. The method raises on anything else.</p>
+<h3 id="jsonl">JSONL<a class="headerlink" href="#jsonl" title="Permanent link">&para;</a></h3>
+<p>One scenario per line. Use this for large test suites or when your CI pipeline generates scenarios dynamically — it's streamable and easy to append to without loading the whole file.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>{&quot;id&quot;: &quot;capital_france&quot;, &quot;initial_query&quot;: &quot;What is the capital of France?&quot;, &quot;expected_outcome&quot;: &quot;Paris&quot;, &quot;tasks&quot;: [{&quot;task_type&quot;: &quot;Assertion&quot;, &quot;id&quot;: &quot;mentions_paris&quot;, &quot;context_path&quot;: &quot;response&quot;, &quot;operator&quot;: &quot;Contains&quot;, &quot;expected_value&quot;: &quot;Paris&quot;}]}
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>{&quot;id&quot;: &quot;water_formula&quot;, &quot;initial_query&quot;: &quot;What is the chemical formula for water?&quot;, &quot;expected_outcome&quot;: &quot;H2O&quot;, &quot;tasks&quot;: [{&quot;task_type&quot;: &quot;Assertion&quot;, &quot;id&quot;: &quot;mentions_h2o&quot;, &quot;context_path&quot;: &quot;response&quot;, &quot;operator&quot;: &quot;Contains&quot;, &quot;expected_value&quot;: &quot;H2O&quot;}]}
+</code></pre></div>
+<p>Tasks in files use a flat array with a <code>task_type</code> discriminator — <code>"Assertion"</code>, <code>"LLMJudge"</code>, or <code>"TraceAssertion"</code>. The fields match what you'd pass to the Python constructors.</p>
+<p>Parse errors include a line number: <code>"parse error on line 3: ..."</code>. Empty lines are skipped.</p>
+<p>The <code>collection_id</code> on the resulting <code>EvalScenarios</code> is always auto-generated for JSONL — any <code>collection_id</code> field in the file is ignored. If you need a stable collection ID across runs, use JSON or YAML with the wrapped format.</p>
+<h3 id="json">JSON<a class="headerlink" href="#json" title="Permanent link">&para;</a></h3>
+<p>Two formats are accepted.</p>
+<p><strong>Bare array</strong> — simplest option:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="p">[</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="p">{</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">    </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;capital_france&quot;</span><span class="p">,</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">    </span><span class="nt">&quot;initial_query&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;What is the capital of France?&quot;</span><span class="p">,</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="w">    </span><span class="nt">&quot;tasks&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="w">      </span><span class="p">{</span>
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="w">        </span><span class="nt">&quot;task_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Assertion&quot;</span><span class="p">,</span>
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="w">        </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;mentions_paris&quot;</span><span class="p">,</span>
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="w">        </span><span class="nt">&quot;context_path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;response&quot;</span><span class="p">,</span>
+<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="w">        </span><span class="nt">&quot;operator&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Contains&quot;</span><span class="p">,</span>
+<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a><span class="w">        </span><span class="nt">&quot;expected_value&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Paris&quot;</span>
+<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a><span class="w">      </span><span class="p">}</span>
+<a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a><span class="w">    </span><span class="p">]</span>
+<a id="__codelineno-15-14" name="__codelineno-15-14" href="#__codelineno-15-14"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-15-15" name="__codelineno-15-15" href="#__codelineno-15-15"></a><span class="p">]</span>
+</code></pre></div>
+<p><strong>Wrapped with <code>collection_id</code></strong> — use this when you need a stable ID to correlate runs across time:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="p">{</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span><span class="nt">&quot;collection_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;my-qa-suite-v2&quot;</span><span class="p">,</span>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">  </span><span class="nt">&quot;scenarios&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="w">      </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;capital_france&quot;</span><span class="p">,</span>
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="w">      </span><span class="nt">&quot;initial_query&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;What is the capital of France?&quot;</span>
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a><span class="p">}</span>
+</code></pre></div>
+<p>JSON also accepts the output of <code>model_dump_json()</code> directly, so you can save a run and reload it for re-evaluation or diffing.</p>
+<h3 id="yaml">YAML<a class="headerlink" href="#yaml" title="Permanent link">&para;</a></h3>
+<p>Same two formats as JSON — bare array or wrapped with <code>collection_id</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nt">collection_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-qa-suite-v2</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="nt">scenarios</span><span class="p">:</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">capital_france</span>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="w">    </span><span class="nt">initial_query</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">What is the capital of France?</span>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="w">    </span><span class="nt">expected_outcome</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Paris</span>
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="w">    </span><span class="nt">tasks</span><span class="p">:</span>
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">task_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Assertion</span>
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="w">        </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mentions_paris</span>
+<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a><span class="w">        </span><span class="nt">context_path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">response</span>
+<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a><span class="w">        </span><span class="nt">operator</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Contains</span>
+<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a><span class="w">        </span><span class="nt">expected_value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Paris</span>
+<a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">water_formula</span>
+<a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a><span class="w">    </span><span class="nt">initial_query</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">What is the chemical formula for water?</span>
+</code></pre></div>
+<h3 id="scenario-fields">Scenario fields<a class="headerlink" href="#scenario-fields" title="Permanent link">&para;</a></h3>
+<p>All <code>EvalScenario</code> fields are supported in files. <code>id</code> is auto-generated if omitted.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td><code>string</code></td>
+<td>auto UUID</td>
+<td>Stable ID for regression tracking</td>
+</tr>
+<tr>
+<td><code>initial_query</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>First prompt sent to your agent</td>
+</tr>
+<tr>
+<td><code>predefined_turns</code></td>
+<td><code>string[]</code></td>
+<td><code>[]</code></td>
+<td>Follow-up queries for multi-turn scenarios</td>
+</tr>
+<tr>
+<td><code>expected_outcome</code></td>
+<td><code>string</code></td>
+<td>—</td>
+<td>Available as <code>${expected_outcome}</code> in task templates</td>
+</tr>
+<tr>
+<td><code>simulated_user_persona</code></td>
+<td><code>string</code></td>
+<td>—</td>
+<td>For simulated multi-turn agents</td>
+</tr>
+<tr>
+<td><code>termination_signal</code></td>
+<td><code>string</code></td>
+<td>—</td>
+<td>Signal to stop a simulated multi-turn run</td>
+</tr>
+<tr>
+<td><code>max_turns</code></td>
+<td><code>int</code></td>
+<td><code>10</code></td>
+<td>Max turns for simulated agents</td>
+</tr>
+<tr>
+<td><code>tasks</code></td>
+<td><code>task[]</code></td>
+<td><code>[]</code></td>
+<td>Scenario-level tasks (flat array with <code>task_type</code>)</td>
+</tr>
+<tr>
+<td><code>metadata</code></td>
+<td><code>object</code></td>
+<td>—</td>
+<td>Arbitrary key-value data, not used by the evaluator</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="subclassing-evalorchestrator">Subclassing <code>EvalOrchestrator</code><a class="headerlink" href="#subclassing-evalorchestrator" title="Permanent link">&para;</a></h2>
+<p>Use <code>agent_fn</code> / <code>simulated_user_fn</code> for simple synchronous agents. Subclass when you need async execution, framework runners, or per-scenario session setup.</p>
+<p>There are two overridable execution methods depending on scenario type:</p>
+<ul>
+<li><code>execute_agent(scenario)</code> — called for non-interactive scenarios (predefined turns or single-turn). Receives the full scenario and is responsible for all turns.</li>
+<li><code>execute_agent_turn(scenario, message)</code> — called once per turn in interactive scenarios. Use this when your agent maintains its own session state and just needs to receive the next message.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="c1"># Non-interactive: manage predefined turns yourself</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyAgentEval</span><span class="p">(</span><span class="n">EvalOrchestrator</span><span class="p">):</span>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">execute_agent</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scenario</span><span class="p">:</span> <span class="n">EvalScenario</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>        <span class="n">history</span> <span class="o">=</span> <span class="p">[]</span>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>        <span class="n">response</span> <span class="o">=</span> <span class="n">my_stateful_agent</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">scenario</span><span class="o">.</span><span class="n">initial_query</span><span class="p">,</span> <span class="n">history</span><span class="o">=</span><span class="n">history</span><span class="p">)</span>
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>        <span class="n">history</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="n">scenario</span><span class="o">.</span><span class="n">initial_query</span><span class="p">})</span>
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a>        <span class="n">history</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;assistant&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="n">response</span><span class="p">})</span>
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a>        <span class="k">for</span> <span class="n">turn</span> <span class="ow">in</span> <span class="n">scenario</span><span class="o">.</span><span class="n">predefined_turns</span><span class="p">:</span>
+<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a>            <span class="n">response</span> <span class="o">=</span> <span class="n">my_stateful_agent</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">turn</span><span class="p">,</span> <span class="n">history</span><span class="o">=</span><span class="n">history</span><span class="p">)</span>
+<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a>            <span class="n">history</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="n">turn</span><span class="p">})</span>
+<a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a>            <span class="n">history</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;assistant&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="n">response</span><span class="p">})</span>
+<a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a>
+<a id="__codelineno-18-14" name="__codelineno-18-14" href="#__codelineno-18-14"></a>        <span class="k">return</span> <span class="n">response</span>
+<a id="__codelineno-18-15" name="__codelineno-18-15" href="#__codelineno-18-15"></a>
+<a id="__codelineno-18-16" name="__codelineno-18-16" href="#__codelineno-18-16"></a>
+<a id="__codelineno-18-17" name="__codelineno-18-17" href="#__codelineno-18-17"></a><span class="c1"># Interactive: agent receives one message at a time, manages its own history</span>
+<a id="__codelineno-18-18" name="__codelineno-18-18" href="#__codelineno-18-18"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyInteractiveEval</span><span class="p">(</span><span class="n">EvalOrchestrator</span><span class="p">):</span>
+<a id="__codelineno-18-19" name="__codelineno-18-19" href="#__codelineno-18-19"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">on_scenario_start</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scenario</span><span class="p">:</span> <span class="n">EvalScenario</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-18-20" name="__codelineno-18-20" href="#__codelineno-18-20"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_session_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_session_service</span><span class="o">.</span><span class="n">create</span><span class="p">()</span>
+<a id="__codelineno-18-21" name="__codelineno-18-21" href="#__codelineno-18-21"></a>
+<a id="__codelineno-18-22" name="__codelineno-18-22" href="#__codelineno-18-22"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">execute_agent_turn</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scenario</span><span class="p">:</span> <span class="n">EvalScenario</span><span class="p">,</span> <span class="n">message</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<a id="__codelineno-18-23" name="__codelineno-18-23" href="#__codelineno-18-23"></a>        <span class="k">return</span> <span class="n">my_stateful_agent</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">message</span><span class="p">,</span> <span class="n">session_id</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_session_id</span><span class="p">)</span>
+<a id="__codelineno-18-24" name="__codelineno-18-24" href="#__codelineno-18-24"></a>
+<a id="__codelineno-18-25" name="__codelineno-18-25" href="#__codelineno-18-25"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">execute_simulated_user_turn</span><span class="p">(</span>
+<a id="__codelineno-18-26" name="__codelineno-18-26" href="#__codelineno-18-26"></a>        <span class="bp">self</span><span class="p">,</span>
+<a id="__codelineno-18-27" name="__codelineno-18-27" href="#__codelineno-18-27"></a>        <span class="n">scenario</span><span class="p">:</span> <span class="n">EvalScenario</span><span class="p">,</span>
+<a id="__codelineno-18-28" name="__codelineno-18-28" href="#__codelineno-18-28"></a>        <span class="n">initial_query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-18-29" name="__codelineno-18-29" href="#__codelineno-18-29"></a>        <span class="n">agent_response</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<a id="__codelineno-18-30" name="__codelineno-18-30" href="#__codelineno-18-30"></a>        <span class="n">history</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span>
+<a id="__codelineno-18-31" name="__codelineno-18-31" href="#__codelineno-18-31"></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<a id="__codelineno-18-32" name="__codelineno-18-32" href="#__codelineno-18-32"></a>        <span class="k">return</span> <span class="n">my_user_llm</span><span class="o">.</span><span class="n">respond</span><span class="p">(</span><span class="n">initial_query</span><span class="p">,</span> <span class="n">agent_response</span><span class="p">,</span> <span class="n">history</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="lifecycle-hooks">Lifecycle hooks<a class="headerlink" href="#lifecycle-hooks" title="Permanent link">&para;</a></h3>
+<p>Override these to add logging or post-processing without touching core execution:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyEval</span><span class="p">(</span><span class="n">EvalOrchestrator</span><span class="p">):</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">on_scenario_start</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scenario</span><span class="p">:</span> <span class="n">EvalScenario</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Starting: </span><span class="si">{</span><span class="n">scenario</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">on_scenario_complete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scenario</span><span class="p">:</span> <span class="n">EvalScenario</span><span class="p">,</span> <span class="n">response</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Done: </span><span class="si">{</span><span class="n">scenario</span><span class="o">.</span><span class="n">id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>
+<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">on_evaluation_complete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">results</span><span class="p">:</span> <span class="n">ScenarioEvalResults</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ScenarioEvalResults</span><span class="p">:</span>
+<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a>        <span class="n">results</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;latest_run.json&quot;</span><span class="p">)</span>
+<a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a>        <span class="k">return</span> <span class="n">results</span>
+</code></pre></div>
+<p>Hook order per scenario: <code>on_scenario_start</code> → execution → <code>on_scenario_complete</code>. For interactive scenarios, <code>on_scenario_start</code> fires before the first turn — use it to initialize per-scenario state like session IDs. <code>on_evaluation_complete</code> fires once after all scenarios finish.</p>
+<hr />
+<h2 id="structured-and-transformed-responses">Structured and transformed responses<a class="headerlink" href="#structured-and-transformed-responses" title="Permanent link">&para;</a></h2>
+<p><code>execute_agent</code> and <code>execute_agent_turn</code> return <code>Any</code> — not just <code>str</code>. You can return a dict, list, number, Pydantic model, or any JSON-serializable value. Whatever you return lands in the scenario context under <code>"response"</code>, and <code>context_path</code> expressions navigate into it normally.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">StructuredAgent</span><span class="p">(</span><span class="n">EvalOrchestrator</span><span class="p">):</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">execute_agent</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scenario</span><span class="p">:</span> <span class="n">EvalScenario</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;answer&quot;</span><span class="p">:</span> <span class="s2">&quot;Paris&quot;</span><span class="p">,</span> <span class="s2">&quot;confidence&quot;</span><span class="p">:</span> <span class="mf">0.97</span><span class="p">,</span> <span class="s2">&quot;sources&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;wiki&quot;</span><span class="p">]}</span>
+</code></pre></div>
+<p>With scenario tasks using <code>context_path = "response.confidence"</code>, the evaluator will see <code>0.97</code> directly — no manual serialization needed.</p>
+<h3 id="build_scenario_response"><code>build_scenario_response</code><a class="headerlink" href="#build_scenario_response" title="Permanent link">&para;</a></h3>
+<p>By default, whatever <code>execute_agent</code> or <code>execute_agent_turn</code> returns is passed straight to the evaluator. Override <code>build_scenario_response</code> when you want to transform or replace that value before evaluation — for example, to post-process the response, inject metadata, or for interactive scenarios, build an evaluation context from the full conversation history rather than just the final reply.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">build_scenario_response</span><span class="p">(</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>    <span class="bp">self</span><span class="p">,</span>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>    <span class="n">scenario</span><span class="p">:</span> <span class="n">EvalScenario</span><span class="p">,</span>
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>    <span class="n">response</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>    <span class="n">history</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span>
+<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a>    <span class="k">return</span> <span class="n">response</span>  <span class="c1"># default: pass through unchanged</span>
+</code></pre></div>
+<p><code>history</code> is a list of <code>{"user": str, "agent": Any}</code> dicts for all turns. For non-interactive scenarios it's always <code>[]</code>. For interactive scenarios it contains every turn up to (but not including) the final agent response.</p>
+<p><strong>Example: evaluate conversation quality instead of the final reply</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">ConversationEval</span><span class="p">(</span><span class="n">EvalOrchestrator</span><span class="p">):</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">execute_agent_turn</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scenario</span><span class="p">:</span> <span class="n">EvalScenario</span><span class="p">,</span> <span class="n">message</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>        <span class="k">return</span> <span class="n">my_agent</span><span class="o">.</span><span class="n">chat</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a>
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">execute_simulated_user_turn</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scenario</span><span class="p">,</span> <span class="n">initial_query</span><span class="p">,</span> <span class="n">agent_response</span><span class="p">,</span> <span class="n">history</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a>        <span class="k">return</span> <span class="n">my_user_llm</span><span class="o">.</span><span class="n">respond</span><span class="p">(</span><span class="n">initial_query</span><span class="p">,</span> <span class="n">agent_response</span><span class="p">,</span> <span class="n">history</span><span class="p">)</span>
+<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a>
+<a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">build_scenario_response</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scenario</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="n">history</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a>        <span class="k">return</span> <span class="p">{</span>
+<a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a>            <span class="s2">&quot;final_response&quot;</span><span class="p">:</span> <span class="n">response</span><span class="p">,</span>
+<a id="__codelineno-22-11" name="__codelineno-22-11" href="#__codelineno-22-11"></a>            <span class="s2">&quot;turn_count&quot;</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">history</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-22-12" name="__codelineno-22-12" href="#__codelineno-22-12"></a>            <span class="s2">&quot;all_turns&quot;</span><span class="p">:</span> <span class="n">history</span> <span class="o">+</span> <span class="p">[{</span><span class="s2">&quot;user&quot;</span><span class="p">:</span> <span class="s2">&quot;...&quot;</span><span class="p">,</span> <span class="s2">&quot;agent&quot;</span><span class="p">:</span> <span class="n">response</span><span class="p">}],</span>
+<a id="__codelineno-22-13" name="__codelineno-22-13" href="#__codelineno-22-13"></a>        <span class="p">}</span>
+</code></pre></div>
+<p>Scenario tasks can then use <code>context_path = "response.turn_count"</code> or <code>context_path = "response.final_response"</code>. An LLM judge task could receive the entire <code>"response"</code> object and evaluate the full arc of the conversation.</p>
+<hr />
+<h2 id="saving-loading-and-comparing-results">Saving, loading, and comparing results<a class="headerlink" href="#saving-loading-and-comparing-results" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="c1"># Save a baseline</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="n">results</span> <span class="o">=</span> <span class="n">orch</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="n">results</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;baseline_v1.json&quot;</span><span class="p">)</span>
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a><span class="c1"># Later — compare a new run against it</span>
+<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a><span class="n">baseline</span> <span class="o">=</span> <span class="n">ScenarioEvalResults</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;baseline_v1.json&quot;</span><span class="p">)</span>
+<a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a><span class="n">new_results</span> <span class="o">=</span> <span class="n">orch</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+<a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a>
+<a id="__codelineno-23-9" name="__codelineno-23-9" href="#__codelineno-23-9"></a><span class="n">comparison</span> <span class="o">=</span> <span class="n">new_results</span><span class="o">.</span><span class="n">compare_to</span><span class="p">(</span><span class="n">baseline</span><span class="p">,</span> <span class="n">regression_threshold</span><span class="o">=</span><span class="mf">0.05</span><span class="p">)</span>
+<a id="__codelineno-23-10" name="__codelineno-23-10" href="#__codelineno-23-10"></a><span class="n">comparison</span><span class="o">.</span><span class="n">as_table</span><span class="p">()</span>
+<a id="__codelineno-23-11" name="__codelineno-23-11" href="#__codelineno-23-11"></a>
+<a id="__codelineno-23-12" name="__codelineno-23-12" href="#__codelineno-23-12"></a><span class="k">if</span> <span class="n">comparison</span><span class="o">.</span><span class="n">regressed</span><span class="p">:</span>
+<a id="__codelineno-23-13" name="__codelineno-23-13" href="#__codelineno-23-13"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Regressed: </span><span class="si">{</span><span class="n">comparison</span><span class="o">.</span><span class="n">regressed_aliases</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-23-14" name="__codelineno-23-14" href="#__codelineno-23-14"></a>    <span class="k">raise</span> <span class="ne">SystemExit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+</code></pre></div>
+<p><code>regression_threshold</code> is the minimum pass-rate drop (0–1) that counts as a regression. Default is <code>0.05</code>.</p>
+<p><code>ScenarioComparisonResults</code> also serializes:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="n">comparison</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;comparison.json&quot;</span><span class="p">)</span>
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="n">loaded</span> <span class="o">=</span> <span class="n">ScenarioComparisonResults</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;comparison.json&quot;</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="scenarioevalresults-reference"><code>ScenarioEvalResults</code> reference<a class="headerlink" href="#scenarioevalresults-reference" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>metrics.overall_pass_rate</code></td>
+<td><code>float</code></td>
+<td>Mean pass rate across all datasets + scenario level (0–1)</td>
+</tr>
+<tr>
+<td><code>metrics.workflow_pass_rate</code></td>
+<td><code>float</code></td>
+<td>Mean pass rate across sub-agent profile evaluations</td>
+</tr>
+<tr>
+<td><code>metrics.dataset_pass_rates</code></td>
+<td><code>Dict[str, float]</code></td>
+<td>Per-alias pass rate, e.g. <code>{"retriever": 0.9}</code></td>
+</tr>
+<tr>
+<td><code>metrics.scenario_pass_rate</code></td>
+<td><code>float</code></td>
+<td>Fraction of scenarios where all tasks passed</td>
+</tr>
+<tr>
+<td><code>metrics.total_scenarios</code></td>
+<td><code>int</code></td>
+<td>Total scenarios evaluated</td>
+</tr>
+<tr>
+<td><code>metrics.passed_scenarios</code></td>
+<td><code>int</code></td>
+<td>Scenarios where every task passed</td>
+</tr>
+<tr>
+<td><code>dataset_results</code></td>
+<td><code>Dict[str, EvalResults]</code></td>
+<td>Full per-alias evaluation results</td>
+</tr>
+<tr>
+<td><code>scenario_results</code></td>
+<td><code>List[ScenarioResult]</code></td>
+<td>Per-scenario task results</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="n">results</span><span class="o">.</span><span class="n">as_table</span><span class="p">()</span>
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="n">results</span><span class="o">.</span><span class="n">as_table</span><span class="p">(</span><span class="n">show_workflow</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># include the Workflow Summary table</span>
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="n">detail</span> <span class="o">=</span> <span class="n">results</span><span class="o">.</span><span class="n">get_scenario_detail</span><span class="p">(</span><span class="s2">&quot;rag_basics&quot;</span><span class="p">)</span>
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">detail</span><span class="o">.</span><span class="n">pass_rate</span><span class="p">)</span>
+<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a><span class="nb">print</span><span class="p">(</span><span class="n">detail</span><span class="o">.</span><span class="n">passed</span><span class="p">)</span>
+</code></pre></div>
+<p>For a full explanation of what each table shows, see <a href="../reading-results/">Reading your results</a>.</p>
+<hr />
+<h2 id="working-with-pre-generated-records">Working with pre-generated records<a class="headerlink" href="#working-with-pre-generated-records" title="Permanent link">&para;</a></h2>
+<p>If you have records from a previous run or a separate data pipeline (no live agent needed), use <code>EvalDataset</code> instead. It takes <code>EvalRecord</code> objects directly alongside evaluation tasks.</p>
+<p>→ <a href="../eval-dataset/">EvalDataset reference</a></p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["content.code.annotate", "content.code.copy", "announce.dismiss", "navigation.path", "navigation.sections", "navigation.top", "navigation.tabs", "navigation.tracking", "search.suggest", "toc.follow"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../../javascripts/mathjax.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>
