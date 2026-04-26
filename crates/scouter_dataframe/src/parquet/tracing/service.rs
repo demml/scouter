@@ -646,7 +646,7 @@ mod tests {
 
         let metrics = service
             .query_service
-            .get_trace_metrics(None, start, end, "hour", None, None)
+            .get_trace_metrics(None, start, end, "hour", None, None, None, None)
             .await?;
 
         assert!(!metrics.is_empty(), "Expected at least one metric bucket");
@@ -695,13 +695,31 @@ mod tests {
         // Filter to service_alpha only
         let metrics_alpha = service
             .query_service
-            .get_trace_metrics(Some("service_alpha"), start, end, "hour", None, None)
+            .get_trace_metrics(
+                Some("service_alpha"),
+                start,
+                end,
+                "hour",
+                None,
+                None,
+                None,
+                None,
+            )
             .await?;
 
         // Filter to service_beta only
         let metrics_beta = service
             .query_service
-            .get_trace_metrics(Some("service_beta"), start, end, "hour", None, None)
+            .get_trace_metrics(
+                Some("service_beta"),
+                start,
+                end,
+                "hour",
+                None,
+                None,
+                None,
+                None,
+            )
             .await?;
 
         let alpha_count: i64 = metrics_alpha.iter().map(|m| m.trace_count).sum();
@@ -713,7 +731,16 @@ mod tests {
         // Querying with a non-existent service returns nothing
         let metrics_none = service
             .query_service
-            .get_trace_metrics(Some("nonexistent_svc"), start, end, "hour", None, None)
+            .get_trace_metrics(
+                Some("nonexistent_svc"),
+                start,
+                end,
+                "hour",
+                None,
+                None,
+                None,
+                None,
+            )
             .await?;
         assert!(
             metrics_none.is_empty(),
@@ -898,7 +925,16 @@ mod tests {
         // With filter, only kafka trace should appear
         let filtered = service
             .query_service
-            .get_trace_metrics(None, start, end, "hour", Some(&kafka_filter), None)
+            .get_trace_metrics(
+                None,
+                start,
+                end,
+                "hour",
+                Some(&kafka_filter),
+                None,
+                None,
+                None,
+            )
             .await?;
 
         let filtered_count: i64 = filtered.iter().map(|m| m.trace_count).sum();
@@ -910,7 +946,7 @@ mod tests {
         // Without filter, both traces appear
         let unfiltered = service
             .query_service
-            .get_trace_metrics(None, start, end, "hour", None, None)
+            .get_trace_metrics(None, start, end, "hour", None, None, None, None)
             .await?;
         let unfiltered_count: i64 = unfiltered.iter().map(|m| m.trace_count).sum();
         assert!(
@@ -1026,7 +1062,7 @@ mod tests {
 
         let trace_metrics = service
             .query_service
-            .get_trace_metrics(None, start, end, "hour", None, None)
+            .get_trace_metrics(None, start, end, "hour", None, None, None, None)
             .await?;
         let total_traces: i64 = trace_metrics.iter().map(|m| m.trace_count).sum();
         assert_eq!(total_traces, 2, "Expected 2 traces (both plain + genai)");

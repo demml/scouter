@@ -990,12 +990,24 @@ pub struct TraceMetricsRequest {
     pub bucket_interval: String,
     pub attribute_filters: Option<Vec<String>>,
     pub entity_uid: Option<String>,
+    pub duration_min_ms: Option<i64>,
+    pub duration_max_ms: Option<i64>,
 }
 
 #[pymethods]
+#[allow(clippy::too_many_arguments)]
 impl TraceMetricsRequest {
     #[new]
-    #[pyo3(signature = (start_time, end_time, bucket_interval,service_name=None, attribute_filters=None, entity_uid=None))]
+    #[pyo3(signature = (
+        start_time,
+        end_time,
+        bucket_interval,
+        service_name=None,
+        attribute_filters=None,
+        entity_uid=None,
+        duration_min_ms=None,
+        duration_max_ms=None
+    ))]
     pub fn new(
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
@@ -1003,6 +1015,8 @@ impl TraceMetricsRequest {
         service_name: Option<String>,
         attribute_filters: Option<Vec<String>>,
         entity_uid: Option<String>,
+        duration_min_ms: Option<i64>,
+        duration_max_ms: Option<i64>,
     ) -> Self {
         TraceMetricsRequest {
             service_name,
@@ -1011,6 +1025,8 @@ impl TraceMetricsRequest {
             bucket_interval,
             attribute_filters,
             entity_uid,
+            duration_min_ms,
+            duration_max_ms,
         }
     }
 }

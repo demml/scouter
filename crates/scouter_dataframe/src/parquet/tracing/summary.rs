@@ -820,6 +820,14 @@ impl TraceSummaryQueries {
                 "_queue_ids_raw",
             ])?;
 
+        // ── Duration range — applied after the post-aggregate `duration_ms` is materialized ──
+        if let Some(min_ms) = filters.duration_min_ms {
+            df = df.filter(col(DURATION_MS_COL).gt_eq(lit(min_ms)))?;
+        }
+        if let Some(max_ms) = filters.duration_max_ms {
+            df = df.filter(col(DURATION_MS_COL).lt_eq(lit(max_ms)))?;
+        }
+
         // ── Secondary filters ────────────────────────────────────────────────
         if let Some(ref svc) = filters.service_name {
             df = df.filter(col(SERVICE_NAME_COL).eq(lit(svc.as_str())))?;
@@ -1460,6 +1468,8 @@ mod tests {
             trace_ids: None,
             entity_uid: None,
             queue_uid: None,
+            duration_min_ms: None,
+            duration_max_ms: None,
         };
 
         let response = service.query_service.get_paginated_traces(&filters).await?;
@@ -1509,6 +1519,8 @@ mod tests {
             trace_ids: None,
             entity_uid: None,
             queue_uid: None,
+            duration_min_ms: None,
+            duration_max_ms: None,
         };
 
         // has_errors = true → only error trace
@@ -1586,6 +1598,8 @@ mod tests {
             trace_ids: None,
             entity_uid: None,
             queue_uid: None,
+            duration_min_ms: None,
+            duration_max_ms: None,
         };
 
         let response = service.query_service.get_paginated_traces(&filters).await?;
@@ -1641,6 +1655,8 @@ mod tests {
             trace_ids: Some(vec![wanted_id.to_hex()]),
             entity_uid: None,
             queue_uid: None,
+            duration_min_ms: None,
+            duration_max_ms: None,
         };
 
         let response = service.query_service.get_paginated_traces(&filters).await?;
@@ -2000,6 +2016,8 @@ mod tests {
             trace_ids: Some(vec![TraceId::from_bytes([9u8; 16]).to_hex()]),
             entity_uid: None,
             queue_uid: None,
+            duration_min_ms: None,
+            duration_max_ms: None,
         };
 
         let response = service.query_service.get_paginated_traces(&filters).await?;
@@ -2158,6 +2176,8 @@ mod tests {
             trace_ids: None,
             entity_uid: None,
             queue_uid: None,
+            duration_min_ms: None,
+            duration_max_ms: None,
         };
 
         let response = reader.query_service.get_paginated_traces(&filters).await?;

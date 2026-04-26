@@ -27,6 +27,36 @@ async fn fetch_paginated(helper: &TestHelper, filters: &TraceFilters) -> TracePa
     serde_json::from_slice(&body).unwrap()
 }
 
+async fn fetch_spans_from_filters(
+    helper: &TestHelper,
+    filters: &TraceFilters,
+) -> TraceSpansResponse {
+    let body = serde_json::to_string(filters).unwrap();
+    let request = Request::builder()
+        .uri("/scouter/trace/spans/filters")
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body))
+        .unwrap();
+    let response = helper.send_oneshot(request).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    serde_json::from_slice(&body).unwrap()
+}
+
+async fn fetch_metrics(helper: &TestHelper, request: &TraceMetricsRequest) -> TraceMetricsResponse {
+    let req = Request::builder()
+        .uri("/scouter/trace/metrics")
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(serde_json::to_string(request).unwrap()))
+        .unwrap();
+    let response = helper.send_oneshot(req).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    serde_json::from_slice(&body).unwrap()
+}
+
 fn build_genai_span(
     trace_id: TraceId,
     span_id: u8,
@@ -123,6 +153,8 @@ async fn test_tracing() {
         bucket_interval: "hour".to_string(),
         attribute_filters: None,
         entity_uid: None,
+        duration_min_ms: None,
+        duration_max_ms: None,
     };
 
     let request = Request::builder()
@@ -295,6 +327,181 @@ async fn test_trace_pagination() {
         backward_ids, forward_ids,
         "Backward walk should cover the same trace_ids as forward walk"
     );
+}
+
+#[tokio::test]
+async fn test_paginated_traces_duration_min() {
+    let helper = setup_test().await;
+    helper
+        .generate_traces_with_durations(&[50, 200, 800, 1500])
+        .await
+        .unwrap();
+
+    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    let _ = shutdown_trace_cache(&helper.pool).await.unwrap();
+
+    let filters = TraceFilters {
+        duration_min_ms: Some(500),
+        limit: Some(50),
+        ..Default::default()
+    };
+    let page = fetch_paginated(&helper, &filters).await;
+
+    assert_eq!(
+        page.items.len(),
+        2,
+        "Expected 2 traces with duration >= 500ms"
+    );
+    for item in &page.items {
+        assert!(item.duration_ms.unwrap_or(0) >= 500);
+    }
+}
+
+#[tokio::test]
+async fn test_paginated_traces_duration_max() {
+    let helper = setup_test().await;
+    helper
+        .generate_traces_with_durations(&[50, 200, 800, 1500])
+        .await
+        .unwrap();
+    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    let _ = shutdown_trace_cache(&helper.pool).await.unwrap();
+
+    let filters = TraceFilters {
+        duration_max_ms: Some(300),
+        limit: Some(50),
+        ..Default::default()
+    };
+    let page = fetch_paginated(&helper, &filters).await;
+
+    assert_eq!(page.items.len(), 2);
+    for item in &page.items {
+        assert!(item.duration_ms.unwrap_or(i64::MAX) <= 300);
+    }
+}
+
+#[tokio::test]
+async fn test_paginated_traces_duration_range_inclusive() {
+    let helper = setup_test().await;
+    helper
+        .generate_traces_with_durations(&[50, 100, 300, 500, 1000])
+        .await
+        .unwrap();
+    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    let _ = shutdown_trace_cache(&helper.pool).await.unwrap();
+
+    let filters = TraceFilters {
+        duration_min_ms: Some(100),
+        duration_max_ms: Some(500),
+        limit: Some(50),
+        ..Default::default()
+    };
+    let page = fetch_paginated(&helper, &filters).await;
+
+    assert_eq!(page.items.len(), 3, "Expected 3 traces in [100, 500]");
+    let durations: Vec<i64> = page.items.iter().filter_map(|i| i.duration_ms).collect();
+    assert!(durations.contains(&100));
+    assert!(durations.contains(&500));
+}
+
+#[tokio::test]
+async fn test_trace_metrics_duration_filter() {
+    let helper = setup_test().await;
+    helper
+        .generate_traces_with_durations(&[50, 200, 800, 1500])
+        .await
+        .unwrap();
+    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    let _ = shutdown_trace_cache(&helper.pool).await.unwrap();
+
+    let now = Utc::now();
+    let unfiltered = fetch_metrics(
+        &helper,
+        &TraceMetricsRequest {
+            service_name: None,
+            start_time: now - chrono::Duration::hours(2),
+            end_time: now + chrono::Duration::hours(1),
+            bucket_interval: "hour".to_string(),
+            attribute_filters: None,
+            entity_uid: None,
+            duration_min_ms: None,
+            duration_max_ms: None,
+        },
+    )
+    .await;
+    let unfiltered_total: i64 = unfiltered.metrics.iter().map(|m| m.trace_count).sum();
+
+    let filtered = fetch_metrics(
+        &helper,
+        &TraceMetricsRequest {
+            service_name: None,
+            start_time: now - chrono::Duration::hours(2),
+            end_time: now + chrono::Duration::hours(1),
+            bucket_interval: "hour".to_string(),
+            attribute_filters: None,
+            entity_uid: None,
+            duration_min_ms: Some(500),
+            duration_max_ms: None,
+        },
+    )
+    .await;
+    let filtered_total: i64 = filtered.metrics.iter().map(|m| m.trace_count).sum();
+
+    assert!(
+        filtered_total < unfiltered_total,
+        "Duration filter should shrink count"
+    );
+    assert_eq!(filtered_total, 2);
+    for bucket in &filtered.metrics {
+        assert!(bucket.avg_duration_ms >= 500.0);
+    }
+}
+
+#[tokio::test]
+async fn test_spans_from_filters_duration() {
+    let helper = setup_test().await;
+    helper
+        .generate_traces_with_durations(&[100, 1500])
+        .await
+        .unwrap();
+    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    let _ = shutdown_trace_cache(&helper.pool).await.unwrap();
+
+    let filters = TraceFilters {
+        duration_min_ms: Some(1000),
+        ..Default::default()
+    };
+    let response = fetch_spans_from_filters(&helper, &filters).await;
+
+    assert!(
+        !response.spans.is_empty(),
+        "Expected spans for the slow trace"
+    );
+    let trace_ids: HashSet<_> = response.spans.iter().map(|s| s.trace_id.clone()).collect();
+    assert_eq!(
+        trace_ids.len(),
+        1,
+        "spans-from-filters returns one trace at a time"
+    );
+}
+
+#[tokio::test]
+async fn test_paginated_traces_inverted_range_empty() {
+    let helper = setup_test().await;
+    helper
+        .generate_traces_with_durations(&[100, 200, 300])
+        .await
+        .unwrap();
+    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    let _ = shutdown_trace_cache(&helper.pool).await.unwrap();
+
+    let filters = TraceFilters {
+        duration_min_ms: Some(500),
+        duration_max_ms: Some(100),
+        ..Default::default()
+    };
+    let page = fetch_paginated(&helper, &filters).await;
+    assert_eq!(page.items.len(), 0);
 }
 
 #[tokio::test]

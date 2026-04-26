@@ -16,7 +16,7 @@ use scouter_dataframe::parquet::tracing::genai::GenAiSpanService;
 use scouter_dataframe::parquet::tracing::service::TraceSpanService;
 use scouter_dataframe::EvalScenarioService;
 use scouter_drift::spc::SpcMonitor;
-use scouter_mocks::util::generate_trace_with_spans;
+use scouter_mocks::util::{generate_trace_with_fixed_duration, generate_trace_with_spans};
 use scouter_server::api::grpc::start_grpc_server;
 use scouter_server::api::state::AppState;
 use scouter_server::{create_app_state, create_http_router};
@@ -557,6 +557,27 @@ impl TestHelper {
             self.trace_service.write_spans_direct(spans).await.unwrap();
 
             // Insert tags into PostgreSQL (still PG-backed)
+            let _ = PostgresClient::insert_tag_batch(&self.pool, &tag_records)
+                .await
+                .unwrap();
+        }
+
+        Ok(())
+    }
+
+    pub async fn generate_traces_with_durations(
+        &self,
+        durations_ms: &[i64],
+    ) -> Result<(), anyhow::Error> {
+        for (i, &duration_ms) in durations_ms.iter().enumerate() {
+            let (_trace_record, spans, tag_records) =
+                generate_trace_with_fixed_duration(i as i64, duration_ms);
+
+            for span in &spans {
+                get_trace_cache().await.update_trace(span).await;
+            }
+
+            self.trace_service.write_spans_direct(spans).await.unwrap();
             let _ = PostgresClient::insert_tag_batch(&self.pool, &tag_records)
                 .await
                 .unwrap();

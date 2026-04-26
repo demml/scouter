@@ -320,6 +320,8 @@ pub async fn trace_metrics(
             &bucket_interval,
             attr_filters_ref,
             body.entity_uid.as_deref(),
+            body.duration_min_ms,
+            body.duration_max_ms,
         )
         .await
         .map_err(|e| {
