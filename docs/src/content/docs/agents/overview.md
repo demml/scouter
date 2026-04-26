@@ -87,7 +87,7 @@ Tasks are what Scouter runs against your agent's outputs or records. They work t
 |------|---------------|------|
 | [`AssertionTask`](/agents/tasks/#assertiontask) | Deterministic rules: format, threshold, presence, pattern matching | None |
 | [`LLMJudgeTask`](/agents/tasks/#llmjudgetask) | Semantic quality (relevance, faithfulness, tone) via an LLM call | One LLM call |
-| [`TraceAssertionTask`](/agents/tasks/#traceasserttiontask) | Span properties: execution order, retry counts, token budgets | None |
+| [`TraceAssertionTask`](/agents/tasks/#traceassertiontask) | Span properties: execution order, retry counts, token budgets | None |
 | [`AgentAssertionTask`](/agents/tasks/#agentassertiontask) | Tool calls and response structure: which tools ran, with what args, what they returned | None |
 
 Tasks can depend on each other and act as conditional gates to prevent expensive downstream work when preconditions fail. Full reference: [Evaluation tasks](/agents/tasks/) · [Conditional gates](/agents/gates/).

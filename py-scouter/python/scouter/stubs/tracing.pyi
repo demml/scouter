@@ -88,13 +88,15 @@ class TraceFilters:
     start_time: Optional[datetime.datetime]
     end_time: Optional[datetime.datetime]
     limit: Optional[int]
-    cursor_created_at: Optional[datetime.datetime]
+    cursor_start_time: Optional[datetime.datetime]
     cursor_trace_id: Optional[str]
     direction: Optional[str]
     attribute_filters: Optional[List[str]]
     trace_ids: Optional[List[str]]
     entity_uid: Optional[str]
     queue_uid: Optional[str]
+    duration_min_ms: Optional[int]
+    duration_max_ms: Optional[int]
 
     def __init__(
         self,
@@ -104,13 +106,14 @@ class TraceFilters:
         start_time: Optional[datetime.datetime] = None,
         end_time: Optional[datetime.datetime] = None,
         limit: Optional[int] = None,
-        cursor_created_at: Optional[datetime.datetime] = None,
+        cursor_start_time: Optional[datetime.datetime] = None,
         cursor_trace_id: Optional[str] = None,
-        direction: Optional[str] = None,
         attribute_filters: Optional[List[str]] = None,
         trace_ids: Optional[List[str]] = None,
         entity_uid: Optional[str] = None,
         queue_uid: Optional[str] = None,
+        duration_min_ms: Optional[int] = None,
+        duration_max_ms: Optional[int] = None,
     ) -> None:
         """Initialize trace filters.
 
@@ -127,12 +130,10 @@ class TraceFilters:
                 End time boundary (UTC)
             limit:
                 Maximum number of results to return
-            cursor_created_at:
-                Pagination cursor: created at timestamp
+            cursor_start_time:
+                Pagination cursor: trace start timestamp
             cursor_trace_id:
                 Pagination cursor: trace ID
-            direction:
-                Pagination direction ("next" or "prev")
             attribute_filters:
                 List of attribute filters in the format "key=value" or "key!=value"
             trace_ids:
@@ -141,6 +142,10 @@ class TraceFilters:
                 Filter by associated entity UID
             queue_uid:
                 Filter by associated queue UID
+            duration_min_ms:
+                Minimum trace duration (inclusive)
+            duration_max_ms:
+                Maximum trace duration (inclusive)
         """
 
 class TraceMetricBucket:

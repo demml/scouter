@@ -14,7 +14,7 @@ use scouter_types::{
     contracts::ScouterServerError, AgentActivityQuery, AgentDashboardRequest,
     AgentDashboardResponse, ConversationQuery, GenAiAgentActivityResponse,
     GenAiErrorBreakdownResponse, GenAiErrorCount, GenAiMetricsRequest, GenAiModelUsageResponse,
-    GenAiOperationBreakdownResponse, GenAiSpanFilters, GenAiSpanRecord, GenAiSpansResponse,
+    GenAiOperationBreakdownResponse, GenAiSpanFilters, GenAiSpansResponse,
     GenAiTokenMetricsResponse, GenAiToolActivityResponse, GenAiTraceMetricsRequest,
     GenAiTraceMetricsResponse, ToolDashboardRequest, ToolDashboardResponse, TraceId,
 };
@@ -22,6 +22,9 @@ use scouter_types::{
 use chrono::Utc;
 use std::sync::Arc;
 use tracing::instrument;
+
+#[cfg(test)]
+use scouter_types::GenAiSpanRecord;
 
 const DEFAULT_TRACE_METRICS_WINDOW_HOURS: i64 = 24;
 const MAX_TRACE_METRICS_WINDOW_DAYS: i64 = 30;
@@ -357,16 +360,6 @@ pub async fn get_conversation_spans(
     Ok(Json(GenAiSpansResponse { spans }))
 }
 
-fn redact_sensitive_span_fields(mut spans: Vec<GenAiSpanRecord>) -> Vec<GenAiSpanRecord> {
-    for span in &mut spans {
-        span.input_messages = None;
-        span.output_messages = None;
-        span.system_instructions = None;
-        span.tool_definitions = None;
-    }
-    spans
-}
-
 /// Handler for retrieving GenAI spans and aggregate metrics for a specific trace ID, with optional time range and span limit.
 #[utoipa::path(
     post,
@@ -430,10 +423,10 @@ pub async fn get_genai_trace_metrics(
     }
     let span_limit = body.span_limit.clamp(1, MAX_TRACE_METRICS_SPAN_LIMIT);
 
-    let query_result = data
+    let aggregate_spans = data
         .genai_service
         .query_service
-        .get_genai_spans_by_trace_id(&trace_id, start_time, end_time, span_limit)
+        .get_genai_spans_for_trace_metrics(&trace_id, start_time, end_time)
         .await
         .map_err(|e| {
             (
@@ -442,20 +435,36 @@ pub async fn get_genai_trace_metrics(
             )
         })?;
 
-    let sensitive_content_redacted = !body.include_sensitive_content;
-    let spans = if sensitive_content_redacted {
-        redact_sensitive_span_fields(query_result.spans)
+    let (spans, spans_truncated, sensitive_content_redacted) = if body.include_sensitive_content {
+        let payload_spans = data
+            .genai_service
+            .query_service
+            .get_genai_spans_by_trace_id(&trace_id, start_time, end_time, span_limit)
+            .await
+            .map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ScouterServerError::get_genai_trace_metrics_error(e)),
+                )
+            })?;
+        (payload_spans.spans, payload_spans.spans_truncated, false)
     } else {
-        query_result.spans
+        let mut spans = aggregate_spans.clone();
+        let spans_truncated = spans.len() > span_limit;
+        if spans_truncated {
+            spans.truncate(span_limit);
+        }
+        (spans, spans_truncated, true)
     };
 
     let response = build_trace_metrics_response(
         id,
+        &aggregate_spans,
         spans,
         &body.bucket_interval,
         &body.model_pricing,
         span_limit,
-        query_result.spans_truncated,
+        spans_truncated,
         sensitive_content_redacted,
     )
     .map_err(|e| (StatusCode::BAD_REQUEST, Json(ScouterServerError::new(e))))?;
@@ -672,10 +681,12 @@ mod tests {
                 ..make_trace_span(trace_id, 2, start + chrono::Duration::minutes(5))
             },
         ];
+        let payload_spans = spans.clone();
 
         let response = build_trace_metrics_response(
             trace_id.to_hex(),
-            spans,
+            &spans,
+            payload_spans,
             "hour",
             &HashMap::new(),
             500,
@@ -709,6 +720,7 @@ mod tests {
         let trace_id = TraceId::from_bytes([8u8; 16]);
         let response = build_trace_metrics_response(
             trace_id.to_hex(),
+            &[],
             Vec::new(),
             "hour",
             &HashMap::new(),
@@ -724,5 +736,32 @@ mod tests {
         assert!(response.token_metrics.buckets.is_empty());
         assert!(response.agent_dashboard.buckets.is_empty());
         assert!(response.tool_dashboard.aggregates.is_empty());
+    }
+
+    #[test]
+    fn test_trace_metrics_response_uses_untruncated_data_for_aggregates() {
+        let trace_id = TraceId::from_bytes([9u8; 16]);
+        let start = Utc.with_ymd_and_hms(2026, 1, 1, 12, 30, 0).unwrap();
+        let aggregate_spans = vec![
+            make_trace_span(trace_id, 1, start),
+            make_trace_span(trace_id, 2, start + chrono::Duration::minutes(1)),
+        ];
+        let payload_spans = vec![aggregate_spans[0].clone()];
+
+        let response = build_trace_metrics_response(
+            trace_id.to_hex(),
+            &aggregate_spans,
+            payload_spans,
+            "hour",
+            &HashMap::new(),
+            1,
+            true,
+            true,
+        )
+        .expect("trace metrics should build");
+
+        assert_eq!(response.spans.len(), 1);
+        assert_eq!(response.operation_breakdown.operations[0].span_count, 2);
+        assert_eq!(response.token_metrics.buckets[0].span_count, 2);
     }
 }

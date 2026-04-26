@@ -253,6 +253,26 @@ impl TestHelper {
         token
     }
 
+    pub async fn login_with_credentials(&self, username: &str, password: &str) -> JwtToken {
+        let response = self
+            .router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/scouter/auth/login")
+                    .header("Username", username)
+                    .header("Password", password)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        serde_json::from_slice(&body).unwrap()
+    }
+
     pub fn with_auth_header(&self, mut request: Request<Body>) -> Request<Body> {
         request.headers_mut().insert(
             header::AUTHORIZATION,
@@ -268,6 +288,18 @@ impl TestHelper {
             .oneshot(self.with_auth_header(request))
             .await
             .unwrap()
+    }
+
+    pub async fn send_oneshot_with_token(
+        &self,
+        mut request: Request<Body>,
+        token: &str,
+    ) -> Response<Body> {
+        request.headers_mut().insert(
+            header::AUTHORIZATION,
+            format!("Bearer {token}").parse().unwrap(),
+        );
+        self.router.clone().oneshot(request).await.unwrap()
     }
 
     pub fn get_data(&self) -> (Array<f64, ndarray::Dim<[usize; 2]>>, Vec<String>) {

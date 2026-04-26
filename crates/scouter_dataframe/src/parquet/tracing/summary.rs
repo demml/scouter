@@ -306,7 +306,7 @@ async fn build_or_create_summary_table(
     schema: SchemaRef,
 ) -> Result<DeltaTable, TraceEngineError> {
     let object_store = object_store.clone();
-    run_delta_init(build_or_create_summary_table_inner(object_store, schema)).await
+    run_delta_init(build_or_create_summary_table_inner(object_store, schema)).await?
 }
 
 async fn build_or_create_summary_table_inner(

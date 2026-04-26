@@ -4,14 +4,16 @@ use axum::{
     body::Body,
     http::{header, Request, StatusCode},
 };
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use http_body_util::BodyExt;
+use scouter_server::api::routes::user::schema::CreateUserRequest;
 use scouter_sql::sql::aggregator::shutdown_trace_cache;
 use scouter_types::{
     sql::TraceFilters, GenAiSpanRecord, SpanId, SpansFromTagsRequest, TraceId, TraceMetricsRequest,
     TraceMetricsResponse, TracePaginationResponse, TraceRequest, TraceSpansResponse,
 };
 use std::collections::{HashMap, HashSet};
+use std::time::{Duration, Instant};
 
 async fn fetch_paginated(helper: &TestHelper, filters: &TraceFilters) -> TracePaginationResponse {
     let body = serde_json::to_string(filters).unwrap();
@@ -57,6 +59,59 @@ async fn fetch_metrics(helper: &TestHelper, request: &TraceMetricsRequest) -> Tr
     serde_json::from_slice(&body).unwrap()
 }
 
+async fn wait_for_paginated_count(helper: &TestHelper, expected_count: usize) {
+    let deadline = Instant::now() + Duration::from_secs(8);
+    loop {
+        let _ = shutdown_trace_cache(&helper.pool).await.unwrap();
+        let page = fetch_paginated(
+            helper,
+            &TraceFilters {
+                limit: Some(200),
+                ..Default::default()
+            },
+        )
+        .await;
+        if page.items.len() >= expected_count {
+            return;
+        }
+
+        assert!(
+            Instant::now() < deadline,
+            "Timed out waiting for {expected_count} traces, saw {}",
+            page.items.len()
+        );
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
+
+async fn wait_for_genai_trace_spans(
+    helper: &TestHelper,
+    trace_id: &TraceId,
+    start_time: DateTime<Utc>,
+    end_time: DateTime<Utc>,
+    expected_count: usize,
+) {
+    let deadline = Instant::now() + Duration::from_secs(8);
+    loop {
+        let result = helper
+            .genai_service
+            .query_service
+            .get_genai_spans_by_trace_id(trace_id, start_time, end_time, 10_000)
+            .await
+            .unwrap();
+        if result.spans.len() >= expected_count {
+            return;
+        }
+
+        assert!(
+            Instant::now() < deadline,
+            "Timed out waiting for {expected_count} genai spans, saw {}",
+            result.spans.len()
+        );
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
+
 fn build_genai_span(
     trace_id: TraceId,
     span_id: u8,
@@ -89,8 +144,7 @@ async fn test_tracing() {
     let helper = setup_test().await;
     helper.generate_trace_data().await.unwrap();
 
-    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-    let _flushed = shutdown_trace_cache(&helper.pool).await.unwrap();
+    wait_for_paginated_count(&helper, 100).await;
 
     // Fetch a single page to get records for subsequent tests
     let filters = TraceFilters {
@@ -217,8 +271,7 @@ async fn test_trace_pagination() {
     let helper = setup_test().await;
     helper.generate_trace_data().await.unwrap();
 
-    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-    let _flushed = shutdown_trace_cache(&helper.pool).await.unwrap();
+    wait_for_paginated_count(&helper, 100).await;
 
     // Forward walk with limit=30: expect pages of 30/30/30/10
     let mut filters = TraceFilters {
@@ -337,8 +390,7 @@ async fn test_paginated_traces_duration_min() {
         .await
         .unwrap();
 
-    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-    let _ = shutdown_trace_cache(&helper.pool).await.unwrap();
+    wait_for_paginated_count(&helper, 4).await;
 
     let filters = TraceFilters {
         duration_min_ms: Some(500),
@@ -364,8 +416,7 @@ async fn test_paginated_traces_duration_max() {
         .generate_traces_with_durations(&[50, 200, 800, 1500])
         .await
         .unwrap();
-    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-    let _ = shutdown_trace_cache(&helper.pool).await.unwrap();
+    wait_for_paginated_count(&helper, 4).await;
 
     let filters = TraceFilters {
         duration_max_ms: Some(300),
@@ -387,8 +438,7 @@ async fn test_paginated_traces_duration_range_inclusive() {
         .generate_traces_with_durations(&[50, 100, 300, 500, 1000])
         .await
         .unwrap();
-    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-    let _ = shutdown_trace_cache(&helper.pool).await.unwrap();
+    wait_for_paginated_count(&helper, 5).await;
 
     let filters = TraceFilters {
         duration_min_ms: Some(100),
@@ -411,8 +461,7 @@ async fn test_trace_metrics_duration_filter() {
         .generate_traces_with_durations(&[50, 200, 800, 1500])
         .await
         .unwrap();
-    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-    let _ = shutdown_trace_cache(&helper.pool).await.unwrap();
+    wait_for_paginated_count(&helper, 4).await;
 
     let now = Utc::now();
     let unfiltered = fetch_metrics(
@@ -431,7 +480,7 @@ async fn test_trace_metrics_duration_filter() {
     .await;
     let unfiltered_total: i64 = unfiltered.metrics.iter().map(|m| m.trace_count).sum();
 
-    let filtered = fetch_metrics(
+    let min_only = fetch_metrics(
         &helper,
         &TraceMetricsRequest {
             service_name: None,
@@ -445,16 +494,77 @@ async fn test_trace_metrics_duration_filter() {
         },
     )
     .await;
-    let filtered_total: i64 = filtered.metrics.iter().map(|m| m.trace_count).sum();
+    let min_only_total: i64 = min_only.metrics.iter().map(|m| m.trace_count).sum();
 
     assert!(
-        filtered_total < unfiltered_total,
+        min_only_total < unfiltered_total,
         "Duration filter should shrink count"
     );
-    assert_eq!(filtered_total, 2);
-    for bucket in &filtered.metrics {
+    assert_eq!(min_only_total, 2);
+    for bucket in &min_only.metrics {
         assert!(bucket.avg_duration_ms >= 500.0);
     }
+
+    let max_only = fetch_metrics(
+        &helper,
+        &TraceMetricsRequest {
+            service_name: None,
+            start_time: now - chrono::Duration::hours(2),
+            end_time: now + chrono::Duration::hours(1),
+            bucket_interval: "hour".to_string(),
+            attribute_filters: None,
+            entity_uid: None,
+            duration_min_ms: None,
+            duration_max_ms: Some(300),
+        },
+    )
+    .await;
+    let max_only_total: i64 = max_only.metrics.iter().map(|m| m.trace_count).sum();
+    assert_eq!(max_only_total, 2);
+    for bucket in &max_only.metrics {
+        assert!(bucket.avg_duration_ms <= 300.0);
+    }
+
+    let bounded = fetch_metrics(
+        &helper,
+        &TraceMetricsRequest {
+            service_name: None,
+            start_time: now - chrono::Duration::hours(2),
+            end_time: now + chrono::Duration::hours(1),
+            bucket_interval: "hour".to_string(),
+            attribute_filters: None,
+            entity_uid: None,
+            duration_min_ms: Some(200),
+            duration_max_ms: Some(800),
+        },
+    )
+    .await;
+    let bounded_total: i64 = bounded.metrics.iter().map(|m| m.trace_count).sum();
+    assert_eq!(bounded_total, 2);
+    for bucket in &bounded.metrics {
+        assert!((200.0..=800.0).contains(&bucket.avg_duration_ms));
+    }
+
+    let wider_max = fetch_metrics(
+        &helper,
+        &TraceMetricsRequest {
+            service_name: None,
+            start_time: now - chrono::Duration::hours(2),
+            end_time: now + chrono::Duration::hours(1),
+            bucket_interval: "hour".to_string(),
+            attribute_filters: None,
+            entity_uid: None,
+            duration_min_ms: None,
+            duration_max_ms: Some(1_000),
+        },
+    )
+    .await;
+    let wider_max_total: i64 = wider_max.metrics.iter().map(|m| m.trace_count).sum();
+    assert_eq!(wider_max_total, 3);
+    assert!(
+        wider_max_total > max_only_total,
+        "Different duration_max values must not share cached results"
+    );
 }
 
 #[tokio::test]
@@ -464,24 +574,64 @@ async fn test_spans_from_filters_duration() {
         .generate_traces_with_durations(&[100, 1500])
         .await
         .unwrap();
-    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-    let _ = shutdown_trace_cache(&helper.pool).await.unwrap();
+    wait_for_paginated_count(&helper, 2).await;
 
-    let filters = TraceFilters {
+    let min_only_filters = TraceFilters {
         duration_min_ms: Some(1000),
         ..Default::default()
     };
-    let response = fetch_spans_from_filters(&helper, &filters).await;
+    let min_only_response = fetch_spans_from_filters(&helper, &min_only_filters).await;
 
     assert!(
-        !response.spans.is_empty(),
+        !min_only_response.spans.is_empty(),
         "Expected spans for the slow trace"
     );
-    let trace_ids: HashSet<_> = response.spans.iter().map(|s| s.trace_id.clone()).collect();
+    let min_only_trace_ids: HashSet<_> = min_only_response
+        .spans
+        .iter()
+        .map(|s| s.trace_id.clone())
+        .collect();
     assert_eq!(
-        trace_ids.len(),
+        min_only_trace_ids.len(),
         1,
         "spans-from-filters returns one trace at a time"
+    );
+
+    let max_only_response = fetch_spans_from_filters(
+        &helper,
+        &TraceFilters {
+            duration_max_ms: Some(200),
+            ..Default::default()
+        },
+    )
+    .await;
+    assert!(!max_only_response.spans.is_empty());
+    let max_only_trace_ids: HashSet<_> = max_only_response
+        .spans
+        .iter()
+        .map(|s| s.trace_id.clone())
+        .collect();
+    assert_eq!(max_only_trace_ids.len(), 1);
+
+    let bounded_response = fetch_spans_from_filters(
+        &helper,
+        &TraceFilters {
+            duration_min_ms: Some(1200),
+            duration_max_ms: Some(2000),
+            ..Default::default()
+        },
+    )
+    .await;
+    assert!(!bounded_response.spans.is_empty());
+    let bounded_trace_ids: HashSet<_> = bounded_response
+        .spans
+        .iter()
+        .map(|s| s.trace_id.clone())
+        .collect();
+    assert_eq!(bounded_trace_ids.len(), 1);
+    assert_ne!(
+        max_only_trace_ids, bounded_trace_ids,
+        "Max-only and bounded-range filters should select different traces"
     );
 }
 
@@ -492,8 +642,7 @@ async fn test_paginated_traces_inverted_range_empty() {
         .generate_traces_with_durations(&[100, 200, 300])
         .await
         .unwrap();
-    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-    let _ = shutdown_trace_cache(&helper.pool).await.unwrap();
+    wait_for_paginated_count(&helper, 3).await;
 
     let filters = TraceFilters {
         duration_min_ms: Some(500),
@@ -516,7 +665,14 @@ async fn test_genai_trace_metrics_route() {
         build_genai_span(other_trace_id, 2, now),
     ];
     helper.genai_service.write_records(records).await.unwrap();
-    tokio::time::sleep(std::time::Duration::from_secs(4)).await;
+    wait_for_genai_trace_spans(
+        &helper,
+        &trace_id,
+        now - chrono::Duration::hours(1),
+        now + chrono::Duration::hours(1),
+        1,
+    )
+    .await;
 
     let body = serde_json::json!({
         "start_time": (now - chrono::Duration::hours(1)).to_rfc3339(),
@@ -560,6 +716,147 @@ async fn test_genai_trace_metrics_route() {
 }
 
 #[tokio::test]
+async fn test_genai_trace_metrics_route_sensitive_content_auth() {
+    let helper = setup_test().await;
+    let trace_id = TraceId::from_bytes([58u8; 16]);
+    let now = Utc::now();
+    helper
+        .genai_service
+        .write_records(vec![build_genai_span(trace_id, 1, now)])
+        .await
+        .unwrap();
+    wait_for_genai_trace_spans(
+        &helper,
+        &trace_id,
+        now - chrono::Duration::hours(1),
+        now + chrono::Duration::hours(1),
+        1,
+    )
+    .await;
+
+    let limited_username = format!("trace_limited_{}", now.timestamp_nanos_opt().unwrap_or(0));
+    let limited_password = "trace_limited_pw";
+    let create_req = CreateUserRequest {
+        username: limited_username.clone(),
+        password: limited_password.to_string(),
+        email: format!("{limited_username}@example.com"),
+        permissions: Some(vec!["read:space".to_string()]),
+        group_permissions: Some(vec!["user".to_string()]),
+        role: Some("user".to_string()),
+        active: Some(true),
+    };
+    let create_user_request = Request::builder()
+        .uri("/scouter/user")
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(serde_json::to_string(&create_req).unwrap()))
+        .unwrap();
+    let create_user_response = helper.send_oneshot(create_user_request).await;
+    assert_eq!(create_user_response.status(), StatusCode::OK);
+
+    let limited_token = helper
+        .login_with_credentials(&limited_username, limited_password)
+        .await;
+    let sensitive_body = serde_json::json!({
+        "start_time": (now - chrono::Duration::hours(1)).to_rfc3339(),
+        "end_time": (now + chrono::Duration::hours(1)).to_rfc3339(),
+        "bucket_interval": "hour",
+        "model_pricing": {},
+        "span_limit": 10,
+        "include_sensitive_content": true
+    });
+
+    let limited_request = Request::builder()
+        .uri(format!(
+            "/scouter/genai/traces/{}/metrics",
+            trace_id.to_hex()
+        ))
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(serde_json::to_string(&sensitive_body).unwrap()))
+        .unwrap();
+    let limited_response = helper
+        .send_oneshot_with_token(limited_request, &limited_token.token)
+        .await;
+    assert_eq!(limited_response.status(), StatusCode::FORBIDDEN);
+
+    let admin_request = Request::builder()
+        .uri(format!(
+            "/scouter/genai/traces/{}/metrics",
+            trace_id.to_hex()
+        ))
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(serde_json::to_string(&sensitive_body).unwrap()))
+        .unwrap();
+    let admin_response = helper.send_oneshot(admin_request).await;
+    assert_eq!(admin_response.status(), StatusCode::OK);
+    let body = admin_response.into_body().collect().await.unwrap().to_bytes();
+    let response_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(response_json["sensitive_content_redacted"], false);
+    let spans = response_json["spans"].as_array().unwrap();
+    assert_eq!(spans.len(), 1);
+    assert!(spans[0]["input_messages"].is_string());
+    assert!(spans[0]["output_messages"].is_string());
+    assert!(spans[0]["system_instructions"].is_string());
+    assert!(spans[0]["tool_definitions"].is_string());
+}
+
+#[tokio::test]
+async fn test_genai_trace_metrics_route_span_limit_only_truncates_payload() {
+    let helper = setup_test().await;
+    let trace_id = TraceId::from_bytes([59u8; 16]);
+    let now = Utc::now();
+    let records: Vec<GenAiSpanRecord> = (0..6)
+        .map(|i| build_genai_span(trace_id, (i + 1) as u8, now + chrono::Duration::seconds(i)))
+        .collect();
+    helper.genai_service.write_records(records).await.unwrap();
+    wait_for_genai_trace_spans(
+        &helper,
+        &trace_id,
+        now - chrono::Duration::hours(1),
+        now + chrono::Duration::hours(1),
+        6,
+    )
+    .await;
+
+    let request = Request::builder()
+        .uri(format!(
+            "/scouter/genai/traces/{}/metrics",
+            trace_id.to_hex()
+        ))
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(
+            serde_json::json!({
+                "start_time": (now - chrono::Duration::hours(1)).to_rfc3339(),
+                "end_time": (now + chrono::Duration::hours(1)).to_rfc3339(),
+                "bucket_interval": "hour",
+                "span_limit": 3,
+                "include_sensitive_content": false
+            })
+            .to_string(),
+        ))
+        .unwrap();
+    let response = helper.send_oneshot(request).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let response_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(response_json["span_limit"], 3);
+    assert_eq!(response_json["spans_truncated"], true);
+    assert_eq!(response_json["spans"].as_array().unwrap().len(), 3);
+    assert_eq!(
+        response_json["operation_breakdown"]["operations"][0]["span_count"],
+        6
+    );
+    assert_eq!(
+        response_json["token_metrics"]["buckets"][0]["total_input_tokens"],
+        72
+    );
+}
+
+#[tokio::test]
 async fn test_genai_trace_metrics_route_validation_errors() {
     let helper = setup_test().await;
 
@@ -591,4 +888,60 @@ async fn test_genai_trace_metrics_route_validation_errors() {
         .unwrap();
     let invalid_bucket_response = helper.send_oneshot(invalid_bucket_request).await;
     assert_eq!(invalid_bucket_response.status(), StatusCode::BAD_REQUEST);
+
+    let now = Utc::now();
+    let invalid_time_bounds_request = Request::builder()
+        .uri(format!("/scouter/genai/traces/{valid_trace_id}/metrics"))
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(
+            serde_json::json!({
+                "bucket_interval": "hour",
+                "start_time": now.to_rfc3339(),
+                "end_time": now.to_rfc3339(),
+            })
+            .to_string(),
+        ))
+        .unwrap();
+    let invalid_time_bounds_response = helper.send_oneshot(invalid_time_bounds_request).await;
+    assert_eq!(invalid_time_bounds_response.status(), StatusCode::BAD_REQUEST);
+
+    let invalid_window_request = Request::builder()
+        .uri(format!("/scouter/genai/traces/{valid_trace_id}/metrics"))
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(
+            serde_json::json!({
+                "bucket_interval": "hour",
+                "start_time": (now - chrono::Duration::days(31)).to_rfc3339(),
+                "end_time": now.to_rfc3339(),
+            })
+            .to_string(),
+        ))
+        .unwrap();
+    let invalid_window_response = helper.send_oneshot(invalid_window_request).await;
+    assert_eq!(invalid_window_response.status(), StatusCode::BAD_REQUEST);
+
+    let span_limit_clamp_request = Request::builder()
+        .uri(format!("/scouter/genai/traces/{valid_trace_id}/metrics"))
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(
+            serde_json::json!({
+                "bucket_interval": "hour",
+                "span_limit": 999_999,
+            })
+            .to_string(),
+        ))
+        .unwrap();
+    let span_limit_clamp_response = helper.send_oneshot(span_limit_clamp_request).await;
+    assert_eq!(span_limit_clamp_response.status(), StatusCode::OK);
+    let clamp_body = span_limit_clamp_response
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes();
+    let clamp_json: serde_json::Value = serde_json::from_slice(&clamp_body).unwrap();
+    assert_eq!(clamp_json["span_limit"], 5_000);
 }

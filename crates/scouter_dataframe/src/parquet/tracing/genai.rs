@@ -13,8 +13,9 @@ use arrow_array::Array;
 use arrow_array::RecordBatch;
 use chrono::{DateTime, Datelike, Utc};
 use datafusion::functions_aggregate::expr_fn::{avg, count, sum};
-use datafusion::logical_expr::{col, lit};
+use datafusion::logical_expr::{col, lit, Expr};
 use datafusion::prelude::*;
+use datafusion::scalar::ScalarValue;
 use deltalake::datafusion::parquet::basic::{Compression, Encoding, ZstdLevel};
 use deltalake::datafusion::parquet::file::properties::WriterProperties;
 use deltalake::datafusion::parquet::schema::types::ColumnPath;
@@ -601,7 +602,7 @@ async fn build_or_create_genai_table(
     schema: SchemaRef,
 ) -> Result<DeltaTable, TraceEngineError> {
     let object_store = object_store.clone();
-    run_delta_init(build_or_create_genai_table_inner(object_store, schema)).await
+    run_delta_init(build_or_create_genai_table_inner(object_store, schema)).await?
 }
 
 async fn build_or_create_genai_table_inner(
@@ -1133,6 +1134,71 @@ impl GenAiQueries {
             Some(v) => Ok(df.filter(col(column).eq(lit(v)))?),
             None => Ok(df),
         }
+    }
+
+    fn trace_span_projection(include_sensitive_content: bool) -> Vec<Expr> {
+        let mut projection = vec![
+            col(TRACE_ID_COL),
+            col(SPAN_ID_COL),
+            col(SERVICE_NAME_COL),
+            col(START_TIME_COL),
+            col(END_TIME_COL),
+            col(DURATION_MS_COL),
+            col(STATUS_CODE_COL),
+            col(OPERATION_NAME_COL),
+            col(PROVIDER_NAME_COL),
+            col(REQUEST_MODEL_COL),
+            col(RESPONSE_MODEL_COL),
+            col(RESPONSE_ID_COL),
+            col(INPUT_TOKENS_COL),
+            col(OUTPUT_TOKENS_COL),
+            col(CACHE_CREATION_INPUT_TOKENS_COL),
+            col(CACHE_READ_INPUT_TOKENS_COL),
+            col(FINISH_REASONS_COL),
+            col(OUTPUT_TYPE_COL),
+            col(CONVERSATION_ID_COL),
+            col(AGENT_NAME_COL),
+            col(AGENT_ID_COL),
+            col(TOOL_NAME_COL),
+            col(TOOL_TYPE_COL),
+            col(TOOL_CALL_ID_COL),
+            col(REQUEST_TEMPERATURE_COL),
+            col(REQUEST_MAX_TOKENS_COL),
+            col(REQUEST_TOP_P_COL),
+            col(ERROR_TYPE_COL),
+            col(OPENAI_API_TYPE_COL),
+            col(OPENAI_SERVICE_TIER_COL),
+            col(LABEL_COL),
+            col(AGENT_DESCRIPTION_COL),
+            col(AGENT_VERSION_COL),
+            col(DATA_SOURCE_ID_COL),
+            col(REQUEST_CHOICE_COUNT_COL),
+            col(REQUEST_SEED_COL),
+            col(REQUEST_FREQUENCY_PENALTY_COL),
+            col(REQUEST_PRESENCE_PENALTY_COL),
+            col(REQUEST_STOP_SEQUENCES_COL),
+            col(SERVER_ADDRESS_COL),
+            col(SERVER_PORT_COL),
+        ];
+
+        if include_sensitive_content {
+            projection.extend([
+                col(INPUT_MESSAGES_COL),
+                col(OUTPUT_MESSAGES_COL),
+                col(SYSTEM_INSTRUCTIONS_COL),
+                col(TOOL_DEFINITIONS_COL),
+            ]);
+        } else {
+            projection.extend([
+                lit(ScalarValue::Utf8(None)).alias(INPUT_MESSAGES_COL),
+                lit(ScalarValue::Utf8(None)).alias(OUTPUT_MESSAGES_COL),
+                lit(ScalarValue::Utf8(None)).alias(SYSTEM_INSTRUCTIONS_COL),
+                lit(ScalarValue::Utf8(None)).alias(TOOL_DEFINITIONS_COL),
+            ]);
+        }
+
+        projection.push(col(EVAL_RESULTS_COL));
+        projection
     }
 
     pub async fn get_token_metrics(
@@ -1989,19 +2055,51 @@ impl GenAiQueries {
         end: DateTime<Utc>,
         limit: usize,
     ) -> Result<TraceSpanQueryResult, TraceEngineError> {
-        let clamped_limit = limit.clamp(1, 10_000);
+        self.query_genai_spans_by_trace_id(trace_id, start, end, Some(limit), true)
+            .await
+    }
+
+    pub async fn get_genai_spans_for_trace_metrics(
+        &self,
+        trace_id: &TraceId,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> Result<Vec<GenAiSpanRecord>, TraceEngineError> {
+        self.query_genai_spans_by_trace_id(trace_id, start, end, None, false)
+            .await
+            .map(|query_result| query_result.spans)
+    }
+
+    async fn query_genai_spans_by_trace_id(
+        &self,
+        trace_id: &TraceId,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+        limit: Option<usize>,
+        include_sensitive_content: bool,
+    ) -> Result<TraceSpanQueryResult, TraceEngineError> {
         let df = self.ctx.table(GEN_AI_TABLE_NAME).await?;
         let df = Self::apply_time_filters(df, &start, &end)?;
         let df = df.filter(col(TRACE_ID_COL).eq(lit(trace_id.as_bytes().as_slice())))?;
         let df = df.sort(vec![col(START_TIME_COL).sort(true, true)])?;
-        let df = df.limit(0, Some(clamped_limit + 1))?;
+        let df = df.select(Self::trace_span_projection(include_sensitive_content))?;
+
+        let clamped_limit = limit.map(|value| value.clamp(1, 10_000));
+        let df = match clamped_limit {
+            Some(value) => df.limit(0, Some(value + 1))?,
+            None => df,
+        };
 
         let batches = df.collect().await?;
         let mut spans = batches_to_genai_records(batches)?;
-        let spans_truncated = spans.len() > clamped_limit;
-        if spans_truncated {
-            spans.truncate(clamped_limit);
+        let mut spans_truncated = false;
+        if let Some(value) = clamped_limit {
+            spans_truncated = spans.len() > value;
+            if spans_truncated {
+                spans.truncate(value);
+            }
         }
+
         Ok(TraceSpanQueryResult {
             spans,
             spans_truncated,
@@ -3821,6 +3919,22 @@ mod tests {
             Some(r#"[{"name":"search"}]"#)
         );
         assert_eq!(span.eval_results.len(), 1);
+
+        let aggregate_spans = service
+            .query_service
+            .get_genai_spans_for_trace_metrics(
+                &trace_id,
+                now - chrono::Duration::hours(1),
+                now + chrono::Duration::hours(1),
+            )
+            .await?;
+        assert_eq!(aggregate_spans.len(), 1);
+        let aggregate_span = &aggregate_spans[0];
+        assert!(aggregate_span.input_messages.is_none());
+        assert!(aggregate_span.output_messages.is_none());
+        assert!(aggregate_span.system_instructions.is_none());
+        assert!(aggregate_span.tool_definitions.is_none());
+        assert_eq!(aggregate_span.response_model.as_deref(), Some("gpt-4o"));
 
         service.shutdown().await?;
         Ok(())
