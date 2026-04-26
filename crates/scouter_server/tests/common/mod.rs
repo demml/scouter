@@ -12,6 +12,7 @@ use ndarray_rand::rand_distr::Uniform;
 use ndarray_rand::RandomExt;
 use potato_head::{create_uuid7, mock::create_score_prompt};
 use rand::Rng;
+use scouter_dataframe::parquet::tracing::genai::GenAiSpanService;
 use scouter_dataframe::parquet::tracing::service::TraceSpanService;
 use scouter_dataframe::EvalScenarioService;
 use scouter_drift::spc::SpcMonitor;
@@ -119,6 +120,7 @@ pub struct TestHelper {
     pub pool: PgPool,
     pub config: Arc<ScouterServerConfig>,
     pub trace_service: Arc<TraceSpanService>,
+    pub genai_service: Arc<GenAiSpanService>,
     pub eval_scenario_service: Arc<EvalScenarioService>,
 }
 
@@ -216,6 +218,7 @@ impl TestHelper {
             pool: db_pool,
             config: app_state.config.clone(),
             trace_service: app_state.trace_service.clone(),
+            genai_service: app_state.genai_service.clone(),
             eval_scenario_service: app_state.eval_scenario_service.clone(),
         })
     }

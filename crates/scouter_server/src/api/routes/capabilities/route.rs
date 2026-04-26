@@ -71,6 +71,7 @@ pub struct AuthInfo {
     pub token_header: &'static str,
 }
 
+/// Handler for the capabilities endpoint, which returns the server capabilities and endpoint index
 #[utoipa::path(
     get,
     path = "/scouter/api/v1/capabilities",

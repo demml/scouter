@@ -74,6 +74,32 @@ async fn test_get_doc_by_id() {
 }
 
 #[tokio::test]
+async fn test_get_doc_content_is_sanitized() {
+    let helper = TestHelper::new(false, false).await.unwrap();
+
+    let request = Request::builder()
+        .uri("/scouter/api/v1/docs/index")
+        .body(Body::empty())
+        .unwrap();
+
+    let response = helper.send_oneshot(request).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let content = v["content"].as_str().unwrap();
+
+    assert!(
+        !content.starts_with("---"),
+        "frontmatter should be stripped from docs payload"
+    );
+    let first_line = content.lines().next().unwrap_or_default();
+    assert!(
+        !first_line.trim_start().starts_with("import "),
+        "leading MDX import lines should be stripped"
+    );
+}
+
+#[tokio::test]
 async fn test_get_doc_not_found() {
     let helper = TestHelper::new(false, false).await.unwrap();
 
@@ -141,4 +167,25 @@ async fn test_search_docs_query_too_long() {
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(v["code"], "BAD_REQUEST");
+}
+
+#[tokio::test]
+async fn test_search_docs_ignores_frontmatter_and_imports() {
+    let helper = TestHelper::new(false, false).await.unwrap();
+
+    let request = Request::builder()
+        .uri("/scouter/api/v1/docs/search?q=starlight/components")
+        .body(Body::empty())
+        .unwrap();
+
+    let response = helper.send_oneshot(request).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let results = v["results"].as_array().expect("results should be an array");
+
+    assert!(
+        results.is_empty(),
+        "import-only terms should not match sanitized doc content"
+    );
 }

@@ -4,6 +4,7 @@ from .._scouter import (
     BifrostTestServer,
     LLMTestServer,
     MockConfig,
+    ScouterDataFrameTestServer,
     ScouterTestServer,
     create_multi_service_trace,
     create_nested_trace,
@@ -15,6 +16,7 @@ from .._scouter import (
 
 __all__ = [
     "ScouterTestServer",
+    "ScouterDataFrameTestServer",
     "BifrostTestServer",
     "MockConfig",
     "LLMTestServer",

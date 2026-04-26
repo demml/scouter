@@ -21,8 +21,8 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 from pydantic import BaseModel
-from scouter.evaluate import EvalRecord
 from scouter import trace
+from scouter.evaluate import EvalRecord
 
 from ..shared import get_shared_config, teardown_shared_config
 

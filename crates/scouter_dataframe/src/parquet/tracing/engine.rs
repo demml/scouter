@@ -4,7 +4,9 @@ use crate::parquet::tracing::catalog::TraceCatalogProvider;
 use crate::parquet::tracing::traits::arrow_schema_to_delta;
 use crate::parquet::tracing::traits::attribute_field;
 use crate::parquet::tracing::traits::TraceSchemaExt;
-use crate::parquet::utils::{create_attr_match_udf, register_cloud_logstore_factories};
+use crate::parquet::utils::{
+    create_attr_match_udf, register_cloud_logstore_factories, run_delta_init,
+};
 use crate::storage::ObjectStore;
 use arrow::array::*;
 use arrow::datatypes::*;
@@ -112,8 +114,16 @@ async fn build_or_create_table(
     object_store: &ObjectStore,
     schema: SchemaRef,
 ) -> Result<DeltaTable, TraceEngineError> {
+    let object_store = object_store.clone();
+    run_delta_init(build_or_create_table_inner(object_store, schema)).await
+}
+
+async fn build_or_create_table_inner(
+    object_store: ObjectStore,
+    schema: SchemaRef,
+) -> Result<DeltaTable, TraceEngineError> {
     register_cloud_logstore_factories();
-    let table_url = build_url(object_store).await?;
+    let table_url = build_url(&object_store).await?;
     info!(
         "Attempting to load trace span table [{}://.../{} ]",
         table_url.scheme(),
@@ -123,9 +133,6 @@ async fn build_or_create_table(
             .unwrap_or(TRACE_SPAN_TABLE_NAME)
     );
 
-    // For all store types we check for an existing Delta table by attempting a load.
-    // Local tables can be checked cheaply via the filesystem; remote tables require
-    // an actual load attempt against the object store.
     let is_delta_table = if table_url.scheme() == "file" {
         if let Ok(path) = table_url.to_file_path() {
             if !path.exists() {
@@ -165,7 +172,7 @@ async fn build_or_create_table(
         Ok(table)
     } else {
         info!("Table does not exist, creating new table");
-        create_table(object_store, table_url, schema).await
+        create_table(&object_store, table_url, schema).await
     }
 }
 

@@ -1,12 +1,13 @@
 pub mod genai;
 pub mod sql;
 pub use genai::{
-    extract_gen_ai_span, AgentBucketRow, AgentDashboardRequest, AgentDashboardResponse,
-    AgentDashboardSummary, AgentMetricBucket, GenAiAgentActivity, GenAiAgentActivityResponse,
-    GenAiErrorBreakdownResponse, GenAiErrorCount, GenAiEvalResult, GenAiMetricsRequest,
-    GenAiModelUsage, GenAiModelUsageResponse, GenAiOperationBreakdown,
-    GenAiOperationBreakdownResponse, GenAiSpanFilters, GenAiSpanRecord, GenAiSpansResponse,
-    GenAiTokenBucket, GenAiTokenMetricsResponse, GenAiToolActivity, GenAiToolActivityResponse,
+    extract_gen_ai_span, AgentActivityQuery, AgentBucketRow, AgentDashboardRequest,
+    AgentDashboardResponse, AgentDashboardSummary, AgentMetricBucket, ConversationQuery,
+    GenAiAgentActivity, GenAiAgentActivityResponse, GenAiErrorBreakdownResponse, GenAiErrorCount,
+    GenAiEvalResult, GenAiMetricsRequest, GenAiModelUsage, GenAiModelUsageResponse,
+    GenAiOperationBreakdown, GenAiOperationBreakdownResponse, GenAiSpanFilters, GenAiSpanRecord,
+    GenAiSpansResponse, GenAiTokenBucket, GenAiTokenMetricsResponse, GenAiToolActivity,
+    GenAiToolActivityResponse, GenAiTraceMetricsRequest, GenAiTraceMetricsResponse,
     ModelCostBreakdown, ModelPricing, ToolDashboardRequest, ToolDashboardResponse, ToolTimeBucket,
     GEN_AI_AGENT_ID, GEN_AI_AGENT_NAME, GEN_AI_CONVERSATION_ID, GEN_AI_ERROR_TYPE,
     GEN_AI_OPERATION_NAME, GEN_AI_OUTPUT_TYPE, GEN_AI_PROVIDER_NAME, GEN_AI_REQUEST_MAX_TOKENS,

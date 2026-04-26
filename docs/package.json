@@ -1,0 +1,28 @@
+{
+  "name": "scouter-docs",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.12.1",
+  "scripts": {
+    "predev": "python3 scripts/generate_api_docs.py",
+    "dev": "astro dev",
+    "prebuild": "python3 scripts/generate_api_docs.py",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.38.4",
+    "@astrojs/svelte": "^8.0.5",
+    "@fontsource-variable/inter": "^5.2.8",
+    "@fontsource/jetbrains-mono": "^5.2.8",
+    "astro": "^6.1.6",
+    "astro-mermaid": "^2.0.1",
+    "katex": "^0.16.22",
+    "mermaid": "^11.14.0",
+    "rehype-katex": "^7.0.1",
+    "remark-math": "^6.0.0",
+    "sharp": "^0.34.5",
+    "svelte": "^5.38.7",
+    "typescript": "^5.8.3"
+  }
+}

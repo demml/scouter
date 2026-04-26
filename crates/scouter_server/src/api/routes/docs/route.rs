@@ -15,6 +15,24 @@ fn floor_char_boundary(s: &str, i: usize) -> usize {
     idx
 }
 
+fn sanitize_doc_content(content: &str) -> String {
+    let mut sanitized = content.trim_start();
+
+    if sanitized.starts_with("---\n") {
+        if let Some(end) = sanitized[4..].find("\n---\n") {
+            sanitized = &sanitized[end + 9..];
+        }
+    }
+
+    let filtered = sanitized
+        .lines()
+        .skip_while(|line| line.trim().is_empty() || line.trim_start().starts_with("import "))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    filtered.trim().to_string()
+}
+
 pub struct DocEntry {
     pub id: &'static str,
     pub title: &'static str,
@@ -28,224 +46,311 @@ static DOCS: &[DocEntry] = &[
         id: "index",
         title: "Scouter Overview",
         category: "overview",
-        content: include_str!("../../../../../../py-scouter/docs/index.md"),
+        content: include_str!("../../../../../../docs/src/content/docs/index.mdx"),
     },
     DocEntry {
         id: "installation",
         title: "Installation",
         category: "setup",
-        content: include_str!("../../../../../../py-scouter/docs/installation.md"),
+        content: include_str!("../../../../../../docs/src/content/docs/installation.mdx"),
     },
     DocEntry {
         id: "server",
         title: "Server Guide",
         category: "setup",
-        content: include_str!("../../../../../../py-scouter/docs/server.md"),
+        content: include_str!("../../../../../../docs/src/content/docs/server/index.md"),
     },
     // Agent evaluation
     DocEntry {
         id: "agents/overview",
         title: "Agent Evaluation Overview",
         category: "agents",
-        content: include_str!("../../../../../../py-scouter/docs/docs/agents/overview.md"),
+        content: include_str!("../../../../../../docs/src/content/docs/agents/overview.md"),
     },
     DocEntry {
         id: "agents/tasks",
         title: "Evaluation Tasks",
         category: "agents",
-        content: include_str!("../../../../../../py-scouter/docs/docs/agents/tasks.md"),
+        content: include_str!("../../../../../../docs/src/content/docs/agents/tasks.md"),
     },
     DocEntry {
         id: "agents/offline-evaluation",
         title: "Offline Evaluation",
         category: "agents",
-        content: include_str!(
-            "../../../../../../py-scouter/docs/docs/agents/offline-evaluation.md"
-        ),
+        content: include_str!("../../../../../../docs/src/content/docs/agents/offline-evaluation.md"),
     },
     DocEntry {
         id: "agents/online-evaluation",
         title: "Online Evaluation",
         category: "agents",
-        content: include_str!("../../../../../../py-scouter/docs/docs/agents/online-evaluation.md"),
+        content: include_str!("../../../../../../docs/src/content/docs/agents/online-evaluation.md"),
     },
     DocEntry {
         id: "agents/gates",
         title: "Conditional Gates",
         category: "agents",
-        content: include_str!("../../../../../../py-scouter/docs/docs/agents/gates.md"),
+        content: include_str!("../../../../../../docs/src/content/docs/agents/gates.mdx"),
     },
     DocEntry {
         id: "agents/eval-dataset",
         title: "Eval Dataset",
         category: "agents",
-        content: include_str!("../../../../../../py-scouter/docs/docs/agents/eval-dataset.md"),
+        content: include_str!("../../../../../../docs/src/content/docs/agents/eval-dataset.md"),
     },
     DocEntry {
         id: "agents/reading-results",
         title: "Reading Results",
         category: "agents",
-        content: include_str!("../../../../../../py-scouter/docs/docs/agents/reading-results.md"),
+        content: include_str!("../../../../../../docs/src/content/docs/agents/reading-results.md"),
     },
     // Monitoring
     DocEntry {
         id: "monitoring/index",
         title: "Monitoring Overview",
         category: "monitoring",
-        content: include_str!("../../../../../../py-scouter/docs/docs/monitoring/index.md"),
+        content: include_str!("../../../../../../docs/src/content/docs/monitoring/index.md"),
     },
     DocEntry {
         id: "monitoring/inference",
         title: "Inference Monitoring",
         category: "monitoring",
-        content: include_str!("../../../../../../py-scouter/docs/docs/monitoring/inference.md"),
+        content: include_str!("../../../../../../docs/src/content/docs/monitoring/inference.md"),
     },
     DocEntry {
         id: "monitoring/psi/quickstart",
         title: "PSI Quickstart",
         category: "monitoring",
-        content: include_str!(
-            "../../../../../../py-scouter/docs/docs/monitoring/psi/quickstart.md"
-        ),
+        content: include_str!("../../../../../../docs/src/content/docs/monitoring/psi/quickstart.md"),
     },
     DocEntry {
         id: "monitoring/psi/theory",
         title: "PSI Theory",
         category: "monitoring",
-        content: include_str!("../../../../../../py-scouter/docs/docs/monitoring/psi/theory.md"),
+        content: include_str!("../../../../../../docs/src/content/docs/monitoring/psi/theory.mdx"),
     },
     DocEntry {
         id: "monitoring/psi/drift-config",
         title: "PSI Drift Config",
         category: "monitoring",
-        content: include_str!(
-            "../../../../../../py-scouter/docs/docs/monitoring/psi/drift_config.md"
-        ),
+        content: include_str!("../../../../../../docs/src/content/docs/monitoring/psi/drift-config.md"),
     },
     DocEntry {
         id: "monitoring/psi/drift-profile",
         title: "PSI Drift Profile",
         category: "monitoring",
-        content: include_str!(
-            "../../../../../../py-scouter/docs/docs/monitoring/psi/drift_profile.md"
-        ),
+        content: include_str!("../../../../../../docs/src/content/docs/monitoring/psi/drift-profile.md"),
     },
     DocEntry {
         id: "monitoring/spc/quickstart",
         title: "SPC Quickstart",
         category: "monitoring",
-        content: include_str!(
-            "../../../../../../py-scouter/docs/docs/monitoring/spc/quickstart.md"
-        ),
+        content: include_str!("../../../../../../docs/src/content/docs/monitoring/spc/quickstart.md"),
     },
     DocEntry {
         id: "monitoring/spc/theory",
         title: "SPC Theory",
         category: "monitoring",
-        content: include_str!("../../../../../../py-scouter/docs/docs/monitoring/spc/theory.md"),
+        content: include_str!("../../../../../../docs/src/content/docs/monitoring/spc/theory.mdx"),
     },
     DocEntry {
         id: "monitoring/spc/drift-config",
         title: "SPC Drift Config",
         category: "monitoring",
-        content: include_str!(
-            "../../../../../../py-scouter/docs/docs/monitoring/spc/drift_config.md"
-        ),
+        content: include_str!("../../../../../../docs/src/content/docs/monitoring/spc/drift-config.md"),
     },
     DocEntry {
         id: "monitoring/spc/drift-profile",
         title: "SPC Drift Profile",
         category: "monitoring",
-        content: include_str!(
-            "../../../../../../py-scouter/docs/docs/monitoring/spc/drift_profile.md"
-        ),
+        content: include_str!("../../../../../../docs/src/content/docs/monitoring/spc/drift-profile.md"),
     },
     DocEntry {
         id: "monitoring/custom/quickstart",
         title: "Custom Metrics Quickstart",
         category: "monitoring",
-        content: include_str!(
-            "../../../../../../py-scouter/docs/docs/monitoring/custom/quickstart.md"
-        ),
+        content: include_str!("../../../../../../docs/src/content/docs/monitoring/custom/quickstart.md"),
     },
     // Distributed tracing
     DocEntry {
         id: "tracing/overview",
         title: "Tracing Overview",
         category: "tracing",
-        content: include_str!("../../../../../../py-scouter/docs/docs/tracing/overview.md"),
+        content: include_str!("../../../../../../docs/src/content/docs/tracing/overview.mdx"),
+    },
+    DocEntry {
+        id: "tracing/genai-semantics",
+        title: "GenAI Semantic Conventions",
+        category: "tracing",
+        content: include_str!("../../../../../../docs/src/content/docs/tracing/genai-semantics.mdx"),
     },
     DocEntry {
         id: "tracing/instrumentor",
         title: "Instrumentor Setup",
         category: "tracing",
-        content: include_str!("../../../../../../py-scouter/docs/docs/tracing/instrumentor.md"),
+        content: include_str!("../../../../../../docs/src/content/docs/tracing/instrumentor.md"),
     },
     DocEntry {
         id: "tracing/storage-architecture",
         title: "Storage Architecture",
         category: "tracing",
-        content: include_str!(
-            "../../../../../../py-scouter/docs/docs/tracing/storage-architecture.md"
-        ),
+        content: include_str!("../../../../../../docs/src/content/docs/tracing/storage-architecture.mdx"),
     },
     // Server
     DocEntry {
         id: "server/index",
         title: "Server Overview",
         category: "server",
-        content: include_str!("../../../../../../py-scouter/docs/docs/server/index.md"),
+        content: include_str!("../../../../../../docs/src/content/docs/server/index.md"),
     },
     DocEntry {
         id: "server/postgres",
         title: "PostgreSQL Setup",
         category: "server",
-        content: include_str!("../../../../../../py-scouter/docs/docs/server/postgres.md"),
+        content: include_str!("../../../../../../docs/src/content/docs/server/postgres.md"),
     },
     // Profiling
     DocEntry {
         id: "profiling/overview",
         title: "Data Profiling",
         category: "profiling",
-        content: include_str!("../../../../../../py-scouter/docs/docs/profiling/overview.md"),
+        content: include_str!("../../../../../../docs/src/content/docs/profiling/overview.md"),
+    },
+    // Evaluation platform
+    DocEntry {
+        id: "evaluation-platform/index",
+        title: "Evaluation Platform",
+        category: "evaluation-platform",
+        content: include_str!("../../../../../../docs/src/content/docs/evaluation-platform/index.mdx"),
+    },
+    DocEntry {
+        id: "evaluation-platform/eval-profiles-and-tasks",
+        title: "Eval Profiles and Tasks",
+        category: "evaluation-platform",
+        content: include_str!(
+            "../../../../../../docs/src/content/docs/evaluation-platform/eval-profiles-and-tasks.mdx"
+        ),
+    },
+    DocEntry {
+        id: "evaluation-platform/offline-evaluation",
+        title: "Offline Evaluation",
+        category: "evaluation-platform",
+        content: include_str!(
+            "../../../../../../docs/src/content/docs/evaluation-platform/offline-evaluation.mdx"
+        ),
+    },
+    DocEntry {
+        id: "evaluation-platform/online-evaluation",
+        title: "Online Evaluation",
+        category: "evaluation-platform",
+        content: include_str!(
+            "../../../../../../docs/src/content/docs/evaluation-platform/online-evaluation.mdx"
+        ),
+    },
+    DocEntry {
+        id: "evaluation-platform/observability-and-traces",
+        title: "Observability and Traces",
+        category: "evaluation-platform",
+        content: include_str!(
+            "../../../../../../docs/src/content/docs/evaluation-platform/observability-and-traces.mdx"
+        ),
+    },
+    DocEntry {
+        id: "evaluation-platform/discussion-and-tradeoffs",
+        title: "Discussion and Tradeoffs",
+        category: "evaluation-platform",
+        content: include_str!(
+            "../../../../../../docs/src/content/docs/evaluation-platform/discussion-and-tradeoffs.md"
+        ),
+    },
+    DocEntry {
+        id: "evaluation-platform/comparison",
+        title: "Comparison",
+        category: "evaluation-platform",
+        content: include_str!(
+            "../../../../../../docs/src/content/docs/evaluation-platform/comparison.md"
+        ),
+    },
+    // Architecture
+    DocEntry {
+        id: "architecture/overview",
+        title: "System Architecture",
+        category: "architecture",
+        content: include_str!("../../../../../../docs/src/content/docs/architecture/overview.mdx"),
     },
     // Bifrost (data archival)
     DocEntry {
         id: "bifrost/overview",
         title: "Bifrost Overview",
         category: "bifrost",
-        content: include_str!("../../../../../../py-scouter/docs/docs/bifrost/overview.md"),
+        content: include_str!("../../../../../../docs/src/content/docs/bifrost/overview.mdx"),
     },
     DocEntry {
         id: "bifrost/quickstart",
         title: "Bifrost Quickstart",
         category: "bifrost",
-        content: include_str!("../../../../../../py-scouter/docs/docs/bifrost/quickstart.md"),
+        content: include_str!("../../../../../../docs/src/content/docs/bifrost/quickstart.md"),
     },
     DocEntry {
         id: "bifrost/schema",
         title: "Bifrost Schema",
         category: "bifrost",
-        content: include_str!("../../../../../../py-scouter/docs/docs/bifrost/schema.md"),
+        content: include_str!("../../../../../../docs/src/content/docs/bifrost/schema.md"),
     },
     DocEntry {
         id: "bifrost/reading-data",
         title: "Reading Data",
         category: "bifrost",
-        content: include_str!("../../../../../../py-scouter/docs/docs/bifrost/reading-data.md"),
+        content: include_str!("../../../../../../docs/src/content/docs/bifrost/reading-data.md"),
     },
     DocEntry {
         id: "bifrost/writing-data",
         title: "Writing Data",
         category: "bifrost",
-        content: include_str!("../../../../../../py-scouter/docs/docs/bifrost/writing-data.md"),
+        content: include_str!("../../../../../../docs/src/content/docs/bifrost/writing-data.md"),
+    },
+    // Tech specs
+    DocEntry {
+        id: "specs/index",
+        title: "Tech Specs Overview",
+        category: "specs",
+        content: include_str!("../../../../../../docs/src/content/docs/specs/index.md"),
+    },
+    DocEntry {
+        id: "specs/data-archive",
+        title: "Data Archive",
+        category: "specs",
+        content: include_str!("../../../../../../docs/src/content/docs/specs/data-archive.md"),
+    },
+    DocEntry {
+        id: "specs/scouter-queue",
+        title: "Scouter Queue",
+        category: "specs",
+        content: include_str!("../../../../../../docs/src/content/docs/specs/scouter-queue.md"),
+    },
+    DocEntry {
+        id: "specs/scouter-grpc",
+        title: "Scouter gRPC",
+        category: "specs",
+        content: include_str!("../../../../../../docs/src/content/docs/specs/scouter-grpc.md"),
+    },
+    DocEntry {
+        id: "specs/genai-eval",
+        title: "Agent Evaluation Spec",
+        category: "specs",
+        content: include_str!("../../../../../../docs/src/content/docs/specs/genai-eval.md"),
+    },
+    DocEntry {
+        id: "specs/eval-task-executor",
+        title: "Eval Task Executor",
+        category: "specs",
+        content: include_str!("../../../../../../docs/src/content/docs/specs/eval-task-executor.md"),
     },
     // API reference
     DocEntry {
-        id: "api/stubs",
-        title: "Python Type Stubs",
+        id: "api/index",
+        title: "Python API Reference",
         category: "api",
-        content: include_str!("../../../../../../py-scouter/docs/docs/api/stubs.md"),
+        content: include_str!("../../../../../../docs/src/content/docs/api/index.md"),
     },
 ];
 
@@ -266,7 +371,7 @@ pub struct DocResponse {
     pub id: &'static str,
     pub title: &'static str,
     pub category: &'static str,
-    pub content: &'static str,
+    pub content: String,
 }
 
 #[derive(Deserialize, utoipa::IntoParams)]
@@ -338,7 +443,8 @@ pub async fn search_docs(
     let results = DOCS
         .iter()
         .filter_map(|e| {
-            let content_lower = e.content.to_lowercase();
+            let content = sanitize_doc_content(e.content);
+            let content_lower = content.to_lowercase();
             let title_lower = e.title.to_lowercase();
             if !title_lower.contains(&q) && !content_lower.contains(&q) {
                 return None;
@@ -390,7 +496,7 @@ pub async fn get_doc(
                 id: e.id,
                 title: e.title,
                 category: e.category,
-                content: e.content,
+                content: sanitize_doc_content(e.content),
             })
         })
         .ok_or_else(|| {

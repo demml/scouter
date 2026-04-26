@@ -4,11 +4,12 @@ use axum::{
     body::Body,
     http::{header, Request, StatusCode},
 };
+use chrono::Utc;
 use http_body_util::BodyExt;
 use scouter_sql::sql::aggregator::shutdown_trace_cache;
 use scouter_types::{
-    sql::TraceFilters, SpansFromTagsRequest, TraceMetricsRequest, TraceMetricsResponse,
-    TracePaginationResponse, TraceRequest, TraceSpansResponse,
+    sql::TraceFilters, GenAiSpanRecord, SpanId, SpansFromTagsRequest, TraceId, TraceMetricsRequest,
+    TraceMetricsResponse, TracePaginationResponse, TraceRequest, TraceSpansResponse,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -24,6 +25,33 @@ async fn fetch_paginated(helper: &TestHelper, filters: &TraceFilters) -> TracePa
     assert_eq!(response.status(), StatusCode::OK);
     let body = response.into_body().collect().await.unwrap().to_bytes();
     serde_json::from_slice(&body).unwrap()
+}
+
+fn build_genai_span(
+    trace_id: TraceId,
+    span_id: u8,
+    start_time: chrono::DateTime<Utc>,
+) -> GenAiSpanRecord {
+    GenAiSpanRecord {
+        trace_id,
+        span_id: SpanId::from_bytes([span_id; 8]),
+        service_name: "genai-service".to_string(),
+        start_time,
+        end_time: Some(start_time + chrono::Duration::milliseconds(80)),
+        duration_ms: 80,
+        status_code: 0,
+        operation_name: Some("invoke_agent".to_string()),
+        provider_name: Some("openai".to_string()),
+        request_model: Some("gpt-4".to_string()),
+        response_model: Some("gpt-4o".to_string()),
+        input_tokens: Some(12),
+        output_tokens: Some(20),
+        input_messages: Some(r#"[{"role":"user","content":"hi"}]"#.to_string()),
+        output_messages: Some(r#"[{"role":"assistant","content":"hello"}]"#.to_string()),
+        system_instructions: Some("be concise".to_string()),
+        tool_definitions: Some(r#"[{"name":"search"}]"#.to_string()),
+        ..Default::default()
+    }
 }
 
 #[tokio::test]
@@ -267,4 +295,93 @@ async fn test_trace_pagination() {
         backward_ids, forward_ids,
         "Backward walk should cover the same trace_ids as forward walk"
     );
+}
+
+#[tokio::test]
+async fn test_genai_trace_metrics_route() {
+    let helper = setup_test().await;
+    let trace_id = TraceId::from_bytes([55u8; 16]);
+    let other_trace_id = TraceId::from_bytes([56u8; 16]);
+    let now = Utc::now();
+
+    let records = vec![
+        build_genai_span(trace_id, 1, now),
+        build_genai_span(other_trace_id, 2, now),
+    ];
+    helper.genai_service.write_records(records).await.unwrap();
+    tokio::time::sleep(std::time::Duration::from_secs(4)).await;
+
+    let body = serde_json::json!({
+        "start_time": (now - chrono::Duration::hours(1)).to_rfc3339(),
+        "end_time": (now + chrono::Duration::hours(1)).to_rfc3339(),
+        "bucket_interval": "hour",
+        "model_pricing": {},
+        "span_limit": 10,
+        "include_sensitive_content": false
+    });
+
+    let request = Request::builder()
+        .uri(format!(
+            "/scouter/genai/traces/{}/metrics",
+            trace_id.to_hex()
+        ))
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(serde_json::to_string(&body).unwrap()))
+        .unwrap();
+
+    let response = helper.send_oneshot(request).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let response_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(response_json["trace_id"], trace_id.to_hex());
+    assert_eq!(response_json["span_limit"], 10);
+    assert_eq!(response_json["spans_truncated"], false);
+    assert_eq!(response_json["sensitive_content_redacted"], true);
+    let spans = response_json["spans"].as_array().unwrap();
+    assert_eq!(
+        spans.len(),
+        1,
+        "Only spans for requested trace should be returned"
+    );
+    assert_eq!(spans[0]["trace_id"], trace_id.to_hex());
+    assert!(spans[0]["input_messages"].is_null());
+    assert!(spans[0]["output_messages"].is_null());
+    assert!(spans[0]["system_instructions"].is_null());
+    assert!(spans[0]["tool_definitions"].is_null());
+}
+
+#[tokio::test]
+async fn test_genai_trace_metrics_route_validation_errors() {
+    let helper = setup_test().await;
+
+    let invalid_trace_request = Request::builder()
+        .uri("/scouter/genai/traces/not-a-trace-id/metrics")
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(
+            serde_json::json!({
+                "bucket_interval": "hour"
+            })
+            .to_string(),
+        ))
+        .unwrap();
+    let invalid_trace_response = helper.send_oneshot(invalid_trace_request).await;
+    assert_eq!(invalid_trace_response.status(), StatusCode::BAD_REQUEST);
+
+    let valid_trace_id = TraceId::from_bytes([57u8; 16]).to_hex();
+    let invalid_bucket_request = Request::builder()
+        .uri(format!("/scouter/genai/traces/{valid_trace_id}/metrics"))
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(
+            serde_json::json!({
+                "bucket_interval": "fortnight"
+            })
+            .to_string(),
+        ))
+        .unwrap();
+    let invalid_bucket_response = helper.send_oneshot(invalid_bucket_request).await;
+    assert_eq!(invalid_bucket_response.status(), StatusCode::BAD_REQUEST);
 }

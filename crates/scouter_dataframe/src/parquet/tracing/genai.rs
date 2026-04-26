@@ -3,7 +3,7 @@ use crate::parquet::control::{get_pod_id, ControlTableEngine};
 use crate::parquet::tracing::catalog::TraceCatalogProvider;
 use crate::parquet::tracing::queries::{date_lit, ts_lit};
 use crate::parquet::tracing::traits::arrow_schema_to_delta;
-use crate::parquet::utils::register_cloud_logstore_factories;
+use crate::parquet::utils::{register_cloud_logstore_factories, run_delta_init};
 use crate::storage::ObjectStore;
 use ahash::AHasher;
 use arrow::array::*;
@@ -600,8 +600,16 @@ async fn build_or_create_genai_table(
     object_store: &ObjectStore,
     schema: SchemaRef,
 ) -> Result<DeltaTable, TraceEngineError> {
+    let object_store = object_store.clone();
+    run_delta_init(build_or_create_genai_table_inner(object_store, schema)).await
+}
+
+async fn build_or_create_genai_table_inner(
+    object_store: ObjectStore,
+    schema: SchemaRef,
+) -> Result<DeltaTable, TraceEngineError> {
     register_cloud_logstore_factories();
-    let table_url = build_genai_url(object_store).await?;
+    let table_url = build_genai_url(&object_store).await?;
     info!(
         "Loading gen_ai_spans table [{}://.../{} ]",
         table_url.scheme(),
@@ -650,7 +658,7 @@ async fn build_or_create_genai_table(
             .map_err(Into::into)
     } else {
         info!("gen_ai_spans table does not exist, creating new table");
-        create_genai_table(object_store, table_url, schema).await
+        create_genai_table(&object_store, table_url, schema).await
     }
 }
 
@@ -1073,6 +1081,12 @@ pub struct GenAiQueries {
     model_cache: Cache<u64, Arc<Vec<GenAiModelUsage>>>,
     agent_bucket_cache: Cache<u64, Arc<Vec<AgentBucketRow>>>,
     tool_ts_cache: Cache<u64, Arc<Vec<ToolTimeBucket>>>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct TraceSpanQueryResult {
+    pub spans: Vec<GenAiSpanRecord>,
+    pub spans_truncated: bool,
 }
 
 impl GenAiQueries {
@@ -1966,6 +1980,32 @@ impl GenAiQueries {
 
         let batches = df.collect().await?;
         batches_to_genai_records(batches)
+    }
+
+    pub async fn get_genai_spans_by_trace_id(
+        &self,
+        trace_id: &TraceId,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+        limit: usize,
+    ) -> Result<TraceSpanQueryResult, TraceEngineError> {
+        let clamped_limit = limit.clamp(1, 10_000);
+        let df = self.ctx.table(GEN_AI_TABLE_NAME).await?;
+        let df = Self::apply_time_filters(df, &start, &end)?;
+        let df = df.filter(col(TRACE_ID_COL).eq(lit(trace_id.as_bytes().as_slice())))?;
+        let df = df.sort(vec![col(START_TIME_COL).sort(true, true)])?;
+        let df = df.limit(0, Some(clamped_limit + 1))?;
+
+        let batches = df.collect().await?;
+        let mut spans = batches_to_genai_records(batches)?;
+        let spans_truncated = spans.len() > clamped_limit;
+        if spans_truncated {
+            spans.truncate(clamped_limit);
+        }
+        Ok(TraceSpanQueryResult {
+            spans,
+            spans_truncated,
+        })
     }
 
     pub async fn get_conversation_spans(
@@ -3672,6 +3712,157 @@ mod tests {
                 "All spans should belong to service_alpha"
             );
         }
+
+        service.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_genai_spans_by_trace_id_returns_full_records() -> Result<(), TraceEngineError>
+    {
+        let env = make_test_env();
+        let service =
+            GenAiSpanService::new(&env.object_store, 24, env.ctx, env.catalog, 10, None).await?;
+
+        let trace_id = TraceId::from_bytes([106u8; 16]);
+        let other_trace_id = TraceId::from_bytes([107u8; 16]);
+        let now = Utc::now();
+        let records = vec![
+            GenAiSpanRecord {
+                trace_id,
+                span_id: SpanId::from_bytes([106u8; 8]),
+                service_name: "trace_service".to_string(),
+                start_time: now,
+                end_time: Some(now + chrono::Duration::milliseconds(100)),
+                duration_ms: 100,
+                status_code: 0,
+                operation_name: Some("chat".to_string()),
+                provider_name: Some("openai".to_string()),
+                request_model: Some("gpt-4".to_string()),
+                response_model: Some("gpt-4o".to_string()),
+                response_id: Some("resp-1".to_string()),
+                input_tokens: Some(10),
+                output_tokens: Some(20),
+                cache_creation_input_tokens: Some(3),
+                cache_read_input_tokens: Some(4),
+                finish_reasons: vec!["stop".to_string()],
+                output_type: Some("text".to_string()),
+                conversation_id: Some("conv-1".to_string()),
+                agent_name: Some("agent-a".to_string()),
+                agent_id: Some("agent-id-a".to_string()),
+                agent_description: Some("test agent".to_string()),
+                agent_version: Some("v1".to_string()),
+                data_source_id: Some("ds-1".to_string()),
+                tool_name: Some("search".to_string()),
+                tool_type: Some("function".to_string()),
+                tool_call_id: Some("call-1".to_string()),
+                request_temperature: Some(0.2),
+                request_max_tokens: Some(256),
+                request_top_p: Some(0.9),
+                request_choice_count: Some(1),
+                request_seed: Some(42),
+                request_frequency_penalty: Some(0.1),
+                request_presence_penalty: Some(0.2),
+                request_stop_sequences: vec!["END".to_string()],
+                server_address: Some("api.openai.com".to_string()),
+                server_port: Some(443),
+                error_type: Some("rate_limit".to_string()),
+                openai_api_type: Some("responses".to_string()),
+                openai_service_tier: Some("default".to_string()),
+                label: Some("prod".to_string()),
+                input_messages: Some(r#"[{"role":"user","content":"hi"}]"#.to_string()),
+                output_messages: Some(r#"[{"role":"assistant","content":"hello"}]"#.to_string()),
+                system_instructions: Some("be concise".to_string()),
+                tool_definitions: Some(r#"[{"name":"search"}]"#.to_string()),
+                eval_results: vec![GenAiEvalResult {
+                    name: "quality".to_string(),
+                    score_label: Some("pass".to_string()),
+                    score_value: Some(1.0),
+                    explanation: Some("ok".to_string()),
+                    response_id: Some("resp-1".to_string()),
+                }],
+            },
+            make_genai_record(
+                &other_trace_id,
+                SpanId::from_bytes([107u8; 8]),
+                "trace_service",
+                "chat",
+                "openai",
+                "gpt-4",
+                50,
+                60,
+            ),
+        ];
+
+        service.write_records(records).await?;
+        tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+
+        let query_result = service
+            .query_service
+            .get_genai_spans_by_trace_id(
+                &trace_id,
+                now - chrono::Duration::hours(1),
+                now + chrono::Duration::hours(1),
+                100,
+            )
+            .await?;
+
+        let spans = query_result.spans;
+        assert_eq!(spans.len(), 1, "Expected only the requested trace");
+        assert!(!query_result.spans_truncated);
+        let span = &spans[0];
+        assert_eq!(span.trace_id, trace_id);
+        assert_eq!(span.response_model.as_deref(), Some("gpt-4o"));
+        assert_eq!(span.cache_creation_input_tokens, Some(3));
+        assert_eq!(span.finish_reasons, vec!["stop"]);
+        assert_eq!(span.agent_description.as_deref(), Some("test agent"));
+        assert_eq!(
+            span.tool_definitions.as_deref(),
+            Some(r#"[{"name":"search"}]"#)
+        );
+        assert_eq!(span.eval_results.len(), 1);
+
+        service.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_genai_spans_by_trace_id_applies_limit() -> Result<(), TraceEngineError> {
+        let env = make_test_env();
+        let service =
+            GenAiSpanService::new(&env.object_store, 24, env.ctx, env.catalog, 10, None).await?;
+
+        let trace_id = TraceId::from_bytes([108u8; 16]);
+        let now = Utc::now();
+        let mut records = Vec::new();
+        for i in 0..5u8 {
+            records.push(make_genai_record(
+                &trace_id,
+                SpanId::from_bytes([200 + i; 8]),
+                "trace_service",
+                "chat",
+                "openai",
+                "gpt-4",
+                10,
+                20,
+            ));
+        }
+
+        service.write_records(records).await?;
+        tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+
+        let query_result = service
+            .query_service
+            .get_genai_spans_by_trace_id(
+                &trace_id,
+                now - chrono::Duration::hours(1),
+                now + chrono::Duration::hours(1),
+                3,
+            )
+            .await?;
+
+        assert_eq!(query_result.spans.len(), 3);
+        assert!(query_result.spans_truncated);
 
         service.shutdown().await?;
         Ok(())

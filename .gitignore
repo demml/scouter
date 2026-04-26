@@ -90,3 +90,6 @@ crates/scouter_tonic/src/generated/.proto_hash
 
 # debug symbols
 py-scouter/python/scouter/*.dSYM/
+/.playwright-mcp
+
+docs/node_modules

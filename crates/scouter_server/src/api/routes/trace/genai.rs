@@ -1,33 +1,31 @@
+use crate::api::routes::trace::metrics::{
+    build_trace_metrics_response, fold_agent_buckets, validate_bucket_interval,
+};
 use crate::api::state::AppState;
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Extension, Path, Query, State},
     http::StatusCode,
     routing::{get, post},
     Json, Router,
 };
+use scouter_auth::permission::UserPermissions;
 use scouter_types::{
-    contracts::ScouterServerError, AgentBucketRow, AgentDashboardRequest, AgentDashboardResponse,
-    AgentDashboardSummary, AgentMetricBucket, GenAiAgentActivityResponse,
+    contracts::ScouterServerError, AgentActivityQuery, AgentDashboardRequest,
+    AgentDashboardResponse, ConversationQuery, GenAiAgentActivityResponse,
     GenAiErrorBreakdownResponse, GenAiErrorCount, GenAiMetricsRequest, GenAiModelUsageResponse,
-    GenAiOperationBreakdownResponse, GenAiSpanFilters, GenAiSpansResponse,
-    GenAiTokenMetricsResponse, GenAiToolActivityResponse, ModelCostBreakdown, ModelPricing,
-    ToolDashboardRequest, ToolDashboardResponse,
+    GenAiOperationBreakdownResponse, GenAiSpanFilters, GenAiSpanRecord, GenAiSpansResponse,
+    GenAiTokenMetricsResponse, GenAiToolActivityResponse, GenAiTraceMetricsRequest,
+    GenAiTraceMetricsResponse, ToolDashboardRequest, ToolDashboardResponse, TraceId,
 };
-use serde::Deserialize;
+
+use chrono::Utc;
 use std::sync::Arc;
 use tracing::instrument;
 
-#[derive(Deserialize, utoipa::IntoParams)]
-pub struct AgentActivityQuery {
-    pub agent_name: Option<String>,
-}
-
-#[derive(Deserialize, utoipa::IntoParams)]
-pub struct ConversationQuery {
-    pub start_time: Option<String>,
-    pub end_time: Option<String>,
-}
+const DEFAULT_TRACE_METRICS_WINDOW_HOURS: i64 = 24;
+const MAX_TRACE_METRICS_WINDOW_DAYS: i64 = 30;
+const MAX_TRACE_METRICS_SPAN_LIMIT: usize = 5_000;
 
 #[utoipa::path(
     post,
@@ -359,165 +357,110 @@ pub async fn get_conversation_spans(
     Ok(Json(GenAiSpansResponse { spans }))
 }
 
-fn compute_cost(
-    input: i64,
-    output: i64,
-    cache_creation: i64,
-    cache_read: i64,
-    pricing: &ModelPricing,
-) -> f64 {
-    (input as f64 / 1_000_000.0) * pricing.input_per_million
-        + (output as f64 / 1_000_000.0) * pricing.output_per_million
-        + (cache_creation as f64 / 1_000_000.0) * pricing.cache_creation_per_million
-        + (cache_read as f64 / 1_000_000.0) * pricing.cache_read_per_million
+fn redact_sensitive_span_fields(mut spans: Vec<GenAiSpanRecord>) -> Vec<GenAiSpanRecord> {
+    for span in &mut spans {
+        span.input_messages = None;
+        span.output_messages = None;
+        span.system_instructions = None;
+        span.tool_definitions = None;
+    }
+    spans
 }
 
-fn fold_agent_buckets(
-    rows: &[AgentBucketRow],
-    model_pricing: &std::collections::HashMap<String, ModelPricing>,
-) -> AgentDashboardResponse {
-    use std::collections::HashMap;
+/// Handler for retrieving GenAI spans and aggregate metrics for a specific trace ID, with optional time range and span limit.
+#[utoipa::path(
+    post,
+    path = "/scouter/genai/traces/{id}/metrics",
+    params(
+        ("id" = String, Path, description = "Trace ID (hex-encoded)")
+    ),
+    request_body = GenAiTraceMetricsRequest,
+    responses(
+        (status = 200, description = "Trace-scoped GenAI spans and aggregate metrics", body = GenAiTraceMetricsResponse),
+        (status = 400, description = "Invalid trace ID or request", body = ScouterServerError),
+        (status = 403, description = "Permission denied", body = ScouterServerError),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "genai",
+    security(("bearer_token" = []))
+)]
+#[instrument(skip_all)]
+pub async fn get_genai_trace_metrics(
+    State(data): State<Arc<AppState>>,
+    Extension(perms): Extension<UserPermissions>,
+    Path(id): Path<String>,
+    Json(body): Json<GenAiTraceMetricsRequest>,
+) -> Result<Json<GenAiTraceMetricsResponse>, (StatusCode, Json<ScouterServerError>)> {
+    let trace_id = TraceId::from_hex(&id).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ScouterServerError::new(format!("Invalid trace_id: {e}"))),
+        )
+    })?;
+    validate_bucket_interval(&body.bucket_interval)
+        .map_err(|e| (StatusCode::BAD_REQUEST, Json(ScouterServerError::new(e))))?;
 
-    // Group rows by bucket_start to build time-series buckets.
-    // Within each bucket, sum tokens across models and compute weighted latency.
-    let mut bucket_map: HashMap<i64, AgentMetricBucket> = HashMap::new();
-
-    // Per-model token accumulator (across all buckets) for the summary.
-    let mut model_tokens: HashMap<String, (i64, i64, i64, i64)> = HashMap::new();
-
-    let has_pricing = !model_pricing.is_empty();
-
-    for row in rows {
-        let ts = row.bucket_start.timestamp_micros();
-        let bucket = bucket_map.entry(ts).or_insert_with(|| AgentMetricBucket {
-            bucket_start: row.bucket_start,
-            ..Default::default()
-        });
-
-        // Aggregate per-bucket totals across models.
-        // Weighted avg for latency: accumulate sum_duration = avg * span_count then re-divide.
-        let prev_count = bucket.span_count;
-        let new_count = prev_count + row.span_count;
-        if new_count > 0 {
-            bucket.avg_duration_ms = (bucket.avg_duration_ms * prev_count as f64
-                + row.avg_duration_ms * row.span_count as f64)
-                / new_count as f64;
-        }
-        bucket.span_count = new_count;
-        bucket.error_count += row.error_count;
-        if bucket.span_count > 0 {
-            bucket.error_rate = bucket.error_count as f64 / bucket.span_count as f64;
-        }
-        bucket.total_input_tokens += row.input_tokens;
-        bucket.total_output_tokens += row.output_tokens;
-        bucket.total_cache_creation_tokens += row.cache_creation_tokens;
-        bucket.total_cache_read_tokens += row.cache_read_tokens;
-
-        // Percentiles: take the non-null value if bucket doesn't have one yet.
-        // For true accuracy a separate percentile query would be needed; this is a best-effort
-        // approximation that uses the first model's percentile per bucket.
-        if bucket.p50_duration_ms.is_none() {
-            bucket.p50_duration_ms = row.p50_duration_ms;
-        }
-        if bucket.p95_duration_ms.is_none() {
-            bucket.p95_duration_ms = row.p95_duration_ms;
-        }
-        if bucket.p99_duration_ms.is_none() {
-            bucket.p99_duration_ms = row.p99_duration_ms;
-        }
-
-        // Cost per bucket.
-        if has_pricing {
-            let model_key = row.model.as_deref().unwrap_or("unknown");
-            if let Some(pricing) = model_pricing.get(model_key) {
-                let cost = compute_cost(
-                    row.input_tokens,
-                    row.output_tokens,
-                    row.cache_creation_tokens,
-                    row.cache_read_tokens,
-                    pricing,
-                );
-                *bucket.total_cost.get_or_insert(0.0) += cost;
-            }
-        }
-
-        // Accumulate per-model totals for summary.
-        let model_key = row.model.clone().unwrap_or_else(|| "unknown".to_string());
-        let entry = model_tokens.entry(model_key).or_default();
-        entry.0 += row.input_tokens;
-        entry.1 += row.output_tokens;
-        entry.2 += row.cache_creation_tokens;
-        entry.3 += row.cache_read_tokens;
+    if body.include_sensitive_content && !perms.has_permission("read:all") {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(ScouterServerError::permission_denied()),
+        ));
     }
 
-    // Sort buckets by time.
-    let mut buckets: Vec<AgentMetricBucket> = bucket_map.into_values().collect();
-    buckets.sort_by_key(|b| b.bucket_start);
+    let end_time = body.end_time.unwrap_or_else(Utc::now);
+    let start_time = body
+        .start_time
+        .unwrap_or_else(|| end_time - chrono::Duration::hours(DEFAULT_TRACE_METRICS_WINDOW_HOURS));
+    if start_time >= end_time {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ScouterServerError::new(
+                "start_time must be earlier than end_time".to_string(),
+            )),
+        ));
+    }
+    if end_time - start_time > chrono::Duration::days(MAX_TRACE_METRICS_WINDOW_DAYS) {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ScouterServerError::new(format!(
+                "Time window exceeds {} days",
+                MAX_TRACE_METRICS_WINDOW_DAYS
+            ))),
+        ));
+    }
+    let span_limit = body.span_limit.clamp(1, MAX_TRACE_METRICS_SPAN_LIMIT);
 
-    // Build summary from all rows.
-    let total_requests: i64 = rows.iter().map(|r| r.span_count).sum();
-    let total_errors: i64 = rows.iter().map(|r| r.error_count).sum();
-    let overall_error_rate = if total_requests > 0 {
-        total_errors as f64 / total_requests as f64
+    let query_result = data
+        .genai_service
+        .query_service
+        .get_genai_spans_by_trace_id(&trace_id, start_time, end_time, span_limit)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::get_genai_trace_metrics_error(e)),
+            )
+        })?;
+
+    let sensitive_content_redacted = !body.include_sensitive_content;
+    let spans = if sensitive_content_redacted {
+        redact_sensitive_span_fields(query_result.spans)
     } else {
-        0.0
-    };
-    let avg_duration_ms = if total_requests > 0 {
-        rows.iter()
-            .map(|r| r.avg_duration_ms * r.span_count as f64)
-            .sum::<f64>()
-            / total_requests as f64
-    } else {
-        0.0
-    };
-    let total_input: i64 = rows.iter().map(|r| r.input_tokens).sum();
-    let total_output: i64 = rows.iter().map(|r| r.output_tokens).sum();
-    let total_cache_creation: i64 = rows.iter().map(|r| r.cache_creation_tokens).sum();
-    let total_cache_read: i64 = rows.iter().map(|r| r.cache_read_tokens).sum();
-
-    // Best-effort global percentiles from first non-null row.
-    let p50 = rows.iter().find_map(|r| r.p50_duration_ms);
-    let p95 = rows.iter().find_map(|r| r.p95_duration_ms);
-    let p99 = rows.iter().find_map(|r| r.p99_duration_ms);
-
-    let cost_by_model: Vec<ModelCostBreakdown> = model_tokens
-        .into_iter()
-        .map(|(model, (inp, out, cc, cr))| {
-            let total_cost = if has_pricing {
-                model_pricing
-                    .get(&model)
-                    .map(|p| compute_cost(inp, out, cc, cr, p))
-            } else {
-                None
-            };
-            ModelCostBreakdown {
-                model,
-                total_input_tokens: inp,
-                total_output_tokens: out,
-                total_cache_creation_tokens: cc,
-                total_cache_read_tokens: cr,
-                total_cost,
-            }
-        })
-        .collect();
-
-    let summary = AgentDashboardSummary {
-        total_requests,
-        avg_duration_ms,
-        p50_duration_ms: p50,
-        p95_duration_ms: p95,
-        p99_duration_ms: p99,
-        overall_error_rate,
-        total_input_tokens: total_input,
-        total_output_tokens: total_output,
-        total_cache_creation_tokens: total_cache_creation,
-        total_cache_read_tokens: total_cache_read,
-        unique_agent_count: 0, // filled by caller after get_agent_unique_counts
-        unique_conversation_count: 0,
-        cost_by_model,
+        query_result.spans
     };
 
-    AgentDashboardResponse { summary, buckets }
+    let response = build_trace_metrics_response(
+        id,
+        spans,
+        &body.bucket_interval,
+        &body.model_pricing,
+        span_limit,
+        query_result.spans_truncated,
+        sensitive_content_redacted,
+    )
+    .map_err(|e| (StatusCode::BAD_REQUEST, Json(ScouterServerError::new(e))))?;
+
+    Ok(Json(response))
 }
 
 #[utoipa::path(
@@ -663,4 +606,123 @@ pub fn get_genai_router(prefix: &str) -> Router<Arc<AppState>> {
             &format!("{prefix}/genai/tool/metrics"),
             post(get_tool_dashboard),
         )
+        .route(
+            &format!("{prefix}/genai/traces/{{id}}/metrics"),
+            post(get_genai_trace_metrics),
+        )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{DateTime, TimeZone};
+    use scouter_types::{GenAiEvalResult, SpanId};
+    use std::collections::HashMap;
+
+    fn make_trace_span(
+        trace_id: TraceId,
+        span_id: u8,
+        start_time: DateTime<Utc>,
+    ) -> GenAiSpanRecord {
+        GenAiSpanRecord {
+            trace_id,
+            span_id: SpanId::from_bytes([span_id; 8]),
+            service_name: "svc".to_string(),
+            start_time,
+            end_time: Some(start_time + chrono::Duration::milliseconds(100)),
+            duration_ms: 100,
+            status_code: 0,
+            operation_name: Some("invoke_agent".to_string()),
+            provider_name: Some("openai".to_string()),
+            request_model: Some("gpt-4".to_string()),
+            response_model: Some("gpt-4o".to_string()),
+            input_tokens: Some(10),
+            output_tokens: Some(20),
+            cache_creation_input_tokens: Some(2),
+            cache_read_input_tokens: Some(3),
+            conversation_id: Some("conv-1".to_string()),
+            agent_name: Some("agent-a".to_string()),
+            agent_id: Some("agent-id-a".to_string()),
+            tool_name: Some("search".to_string()),
+            tool_type: Some("function".to_string()),
+            input_messages: Some(r#"[{"role":"user","content":"hi"}]"#.to_string()),
+            output_messages: Some(r#"[{"role":"assistant","content":"hello"}]"#.to_string()),
+            eval_results: vec![GenAiEvalResult {
+                name: "quality".to_string(),
+                score_label: Some("pass".to_string()),
+                score_value: Some(1.0),
+                explanation: Some("ok".to_string()),
+                response_id: Some("resp-1".to_string()),
+            }],
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn test_trace_metrics_response_preserves_spans_and_adds_aggregates() {
+        let trace_id = TraceId::from_bytes([7u8; 16]);
+        let start = Utc.with_ymd_and_hms(2026, 1, 1, 12, 30, 0).unwrap();
+        let spans = vec![
+            make_trace_span(trace_id, 1, start),
+            GenAiSpanRecord {
+                error_type: Some("timeout".to_string()),
+                duration_ms: 200,
+                input_tokens: Some(5),
+                output_tokens: Some(15),
+                ..make_trace_span(trace_id, 2, start + chrono::Duration::minutes(5))
+            },
+        ];
+
+        let response = build_trace_metrics_response(
+            trace_id.to_hex(),
+            spans,
+            "hour",
+            &HashMap::new(),
+            500,
+            false,
+            false,
+        )
+        .expect("trace metrics should build");
+
+        assert!(response.has_genai_spans);
+        assert_eq!(response.spans.len(), 2);
+        assert_eq!(response.span_limit, 500);
+        assert!(!response.spans_truncated);
+        assert!(!response.sensitive_content_redacted);
+        assert_eq!(
+            response.spans[0].input_messages.as_deref(),
+            Some(r#"[{"role":"user","content":"hi"}]"#)
+        );
+        assert_eq!(response.spans[0].eval_results.len(), 1);
+        assert_eq!(response.token_metrics.buckets.len(), 1);
+        assert_eq!(response.token_metrics.buckets[0].total_input_tokens, 15);
+        assert_eq!(response.operation_breakdown.operations[0].span_count, 2);
+        assert_eq!(response.model_usage.models[0].model, "gpt-4o");
+        assert_eq!(response.agent_activity.agents[0].span_count, 2);
+        assert_eq!(response.agent_dashboard.summary.total_requests, 2);
+        assert_eq!(response.tool_dashboard.aggregates[0].call_count, 2);
+        assert_eq!(response.error_breakdown.errors[0].error_type, "timeout");
+    }
+
+    #[test]
+    fn test_trace_metrics_response_empty_state() {
+        let trace_id = TraceId::from_bytes([8u8; 16]);
+        let response = build_trace_metrics_response(
+            trace_id.to_hex(),
+            Vec::new(),
+            "hour",
+            &HashMap::new(),
+            500,
+            false,
+            true,
+        )
+        .expect("empty trace metrics should build");
+
+        assert!(!response.has_genai_spans);
+        assert!(response.spans.is_empty());
+        assert!(response.sensitive_content_redacted);
+        assert!(response.token_metrics.buckets.is_empty());
+        assert!(response.agent_dashboard.buckets.is_empty());
+        assert!(response.tool_dashboard.aggregates.is_empty());
+    }
 }

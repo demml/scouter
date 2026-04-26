@@ -1,7 +1,7 @@
 use crate::error::TraceEngineError;
 use crate::parquet::tracing::catalog::TraceCatalogProvider;
 use crate::parquet::tracing::traits::arrow_schema_to_delta;
-use crate::parquet::utils::register_cloud_logstore_factories;
+use crate::parquet::utils::{register_cloud_logstore_factories, run_delta_init};
 use crate::storage::ObjectStore;
 use arrow::array::{
     Date32Builder, FixedSizeBinaryBuilder, Int8Builder, TimestampMicrosecondArray,
@@ -196,8 +196,16 @@ async fn build_or_create_dispatch_table(
     object_store: &ObjectStore,
     schema: Arc<Schema>,
 ) -> Result<DeltaTable, TraceEngineError> {
+    let object_store = object_store.clone();
+    run_delta_init(build_or_create_dispatch_table_inner(object_store, schema)).await
+}
+
+async fn build_or_create_dispatch_table_inner(
+    object_store: ObjectStore,
+    schema: Arc<Schema>,
+) -> Result<DeltaTable, TraceEngineError> {
     register_cloud_logstore_factories();
-    let table_url = build_dispatch_url(object_store).await?;
+    let table_url = build_dispatch_url(&object_store).await?;
 
     let is_delta_table = if table_url.scheme() == "file" {
         if let Ok(path) = table_url.to_file_path() {
@@ -227,7 +235,7 @@ async fn build_or_create_dispatch_table(
             .await
             .map_err(Into::into)
     } else {
-        create_dispatch_table(object_store, table_url, schema).await
+        create_dispatch_table(&object_store, table_url, schema).await
     }
 }
 

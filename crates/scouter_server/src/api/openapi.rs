@@ -106,6 +106,7 @@ impl utoipa::Modify for SecurityAddon {
         crate::api::routes::trace::genai::get_conversation_spans,
         crate::api::routes::trace::genai::get_agent_dashboard,
         crate::api::routes::trace::genai::get_tool_dashboard,
+        crate::api::routes::trace::genai::get_genai_trace_metrics,
         // service map
         crate::api::routes::service_map::route::get_service_graph,
         // eval scenarios
@@ -206,6 +207,8 @@ impl utoipa::Modify for SecurityAddon {
         scouter_types::trace::genai::ToolDashboardRequest,
         scouter_types::trace::genai::ToolTimeBucket,
         scouter_types::trace::genai::ToolDashboardResponse,
+        scouter_types::trace::genai::GenAiTraceMetricsRequest,
+        scouter_types::trace::genai::GenAiTraceMetricsResponse,
     )),
     tags(
         (name = "health", description = "Health check endpoints"),

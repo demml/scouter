@@ -71,7 +71,7 @@ pub async fn query_agent_eval_records(
     }
 }
 
-/// This route is used to get the latest GenAI drift records by page
+/// This route is used to get the latest GenAI eval workflow records by page, which includes the records and their associated assertion tasks
 #[utoipa::path(
     post,
     path = "/scouter/agent/page/workflow",
@@ -114,6 +114,7 @@ pub async fn query_agent_eval_workflow(
     }
 }
 
+/// This route is used to get the list of assertion tasks for a specific eval record, which will be used in the agent evaluation detail page to show the assertion task list and their status
 #[utoipa::path(
     get,
     path = "/scouter/agent/task",
