@@ -301,11 +301,11 @@ impl AgentPoller {
         {
             let genai_profile: AgentEvalProfile =
                 serde_json::from_value(profile).inspect_err(|e| {
-                    error!("Failed to deserialize Agent drift profile: {:?}", e);
+                    error!("Failed to deserialize agent evaluation profile: {:?}", e);
                 })?;
             genai_profile
         } else {
-            error!("No Agent drift profile found for {}", task.uid);
+            error!("No agent evaluation profile found for {}", task.uid);
             return Ok(false);
         };
 

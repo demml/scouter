@@ -6,11 +6,11 @@ Online evaluation runs the same evaluation tasks as offline, but against sampled
 
 Use it to catch quality degradation and distribution shift after deployment. The task definitions are identical to offline; write them once and use them in both contexts.
 
-## What is an agent drift profile?
+## What is an agent evaluation profile?
 
 A `AgentEvalProfile` for online use pairs a `AgentEvalConfig` (service metadata and alert settings) with your evaluation tasks (`LLMJudgeTask`, `AssertionTask`). The profile runs your tasks asynchronously on sampled traffic, stores results, and checks alert conditions on a configured schedule.
 
-## Creating an agent drift profile
+## Creating an agent evaluation profile
 
 ### 1. Define evaluation tasks
 
@@ -154,7 +154,7 @@ alert_condition = AlertCondition(
 | `AlertThreshold.Above` | Alert when metric > `baseline_value + delta` |
 | `AlertThreshold.Outside` | Alert when metric outside `[baseline - delta, baseline + delta]` |
 
-### 3. Create agent drift config
+### 3. Create agent evlauation config
 
 Configure sampling rate, alerting schedule, and dispatch channels:
 
