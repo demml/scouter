@@ -917,13 +917,10 @@ impl TraceSummaryQueries {
         // JOIN that causes DataFusion to report ambiguous `trace_id` column references.
         if let Some(ref attr_filters) = filters.attribute_filters {
             if !attr_filters.is_empty() {
-                let mut spans_df = self.ctx.table("trace_spans").await?.select_columns(&[
-                    TRACE_ID_COL,
-                    START_TIME_COL,
-                    SEARCH_BLOB_COL,
-                ])?;
+                let mut spans_df = self.ctx.table("trace_spans").await?;
 
-                // Time predicates on spans for partition pruning
+                // Time predicates on spans for partition pruning — applied before
+                // select_columns so PARTITION_DATE_COL is still in the schema.
                 if let Some(start) = filters.start_time {
                     spans_df = spans_df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
                     spans_df = spans_df.filter(col(START_TIME_COL).gt_eq(lit(
@@ -942,6 +939,12 @@ impl TraceSummaryQueries {
                         ),
                     )))?;
                 }
+
+                let mut spans_df = spans_df.select_columns(&[
+                    TRACE_ID_COL,
+                    START_TIME_COL,
+                    SEARCH_BLOB_COL,
+                ])?;
 
                 // OR-match each filter against search_blob.
                 // normalize_attr_filter converts "key:value" → "%key=value%" so the LIKE
@@ -1149,11 +1152,10 @@ impl TraceSummaryQueries {
 
         if let Some(ref attr_filters) = filters.attribute_filters {
             if !attr_filters.is_empty() {
-                let mut spans_df = self.ctx.table("trace_spans").await?.select_columns(&[
-                    TRACE_ID_COL,
-                    START_TIME_COL,
-                    SEARCH_BLOB_COL,
-                ])?;
+                let mut spans_df = self.ctx.table("trace_spans").await?;
+
+                // Apply time/partition filters before select_columns so
+                // PARTITION_DATE_COL is still present in the schema.
                 if let Some(start) = filters.start_time {
                     spans_df = spans_df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
                     spans_df = spans_df.filter(col(START_TIME_COL).gt_eq(lit(
@@ -1172,6 +1174,12 @@ impl TraceSummaryQueries {
                         ),
                     )))?;
                 }
+
+                let mut spans_df = spans_df.select_columns(&[
+                    TRACE_ID_COL,
+                    START_TIME_COL,
+                    SEARCH_BLOB_COL,
+                ])?;
                 let mut attr_expr: Option<Expr> = None;
                 for f in attr_filters {
                     let pattern = crate::parquet::tracing::queries::normalize_attr_filter(f);

@@ -1114,6 +1114,90 @@ async fn test_trace_facets() {
     );
 }
 
+// Regression: attribute_filters + time bounds must not fail with "column not found"
+// for PARTITION_DATE_COL. Previously, select_columns was called before the partition
+// filter, stripping the column from the schema.
+#[tokio::test]
+async fn test_paginated_traces_attribute_filter_with_time_bounds() {
+    let helper = setup_test().await;
+    helper.generate_trace_data().await.unwrap();
+    wait_for_paginated_count(&helper, 100).await;
+
+    let now = Utc::now();
+    let start = now - chrono::Duration::hours(2);
+    let end = now + chrono::Duration::hours(1);
+
+    // attribute_filters + start_time + end_time: the combination that triggered the bug
+    let result = fetch_paginated(
+        &helper,
+        &TraceFilters {
+            attribute_filters: Some(vec!["component=kafka".to_string()]),
+            start_time: Some(start),
+            end_time: Some(end),
+            ..Default::default()
+        },
+    )
+    .await;
+
+    // Result may be empty (depends on mock data), but the query must not panic/error
+    let _ = result;
+
+    // Verify with a time window that should include all data
+    let wide_result = fetch_paginated(
+        &helper,
+        &TraceFilters {
+            attribute_filters: Some(vec!["component=kafka".to_string()]),
+            start_time: Some(now - chrono::Duration::hours(24)),
+            end_time: Some(now + chrono::Duration::hours(1)),
+            ..Default::default()
+        },
+    )
+    .await;
+    assert!(
+        !wide_result.items.is_empty(),
+        "attribute + wide time window must return kafka-tagged traces"
+    );
+}
+
+// Regression: same bug in get_trace_facets attribute_filters path.
+#[tokio::test]
+async fn test_trace_facets_attribute_filter_with_time_bounds() {
+    let helper = setup_test().await;
+    helper.generate_trace_data().await.unwrap();
+    wait_for_paginated_count(&helper, 100).await;
+
+    let now = Utc::now();
+
+    // Narrow window: query must not error — result may legitimately be empty
+    let narrow = fetch_facets(
+        &helper,
+        &TraceFilters {
+            attribute_filters: Some(vec!["component=kafka".to_string()]),
+            start_time: Some(now - chrono::Duration::hours(1)),
+            end_time: Some(now + chrono::Duration::minutes(5)),
+            ..Default::default()
+        },
+    )
+    .await;
+    let _ = narrow;
+
+    // Wide window: must find kafka-tagged traces
+    let wide = fetch_facets(
+        &helper,
+        &TraceFilters {
+            attribute_filters: Some(vec!["component=kafka".to_string()]),
+            start_time: Some(now - chrono::Duration::hours(24)),
+            end_time: Some(now + chrono::Duration::hours(1)),
+            ..Default::default()
+        },
+    )
+    .await;
+    assert!(
+        wide.total_count > 0,
+        "attribute + wide time window must return kafka-tagged traces in facets"
+    );
+}
+
 #[tokio::test]
 async fn test_trace_facets_empty_store() {
     let helper = setup_test().await;
