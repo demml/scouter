@@ -42,7 +42,6 @@ password-auth = { workspace = true }
 potato-head = { workspace = true }
 jsonwebtoken = { workspace = true }
 rand = { workspace = true }
-rusty-logging= { workspace = true }
 scouter-settings = { workspace = true }
 opentelemetry-proto = { workspace = true }
 prost = { workspace = true }
@@ -56,6 +55,7 @@ thiserror = { workspace = true }
 tokio = { workspace = true }
 tower-http = { workspace = true }
 tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 utoipa = { workspace = true }
 utoipa-axum = { workspace = true }
 utoipa-swagger-ui = { workspace = true }

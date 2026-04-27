@@ -5,7 +5,6 @@ use crate::api::polling::trace_eval_poller::BackgroundTraceEvalManager;
 use anyhow::{Context, Result as AnyhowResult};
 use flume::Sender;
 use password_auth::generate_hash;
-use rusty_logging::logger::{LogLevel, LoggingConfig, RustyLogger};
 use scouter_auth::util::generate_recovery_codes_with_hashes;
 use scouter_dataframe::parquet::bifrost::manager::DatasetEngineManager;
 use scouter_dataframe::parquet::tracing::dispatch::TraceDispatchService;
@@ -21,9 +20,11 @@ use scouter_sql::sql::schema::User;
 use scouter_sql::sql::traits::UserSqlLogic;
 use scouter_sql::PostgresClient;
 use sqlx::{Pool, Postgres};
-use std::str::FromStr;
 use std::sync::Arc;
 use tracing::{debug, info, instrument};
+use tracing_subscriber::fmt::time::UtcTime;
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::{fmt, EnvFilter};
 
 #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
 use scouter_settings::KafkaSettings;
@@ -69,6 +70,59 @@ pub struct ScouterSetupComponents {
     pub genai_service: Arc<GenAiSpanService>,
     pub dataset_manager: Arc<DatasetEngineManager>,
     pub eval_scenario_service: Arc<EvalScenarioService>,
+}
+
+fn build_filter(log_level: &str) -> EnvFilter {
+    EnvFilter::try_new(format!(
+        "{log_level},delta_kernel=warn,deltalake=warn,object_store=warn"
+    ))
+    .unwrap_or_else(|_| EnvFilter::new("info,delta_kernel=warn,deltalake=warn,object_store=warn"))
+}
+
+fn build_tracer(filter: EnvFilter) -> AnyhowResult<()> {
+    let timer = UtcTime::new(
+        time::format_description::parse(
+            "[year]-[month]-[day]T[hour repr:24]:[minute]:[second]::[subsecond digits:4]",
+        )
+        .context("Failed to parse time format")?,
+    );
+
+    tracing_subscriber::registry()
+        .with(filter)
+        .with(
+            fmt::layer()
+                .with_target(false)
+                .with_thread_ids(true)
+                .with_timer(timer),
+        )
+        .try_init()
+        .ok();
+
+    Ok(())
+}
+
+fn build_json_tracer(filter: EnvFilter) -> AnyhowResult<()> {
+    let timer = UtcTime::new(
+        time::format_description::parse(
+            "[year]-[month]-[day]T[hour repr:24]:[minute]:[second]::[subsecond digits:4]",
+        )
+        .context("Failed to parse time format")?,
+    );
+
+    tracing_subscriber::registry()
+        .with(filter)
+        .with(
+            fmt::layer()
+                .json()
+                .with_target(false)
+                .flatten_event(true)
+                .with_thread_ids(true)
+                .with_timer(timer),
+        )
+        .try_init()
+        .ok();
+
+    Ok(())
 }
 
 impl ScouterSetupComponents {
@@ -274,23 +328,21 @@ impl ScouterSetupComponents {
         Ok(Arc::new(service))
     }
 
-    /// Setup logging for the application
     async fn setup_logging() -> AnyhowResult<()> {
-        let log_level = LogLevel::from_str(
-            std::env::var("LOG_LEVEL")
-                .unwrap_or_else(|_| "info".to_string())
-                .as_str(),
-        )?;
-
+        let log_level = std::env::var("LOG_LEVEL").unwrap_or_else(|_| "info".to_string());
         let use_json = std::env::var("LOG_JSON")
             .unwrap_or_else(|_| "false".to_string())
             .parse::<bool>()?;
 
-        let config = LoggingConfig::new(Some(true), Some(log_level), None, Some(use_json));
-        RustyLogger::setup_logging(Some(config))?;
+        let filter = build_filter(&log_level);
+
+        if use_json {
+            build_json_tracer(filter)?;
+        } else {
+            build_tracer(filter)?;
+        }
 
         info!("Logging setup successfully");
-
         Ok(())
     }
 
