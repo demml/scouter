@@ -8,13 +8,20 @@ use axum::{
     Json, Router,
 };
 
+use axum::body::Bytes;
 use axum::extract::Path;
+use axum::http::HeaderMap;
+use axum::response::IntoResponse;
+use opentelemetry_proto::tonic::collector::trace::v1::{
+    ExportTraceServiceRequest, ExportTraceServiceResponse,
+};
+use prost::Message;
 use scouter_sql::sql::traits::{TagSqlLogic, TraceSqlLogic};
 use scouter_sql::PostgresClient;
 use scouter_types::{
     contracts::ScouterServerError, sql::TraceFilters, SpansFromTagsRequest, Tag,
     TraceBaggageResponse, TraceFacetsResponse, TraceId, TraceMetricsRequest, TraceMetricsResponse,
-    TracePaginationResponse, TraceReceivedResponse, TraceRequest, TraceSpansResponse,
+    TracePaginationResponse, TraceRequest, TraceServerRecord, TraceSpansResponse,
 };
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
@@ -442,23 +449,71 @@ pub async fn query_spans_from_filters(
 #[utoipa::path(
     post,
     path = "/scouter/v1/traces",
-    request_body = serde_json::Value,
+    request_body(
+        content = Vec<u8>,
+        content_type = "application/x-protobuf",
+        description = "OTLP ExportTraceServiceRequest (protobuf-encoded)"
+    ),
     responses(
-        (status = 501, description = "Not implemented", body = ScouterServerError),
+        (status = 200, description = "Spans accepted (protobuf ExportTraceServiceResponse)"),
+        (status = 400, description = "Invalid protobuf body", body = ScouterServerError),
+        (status = 415, description = "Unsupported media type", body = ScouterServerError),
+        (status = 429, description = "Ingest channel full", body = ScouterServerError),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
     ),
     tag = "traces"
 )]
 #[instrument(skip_all)]
 pub async fn v1_otel_traces(
-    State(_data): State<Arc<AppState>>,
-    Json(_body): Json<serde_json::Value>,
-) -> Result<Json<TraceReceivedResponse>, (StatusCode, Json<ScouterServerError>)> {
-    Err((
-        StatusCode::NOT_IMPLEMENTED,
-        Json(ScouterServerError::new(
-            "OTel HTTP span ingestion not implemented; use gRPC transport".to_string(),
-        )),
-    ))
+    State(data): State<Arc<AppState>>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<axum::response::Response, (StatusCode, Json<ScouterServerError>)> {
+    let content_type = headers
+        .get(axum::http::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/x-protobuf");
+
+    if !content_type.contains("application/x-protobuf") {
+        return Err((
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            Json(ScouterServerError::new(
+                "OTLP/HTTP requires Content-Type: application/x-protobuf".to_string(),
+            )),
+        ));
+    }
+
+    let request = ExportTraceServiceRequest::decode(body).map_err(|e| {
+        error!("Failed to decode OTLP protobuf body: {:?}", e);
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ScouterServerError::new(format!("Invalid protobuf body: {e}"))),
+        )
+    })?;
+
+    data.trace_record_tx
+        .try_send(TraceServerRecord { request })
+        .map_err(|e| {
+            let status = match e {
+                flume::TrySendError::Full(_) => StatusCode::TOO_MANY_REQUESTS,
+                flume::TrySendError::Disconnected(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            };
+            error!("Failed to enqueue OTLP trace spans: {:?}", e);
+            (
+                status,
+                Json(ScouterServerError::new(
+                    "Failed to enqueue trace spans".to_string(),
+                )),
+            )
+        })?;
+
+    let response_bytes = ExportTraceServiceResponse::default().encode_to_vec();
+    Ok((
+        StatusCode::OK,
+        [(axum::http::header::CONTENT_TYPE, "application/x-protobuf")],
+        response_bytes,
+    )
+        .into_response())
 }
 
 #[cfg(debug_assertions)]
