@@ -75,11 +75,7 @@ async fn test_storage_integration_cloud() {
     }
 
     let df = ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::Psi).unwrap();
-    let path = format!(
-        "{}/{}/psi",
-        helper.config.storage_settings.canonicalized_path(),
-        uid
-    );
+    let path = format!("{}/psi", uid);
     let data_path = object_store::path::Path::from(path);
     let mut saw_psi_archive = false;
     let mut files = Vec::new();
