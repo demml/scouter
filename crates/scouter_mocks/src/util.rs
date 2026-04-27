@@ -483,6 +483,53 @@ pub fn generate_trace_with_spans(num_spans: usize, minutes_offset: i64) -> Trace
     (trace_record, spans, tag_records)
 }
 
+#[cfg(feature = "server")]
+pub fn generate_trace_with_fixed_duration(minutes_offset: i64, duration_ms: i64) -> TraceRecords {
+    let trace_record = random_trace_record();
+    let mut rng = rand::rng();
+    let span_id = SpanId::from_bytes(rng.random::<[u8; 8]>());
+    let start_time = Utc::now() - Duration::minutes(minutes_offset);
+    let end_time = start_time + Duration::milliseconds(duration_ms);
+
+    let span = TraceSpanRecord {
+        created_at: start_time,
+        span_id,
+        trace_id: trace_record.trace_id,
+        parent_span_id: None,
+        flags: 1,
+        trace_state: String::new(),
+        service_name: trace_record.service_name.clone(),
+        scope_name: SCOPE.to_string(),
+        scope_version: None,
+        span_name: "fixed_duration_op".to_string(),
+        span_kind: "SERVER".to_string(),
+        start_time,
+        end_time,
+        duration_ms,
+        status_code: 0,
+        status_message: "OK".to_string(),
+        attributes: vec![Attribute {
+            key: SCOUTER_QUEUE_RECORD.to_string(),
+            value: Value::String(trace_record.trace_id.to_hex()),
+        }],
+        events: vec![],
+        links: vec![],
+        label: None,
+        input: Value::default(),
+        output: Value::default(),
+        resource_attributes: vec![],
+    };
+
+    let tag_record = TagRecord {
+        entity_type: "trace".to_string(),
+        entity_id: trace_record.trace_id.to_hex(),
+        key: "scouter.queue.record".to_string(),
+        value: trace_record.trace_id.to_hex(),
+    };
+
+    (trace_record, vec![span], vec![tag_record])
+}
+
 /// Generate a trace where the root span always carries a deterministic `entity_uid`.
 ///
 /// All spans are timestamped at `now - minutes_offset`. The root span (index 0) has

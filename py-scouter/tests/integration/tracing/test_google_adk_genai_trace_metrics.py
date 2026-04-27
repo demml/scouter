@@ -24,10 +24,7 @@ AGENT_NAME = "google_interactive_agent"
 
 
 def _cleanup_tracing_state() -> None:
-    if (
-        ScouterInstrumentor._provider is not None
-        or ScouterInstrumentor._instance is not None
-    ):
+    if ScouterInstrumentor._provider is not None or ScouterInstrumentor._instance is not None:
         with suppress(Exception):
             ScouterInstrumentor().uninstrument()
 
@@ -56,11 +53,7 @@ class DeterministicGoogleLlm(BaseLlm):
             model_version=llm_request.model,
             content=types.Content(
                 role="model",
-                parts=[
-                    types.Part(
-                        text="Use tofu, broccoli, and rice with a soy ginger glaze."
-                    )
-                ],
+                parts=[types.Part(text="Use tofu, broccoli, and rice with a soy ginger glaze.")],
             ),
             partial=False,
             finish_reason=types.FinishReason.STOP,
@@ -207,19 +200,13 @@ async def test_google_adk_agent_writes_parseable_genai_trace_metrics() -> None:
             assert token_bucket["total_input_tokens"] == 21
             assert token_bucket["total_output_tokens"] == 13
 
-            operations = {
-                operation["operation_name"]
-                for operation in metrics["operation_breakdown"]["operations"]
-            }
+            operations = {operation["operation_name"] for operation in metrics["operation_breakdown"]["operations"]}
             assert "generate_content" in operations
 
             models = {model["model"] for model in metrics["model_usage"]["models"]}
             assert MODEL_NAME in models
 
-            agents = {
-                activity["agent_name"]
-                for activity in metrics["agent_activity"]["agents"]
-            }
+            agents = {activity["agent_name"] for activity in metrics["agent_activity"]["agents"]}
             assert AGENT_NAME in agents
         finally:
             instrumentor.uninstrument()

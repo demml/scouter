@@ -134,8 +134,12 @@ h3 {
 
 .hero .action a.primary:hover {
   background: var(--sl-color-accent-high);
-  color: #fff;
+  color: #2a0a0c;
   transform: translateY(-1px);
+}
+
+:root[data-theme="light"] .hero .action a.primary:hover {
+  color: #fff8f7;
 }
 
 .hero .action a.minimal {

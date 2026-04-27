@@ -412,8 +412,10 @@ fn build_error_breakdown(spans: &[GenAiSpanRecord]) -> GenAiErrorBreakdownRespon
     GenAiErrorBreakdownResponse { errors }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn build_trace_metrics_response(
     trace_id: String,
+    aggregate_spans: &[GenAiSpanRecord],
     spans: Vec<GenAiSpanRecord>,
     bucket_interval: &str,
     model_pricing: &HashMap<String, ModelPricing>,
@@ -422,17 +424,17 @@ pub fn build_trace_metrics_response(
     sensitive_content_redacted: bool,
 ) -> Result<GenAiTraceMetricsResponse, String> {
     validate_bucket_interval(bucket_interval)?;
-    let token_metrics = build_token_metrics(&spans, bucket_interval)?;
-    let agent_dashboard = build_agent_dashboard(&spans, bucket_interval, model_pricing)?;
-    let tool_dashboard = build_tool_dashboard(&spans, bucket_interval)?;
-    let operation_breakdown = build_operation_breakdown(&spans);
-    let model_usage = build_model_usage(&spans);
-    let agent_activity = build_agent_activity(&spans);
-    let error_breakdown = build_error_breakdown(&spans);
+    let token_metrics = build_token_metrics(aggregate_spans, bucket_interval)?;
+    let agent_dashboard = build_agent_dashboard(aggregate_spans, bucket_interval, model_pricing)?;
+    let tool_dashboard = build_tool_dashboard(aggregate_spans, bucket_interval)?;
+    let operation_breakdown = build_operation_breakdown(aggregate_spans);
+    let model_usage = build_model_usage(aggregate_spans);
+    let agent_activity = build_agent_activity(aggregate_spans);
+    let error_breakdown = build_error_breakdown(aggregate_spans);
 
     Ok(GenAiTraceMetricsResponse {
         trace_id,
-        has_genai_spans: !spans.is_empty(),
+        has_genai_spans: !aggregate_spans.is_empty(),
         spans,
         span_limit,
         spans_truncated,

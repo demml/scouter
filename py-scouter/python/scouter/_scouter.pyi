@@ -10056,13 +10056,15 @@ class TraceFilters:
     start_time: Optional[datetime.datetime]
     end_time: Optional[datetime.datetime]
     limit: Optional[int]
-    cursor_created_at: Optional[datetime.datetime]
+    cursor_start_time: Optional[datetime.datetime]
     cursor_trace_id: Optional[str]
     direction: Optional[str]
     attribute_filters: Optional[List[str]]
     trace_ids: Optional[List[str]]
     entity_uid: Optional[str]
     queue_uid: Optional[str]
+    duration_min_ms: Optional[int]
+    duration_max_ms: Optional[int]
 
     def __init__(
         self,
@@ -10072,13 +10074,14 @@ class TraceFilters:
         start_time: Optional[datetime.datetime] = None,
         end_time: Optional[datetime.datetime] = None,
         limit: Optional[int] = None,
-        cursor_created_at: Optional[datetime.datetime] = None,
+        cursor_start_time: Optional[datetime.datetime] = None,
         cursor_trace_id: Optional[str] = None,
-        direction: Optional[str] = None,
         attribute_filters: Optional[List[str]] = None,
         trace_ids: Optional[List[str]] = None,
         entity_uid: Optional[str] = None,
         queue_uid: Optional[str] = None,
+        duration_min_ms: Optional[int] = None,
+        duration_max_ms: Optional[int] = None,
     ) -> None:
         """Initialize trace filters.
 
@@ -10095,12 +10098,10 @@ class TraceFilters:
                 End time boundary (UTC)
             limit:
                 Maximum number of results to return
-            cursor_created_at:
-                Pagination cursor: created at timestamp
+            cursor_start_time:
+                Pagination cursor: trace start timestamp
             cursor_trace_id:
                 Pagination cursor: trace ID
-            direction:
-                Pagination direction ("next" or "prev")
             attribute_filters:
                 List of attribute filters in the format "key=value" or "key!=value"
             trace_ids:
@@ -10109,6 +10110,10 @@ class TraceFilters:
                 Filter by associated entity UID
             queue_uid:
                 Filter by associated queue UID
+            duration_min_ms:
+                Minimum trace duration (inclusive)
+            duration_max_ms:
+                Maximum trace duration (inclusive)
         """
 
 class TraceMetricBucket:
@@ -14873,21 +14878,25 @@ class TraceBaggageResponse:
 class TraceMetricsRequest:
     """Request payload for fetching trace metrics."""
 
-    space: Optional[str]
-    name: Optional[str]
-    version: Optional[str]
+    service_name: Optional[str]
     start_time: datetime.datetime
     end_time: datetime.datetime
     bucket_interval: str
+    attribute_filters: Optional[List[str]]
+    entity_uid: Optional[str]
+    duration_min_ms: Optional[int]
+    duration_max_ms: Optional[int]
 
     def __init__(
         self,
         start_time: datetime.datetime,
         end_time: datetime.datetime,
         bucket_interval: str,
-        space: Optional[str] = None,
-        name: Optional[str] = None,
-        version: Optional[str] = None,
+        service_name: Optional[str] = None,
+        attribute_filters: Optional[List[str]] = None,
+        entity_uid: Optional[str] = None,
+        duration_min_ms: Optional[int] = None,
+        duration_max_ms: Optional[int] = None,
     ) -> None:
         """Initialize trace metrics request.
 
@@ -14898,18 +14907,35 @@ class TraceMetricsRequest:
                 End time boundary (UTC)
             bucket_interval:
                 The time interval for metric aggregation buckets (e.g., '1 minutes', '30 minutes')
-            space:
-                Model space filter
-            name:
-                Model name filter
-            version:
-                Model version filter
+            service_name:
+                Service name filter
+            attribute_filters:
+                List of attribute filters in the format "key=value" or "key!=value"
+            entity_uid:
+                Filter by associated entity UID
+            duration_min_ms:
+                Minimum trace duration (inclusive)
+            duration_max_ms:
+                Maximum trace duration (inclusive)
         """
 
 class TraceMetricsResponse:
     """Response structure containing aggregated trace metrics."""
 
     metrics: List[TraceMetricBucket]
+
+class TraceFacetDimension:
+    """A single facet dimension value with its trace count."""
+
+    value: str
+    trace_count: int
+
+class TraceFacetsResponse:
+    """Pre-aggregated facet counts over a filtered set of traces."""
+
+    services: List[TraceFacetDimension]
+    status_codes: List[TraceFacetDimension]
+    total_count: int
 
 class TagsResponse:
     """Response structure containing a list of tag records."""
@@ -19500,6 +19526,8 @@ __all__ = [
     "TraceAssertionTask",
     "TraceBaggageRecord",
     "TraceBaggageResponse",
+    "TraceFacetDimension",
+    "TraceFacetsResponse",
     "TraceFilters",
     "TraceListItem",
     "TraceMetricBucket",

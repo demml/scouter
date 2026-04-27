@@ -6844,6 +6844,7 @@ dependencies = [
  "opentelemetry-proto",
  "password-auth",
  "potato-head",
+ "prost",
  "rand 0.9.4",
  "rusty-logging",
  "scouter-auth",

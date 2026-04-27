@@ -628,6 +628,16 @@ impl ScouterServerError {
         }
     }
 
+    pub fn get_trace_facets_error<T: Display>(e: T) -> Self {
+        error!("Failed to get trace facets: {}", e);
+        ScouterServerError {
+            error: "Failed to get trace facets".to_string(),
+            code: "QUERY_ERROR".to_string(),
+            suggested_action: None,
+            retry: Some(true),
+        }
+    }
+
     pub fn insert_tags_error<T: Display>(e: T) -> Self {
         error!("Failed to insert tags: {}", e);
         ScouterServerError {
@@ -990,12 +1000,24 @@ pub struct TraceMetricsRequest {
     pub bucket_interval: String,
     pub attribute_filters: Option<Vec<String>>,
     pub entity_uid: Option<String>,
+    pub duration_min_ms: Option<i64>,
+    pub duration_max_ms: Option<i64>,
 }
 
 #[pymethods]
+#[allow(clippy::too_many_arguments)]
 impl TraceMetricsRequest {
     #[new]
-    #[pyo3(signature = (start_time, end_time, bucket_interval,service_name=None, attribute_filters=None, entity_uid=None))]
+    #[pyo3(signature = (
+        start_time,
+        end_time,
+        bucket_interval,
+        service_name=None,
+        attribute_filters=None,
+        entity_uid=None,
+        duration_min_ms=None,
+        duration_max_ms=None
+    ))]
     pub fn new(
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
@@ -1003,6 +1025,8 @@ impl TraceMetricsRequest {
         service_name: Option<String>,
         attribute_filters: Option<Vec<String>>,
         entity_uid: Option<String>,
+        duration_min_ms: Option<i64>,
+        duration_max_ms: Option<i64>,
     ) -> Self {
         TraceMetricsRequest {
             service_name,
@@ -1011,6 +1035,8 @@ impl TraceMetricsRequest {
             bucket_interval,
             attribute_filters,
             entity_uid,
+            duration_min_ms,
+            duration_max_ms,
         }
     }
 }
@@ -1116,6 +1142,45 @@ pub struct TraceMetricsResponse {
 }
 #[pymethods]
 impl TraceMetricsResponse {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+#[pyclass(from_py_object)]
+pub struct TraceFacetDimension {
+    #[pyo3(get)]
+    pub value: String,
+    #[pyo3(get)]
+    pub trace_count: i64,
+}
+
+#[pymethods]
+impl TraceFacetDimension {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+#[pyclass(from_py_object)]
+pub struct TraceFacetsResponse {
+    #[pyo3(get)]
+    #[cfg_attr(feature = "utoipa", schema(value_type = Vec<serde_json::Value>))]
+    pub services: Vec<TraceFacetDimension>,
+    #[pyo3(get)]
+    #[cfg_attr(feature = "utoipa", schema(value_type = Vec<serde_json::Value>))]
+    pub status_codes: Vec<TraceFacetDimension>,
+    /// Approximate — counts summary table rows, not distinct traces.
+    #[pyo3(get)]
+    pub total_count: i64,
+}
+
+#[pymethods]
+impl TraceFacetsResponse {
     pub fn __str__(&self) -> String {
         PyHelperFuncs::__str__(self)
     }

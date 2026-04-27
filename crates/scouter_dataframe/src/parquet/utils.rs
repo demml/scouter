@@ -1,4 +1,4 @@
-use crate::error::DataFrameError;
+use crate::error::{DataFrameError, TraceEngineError};
 use arrow::array::AsArray;
 use arrow::array::{BooleanBuilder, StringArray};
 use arrow::datatypes::DataType;
@@ -33,20 +33,25 @@ use url::Url;
 /// `TokioBackgroundExecutor::block_on` takes the non-nested path and skips the
 /// "called in a nested fashion" warning that fires when table init runs directly
 /// inside an active Tokio runtime (e.g., `#[tokio::main]` or `#[tokio::test]`).
-pub async fn run_delta_init<F, T>(fut: F) -> T
+pub async fn run_delta_init<F, T>(fut: F) -> std::result::Result<T, TraceEngineError>
 where
     F: Future<Output = T> + Send + 'static,
     T: Send + 'static,
 {
     let (tx, rx) = tokio::sync::oneshot::channel();
     std::thread::spawn(move || {
-        let rt = tokio::runtime::Builder::new_current_thread()
+        let result = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
-            .expect("delta-init runtime");
-        let _ = tx.send(rt.block_on(fut));
+            .map_err(|e| {
+                TraceEngineError::UnsupportedOperation(format!(
+                    "failed to build delta-init runtime: {e}"
+                ))
+            })
+            .map(|rt| rt.block_on(fut));
+        let _ = tx.send(result);
     });
-    rx.await.expect("delta-init thread dropped sender")
+    rx.await.map_err(|_| TraceEngineError::ChannelClosed)?
 }
 /// Now that we have at least 2 metric types that calculate avg, lower_bound, and upper_bound as part of their stats,
 /// it makes sense to implement a generic trait that we can use.

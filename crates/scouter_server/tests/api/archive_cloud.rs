@@ -74,23 +74,31 @@ async fn test_storage_integration_cloud() {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
-    // Sleep for 3 second to allow the http consumer time to process all server records sent above.
-    sleep(Duration::from_secs(3)).await;
-
-    let record = archive_old_data(&helper.pool, &helper.config)
-        .await
-        .unwrap();
-    //
-    assert!(!record.spc);
-    assert!(record.psi);
-    assert!(!record.custom);
-    //
     let df = ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::Psi).unwrap();
-    let path = format!("{}/psi", uid);
-
+    let path = format!(
+        "{}/{}/psi",
+        helper.config.storage_settings.canonicalized_path(),
+        uid
+    );
     let data_path = object_store::path::Path::from(path);
-    let files = df.storage_client().list(Some(&data_path)).await.unwrap();
+    let mut saw_psi_archive = false;
+    let mut files = Vec::new();
+    for _ in 0..20 {
+        let record = archive_old_data(&helper.pool, &helper.config)
+            .await
+            .unwrap();
+        saw_psi_archive |= record.psi;
+        assert!(!record.spc);
+        assert!(!record.custom);
 
+        files = df.storage_client().list(Some(&data_path)).await.unwrap();
+        if saw_psi_archive && !files.is_empty() {
+            break;
+        }
+        sleep(Duration::from_millis(300)).await;
+    }
+
+    assert!(saw_psi_archive);
     assert!(!files.is_empty());
 
     let params = DriftRequest {
@@ -119,14 +127,13 @@ async fn test_storage_integration_cloud() {
 
     assert!(!results.features.is_empty());
 
-    for file in files.iter() {
+    for file in &files {
         let file_path = object_store::path::Path::from(file.to_string());
         df.storage_client().delete(&file_path).await.unwrap();
     }
 
     // assert that the data is deleted
     let files = df.storage_client().list(Some(&data_path)).await.unwrap();
-
     assert!(files.is_empty());
 
     TestHelper::cleanup_storage()

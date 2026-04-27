@@ -4,10 +4,13 @@ use axum::{
     http::{header, Request, StatusCode},
 };
 use http_body_util::BodyExt;
-use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
+use opentelemetry_proto::tonic::collector::trace::v1::{
+    ExportTraceServiceRequest, ExportTraceServiceResponse,
+};
 use opentelemetry_proto::tonic::common::v1::{any_value, AnyValue, KeyValue};
 use opentelemetry_proto::tonic::resource::v1::Resource;
 use opentelemetry_proto::tonic::trace::v1::{ResourceSpans, ScopeSpans, Span};
+use prost::Message;
 use potato_head::create_uuid7;
 use scouter_sql::sql::aggregator::shutdown_trace_cache;
 use scouter_types::{sql::TraceFilters, TracePaginationResponse};
@@ -249,4 +252,120 @@ async fn test_tag_ingest_via_drift_endpoint() {
         1,
         "Tag should be present via /scouter/drift ingest"
     );
+}
+
+fn make_otlp_export_request() -> ExportTraceServiceRequest {
+    let trace_id: Vec<u8> = (0u8..16).collect();
+    let span_id: Vec<u8> = (0u8..8).collect();
+
+    let service_name_kv = KeyValue {
+        key: "service.name".to_string(),
+        value: Some(AnyValue {
+            value: Some(any_value::Value::StringValue("otlp-http-service".to_string())),
+        }),
+    };
+
+    let span = Span {
+        trace_id: trace_id.clone(),
+        span_id: span_id.clone(),
+        name: "otlp-http-span".to_string(),
+        start_time_unix_nano: 1_000_000_000,
+        end_time_unix_nano: 2_000_000_000,
+        ..Default::default()
+    };
+
+    ExportTraceServiceRequest {
+        resource_spans: vec![ResourceSpans {
+            resource: Some(Resource {
+                attributes: vec![service_name_kv],
+                ..Default::default()
+            }),
+            scope_spans: vec![ScopeSpans {
+                spans: vec![span],
+                ..Default::default()
+            }],
+            ..Default::default()
+        }],
+    }
+}
+
+#[tokio::test]
+async fn test_trace_ingest_via_otlp_http() {
+    let helper = setup_test().await;
+
+    let export_request = make_otlp_export_request();
+    let protobuf_body = export_request.encode_to_vec();
+
+    let request = Request::builder()
+        .uri("/scouter/v1/traces")
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/x-protobuf")
+        .body(Body::from(protobuf_body))
+        .unwrap();
+
+    let response = helper.send_oneshot(request).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response.headers().get(header::CONTENT_TYPE).unwrap(),
+        "application/x-protobuf"
+    );
+
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    let _: ExportTraceServiceResponse = ExportTraceServiceResponse::decode(bytes)
+        .expect("Response must be a valid ExportTraceServiceResponse protobuf");
+
+    sleep(Duration::from_secs(3)).await;
+    let _ = shutdown_trace_cache(&helper.pool).await;
+
+    let filters = TraceFilters {
+        limit: Some(10),
+        ..Default::default()
+    };
+    let body = serde_json::to_string(&filters).unwrap();
+    let request = Request::builder()
+        .uri("/scouter/trace/paginated")
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body))
+        .unwrap();
+
+    let response = helper.send_oneshot(request).await;
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    let page: TracePaginationResponse = serde_json::from_slice(&bytes).unwrap();
+    assert!(
+        !page.items.is_empty(),
+        "Trace record should appear after OTLP/HTTP ingest"
+    );
+}
+
+#[tokio::test]
+async fn test_trace_otlp_http_rejects_wrong_content_type() {
+    let helper = setup_test().await;
+
+    let request = Request::builder()
+        .uri("/scouter/v1/traces")
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from("{}"))
+        .unwrap();
+
+    let response = helper.send_oneshot(request).await;
+    assert_eq!(response.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
+}
+
+#[tokio::test]
+async fn test_trace_otlp_http_rejects_invalid_protobuf() {
+    let helper = setup_test().await;
+
+    let request = Request::builder()
+        .uri("/scouter/v1/traces")
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/x-protobuf")
+        .body(Body::from("not valid protobuf"))
+        .unwrap();
+
+    let response = helper.send_oneshot(request).await;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }

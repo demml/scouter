@@ -712,6 +712,7 @@ pub struct TraceQueries {
 }
 
 /// Compute a stable u64 cache key from all `get_trace_metrics` parameters.
+#[allow(clippy::too_many_arguments)]
 fn metrics_cache_key(
     service_name: Option<&str>,
     start_time: &DateTime<Utc>,
@@ -719,6 +720,8 @@ fn metrics_cache_key(
     bucket_interval: &str,
     attribute_filters: Option<&[String]>,
     entity_uid: Option<&str>,
+    duration_min_ms: Option<i64>,
+    duration_max_ms: Option<i64>,
 ) -> u64 {
     let mut h = ahash::AHasher::default();
     service_name.hash(&mut h);
@@ -727,6 +730,8 @@ fn metrics_cache_key(
     bucket_interval.hash(&mut h);
     attribute_filters.hash(&mut h);
     entity_uid.hash(&mut h);
+    duration_min_ms.hash(&mut h);
+    duration_max_ms.hash(&mut h);
     h.finish()
 }
 
@@ -856,6 +861,7 @@ impl TraceQueries {
     /// `attribute_filters` is a list of `"key:value"` strings OR-matched against `search_blob`.
     /// `entity_trace_ids` is an optional pre-resolved list of binary trace IDs (16 bytes each).
     #[instrument(skip_all)]
+    #[allow(clippy::too_many_arguments)]
     pub async fn get_trace_metrics(
         &self,
         service_name: Option<&str>,
@@ -864,6 +870,8 @@ impl TraceQueries {
         bucket_interval: &str,
         attribute_filters: Option<&[String]>,
         entity_uid: Option<&str>,
+        duration_min_ms: Option<i64>,
+        duration_max_ms: Option<i64>,
     ) -> Result<Vec<TraceMetricBucket>, TraceEngineError> {
         // Cache hit: return immediately without touching Delta Lake.
         let cache_key = metrics_cache_key(
@@ -873,6 +881,8 @@ impl TraceQueries {
             bucket_interval,
             attribute_filters,
             entity_uid,
+            duration_min_ms,
+            duration_max_ms,
         );
         if let Some(cached) = self.metrics_cache.get(&cache_key) {
             return Ok((*cached).clone());
@@ -1011,6 +1021,15 @@ impl TraceQueries {
         let mut service_filtered_df = trace_level_df
             .filter(col("trace_end").is_not_null())?
             .with_column("duration_ms", duration_expr)?;
+
+        if let Some(min_ms) = duration_min_ms {
+            service_filtered_df =
+                service_filtered_df.filter(col("duration_ms").gt_eq(lit(min_ms)))?;
+        }
+        if let Some(max_ms) = duration_max_ms {
+            service_filtered_df =
+                service_filtered_df.filter(col("duration_ms").lt_eq(lit(max_ms)))?;
+        }
 
         if let Some(svc) = service_name {
             service_filtered_df = service_filtered_df.filter(col("root_service").eq(lit(svc)))?;
@@ -1163,9 +1182,11 @@ impl TraceQueries {
             .map_err(TraceEngineError::DatafusionError)?;
 
         if let Some(start) = filters.start_time {
+            summary_df = summary_df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
             summary_df = summary_df.filter(col(START_TIME_COL).gt_eq(ts_lit(&start)))?;
         }
         if let Some(end) = filters.end_time {
+            summary_df = summary_df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end)))?;
             summary_df = summary_df.filter(col(START_TIME_COL).lt(ts_lit(&end)))?;
         }
         if let Some(ref svc) = filters.service_name {
@@ -1182,6 +1203,12 @@ impl TraceQueries {
         }
         if let Some(sc) = filters.status_code {
             summary_df = summary_df.filter(col(STATUS_CODE_COL).eq(lit(sc)))?;
+        }
+        if let Some(min_ms) = filters.duration_min_ms {
+            summary_df = summary_df.filter(col(DURATION_MS_COL).gt_eq(lit(min_ms)))?;
+        }
+        if let Some(max_ms) = filters.duration_max_ms {
+            summary_df = summary_df.filter(col(DURATION_MS_COL).lt_eq(lit(max_ms)))?;
         }
         if let Some(ref uid) = filters.entity_uid {
             summary_df = summary_df.filter(datafusion::functions_nested::expr_fn::array_has(
@@ -1207,9 +1234,11 @@ impl TraceQueries {
 
                 // Time pruning on the span side
                 if let Some(start) = filters.start_time {
+                    attr_df = attr_df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
                     attr_df = attr_df.filter(col(START_TIME_COL).gt_eq(ts_lit(&start)))?;
                 }
                 if let Some(end) = filters.end_time {
+                    attr_df = attr_df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end)))?;
                     attr_df = attr_df.filter(col(START_TIME_COL).lt(ts_lit(&end)))?;
                 }
 

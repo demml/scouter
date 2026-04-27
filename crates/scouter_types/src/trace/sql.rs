@@ -220,6 +220,10 @@ pub struct TraceFilters {
     pub entity_uid: Option<String>,
     #[pyo3(get, set)]
     pub queue_uid: Option<String>,
+    #[pyo3(get, set)]
+    pub duration_min_ms: Option<i64>,
+    #[pyo3(get, set)]
+    pub duration_max_ms: Option<i64>,
 }
 
 #[pymethods]
@@ -238,7 +242,9 @@ impl TraceFilters {
         attribute_filters=None,
         trace_ids=None,
         entity_uid=None,
-        queue_uid=None
+        queue_uid=None,
+        duration_min_ms=None,
+        duration_max_ms=None
     ))]
     pub fn new(
         service_name: Option<String>,
@@ -253,6 +259,8 @@ impl TraceFilters {
         trace_ids: Option<Vec<String>>,
         entity_uid: Option<String>,
         queue_uid: Option<String>,
+        duration_min_ms: Option<i64>,
+        duration_max_ms: Option<i64>,
     ) -> Self {
         TraceFilters {
             service_name,
@@ -268,6 +276,8 @@ impl TraceFilters {
             trace_ids,
             entity_uid,
             queue_uid,
+            duration_min_ms,
+            duration_max_ms,
         }
     }
 }
@@ -286,6 +296,12 @@ impl TraceFilters {
     pub fn with_time_range(mut self, start: DateTime<Utc>, end: DateTime<Utc>) -> Self {
         self.start_time = Some(start);
         self.end_time = Some(end);
+        self
+    }
+
+    pub fn with_duration_range(mut self, min_ms: Option<i64>, max_ms: Option<i64>) -> Self {
+        self.duration_min_ms = min_ms;
+        self.duration_max_ms = max_ms;
         self
     }
 
