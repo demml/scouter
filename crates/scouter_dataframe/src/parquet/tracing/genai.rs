@@ -1997,9 +1997,10 @@ impl GenAiQueries {
         Ok(results)
     }
 
-    pub async fn get_genai_spans(
+    async fn get_genai_spans_inner(
         &self,
         filters: &GenAiSpanFilters,
+        include_sensitive_content: bool,
     ) -> Result<Vec<GenAiSpanRecord>, TraceEngineError> {
         let df = self.ctx.table(GEN_AI_TABLE_NAME).await?;
 
@@ -2043,9 +2044,26 @@ impl GenAiQueries {
 
         let df = df.sort(vec![col(START_TIME_COL).sort(false, false)])?;
         let df = df.limit(0, Some(filters.limit.unwrap_or(100).min(10_000)))?;
+        let df = df.select(Self::trace_span_projection(include_sensitive_content))?;
 
         let batches = df.collect().await?;
         batches_to_genai_records(batches)
+    }
+
+    pub async fn get_genai_spans(
+        &self,
+        filters: &GenAiSpanFilters,
+    ) -> Result<Vec<GenAiSpanRecord>, TraceEngineError> {
+        self.get_genai_spans_inner(filters, true).await
+    }
+
+    pub async fn get_genai_spans_with_projection(
+        &self,
+        filters: &GenAiSpanFilters,
+        include_sensitive_content: bool,
+    ) -> Result<Vec<GenAiSpanRecord>, TraceEngineError> {
+        self.get_genai_spans_inner(filters, include_sensitive_content)
+            .await
     }
 
     pub async fn get_genai_spans_by_trace_id(
@@ -2106,11 +2124,12 @@ impl GenAiQueries {
         })
     }
 
-    pub async fn get_conversation_spans(
+    async fn get_conversation_spans_inner(
         &self,
         conversation_id: &str,
         start: Option<DateTime<Utc>>,
         end: Option<DateTime<Utc>>,
+        include_sensitive_content: bool,
     ) -> Result<Vec<GenAiSpanRecord>, TraceEngineError> {
         let df = self.ctx.table(GEN_AI_TABLE_NAME).await?;
 
@@ -2129,9 +2148,31 @@ impl GenAiQueries {
         let df = df.filter(col(CONVERSATION_ID_COL).eq(lit(conversation_id)))?;
         let df = df.sort(vec![col(START_TIME_COL).sort(true, true)])?;
         let df = df.limit(0, Some(1_000))?;
+        let df = df.select(Self::trace_span_projection(include_sensitive_content))?;
 
         let batches = df.collect().await?;
         batches_to_genai_records(batches)
+    }
+
+    pub async fn get_conversation_spans(
+        &self,
+        conversation_id: &str,
+        start: Option<DateTime<Utc>>,
+        end: Option<DateTime<Utc>>,
+    ) -> Result<Vec<GenAiSpanRecord>, TraceEngineError> {
+        self.get_conversation_spans_inner(conversation_id, start, end, true)
+            .await
+    }
+
+    pub async fn get_conversation_spans_with_projection(
+        &self,
+        conversation_id: &str,
+        start: Option<DateTime<Utc>>,
+        end: Option<DateTime<Utc>>,
+        include_sensitive_content: bool,
+    ) -> Result<Vec<GenAiSpanRecord>, TraceEngineError> {
+        self.get_conversation_spans_inner(conversation_id, start, end, include_sensitive_content)
+            .await
     }
 
     pub async fn get_agent_metrics_by_bucket(

@@ -1154,7 +1154,7 @@ pub struct TraceFacetDimension {
     #[pyo3(get)]
     pub value: String,
     #[pyo3(get)]
-    pub count: i64,
+    pub trace_count: i64,
 }
 
 #[pymethods]
@@ -1174,6 +1174,7 @@ pub struct TraceFacetsResponse {
     #[pyo3(get)]
     #[cfg_attr(feature = "utoipa", schema(value_type = Vec<serde_json::Value>))]
     pub status_codes: Vec<TraceFacetDimension>,
+    /// Approximate — counts summary table rows, not distinct traces.
     #[pyo3(get)]
     pub total_count: i64,
 }

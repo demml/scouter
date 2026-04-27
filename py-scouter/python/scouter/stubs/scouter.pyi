@@ -861,10 +861,14 @@ class TraceMetricsResponse:
     metrics: List[TraceMetricBucket]
 
 class TraceFacetDimension:
+    """A single facet dimension value with its trace count."""
+
     value: str
-    count: int
+    trace_count: int
 
 class TraceFacetsResponse:
+    """Pre-aggregated facet counts over a filtered set of traces."""
+
     services: List[TraceFacetDimension]
     status_codes: List[TraceFacetDimension]
     total_count: int

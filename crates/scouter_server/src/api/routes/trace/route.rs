@@ -21,6 +21,43 @@ use std::sync::Arc;
 use tracing::instrument;
 use tracing::{debug, error};
 
+fn validate_duration_bounds(
+    min: Option<i64>,
+    max: Option<i64>,
+) -> Result<(), (StatusCode, Json<ScouterServerError>)> {
+    if let Some(v) = min {
+        if v < 0 {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(ScouterServerError::new(
+                    "duration_min_ms must be >= 0".to_string(),
+                )),
+            ));
+        }
+    }
+    if let Some(v) = max {
+        if v < 0 {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(ScouterServerError::new(
+                    "duration_max_ms must be >= 0".to_string(),
+                )),
+            ));
+        }
+    }
+    if let (Some(mn), Some(mx)) = (min, max) {
+        if mn > mx {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(ScouterServerError::new(
+                    "duration_min_ms must be <= duration_max_ms".to_string(),
+                )),
+            ));
+        }
+    }
+    Ok(())
+}
+
 #[utoipa::path(
     get,
     path = "/scouter/trace/baggage",
@@ -66,6 +103,7 @@ pub async fn paginated_traces(
     Json(body): Json<TraceFilters>,
 ) -> Result<Json<TracePaginationResponse>, (StatusCode, Json<ScouterServerError>)> {
     debug!("Getting paginated traces with filters: {:?}", body);
+    validate_duration_bounds(body.duration_min_ms, body.duration_max_ms)?;
 
     // entity_uid is passed directly to the Delta Lake query where it is applied as a
     // column predicate on the `entity_id` column, enabling file-level Z-ORDER skipping.
@@ -295,6 +333,7 @@ pub async fn trace_metrics(
     Json(body): Json<TraceMetricsRequest>,
 ) -> Result<Json<TraceMetricsResponse>, (StatusCode, Json<ScouterServerError>)> {
     debug!("Getting trace metrics for request: {:?}", body);
+    validate_duration_bounds(body.duration_min_ms, body.duration_max_ms)?;
 
     let attr_filters_ref: Option<&[String]> =
         body.attribute_filters.as_deref().filter(|f| !f.is_empty());
@@ -351,18 +390,21 @@ pub async fn get_trace_facets(
     State(data): State<Arc<AppState>>,
     Json(body): Json<TraceFilters>,
 ) -> Result<Json<TraceFacetsResponse>, (StatusCode, Json<ScouterServerError>)> {
-    data.trace_summary_service
+    debug!("Getting trace facets with filters: {:?}", body);
+    validate_duration_bounds(body.duration_min_ms, body.duration_max_ms)?;
+    let facets = data
+        .trace_summary_service
         .query_service
         .get_trace_facets(&body)
         .await
-        .map(Json)
         .map_err(|e| {
             error!("Failed to get trace facets: {:?}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ScouterServerError::get_trace_facets_error(e)),
             )
-        })
+        })?;
+    Ok(Json(facets))
 }
 
 #[utoipa::path(
@@ -402,20 +444,24 @@ pub async fn query_spans_from_filters(
     path = "/scouter/v1/traces",
     request_body = serde_json::Value,
     responses(
-        (status = 200, description = "Traces received", body = TraceReceivedResponse),
+        (status = 501, description = "Not implemented", body = ScouterServerError),
     ),
     tag = "traces"
 )]
 #[instrument(skip_all)]
 pub async fn v1_otel_traces(
     State(_data): State<Arc<AppState>>,
-    Json(body): Json<serde_json::Value>,
+    Json(_body): Json<serde_json::Value>,
 ) -> Result<Json<TraceReceivedResponse>, (StatusCode, Json<ScouterServerError>)> {
-    debug!("Getting trace metrics for request: {:?}", body);
-
-    Ok(Json(TraceReceivedResponse { received: true }))
+    Err((
+        StatusCode::NOT_IMPLEMENTED,
+        Json(ScouterServerError::new(
+            "OTel HTTP span ingestion not implemented; use gRPC transport".to_string(),
+        )),
+    ))
 }
 
+#[cfg(debug_assertions)]
 #[utoipa::path(
     get,
     path = "/scouter/trace/debug/recent",
@@ -426,6 +472,7 @@ pub async fn v1_otel_traces(
     tag = "traces",
     security(("bearer_token" = []))
 )]
+#[cfg(debug_assertions)]
 #[instrument(skip_all)]
 pub async fn debug_recent_traces(
     State(data): State<Arc<AppState>>,
@@ -458,7 +505,7 @@ pub async fn debug_recent_traces(
 
 pub async fn get_trace_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
     let result = catch_unwind(AssertUnwindSafe(|| {
-        Router::new()
+        let router = Router::new()
             .route(&format!("{prefix}/trace/baggage"), get(get_trace_baggage))
             .route(&format!("{prefix}/trace/paginated"), post(paginated_traces))
             .route(&format!("{prefix}/trace/spans"), get(get_trace_spans))
@@ -474,15 +521,17 @@ pub async fn get_trace_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
             .route(&format!("{prefix}/trace/facets"), post(get_trace_facets))
             .route(&format!("{prefix}/v1/traces"), post(v1_otel_traces))
             .route(
-                &format!("{prefix}/trace/debug/recent"),
-                get(debug_recent_traces),
-            )
-            // add {id}/spans route for otel compat
-            .route(
                 &(format!("{prefix}/v1/traces/") + "{id}/spans"),
                 get(get_trace_spans_by_id),
-            )
-        // metr
+            );
+
+        #[cfg(debug_assertions)]
+        let router = router.route(
+            &format!("{prefix}/trace/debug/recent"),
+            get(debug_recent_traces),
+        );
+
+        router
     }));
 
     match result {

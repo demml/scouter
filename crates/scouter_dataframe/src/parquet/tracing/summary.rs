@@ -716,6 +716,9 @@ pub struct TraceSummaryQueries {
     ctx: Arc<SessionContext>,
 }
 
+const MAX_PAGE_LIMIT: usize = 500;
+const MAX_ATTR_FILTER_TRACE_IDS: usize = 1_000;
+
 impl TraceSummaryQueries {
     pub fn new(ctx: Arc<SessionContext>) -> Self {
         Self { ctx }
@@ -736,7 +739,7 @@ impl TraceSummaryQueries {
         &self,
         filters: &TraceFilters,
     ) -> Result<TracePaginationResponse, TraceEngineError> {
-        let limit = filters.limit.unwrap_or(50) as usize;
+        let limit = (filters.limit.unwrap_or(50) as usize).min(MAX_PAGE_LIMIT);
         let direction = filters.direction.as_deref().unwrap_or("next");
 
         // ── Dedup: time-filtered GROUP BY trace_id (DataFrame API) ───────────
@@ -1150,6 +1153,8 @@ impl TraceSummaryQueries {
                     SEARCH_BLOB_COL,
                 ])?;
                 if let Some(start) = filters.start_time {
+                    spans_df =
+                        spans_df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
                     spans_df = spans_df.filter(col(START_TIME_COL).gt_eq(lit(
                         ScalarValue::TimestampMicrosecond(
                             Some(start.timestamp_micros()),
@@ -1158,6 +1163,7 @@ impl TraceSummaryQueries {
                     )))?;
                 }
                 if let Some(end) = filters.end_time {
+                    spans_df = spans_df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end)))?;
                     spans_df = spans_df.filter(col(START_TIME_COL).lt(lit(
                         ScalarValue::TimestampMicrosecond(
                             Some(end.timestamp_micros()),
@@ -1199,6 +1205,7 @@ impl TraceSummaryQueries {
                         }
                     }
                 }
+                binary_ids.truncate(MAX_ATTR_FILTER_TRACE_IDS);
                 if !binary_ids.is_empty() {
                     df = df.filter(col(TRACE_ID_COL).in_list(binary_ids, false))?;
                 } else {
@@ -1529,7 +1536,7 @@ fn batches_to_facet_dimensions(
         for i in 0..batch.num_rows() {
             dims.push(TraceFacetDimension {
                 value: values.value(i).to_string(),
-                count: counts.value(i),
+                trace_count: counts.value(i),
             });
         }
     }
@@ -1541,10 +1548,17 @@ fn batches_to_status_code_dimensions(
 ) -> Result<Vec<TraceFacetDimension>, TraceEngineError> {
     let mut dims = Vec::new();
     for batch in &batches {
-        let codes = batch
-            .column_by_name(STATUS_CODE_COL)
-            .and_then(|c| c.as_any().downcast_ref::<Int32Array>())
-            .ok_or_else(|| TraceEngineError::DowncastError("status_code to Int32Array"))?;
+        let codes = {
+            let raw = batch
+                .column_by_name(STATUS_CODE_COL)
+                .ok_or_else(|| TraceEngineError::DowncastError("status_code to Int32Array"))?;
+            let casted = compute::cast(raw, &DataType::Int32)?;
+            casted
+                .as_any()
+                .downcast_ref::<Int32Array>()
+                .ok_or_else(|| TraceEngineError::DowncastError("status_code to Int32Array"))?
+                .clone()
+        };
         let counts = batch
             .column_by_name("trace_count")
             .and_then(|c| c.as_any().downcast_ref::<Int64Array>())
@@ -1561,7 +1575,7 @@ fn batches_to_status_code_dimensions(
             };
             dims.push(TraceFacetDimension {
                 value: label.to_string(),
-                count: counts.value(i),
+                trace_count: counts.value(i),
             });
         }
     }
@@ -2426,5 +2440,110 @@ mod tests {
             let _ = std::fs::remove_dir_all(&storage_path);
         }
         Ok(())
+    }
+
+    #[test]
+    fn test_batches_to_facet_dimensions_basic() {
+        use arrow::array::{Int64Array, StringDictionaryBuilder};
+        use arrow::datatypes::{DataType, Field, Int32Type, Schema};
+
+        let mut builder = StringDictionaryBuilder::<Int32Type>::new();
+        builder.append_value("svc_a");
+        builder.append_value("svc_b");
+        let dict_array = builder.finish();
+        let counts = Int64Array::from(vec![5_i64, 3_i64]);
+
+        let schema = Schema::new(vec![
+            Field::new(
+                SERVICE_NAME_COL,
+                DataType::Dictionary(
+                    Box::new(DataType::Int32),
+                    Box::new(DataType::Utf8),
+                ),
+                false,
+            ),
+            Field::new("trace_count", DataType::Int64, false),
+        ]);
+        let batch = RecordBatch::try_new(
+            Arc::new(schema),
+            vec![
+                Arc::new(dict_array) as Arc<dyn arrow::array::Array>,
+                Arc::new(counts) as Arc<dyn arrow::array::Array>,
+            ],
+        )
+        .unwrap();
+
+        let dims = batches_to_facet_dimensions(vec![batch], SERVICE_NAME_COL).unwrap();
+        assert_eq!(dims.len(), 2);
+        assert_eq!(dims[0].value, "svc_a");
+        assert_eq!(dims[0].trace_count, 5);
+        assert_eq!(dims[1].value, "svc_b");
+        assert_eq!(dims[1].trace_count, 3);
+    }
+
+    #[test]
+    fn test_batches_to_facet_dimensions_empty() {
+        let dims = batches_to_facet_dimensions(vec![], SERVICE_NAME_COL).unwrap();
+        assert!(dims.is_empty());
+    }
+
+    #[test]
+    fn test_batches_to_status_code_dimensions_labels() {
+        use arrow::array::Int64Array;
+        use arrow::datatypes::{DataType, Field, Schema};
+
+        let codes = arrow::array::Int32Array::from(vec![0_i32, 1_i32, 2_i32, 99_i32]);
+        let counts = Int64Array::from(vec![10_i64, 5_i64, 3_i64, 1_i64]);
+
+        let schema = Schema::new(vec![
+            Field::new(STATUS_CODE_COL, DataType::Int32, false),
+            Field::new("trace_count", DataType::Int64, false),
+        ]);
+        let batch = RecordBatch::try_new(
+            Arc::new(schema),
+            vec![
+                Arc::new(codes) as Arc<dyn arrow::array::Array>,
+                Arc::new(counts) as Arc<dyn arrow::array::Array>,
+            ],
+        )
+        .unwrap();
+
+        let dims = batches_to_status_code_dimensions(vec![batch]).unwrap();
+        assert_eq!(dims.len(), 4);
+        assert_eq!(dims[0].value, "UNSET");
+        assert_eq!(dims[0].trace_count, 10);
+        assert_eq!(dims[1].value, "OK");
+        assert_eq!(dims[1].trace_count, 5);
+        assert_eq!(dims[2].value, "ERROR");
+        assert_eq!(dims[2].trace_count, 3);
+        assert_eq!(dims[3].value, "UNKNOWN");
+        assert_eq!(dims[3].trace_count, 1);
+    }
+
+    #[test]
+    fn test_batches_to_status_code_dimensions_empty() {
+        let dims = batches_to_status_code_dimensions(vec![]).unwrap();
+        assert!(dims.is_empty());
+    }
+
+    #[test]
+    fn test_extract_total_count_empty() {
+        let result = extract_total_count(vec![]).unwrap();
+        assert_eq!(result, 0);
+    }
+
+    #[test]
+    fn test_extract_total_count_value() {
+        use arrow::array::Int64Array;
+        use arrow::datatypes::{DataType, Field, Schema};
+
+        let col = Int64Array::from(vec![42_i64]);
+        let schema = Schema::new(vec![Field::new("total", DataType::Int64, false)]);
+        let batch =
+            RecordBatch::try_new(Arc::new(schema), vec![Arc::new(col) as Arc<dyn arrow::array::Array>])
+                .unwrap();
+
+        let result = extract_total_count(vec![batch]).unwrap();
+        assert_eq!(result, 42);
     }
 }

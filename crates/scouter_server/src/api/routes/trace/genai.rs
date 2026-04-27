@@ -264,12 +264,14 @@ pub async fn get_error_breakdown(
 #[instrument(skip_all)]
 pub async fn get_genai_spans(
     State(data): State<Arc<AppState>>,
+    Extension(perms): Extension<UserPermissions>,
     Json(body): Json<GenAiSpanFilters>,
 ) -> Result<Json<GenAiSpansResponse>, (StatusCode, Json<ScouterServerError>)> {
+    let include_sensitive = perms.has_permission("read:all");
     let spans = data
         .genai_service
         .query_service
-        .get_genai_spans(&body)
+        .get_genai_spans_with_projection(&body, include_sensitive)
         .await
         .map_err(|e| {
             (
@@ -299,6 +301,7 @@ pub async fn get_genai_spans(
 #[instrument(skip_all)]
 pub async fn get_conversation_spans(
     State(data): State<Arc<AppState>>,
+    Extension(perms): Extension<UserPermissions>,
     Path(id): Path<String>,
     Query(params): Query<ConversationQuery>,
 ) -> Result<Json<GenAiSpansResponse>, (StatusCode, Json<ScouterServerError>)> {
@@ -345,10 +348,11 @@ pub async fn get_conversation_spans(
         })
         .transpose()?;
 
+    let include_sensitive = perms.has_permission("read:all");
     let spans = data
         .genai_service
         .query_service
-        .get_conversation_spans(&id, start_time, end_time)
+        .get_conversation_spans_with_projection(&id, start_time, end_time, include_sensitive)
         .await
         .map_err(|e| {
             (

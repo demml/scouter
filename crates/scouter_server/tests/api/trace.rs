@@ -651,7 +651,7 @@ async fn test_spans_from_filters_duration() {
 }
 
 #[tokio::test]
-async fn test_paginated_traces_inverted_range_empty() {
+async fn test_paginated_traces_inverted_range_rejected() {
     let helper = setup_test().await;
     helper
         .generate_traces_with_durations(&[100, 200, 300])
@@ -659,13 +659,21 @@ async fn test_paginated_traces_inverted_range_empty() {
         .unwrap();
     wait_for_paginated_count(&helper, 3).await;
 
-    let filters = TraceFilters {
+    // min > max → 400 Bad Request
+    let body = serde_json::to_string(&TraceFilters {
         duration_min_ms: Some(500),
         duration_max_ms: Some(100),
         ..Default::default()
-    };
-    let page = fetch_paginated(&helper, &filters).await;
-    assert_eq!(page.items.len(), 0);
+    })
+    .unwrap();
+    let request = Request::builder()
+        .uri("/scouter/trace/paginated")
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body))
+        .unwrap();
+    let response = helper.send_oneshot(request).await;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
 
 #[tokio::test]
@@ -975,7 +983,7 @@ async fn test_trace_facets() {
         !facets.services.is_empty(),
         "should have at least one service"
     );
-    let service_sum: i64 = facets.services.iter().map(|d| d.count).sum();
+    let service_sum: i64 = facets.services.iter().map(|d| d.trace_count).sum();
     assert_eq!(
         service_sum, 100,
         "service counts should sum to total_count"
@@ -1004,7 +1012,7 @@ async fn test_trace_facets() {
     .await;
     assert_eq!(svc_facets.services.len(), 1, "filtered to one service");
     assert_eq!(
-        svc_facets.services[0].count, svc_facets.total_count,
+        svc_facets.services[0].trace_count, svc_facets.total_count,
         "single-service count == total_count"
     );
 
@@ -1020,5 +1028,179 @@ async fn test_trace_facets() {
     assert!(
         duration_facets.total_count <= 100,
         "duration filter should not exceed 100"
+    );
+
+    // has_errors = Some(true) — only error traces
+    let error_facets = fetch_facets(
+        &helper,
+        &TraceFilters {
+            has_errors: Some(true),
+            ..Default::default()
+        },
+    )
+    .await;
+    assert!(
+        error_facets.total_count > 0,
+        "expected at least one error trace (5% error rate in mock data)"
+    );
+    assert!(
+        error_facets
+            .status_codes
+            .iter()
+            .all(|d| d.value == "ERROR" || d.value == "UNSET"),
+        "error filter should only return ERROR or UNSET status codes"
+    );
+
+    // has_errors = Some(false) — no error traces
+    let no_error_facets = fetch_facets(
+        &helper,
+        &TraceFilters {
+            has_errors: Some(false),
+            ..Default::default()
+        },
+    )
+    .await;
+    assert!(
+        no_error_facets
+            .status_codes
+            .iter()
+            .all(|d| d.value != "ERROR"),
+        "no-error filter should not return ERROR bucket"
+    );
+
+    // attribute_filters: component=kafka matches ~10% of mock spans
+    let attr_facets = fetch_facets(
+        &helper,
+        &TraceFilters {
+            attribute_filters: Some(vec!["component=kafka".to_string()]),
+            ..Default::default()
+        },
+    )
+    .await;
+    assert!(
+        attr_facets.total_count < facets.total_count,
+        "attribute filter should reduce total_count below unfiltered"
+    );
+    assert!(
+        attr_facets.total_count > 0,
+        "component=kafka should match at least one trace"
+    );
+
+    // attribute_filters: nonexistent value → lit(false) branch → zero results
+    let empty_attr_facets = fetch_facets(
+        &helper,
+        &TraceFilters {
+            attribute_filters: Some(vec!["component=nonexistent_xyz_abc".to_string()]),
+            ..Default::default()
+        },
+    )
+    .await;
+    assert_eq!(
+        empty_attr_facets.total_count, 0,
+        "nonexistent attribute filter should return 0 traces"
+    );
+    assert!(
+        empty_attr_facets.services.is_empty(),
+        "nonexistent attribute filter should return empty services"
+    );
+    assert!(
+        empty_attr_facets.status_codes.is_empty(),
+        "nonexistent attribute filter should return empty status_codes"
+    );
+}
+
+#[tokio::test]
+async fn test_trace_facets_empty_store() {
+    let helper = setup_test().await;
+
+    let facets = fetch_facets(&helper, &TraceFilters::default()).await;
+    assert_eq!(facets.total_count, 0, "empty store should have total_count 0");
+    assert!(
+        facets.services.is_empty(),
+        "empty store should have no services"
+    );
+    assert!(
+        facets.status_codes.is_empty(),
+        "empty store should have no status_codes"
+    );
+}
+
+#[tokio::test]
+async fn test_genai_projection_null_source_fields() {
+    let helper = setup_test().await;
+    let trace_id = TraceId::from_bytes([70u8; 16]);
+    let now = Utc::now();
+
+    // Span with some sensitive fields genuinely None in source
+    let sparse_span = GenAiSpanRecord {
+        trace_id,
+        span_id: SpanId::from_bytes([1u8; 8]),
+        service_name: "genai-service".to_string(),
+        start_time: now,
+        end_time: Some(now + chrono::Duration::milliseconds(10)),
+        duration_ms: 10,
+        status_code: 0,
+        input_messages: Some(r#"[{"role":"user","content":"hello"}]"#.to_string()),
+        output_messages: Some(r#"[{"role":"assistant","content":"hi"}]"#.to_string()),
+        system_instructions: None,
+        tool_definitions: None,
+        ..Default::default()
+    };
+
+    helper
+        .genai_service
+        .write_records(vec![sparse_span])
+        .await
+        .unwrap();
+    wait_for_genai_trace_spans(
+        &helper,
+        &trace_id,
+        now - chrono::Duration::hours(1),
+        now + chrono::Duration::hours(1),
+        1,
+    )
+    .await;
+
+    // Fetch with include_sensitive_content=true (admin token)
+    let body = serde_json::json!({
+        "start_time": (now - chrono::Duration::hours(1)).to_rfc3339(),
+        "end_time": (now + chrono::Duration::hours(1)).to_rfc3339(),
+        "bucket_interval": "hour",
+        "span_limit": 10,
+        "include_sensitive_content": true
+    });
+    let request = Request::builder()
+        .uri(format!(
+            "/scouter/genai/traces/{}/metrics",
+            trace_id.to_hex()
+        ))
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(serde_json::to_string(&body).unwrap()))
+        .unwrap();
+    let response = helper.send_oneshot(request).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let body_bytes = response.into_body().collect().await.unwrap().to_bytes();
+    let response_json: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+
+    let spans = response_json["spans"].as_array().unwrap();
+    assert_eq!(spans.len(), 1);
+    // Non-null source fields are present
+    assert!(
+        spans[0]["input_messages"].is_string(),
+        "input_messages should be non-null"
+    );
+    assert!(
+        spans[0]["output_messages"].is_string(),
+        "output_messages should be non-null"
+    );
+    // Null source fields remain null (not redacted-null vs source-null confusion)
+    assert!(
+        spans[0]["system_instructions"].is_null(),
+        "system_instructions was None in source, should be null even with sensitive content"
+    );
+    assert!(
+        spans[0]["tool_definitions"].is_null(),
+        "tool_definitions was None in source, should be null even with sensitive content"
     );
 }
