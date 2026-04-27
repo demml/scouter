@@ -814,7 +814,12 @@ async fn test_genai_trace_metrics_route_sensitive_content_auth() {
         .unwrap();
     let admin_response = helper.send_oneshot(admin_request).await;
     assert_eq!(admin_response.status(), StatusCode::OK);
-    let body = admin_response.into_body().collect().await.unwrap().to_bytes();
+    let body = admin_response
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes();
     let response_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(response_json["sensitive_content_redacted"], false);
     let spans = response_json["spans"].as_array().unwrap();
@@ -927,7 +932,10 @@ async fn test_genai_trace_metrics_route_validation_errors() {
         ))
         .unwrap();
     let invalid_time_bounds_response = helper.send_oneshot(invalid_time_bounds_request).await;
-    assert_eq!(invalid_time_bounds_response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(
+        invalid_time_bounds_response.status(),
+        StatusCode::BAD_REQUEST
+    );
 
     let invalid_window_request = Request::builder()
         .uri(format!("/scouter/genai/traces/{valid_trace_id}/metrics"))
@@ -984,10 +992,7 @@ async fn test_trace_facets() {
         "should have at least one service"
     );
     let service_sum: i64 = facets.services.iter().map(|d| d.trace_count).sum();
-    assert_eq!(
-        service_sum, 100,
-        "service counts should sum to total_count"
-    );
+    assert_eq!(service_sum, 100, "service counts should sum to total_count");
     assert!(
         !facets.status_codes.is_empty(),
         "should have at least one status_code bucket"
@@ -1114,7 +1119,10 @@ async fn test_trace_facets_empty_store() {
     let helper = setup_test().await;
 
     let facets = fetch_facets(&helper, &TraceFilters::default()).await;
-    assert_eq!(facets.total_count, 0, "empty store should have total_count 0");
+    assert_eq!(
+        facets.total_count, 0,
+        "empty store should have total_count 0"
+    );
     assert!(
         facets.services.is_empty(),
         "empty store should have no services"

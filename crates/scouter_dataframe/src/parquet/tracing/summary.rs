@@ -925,6 +925,7 @@ impl TraceSummaryQueries {
 
                 // Time predicates on spans for partition pruning
                 if let Some(start) = filters.start_time {
+                    spans_df = spans_df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
                     spans_df = spans_df.filter(col(START_TIME_COL).gt_eq(lit(
                         ScalarValue::TimestampMicrosecond(
                             Some(start.timestamp_micros()),
@@ -933,6 +934,7 @@ impl TraceSummaryQueries {
                     )))?;
                 }
                 if let Some(end) = filters.end_time {
+                    spans_df = spans_df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end)))?;
                     spans_df = spans_df.filter(col(START_TIME_COL).lt(lit(
                         ScalarValue::TimestampMicrosecond(
                             Some(end.timestamp_micros()),
@@ -1153,8 +1155,7 @@ impl TraceSummaryQueries {
                     SEARCH_BLOB_COL,
                 ])?;
                 if let Some(start) = filters.start_time {
-                    spans_df =
-                        spans_df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
+                    spans_df = spans_df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
                     spans_df = spans_df.filter(col(START_TIME_COL).gt_eq(lit(
                         ScalarValue::TimestampMicrosecond(
                             Some(start.timestamp_micros()),
@@ -1519,9 +1520,7 @@ fn batches_to_facet_dimensions(
     for batch in &batches {
         let val_arr = compute::cast(
             batch.column_by_name(value_col).ok_or_else(|| {
-                TraceEngineError::UnsupportedOperation(
-                    format!("missing {value_col} column"),
-                )
+                TraceEngineError::UnsupportedOperation(format!("missing {value_col} column"))
             })?,
             &DataType::Utf8,
         )?;
@@ -2456,10 +2455,7 @@ mod tests {
         let schema = Schema::new(vec![
             Field::new(
                 SERVICE_NAME_COL,
-                DataType::Dictionary(
-                    Box::new(DataType::Int32),
-                    Box::new(DataType::Utf8),
-                ),
+                DataType::Dictionary(Box::new(DataType::Int32), Box::new(DataType::Utf8)),
                 false,
             ),
             Field::new("trace_count", DataType::Int64, false),
@@ -2539,9 +2535,11 @@ mod tests {
 
         let col = Int64Array::from(vec![42_i64]);
         let schema = Schema::new(vec![Field::new("total", DataType::Int64, false)]);
-        let batch =
-            RecordBatch::try_new(Arc::new(schema), vec![Arc::new(col) as Arc<dyn arrow::array::Array>])
-                .unwrap();
+        let batch = RecordBatch::try_new(
+            Arc::new(schema),
+            vec![Arc::new(col) as Arc<dyn arrow::array::Array>],
+        )
+        .unwrap();
 
         let result = extract_total_count(vec![batch]).unwrap();
         assert_eq!(result, 42);

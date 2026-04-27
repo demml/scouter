@@ -1182,9 +1182,11 @@ impl TraceQueries {
             .map_err(TraceEngineError::DatafusionError)?;
 
         if let Some(start) = filters.start_time {
+            summary_df = summary_df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
             summary_df = summary_df.filter(col(START_TIME_COL).gt_eq(ts_lit(&start)))?;
         }
         if let Some(end) = filters.end_time {
+            summary_df = summary_df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end)))?;
             summary_df = summary_df.filter(col(START_TIME_COL).lt(ts_lit(&end)))?;
         }
         if let Some(ref svc) = filters.service_name {
@@ -1232,9 +1234,11 @@ impl TraceQueries {
 
                 // Time pruning on the span side
                 if let Some(start) = filters.start_time {
+                    attr_df = attr_df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
                     attr_df = attr_df.filter(col(START_TIME_COL).gt_eq(ts_lit(&start)))?;
                 }
                 if let Some(end) = filters.end_time {
+                    attr_df = attr_df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end)))?;
                     attr_df = attr_df.filter(col(START_TIME_COL).lt(ts_lit(&end)))?;
                 }
 

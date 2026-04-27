@@ -84,7 +84,9 @@ async fn test_storage_integration_cloud() {
     let mut saw_psi_archive = false;
     let mut files = Vec::new();
     for _ in 0..20 {
-        let record = archive_old_data(&helper.pool, &helper.config).await.unwrap();
+        let record = archive_old_data(&helper.pool, &helper.config)
+            .await
+            .unwrap();
         saw_psi_archive |= record.psi;
         assert!(!record.spc);
         assert!(!record.custom);
