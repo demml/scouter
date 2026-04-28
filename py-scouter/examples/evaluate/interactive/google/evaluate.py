@@ -4,10 +4,17 @@ This keeps the ADK runtime on one event loop for the full evaluation and
 reuses the same service object that powers the FastAPI example.
 """
 
+# need to turin of E402 - we need to call set_offline before importing the shared config and service builder
+# ruff: noqa: E402
+# pylint: disable=wrong-import-position
 from __future__ import annotations
 
 import asyncio
 from typing import Any
+
+from scouter import ScouterEnv
+
+ScouterEnv.set_offline()
 
 from scouter.evaluate import EvalOrchestrator, EvalScenario
 

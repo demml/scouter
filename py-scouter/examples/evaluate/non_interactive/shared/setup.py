@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Union
@@ -26,12 +25,6 @@ class SharedConfig(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
-def _transport_config() -> TransportConfig:
-    if os.getenv("APP_ENV") in {"staging", "production"}:
-        return GrpcConfig()
-    return MockConfig()
-
-
 @lru_cache(maxsize=1)
 def get_shared_config() -> SharedConfig:
     prompt = Prompt.from_path(_BASE_DIR / "prompt.yaml")
@@ -41,12 +34,12 @@ def get_shared_config() -> SharedConfig:
     profile = AgentEvalProfile(alias="support_agent", tasks=tasks)
     queue = ScouterQueue.from_profile(
         profile=[profile],
-        transport_config=_transport_config(),
+        transport_config=GrpcConfig(),
     )
 
     instrumentor = ScouterInstrumentor()
     instrumentor.instrument(
-        transport_config=_transport_config(),
+        transport_config=GrpcConfig(),
         scouter_queue=queue,
     )
 
