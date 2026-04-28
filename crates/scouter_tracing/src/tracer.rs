@@ -225,8 +225,11 @@ pub fn init_tracer(
         let transport_config = match transport_config {
             Some(config) => TransportConfig::from_py_config(config)?,
             None => {
-                let config = GrpcConfig::default();
-                TransportConfig::Grpc(config)
+                if std::env::var("SCOUTER_OFFLINE").as_deref() == Ok("1") {
+                    TransportConfig::offline_mock()
+                } else {
+                    TransportConfig::Grpc(GrpcConfig::default())
+                }
             }
         };
 
