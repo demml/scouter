@@ -382,10 +382,10 @@ fn get_current_active_span_from_otel(
         return Ok(None);
     }
 
-    if let Ok(active_span) = current_span.getattr("active_span") {
-        if !active_span.is_none() {
-            return Ok(Some(active_span));
-        }
+    if let Ok(active_span) = current_span.getattr("active_span")
+        && !active_span.is_none()
+    {
+        return Ok(Some(active_span));
     }
 
     if current_span.extract::<PyRef<'_, ActiveSpan>>().is_ok() {

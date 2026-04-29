@@ -103,15 +103,15 @@ impl StorageProvider {
                 // know which naming convention object_store expects.
                 let mut builder = MicrosoftAzureBuilder::from_env();
 
-                if std::env::var("AZURE_STORAGE_ACCOUNT_NAME").is_err() {
-                    if let Ok(account) = std::env::var("AZURE_STORAGE_ACCOUNT") {
-                        builder = builder.with_account(account);
-                    }
+                if std::env::var("AZURE_STORAGE_ACCOUNT_NAME").is_err()
+                    && let Ok(account) = std::env::var("AZURE_STORAGE_ACCOUNT")
+                {
+                    builder = builder.with_account(account);
                 }
-                if std::env::var("AZURE_STORAGE_ACCOUNT_KEY").is_err() {
-                    if let Ok(key) = std::env::var("AZURE_STORAGE_KEY") {
-                        builder = builder.with_access_key(key);
-                    }
+                if std::env::var("AZURE_STORAGE_ACCOUNT_KEY").is_err()
+                    && let Ok(key) = std::env::var("AZURE_STORAGE_KEY")
+                {
+                    builder = builder.with_access_key(key);
                 }
 
                 let storage = builder

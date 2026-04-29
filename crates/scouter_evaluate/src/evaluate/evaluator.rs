@@ -456,8 +456,7 @@ impl TaskExecutor {
             let profile = self.profile.clone();
 
             join_set.spawn(async move {
-                let result = Self::execute_llm_judge_task(&task_id, &context, &profile).await;
-                result
+                Self::execute_llm_judge_task(&task_id, &context, &profile).await
             });
         }
 

@@ -206,12 +206,24 @@ impl Default for HttpConsumerSettings {
 mod tests {
     use super::*;
 
+    fn remove_env_var(key: &str) {
+        unsafe {
+            std::env::remove_var(key);
+        }
+    }
+
+    fn set_env_var(key: &str, value: &str) {
+        unsafe {
+            std::env::set_var(key, value);
+        }
+    }
+
     #[test]
     fn test_http_consumer_settings_defaults() {
         // Unset env vars → defaults
-        std::env::remove_var("SERVER_RECORD_CONSUMER_WORKERS");
-        std::env::remove_var("TRACE_CONSUMER_WORKERS");
-        std::env::remove_var("TAG_CONSUMER_WORKERS");
+        remove_env_var("SERVER_RECORD_CONSUMER_WORKERS");
+        remove_env_var("TRACE_CONSUMER_WORKERS");
+        remove_env_var("TAG_CONSUMER_WORKERS");
         let s = HttpConsumerSettings::default();
         assert_eq!(s.server_record_workers, 4);
         assert_eq!(s.trace_workers, 2);
@@ -220,24 +232,24 @@ mod tests {
 
     #[test]
     fn test_http_consumer_settings_env_override() {
-        std::env::set_var("SERVER_RECORD_CONSUMER_WORKERS", "8");
-        std::env::set_var("TRACE_CONSUMER_WORKERS", "3");
-        std::env::set_var("TAG_CONSUMER_WORKERS", "2");
+        set_env_var("SERVER_RECORD_CONSUMER_WORKERS", "8");
+        set_env_var("TRACE_CONSUMER_WORKERS", "3");
+        set_env_var("TAG_CONSUMER_WORKERS", "2");
         let s = HttpConsumerSettings::default();
         assert_eq!(s.server_record_workers, 8);
         assert_eq!(s.trace_workers, 3);
         assert_eq!(s.tag_workers, 2);
-        std::env::remove_var("SERVER_RECORD_CONSUMER_WORKERS");
-        std::env::remove_var("TRACE_CONSUMER_WORKERS");
-        std::env::remove_var("TAG_CONSUMER_WORKERS");
+        remove_env_var("SERVER_RECORD_CONSUMER_WORKERS");
+        remove_env_var("TRACE_CONSUMER_WORKERS");
+        remove_env_var("TAG_CONSUMER_WORKERS");
     }
 
     #[test]
     fn test_http_consumer_settings_invalid_env_falls_back_to_default() {
-        std::env::set_var("SERVER_RECORD_CONSUMER_WORKERS", "not-a-number");
+        set_env_var("SERVER_RECORD_CONSUMER_WORKERS", "not-a-number");
         let s = HttpConsumerSettings::default();
         // Falls back to default instead of panicking
         assert_eq!(s.server_record_workers, 4);
-        std::env::remove_var("SERVER_RECORD_CONSUMER_WORKERS");
+        remove_env_var("SERVER_RECORD_CONSUMER_WORKERS");
     }
 }

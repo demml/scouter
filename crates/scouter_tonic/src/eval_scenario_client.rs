@@ -117,10 +117,10 @@ impl EvalScenarioGrpcClient {
     }
 
     fn handle_refreshed_token(&self, headers: &tonic::metadata::MetadataMap) {
-        if let Some(new_token) = headers.get(X_REFRESHED_TOKEN) {
-            if let Ok(token_str) = new_token.to_str() {
-                self.update_token(token_str.to_string());
-            }
+        if let Some(new_token) = headers.get(X_REFRESHED_TOKEN)
+            && let Ok(token_str) = new_token.to_str()
+        {
+            self.update_token(token_str.to_string());
         }
     }
 

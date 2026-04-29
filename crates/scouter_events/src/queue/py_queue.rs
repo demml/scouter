@@ -507,16 +507,11 @@ impl ScouterQueue {
             let mut profile = genai_profile.clone();
             if let Some(workflow) = &mut profile.workflow
                 && std::env::var("SCOUTER_OFFLINE").as_deref() == Ok("1")
-            {
-                if let Err(e) = app_state()
+                && let Err(e) = app_state()
                     .handle()
                     .block_on(async { workflow.reset_agents().await })
-                {
-                    error!(
-                        "Failed to reset workflow agents for profile {}: {:?}",
-                        id, e
-                    );
-                }
+            {
+                error!("Failed to reset workflow agents for profile {}: {:?}", id, e);
             }
             registry
                 .agent_profiles

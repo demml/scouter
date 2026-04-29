@@ -52,10 +52,10 @@ impl SpcFeatureQueue {
             let name = feature.name().to_string();
 
             if self.feature_names.contains(&name) {
-                if let Some(queue) = queue.get_mut(&name) {
-                    if let Ok(value) = feature.to_float(feat_map) {
-                        queue.push(value);
-                    }
+                if let Some(queue) = queue.get_mut(&name)
+                    && let Ok(value) = feature.to_float(feat_map)
+                {
+                    queue.push(value);
                 }
             } else {
                 error!("Feature {} not found in drift profile", name);

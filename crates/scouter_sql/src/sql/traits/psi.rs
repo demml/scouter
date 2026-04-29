@@ -195,20 +195,20 @@ pub trait PsiSqlLogic {
         }
 
         // Get archived records if available
-        if let Some((archive_begin, archive_end)) = timestamps.archived_range {
-            if let Some(archived_minutes) = timestamps.archived_minutes {
-                let archived_results = Self::get_archived_records(
-                    params,
-                    archive_begin,
-                    archive_end,
-                    archived_minutes,
-                    storage_settings,
-                    entity_id,
-                )
-                .await?;
+        if let Some((archive_begin, archive_end)) = timestamps.archived_range
+            && let Some(archived_minutes) = timestamps.archived_minutes
+        {
+            let archived_results = Self::get_archived_records(
+                params,
+                archive_begin,
+                archive_end,
+                archived_minutes,
+                storage_settings,
+                entity_id,
+            )
+            .await?;
 
-                Self::merge_feature_results(archived_results, &mut feature_map)?;
-            }
+            Self::merge_feature_results(archived_results, &mut feature_map)?;
         }
         Ok(feature_map.into_values().collect())
     }

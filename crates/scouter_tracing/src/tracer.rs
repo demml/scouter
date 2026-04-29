@@ -704,12 +704,12 @@ impl ActiveSpan {
             KeyValue::new("exception.escaped", escaped.to_string()),
         ];
 
-        if let Ok(tb_py) = exception.getattr("__traceback__") {
-            if !tb_py.is_none() {
-                let tb_unbound: Py<PyAny> = tb_py.unbind();
-                if let Ok(stacktrace) = format_traceback(py, &tb_unbound) {
-                    event_attrs.push(KeyValue::new("exception.stacktrace", stacktrace));
-                }
+        if let Ok(tb_py) = exception.getattr("__traceback__")
+            && !tb_py.is_none()
+        {
+            let tb_unbound: Py<PyAny> = tb_py.unbind();
+            if let Ok(stacktrace) = format_traceback(py, &tb_unbound) {
+                event_attrs.push(KeyValue::new("exception.stacktrace", stacktrace));
             }
         }
 

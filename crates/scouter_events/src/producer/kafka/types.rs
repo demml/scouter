@@ -142,23 +142,24 @@ impl KafkaConfig {
         password: Option<String>,
     ) {
         // Only add credentials if both are provided and neither key exists in config
-        if !config.contains_key("sasl.username") && !config.contains_key("sasl.password") {
-            if let (Some(username), Some(password)) = (username, password) {
-                config.insert("sasl.username".to_string(), username);
-                config.insert("sasl.password".to_string(), password);
+        if !config.contains_key("sasl.username")
+            && !config.contains_key("sasl.password")
+            && let (Some(username), Some(password)) = (username, password)
+        {
+            config.insert("sasl.username".to_string(), username);
+            config.insert("sasl.password".to_string(), password);
 
-                // If security protocol and sasl mechanism are not set, use defaults
-                if !config.contains_key("security.protocol") {
-                    let security_protocol = std::env::var("KAFKA_SECURITY_PROTOCOL")
-                        .unwrap_or_else(|_| "SASL_SSL".to_string());
-                    config.insert("security.protocol".to_string(), security_protocol);
-                }
+            // If security protocol and sasl mechanism are not set, use defaults
+            if !config.contains_key("security.protocol") {
+                let security_protocol = std::env::var("KAFKA_SECURITY_PROTOCOL")
+                    .unwrap_or_else(|_| "SASL_SSL".to_string());
+                config.insert("security.protocol".to_string(), security_protocol);
+            }
 
-                if !config.contains_key("sasl.mechanism") {
-                    let sasl_mechanism = std::env::var("KAFKA_SASL_MECHANISM")
-                        .unwrap_or_else(|_| "PLAIN".to_string());
-                    config.insert("sasl.mechanism".to_string(), sasl_mechanism);
-                }
+            if !config.contains_key("sasl.mechanism") {
+                let sasl_mechanism =
+                    std::env::var("KAFKA_SASL_MECHANISM").unwrap_or_else(|_| "PLAIN".to_string());
+                config.insert("sasl.mechanism".to_string(), sasl_mechanism);
             }
         }
     }

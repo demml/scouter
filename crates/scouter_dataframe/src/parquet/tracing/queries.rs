@@ -773,20 +773,20 @@ impl TraceQueries {
         limit: Option<usize>,
     ) -> Result<Vec<TraceSpan>, TraceEngineError> {
         // Cache lookup for by-id trace detail queries (the hot interactive path).
-        if let Some(tid) = trace_id_bytes {
-            if let Ok(key) = <[u8; 16]>::try_from(tid) {
-                if let Some(cached) = self.span_cache.get(&key) {
-                    return Ok((*cached).clone());
-                }
-
-                let result = self
-                    .query_spans(Some(tid), service_name, start_time, end_time, limit)
-                    .await?;
-                if !result.is_empty() {
-                    self.span_cache.insert(key, Arc::new(result.clone()));
-                }
-                return Ok(result);
+        if let Some(tid) = trace_id_bytes
+            && let Ok(key) = <[u8; 16]>::try_from(tid)
+        {
+            if let Some(cached) = self.span_cache.get(&key) {
+                return Ok((*cached).clone());
             }
+
+            let result = self
+                .query_spans(Some(tid), service_name, start_time, end_time, limit)
+                .await?;
+            if !result.is_empty() {
+                self.span_cache.insert(key, Arc::new(result.clone()));
+            }
+            return Ok(result);
         }
 
         // No trace_id or non-16-byte ID — uncached scan path (time/service/attribute queries).
@@ -1224,53 +1224,53 @@ impl TraceQueries {
         }
 
         // ── Phase 1b: Attribute filter join (keeps everything in DataFusion) ─
-        if let Some(ref attr_filters) = filters.attribute_filters {
-            if !attr_filters.is_empty() {
-                let mut attr_df = self
-                    .ctx
-                    .table(SPAN_TABLE_NAME)
-                    .await
-                    .map_err(TraceEngineError::DatafusionError)?;
+        if let Some(ref attr_filters) = filters.attribute_filters
+            && !attr_filters.is_empty()
+        {
+            let mut attr_df = self
+                .ctx
+                .table(SPAN_TABLE_NAME)
+                .await
+                .map_err(TraceEngineError::DatafusionError)?;
 
-                // Time pruning on the span side
-                if let Some(start) = filters.start_time {
-                    attr_df = attr_df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
-                    attr_df = attr_df.filter(col(START_TIME_COL).gt_eq(ts_lit(&start)))?;
-                }
-                if let Some(end) = filters.end_time {
-                    attr_df = attr_df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end)))?;
-                    attr_df = attr_df.filter(col(START_TIME_COL).lt(ts_lit(&end)))?;
-                }
-
-                // OR-match search_blob against each filter pattern via match_attr UDF.
-                // match_attr_expr is a drop-in replacement for col(..).like(lit(pattern)):
-                // handles Utf8View natively and uses .contains() for LIKE '%inner%' semantics.
-                let mut attr_expr: Option<Expr> = None;
-                for f in attr_filters {
-                    let pattern = normalize_attr_filter(f);
-                    let cond = match_attr_expr(col(SEARCH_BLOB_COL), lit(pattern));
-                    attr_expr = Some(match attr_expr {
-                        None => cond,
-                        Some(e) => e.or(cond),
-                    });
-                }
-                if let Some(expr) = attr_expr {
-                    attr_df = attr_df.filter(expr)?;
-                }
-
-                // Deduplicate and alias trace_id to avoid ambiguous column in join
-                let attr_df = attr_df
-                    .select(vec![col(TRACE_ID_COL).alias("_attr_tid")])?
-                    .distinct()?;
-
-                summary_df = summary_df.join(
-                    attr_df,
-                    JoinType::Inner,
-                    &[TRACE_ID_COL],
-                    &["_attr_tid"],
-                    None,
-                )?;
+            // Time pruning on the span side
+            if let Some(start) = filters.start_time {
+                attr_df = attr_df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
+                attr_df = attr_df.filter(col(START_TIME_COL).gt_eq(ts_lit(&start)))?;
             }
+            if let Some(end) = filters.end_time {
+                attr_df = attr_df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end)))?;
+                attr_df = attr_df.filter(col(START_TIME_COL).lt(ts_lit(&end)))?;
+            }
+
+            // OR-match search_blob against each filter pattern via match_attr UDF.
+            // match_attr_expr is a drop-in replacement for col(..).like(lit(pattern)):
+            // handles Utf8View natively and uses .contains() for LIKE '%inner%' semantics.
+            let mut attr_expr: Option<Expr> = None;
+            for f in attr_filters {
+                let pattern = normalize_attr_filter(f);
+                let cond = match_attr_expr(col(SEARCH_BLOB_COL), lit(pattern));
+                attr_expr = Some(match attr_expr {
+                    None => cond,
+                    Some(e) => e.or(cond),
+                });
+            }
+            if let Some(expr) = attr_expr {
+                attr_df = attr_df.filter(expr)?;
+            }
+
+            // Deduplicate and alias trace_id to avoid ambiguous column in join
+            let attr_df = attr_df
+                .select(vec![col(TRACE_ID_COL).alias("_attr_tid")])?
+                .distinct()?;
+
+            summary_df = summary_df.join(
+                attr_df,
+                JoinType::Inner,
+                &[TRACE_ID_COL],
+                &["_attr_tid"],
+                None,
+            )?;
         }
 
         // ── Phase 2: Sort DESC, limit 1, project trace_id → _match_tid ──────

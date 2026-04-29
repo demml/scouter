@@ -393,10 +393,10 @@ pub fn start_dataset_background_task(
         loop {
             tokio::select! {
                 _ = sleep(Duration::from_secs(2)) => {
-                    if queue.should_process(scheduled_delay_secs) {
-                        if let Err(e) = queue.try_publish().await {
-                            error!("Background publish failed for {}: {}", identifier, e);
-                        }
+                    if queue.should_process(scheduled_delay_secs)
+                        && let Err(e) = queue.try_publish().await
+                    {
+                        error!("Background publish failed for {}: {}", identifier, e);
                     }
                 }
 

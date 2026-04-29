@@ -127,10 +127,10 @@ async fn main() {
         .await
         .unwrap();
 
-        if let Some(feature) = records.features.get("feature") {
-            if feature.values.len() > 5000 {
-                break;
-            }
+        if let Some(feature) = records.features.get("feature")
+            && feature.values.len() > 5000
+        {
+            break;
         }
 
         tokio::time::sleep(Duration::from_millis(500)).await;

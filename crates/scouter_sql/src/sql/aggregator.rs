@@ -111,10 +111,10 @@ impl TraceAggregator {
             if attr.key == SCOUTER_QUEUE_RECORD {
                 has_queue_tag |= extract_value_to_set(attr, &mut self.queue_tags).is_some();
             }
-            if attr.key.starts_with(SCOUTER_ENTITY) {
-                if let Some(entity_uid) = extract_value_to_set(attr, &mut self.entity_tags) {
-                    event_entity_tags.insert(entity_uid);
-                }
+            if attr.key.starts_with(SCOUTER_ENTITY)
+                && let Some(entity_uid) = extract_value_to_set(attr, &mut self.entity_tags)
+            {
+                event_entity_tags.insert(entity_uid);
             }
         }
 

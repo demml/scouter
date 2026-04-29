@@ -81,12 +81,10 @@ where {
                 let map = feature_map.features.get(feature).unwrap();
 
                 // attempt to set feature. If not found, set to missing
-                let col = array[i]
+                array[i]
                     .iter()
                     .map(|x| *map.get(x).unwrap_or(map.get("missing").unwrap()) as f32)
-                    .collect::<Vec<_>>();
-
-                col
+                    .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
 
@@ -119,11 +117,10 @@ where {
                 let map = feature_map.features.get(feature).unwrap();
 
                 // attempt to set feature. If not found, set to missing
-                let col = array[i]
+                array[i]
                     .iter()
                     .map(|x| *map.get(x).unwrap_or(map.get("missing").unwrap()) as f64)
-                    .collect::<Vec<_>>();
-                col
+                    .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
 

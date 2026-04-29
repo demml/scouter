@@ -205,19 +205,19 @@ pub trait CustomMetricSqlLogic {
 
         // get archived data
 
-        if let Some((archive_begin, archive_end)) = timestamps.archived_range {
-            if let Some(archived_minutes) = timestamps.archived_minutes {
-                let archived_results = Self::get_archived_records(
-                    params,
-                    archive_begin,
-                    archive_end,
-                    archived_minutes,
-                    storage_settings,
-                    entity_id,
-                )
-                .await?;
-                Self::merge_feature_results(archived_results, &mut custom_metric_map)?;
-            }
+        if let Some((archive_begin, archive_end)) = timestamps.archived_range
+            && let Some(archived_minutes) = timestamps.archived_minutes
+        {
+            let archived_results = Self::get_archived_records(
+                params,
+                archive_begin,
+                archive_end,
+                archived_minutes,
+                storage_settings,
+                entity_id,
+            )
+            .await?;
+            Self::merge_feature_results(archived_results, &mut custom_metric_map)?;
         }
 
         Ok(custom_metric_map)

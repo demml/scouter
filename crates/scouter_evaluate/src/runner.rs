@@ -140,10 +140,10 @@ impl EvalRunner {
     fn extract_entity_uids(span: &TraceSpanRecord) -> HashSet<String> {
         let mut uids = HashSet::new();
         let collect_uid = |key: &str, value: &Value, out: &mut HashSet<String>| {
-            if key.starts_with(SCOUTER_ENTITY) {
-                if let Some(entity_uid) = value.as_str() {
-                    out.insert(entity_uid.to_string());
-                }
+            if key.starts_with(SCOUTER_ENTITY)
+                && let Some(entity_uid) = value.as_str()
+            {
+                out.insert(entity_uid.to_string());
             }
         };
 

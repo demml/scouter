@@ -75,10 +75,10 @@ impl<'a> AgentContextBuilder<'a> {
                 let mut expected_iter = names.iter();
                 let mut current = expected_iter.next();
                 for actual_name in &actual {
-                    if let Some(exp) = current {
-                        if actual_name == exp {
-                            current = expected_iter.next();
-                        }
+                    if let Some(exp) = current
+                        && actual_name == exp
+                    {
+                        current = expected_iter.next();
                     }
                 }
                 Ok(json!(current.is_none()))

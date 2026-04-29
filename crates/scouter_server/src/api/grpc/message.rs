@@ -94,13 +94,13 @@ impl MessageService for MessageGrpcService {
         });
 
         // If token was refreshed, add it to response metadata
-        if let Some(metadata) = refreshed_metadata {
-            if let Some(token) = metadata.get("x-refreshed-token") {
-                info!("Adding refreshed token to response metadata");
-                response
-                    .metadata_mut()
-                    .insert("x-refreshed-token", token.clone());
-            }
+        if let Some(metadata) = refreshed_metadata
+            && let Some(token) = metadata.get("x-refreshed-token")
+        {
+            info!("Adding refreshed token to response metadata");
+            response
+                .metadata_mut()
+                .insert("x-refreshed-token", token.clone());
         }
 
         Ok(response)

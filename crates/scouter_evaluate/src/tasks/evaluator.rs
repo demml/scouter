@@ -109,10 +109,10 @@ impl AssertionEvaluator {
     ) -> Result<AssertionResult, EvaluationError> {
         // if value is array and context path is provider, it is assumed that user
         // wants to evaluate each element of array
-        if let Value::Array(items) = json_value {
-            if assertion.context_path().is_some() {
-                return Self::evaluate_over_array_items(items, assertion, assertion.context_path());
-            }
+        if let Value::Array(items) = json_value
+            && assertion.context_path().is_some()
+        {
+            return Self::evaluate_over_array_items(items, assertion, assertion.context_path());
         }
 
         let actual_value: &Value = if let Some(context_path) = assertion.context_path() {
@@ -122,14 +122,14 @@ impl AssertionEvaluator {
         };
 
         // if actual value is array and operator is not a native array operator, evaluate assertion over each item in array and aggregate results
-        if let Value::Array(items) = actual_value {
-            if !Self::is_array_native_operator(assertion.operator()) {
-                return Self::evaluate_over_array_items(
-                    items,
-                    assertion,
-                    assertion.item_context_path(),
-                );
-            }
+        if let Value::Array(items) = actual_value
+            && !Self::is_array_native_operator(assertion.operator())
+        {
+            return Self::evaluate_over_array_items(
+                items,
+                assertion,
+                assertion.item_context_path(),
+            );
         }
 
         let expected = Self::resolve_expected_value(json_value, assertion.expected_value())?;

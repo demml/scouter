@@ -868,16 +868,16 @@ impl TraceSummaryQueries {
         }
 
         // ── trace_ids IN filter ──────────────────────────────────────────────
-        if let Some(ref ids) = filters.trace_ids {
-            if !ids.is_empty() {
-                let binary_ids: Vec<Expr> = ids
-                    .iter()
-                    .filter_map(|hex| TraceId::hex_to_bytes(hex).ok())
-                    .map(|b| lit(ScalarValue::Binary(Some(b))))
-                    .collect();
-                if !binary_ids.is_empty() {
-                    df = df.filter(col(TRACE_ID_COL).in_list(binary_ids, false))?;
-                }
+        if let Some(ref ids) = filters.trace_ids
+            && !ids.is_empty()
+        {
+            let binary_ids: Vec<Expr> = ids
+                .iter()
+                .filter_map(|hex| TraceId::hex_to_bytes(hex).ok())
+                .map(|b| lit(ScalarValue::Binary(Some(b))))
+                .collect();
+            if !binary_ids.is_empty() {
+                df = df.filter(col(TRACE_ID_COL).in_list(binary_ids, false))?;
             }
         }
 
@@ -886,28 +886,27 @@ impl TraceSummaryQueries {
         // for "next" or `> (cursor_time, cursor_id)` for "previous".
         if let (Some(cursor_time), Some(cursor_id)) =
             (filters.cursor_start_time, &filters.cursor_trace_id)
+            && let Ok(cursor_bytes) = TraceId::hex_to_bytes(cursor_id)
         {
-            if let Ok(cursor_bytes) = TraceId::hex_to_bytes(cursor_id) {
-                let cursor_ts = lit(ScalarValue::TimestampMicrosecond(
-                    Some(cursor_time.timestamp_micros()),
-                    Some("UTC".into()),
-                ));
-                let cursor_tid = lit(ScalarValue::Binary(Some(cursor_bytes)));
-                let cursor_expr = if direction == "previous" {
-                    col(START_TIME_COL)
-                        .gt(cursor_ts.clone())
-                        .or(col(START_TIME_COL)
-                            .eq(cursor_ts)
-                            .and(col(TRACE_ID_COL).gt(cursor_tid)))
-                } else {
-                    col(START_TIME_COL)
-                        .lt(cursor_ts.clone())
-                        .or(col(START_TIME_COL)
-                            .eq(cursor_ts)
-                            .and(col(TRACE_ID_COL).lt(cursor_tid)))
-                };
-                df = df.filter(cursor_expr)?;
-            }
+            let cursor_ts = lit(ScalarValue::TimestampMicrosecond(
+                Some(cursor_time.timestamp_micros()),
+                Some("UTC".into()),
+            ));
+            let cursor_tid = lit(ScalarValue::Binary(Some(cursor_bytes)));
+            let cursor_expr = if direction == "previous" {
+                col(START_TIME_COL)
+                    .gt(cursor_ts.clone())
+                    .or(col(START_TIME_COL)
+                        .eq(cursor_ts)
+                        .and(col(TRACE_ID_COL).gt(cursor_tid)))
+            } else {
+                col(START_TIME_COL)
+                    .lt(cursor_ts.clone())
+                    .or(col(START_TIME_COL)
+                        .eq(cursor_ts)
+                        .and(col(TRACE_ID_COL).lt(cursor_tid)))
+            };
+            df = df.filter(cursor_expr)?;
         }
 
         // ── Attribute filters via span lookup → IN list ──────────────────────
@@ -915,83 +914,79 @@ impl TraceSummaryQueries {
         // We execute the span query eagerly to collect matching trace IDs, then filter
         // the summaries DataFrame with an IN-list predicate. This avoids a cross-table
         // JOIN that causes DataFusion to report ambiguous `trace_id` column references.
-        if let Some(ref attr_filters) = filters.attribute_filters {
-            if !attr_filters.is_empty() {
-                let mut spans_df = self.ctx.table("trace_spans").await?;
+        if let Some(ref attr_filters) = filters.attribute_filters
+            && !attr_filters.is_empty()
+        {
+            let mut spans_df = self.ctx.table("trace_spans").await?;
 
-                // Time predicates on spans for partition pruning — applied before
-                // select_columns so PARTITION_DATE_COL is still in the schema.
-                if let Some(start) = filters.start_time {
-                    spans_df = spans_df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
-                    spans_df = spans_df.filter(col(START_TIME_COL).gt_eq(lit(
-                        ScalarValue::TimestampMicrosecond(
-                            Some(start.timestamp_micros()),
-                            Some("UTC".into()),
-                        ),
-                    )))?;
-                }
-                if let Some(end) = filters.end_time {
-                    spans_df = spans_df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end)))?;
-                    spans_df = spans_df.filter(col(START_TIME_COL).lt(lit(
-                        ScalarValue::TimestampMicrosecond(
-                            Some(end.timestamp_micros()),
-                            Some("UTC".into()),
-                        ),
-                    )))?;
-                }
+            // Time predicates on spans for partition pruning — applied before
+            // select_columns so PARTITION_DATE_COL is still in the schema.
+            if let Some(start) = filters.start_time {
+                spans_df = spans_df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
+                spans_df = spans_df.filter(col(START_TIME_COL).gt_eq(lit(
+                    ScalarValue::TimestampMicrosecond(
+                        Some(start.timestamp_micros()),
+                        Some("UTC".into()),
+                    ),
+                )))?;
+            }
+            if let Some(end) = filters.end_time {
+                spans_df = spans_df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end)))?;
+                spans_df = spans_df.filter(col(START_TIME_COL).lt(lit(
+                    ScalarValue::TimestampMicrosecond(
+                        Some(end.timestamp_micros()),
+                        Some("UTC".into()),
+                    ),
+                )))?;
+            }
 
-                let mut spans_df =
-                    spans_df.select_columns(&[TRACE_ID_COL, START_TIME_COL, SEARCH_BLOB_COL])?;
+            let mut spans_df =
+                spans_df.select_columns(&[TRACE_ID_COL, START_TIME_COL, SEARCH_BLOB_COL])?;
 
-                // OR-match each filter against search_blob.
-                // normalize_attr_filter converts "key:value" → "%key=value%" so the LIKE
-                // pattern matches the new pipe-bounded `|key=value|` blob format.
-                let mut attr_expr: Option<Expr> = None;
-                for f in attr_filters {
-                    let pattern = crate::parquet::tracing::queries::normalize_attr_filter(f);
-                    let cond = match_attr_expr(col(SEARCH_BLOB_COL), lit(pattern));
-                    attr_expr = Some(match attr_expr {
-                        None => cond,
-                        Some(e) => e.or(cond),
-                    });
-                }
-                if let Some(expr) = attr_expr {
-                    spans_df = spans_df.filter(expr)?;
-                }
+            // OR-match each filter against search_blob.
+            // normalize_attr_filter converts "key:value" → "%key=value%" so the LIKE
+            // pattern matches the new pipe-bounded `|key=value|` blob format.
+            let mut attr_expr: Option<Expr> = None;
+            for f in attr_filters {
+                let pattern = crate::parquet::tracing::queries::normalize_attr_filter(f);
+                let cond = match_attr_expr(col(SEARCH_BLOB_COL), lit(pattern));
+                attr_expr = Some(match attr_expr {
+                    None => cond,
+                    Some(e) => e.or(cond),
+                });
+            }
+            if let Some(expr) = attr_expr {
+                spans_df = spans_df.filter(expr)?;
+            }
 
-                // Collect matching trace IDs eagerly, then apply as IN-list filter.
-                // Use HashSet for O(1) dedup instead of O(n²) Vec::contains().
-                let span_batches = spans_df.select_columns(&[TRACE_ID_COL])?.collect().await?;
-                let mut seen_ids: std::collections::HashSet<Vec<u8>> =
-                    std::collections::HashSet::new();
-                let mut binary_ids: Vec<Expr> = Vec::new();
-                for batch in &span_batches {
-                    // trace_id may be FixedSizeBinary(16) or Binary after Delta round-trip.
-                    // Cast to Binary to handle both uniformly.
-                    if let Some(col_ref) = batch.column_by_name(TRACE_ID_COL) {
-                        let casted = compute::cast(col_ref, &DataType::Binary)?;
-                        let col_arr =
-                            casted
-                                .as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .ok_or_else(|| {
-                                    TraceEngineError::DowncastError("trace_id to BinaryArray")
-                                })?;
-                        for i in 0..batch.num_rows() {
-                            let id_bytes = col_arr.value(i).to_vec();
-                            if seen_ids.insert(id_bytes.clone()) {
-                                binary_ids.push(lit(ScalarValue::Binary(Some(id_bytes))));
-                            }
+            // Collect matching trace IDs eagerly, then apply as IN-list filter.
+            // Use HashSet for O(1) dedup instead of O(n²) Vec::contains().
+            let span_batches = spans_df.select_columns(&[TRACE_ID_COL])?.collect().await?;
+            let mut seen_ids: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
+            let mut binary_ids: Vec<Expr> = Vec::new();
+            for batch in &span_batches {
+                // trace_id may be FixedSizeBinary(16) or Binary after Delta round-trip.
+                // Cast to Binary to handle both uniformly.
+                if let Some(col_ref) = batch.column_by_name(TRACE_ID_COL) {
+                    let casted = compute::cast(col_ref, &DataType::Binary)?;
+                    let col_arr = casted
+                        .as_any()
+                        .downcast_ref::<BinaryArray>()
+                        .ok_or_else(|| TraceEngineError::DowncastError("trace_id to BinaryArray"))?;
+                    for i in 0..batch.num_rows() {
+                        let id_bytes = col_arr.value(i).to_vec();
+                        if seen_ids.insert(id_bytes.clone()) {
+                            binary_ids.push(lit(ScalarValue::Binary(Some(id_bytes))));
                         }
                     }
                 }
+            }
 
-                if !binary_ids.is_empty() {
-                    df = df.filter(col(TRACE_ID_COL).in_list(binary_ids, false))?;
-                } else {
-                    // No matching spans → return empty result
-                    df = df.filter(lit(false))?;
-                }
+            if !binary_ids.is_empty() {
+                df = df.filter(col(TRACE_ID_COL).in_list(binary_ids, false))?;
+            } else {
+                // No matching spans → return empty result
+                df = df.filter(lit(false))?;
             }
         }
 
@@ -1147,73 +1142,69 @@ impl TraceSummaryQueries {
             df = df.filter(col(DURATION_MS_COL).lt_eq(lit(max_ms)))?;
         }
 
-        if let Some(ref attr_filters) = filters.attribute_filters {
-            if !attr_filters.is_empty() {
-                let mut spans_df = self.ctx.table("trace_spans").await?;
+        if let Some(ref attr_filters) = filters.attribute_filters
+            && !attr_filters.is_empty()
+        {
+            let mut spans_df = self.ctx.table("trace_spans").await?;
 
-                // Apply time/partition filters before select_columns so
-                // PARTITION_DATE_COL is still present in the schema.
-                if let Some(start) = filters.start_time {
-                    spans_df = spans_df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
-                    spans_df = spans_df.filter(col(START_TIME_COL).gt_eq(lit(
-                        ScalarValue::TimestampMicrosecond(
-                            Some(start.timestamp_micros()),
-                            Some("UTC".into()),
-                        ),
-                    )))?;
-                }
-                if let Some(end) = filters.end_time {
-                    spans_df = spans_df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end)))?;
-                    spans_df = spans_df.filter(col(START_TIME_COL).lt(lit(
-                        ScalarValue::TimestampMicrosecond(
-                            Some(end.timestamp_micros()),
-                            Some("UTC".into()),
-                        ),
-                    )))?;
-                }
+            // Apply time/partition filters before select_columns so
+            // PARTITION_DATE_COL is still present in the schema.
+            if let Some(start) = filters.start_time {
+                spans_df = spans_df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
+                spans_df = spans_df.filter(col(START_TIME_COL).gt_eq(lit(
+                    ScalarValue::TimestampMicrosecond(
+                        Some(start.timestamp_micros()),
+                        Some("UTC".into()),
+                    ),
+                )))?;
+            }
+            if let Some(end) = filters.end_time {
+                spans_df = spans_df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end)))?;
+                spans_df = spans_df.filter(col(START_TIME_COL).lt(lit(
+                    ScalarValue::TimestampMicrosecond(
+                        Some(end.timestamp_micros()),
+                        Some("UTC".into()),
+                    ),
+                )))?;
+            }
 
-                let mut spans_df =
-                    spans_df.select_columns(&[TRACE_ID_COL, START_TIME_COL, SEARCH_BLOB_COL])?;
-                let mut attr_expr: Option<Expr> = None;
-                for f in attr_filters {
-                    let pattern = crate::parquet::tracing::queries::normalize_attr_filter(f);
-                    let cond = match_attr_expr(col(SEARCH_BLOB_COL), lit(pattern));
-                    attr_expr = Some(match attr_expr {
-                        None => cond,
-                        Some(e) => e.or(cond),
-                    });
-                }
-                if let Some(expr) = attr_expr {
-                    spans_df = spans_df.filter(expr)?;
-                }
-                let span_batches = spans_df.select_columns(&[TRACE_ID_COL])?.collect().await?;
-                let mut seen_ids: std::collections::HashSet<Vec<u8>> =
-                    std::collections::HashSet::new();
-                let mut binary_ids: Vec<Expr> = Vec::new();
-                for batch in &span_batches {
-                    if let Some(col_ref) = batch.column_by_name(TRACE_ID_COL) {
-                        let casted = compute::cast(col_ref, &DataType::Binary)?;
-                        let col_arr =
-                            casted
-                                .as_any()
-                                .downcast_ref::<BinaryArray>()
-                                .ok_or_else(|| {
-                                    TraceEngineError::DowncastError("trace_id to BinaryArray")
-                                })?;
-                        for i in 0..batch.num_rows() {
-                            let id_bytes = col_arr.value(i).to_vec();
-                            if seen_ids.insert(id_bytes.clone()) {
-                                binary_ids.push(lit(ScalarValue::Binary(Some(id_bytes))));
-                            }
+            let mut spans_df =
+                spans_df.select_columns(&[TRACE_ID_COL, START_TIME_COL, SEARCH_BLOB_COL])?;
+            let mut attr_expr: Option<Expr> = None;
+            for f in attr_filters {
+                let pattern = crate::parquet::tracing::queries::normalize_attr_filter(f);
+                let cond = match_attr_expr(col(SEARCH_BLOB_COL), lit(pattern));
+                attr_expr = Some(match attr_expr {
+                    None => cond,
+                    Some(e) => e.or(cond),
+                });
+            }
+            if let Some(expr) = attr_expr {
+                spans_df = spans_df.filter(expr)?;
+            }
+            let span_batches = spans_df.select_columns(&[TRACE_ID_COL])?.collect().await?;
+            let mut seen_ids: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
+            let mut binary_ids: Vec<Expr> = Vec::new();
+            for batch in &span_batches {
+                if let Some(col_ref) = batch.column_by_name(TRACE_ID_COL) {
+                    let casted = compute::cast(col_ref, &DataType::Binary)?;
+                    let col_arr = casted
+                        .as_any()
+                        .downcast_ref::<BinaryArray>()
+                        .ok_or_else(|| TraceEngineError::DowncastError("trace_id to BinaryArray"))?;
+                    for i in 0..batch.num_rows() {
+                        let id_bytes = col_arr.value(i).to_vec();
+                        if seen_ids.insert(id_bytes.clone()) {
+                            binary_ids.push(lit(ScalarValue::Binary(Some(id_bytes))));
                         }
                     }
                 }
-                binary_ids.truncate(MAX_ATTR_FILTER_TRACE_IDS);
-                if !binary_ids.is_empty() {
-                    df = df.filter(col(TRACE_ID_COL).in_list(binary_ids, false))?;
-                } else {
-                    df = df.filter(lit(false))?;
-                }
+            }
+            binary_ids.truncate(MAX_ATTR_FILTER_TRACE_IDS);
+            if !binary_ids.is_empty() {
+                df = df.filter(col(TRACE_ID_COL).in_list(binary_ids, false))?;
+            } else {
+                df = df.filter(lit(false))?;
             }
         }
 

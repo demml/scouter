@@ -244,12 +244,12 @@ impl TraceSpanService {
                 info!("Successfully flushed {} spans", span_count);
                 if !genai_records.is_empty() {
                     let guard = genai_tx.read().unwrap();
-                    if let Some(gtx) = guard.as_ref() {
-                        if let Err(e) = gtx.try_send(GenAiTableCommand::WriteNoAck {
+                    if let Some(gtx) = guard.as_ref()
+                        && let Err(e) = gtx.try_send(GenAiTableCommand::WriteNoAck {
                             records: genai_records,
-                        }) {
-                            tracing::warn!("GenAI write channel full or closed: {}", e);
-                        }
+                        })
+                    {
+                        tracing::warn!("GenAI write channel full or closed: {}", e);
                     }
                 }
             }
