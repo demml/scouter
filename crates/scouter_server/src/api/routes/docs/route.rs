@@ -18,10 +18,10 @@ fn floor_char_boundary(s: &str, i: usize) -> usize {
 fn sanitize_doc_content(content: &str) -> String {
     let mut sanitized = content.trim_start();
 
-    if sanitized.starts_with("---\n") {
-        if let Some(end) = sanitized[4..].find("\n---\n") {
-            sanitized = &sanitized[end + 9..];
-        }
+    if sanitized.starts_with("---\n")
+        && let Some(end) = sanitized[4..].find("\n---\n")
+    {
+        sanitized = &sanitized[end + 9..];
     }
 
     let filtered = sanitized

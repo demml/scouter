@@ -104,14 +104,13 @@ pub async fn api_login_handler(
     // check if refresh token is already set.
     // if it is, check if its valid and return it
     // if it is not, generate a new one
-    if let Some(refresh_token) = &user.refresh_token {
-        if state
+    if let Some(refresh_token) = &user.refresh_token
+        && state
             .auth_manager
             .validate_refresh_token(refresh_token)
             .is_ok()
-        {
-            return Ok(Json(JwtToken { token: jwt_token }));
-        }
+    {
+        return Ok(Json(JwtToken { token: jwt_token }));
     }
 
     let refresh_token = state.auth_manager.generate_refresh_token(&user);
