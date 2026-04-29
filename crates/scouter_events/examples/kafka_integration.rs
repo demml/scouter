@@ -3,16 +3,16 @@ pub mod utils;
 use crate::utils::setup_logging;
 
 use scouter_sql::sql::traits::SpcSqlLogic;
-use scouter_sql::{sql::traits::EntitySqlLogic, PostgresClient};
+use scouter_sql::{PostgresClient, sql::traits::EntitySqlLogic};
 use scouter_types::{ServerRecord, ServerRecords, SpcRecord};
 use std::time::{Duration, Instant};
 use utils::TestHelper;
 
 #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
 use rdkafka::{
+    ClientConfig,
     config::RDKafkaLogLevel,
     producer::{FutureProducer, FutureRecord},
-    ClientConfig,
 };
 
 trait KafkaSetup {

@@ -1,20 +1,20 @@
 use crate::api::{error::ServerError, task_manager::TaskManager};
 
-use axum::http::StatusCode;
 use axum::Json;
+use axum::http::StatusCode;
 use flume::Sender;
 use scouter_auth::auth::AuthManager;
+use scouter_dataframe::EvalScenarioService;
 use scouter_dataframe::parquet::bifrost::manager::DatasetEngineManager;
 use scouter_dataframe::parquet::tracing::dispatch::TraceDispatchService;
 use scouter_dataframe::parquet::tracing::genai::GenAiSpanService;
 use scouter_dataframe::parquet::tracing::service::TraceSpanService;
 use scouter_dataframe::parquet::tracing::summary::TraceSummaryService;
-use scouter_dataframe::EvalScenarioService;
 use scouter_settings::ScouterServerConfig;
 use scouter_sql::sql::aggregator::shutdown_trace_cache;
 use scouter_sql::sql::cache::entity_cache;
 use scouter_types::{
-    contracts::ScouterServerError, DriftType, ServerRecords, TagRecord, TraceServerRecord,
+    DriftType, ServerRecords, TagRecord, TraceServerRecord, contracts::ScouterServerError,
 };
 use sqlx::{Pool, Postgres};
 use std::sync::Arc;
@@ -120,8 +120,8 @@ impl AppState {
                 Err((
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(ScouterServerError::new(format!(
-                    "Failed to get entity ID from space, name, version, drift_type: {error_msg}"
-                ))),
+                        "Failed to get entity ID from space, name, version, drift_type: {error_msg}"
+                    ))),
                 ))
             }
         }

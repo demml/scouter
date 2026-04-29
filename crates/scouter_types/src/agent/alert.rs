@@ -1,8 +1,8 @@
-use crate::error::TypeError;
 use crate::AlertCondition;
+use crate::error::TypeError;
 use crate::{
-    dispatch::AlertDispatchType, AlertDispatchConfig, AlertThreshold, CommonCrons,
-    DispatchAlertDescription, OpsGenieDispatchConfig, SlackDispatchConfig, ValidateAlertConfig,
+    AlertDispatchConfig, AlertThreshold, CommonCrons, DispatchAlertDescription,
+    OpsGenieDispatchConfig, SlackDispatchConfig, ValidateAlertConfig, dispatch::AlertDispatchType,
 };
 use core::fmt::Debug;
 use pyo3::prelude::*;

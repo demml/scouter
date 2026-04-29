@@ -16,7 +16,7 @@ use scouter_types::{
 };
 use semver::Version;
 use serde_json::Value;
-use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
+use sqlx::{Pool, Postgres, Row, postgres::PgQueryResult};
 use std::result::Result::Ok;
 use std::str::FromStr;
 use tracing::{error, instrument};

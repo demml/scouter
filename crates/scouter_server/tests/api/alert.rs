@@ -2,11 +2,11 @@ use crate::common::setup_test;
 
 use axum::{
     body::Body,
-    http::{header, Request, StatusCode},
+    http::{Request, StatusCode, header},
 };
 use http_body_util::BodyExt;
-use scouter_types::contracts::{DriftAlertPaginationRequest, UpdateAlertStatus};
 use scouter_types::DriftAlertPaginationResponse;
+use scouter_types::contracts::{DriftAlertPaginationRequest, UpdateAlertStatus};
 
 #[tokio::test]
 async fn test_get_drift_alerts() {

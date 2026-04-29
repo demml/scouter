@@ -11,14 +11,14 @@ use deltalake::datafusion::parquet::file::properties::{EnabledStatistics, Writer
 use deltalake::datafusion::parquet::schema::types::ColumnPath;
 use deltalake::operations::optimize::OptimizeType;
 use deltalake::{DeltaTable, DeltaTableBuilder, TableProperty};
+use scouter_types::dataset::DatasetNamespace;
 use scouter_types::dataset::schema::{
     SCOUTER_BATCH_ID, SCOUTER_CREATED_AT, SCOUTER_PARTITION_DATE,
 };
-use scouter_types::dataset::DatasetNamespace;
 use std::sync::Arc;
 use tokio::sync::oneshot;
-use tokio::sync::{mpsc, RwLock as AsyncRwLock};
-use tokio::time::{interval, Duration};
+use tokio::sync::{RwLock as AsyncRwLock, mpsc};
+use tokio::time::{Duration, interval};
 use tracing::{debug, error, info, instrument};
 use url::Url;
 

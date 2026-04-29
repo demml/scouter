@@ -3,11 +3,11 @@ use arrow::array::AsArray;
 use arrow::array::{BooleanBuilder, StringArray};
 use arrow::datatypes::DataType;
 use arrow::datatypes::UInt32Type;
-use arrow_array::types::Float64Type;
-use arrow_array::types::TimestampNanosecondType;
 use arrow_array::Array;
 use arrow_array::RecordBatch;
 use arrow_array::StringViewArray;
+use arrow_array::types::Float64Type;
+use arrow_array::types::TimestampNanosecondType;
 use chrono::{DateTime, TimeZone, Utc};
 use datafusion::error::{DataFusionError, Result};
 use datafusion::logical_expr::ScalarFunctionArgs;
@@ -16,10 +16,10 @@ use datafusion::logical_expr::{
 };
 use datafusion::prelude::DataFrame;
 use datafusion::scalar::ScalarValue;
-use deltalake::logstore::{
-    default_logstore, logstore_factories, LogStore, LogStoreFactory, ObjectStoreRef, StorageConfig,
-};
 use deltalake::DeltaResult;
+use deltalake::logstore::{
+    LogStore, LogStoreFactory, ObjectStoreRef, StorageConfig, default_logstore, logstore_factories,
+};
 use scouter_types::{BinnedMetric, BinnedMetricStats, BinnedMetrics};
 use std::future::Future;
 use std::sync::Arc;
@@ -362,7 +362,7 @@ impl ScalarUDFImpl for AttrMatchUdf {
             _ => {
                 return Err(DataFusionError::Execution(
                     "match_attr: second arg must be a non-null Utf8 scalar literal".into(),
-                ))
+                ));
             }
         };
 

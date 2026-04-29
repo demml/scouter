@@ -1,10 +1,10 @@
 use crate::api::state::AppState;
 use anyhow::Result;
 /// Route for debugging information
-use axum::{http::StatusCode, Json};
+use axum::{Json, http::StatusCode};
+use scouter_sql::PostgresClient;
 use scouter_sql::sql::schema::User;
 use scouter_sql::sql::traits::UserSqlLogic;
-use scouter_sql::PostgresClient;
 use scouter_types::contracts::ScouterServerError;
 use std::sync::Arc;
 use tracing::error;

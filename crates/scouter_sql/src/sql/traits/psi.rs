@@ -2,18 +2,18 @@ use crate::sql::query::Queries;
 use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use scouter_dataframe::parquet::{dataframe_to_psi_drift_features, ParquetDataFrame};
+use scouter_dataframe::parquet::{ParquetDataFrame, dataframe_to_psi_drift_features};
 
 use crate::sql::error::SqlError;
 use itertools::multiunzip;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::psi::FeatureDistributions;
 use scouter_types::{
-    psi::{FeatureBinProportionResult, FeatureDistributionRow},
     DriftRequest, PsiRecord, RecordType,
+    psi::{FeatureBinProportionResult, FeatureDistributionRow},
 };
 
-use sqlx::{postgres::PgQueryResult, Pool, Postgres};
+use sqlx::{Pool, Postgres, postgres::PgQueryResult};
 use std::collections::BTreeMap;
 use tracing::{debug, instrument};
 

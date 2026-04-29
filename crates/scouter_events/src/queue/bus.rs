@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use crate::error::{EventError, PyEventError};
+use opentelemetry::Context as OtelContext;
 use opentelemetry::baggage::BaggageExt;
 use opentelemetry::trace::TraceContextExt;
-use opentelemetry::Context as OtelContext;
 use pyo3::prelude::*;
 use scouter_types::{EvalRecord, QueueItem, TraceId};
 use std::sync::RwLock;
@@ -358,7 +358,9 @@ impl QueueBus {
                         }
                     }
                 } else if trace_id.is_some() || scenario_tag.is_some() {
-                    warn!("stamp_otel_trace_id: could not cast Python item to EvalRecord; Python-side trace_id/tags not updated");
+                    warn!(
+                        "stamp_otel_trace_id: could not cast Python item to EvalRecord; Python-side trace_id/tags not updated"
+                    );
                 }
             }
         }

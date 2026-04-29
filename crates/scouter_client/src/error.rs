@@ -1,5 +1,5 @@
-use pyo3::exceptions::PyRuntimeError;
 use pyo3::PyErr;
+use pyo3::exceptions::PyRuntimeError;
 use scouter_drift::error::DriftError;
 use scouter_profile::DataProfileError;
 use thiserror::Error;
@@ -18,7 +18,9 @@ pub enum DataError {
     #[error("Column names must be strings")]
     ColumnNamesMustBeStrings,
 
-    #[error("Detected missing, Nan, or infinite values in the data. Scouter does not currently support these value types")]
+    #[error(
+        "Detected missing, Nan, or infinite values in the data. Scouter does not currently support these value types"
+    )]
     MissingNanOrInfiniteValues,
 
     #[error("{0}")]

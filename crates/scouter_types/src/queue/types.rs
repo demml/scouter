@@ -1,6 +1,6 @@
-use crate::error::TypeError;
 use crate::EvalRecord;
 use crate::PyHelperFuncs;
+use crate::error::TypeError;
 use opentelemetry::StringValue;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyFloat, PyInt, PyList, PyString};

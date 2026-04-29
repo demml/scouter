@@ -1,8 +1,8 @@
 use futures::io;
 use potato_head::error::WorkflowError;
+use pyo3::PyErr;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::pyclass::PyClassGuardError;
-use pyo3::PyErr;
 use scouter_dispatch::error::DispatchError;
 #[cfg(feature = "sql")]
 use scouter_sql::sql::error::SqlError;
@@ -52,7 +52,9 @@ pub enum DriftError {
     #[error("Failed to process alerts")]
     ProcessAlertError,
 
-    #[error("Invalid configuration provided for drifter. Please check that the configuration type matches the drifter type")]
+    #[error(
+        "Invalid configuration provided for drifter. Please check that the configuration type matches the drifter type"
+    )]
     InvalidConfigError,
 
     #[error("Not implemented")]

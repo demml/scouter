@@ -4,19 +4,19 @@ use crate::api::routes::trace::metrics::{
 use crate::api::state::AppState;
 
 use axum::{
+    Json, Router,
     extract::{Extension, Path, Query, State},
     http::StatusCode,
     routing::{get, post},
-    Json, Router,
 };
 use scouter_auth::permission::UserPermissions;
 use scouter_types::{
-    contracts::ScouterServerError, AgentActivityQuery, AgentDashboardRequest,
-    AgentDashboardResponse, ConversationQuery, GenAiAgentActivityResponse,
-    GenAiErrorBreakdownResponse, GenAiErrorCount, GenAiMetricsRequest, GenAiModelUsageResponse,
-    GenAiOperationBreakdownResponse, GenAiSpanFilters, GenAiSpansResponse,
+    AgentActivityQuery, AgentDashboardRequest, AgentDashboardResponse, ConversationQuery,
+    GenAiAgentActivityResponse, GenAiErrorBreakdownResponse, GenAiErrorCount, GenAiMetricsRequest,
+    GenAiModelUsageResponse, GenAiOperationBreakdownResponse, GenAiSpanFilters, GenAiSpansResponse,
     GenAiTokenMetricsResponse, GenAiToolActivityResponse, GenAiTraceMetricsRequest,
     GenAiTraceMetricsResponse, ToolDashboardRequest, ToolDashboardResponse, TraceId,
+    contracts::ScouterServerError,
 };
 
 use chrono::Utc;

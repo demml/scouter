@@ -1,15 +1,15 @@
 use crate::api::state::AppState;
 use anyhow::Result;
 use axum::{
+    Json, Router,
     extract::{Query, State},
     http::StatusCode,
     routing::get,
-    Json, Router,
 };
 use scouter_evaluate::scenario::EvalScenarios;
 use scouter_types::contracts::ScouterServerError;
 use serde::Deserialize;
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 use tracing::{error, instrument};
 

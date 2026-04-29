@@ -4,11 +4,11 @@ use crate::parquet::types::BinnedTableName;
 use crate::sql::helper::get_binned_agent_task_values_query;
 use crate::storage::ObjectStore;
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
+use arrow_array::RecordBatch;
 use arrow_array::array::{
     BooleanArray, DictionaryArray, Float64Array, Int32Array, StringArray, TimestampNanosecondArray,
-    UInt32Array, UInt8Array,
+    UInt8Array, UInt32Array,
 };
-use arrow_array::RecordBatch;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use datafusion::dataframe::DataFrame;

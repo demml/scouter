@@ -4,15 +4,15 @@ use opentelemetry::global::ObjectSafeSpan;
 use opentelemetry::propagation::{Extractor, Injector};
 use opentelemetry::trace::Status;
 use opentelemetry::trace::{SpanContext, TraceState};
-use opentelemetry::{trace, KeyValue, SpanId, TraceFlags, TraceId};
+use opentelemetry::{KeyValue, SpanId, TraceFlags, TraceId, trace};
 use opentelemetry_otlp::ExportConfig as OtlpExportConfig;
 use pyo3::types::PyString;
 use pyo3::types::{PyDict, PyList, PyModule, PyTuple};
-use pyo3::{prelude::*, IntoPyObjectExt};
+use pyo3::{IntoPyObjectExt, prelude::*};
 use scouter_events::queue::ScouterQueue;
+use scouter_types::CompressionType;
 use scouter_types::is_pydantic_basemodel;
 use scouter_types::pydict_to_otel_keyvalue;
-use scouter_types::CompressionType;
 use scouter_types::{
     FUNCTION_MODULE, FUNCTION_NAME, FUNCTION_QUALNAME, FUNCTION_STREAMING, FUNCTION_TYPE,
 };

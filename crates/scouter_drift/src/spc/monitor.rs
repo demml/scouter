@@ -3,13 +3,13 @@ use crate::spc::types::{SpcDriftMap, SpcFeatureDrift};
 use crate::utils::CategoricalFeatureHelpers;
 use chrono::Utc;
 use indicatif::ProgressBar;
-use ndarray::prelude::*;
 use ndarray::Axis;
+use ndarray::prelude::*;
 use num_traits::{Float, FromPrimitive, Num};
 use rayon::prelude::*;
 use scouter_types::{
-    spc::{SpcDriftConfig, SpcDriftProfile, SpcFeatureDriftProfile},
     ServerRecord, ServerRecords, SpcRecord,
+    spc::{SpcDriftConfig, SpcDriftProfile, SpcFeatureDriftProfile},
 };
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -110,7 +110,6 @@ impl SpcMonitor {
     ) -> Result<SpcDriftProfile, DriftError>
     where
         F: FromPrimitive + Num + Clone + Float + Debug + Sync + Send + ndarray::ScalarOperand,
-
         F: Into<f64>,
     {
         let c4 = self.compute_c4(sample_size);
@@ -478,16 +477,16 @@ impl Default for SpcMonitor {
 mod tests {
 
     // use crate::core::drift::base::DriftProfile;
+    use scouter_types::DriftType;
     use scouter_types::drift::DriftProfile;
     use scouter_types::spc::SpcAlertConfig;
     use scouter_types::util::ProfileBaseArgs;
-    use scouter_types::DriftType;
 
     use super::*;
     use approx::relative_eq;
     use ndarray::Array;
-    use ndarray_rand::rand_distr::Uniform;
     use ndarray_rand::RandomExt;
+    use ndarray_rand::rand_distr::Uniform;
     #[test]
     fn test_create_2d_drift_profile_f32() {
         // create 2d array

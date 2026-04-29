@@ -1,14 +1,14 @@
+use scouter_types::ListedProfile;
 use scouter_types::contracts::{
     GetProfileRequest, ProfileRequest, ProfileStatusRequest, RegisteredProfileResponse,
     ScouterResponse, ScouterServerError,
 };
-use scouter_types::ListedProfile;
 use scouter_types::{DriftProfile, ListProfilesRequest};
 
 use axum::{
+    Extension, Json,
     extract::{Query, State},
     http::StatusCode,
-    Extension, Json,
 };
 
 use std::sync::Arc;
@@ -17,13 +17,13 @@ use tracing::{debug, error, info, instrument};
 use crate::api::state::AppState;
 use anyhow::{Context, Result};
 use axum::{
-    routing::{post, put},
     Router,
+    routing::{post, put},
 };
 use scouter_auth::permission::UserPermissions;
-use scouter_sql::sql::traits::ProfileSqlLogic;
 use scouter_sql::PostgresClient;
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use scouter_sql::sql::traits::ProfileSqlLogic;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 
 /// Insert a drift profile into the database
 #[utoipa::path(
@@ -272,7 +272,7 @@ pub async fn get_profile(
                 Json(ScouterServerError::new(
                     "Drift profile not found".to_string(),
                 )),
-            ))
+            ));
         }
         Err(e) => {
             error!("Failed to query drift profile: {:?}", e);

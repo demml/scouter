@@ -4,11 +4,11 @@ use crate::parquet::traits::ParquetFrame;
 use crate::parquet::types::BinnedTableName;
 use crate::storage::ObjectStore;
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
+use arrow_array::RecordBatch;
 use arrow_array::array::{
     DictionaryArray, FixedSizeBinaryArray, Int32Array, Int64Array, StringArray,
-    TimestampNanosecondArray, UInt32Array, UInt8Array,
+    TimestampNanosecondArray, UInt8Array, UInt32Array,
 };
-use arrow_array::RecordBatch;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use datafusion::dataframe::DataFrame;

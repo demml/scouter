@@ -2,7 +2,7 @@ use crate::api::routes::auth::middleware::header::HeaderValue;
 use crate::api::routes::auth::schema::AuthError;
 use crate::api::routes::user::utils::get_user;
 use crate::api::state::AppState;
-use axum::http::{header, StatusCode};
+use axum::http::{StatusCode, header};
 use axum::response::IntoResponse;
 use axum::{
     extract::{Request, State},
@@ -11,8 +11,8 @@ use axum::{
 };
 use axum_extra::extract::cookie::CookieJar;
 use scouter_auth::permission::UserPermissions;
-use scouter_sql::sql::traits::UserSqlLogic;
 use scouter_sql::PostgresClient;
+use scouter_sql::sql::traits::UserSqlLogic;
 use serde::Serialize;
 use std::sync::Arc;
 use tracing::{info, instrument};

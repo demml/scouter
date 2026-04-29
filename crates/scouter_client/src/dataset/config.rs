@@ -4,8 +4,8 @@ use arrow::datatypes::SchemaRef;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use scouter_types::dataset::{
-    fingerprint_from_json_schema, inject_system_columns, json_schema_to_arrow, DatasetError,
-    DatasetFingerprint, DatasetNamespace,
+    DatasetError, DatasetFingerprint, DatasetNamespace, fingerprint_from_json_schema,
+    inject_system_columns, json_schema_to_arrow,
 };
 
 use super::error::DatasetClientError;

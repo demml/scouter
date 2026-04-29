@@ -1,5 +1,5 @@
 use crate::error::TraceEngineError;
-use crate::parquet::control::{get_pod_id, ControlTableEngine};
+use crate::parquet::control::{ControlTableEngine, get_pod_id};
 use crate::parquet::tracing::catalog::TraceCatalogProvider;
 use crate::parquet::tracing::queries::{date_lit, ts_lit};
 use crate::parquet::tracing::traits::arrow_schema_to_delta;
@@ -13,7 +13,7 @@ use arrow_array::Array;
 use arrow_array::RecordBatch;
 use chrono::{DateTime, Datelike, Utc};
 use datafusion::functions_aggregate::expr_fn::{avg, count, sum};
-use datafusion::logical_expr::{col, lit, Expr};
+use datafusion::logical_expr::{Expr, col, lit};
 use datafusion::prelude::*;
 use datafusion::scalar::ScalarValue;
 use deltalake::datafusion::parquet::basic::{Compression, Encoding, ZstdLevel};
@@ -31,7 +31,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::oneshot;
-use tokio::sync::{mpsc, RwLock as AsyncRwLock};
+use tokio::sync::{RwLock as AsyncRwLock, mpsc};
 use tokio::time::interval;
 use tracing::{debug, error, info, instrument};
 use url::Url;
@@ -684,7 +684,9 @@ impl GenAiSpanDBEngine {
         if let Ok(provider) = delta_table.table_provider().await {
             catalog.swap(GEN_AI_TABLE_NAME, provider);
         } else {
-            info!("Empty gen_ai_spans table at init — deferring catalog registration until first write");
+            info!(
+                "Empty gen_ai_spans table at init — deferring catalog registration until first write"
+            );
         }
 
         let control = ControlTableEngine::new(object_store, get_pod_id()).await?;
@@ -1655,20 +1657,10 @@ impl GenAiQueries {
                     } else {
                         output_tokens.value(i)
                     },
-                    p50_duration_ms: p50.and_then(|a| {
-                        if a.is_null(i) {
-                            None
-                        } else {
-                            Some(a.value(i))
-                        }
-                    }),
-                    p95_duration_ms: p95.and_then(|a| {
-                        if a.is_null(i) {
-                            None
-                        } else {
-                            Some(a.value(i))
-                        }
-                    }),
+                    p50_duration_ms: p50
+                        .and_then(|a| if a.is_null(i) { None } else { Some(a.value(i)) }),
+                    p95_duration_ms: p95
+                        .and_then(|a| if a.is_null(i) { None } else { Some(a.value(i)) }),
                     error_rate: if error_rates.is_null(i) {
                         0.0
                     } else {
@@ -2409,27 +2401,12 @@ impl GenAiQueries {
                     } else {
                         avg_durations.value(i)
                     },
-                    p50_duration_ms: p50.and_then(|a| {
-                        if a.is_null(i) {
-                            None
-                        } else {
-                            Some(a.value(i))
-                        }
-                    }),
-                    p95_duration_ms: p95.and_then(|a| {
-                        if a.is_null(i) {
-                            None
-                        } else {
-                            Some(a.value(i))
-                        }
-                    }),
-                    p99_duration_ms: p99.and_then(|a| {
-                        if a.is_null(i) {
-                            None
-                        } else {
-                            Some(a.value(i))
-                        }
-                    }),
+                    p50_duration_ms: p50
+                        .and_then(|a| if a.is_null(i) { None } else { Some(a.value(i)) }),
+                    p95_duration_ms: p95
+                        .and_then(|a| if a.is_null(i) { None } else { Some(a.value(i)) }),
+                    p99_duration_ms: p99
+                        .and_then(|a| if a.is_null(i) { None } else { Some(a.value(i)) }),
                     input_tokens: if input_tokens.is_null(i) {
                         0
                     } else {
@@ -3059,7 +3036,7 @@ mod tests {
     use super::*;
     use crate::storage::ObjectStore;
     use scouter_settings::ObjectStorageSettings;
-    use scouter_types::{extract_gen_ai_span, Attribute, SpanId, TraceId, TraceSpanRecord};
+    use scouter_types::{Attribute, SpanId, TraceId, TraceSpanRecord, extract_gen_ai_span};
 
     struct TestEnv {
         object_store: ObjectStore,

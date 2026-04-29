@@ -1,20 +1,20 @@
 use crate::common::setup_test;
 use axum::{
     body::Body,
-    http::{header, Request, StatusCode},
+    http::{Request, StatusCode, header},
 };
 use http_body_util::BodyExt;
 use opentelemetry_proto::tonic::collector::trace::v1::{
     ExportTraceServiceRequest, ExportTraceServiceResponse,
 };
-use opentelemetry_proto::tonic::common::v1::{any_value, AnyValue, KeyValue};
+use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue, any_value};
 use opentelemetry_proto::tonic::resource::v1::Resource;
 use opentelemetry_proto::tonic::trace::v1::{ResourceSpans, ScopeSpans, Span};
-use prost::Message;
 use potato_head::create_uuid7;
+use prost::Message;
 use scouter_sql::sql::aggregator::shutdown_trace_cache;
-use scouter_types::{sql::TraceFilters, TracePaginationResponse};
 use scouter_types::{MessageRecord, TagRecord, TagsRequest, TagsResponse, TraceServerRecord};
+use scouter_types::{TracePaginationResponse, sql::TraceFilters};
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -261,7 +261,9 @@ fn make_otlp_export_request() -> ExportTraceServiceRequest {
     let service_name_kv = KeyValue {
         key: "service.name".to_string(),
         value: Some(AnyValue {
-            value: Some(any_value::Value::StringValue("otlp-http-service".to_string())),
+            value: Some(any_value::Value::StringValue(
+                "otlp-http-service".to_string(),
+            )),
         }),
     };
 

@@ -1,12 +1,12 @@
-use crate::data_utils::{convert_array_type, ConvertedData};
+use crate::data_utils::{ConvertedData, convert_array_type};
 use ndarray::Axis;
-use ndarray::{concatenate, Array2};
+use ndarray::{Array2, concatenate};
 use num_traits::{Float, FromPrimitive, Num};
 use numpy::PyReadonlyArray2;
 use scouter_drift::error::DriftError;
 use scouter_drift::{
-    spc::{generate_alerts, SpcDriftMap, SpcMonitor},
     CategoricalFeatureHelpers,
+    spc::{SpcDriftMap, SpcMonitor, generate_alerts},
 };
 use scouter_types::{
     create_feature_map,

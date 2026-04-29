@@ -1,47 +1,47 @@
 use anyhow::Context;
 use axum::response::Response;
 use axum::{
-    body::Body,
-    http::{header, Request, StatusCode},
     Router,
+    body::Body,
+    http::{Request, StatusCode, header},
 };
 use chrono::Utc;
 use http_body_util::BodyExt;
 use ndarray::Array;
-use ndarray_rand::rand_distr::Uniform;
 use ndarray_rand::RandomExt;
+use ndarray_rand::rand_distr::Uniform;
 use potato_head::{create_uuid7, mock::create_score_prompt};
 use rand::Rng;
+use scouter_dataframe::EvalScenarioService;
 use scouter_dataframe::parquet::tracing::genai::GenAiSpanService;
 use scouter_dataframe::parquet::tracing::service::TraceSpanService;
-use scouter_dataframe::EvalScenarioService;
 use scouter_drift::spc::SpcMonitor;
 use scouter_mocks::util::{generate_trace_with_fixed_duration, generate_trace_with_spans};
 use scouter_server::api::grpc::start_grpc_server;
 use scouter_server::api::state::AppState;
 use scouter_server::{create_app_state, create_http_router};
-use scouter_settings::grpc::GrpcConfig;
 use scouter_settings::ObjectStorageSettings;
+use scouter_settings::grpc::GrpcConfig;
 use scouter_settings::{DatabaseSettings, ScouterServerConfig};
+use scouter_sql::PostgresClient;
 use scouter_sql::sql::aggregator::get_trace_cache;
 use scouter_sql::sql::traits::AlertSqlLogic;
 use scouter_sql::sql::traits::EntitySqlLogic;
 use scouter_sql::sql::traits::TagSqlLogic;
-use scouter_sql::PostgresClient;
 use scouter_tonic::{DatasetGrpcClient, GrpcClient};
+use scouter_types::JwtToken;
+use scouter_types::RegisteredProfileResponse;
 use scouter_types::agent::ExecutionPlan;
 use scouter_types::custom::ComparisonMetricAlert;
 use scouter_types::spc::SpcDriftConfig;
 use scouter_types::spc::{SpcAlertConfig, SpcDriftProfile};
-use scouter_types::JwtToken;
-use scouter_types::RegisteredProfileResponse;
 use scouter_types::{
+    AgentEvalWorkflowResult, AlertMap, CustomMetricRecord, EvalTaskResult, MessageRecord,
+    PsiRecord,
     agent::{
         AgentAlertConfig, AgentEvalConfig, AgentEvalProfile, ComparisonOperator, EvaluationTasks,
         LLMJudgeTask,
     },
-    AgentEvalWorkflowResult, AlertMap, CustomMetricRecord, EvalTaskResult, MessageRecord,
-    PsiRecord,
 };
 use scouter_types::{BoxedEvalRecord, EvalRecord, ServerRecord, ServerRecords, SpcRecord, Status};
 use scouter_types::{DriftType, RecordType};

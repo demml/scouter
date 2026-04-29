@@ -5,13 +5,13 @@ use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use itertools::multiunzip;
-use scouter_dataframe::parquet::{dataframe_to_spc_drift_features, ParquetDataFrame};
+use scouter_dataframe::parquet::{ParquetDataFrame, dataframe_to_spc_drift_features};
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::{
-    spc::{SpcDriftFeature, SpcDriftFeatures},
     DriftRequest, RecordType, SpcRecord,
+    spc::{SpcDriftFeature, SpcDriftFeatures},
 };
-use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
+use sqlx::{Pool, Postgres, Row, postgres::PgQueryResult};
 use std::collections::BTreeMap;
 use tracing::{debug, error, instrument};
 

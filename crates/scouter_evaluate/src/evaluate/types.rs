@@ -18,8 +18,8 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use tabled::Tabled;
 use tabled::{
-    settings::{object::Rows, Alignment, Color, Format, Style},
     Table,
+    settings::{Alignment, Color, Format, Style, object::Rows},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

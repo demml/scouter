@@ -336,8 +336,8 @@ mod tests {
     use scouter_types::spc::SpcAlertRule;
 
     use super::*;
-    use ndarray::arr2;
     use ndarray::Array;
+    use ndarray::arr2;
 
     #[test]
     fn test_alerting_consecutive() {

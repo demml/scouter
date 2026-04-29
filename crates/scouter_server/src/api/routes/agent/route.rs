@@ -1,20 +1,20 @@
 use crate::api::state::AppState;
 use anyhow::{Context, Result};
 use axum::{
+    Extension, Json, Router,
     extract::{Query, State},
     http::StatusCode,
     routing::{get, post},
-    Extension, Json, Router,
 };
 use scouter_auth::permission::UserPermissions;
-use scouter_sql::sql::traits::AgentDriftSqlLogic;
 use scouter_sql::PostgresClient;
+use scouter_sql::sql::traits::AgentDriftSqlLogic;
 use scouter_types::{
     AgentEvalTaskRequest, AgentEvalWorkflowPaginationResponse, EvalRecordPaginationRequest,
     EvalRecordPaginationResponse,
 };
 use scouter_types::{AgentEvalTaskResponse, ScouterServerError};
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 use tracing::{debug, error, instrument};
 

@@ -3,7 +3,7 @@ use ndarray::ArrayView1;
 use ndarray_stats::QuantileExt;
 use num_traits::{Float, FromPrimitive};
 use pyo3::prelude::PyAnyMethods;
-use pyo3::{pyclass, pymethods, Bound, IntoPyObjectExt, PyAny, PyResult, Python};
+use pyo3::{Bound, IntoPyObjectExt, PyAny, PyResult, Python, pyclass, pymethods};
 use serde::{Deserialize, Serialize};
 
 #[pyclass(from_py_object)]
@@ -343,9 +343,9 @@ impl EqualWidthBinning {
         let num_bins = self.method.num_bins(arr);
 
         if num_bins < 2 {
-            return Err(TypeError::InvalidBinCountError(
-                format!("Specified Binning strategy did not return enough bins, at least 2 are needed, got {num_bins}")
-            ));
+            return Err(TypeError::InvalidBinCountError(format!(
+                "Specified Binning strategy did not return enough bins, at least 2 are needed, got {num_bins}"
+            )));
         }
 
         let range = max_val - min_val;
@@ -360,9 +360,9 @@ impl EqualWidthBinning {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ndarray::{arr1, Array1};
-    use ndarray_rand::rand_distr::Normal;
+    use ndarray::{Array1, arr1};
     use ndarray_rand::RandomExt;
+    use ndarray_rand::rand_distr::Normal;
     use test_utils::retry_flaky_test_sync;
 
     fn create_normal_data(n: usize, mean: f64, std: f64) -> Array1<f64> {

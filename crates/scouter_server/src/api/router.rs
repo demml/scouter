@@ -9,12 +9,12 @@ use crate::api::routes::{
 };
 use crate::api::state::AppState;
 use anyhow::Result;
+use axum::Router;
 use axum::http::{
-    header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE},
     Method,
+    header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE},
 };
 use axum::middleware;
-use axum::Router;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 

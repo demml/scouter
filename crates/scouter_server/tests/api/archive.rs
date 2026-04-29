@@ -1,4 +1,4 @@
-use crate::common::{setup_test, TestHelper, NAME, SPACE, VERSION};
+use crate::common::{NAME, SPACE, TestHelper, VERSION, setup_test};
 
 use axum::{
     body::Body,
@@ -12,14 +12,14 @@ use scouter_drift::spc::SpcMonitor;
 use scouter_mocks::init_tracing;
 use scouter_server::api::archive::archive_old_data;
 use scouter_sql::MessageHandler;
+use scouter_types::MessageRecord;
 use scouter_types::contracts::DriftRequest;
 use scouter_types::custom::CustomMetricAlertConfig;
-use scouter_types::MessageRecord;
 use scouter_types::{
+    AlertThreshold, BinnedMetrics, RecordType,
     custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
     psi::{BinnedPsiFeatureMetrics, PsiAlertConfig, PsiDriftConfig},
     spc::{SpcAlertConfig, SpcDriftConfig, SpcDriftFeatures},
-    AlertThreshold, BinnedMetrics, RecordType,
 };
 use sqlx::types::chrono::Utc;
 use test_utils::{retry_flaky_test, retry_flaky_test_with_runtime};

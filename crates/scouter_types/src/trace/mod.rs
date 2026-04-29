@@ -1,26 +1,26 @@
 pub mod genai;
 pub mod sql;
 pub use genai::{
-    extract_gen_ai_span, AgentActivityQuery, AgentBucketRow, AgentDashboardRequest,
-    AgentDashboardResponse, AgentDashboardSummary, AgentMetricBucket, ConversationQuery,
+    AgentActivityQuery, AgentBucketRow, AgentDashboardRequest, AgentDashboardResponse,
+    AgentDashboardSummary, AgentMetricBucket, ConversationQuery, GEN_AI_AGENT_ID,
+    GEN_AI_AGENT_NAME, GEN_AI_CONVERSATION_ID, GEN_AI_ERROR_TYPE, GEN_AI_OPERATION_NAME,
+    GEN_AI_OUTPUT_TYPE, GEN_AI_PROVIDER_NAME, GEN_AI_REQUEST_MAX_TOKENS, GEN_AI_REQUEST_MODEL,
+    GEN_AI_REQUEST_TEMPERATURE, GEN_AI_REQUEST_TOP_P, GEN_AI_RESPONSE_FINISH_REASONS,
+    GEN_AI_RESPONSE_ID, GEN_AI_RESPONSE_MODEL, GEN_AI_TOOL_CALL_ID, GEN_AI_TOOL_NAME,
+    GEN_AI_TOOL_TYPE, GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS,
+    GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS, GEN_AI_USAGE_INPUT_TOKENS, GEN_AI_USAGE_OUTPUT_TOKENS,
     GenAiAgentActivity, GenAiAgentActivityResponse, GenAiErrorBreakdownResponse, GenAiErrorCount,
     GenAiEvalResult, GenAiMetricsRequest, GenAiModelUsage, GenAiModelUsageResponse,
     GenAiOperationBreakdown, GenAiOperationBreakdownResponse, GenAiSpanFilters, GenAiSpanRecord,
     GenAiSpansResponse, GenAiTokenBucket, GenAiTokenMetricsResponse, GenAiToolActivity,
     GenAiToolActivityResponse, GenAiTraceMetricsRequest, GenAiTraceMetricsResponse,
-    ModelCostBreakdown, ModelPricing, ToolDashboardRequest, ToolDashboardResponse, ToolTimeBucket,
-    GEN_AI_AGENT_ID, GEN_AI_AGENT_NAME, GEN_AI_CONVERSATION_ID, GEN_AI_ERROR_TYPE,
-    GEN_AI_OPERATION_NAME, GEN_AI_OUTPUT_TYPE, GEN_AI_PROVIDER_NAME, GEN_AI_REQUEST_MAX_TOKENS,
-    GEN_AI_REQUEST_MODEL, GEN_AI_REQUEST_TEMPERATURE, GEN_AI_REQUEST_TOP_P,
-    GEN_AI_RESPONSE_FINISH_REASONS, GEN_AI_RESPONSE_ID, GEN_AI_RESPONSE_MODEL, GEN_AI_TOOL_CALL_ID,
-    GEN_AI_TOOL_NAME, GEN_AI_TOOL_TYPE, GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS,
-    GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS, GEN_AI_USAGE_INPUT_TOKENS, GEN_AI_USAGE_OUTPUT_TOKENS,
-    OPENAI_API_TYPE, OPENAI_SERVICE_TIER,
+    ModelCostBreakdown, ModelPricing, OPENAI_API_TYPE, OPENAI_SERVICE_TIER, ToolDashboardRequest,
+    ToolDashboardResponse, ToolTimeBucket, extract_gen_ai_span,
 };
 
+use crate::PyHelperFuncs;
 use crate::error::RecordError;
 use crate::otel_value_to_serde_value;
-use crate::PyHelperFuncs;
 use crate::{json_to_pyobject, json_to_pyobject_value};
 use chrono::DateTime;
 use chrono::Utc;
@@ -777,19 +777,18 @@ impl TraceServerRecord {
                         Value::String(s.clone()) // Or Value::Null
                     });
                 }
-            } else if attr.key == SCOUTER_TRACING_OUTPUT {
-                if let Value::String(s) = &attr.value {
-                    output = serde_json::from_str(s)
-                        .unwrap_or_else(|e| {
-                            tracing::warn!(
-                                key = SCOUTER_TRACING_OUTPUT,
-                                error = %e,
-                                value = s,
-                                "Failed to parse output attribute as JSON, falling back to string value."
-                            );
-                            Value::String(s.clone()) // Or Value::Null
-                        });
-                }
+            } else if attr.key == SCOUTER_TRACING_OUTPUT
+                && let Value::String(s) = &attr.value
+            {
+                output = serde_json::from_str(s).unwrap_or_else(|e| {
+                    tracing::warn!(
+                        key = SCOUTER_TRACING_OUTPUT,
+                        error = %e,
+                        value = s,
+                        "Failed to parse output attribute as JSON, falling back to string value."
+                    );
+                    Value::String(s.clone()) // Or Value::Null
+                });
             }
         }
         (input, output)
@@ -830,12 +829,11 @@ impl TraceServerRecord {
         start_time: &DateTime<Utc>,
     ) -> DateTime<Utc> {
         for attr in attributes {
-            if attr.key == TRACE_START_TIME_KEY {
-                if let Value::String(s) = &attr.value {
-                    if let Ok(dt) = s.parse::<chrono::DateTime<chrono::Utc>>() {
-                        return dt;
-                    }
-                }
+            if attr.key == TRACE_START_TIME_KEY
+                && let Value::String(s) = &attr.value
+                && let Ok(dt) = s.parse::<chrono::DateTime<chrono::Utc>>()
+            {
+                return dt;
             }
         }
 

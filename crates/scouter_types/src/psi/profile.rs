@@ -1,4 +1,6 @@
 #![allow(clippy::useless_conversion)]
+use crate::ProfileRequest;
+use crate::VersionRequest;
 use crate::binning::equal_width::EqualWidthBinning;
 use crate::binning::quantile::QuantileBinning;
 use crate::binning::strategy::BinningStrategy;
@@ -6,11 +8,9 @@ use crate::error::{ProfileError, TypeError};
 use crate::psi::alert::PsiAlertConfig;
 use crate::traits::ConfigExt;
 use crate::util::{json_to_pyobject, pyobject_to_json, scouter_version};
-use crate::ProfileRequest;
-use crate::VersionRequest;
 use crate::{
-    DispatchDriftConfig, DriftArgs, DriftType, FeatureMap, FileName, ProfileArgs, ProfileBaseArgs,
-    PyHelperFuncs, DEFAULT_VERSION, MISSING,
+    DEFAULT_VERSION, DispatchDriftConfig, DriftArgs, DriftType, FeatureMap, FileName, MISSING,
+    ProfileArgs, ProfileBaseArgs, PyHelperFuncs,
 };
 use chrono::Utc;
 use core::fmt::Debug;

@@ -3,7 +3,7 @@ use crate::parquet::bifrost::buffer::start_buffer;
 use crate::parquet::bifrost::catalog::DatasetCatalogProvider;
 use crate::parquet::bifrost::engine::{DatasetEngine, TableCommand};
 use crate::parquet::bifrost::explain::{
-    logical_plan_to_tree, physical_plan_to_tree, sanitize_plan_text, ExplainResult,
+    ExplainResult, logical_plan_to_tree, physical_plan_to_tree, sanitize_plan_text,
 };
 use crate::parquet::bifrost::query::{QueryExecutionMetadata, QueryResult, QueryTracker};
 use crate::parquet::bifrost::registry::{DatasetRegistry, RegistrationResult};
@@ -20,11 +20,11 @@ use scouter_types::dataset::schema::{
 };
 use scouter_types::dataset::{DatasetFingerprint, DatasetNamespace, DatasetRegistration};
 use std::collections::{HashMap, HashSet};
-use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::Instant;
-use tokio::sync::{mpsc, Mutex, Notify};
-use tokio::time::{interval, Duration};
+use tokio::sync::{Mutex, Notify, mpsc};
+use tokio::time::{Duration, interval};
 use tracing::{info, warn};
 
 const DEFAULT_ENGINE_TTL_SECS: u64 = 30 * 60; // 30 minutes

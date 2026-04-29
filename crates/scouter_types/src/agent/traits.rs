@@ -1,6 +1,6 @@
 use crate::agent::{
-    utils::AssertionTasks, AgentAssertionTask, AssertionResult, AssertionTask, ComparisonOperator,
-    EvaluationTask, EvaluationTaskType, LLMJudgeTask, TraceAssertionTask,
+    AgentAssertionTask, AssertionResult, AssertionTask, ComparisonOperator, EvaluationTask,
+    EvaluationTaskType, LLMJudgeTask, TraceAssertionTask, utils::AssertionTasks,
 };
 use serde_json::Value;
 use std::fmt::Debug;

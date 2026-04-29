@@ -1,15 +1,15 @@
+use crate::PyHelperFuncs;
+use crate::TraceCursor;
 use crate::error::TypeError;
 use crate::json_to_pyobject_value;
 use crate::trace::{Attribute, SpanEvent, SpanLink};
-use crate::PyHelperFuncs;
-use crate::TraceCursor;
 use chrono::{DateTime, Utc};
-use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
+use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 #[cfg(feature = "server")]
-use sqlx::{postgres::PgRow, FromRow, Row};
+use sqlx::{FromRow, Row, postgres::PgRow};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[pyclass(from_py_object)]

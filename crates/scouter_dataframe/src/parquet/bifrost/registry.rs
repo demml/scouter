@@ -315,9 +315,11 @@ impl DatasetRegistry {
                     Ok(v) => v,
                     Err(e) => {
                         warn!(
-                                "Corrupt partition_columns JSON for {}: '{}' — defaulting to empty. Error: {}",
-                                fqn, partition_col.value(i), e
-                            );
+                            "Corrupt partition_columns JSON for {}: '{}' — defaulting to empty. Error: {}",
+                            fqn,
+                            partition_col.value(i),
+                            e
+                        );
                         vec![]
                     }
                 };

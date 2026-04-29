@@ -6,8 +6,8 @@ pub mod rabbitmq_consumer {
     };
     use futures::StreamExt;
     use lapin::{
-        message::Delivery, options::*, types::FieldTable, Connection, ConnectionProperties,
-        Consumer,
+        Connection, ConnectionProperties, Consumer, message::Delivery, options::*,
+        types::FieldTable,
     };
     use metrics::counter;
     use scouter_settings::RabbitMQSettings;

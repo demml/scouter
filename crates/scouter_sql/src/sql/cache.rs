@@ -1,6 +1,6 @@
+use crate::PostgresClient;
 use crate::sql::error::SqlError;
 use crate::sql::traits::EntitySqlLogic;
-use crate::PostgresClient;
 use mini_moka::sync::Cache;
 use scouter_types::DriftType;
 use sqlx::{Pool, Postgres};

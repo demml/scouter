@@ -820,11 +820,12 @@ impl AgentEvaluator {
 mod tests {
 
     use chrono::Utc;
-    use potato_head::mock::{create_score_prompt, LLMTestServer};
+    use potato_head::mock::{LLMTestServer, create_score_prompt};
     use scouter_mocks::{
         create_multi_service_trace, create_nested_trace, create_sequence_pattern_trace,
         create_simple_trace, create_trace_with_attributes, create_trace_with_errors, init_tracing,
     };
+    use scouter_types::EvalRecord;
     use scouter_types::agent::{
         AgentAlertConfig, AgentEvalConfig, AgentEvalProfile, AssertionTask, ComparisonOperator,
         LLMJudgeTask,
@@ -833,7 +834,6 @@ mod tests {
         AggregationType, SpanFilter, SpanStatus, TraceAssertion, TraceAssertionTask,
     };
     use scouter_types::agent::{EvaluationTaskType, EvaluationTasks};
-    use scouter_types::EvalRecord;
     use serde_json::Value;
     use std::sync::Arc;
 

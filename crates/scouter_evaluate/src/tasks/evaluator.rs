@@ -1,7 +1,7 @@
 use crate::error::EvaluationError;
 use regex::Regex;
 use scouter_types::agent::ValueExt;
-use scouter_types::agent::{traits::TaskAccessor, AssertionResult, ComparisonOperator};
+use scouter_types::agent::{AssertionResult, ComparisonOperator, traits::TaskAccessor};
 use serde_json::Value;
 use std::sync::OnceLock;
 use tracing::instrument;
@@ -1080,10 +1080,12 @@ mod tests {
     fn test_parse_field_path_empty_string() {
         let result = FieldEvaluator::parse_field_path("");
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Empty context path"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Empty context path")
+        );
     }
 
     #[test]
@@ -1167,10 +1169,12 @@ mod tests {
         let json = get_test_json();
         let result = FieldEvaluator::extract_field_value(&json, "nonexistent");
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Field 'nonexistent' not found"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Field 'nonexistent' not found")
+        );
     }
 
     #[test]
@@ -1178,10 +1182,12 @@ mod tests {
         let json = get_test_json();
         let result = FieldEvaluator::extract_field_value(&json, "metadata.nonexistent");
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Field 'nonexistent' not found"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Field 'nonexistent' not found")
+        );
     }
 
     #[test]
@@ -1189,10 +1195,12 @@ mod tests {
         let json = get_test_json();
         let result = FieldEvaluator::extract_field_value(&json, "tasks[99]");
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Index 99 not found"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Index 99 not found")
+        );
     }
 
     #[test]
@@ -1200,10 +1208,12 @@ mod tests {
         let json = get_test_json();
         let result = FieldEvaluator::extract_field_value(&json, "status[0]");
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Index 0 not found"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Index 0 not found")
+        );
     }
 
     #[test]

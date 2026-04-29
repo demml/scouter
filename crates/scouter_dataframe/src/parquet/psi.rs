@@ -5,19 +5,19 @@ use crate::sql::helper::get_binned_psi_drift_records_query;
 use crate::storage::ObjectStore;
 use arrow::array::AsArray;
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
+use arrow_array::Array;
+use arrow_array::RecordBatch;
 use arrow_array::array::{
     Int32Array, ListArray, StringArray, StructArray, TimestampNanosecondArray,
 };
 use arrow_array::types::{Float32Type, Int32Type};
-use arrow_array::Array;
-use arrow_array::RecordBatch;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::{
-    psi::FeatureBinProportionResult, PsiRecord, ServerRecords, StorageType, ToDriftRecords,
+    PsiRecord, ServerRecords, StorageType, ToDriftRecords, psi::FeatureBinProportionResult,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;

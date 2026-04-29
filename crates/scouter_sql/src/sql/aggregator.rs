@@ -8,14 +8,14 @@ use scouter_dataframe::parquet::tracing::dispatch::{
 };
 use scouter_dataframe::parquet::tracing::summary::TraceSummaryService;
 use scouter_types::{
-    Attribute, TraceId, TraceSpanRecord, TraceSummaryRecord, SCOUTER_ENTITY, SCOUTER_QUEUE_RECORD,
+    Attribute, SCOUTER_ENTITY, SCOUTER_QUEUE_RECORD, TraceId, TraceSpanRecord, TraceSummaryRecord,
 };
 use sqlx::PgPool;
 use std::collections::HashSet;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use tokio::sync::RwLock;
-use tokio::time::{interval, Duration as StdDuration};
+use tokio::time::{Duration as StdDuration, interval};
 use tracing::{error, info, warn};
 const TRACE_BATCH_SIZE: usize = 1000;
 
@@ -587,10 +587,11 @@ mod tests {
             .map(|uid| uuid::Uuid::from_bytes(uid.0).to_string())
             .collect();
 
-        assert!(agg
-            .queue_tags
-            .iter()
-            .any(|uid| uuid::Uuid::from_bytes(uid.0).to_string() == queue_record_uid));
+        assert!(
+            agg.queue_tags
+                .iter()
+                .any(|uid| uuid::Uuid::from_bytes(uid.0).to_string() == queue_record_uid)
+        );
         assert_eq!(synthetic_entities, vec![trace_only_entity.to_string()]);
     }
 

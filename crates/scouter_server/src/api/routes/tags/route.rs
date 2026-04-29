@@ -2,19 +2,19 @@ use crate::api::state::AppState;
 
 use anyhow::{Context, Result};
 use axum::{
+    Json, Router,
     extract::{Query, State},
     http::StatusCode,
     routing::{get, post},
-    Json, Router,
 };
-use scouter_sql::sql::traits::TagSqlLogic;
 use scouter_sql::PostgresClient;
-use scouter_types::{
-    contracts::ScouterServerError, EntityIdTagsResponse, InsertTagsRequest, ScouterResponse,
-    TagsResponse,
-};
+use scouter_sql::sql::traits::TagSqlLogic;
 use scouter_types::{EntityIdTagsRequest, TagsRequest};
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use scouter_types::{
+    EntityIdTagsResponse, InsertTagsRequest, ScouterResponse, TagsResponse,
+    contracts::ScouterServerError,
+};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 use tracing::{debug, error, instrument};
 

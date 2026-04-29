@@ -10,14 +10,14 @@ use scouter_state::app_state;
 use scouter_tonic::DatasetGrpcClient;
 use scouter_types::dataset::batch_builder::DynamicBatchBuilder;
 use scouter_types::dataset::{DatasetFingerprint, DatasetNamespace};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::sync::RwLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::task::JoinHandle;
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, info_span, warn, Instrument};
+use tracing::{Instrument, debug, error, info, info_span, warn};
 
 pub enum DatasetEvent {
     Insert(String),

@@ -1,12 +1,12 @@
+use crate::PyHelperFuncs;
 use crate::agent::traits::TaskAccessor;
 use crate::error::TypeError;
-use crate::PyHelperFuncs;
 use core::fmt::Debug;
-use potato_head::prompt_types::Prompt;
 use potato_head::Provider;
+use potato_head::prompt_types::Prompt;
+use pyo3::IntoPyObjectExt;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyFloat, PyInt, PyList, PySlice, PyString};
-use pyo3::IntoPyObjectExt;
 use pythonize::{depythonize, pythonize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -32,7 +32,7 @@ pub fn deserialize_from_path<T: DeserializeOwned>(path: PathBuf) -> Result<T, Ty
             return Err(TypeError::Error(format!(
                 "Unsupported file extension '{}'. Expected .json, .yaml, or .yml",
                 extension
-            )))
+            )));
         }
     };
 
@@ -75,11 +75,7 @@ impl AssertionResult {
         }
     }
     pub fn to_metric_value(&self) -> f64 {
-        if self.passed {
-            1.0
-        } else {
-            0.0
-        }
+        if self.passed { 1.0 } else { 0.0 }
     }
 }
 
@@ -2111,7 +2107,7 @@ impl<'de> Deserialize<'de> for TasksFile {
                     return Err(serde::de::Error::custom(format!(
                         "Unknown task_type: {}",
                         task_raw.task_type
-                    )))
+                    )));
                 }
             };
             tasks.push(task_config);

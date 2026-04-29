@@ -2,7 +2,7 @@ use crate::error::EvaluationError;
 use crate::tasks::evaluator::FieldEvaluator;
 use potato_head::{ChatResponse, Provider};
 use scouter_types::agent::AgentAssertion;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tracing::error;
 
 /// Builds evaluation context from vendor LLM request/response data.

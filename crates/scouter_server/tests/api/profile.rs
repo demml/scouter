@@ -1,22 +1,22 @@
-use crate::common::{setup_test, NAME, SPACE};
+use crate::common::{NAME, SPACE, setup_test};
 
 use axum::{
     body::Body,
-    http::{header, Request, StatusCode},
+    http::{Request, StatusCode, header},
 };
 
 use crate::common::VERSION;
 use http_body_util::BodyExt;
 use scouter_drift::spc::SpcMonitor;
 use scouter_types::custom::CustomMetricDriftConfig;
-use scouter_types::{
-    contracts::{GetProfileRequest, ProfileStatusRequest},
-    ListProfilesRequest,
-};
-use scouter_types::{custom::CustomDriftProfile, spc::SpcAlertConfig};
-use scouter_types::{custom::CustomMetric, spc::SpcDriftConfig, AlertThreshold};
-use scouter_types::{custom::CustomMetricAlertConfig, ListedProfile};
+use scouter_types::{AlertThreshold, custom::CustomMetric, spc::SpcDriftConfig};
 use scouter_types::{DriftType, RegisteredProfileResponse};
+use scouter_types::{
+    ListProfilesRequest,
+    contracts::{GetProfileRequest, ProfileStatusRequest},
+};
+use scouter_types::{ListedProfile, custom::CustomMetricAlertConfig};
+use scouter_types::{custom::CustomDriftProfile, spc::SpcAlertConfig};
 #[tokio::test]
 async fn test_create_spc_profile() {
     let helper = setup_test().await;

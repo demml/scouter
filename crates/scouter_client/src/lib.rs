@@ -12,17 +12,47 @@ pub use dataset::query_result::QueryResult;
 pub use dataset::reader::DatasetClient;
 pub use drifter::scouter::PyDrifter;
 pub use profiler::scouter::DataProfiler;
-pub use scouter_settings::{grpc::GrpcConfig, HttpConfig};
+pub use scouter_settings::{HttpConfig, grpc::GrpcConfig};
 pub use scouter_types::dataset::{
     fingerprint_from_json_schema, inject_system_columns, json_schema_to_arrow,
 };
 pub use scouter_types::{
+    AgentActivityQuery, AgentBucketRow, AgentDashboardRequest, AgentDashboardResponse,
+    AgentDashboardSummary, AgentEvalTaskRequest, AgentEvalTaskResponse,
+    AgentEvalWorkflowPaginationResponse, AgentEvalWorkflowResult, AgentMetricBucket,
+    AlertCondition, AlertDispatchType, AlertThreshold, Attribute, BinnedMetric, BinnedMetricStats,
+    BinnedMetrics, ConsoleDispatchConfig, ConversationQuery, CustomMetricRecord, DataType, Doane,
+    DriftAlertPaginationRequest, DriftAlertPaginationResponse, DriftProfile, DriftRequest,
+    DriftType, EntityIdTagsRequest, EntityIdTagsResponse, EntityType, EqualWidthBinning,
+    EvalRecord, EvalRecordPaginationRequest, EvalRecordPaginationResponse, EvalTaskResult, Feature,
+    FeatureMap, Features, FreedmanDiaconis, GEN_AI_AGENT_ID, GEN_AI_AGENT_NAME,
+    GEN_AI_CONVERSATION_ID, GEN_AI_ERROR_TYPE, GEN_AI_OPERATION_NAME, GEN_AI_OUTPUT_TYPE,
+    GEN_AI_PROVIDER_NAME, GEN_AI_REQUEST_MAX_TOKENS, GEN_AI_REQUEST_MODEL,
+    GEN_AI_REQUEST_TEMPERATURE, GEN_AI_REQUEST_TOP_P, GEN_AI_RESPONSE_FINISH_REASONS,
+    GEN_AI_RESPONSE_ID, GEN_AI_RESPONSE_MODEL, GEN_AI_TOOL_CALL_ID, GEN_AI_TOOL_NAME,
+    GEN_AI_TOOL_TYPE, GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS,
+    GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS, GEN_AI_USAGE_INPUT_TOKENS, GEN_AI_USAGE_OUTPUT_TOKENS,
+    GenAiAgentActivity, GenAiAgentActivityResponse, GenAiErrorBreakdownResponse, GenAiErrorCount,
+    GenAiEvalResult, GenAiMetricsRequest, GenAiModelUsage, GenAiModelUsageResponse,
+    GenAiOperationBreakdown, GenAiOperationBreakdownResponse, GenAiSpanFilters, GenAiSpanRecord,
+    GenAiSpansResponse, GenAiTokenBucket, GenAiTokenMetricsResponse, GenAiToolActivity,
+    GenAiToolActivityResponse, GenAiTraceMetricsRequest, GenAiTraceMetricsResponse,
+    GetProfileRequest, LatencyMetrics, ListProfilesRequest, ListedProfile, Manual, Metric, Metrics,
+    ModelCostBreakdown, ModelPricing, OPENAI_API_TYPE, OPENAI_SERVICE_TIER, ObservabilityMetrics,
+    OpsGenieDispatchConfig, ProfileRequest, ProfileStatusRequest, PsiRecord, QuantileBinning,
+    RecordType, RegisteredProfileResponse, Rice, RouteMetrics, SCOUTER_ENTITY, SCOUTER_TAG_PREFIX,
+    Scott, ScouterResponse, ScouterServerError, ServerRecord, ServerRecords, SlackDispatchConfig,
+    SpanEvent, SpanLink, SpcRecord, SquareRoot, Sturges, TagRecord, TagsResponse, TerrellScott,
+    TimeInterval, ToolDashboardRequest, ToolDashboardResponse, ToolTimeBucket, TraceBaggageRecord,
+    TraceBaggageResponse, TraceFacetDimension, TraceFacetsResponse, TraceMetricsRequest,
+    TraceMetricsResponse, TracePaginationResponse, TraceRecord, TraceRequest, TraceSpanRecord,
+    TraceSpansResponse, UpdateAlertResponse, UpdateAlertStatus, VersionRequest,
     agent::{
-        utils::AssertionTasks, AgentAlertConfig, AgentAssertion, AgentAssertionTask,
-        AgentEvalConfig, AgentEvalProfile, AggregationType, AssertionResult, AssertionResults,
-        AssertionTask, AttributeFilterTask, ComparisonOperator, EvalResultSet, EvalScenario,
-        EvalSet, EvaluationTaskType, LLMJudgeTask, MultiResponseMode, SpanFilter, SpanStatus,
-        TasksFile, TokenUsage, ToolCall, TraceAssertion, TraceAssertionTask,
+        AgentAlertConfig, AgentAssertion, AgentAssertionTask, AgentEvalConfig, AgentEvalProfile,
+        AggregationType, AssertionResult, AssertionResults, AssertionTask, AttributeFilterTask,
+        ComparisonOperator, EvalResultSet, EvalScenario, EvalSet, EvaluationTaskType, LLMJudgeTask,
+        MultiResponseMode, SpanFilter, SpanStatus, TasksFile, TokenUsage, ToolCall, TraceAssertion,
+        TraceAssertionTask, utils::AssertionTasks,
     },
     alert::{Alert, Alerts, CompressionType},
     create_feature_map,
@@ -40,43 +70,13 @@ pub use scouter_types::{
         SpcFeatureDriftProfile,
     },
     sql::{TraceFilters, TraceListItem, TraceMetricBucket, TraceSpan},
-    AgentActivityQuery, AgentBucketRow, AgentDashboardRequest, AgentDashboardResponse,
-    AgentDashboardSummary, AgentEvalTaskRequest, AgentEvalTaskResponse,
-    AgentEvalWorkflowPaginationResponse, AgentEvalWorkflowResult, AgentMetricBucket,
-    AlertCondition, AlertDispatchType, AlertThreshold, Attribute, BinnedMetric, BinnedMetricStats,
-    BinnedMetrics, ConsoleDispatchConfig, ConversationQuery, CustomMetricRecord, DataType, Doane,
-    DriftAlertPaginationRequest, DriftAlertPaginationResponse, DriftProfile, DriftRequest,
-    DriftType, EntityIdTagsRequest, EntityIdTagsResponse, EntityType, EqualWidthBinning,
-    EvalRecord, EvalRecordPaginationRequest, EvalRecordPaginationResponse, EvalTaskResult, Feature,
-    FeatureMap, Features, FreedmanDiaconis, GenAiAgentActivity, GenAiAgentActivityResponse,
-    GenAiErrorBreakdownResponse, GenAiErrorCount, GenAiEvalResult, GenAiMetricsRequest,
-    GenAiModelUsage, GenAiModelUsageResponse, GenAiOperationBreakdown,
-    GenAiOperationBreakdownResponse, GenAiSpanFilters, GenAiSpanRecord, GenAiSpansResponse,
-    GenAiTokenBucket, GenAiTokenMetricsResponse, GenAiToolActivity, GenAiToolActivityResponse,
-    GenAiTraceMetricsRequest, GenAiTraceMetricsResponse, GetProfileRequest, LatencyMetrics,
-    ListProfilesRequest, ListedProfile, Manual, Metric, Metrics, ModelCostBreakdown, ModelPricing,
-    ObservabilityMetrics, OpsGenieDispatchConfig, ProfileRequest, ProfileStatusRequest, PsiRecord,
-    QuantileBinning, RecordType, RegisteredProfileResponse, Rice, RouteMetrics, Scott,
-    ScouterResponse, ScouterServerError, ServerRecord, ServerRecords, SlackDispatchConfig,
-    SpanEvent, SpanLink, SpcRecord, SquareRoot, Sturges, TagRecord, TagsResponse, TerrellScott,
-    TimeInterval, ToolDashboardRequest, ToolDashboardResponse, ToolTimeBucket, TraceBaggageRecord,
-    TraceBaggageResponse, TraceFacetDimension, TraceFacetsResponse, TraceMetricsRequest,
-    TraceMetricsResponse, TracePaginationResponse, TraceRecord, TraceRequest, TraceSpanRecord,
-    TraceSpansResponse, UpdateAlertResponse, UpdateAlertStatus, VersionRequest, GEN_AI_AGENT_ID,
-    GEN_AI_AGENT_NAME, GEN_AI_CONVERSATION_ID, GEN_AI_ERROR_TYPE, GEN_AI_OPERATION_NAME,
-    GEN_AI_OUTPUT_TYPE, GEN_AI_PROVIDER_NAME, GEN_AI_REQUEST_MAX_TOKENS, GEN_AI_REQUEST_MODEL,
-    GEN_AI_REQUEST_TEMPERATURE, GEN_AI_REQUEST_TOP_P, GEN_AI_RESPONSE_FINISH_REASONS,
-    GEN_AI_RESPONSE_ID, GEN_AI_RESPONSE_MODEL, GEN_AI_TOOL_CALL_ID, GEN_AI_TOOL_NAME,
-    GEN_AI_TOOL_TYPE, GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS,
-    GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS, GEN_AI_USAGE_INPUT_TOKENS, GEN_AI_USAGE_OUTPUT_TOKENS,
-    OPENAI_API_TYPE, OPENAI_SERVICE_TIER, SCOUTER_ENTITY, SCOUTER_TAG_PREFIX,
 };
 
 pub use crate::http::{PyScouterClient, ScouterClient};
 
 pub use scouter_drift::{
     psi::PsiMonitor,
-    spc::{generate_alerts, SpcDriftMap, SpcFeatureDrift, SpcMonitor},
+    spc::{SpcDriftMap, SpcFeatureDrift, SpcMonitor, generate_alerts},
     utils::CategoricalFeatureHelpers,
 };
 pub use scouter_events::error::PyEventError;
@@ -85,14 +85,14 @@ pub use scouter_events::producer::{
 };
 pub use scouter_events::queue::bus::{Flushable, TaskState};
 pub use scouter_events::queue::{
-    agent::EvalRecordQueue, custom::CustomMetricFeatureQueue, psi::PsiFeatureQueue,
-    spc::SpcFeatureQueue, QueueBus, ScouterQueue,
+    QueueBus, ScouterQueue, agent::EvalRecordQueue, custom::CustomMetricFeatureQueue,
+    psi::PsiFeatureQueue, spc::SpcFeatureQueue,
 };
 
 pub use scouter_observability::Observer;
 pub use scouter_profile::{
-    compute_feature_correlations, CharStats, DataProfile, Distinct, FeatureProfile, Histogram,
-    NumProfiler, NumericStats, Quantiles, StringProfiler, StringStats, WordStats,
+    CharStats, DataProfile, Distinct, FeatureProfile, Histogram, NumProfiler, NumericStats,
+    Quantiles, StringProfiler, StringStats, WordStats, compute_feature_correlations,
 };
 
 // exposing errors
@@ -121,13 +121,13 @@ pub use scouter_evaluate::{
 };
 pub use scouter_tracing::error::TraceError;
 pub use scouter_tracing::exporter::{
-    processor::BatchConfig, GrpcSpanExporter, HttpSpanExporter, StdoutSpanExporter,
-    TestSpanExporter,
+    GrpcSpanExporter, HttpSpanExporter, StdoutSpanExporter, TestSpanExporter,
+    processor::BatchConfig,
 };
 pub use scouter_tracing::tracer::*;
 pub use scouter_tracing::utils::{
-    get_current_active_span, get_function_type, FunctionType, OtelExportConfig, OtelProtocol,
-    SpanKind,
+    FunctionType, OtelExportConfig, OtelProtocol, SpanKind, get_current_active_span,
+    get_function_type,
 };
 
 pub mod potato_head {

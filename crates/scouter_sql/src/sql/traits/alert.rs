@@ -6,10 +6,10 @@ use scouter_types::contracts::{
 };
 
 use crate::sql::error::SqlError;
-use scouter_types::{alert::Alert, AlertMap, RecordCursor};
+use scouter_types::{AlertMap, RecordCursor, alert::Alert};
 
 use async_trait::async_trait;
-use sqlx::{postgres::PgQueryResult, Pool, Postgres};
+use sqlx::{Pool, Postgres, postgres::PgQueryResult};
 use std::result::Result::Ok;
 
 #[async_trait]

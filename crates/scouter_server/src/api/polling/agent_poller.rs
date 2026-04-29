@@ -5,7 +5,7 @@ use scouter_settings::polling::AgentPollerSettings;
 use sqlx::{Pool, Postgres};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
-use tracing::{debug, error, info, span, Instrument, Level};
+use tracing::{Instrument, Level, debug, error, info, span};
 
 pub struct BackgroundAgentDriftManager {
     pub workers: Vec<JoinHandle<()>>,

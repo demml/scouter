@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures::stream::BoxStream;
 use futures::StreamExt;
+use futures::stream::BoxStream;
 use mini_moka::sync::Cache;
 use object_store::path::Path;
 use object_store::{
@@ -214,8 +214,8 @@ impl<T: ObjectStore> ObjectStore for CachingStore<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use object_store::memory::InMemory;
     use object_store::PutPayload;
+    use object_store::memory::InMemory;
 
     #[tokio::test]
     async fn head_is_cached() {

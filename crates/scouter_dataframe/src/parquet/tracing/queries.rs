@@ -10,7 +10,7 @@ use arrow::datatypes::DataType;
 use arrow_array::Array;
 use chrono::{DateTime, Datelike, TimeZone, Utc};
 use datafusion::common::JoinType;
-use datafusion::logical_expr::{cast as df_cast, col, lit, when, SortExpr};
+use datafusion::logical_expr::{SortExpr, cast as df_cast, col, lit, when};
 use datafusion::prelude::*;
 use datafusion::scalar::ScalarValue;
 use mini_moka::sync::Cache;

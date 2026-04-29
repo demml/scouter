@@ -1,7 +1,7 @@
 use crate::api::state::AppState;
 use axum::extract::{Path, Query};
 use axum::http::StatusCode;
-use axum::{routing::get, Json, Router};
+use axum::{Json, Router, routing::get};
 use scouter_types::contracts::ScouterServerError;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -77,13 +77,17 @@ static DOCS: &[DocEntry] = &[
         id: "agents/offline-evaluation",
         title: "Offline Evaluation",
         category: "agents",
-        content: include_str!("../../../../../../docs/src/content/docs/agents/offline-evaluation.md"),
+        content: include_str!(
+            "../../../../../../docs/src/content/docs/agents/offline-evaluation.md"
+        ),
     },
     DocEntry {
         id: "agents/online-evaluation",
         title: "Online Evaluation",
         category: "agents",
-        content: include_str!("../../../../../../docs/src/content/docs/agents/online-evaluation.md"),
+        content: include_str!(
+            "../../../../../../docs/src/content/docs/agents/online-evaluation.md"
+        ),
     },
     DocEntry {
         id: "agents/gates",
@@ -120,7 +124,9 @@ static DOCS: &[DocEntry] = &[
         id: "monitoring/psi/quickstart",
         title: "PSI Quickstart",
         category: "monitoring",
-        content: include_str!("../../../../../../docs/src/content/docs/monitoring/psi/quickstart.md"),
+        content: include_str!(
+            "../../../../../../docs/src/content/docs/monitoring/psi/quickstart.md"
+        ),
     },
     DocEntry {
         id: "monitoring/psi/theory",
@@ -132,19 +138,25 @@ static DOCS: &[DocEntry] = &[
         id: "monitoring/psi/drift-config",
         title: "PSI Drift Config",
         category: "monitoring",
-        content: include_str!("../../../../../../docs/src/content/docs/monitoring/psi/drift-config.md"),
+        content: include_str!(
+            "../../../../../../docs/src/content/docs/monitoring/psi/drift-config.md"
+        ),
     },
     DocEntry {
         id: "monitoring/psi/drift-profile",
         title: "PSI Drift Profile",
         category: "monitoring",
-        content: include_str!("../../../../../../docs/src/content/docs/monitoring/psi/drift-profile.md"),
+        content: include_str!(
+            "../../../../../../docs/src/content/docs/monitoring/psi/drift-profile.md"
+        ),
     },
     DocEntry {
         id: "monitoring/spc/quickstart",
         title: "SPC Quickstart",
         category: "monitoring",
-        content: include_str!("../../../../../../docs/src/content/docs/monitoring/spc/quickstart.md"),
+        content: include_str!(
+            "../../../../../../docs/src/content/docs/monitoring/spc/quickstart.md"
+        ),
     },
     DocEntry {
         id: "monitoring/spc/theory",
@@ -156,19 +168,25 @@ static DOCS: &[DocEntry] = &[
         id: "monitoring/spc/drift-config",
         title: "SPC Drift Config",
         category: "monitoring",
-        content: include_str!("../../../../../../docs/src/content/docs/monitoring/spc/drift-config.md"),
+        content: include_str!(
+            "../../../../../../docs/src/content/docs/monitoring/spc/drift-config.md"
+        ),
     },
     DocEntry {
         id: "monitoring/spc/drift-profile",
         title: "SPC Drift Profile",
         category: "monitoring",
-        content: include_str!("../../../../../../docs/src/content/docs/monitoring/spc/drift-profile.md"),
+        content: include_str!(
+            "../../../../../../docs/src/content/docs/monitoring/spc/drift-profile.md"
+        ),
     },
     DocEntry {
         id: "monitoring/custom/quickstart",
         title: "Custom Metrics Quickstart",
         category: "monitoring",
-        content: include_str!("../../../../../../docs/src/content/docs/monitoring/custom/quickstart.md"),
+        content: include_str!(
+            "../../../../../../docs/src/content/docs/monitoring/custom/quickstart.md"
+        ),
     },
     // Distributed tracing
     DocEntry {
@@ -181,7 +199,9 @@ static DOCS: &[DocEntry] = &[
         id: "tracing/genai-semantics",
         title: "GenAI Semantic Conventions",
         category: "tracing",
-        content: include_str!("../../../../../../docs/src/content/docs/tracing/genai-semantics.mdx"),
+        content: include_str!(
+            "../../../../../../docs/src/content/docs/tracing/genai-semantics.mdx"
+        ),
     },
     DocEntry {
         id: "tracing/instrumentor",
@@ -193,7 +213,9 @@ static DOCS: &[DocEntry] = &[
         id: "tracing/storage-architecture",
         title: "Storage Architecture",
         category: "tracing",
-        content: include_str!("../../../../../../docs/src/content/docs/tracing/storage-architecture.mdx"),
+        content: include_str!(
+            "../../../../../../docs/src/content/docs/tracing/storage-architecture.mdx"
+        ),
     },
     // Server
     DocEntry {
@@ -220,7 +242,9 @@ static DOCS: &[DocEntry] = &[
         id: "evaluation-platform/index",
         title: "Evaluation Platform",
         category: "evaluation-platform",
-        content: include_str!("../../../../../../docs/src/content/docs/evaluation-platform/index.mdx"),
+        content: include_str!(
+            "../../../../../../docs/src/content/docs/evaluation-platform/index.mdx"
+        ),
     },
     DocEntry {
         id: "evaluation-platform/eval-profiles-and-tasks",
@@ -343,7 +367,9 @@ static DOCS: &[DocEntry] = &[
         id: "specs/eval-task-executor",
         title: "Eval Task Executor",
         category: "specs",
-        content: include_str!("../../../../../../docs/src/content/docs/specs/eval-task-executor.md"),
+        content: include_str!(
+            "../../../../../../docs/src/content/docs/specs/eval-task-executor.md"
+        ),
     },
     // API reference
     DocEntry {

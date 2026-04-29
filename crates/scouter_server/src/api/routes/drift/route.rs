@@ -2,28 +2,28 @@ use crate::api::error::ServerError;
 use crate::api::state::AppState;
 use anyhow::{Context, Result};
 use axum::{
+    Extension, Json, Router,
     extract::{Query, State},
     http::StatusCode,
     routing::{get, post},
-    Extension, Json, Router,
 };
 use metrics::counter;
 use scouter_auth::permission::UserPermissions;
 use scouter_drift::psi::PsiDrifter;
 use scouter_settings::ScouterServerConfig;
+use scouter_sql::PostgresClient;
 use scouter_sql::sql::{
     cache::entity_cache,
     traits::{AgentDriftSqlLogic, CustomMetricSqlLogic, ProfileSqlLogic, SpcSqlLogic},
 };
-use scouter_sql::PostgresClient;
 use scouter_types::{
+    BinnedMetrics, MessageRecord,
     psi::{BinnedPsiFeatureMetrics, PsiDriftProfile},
     spc::SpcDriftFeatures,
-    BinnedMetrics, MessageRecord,
 };
 use scouter_types::{DriftRequest, ScouterResponse, ScouterServerError};
 use sqlx::{Pool, Postgres};
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 use tracing::{debug, error, instrument};
 

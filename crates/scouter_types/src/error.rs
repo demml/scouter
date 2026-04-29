@@ -1,6 +1,6 @@
+use pyo3::PyErr;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::pyclass::PyClassGuardError;
-use pyo3::PyErr;
 use pythonize::PythonizeError;
 use thiserror::Error;
 
@@ -94,15 +94,17 @@ pub enum TypeError {
     #[error("{0}")]
     PyError(String),
 
-    #[error(
-        "Unsupported feature type. Feature must be an integer, float or string. Received: {0}"
-    )]
+    #[error("Unsupported feature type. Feature must be an integer, float or string. Received: {0}")]
     UnsupportedFeatureTypeError(String),
 
-    #[error("Unsupported features type. Features must be a list of Feature instances or a dictionary of key value pairs. Received: {0}")]
+    #[error(
+        "Unsupported features type. Features must be a list of Feature instances or a dictionary of key value pairs. Received: {0}"
+    )]
     UnsupportedFeaturesTypeError(String),
 
-    #[error("Unsupported metrics type. Metrics must be a list of Metric instances or a dictionary of key value pairs. Received: {0}")]
+    #[error(
+        "Unsupported metrics type. Metrics must be a list of Metric instances or a dictionary of key value pairs. Received: {0}"
+    )]
     UnsupportedMetricsTypeError(String),
 
     #[error("{0}")]
@@ -372,9 +374,7 @@ pub enum ProfileError {
     #[error("LLM Metric requires at least one bound parameter")]
     NeedAtLeastOneBoundParameterError(String),
 
-    #[error(
-        "Missing prompt in LLM Metric. If providing a list of metrics, prompt must be present"
-    )]
+    #[error("Missing prompt in LLM Metric. If providing a list of metrics, prompt must be present")]
     MissingPromptError(String),
 
     #[error("No tasks found in the workflow when validating: {0}")]

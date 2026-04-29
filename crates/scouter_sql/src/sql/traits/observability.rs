@@ -5,7 +5,7 @@ use crate::sql::error::SqlError;
 use scouter_types::TimeInterval;
 use scouter_types::{ObservabilityMetricRequest, ObservabilityMetrics};
 
-use sqlx::{postgres::PgQueryResult, Pool, Postgres};
+use sqlx::{Pool, Postgres, postgres::PgQueryResult};
 
 use async_trait::async_trait;
 

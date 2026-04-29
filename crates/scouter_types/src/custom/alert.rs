@@ -1,10 +1,10 @@
 use crate::error::TypeError;
-use crate::{
-    dispatch::AlertDispatchType, AlertDispatchConfig, AlertThreshold, CommonCrons,
-    DispatchAlertDescription, OpsGenieDispatchConfig, PyHelperFuncs, SlackDispatchConfig,
-    ValidateAlertConfig,
-};
 use crate::{AlertCondition, AlertMap};
+use crate::{
+    AlertDispatchConfig, AlertThreshold, CommonCrons, DispatchAlertDescription,
+    OpsGenieDispatchConfig, PyHelperFuncs, SlackDispatchConfig, ValidateAlertConfig,
+    dispatch::AlertDispatchType,
+};
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyString;
@@ -310,8 +310,11 @@ mod tests {
 
         let description =
             alert_outside_threshold.create_alert_description(AlertDispatchType::Console);
-        assert!(description
-            .contains("The mae metric value has fallen outside the threshold (initial value ± 2)"));
+        assert!(
+            description.contains(
+                "The mae metric value has fallen outside the threshold (initial value ± 2)"
+            )
+        );
         assert!(description.contains("Initial Metric Value: 12.5"));
         assert!(description.contains("Current Metric Value: 22"));
     }

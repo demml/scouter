@@ -4,7 +4,7 @@ use scouter_settings::PollingSettings;
 use sqlx::{Pool, Postgres};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
-use tracing::{debug, error, info, span, Instrument, Level};
+use tracing::{Instrument, Level, debug, error, info, span};
 
 pub struct BackgroundDriftManager {
     pub workers: Vec<JoinHandle<()>>,

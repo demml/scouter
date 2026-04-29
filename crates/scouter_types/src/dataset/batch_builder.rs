@@ -161,14 +161,14 @@ fn build_array(values: &[Option<Value>], data_type: &DataType) -> Result<ArrayRe
                         None => {
                             return Err(DatasetError::SchemaParseError(format!(
                                 "Cannot coerce {n} to Int64"
-                            )))
+                            )));
                         }
                     },
                     Some(Value::Null) | None => b.append_null(),
                     other => {
                         return Err(DatasetError::SchemaParseError(format!(
                             "Expected integer, got: {other:?}"
-                        )))
+                        )));
                     }
                 }
             }
@@ -184,14 +184,14 @@ fn build_array(values: &[Option<Value>], data_type: &DataType) -> Result<ArrayRe
                         None => {
                             return Err(DatasetError::SchemaParseError(format!(
                                 "Cannot coerce {n} to Float64"
-                            )))
+                            )));
                         }
                     },
                     Some(Value::Null) | None => b.append_null(),
                     other => {
                         return Err(DatasetError::SchemaParseError(format!(
                             "Expected number, got: {other:?}"
-                        )))
+                        )));
                     }
                 }
             }
@@ -207,7 +207,7 @@ fn build_array(values: &[Option<Value>], data_type: &DataType) -> Result<ArrayRe
                     other => {
                         return Err(DatasetError::SchemaParseError(format!(
                             "Expected string, got: {other:?}"
-                        )))
+                        )));
                     }
                 }
             }
@@ -224,7 +224,7 @@ fn build_array(values: &[Option<Value>], data_type: &DataType) -> Result<ArrayRe
                     other => {
                         return Err(DatasetError::SchemaParseError(format!(
                             "Expected string, got: {other:?}"
-                        )))
+                        )));
                     }
                 }
             }
@@ -240,7 +240,7 @@ fn build_array(values: &[Option<Value>], data_type: &DataType) -> Result<ArrayRe
                     other => {
                         return Err(DatasetError::SchemaParseError(format!(
                             "Expected boolean, got: {other:?}"
-                        )))
+                        )));
                     }
                 }
             }
@@ -266,7 +266,7 @@ fn build_array(values: &[Option<Value>], data_type: &DataType) -> Result<ArrayRe
                     other => {
                         return Err(DatasetError::SchemaParseError(format!(
                             "Expected datetime string, got: {other:?}"
-                        )))
+                        )));
                     }
                 }
             }
@@ -291,7 +291,7 @@ fn build_array(values: &[Option<Value>], data_type: &DataType) -> Result<ArrayRe
                     other => {
                         return Err(DatasetError::SchemaParseError(format!(
                             "Expected date string, got: {other:?}"
-                        )))
+                        )));
                     }
                 }
             }
@@ -311,7 +311,7 @@ fn build_array(values: &[Option<Value>], data_type: &DataType) -> Result<ArrayRe
                         other => {
                             return Err(DatasetError::SchemaParseError(format!(
                                 "Expected string for dictionary, got: {other:?}"
-                            )))
+                            )));
                         }
                     }
                 }
@@ -339,7 +339,7 @@ fn build_array(values: &[Option<Value>], data_type: &DataType) -> Result<ArrayRe
                     other => {
                         return Err(DatasetError::SchemaParseError(format!(
                             "Expected array, got: {other:?}"
-                        )))
+                        )));
                     }
                 }
             }
@@ -375,7 +375,7 @@ fn build_struct_array(values: &[Option<Value>], fields: &Fields) -> Result<Array
             other => {
                 return Err(DatasetError::SchemaParseError(format!(
                     "Expected JSON object for struct field, got: {other:?}"
-                )))
+                )));
             }
         }
     }
@@ -449,7 +449,7 @@ fn append_to_builder(
                     other => {
                         return Err(DatasetError::SchemaParseError(format!(
                             "Expected integer in list, got: {other:?}"
-                        )))
+                        )));
                     }
                 }
             }
@@ -472,7 +472,7 @@ fn append_to_builder(
                     other => {
                         return Err(DatasetError::SchemaParseError(format!(
                             "Expected number in list, got: {other:?}"
-                        )))
+                        )));
                     }
                 }
             }
@@ -493,7 +493,7 @@ fn append_to_builder(
                     other => {
                         return Err(DatasetError::SchemaParseError(format!(
                             "Expected string in list, got: {other:?}"
-                        )))
+                        )));
                     }
                 }
             }
@@ -514,7 +514,7 @@ fn append_to_builder(
                     other => {
                         return Err(DatasetError::SchemaParseError(format!(
                             "Expected boolean in list, got: {other:?}"
-                        )))
+                        )));
                     }
                 }
             }
@@ -522,7 +522,7 @@ fn append_to_builder(
         other => {
             return Err(DatasetError::UnsupportedType(format!(
                 "List item type {other} is not supported"
-            )))
+            )));
         }
     }
     Ok(())
@@ -536,8 +536,8 @@ fn append_to_builder(
 mod tests {
     use super::*;
     use crate::dataset::schema::{
-        inject_system_columns, json_schema_to_arrow, SCOUTER_BATCH_ID, SCOUTER_CREATED_AT,
-        SCOUTER_PARTITION_DATE,
+        SCOUTER_BATCH_ID, SCOUTER_CREATED_AT, SCOUTER_PARTITION_DATE, inject_system_columns,
+        json_schema_to_arrow,
     };
     use arrow::array::{
         Array, BooleanArray, Date32Array, Float64Array, Int64Array, TimestampMicrosecondArray,

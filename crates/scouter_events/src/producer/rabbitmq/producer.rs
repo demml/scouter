@@ -3,9 +3,9 @@ pub mod rabbitmq_producer {
     use crate::error::EventError;
     use crate::producer::rabbitmq::types::RabbitMQConfig;
     use lapin::{
+        BasicProperties, Channel, ChannelState, Connection, ConnectionProperties,
         options::{BasicPublishOptions, QueueDeclareOptions},
         types::FieldTable,
-        BasicProperties, Channel, ChannelState, Connection, ConnectionProperties,
     };
     use scouter_types::MessageRecord;
     use tracing::{debug, error, info};

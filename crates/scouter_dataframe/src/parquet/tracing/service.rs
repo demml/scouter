@@ -6,10 +6,10 @@ use crate::parquet::tracing::queries::TraceQueries;
 use crate::storage::ObjectStore;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::{extract_gen_ai_span, TraceSpanRecord};
+use scouter_types::{TraceSpanRecord, extract_gen_ai_span};
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use tokio::time::{interval, Duration};
+use tokio::time::{Duration, interval};
 use tracing::{debug, info};
 
 const FLUSH_INTERVAL_SECS: u64 = 5;
@@ -387,7 +387,7 @@ impl TraceSpanService {
 mod tests {
     use super::*;
     use crate::parquet::tracing::queries::{
-        date_lit, ts_lit, PARTITION_DATE_COL, SPAN_TABLE_NAME, START_TIME_COL,
+        PARTITION_DATE_COL, SPAN_TABLE_NAME, START_TIME_COL, date_lit, ts_lit,
     };
     use arrow_array::Array;
     use chrono::Utc;

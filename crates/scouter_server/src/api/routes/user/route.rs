@@ -6,19 +6,19 @@ use crate::api::state::AppState;
 use anyhow::{Context, Result};
 use axum::extract::Path;
 use axum::{
+    Extension, Json, Router,
     extract::State,
     http::StatusCode,
     routing::{delete, get, post, put},
-    Extension, Json, Router,
 };
 use password_auth::generate_hash;
 use scouter_auth::permission::UserPermissions;
 use scouter_auth::util::generate_recovery_codes_with_hashes;
+use scouter_sql::PostgresClient;
 use scouter_sql::sql::schema::User;
 use scouter_sql::sql::traits::UserSqlLogic;
-use scouter_sql::PostgresClient;
 use scouter_types::contracts::{ScouterResponse, ScouterServerError};
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 use tracing::{error, info, instrument};
 

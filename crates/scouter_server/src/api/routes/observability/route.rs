@@ -1,10 +1,10 @@
-use scouter_types::{contracts::ObservabilityMetricRequest, ScouterServerError};
+use scouter_types::{ScouterServerError, contracts::ObservabilityMetricRequest};
 
 use axum::{
+    Json,
     extract::{Query, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
 };
 
 use std::sync::Arc;
@@ -12,10 +12,10 @@ use tracing::error;
 
 use crate::api::state::AppState;
 use anyhow::{Context, Result};
-use axum::{routing::get, Router};
-use scouter_sql::sql::traits::ObservabilitySqlLogic;
+use axum::{Router, routing::get};
 use scouter_sql::PostgresClient;
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use scouter_sql::sql::traits::ObservabilitySqlLogic;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 
 #[utoipa::path(
     get,

@@ -1,8 +1,8 @@
 use crate::error::TraceError;
-use crate::exporter::traits::SpanExporterBuilder;
 use crate::exporter::ExporterType;
-use opentelemetry_sdk::trace::SpanExporter;
+use crate::exporter::traits::SpanExporterBuilder;
 use opentelemetry_sdk::Resource;
+use opentelemetry_sdk::trace::SpanExporter;
 use opentelemetry_stdout::SpanExporter as OTelStdoutSpanExporter;
 use pyo3::prelude::*;
 use scouter_types::PyHelperFuncs;

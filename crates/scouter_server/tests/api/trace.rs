@@ -1,17 +1,17 @@
-use crate::common::setup_test;
 use crate::common::TestHelper;
+use crate::common::setup_test;
 use axum::{
     body::Body,
-    http::{header, Request, StatusCode},
+    http::{Request, StatusCode, header},
 };
 use chrono::{DateTime, Utc};
 use http_body_util::BodyExt;
 use scouter_server::api::routes::user::schema::CreateUserRequest;
 use scouter_sql::sql::aggregator::shutdown_trace_cache;
 use scouter_types::{
-    sql::TraceFilters, GenAiSpanRecord, SpanId, SpansFromTagsRequest, TraceFacetsResponse, TraceId,
+    GenAiSpanRecord, SpanId, SpansFromTagsRequest, TraceFacetsResponse, TraceId,
     TraceMetricsRequest, TraceMetricsResponse, TracePaginationResponse, TraceRequest,
-    TraceSpansResponse,
+    TraceSpansResponse, sql::TraceFilters,
 };
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};

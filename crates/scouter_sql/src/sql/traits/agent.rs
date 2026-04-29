@@ -8,20 +8,20 @@ use potato_head::create_uuid7;
 use scouter_dataframe::parquet::BinnedMetricsExtractor;
 use scouter_dataframe::parquet::ParquetDataFrame;
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::agent::profile::AgentEvalProfile;
-use scouter_types::contracts::DriftRequest;
 use scouter_types::AgentEvalWorkflowPaginationResponse;
 use scouter_types::AgentEvalWorkflowResult;
 use scouter_types::BoxedEvalRecord;
 use scouter_types::EvalRecord;
 use scouter_types::EvalTaskResult;
 use scouter_types::Status;
+use scouter_types::agent::profile::AgentEvalProfile;
+use scouter_types::contracts::DriftRequest;
 use scouter_types::{
     BinnedMetrics, EvalRecordPaginationRequest, EvalRecordPaginationResponse, EvalRecordSource,
     RecordCursor, RecordType, TraceId,
 };
 use sqlx::types::Json;
-use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
+use sqlx::{Pool, Postgres, Row, postgres::PgQueryResult};
 use std::collections::{HashMap, HashSet};
 use tracing::error;
 use tracing::{debug, instrument};

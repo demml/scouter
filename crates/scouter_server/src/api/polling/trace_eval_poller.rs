@@ -5,7 +5,7 @@ use scouter_settings::TraceEvalPollerSettings;
 use sqlx::{Pool, Postgres};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
-use tracing::{debug, error, info, span, warn, Instrument, Level};
+use tracing::{Instrument, Level, debug, error, info, span, warn};
 
 pub struct BackgroundTraceEvalManager {
     pub workers: Vec<JoinHandle<()>>,
@@ -13,11 +13,7 @@ pub struct BackgroundTraceEvalManager {
 
 impl BackgroundTraceEvalManager {
     fn effective_worker_count(requested_workers: usize) -> usize {
-        if requested_workers > 0 {
-            1
-        } else {
-            0
-        }
+        if requested_workers > 0 { 1 } else { 0 }
     }
 
     pub async fn start_workers(

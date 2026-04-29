@@ -1,11 +1,11 @@
 use crate::sql::error::SqlError;
 use chrono::{DateTime, Utc};
-use scouter_types::psi::DistributionData;
 use scouter_types::DriftType;
-use scouter_types::{get_utc_datetime, BinnedMetric, BinnedMetricStats, RecordType};
+use scouter_types::psi::DistributionData;
+use scouter_types::{BinnedMetric, BinnedMetricStats, RecordType, get_utc_datetime};
 use semver::{BuildMetadata, Prerelease, Version};
 use serde::{Deserialize, Serialize};
-use sqlx::{postgres::PgRow, Error, FromRow, Row};
+use sqlx::{Error, FromRow, Row, postgres::PgRow};
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::str::FromStr;

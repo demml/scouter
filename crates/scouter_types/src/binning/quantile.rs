@@ -1,7 +1,7 @@
 use crate::error::TypeError;
 use ndarray::ArrayView1;
 use num_traits::{Float, FromPrimitive};
-use pyo3::{pyclass, pymethods, PyResult};
+use pyo3::{PyResult, pyclass, pymethods};
 use serde::{Deserialize, Serialize};
 
 #[pyclass(from_py_object)]
@@ -152,9 +152,12 @@ mod tests {
 
         // Verify that quantile edges are monotonically increasing despite unsorted input
         for i in 1..edges.len() {
-            assert!(edges[i] > edges[i-1],
-                    "Quantile edges should be monotonically increasing even with unsorted input: {} > {}",
-                    edges[i], edges[i-1]);
+            assert!(
+                edges[i] > edges[i - 1],
+                "Quantile edges should be monotonically increasing even with unsorted input: {} > {}",
+                edges[i],
+                edges[i - 1]
+            );
         }
     }
 }

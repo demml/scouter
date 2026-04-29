@@ -1,6 +1,6 @@
+use pyo3::PyErr;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::pyclass::PyClassGuardError;
-use pyo3::PyErr;
 use pythonize::PythonizeError;
 use thiserror::Error;
 use tracing::error;

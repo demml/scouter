@@ -2,7 +2,7 @@ use crate::error::DriftError;
 use chrono::{DateTime, Utc};
 use scouter_dispatch::AlertDispatcher;
 use scouter_sql::sql::traits::CustomMetricSqlLogic;
-use scouter_sql::{sql::cache::entity_cache, PostgresClient};
+use scouter_sql::{PostgresClient, sql::cache::entity_cache};
 use scouter_types::custom::{ComparisonMetricAlert, CustomDriftProfile};
 use scouter_types::{AlertMap, ProfileBaseArgs};
 use sqlx::{Pool, Postgres};
@@ -162,8 +162,8 @@ impl CustomDrifter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use scouter_types::custom::{CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig};
     use scouter_types::AlertThreshold;
+    use scouter_types::custom::{CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig};
 
     fn get_test_drifter() -> CustomDrifter {
         let custom_metrics = vec![

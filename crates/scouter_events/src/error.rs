@@ -231,7 +231,9 @@ pub enum PyEventError {
     #[error("Drift profile alias must be set")]
     DriftProfileAliasMustBeSet,
 
-    #[error("Invalid drift profile format. Expected Dict[str, DriftProfile], List[DriftProfile], or single DriftProfile")]
+    #[error(
+        "Invalid drift profile format. Expected Dict[str, DriftProfile], List[DriftProfile], or single DriftProfile"
+    )]
     InvalidDriftProfileFormat,
 }
 impl From<PyEventError> for PyErr {

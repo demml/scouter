@@ -1,9 +1,9 @@
 use crate::error::FeatureQueueError;
 use crate::queue::traits::FeatureQueue;
 use core::result::Result::Ok;
-use scouter_types::agent::AgentEvalProfile;
 use scouter_types::BoxedEvalRecord;
 use scouter_types::QueueExt;
+use scouter_types::agent::AgentEvalProfile;
 use scouter_types::{MessageRecord, ServerRecord, ServerRecords};
 
 #[derive(Default)]

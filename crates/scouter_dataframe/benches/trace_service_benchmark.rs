@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use scouter_dataframe::parquet::tracing::service::TraceSpanService;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::{StorageType, TraceId, TraceSpanRecord};

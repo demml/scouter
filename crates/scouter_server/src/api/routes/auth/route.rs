@@ -4,13 +4,13 @@ use crate::api::state::AppState;
 use anyhow::{Context, Result};
 /// Route for debugging information
 use axum::extract::State;
-use axum::{http::header, http::header::HeaderMap, http::StatusCode, routing::get, Json, Router};
+use axum::{Json, Router, http::StatusCode, http::header, http::header::HeaderMap, routing::get};
 
-use scouter_sql::sql::traits::UserSqlLogic;
 use scouter_sql::PostgresClient;
-use scouter_types::contracts::ScouterServerError;
+use scouter_sql::sql::traits::UserSqlLogic;
 use scouter_types::JwtToken;
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use scouter_types::contracts::ScouterServerError;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 use tracing::{debug, error, instrument};
 

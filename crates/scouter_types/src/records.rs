@@ -3,28 +3,28 @@ use crate::agent::{
 };
 use crate::error::RecordError;
 use crate::trace::TraceServerRecord;
-use crate::{depythonize_object_to_value, DriftType, Status, TraceId};
+use crate::{DriftType, Status, TraceId, depythonize_object_to_value};
 use crate::{EntityType, TagRecord};
 use chrono::DateTime;
 use chrono::Utc;
 use owo_colors::OwoColorize;
-use potato_head::create_uuid7;
 use potato_head::PyHelperFuncs;
+use potato_head::create_uuid7;
 use pyo3::prelude::*;
 use pythonize::pythonize;
 use scouter_macro::impl_mask_entity_id;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 #[cfg(feature = "server")]
-use sqlx::{postgres::PgRow, FromRow, Row};
+use sqlx::{FromRow, Row, postgres::PgRow};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Display;
 use std::str::FromStr;
 use tabled::Tabled;
 use tabled::{
-    settings::{object::Rows, Alignment, Color, Format, Style},
     Table,
+    settings::{Alignment, Color, Format, Style, object::Rows},
 };
 
 #[pyclass(from_py_object, eq)]

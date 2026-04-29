@@ -1,9 +1,9 @@
-use crate::common::{setup_test, TestHelper, NAME, SPACE, VERSION};
+use crate::common::{NAME, SPACE, TestHelper, VERSION, setup_test};
 use std::time::Duration;
 
 use axum::{
     body::Body,
-    http::{header, Request, StatusCode},
+    http::{Request, StatusCode, header},
 };
 use http_body_util::BodyExt;
 use potato_head::mock::LLMTestServer;

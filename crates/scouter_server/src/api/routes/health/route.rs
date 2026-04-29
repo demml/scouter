@@ -1,11 +1,11 @@
 use crate::api::state::AppState;
 use anyhow::{Context, Result};
-use axum::response::IntoResponse;
 use axum::Json;
-use axum::{routing::get, Router};
+use axum::response::IntoResponse;
+use axum::{Router, routing::get};
 /// file containing schema for health module
 use serde::{Deserialize, Serialize};
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 
 #[derive(Serialize, Deserialize, utoipa::ToSchema)]

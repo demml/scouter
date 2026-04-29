@@ -7,9 +7,9 @@ use crate::{
 use scouter_settings::grpc::GrpcConfig;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
+use tonic::Request;
 use tonic::metadata::MetadataValue;
 use tonic::transport::Channel;
-use tonic::Request;
 use tracing::{debug, error, instrument, warn};
 
 async fn build_channel(config: &GrpcConfig) -> Result<Channel, ClientError> {
