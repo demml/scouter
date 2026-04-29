@@ -106,15 +106,14 @@ impl PsiDrifter {
         // Validate categorical_features
         {
             let read_config = config.read().unwrap();
-            if let Some(categorical_features) = read_config.categorical_features.as_ref() {
-                if let Some(missing_feature) = categorical_features
+            if let Some(categorical_features) = read_config.categorical_features.as_ref()
+                && let Some(missing_feature) = categorical_features
                     .iter()
                     .find(|&key| !num_features.contains(key) && !string_features.contains(key))
-                {
-                    return Err(DriftError::CategoricalFeatureMissingError(
-                        missing_feature.to_string(),
-                    ));
-                }
+            {
+                return Err(DriftError::CategoricalFeatureMissingError(
+                    missing_feature.to_string(),
+                ));
             }
         }
 

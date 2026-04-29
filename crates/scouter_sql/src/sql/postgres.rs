@@ -384,7 +384,7 @@ mod tests {
             .await
             .unwrap();
 
-        let result = PostgresClient::insert_drift_profile(
+        PostgresClient::insert_drift_profile(
             pool,
             profile,
             &base_args,
@@ -393,9 +393,7 @@ mod tests {
             &deactivate_others,
         )
         .await
-        .unwrap();
-
-        result
+        .unwrap()
     }
 
     #[tokio::test]

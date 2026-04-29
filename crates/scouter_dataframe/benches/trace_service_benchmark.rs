@@ -398,10 +398,10 @@ fn bench_cold_query(c: &mut Criterion) {
 
                 for _ in 0..traces_this_hour {
                     let (_r, spans, _t) = generate_trace_with_spans(5, minutes_offset);
-                    if let Some(first) = spans.first() {
-                        if let Ok(id_bytes) = TraceId::hex_to_bytes(&first.trace_id.to_hex()) {
-                            all_ids.push((id_bytes, hour));
-                        }
+                    if let Some(first) = spans.first()
+                        && let Ok(id_bytes) = TraceId::hex_to_bytes(&first.trace_id.to_hex())
+                    {
+                        all_ids.push((id_bytes, hour));
                     }
                     hour_spans.extend(spans);
                 }
@@ -466,10 +466,10 @@ fn bench_cold_query(c: &mut Criterion) {
 
                 for _ in 0..traces_this_hour {
                     let (_r, spans, _t) = generate_trace_with_spans(5, minutes_offset);
-                    if let Some(first) = spans.first() {
-                        if let Ok(id_bytes) = TraceId::hex_to_bytes(&first.trace_id.to_hex()) {
-                            all_ids.push((id_bytes, hour));
-                        }
+                    if let Some(first) = spans.first()
+                        && let Ok(id_bytes) = TraceId::hex_to_bytes(&first.trace_id.to_hex())
+                    {
+                        all_ids.push((id_bytes, hour));
                     }
                     hour_spans.extend(spans);
                 }
@@ -551,10 +551,10 @@ fn bench_at_scale_1m(c: &mut Criterion) {
             let mut hour_spans = Vec::with_capacity(SPANS_PER_HOUR);
             for _ in 0..TRACES_PER_HOUR {
                 let (_r, spans, _t) = generate_trace_with_spans(5, minutes_offset);
-                if all_ids.len() < HOURS * IDS_PER_HOUR {
-                    if let Ok(id) = TraceId::hex_to_bytes(&spans[0].trace_id.to_hex()) {
-                        all_ids.push((id, hour));
-                    }
+                if all_ids.len() < HOURS * IDS_PER_HOUR
+                    && let Ok(id) = TraceId::hex_to_bytes(&spans[0].trace_id.to_hex())
+                {
+                    all_ids.push((id, hour));
                 }
                 hour_spans.extend(spans);
             }
@@ -707,10 +707,10 @@ fn bench_at_scale_10m(c: &mut Criterion) {
 
             for _ in 0..TRACES_PER_HOUR {
                 let (_r, spans, _t) = generate_trace_with_spans(5, minutes_offset);
-                if all_ids.len() < HOURS * IDS_PER_HOUR {
-                    if let Ok(id) = TraceId::hex_to_bytes(&spans[0].trace_id.to_hex()) {
-                        all_ids.push((id, hour));
-                    }
+                if all_ids.len() < HOURS * IDS_PER_HOUR
+                    && let Ok(id) = TraceId::hex_to_bytes(&spans[0].trace_id.to_hex())
+                {
+                    all_ids.push((id, hour));
                 }
                 chunk.extend(spans);
                 if chunk.len() >= WRITE_CHUNK_SIZE {

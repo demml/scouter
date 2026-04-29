@@ -32,35 +32,35 @@ fn validate_duration_bounds(
     min: Option<i64>,
     max: Option<i64>,
 ) -> Result<(), (StatusCode, Json<ScouterServerError>)> {
-    if let Some(v) = min {
-        if v < 0 {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                Json(ScouterServerError::new(
-                    "duration_min_ms must be >= 0".to_string(),
-                )),
-            ));
-        }
+    if let Some(v) = min
+        && v < 0
+    {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ScouterServerError::new(
+                "duration_min_ms must be >= 0".to_string(),
+            )),
+        ));
     }
-    if let Some(v) = max {
-        if v < 0 {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                Json(ScouterServerError::new(
-                    "duration_max_ms must be >= 0".to_string(),
-                )),
-            ));
-        }
+    if let Some(v) = max
+        && v < 0
+    {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ScouterServerError::new(
+                "duration_max_ms must be >= 0".to_string(),
+            )),
+        ));
     }
-    if let (Some(mn), Some(mx)) = (min, max) {
-        if mn > mx {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                Json(ScouterServerError::new(
-                    "duration_min_ms must be <= duration_max_ms".to_string(),
-                )),
-            ));
-        }
+    if let (Some(mn), Some(mx)) = (min, max)
+        && mn > mx
+    {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ScouterServerError::new(
+                "duration_min_ms must be <= duration_max_ms".to_string(),
+            )),
+        ));
     }
     Ok(())
 }
