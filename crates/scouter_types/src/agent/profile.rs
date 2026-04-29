@@ -1,32 +1,32 @@
 use crate::agent::alert::AgentAlertConfig;
 use crate::agent::eval::{AssertionTask, EvaluationTask, LLMJudgeTask};
-use crate::agent::traits::{separate_tasks, ProfileExt, TaskAccessor};
-use crate::agent::utils::{extract_assertion_tasks_from_pylist, AssertionTasks};
+use crate::agent::traits::{ProfileExt, TaskAccessor, separate_tasks};
+use crate::agent::utils::{AssertionTasks, extract_assertion_tasks_from_pylist};
 use crate::agent::{AgentAssertionTask, TasksFile, TraceAssertionTask};
 use crate::error::{ProfileError, TypeError};
 use crate::traits::ConfigExt;
 use crate::util::{json_to_pyobject, pyobject_to_json};
-use crate::{scouter_version, AgentEvalWorkflowResult, EvalTaskResult, WorkflowResultTableEntry};
+use crate::{AgentEvalWorkflowResult, EvalTaskResult, WorkflowResultTableEntry, scouter_version};
 use crate::{
-    DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
-    PyHelperFuncs, VersionRequest, DEFAULT_VERSION, MISSING,
+    DEFAULT_VERSION, DispatchDriftConfig, DriftArgs, DriftType, FileName, MISSING, ProfileArgs,
+    ProfileBaseArgs, PyHelperFuncs, VersionRequest,
 };
 use crate::{ProfileRequest, TaskResultTableEntry};
 use chrono::{DateTime, Utc};
 use core::fmt::Debug;
-use potato_head::prompt_types::Prompt;
 use potato_head::Agent;
 use potato_head::Workflow;
-use potato_head::{create_uuid7, Task};
+use potato_head::prompt_types::Prompt;
+use potato_head::{Task, create_uuid7};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use scouter_semver::VersionType;
 use scouter_state::app_state;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::hash_map::Entry;
 use std::collections::BTreeSet;
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -624,7 +624,7 @@ impl AgentEvalProfile {
         let mut nodes: HashMap<String, ExecutionNode> = HashMap::new();
         let mut current_level: Vec<String> = in_degree
             .iter()
-            .filter(|(_, &degree)| degree == 0)
+            .filter(|&(_, &degree)| degree == 0)
             .map(|(id, _)| id.clone())
             .collect();
 

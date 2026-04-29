@@ -1,5 +1,5 @@
 use crate::error::TraceEngineError;
-use crate::parquet::control::{get_pod_id, ControlTableEngine};
+use crate::parquet::control::{ControlTableEngine, get_pod_id};
 use crate::parquet::tracing::catalog::TraceCatalogProvider;
 use crate::parquet::tracing::traits::{arrow_schema_to_delta, resource_attribute_field};
 use crate::parquet::utils::match_attr_expr;
@@ -11,7 +11,7 @@ use arrow::datatypes::*;
 use arrow_array::Array;
 use arrow_array::RecordBatch;
 use chrono::{DateTime, Datelike, Utc};
-use datafusion::logical_expr::{cast as df_cast, col, lit, SortExpr};
+use datafusion::logical_expr::{SortExpr, cast as df_cast, col, lit};
 use datafusion::prelude::*;
 use datafusion::scalar::ScalarValue;
 use deltalake::operations::optimize::OptimizeType;
@@ -23,8 +23,8 @@ use scouter_types::{
 };
 use std::sync::Arc;
 use tokio::sync::oneshot;
-use tokio::sync::{mpsc, RwLock as AsyncRwLock};
-use tokio::time::{interval, Duration};
+use tokio::sync::{RwLock as AsyncRwLock, mpsc};
+use tokio::time::{Duration, interval};
 use tracing::{debug, error, info, instrument};
 use url::Url;
 
@@ -884,7 +884,7 @@ impl TraceSummaryQueries {
         // ── Cursor filter in DataFusion ──────────────────────────────────────
         // Equivalent to Postgres: `(start_time, trace_id) < (cursor_time, cursor_id)`
         // for "next" or `> (cursor_time, cursor_id)` for "previous".
-        if let (Some(cursor_time), Some(ref cursor_id)) =
+        if let (Some(cursor_time), Some(cursor_id)) =
             (filters.cursor_start_time, &filters.cursor_trace_id)
         {
             if let Ok(cursor_bytes) = TraceId::hex_to_bytes(cursor_id) {
@@ -940,11 +940,8 @@ impl TraceSummaryQueries {
                     )))?;
                 }
 
-                let mut spans_df = spans_df.select_columns(&[
-                    TRACE_ID_COL,
-                    START_TIME_COL,
-                    SEARCH_BLOB_COL,
-                ])?;
+                let mut spans_df =
+                    spans_df.select_columns(&[TRACE_ID_COL, START_TIME_COL, SEARCH_BLOB_COL])?;
 
                 // OR-match each filter against search_blob.
                 // normalize_attr_filter converts "key:value" → "%key=value%" so the LIKE
@@ -1175,11 +1172,8 @@ impl TraceSummaryQueries {
                     )))?;
                 }
 
-                let mut spans_df = spans_df.select_columns(&[
-                    TRACE_ID_COL,
-                    START_TIME_COL,
-                    SEARCH_BLOB_COL,
-                ])?;
+                let mut spans_df =
+                    spans_df.select_columns(&[TRACE_ID_COL, START_TIME_COL, SEARCH_BLOB_COL])?;
                 let mut attr_expr: Option<Expr> = None;
                 for f in attr_filters {
                     let pattern = crate::parquet::tracing::queries::normalize_attr_filter(f);

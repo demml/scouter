@@ -6,9 +6,9 @@ use crate::queue::bus::{Event, QueueBus, TaskState};
 use crate::queue::custom::CustomQueue;
 use crate::queue::psi::PsiQueue;
 use crate::queue::spc::SpcQueue;
+use crate::queue::traits::queue::QueueMethods;
 use crate::queue::traits::queue::wait_for_background_task;
 use crate::queue::traits::queue::wait_for_event_task;
-use crate::queue::traits::queue::QueueMethods;
 use crate::queue::types::{QueueSettings, TransportConfig};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyListMethods};
@@ -504,9 +504,23 @@ impl ScouterQueue {
         wait_for_startup: bool,
     ) -> Result<Py<QueueBus>, PyEventError> {
         let settings = if let DriftProfile::Agent(genai_profile) = &drift_profile {
+            let mut profile = genai_profile.clone();
+            if let Some(workflow) = &mut profile.workflow
+                && std::env::var("SCOUTER_OFFLINE").as_deref() == Ok("1")
+            {
+                if let Err(e) = app_state()
+                    .handle()
+                    .block_on(async { workflow.reset_agents().await })
+                {
+                    error!(
+                        "Failed to reset workflow agents for profile {}: {:?}",
+                        id, e
+                    );
+                }
+            }
             registry
                 .agent_profiles
-                .insert(id.clone(), Arc::new(genai_profile.clone()));
+                .insert(id.clone(), Arc::new(profile));
             let settings = Arc::new(RwLock::new(QueueSettings::new(
                 id.clone(),
                 genai_profile.config.sample_ratio,
