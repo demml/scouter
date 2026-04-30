@@ -4,9 +4,9 @@ use crate::{
     OpsGenieDispatchConfig, SlackDispatchConfig, ValidateAlertConfig,
 };
 use core::fmt::Debug;
+use pyo3::IntoPyObjectExt;
 use pyo3::prelude::*;
 use pyo3::types::PyString;
-use pyo3::IntoPyObjectExt;
 use serde::{Deserialize, Serialize};
 use statrs::distribution::{ChiSquared, ContinuousCDF, Normal};
 
@@ -278,7 +278,10 @@ impl DispatchAlertDescription for PsiFeatureAlerts {
         let mut alert_description = String::new();
 
         for (i, alert) in self.alerts.iter().enumerate() {
-            let description = format!("Feature '{}' has experienced drift, with a current PSI score of {} that exceeds the configured threshold of {}.", alert.feature, alert.drift, alert.threshold);
+            let description = format!(
+                "Feature '{}' has experienced drift, with a current PSI score of {} that exceeds the configured threshold of {}.",
+                alert.feature, alert.drift, alert.threshold
+            );
 
             if i == 0 {
                 let header = "PSI Drift has been detected for the following features:\n";

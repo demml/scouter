@@ -10,7 +10,7 @@ use crate::sql::traits::{
 use scouter_settings::DatabaseSettings;
 use scouter_types::{RecordType, ServerRecords, TagRecord, ToDriftRecords, TraceServerRecord};
 use sqlx::ConnectOptions;
-use sqlx::{postgres::PgConnectOptions, Pool, Postgres};
+use sqlx::{Pool, Postgres, postgres::PgConnectOptions};
 use std::result::Result::Ok;
 use std::time::Duration;
 use tokio::try_join;
@@ -384,7 +384,7 @@ mod tests {
             .await
             .unwrap();
 
-        let result = PostgresClient::insert_drift_profile(
+        PostgresClient::insert_drift_profile(
             pool,
             profile,
             &base_args,
@@ -393,9 +393,7 @@ mod tests {
             &deactivate_others,
         )
         .await
-        .unwrap();
-
-        result
+        .unwrap()
     }
 
     #[tokio::test]
@@ -512,7 +510,7 @@ mod tests {
 
         assert_eq!(page_back.items.len(), 3);
         assert!(page_back.has_next); // Can go forward
-                                     // Should return to page1 items
+        // Should return to page1 items
         assert_eq!(
             page_back.items.iter().map(|a| a.id).collect::<Vec<_>>(),
             page1.items.iter().map(|a| a.id).collect::<Vec<_>>()

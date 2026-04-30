@@ -1,6 +1,6 @@
 use crate::error::EvalScenarioEngineError;
 use crate::parquet::eval_scenarios::engine::{
-    EvalScenarioRecord, COLLECTION_ID_COL, CREATED_AT_COL, EVAL_SCENARIO_TABLE_NAME,
+    COLLECTION_ID_COL, CREATED_AT_COL, EVAL_SCENARIO_TABLE_NAME, EvalScenarioRecord,
     SCENARIO_ID_COL, SCENARIO_JSON_COL,
 };
 use arrow::array::{Array, StringArray, TimestampMicrosecondArray};

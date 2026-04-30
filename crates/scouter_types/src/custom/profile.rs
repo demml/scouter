@@ -1,12 +1,12 @@
 #![allow(clippy::useless_conversion)]
+use crate::ProfileRequest;
 use crate::custom::alert::{CustomMetric, CustomMetricAlertConfig};
 use crate::error::{ProfileError, TypeError};
 use crate::traits::ConfigExt;
 use crate::util::{json_to_pyobject, pyobject_to_json, scouter_version};
-use crate::ProfileRequest;
 use crate::{
-    DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
-    PyHelperFuncs, VersionRequest, DEFAULT_VERSION, MISSING,
+    DEFAULT_VERSION, DispatchDriftConfig, DriftArgs, DriftType, FileName, MISSING, ProfileArgs,
+    ProfileBaseArgs, PyHelperFuncs, VersionRequest,
 };
 use core::fmt::Debug;
 use potato_head::create_uuid7;

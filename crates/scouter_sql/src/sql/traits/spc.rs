@@ -5,13 +5,13 @@ use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use itertools::multiunzip;
-use scouter_dataframe::parquet::{dataframe_to_spc_drift_features, ParquetDataFrame};
+use scouter_dataframe::parquet::{ParquetDataFrame, dataframe_to_spc_drift_features};
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::{
-    spc::{SpcDriftFeature, SpcDriftFeatures},
     DriftRequest, RecordType, SpcRecord,
+    spc::{SpcDriftFeature, SpcDriftFeatures},
 };
-use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
+use sqlx::{Pool, Postgres, Row, postgres::PgQueryResult};
 use std::collections::BTreeMap;
 use tracing::{debug, error, instrument};
 
@@ -267,20 +267,20 @@ pub trait SpcSqlLogic {
         }
 
         // get archived data
-        if let Some((archive_begin, archive_end)) = timestamps.archived_range {
-            if let Some(archived_minutes) = timestamps.archived_minutes {
-                let archived_results = Self::get_archived_records(
-                    params,
-                    archive_begin,
-                    archive_end,
-                    archived_minutes,
-                    storage_settings,
-                    entity_id,
-                )
-                .await?;
+        if let Some((archive_begin, archive_end)) = timestamps.archived_range
+            && let Some(archived_minutes) = timestamps.archived_minutes
+        {
+            let archived_results = Self::get_archived_records(
+                params,
+                archive_begin,
+                archive_end,
+                archived_minutes,
+                storage_settings,
+                entity_id,
+            )
+            .await?;
 
-                Self::merge_feature_results(archived_results, &mut spc_feature_map)?;
-            }
+            Self::merge_feature_results(archived_results, &mut spc_feature_map)?;
         }
 
         Ok(spc_feature_map)

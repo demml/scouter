@@ -1,3 +1,10 @@
+# need to turin of E402 - we need to call set_offline before importing the shared config and service builder
+# ruff: noqa: E402
+# pylint: disable=wrong-import-position
+from scouter import ScouterEnv
+
+ScouterEnv.set_offline()
+
 from scouter.evaluate import EvalOrchestrator
 
 from ..shared import get_shared_config, teardown_shared_config

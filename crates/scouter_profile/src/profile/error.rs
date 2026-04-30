@@ -1,6 +1,6 @@
 use ndarray::Axis;
-use pyo3::exceptions::PyRuntimeError;
 use pyo3::PyErr;
+use pyo3::exceptions::PyRuntimeError;
 use scouter_types::error::ProfileError;
 use thiserror::Error;
 

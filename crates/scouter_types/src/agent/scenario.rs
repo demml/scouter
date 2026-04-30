@@ -1,8 +1,8 @@
-use crate::agent::utils::{extract_assertion_tasks_from_pylist, AssertionTasks};
+use crate::PyHelperFuncs;
+use crate::agent::utils::{AssertionTasks, extract_assertion_tasks_from_pylist};
 use crate::agent::{AgentAssertionTask, AssertionTask, LLMJudgeTask, TraceAssertionTask};
 use crate::error::TypeError;
 use crate::util::{json_to_pyobject, pyobject_to_json};
-use crate::PyHelperFuncs;
 use potato_head::create_uuid7;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};

@@ -5,9 +5,9 @@ pub mod kafka_producer {
     use crate::error::EventError;
     use futures::TryFutureExt;
     use rdkafka::{
+        ClientConfig,
         config::RDKafkaLogLevel,
         producer::{FutureProducer, FutureRecord, Producer},
-        ClientConfig,
     };
     use rusty_logging::logger::LogLevel;
     use scouter_types::MessageRecord;

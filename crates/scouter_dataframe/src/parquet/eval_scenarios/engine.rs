@@ -1,5 +1,5 @@
 use crate::error::EvalScenarioEngineError;
-use crate::parquet::control::{get_pod_id, ControlTableEngine};
+use crate::parquet::control::{ControlTableEngine, get_pod_id};
 use crate::parquet::tracing::catalog::TraceCatalogProvider;
 use crate::parquet::tracing::traits::arrow_schema_to_delta;
 use crate::parquet::utils::register_cloud_logstore_factories;
@@ -18,8 +18,8 @@ use deltalake::protocol::SaveMode;
 use deltalake::{DeltaTable, DeltaTableBuilder, TableProperty};
 use scouter_settings::ObjectStorageSettings;
 use std::sync::Arc;
-use tokio::sync::{mpsc, oneshot, RwLock as AsyncRwLock};
-use tokio::time::{interval, Duration};
+use tokio::sync::{RwLock as AsyncRwLock, mpsc, oneshot};
+use tokio::time::{Duration, interval};
 use tracing::{debug, error, info, instrument};
 use url::Url;
 

@@ -6,8 +6,8 @@ use crate::queue::types::TransportConfig;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use crossbeam_queue::ArrayQueue;
-use scouter_types::spc::SpcDriftProfile;
 use scouter_types::Features;
+use scouter_types::spc::SpcDriftProfile;
 use std::sync::Arc;
 use std::sync::RwLock;
 

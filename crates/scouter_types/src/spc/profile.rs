@@ -4,8 +4,8 @@ use crate::spc::alert::SpcAlertConfig;
 use crate::traits::ConfigExt;
 use crate::util::{json_to_pyobject, pyobject_to_json, scouter_version};
 use crate::{
-    DispatchDriftConfig, DriftArgs, DriftType, FeatureMap, FileName, ProfileArgs, ProfileBaseArgs,
-    ProfileRequest, PyHelperFuncs, MISSING,
+    DispatchDriftConfig, DriftArgs, DriftType, FeatureMap, FileName, MISSING, ProfileArgs,
+    ProfileBaseArgs, ProfileRequest, PyHelperFuncs,
 };
 
 use chrono::{DateTime, Utc};
@@ -14,7 +14,7 @@ use potato_head::create_uuid7;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-use crate::{VersionRequest, DEFAULT_VERSION};
+use crate::{DEFAULT_VERSION, VersionRequest};
 use scouter_semver::VersionType;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

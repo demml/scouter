@@ -1,13 +1,13 @@
-use crate::common::{setup_test, NAME, SPACE, VERSION};
+use crate::common::{NAME, SPACE, VERSION, setup_test};
 use std::time::Duration;
 
 use axum::{
     body::Body,
-    http::{header, Request, StatusCode},
+    http::{Request, StatusCode, header},
 };
 use http_body_util::BodyExt;
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
-use opentelemetry_proto::tonic::common::v1::{any_value, AnyValue, KeyValue};
+use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue, any_value};
 use opentelemetry_proto::tonic::resource::v1::Resource;
 use opentelemetry_proto::tonic::trace::v1::{ResourceSpans, ScopeSpans, Span};
 use potato_head::create_uuid7;
@@ -21,8 +21,8 @@ use scouter_types::psi::BinnedPsiFeatureMetrics;
 use scouter_types::psi::{PsiAlertConfig, PsiDriftConfig};
 use scouter_types::spc::SpcDriftFeatures;
 use scouter_types::{
-    sql::TraceFilters, AlertThreshold, BinnedMetrics, MessageRecord, TagRecord, TimeInterval,
-    TracePaginationResponse, TraceServerRecord,
+    AlertThreshold, BinnedMetrics, MessageRecord, TagRecord, TimeInterval, TracePaginationResponse,
+    TraceServerRecord, sql::TraceFilters,
 };
 use scouter_types::{TagsRequest, TagsResponse};
 use tokio::time::sleep;

@@ -1,9 +1,9 @@
 use crate::error::TraceEngineError;
-use crate::parquet::control::{get_pod_id, ControlTableEngine};
+use crate::parquet::control::{ControlTableEngine, get_pod_id};
 use crate::parquet::tracing::catalog::TraceCatalogProvider;
+use crate::parquet::tracing::traits::TraceSchemaExt;
 use crate::parquet::tracing::traits::arrow_schema_to_delta;
 use crate::parquet::tracing::traits::attribute_field;
-use crate::parquet::tracing::traits::TraceSchemaExt;
 use crate::parquet::utils::{
     create_attr_match_udf, register_cloud_logstore_factories, run_delta_init,
 };
@@ -27,8 +27,8 @@ use scouter_types::{Attribute, SpanEvent, SpanLink};
 use serde_json::Value;
 use std::sync::Arc;
 use tokio::sync::oneshot;
-use tokio::sync::{mpsc, RwLock as AsyncRwLock};
-use tokio::time::{interval, Duration};
+use tokio::sync::{RwLock as AsyncRwLock, mpsc};
+use tokio::time::{Duration, interval};
 use tracing::{debug, error, info, instrument};
 use url::Url;
 

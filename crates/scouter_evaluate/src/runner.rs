@@ -1,4 +1,4 @@
-use crate::agent::{evaluate_genai_dataset, EvalDataset};
+use crate::agent::{EvalDataset, evaluate_genai_dataset};
 use crate::error::EvaluationError;
 use crate::evaluate::evaluator::AgentEvaluator;
 use crate::evaluate::scenario_results::{
@@ -8,16 +8,16 @@ use crate::evaluate::types::{EvalResults, EvaluationConfig};
 use crate::scenario::EvalScenarios;
 use pyo3::prelude::*;
 use scouter_state::app_state;
+use scouter_types::TraceId as ScouterTraceId;
 use scouter_types::agent::EvalScenario;
 use scouter_types::agent::{AgentEvalConfig, AgentEvalProfile};
 use scouter_types::depythonize_object_to_value;
 use scouter_types::trace::sql::TraceSpan;
 use scouter_types::trace::{
-    build_trace_spans, TraceSpanRecord, SCOUTER_ENTITY, SCOUTER_QUEUE_RECORD,
+    SCOUTER_ENTITY, SCOUTER_QUEUE_RECORD, TraceSpanRecord, build_trace_spans,
 };
-use scouter_types::TraceId as ScouterTraceId;
 use scouter_types::{EvalRecord, EvalRecordSource};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 use tracing::{debug, error};
@@ -140,10 +140,10 @@ impl EvalRunner {
     fn extract_entity_uids(span: &TraceSpanRecord) -> HashSet<String> {
         let mut uids = HashSet::new();
         let collect_uid = |key: &str, value: &Value, out: &mut HashSet<String>| {
-            if key.starts_with(SCOUTER_ENTITY) {
-                if let Some(entity_uid) = value.as_str() {
-                    out.insert(entity_uid.to_string());
-                }
+            if key.starts_with(SCOUTER_ENTITY)
+                && let Some(entity_uid) = value.as_str()
+            {
+                out.insert(entity_uid.to_string());
             }
         };
 
@@ -660,15 +660,15 @@ fn compute_pass_rate(results: &EvalResults) -> (bool, f64) {
 mod tests {
     use super::*;
     use chrono::Utc;
-    use scouter_types::agent::utils::AssertionTasks;
     use scouter_types::agent::EvalScenario;
+    use scouter_types::agent::utils::AssertionTasks;
     use scouter_types::agent::{
         AgentEvalConfig, ComparisonOperator, EvaluationTaskType, SpanFilter, TraceAssertion,
         TraceAssertionTask,
     };
-    use scouter_types::span_capture::{drain_captured_spans, CAPTURE_BUFFER};
+    use scouter_types::span_capture::{CAPTURE_BUFFER, drain_captured_spans};
     use scouter_types::trace::{
-        Attribute, SpanEvent, SpanId, TraceId, SCOUTER_EVAL_SCENARIO_ID_ATTR, SCOUTER_QUEUE_EVENT,
+        Attribute, SCOUTER_EVAL_SCENARIO_ID_ATTR, SCOUTER_QUEUE_EVENT, SpanEvent, SpanId, TraceId,
     };
 
     fn empty_tasks() -> AssertionTasks {
@@ -868,9 +868,11 @@ mod tests {
         assert!(datasets.contains_key("agent_a"));
         assert_eq!(datasets["agent_a"].records.len(), 1);
 
-        assert!(datasets["agent_a"].records[0]
-            .tags
-            .contains(&"scouter.eval.scenario_id=s1".to_string()));
+        assert!(
+            datasets["agent_a"].records[0]
+                .tags
+                .contains(&"scouter.eval.scenario_id=s1".to_string())
+        );
 
         assert!(runner.scenarios.scenario_contexts.contains_key("s1"));
         let ctx = &runner.scenarios.scenario_contexts["s1"];

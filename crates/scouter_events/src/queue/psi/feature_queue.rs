@@ -3,8 +3,8 @@ use crate::queue::traits::FeatureQueue;
 use core::result::Result::Ok;
 use scouter_drift::psi::monitor::PsiMonitor;
 use scouter_types::{
-    psi::{Bin, BinType, PsiDriftProfile},
     Feature, MessageRecord, PsiRecord, QueueExt, ServerRecord, ServerRecords,
+    psi::{Bin, BinType, PsiDriftProfile},
 };
 use std::collections::HashMap;
 use tracing::{debug, error, info, instrument};
@@ -218,14 +218,14 @@ mod tests {
 
     use super::*;
     use ndarray::{Array, Axis};
+    use ndarray_rand::RandomExt;
     use ndarray_rand::rand_distr::Bernoulli;
     use ndarray_rand::rand_distr::Uniform;
-    use ndarray_rand::RandomExt;
     use scouter_drift::utils::CategoricalFeatureHelpers;
+    use scouter_types::EntityType;
     use scouter_types::psi::PsiAlertConfig;
     use scouter_types::psi::PsiDriftConfig;
-    use scouter_types::EntityType;
-    use scouter_types::{Features, DEFAULT_VERSION};
+    use scouter_types::{DEFAULT_VERSION, Features};
 
     #[test]
     fn test_feature_queue_insert_numeric() {
@@ -295,9 +295,8 @@ mod tests {
 
     #[test]
     fn test_feature_queue_insert_numeric_categorical() {
-        let numeric_cat_column =
-            Array::random((100, 1), Bernoulli::new(0.5).unwrap())
-                .mapv(|x| if x { 1.0 } else { 0.0 });
+        let numeric_cat_column = Array::random((100, 1), Bernoulli::new(0.5).unwrap())
+            .mapv(|x| if x { 1.0 } else { 0.0 });
         let uniform_column = Array::random((100, 1), Uniform::new(0.0, 20.0).unwrap());
         let array = ndarray::concatenate![Axis(1), numeric_cat_column, uniform_column];
 

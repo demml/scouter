@@ -2,7 +2,7 @@ use crate::error::EvaluationError;
 use crate::tasks::evaluator::FieldEvaluator;
 use potato_head::{ChatResponse, Provider};
 use scouter_types::agent::AgentAssertion;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tracing::error;
 
 /// Builds evaluation context from vendor LLM request/response data.
@@ -75,10 +75,10 @@ impl<'a> AgentContextBuilder<'a> {
                 let mut expected_iter = names.iter();
                 let mut current = expected_iter.next();
                 for actual_name in &actual {
-                    if let Some(exp) = current {
-                        if actual_name == exp {
-                            current = expected_iter.next();
-                        }
+                    if let Some(exp) = current
+                        && actual_name == exp
+                    {
+                        current = expected_iter.next();
                     }
                 }
                 Ok(json!(current.is_none()))

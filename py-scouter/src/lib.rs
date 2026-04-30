@@ -3,6 +3,7 @@ pub mod alert;
 pub mod bifrost;
 pub mod client;
 pub mod drift;
+pub mod env;
 pub mod evaluate;
 pub mod logging;
 pub mod mock;
@@ -19,6 +20,7 @@ use pyo3::prelude::*;
 #[pymodule]
 fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     bifrost::add_dataset_module(m)?;
+    env::add_env_module(m)?;
     queue::add_queue_module(m)?;
     logging::add_logging_module(m)?;
     client::add_client_module(m)?;

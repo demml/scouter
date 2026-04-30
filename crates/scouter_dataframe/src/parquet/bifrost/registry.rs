@@ -61,12 +61,11 @@ async fn build_or_create_registry(
     let table_url = build_registry_url(object_store)?;
 
     // For local filesystem, create dir if needed
-    if table_url.scheme() == "file" {
-        if let Ok(path) = table_url.to_file_path() {
-            if !path.exists() {
-                std::fs::create_dir_all(&path)?;
-            }
-        }
+    if table_url.scheme() == "file"
+        && let Ok(path) = table_url.to_file_path()
+        && !path.exists()
+    {
+        std::fs::create_dir_all(&path)?;
     }
 
     // Try to load existing table first
@@ -315,9 +314,11 @@ impl DatasetRegistry {
                     Ok(v) => v,
                     Err(e) => {
                         warn!(
-                                "Corrupt partition_columns JSON for {}: '{}' — defaulting to empty. Error: {}",
-                                fqn, partition_col.value(i), e
-                            );
+                            "Corrupt partition_columns JSON for {}: '{}' — defaulting to empty. Error: {}",
+                            fqn,
+                            partition_col.value(i),
+                            e
+                        );
                         vec![]
                     }
                 };

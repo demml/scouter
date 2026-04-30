@@ -6,48 +6,48 @@
 // This data can then be pulled inside of OpsML's UI for trace correlation and analysis.
 
 use crate::error::TraceError;
+use crate::exporter::SpanExporterNum;
 use crate::exporter::processor::BatchConfig;
 use crate::exporter::scouter::ScouterSpanExporter;
-use crate::exporter::SpanExporterNum;
-use crate::utils::py_obj_to_otel_keyvalue;
 use crate::utils::BoxedSpan;
+use crate::utils::py_obj_to_otel_keyvalue;
 use crate::utils::{
+    ActiveSpanInner, FunctionType, HashMapExtractor, HashMapInjector, SpanContextExt,
     capture_function_arguments, format_traceback, get_context_store, get_context_var,
     get_current_active_span, get_current_context_id, parse_span_kind, parse_status,
-    set_current_span, set_function_attributes, set_function_type_attribute, ActiveSpanInner,
-    FunctionType, HashMapExtractor, HashMapInjector, SpanContextExt,
+    set_current_span, set_function_attributes, set_function_type_attribute,
 };
 
 use chrono::{DateTime, Utc};
+use opentelemetry::InstrumentationScope;
 use opentelemetry::baggage::BaggageExt;
 use opentelemetry::propagation::TextMapPropagator;
 use opentelemetry::trace::Tracer as OTelTracer;
 use opentelemetry::trace::TracerProvider;
-use opentelemetry::InstrumentationScope;
 use opentelemetry::{
-    trace::{Span, SpanContext, Status, TraceContextExt, TraceState},
     Context as OtelContext, KeyValue,
+    trace::{Span, SpanContext, Status, TraceContextExt, TraceState},
 };
 use opentelemetry::{SpanId, TraceFlags, TraceId};
+use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::trace::SdkTracer;
 use opentelemetry_sdk::trace::SdkTracerProvider;
-use opentelemetry_sdk::Resource;
 use potato_head::create_uuid7;
+use pyo3::IntoPyObjectExt;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyTuple};
-use pyo3::IntoPyObjectExt;
-use scouter_events::queue::types::TransportConfig;
 use scouter_events::queue::ScouterQueue;
+use scouter_events::queue::types::TransportConfig;
 use scouter_settings::grpc::GrpcConfig;
 
 use scouter_types::SCOUTER_QUEUE_RECORD;
 use scouter_types::{
-    pyobject_to_otel_value, pyobject_to_tracing_json, EntityType, EvalRecord,
-    TraceId as ScouterTraceId, TraceSpanRecord, BAGGAGE_PREFIX, EXCEPTION_TRACEBACK,
+    BAGGAGE_PREFIX, EXCEPTION_TRACEBACK, EntityType, EvalRecord,
     SCOUTER_ACTIVE_ENTITY_UID_BAGGAGE_KEY, SCOUTER_ENTITY, SCOUTER_QUEUE_EVENT, SCOUTER_SCOPE,
     SCOUTER_SCOPE_DEFAULT, SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL,
-    SCOUTER_TRACING_OUTPUT, SPAN_ERROR, TRACE_START_TIME_KEY,
+    SCOUTER_TRACING_OUTPUT, SPAN_ERROR, TRACE_START_TIME_KEY, TraceId as ScouterTraceId,
+    TraceSpanRecord, pyobject_to_otel_value, pyobject_to_tracing_json,
 };
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
@@ -225,8 +225,11 @@ pub fn init_tracer(
         let transport_config = match transport_config {
             Some(config) => TransportConfig::from_py_config(config)?,
             None => {
-                let config = GrpcConfig::default();
-                TransportConfig::Grpc(config)
+                if std::env::var("SCOUTER_OFFLINE").as_deref() == Ok("1") {
+                    TransportConfig::offline_mock()
+                } else {
+                    TransportConfig::Grpc(GrpcConfig::default())
+                }
             }
         };
 
@@ -701,12 +704,12 @@ impl ActiveSpan {
             KeyValue::new("exception.escaped", escaped.to_string()),
         ];
 
-        if let Ok(tb_py) = exception.getattr("__traceback__") {
-            if !tb_py.is_none() {
-                let tb_unbound: Py<PyAny> = tb_py.unbind();
-                if let Ok(stacktrace) = format_traceback(py, &tb_unbound) {
-                    event_attrs.push(KeyValue::new("exception.stacktrace", stacktrace));
-                }
+        if let Ok(tb_py) = exception.getattr("__traceback__")
+            && !tb_py.is_none()
+        {
+            let tb_unbound: Py<PyAny> = tb_py.unbind();
+            if let Ok(stacktrace) = format_traceback(py, &tb_unbound) {
+                event_attrs.push(KeyValue::new("exception.stacktrace", stacktrace));
             }
         }
 
@@ -1683,11 +1686,7 @@ fn get_otel_global_span_context(py: Python<'_>) -> Option<SpanContext> {
     let current_span = trace_mod.call_method0("get_current_span").ok()?;
     let span_ctx = current_span.call_method0("get_span_context").ok()?;
     let sc = SpanContext::from_py_span_context(&span_ctx).ok()?;
-    if sc.is_valid() {
-        Some(sc)
-    } else {
-        None
-    }
+    if sc.is_valid() { Some(sc) } else { None }
 }
 
 /// Extract a `SpanContext` from a Python OTel `Context` object.
@@ -1703,11 +1702,7 @@ fn extract_otel_py_context(py: Python<'_>, context: &Bound<'_, PyAny>) -> Option
         .ok()?;
     let span_ctx = current_span.call_method0("get_span_context").ok()?;
     let sc = SpanContext::from_py_span_context(&span_ctx).ok()?;
-    if sc.is_valid() {
-        Some(sc)
-    } else {
-        None
-    }
+    if sc.is_valid() { Some(sc) } else { None }
 }
 
 #[pyfunction]

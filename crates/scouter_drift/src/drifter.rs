@@ -2,13 +2,13 @@ use crate::error::DriftError;
 use crate::{custom::CustomDrifter, genai::AgentDrifter, psi::PsiDrifter, spc::SpcDrifter};
 use chrono::{DateTime, Utc};
 use scouter_sql::sql::traits::{AlertSqlLogic, ProfileSqlLogic};
-use scouter_sql::{sql::schema::TaskRequest, PostgresClient};
+use scouter_sql::{PostgresClient, sql::schema::TaskRequest};
 use scouter_types::{AlertMap, DriftProfile};
 use sqlx::{Pool, Postgres};
 use std::result::Result;
 use std::result::Result::Ok;
 
-use tracing::{debug, error, info, instrument, span, Instrument, Level};
+use tracing::{Instrument, Level, debug, error, info, instrument, span};
 
 #[allow(clippy::enum_variant_names)]
 pub enum Drifter {
@@ -222,19 +222,19 @@ mod tests {
     use chrono::Duration;
     use rusty_logging::logger::{LogLevel, LoggingConfig, RustyLogger};
     use scouter_settings::DatabaseSettings;
-    use scouter_sql::sql::traits::{AgentDriftSqlLogic, EntitySqlLogic, SpcSqlLogic};
     use scouter_sql::PostgresClient;
+    use scouter_sql::sql::traits::{AgentDriftSqlLogic, EntitySqlLogic, SpcSqlLogic};
     use scouter_types::spc::SpcFeatureDriftProfile;
     use scouter_types::{
-        spc::{SpcAlertConfig, SpcAlertRule, SpcDriftConfig, SpcDriftProfile},
         AlertDispatchConfig, DriftAlertPaginationRequest,
+        spc::{SpcAlertConfig, SpcAlertRule, SpcDriftConfig, SpcDriftProfile},
     };
     use scouter_types::{BoxedEvalRecord, DriftType, ProfileArgs, SpcRecord};
     use semver::Version;
-    use sqlx::{postgres::Postgres, Pool};
+    use sqlx::{Pool, postgres::Postgres};
     use std::collections::HashMap;
 
-    use potato_head::mock::{create_score_prompt, LLMTestServer};
+    use potato_head::mock::{LLMTestServer, create_score_prompt};
     use scouter_types::agent::{
         AgentAlertConfig, AgentEvalConfig, AgentEvalProfile, AssertionTask, ComparisonOperator,
         EvaluationTaskType, EvaluationTasks, LLMJudgeTask,

@@ -1,14 +1,14 @@
 #![allow(clippy::useless_conversion)]
-use crate::data_utils::{convert_array_type, DataConverterEnum};
+use crate::data_utils::{DataConverterEnum, convert_array_type};
 use ndarray_stats::MaybeNan;
 use num_traits::{Float, FromPrimitive, Num};
-use numpy::ndarray::ArrayView2;
-use numpy::ndarray::{concatenate, Axis};
 use numpy::PyReadonlyArray2;
+use numpy::ndarray::ArrayView2;
+use numpy::ndarray::{Axis, concatenate};
 use pyo3::prelude::*;
 use scouter_profile::error::DataProfileError;
 use scouter_profile::{
-    compute_feature_correlations, DataProfile, FeatureProfile, NumProfiler, StringProfiler,
+    DataProfile, FeatureProfile, NumProfiler, StringProfiler, compute_feature_correlations,
 };
 use scouter_types::DataType;
 use std::collections::BTreeMap;

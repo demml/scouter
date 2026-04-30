@@ -69,6 +69,7 @@ from ._scouter import (  # dataset; genai
     RustyLogger,
     Scott,
     ScouterClient,
+    ScouterEnv,
     ScouterQueue,
     SpanFilter,
     SpanStatus,
@@ -174,6 +175,7 @@ __all__ = [
     "SpanStatus",
     "AggregationType",
     "SpanFilter",
+    "ScouterEnv",
     # service map
     "service_map",
     "ServiceConnectionRecord",

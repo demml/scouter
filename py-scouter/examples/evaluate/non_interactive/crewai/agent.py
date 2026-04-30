@@ -1,4 +1,11 @@
+# need to turin of E402 - we need to call set_offline before importing the shared config and service builder
+# ruff: noqa: E402
+# pylint: disable=wrong-import-position
 from __future__ import annotations
+
+from scouter import ScouterEnv
+
+ScouterEnv.set_offline()
 
 import os
 from typing import Any, Callable

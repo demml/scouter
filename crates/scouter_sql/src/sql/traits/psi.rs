@@ -2,18 +2,18 @@ use crate::sql::query::Queries;
 use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use scouter_dataframe::parquet::{dataframe_to_psi_drift_features, ParquetDataFrame};
+use scouter_dataframe::parquet::{ParquetDataFrame, dataframe_to_psi_drift_features};
 
 use crate::sql::error::SqlError;
 use itertools::multiunzip;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::psi::FeatureDistributions;
 use scouter_types::{
-    psi::{FeatureBinProportionResult, FeatureDistributionRow},
     DriftRequest, PsiRecord, RecordType,
+    psi::{FeatureBinProportionResult, FeatureDistributionRow},
 };
 
-use sqlx::{postgres::PgQueryResult, Pool, Postgres};
+use sqlx::{Pool, Postgres, postgres::PgQueryResult};
 use std::collections::BTreeMap;
 use tracing::{debug, instrument};
 
@@ -195,20 +195,20 @@ pub trait PsiSqlLogic {
         }
 
         // Get archived records if available
-        if let Some((archive_begin, archive_end)) = timestamps.archived_range {
-            if let Some(archived_minutes) = timestamps.archived_minutes {
-                let archived_results = Self::get_archived_records(
-                    params,
-                    archive_begin,
-                    archive_end,
-                    archived_minutes,
-                    storage_settings,
-                    entity_id,
-                )
-                .await?;
+        if let Some((archive_begin, archive_end)) = timestamps.archived_range
+            && let Some(archived_minutes) = timestamps.archived_minutes
+        {
+            let archived_results = Self::get_archived_records(
+                params,
+                archive_begin,
+                archive_end,
+                archived_minutes,
+                storage_settings,
+                entity_id,
+            )
+            .await?;
 
-                Self::merge_feature_results(archived_results, &mut feature_map)?;
-            }
+            Self::merge_feature_results(archived_results, &mut feature_map)?;
         }
         Ok(feature_map.into_values().collect())
     }

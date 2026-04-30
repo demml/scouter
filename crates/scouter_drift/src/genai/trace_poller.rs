@@ -3,10 +3,10 @@ use chrono::{DateTime, Duration, Utc};
 use scouter_dataframe::parquet::tracing::dispatch::{
     DispatchCandidate, DispatchCursor, DispatchEventType, TraceDispatchRecord, TraceDispatchService,
 };
+use scouter_sql::PostgresClient;
 use scouter_sql::sql::aggregator::get_trace_dispatch_service;
 use scouter_sql::sql::traits::{AgentDriftSqlLogic, SyntheticInsertOutcome};
 use scouter_sql::sql::utils::UuidBytea;
-use scouter_sql::PostgresClient;
 use sqlx::{Pool, Postgres};
 use std::collections::{HashMap, HashSet};
 use tokio::sync::RwLock;

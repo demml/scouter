@@ -4,16 +4,16 @@ use crate::utils::{
     collect_and_align_results, post_process_aligned_results,
     spawn_evaluation_tasks_with_embeddings, spawn_evaluation_tasks_without_embeddings,
 };
+use pyo3::IntoPyObjectExt;
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PySlice};
-use pyo3::IntoPyObjectExt;
 use scouter_state::app_state;
+use scouter_types::EvalRecord;
+use scouter_types::PyHelperFuncs;
 use scouter_types::agent::{
     AgentAssertionTask, AgentEvalProfile, AssertionTask, LLMJudgeTask, TraceAssertionTask,
 };
 use scouter_types::trace::sql::TraceSpan;
-use scouter_types::EvalRecord;
-use scouter_types::PyHelperFuncs;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;

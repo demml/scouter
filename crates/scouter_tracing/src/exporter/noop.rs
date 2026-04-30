@@ -1,10 +1,10 @@
 use crate::exporter::ExporterType;
 use crate::exporter::SpanExporterBuilder;
 use crate::exporter::TraceError;
+use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::error::OTelSdkResult;
 use opentelemetry_sdk::trace::SpanData;
 use opentelemetry_sdk::trace::SpanExporter;
-use opentelemetry_sdk::Resource;
 use opentelemetry_stdout::SpanExporter as OTelStdoutSpanExporter;
 #[derive(Debug, Default)]
 pub struct NoopSpanExporter {

@@ -76,3 +76,12 @@ example.tracing.orchestrator:
 
 example.tracing:
 	bash examples/tracing/run_example.sh
+
+example.eval.non_interactive.openai:
+	uv run python -m examples.evaluate.non_interactive.openai.evaluate
+
+example.eval.non_interactive.google:
+	uv run python -m examples.evaluate.non_interactive.google.evaluate
+
+example.eval.non_interactive.crewai:
+	uv run python -m examples.evaluate.non_interactive.crewai.evaluate

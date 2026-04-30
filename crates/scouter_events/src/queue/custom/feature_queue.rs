@@ -4,7 +4,7 @@ use core::result::Result::Ok;
 use scouter_types::MessageRecord;
 use scouter_types::Metric;
 use scouter_types::QueueExt;
-use scouter_types::{custom::CustomDriftProfile, CustomMetricRecord, ServerRecord, ServerRecords};
+use scouter_types::{CustomMetricRecord, ServerRecord, ServerRecords, custom::CustomDriftProfile};
 use std::collections::HashMap;
 use tracing::{error, instrument};
 pub struct CustomMetricFeatureQueue {

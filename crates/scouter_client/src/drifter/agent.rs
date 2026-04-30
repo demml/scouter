@@ -1,8 +1,8 @@
 use scouter_drift::error::DriftError;
 use scouter_evaluate::evaluate::AgentEvaluator;
 use scouter_state::app_state;
-use scouter_types::agent::{AgentEvalProfile, EvalSet};
 use scouter_types::EvalRecord;
+use scouter_types::agent::{AgentEvalProfile, EvalSet};
 use std::sync::Arc;
 /// Using "ClientAgentDrifter" to avoid confusion with the server-side GenAIDrifter
 pub struct ClientAgentDrifter {}

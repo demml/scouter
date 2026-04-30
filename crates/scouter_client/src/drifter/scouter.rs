@@ -2,19 +2,19 @@ use crate::data_utils::DataConverterEnum;
 use crate::drifter::{
     agent::ClientAgentDrifter, custom::CustomDrifter, psi::PsiDrifter, spc::SpcDrifter,
 };
+use pyo3::IntoPyObjectExt;
 use pyo3::prelude::*;
 use pyo3::types::PyList;
-use pyo3::IntoPyObjectExt;
 use scouter_drift::error::DriftError;
 use scouter_drift::spc::SpcDriftMap;
 use scouter_types::agent::EvalResultSet;
 use scouter_types::spc::SpcDriftProfile;
 use scouter_types::{
+    DataType, DriftProfile, DriftType, EvalRecord,
     agent::{AgentEvalConfig, AgentEvalProfile},
     custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
     psi::{PsiDriftConfig, PsiDriftMap, PsiDriftProfile},
     spc::SpcDriftConfig,
-    DataType, DriftProfile, DriftType, EvalRecord,
 };
 use std::fmt::Debug;
 use std::sync::Arc;

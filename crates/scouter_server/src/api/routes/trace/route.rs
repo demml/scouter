@@ -2,10 +2,10 @@ use crate::api::state::AppState;
 
 use anyhow::{Context, Result};
 use axum::{
+    Json, Router,
     extract::{Query, State},
     http::StatusCode,
     routing::{get, post},
-    Json, Router,
 };
 
 use axum::body::Bytes;
@@ -16,14 +16,14 @@ use opentelemetry_proto::tonic::collector::trace::v1::{
     ExportTraceServiceRequest, ExportTraceServiceResponse,
 };
 use prost::Message;
-use scouter_sql::sql::traits::{TagSqlLogic, TraceSqlLogic};
 use scouter_sql::PostgresClient;
+use scouter_sql::sql::traits::{TagSqlLogic, TraceSqlLogic};
 use scouter_types::{
-    contracts::ScouterServerError, sql::TraceFilters, SpansFromTagsRequest, Tag,
-    TraceBaggageResponse, TraceFacetsResponse, TraceId, TraceMetricsRequest, TraceMetricsResponse,
-    TracePaginationResponse, TraceRequest, TraceServerRecord, TraceSpansResponse,
+    SpansFromTagsRequest, Tag, TraceBaggageResponse, TraceFacetsResponse, TraceId,
+    TraceMetricsRequest, TraceMetricsResponse, TracePaginationResponse, TraceRequest,
+    TraceServerRecord, TraceSpansResponse, contracts::ScouterServerError, sql::TraceFilters,
 };
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 use tracing::instrument;
 use tracing::{debug, error};
@@ -32,35 +32,35 @@ fn validate_duration_bounds(
     min: Option<i64>,
     max: Option<i64>,
 ) -> Result<(), (StatusCode, Json<ScouterServerError>)> {
-    if let Some(v) = min {
-        if v < 0 {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                Json(ScouterServerError::new(
-                    "duration_min_ms must be >= 0".to_string(),
-                )),
-            ));
-        }
+    if let Some(v) = min
+        && v < 0
+    {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ScouterServerError::new(
+                "duration_min_ms must be >= 0".to_string(),
+            )),
+        ));
     }
-    if let Some(v) = max {
-        if v < 0 {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                Json(ScouterServerError::new(
-                    "duration_max_ms must be >= 0".to_string(),
-                )),
-            ));
-        }
+    if let Some(v) = max
+        && v < 0
+    {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ScouterServerError::new(
+                "duration_max_ms must be >= 0".to_string(),
+            )),
+        ));
     }
-    if let (Some(mn), Some(mx)) = (min, max) {
-        if mn > mx {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                Json(ScouterServerError::new(
-                    "duration_min_ms must be <= duration_max_ms".to_string(),
-                )),
-            ));
-        }
+    if let (Some(mn), Some(mx)) = (min, max)
+        && mn > mx
+    {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ScouterServerError::new(
+                "duration_min_ms must be <= duration_max_ms".to_string(),
+            )),
+        ));
     }
     Ok(())
 }
@@ -487,7 +487,9 @@ pub async fn v1_otel_traces(
         error!("Failed to decode OTLP protobuf body: {:?}", e);
         (
             StatusCode::BAD_REQUEST,
-            Json(ScouterServerError::new(format!("Invalid protobuf body: {e}"))),
+            Json(ScouterServerError::new(format!(
+                "Invalid protobuf body: {e}"
+            ))),
         )
     })?;
 

@@ -1,12 +1,12 @@
 use crate::error::TraceError;
+use crate::exporter::ExporterType;
 use crate::exporter::processor::BatchConfig;
 use crate::exporter::processor::EnrichSpanWithBaggageProcessor;
 use crate::exporter::scouter::ScouterSpanExporter;
-use crate::exporter::ExporterType;
+use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::trace::BatchSpanProcessor;
 use opentelemetry_sdk::trace::Sampler;
 use opentelemetry_sdk::trace::SpanExporter;
-use opentelemetry_sdk::Resource;
 use tracing::debug;
 /// Common interface for all span exporter builders
 pub trait SpanExporterBuilder {

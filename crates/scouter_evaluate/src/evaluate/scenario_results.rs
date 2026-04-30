@@ -9,8 +9,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tabled::Tabled;
 use tabled::{
-    settings::{object::Rows, Alignment, Color, Format, Style},
     Table,
+    settings::{Alignment, Color, Format, Style, object::Rows},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

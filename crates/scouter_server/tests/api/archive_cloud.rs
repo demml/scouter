@@ -1,10 +1,10 @@
 use std::time::Duration;
 // storage integration tests for cloud storage
-use crate::common::{setup_test, TestHelper, NAME, SPACE, VERSION};
+use crate::common::{NAME, SPACE, TestHelper, VERSION, setup_test};
 
 use axum::{
     body::Body,
-    http::{header, Request, StatusCode},
+    http::{Request, StatusCode, header},
 };
 use http_body_util::BodyExt;
 use scouter_dataframe::parquet::dataframe::ParquetDataFrame;
@@ -12,8 +12,8 @@ use scouter_drift::psi::PsiMonitor;
 use scouter_server::api::archive::archive_old_data;
 use scouter_types::contracts::DriftRequest;
 use scouter_types::{
-    psi::{BinnedPsiFeatureMetrics, PsiAlertConfig, PsiDriftConfig},
     RecordType,
+    psi::{BinnedPsiFeatureMetrics, PsiAlertConfig, PsiDriftConfig},
 };
 use sqlx::types::chrono::Utc;
 use tokio::time::sleep;

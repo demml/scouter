@@ -3,10 +3,10 @@ use crate::producer::kafka::KafkaConfig;
 use crate::producer::mock::MockConfig;
 use crate::producer::rabbitmq::RabbitMQConfig;
 use crate::producer::redis::RedisConfig;
-use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
-use scouter_settings::grpc::GrpcConfig;
+use pyo3::prelude::*;
 use scouter_settings::HttpConfig;
+use scouter_settings::grpc::GrpcConfig;
 use scouter_types::TransportType;
 use tracing::error;
 use tracing::instrument;
@@ -43,6 +43,12 @@ pub enum TransportConfig {
 }
 
 impl TransportConfig {
+    pub fn offline_mock() -> Self {
+        TransportConfig::Mock(MockConfig {
+            transport_type: TransportType::Mock,
+        })
+    }
+
     /// Create a TransportConfig from a python config object.
     /// Function will extract the transport type and then extract the corresponding config
     /// before returning the TransportConfig.
@@ -54,6 +60,10 @@ impl TransportConfig {
     /// * `TransportConfig` - TransportConfig object
     #[instrument(skip_all)]
     pub fn from_py_config(config: &Bound<'_, PyAny>) -> PyResult<Self> {
+        if std::env::var("SCOUTER_OFFLINE").as_deref() == Ok("1") {
+            return Ok(Self::offline_mock());
+        }
+
         let transport_type = config.getattr("transport_type")?;
 
         let extracted_type = transport_type.extract::<TransportType>().map_err(|e| {

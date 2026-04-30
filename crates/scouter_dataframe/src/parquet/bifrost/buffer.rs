@@ -1,7 +1,7 @@
 use crate::parquet::bifrost::engine::TableCommand;
 use arrow_array::RecordBatch;
 use tokio::sync::{mpsc, oneshot};
-use tokio::time::{interval, Duration};
+use tokio::time::{Duration, interval};
 use tracing::{error, info};
 
 /// Per-table buffer actor that accumulates `RecordBatch` objects and flushes

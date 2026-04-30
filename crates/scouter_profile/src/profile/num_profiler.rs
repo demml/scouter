@@ -3,10 +3,10 @@ use crate::profile::stats::compute_feature_correlations;
 use crate::profile::types::DataProfile;
 use crate::profile::types::{Distinct, FeatureProfile, Histogram, NumericStats, Quantiles};
 use ndarray::prelude::*;
-use ndarray::{aview1, Axis};
+use ndarray::{Axis, aview1};
 use ndarray_stats::MaybeNan;
-use ndarray_stats::{interpolate::Nearest, QuantileExt};
-use noisy_float::types::{n64, N64};
+use ndarray_stats::{QuantileExt, interpolate::Nearest};
+use noisy_float::types::{N64, n64};
 use num_traits::ToPrimitive;
 use num_traits::{Float, FromPrimitive, Num};
 use rayon::prelude::*;
@@ -457,9 +457,9 @@ mod tests {
 
     use super::*;
     use ndarray::Array;
-    use ndarray::{concatenate, Axis};
-    use ndarray_rand::rand_distr::Uniform;
+    use ndarray::{Axis, concatenate};
     use ndarray_rand::RandomExt;
+    use ndarray_rand::rand_distr::Uniform;
 
     use approx::relative_eq;
 

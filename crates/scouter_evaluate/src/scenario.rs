@@ -2,7 +2,7 @@ use crate::agent::EvalDataset;
 use crate::error::EvaluationError;
 use crate::evaluate::scenario_results::{EvalMetrics, ScenarioResult};
 use crate::evaluate::types::EvalResults;
-use potato_head::{create_uuid7, PyHelperFuncs};
+use potato_head::{PyHelperFuncs, create_uuid7};
 use pyo3::prelude::*;
 use scouter_types::agent::utils::AssertionTasks;
 use scouter_types::agent::{EvalScenario, TasksFile};

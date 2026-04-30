@@ -19,7 +19,7 @@ use datafusion::scalar::ScalarValue;
 use deltalake::{DeltaTable, DeltaTableBuilder, TableProperty};
 use std::sync::Arc;
 use tokio::sync::oneshot;
-use tokio::sync::{mpsc, RwLock as AsyncRwLock};
+use tokio::sync::{RwLock as AsyncRwLock, mpsc};
 use tracing::{error, info, instrument};
 use url::Url;
 

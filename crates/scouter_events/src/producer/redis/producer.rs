@@ -2,9 +2,9 @@
 pub mod redis_producer {
     use crate::error::EventError;
     use crate::producer::redis::RedisConfig;
-    use redis::aio::{MultiplexedConnection, PubSub};
     use redis::AsyncCommands;
     use redis::Client;
+    use redis::aio::{MultiplexedConnection, PubSub};
     use scouter_types::MessageRecord;
     use std::sync::Arc;
     use tokio::sync::Mutex;

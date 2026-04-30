@@ -8,20 +8,20 @@ use potato_head::create_uuid7;
 use scouter_dataframe::parquet::BinnedMetricsExtractor;
 use scouter_dataframe::parquet::ParquetDataFrame;
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::agent::profile::AgentEvalProfile;
-use scouter_types::contracts::DriftRequest;
 use scouter_types::AgentEvalWorkflowPaginationResponse;
 use scouter_types::AgentEvalWorkflowResult;
 use scouter_types::BoxedEvalRecord;
 use scouter_types::EvalRecord;
 use scouter_types::EvalTaskResult;
 use scouter_types::Status;
+use scouter_types::agent::profile::AgentEvalProfile;
+use scouter_types::contracts::DriftRequest;
 use scouter_types::{
     BinnedMetrics, EvalRecordPaginationRequest, EvalRecordPaginationResponse, EvalRecordSource,
     RecordCursor, RecordType, TraceId,
 };
 use sqlx::types::Json;
-use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
+use sqlx::{Pool, Postgres, Row, postgres::PgQueryResult};
 use std::collections::{HashMap, HashSet};
 use tracing::error;
 use tracing::{debug, instrument};
@@ -588,19 +588,19 @@ pub trait AgentDriftSqlLogic {
             Self::merge_feature_results(current_results, &mut custom_metric_map)?;
         }
 
-        if let Some((archive_begin, archive_end)) = timestamps.archived_range {
-            if let Some(archived_minutes) = timestamps.archived_minutes {
-                let archived_results = Self::get_archived_task_records(
-                    params,
-                    archive_begin,
-                    archive_end,
-                    archived_minutes,
-                    storage_settings,
-                    entity_id,
-                )
-                .await?;
-                Self::merge_feature_results(archived_results, &mut custom_metric_map)?;
-            }
+        if let Some((archive_begin, archive_end)) = timestamps.archived_range
+            && let Some(archived_minutes) = timestamps.archived_minutes
+        {
+            let archived_results = Self::get_archived_task_records(
+                params,
+                archive_begin,
+                archive_end,
+                archived_minutes,
+                storage_settings,
+                entity_id,
+            )
+            .await?;
+            Self::merge_feature_results(archived_results, &mut custom_metric_map)?;
         }
 
         Ok(custom_metric_map)
@@ -641,19 +641,19 @@ pub trait AgentDriftSqlLogic {
             Self::merge_feature_results(current_results, &mut custom_metric_map)?;
         }
 
-        if let Some((archive_begin, archive_end)) = timestamps.archived_range {
-            if let Some(archived_minutes) = timestamps.archived_minutes {
-                let archived_results = Self::get_archived_workflow_records(
-                    params,
-                    archive_begin,
-                    archive_end,
-                    archived_minutes,
-                    storage_settings,
-                    entity_id,
-                )
-                .await?;
-                Self::merge_feature_results(archived_results, &mut custom_metric_map)?;
-            }
+        if let Some((archive_begin, archive_end)) = timestamps.archived_range
+            && let Some(archived_minutes) = timestamps.archived_minutes
+        {
+            let archived_results = Self::get_archived_workflow_records(
+                params,
+                archive_begin,
+                archive_end,
+                archived_minutes,
+                storage_settings,
+                entity_id,
+            )
+            .await?;
+            Self::merge_feature_results(archived_results, &mut custom_metric_map)?;
         }
 
         debug!(

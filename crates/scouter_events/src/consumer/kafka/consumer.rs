@@ -54,10 +54,10 @@ pub mod kafka_consumer {
                                         MessageRecord::TraceServerRecord(r) => process_trace_record(id, r, &db_pool).await,
                                         MessageRecord::TagServerRecord(r) => process_tag_record(id, r, &db_pool).await,
                                     };
-                                    if success {
-                                        if let Err(e) = consumer.commit_message(&msg, CommitMode::Async) {
-                                            error!("Worker {}: Failed to commit message: {:?}", id, e);
-                                        }
+                                    if success
+                                        && let Err(e) = consumer.commit_message(&msg, CommitMode::Async)
+                                    {
+                                        error!("Worker {}: Failed to commit message: {:?}", id, e);
                                     }
                                 }
                             }

@@ -2,11 +2,11 @@ use arrow::array::{Date32Array, Float64Array, StringArray, TimestampMicrosecondA
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow_array::RecordBatch;
 use chrono::{Datelike, Utc};
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use scouter_dataframe::parquet::bifrost::manager::DatasetEngineManager;
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::dataset::{DatasetFingerprint, DatasetNamespace, DatasetRegistration};
 use scouter_types::StorageType;
+use scouter_types::dataset::{DatasetFingerprint, DatasetNamespace, DatasetRegistration};
 use std::hint::black_box;
 use std::sync::Arc;
 use std::time::Duration;

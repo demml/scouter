@@ -1,14 +1,14 @@
 use crate::api::state::AppState;
 
 use anyhow::{Context, Result};
-use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
-use scouter_sql::sql::traits::AlertSqlLogic;
+use axum::{Json, Router, extract::State, http::StatusCode, routing::post};
 use scouter_sql::PostgresClient;
+use scouter_sql::sql::traits::AlertSqlLogic;
 use scouter_types::contracts::{
     DriftAlertPaginationRequest, DriftAlertPaginationResponse, ScouterServerError,
     UpdateAlertResponse, UpdateAlertStatus,
 };
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 use tracing::error;
 /// Retrieve drift alerts from the database

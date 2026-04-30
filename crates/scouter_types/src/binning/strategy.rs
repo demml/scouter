@@ -3,7 +3,7 @@ use crate::binning::quantile::QuantileBinning;
 use crate::error::TypeError;
 use ndarray::{Array1, ArrayView1};
 use num_traits::{Float, FromPrimitive};
-use pyo3::{pyclass, Bound, IntoPyObjectExt, PyAny, PyResult, Python};
+use pyo3::{Bound, IntoPyObjectExt, PyAny, PyResult, Python, pyclass};
 use serde::{Deserialize, Serialize};
 
 #[pyclass(from_py_object)]

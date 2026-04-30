@@ -1,11 +1,11 @@
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::sync::RwLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use pyo3::prelude::*;
 use scouter_events::queue::bus::{Task, TaskState};
 use scouter_events::queue::dataset::{
-    spawn_dataset_event_handler, start_dataset_background_task, DatasetEvent, DatasetQueue,
+    DatasetEvent, DatasetQueue, spawn_dataset_event_handler, start_dataset_background_task,
 };
 use scouter_events::queue::traits::queue::{wait_for_background_task, wait_for_event_task};
 use scouter_settings::grpc::GrpcConfig;

@@ -1,7 +1,7 @@
 use crate::api::routes::user::utils::get_user;
 use crate::api::state::AppState;
-use scouter_sql::sql::traits::UserSqlLogic;
 use scouter_sql::PostgresClient;
+use scouter_sql::sql::traits::UserSqlLogic;
 use scouter_tonic::{
     AuthServiceServer, LoginRequest, LoginResponse, RefreshTokenRequest, RefreshTokenResponse,
     ValidateTokenRequest, ValidateTokenResponse,

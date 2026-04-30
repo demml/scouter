@@ -4,7 +4,7 @@ use crate::sql::query::Queries;
 use async_trait::async_trait;
 use itertools::multiunzip;
 use scouter_types::{Tag, TagRecord};
-use sqlx::{postgres::PgQueryResult, types::Json, Pool, Postgres};
+use sqlx::{Pool, Postgres, postgres::PgQueryResult, types::Json};
 use std::result::Result::Ok;
 use tracing::error;
 

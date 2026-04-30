@@ -6,7 +6,7 @@ use chrono::{DateTime, Utc};
 use itertools::multiunzip;
 use scouter_types::sql::TraceSpan;
 use scouter_types::{TraceBaggageRecord, TraceId};
-use sqlx::{postgres::PgQueryResult, types::Json, Pool, Postgres};
+use sqlx::{Pool, Postgres, postgres::PgQueryResult, types::Json};
 use std::collections::HashMap;
 use tracing::error;
 #[async_trait]

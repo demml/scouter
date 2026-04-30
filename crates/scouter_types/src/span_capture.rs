@@ -1,8 +1,8 @@
-use crate::trace::{TraceSpanRecord, SCOUTER_EVAL_SCENARIO_ID_ATTR};
 use crate::TraceId as ScouterTraceId;
+use crate::trace::{SCOUTER_EVAL_SCENARIO_ID_ATTR, TraceSpanRecord};
 use std::collections::{HashMap, HashSet};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::RwLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 pub const CAPTURE_BUFFER_MAX: usize = 20_000;
 
@@ -61,12 +61,11 @@ pub fn get_spans_grouped_by_scenario_id(
     let mut trace_to_scenario: HashMap<ScouterTraceId, String> = HashMap::new();
     for span in buf.iter() {
         for attr in &span.attributes {
-            if attr.key == SCOUTER_EVAL_SCENARIO_ID_ATTR {
-                if let Some(sid) = attr.value.as_str() {
-                    if scenario_ids.contains(sid) {
-                        trace_to_scenario.insert(span.trace_id, sid.to_string());
-                    }
-                }
+            if attr.key == SCOUTER_EVAL_SCENARIO_ID_ATTR
+                && let Some(sid) = attr.value.as_str()
+                && scenario_ids.contains(sid)
+            {
+                trace_to_scenario.insert(span.trace_id, sid.to_string());
                 break;
             }
         }

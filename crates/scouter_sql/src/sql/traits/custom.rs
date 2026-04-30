@@ -1,9 +1,9 @@
+use crate::PostgresClient;
 use crate::sql::error::SqlError;
 use crate::sql::query::Queries;
 use crate::sql::schema::BinnedMetricWrapper;
 use crate::sql::traits::EntitySqlLogic;
 use crate::sql::utils::split_custom_interval;
-use crate::PostgresClient;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use itertools::multiunzip;
@@ -12,7 +12,7 @@ use scouter_dataframe::parquet::ParquetDataFrame;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::contracts::DriftRequest;
 use scouter_types::{BinnedMetrics, CustomMetricRecord, RecordType};
-use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
+use sqlx::{Pool, Postgres, Row, postgres::PgQueryResult};
 use std::collections::HashMap;
 use tracing::{debug, instrument};
 
@@ -205,19 +205,19 @@ pub trait CustomMetricSqlLogic {
 
         // get archived data
 
-        if let Some((archive_begin, archive_end)) = timestamps.archived_range {
-            if let Some(archived_minutes) = timestamps.archived_minutes {
-                let archived_results = Self::get_archived_records(
-                    params,
-                    archive_begin,
-                    archive_end,
-                    archived_minutes,
-                    storage_settings,
-                    entity_id,
-                )
-                .await?;
-                Self::merge_feature_results(archived_results, &mut custom_metric_map)?;
-            }
+        if let Some((archive_begin, archive_end)) = timestamps.archived_range
+            && let Some(archived_minutes) = timestamps.archived_minutes
+        {
+            let archived_results = Self::get_archived_records(
+                params,
+                archive_begin,
+                archive_end,
+                archived_minutes,
+                storage_settings,
+                entity_id,
+            )
+            .await?;
+            Self::merge_feature_results(archived_results, &mut custom_metric_map)?;
         }
 
         Ok(custom_metric_map)

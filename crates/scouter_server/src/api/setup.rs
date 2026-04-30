@@ -6,37 +6,37 @@ use anyhow::{Context, Result as AnyhowResult};
 use flume::Sender;
 use password_auth::generate_hash;
 use scouter_auth::util::generate_recovery_codes_with_hashes;
+use scouter_dataframe::EvalScenarioService;
 use scouter_dataframe::parquet::bifrost::manager::DatasetEngineManager;
 use scouter_dataframe::parquet::tracing::dispatch::TraceDispatchService;
 use scouter_dataframe::parquet::tracing::genai::GenAiSpanService;
-use scouter_dataframe::parquet::tracing::service::{init_trace_span_service, TraceSpanService};
+use scouter_dataframe::parquet::tracing::service::{TraceSpanService, init_trace_span_service};
 use scouter_dataframe::parquet::tracing::summary::TraceSummaryService;
-use scouter_dataframe::EvalScenarioService;
 use scouter_settings::{
-    polling::AgentPollerSettings, DatabaseSettings, PollingSettings, ScouterServerConfig,
-    TraceEvalPollerSettings,
+    DatabaseSettings, PollingSettings, ScouterServerConfig, TraceEvalPollerSettings,
+    polling::AgentPollerSettings,
 };
+use scouter_sql::PostgresClient;
 use scouter_sql::sql::schema::User;
 use scouter_sql::sql::traits::UserSqlLogic;
-use scouter_sql::PostgresClient;
 use sqlx::{Pool, Postgres};
 use std::sync::Arc;
 use tracing::{debug, info, instrument};
 use tracing_subscriber::fmt::time::UtcTime;
 use tracing_subscriber::prelude::*;
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt};
 
 #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
 use scouter_settings::KafkaSettings;
 
 #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
 use scouter_events::consumer::kafka::{
-    consumer::kafka_consumer::create_kafka_consumer, KafkaConsumerManager,
+    KafkaConsumerManager, consumer::kafka_consumer::create_kafka_consumer,
 };
 
 #[cfg(feature = "rabbitmq")]
 use scouter_events::consumer::rabbitmq::{
-    consumer::rabbitmq_consumer::create_rabbitmq_consumer, RabbitMQConsumerManager,
+    RabbitMQConsumerManager, consumer::rabbitmq_consumer::create_rabbitmq_consumer,
 };
 
 #[cfg(feature = "rabbitmq")]

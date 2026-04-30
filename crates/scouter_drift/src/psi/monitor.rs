@@ -1,8 +1,8 @@
 use crate::error::DriftError;
 use crate::utils::CategoricalFeatureHelpers;
 use itertools::Itertools;
-use ndarray::prelude::*;
 use ndarray::Axis;
+use ndarray::prelude::*;
 use num_traits::{Float, FromPrimitive};
 use rayon::prelude::*;
 use scouter_types::psi::{
@@ -370,8 +370,8 @@ impl PsiMonitor {
 mod tests {
     use super::*;
     use ndarray::Array;
-    use ndarray_rand::rand_distr::Uniform;
     use ndarray_rand::RandomExt;
+    use ndarray_rand::rand_distr::Uniform;
 
     #[test]
     fn test_check_features_all_exist() {
@@ -595,7 +595,10 @@ mod tests {
         assert!(profile.is_err());
         match profile.unwrap_err() {
             DriftError::EmptyArrayError(msg) => {
-                assert_eq!(msg, "PSI drift profile creation failure, unable to create psi feature drift profile for feature_1");
+                assert_eq!(
+                    msg,
+                    "PSI drift profile creation failure, unable to create psi feature drift profile for feature_1"
+                );
             }
             _ => panic!("Expected EmptyArrayError"),
         }

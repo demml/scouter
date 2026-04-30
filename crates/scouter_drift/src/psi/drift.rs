@@ -9,13 +9,13 @@ pub mod psi_drifter {
     use scouter_dispatch::AlertDispatcher;
     use scouter_settings::ObjectStorageSettings;
     use scouter_sql::sql::traits::PsiSqlLogic;
-    use scouter_sql::{sql::cache::entity_cache, PostgresClient};
+    use scouter_sql::{PostgresClient, sql::cache::entity_cache};
+    use scouter_types::AlertMap;
     use scouter_types::psi::{
         BinnedPsiFeatureMetrics, BinnedPsiMetric, FeatureDistributions, PsiDriftProfile,
         PsiFeatureAlert, PsiFeatureAlerts, PsiFeatureDriftProfile,
     };
-    use scouter_types::AlertMap;
-    use scouter_types::{contracts::DriftRequest, ProfileBaseArgs};
+    use scouter_types::{ProfileBaseArgs, contracts::DriftRequest};
 
     use sqlx::{Pool, Postgres};
     use std::collections::{BTreeMap, HashMap};
@@ -322,8 +322,8 @@ pub mod psi_drifter {
     mod tests {
         use super::*;
         use ndarray::Array;
-        use ndarray_rand::rand_distr::Uniform;
         use ndarray_rand::RandomExt;
+        use ndarray_rand::rand_distr::Uniform;
         use scouter_types::psi::{Bin, BinType, PsiNormalThreshold, PsiThreshold};
         use scouter_types::psi::{
             DistributionData, FeatureDistributions, PsiAlertConfig, PsiDriftConfig,

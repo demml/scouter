@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use crate::error::{EventError, PyEventError};
+use opentelemetry::Context as OtelContext;
 use opentelemetry::baggage::BaggageExt;
 use opentelemetry::trace::TraceContextExt;
-use opentelemetry::Context as OtelContext;
 use pyo3::prelude::*;
 use scouter_types::{EvalRecord, QueueItem, TraceId};
 use std::sync::RwLock;
@@ -167,8 +167,7 @@ impl<E: Flushable> TaskState<E> {
 
         // abort the background task
         let background_handle = {
-            let guard = self.background_task.write().unwrap().abort_handle.take();
-            guard
+            self.background_task.write().unwrap().abort_handle.take()
         };
 
         if let Some(handle) = background_handle {
@@ -209,8 +208,7 @@ impl<E: Flushable> TaskState<E> {
 
         // abort the event task
         let event_handle = {
-            let guard = self.event_task.write().unwrap().abort_handle.take();
-            guard
+            self.event_task.write().unwrap().abort_handle.take()
         };
 
         if let Some(handle) = event_handle {
@@ -352,23 +350,25 @@ impl QueueBus {
                     if let Some(tid) = trace_id {
                         borrowed.trace_id = Some(tid);
                     }
-                    if let Some(ref tag) = scenario_tag {
-                        if !borrowed.tags.contains(tag) {
-                            borrowed.tags.push(tag.clone());
-                        }
+                    if let Some(ref tag) = scenario_tag
+                        && !borrowed.tags.contains(tag)
+                    {
+                        borrowed.tags.push(tag.clone());
                     }
                 } else if trace_id.is_some() || scenario_tag.is_some() {
-                    warn!("stamp_otel_trace_id: could not cast Python item to EvalRecord; Python-side trace_id/tags not updated");
+                    warn!(
+                        "stamp_otel_trace_id: could not cast Python item to EvalRecord; Python-side trace_id/tags not updated"
+                    );
                 }
             }
         }
 
         {
             let mut store = self.record_store.write().unwrap();
-            if let Some(store) = store.as_mut() {
-                if matches!(extracted_item, QueueItem::Agent(_)) {
-                    store.push(item.clone().unbind());
-                }
+            if let Some(store) = store.as_mut()
+                && matches!(extracted_item, QueueItem::Agent(_))
+            {
+                store.push(item.clone().unbind());
             }
         }
 

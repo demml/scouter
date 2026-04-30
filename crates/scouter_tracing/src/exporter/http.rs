@@ -1,15 +1,15 @@
 use std::collections::HashMap;
 
 use crate::error::TraceError;
-use crate::exporter::traits::SpanExporterBuilder;
 use crate::exporter::ExporterType;
+use crate::exporter::traits::SpanExporterBuilder;
 use crate::utils::{OtelExportConfig, OtelProtocol};
 use opentelemetry_otlp::ExportConfig as OtlpExportConfig;
 use opentelemetry_otlp::SpanExporter as OtlpSpanExporter;
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_otlp::WithHttpConfig;
-use opentelemetry_sdk::trace::SpanExporter;
 use opentelemetry_sdk::Resource;
+use opentelemetry_sdk::trace::SpanExporter;
 use pyo3::prelude::*;
 use scouter_types::{CompressionType, PyHelperFuncs};
 use serde::Serialize;

@@ -1,5 +1,5 @@
 #![allow(clippy::useless_conversion)]
-use pyo3::{prelude::*, IntoPyObjectExt};
+use pyo3::{IntoPyObjectExt, prelude::*};
 use scouter_evaluate::scenario::EvalScenarios;
 use scouter_http::error::ClientError;
 use scouter_settings::{grpc::GrpcConfig, http::HttpConfig};
@@ -19,8 +19,8 @@ use scouter_types::{
 
 use scouter_http::HttpClient;
 use scouter_types::{
-    psi::BinnedPsiFeatureMetrics, spc::SpcDriftFeatures, BinnedMetrics, DriftProfile, DriftType,
-    PyHelperFuncs,
+    BinnedMetrics, DriftProfile, DriftType, PyHelperFuncs, psi::BinnedPsiFeatureMetrics,
+    spc::SpcDriftFeatures,
 };
 use std::path::PathBuf;
 use tracing::{debug, error};

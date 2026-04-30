@@ -612,6 +612,15 @@ class GrpcConfig:
 
     def __str__(self): ...
 
+class ScouterEnv:
+    @staticmethod
+    def set_offline() -> None:
+        """Set SCOUTER_OFFLINE=1, forcing MockConfig for all transports."""
+
+    @staticmethod
+    def is_offline() -> bool:
+        """Return True if SCOUTER_OFFLINE=1 is set."""
+
 class KafkaConfig:
     brokers: str
     topic: str
@@ -4911,4 +4920,5 @@ __all__ = [
     "DriftType",
     "CommonCrons",
     "ScouterDataType",
+    "ScouterEnv",
 ]

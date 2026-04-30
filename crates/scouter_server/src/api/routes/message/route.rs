@@ -1,9 +1,9 @@
 use crate::api::state::AppState;
 use anyhow::{Context, Result};
-use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
+use axum::{Json, Router, extract::State, http::StatusCode, routing::post};
 use metrics::counter;
 use scouter_types::{MessageRecord, ScouterResponse, ScouterServerError};
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 use tracing::{error, instrument};
 

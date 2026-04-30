@@ -1,9 +1,9 @@
-use crate::data_utils::{convert_array_type, ConvertedData};
-use ndarray::{concatenate, Array2, Axis};
+use crate::data_utils::{ConvertedData, convert_array_type};
+use ndarray::{Array2, Axis, concatenate};
 use num_traits::{Float, FromPrimitive};
 use numpy::PyReadonlyArray2;
 use scouter_drift::error::DriftError;
-use scouter_drift::{psi::PsiMonitor, CategoricalFeatureHelpers};
+use scouter_drift::{CategoricalFeatureHelpers, psi::PsiMonitor};
 use scouter_types::psi::{PsiDriftConfig, PsiDriftMap, PsiDriftProfile};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -106,15 +106,14 @@ impl PsiDrifter {
         // Validate categorical_features
         {
             let read_config = config.read().unwrap();
-            if let Some(categorical_features) = read_config.categorical_features.as_ref() {
-                if let Some(missing_feature) = categorical_features
+            if let Some(categorical_features) = read_config.categorical_features.as_ref()
+                && let Some(missing_feature) = categorical_features
                     .iter()
                     .find(|&key| !num_features.contains(key) && !string_features.contains(key))
-                {
-                    return Err(DriftError::CategoricalFeatureMissingError(
-                        missing_feature.to_string(),
-                    ));
-                }
+            {
+                return Err(DriftError::CategoricalFeatureMissingError(
+                    missing_feature.to_string(),
+                ));
             }
         }
 

@@ -1,7 +1,7 @@
-use opentelemetry::baggage::BaggageExt;
-use opentelemetry::trace::Span;
 use opentelemetry::Context;
 use opentelemetry::KeyValue;
+use opentelemetry::baggage::BaggageExt;
+use opentelemetry::trace::Span;
 use opentelemetry_sdk::error::OTelSdkResult;
 use opentelemetry_sdk::trace::SpanProcessor;
 use opentelemetry_sdk::trace::{BatchConfig as OTelBatchConfig, BatchConfigBuilder};

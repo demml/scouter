@@ -1,9 +1,9 @@
 use crate::api::state::AppState;
 use axum::{
+    Json, Router,
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     routing::{get, post},
-    Json, Router,
 };
 use scouter_dataframe::error::DatasetEngineError;
 use scouter_dataframe::parquet::bifrost::ipc::{batches_to_ipc_bytes, ipc_bytes_to_batches};
@@ -870,10 +870,7 @@ pub fn get_dataset_router(prefix: &str) -> Router<Arc<AppState>> {
             get(get_dataset_info),
         )
         // Catalog browser
-        .route(
-            &format!("{prefix}/datasets/catalogs"),
-            get(list_catalogs),
-        )
+        .route(&format!("{prefix}/datasets/catalogs"), get(list_catalogs))
         .route(
             &format!("{prefix}/datasets/catalogs/{{catalog}}/schemas"),
             get(list_schemas),
@@ -887,7 +884,9 @@ pub fn get_dataset_router(prefix: &str) -> Router<Arc<AppState>> {
             get(get_table_detail),
         )
         .route(
-            &format!("{prefix}/datasets/catalogs/{{catalog}}/schemas/{{schema}}/tables/{{table}}/preview"),
+            &format!(
+                "{prefix}/datasets/catalogs/{{catalog}}/schemas/{{schema}}/tables/{{table}}/preview"
+            ),
             get(preview_table),
         )
         // Enhanced query execution

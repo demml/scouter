@@ -11,14 +11,14 @@ use deltalake::datafusion::parquet::file::properties::{EnabledStatistics, Writer
 use deltalake::datafusion::parquet::schema::types::ColumnPath;
 use deltalake::operations::optimize::OptimizeType;
 use deltalake::{DeltaTable, DeltaTableBuilder, TableProperty};
+use scouter_types::dataset::DatasetNamespace;
 use scouter_types::dataset::schema::{
     SCOUTER_BATCH_ID, SCOUTER_CREATED_AT, SCOUTER_PARTITION_DATE,
 };
-use scouter_types::dataset::DatasetNamespace;
 use std::sync::Arc;
 use tokio::sync::oneshot;
-use tokio::sync::{mpsc, RwLock as AsyncRwLock};
-use tokio::time::{interval, Duration};
+use tokio::sync::{RwLock as AsyncRwLock, mpsc};
+use tokio::time::{Duration, interval};
 use tracing::{debug, error, info, instrument};
 use url::Url;
 
@@ -70,13 +70,12 @@ async fn build_or_create_table(
     );
 
     // For local filesystem, ensure the directory exists
-    if table_url.scheme() == "file" {
-        if let Ok(path) = table_url.to_file_path() {
-            if !path.exists() {
-                info!("Creating directory for local table: {:?}", path);
-                std::fs::create_dir_all(&path)?;
-            }
-        }
+    if table_url.scheme() == "file"
+        && let Ok(path) = table_url.to_file_path()
+        && !path.exists()
+    {
+        info!("Creating directory for local table: {:?}", path);
+        std::fs::create_dir_all(&path)?;
     }
 
     // Try a single load attempt
@@ -84,11 +83,11 @@ async fn build_or_create_table(
     let load_result = DeltaTableBuilder::from_url(table_url.clone())
         .map(|builder| builder.with_storage_backend(store, table_url.clone()));
 
-    if let Ok(builder) = load_result {
-        if let Ok(table) = builder.load().await {
-            info!("Loaded existing dataset table [{}]", namespace.fqn());
-            return Ok(table);
-        }
+    if let Ok(builder) = load_result
+        && let Ok(table) = builder.load().await
+    {
+        info!("Loaded existing dataset table [{}]", namespace.fqn());
+        return Ok(table);
     }
 
     // Table doesn't exist yet — create it

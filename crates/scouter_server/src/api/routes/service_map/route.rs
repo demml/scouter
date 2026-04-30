@@ -1,13 +1,13 @@
 use crate::api::state::AppState;
 use axum::{
+    Json, Router,
     extract::{Query, State},
     http::StatusCode,
     routing::get,
-    Json, Router,
 };
 use chrono::Utc;
 use scouter_dataframe::error::DatasetEngineError;
-use scouter_dataframe::{batches_to_edges, build_topology_sql, ServiceGraphEdge};
+use scouter_dataframe::{ServiceGraphEdge, batches_to_edges, build_topology_sql};
 use scouter_types::contracts::ScouterServerError;
 use std::sync::Arc;
 use tracing::{error, info, instrument};

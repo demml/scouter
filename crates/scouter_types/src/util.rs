@@ -1,6 +1,6 @@
+use crate::FeatureMap;
 use crate::error::{ProfileError, TypeError, UtilError};
 use crate::traits::ConfigExt;
-use crate::FeatureMap;
 use crate::{CommonCrons, DriftType};
 use base64::prelude::*;
 use chrono::{DateTime, Utc};
@@ -8,15 +8,15 @@ use colored_json::{Color, ColorMode, ColoredFormatter, PrettyFormatter, Styler};
 use opentelemetry::Key;
 use opentelemetry::KeyValue;
 use opentelemetry::Value as OTelValue;
-use opentelemetry_proto::tonic::common::v1::{any_value::Value as AnyValueVariant, AnyValue};
+use opentelemetry_proto::tonic::common::v1::{AnyValue, any_value::Value as AnyValueVariant};
+use pyo3::IntoPyObjectExt;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyInt, PyList, PyString, PyTuple};
-use pyo3::IntoPyObjectExt;
 use pythonize::depythonize;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::{BTreeSet, HashMap};
 use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
@@ -548,6 +548,13 @@ pub fn pydantic_to_value<'py>(obj: &Bound<'py, PyAny>) -> Result<Value, TypeErro
     pyobject_to_json(&dict)
 }
 
+fn is_python_enum(py: Python, obj: &Bound<'_, PyAny>) -> bool {
+    py.import("enum")
+        .and_then(|m| m.getattr("Enum"))
+        .and_then(|e| obj.is_instance(&e))
+        .unwrap_or(false)
+}
+
 fn process_dict_with_nested_models(
     py: Python<'_>,
     dict: &Bound<'_, PyAny>,
@@ -564,15 +571,35 @@ fn process_dict_with_nested_models(
     Ok(Value::Object(result))
 }
 
+fn process_list_with_nested_models(
+    py: Python<'_>,
+    list: &Bound<'_, PyAny>,
+) -> Result<Value, TypeError> {
+    let py_list = list.cast::<PyList>()?;
+    let mut result = Vec::new();
+    for item in py_list.iter() {
+        result.push(depythonize_object_to_value(py, &item)?);
+    }
+    Ok(Value::Array(result))
+}
+
 pub fn depythonize_object_to_value<'py>(
     py: Python<'py>,
     value: &Bound<'py, PyAny>,
 ) -> Result<Value, TypeError> {
     let py_value = if is_pydantic_basemodel(py, value)? {
         let model = value.call_method0("model_dump")?;
-        depythonize(&model)?
+        process_dict_with_nested_models(py, &model)?
     } else if value.is_instance_of::<PyDict>() {
         process_dict_with_nested_models(py, value)?
+    } else if value.is_instance_of::<PyBytes>() {
+        let bytes: &[u8] = value.extract()?;
+        Value::String(BASE64_STANDARD.encode(bytes))
+    } else if value.is_instance_of::<PyList>() {
+        process_list_with_nested_models(py, value)?
+    } else if is_python_enum(py, value) {
+        let enum_value = value.getattr("value")?;
+        depythonize(&enum_value)?
     } else {
         depythonize(value)?
     };

@@ -3,14 +3,14 @@ use crate::error::StorageError;
 use base64::prelude::*;
 use datafusion::prelude::{SessionConfig, SessionContext};
 use futures::TryStreamExt;
+use object_store::ClientOptions;
+use object_store::ObjectStore as ObjStore;
+use object_store::ObjectStoreExt;
 use object_store::aws::{AmazonS3, AmazonS3Builder};
 use object_store::azure::{MicrosoftAzure, MicrosoftAzureBuilder};
 use object_store::gcp::{GoogleCloudStorage, GoogleCloudStorageBuilder};
 use object_store::local::LocalFileSystem;
 use object_store::path::Path;
-use object_store::ClientOptions;
-use object_store::ObjectStore as ObjStore;
-use object_store::ObjectStoreExt;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::StorageType;
 use std::sync::Arc;
@@ -103,15 +103,15 @@ impl StorageProvider {
                 // know which naming convention object_store expects.
                 let mut builder = MicrosoftAzureBuilder::from_env();
 
-                if std::env::var("AZURE_STORAGE_ACCOUNT_NAME").is_err() {
-                    if let Ok(account) = std::env::var("AZURE_STORAGE_ACCOUNT") {
-                        builder = builder.with_account(account);
-                    }
+                if std::env::var("AZURE_STORAGE_ACCOUNT_NAME").is_err()
+                    && let Ok(account) = std::env::var("AZURE_STORAGE_ACCOUNT")
+                {
+                    builder = builder.with_account(account);
                 }
-                if std::env::var("AZURE_STORAGE_ACCOUNT_KEY").is_err() {
-                    if let Ok(key) = std::env::var("AZURE_STORAGE_KEY") {
-                        builder = builder.with_access_key(key);
-                    }
+                if std::env::var("AZURE_STORAGE_ACCOUNT_KEY").is_err()
+                    && let Ok(key) = std::env::var("AZURE_STORAGE_KEY")
+                {
+                    builder = builder.with_access_key(key);
                 }
 
                 let storage = builder

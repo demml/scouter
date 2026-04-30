@@ -8,10 +8,10 @@ pub mod spc_drifter {
     use ndarray::ArrayView2;
     use scouter_dispatch::AlertDispatcher;
     use scouter_sql::sql::traits::SpcSqlLogic;
-    use scouter_sql::{sql::cache::entity_cache, PostgresClient};
-    use scouter_types::spc::{SpcDriftFeatures, SpcDriftProfile, TaskAlerts};
+    use scouter_sql::{PostgresClient, sql::cache::entity_cache};
     use scouter_types::AlertMap;
     use scouter_types::ProfileBaseArgs;
+    use scouter_types::spc::{SpcDriftFeatures, SpcDriftProfile, TaskAlerts};
     use sqlx::{Pool, Postgres};
     use tracing::error;
     use tracing::info;

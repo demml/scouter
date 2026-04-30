@@ -1,7 +1,7 @@
 use crate::common::setup_test;
 use axum::{
     body::Body,
-    http::{header, Request, StatusCode},
+    http::{Request, StatusCode, header},
 };
 use http_body_util::BodyExt;
 use scouter_server::api::routes::user::schema::{

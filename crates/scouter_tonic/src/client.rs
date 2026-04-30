@@ -6,11 +6,11 @@ use crate::{
 use scouter_settings::grpc::GrpcConfig;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
+use tonic::Request;
 use tonic::metadata::MetadataValue;
 use tonic::transport::Channel;
-use tonic::Request;
-use tonic_health::pb::health_client::HealthClient;
 use tonic_health::pb::HealthCheckRequest;
+use tonic_health::pb::health_client::HealthClient;
 use tracing::{debug, error, info, instrument};
 
 pub const X_REFRESHED_TOKEN: &str = "x-refreshed-token";

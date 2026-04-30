@@ -7,9 +7,9 @@ use crate::{
 use scouter_settings::grpc::GrpcConfig;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
+use tonic::Request;
 use tonic::metadata::MetadataValue;
 use tonic::transport::Channel;
-use tonic::Request;
 use tracing::{debug, error, instrument, warn};
 
 async fn build_channel(config: &GrpcConfig) -> Result<Channel, ClientError> {
@@ -117,10 +117,10 @@ impl EvalScenarioGrpcClient {
     }
 
     fn handle_refreshed_token(&self, headers: &tonic::metadata::MetadataMap) {
-        if let Some(new_token) = headers.get(X_REFRESHED_TOKEN) {
-            if let Ok(token_str) = new_token.to_str() {
-                self.update_token(token_str.to_string());
-            }
+        if let Some(new_token) = headers.get(X_REFRESHED_TOKEN)
+            && let Ok(token_str) = new_token.to_str()
+        {
+            self.update_token(token_str.to_string());
         }
     }
 

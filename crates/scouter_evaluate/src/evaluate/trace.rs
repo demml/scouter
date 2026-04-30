@@ -6,7 +6,7 @@ use scouter_types::agent::{
     AggregationType, AttributeFilterTask, MultiResponseMode, SpanFilter, SpanStatus, TraceAssertion,
 };
 use scouter_types::sql::TraceSpan;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tracing::{debug, warn};

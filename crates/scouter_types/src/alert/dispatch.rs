@@ -1,6 +1,6 @@
 use crate::drift::DriftArgs;
 use crate::error::TypeError;
-use pyo3::{prelude::*, IntoPyObjectExt};
+use pyo3::{IntoPyObjectExt, prelude::*};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::str::FromStr;

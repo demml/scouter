@@ -1,7 +1,7 @@
 use crate::parquet::bifrost::query::QueryExecutionMetadata;
 use datafusion::logical_expr::LogicalPlan;
-use datafusion::physical_plan::displayable;
 use datafusion::physical_plan::ExecutionPlan;
+use datafusion::physical_plan::displayable;
 
 /// Strip object-store URIs and absolute file paths from DataFusion plan text.
 ///

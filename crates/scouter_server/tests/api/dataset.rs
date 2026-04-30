@@ -11,12 +11,12 @@ use chrono::Datelike;
 use http_body_util::BodyExt;
 use scouter_dataframe::parquet::bifrost::ipc::{batches_to_ipc_bytes, ipc_bytes_to_batches};
 use scouter_types::dataset::schema::{
-    inject_system_columns, json_schema_to_arrow, SCOUTER_BATCH_ID, SCOUTER_CREATED_AT,
-    SCOUTER_PARTITION_DATE,
+    SCOUTER_BATCH_ID, SCOUTER_CREATED_AT, SCOUTER_PARTITION_DATE, inject_system_columns,
+    json_schema_to_arrow,
 };
 use serde_json::Value;
 use std::sync::Arc;
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 
 const CAT: &str = "testcat";
 const SCH: &str = "testschema";

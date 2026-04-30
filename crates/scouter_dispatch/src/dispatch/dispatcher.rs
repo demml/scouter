@@ -3,7 +3,7 @@ use scouter_types::{
     AlertDispatchConfig, AlertDispatchType, DispatchAlertDescription, DispatchDriftConfig,
     DriftArgs, OpsGenieDispatchConfig, SlackDispatchConfig,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::result::Result;
 use std::{collections::HashMap, env};
 use tracing::error;

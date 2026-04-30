@@ -151,10 +151,11 @@ fn is_null_variant(v: &Value) -> bool {
     if v.get("const").map(Value::is_null).unwrap_or(false) {
         return true;
     }
-    if let Some(arr) = v.get("enum").and_then(Value::as_array) {
-        if arr.len() == 1 && arr[0].is_null() {
-            return true;
-        }
+    if let Some(arr) = v.get("enum").and_then(Value::as_array)
+        && arr.len() == 1
+        && arr[0].is_null()
+    {
+        return true;
     }
     false
 }
@@ -177,7 +178,7 @@ fn resolve_type(
         None => {
             return Err(DatasetError::SchemaParseError(
                 "Property must be a JSON object".to_string(),
-            ))
+            ));
         }
     };
 
@@ -844,9 +845,11 @@ mod tests {
         // Sanity: stored Arrow schema must contain system columns so Delta writes succeed
         let arrow_schema = json_schema_to_arrow(pydantic_json).unwrap();
         let schema_with_sys = inject_system_columns(arrow_schema).unwrap();
-        assert!(schema_with_sys
-            .field_with_name(SCOUTER_PARTITION_DATE)
-            .is_ok());
+        assert!(
+            schema_with_sys
+                .field_with_name(SCOUTER_PARTITION_DATE)
+                .is_ok()
+        );
         assert!(schema_with_sys.field_with_name(SCOUTER_CREATED_AT).is_ok());
         assert!(schema_with_sys.field_with_name(SCOUTER_BATCH_ID).is_ok());
     }

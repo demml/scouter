@@ -4,7 +4,7 @@ use scouter_dataframe::parquet::dataframe::ParquetDataFrame;
 /// Functionality for persisting data from postgres to long-term storage
 use scouter_settings::ScouterServerConfig;
 use scouter_sql::sql::traits::ArchiveSqlLogic;
-use scouter_sql::{sql::schema::Entity, PostgresClient};
+use scouter_sql::{PostgresClient, sql::schema::Entity};
 use scouter_types::{ArchiveRecord, DriftType, RecordType, ServerRecords};
 use sqlx::{Pool, Postgres};
 use std::sync::Arc;

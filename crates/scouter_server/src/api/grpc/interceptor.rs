@@ -2,13 +2,13 @@ use crate::api::routes::user::utils::get_user;
 use crate::api::state::AppState;
 use jsonwebtoken::errors::ErrorKind;
 use scouter_auth::permission::UserPermissions;
-use scouter_sql::sql::traits::UserSqlLogic;
 use scouter_sql::PostgresClient;
+use scouter_sql::sql::traits::UserSqlLogic;
 use std::sync::Arc;
 use tonic::body::Body;
 use tonic::codegen::http::{HeaderValue, Request};
 use tonic::metadata::MetadataMap;
-use tonic::{async_trait, Status};
+use tonic::{Status, async_trait};
 use tonic_middleware::RequestInterceptor;
 use tracing::{error, info, instrument};
 

@@ -5,7 +5,7 @@ use crate::api::shutdown::shutdown_metric_signal;
 use anyhow::Context;
 use clap::Parser;
 use mimalloc::MiMalloc;
-use scouter_server::{start_server_with_mode, ServeMode};
+use scouter_server::{ServeMode, start_server_with_mode};
 use tracing::{info, instrument};
 
 #[global_allocator]

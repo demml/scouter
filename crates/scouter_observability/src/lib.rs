@@ -1,8 +1,8 @@
 pub mod error;
 use crate::error::ObservabilityError;
 use ndarray::Array1;
-use ndarray_stats::interpolate::Nearest;
 use ndarray_stats::Quantile1dExt;
+use ndarray_stats::interpolate::Nearest;
 use noisy_float::types::n64;
 use pyo3::prelude::*;
 use rayon::iter::IntoParallelIterator;
@@ -413,12 +413,14 @@ mod tests {
         observer.reset_metrics();
         assert_eq!(observer.request_count, 0);
         assert_eq!(observer.error_count, 0);
-        assert!(observer
-            .request_latency
-            .get("/home")
-            .unwrap()
-            .request_latency
-            .is_empty());
+        assert!(
+            observer
+                .request_latency
+                .get("/home")
+                .unwrap()
+                .request_latency
+                .is_empty()
+        );
         assert!(observer.request_latency.get("/home").unwrap().error_latency == 0.0);
         assert!(observer.request_latency.get("/home").unwrap().request_count == 0);
         assert!(observer.request_latency.get("/home").unwrap().error_count == 0);

@@ -1,11 +1,11 @@
 use crate::error::FeatureQueueError;
 use crate::queue::traits::FeatureQueue;
 use core::result::Result::Ok;
-use ndarray::prelude::*;
 use ndarray::Array2;
+use ndarray::prelude::*;
 use scouter_drift::spc::monitor::SpcMonitor;
-use scouter_types::spc::SpcDriftProfile;
 use scouter_types::QueueExt;
+use scouter_types::spc::SpcDriftProfile;
 use scouter_types::{Feature, MessageRecord, ServerRecords};
 use std::collections::HashMap;
 use tracing::instrument;
@@ -52,10 +52,10 @@ impl SpcFeatureQueue {
             let name = feature.name().to_string();
 
             if self.feature_names.contains(&name) {
-                if let Some(queue) = queue.get_mut(&name) {
-                    if let Ok(value) = feature.to_float(feat_map) {
-                        queue.push(value);
-                    }
+                if let Some(queue) = queue.get_mut(&name)
+                    && let Ok(value) = feature.to_float(feat_map)
+                {
+                    queue.push(value);
                 }
             } else {
                 error!("Feature {} not found in drift profile", name);
@@ -134,13 +134,13 @@ impl FeatureQueue for SpcFeatureQueue {
 #[cfg(test)]
 mod tests {
 
-    use scouter_types::spc::{SpcAlertConfig, SpcDriftConfig};
     use scouter_types::Features;
+    use scouter_types::spc::{SpcAlertConfig, SpcDriftConfig};
 
     use super::*;
     use ndarray::Array;
-    use ndarray_rand::rand_distr::Uniform;
     use ndarray_rand::RandomExt;
+    use ndarray_rand::rand_distr::Uniform;
 
     #[test]
     fn test_feature_queue_new() {

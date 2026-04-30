@@ -15,9 +15,9 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::task::JoinHandle;
 use tokio::time::timeout;
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, debug_span, error, info, Instrument};
+use tracing::{Instrument, debug, debug_span, error, info};
 
 const DEFAULT_BACKGROUND_PUBLISH_INTERVAL_SECS: i64 = 30;
 

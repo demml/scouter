@@ -4,13 +4,13 @@ use crate::utils::setup_logging;
 
 #[cfg(feature = "rabbitmq")]
 use lapin::{
+    BasicProperties, Connection, ConnectionProperties,
     options::{BasicPublishOptions, QueueDeclareOptions},
     types::FieldTable,
-    BasicProperties, Connection, ConnectionProperties,
 };
+use scouter_sql::PostgresClient;
 use scouter_sql::sql::traits::EntitySqlLogic;
 use scouter_sql::sql::traits::SpcSqlLogic;
-use scouter_sql::PostgresClient;
 use scouter_types::{ServerRecord, ServerRecords, SpcRecord};
 use std::time::{Duration, Instant};
 use utils::TestHelper;
