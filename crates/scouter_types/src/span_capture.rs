@@ -30,8 +30,17 @@ fn span_attr<'a>(span: &'a TraceSpanRecord, key: &str) -> Option<&'a str> {
         .and_then(|attr| attr.value.as_str())
 }
 
+const MAX_CAPTURE_RUN_ID_LEN: usize = 256;
+
 /// Enable scoped capture for a single evaluation run.
 pub fn enable_capture(capture_run_id: &str) {
+    if capture_run_id.len() > MAX_CAPTURE_RUN_ID_LEN {
+        warn!(
+            "capture_run_id exceeds {} chars and was rejected; capture not enabled",
+            MAX_CAPTURE_RUN_ID_LEN
+        );
+        return;
+    }
     let mut buffers = CAPTURE_BUFFERS.write().unwrap_or_else(|p| p.into_inner());
     buffers.insert(capture_run_id.to_string(), Vec::new());
     refresh_capturing(&buffers);
@@ -150,6 +159,21 @@ pub fn get_all_captured_spans(capture_run_id: &str) -> Vec<TraceSpanRecord> {
         .unwrap_or_else(|p| p.into_inner())
         .get(capture_run_id)
         .cloned()
+        .unwrap_or_default()
+}
+
+/// Returns clones of spans tagged with the given scenario_id without draining.
+pub fn peek_spans_for_scenario(capture_run_id: &str, scenario_id: &str) -> Vec<TraceSpanRecord> {
+    CAPTURE_BUFFERS
+        .read()
+        .unwrap_or_else(|p| p.into_inner())
+        .get(capture_run_id)
+        .map(|buf| {
+            buf.iter()
+                .filter(|span| span_attr(span, SCOUTER_EVAL_SCENARIO_ID_ATTR) == Some(scenario_id))
+                .cloned()
+                .collect()
+        })
         .unwrap_or_default()
 }
 

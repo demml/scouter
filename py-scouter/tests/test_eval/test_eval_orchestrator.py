@@ -367,7 +367,7 @@ def test_hook_order():
                 )
             return "answer"
 
-        def on_scenario_complete(self, scenario, response):
+        def on_scenario_complete(self, scenario, response, result=None):
             hook_log.append(("on_scenario_complete", scenario.id, response))
 
         def on_evaluation_complete(self, results):
@@ -582,7 +582,7 @@ def test_eval_orchestrator_instrumentor_auto_sets_default_entity_uid():
     seen_trace_ids = []
 
     class AutoEntityOrchestrator(EvalOrchestrator):
-        def on_scenario_complete(self, scenario, response):
+        def on_scenario_complete(self, scenario, response, result=None):
             seen_trace_ids.append(response)
             spans = instrumentor.get_local_spans_by_trace_ids(self._capture_run_id, [response])
             entity_key = f"scouter.entity.{profile.config.uid}"
@@ -627,7 +627,7 @@ def test_multi_agent_offline_active_profile_switching_sets_distinct_entity_uids_
     seen_trace_ids = []
 
     class ProfileSwitchOrchestrator(EvalOrchestrator):
-        def on_scenario_complete(self, scenario, response):
+        def on_scenario_complete(self, scenario, response, result=None):
             seen_trace_ids.append(response)
             spans = instrumentor.get_local_spans_by_trace_ids(self._capture_run_id, [response])
             expected = expected_profile_by_scenario[scenario.id]

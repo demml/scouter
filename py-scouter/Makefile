@@ -85,3 +85,9 @@ example.eval.non_interactive.google:
 
 example.eval.non_interactive.crewai:
 	uv run python -m examples.evaluate.non_interactive.crewai.evaluate
+
+example.eval.interactive.google:
+	uv run python -m examples.evaluate.interactive.google.evaluate
+
+example.eval.interactive.mock:
+	uv run python -m examples.evaluate.interactive.mock.evaluate

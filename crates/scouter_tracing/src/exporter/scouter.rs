@@ -16,7 +16,7 @@ use scouter_state::app_state;
 use scouter_types::{MessageRecord, TraceServerRecord};
 use std::fmt;
 use std::sync::{Arc, OnceLock};
-use tracing::{error, instrument, warn};
+use tracing::{debug, error, instrument, warn};
 
 pub struct ScouterSpanExporter {
     transport_config: TransportConfig,
@@ -50,7 +50,7 @@ impl SpanExporter for ScouterSpanExporter {
         // Local capture buffer — dev/test only. While active, spans are routed to the
         // in-process buffer and NOT forwarded to the Scouter backend.
         if CAPTURING.load(Ordering::Acquire) {
-            warn!(
+            debug!(
                 "ScouterSpanExporter: local capture active — spans buffered locally, not sent to Scouter backend"
             );
             let resource_spans = group_spans_by_resource_and_scope(

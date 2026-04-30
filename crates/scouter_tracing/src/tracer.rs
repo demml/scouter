@@ -1714,6 +1714,9 @@ fn extract_otel_py_context(py: Python<'_>, context: &Bound<'_, PyAny>) -> Option
     if sc.is_valid() { Some(sc) } else { None }
 }
 
+/// NOTE: Baggage values are not sanitized or filtered. Callers are responsible for ensuring
+/// no PII or sensitive data is placed in OTel baggage, as all key-value pairs propagate to
+/// every child span and downstream exporters (e.g. the Scouter trace backend).
 fn extract_otel_py_baggage(py: Python<'_>, context: Option<&Bound<'_, PyAny>>) -> Vec<KeyValue> {
     let Ok(baggage_mod) = py.import("opentelemetry.baggage") else {
         return Vec::new();

@@ -1,14 +1,19 @@
-# pylint: disable=wrong-import-position
+"""Mock interactive eval — full harness run with no LLM cost.
+
+Mirrors examples/evaluate/interactive/google/evaluate.py exactly,
+swapping GoogleAgentService for MockAgentService. Use this to verify
+the eval harness (span capture, EvalRecord routing, task evaluation,
+result rendering) before running against a live model.
+"""
+
 from __future__ import annotations
 
-import asyncio
-import contextvars
 from typing import Any
 
 from scouter.evaluate import EvalOrchestrator, EvalScenario
 
 from ..shared import get_shared_config, teardown
-from .agent import GoogleAgentService, build_agent_service
+from .agent import build_agent_service
 
 
 def simulated_user_turn(
@@ -27,9 +32,7 @@ def simulated_user_turn(
     return "Add one risk to watch for and then return DONE."
 
 
-class GoogleEvalOrchestrator(EvalOrchestrator):
-    """Bridge the sync eval runner to one persistent ADK async runtime."""
-
+class MockEvalOrchestrator(EvalOrchestrator):
     def __init__(self) -> None:
         config = get_shared_config()
         super().__init__(
@@ -37,25 +40,18 @@ class GoogleEvalOrchestrator(EvalOrchestrator):
             scenarios=config.scenarios,
             simulated_user_fn=simulated_user_turn,
         )
-        self._runner = asyncio.Runner()
-        self._service: GoogleAgentService = build_agent_service()
+        self._service = build_agent_service()
 
     def execute_agent_turn(self, scenario: EvalScenario, message: str) -> str:
-        """Run each interactive turn on the same event loop and service instance."""
         del scenario
-        return self._runner.run(self._service.run(message), context=contextvars.copy_context())
-
-    def close(self) -> None:
-        """Close the loop after evaluation completes."""
-        self._runner.close()
+        return self._service.run(message)
 
 
 def main() -> None:
-    orchestrator = GoogleEvalOrchestrator()
+    orchestrator = MockEvalOrchestrator()
     try:
         results = orchestrator.run()
     finally:
-        orchestrator.close()
         teardown()
 
     print(

@@ -204,7 +204,7 @@ class EvalOrchestrator:
     def on_scenario_start(self, scenario: EvalScenario) -> None:
         """Hook called before a scenario is executed. Override to add custom logic."""
 
-    def on_scenario_complete(self, scenario: EvalScenario, response: Any) -> None:
+    def on_scenario_complete(self, scenario: EvalScenario, response: Any, result: Any = None) -> None:
         """Hook called after a scenario is executed. Override to add custom logic."""
 
     def on_evaluation_complete(self, results: ScenarioEvalResults) -> ScenarioEvalResults:
@@ -355,11 +355,11 @@ class EvalOrchestrator:
         Returns:
             ScenarioEvalResults with metrics across all scenarios.
         """
+        scenario_results = []
         self._setup_capture()
         try:
             for scenario in self._scenarios.scenarios:
                 self.on_scenario_start(scenario)
-
                 with self._scenario_span(scenario):
                     if scenario.is_interactive():
                         response, history = self._execute_interactive(scenario)
@@ -368,18 +368,14 @@ class EvalOrchestrator:
                         history = []
                     scenario_response = self.build_scenario_response(scenario, response, history)
                     self._collect_scenario_data(scenario, scenario_response)
-
-                self.on_scenario_complete(scenario, response)
-
                 try:
                     flush_tracer()
                 except Exception:  # noqa: BLE001 pylint: disable=broad-except
                     pass
-            try:
-                flush_tracer()
-            except Exception:  # noqa: BLE001 pylint: disable=broad-except
-                pass
-            results = self._engine.evaluate(config)
+                sr = self._engine.evaluate_scenario(scenario.id)
+                scenario_results.append(sr)
+                self.on_scenario_complete(scenario, response, sr)
+            results = self._engine.finalize(scenario_results, config)
             return self.on_evaluation_complete(results)
         finally:
             self._teardown_capture()

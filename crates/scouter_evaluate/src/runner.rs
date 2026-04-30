@@ -23,12 +23,6 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 use tracing::{debug, error};
 
-struct AliasData {
-    records: Vec<EvalRecord>,
-    profile: Option<Arc<AgentEvalProfile>>,
-    spans: Vec<TraceSpan>,
-}
-
 #[derive(Default)]
 struct TraceDispatchCandidate {
     has_queue_path: bool,
@@ -40,14 +34,15 @@ struct TraceDispatchCandidate {
 /// `EvalRunner` owns the scenario definitions and profiles (as `Arc`s),
 /// mirroring the `ScouterQueue` pattern. It provides:
 /// - `collect_scenario_data()`: Populates scenario datasets and contexts
-/// - `evaluate()`: Runs multi-level evaluation (sub-agent + scenario + aggregate),
-///   pulling captured spans from its scoped buffer automatically.
+/// - `evaluate_scenario()`: Runs evaluation for a single scenario (per-scenario scoped)
+/// - `finalize()`: Aggregates scenario results into top-level metrics
 #[derive(Debug)]
 #[pyclass(skip_from_py_object)]
 pub struct EvalRunner {
     profiles: HashMap<String, Arc<AgentEvalProfile>>,
     scenarios: EvalScenarios,
     capture_run_id: Option<String>,
+    spans_by_scenario: Option<HashMap<String, Arc<Vec<TraceSpan>>>>,
 }
 
 #[pymethods]
@@ -67,14 +62,46 @@ impl EvalRunner {
         self.scenarios.clone()
     }
 
-    /// Run multi-level evaluation.
+    /// Evaluate a single scenario by its ID.
     ///
-    /// Spans are pulled automatically from the scoped capture buffer —
-    /// no need to pass them explicitly.
-    ///
-    /// **LEVEL 1** — Sub-agent evaluation: flatten all records per alias → one EvalDataset → evaluate
-    /// **LEVEL 2** — Scenario evaluation: per scenario with tasks, evaluate against response + traces
-    /// **LEVEL 3** — Aggregate metrics
+    /// Drains the capture buffer on first call and caches spans for subsequent calls.
+    /// Returns a `ScenarioResult` with per-alias dataset results nested inside.
+    pub fn evaluate_scenario(
+        &mut self,
+        scenario_id: &str,
+    ) -> Result<ScenarioResult, EvaluationError> {
+        if tokio::runtime::Handle::try_current().is_ok() {
+            return Err(EvaluationError::AgentEvaluatorError(
+                "EvalRunner.evaluate_scenario() cannot be called from within an async context."
+                    .to_string(),
+            ));
+        }
+
+        app_state()
+            .handle()
+            .block_on(async { self.evaluate_scenario_async(scenario_id, true).await })
+    }
+
+    /// Aggregate per-scenario results into top-level `ScenarioEvalResults`.
+    #[pyo3(signature = (scenario_results, config=None))]
+    pub fn finalize(
+        &self,
+        scenario_results: Vec<ScenarioResult>,
+        config: Option<EvaluationConfig>,
+    ) -> Result<ScenarioEvalResults, EvaluationError> {
+        let _ = config;
+
+        let dataset_results = merge_dataset_results(&scenario_results);
+        let metrics = compute_metrics(&dataset_results, &scenario_results);
+
+        Ok(ScenarioEvalResults {
+            dataset_results,
+            scenario_results,
+            metrics,
+        })
+    }
+
+    /// Run multi-level evaluation (backward-compat wrapper).
     #[pyo3(signature = (config=None))]
     pub fn evaluate(
         &mut self,
@@ -85,7 +112,7 @@ impl EvalRunner {
         if tokio::runtime::Handle::try_current().is_ok() {
             return Err(EvaluationError::AgentEvaluatorError(
                 "EvalRunner.evaluate() cannot be called from within an async context. \
-                 Use evaluate_async() or call from a synchronous Python context."
+                 Use evaluate_scenario() + finalize() or call from a synchronous Python context."
                     .to_string(),
             ));
         }
@@ -137,6 +164,7 @@ impl EvalRunner {
             profiles: arc_profiles,
             scenarios,
             capture_run_id,
+            spans_by_scenario: None,
         }
     }
 
@@ -278,15 +306,200 @@ impl EvalRunner {
             .collect()
     }
 
-    fn attach_spans_to_datasets(
+    fn drain_spans_once(&mut self) {
+        if self.spans_by_scenario.is_some() {
+            return;
+        }
+        let scenario_ids = self.scenario_ids();
+        let raw_by_scenario = self
+            .capture_run_id
+            .as_deref()
+            .map(|capture_run_id| {
+                let spans = scouter_types::span_capture::drain_and_group_spans_for_scenarios(
+                    capture_run_id,
+                    &scenario_ids,
+                );
+                scouter_types::span_capture::disable_capture(capture_run_id);
+                spans
+            })
+            .unwrap_or_default();
+        self.synthesize_trace_dispatch_records(&raw_by_scenario);
+        self.spans_by_scenario = Some(build_spans_by_scenario(raw_by_scenario));
+    }
+
+    /// Peek at spans for a single scenario without draining or disabling capture.
+    ///
+    /// Used by the per-scenario Python path where `evaluate_scenario()` is called
+    /// immediately after each scenario runs and `flush_tracer()` is called.
+    /// Spans remain in the buffer so that `on_scenario_complete` hooks can still
+    /// access them via `get_local_spans_by_trace_ids`. The buffer is fully drained
+    /// only when `_teardown_capture` runs at the end of `EvalOrchestrator.run()`.
+    fn peek_scenario_spans(&mut self, scenario_id: &str) -> Arc<Vec<TraceSpan>> {
+        let raw_spans = self
+            .capture_run_id
+            .as_deref()
+            .map(|capture_run_id| {
+                scouter_types::span_capture::peek_spans_for_scenario(capture_run_id, scenario_id)
+            })
+            .unwrap_or_default();
+        let raw_by_scenario: HashMap<String, Vec<TraceSpanRecord>> = if raw_spans.is_empty() {
+            HashMap::new()
+        } else {
+            HashMap::from([(scenario_id.to_string(), raw_spans)])
+        };
+        self.synthesize_trace_dispatch_records(&raw_by_scenario);
+        raw_by_scenario
+            .into_values()
+            .next()
+            .map(|spans| Arc::new(build_trace_spans(spans)))
+            .unwrap_or_else(|| Arc::new(Vec::new()))
+    }
+
+    async fn evaluate_scenario_async(
         &mut self,
-        spans_by_scenario: &HashMap<String, Arc<Vec<TraceSpan>>>,
-    ) {
-        for (scenario_id, datasets) in &mut self.scenarios.scenario_datasets {
-            if let Some(spans) = spans_by_scenario.get(scenario_id) {
-                for dataset in datasets.values_mut() {
-                    dataset.spans = Arc::clone(spans);
+        scenario_id: &str,
+        fresh_drain: bool,
+    ) -> Result<ScenarioResult, EvaluationError> {
+        let spans_arc = if fresh_drain {
+            self.peek_scenario_spans(scenario_id)
+        } else {
+            self.drain_spans_once();
+            let spans_by_scenario = self.spans_by_scenario.as_ref().expect("drained");
+            spans_by_scenario
+                .get(scenario_id)
+                .cloned()
+                .unwrap_or_else(|| Arc::new(Vec::new()))
+        };
+
+        // Attach spans to datasets for this scenario
+        if let Some(datasets) = self.scenarios.scenario_datasets.get_mut(scenario_id) {
+            for dataset in datasets.values_mut() {
+                dataset.spans = Arc::clone(&spans_arc);
+            }
+        }
+
+        let scenario = self
+            .scenarios
+            .scenarios
+            .iter()
+            .find(|s| s.id == scenario_id)
+            .cloned()
+            .ok_or_else(|| {
+                EvaluationError::MissingKeyError(format!("Scenario '{}' not found", scenario_id))
+            })?;
+
+        let config = Arc::new(EvaluationConfig::default());
+
+        // Evaluate per-alias datasets for this scenario
+        let mut dataset_results: HashMap<String, EvalResults> = HashMap::new();
+        if let Some(datasets) = self.scenarios.scenario_datasets.get(scenario_id) {
+            for (alias, dataset) in datasets {
+                if dataset.records.is_empty() {
+                    continue;
                 }
+                debug!(
+                    "Evaluating sub-agent dataset for alias '{}' in scenario '{}'",
+                    alias, scenario_id
+                );
+                match evaluate_genai_dataset(dataset, &config).await {
+                    Ok(eval_results) => {
+                        dataset_results.insert(alias.clone(), eval_results);
+                    }
+                    Err(e) => {
+                        error!(
+                            "Failed to evaluate dataset for alias '{}' in scenario '{}': {:?}",
+                            alias, scenario_id, e
+                        );
+                        return Err(e);
+                    }
+                }
+            }
+        }
+
+        // Evaluate scenario-level tasks
+        if !scenario.has_tasks() {
+            return Ok(ScenarioResult {
+                scenario_id: scenario.id.clone(),
+                initial_query: scenario.initial_query.clone(),
+                eval_results: EvalResults::new(),
+                passed: true,
+                pass_rate: 1.0,
+                task_results: vec![],
+                traces: spans_arc.as_ref().clone(),
+                dataset_results,
+            });
+        }
+
+        let context = self
+            .scenarios
+            .scenario_contexts
+            .get(scenario_id)
+            .cloned()
+            .ok_or_else(|| {
+                EvaluationError::MissingKeyError(format!(
+                    "Scenario '{}' has tasks but no context — call collect_scenario_data() first",
+                    scenario_id
+                ))
+            })?;
+
+        let record = EvalRecord {
+            context,
+            record_id: scenario.id.clone(),
+            tags: vec![format!("{}={}", SCOUTER_EVAL_SCENARIO_ID_ATTR, scenario.id)],
+            ..Default::default()
+        };
+
+        let profile = AgentEvalProfile::build_from_parts_async(
+            AgentEvalConfig::default(),
+            scenario.tasks.clone(),
+            None,
+        )
+        .await?;
+        let profile = Arc::new(profile);
+
+        match AgentEvaluator::process_event_record(&record, profile, spans_arc.clone()).await {
+            Ok(eval_set) => {
+                let task_results: Vec<TaskSummary> = eval_set
+                    .records
+                    .iter()
+                    .map(|r| TaskSummary {
+                        task_id: r.task_id.clone(),
+                        passed: r.passed,
+                        value: if r.passed { 1.0 } else { 0.0 },
+                    })
+                    .collect();
+
+                let mut eval_results = EvalResults::new();
+                eval_results.add_success(&record, eval_set, BTreeMap::new());
+
+                let (passed, pass_rate) = compute_pass_rate(&eval_results);
+
+                Ok(ScenarioResult {
+                    scenario_id: scenario.id.clone(),
+                    initial_query: scenario.initial_query.clone(),
+                    eval_results,
+                    passed,
+                    pass_rate,
+                    task_results,
+                    traces: spans_arc.as_ref().clone(),
+                    dataset_results,
+                })
+            }
+            Err(e) => {
+                error!("Failed to evaluate scenario '{}': {:?}", scenario.id, e);
+                let mut eval_results = EvalResults::new();
+                eval_results.add_failure(&record, e.to_string());
+
+                Ok(ScenarioResult {
+                    scenario_id: scenario.id.clone(),
+                    initial_query: scenario.initial_query.clone(),
+                    eval_results,
+                    passed: false,
+                    pass_rate: 0.0,
+                    task_results: vec![],
+                    traces: spans_arc.as_ref().clone(),
+                    dataset_results,
+                })
             }
         }
     }
@@ -350,6 +563,7 @@ impl EvalRunner {
 
         // Build context JSON for scenario-level evaluation
         let context = json!({
+            "query": scenario.initial_query,
             "response": response,
             "expected_outcome": scenario.expected_outcome,
             "metadata": scenario.metadata,
@@ -363,33 +577,31 @@ impl EvalRunner {
 
     /// Run multi-level evaluation against captured spans.
     ///
-    /// Drains this runner's scoped span capture buffer once at the start of the run.
-    /// Subsequent calls on the same `EvalRunner` will see an empty buffer.
+    /// Drains this runner's scoped span capture buffer once, then evaluates each scenario
+    /// with per-scenario scoping (no cross-scenario record or span contamination).
     async fn evaluate_async(
         &mut self,
-        config: &Arc<EvaluationConfig>,
+        _config: &Arc<EvaluationConfig>,
     ) -> Result<ScenarioEvalResults, EvaluationError> {
-        let scenario_ids = self.scenario_ids();
+        let scenario_ids: Vec<String> = self
+            .scenarios
+            .scenarios
+            .iter()
+            .map(|s| s.id.clone())
+            .collect();
 
-        let raw_by_scenario = self
-            .capture_run_id
-            .as_deref()
-            .map(|capture_run_id| {
-                let spans = scouter_types::span_capture::drain_and_group_spans_for_scenarios(
-                    capture_run_id,
-                    &scenario_ids,
-                );
-                scouter_types::span_capture::disable_capture(capture_run_id);
-                spans
-            })
-            .unwrap_or_default();
-        self.synthesize_trace_dispatch_records(&raw_by_scenario);
+        let mut all_results = Vec::with_capacity(scenario_ids.len());
+        for scenario_id in &scenario_ids {
+            let result = self.evaluate_scenario_async(scenario_id, false).await?;
+            all_results.push(result);
+        }
 
-        let spans_by_scenario = build_spans_by_scenario(raw_by_scenario);
-        self.attach_spans_to_datasets(&spans_by_scenario);
-
-        let dataset_results = self.evaluate_datasets(config).await?;
-        let scenario_results = self.evaluate_scenarios(&spans_by_scenario).await?;
+        let dataset_results = merge_dataset_results(&all_results);
+        // Only include scenarios with tasks in scenario_results (preserves semantics)
+        let scenario_results: Vec<ScenarioResult> = all_results
+            .into_iter()
+            .filter(|r| !r.task_results.is_empty() || !r.eval_results.aligned_results.is_empty())
+            .collect();
         let metrics = compute_metrics(&dataset_results, &scenario_results);
 
         self.persist_results(
@@ -404,177 +616,24 @@ impl EvalRunner {
             metrics,
         })
     }
+}
 
-    /// LEVEL 1: For each alias across all scenarios, flatten records into one
-    /// dataset and evaluate holistically.
-    async fn evaluate_datasets(
-        &self,
-        config: &Arc<EvaluationConfig>,
-    ) -> Result<HashMap<String, EvalResults>, EvaluationError> {
-        // Collect all aliases
-        let mut alias_data: HashMap<String, AliasData> = HashMap::new();
-
-        for datasets in self.scenarios.scenario_datasets.values() {
-            for (alias, dataset) in datasets {
-                let entry = alias_data
-                    .entry(alias.clone())
-                    .or_insert_with(|| AliasData {
-                        records: Vec::new(),
-                        profile: None,
-                        spans: Vec::new(),
-                    });
-                entry.records.extend(dataset.records.iter().cloned());
-                if entry.profile.is_none() {
-                    entry.profile = Some(Arc::clone(&dataset.profile));
-                } else {
-                    // First-seen profile wins per alias — warn when a subsequent scenario
-                    // provides a different profile instance for the same alias.
-                    debug!(
-                        "Alias '{}': profile already set — first-seen profile wins; ignoring profile from a subsequent scenario. Ensure all scenarios use the same profile for this alias.",
-                        alias
-                    );
+/// Merge per-scenario dataset results into a flat alias→EvalResults map (for compare_to compat).
+fn merge_dataset_results(scenario_results: &[ScenarioResult]) -> HashMap<String, EvalResults> {
+    let mut merged: HashMap<String, EvalResults> = HashMap::new();
+    for sr in scenario_results {
+        for (alias, eval_results) in &sr.dataset_results {
+            let entry = merged.entry(alias.clone()).or_default();
+            for aligned in &eval_results.aligned_results {
+                let idx = entry.aligned_results.len();
+                if !aligned.record_id.is_empty() {
+                    entry.results_by_id.insert(aligned.record_id.clone(), idx);
                 }
-                entry.spans.extend(dataset.spans.iter().cloned());
+                entry.aligned_results.push(aligned.clone());
             }
         }
-
-        let mut results = HashMap::new();
-
-        for (
-            alias,
-            AliasData {
-                records,
-                profile,
-                spans,
-            },
-        ) in alias_data
-        {
-            if records.is_empty() {
-                continue;
-            }
-
-            let profile = match profile {
-                Some(p) => p,
-                None => continue,
-            };
-
-            let dataset = EvalDataset {
-                records: Arc::new(records),
-                profile,
-                spans: Arc::new(spans),
-            };
-
-            debug!("Evaluating sub-agent dataset for alias '{}'", alias);
-            match evaluate_genai_dataset(&dataset, config).await {
-                Ok(eval_results) => {
-                    results.insert(alias, eval_results);
-                }
-                Err(e) => {
-                    error!("Failed to evaluate dataset for alias '{}': {:?}", alias, e);
-                    return Err(e);
-                }
-            }
-        }
-
-        Ok(results)
     }
-
-    /// LEVEL 2: For each scenario that has tasks, build a record from
-    /// the scenario context and evaluate against the profile + spans looked up by scenario_id.
-    async fn evaluate_scenarios(
-        &self,
-        spans_by_scenario: &HashMap<String, Arc<Vec<TraceSpan>>>,
-    ) -> Result<Vec<ScenarioResult>, EvaluationError> {
-        let mut results = Vec::new();
-
-        for scenario in &self.scenarios.scenarios {
-            if !scenario.has_tasks() {
-                continue;
-            }
-
-            let context = self
-                .scenarios
-                .scenario_contexts
-                .get(&scenario.id)
-                .cloned()
-                .ok_or_else(|| {
-                    EvaluationError::MissingKeyError(format!(
-                        "Scenario '{}' has tasks but no context — call collect_scenario_data() first",
-                        scenario.id
-                    ))
-                })?;
-
-            // Build EvalRecord from scenario context
-            let record = EvalRecord {
-                context,
-                record_id: scenario.id.clone(),
-                tags: vec![format!("{}={}", SCOUTER_EVAL_SCENARIO_ID_ATTR, scenario.id)],
-                ..Default::default()
-            };
-
-            // Build profile from scenario tasks
-            let profile = AgentEvalProfile::build_from_parts_async(
-                AgentEvalConfig::default(),
-                scenario.tasks.clone(),
-                None,
-            )
-            .await?;
-            let profile = Arc::new(profile);
-
-            // Look up spans directly by scenario_id — no filtering needed
-            let spans_arc = spans_by_scenario
-                .get(&scenario.id)
-                .cloned()
-                .unwrap_or_else(|| Arc::new(Vec::new()));
-
-            // Evaluate
-            match AgentEvaluator::process_event_record(&record, profile, spans_arc.clone()).await {
-                Ok(eval_set) => {
-                    let task_results: Vec<TaskSummary> = eval_set
-                        .records
-                        .iter()
-                        .map(|r| TaskSummary {
-                            task_id: r.task_id.clone(),
-                            passed: r.passed,
-                            value: if r.passed { 1.0 } else { 0.0 },
-                        })
-                        .collect();
-
-                    let mut eval_results = EvalResults::new();
-                    eval_results.add_success(&record, eval_set, BTreeMap::new());
-
-                    let (passed, pass_rate) = compute_pass_rate(&eval_results);
-
-                    results.push(ScenarioResult {
-                        scenario_id: scenario.id.clone(),
-                        initial_query: scenario.initial_query.clone(),
-                        eval_results,
-                        passed,
-                        pass_rate,
-                        task_results,
-                        traces: spans_arc.as_ref().clone(),
-                    });
-                }
-                Err(e) => {
-                    error!("Failed to evaluate scenario '{}': {:?}", scenario.id, e);
-                    let mut eval_results = EvalResults::new();
-                    eval_results.add_failure(&record, e.to_string());
-
-                    results.push(ScenarioResult {
-                        scenario_id: scenario.id.clone(),
-                        initial_query: scenario.initial_query.clone(),
-                        eval_results,
-                        passed: false,
-                        pass_rate: 0.0,
-                        task_results: vec![],
-                        traces: spans_arc.as_ref().clone(),
-                    });
-                }
-            }
-        }
-
-        Ok(results)
-    }
+    merged
 }
 
 /// Build per-scenario span collections from raw grouped span records.
@@ -685,7 +744,7 @@ mod tests {
         TraceAssertionTask,
     };
     use scouter_types::span_capture::{
-        buffer_captured_spans, disable_capture, drain_captured_spans,
+        buffer_captured_spans, disable_capture, drain_captured_spans, peek_spans_for_scenario,
     };
     use scouter_types::trace::{
         Attribute, SCOUTER_EVAL_RUN_ID_ATTR, SCOUTER_EVAL_SCENARIO_ID_ATTR, SCOUTER_QUEUE_EVENT,
@@ -1139,6 +1198,7 @@ mod tests {
                 },
             ],
             traces: vec![],
+            dataset_results: HashMap::new(),
         };
 
         let scenario_results = vec![make_result("s1", true), make_result("s2", false)];
@@ -1226,6 +1286,7 @@ mod tests {
                 pass_rate: 1.0,
                 task_results: vec![],
                 traces: vec![],
+                dataset_results: HashMap::new(),
             },
             ScenarioResult {
                 scenario_id: "s2".to_string(),
@@ -1235,6 +1296,7 @@ mod tests {
                 pass_rate: 0.5,
                 task_results: vec![],
                 traces: vec![],
+                dataset_results: HashMap::new(),
             },
         ];
 
@@ -1393,6 +1455,85 @@ mod tests {
         let records = &scenario_datasets["agent_a"].records;
         assert_eq!(records.len(), 1);
         assert_eq!(records[0].record_source.as_str(), "user");
+        clear_capture_buffer(run_id);
+    }
+
+    #[test]
+    fn merge_dataset_results_concatenates_and_indexes() {
+        use crate::evaluate::types::AlignedEvalResult;
+        use scouter_types::EvalRecord;
+
+        let make_aligned = |record_id: &str| -> AlignedEvalResult {
+            let record = EvalRecord {
+                record_id: record_id.to_string(),
+                ..Default::default()
+            };
+            AlignedEvalResult::from_failure(&record, "test".to_string())
+        };
+
+        let mut ds1 = HashMap::new();
+        let mut er1 = EvalResults::new();
+        let a = make_aligned("rec-a");
+        er1.results_by_id.insert("rec-a".to_string(), 0);
+        er1.aligned_results.push(a);
+        ds1.insert("agent".to_string(), er1);
+
+        let mut ds2 = HashMap::new();
+        let mut er2 = EvalResults::new();
+        let b = make_aligned("rec-b");
+        er2.results_by_id.insert("rec-b".to_string(), 0);
+        er2.aligned_results.push(b);
+        ds2.insert("agent".to_string(), er2);
+
+        let make_sr = |id: &str, ds: HashMap<String, EvalResults>| -> ScenarioResult {
+            ScenarioResult {
+                scenario_id: id.to_string(),
+                initial_query: String::new(),
+                eval_results: EvalResults::new(),
+                passed: true,
+                pass_rate: 1.0,
+                task_results: vec![],
+                traces: vec![],
+                dataset_results: ds,
+            }
+        };
+        let sr1 = make_sr("s1", ds1);
+        let sr2 = make_sr("s2", ds2);
+
+        let merged = super::merge_dataset_results(&[sr1, sr2]);
+        let agent_results = merged.get("agent").expect("alias present");
+        assert_eq!(agent_results.aligned_results.len(), 2);
+        assert!(agent_results.results_by_id.contains_key("rec-a"));
+        assert!(agent_results.results_by_id.contains_key("rec-b"));
+    }
+
+    #[test]
+    fn evaluate_scenario_peek_does_not_drain_buffer() {
+        let run_id = "test-peek-drain-contract";
+        let trace_id = TraceId::from_bytes([0xAA; 16]);
+
+        let scenario = make_scenario("s1", "test query");
+        let mut runner = runner_with_capture(
+            run_id,
+            EvalScenarios::new(vec![scenario.clone()]),
+            make_default_profiles(),
+        );
+
+        // Seed a span tagged with the scenario_id so peek_spans_for_scenario can find it.
+        push_captured_spans(
+            run_id,
+            vec![make_scenario_marker_span(trace_id, &scenario.id)],
+        );
+
+        // evaluate_scenario uses peek (not drain) — buffer must survive the call.
+        let _ = runner.evaluate_scenario("s1");
+
+        let remaining = peek_spans_for_scenario(run_id, "s1");
+        assert!(
+            !remaining.is_empty(),
+            "evaluate_scenario drained the capture buffer; on_scenario_complete hooks would get empty spans"
+        );
+
         clear_capture_buffer(run_id);
     }
 }

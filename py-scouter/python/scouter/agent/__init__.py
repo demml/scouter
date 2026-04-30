@@ -21,12 +21,16 @@ from .._scouter import (  # Prompt interface types; Workflow types; Agent types;
     WorkflowTask,
 )
 from . import anthropic, google, openai
+from .mock import MockTool, ScouterMockAgent
 
 __all__ = [
     # Submodules
     "google",
     "openai",
     "anthropic",
+    # Mock / testing
+    "MockTool",
+    "ScouterMockAgent",
     # Prompt interface
     "Prompt",
     "Role",

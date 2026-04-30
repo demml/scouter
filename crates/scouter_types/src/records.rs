@@ -680,19 +680,13 @@ impl AgentEvalWorkflowResult {
 
 #[derive(Tabled)]
 pub struct TaskResultTableEntry {
-    #[tabled(rename = "Created At")]
-    pub created_at: String,
     #[tabled(rename = "Record ID")]
     pub record_id: String,
     #[tabled(rename = "Task ID")]
     pub task_id: String,
-    #[tabled(rename = "Task Type")]
+    #[tabled(rename = "Type")]
     pub task_type: String,
-    #[tabled(rename = "Condition")]
-    pub condition: bool,
-    #[tabled(rename = "Stage")]
-    pub stage: i32,
-    #[tabled(rename = "Passed")]
+    #[tabled(rename = "✓")]
     pub passed: String,
     #[tabled(rename = "Assertion")]
     pub assertion: String,
@@ -809,25 +803,20 @@ impl EvalTaskResult {
         };
 
         TaskResultTableEntry {
-            created_at: self.created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-
             record_id: truncate(record_id.to_string(), 16)
                 .truecolor(249, 179, 93)
-                .to_string(), // UUIDs are ~36 chars
-            task_id: truncate(self.task_id.clone(), 16),
+                .to_string(),
+            task_id: truncate(self.task_id.clone(), 20),
             task_type: self.task_type.to_string(),
-            condition: self.condition,
-            stage: self.stage,
             passed: if self.passed {
                 "✓".green().to_string()
             } else {
                 "✗".red().to_string()
             },
-
-            assertion: truncate(self.assertion(), 12),
+            assertion: truncate(self.assertion(), 22),
             operator: self.operator.to_string(),
             expected: truncate(expected_str, 20),
-            actual: truncate(actual_str, 20),
+            actual: truncate(actual_str, 30),
         }
     }
     #[allow(clippy::too_many_arguments)]
