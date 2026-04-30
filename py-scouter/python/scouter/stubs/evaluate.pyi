@@ -2853,7 +2853,7 @@ class EvalRunner:
     Owns scenario definitions and profiles (as shared references).
     Provides ``collect_scenario_data()`` to populate scenario data and
     ``evaluate()`` to run multi-level evaluation, pulling spans from
-    the global capture buffer automatically.
+    the scoped capture buffer automatically.
 
     Args:
         scenarios: List of ``EvalScenario`` instances to evaluate.
@@ -2868,6 +2868,7 @@ class EvalRunner:
         self,
         scenarios: "EvalScenarios",
         profiles: Dict[str, "AgentEvalProfile"],
+        capture_run_id: Optional[str] = None,
     ) -> None: ...
     def collect_scenario_data(
         self,
@@ -2883,7 +2884,7 @@ class EvalRunner:
     ) -> "ScenarioEvalResults":
         """Run multi-level evaluation.
 
-        Spans are pulled automatically from the global capture buffer.
+        Spans are pulled automatically from the scoped capture buffer.
 
         Args:
             config: Optional evaluation configuration.

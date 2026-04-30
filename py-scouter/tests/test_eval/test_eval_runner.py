@@ -1,5 +1,3 @@
-import time
-
 import pytest
 from scouter.drift import AgentEvalProfile
 from scouter.evaluate import (
@@ -88,19 +86,27 @@ def test_eval_runner_full_e2e(tracer):
     """Full E2E: 5 scenarios, 2 sub-agents, span capture, 3-level metrics."""
     retriever_profile, synthesizer_profile = _build_profiles()
     scenarios = _build_scenarios()
+    capture_run_id = "eval_runner_full_e2e"
 
     runner = EvalRunner(
         scenarios=scenarios,
         profiles={"retriever": retriever_profile, "synthesizer": synthesizer_profile},
+        capture_run_id=capture_run_id,
     )
 
-    tracer.enable_local_capture()
+    tracer.enable_local_capture(capture_run_id)
 
     for i, (query, quality, count, _) in enumerate(SCENARIO_DATA):
         scenario = scenarios.scenarios[i]
         record_id = f"scenario_{i + 1}"
 
-        with tracer.start_as_current_span("retriever_call") as span:
+        with tracer.start_as_current_span(
+            "retriever_call",
+            baggage=[
+                {"scouter.eval.run_id": capture_run_id},
+                {"scouter.eval.scenario_id": scenario.id},
+            ],
+        ) as span:
             trace_id_hex = format(span.get_span_context().trace_id, "032x")
 
         retriever_records = [
@@ -126,9 +132,6 @@ def test_eval_runner_full_e2e(tracer):
             response=f"Synthesized answer for: {query}",
             scenario=scenario,
         )
-
-    # Allow batch span export to flush to capture buffer
-    time.sleep(0.2)
 
     results = runner.evaluate()
 
@@ -170,8 +173,8 @@ def test_eval_runner_full_e2e(tracer):
     # ── Level 2: one scenario result per scenario ──
     assert len(results.scenario_results) == 5
 
-    tracer.disable_local_capture()
-    tracer.drain_local_spans()
+    tracer.disable_local_capture(capture_run_id)
+    tracer.drain_local_spans(capture_run_id)
 
 
 def test_eval_runner_no_trace_tasks():
@@ -278,7 +281,8 @@ def test_mock_adk_agent_e2e():
         transport_config=MockConfig(),
         exporter=TestSpanExporter(batch_export=False),
     )
-    adk_tracer.enable_local_capture()
+    capture_run_id = "eval_runner_mock_adk"
+    adk_tracer.enable_local_capture(capture_run_id)
 
     # 4. Build scenarios + runner
     scenarios = EvalScenarios(
@@ -299,12 +303,19 @@ def test_mock_adk_agent_e2e():
             for i, (query, _, _) in enumerate(ADK_SCENARIO_DATA)
         ]
     )
-    runner = EvalRunner(scenarios=scenarios, profiles=queue.agent_profiles())
+    runner = EvalRunner(
+        scenarios=scenarios,
+        profiles=queue.agent_profiles(),
+        capture_run_id=capture_run_id,
+    )
 
     # 5. Simulate mock ADK agent — span.add_queue_item auto-stamps trace_id onto EvalRecord
     for i, (query, quality, count) in enumerate(ADK_SCENARIO_DATA):
         scenario = scenarios.scenarios[i]
-        with adk_tracer.start_as_current_span("agent_call") as span:
+        with adk_tracer.start_as_current_span(
+            "agent_call",
+            baggage=[{"scouter.eval.run_id": capture_run_id}],
+        ) as span:
             span.add_queue_item(
                 "retriever",
                 EvalRecord(
@@ -326,9 +337,6 @@ def test_mock_adk_agent_e2e():
             response=f"Synthesized answer for: {query}",
             scenario=scenario,
         )
-
-    # Allow batch span export to flush to capture buffer
-    time.sleep(0.2)
 
     # 6. Evaluate
     results = runner.evaluate()
@@ -357,8 +365,8 @@ def test_mock_adk_agent_e2e():
     assert len(results.scenario_results) == 3
 
     # Cleanup
-    adk_tracer.disable_local_capture()
-    adk_tracer.drain_local_spans()
+    adk_tracer.disable_local_capture(capture_run_id)
+    adk_tracer.drain_local_spans(capture_run_id)
 
 
 def _run_eval(scenario_data: list[tuple[str, int, int]]) -> ScenarioEvalResults:

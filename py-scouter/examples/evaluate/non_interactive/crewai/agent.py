@@ -1,14 +1,15 @@
 # need to turin of E402 - we need to call set_offline before importing the shared config and service builder
 # ruff: noqa: E402
-# pylint: disable=wrong-import-position
+# pylint: disable=wrong-import-position,ungrouped-imports
 from __future__ import annotations
+
+import os
+from typing import Any, Callable
 
 from scouter import ScouterEnv
 
 ScouterEnv.set_offline()
 
-import os
-from typing import Any, Callable
 
 from fastapi import FastAPI
 from openinference.instrumentation.crewai import CrewAIInstrumentor

@@ -102,13 +102,15 @@ Returns `True` if `instrument()` has been called and the provider is active.
 ### Local Capture Methods
 
 Useful for testing — captures spans in memory instead of exporting them.
+Captured spans must carry `scouter.eval.run_id` baggage/attribute matching the
+capture run ID. `EvalOrchestrator` handles this automatically.
 
 | Method | Description |
 |--------|-------------|
-| `enable_local_capture()` | Buffer spans locally instead of exporting. |
-| `disable_local_capture()` | Stop local capture and discard buffered spans. |
-| `drain_local_spans()` | Return and clear all buffered spans as `List[TraceSpanRecord]`. |
-| `get_local_spans_by_trace_ids(trace_ids)` | Return buffered spans matching the given trace IDs without clearing the buffer. |
+| `enable_local_capture(capture_run_id)` | Buffer spans for one capture run instead of exporting. |
+| `disable_local_capture(capture_run_id)` | Stop local capture for one run and discard buffered spans. |
+| `drain_local_spans(capture_run_id)` | Return and clear buffered spans for one run as `List[TraceSpanRecord]`. |
+| `get_local_spans_by_trace_ids(capture_run_id, trace_ids)` | Return buffered spans for one run matching the given trace IDs without clearing the buffer. |
 
 ### Convenience Functions
 
@@ -465,25 +467,28 @@ from scouter import GrpcConfig
 @pytest.fixture(autouse=True)
 def scouter_local():
     """Set up ScouterInstrumentor with local span capture for tests."""
+    capture_run_id = "agent-search-test"
     inst = ScouterInstrumentor()
     inst.instrument(transport_config=GrpcConfig())
-    inst.enable_local_capture()
-    yield inst
-    inst.disable_local_capture()
+    inst.enable_local_capture(capture_run_id)
+    yield inst, capture_run_id
+    inst.disable_local_capture(capture_run_id)
     inst.uninstrument()
 
 def test_agent_produces_search_span(scouter_local):
+    inst, capture_run_id = scouter_local
     run_my_agent("What is the weather in NYC?")
 
-    spans = scouter_local.drain_local_spans()
+    spans = inst.drain_local_spans(capture_run_id)
     span_names = [s.name for s in spans]
     assert "web_search" in span_names
 
 def test_filter_by_trace_id(scouter_local):
+    inst, capture_run_id = scouter_local
     trace_id = run_my_agent_and_return_trace_id("query")
 
-    matched = scouter_local.get_local_spans_by_trace_ids([trace_id])
+    matched = inst.get_local_spans_by_trace_ids(capture_run_id, [trace_id])
     assert len(matched) > 0
 ```
 
-`drain_local_spans()` clears the buffer. `get_local_spans_by_trace_ids()` reads without clearing — useful when multiple tests share a buffer or when you want to inspect a specific trace within a larger batch.
+`drain_local_spans(capture_run_id)` clears that run's buffer. `get_local_spans_by_trace_ids(capture_run_id, trace_ids)` reads without clearing — useful when you want to inspect a specific trace within a larger batch.

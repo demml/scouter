@@ -12,7 +12,7 @@ That keeps ADK tracing cleanup on a stable loop instead of creating a fresh
 
 # need to turin of E402 - we need to call set_offline before importing the shared config and service builder
 # ruff: noqa: E402
-# pylint: disable=wrong-import-position
+# pylint: disable=wrong-import-position,wrong-import-order
 from __future__ import annotations
 
 from scouter import ScouterEnv

@@ -1,5 +1,5 @@
 use crate::exporter::TraceError;
-use crate::tracer::{CAPTURE_BUFFER, CAPTURE_BUFFER_MAX, CAPTURING};
+use crate::tracer::CAPTURING;
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
 use opentelemetry_proto::transform::common::tonic::ResourceAttributesWithSchema;
 use opentelemetry_proto::transform::trace::tonic::group_spans_by_resource_and_scope;
@@ -47,8 +47,12 @@ impl SpanExporter for ScouterSpanExporter {
         let transport_config = self.transport_config.clone();
         let resource = self.resource.clone();
 
-        // Fast path: local capture buffer (test / debug mode)
+        // Local capture buffer — dev/test only. While active, spans are routed to the
+        // in-process buffer and NOT forwarded to the Scouter backend.
         if CAPTURING.load(Ordering::Acquire) {
+            warn!(
+                "ScouterSpanExporter: local capture active — spans buffered locally, not sent to Scouter backend"
+            );
             let resource_spans = group_spans_by_resource_and_scope(
                 batch,
                 &ResourceAttributesWithSchema::from(&resource),
@@ -58,23 +62,7 @@ impl SpanExporter for ScouterSpanExporter {
             let (spans, _, _) = record
                 .to_records()
                 .map_err(|e| OTelSdkError::InternalFailure(e.to_string()))?;
-            let mut buf = CAPTURE_BUFFER.write().unwrap_or_else(|p| p.into_inner());
-            let available = CAPTURE_BUFFER_MAX.saturating_sub(buf.len());
-            if available == 0 {
-                warn!(
-                    "CAPTURE_BUFFER full ({} records); dropping new spans to prevent OOM",
-                    CAPTURE_BUFFER_MAX
-                );
-            } else {
-                if spans.len() > available {
-                    warn!(
-                        "CAPTURE_BUFFER near full; truncating batch from {} to {} spans",
-                        spans.len(),
-                        available
-                    );
-                }
-                buf.extend(spans.into_iter().take(available));
-            }
+            scouter_types::span_capture::buffer_captured_spans(spans);
             return Ok(());
         }
 

@@ -77,7 +77,7 @@ results.as_table()
 ```
 EvalOrchestrator.run()
 │
-├── enable_capture on queue + span capture buffer
+├── enable_capture on queue + run-scoped span capture buffer
 │
 │   for each scenario:
 │   ├── on_scenario_start(scenario)
@@ -97,7 +97,7 @@ EvalOrchestrator.run()
 │   │
 │   ├── on_scenario_complete(scenario, response)
 │
-├── flush_tracer()                       ← ensure spans are in the capture buffer
+├── flush_tracer()                       ← ensure spans are in the run-scoped capture buffer
 ├── EvalRunner.evaluate()                ← 3-level Rust evaluation engine
 ├── on_evaluation_complete(results)
 │
@@ -121,7 +121,7 @@ alias "synthesizer" → 5 records → EvalDataset → EvalResults
 
 **Level 2: Scenario-level evaluation**
 
-For each scenario that has `tasks`, a single `EvalRecord` is built from the scenario context (agent response + `expected_outcome`) and evaluated against those tasks. `TraceAssertionTask`s are resolved by matching `trace_id`s from the scenario's records to spans in the capture buffer.
+For each scenario that has `tasks`, a single `EvalRecord` is built from the scenario context (agent response + `expected_outcome`) and evaluated against those tasks. `TraceAssertionTask`s are resolved by matching `trace_id`s from the scenario's records to spans in that evaluation run's scoped capture buffer.
 
 ```
 scenario "capital_question" → build record from {response, expected_outcome}

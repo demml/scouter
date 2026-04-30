@@ -511,7 +511,10 @@ impl ScouterQueue {
                     .handle()
                     .block_on(async { workflow.reset_agents().await })
             {
-                error!("Failed to reset workflow agents for profile {}: {:?}", id, e);
+                error!(
+                    "Failed to reset workflow agents for profile {}: {:?}",
+                    id, e
+                );
             }
             registry
                 .agent_profiles

@@ -77,9 +77,7 @@ pub mod rabbitmq_consumer {
                     }
                     MessageRecord::TagServerRecord(r) => process_tag_record(id, r, db_pool).await,
                 };
-                if success
-                    && let Err(e) = msg.ack(BasicAckOptions::default()).await
-                {
+                if success && let Err(e) = msg.ack(BasicAckOptions::default()).await {
                     error!("Worker {}: Failed to ack message: {:?}", id, e);
                     counter!("message_ack_errors").increment(1);
                 }

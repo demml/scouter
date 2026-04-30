@@ -325,7 +325,7 @@ graph LR
 
 Task definitions — `AssertionTask`, `LLMJudgeTask`, `AgentAssertionTask`, `TraceAssertionTask` — are identical between offline and online. Write them once, validate in CI, run them against production traffic.
 
-Offline evaluation uses `MockConfig()` transport. Records never leave the process. `EvalRunner` automatically pulls spans from the global trace capture buffer — no manual wiring needed between `EvalRecord` insertion and `TraceAssertionTask` evaluation.
+Offline evaluation uses `MockConfig()` transport. Records never leave the process. `EvalRunner` automatically pulls spans from its run-scoped trace capture buffer — no manual wiring needed between `EvalRecord` insertion and `TraceAssertionTask` evaluation.
 
 Online sampling happens at `QueueNum::insert_agent_record()` before the transport layer. Records that don't pass the `sample_ratio` check are silently dropped, not transmitted. There's no counter or log entry for dropped records by design — sampling is a rate control mechanism, not an error path.
 

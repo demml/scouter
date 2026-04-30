@@ -969,10 +969,13 @@ impl TraceSummaryQueries {
                 // Cast to Binary to handle both uniformly.
                 if let Some(col_ref) = batch.column_by_name(TRACE_ID_COL) {
                     let casted = compute::cast(col_ref, &DataType::Binary)?;
-                    let col_arr = casted
-                        .as_any()
-                        .downcast_ref::<BinaryArray>()
-                        .ok_or_else(|| TraceEngineError::DowncastError("trace_id to BinaryArray"))?;
+                    let col_arr =
+                        casted
+                            .as_any()
+                            .downcast_ref::<BinaryArray>()
+                            .ok_or_else(|| {
+                                TraceEngineError::DowncastError("trace_id to BinaryArray")
+                            })?;
                     for i in 0..batch.num_rows() {
                         let id_bytes = col_arr.value(i).to_vec();
                         if seen_ids.insert(id_bytes.clone()) {
@@ -1188,10 +1191,13 @@ impl TraceSummaryQueries {
             for batch in &span_batches {
                 if let Some(col_ref) = batch.column_by_name(TRACE_ID_COL) {
                     let casted = compute::cast(col_ref, &DataType::Binary)?;
-                    let col_arr = casted
-                        .as_any()
-                        .downcast_ref::<BinaryArray>()
-                        .ok_or_else(|| TraceEngineError::DowncastError("trace_id to BinaryArray"))?;
+                    let col_arr =
+                        casted
+                            .as_any()
+                            .downcast_ref::<BinaryArray>()
+                            .ok_or_else(|| {
+                                TraceEngineError::DowncastError("trace_id to BinaryArray")
+                            })?;
                     for i in 0..batch.num_rows() {
                         let id_bytes = col_arr.value(i).to_vec();
                         if seen_ids.insert(id_bytes.clone()) {

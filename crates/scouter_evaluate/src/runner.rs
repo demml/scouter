@@ -14,7 +14,8 @@ use scouter_types::agent::{AgentEvalConfig, AgentEvalProfile};
 use scouter_types::depythonize_object_to_value;
 use scouter_types::trace::sql::TraceSpan;
 use scouter_types::trace::{
-    SCOUTER_ENTITY, SCOUTER_QUEUE_RECORD, TraceSpanRecord, build_trace_spans,
+    SCOUTER_ENTITY, SCOUTER_EVAL_SCENARIO_ID_ATTR, SCOUTER_QUEUE_RECORD, TraceSpanRecord,
+    build_trace_spans,
 };
 use scouter_types::{EvalRecord, EvalRecordSource};
 use serde_json::{Value, json};
@@ -40,27 +41,25 @@ struct TraceDispatchCandidate {
 /// mirroring the `ScouterQueue` pattern. It provides:
 /// - `collect_scenario_data()`: Populates scenario datasets and contexts
 /// - `evaluate()`: Runs multi-level evaluation (sub-agent + scenario + aggregate),
-///   pulling captured spans from the global buffer automatically.
+///   pulling captured spans from its scoped buffer automatically.
 #[derive(Debug)]
 #[pyclass(skip_from_py_object)]
 pub struct EvalRunner {
     profiles: HashMap<String, Arc<AgentEvalProfile>>,
     scenarios: EvalScenarios,
+    capture_run_id: Option<String>,
 }
 
 #[pymethods]
 impl EvalRunner {
     #[new]
-    #[pyo3(signature = (scenarios, profiles))]
-    pub fn new(scenarios: EvalScenarios, profiles: HashMap<String, AgentEvalProfile>) -> Self {
-        let arc_profiles: HashMap<String, Arc<AgentEvalProfile>> = profiles
-            .into_iter()
-            .map(|(k, v)| (k, Arc::new(v)))
-            .collect();
-        Self {
-            profiles: arc_profiles,
-            scenarios,
-        }
+    #[pyo3(signature = (scenarios, profiles, capture_run_id=None))]
+    fn py_new(
+        scenarios: EvalScenarios,
+        profiles: HashMap<String, AgentEvalProfile>,
+        capture_run_id: Option<String>,
+    ) -> Self {
+        Self::with_capture_run_id(scenarios, profiles, capture_run_id)
     }
 
     #[getter]
@@ -70,7 +69,7 @@ impl EvalRunner {
 
     /// Run multi-level evaluation.
     ///
-    /// Spans are pulled automatically from the global capture buffer —
+    /// Spans are pulled automatically from the scoped capture buffer —
     /// no need to pass them explicitly.
     ///
     /// **LEVEL 1** — Sub-agent evaluation: flatten all records per alias → one EvalDataset → evaluate
@@ -121,6 +120,26 @@ impl EvalRunner {
 }
 
 impl EvalRunner {
+    pub fn new(scenarios: EvalScenarios, profiles: HashMap<String, AgentEvalProfile>) -> Self {
+        Self::with_capture_run_id(scenarios, profiles, None)
+    }
+
+    pub fn with_capture_run_id(
+        scenarios: EvalScenarios,
+        profiles: HashMap<String, AgentEvalProfile>,
+        capture_run_id: Option<String>,
+    ) -> Self {
+        let arc_profiles: HashMap<String, Arc<AgentEvalProfile>> = profiles
+            .into_iter()
+            .map(|(k, v)| (k, Arc::new(v)))
+            .collect();
+        Self {
+            profiles: arc_profiles,
+            scenarios,
+            capture_run_id,
+        }
+    }
+
     fn has_valid_queue_marker(span: &TraceSpanRecord) -> bool {
         let has_marker = |key: &str, value: &Value| {
             key == SCOUTER_QUEUE_RECORD
@@ -186,7 +205,7 @@ impl EvalRunner {
             session_id: synthetic_key,
             trace_id: Some(trace_id),
             record_source: EvalRecordSource::TraceDispatch,
-            tags: vec![format!("scouter.eval.scenario_id={}", scenario_id)],
+            tags: vec![format!("{}={}", SCOUTER_EVAL_SCENARIO_ID_ATTR, scenario_id)],
             entity_uid: entity_uid.to_string(),
             ..Default::default()
         }
@@ -251,6 +270,38 @@ impl EvalRunner {
         }
     }
 
+    fn scenario_ids(&self) -> HashSet<String> {
+        self.scenarios
+            .scenarios
+            .iter()
+            .map(|s| s.id.clone())
+            .collect()
+    }
+
+    fn attach_spans_to_datasets(
+        &mut self,
+        spans_by_scenario: &HashMap<String, Arc<Vec<TraceSpan>>>,
+    ) {
+        for (scenario_id, datasets) in &mut self.scenarios.scenario_datasets {
+            if let Some(spans) = spans_by_scenario.get(scenario_id) {
+                for dataset in datasets.values_mut() {
+                    dataset.spans = Arc::clone(spans);
+                }
+            }
+        }
+    }
+
+    fn persist_results(
+        &mut self,
+        dataset_results: HashMap<String, EvalResults>,
+        scenario_results: Vec<ScenarioResult>,
+        metrics: EvalMetrics,
+    ) {
+        self.scenarios.dataset_results = dataset_results;
+        self.scenarios.scenario_results = scenario_results;
+        self.scenarios.metrics = Some(metrics);
+    }
+
     pub(crate) fn collect_scenario_data_value(
         &mut self,
         records: HashMap<String, Vec<EvalRecord>>,
@@ -262,7 +313,7 @@ impl EvalRunner {
 
         for (alias, mut alias_records) in records {
             // Tag each record with the scenario_id
-            let scenario_tag = format!("scouter.eval.scenario_id={}", scenario_id);
+            let scenario_tag = format!("{}={}", SCOUTER_EVAL_SCENARIO_ID_ATTR, scenario_id);
             for record in &mut alias_records {
                 if !record.tags.contains(&scenario_tag) {
                     record.tags.push(scenario_tag.clone());
@@ -310,85 +361,42 @@ impl EvalRunner {
         Ok(())
     }
 
+    /// Run multi-level evaluation against captured spans.
+    ///
+    /// Drains this runner's scoped span capture buffer once at the start of the run.
+    /// Subsequent calls on the same `EvalRunner` will see an empty buffer.
     async fn evaluate_async(
         &mut self,
         config: &Arc<EvaluationConfig>,
     ) -> Result<ScenarioEvalResults, EvaluationError> {
-        let scenario_ids: HashSet<String> = self
-            .scenarios
-            .scenarios
-            .iter()
-            .map(|s| s.id.clone())
-            .collect();
+        let scenario_ids = self.scenario_ids();
 
-        // Single buffer scan → grouped by scenario_id (via span attribute)
-        let mut raw_by_scenario =
-            scouter_types::span_capture::get_spans_grouped_by_scenario_id(&scenario_ids);
+        let raw_by_scenario = self
+            .capture_run_id
+            .as_deref()
+            .map(|capture_run_id| {
+                let spans = scouter_types::span_capture::drain_and_group_spans_for_scenarios(
+                    capture_run_id,
+                    &scenario_ids,
+                );
+                scouter_types::span_capture::disable_capture(capture_run_id);
+                spans
+            })
+            .unwrap_or_default();
         self.synthesize_trace_dispatch_records(&raw_by_scenario);
 
-        // Also resolve spans via EvalRecord.trace_id for scenarios whose spans were not
-        // captured with the scouter.eval.scenario_id attribute (e.g. plain OTel spans).
-        let mut record_trace_to_scenario: HashMap<ScouterTraceId, String> = HashMap::new();
-        for (scenario_id, datasets) in &self.scenarios.scenario_datasets {
-            for dataset in datasets.values() {
-                for record in dataset.records.iter() {
-                    if let Some(tid) = record.trace_id {
-                        record_trace_to_scenario.insert(tid, scenario_id.clone());
-                    }
-                }
-            }
-        }
+        let spans_by_scenario = build_spans_by_scenario(raw_by_scenario);
+        self.attach_spans_to_datasets(&spans_by_scenario);
 
-        if !record_trace_to_scenario.is_empty() {
-            // Only fetch trace_ids not already covered by the attribute-based pass
-            let already_covered: HashSet<ScouterTraceId> = raw_by_scenario
-                .values()
-                .flat_map(|spans: &Vec<_>| spans.iter().map(|s| s.trace_id))
-                .collect();
-            let new_trace_ids: HashSet<ScouterTraceId> = record_trace_to_scenario
-                .keys()
-                .filter(|tid| !already_covered.contains(tid))
-                .copied()
-                .collect();
-            if !new_trace_ids.is_empty() {
-                let extra =
-                    scouter_types::span_capture::get_captured_spans_by_trace_ids(&new_trace_ids);
-                for span in extra {
-                    if let Some(sid) = record_trace_to_scenario.get(&span.trace_id) {
-                        raw_by_scenario.entry(sid.clone()).or_default().push(span);
-                    }
-                }
-            }
-        }
-
-        // Convert each group to tree-enriched TraceSpans
-        let spans_by_scenario: HashMap<String, Arc<Vec<TraceSpan>>> = raw_by_scenario
-            .into_iter()
-            .map(|(id, records)| (id, Arc::new(build_trace_spans(records))))
-            .collect();
-
-        // Assign spans to datasets by scenario_id key lookup
-        for (scenario_id, datasets) in &mut self.scenarios.scenario_datasets {
-            if let Some(spans) = spans_by_scenario.get(scenario_id) {
-                for dataset in datasets.values_mut() {
-                    dataset.spans = Arc::clone(spans);
-                }
-            }
-        }
-
-        // Level 1: Sub-agent evaluation
         let dataset_results = self.evaluate_datasets(config).await?;
-
-        // Level 2: Scenario evaluation
         let scenario_results = self.evaluate_scenarios(&spans_by_scenario).await?;
-
-        // Level 3: Aggregate metrics
         let metrics = compute_metrics(&dataset_results, &scenario_results);
 
-        // Store results on the EvalScenarios container
-        self.scenarios.dataset_results = dataset_results.clone();
-        self.scenarios.scenario_results = scenario_results.clone();
-        self.scenarios.metrics = Some(metrics.clone());
+        self.persist_results(
+            dataset_results.clone(),
+            scenario_results.clone(),
+            metrics.clone(),
+        );
 
         Ok(ScenarioEvalResults {
             dataset_results,
@@ -500,7 +508,7 @@ impl EvalRunner {
             let record = EvalRecord {
                 context,
                 record_id: scenario.id.clone(),
-                tags: vec![format!("scouter.eval.scenario_id={}", scenario.id)],
+                tags: vec![format!("{}={}", SCOUTER_EVAL_SCENARIO_ID_ATTR, scenario.id)],
                 ..Default::default()
             };
 
@@ -569,6 +577,16 @@ impl EvalRunner {
     }
 }
 
+/// Build per-scenario span collections from raw grouped span records.
+fn build_spans_by_scenario(
+    raw_by_scenario: HashMap<String, Vec<TraceSpanRecord>>,
+) -> HashMap<String, Arc<Vec<TraceSpan>>> {
+    raw_by_scenario
+        .into_iter()
+        .map(|(id, records)| (id, Arc::new(build_trace_spans(records))))
+        .collect()
+}
+
 /// LEVEL 3: Compute aggregate metrics
 fn compute_metrics(
     dataset_results: &HashMap<String, EvalResults>,
@@ -595,7 +613,7 @@ fn compute_metrics(
         workflow_rates.iter().sum::<f64>() / workflow_rates.len() as f64
     };
 
-    let mut all_rates = workflow_rates.clone();
+    let mut all_rates = workflow_rates;
     if total_scenarios > 0 {
         all_rates.push(scenario_pass_rate);
     }
@@ -666,9 +684,12 @@ mod tests {
         AgentEvalConfig, ComparisonOperator, EvaluationTaskType, SpanFilter, TraceAssertion,
         TraceAssertionTask,
     };
-    use scouter_types::span_capture::{CAPTURE_BUFFER, drain_captured_spans};
+    use scouter_types::span_capture::{
+        buffer_captured_spans, disable_capture, drain_captured_spans,
+    };
     use scouter_types::trace::{
-        Attribute, SCOUTER_EVAL_SCENARIO_ID_ATTR, SCOUTER_QUEUE_EVENT, SpanEvent, SpanId, TraceId,
+        Attribute, SCOUTER_EVAL_RUN_ID_ATTR, SCOUTER_EVAL_SCENARIO_ID_ATTR, SCOUTER_QUEUE_EVENT,
+        SpanEvent, SpanId, TraceId,
     };
 
     fn empty_tasks() -> AssertionTasks {
@@ -734,15 +755,32 @@ mod tests {
         profiles
     }
 
-    fn clear_capture_buffer() {
-        let _ = drain_captured_spans();
+    fn clear_capture_buffer(run_id: &str) {
+        let _ = drain_captured_spans(run_id);
+        disable_capture(run_id);
     }
 
-    fn push_captured_spans(spans: Vec<TraceSpanRecord>) {
-        let mut buf = CAPTURE_BUFFER
-            .write()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        buf.extend(spans);
+    fn push_captured_spans(run_id: &str, spans: Vec<TraceSpanRecord>) {
+        let scoped = spans
+            .into_iter()
+            .map(|mut span| {
+                span.attributes.push(Attribute {
+                    key: SCOUTER_EVAL_RUN_ID_ATTR.to_string(),
+                    value: Value::String(run_id.to_string()),
+                });
+                span
+            })
+            .collect();
+        scouter_types::span_capture::enable_capture(run_id);
+        buffer_captured_spans(scoped);
+    }
+
+    fn runner_with_capture(
+        run_id: &str,
+        scenarios: EvalScenarios,
+        profiles: HashMap<String, AgentEvalProfile>,
+    ) -> EvalRunner {
+        EvalRunner::with_capture_run_id(scenarios, profiles, Some(run_id.to_string()))
     }
 
     fn make_trace_profile(alias: &str, uid: &str, span_name: &str) -> AgentEvalProfile {
@@ -818,6 +856,7 @@ mod tests {
     fn make_entity_span(
         trace_id: TraceId,
         entity_uid: &str,
+        scenario_id: &str,
         with_queue_marker: bool,
     ) -> TraceSpanRecord {
         let mut events = vec![];
@@ -838,10 +877,16 @@ mod tests {
             2,
             Some(1),
             "trace_only_work",
-            vec![Attribute {
-                key: format!("{}.{}", SCOUTER_ENTITY, entity_uid),
-                value: Value::String(entity_uid.to_string()),
-            }],
+            vec![
+                Attribute {
+                    key: format!("{}.{}", SCOUTER_ENTITY, entity_uid),
+                    value: Value::String(entity_uid.to_string()),
+                },
+                Attribute {
+                    key: SCOUTER_EVAL_SCENARIO_ID_ATTR.to_string(),
+                    value: Value::String(scenario_id.to_string()),
+                },
+            ],
             events,
         )
     }
@@ -1203,11 +1248,13 @@ mod tests {
 
     #[test]
     fn evaluate_synthesizes_trace_dispatch_records_for_trace_only_spans() {
-        clear_capture_buffer();
+        let run_id = "test_synthesize";
+        clear_capture_buffer(run_id);
         let scenario = make_scenario("s1", "Hello");
         let entity_uid = "00000000-0000-0000-0000-000000000001".to_string();
         let profile = make_trace_profile("agent_a", &entity_uid, "trace_only_work");
-        let mut runner = EvalRunner::new(
+        let mut runner = runner_with_capture(
+            run_id,
             EvalScenarios::new(vec![scenario.clone()]),
             HashMap::from([("agent_a".to_string(), profile)]),
         );
@@ -1217,10 +1264,13 @@ mod tests {
             .unwrap();
 
         let trace_id = TraceId::from_bytes([1; 16]);
-        push_captured_spans(vec![
-            make_scenario_marker_span(trace_id, &scenario.id),
-            make_entity_span(trace_id, &entity_uid, false),
-        ]);
+        push_captured_spans(
+            run_id,
+            vec![
+                make_scenario_marker_span(trace_id, &scenario.id),
+                make_entity_span(trace_id, &entity_uid, &scenario.id, false),
+            ],
+        );
 
         let result = runner.evaluate(None).unwrap();
         let scenario_datasets = runner.scenarios.scenario_datasets.get("s1").unwrap();
@@ -1232,16 +1282,18 @@ mod tests {
         assert!(records[0].record_id.starts_with("trace-dispatch:"));
         assert_eq!(records[0].record_id, records[0].session_id);
         assert!(result.dataset_results.contains_key("agent_a"));
-        clear_capture_buffer();
+        clear_capture_buffer(run_id);
     }
 
     #[test]
     fn evaluate_does_not_synthesize_trace_dispatch_when_queue_marker_exists() {
-        clear_capture_buffer();
+        let run_id = "test_no_queue_marker";
+        clear_capture_buffer(run_id);
         let scenario = make_scenario("s1", "Hello");
         let entity_uid = "00000000-0000-0000-0000-000000000002".to_string();
         let profile = make_trace_profile("agent_a", &entity_uid, "trace_only_work");
-        let mut runner = EvalRunner::new(
+        let mut runner = runner_with_capture(
+            run_id,
             EvalScenarios::new(vec![scenario.clone()]),
             HashMap::from([("agent_a".to_string(), profile)]),
         );
@@ -1251,25 +1303,30 @@ mod tests {
             .unwrap();
 
         let trace_id = TraceId::from_bytes([2; 16]);
-        push_captured_spans(vec![
-            make_scenario_marker_span(trace_id, &scenario.id),
-            make_entity_span(trace_id, &entity_uid, true),
-        ]);
+        push_captured_spans(
+            run_id,
+            vec![
+                make_scenario_marker_span(trace_id, &scenario.id),
+                make_entity_span(trace_id, &entity_uid, &scenario.id, true),
+            ],
+        );
 
         let result = runner.evaluate(None).unwrap();
         assert!(!result.dataset_results.contains_key("agent_a"));
         let scenario_datasets = runner.scenarios.scenario_datasets.get("s1").unwrap();
         assert!(!scenario_datasets.contains_key("agent_a"));
-        clear_capture_buffer();
+        clear_capture_buffer(run_id);
     }
 
     #[test]
     fn evaluate_dedupes_synthesized_trace_dispatch_records() {
-        clear_capture_buffer();
+        let run_id = "test_dedupes";
+        clear_capture_buffer(run_id);
         let scenario = make_scenario("s1", "Hello");
         let entity_uid = "00000000-0000-0000-0000-000000000003".to_string();
         let profile = make_trace_profile("agent_a", &entity_uid, "trace_only_work");
-        let mut runner = EvalRunner::new(
+        let mut runner = runner_with_capture(
+            run_id,
             EvalScenarios::new(vec![scenario.clone()]),
             HashMap::from([("agent_a".to_string(), profile)]),
         );
@@ -1279,26 +1336,31 @@ mod tests {
             .unwrap();
 
         let trace_id = TraceId::from_bytes([3; 16]);
-        push_captured_spans(vec![
-            make_scenario_marker_span(trace_id, &scenario.id),
-            make_entity_span(trace_id, &entity_uid, false),
-            make_entity_span(trace_id, &entity_uid, false),
-        ]);
+        push_captured_spans(
+            run_id,
+            vec![
+                make_scenario_marker_span(trace_id, &scenario.id),
+                make_entity_span(trace_id, &entity_uid, &scenario.id, false),
+                make_entity_span(trace_id, &entity_uid, &scenario.id, false),
+            ],
+        );
 
         runner.evaluate(None).unwrap();
         let scenario_datasets = runner.scenarios.scenario_datasets.get("s1").unwrap();
         let records = &scenario_datasets["agent_a"].records;
         assert_eq!(records.len(), 1);
-        clear_capture_buffer();
+        clear_capture_buffer(run_id);
     }
 
     #[test]
     fn evaluate_skips_synthesis_when_trace_record_already_exists() {
-        clear_capture_buffer();
+        let run_id = "test_skip_synthesis";
+        clear_capture_buffer(run_id);
         let scenario = make_scenario("s1", "Hello");
         let entity_uid = "00000000-0000-0000-0000-000000000004".to_string();
         let profile = make_trace_profile("agent_a", &entity_uid, "trace_only_work");
-        let mut runner = EvalRunner::new(
+        let mut runner = runner_with_capture(
+            run_id,
             EvalScenarios::new(vec![scenario.clone()]),
             HashMap::from([("agent_a".to_string(), profile)]),
         );
@@ -1318,16 +1380,19 @@ mod tests {
             )
             .unwrap();
 
-        push_captured_spans(vec![
-            make_scenario_marker_span(trace_id, &scenario.id),
-            make_entity_span(trace_id, &entity_uid, false),
-        ]);
+        push_captured_spans(
+            run_id,
+            vec![
+                make_scenario_marker_span(trace_id, &scenario.id),
+                make_entity_span(trace_id, &entity_uid, &scenario.id, false),
+            ],
+        );
 
         runner.evaluate(None).unwrap();
         let scenario_datasets = runner.scenarios.scenario_datasets.get("s1").unwrap();
         let records = &scenario_datasets["agent_a"].records;
         assert_eq!(records.len(), 1);
         assert_eq!(records[0].record_source.as_str(), "user");
-        clear_capture_buffer();
+        clear_capture_buffer(run_id);
     }
 }
