@@ -1321,8 +1321,6 @@ impl BaseTracer {
             } else {
                 OtelContext::current()
             }
-        } else if explicit_context {
-            OtelContext::current()
         } else if let (Some(tid), Some(sid)) = (&trace_id, &span_id) {
             let parsed_trace_id = TraceId::from_hex(tid)?;
             let parsed_span_id = SpanId::from_hex(sid)?;
@@ -1345,6 +1343,12 @@ impl BaseTracer {
                 .get(parent_id)?
                 .map(|parent_ctx| OtelContext::current().with_remote_span_context(parent_ctx))
                 .unwrap_or_else(OtelContext::current)
+        } else if explicit_context {
+            // Caller passed an explicit OTel context but it carried no valid span.
+            // Skip get_otel_global_span_context to avoid attaching a stale parent
+            // from the Python thread-local when the caller intentionally provided
+            // a different (empty) context.
+            OtelContext::current()
         } else if let Some(sc) = get_otel_global_span_context(py) {
             OtelContext::current().with_remote_span_context(sc)
         } else {

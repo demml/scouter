@@ -705,6 +705,8 @@ class ScouterTracerProvider(_OtelTracerProvider):
 
     def shutdown(self) -> None:
         """Shutdown the tracer provider."""
+        with self._tracer_cache_lock:
+            self._tracer_cache.clear()
         shutdown_tracer()
 
 

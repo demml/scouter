@@ -38,6 +38,16 @@ def _cleanup_tracing_state() -> None:
     ScouterInstrumentor._instance = None
     ScouterInstrumentor._provider = None
 
+    # Reset the OTel global tracer provider so that fixtures which call
+    # `trace.set_tracer_provider(...)` directly (e.g. setup_scouter_trace_provider)
+    # do not leak a stale ScouterTracerProvider — and its cached tracers — into
+    # subsequent tests.
+    from opentelemetry import trace
+
+    with suppress(AttributeError):
+        trace._TRACER_PROVIDER = None  # pylint: disable=protected-access
+        trace._TRACER_PROVIDER_SET_ONCE._done = False  # pylint: disable=protected-access
+
 
 @pytest.fixture(autouse=True)
 def reset_scouter_tracing_state():
