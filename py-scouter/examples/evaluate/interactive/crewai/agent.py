@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from scouter import trace
 from scouter.evaluate import EvalRecord
 
-from ..shared import get_shared_config, teardown_shared_config
+from ..shared import get_shared_config, teardown
 
 config = get_shared_config()
 _crewai_instrumentor = CrewAIInstrumentor()
@@ -108,4 +108,4 @@ def ask(request: AgentRequest) -> AgentResponse:
 
 def shutdown() -> None:
     _crewai_instrumentor.uninstrument()
-    teardown_shared_config()
+    teardown()

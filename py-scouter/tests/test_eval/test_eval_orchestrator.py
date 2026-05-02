@@ -367,7 +367,7 @@ def test_hook_order():
                 )
             return "answer"
 
-        def on_scenario_complete(self, scenario, response):
+        def on_scenario_complete(self, scenario, response, result=None):
             hook_log.append(("on_scenario_complete", scenario.id, response))
 
         def on_evaluation_complete(self, results):
@@ -406,7 +406,7 @@ def test_capture_cleanup_on_exception():
 
 
 def test_no_tracer_fallback_single_execution():
-    """_execute_with_baggage falls back cleanly when no tracer is available."""
+    """_scenario_span falls back cleanly when no tracer is available."""
     queue = _make_queue(_simple_profile())
     call_count = 0
 
@@ -416,7 +416,9 @@ def test_no_tracer_fallback_single_execution():
         return "response"
 
     orch = EvalOrchestrator(queue, _single_scenario(), agent_fn=counting_agent)
-    orch._execute_with_baggage(orch._scenarios.scenarios[0])
+    scenario = orch._scenarios.scenarios[0]
+    with orch._scenario_span(scenario):
+        orch.execute_agent(scenario)
     assert call_count == 1
 
 
@@ -437,8 +439,10 @@ def test_exception_inside_span_propagates():
         raise ValueError("agent failure")
 
     orch = EvalOrchestrator(queue, _single_scenario(), agent_fn=failing_agent)
+    scenario = orch._scenarios.scenarios[0]
     with pytest.raises(ValueError, match="agent failure"):
-        orch._execute_with_baggage(orch._scenarios.scenarios[0])
+        with orch._scenario_span(scenario):
+            orch.execute_agent(scenario)
     assert call_count == 1
 
 
@@ -578,9 +582,9 @@ def test_eval_orchestrator_instrumentor_auto_sets_default_entity_uid():
     seen_trace_ids = []
 
     class AutoEntityOrchestrator(EvalOrchestrator):
-        def on_scenario_complete(self, scenario, response):
+        def on_scenario_complete(self, scenario, response, result=None):
             seen_trace_ids.append(response)
-            spans = instrumentor.get_local_spans_by_trace_ids([response])
+            spans = instrumentor.get_local_spans_by_trace_ids(self._capture_run_id, [response])
             entity_key = f"scouter.entity.{profile.config.uid}"
             agent_spans = [span for span in spans if span.span_name == "trace_only_work"]
             assert len(agent_spans) == 1, f"Expected 1 agent span for trace {response}, found {len(agent_spans)}"
@@ -623,9 +627,9 @@ def test_multi_agent_offline_active_profile_switching_sets_distinct_entity_uids_
     seen_trace_ids = []
 
     class ProfileSwitchOrchestrator(EvalOrchestrator):
-        def on_scenario_complete(self, scenario, response):
+        def on_scenario_complete(self, scenario, response, result=None):
             seen_trace_ids.append(response)
-            spans = instrumentor.get_local_spans_by_trace_ids([response])
+            spans = instrumentor.get_local_spans_by_trace_ids(self._capture_run_id, [response])
             expected = expected_profile_by_scenario[scenario.id]
             expected_key = f"scouter.entity.{expected.config.uid}"
             other = profile_b if expected.alias == "alpha" else profile_a

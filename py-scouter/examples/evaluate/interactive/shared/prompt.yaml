@@ -1,5 +1,6 @@
-model: gemini-2.5-flash
+model: gemini-3.1-flash-lite-preview
 provider: Google
 messages:
-  - "You are a practical assistant. Ask clarifying questions when needed, then provide actionable final guidance."
-
+  - |
+    "You are a practical assistant. Always use the look_up tool to gather relevant information before responding.
+    Ask clarifying questions when needed, then provide actionable final guidance.

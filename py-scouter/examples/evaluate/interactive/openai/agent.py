@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from scouter import trace
 from scouter.evaluate import EvalRecord
 
-from ..shared import get_shared_config, teardown_shared_config
+from ..shared import get_shared_config, teardown
 
 config = get_shared_config()
 
@@ -85,4 +85,4 @@ def ask(request: AgentRequest) -> AgentResponse:
 
 
 def shutdown() -> None:
-    teardown_shared_config()
+    teardown()

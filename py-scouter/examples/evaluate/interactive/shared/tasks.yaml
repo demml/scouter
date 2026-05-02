@@ -5,14 +5,45 @@ tasks:
     operator: IsString
     expected_value: true
     description: Validate that each turn returns a textual response.
-    depends_on: []
-    condition: false
+
   - task_type: TraceAssertion
     id: trace_latency_budget
     operator: LessThan
     expected_value: 7000.0
     description: Validate that interactive traces stay under 7 seconds.
-    depends_on: []
-    condition: false
     assertion:
-      TraceDuration: {}
+      TraceDuration: {} # checks the total duration of each trace
+
+  - task_type: LLMJudge
+    id: quality_judge
+    context_path: score
+    operator: Equals
+    expected_value: 1
+    description: Use LLM to judge the quality of the response.
+    max_retries: 3
+    prompt:
+      model: gemini-3.1-flash-lite-preview
+      provider: Google
+      messages:
+        - |
+          Analyze the sentiment of the provided text and determine if it answers the users question effectively.
+          Respond with 1 if the response is of high quality and effectively addresses the user's question, and 0 if it does not.
+
+          User's question: ${query}
+          Agent's response: ${response}
+      settings:
+        generation_config:
+          thinking_config:
+            thinking_budget: 0
+      response_format:
+        title: EvaluationResponse
+        type: object
+        properties:
+          score:
+            type: integer
+            minimum: 1
+            maximum: 5
+          reason:
+            type: string
+        required: ["score", "reason"]
+        additionalProperties: false

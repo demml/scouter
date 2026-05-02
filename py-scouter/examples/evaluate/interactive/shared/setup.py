@@ -24,6 +24,14 @@ class SharedConfig:
     scenarios: EvalScenarios
     instrumentor: ScouterInstrumentor
 
+    @property
+    def model_name(self) -> str:
+        return self.prompt.model
+
+    @property
+    def prompt_message(self) -> str:
+        return self.prompt.message.text
+
 
 def _transport_config() -> TransportConfig:
     if os.getenv("APP_ENV") in {"staging", "production"}:
@@ -57,7 +65,7 @@ def get_shared_config() -> SharedConfig:
     )
 
 
-def teardown_shared_config() -> None:
+def teardown() -> None:
     try:
         config = get_shared_config()
     except Exception:  # noqa: BLE001 pylint: disable=broad-except

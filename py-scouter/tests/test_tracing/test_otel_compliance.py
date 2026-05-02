@@ -2,6 +2,7 @@ import asyncio
 from typing import cast
 
 import pytest
+from opentelemetry import context as otel_context
 from opentelemetry import trace
 from opentelemetry.trace import (
     NonRecordingSpan,
@@ -17,6 +18,7 @@ from scouter.tracing import (
     ScouterTracer,
     ScouterTracerProvider,
     TestSpanExporter,
+    get_current_active_span,
     get_tracing_headers_from_current_span,
 )
 
@@ -83,6 +85,53 @@ def test_span_end_marks_span_not_recording(instrumented_tracing):
     assert span.is_recording()
     span.end()
     assert not span.is_recording()
+
+
+def test_span_end_clears_scouter_current_span(instrumented_tracing):
+    _instrumentor, _exporter = instrumented_tracing
+    tracer = cast(ScouterTracer, trace.get_tracer("otel-end-reset"))
+
+    with tracer.start_as_current_span("root") as span:
+        current = get_current_active_span()
+        assert current.context_id == span.context_id
+        span.end()
+        assert not span.is_recording()
+
+    with pytest.raises(Exception):
+        get_current_active_span()
+
+
+def test_explicit_empty_context_forces_root(instrumented_tracing):
+    _instrumentor, _exporter = instrumented_tracing
+    tracer = cast(ScouterTracer, trace.get_tracer("otel-empty-context"))
+
+    with tracer.start_as_current_span("outer") as outer:
+        with tracer.start_as_current_span("rooted", context=otel_context.Context()) as rooted:
+            assert rooted.trace_id != outer.trace_id
+
+
+def test_start_span_explicit_empty_context_forces_root(instrumented_tracing):
+    _instrumentor, _exporter = instrumented_tracing
+    tracer = cast(ScouterTracer, trace.get_tracer("otel-empty-context-manual"))
+
+    with tracer.start_as_current_span("outer") as outer:
+        rooted = tracer.start_span("manual-rooted", context=otel_context.Context())
+        try:
+            assert rooted.trace_id != outer.trace_id
+        finally:
+            rooted.end()
+
+
+def test_start_span_end_does_not_clear_active_span(instrumented_tracing):
+    _instrumentor, _exporter = instrumented_tracing
+    tracer = cast(ScouterTracer, trace.get_tracer("otel-manual-end"))
+
+    with tracer.start_as_current_span("outer") as outer:
+        manual = tracer.start_span("manual-child")
+        manual.end()
+
+        current = get_current_active_span()
+        assert current.context_id == outer.context_id
 
 
 def test_asyncio_runner_cleanup_does_not_raise_valueerror(instrumented_tracing):
@@ -190,3 +239,52 @@ def test_span_add_link_accepts_otel_span_context(instrumented_tracing):
 
     with tracer.start_as_current_span("child") as span:
         span.add_link(link_context, {"link.attr": "value"})
+
+
+def test_child_span_inherits_baggage_from_parent_as_attribute(instrumented_tracing):
+    """Child span started without explicit baggage gets parent's baggage as a span attribute."""
+    from opentelemetry import baggage as otel_baggage
+    from scouter import trace as scouter_trace
+
+    _instrumentor, exporter = instrumented_tracing
+    tracer = scouter_trace.get_tracer("otel-baggage-inherit")
+
+    with tracer.start_as_current_span("parent", baggage=[{"test.run_id": "run-abc"}]):
+        with tracer.start_as_current_span("child"):
+            pass
+
+    # Baggage should not leak outside the context manager
+    assert otel_baggage.get_baggage("test.run_id") is None
+
+    child_span = next(
+        (s for s in exporter.spans if s.span_name == "child"),
+        None,
+    )
+    assert child_span is not None, f"child span not found in: {[s.span_name for s in exporter.spans]}"
+    attr_dict = {a.key: a.value for a in child_span.attributes}
+    assert "test.run_id" in attr_dict, f"test.run_id not in child span attributes: {attr_dict}"
+    assert attr_dict["test.run_id"] == "run-abc"
+
+
+def test_empty_context_isolation_with_baggage(instrumented_tracing):
+    """explicit context=Context() forces new root trace but still propagates baggage kwarg."""
+    from scouter import trace as scouter_trace
+
+    _instrumentor, _exporter = instrumented_tracing
+    tracer = scouter_trace.get_tracer("otel-isolation-baggage")
+
+    with tracer.start_as_current_span("outer") as outer:
+        with tracer.start_as_current_span(
+            "isolated",
+            context=otel_context.Context(),
+            baggage=[{"scouter.eval.run_id": "isolated-run"}],
+        ) as isolated:
+            assert isolated.trace_id != outer.trace_id, "isolated span must be in a new trace"
+            from opentelemetry import baggage as otel_baggage
+
+            val = otel_baggage.get_baggage("scouter.eval.run_id")
+            assert val == "isolated-run", f"Expected baggage inside block, got: {val}"
+
+    from opentelemetry import baggage as otel_baggage
+
+    assert otel_baggage.get_baggage("scouter.eval.run_id") is None

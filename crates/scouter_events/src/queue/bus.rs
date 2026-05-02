@@ -166,9 +166,7 @@ impl<E: Flushable> TaskState<E> {
         self.cancel_background_task();
 
         // abort the background task
-        let background_handle = {
-            self.background_task.write().unwrap().abort_handle.take()
-        };
+        let background_handle = { self.background_task.write().unwrap().abort_handle.take() };
 
         if let Some(handle) = background_handle {
             handle.abort();
@@ -207,9 +205,7 @@ impl<E: Flushable> TaskState<E> {
         std::thread::sleep(Duration::from_millis(250));
 
         // abort the event task
-        let event_handle = {
-            self.event_task.write().unwrap().abort_handle.take()
-        };
+        let event_handle = { self.event_task.write().unwrap().abort_handle.take() };
 
         if let Some(handle) = event_handle {
             handle.abort();

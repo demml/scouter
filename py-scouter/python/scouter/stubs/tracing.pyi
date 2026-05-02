@@ -852,19 +852,19 @@ class BaseTracer:
     def shutdown(self) -> None:
         """Shutdown the tracer and flush any remaining spans."""
 
-    def enable_local_capture(self) -> None:
-        """Enable local span capture mode on the ScouterSpanExporter."""
+    def enable_local_capture(self, capture_run_id: str) -> None:
+        """Enable local span capture mode for a capture run."""
 
-    def disable_local_capture(self) -> None:
-        """Disable local span capture mode, discarding any buffered spans."""
+    def disable_local_capture(self, capture_run_id: str) -> None:
+        """Disable local span capture mode for a capture run."""
 
-    def drain_local_spans(self) -> List[TraceSpanRecord]:
-        """Drain and return all locally captured spans, clearing the buffer."""
+    def drain_local_spans(self, capture_run_id: str) -> List[TraceSpanRecord]:
+        """Drain and return locally captured spans for a capture run."""
 
-    def get_local_spans_by_trace_ids(self, trace_ids: List[str]) -> List[TraceSpanRecord]:
-        """Return spans matching the given trace_ids without draining the buffer."""
+    def get_local_spans_by_trace_ids(self, capture_run_id: str, trace_ids: List[str]) -> List[TraceSpanRecord]:
+        """Return spans matching the given trace_ids without draining the run buffer."""
 
-def get_current_active_span(self) -> ActiveSpan:
+def get_current_active_span() -> ActiveSpan:
     """Get the current active span.
 
     Returns:
@@ -1110,14 +1110,14 @@ class TestSpanExporter:
 def shutdown_tracer() -> None:
     """Shutdown the tracer and flush any remaining spans."""
 
-def enable_local_span_capture() -> None:
-    """Enable in-process span capture. Spans are buffered instead of exported."""
+def enable_local_span_capture(capture_run_id: str) -> None:
+    """Enable in-process span capture for a capture run."""
 
-def disable_local_span_capture() -> None:
-    """Disable in-process span capture, discarding any buffered spans."""
+def disable_local_span_capture(capture_run_id: str) -> None:
+    """Disable in-process span capture for a capture run."""
 
-def drain_local_span_capture() -> List[TraceSpanRecord]:
-    """Drain and return all locally captured spans, clearing the buffer."""
+def drain_local_span_capture(capture_run_id: str) -> List[TraceSpanRecord]:
+    """Drain and return locally captured spans for a capture run."""
 
 def extract_span_context_from_headers(
     headers: Dict[str, str],

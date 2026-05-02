@@ -1,6 +1,6 @@
 from scouter.evaluate import EvalOrchestrator
 
-from ..shared import get_shared_config, teardown_shared_config
+from ..shared import get_shared_config, teardown
 from .agent import run_agent
 
 
@@ -24,7 +24,7 @@ def main() -> None:
             simulated_user_fn=simulated_user_turn,
         ).run()
     finally:
-        teardown_shared_config()
+        teardown()
 
     print(
         f"\nScenarios : {results.metrics.total_scenarios}  "

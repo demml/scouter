@@ -13,6 +13,16 @@ use tabled::{
     settings::{Alignment, Color, Format, Style, object::Rows},
 };
 
+#[derive(Tabled)]
+struct AgentSummaryEntry {
+    #[tabled(rename = "Alias")]
+    alias: String,
+    #[tabled(rename = "Pass Rate")]
+    pass_rate: String,
+    #[tabled(rename = "Records")]
+    records: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[pyclass(from_py_object)]
 pub struct TaskSummary {
@@ -233,6 +243,10 @@ pub struct ScenarioResult {
     #[pyo3(get)]
     #[serde(default)]
     pub traces: Vec<TraceSpan>,
+
+    // HashMap<K,V> fields cannot use #[pyo3(get)]; exposed via the getter method below
+    #[serde(default)]
+    pub dataset_results: HashMap<String, EvalResults>,
 }
 
 impl PartialEq for ScenarioResult {
@@ -254,6 +268,84 @@ impl ScenarioResult {
     #[getter]
     pub fn eval_results(&self) -> EvalResults {
         self.eval_results.clone()
+    }
+
+    #[getter]
+    pub fn dataset_results(&self) -> HashMap<String, EvalResults> {
+        self.dataset_results.clone()
+    }
+
+    pub fn tasks_as_table(&self) {
+        if self.task_results.is_empty() {
+            println!("No scenario-level tasks for '{}'", self.scenario_id);
+            return;
+        }
+
+        #[derive(Tabled)]
+        struct TaskEntry {
+            #[tabled(rename = "Task ID")]
+            task_id: String,
+            #[tabled(rename = "Passed")]
+            passed: String,
+            #[tabled(rename = "Value")]
+            value: String,
+        }
+
+        println!(
+            "\n{}",
+            format!("Scenario Tasks — {}", self.scenario_id)
+                .truecolor(245, 77, 85)
+                .bold()
+        );
+
+        let entries: Vec<TaskEntry> = self
+            .task_results
+            .iter()
+            .map(|t| TaskEntry {
+                task_id: t.task_id.clone(),
+                passed: if t.passed {
+                    "✓ PASS".green().to_string()
+                } else {
+                    "✗ FAIL".red().to_string()
+                },
+                value: format!("{:.2}", t.value),
+            })
+            .collect();
+
+        let mut table = Table::new(entries);
+        table.with(Style::sharp());
+        table.modify(
+            Rows::new(0..1),
+            (
+                Format::content(|s: &str| s.truecolor(245, 77, 85).bold().to_string()),
+                Alignment::center(),
+                Color::BOLD,
+            ),
+        );
+        println!("{}", table);
+    }
+
+    #[pyo3(signature = (show_tasks = false))]
+    pub fn agent_results_as_table(&mut self, show_tasks: bool) {
+        if self.dataset_results.is_empty() {
+            println!("No agent results for scenario '{}'", self.scenario_id);
+            return;
+        }
+
+        let mut aliases: Vec<_> = self.dataset_results.keys().cloned().collect();
+        aliases.sort();
+
+        for alias in aliases {
+            if let Some(eval_results) = self.dataset_results.get_mut(&alias) {
+                println!(
+                    "\n{}",
+                    format!("Agent: {} — {}", alias, self.scenario_id)
+                        .truecolor(245, 77, 85)
+                        .bold()
+                );
+                eval_results.as_table(show_tasks);
+            }
+        }
     }
 
     pub fn traces_as_table(&self) {
@@ -1002,6 +1094,52 @@ impl ScenarioEvalResults {
         })
     }
 
+    pub fn agent_summary_table(&self) {
+        let mut alias_totals: HashMap<String, (f64, usize)> = HashMap::new();
+
+        for sr in &self.scenario_results {
+            for (alias, eval_results) in &sr.dataset_results {
+                let (total_rate, count) = alias_totals.entry(alias.clone()).or_insert((0.0, 0));
+                let rate = agent_pass_rate(eval_results);
+                *total_rate += rate;
+                *count += 1;
+            }
+        }
+
+        if alias_totals.is_empty() {
+            println!("No agent results to summarize.");
+            return;
+        }
+
+        println!("\n{}", "Agent Summary".truecolor(245, 77, 85).bold());
+
+        let mut entries: Vec<AgentSummaryEntry> = alias_totals
+            .iter()
+            .map(|(alias, (total_rate, count))| AgentSummaryEntry {
+                alias: alias.clone(),
+                pass_rate: format!("{:.1}%", (total_rate / *count as f64) * 100.0),
+                records: count.to_string(),
+            })
+            .collect();
+        entries.sort_by(|a, b| a.alias.cmp(&b.alias));
+
+        let mut table = Table::new(entries);
+        table.with(Style::sharp());
+        table.modify(
+            Rows::new(0..1),
+            (
+                Format::content(|s: &str| s.truecolor(245, 77, 85).bold().to_string()),
+                Alignment::center(),
+                Color::BOLD,
+            ),
+        );
+        println!("{}", table);
+    }
+
+    pub fn as_json(&self) -> Result<String, EvaluationError> {
+        serde_json::to_string(self).map_err(Into::into)
+    }
+
     #[pyo3(signature = (show_workflow=false))]
     pub fn as_table(&mut self, show_workflow: bool) {
         self.metrics.as_table();
@@ -1070,10 +1208,76 @@ impl ScenarioEvalResults {
     }
 }
 
+fn agent_pass_rate(results: &EvalResults) -> f64 {
+    if results.aligned_results.is_empty() {
+        return 0.0;
+    }
+    let mut total = 0usize;
+    let mut passed = 0usize;
+    for aligned in &results.aligned_results {
+        for task_result in &aligned.eval_set.records {
+            total += 1;
+            if task_result.passed {
+                passed += 1;
+            }
+        }
+    }
+    if total == 0 {
+        0.0
+    } else {
+        passed as f64 / total as f64
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::evaluate::types::EvalResults;
+    use crate::evaluate::types::{AlignedEvalResult, EvalResults};
+    use chrono::Utc;
+    use scouter_types::agent::profile::EvalSet;
+    use scouter_types::agent::{ComparisonOperator, EvaluationTaskType};
+    use scouter_types::records::{AgentEvalWorkflowResult, Assertion, EvalTaskResult};
+    use std::collections::BTreeMap;
+
+    fn make_task_result(passed: bool) -> EvalTaskResult {
+        EvalTaskResult {
+            created_at: Utc::now(),
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            record_uid: String::new(),
+            entity_id: 0,
+            task_id: "t".to_string(),
+            task_type: EvaluationTaskType::Assertion,
+            passed,
+            value: if passed { 1.0 } else { 0.0 },
+            assertion: Assertion::FieldPath(None),
+            operator: ComparisonOperator::Equals,
+            expected: serde_json::Value::Null,
+            actual: serde_json::Value::Null,
+            message: String::new(),
+            entity_uid: String::new(),
+            condition: false,
+            stage: 0,
+        }
+    }
+
+    fn make_aligned(record_id: &str, task_results: Vec<EvalTaskResult>) -> AlignedEvalResult {
+        AlignedEvalResult {
+            record_id: record_id.to_string(),
+            record_uid: String::new(),
+            scenario_id: None,
+            eval_set: EvalSet {
+                records: task_results,
+                inner: AgentEvalWorkflowResult::default(),
+            },
+            embeddings: BTreeMap::new(),
+            mean_embeddings: BTreeMap::new(),
+            similarity_scores: BTreeMap::new(),
+            success: true,
+            error_message: None,
+            context_snapshot: None,
+        }
+    }
 
     fn empty_metrics(
         overall: f64,
@@ -1101,6 +1305,7 @@ mod tests {
             pass_rate,
             task_results: vec![],
             traces: vec![],
+            dataset_results: HashMap::new(),
         }
     }
 
@@ -1413,5 +1618,36 @@ mod tests {
         assert_eq!(comp.baseline_alias_pass_rates.get("agent_b"), Some(&0.8));
         assert_eq!(comp.comparison_alias_pass_rates.get("agent_a"), Some(&0.85));
         assert_eq!(comp.comparison_alias_pass_rates.get("agent_b"), Some(&0.75));
+    }
+
+    #[test]
+    fn agent_pass_rate_empty_returns_zero() {
+        let results = EvalResults::new();
+        assert_eq!(super::agent_pass_rate(&results), 0.0);
+    }
+
+    #[test]
+    fn agent_pass_rate_mixed() {
+        let mut results = EvalResults::new();
+        // 2 passed, 1 failed across two aligned results
+        results.aligned_results.push(make_aligned(
+            "r1",
+            vec![make_task_result(true), make_task_result(false)],
+        ));
+        results
+            .aligned_results
+            .push(make_aligned("r2", vec![make_task_result(true)]));
+        let rate = super::agent_pass_rate(&results);
+        assert!((rate - 2.0 / 3.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn agent_pass_rate_all_pass() {
+        let mut results = EvalResults::new();
+        results.aligned_results.push(make_aligned(
+            "r1",
+            vec![make_task_result(true), make_task_result(true)],
+        ));
+        assert_eq!(super::agent_pass_rate(&results), 1.0);
     }
 }

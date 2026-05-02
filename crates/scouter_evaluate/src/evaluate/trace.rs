@@ -1,6 +1,7 @@
 use crate::error::EvaluationError;
 use crate::evaluate::agent::AgentContextBuilder;
 use crate::tasks::evaluator::AssertionEvaluator;
+use chrono::{DateTime, Utc};
 use regex::Regex;
 use scouter_types::agent::{
     AggregationType, AttributeFilterTask, MultiResponseMode, SpanFilter, SpanStatus, TraceAssertion,
@@ -338,12 +339,22 @@ impl TraceContextBuilder {
 
     // Trace-level calculations
     fn calculate_trace_duration(&self) -> i64 {
-        let min_start = self.spans.iter().map(|s| s.start_time).min();
-        let max_end = self.spans.iter().map(|s| s.end_time).max();
-        match (min_start, max_end) {
-            (Some(start), Some(end)) => (end - start).num_milliseconds().max(0),
-            _ => 0,
+        let mut by_trace: HashMap<&str, (DateTime<Utc>, DateTime<Utc>)> = HashMap::new();
+        for span in self.spans.iter() {
+            let entry = by_trace
+                .entry(span.trace_id.as_str())
+                .or_insert((span.start_time, span.end_time));
+            if span.start_time < entry.0 {
+                entry.0 = span.start_time;
+            }
+            if span.end_time > entry.1 {
+                entry.1 = span.end_time;
+            }
         }
+        by_trace
+            .values()
+            .map(|(start, end)| (*end - *start).num_milliseconds().max(0))
+            .sum()
     }
 
     fn count_error_spans(&self) -> usize {
@@ -1069,5 +1080,75 @@ mod tests {
             .extract_span_attribute(&filter, "gen_ai.response")
             .unwrap();
         assert!(result.is_array());
+    }
+
+    fn make_span_for_duration(trace_id: &str, start_ms: i64, duration_ms: i64) -> TraceSpan {
+        let now = chrono::Utc::now();
+        let start = now + chrono::Duration::milliseconds(start_ms);
+        let end = start + chrono::Duration::milliseconds(duration_ms);
+        TraceSpan {
+            trace_id: trace_id.to_string(),
+            span_id: format!("{}-span", trace_id),
+            parent_span_id: None,
+            span_name: "test".to_string(),
+            span_kind: None,
+            start_time: start,
+            end_time: end,
+            duration_ms,
+            status_code: 1,
+            status_message: None,
+            attributes: vec![],
+            events: vec![],
+            links: vec![],
+            depth: 0,
+            path: vec![],
+            root_span_id: format!("{}-span", trace_id),
+            service_name: "test".to_string(),
+            span_order: 0,
+            input: None,
+            output: None,
+        }
+    }
+
+    #[test]
+    fn test_calculate_trace_duration_single_trace() {
+        let spans = vec![make_span_for_duration("trace_a", 0, 100)];
+        let builder = TraceContextBuilder::new(Arc::new(spans));
+        assert_eq!(builder.calculate_trace_duration(), 100);
+    }
+
+    #[test]
+    fn test_calculate_trace_duration_multi_trace_sums_durations() {
+        // trace_a: 100ms, trace_b: 200ms → per-trace sum = 300ms
+        let spans = vec![
+            make_span_for_duration("trace_a", 0, 100),
+            make_span_for_duration("trace_b", 0, 200),
+        ];
+        let builder = TraceContextBuilder::new(Arc::new(spans));
+        assert_eq!(builder.calculate_trace_duration(), 300);
+    }
+
+    #[test]
+    fn test_calculate_trace_duration_multi_span_same_trace_uses_envelope() {
+        // Two overlapping spans in the same trace: envelope = 100ms (not sum of 50+70)
+        let now = chrono::Utc::now();
+        let s1 = TraceSpan {
+            trace_id: "t1".to_string(),
+            span_id: "s1".to_string(),
+            start_time: now,
+            end_time: now + chrono::Duration::milliseconds(50),
+            duration_ms: 50,
+            ..make_span_for_duration("t1", 0, 50)
+        };
+        let s2 = TraceSpan {
+            trace_id: "t1".to_string(),
+            span_id: "s2".to_string(),
+            start_time: now + chrono::Duration::milliseconds(30),
+            end_time: now + chrono::Duration::milliseconds(100),
+            duration_ms: 70,
+            ..make_span_for_duration("t1", 0, 100)
+        };
+        let builder = TraceContextBuilder::new(Arc::new(vec![s1, s2]));
+        assert_eq!(builder.calculate_trace_duration(), 100);
     }
 }

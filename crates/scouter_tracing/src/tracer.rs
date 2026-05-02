@@ -51,7 +51,6 @@ use scouter_types::{
 };
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
-use std::sync::atomic::Ordering;
 use std::sync::{Arc, OnceLock, RwLock};
 use std::time::SystemTime;
 use tracing::{debug, info, instrument, warn};
@@ -64,8 +63,8 @@ static TRACE_METADATA_STORE: OnceLock<TraceMetadataStore> = OnceLock::new();
 // This allows us to set the queue anytime get_tracer is called
 static SCOUTER_QUEUE_STORE: RwLock<Option<Py<ScouterQueue>>> = RwLock::new(None);
 
-// Re-export span capture statics from scouter-types for use within this crate.
-pub use scouter_types::span_capture::{CAPTURE_BUFFER, CAPTURE_BUFFER_MAX, CAPTURING};
+// Re-export span capture state from scouter-types for use within this crate.
+pub use scouter_types::span_capture::{CAPTURE_BUFFER_MAX, CAPTURE_BUFFERS, CAPTURING};
 
 fn get_tracer_provider() -> Result<Option<Arc<SdkTracerProvider>>, TraceError> {
     TRACER_PROVIDER_STORE
@@ -569,7 +568,7 @@ impl ActiveSpan {
             }
         }
 
-        self.complete_span(py, None, true)?;
+        self.complete_span(py, None)?;
         Ok(false)
     }
 
@@ -598,12 +597,12 @@ impl ActiveSpan {
     }
 
     fn end(&self, py: Python<'_>, end_time: Option<i64>) -> Result<(), TraceError> {
-        self.complete_span(py, end_time, false)
+        self.complete_span(py, end_time)
     }
 
     #[pyo3(name = "_end_with_cleanup", signature = (end_time=None))]
     fn end_with_cleanup(&self, py: Python<'_>, end_time: Option<i64>) -> Result<(), TraceError> {
-        self.complete_span(py, end_time, false)
+        self.complete_span(py, end_time)
     }
 
     /// Returns an OTel-compatible SpanContext for this span.
@@ -749,12 +748,7 @@ impl ActiveSpan {
 }
 
 impl ActiveSpan {
-    fn complete_span(
-        &self,
-        py: Python<'_>,
-        end_time: Option<i64>,
-        reset_context: bool,
-    ) -> Result<(), TraceError> {
+    fn complete_span(&self, py: Python<'_>, end_time: Option<i64>) -> Result<(), TraceError> {
         let (context_id, trace_id, context_token, should_cleanup) = {
             let mut inner = self
                 .inner
@@ -762,12 +756,7 @@ impl ActiveSpan {
                 .map_err(|e| TraceError::PoisonError(e.to_string()))?;
 
             if inner.cleanup_complete {
-                let token = if reset_context {
-                    inner.context_token.take()
-                } else {
-                    None
-                };
-                (None, None, token, false)
+                (None, None, inner.context_token.take(), false)
             } else {
                 if let Some(ts) = end_time {
                     let system_time =
@@ -777,11 +766,7 @@ impl ActiveSpan {
                     inner.span.end();
                 }
 
-                let context_token = if reset_context {
-                    inner.context_token.take()
-                } else {
-                    None
-                };
+                let context_token = inner.context_token.take();
 
                 let context_id = inner.context_id.clone();
                 let trace_id = inner.span.span_context().trace_id().to_string();
@@ -916,6 +901,33 @@ impl BaseTracer {
             });
         });
         keyval_baggage
+    }
+
+    fn build_final_ctx(
+        base_ctx: OtelContext,
+        explicit_baggage: Vec<KeyValue>,
+        py_baggage: Vec<KeyValue>,
+    ) -> OtelContext {
+        let mut merged: HashMap<String, opentelemetry::Value> = base_ctx
+            .baggage()
+            .iter()
+            .map(|(k, v)| (k.to_string(), opentelemetry::Value::String(v.0.clone())))
+            .collect();
+        for kv in &py_baggage {
+            merged.insert(kv.key.to_string(), kv.value.clone());
+        }
+        for kv in &explicit_baggage {
+            merged.insert(kv.key.to_string(), kv.value.clone());
+        }
+        if merged.is_empty() {
+            base_ctx
+        } else {
+            let all_items: Vec<KeyValue> = merged
+                .into_iter()
+                .map(|(k, v)| KeyValue::new(k, v))
+                .collect();
+            base_ctx.with_baggage(all_items)
+        }
     }
 
     fn has_entity_attribute(attributes: &[KeyValue]) -> bool {
@@ -1175,14 +1187,9 @@ impl BaseTracer {
             OtelContext::current()
         };
 
-        // convert baggage items to vec of KeyValue
-        let baggage_items = Self::create_baggage_items(&baggage, &tags);
-
-        let final_ctx = if !baggage_items.is_empty() {
-            base_ctx.with_baggage(baggage_items)
-        } else {
-            base_ctx
-        };
+        let explicit_baggage = Self::create_baggage_items(&baggage, &tags);
+        let py_baggage = extract_otel_py_baggage(py, context);
+        let final_ctx = Self::build_final_ctx(base_ctx, explicit_baggage, py_baggage);
 
         let span_builder = self
             .tracer
@@ -1278,7 +1285,14 @@ impl BaseTracer {
     ) -> Result<ActiveSpan, TraceError> {
         let _ = (links, start_time, record_exception, set_status_on_exception);
         let kind = parse_span_kind(kind)?;
-        let parent_id = parent_context_id.or_else(|| get_current_context_id(py).ok().flatten());
+        let explicit_context = context.is_some();
+        let parent_id = parent_context_id.or_else(|| {
+            if explicit_context {
+                None
+            } else {
+                get_current_context_id(py).ok().flatten()
+            }
+        });
 
         let base_ctx = if let Some(ctx) = context.and_then(|c| extract_otel_py_context(py, c)) {
             OtelContext::current().with_remote_span_context(ctx)
@@ -1329,18 +1343,21 @@ impl BaseTracer {
                 .get(parent_id)?
                 .map(|parent_ctx| OtelContext::current().with_remote_span_context(parent_ctx))
                 .unwrap_or_else(OtelContext::current)
+        } else if explicit_context {
+            // Caller passed an explicit OTel context but it carried no valid span.
+            // Skip get_otel_global_span_context to avoid attaching a stale parent
+            // from the Python thread-local when the caller intentionally provided
+            // a different (empty) context.
+            OtelContext::current()
         } else if let Some(sc) = get_otel_global_span_context(py) {
             OtelContext::current().with_remote_span_context(sc)
         } else {
             OtelContext::current()
         };
 
-        let baggage_items = Self::create_baggage_items(&baggage, &tags);
-        let final_ctx = if !baggage_items.is_empty() {
-            base_ctx.with_baggage(baggage_items)
-        } else {
-            base_ctx
-        };
+        let explicit_baggage = Self::create_baggage_items(&baggage, &tags);
+        let py_baggage = extract_otel_py_baggage(py, context);
+        let final_ctx = Self::build_final_ctx(base_ctx, explicit_baggage, py_baggage);
 
         let span_builder = self
             .tracer
@@ -1479,27 +1496,30 @@ impl BaseTracer {
         shutdown_tracer()
     }
 
-    /// Enable in-process span capture mode. While active, all exported spans are
-    /// written to the in-memory buffer instead of being forwarded to the transport.
-    pub fn enable_local_capture(&self) -> Result<(), TraceError> {
-        enable_capture_impl()
+    /// Enable run-scoped in-process span capture mode.
+    pub fn enable_local_capture(&self, capture_run_id: String) -> Result<(), TraceError> {
+        enable_capture_impl(&capture_run_id)
     }
 
-    /// Disable in-process span capture mode, discarding any buffered spans.
-    pub fn disable_local_capture(&self) -> Result<(), TraceError> {
-        disable_capture_impl()
+    /// Disable run-scoped span capture, discarding any buffered spans for the run.
+    pub fn disable_local_capture(&self, capture_run_id: String) -> Result<(), TraceError> {
+        disable_capture_impl(&capture_run_id)
     }
 
-    /// Drain and return all locally captured spans, clearing the buffer.
+    /// Drain and return locally captured spans for a run, clearing that buffer.
     /// Safe to call regardless of whether capture is currently enabled.
-    pub fn drain_local_spans(&self) -> Result<Vec<TraceSpanRecord>, TraceError> {
-        drain_spans_impl()
+    pub fn drain_local_spans(
+        &self,
+        capture_run_id: String,
+    ) -> Result<Vec<TraceSpanRecord>, TraceError> {
+        drain_spans_impl(&capture_run_id)
     }
 
-    /// Return captured spans matching the given trace IDs without draining the buffer.
+    /// Return captured spans matching the given trace IDs without draining the run buffer.
     /// Invalid hex trace IDs are skipped with a warning.
     pub fn get_local_spans_by_trace_ids(
         &self,
+        capture_run_id: String,
         trace_ids: Vec<String>,
     ) -> Result<Vec<TraceSpanRecord>, TraceError> {
         let mut set = HashSet::new();
@@ -1513,7 +1533,7 @@ impl BaseTracer {
                 }
             }
         }
-        get_spans_by_trace_ids(&set)
+        get_spans_by_trace_ids(&capture_run_id, &set)
     }
 }
 
@@ -1597,71 +1617,64 @@ pub fn shutdown_tracer() -> Result<(), TraceError> {
         .map_err(|e| TraceError::PoisonError(e.to_string()))?;
     *queue_store_guard = None;
 
-    CAPTURING.store(false, Ordering::Release);
-    CAPTURE_BUFFER
-        .write()
-        .unwrap_or_else(|p| p.into_inner())
-        .clear();
+    scouter_types::span_capture::disable_all_captures();
 
     Ok(())
 }
 
 // ── Local span capture helpers ─────────────────────────────────────────────
 
-fn enable_capture_impl() -> Result<(), TraceError> {
-    if CAPTURING.load(Ordering::Acquire) {
-        return Ok(());
-    }
-    let mut buf = CAPTURE_BUFFER.write().unwrap_or_else(|p| p.into_inner());
-    buf.clear();
-    CAPTURING.store(true, Ordering::Release);
-    info!("Local span capture enabled — spans will be buffered in-process");
+fn enable_capture_impl(capture_run_id: &str) -> Result<(), TraceError> {
+    scouter_types::span_capture::enable_capture(capture_run_id);
+    info!(
+        capture_run_id,
+        "Local span capture enabled — spans will be buffered in-process"
+    );
     Ok(())
 }
 
-fn disable_capture_impl() -> Result<(), TraceError> {
-    let mut buf = CAPTURE_BUFFER.write().unwrap_or_else(|p| p.into_inner());
-    if !buf.is_empty() {
-        warn!(
-            "disable_local_capture: discarding {} buffered spans",
-            buf.len()
-        );
-    }
-    CAPTURING.store(false, Ordering::Release);
-    buf.clear();
+fn disable_capture_impl(capture_run_id: &str) -> Result<(), TraceError> {
+    scouter_types::span_capture::disable_capture(capture_run_id);
     Ok(())
 }
 
-pub fn drain_spans_impl() -> Result<Vec<TraceSpanRecord>, TraceError> {
-    Ok(scouter_types::span_capture::drain_captured_spans())
+pub fn drain_spans_impl(capture_run_id: &str) -> Result<Vec<TraceSpanRecord>, TraceError> {
+    Ok(scouter_types::span_capture::drain_captured_spans(
+        capture_run_id,
+    ))
 }
 
 #[pyfunction]
-pub fn enable_local_span_capture() -> Result<(), TraceError> {
-    enable_capture_impl()
+pub fn enable_local_span_capture(capture_run_id: String) -> Result<(), TraceError> {
+    enable_capture_impl(&capture_run_id)
 }
 
 #[pyfunction]
-pub fn disable_local_span_capture() -> Result<(), TraceError> {
-    disable_capture_impl()
+pub fn disable_local_span_capture(capture_run_id: String) -> Result<(), TraceError> {
+    disable_capture_impl(&capture_run_id)
 }
 
 #[pyfunction]
-pub fn drain_local_span_capture() -> Result<Vec<TraceSpanRecord>, TraceError> {
-    drain_spans_impl()
+pub fn drain_local_span_capture(
+    capture_run_id: String,
+) -> Result<Vec<TraceSpanRecord>, TraceError> {
+    drain_spans_impl(&capture_run_id)
 }
 
 /// Returns clones of spans matching the given trace_ids.
 /// Does NOT drain the buffer — call drain_spans_impl() after all evaluations.
 pub fn get_spans_by_trace_ids(
+    capture_run_id: &str,
     trace_ids: &HashSet<ScouterTraceId>,
 ) -> Result<Vec<TraceSpanRecord>, TraceError> {
-    Ok(scouter_types::span_capture::get_captured_spans_by_trace_ids(trace_ids))
+    Ok(scouter_types::span_capture::get_captured_spans_by_trace_ids(capture_run_id, trace_ids))
 }
 
 /// Returns a clone of all captured spans without draining.
-pub fn get_all_captured_spans() -> Result<Vec<TraceSpanRecord>, TraceError> {
-    Ok(scouter_types::span_capture::get_all_captured_spans())
+pub fn get_all_captured_spans(capture_run_id: &str) -> Result<Vec<TraceSpanRecord>, TraceError> {
+    Ok(scouter_types::span_capture::get_all_captured_spans(
+        capture_run_id,
+    ))
 }
 
 fn get_tracer(scope: InstrumentationScope) -> Result<SdkTracer, TraceError> {
@@ -1703,6 +1716,43 @@ fn extract_otel_py_context(py: Python<'_>, context: &Bound<'_, PyAny>) -> Option
     let span_ctx = current_span.call_method0("get_span_context").ok()?;
     let sc = SpanContext::from_py_span_context(&span_ctx).ok()?;
     if sc.is_valid() { Some(sc) } else { None }
+}
+
+/// NOTE: Baggage values are not sanitized or filtered. Callers are responsible for ensuring
+/// no PII or sensitive data is placed in OTel baggage, as all key-value pairs propagate to
+/// every child span and downstream exporters (e.g. the Scouter trace backend).
+fn extract_otel_py_baggage(py: Python<'_>, context: Option<&Bound<'_, PyAny>>) -> Vec<KeyValue> {
+    let Ok(baggage_mod) = py.import("opentelemetry.baggage") else {
+        return Vec::new();
+    };
+
+    let result = match context {
+        Some(ctx) => {
+            let kwargs = PyDict::new(py);
+            if kwargs.set_item("context", ctx).is_err() {
+                return Vec::new();
+            }
+            baggage_mod.call_method("get_all", (), Some(&kwargs))
+        }
+        None => baggage_mod.call_method0("get_all"),
+    };
+
+    let Ok(baggage_obj) = result else {
+        return Vec::new();
+    };
+
+    let Ok(items) = baggage_obj.call_method0("items") else {
+        return Vec::new();
+    };
+
+    let Ok(iter) = items.try_iter() else {
+        return Vec::new();
+    };
+
+    iter.flatten()
+        .filter_map(|item| item.extract::<(String, String)>().ok())
+        .map(|(k, v)| KeyValue::new(k, v))
+        .collect()
 }
 
 #[pyfunction]
@@ -1824,16 +1874,32 @@ pub fn try_set_span_attribute(py: Python<'_>, key: &str, value: &str) -> Result<
 #[cfg(test)]
 mod capture_tests {
     use super::*;
+    use scouter_types::trace::{Attribute, SCOUTER_EVAL_RUN_ID_ATTR};
+    use serde_json::Value;
+    use std::sync::atomic::Ordering;
+
+    const RUN_ID: &str = "capture_test_run";
+
+    fn span_for_run(trace_id: ScouterTraceId, capture_run_id: &str) -> TraceSpanRecord {
+        TraceSpanRecord {
+            trace_id,
+            attributes: vec![Attribute {
+                key: SCOUTER_EVAL_RUN_ID_ATTR.to_string(),
+                value: Value::String(capture_run_id.to_string()),
+            }],
+            ..TraceSpanRecord::default()
+        }
+    }
 
     fn reset() {
-        CAPTURING.store(false, Ordering::Release);
-        CAPTURE_BUFFER.write().unwrap().clear();
+        scouter_types::span_capture::disable_all_captures();
+        let _ = get_trace_metadata_store().clear_all();
     }
 
     #[test]
     fn test_enable_sets_capturing_true() {
         reset();
-        enable_capture_impl().unwrap();
+        enable_capture_impl(RUN_ID).unwrap();
         assert!(CAPTURING.load(Ordering::Acquire));
         reset();
     }
@@ -1841,8 +1907,8 @@ mod capture_tests {
     #[test]
     fn test_disable_sets_capturing_false() {
         reset();
-        CAPTURING.store(true, Ordering::Release);
-        disable_capture_impl().unwrap();
+        enable_capture_impl(RUN_ID).unwrap();
+        disable_capture_impl(RUN_ID).unwrap();
         assert!(!CAPTURING.load(Ordering::Acquire));
         reset();
     }
@@ -1850,8 +1916,8 @@ mod capture_tests {
     #[test]
     fn test_drain_clears_and_returns_empty() {
         reset();
-        enable_capture_impl().unwrap();
-        let drained = drain_spans_impl().unwrap();
+        enable_capture_impl(RUN_ID).unwrap();
+        let drained = drain_spans_impl(RUN_ID).unwrap();
         assert!(drained.is_empty());
         assert!(CAPTURING.load(Ordering::Acquire)); // still capturing after drain
         reset();
@@ -1860,7 +1926,7 @@ mod capture_tests {
     #[test]
     fn test_drain_returns_empty_when_capture_off() {
         reset();
-        let result = drain_spans_impl().unwrap();
+        let result = drain_spans_impl(RUN_ID).unwrap();
         assert!(result.is_empty());
         reset();
     }
@@ -1868,80 +1934,79 @@ mod capture_tests {
     #[test]
     fn test_drain_returns_and_clears_populated_buffer() {
         reset();
-        enable_capture_impl().unwrap();
-        CAPTURE_BUFFER
-            .write()
-            .unwrap()
-            .push(TraceSpanRecord::default());
-        let drained = drain_spans_impl().unwrap();
+        enable_capture_impl(RUN_ID).unwrap();
+        scouter_types::span_capture::buffer_captured_spans(vec![span_for_run(
+            ScouterTraceId::from_bytes([1; 16]),
+            RUN_ID,
+        )]);
+        let drained = drain_spans_impl(RUN_ID).unwrap();
         assert_eq!(drained.len(), 1);
-        assert!(CAPTURE_BUFFER.read().unwrap().is_empty());
+        assert!(scouter_types::span_capture::get_all_captured_spans(RUN_ID).is_empty());
         reset();
     }
 
     #[test]
     fn test_enable_clears_existing_buffer() {
         reset();
-        CAPTURE_BUFFER
-            .write()
-            .unwrap()
-            .push(TraceSpanRecord::default());
-        enable_capture_impl().unwrap();
-        assert!(CAPTURE_BUFFER.read().unwrap().is_empty());
+        enable_capture_impl(RUN_ID).unwrap();
+        scouter_types::span_capture::buffer_captured_spans(vec![span_for_run(
+            ScouterTraceId::from_bytes([1; 16]),
+            RUN_ID,
+        )]);
+        enable_capture_impl(RUN_ID).unwrap();
+        assert!(scouter_types::span_capture::get_all_captured_spans(RUN_ID).is_empty());
         reset();
     }
 
     #[test]
     fn test_get_spans_by_trace_ids_filters_without_drain() {
         reset();
-        enable_capture_impl().unwrap();
+        enable_capture_impl(RUN_ID).unwrap();
         let id_a = ScouterTraceId::from_bytes([1u8; 16]);
         let id_b = ScouterTraceId::from_bytes([2u8; 16]);
-        let span_a = TraceSpanRecord {
-            trace_id: id_a,
-            ..TraceSpanRecord::default()
-        };
-        let span_b = TraceSpanRecord {
-            trace_id: id_b,
-            ..TraceSpanRecord::default()
-        };
-        CAPTURE_BUFFER.write().unwrap().extend([span_a, span_b]);
+        scouter_types::span_capture::buffer_captured_spans(vec![
+            span_for_run(id_a, RUN_ID),
+            span_for_run(id_b, RUN_ID),
+        ]);
         let set = HashSet::from([id_a]);
-        let result = get_spans_by_trace_ids(&set).unwrap();
+        let result = get_spans_by_trace_ids(RUN_ID, &set).unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].trace_id, id_a);
         // buffer not drained
-        assert_eq!(CAPTURE_BUFFER.read().unwrap().len(), 2);
+        assert_eq!(
+            scouter_types::span_capture::get_all_captured_spans(RUN_ID).len(),
+            2
+        );
         reset();
     }
 
     #[test]
     fn test_buffer_overflow_drops_excess() {
         reset();
-        enable_capture_impl().unwrap();
-        {
-            let mut buf = CAPTURE_BUFFER.write().unwrap();
-            for _ in 0..CAPTURE_BUFFER_MAX {
-                buf.push(TraceSpanRecord::default());
-            }
-        }
-        let available = CAPTURE_BUFFER_MAX.saturating_sub(CAPTURE_BUFFER.read().unwrap().len());
-        assert_eq!(available, 0);
-        // Buffer at max, no panic
-        assert_eq!(CAPTURE_BUFFER.read().unwrap().len(), CAPTURE_BUFFER_MAX);
+        enable_capture_impl(RUN_ID).unwrap();
+        let spans = (0..=CAPTURE_BUFFER_MAX)
+            .map(|_| span_for_run(ScouterTraceId::from_bytes([1; 16]), RUN_ID))
+            .collect();
+        scouter_types::span_capture::buffer_captured_spans(spans);
+        assert_eq!(
+            scouter_types::span_capture::get_all_captured_spans(RUN_ID).len(),
+            CAPTURE_BUFFER_MAX
+        );
         reset();
     }
 
     #[test]
-    fn test_drain_returns_spans_even_when_not_capturing() {
+    fn test_drain_returns_spans_for_scope_even_when_capture_flag_false() {
         reset();
-        CAPTURE_BUFFER
-            .write()
-            .unwrap()
-            .push(TraceSpanRecord::default());
-        let result = drain_spans_impl().unwrap();
+        enable_capture_impl(RUN_ID).unwrap();
+        scouter_types::span_capture::buffer_captured_spans(vec![span_for_run(
+            ScouterTraceId::from_bytes([1; 16]),
+            RUN_ID,
+        )]);
+        CAPTURING.store(false, Ordering::Release);
+        let result = drain_spans_impl(RUN_ID).unwrap();
         assert_eq!(result.len(), 1); // drain is unconditional
-        assert!(CAPTURE_BUFFER.read().unwrap().is_empty());
+        assert!(scouter_types::span_capture::get_all_captured_spans(RUN_ID).is_empty());
         reset();
     }
 }

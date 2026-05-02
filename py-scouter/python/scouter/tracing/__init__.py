@@ -316,6 +316,22 @@ class ScouterTracer(_OtelTracer):
         return context_api.get_current()
 
     @staticmethod
+    def _apply_baggage_to_context(
+        baggage: Optional[List[dict[str, str]]],
+        context: Optional[Any],
+    ) -> Optional[Any]:
+        if not baggage or not HAS_OPENTELEMETRY:
+            return context
+        from opentelemetry import baggage as otel_baggage
+        from opentelemetry import context as otel_context_api
+
+        target = context if context is not None else otel_context_api.get_current()
+        for item in baggage:
+            for k, v in item.items():
+                target = otel_baggage.set_baggage(k, str(v), target)
+        return target
+
+    @staticmethod
     def _resolve_parent_context_id(context: Optional[Any]) -> Optional[str]:
         if not HAS_OPENTELEMETRY:
             return None
@@ -346,6 +362,8 @@ class ScouterTracer(_OtelTracer):
         headers: Optional[dict[str, str]] = None,
     ) -> ScouterSpan:
         current_context = self._current_context(context)
+        if baggage:
+            current_context = self._apply_baggage_to_context(baggage, current_context)
         resolved_parent_context_id = parent_context_id or self._resolve_parent_context_id(current_context)
 
         active = self._base.start_span(
@@ -389,16 +407,21 @@ class ScouterTracer(_OtelTracer):
         remote_sampled: Optional[bool] = None,
         headers: Optional[dict[str, str]] = None,
     ) -> Generator[ScouterSpan, None, None]:
+        # Build enriched context with baggage before creating span
+        enriched_ctx = self._current_context(context)
+        if baggage:
+            enriched_ctx = self._apply_baggage_to_context(baggage, enriched_ctx)
+
         span = self.start_span(
             name=name,
-            context=context,
+            context=enriched_ctx,
             kind=kind,
             attributes=attributes,
             links=links,
             start_time=start_time,
             record_exception=record_exception,
             set_status_on_exception=set_status_on_exception,
-            baggage=baggage,
+            baggage=None,
             tags=tags,
             label=label,
             parent_context_id=parent_context_id,
@@ -409,15 +432,23 @@ class ScouterTracer(_OtelTracer):
         )
 
         if HAS_OPENTELEMETRY:
+            from opentelemetry import context as otel_ctx_api
             from opentelemetry import trace
 
-            with trace.use_span(  # pylint: disable=not-context-manager
-                span,
-                end_on_exit=end_on_exit,
-                record_exception=record_exception,
-                set_status_on_exception=set_status_on_exception,
-            ) as active:
-                yield cast(ScouterSpan, active)
+            # Attach baggage-enriched context so use_span derives from it,
+            # making baggage visible to all child spans in Python contextvars.
+            baggage_token = otel_ctx_api.attach(enriched_ctx) if baggage and enriched_ctx is not None else None
+            try:
+                with trace.use_span(  # pylint: disable=not-context-manager
+                    span,
+                    end_on_exit=end_on_exit,
+                    record_exception=record_exception,
+                    set_status_on_exception=set_status_on_exception,
+                ) as active:
+                    yield cast(ScouterSpan, active)
+            finally:
+                if baggage_token is not None:
+                    otel_ctx_api.detach(baggage_token)
             return
 
         try:
@@ -568,17 +599,17 @@ class ScouterTracer(_OtelTracer):
     def shutdown(self) -> None:
         self._base.shutdown()
 
-    def enable_local_capture(self) -> None:
-        self._base.enable_local_capture()
+    def enable_local_capture(self, capture_run_id: str) -> None:
+        self._base.enable_local_capture(capture_run_id)
 
-    def disable_local_capture(self) -> None:
-        self._base.disable_local_capture()
+    def disable_local_capture(self, capture_run_id: str) -> None:
+        self._base.disable_local_capture(capture_run_id)
 
-    def drain_local_spans(self) -> List[TraceSpanRecord]:
-        return self._base.drain_local_spans()
+    def drain_local_spans(self, capture_run_id: str) -> List[TraceSpanRecord]:
+        return self._base.drain_local_spans(capture_run_id)
 
-    def get_local_spans_by_trace_ids(self, trace_ids: List[str]) -> List[TraceSpanRecord]:
-        return self._base.get_local_spans_by_trace_ids(trace_ids)
+    def get_local_spans_by_trace_ids(self, capture_run_id: str, trace_ids: List[str]) -> List[TraceSpanRecord]:
+        return self._base.get_local_spans_by_trace_ids(capture_run_id, trace_ids)
 
 
 def get_tracer(name: str) -> ScouterTracer:
@@ -674,6 +705,8 @@ class ScouterTracerProvider(_OtelTracerProvider):
 
     def shutdown(self) -> None:
         """Shutdown the tracer provider."""
+        with self._tracer_cache_lock:
+            self._tracer_cache.clear()
         shutdown_tracer()
 
 
@@ -853,21 +886,21 @@ class ScouterInstrumentor(BaseInstrumentor):
             **kwargs,
         )
 
-    def enable_local_capture(self) -> None:
-        """Enable local span capture mode on the ScouterSpanExporter."""
-        get_tracer("scouter").enable_local_capture()
+    def enable_local_capture(self, capture_run_id: str) -> None:
+        """Enable local span capture mode for a capture run."""
+        get_tracer("scouter").enable_local_capture(capture_run_id)
 
-    def disable_local_capture(self) -> None:
-        """Disable local span capture mode, discarding any buffered spans."""
-        get_tracer("scouter").disable_local_capture()
+    def disable_local_capture(self, capture_run_id: str) -> None:
+        """Disable local span capture mode for a capture run."""
+        get_tracer("scouter").disable_local_capture(capture_run_id)
 
-    def drain_local_spans(self) -> List[TraceSpanRecord]:
-        """Drain and return all locally captured spans, clearing the buffer."""
-        return get_tracer("scouter").drain_local_spans()
+    def drain_local_spans(self, capture_run_id: str) -> List[TraceSpanRecord]:
+        """Drain and return locally captured spans for a capture run."""
+        return get_tracer("scouter").drain_local_spans(capture_run_id)
 
-    def get_local_spans_by_trace_ids(self, trace_ids: List[str]) -> List[TraceSpanRecord]:
-        """Return captured spans matching the given trace IDs without draining the buffer."""
-        return get_tracer("scouter").get_local_spans_by_trace_ids(trace_ids)
+    def get_local_spans_by_trace_ids(self, capture_run_id: str, trace_ids: List[str]) -> List[TraceSpanRecord]:
+        """Return captured spans matching the given trace IDs without draining the run buffer."""
+        return get_tracer("scouter").get_local_spans_by_trace_ids(capture_run_id, trace_ids)
 
     def _uninstrument(self, **kwargs) -> None:
         """Shutdown Scouter tracing and reset global provider."""
