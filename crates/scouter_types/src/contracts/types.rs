@@ -777,6 +777,16 @@ impl ScouterServerError {
             retry: Some(true),
         }
     }
+
+    pub fn get_genai_dashboard_error<T: Display>(e: T) -> Self {
+        error!("Failed to build genai dashboard: {}", e);
+        ScouterServerError {
+            error: "Failed to build genai dashboard".to_string(),
+            code: "QUERY_ERROR".to_string(),
+            suggested_action: None,
+            retry: Some(true),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

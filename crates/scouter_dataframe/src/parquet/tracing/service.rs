@@ -1069,7 +1069,7 @@ mod tests {
 
         let genai_metrics = genai_service
             .query_service
-            .get_token_metrics(None, start, end, "hour", None, None)
+            .get_token_metrics(None, None, start, end, "hour", None, None, None, None)
             .await?;
         let total_input: i64 = genai_metrics.iter().map(|m| m.total_input_tokens).sum();
         assert_eq!(

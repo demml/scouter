@@ -4,6 +4,8 @@ from scouter.drift import (
     AssertionTask,
     ComparisonOperator,
 )
+from scouter.mock import MockConfig
+from scouter.queue import ScouterQueue
 from scouter.tracing import (
     SCOUTER_ACTIVE_ENTITY_UID_BAGGAGE_KEY,
     ScouterInstrumentor,
@@ -25,6 +27,7 @@ def _make_profile(name: str = "agent") -> AgentEvalProfile:
     return AgentEvalProfile(
         tasks=[_make_task()],
         config=AgentEvalConfig(space="test", name=name),
+        alias=name,
     )
 
 
@@ -157,3 +160,74 @@ def test_instrument_eval_profiles_uses_first_profile_as_default():
 
     ScouterInstrumentor._instance = None
     ScouterInstrumentor._provider = None
+
+
+def test_instrument_scouter_queue_sets_default_entity_uid():
+    from unittest.mock import patch
+
+    ScouterInstrumentor._instance = None
+    ScouterInstrumentor._provider = None
+
+    profile = _make_profile("queue-agent")
+    queue = ScouterQueue.from_profile(
+        profile=[profile],
+        transport_config=MockConfig(),
+        wait_for_startup=False,
+    )
+
+    instrumentor = ScouterInstrumentor()
+    captured_provider_kwargs: dict = {}
+
+    class _FakeTracerProvider:
+        def __init__(self, **kwargs):
+            captured_provider_kwargs.update(kwargs)
+
+    with (
+        patch("scouter.tracing.ScouterTracerProvider", _FakeTracerProvider),
+        patch("scouter.tracing.set_tracer_provider"),
+    ):
+        instrumentor._instrument(scouter_queue=queue)
+
+    assert (
+        captured_provider_kwargs.get("default_entity_uid") == profile.config.uid
+    ), "entity_uid from first QueueBus should propagate to ScouterTracerProvider"
+
+    ScouterInstrumentor._instance = None
+    ScouterInstrumentor._provider = None
+    queue.shutdown()
+
+
+def test_instrument_eval_profiles_takes_precedence_over_queue():
+    from unittest.mock import patch
+
+    ScouterInstrumentor._instance = None
+    ScouterInstrumentor._provider = None
+
+    queue_profile = _make_profile("queue-agent")
+    eval_profile = _make_profile("eval-agent")
+    queue = ScouterQueue.from_profile(
+        profile=[queue_profile],
+        transport_config=MockConfig(),
+        wait_for_startup=False,
+    )
+
+    instrumentor = ScouterInstrumentor()
+    captured_provider_kwargs: dict = {}
+
+    class _FakeTracerProvider:
+        def __init__(self, **kwargs):
+            captured_provider_kwargs.update(kwargs)
+
+    with (
+        patch("scouter.tracing.ScouterTracerProvider", _FakeTracerProvider),
+        patch("scouter.tracing.set_tracer_provider"),
+    ):
+        instrumentor._instrument(scouter_queue=queue, eval_profiles=[eval_profile])
+
+    assert (
+        captured_provider_kwargs.get("default_entity_uid") == eval_profile.config.uid
+    ), "eval_profiles should take precedence over scouter_queue entity_uid"
+
+    ScouterInstrumentor._instance = None
+    ScouterInstrumentor._provider = None
+    queue.shutdown()

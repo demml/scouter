@@ -7,6 +7,7 @@ pub mod dataset;
 pub mod docs;
 pub mod drift;
 pub mod eval_scenarios;
+pub mod genai;
 pub mod health;
 pub mod ingest;
 pub mod profile;

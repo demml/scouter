@@ -1,4 +1,4 @@
-use super::{Attribute, SpanId, TraceId, TraceSpanRecord};
+use super::{Attribute, SCOUTER_ENTITY, SpanId, TraceId, TraceSpanRecord};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -76,10 +76,15 @@ pub const GEN_AI_EVALUATION_EXPLANATION: &str = "gen_ai.evaluation.explanation";
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiEvalResult {
+    /// Name of the evaluation (gen_ai.evaluation.name).
     pub name: String,
+    /// Categorical label (e.g. "relevant", "correct"). None if only numeric score present.
     pub score_label: Option<String>,
+    /// Numeric evaluation score. None if only a label-based result.
     pub score_value: Option<f64>,
+    /// Free-text explanation from the evaluator.
     pub explanation: Option<String>,
+    /// Provider response ID this evaluation is linked to (gen_ai.response.id).
     pub response_id: Option<String>,
 }
 
@@ -88,61 +93,99 @@ pub struct GenAiEvalResult {
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiSpanRecord {
+    /// OpenTelemetry trace identifier.
     pub trace_id: TraceId,
+    /// OpenTelemetry span identifier.
     pub span_id: SpanId,
+    /// Service that emitted the span.
     pub service_name: String,
+    /// Span start time (UTC).
     pub start_time: DateTime<Utc>,
+    /// Span end time (UTC). None if the span did not record an end.
     pub end_time: Option<DateTime<Utc>>,
+    /// Wall-clock duration in milliseconds.
     pub duration_ms: i64,
+    /// OTel status code (0 = UNSET, 1 = OK, 2 = ERROR).
     pub status_code: i32,
-    // Core operation scalars (from span attributes)
+    /// Operation type (gen_ai.operation.name). e.g. "chat", "invoke_agent", "embedding".
     pub operation_name: Option<String>,
+    /// LLM provider (gen_ai.provider.name or gen_ai.system fallback). e.g. "openai", "anthropic".
     pub provider_name: Option<String>,
+    /// Model name from the request (gen_ai.request.model).
     pub request_model: Option<String>,
+    /// Model name from the response (gen_ai.response.model).
     pub response_model: Option<String>,
+    /// Response identifier returned by the provider (gen_ai.response.id).
     pub response_id: Option<String>,
-    // Token usage (from span attributes)
+    /// Prompt/input token count (gen_ai.usage.input_tokens).
     pub input_tokens: Option<i64>,
+    /// Completion/output token count (gen_ai.usage.output_tokens).
     pub output_tokens: Option<i64>,
+    /// Cache creation token count (gen_ai.usage.cache_creation.input_tokens).
     pub cache_creation_input_tokens: Option<i64>,
+    /// Cache read token count (gen_ai.usage.cache_read.input_tokens).
     pub cache_read_input_tokens: Option<i64>,
+    /// Finish reasons returned by the provider (gen_ai.response.finish_reasons).
     pub finish_reasons: Vec<String>,
+    /// Output type (gen_ai.output.type). e.g. "text", "tool_call".
     pub output_type: Option<String>,
-    // Conversation / agent (from span attributes)
+    /// Conversation identifier for multi-turn sessions (gen_ai.conversation.id).
     pub conversation_id: Option<String>,
+    /// Agent name (gen_ai.agent.name).
     pub agent_name: Option<String>,
+    /// Agent identifier (gen_ai.agent.id).
     pub agent_id: Option<String>,
+    /// Agent description (gen_ai.agent.description).
     pub agent_description: Option<String>,
+    /// Agent version (gen_ai.agent.version).
     pub agent_version: Option<String>,
+    /// Data source identifier referenced by the agent (gen_ai.data_source.id).
     pub data_source_id: Option<String>,
-    // Tool (from span attributes)
+    /// Tool name invoked (gen_ai.tool.name).
     pub tool_name: Option<String>,
+    /// Tool type (gen_ai.tool.type). e.g. "function", "retrieval".
     pub tool_type: Option<String>,
+    /// Tool call identifier (gen_ai.tool.call.id).
     pub tool_call_id: Option<String>,
-    // Request parameters (from span attributes)
+    /// Request temperature (gen_ai.request.temperature).
     pub request_temperature: Option<f64>,
+    /// Maximum tokens for the request (gen_ai.request.max_tokens).
     pub request_max_tokens: Option<i64>,
+    /// Nucleus sampling probability (gen_ai.request.top_p).
     pub request_top_p: Option<f64>,
+    /// Number of completion choices requested (gen_ai.request.choice.count).
     pub request_choice_count: Option<i64>,
+    /// Random seed for deterministic sampling (gen_ai.request.seed).
     pub request_seed: Option<i64>,
+    /// Frequency penalty (gen_ai.request.frequency_penalty).
     pub request_frequency_penalty: Option<f64>,
+    /// Presence penalty (gen_ai.request.presence_penalty).
     pub request_presence_penalty: Option<f64>,
+    /// Stop sequences (gen_ai.request.stop_sequences).
     pub request_stop_sequences: Vec<String>,
-    // Server info (from span attributes)
+    /// Server address (server.address).
     pub server_address: Option<String>,
+    /// Server port (server.port).
     pub server_port: Option<i64>,
-    // Error / provider-specific (from span attributes)
+    /// Error type (error.type attribute on the span).
     pub error_type: Option<String>,
+    /// OpenAI API type (openai.api.type).
     pub openai_api_type: Option<String>,
+    /// OpenAI service tier (openai.response.service_tier).
     pub openai_service_tier: Option<String>,
+    /// Scouter-internal record label.
     pub label: Option<String>,
-    // Opt-in content: span attr first, gen_ai.client.inference.operation.details event fallback.
-    // Stored as JSON string (spec allows JSON-serialized string on spans; events carry structured form).
+    /// Scouter entity UID (eval profile or drift profile) associated with this span.
+    pub entity_id: Option<String>,
+    /// Input messages (gen_ai.input.messages). JSON string. Redacted unless caller has sensitive-content permission.
     pub input_messages: Option<String>,
+    /// Output messages (gen_ai.output.messages). JSON string. Redacted unless caller has sensitive-content permission.
     pub output_messages: Option<String>,
+    /// System instructions (gen_ai.system_instructions). Redacted unless caller has sensitive-content permission.
     pub system_instructions: Option<String>,
+    /// Tool definitions (gen_ai.tool.definitions). JSON string. Redacted unless caller has sensitive-content permission.
     pub tool_definitions: Option<String>,
-    // Evaluation results from gen_ai.evaluation.result events (always from events, no span equivalent).
+    /// Evaluation results extracted from gen_ai.evaluation.result events.
     pub eval_results: Vec<GenAiEvalResult>,
 }
 
@@ -526,6 +569,34 @@ pub fn extract_gen_ai_span(record: &TraceSpanRecord) -> Option<GenAiSpanRecord> 
 
     out.operation_name.as_ref()?;
 
+    // Extract entity_id: span attributes first (stamped at creation via default_entity_uid or
+    // active_profile baggage), then event attributes as fallback (queue-item path).
+    out.entity_id = record
+        .attributes
+        .iter()
+        .find(|a| a.key.starts_with(SCOUTER_ENTITY))
+        .and_then(|a| {
+            if let serde_json::Value::String(s) = &a.value {
+                Some(s.clone())
+            } else {
+                None
+            }
+        });
+    if out.entity_id.is_none() {
+        out.entity_id = record
+            .events
+            .iter()
+            .flat_map(|e| e.attributes.iter())
+            .find(|a| a.key.starts_with(SCOUTER_ENTITY))
+            .and_then(|a| {
+                if let serde_json::Value::String(s) = &a.value {
+                    Some(s.clone())
+                } else {
+                    None
+                }
+            });
+    }
+
     // Merge event data.
     // Scalars: span attrs are authoritative — no event fallback.
     // Opt-in content (4 fields): span attr wins; event is fallback if span attr absent.
@@ -553,59 +624,93 @@ pub fn extract_gen_ai_span(record: &TraceSpanRecord) -> Option<GenAiSpanRecord> 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiTokenBucket {
+    /// Bucket start time (UTC, truncated to the requested granularity).
     pub bucket_start: DateTime<Utc>,
+    /// Sum of prompt/input tokens in this bucket.
     pub total_input_tokens: i64,
+    /// Sum of completion/output tokens in this bucket.
     pub total_output_tokens: i64,
+    /// Sum of cache creation tokens in this bucket.
     pub total_cache_creation_tokens: i64,
+    /// Sum of cache read tokens in this bucket.
     pub total_cache_read_tokens: i64,
+    /// Number of GenAI spans in this bucket.
     pub span_count: i64,
+    /// Fraction of spans in this bucket that have a non-zero error status.
     pub error_rate: f64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiOperationBreakdown {
+    /// Operation type (gen_ai.operation.name). e.g. "chat", "invoke_agent", "embedding".
     pub operation_name: String,
+    /// Provider associated with this operation. None = mixed or unknown.
     pub provider_name: Option<String>,
+    /// Total spans for this operation in the query window.
     pub span_count: i64,
+    /// Mean response duration in milliseconds for this operation.
     pub avg_duration_ms: f64,
+    /// Total input tokens consumed by this operation.
     pub total_input_tokens: i64,
+    /// Total output tokens produced by this operation.
     pub total_output_tokens: i64,
+    /// Fraction of spans with a non-zero error status.
     pub error_rate: f64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiModelUsage {
+    /// Response model name (gen_ai.response.model).
     pub model: String,
+    /// Provider that served this model. None if not recorded.
     pub provider_name: Option<String>,
+    /// Total spans that used this model in the query window.
     pub span_count: i64,
+    /// Total input tokens consumed by this model.
     pub total_input_tokens: i64,
+    /// Total output tokens produced by this model.
     pub total_output_tokens: i64,
+    /// Median (p50) response duration in milliseconds.
     pub p50_duration_ms: Option<f64>,
+    /// 95th-percentile response duration in milliseconds.
     pub p95_duration_ms: Option<f64>,
+    /// Fraction of spans with a non-zero error status.
     pub error_rate: f64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiAgentActivity {
+    /// Agent name (gen_ai.agent.name). None if not set on the span.
     pub agent_name: Option<String>,
+    /// Agent identifier (gen_ai.agent.id). None if not set on the span.
     pub agent_id: Option<String>,
+    /// Conversation identifier (gen_ai.conversation.id). None if not set on the span.
     pub conversation_id: Option<String>,
+    /// Total spans attributed to this agent in the query window.
     pub span_count: i64,
+    /// Total input tokens consumed by this agent.
     pub total_input_tokens: i64,
+    /// Total output tokens produced by this agent.
     pub total_output_tokens: i64,
+    /// Timestamp of the most recent span for this agent.
     pub last_seen: Option<DateTime<Utc>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiToolActivity {
+    /// Tool name (gen_ai.tool.name). None if not set on the span.
     pub tool_name: Option<String>,
+    /// Tool type (gen_ai.tool.type). e.g. "function", "retrieval". None if not set.
     pub tool_type: Option<String>,
+    /// Total number of tool call spans in the query window.
     pub call_count: i64,
+    /// Mean duration of tool calls in milliseconds.
     pub avg_duration_ms: f64,
+    /// Fraction of tool calls with a non-zero error status.
     pub error_rate: f64,
 }
 
@@ -620,92 +725,127 @@ fn default_trace_span_limit() -> usize {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiMetricsRequest {
+    /// Service the request is scoped to. None = caller's default service.
     pub service_name: Option<String>,
+    /// Window start (UTC, inclusive).
     pub start_time: DateTime<Utc>,
+    /// Window end (UTC, exclusive).
     pub end_time: DateTime<Utc>,
+    /// Time-series granularity. One of: second, minute, hour, day, week, month, year.
     #[serde(default = "default_bucket_interval")]
     pub bucket_interval: String,
+    /// Filter to one operation type (e.g. "invoke_agent", "chat", "embedding").
     pub operation_name: Option<String>,
+    /// Filter to one provider (e.g. "openai", "anthropic", "google").
     pub provider_name: Option<String>,
+    /// Filter to one response model (e.g. "gpt-4o", "claude-opus-4-7").
     pub model: Option<String>,
+    /// Filter to one agent (matches agent_name attribute on the GenAI span).
+    pub agent_name: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiSpanFilters {
+    /// Filter to spans from this service. None = all services.
     pub service_name: Option<String>,
+    /// Window start (UTC, inclusive). None = no lower bound.
     pub start_time: Option<DateTime<Utc>>,
+    /// Window end (UTC, exclusive). None = no upper bound.
     pub end_time: Option<DateTime<Utc>>,
+    /// Filter to one operation type (e.g. "chat", "invoke_agent").
     pub operation_name: Option<String>,
+    /// Filter to one provider (e.g. "openai", "anthropic").
     pub provider_name: Option<String>,
+    /// Filter to one response model.
     pub model: Option<String>,
+    /// Filter to spans belonging to one conversation.
     pub conversation_id: Option<String>,
+    /// Filter to spans from one agent.
     pub agent_name: Option<String>,
+    /// Filter to spans that invoked this tool.
     pub tool_name: Option<String>,
+    /// Filter to spans with this error type.
     pub error_type: Option<String>,
+    /// Maximum number of spans to return. None = server default.
     pub limit: Option<usize>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiErrorCount {
+    /// Error type string (error.type attribute on the span).
     pub error_type: String,
+    /// Number of spans with this error type in the query window.
     pub count: i64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiTokenMetricsResponse {
+    /// Time-series token buckets, one per time interval.
     pub buckets: Vec<GenAiTokenBucket>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiOperationBreakdownResponse {
+    /// Per-operation aggregates for the query window.
     pub operations: Vec<GenAiOperationBreakdown>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiModelUsageResponse {
+    /// Per-model aggregates for the query window.
     pub models: Vec<GenAiModelUsage>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiAgentActivityResponse {
+    /// Per-agent activity rows for the query window.
     pub agents: Vec<GenAiAgentActivity>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiToolActivityResponse {
+    /// Per-tool activity rows for the query window.
     pub tools: Vec<GenAiToolActivity>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiErrorBreakdownResponse {
+    /// Error counts grouped by error type.
     pub errors: Vec<GenAiErrorCount>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiSpansResponse {
+    /// Individual GenAI spans matching the query filters.
     pub spans: Vec<GenAiSpanRecord>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiTraceMetricsRequest {
+    /// Window start (UTC, inclusive). None = 30 minutes before end_time.
     pub start_time: Option<DateTime<Utc>>,
+    /// Window end (UTC, exclusive). None = now.
     pub end_time: Option<DateTime<Utc>>,
+    /// Time-series granularity. One of: second, minute, hour, day, week, month, year.
     #[serde(default = "default_bucket_interval")]
     pub bucket_interval: String,
+    /// Optional pricing table for cost computation. Keyed by response_model. Empty = no cost computation.
     #[serde(default)]
     pub model_pricing: HashMap<String, ModelPricing>,
+    /// Maximum number of spans to include in the `spans` list. Clamped to 5000. Default: 500.
     #[serde(default = "default_trace_span_limit")]
     pub span_limit: usize,
+    /// When true, include sensitive content fields (input/output messages, system instructions, tool definitions). Requires admin permission.
     #[serde(default)]
     pub include_sensitive_content: bool,
 }
@@ -713,18 +853,31 @@ pub struct GenAiTraceMetricsRequest {
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct GenAiTraceMetricsResponse {
+    /// Trace ID this response covers.
     pub trace_id: String,
+    /// True if the trace contains at least one GenAI span.
     pub has_genai_spans: bool,
+    /// GenAI spans in this trace, truncated to `span_limit`.
     pub spans: Vec<GenAiSpanRecord>,
+    /// The span limit that was applied (clamped to 5000).
     pub span_limit: usize,
+    /// True if the actual span count exceeded `span_limit`.
     pub spans_truncated: bool,
+    /// True if sensitive content fields were redacted (caller lacked permission or did not request them).
     pub sensitive_content_redacted: bool,
+    /// Token usage time-series for this trace.
     pub token_metrics: GenAiTokenMetricsResponse,
+    /// Per-operation aggregates for this trace.
     pub operation_breakdown: GenAiOperationBreakdownResponse,
+    /// Per-model aggregates for this trace.
     pub model_usage: GenAiModelUsageResponse,
+    /// Per-agent activity rows for this trace.
     pub agent_activity: GenAiAgentActivityResponse,
+    /// Agent time-series dashboard for this trace.
     pub agent_dashboard: AgentDashboardResponse,
+    /// Tool call aggregates and time-series for this trace.
     pub tool_dashboard: ToolDashboardResponse,
+    /// Error breakdown by type for this trace.
     pub error_breakdown: GenAiErrorBreakdownResponse,
 }
 
@@ -733,22 +886,37 @@ pub struct GenAiTraceMetricsResponse {
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct ModelPricing {
+    /// Cost per million input tokens (USD).
     pub input_per_million: f64,
+    /// Cost per million output tokens (USD).
     pub output_per_million: f64,
+    /// Cost per million cache creation tokens (USD).
     pub cache_creation_per_million: f64,
+    /// Cost per million cache read tokens (USD).
     pub cache_read_per_million: f64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct AgentDashboardRequest {
+    /// Service to scope the dashboard to. None = all services.
     pub service_name: Option<String>,
+    /// Scouter entity UID (AgentEvalProfile or DriftProfile) to scope the dashboard to.
+    /// None = all entities within the service. Set this when navigating from an eval profile page.
+    pub entity_id: Option<String>,
+    /// Window start (UTC, inclusive).
     pub start_time: DateTime<Utc>,
+    /// Window end (UTC, exclusive). Must be > start_time.
     pub end_time: DateTime<Utc>,
+    /// Time-series granularity. One of: second, minute, hour, day, week, month, year.
     #[serde(default = "default_bucket_interval")]
     pub bucket_interval: String,
+    /// Filter to one agent (matches gen_ai.agent.name). None = all agents.
     pub agent_name: Option<String>,
+    /// Filter to one provider (e.g. "openai", "anthropic", "google"). None = all providers.
     pub provider_name: Option<String>,
+    /// Optional pricing table for cost computation. Keyed by response_model. Empty = no cost computation.
+    /// The key `"unknown"` is reserved for spans with no model attribution — do not include it as a pricing key.
     #[serde(default)]
     pub model_pricing: std::collections::HashMap<String, ModelPricing>,
 }
@@ -756,54 +924,88 @@ pub struct AgentDashboardRequest {
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct AgentMetricBucket {
+    /// Bucket start time (UTC, truncated to the requested granularity).
     pub bucket_start: DateTime<Utc>,
+    /// Number of agent spans in this bucket.
     pub span_count: i64,
+    /// Number of spans with a non-zero error status in this bucket.
     pub error_count: i64,
+    /// Fraction of spans with a non-zero error status.
     pub error_rate: f64,
+    /// Mean response duration in milliseconds for spans in this bucket.
     pub avg_duration_ms: f64,
+    /// Median (p50) response duration in milliseconds.
     pub p50_duration_ms: Option<f64>,
+    /// 95th-percentile response duration in milliseconds.
     pub p95_duration_ms: Option<f64>,
+    /// 99th-percentile response duration in milliseconds.
     pub p99_duration_ms: Option<f64>,
+    /// Total input tokens across all spans in this bucket.
     pub total_input_tokens: i64,
+    /// Total output tokens across all spans in this bucket.
     pub total_output_tokens: i64,
+    /// Total cache creation tokens across all spans in this bucket.
     pub total_cache_creation_tokens: i64,
+    /// Total cache read tokens across all spans in this bucket.
     pub total_cache_read_tokens: i64,
+    /// Per-bucket cost. Always None — cost is only available in `summary.cost_by_model`.
     pub total_cost: Option<f64>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct ModelCostBreakdown {
+    /// Response model name.
     pub model: String,
+    /// Total input tokens for this model in the query window.
     pub total_input_tokens: i64,
+    /// Total output tokens for this model in the query window.
     pub total_output_tokens: i64,
+    /// Total cache creation tokens for this model in the query window.
     pub total_cache_creation_tokens: i64,
+    /// Total cache read tokens for this model in the query window.
     pub total_cache_read_tokens: i64,
+    /// Total cost in USD. None if no pricing was supplied for this model.
     pub total_cost: Option<f64>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct AgentDashboardSummary {
+    /// Total agent span requests in the query window.
     pub total_requests: i64,
+    /// Mean response duration across all buckets in milliseconds.
     pub avg_duration_ms: f64,
+    /// Median (p50) response duration over the full query window in milliseconds.
     pub p50_duration_ms: Option<f64>,
+    /// 95th-percentile response duration over the full query window in milliseconds.
     pub p95_duration_ms: Option<f64>,
+    /// 99th-percentile response duration over the full query window in milliseconds.
     pub p99_duration_ms: Option<f64>,
+    /// Fraction of all spans with a non-zero error status.
     pub overall_error_rate: f64,
+    /// Sum of input tokens across all spans in the query window.
     pub total_input_tokens: i64,
+    /// Sum of output tokens across all spans in the query window.
     pub total_output_tokens: i64,
+    /// Sum of cache creation tokens across all spans in the query window.
     pub total_cache_creation_tokens: i64,
+    /// Sum of cache read tokens across all spans in the query window.
     pub total_cache_read_tokens: i64,
+    /// Number of distinct agent_name values in the query window.
     pub unique_agent_count: i64,
+    /// Number of distinct conversation_id values in the query window.
     pub unique_conversation_count: i64,
+    /// Per-model token totals and computed cost (if pricing was supplied).
     pub cost_by_model: Vec<ModelCostBreakdown>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct AgentDashboardResponse {
+    /// Summary aggregates across the full query window.
     pub summary: AgentDashboardSummary,
+    /// Time-series metric buckets, one per time interval.
     pub buckets: Vec<AgentMetricBucket>,
 }
 
@@ -812,28 +1014,46 @@ pub struct AgentDashboardResponse {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct ToolDashboardRequest {
+    /// Service the request is scoped to. None = all services.
     pub service_name: Option<String>,
+    /// Window start (UTC, inclusive).
     pub start_time: DateTime<Utc>,
+    /// Window end (UTC, exclusive).
     pub end_time: DateTime<Utc>,
+    /// Time-series granularity. One of: second, minute, hour, day, week, month, year.
     #[serde(default = "default_bucket_interval")]
     pub bucket_interval: String,
+    /// Filter to one agent (matches agent_name attribute on the GenAI span).
+    pub agent_name: Option<String>,
+    /// Filter to one provider (e.g. "openai", "anthropic", "google").
+    pub provider_name: Option<String>,
+    /// Filter to one model (matches response_model on the GenAI span).
+    pub model: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct ToolTimeBucket {
+    /// Bucket start time (UTC, truncated to the requested granularity).
     pub bucket_start: DateTime<Utc>,
+    /// Tool name (gen_ai.tool.name). None if not set on the span.
     pub tool_name: Option<String>,
+    /// Tool type (gen_ai.tool.type). None if not set on the span.
     pub tool_type: Option<String>,
+    /// Number of tool call spans in this bucket.
     pub call_count: i64,
+    /// Mean duration of tool calls in this bucket, in milliseconds.
     pub avg_duration_ms: f64,
+    /// Fraction of tool calls in this bucket with a non-zero error status.
     pub error_rate: f64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct ToolDashboardResponse {
+    /// Per-tool aggregates across the full query window.
     pub aggregates: Vec<GenAiToolActivity>,
+    /// Time-series tool call data, one bucket per time interval per tool.
     pub time_series: Vec<ToolTimeBucket>,
 }
 
@@ -842,7 +1062,6 @@ pub struct ToolDashboardResponse {
 #[derive(Clone, Debug, Default)]
 pub struct AgentBucketRow {
     pub bucket_start: DateTime<Utc>,
-    pub model: Option<String>,
     pub span_count: i64,
     pub error_count: i64,
     pub error_rate: f64,
@@ -856,16 +1075,175 @@ pub struct AgentBucketRow {
     pub cache_read_tokens: i64,
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct AgentModelCostRow {
+    pub model: String,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub cache_creation_tokens: i64,
+    pub cache_read_tokens: i64,
+}
+
+// ── Composite dashboard types ─────────────────────────────────────────────────
+
+pub const GENAI_DASHBOARD_SCHEMA_VERSION: u32 = 1;
+
+/// Echoed back in every dashboard response. Mirrors the request body so
+/// callers (UIs, agents) can confirm scope without tracking request state
+/// across parallel calls.
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+pub struct AppliedFilters {
+    /// Service the dashboard is scoped to.
+    pub service_name: Option<String>,
+    /// Entity UID filter applied. None = all entities.
+    pub entity_id: Option<String>,
+    /// Agent drilldown applied. None = service-wide view.
+    pub agent_name: Option<String>,
+    /// Provider filter applied.
+    pub provider_name: Option<String>,
+    /// Operation filter applied.
+    pub operation_name: Option<String>,
+    /// Response model filter applied.
+    pub model: Option<String>,
+    /// Window start (UTC, inclusive).
+    pub start_time: DateTime<Utc>,
+    /// Window end (UTC, exclusive).
+    pub end_time: DateTime<Utc>,
+    /// Time-series granularity used.
+    pub bucket_interval: String,
+}
+
+/// Distinct filter values present in the query window. Always computed
+/// service-scoped (NOT narrowed by `agent_name`) so UI dropdowns stay
+/// populated when a user drills into a single agent.
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+pub struct AvailableFilters {
+    /// Per-agent activity rows. Source for the "Select agent" dropdown.
+    /// Always service-scoped — unchanged by agent drilldown.
+    pub agents: Vec<GenAiAgentActivity>,
+    /// Distinct provider_name values present in the window.
+    pub providers: Vec<String>,
+    /// Distinct response_model values present in the window.
+    pub models: Vec<String>,
+    /// Distinct operation_name values present in the window.
+    pub operations: Vec<String>,
+}
+
+/// Response-level metadata. Use for cache invalidation (`generated_at`),
+/// breaking-change negotiation (`schema_version`), and empty-vs-no-traffic
+/// disambiguation (`total_spans`).
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+pub struct DashboardMetadata {
+    /// Server timestamp when response was generated (UTC).
+    pub generated_at: DateTime<Utc>,
+    /// Response schema version. Bump on breaking changes. Currently 1.
+    pub schema_version: u32,
+    /// Total GenAI spans matched by the applied filters in the window.
+    /// Use to distinguish "no data" from "no matching filter".
+    pub total_spans: i64,
+}
+
+/// Internal row returned by the distinct-filter-values query.
+/// Not part of the public API — assembled into `AvailableFilters` by the handler.
+#[derive(Clone, Debug, Default)]
+pub struct DistinctFilterValues {
+    pub providers: Vec<String>,
+    pub models: Vec<String>,
+    pub operations: Vec<String>,
+}
+
+/// Request body for the composite GenAI dashboard endpoint.
+///
+/// Use `agent_name = None` for a service-wide view.
+/// Set `agent_name` to drill into a single agent's metrics.
+/// The `available_filters` in the response always reflects the full service window
+/// so UI dropdowns stay populated during drilldown.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+pub struct GenAiDashboardRequest {
+    /// Service to scope the dashboard to. None = all services.
+    pub service_name: Option<String>,
+    /// Scouter entity UID (AgentEvalProfile or DriftProfile) to scope the dashboard to.
+    /// None = all entities within the service. Set this when navigating from an eval profile page.
+    pub entity_id: Option<String>,
+    /// Window start (UTC, inclusive).
+    pub start_time: DateTime<Utc>,
+    /// Window end (UTC, exclusive). Must be > start_time. Window cannot exceed 30 days.
+    pub end_time: DateTime<Utc>,
+    /// Time-series granularity. One of: second, minute, hour, day, week, month, year.
+    #[serde(default = "default_bucket_interval")]
+    pub bucket_interval: String,
+    /// Drill into a single agent. None = service-wide view.
+    pub agent_name: Option<String>,
+    /// Filter to one provider (e.g. "openai", "anthropic", "google").
+    pub provider_name: Option<String>,
+    /// Filter to one operation type (e.g. "invoke_agent", "chat", "embedding").
+    pub operation_name: Option<String>,
+    /// Filter to one response model (e.g. "gpt-4o", "claude-opus-4-7").
+    pub model: Option<String>,
+    /// Optional pricing table for cost computation. Keyed by response_model.
+    /// Empty = no cost computation. Cost appears in `agent_dashboard.summary.cost_by_model`.
+    /// The key `"unknown"` is reserved for spans with no model attribution — do not include it as a pricing key.
+    #[serde(default)]
+    pub model_pricing: HashMap<String, ModelPricing>,
+}
+
+/// Composite GenAI dashboard for a service or agent slice.
+///
+/// Returned by `POST /scouter/genai/dashboard`. Single round-trip — populates
+/// every panel a UI dashboard needs. Use `applied_filters` to confirm scope,
+/// `available_filters` to populate dropdowns, `metadata` for staleness.
+///
+/// **Empty-state invariant**: When no spans match the applied filters, all
+/// `Vec` fields are empty (`[]`), all numeric aggregates are `0`, all
+/// `Option<f64>` percentiles are `None`. `metadata.total_spans` is `0`.
+/// `available_filters.agents` MAY still be populated if other agents exist
+/// in the service+window.
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+pub struct GenAiDashboardResponse {
+    /// Filters the server applied. Mirrors the request body.
+    pub applied_filters: AppliedFilters,
+    /// All distinct filter values present in the query window. Use to populate dropdowns.
+    /// Always service-scoped — not narrowed by `agent_name`.
+    pub available_filters: AvailableFilters,
+    /// Query metadata: generated_at, schema_version, total_spans.
+    pub metadata: DashboardMetadata,
+    /// Token usage time-series. Filtered by applied_filters.
+    pub token_metrics: GenAiTokenMetricsResponse,
+    /// Per-operation×provider aggregates. Filtered by applied_filters.
+    pub operation_breakdown: GenAiOperationBreakdownResponse,
+    /// Per-model token and cost aggregates. Filtered by applied_filters.
+    pub model_usage: GenAiModelUsageResponse,
+    /// Agent time-series and summary. Filtered by applied_filters.
+    pub agent_dashboard: AgentDashboardResponse,
+    /// Tool call aggregates and time-series. Filtered by applied_filters.
+    pub tool_dashboard: ToolDashboardResponse,
+    /// Error breakdown by type. Filtered by applied_filters.
+    pub error_breakdown: GenAiErrorBreakdownResponse,
+    /// True if any time-series panel was capped at MAX_DASHBOARD_BUCKETS.
+    /// Caller should widen `bucket_interval` or shorten the window.
+    /// Note: `agent_dashboard.summary` token totals always reflect the full window, even when
+    /// agent buckets were truncated, because cost aggregates are computed independently.
+    pub buckets_truncated: bool,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::IntoParams))]
 pub struct AgentActivityQuery {
+    /// Filter to spans from one agent (matches gen_ai.agent.name). None = all agents.
     pub agent_name: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "utoipa", derive(utoipa::IntoParams))]
 pub struct ConversationQuery {
+    /// Window start (UTC, RFC 3339). None = no lower bound.
     pub start_time: Option<String>,
+    /// Window end (UTC, RFC 3339). None = no upper bound.
     pub end_time: Option<String>,
 }
 

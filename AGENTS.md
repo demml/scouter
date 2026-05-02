@@ -53,6 +53,7 @@ make test.unit                           # Unit tests (types, dispatch, drift, p
 make test.needs_sql                      # SQL + server + eval + drift executor tests (requires Docker)
 make test.sql                            # PostgreSQL integration tests only
 make test.server                         # Server integration tests only
+make test.dataframe                      # DataFusion query tests only
 make test.drift.executor                 # Drift executor background worker tests
 
 # Run a single Rust test
