@@ -3,9 +3,8 @@ from pydantic import BaseModel
 from scouter.mock import MockConfig
 from scouter.tracing import (
     ScouterInstrumentor,
-    ScouterTracer,
     TestSpanExporter,
-    init_tracer,
+    get_tracer,
     shutdown_tracer,
 )
 
@@ -45,12 +44,12 @@ def span_exporter():
 def tracer(span_exporter):
     """Initialize an isolated low-level tracer for each test."""
     _reset_tracing_state()
-    base_tracer = init_tracer(
+    ScouterInstrumentor().instrument(
         service_name="test-service",
         transport_config=MockConfig(),
         exporter=span_exporter,
     )
-    tracer = ScouterTracer(base_tracer)
+    tracer = get_tracer("test-service")
     try:
         yield tracer
     finally:

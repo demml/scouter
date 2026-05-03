@@ -15,7 +15,7 @@ from scouter.evaluate import (
 )
 from scouter.mock import MockConfig
 from scouter.queue import ScouterQueue
-from scouter.tracing import TestSpanExporter, init_tracer
+from scouter.tracing import ScouterInstrumentor, TestSpanExporter, get_tracer
 
 # ---------------------------------------------------------------------------
 # Scenario data: (query, quality, count, expected_pass)
@@ -273,14 +273,14 @@ def test_mock_adk_agent_e2e():
     )
     queue.enable_capture()
 
-    # 3. Wire queue into tracer via init_tracer (idempotent: provider not re-created;
+    # 3. Wire queue into tracer (idempotent: provider not re-created;
     #    new BaseTracer instance returned with queue so add_queue_item works)
-    adk_tracer = init_tracer(
+    ScouterInstrumentor().instrument(
         service_name="mock-adk-agent",
-        scouter_queue=queue,
         transport_config=MockConfig(),
         exporter=TestSpanExporter(batch_export=False),
     )
+    adk_tracer = get_tracer("mock-adk-agent", scouter_queue=queue)
     capture_run_id = "eval_runner_mock_adk"
     adk_tracer.enable_local_capture(capture_run_id)
 

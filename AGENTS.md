@@ -130,7 +130,7 @@ scouter/
 | `profile/` | `DataProfiler` — create `DataProfile` with feature statistics |
 | `evaluate/` | `GenAIEvalProfile`, `EvalDataset`, `EvalRecord`, `AgentAssertionTask`, `AgentAssertion`, `execute_agent_assertion_tasks` |
 | `queue/` | `ScouterQueue` — real-time record insertion (<1µs, non-blocking) |
-| `tracing/` | `init_tracer`, `get_tracer`, `TraceContext`, `SpanContext` |
+| `tracing/` | `ScouterInstrumentor`, `get_tracer`, `TraceContext`, `SpanContext` |
 | `agent/` | Agent provider integrations (Anthropic, Google) |
 | `transport/` | `HttpTransportConfig`, `KafkaTransportConfig`, `RabbitMQTransportConfig` |
 | `alert/` | `SlackDispatchConfig`, `OpsGenieDispatchConfig`, `ConsoleDispatchConfig` |

@@ -34,10 +34,10 @@ from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 from scouter.queue import EvalRecord
 from scouter.tracing import (
     BatchConfig,
+    ScouterInstrumentor,
     ScouterTracer,
     TestSpanExporter,
     get_tracer,
-    init_tracer,
     shutdown_tracer,
 )
 from scouter.transport import GrpcConfig
@@ -211,7 +211,7 @@ class ChatRequest(BaseModel):
 
 def create_kafka_app(profile_path: Path) -> FastAPI:
     config = KafkaConfig()
-    init_tracer(
+    ScouterInstrumentor().instrument(
         service_name="test-service",
         exporter=TestSpanExporter(),
     )
@@ -309,7 +309,7 @@ def create_kafka_agent_app(profile_path: Path) -> FastAPI:
 
 def create_http_app(profile_path: Path) -> FastAPI:
     config = HttpConfig()
-    init_tracer(
+    ScouterInstrumentor().instrument(
         service_name="test-service",
         exporter=TestSpanExporter(batch_export=True),
         batch_config=BatchConfig(scheduled_delay_ms=200),

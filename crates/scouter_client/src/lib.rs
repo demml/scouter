@@ -125,6 +125,7 @@ pub use scouter_tracing::exporter::{
     GrpcSpanExporter, HttpSpanExporter, StdoutSpanExporter, TestSpanExporter,
     processor::BatchConfig,
 };
+pub use scouter_tracing::resource::ScouterResourceConfig;
 pub use scouter_tracing::tracer::*;
 pub use scouter_tracing::utils::{
     FunctionType, OtelExportConfig, OtelProtocol, SpanKind, get_current_active_span,

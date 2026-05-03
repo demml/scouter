@@ -52,6 +52,9 @@ pub enum TraceError {
     #[error("Queue not initialized")]
     QueueNotInitialized,
 
+    #[error("Tracer provider not initialized — call configure_tracing() first")]
+    MissingProvider,
+
     #[error("{0}")]
     ExportError(String),
 

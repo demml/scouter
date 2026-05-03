@@ -9,7 +9,6 @@ from scouter.tracing import (
     GrpcSpanExporter,
     ScouterInstrumentor,
     get_tracer,
-    init_tracer,
     shutdown_tracer,
 )
 from scouter.transport import GrpcConfig
@@ -83,7 +82,7 @@ def rabbitmq_scouter_server(isolated_server_config):
 @pytest.fixture()
 def scouter_grpc_openai_server(isolated_server_config):
     with ScouterTestServer(openai=True, **isolated_server_config) as server:
-        init_tracer(
+        ScouterInstrumentor().instrument(
             service_name="tracing-grpc",
             transport_config=GrpcConfig(),
             exporter=GrpcSpanExporter(),

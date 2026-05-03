@@ -18,8 +18,8 @@ from scouter.mock import ScouterTestServer
 from scouter.tracing import (
     BatchConfig,
     GrpcSpanExporter,
+    ScouterInstrumentor,
     get_tracer,
-    init_tracer,
     shutdown_tracer,
 )
 from scouter.transport import GrpcConfig
@@ -135,7 +135,7 @@ def _seed_genai_spans(tracer) -> None:
 def genai_server_with_data(isolated_server_config):
     """Start ScouterTestServer, seed GenAI spans, wait for flush, yield session."""
     with ScouterTestServer(**isolated_server_config) as _server:
-        init_tracer(
+        ScouterInstrumentor().instrument(
             service_name=SERVICE_NAME,
             transport_config=GrpcConfig(),
             exporter=GrpcSpanExporter(),

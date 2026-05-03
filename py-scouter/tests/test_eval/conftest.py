@@ -3,7 +3,7 @@ from scouter.agent import Prompt, Provider, Role, Score
 from scouter.agent.openai import ChatMessage
 from scouter.evaluate import AssertionTask, ComparisonOperator, EvalRecord, LLMJudgeTask
 from scouter.mock import MockConfig
-from scouter.tracing import TestSpanExporter, get_tracer, init_tracer
+from scouter.tracing import ScouterInstrumentor, TestSpanExporter, get_tracer
 
 
 @pytest.fixture
@@ -256,7 +256,7 @@ def span_exporter():
 
 @pytest.fixture(scope="session")
 def tracer(span_exporter):
-    init_tracer(
+    ScouterInstrumentor().instrument(
         service_name="test-eval-service",
         transport_config=MockConfig(),
         exporter=span_exporter,

@@ -32,15 +32,15 @@ cd py-scouter
 uv run python examples/tracing/instrumentor_example.py
 ```
 
-### `ScouterInstrumentor` vs `init_tracer`
+### `ScouterInstrumentor` and `get_tracer`
 
 Use `ScouterInstrumentor` when you want to capture spans from third-party
-libraries automatically.  Use `init_tracer` / `get_tracer` when you only need
-to instrument your own code.
+libraries automatically. Use `get_tracer` when you only need to instrument your
+own code after the provider is configured.
 
-| | `ScouterInstrumentor` | `init_tracer` |
+| | `ScouterInstrumentor` | `get_tracer` |
 |---|---|---|
-| Sets global OTel provider | Yes | Yes |
+| Sets global OTel provider | Yes | No |
 | Third-party auto-instrumentation | Works automatically | Works automatically |
 | Decorator support | Via `get_tracer()` | Via `get_tracer()` |
 | Singleton guard | Built-in | Manual |

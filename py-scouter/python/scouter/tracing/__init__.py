@@ -34,12 +34,14 @@ from .._scouter import (
     HttpSpanExporter,
     OtelExportConfig,
     OtelProtocol,
+    ScouterResourceConfig,
     SpanKind,
     StdoutSpanExporter,
     TestSpanExporter,
     TraceBaggageRecord,
     TraceRecord,
     TraceSpanRecord,
+    configure_tracing,
     disable_local_span_capture,
     drain_local_span_capture,
     enable_local_span_capture,
@@ -47,8 +49,11 @@ from .._scouter import (
     flush_tracer,
     get_current_active_span,
     get_function_type,
+)
+from .._scouter import get_tracer as _get_tracer
+from .._scouter import (
     get_tracing_headers_from_current_span,
-    init_tracer,
+    reset_tracer_provider,
     shutdown_tracer,
 )
 from .middleware import ScouterTracingMiddleware
@@ -612,32 +617,86 @@ class ScouterTracer(_OtelTracer):
         return self._base.get_local_spans_by_trace_ids(capture_run_id, trace_ids)
 
 
-def get_tracer(name: str) -> ScouterTracer:
-    """Get an OTel-compliant Scouter tracer."""
+def get_tracer(
+    name: str,
+    version: Optional[str] = None,
+    schema_url: Optional[str] = None,
+    attributes: Optional[Attributes] = None,
+    default_attributes: Optional[Attributes] = None,
+    default_entity_uid: Optional[str] = None,
+    scouter_queue: Optional[Any] = None,
+) -> ScouterTracer:
+    """Return an OTel-compliant Scouter tracer for an instrumentation scope.
+
+    The `name` and optional `version` arguments become the OpenTelemetry
+    InstrumentationScope name and version. They are intentionally independent of
+    the process-wide Resource `service.name`, which is configured through
+    `ScouterInstrumentor.instrument(service_name=...)` or environment variables.
+
+    Args:
+        name:
+            Name of the instrumenting library or module, for example "httpx",
+            "fastapi", or "opsml.agent".
+        version:
+            Optional version for the instrumenting library or module.
+        schema_url:
+            Optional OpenTelemetry schema URL associated with the scope.
+        attributes:
+            Optional attributes attached to the InstrumentationScope.
+        default_attributes:
+            Optional attributes applied to every span created by this tracer.
+            Passing this creates a fresh low-level tracer wrapper even when a
+            provider-level tracer is cached.
+        default_entity_uid:
+            Optional default Scouter entity UID to materialize on every span.
+        scouter_queue:
+            Optional queue used to correlate queue records with spans. Passing
+            this creates a fresh low-level tracer wrapper so queue state is
+            bound to the returned tracer.
+
+    Returns:
+        A `ScouterTracer` wrapper for the requested instrumentation scope.
+    """
     if not HAS_OPENTELEMETRY:
         raise ImportError("OpenTelemetry is not installed. Install with: pip install opsml[opentelemetry]")
 
+    if default_attributes is not None or default_entity_uid is not None or scouter_queue is not None:
+        return ScouterTracer(
+            _get_tracer(
+                scope_name=name,
+                scope_version=version,
+                schema_url=schema_url,
+                scope_attributes=cast(Optional[dict[str, Any]], attributes),
+                default_attributes=cast(Optional[dict[str, Any]], default_attributes),
+                default_entity_uid=default_entity_uid,
+                scouter_queue=scouter_queue,
+            )
+        )
+
     provider = get_tracer_provider()
-    tracer = provider.get_tracer(name)
+    tracer = provider.get_tracer(name, version, schema_url, attributes)
     if isinstance(tracer, ScouterTracer):
         return tracer
 
-    # init_tracer() path: provider may not be ScouterTracerProvider, but the
-    # Rust tracer provider store is initialized and can still construct a valid
-    # ScouterTracer wrapper.
     try:
-        return ScouterTracer(BaseTracer(name))
+        return ScouterTracer(
+            _get_tracer(
+                scope_name=name,
+                scope_version=version,
+                schema_url=schema_url,
+                scope_attributes=cast(Optional[dict[str, Any]], attributes),
+            )
+        )
     except Exception as exc:  # noqa: BLE001 pylint: disable=broad-except
-        raise RuntimeError(
-            "ScouterInstrumentor.instrument() or init_tracer() must be called before get_tracer()"
-        ) from exc
+        raise RuntimeError("ScouterInstrumentor.instrument() must be called before get_tracer()") from exc
 
 
 class ScouterTracerProvider(_OtelTracerProvider):
-    """OTel tracer provider returning ScouterTracer instances."""
+    """OTel-compliant tracer provider returning ScouterTracer instances."""
 
     def __init__(
         self,
+        resource_config: Optional["ScouterResourceConfig"] = None,
         transport_config: Optional[Any] = None,
         exporter: Optional[Any] = None,
         batch_config: Optional[BatchConfig] = None,
@@ -646,8 +705,30 @@ class ScouterTracerProvider(_OtelTracerProvider):
         default_attributes: Optional[Attributes] = None,
         default_entity_uid: Optional[str] = None,
     ):
-        """Initialize ScouterTracerProvider and underlying Rust tracer."""
+        """Initialize the provider and configure the Rust tracing backend.
 
+        Args:
+            resource_config:
+                Optional process Resource configuration. If omitted, Scouter
+                derives service identity from OTEL_SERVICE_NAME,
+                OTEL_RESOURCE_ATTRIBUTES, and defaults.
+            transport_config:
+                Optional Scouter transport configuration.
+            exporter:
+                Optional secondary OTEL exporter.
+            batch_config:
+                Optional batch span processor settings.
+            sample_ratio:
+                Optional trace sampling ratio in [0.0, 1.0].
+            scouter_queue:
+                Optional queue attached to tracers returned by this provider.
+            default_attributes:
+                Optional attributes applied to every span created by provider
+                tracers.
+            default_entity_uid:
+                Optional default Scouter entity UID to materialize on every span.
+        """
+        self.resource_config = resource_config
         self.transport_config = transport_config
         self.exporter = exporter
         self.batch_config = batch_config
@@ -661,6 +742,14 @@ class ScouterTracerProvider(_OtelTracerProvider):
         ] = {}
         self._tracer_cache_lock = threading.Lock()
 
+        configure_tracing(
+            resource_config=resource_config,
+            transport_config=transport_config,
+            exporter=exporter,
+            batch_config=batch_config,
+            sample_ratio=sample_ratio,
+        )
+
     def get_tracer(
         self,
         instrumenting_module_name: str,
@@ -668,6 +757,21 @@ class ScouterTracerProvider(_OtelTracerProvider):
         schema_url: Optional[str] = None,
         attributes: Optional[Attributes] = None,
     ) -> ScouterTracer:
+        """Return a cached Scouter tracer for an instrumentation scope.
+
+        Args:
+            instrumenting_module_name:
+                Name of the instrumenting library or module.
+            instrumenting_library_version:
+                Optional version of the instrumenting library or module.
+            schema_url:
+                Optional OpenTelemetry schema URL associated with the scope.
+            attributes:
+                Optional attributes attached to the InstrumentationScope.
+
+        Returns:
+            A cached `ScouterTracer` for the requested scope.
+        """
 
         cache_key = (
             instrumenting_module_name,
@@ -681,18 +785,14 @@ class ScouterTracerProvider(_OtelTracerProvider):
             if cache_key in self._tracer_cache:
                 return self._tracer_cache[cache_key]
 
-            base_tracer = init_tracer(
-                service_name=instrumenting_module_name,
-                scope=instrumenting_library_version,  # type: ignore
-                transport_config=self.transport_config,
-                exporter=self.exporter,
-                batch_config=self.batch_config,
-                sample_ratio=self.sample_ratio,
-                scouter_queue=self.scouter_queue,
+            base_tracer = _get_tracer(
+                scope_name=instrumenting_module_name,
+                scope_version=instrumenting_library_version,
                 schema_url=schema_url,
                 scope_attributes=attributes,  # type: ignore
                 default_attributes=self.default_attributes,  # type: ignore
                 default_entity_uid=self.default_entity_uid,
+                scouter_queue=self.scouter_queue,
             )
             tracer = ScouterTracer(base_tracer)
             self._tracer_cache[cache_key] = tracer
@@ -782,7 +882,27 @@ class ScouterInstrumentor(BaseInstrumentor):
         if tracer_provider is not None:
             self._provider = tracer_provider
         else:
+            resource_config = kwargs.pop("resource_config", None)
+            if resource_config is None:
+                resource_config = ScouterResourceConfig(
+                    service_name=kwargs.pop("service_name", None),
+                    service_version=kwargs.pop("service_version", None),
+                    service_namespace=kwargs.pop("service_namespace", None),
+                    service_instance_id=kwargs.pop("service_instance_id", None),
+                    extra_attributes=kwargs.pop("resource_attributes", None) or {},
+                )
+            else:
+                for k in (
+                    "service_name",
+                    "service_version",
+                    "service_namespace",
+                    "service_instance_id",
+                    "resource_attributes",
+                ):
+                    kwargs.pop(k, None)
+
             self._provider = ScouterTracerProvider(
+                resource_config=resource_config,
                 transport_config=kwargs.pop("transport_config", None),
                 exporter=kwargs.pop("exporter", None),
                 batch_config=kwargs.pop("batch_config", None),
@@ -842,6 +962,12 @@ class ScouterInstrumentor(BaseInstrumentor):
 
     def instrument(
         self,
+        service_name: Optional[str] = None,
+        service_version: Optional[str] = None,
+        service_namespace: Optional[str] = None,
+        service_instance_id: Optional[str] = None,
+        resource_attributes: Optional[dict[str, str]] = None,
+        resource_config: Optional["ScouterResourceConfig"] = None,
         transport_config: Optional[Any] = None,
         exporter: Optional[Any] = None,
         batch_config: Optional[BatchConfig] = None,
@@ -853,33 +979,18 @@ class ScouterInstrumentor(BaseInstrumentor):
         **kwargs,
     ) -> None:
         """
-        Instrument with Scouter tracing and set as global OpenTelemetry provider.
+        Instrument with Scouter tracing.
 
-        Args:
-            transport_config (Optional[Any]):
-                Export configuration (OtelExportConfig, etc.)
-            exporter (Optional[Any]):
-                Custom span exporter instance
-            batch_config (Optional[BatchConfig]):
-                Batch processing configuration
-            sample_ratio (Optional[float]):
-                Sampling ratio (0.0 to 1.0)
-            scouter_queue (Optional[Any]):
-                Optional ScouterQueue for buffering
-            attributes (Optional[Attributes]):
-                Optional attributes to set on every span created by this tracer
-            eval_profiles (Optional[List[AgentEvalProfile]]):
-                Optional agent eval profiles. The first profile UID becomes the
-                default entity tag materialized on each span as
-                `scouter.entity.{uid}={uid}` unless overridden by
-                `active_profile(...)`.
-            propagate_baggage (bool):
-                Whether W3C baggage propagation should be globally enabled.
-            **kwargs:
-                Additional keyword arguments for ScouterTracerProvider initialization
-
+        OTel resolution precedence (per spec):
+            explicit kwargs > OTEL_SERVICE_NAME > OTEL_RESOURCE_ATTRIBUTES > "unknown_service"
         """
         super().instrument(
+            service_name=service_name,
+            service_version=service_version,
+            service_namespace=service_namespace,
+            service_instance_id=service_instance_id,
+            resource_attributes=resource_attributes,
+            resource_config=resource_config,
             transport_config=transport_config,
             exporter=exporter,
             batch_config=batch_config,
@@ -946,6 +1057,12 @@ class ScouterInstrumentor(BaseInstrumentor):
 
 # Convenience function matching common pattern
 def instrument(
+    service_name: Optional[str] = None,
+    service_version: Optional[str] = None,
+    service_namespace: Optional[str] = None,
+    service_instance_id: Optional[str] = None,
+    resource_attributes: Optional[dict[str, str]] = None,
+    resource_config: Optional["ScouterResourceConfig"] = None,
     transport_config: Optional[Any] = None,
     exporter: Optional[Any] = None,
     batch_config: Optional[BatchConfig] = None,
@@ -962,6 +1079,19 @@ def instrument(
         ScouterInstrumentor().instrument(**kwargs)
 
     Args:
+        service_name (Optional[str]):
+            Explicit process-wide `service.name` Resource attribute.
+        service_version (Optional[str]):
+            Explicit process-wide `service.version` Resource attribute.
+        service_namespace (Optional[str]):
+            Explicit process-wide `service.namespace` Resource attribute.
+        service_instance_id (Optional[str]):
+            Explicit process-wide `service.instance.id` Resource attribute.
+        resource_attributes (Optional[dict[str, str]]):
+            Additional process-wide Resource attributes.
+        resource_config (Optional[ScouterResourceConfig]):
+            Prebuilt Resource configuration. When provided, individual
+            service/resource kwargs are ignored.
         transport_config (Optional[Any]):
             Export configuration (OtelExportConfig, etc.)
         exporter (Optional[Any]):
@@ -995,6 +1125,12 @@ def instrument(
         ... )
     """
     ScouterInstrumentor().instrument(
+        service_name=service_name,
+        service_version=service_version,
+        service_namespace=service_namespace,
+        service_instance_id=service_instance_id,
+        resource_attributes=resource_attributes,
+        resource_config=resource_config,
         transport_config=transport_config,
         exporter=exporter,
         batch_config=batch_config,
@@ -1055,7 +1191,8 @@ __all__ = [
     "ScouterTracer",
     "ScouterTracerProvider",
     "get_tracer",
-    "init_tracer",
+    "configure_tracing",
+    "ScouterResourceConfig",
     "SpanKind",
     "FunctionType",
     "ActiveSpan",
@@ -1071,6 +1208,7 @@ __all__ = [
     "flush_tracer",
     "BatchConfig",
     "shutdown_tracer",
+    "reset_tracer_provider",
     "get_tracing_headers_from_current_span",
     "extract_span_context_from_headers",
     "get_current_active_span",

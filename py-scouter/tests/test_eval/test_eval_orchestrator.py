@@ -27,7 +27,7 @@ from scouter.tracing import (
     ScouterInstrumentor,
     TestSpanExporter,
     active_profile,
-    init_tracer,
+    get_tracer,
 )
 
 # ---------------------------------------------------------------------------
@@ -107,6 +107,16 @@ def _get_attr_value(span_attributes, key):
     return None
 
 
+def _make_tracer(service_name: str, queue: ScouterQueue):
+    ScouterInstrumentor().instrument(
+        service_name=service_name,
+        scouter_queue=queue,
+        transport_config=MockConfig(),
+        exporter=TestSpanExporter(batch_export=False),
+    )
+    return get_tracer(service_name, scouter_queue=queue)
+
+
 # ---------------------------------------------------------------------------
 # Unit Tests — default execution
 # ---------------------------------------------------------------------------
@@ -116,12 +126,7 @@ def test_single_turn():
     """Default execute_agent calls agent_fn with initial_query."""
     queue = _make_queue(_simple_profile())
     scenarios = _simple_scenarios(["What is 2+2?"])
-    tracer = init_tracer(
-        service_name="orch-default",
-        scouter_queue=queue,
-        transport_config=MockConfig(),
-        exporter=TestSpanExporter(batch_export=False),
-    )
+    tracer = _make_tracer("orch-default", queue)
     call_log = []
 
     def my_agent(query):
@@ -162,12 +167,7 @@ def test_multi_turn():
             )
         ]
     )
-    tracer = init_tracer(
-        service_name="orch-multi",
-        scouter_queue=queue,
-        transport_config=MockConfig(),
-        exporter=TestSpanExporter(batch_export=False),
-    )
+    tracer = _make_tracer("orch-multi", queue)
     call_log = []
 
     def my_agent(query):
@@ -209,12 +209,7 @@ def test_subclass_override():
     """Subclass overrides execute_agent — no agent_fn needed."""
     queue = _make_queue(_simple_profile())
     scenarios = _simple_scenarios(["What is 2+2?"])
-    tracer = init_tracer(
-        service_name="orch-subclass",
-        scouter_queue=queue,
-        transport_config=MockConfig(),
-        exporter=TestSpanExporter(batch_export=False),
-    )
+    tracer = _make_tracer("orch-subclass", queue)
 
     class MyOrchestrator(EvalOrchestrator):
         def execute_agent(self, scenario):
@@ -343,12 +338,7 @@ def test_hook_order():
     """Verify: on_scenario_start -> execute -> on_scenario_complete -> on_evaluation_complete."""
     queue = _make_queue(_simple_profile())
     scenarios = _simple_scenarios(["Q1"])
-    tracer = init_tracer(
-        service_name="orch-hooks",
-        scouter_queue=queue,
-        transport_config=MockConfig(),
-        exporter=TestSpanExporter(batch_export=False),
-    )
+    tracer = _make_tracer("orch-hooks", queue)
     hook_log = []
 
     class HookOrchestrator(EvalOrchestrator):
@@ -425,12 +415,7 @@ def test_no_tracer_fallback_single_execution():
 def test_exception_inside_span_propagates():
     """execute_agent raising inside the span context must propagate, not be swallowed."""
     queue = _make_queue(_simple_profile())
-    init_tracer(
-        service_name="edge-span-test",
-        scouter_queue=queue,
-        transport_config=MockConfig(),
-        exporter=TestSpanExporter(batch_export=False),
-    )
+    _make_tracer("edge-span-test", queue)
     call_count = 0
 
     def failing_agent(query):
@@ -519,12 +504,7 @@ def test_trace_only_eval_synthesizes_offline_dispatch_record():
     profile = _trace_only_profile()
     queue = _make_queue(profile)
     scenarios = _single_scenario()
-    tracer = init_tracer(
-        service_name="trace-only-offline",
-        scouter_queue=queue,
-        transport_config=MockConfig(),
-        exporter=TestSpanExporter(batch_export=False),
-    )
+    tracer = _make_tracer("trace-only-offline", queue)
 
     entity_key = f"scouter.entity.{profile.config.uid}"
 
@@ -544,12 +524,7 @@ def test_trace_only_eval_does_not_duplicate_queue_backed_trace():
     profile = _trace_only_profile()
     queue = _make_queue(profile)
     scenarios = _single_scenario()
-    tracer = init_tracer(
-        service_name="trace-only-offline-queue",
-        scouter_queue=queue,
-        transport_config=MockConfig(),
-        exporter=TestSpanExporter(batch_export=False),
-    )
+    tracer = _make_tracer("trace-only-offline-queue", queue)
 
     entity_key = f"scouter.entity.{profile.config.uid}"
 
@@ -774,12 +749,7 @@ def adk_ctx():
     )
     instrumentor = ScouterInstrumentor()
     instrumentor.instrument(scouter_queue=queue, exporter=TestSpanExporter(batch_export=False))
-    tracer = init_tracer(
-        service_name="adk-agent",
-        scouter_queue=queue,
-        transport_config=MockConfig(),
-        exporter=TestSpanExporter(batch_export=False),
-    )
+    tracer = get_tracer("adk-agent", scouter_queue=queue)
     yield queue, tracer
     instrumentor.uninstrument()
 
@@ -1057,12 +1027,7 @@ def test_multi_agent_trace_assertions():
 
     instrumentor = ScouterInstrumentor()
     instrumentor.instrument(scouter_queue=queue, exporter=TestSpanExporter(batch_export=False))
-    tracer = init_tracer(
-        service_name="adk",
-        scouter_queue=queue,
-        transport_config=MockConfig(),
-        exporter=TestSpanExporter(batch_export=False),
-    )
+    tracer = get_tracer("adk", scouter_queue=queue)
 
     def mock_adk(query):
         with tracer.start_as_current_span("router.generate") as span:

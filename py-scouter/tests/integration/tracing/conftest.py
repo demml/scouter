@@ -16,7 +16,6 @@ from scouter.tracing import (
     ScouterInstrumentor,
     ScouterTracerProvider,
     get_tracer,
-    init_tracer,
     shutdown_tracer,
 )
 from scouter.transport import GrpcConfig
@@ -61,7 +60,7 @@ def http_scouter_server(isolated_server_config):
 def setup_tracer_http(http_span_exporter, isolated_server_config):
     """Initialize tracer with http exporter for each test."""
     with ScouterTestServer(**isolated_server_config) as server:
-        init_tracer(
+        ScouterInstrumentor().instrument(
             service_name="tracing-http",
             exporter=http_span_exporter,
             batch_config=BatchConfig(scheduled_delay_ms=200),
@@ -83,7 +82,7 @@ def grpc_span_exporter():
 def setup_tracer_grpc(grpc_span_exporter, isolated_server_config):
     """Initialize tracer with grpc exporter for each test."""
     with ScouterTestServer(**isolated_server_config) as server:
-        init_tracer(
+        ScouterInstrumentor().instrument(
             service_name="tracing-grpc",
             transport_config=GrpcConfig(),
             exporter=grpc_span_exporter,
@@ -98,7 +97,7 @@ def setup_tracer_grpc(grpc_span_exporter, isolated_server_config):
 def setup_tracer_grpc_sample(isolated_server_config):
     """Initialize tracer with grpc exporter for each test."""
     with ScouterTestServer(**isolated_server_config) as server:
-        init_tracer(
+        ScouterInstrumentor().instrument(
             service_name="tracing-grpc-sample",
             transport_config=GrpcConfig(),
             exporter=GrpcSpanExporter(),

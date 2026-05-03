@@ -185,7 +185,7 @@ client.register_profile(custom_profile)
 Scouter implements the OpenTelemetry `BaseInstrumentor` interface. Drop it in as a `TracerProvider` alongside any existing OTEL stack, or use it standalone.
 
 ```python
-from scouter.tracing import ScouterInstrumentor, get_tracer, init_tracer
+from scouter.tracing import ScouterInstrumentor, get_tracer
 
 # Register as the global OTEL TracerProvider
 # Any OTEL auto-instrumentation library (FastAPI, httpx, etc.) will route spans through Scouter
@@ -202,9 +202,10 @@ async def process_request(payload: dict) -> dict:
 Forward spans to an external OTEL collector in addition to Scouter's backend:
 
 ```python
-from scouter import init_tracer, HttpSpanExporter, OtelExportConfig
+from scouter import HttpSpanExporter, OtelExportConfig
+from scouter.tracing import ScouterInstrumentor
 
-init_tracer(
+ScouterInstrumentor().instrument(
     service_name="my-service",
     exporter=HttpSpanExporter(
         export_config=OtelExportConfig(endpoint="http://otel-collector:4318")

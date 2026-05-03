@@ -29,7 +29,6 @@ use opentelemetry::{
     trace::{Span, SpanContext, Status, TraceContextExt, TraceState},
 };
 use opentelemetry::{SpanId, TraceFlags, TraceId};
-use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::trace::SdkTracer;
 use opentelemetry_sdk::trace::SdkTracerProvider;
@@ -44,10 +43,10 @@ use scouter_settings::grpc::GrpcConfig;
 use scouter_types::SCOUTER_QUEUE_RECORD;
 use scouter_types::{
     BAGGAGE_PREFIX, EXCEPTION_TRACEBACK, EntityType, EvalRecord,
-    SCOUTER_ACTIVE_ENTITY_UID_BAGGAGE_KEY, SCOUTER_ENTITY, SCOUTER_QUEUE_EVENT, SCOUTER_SCOPE,
-    SCOUTER_SCOPE_DEFAULT, SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL,
-    SCOUTER_TRACING_OUTPUT, SPAN_ERROR, TRACE_START_TIME_KEY, TraceId as ScouterTraceId,
-    TraceSpanRecord, pyobject_to_otel_value, pyobject_to_tracing_json,
+    SCOUTER_ACTIVE_ENTITY_UID_BAGGAGE_KEY, SCOUTER_ENTITY, SCOUTER_QUEUE_EVENT, SCOUTER_TAG_PREFIX,
+    SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL, SCOUTER_TRACING_OUTPUT, SPAN_ERROR,
+    TRACE_START_TIME_KEY, TraceId as ScouterTraceId, TraceSpanRecord, pyobject_to_otel_value,
+    pyobject_to_tracing_json,
 };
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
@@ -160,135 +159,160 @@ fn get_trace_metadata_store() -> &'static TraceMetadataStore {
     TRACE_METADATA_STORE.get_or_init(TraceMetadataStore::new)
 }
 
-/// Global initialization function for the tracer.
-/// This sets up the tracer provider with the specified service name, endpoint, and sampling ratio.
-/// If no endpoint is provided, spans will be exported a NoOp exporter will be used meaning
-/// spans will only be sent to Scouter and not to any OTLP collector.
+/// Configure the process-wide tracer provider exactly once.
+///
+/// Builds an OTel Resource (honoring `OTEL_SERVICE_NAME` /
+/// `OTEL_RESOURCE_ATTRIBUTES` env vars per spec), constructs the underlying
+/// `SdkTracerProvider`, and stores it in `TRACER_PROVIDER_STORE`.
+///
+/// If a provider already exists, logs a warning and returns Ok without
+/// rebuilding (matches OTel SDK `SetTracerProvider` semantics — second call
+/// is a no-op).
+///
 /// # Arguments
-/// * `service_name` - Optional service name for the tracer. Defaults to "scouter_service
-/// * `scope` - Optional scope for the tracer. Defaults to "scouter.tracer.{version}"
-/// * `transport_config` - Optional transport configuration for the Scouter exporter
-/// * `exporter` - Optional span exporter to use if you want to export spans to an OTLP collector
-/// * `batch_config` - Optional batch configuration for span exporting
-/// * `sample_ratio` - Optional sampling ratio between 0.0 and 1.0
-/// * `scouter_queue` - Optional ScouterQueue to associate with the tracer for span queueing
-/// * `schema_url` - Optional schema URL for the tracer's instrumentation scope
-/// * `scope_attributes` - Optional attributes to set on the tracer's instrumentation scope
-/// * `default_attributes` - Optional attributes to set on every span created by this tracer
-/// * `default_entity_uid` - Optional default entity UID to materialize on every span
+/// * `resource_config` - process-wide Resource (service.name, etc.)
+/// * `transport_config` - Optional transport for the Scouter exporter
+/// * `exporter` - Optional secondary OTLP exporter
+/// * `batch_config` - Optional batch span processor configuration
+/// * `sample_ratio` - Optional sampling ratio in [0.0, 1.0]
 #[pyfunction]
 #[pyo3(signature = (
-    service_name="scouter_service".to_string(),
-    scope=SCOUTER_SCOPE_DEFAULT.to_string(),
+    resource_config = None,
     transport_config=None,
     exporter=None,
     batch_config=None,
     sample_ratio=None,
-    scouter_queue=None,
-    schema_url=None,
-    scope_attributes=None,
-    default_attributes=None,
-    default_entity_uid=None,
 ))]
 #[instrument(skip_all)]
-#[allow(clippy::too_many_arguments)]
-pub fn init_tracer(
+pub fn configure_tracing(
     py: Python,
-    service_name: Option<String>,
-    scope: Option<String>,
+    resource_config: Option<Py<crate::resource::ScouterResourceConfig>>,
     transport_config: Option<&Bound<'_, PyAny>>,
     exporter: Option<&Bound<'_, PyAny>>,
     batch_config: Option<Py<BatchConfig>>,
     sample_ratio: Option<f64>,
-    scouter_queue: Option<Py<ScouterQueue>>,
+) -> Result<(), TraceError> {
+    let provider_exists = TRACER_PROVIDER_STORE
+        .read()
+        .map_err(|e| TraceError::PoisonError(e.to_string()))?
+        .is_some();
+
+    if provider_exists {
+        tracing::warn!(
+            "configure_tracing called more than once; subsequent calls are no-ops. \
+             Existing provider retained."
+        );
+        return Ok(());
+    }
+
+    let resource = match resource_config {
+        Some(cfg) => cfg
+            .extract::<crate::resource::ScouterResourceConfig>(py)?
+            .build_resource(),
+        None => crate::resource::ScouterResourceConfig::default().build_resource(),
+    };
+
+    let transport_config = match transport_config {
+        Some(config) => TransportConfig::from_py_config(config)?,
+        None => {
+            if std::env::var("SCOUTER_OFFLINE").as_deref() == Ok("1") {
+                TransportConfig::offline_mock()
+            } else {
+                TransportConfig::Grpc(GrpcConfig::default())
+            }
+        }
+    };
+
+    let clamped_sample_ratio = match sample_ratio {
+        Some(ratio) if (0.0..=1.0).contains(&ratio) => Some(ratio),
+        Some(ratio) => {
+            info!(
+                "Sample ratio {} is out of bounds [0.0, 1.0]. Clamping to valid range.",
+                ratio
+            );
+            Some(ratio.clamp(0.0, 1.0))
+        }
+        None => None,
+    };
+
+    let batch_config = if let Some(bc) = batch_config {
+        Some(bc.extract::<BatchConfig>(py)?)
+    } else {
+        None
+    };
+
+    let scouter_export = ScouterSpanExporter::new(transport_config, &resource)?;
+
+    let mut span_exporter = if let Some(exporter) = exporter {
+        SpanExporterNum::from_pyobject(exporter)
+            .map_err(|_| TraceError::UnsupportedSpanExporterType)?
+    } else {
+        SpanExporterNum::default()
+    };
+    span_exporter.set_sample_ratio(clamped_sample_ratio);
+
+    let provider = span_exporter
+        .build_provider(resource, scouter_export, batch_config)
+        .map_err(|e| TraceError::InitializationError(e.to_string()))?;
+
+    let mut store_guard = TRACER_PROVIDER_STORE
+        .write()
+        .map_err(|e| TraceError::PoisonError(e.to_string()))?;
+
+    if store_guard.is_none() {
+        *store_guard = Some(Arc::new(provider));
+    }
+    Ok(())
+}
+
+/// Get a tracer scoped to an instrumenting library/module.
+///
+/// `scope_name` and `scope_version` populate the OTel `InstrumentationScope`.
+/// They are independent of the process-wide `Resource.service.name`.
+///
+/// If `configure_tracing` has not been called, a default Resource is built
+/// from environment variables (matches OTel SDK "always usable provider"
+/// semantics).
+#[pyfunction]
+#[pyo3(signature = (
+    scope_name,
+    scope_version = None,
+    schema_url = None,
+    scope_attributes = None,
+    default_attributes = None,
+    default_entity_uid = None,
+    scouter_queue = None,
+))]
+#[instrument(skip_all)]
+#[allow(clippy::too_many_arguments)]
+pub fn get_tracer(
+    py: Python,
+    scope_name: String,
+    scope_version: Option<String>,
     schema_url: Option<String>,
     scope_attributes: Option<Bound<'_, PyAny>>,
     default_attributes: Option<Bound<'_, PyAny>>,
     default_entity_uid: Option<String>,
+    scouter_queue: Option<Py<ScouterQueue>>,
 ) -> Result<BaseTracer, TraceError> {
-    debug!("Initializing tracer");
-
-    let service_name = service_name.unwrap_or_else(|| "scouter_service".to_string());
-    let scope = scope.unwrap_or_else(|| SCOUTER_SCOPE_DEFAULT.to_string());
-
-    let provider_exists = {
-        let store_guard = TRACER_PROVIDER_STORE
-            .read()
-            .map_err(|e| TraceError::PoisonError(e.to_string()))?;
-        store_guard.is_some()
-    };
+    let provider_exists = TRACER_PROVIDER_STORE
+        .read()
+        .map_err(|e| TraceError::PoisonError(e.to_string()))?
+        .is_some();
 
     if !provider_exists {
-        debug!("Setting up tracer provider store");
-
-        let transport_config = match transport_config {
-            Some(config) => TransportConfig::from_py_config(config)?,
-            None => {
-                if std::env::var("SCOUTER_OFFLINE").as_deref() == Ok("1") {
-                    TransportConfig::offline_mock()
-                } else {
-                    TransportConfig::Grpc(GrpcConfig::default())
-                }
-            }
-        };
-
-        let clamped_sample_ratio = match sample_ratio {
-            Some(ratio) if (0.0..=1.0).contains(&ratio) => Some(ratio),
-            Some(ratio) => {
-                info!(
-                    "Sample ratio {} is out of bounds [0.0, 1.0]. Clamping to valid range.",
-                    ratio
-                );
-                Some(ratio.clamp(0.0, 1.0))
-            }
-            None => None,
-        };
-
-        let batch_config = if let Some(bc) = batch_config {
-            Some(bc.extract::<BatchConfig>(py)?)
-        } else {
-            None
-        };
-
-        let resource = Resource::builder()
-            .with_service_name(service_name.clone())
-            .with_attributes([KeyValue::new(SCOUTER_SCOPE, scope.clone())])
-            .build();
-
-        // Primary exporter for sending spans to Scouter backend
-        let scouter_export = ScouterSpanExporter::new(transport_config, &resource)?;
-
-        // Optional secondary exporter for sending spans to OTLP collector
-        let mut span_exporter = if let Some(exporter) = exporter {
-            SpanExporterNum::from_pyobject(exporter).expect("failed to convert exporter")
-        } else {
-            SpanExporterNum::default()
-        };
-
-        span_exporter.set_sample_ratio(clamped_sample_ratio);
-
-        let provider = span_exporter
-            .build_provider(resource, scouter_export, batch_config)
-            .expect("failed to build tracer provider");
-
-        let mut store_guard = TRACER_PROVIDER_STORE
-            .write()
-            .map_err(|e| TraceError::PoisonError(e.to_string()))?;
-
-        if store_guard.is_none() {
-            *store_guard = Some(Arc::new(provider));
-        }
-    } else {
-        debug!("Tracer provider already initialized, skipping setup");
+        // Lazy default: build provider from env-only Resource.
+        configure_tracing(py, None, None, None, None, None)?;
     }
 
     BaseTracer::new(
         py,
-        service_name,
+        scope_name,
+        scope_version,
         schema_url,
+        scope_attributes,
         default_attributes,
         default_entity_uid,
-        scope_attributes,
         scouter_queue,
     )
 }
@@ -985,23 +1009,24 @@ impl BaseTracer {
 impl BaseTracer {
     #[new]
     #[pyo3(signature = (
-    name,
-    schema_url=None,
-    // default span attributes that are applied to every span created by this tracer
-    default_attributes=None,
-    default_entity_uid=None,
-    // scope attributes that are applied to the tracer's instrumentation scope
-    scope_attributes=None,
-    queue=None,
-))]
+        scope_name,
+        scope_version = None,
+        schema_url = None,
+        scope_attributes = None,
+        default_attributes = None,
+        default_entity_uid = None,
+        queue = None,
+    ))]
     #[instrument(skip_all)]
+    #[allow(clippy::too_many_arguments)]
     fn new(
         py: Python<'_>,
-        name: String,
+        scope_name: String,
+        scope_version: Option<String>,
         schema_url: Option<String>,
+        scope_attributes: Option<Bound<'_, PyAny>>,
         default_attributes: Option<Bound<'_, PyAny>>,
         default_entity_uid: Option<String>,
-        scope_attributes: Option<Bound<'_, PyAny>>,
         queue: Option<Py<ScouterQueue>>,
     ) -> Result<Self, TraceError> {
         debug!("Creating new BaseTracer instance");
@@ -1018,9 +1043,10 @@ impl BaseTracer {
         let scope_attributes = py_obj_to_otel_keyvalue(py, scope_attributes)?;
         let default_attributes = py_obj_to_otel_keyvalue(py, default_attributes)?;
 
-        let mut scope_builder =
-            InstrumentationScope::builder(name).with_version(SCOUTER_SCOPE_DEFAULT);
-
+        let mut scope_builder = InstrumentationScope::builder(scope_name);
+        if let Some(v) = scope_version {
+            scope_builder = scope_builder.with_version(v);
+        }
         if let Some(url) = schema_url {
             scope_builder = scope_builder.with_schema_url(url);
         }
@@ -1030,7 +1056,7 @@ impl BaseTracer {
         }
 
         let scope = scope_builder.build();
-        let tracer = get_tracer(scope)?;
+        let tracer = get_tracer_from_scope(scope)?;
 
         Ok(BaseTracer {
             tracer,
@@ -1579,6 +1605,15 @@ pub fn flush_tracer() -> Result<(), TraceError> {
 }
 
 #[pyfunction]
+pub fn reset_tracer_provider() -> Result<(), TraceError> {
+    let mut guard = TRACER_PROVIDER_STORE
+        .write()
+        .map_err(|e| TraceError::PoisonError(e.to_string()))?;
+    *guard = None;
+    Ok(())
+}
+
+#[pyfunction]
 pub fn shutdown_tracer() -> Result<(), TraceError> {
     info!("Shutting down tracer");
 
@@ -1677,7 +1712,7 @@ pub fn get_all_captured_spans(capture_run_id: &str) -> Result<Vec<TraceSpanRecor
     ))
 }
 
-fn get_tracer(scope: InstrumentationScope) -> Result<SdkTracer, TraceError> {
+fn get_tracer_from_scope(scope: InstrumentationScope) -> Result<SdkTracer, TraceError> {
     let provider_arc = get_tracer_provider()?.ok_or_else(|| {
         TraceError::InitializationError(
             "Tracer provider not initialized or already shut down".to_string(),
