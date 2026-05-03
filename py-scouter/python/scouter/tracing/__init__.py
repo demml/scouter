@@ -769,8 +769,13 @@ class ScouterInstrumentor(BaseInstrumentor):
             return
 
         eval_profiles: Optional[List["AgentEvalProfile"]] = kwargs.pop("eval_profiles", None)
+        scouter_queue = kwargs.get("scouter_queue", None)
         if eval_profiles:
             kwargs["default_entity_uid"] = eval_profiles[0].config.uid
+        elif scouter_queue is not None:
+            entity_uid = getattr(scouter_queue, "entity_uid", None)
+            if entity_uid:
+                kwargs["default_entity_uid"] = str(entity_uid)
 
         tracer_provider = kwargs.pop("tracer_provider", None)
 

@@ -1,7 +1,10 @@
 use chrono::{DateTime, Datelike, TimeZone, Timelike, Utc};
+use scouter_dataframe::{error::TraceEngineError, parquet::tracing::genai::GenAiQueries};
 use scouter_types::{
     AgentBucketRow, AgentDashboardResponse, AgentDashboardSummary, AgentMetricBucket,
-    GenAiAgentActivity, GenAiAgentActivityResponse, GenAiErrorBreakdownResponse, GenAiErrorCount,
+    AgentModelCostRow, AppliedFilters, AvailableFilters, DashboardMetadata, DistinctFilterValues,
+    GENAI_DASHBOARD_SCHEMA_VERSION, GenAiAgentActivity, GenAiAgentActivityResponse,
+    GenAiDashboardRequest, GenAiDashboardResponse, GenAiErrorBreakdownResponse, GenAiErrorCount,
     GenAiModelUsage, GenAiModelUsageResponse, GenAiOperationBreakdown,
     GenAiOperationBreakdownResponse, GenAiSpanRecord, GenAiTokenBucket, GenAiTokenMetricsResponse,
     GenAiToolActivity, GenAiTraceMetricsResponse, ModelCostBreakdown, ModelPricing,
@@ -254,9 +257,16 @@ fn build_agent_dashboard(
     model_pricing: &HashMap<String, ModelPricing>,
 ) -> Result<AgentDashboardResponse, String> {
     let agent_spans: Vec<_> = spans.iter().filter(|span| is_agent_span(span)).collect();
-    let mut groups: HashMap<(DateTime<Utc>, String), Vec<&GenAiSpanRecord>> = HashMap::new();
+    let mut bucket_groups: HashMap<DateTime<Utc>, Vec<&GenAiSpanRecord>> = HashMap::new();
+    let mut model_groups: HashMap<String, Vec<&GenAiSpanRecord>> = HashMap::new();
     let mut unique_agents = HashSet::new();
     let mut unique_conversations = HashSet::new();
+    let all_durations: Vec<i64> = agent_spans.iter().map(|s| s.duration_ms).collect();
+    let window_percentiles = (
+        percentile(&all_durations, 0.5),
+        percentile(&all_durations, 0.95),
+        percentile(&all_durations, 0.99),
+    );
 
     for span in agent_spans {
         if let Some(agent_name) = &span.agent_name {
@@ -265,24 +275,24 @@ fn build_agent_dashboard(
         if let Some(conversation_id) = &span.conversation_id {
             unique_conversations.insert(conversation_id.clone());
         }
-        groups
-            .entry((
-                truncate_to_bucket(span.start_time, bucket_interval)?,
-                model_for_span(span),
-            ))
+        bucket_groups
+            .entry(truncate_to_bucket(span.start_time, bucket_interval)?)
+            .or_default()
+            .push(span);
+        model_groups
+            .entry(model_for_span(span))
             .or_default()
             .push(span);
     }
 
-    let rows: Vec<_> = groups
+    let rows: Vec<_> = bucket_groups
         .into_iter()
-        .map(|((bucket_start, model), rows)| {
+        .map(|(bucket_start, rows)| {
             let span_count = rows.len() as i64;
             let error_count = rows.iter().filter(|span| span.error_type.is_some()).count() as i64;
             let durations: Vec<i64> = rows.iter().map(|span| span.duration_ms).collect();
             AgentBucketRow {
                 bucket_start,
-                model: Some(model),
                 span_count,
                 error_count,
                 error_rate: if span_count > 0 {
@@ -318,7 +328,30 @@ fn build_agent_dashboard(
         })
         .collect();
 
-    let mut response = fold_agent_buckets(&rows, model_pricing);
+    let cost_rows: Vec<AgentModelCostRow> = model_groups
+        .into_iter()
+        .map(|(model, spans)| AgentModelCostRow {
+            model,
+            input_tokens: spans
+                .iter()
+                .map(|s| s.input_tokens.unwrap_or_default())
+                .sum(),
+            output_tokens: spans
+                .iter()
+                .map(|s| s.output_tokens.unwrap_or_default())
+                .sum(),
+            cache_creation_tokens: spans
+                .iter()
+                .map(|s| s.cache_creation_input_tokens.unwrap_or_default())
+                .sum(),
+            cache_read_tokens: spans
+                .iter()
+                .map(|s| s.cache_read_input_tokens.unwrap_or_default())
+                .sum(),
+        })
+        .collect();
+
+    let mut response = fold_agent_buckets(&rows, &cost_rows, window_percentiles, model_pricing);
     response.summary.unique_agent_count = unique_agents.len() as i64;
     response.summary.unique_conversation_count = unique_conversations.len() as i64;
     Ok(response)
@@ -464,69 +497,30 @@ fn compute_cost(
 
 pub fn fold_agent_buckets(
     rows: &[AgentBucketRow],
+    cost_rows: &[AgentModelCostRow],
+    window_percentiles: (Option<f64>, Option<f64>, Option<f64>),
     model_pricing: &HashMap<String, ModelPricing>,
 ) -> AgentDashboardResponse {
-    let mut bucket_map: HashMap<i64, AgentMetricBucket> = HashMap::new();
-    let mut model_tokens: HashMap<String, (i64, i64, i64, i64)> = HashMap::new();
     let has_pricing = !model_pricing.is_empty();
 
-    for row in rows {
-        let ts = row.bucket_start.timestamp_micros();
-        let bucket = bucket_map.entry(ts).or_insert_with(|| AgentMetricBucket {
+    let mut buckets: Vec<AgentMetricBucket> = rows
+        .iter()
+        .map(|row| AgentMetricBucket {
             bucket_start: row.bucket_start,
-            ..Default::default()
-        });
-
-        let prev_count = bucket.span_count;
-        let new_count = prev_count + row.span_count;
-        if new_count > 0 {
-            bucket.avg_duration_ms = (bucket.avg_duration_ms * prev_count as f64
-                + row.avg_duration_ms * row.span_count as f64)
-                / new_count as f64;
-        }
-        bucket.span_count = new_count;
-        bucket.error_count += row.error_count;
-        if bucket.span_count > 0 {
-            bucket.error_rate = bucket.error_count as f64 / bucket.span_count as f64;
-        }
-        bucket.total_input_tokens += row.input_tokens;
-        bucket.total_output_tokens += row.output_tokens;
-        bucket.total_cache_creation_tokens += row.cache_creation_tokens;
-        bucket.total_cache_read_tokens += row.cache_read_tokens;
-
-        if bucket.p50_duration_ms.is_none() {
-            bucket.p50_duration_ms = row.p50_duration_ms;
-        }
-        if bucket.p95_duration_ms.is_none() {
-            bucket.p95_duration_ms = row.p95_duration_ms;
-        }
-        if bucket.p99_duration_ms.is_none() {
-            bucket.p99_duration_ms = row.p99_duration_ms;
-        }
-
-        if has_pricing {
-            let model_key = row.model.as_deref().unwrap_or("unknown");
-            if let Some(pricing) = model_pricing.get(model_key) {
-                let cost = compute_cost(
-                    row.input_tokens,
-                    row.output_tokens,
-                    row.cache_creation_tokens,
-                    row.cache_read_tokens,
-                    pricing,
-                );
-                *bucket.total_cost.get_or_insert(0.0) += cost;
-            }
-        }
-
-        let model_key = row.model.clone().unwrap_or_else(|| "unknown".to_string());
-        let entry = model_tokens.entry(model_key).or_default();
-        entry.0 += row.input_tokens;
-        entry.1 += row.output_tokens;
-        entry.2 += row.cache_creation_tokens;
-        entry.3 += row.cache_read_tokens;
-    }
-
-    let mut buckets: Vec<AgentMetricBucket> = bucket_map.into_values().collect();
+            span_count: row.span_count,
+            error_count: row.error_count,
+            error_rate: row.error_rate,
+            avg_duration_ms: row.avg_duration_ms,
+            p50_duration_ms: row.p50_duration_ms,
+            p95_duration_ms: row.p95_duration_ms,
+            p99_duration_ms: row.p99_duration_ms,
+            total_input_tokens: row.input_tokens,
+            total_output_tokens: row.output_tokens,
+            total_cache_creation_tokens: row.cache_creation_tokens,
+            total_cache_read_tokens: row.cache_read_tokens,
+            total_cost: None,
+        })
+        .collect();
     buckets.sort_by_key(|b| b.bucket_start);
 
     let total_requests: i64 = rows.iter().map(|r| r.span_count).sum();
@@ -544,30 +538,34 @@ pub fn fold_agent_buckets(
     } else {
         0.0
     };
-    let total_input: i64 = rows.iter().map(|r| r.input_tokens).sum();
-    let total_output: i64 = rows.iter().map(|r| r.output_tokens).sum();
-    let total_cache_creation: i64 = rows.iter().map(|r| r.cache_creation_tokens).sum();
-    let total_cache_read: i64 = rows.iter().map(|r| r.cache_read_tokens).sum();
-    let p50 = rows.iter().find_map(|r| r.p50_duration_ms);
-    let p95 = rows.iter().find_map(|r| r.p95_duration_ms);
-    let p99 = rows.iter().find_map(|r| r.p99_duration_ms);
+    let total_input: i64 = cost_rows.iter().map(|r| r.input_tokens).sum();
+    let total_output: i64 = cost_rows.iter().map(|r| r.output_tokens).sum();
+    let total_cache_creation: i64 = cost_rows.iter().map(|r| r.cache_creation_tokens).sum();
+    let total_cache_read: i64 = cost_rows.iter().map(|r| r.cache_read_tokens).sum();
+    let (p50, p95, p99) = window_percentiles;
 
-    let cost_by_model: Vec<ModelCostBreakdown> = model_tokens
-        .into_iter()
-        .map(|(model, (inp, out, cc, cr))| {
+    let cost_by_model: Vec<ModelCostBreakdown> = cost_rows
+        .iter()
+        .map(|row| {
             let total_cost = if has_pricing {
-                model_pricing
-                    .get(&model)
-                    .map(|p| compute_cost(inp, out, cc, cr, p))
+                model_pricing.get(&row.model).map(|p| {
+                    compute_cost(
+                        row.input_tokens,
+                        row.output_tokens,
+                        row.cache_creation_tokens,
+                        row.cache_read_tokens,
+                        p,
+                    )
+                })
             } else {
                 None
             };
             ModelCostBreakdown {
-                model,
-                total_input_tokens: inp,
-                total_output_tokens: out,
-                total_cache_creation_tokens: cc,
-                total_cache_read_tokens: cr,
+                model: row.model.clone(),
+                total_input_tokens: row.input_tokens,
+                total_output_tokens: row.output_tokens,
+                total_cache_creation_tokens: row.cache_creation_tokens,
+                total_cache_read_tokens: row.cache_read_tokens,
                 total_cost,
             }
         })
@@ -590,4 +588,224 @@ pub fn fold_agent_buckets(
     };
 
     AgentDashboardResponse { summary, buckets }
+}
+
+pub const MAX_DASHBOARD_BUCKETS: usize = 5_000;
+
+/// Runs the four agent DataFusion queries in parallel and assembles an
+/// `AgentDashboardResponse`. Returns `(response, truncated)` where `truncated`
+/// is true when the bucket list exceeded `MAX_DASHBOARD_BUCKETS`.
+#[allow(clippy::too_many_arguments)]
+pub async fn build_agent_panel(
+    q: &GenAiQueries,
+    service_name: Option<&str>,
+    entity_id: Option<&str>,
+    start_time: DateTime<Utc>,
+    end_time: DateTime<Utc>,
+    bucket_interval: &str,
+    agent_name: Option<&str>,
+    provider_name: Option<&str>,
+    model: Option<&str>,
+    model_pricing: &HashMap<String, ModelPricing>,
+) -> Result<(AgentDashboardResponse, bool), TraceEngineError> {
+    let (rows, cost_rows, (unique_agent_count, unique_conversation_count), window_percentiles) = tokio::try_join!(
+        q.get_agent_metrics_by_bucket(
+            service_name,
+            entity_id,
+            start_time,
+            end_time,
+            bucket_interval,
+            agent_name,
+            provider_name,
+            model,
+        ),
+        q.get_agent_cost_by_model(
+            service_name,
+            entity_id,
+            start_time,
+            end_time,
+            agent_name,
+            provider_name,
+            model,
+        ),
+        q.get_agent_unique_counts(
+            service_name,
+            entity_id,
+            start_time,
+            end_time,
+            agent_name,
+            provider_name,
+            model,
+        ),
+        q.get_agent_window_percentiles(
+            service_name,
+            entity_id,
+            start_time,
+            end_time,
+            agent_name,
+            provider_name,
+            model,
+        ),
+    )?;
+
+    let truncated = rows.len() > MAX_DASHBOARD_BUCKETS;
+    let mut response = fold_agent_buckets(&rows, &cost_rows, window_percentiles, model_pricing);
+    response.summary.unique_agent_count = unique_agent_count;
+    response.summary.unique_conversation_count = unique_conversation_count;
+
+    if truncated {
+        response.buckets.truncate(MAX_DASHBOARD_BUCKETS);
+    }
+
+    Ok((response, truncated))
+}
+
+/// Runs the two tool DataFusion queries in parallel and assembles a
+/// `ToolDashboardResponse`. Returns `(response, truncated)` where `truncated`
+/// is true when the time-series list exceeded `MAX_DASHBOARD_BUCKETS`.
+#[allow(clippy::too_many_arguments)]
+pub async fn build_tool_panel(
+    q: &GenAiQueries,
+    service_name: Option<&str>,
+    entity_id: Option<&str>,
+    start_time: DateTime<Utc>,
+    end_time: DateTime<Utc>,
+    bucket_interval: &str,
+    agent_name: Option<&str>,
+    provider_name: Option<&str>,
+    model: Option<&str>,
+) -> Result<(ToolDashboardResponse, bool), TraceEngineError> {
+    let (aggregates, mut time_series) = tokio::try_join!(
+        q.get_tool_activity(
+            service_name,
+            entity_id,
+            start_time,
+            end_time,
+            agent_name,
+            model
+        ),
+        q.get_tool_metrics_timeseries(
+            service_name,
+            entity_id,
+            start_time,
+            end_time,
+            bucket_interval,
+            agent_name,
+            provider_name,
+            model,
+        ),
+    )?;
+
+    let truncated = time_series.len() > MAX_DASHBOARD_BUCKETS;
+    if truncated {
+        time_series.truncate(MAX_DASHBOARD_BUCKETS);
+    }
+
+    Ok((
+        ToolDashboardResponse {
+            aggregates,
+            time_series,
+        },
+        truncated,
+    ))
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn build_genai_dashboard_response(
+    request: GenAiDashboardRequest,
+    mut token_buckets: Vec<GenAiTokenBucket>,
+    operations: Vec<GenAiOperationBreakdown>,
+    models: Vec<GenAiModelUsage>,
+    agent_dashboard: AgentDashboardResponse,
+    agent_truncated: bool,
+    tool_dashboard: ToolDashboardResponse,
+    tool_truncated: bool,
+    error_rows: Vec<(String, i64)>,
+    agents_list: Vec<GenAiAgentActivity>,
+    distinct_filters: DistinctFilterValues,
+    total_spans: i64,
+) -> GenAiDashboardResponse {
+    let applied_filters = AppliedFilters {
+        service_name: request.service_name.clone(),
+        entity_id: request.entity_id.clone(),
+        agent_name: request.agent_name.clone(),
+        provider_name: request.provider_name.clone(),
+        operation_name: request.operation_name.clone(),
+        model: request.model.clone(),
+        start_time: request.start_time,
+        end_time: request.end_time,
+        bucket_interval: request.bucket_interval.clone(),
+    };
+
+    let token_truncated = token_buckets.len() > MAX_DASHBOARD_BUCKETS;
+    if token_truncated {
+        token_buckets.truncate(MAX_DASHBOARD_BUCKETS);
+    }
+
+    let errors = error_rows
+        .into_iter()
+        .map(|(error_type, count)| GenAiErrorCount { error_type, count })
+        .collect();
+
+    GenAiDashboardResponse {
+        applied_filters,
+        available_filters: AvailableFilters {
+            agents: agents_list,
+            providers: distinct_filters.providers,
+            models: distinct_filters.models,
+            operations: distinct_filters.operations,
+        },
+        metadata: DashboardMetadata {
+            generated_at: Utc::now(),
+            schema_version: GENAI_DASHBOARD_SCHEMA_VERSION,
+            total_spans,
+        },
+        token_metrics: GenAiTokenMetricsResponse {
+            buckets: token_buckets,
+        },
+        operation_breakdown: GenAiOperationBreakdownResponse { operations },
+        model_usage: GenAiModelUsageResponse { models },
+        agent_dashboard,
+        tool_dashboard,
+        error_breakdown: GenAiErrorBreakdownResponse { errors },
+        buckets_truncated: token_truncated || agent_truncated || tool_truncated,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_compute_cost_exact_values() {
+        let cost_row = AgentModelCostRow {
+            model: "my-model".to_string(),
+            input_tokens: 1_000_000,
+            output_tokens: 1_000_000,
+            cache_creation_tokens: 0,
+            cache_read_tokens: 0,
+        };
+        let pricing = ModelPricing {
+            input_per_million: 15.0,
+            output_per_million: 75.0,
+            cache_creation_per_million: 0.0,
+            cache_read_per_million: 0.0,
+        };
+        let mut model_pricing = HashMap::new();
+        model_pricing.insert("my-model".to_string(), pricing);
+
+        let response = fold_agent_buckets(&[], &[cost_row], (None, None, None), &model_pricing);
+        let breakdown = response
+            .summary
+            .cost_by_model
+            .iter()
+            .find(|b| b.model == "my-model")
+            .expect("model entry missing");
+
+        let total_cost = breakdown.total_cost.expect("cost should be computed");
+        assert!(
+            (total_cost - 90.0).abs() < 1e-9,
+            "1M input @ $15/M + 1M output @ $75/M = $90, got {total_cost}"
+        );
+    }
 }

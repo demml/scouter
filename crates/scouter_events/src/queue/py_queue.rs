@@ -384,6 +384,17 @@ impl ScouterQueue {
         self.queues.is_empty()
     }
 
+    #[getter]
+    /// Return the entity_uid of the first registered queue, or None if there are no queues.
+    /// Used by ScouterInstrumentor to stamp spans with the correct entity when only a
+    /// scouter_queue (no eval_profiles) is provided.
+    pub fn entity_uid(&self, py: Python<'_>) -> Option<String> {
+        self.queues
+            .values()
+            .next()
+            .map(|q| q.bind(py).borrow().entity_uid.clone())
+    }
+
     /// Triggers a global shutdown for all queues
     /// 1. This will call shutdown for all queues
     /// 2. The queues will be cleared from the hashmap
