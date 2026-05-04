@@ -180,6 +180,9 @@ async fn test_tracing() {
     let params = TraceRequest {
         trace_id: filtered_record.trace_id.clone(),
         service_name: None,
+        service_namespace: None,
+        service_version: None,
+        service_instance_id: None,
         start_time: None,
         end_time: None,
     };
@@ -217,6 +220,9 @@ async fn test_tracing() {
     // make request for trace metrics
     let metrics_request = TraceMetricsRequest {
         service_name: None,
+        service_namespace: None,
+        service_version: None,
+        service_instance_id: None,
         start_time,
         end_time,
         bucket_interval: "hour".to_string(),
@@ -251,6 +257,9 @@ async fn test_tracing() {
         tag_filters: vec![map],
         match_all: false,
         service_name: None,
+        service_namespace: None,
+        service_version: None,
+        service_instance_id: None,
     };
 
     let request = Request::builder()
@@ -483,6 +492,9 @@ async fn test_trace_metrics_duration_filter() {
         &helper,
         &TraceMetricsRequest {
             service_name: None,
+            service_namespace: None,
+            service_version: None,
+            service_instance_id: None,
             start_time: now - chrono::Duration::hours(2),
             end_time: now + chrono::Duration::hours(1),
             bucket_interval: "hour".to_string(),
@@ -499,6 +511,9 @@ async fn test_trace_metrics_duration_filter() {
         &helper,
         &TraceMetricsRequest {
             service_name: None,
+            service_namespace: None,
+            service_version: None,
+            service_instance_id: None,
             start_time: now - chrono::Duration::hours(2),
             end_time: now + chrono::Duration::hours(1),
             bucket_interval: "hour".to_string(),
@@ -524,6 +539,9 @@ async fn test_trace_metrics_duration_filter() {
         &helper,
         &TraceMetricsRequest {
             service_name: None,
+            service_namespace: None,
+            service_version: None,
+            service_instance_id: None,
             start_time: now - chrono::Duration::hours(2),
             end_time: now + chrono::Duration::hours(1),
             bucket_interval: "hour".to_string(),
@@ -544,6 +562,9 @@ async fn test_trace_metrics_duration_filter() {
         &helper,
         &TraceMetricsRequest {
             service_name: None,
+            service_namespace: None,
+            service_version: None,
+            service_instance_id: None,
             start_time: now - chrono::Duration::hours(2),
             end_time: now + chrono::Duration::hours(1),
             bucket_interval: "hour".to_string(),
@@ -564,6 +585,9 @@ async fn test_trace_metrics_duration_filter() {
         &helper,
         &TraceMetricsRequest {
             service_name: None,
+            service_namespace: None,
+            service_version: None,
+            service_instance_id: None,
             start_time: now - chrono::Duration::hours(2),
             end_time: now + chrono::Duration::hours(1),
             bucket_interval: "hour".to_string(),

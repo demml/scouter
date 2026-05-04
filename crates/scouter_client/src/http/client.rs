@@ -191,6 +191,9 @@ impl ScouterClient {
         let trace_request = TraceRequest {
             trace_id: trace_id.to_string(),
             service_name: service_name.map(|s| s.to_string()),
+            service_namespace: None,
+            service_version: None,
+            service_instance_id: None,
             start_time: None,
             end_time: None,
         };
@@ -276,6 +279,9 @@ impl ScouterClient {
         let trace_request = TraceRequest {
             trace_id: trace_id.to_string(),
             service_name: None,
+            service_namespace: None,
+            service_version: None,
+            service_instance_id: None,
             start_time: None,
             end_time: None,
         };

@@ -1,6 +1,7 @@
 use crate::error::TraceEngineError;
 use crate::parquet::control::{ControlTableEngine, get_pod_id};
 use crate::parquet::tracing::catalog::TraceCatalogProvider;
+use crate::parquet::tracing::queries::{SERVICE_NAMESPACE_COL, SERVICE_VERSION_COL};
 use crate::parquet::tracing::traits::TraceSchemaExt;
 use crate::parquet::tracing::traits::arrow_schema_to_delta;
 use crate::parquet::tracing::traits::attribute_field;
@@ -103,7 +104,7 @@ async fn create_table(
         // Only collect min/max statistics for columns that benefit from data skipping.
         .with_configuration_property(
             TableProperty::DataSkippingStatsColumns,
-            Some("start_time,end_time,service_name,duration_ms,status_code,partition_date"),
+            Some("start_time,end_time,service_name,service_namespace,service_version,service_instance_id,duration_ms,status_code,partition_date"),
         )
         .await
         .map_err(Into::into)
@@ -165,10 +166,35 @@ async fn build_or_create_table_inner(
                 .unwrap_or(TRACE_SPAN_TABLE_NAME)
         );
         let store = object_store.as_dyn_object_store();
-        let table = DeltaTableBuilder::from_url(table_url.clone())?
+        let mut table = DeltaTableBuilder::from_url(table_url.clone())?
             .with_storage_backend(store, table_url)
             .load()
             .await?;
+
+        // Schema evolution: add any columns present in the desired schema but missing from the
+        // on-disk table. Old Parquet files are not rewritten; historical rows read as null.
+        let current_arrow = table.table_provider().await?.schema();
+        let missing_fields: Vec<deltalake::kernel::StructField> = schema
+            .fields()
+            .iter()
+            .filter(|f| current_arrow.field_with_name(f.name()).is_err())
+            .map(|f| {
+                let delta_ty = crate::parquet::tracing::traits::arrow_type_to_delta(f.data_type());
+                deltalake::kernel::StructField::new(f.name().clone(), delta_ty, true)
+            })
+            .collect();
+
+        if !missing_fields.is_empty() {
+            info!(
+                ?missing_fields,
+                "adding missing trace_spans columns via Delta schema evolution"
+            );
+            table = table
+                .add_columns()
+                .with_fields(missing_fields)
+                .await?;
+        }
+
         Ok(table)
     } else {
         info!("Table does not exist, creating new table");
@@ -295,6 +321,27 @@ impl TraceSpanDBEngine {
             )
             .set_column_bloom_filter_fpp(ColumnPath::new(vec!["service_name".to_string()]), 0.01)
             .set_column_bloom_filter_ndv(ColumnPath::new(vec!["service_name".to_string()]), 256)
+            .set_column_bloom_filter_enabled(
+                ColumnPath::new(vec![SERVICE_NAMESPACE_COL.to_string()]),
+                true,
+            )
+            .set_column_bloom_filter_fpp(
+                ColumnPath::new(vec![SERVICE_NAMESPACE_COL.to_string()]),
+                0.01,
+            )
+            .set_column_bloom_filter_ndv(
+                ColumnPath::new(vec![SERVICE_NAMESPACE_COL.to_string()]),
+                256,
+            )
+            .set_column_bloom_filter_enabled(
+                ColumnPath::new(vec![SERVICE_VERSION_COL.to_string()]),
+                true,
+            )
+            .set_column_bloom_filter_fpp(
+                ColumnPath::new(vec![SERVICE_VERSION_COL.to_string()]),
+                0.01,
+            )
+            .set_column_bloom_filter_ndv(ColumnPath::new(vec![SERVICE_VERSION_COL.to_string()]), 256)
             // span_name: high cardinality equality queries (e.g. "grpc.unary/method")
             .set_column_bloom_filter_enabled(ColumnPath::new(vec!["span_name".to_string()]), true)
             .set_column_bloom_filter_fpp(ColumnPath::new(vec!["span_name".to_string()]), 0.01)
@@ -647,6 +694,9 @@ pub struct TraceSpanBatchBuilder {
 
     // Metadata builders
     service_name: StringDictionaryBuilder<Int32Type>,
+    service_namespace: StringDictionaryBuilder<Int32Type>,
+    service_version: StringDictionaryBuilder<Int32Type>,
+    service_instance_id: StringDictionaryBuilder<Int32Type>,
     span_name: StringBuilder,
     span_kind: StringDictionaryBuilder<Int8Type>,
 
@@ -694,6 +744,9 @@ impl TraceSpanBatchBuilder {
         let scope_version = StringBuilder::new();
 
         let service_name = StringDictionaryBuilder::<Int32Type>::new();
+        let service_namespace = StringDictionaryBuilder::<Int32Type>::new();
+        let service_version = StringDictionaryBuilder::<Int32Type>::new();
+        let service_instance_id = StringDictionaryBuilder::<Int32Type>::new();
         let span_name = StringBuilder::new();
         let span_kind = StringDictionaryBuilder::<Int8Type>::new();
 
@@ -786,6 +839,9 @@ impl TraceSpanBatchBuilder {
             scope_name,
             scope_version,
             service_name,
+            service_namespace,
+            service_version,
+            service_instance_id,
             span_name,
             span_kind,
             start_time,
@@ -840,6 +896,18 @@ impl TraceSpanBatchBuilder {
 
         // Metadata
         self.service_name.append_value(&span.service_name);
+        match &span.service_namespace {
+            Some(s) => self.service_namespace.append_value(s),
+            None => self.service_namespace.append_null(),
+        }
+        match &span.service_version {
+            Some(s) => self.service_version.append_value(s),
+            None => self.service_version.append_null(),
+        }
+        match &span.service_instance_id {
+            Some(s) => self.service_instance_id.append_value(s),
+            None => self.service_instance_id.append_null(),
+        }
         self.span_name.append_value(&span.span_name);
         // span_kind is a non-empty string in TraceSpanRecord — store as non-null
         if span.span_kind.is_empty() {
@@ -1096,6 +1164,9 @@ impl TraceSpanBatchBuilder {
                 Arc::new(self.scope_name.finish()),
                 Arc::new(self.scope_version.finish()),
                 Arc::new(self.service_name.finish()),
+                Arc::new(self.service_namespace.finish()),
+                Arc::new(self.service_version.finish()),
+                Arc::new(self.service_instance_id.finish()),
                 Arc::new(self.span_name.finish()),
                 Arc::new(self.span_kind.finish()),
                 Arc::new(self.start_time.finish()),

@@ -119,6 +119,12 @@ pub struct TraceSpan {
     #[pyo3(get)]
     pub service_name: String,
     #[pyo3(get)]
+    pub service_namespace: Option<String>,
+    #[pyo3(get)]
+    pub service_version: Option<String>,
+    #[pyo3(get)]
+    pub service_instance_id: Option<String>,
+    #[pyo3(get)]
     pub span_order: i32,
     pub input: Option<Value>,
     pub output: Option<Value>,
@@ -186,6 +192,9 @@ impl FromRow<'_, PgRow> for TraceSpan {
             input,
             output,
             service_name: row.try_get("service_name")?,
+            service_namespace: None,
+            service_version: None,
+            service_instance_id: None,
         })
     }
 }
@@ -224,6 +233,12 @@ pub struct TraceFilters {
     pub duration_min_ms: Option<i64>,
     #[pyo3(get, set)]
     pub duration_max_ms: Option<i64>,
+    #[pyo3(get, set)]
+    pub service_namespace: Option<String>,
+    #[pyo3(get, set)]
+    pub service_version: Option<String>,
+    #[pyo3(get, set)]
+    pub service_instance_id: Option<String>,
 }
 
 #[pymethods]
@@ -244,7 +259,10 @@ impl TraceFilters {
         entity_uid=None,
         queue_uid=None,
         duration_min_ms=None,
-        duration_max_ms=None
+        duration_max_ms=None,
+        service_namespace=None,
+        service_version=None,
+        service_instance_id=None
     ))]
     pub fn new(
         service_name: Option<String>,
@@ -261,6 +279,9 @@ impl TraceFilters {
         queue_uid: Option<String>,
         duration_min_ms: Option<i64>,
         duration_max_ms: Option<i64>,
+        service_namespace: Option<String>,
+        service_version: Option<String>,
+        service_instance_id: Option<String>,
     ) -> Self {
         TraceFilters {
             service_name,
@@ -278,6 +299,9 @@ impl TraceFilters {
             queue_uid,
             duration_min_ms,
             duration_max_ms,
+            service_namespace,
+            service_version,
+            service_instance_id,
         }
     }
 }

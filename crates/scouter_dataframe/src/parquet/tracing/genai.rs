@@ -1,7 +1,9 @@
 use crate::error::TraceEngineError;
 use crate::parquet::control::{ControlTableEngine, get_pod_id};
 use crate::parquet::tracing::catalog::TraceCatalogProvider;
-use crate::parquet::tracing::queries::{date_lit, ts_lit};
+use crate::parquet::tracing::queries::{
+    SERVICE_INSTANCE_ID_COL, SERVICE_NAMESPACE_COL, SERVICE_VERSION_COL, date_lit, ts_lit,
+};
 use crate::parquet::tracing::traits::arrow_schema_to_delta;
 use crate::parquet::utils::{register_cloud_logstore_factories, run_delta_init};
 use crate::storage::ObjectStore;
@@ -101,6 +103,21 @@ fn create_genai_schema() -> Schema {
             SERVICE_NAME_COL,
             DataType::Dictionary(Box::new(DataType::Int32), Box::new(DataType::Utf8)),
             false,
+        ),
+        Field::new(
+            SERVICE_NAMESPACE_COL,
+            DataType::Dictionary(Box::new(DataType::Int32), Box::new(DataType::Utf8)),
+            true,
+        ),
+        Field::new(
+            SERVICE_VERSION_COL,
+            DataType::Dictionary(Box::new(DataType::Int32), Box::new(DataType::Utf8)),
+            true,
+        ),
+        Field::new(
+            SERVICE_INSTANCE_ID_COL,
+            DataType::Dictionary(Box::new(DataType::Int32), Box::new(DataType::Utf8)),
+            true,
         ),
         Field::new(
             START_TIME_COL,
@@ -217,6 +234,9 @@ struct GenAiBatchBuilder {
     trace_id: FixedSizeBinaryBuilder,
     span_id: FixedSizeBinaryBuilder,
     service_name: StringDictionaryBuilder<Int32Type>,
+    service_namespace: StringDictionaryBuilder<Int32Type>,
+    service_version: StringDictionaryBuilder<Int32Type>,
+    service_instance_id: StringDictionaryBuilder<Int32Type>,
     start_time: TimestampMicrosecondBuilder,
     end_time: TimestampMicrosecondBuilder,
     duration_ms: Int64Builder,
@@ -271,6 +291,9 @@ impl GenAiBatchBuilder {
             trace_id: FixedSizeBinaryBuilder::with_capacity(capacity, 16),
             span_id: FixedSizeBinaryBuilder::with_capacity(capacity, 8),
             service_name: StringDictionaryBuilder::new(),
+            service_namespace: StringDictionaryBuilder::new(),
+            service_version: StringDictionaryBuilder::new(),
+            service_instance_id: StringDictionaryBuilder::new(),
             start_time: TimestampMicrosecondBuilder::with_capacity(capacity).with_timezone("UTC"),
             end_time: TimestampMicrosecondBuilder::with_capacity(capacity).with_timezone("UTC"),
             duration_ms: Int64Builder::with_capacity(capacity),
@@ -323,6 +346,18 @@ impl GenAiBatchBuilder {
         self.trace_id.append_value(rec.trace_id.as_bytes())?;
         self.span_id.append_value(rec.span_id.as_bytes())?;
         self.service_name.append_value(&rec.service_name);
+        match &rec.service_namespace {
+            Some(v) => self.service_namespace.append_value(v),
+            None => self.service_namespace.append_null(),
+        }
+        match &rec.service_version {
+            Some(v) => self.service_version.append_value(v),
+            None => self.service_version.append_null(),
+        }
+        match &rec.service_instance_id {
+            Some(v) => self.service_instance_id.append_value(v),
+            None => self.service_instance_id.append_null(),
+        }
         self.start_time
             .append_value(rec.start_time.timestamp_micros());
         match rec.end_time {
@@ -493,6 +528,9 @@ impl GenAiBatchBuilder {
             Arc::new(self.trace_id.finish()),
             Arc::new(self.span_id.finish()),
             Arc::new(self.service_name.finish()),
+            Arc::new(self.service_namespace.finish()),
+            Arc::new(self.service_version.finish()),
+            Arc::new(self.service_instance_id.finish()),
             Arc::new(self.start_time.finish()),
             Arc::new(self.end_time.finish()),
             Arc::new(self.duration_ms.finish()),
@@ -605,7 +643,7 @@ async fn create_genai_table(
         .with_partition_columns(vec![PARTITION_DATE_COL.to_string()])
         .with_configuration_property(
             TableProperty::DataSkippingStatsColumns,
-            Some("start_time,end_time,service_name,duration_ms,status_code,operation_name,provider_name,partition_date"),
+            Some("start_time,end_time,service_name,service_namespace,service_version,service_instance_id,duration_ms,status_code,operation_name,provider_name,partition_date"),
         )
         .await
         .map_err(Into::into)
@@ -666,11 +704,39 @@ async fn build_or_create_genai_table_inner(
                 .unwrap_or(GEN_AI_TABLE_NAME)
         );
         let store = object_store.as_dyn_object_store();
-        DeltaTableBuilder::from_url(table_url.clone())?
+        let mut table = DeltaTableBuilder::from_url(table_url.clone())?
             .with_storage_backend(store, table_url)
             .load()
             .await
-            .map_err(Into::into)
+            .map_err(TraceEngineError::from)?;
+
+        let current_arrow = table
+            .table_provider()
+            .await
+            .map(|p| p.schema())
+            .unwrap_or_else(|_| schema.clone());
+
+        let missing_fields: Vec<deltalake::kernel::StructField> = schema
+            .fields()
+            .iter()
+            .filter(|f| current_arrow.field_with_name(f.name()).is_err())
+            .map(|f| {
+                let delta_ty =
+                    crate::parquet::tracing::traits::arrow_type_to_delta(f.data_type());
+                deltalake::kernel::StructField::new(f.name().clone(), delta_ty, true)
+            })
+            .collect();
+
+        if !missing_fields.is_empty() {
+            info!(?missing_fields, "adding missing gen_ai_spans columns via Delta schema evolution");
+            table = table
+                .add_columns()
+                .with_fields(missing_fields)
+                .await
+                .map_err(TraceEngineError::from)?;
+        }
+
+        Ok(table)
     } else {
         info!("gen_ai_spans table does not exist, creating new table");
         create_genai_table(&object_store, table_url, schema).await
@@ -728,6 +794,32 @@ impl GenAiSpanDBEngine {
             )
             .set_column_bloom_filter_fpp(ColumnPath::new(vec![SERVICE_NAME_COL.to_string()]), 0.01)
             .set_column_bloom_filter_ndv(ColumnPath::new(vec![SERVICE_NAME_COL.to_string()]), 256)
+            // Bloom filter on service_namespace
+            .set_column_bloom_filter_enabled(
+                ColumnPath::new(vec![SERVICE_NAMESPACE_COL.to_string()]),
+                true,
+            )
+            .set_column_bloom_filter_fpp(
+                ColumnPath::new(vec![SERVICE_NAMESPACE_COL.to_string()]),
+                0.01,
+            )
+            .set_column_bloom_filter_ndv(
+                ColumnPath::new(vec![SERVICE_NAMESPACE_COL.to_string()]),
+                256,
+            )
+            // Bloom filter on service_version
+            .set_column_bloom_filter_enabled(
+                ColumnPath::new(vec![SERVICE_VERSION_COL.to_string()]),
+                true,
+            )
+            .set_column_bloom_filter_fpp(
+                ColumnPath::new(vec![SERVICE_VERSION_COL.to_string()]),
+                0.01,
+            )
+            .set_column_bloom_filter_ndv(
+                ColumnPath::new(vec![SERVICE_VERSION_COL.to_string()]),
+                256,
+            )
             // Bloom filter on conversation_id
             .set_column_bloom_filter_enabled(
                 ColumnPath::new(vec![CONVERSATION_ID_COL.to_string()]),
@@ -1176,6 +1268,9 @@ impl GenAiQueries {
             col(TRACE_ID_COL),
             col(SPAN_ID_COL),
             col(SERVICE_NAME_COL),
+            col(SERVICE_NAMESPACE_COL),
+            col(SERVICE_VERSION_COL),
+            col(SERVICE_INSTANCE_ID_COL),
             col(START_TIME_COL),
             col(END_TIME_COL),
             col(DURATION_MS_COL),
@@ -1240,6 +1335,9 @@ impl GenAiQueries {
     pub async fn get_token_metrics(
         &self,
         service_name: Option<&str>,
+        service_namespace: Option<&str>,
+        service_version: Option<&str>,
+        service_instance_id: Option<&str>,
         entity_id: Option<&str>,
         start: DateTime<Utc>,
         end: DateTime<Utc>,
@@ -1252,6 +1350,9 @@ impl GenAiQueries {
         let key = cache_key(&(
             "token_metrics",
             service_name,
+            service_namespace,
+            service_version,
+            service_instance_id,
             start.timestamp_micros(),
             end.timestamp_micros(),
             bucket_interval,
@@ -1277,6 +1378,9 @@ impl GenAiQueries {
         let df = self.ctx.table(GEN_AI_TABLE_NAME).await?;
         let df = Self::apply_time_filters(df, &start, &end)?;
         let df = Self::apply_optional_filter(df, SERVICE_NAME_COL, service_name)?;
+        let df = Self::apply_optional_filter(df, SERVICE_NAMESPACE_COL, service_namespace)?;
+        let df = Self::apply_optional_filter(df, SERVICE_VERSION_COL, service_version)?;
+        let df = Self::apply_optional_filter(df, SERVICE_INSTANCE_ID_COL, service_instance_id)?;
         let df = Self::apply_optional_filter(df, ENTITY_ID_COL, entity_id)?;
         let df = Self::apply_optional_filter(df, OPERATION_NAME_COL, operation_name)?;
         let df = Self::apply_optional_filter(df, PROVIDER_NAME_COL, provider_name)?;
@@ -1413,6 +1517,9 @@ impl GenAiQueries {
     pub async fn get_operation_breakdown(
         &self,
         service_name: Option<&str>,
+        service_namespace: Option<&str>,
+        service_version: Option<&str>,
+        service_instance_id: Option<&str>,
         entity_id: Option<&str>,
         start: DateTime<Utc>,
         end: DateTime<Utc>,
@@ -1423,6 +1530,9 @@ impl GenAiQueries {
         let df = self.ctx.table(GEN_AI_TABLE_NAME).await?;
         let df = Self::apply_time_filters(df, &start, &end)?;
         let df = Self::apply_optional_filter(df, SERVICE_NAME_COL, service_name)?;
+        let df = Self::apply_optional_filter(df, SERVICE_NAMESPACE_COL, service_namespace)?;
+        let df = Self::apply_optional_filter(df, SERVICE_VERSION_COL, service_version)?;
+        let df = Self::apply_optional_filter(df, SERVICE_INSTANCE_ID_COL, service_instance_id)?;
         let df = Self::apply_optional_filter(df, ENTITY_ID_COL, entity_id)?;
         let df = Self::apply_optional_filter(df, PROVIDER_NAME_COL, provider_name)?;
         let df = Self::apply_optional_filter(df, AGENT_NAME_COL, agent_name)?;
@@ -1554,6 +1664,9 @@ impl GenAiQueries {
     pub async fn get_model_usage(
         &self,
         service_name: Option<&str>,
+        service_namespace: Option<&str>,
+        service_version: Option<&str>,
+        service_instance_id: Option<&str>,
         entity_id: Option<&str>,
         start: DateTime<Utc>,
         end: DateTime<Utc>,
@@ -1564,6 +1677,9 @@ impl GenAiQueries {
         let key = cache_key(&(
             "model_usage",
             service_name,
+            service_namespace,
+            service_version,
+            service_instance_id,
             start.timestamp_micros(),
             end.timestamp_micros(),
             provider_name,
@@ -1577,6 +1693,9 @@ impl GenAiQueries {
         let df = self.ctx.table(GEN_AI_TABLE_NAME).await?;
         let df = Self::apply_time_filters(df, &start, &end)?;
         let df = Self::apply_optional_filter(df, SERVICE_NAME_COL, service_name)?;
+        let df = Self::apply_optional_filter(df, SERVICE_NAMESPACE_COL, service_namespace)?;
+        let df = Self::apply_optional_filter(df, SERVICE_VERSION_COL, service_version)?;
+        let df = Self::apply_optional_filter(df, SERVICE_INSTANCE_ID_COL, service_instance_id)?;
         let df = Self::apply_optional_filter(df, ENTITY_ID_COL, entity_id)?;
         let df = Self::apply_optional_filter(df, PROVIDER_NAME_COL, provider_name)?;
         let df = Self::apply_optional_filter(df, AGENT_NAME_COL, agent_name)?;
@@ -1732,9 +1851,13 @@ impl GenAiQueries {
         Ok(results)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn get_agent_activity(
         &self,
         service_name: Option<&str>,
+        service_namespace: Option<&str>,
+        service_version: Option<&str>,
+        service_instance_id: Option<&str>,
         entity_id: Option<&str>,
         start: DateTime<Utc>,
         end: DateTime<Utc>,
@@ -1744,6 +1867,9 @@ impl GenAiQueries {
         let df = self.ctx.table(GEN_AI_TABLE_NAME).await?;
         let df = Self::apply_time_filters(df, &start, &end)?;
         let df = Self::apply_optional_filter(df, SERVICE_NAME_COL, service_name)?;
+        let df = Self::apply_optional_filter(df, SERVICE_NAMESPACE_COL, service_namespace)?;
+        let df = Self::apply_optional_filter(df, SERVICE_VERSION_COL, service_version)?;
+        let df = Self::apply_optional_filter(df, SERVICE_INSTANCE_ID_COL, service_instance_id)?;
         let df = Self::apply_optional_filter(df, ENTITY_ID_COL, entity_id)?;
 
         // Filter: operation is agent-related OR agent_name is present
@@ -1886,9 +2012,13 @@ impl GenAiQueries {
         Ok(results)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn get_tool_activity(
         &self,
         service_name: Option<&str>,
+        service_namespace: Option<&str>,
+        service_version: Option<&str>,
+        service_instance_id: Option<&str>,
         entity_id: Option<&str>,
         start: DateTime<Utc>,
         end: DateTime<Utc>,
@@ -1898,6 +2028,9 @@ impl GenAiQueries {
         let df = self.ctx.table(GEN_AI_TABLE_NAME).await?;
         let df = Self::apply_time_filters(df, &start, &end)?;
         let df = Self::apply_optional_filter(df, SERVICE_NAME_COL, service_name)?;
+        let df = Self::apply_optional_filter(df, SERVICE_NAMESPACE_COL, service_namespace)?;
+        let df = Self::apply_optional_filter(df, SERVICE_VERSION_COL, service_version)?;
+        let df = Self::apply_optional_filter(df, SERVICE_INSTANCE_ID_COL, service_instance_id)?;
         let df = Self::apply_optional_filter(df, ENTITY_ID_COL, entity_id)?;
         let df = Self::apply_optional_filter(df, AGENT_NAME_COL, agent_name)?;
         let df = Self::apply_model_filter(df, model)?;
@@ -2006,6 +2139,9 @@ impl GenAiQueries {
     pub async fn get_error_breakdown(
         &self,
         service_name: Option<&str>,
+        service_namespace: Option<&str>,
+        service_version: Option<&str>,
+        service_instance_id: Option<&str>,
         entity_id: Option<&str>,
         start: DateTime<Utc>,
         end: DateTime<Utc>,
@@ -2016,6 +2152,9 @@ impl GenAiQueries {
         let df = self.ctx.table(GEN_AI_TABLE_NAME).await?;
         let df = Self::apply_time_filters(df, &start, &end)?;
         let df = Self::apply_optional_filter(df, SERVICE_NAME_COL, service_name)?;
+        let df = Self::apply_optional_filter(df, SERVICE_NAMESPACE_COL, service_namespace)?;
+        let df = Self::apply_optional_filter(df, SERVICE_VERSION_COL, service_version)?;
+        let df = Self::apply_optional_filter(df, SERVICE_INSTANCE_ID_COL, service_instance_id)?;
         let df = Self::apply_optional_filter(df, ENTITY_ID_COL, entity_id)?;
         let df = Self::apply_optional_filter(df, OPERATION_NAME_COL, operation_name)?;
         let df = Self::apply_optional_filter(df, AGENT_NAME_COL, agent_name)?;
@@ -2243,9 +2382,13 @@ impl GenAiQueries {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)]
     pub async fn get_agent_metrics_by_bucket(
         &self,
         service_name: Option<&str>,
+        service_namespace: Option<&str>,
+        service_version: Option<&str>,
+        service_instance_id: Option<&str>,
         entity_id: Option<&str>,
         start: DateTime<Utc>,
         end: DateTime<Utc>,
@@ -2257,6 +2400,9 @@ impl GenAiQueries {
         let key = cache_key(&(
             "agent_bucket",
             service_name,
+            service_namespace,
+            service_version,
+            service_instance_id,
             start.timestamp_micros(),
             end.timestamp_micros(),
             bucket_interval,
@@ -2281,6 +2427,9 @@ impl GenAiQueries {
         let df = self.ctx.table(GEN_AI_TABLE_NAME).await?;
         let df = Self::apply_time_filters(df, &start, &end)?;
         let df = Self::apply_optional_filter(df, SERVICE_NAME_COL, service_name)?;
+        let df = Self::apply_optional_filter(df, SERVICE_NAMESPACE_COL, service_namespace)?;
+        let df = Self::apply_optional_filter(df, SERVICE_VERSION_COL, service_version)?;
+        let df = Self::apply_optional_filter(df, SERVICE_INSTANCE_ID_COL, service_instance_id)?;
         let df = Self::apply_optional_filter(df, ENTITY_ID_COL, entity_id)?;
         let df = Self::apply_optional_filter(df, AGENT_NAME_COL, agent_name)?;
         let df = Self::apply_optional_filter(df, PROVIDER_NAME_COL, provider_name)?;
@@ -2490,9 +2639,13 @@ impl GenAiQueries {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)]
     pub async fn get_agent_cost_by_model(
         &self,
         service_name: Option<&str>,
+        service_namespace: Option<&str>,
+        service_version: Option<&str>,
+        service_instance_id: Option<&str>,
         entity_id: Option<&str>,
         start: DateTime<Utc>,
         end: DateTime<Utc>,
@@ -2503,6 +2656,9 @@ impl GenAiQueries {
         let df = self.ctx.table(GEN_AI_TABLE_NAME).await?;
         let df = Self::apply_time_filters(df, &start, &end)?;
         let df = Self::apply_optional_filter(df, SERVICE_NAME_COL, service_name)?;
+        let df = Self::apply_optional_filter(df, SERVICE_NAMESPACE_COL, service_namespace)?;
+        let df = Self::apply_optional_filter(df, SERVICE_VERSION_COL, service_version)?;
+        let df = Self::apply_optional_filter(df, SERVICE_INSTANCE_ID_COL, service_instance_id)?;
         let df = Self::apply_optional_filter(df, ENTITY_ID_COL, entity_id)?;
         let df = Self::apply_optional_filter(df, AGENT_NAME_COL, agent_name)?;
         let df = Self::apply_optional_filter(df, PROVIDER_NAME_COL, provider_name)?;
@@ -2615,9 +2771,13 @@ impl GenAiQueries {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)]
     pub async fn get_agent_window_percentiles(
         &self,
         service_name: Option<&str>,
+        service_namespace: Option<&str>,
+        service_version: Option<&str>,
+        service_instance_id: Option<&str>,
         entity_id: Option<&str>,
         start: DateTime<Utc>,
         end: DateTime<Utc>,
@@ -2628,6 +2788,9 @@ impl GenAiQueries {
         let df = self.ctx.table(GEN_AI_TABLE_NAME).await?;
         let df = Self::apply_time_filters(df, &start, &end)?;
         let df = Self::apply_optional_filter(df, SERVICE_NAME_COL, service_name)?;
+        let df = Self::apply_optional_filter(df, SERVICE_NAMESPACE_COL, service_namespace)?;
+        let df = Self::apply_optional_filter(df, SERVICE_VERSION_COL, service_version)?;
+        let df = Self::apply_optional_filter(df, SERVICE_INSTANCE_ID_COL, service_instance_id)?;
         let df = Self::apply_optional_filter(df, ENTITY_ID_COL, entity_id)?;
         let df = Self::apply_optional_filter(df, AGENT_NAME_COL, agent_name)?;
         let df = Self::apply_optional_filter(df, PROVIDER_NAME_COL, provider_name)?;
@@ -2713,9 +2876,13 @@ impl GenAiQueries {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)]
     pub async fn get_agent_unique_counts(
         &self,
         service_name: Option<&str>,
+        service_namespace: Option<&str>,
+        service_version: Option<&str>,
+        service_instance_id: Option<&str>,
         entity_id: Option<&str>,
         start: DateTime<Utc>,
         end: DateTime<Utc>,
@@ -2726,6 +2893,9 @@ impl GenAiQueries {
         let df = self.ctx.table(GEN_AI_TABLE_NAME).await?;
         let df = Self::apply_time_filters(df, &start, &end)?;
         let df = Self::apply_optional_filter(df, SERVICE_NAME_COL, service_name)?;
+        let df = Self::apply_optional_filter(df, SERVICE_NAMESPACE_COL, service_namespace)?;
+        let df = Self::apply_optional_filter(df, SERVICE_VERSION_COL, service_version)?;
+        let df = Self::apply_optional_filter(df, SERVICE_INSTANCE_ID_COL, service_instance_id)?;
         let df = Self::apply_optional_filter(df, ENTITY_ID_COL, entity_id)?;
         let df = Self::apply_optional_filter(df, AGENT_NAME_COL, agent_name)?;
         let df = Self::apply_optional_filter(df, PROVIDER_NAME_COL, provider_name)?;
@@ -2802,9 +2972,13 @@ impl GenAiQueries {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)]
     pub async fn get_tool_metrics_timeseries(
         &self,
         service_name: Option<&str>,
+        service_namespace: Option<&str>,
+        service_version: Option<&str>,
+        service_instance_id: Option<&str>,
         entity_id: Option<&str>,
         start: DateTime<Utc>,
         end: DateTime<Utc>,
@@ -2816,6 +2990,9 @@ impl GenAiQueries {
         let key = cache_key(&(
             "tool_ts",
             service_name,
+            service_namespace,
+            service_version,
+            service_instance_id,
             start.timestamp_micros(),
             end.timestamp_micros(),
             bucket_interval,
@@ -2840,6 +3017,9 @@ impl GenAiQueries {
         let df = self.ctx.table(GEN_AI_TABLE_NAME).await?;
         let df = Self::apply_time_filters(df, &start, &end)?;
         let df = Self::apply_optional_filter(df, SERVICE_NAME_COL, service_name)?;
+        let df = Self::apply_optional_filter(df, SERVICE_NAMESPACE_COL, service_namespace)?;
+        let df = Self::apply_optional_filter(df, SERVICE_VERSION_COL, service_version)?;
+        let df = Self::apply_optional_filter(df, SERVICE_INSTANCE_ID_COL, service_instance_id)?;
         let df = Self::apply_optional_filter(df, ENTITY_ID_COL, entity_id)?;
         let df = Self::apply_optional_filter(df, AGENT_NAME_COL, agent_name)?;
         let df = Self::apply_optional_filter(df, PROVIDER_NAME_COL, provider_name)?;
@@ -3155,6 +3335,9 @@ fn batches_to_genai_records(
             })?;
 
         let service_names = cast_to_string_array(batch, SERVICE_NAME_COL)?;
+        let service_namespaces = cast_to_string_array(batch, SERVICE_NAMESPACE_COL)?;
+        let service_versions = cast_to_string_array(batch, SERVICE_VERSION_COL)?;
+        let service_instance_ids = cast_to_string_array(batch, SERVICE_INSTANCE_ID_COL)?;
         let operation_names = cast_to_string_array(batch, OPERATION_NAME_COL)?;
         let provider_names = cast_to_string_array(batch, PROVIDER_NAME_COL)?;
         let request_models = cast_to_string_array(batch, REQUEST_MODEL_COL)?;
@@ -3380,6 +3563,9 @@ fn batches_to_genai_records(
                 trace_id,
                 span_id,
                 service_name: service_names.value(i).to_string(),
+                service_namespace: nullable_string(&service_namespaces, i),
+                service_version: nullable_string(&service_versions, i),
+                service_instance_id: nullable_string(&service_instance_ids, i),
                 start_time,
                 end_time,
                 duration_ms: durations.value(i),
@@ -3567,6 +3753,9 @@ mod tests {
             input: serde_json::Value::Null,
             output: serde_json::Value::Null,
             service_name: service_name.to_string(),
+            service_namespace: None,
+            service_version: None,
+            service_instance_id: None,
             resource_attributes: vec![],
         }
     }
@@ -3605,7 +3794,7 @@ mod tests {
         let end = Utc::now() + chrono::Duration::hours(1);
         let metrics = service
             .query_service
-            .get_token_metrics(None, None, start, end, "hour", None, None, None, None)
+            .get_token_metrics(None, None, None, None, None, start, end, "hour", None, None, None, None)
             .await?;
 
         assert!(!metrics.is_empty(), "Expected at least one bucket");
@@ -3701,7 +3890,7 @@ mod tests {
         let end = Utc::now() + chrono::Duration::hours(1);
         let metrics = service
             .query_service
-            .get_token_metrics(None, None, start, end, "hour", None, None, None, None)
+            .get_token_metrics(None, None, None, None, None, start, end, "hour", None, None, None, None)
             .await?;
 
         let total_spans: i64 = metrics.iter().map(|b| b.span_count).sum();
@@ -3753,7 +3942,7 @@ mod tests {
         let end = Utc::now() + chrono::Duration::hours(1);
         let usage = service
             .query_service
-            .get_model_usage(None, None, start, end, None, None, None)
+            .get_model_usage(None, None, None, None, None, start, end, None, None, None)
             .await?;
 
         assert_eq!(usage.len(), 2, "Expected 2 model usage rows");
@@ -3797,7 +3986,7 @@ mod tests {
         let end = Utc::now() + chrono::Duration::hours(1);
         let breakdown = service
             .query_service
-            .get_operation_breakdown(None, None, start, end, None, None, None)
+            .get_operation_breakdown(None, None, None, None, None, start, end, None, None, None)
             .await?;
 
         assert_eq!(breakdown.len(), 2, "Expected 2 operation breakdown rows");
@@ -3857,6 +4046,9 @@ mod tests {
             .get_token_metrics(
                 Some("svc-alpha"),
                 None,
+                None,
+                None,
+                None,
                 start,
                 end,
                 "hour",
@@ -3873,6 +4065,9 @@ mod tests {
             .query_service
             .get_token_metrics(
                 Some("svc-beta"),
+                None,
+                None,
+                None,
                 None,
                 start,
                 end,
@@ -3955,7 +4150,7 @@ mod tests {
         let end = Utc::now() + chrono::Duration::hours(1);
         let breakdown = service
             .query_service
-            .get_operation_breakdown(Some("test_service"), None, start, end, None, None, None)
+            .get_operation_breakdown(Some("test_service"), None, None, None, None, start, end, None, None, None)
             .await?;
 
         assert_eq!(breakdown.len(), 2, "Expected 2 operation rows");
@@ -4012,7 +4207,7 @@ mod tests {
         let end = Utc::now() + chrono::Duration::hours(1);
         let usage = service
             .query_service
-            .get_model_usage(None, None, start, end, None, None, None)
+            .get_model_usage(None, None, None, None, None, start, end, None, None, None)
             .await?;
 
         assert_eq!(usage.len(), 2, "Expected 2 model rows");
@@ -4067,7 +4262,7 @@ mod tests {
         let end = Utc::now() + chrono::Duration::hours(1);
         let activity = service
             .query_service
-            .get_agent_activity(None, None, start, end, None, None)
+            .get_agent_activity(None, None, None, None, None, start, end, None, None)
             .await?;
 
         assert_eq!(activity.len(), 1, "Expected 1 agent activity row");
@@ -4113,7 +4308,7 @@ mod tests {
         let end = Utc::now() + chrono::Duration::hours(1);
         let activity = service
             .query_service
-            .get_tool_activity(None, None, start, end, None, None)
+            .get_tool_activity(None, None, None, None, None, start, end, None, None)
             .await?;
 
         assert_eq!(activity.len(), 1, "Expected 1 tool activity row");
@@ -4180,7 +4375,7 @@ mod tests {
         let end = Utc::now() + chrono::Duration::hours(1);
         let breakdown = service
             .query_service
-            .get_error_breakdown(None, None, start, end, None, None, None)
+            .get_error_breakdown(None, None, None, None, None, start, end, None, None, None)
             .await?;
 
         assert_eq!(breakdown.len(), 2, "Expected 2 error type rows");
@@ -4268,6 +4463,9 @@ mod tests {
                 trace_id,
                 span_id: SpanId::from_bytes([106u8; 8]),
                 service_name: "trace_service".to_string(),
+                service_namespace: Some("test-ns".to_string()),
+                service_version: Some("1.0.0".to_string()),
+                service_instance_id: None,
                 start_time: now,
                 end_time: Some(now + chrono::Duration::milliseconds(100)),
                 duration_ms: 100,
@@ -4556,6 +4754,9 @@ mod tests {
             .get_agent_metrics_by_bucket(
                 Some("agent-svc"),
                 None,
+                None,
+                None,
+                None,
                 start,
                 end,
                 "hour",
@@ -4629,7 +4830,7 @@ mod tests {
         let end = now + chrono::Duration::hours(1);
         let (unique_agents, unique_convos) = service
             .query_service
-            .get_agent_unique_counts(Some("count-svc"), None, start, end, None, None, None)
+            .get_agent_unique_counts(Some("count-svc"), None, None, None, None, start, end, None, None, None)
             .await?;
 
         // approx_distinct has some error margin but should be ≥ 1 for each
@@ -4701,6 +4902,9 @@ mod tests {
             .query_service
             .get_tool_metrics_timeseries(
                 Some("tool-svc"),
+                None,
+                None,
+                None,
                 None,
                 start,
                 end,
@@ -4800,7 +5004,7 @@ mod tests {
         let end = now + chrono::Duration::hours(1);
         let rows = service
             .query_service
-            .get_agent_metrics_by_bucket(Some("svc-a"), None, start, end, "hour", None, None, None)
+            .get_agent_metrics_by_bucket(Some("svc-a"), None, None, None, None, start, end, "hour", None, None, None)
             .await?;
 
         let total_spans: i64 = rows.iter().map(|r| r.span_count).sum();
@@ -5078,7 +5282,7 @@ mod tests {
 
         let cost_rows = service
             .query_service
-            .get_agent_cost_by_model(Some("svc-null-model"), None, start, end, None, None, None)
+            .get_agent_cost_by_model(Some("svc-null-model"), None, None, None, None, start, end, None, None, None)
             .await?;
 
         let unknown_row = cost_rows.iter().find(|r| r.model == "unknown");
@@ -5133,6 +5337,9 @@ mod tests {
             .get_agent_window_percentiles(
                 Some("percentile-svc"),
                 None,
+                None,
+                None,
+                None,
                 start,
                 end,
                 None,
@@ -5155,6 +5362,9 @@ mod tests {
             .query_service
             .get_agent_window_percentiles(
                 Some("nonexistent-svc"),
+                None,
+                None,
+                None,
                 None,
                 start,
                 end,

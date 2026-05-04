@@ -99,6 +99,15 @@ pub struct GenAiSpanRecord {
     pub span_id: SpanId,
     /// Service that emitted the span.
     pub service_name: String,
+    /// OTel service.namespace resource attribute.
+    #[serde(default)]
+    pub service_namespace: Option<String>,
+    /// OTel service.version resource attribute.
+    #[serde(default)]
+    pub service_version: Option<String>,
+    /// OTel service.instance.id resource attribute.
+    #[serde(default)]
+    pub service_instance_id: Option<String>,
     /// Span start time (UTC).
     pub start_time: DateTime<Utc>,
     /// Span end time (UTC). None if the span did not record an end.
@@ -398,6 +407,9 @@ pub fn extract_gen_ai_span(record: &TraceSpanRecord) -> Option<GenAiSpanRecord> 
         trace_id: record.trace_id,
         span_id: record.span_id.clone(),
         service_name: record.service_name.clone(),
+        service_namespace: record.service_namespace.clone(),
+        service_version: record.service_version.clone(),
+        service_instance_id: record.service_instance_id.clone(),
         start_time: record.start_time,
         end_time: Some(record.end_time),
         duration_ms: record.duration_ms,
@@ -727,6 +739,9 @@ fn default_trace_span_limit() -> usize {
 pub struct GenAiMetricsRequest {
     /// Service the request is scoped to. None = caller's default service.
     pub service_name: Option<String>,
+    pub service_namespace: Option<String>,
+    pub service_version: Option<String>,
+    pub service_instance_id: Option<String>,
     /// Window start (UTC, inclusive).
     pub start_time: DateTime<Utc>,
     /// Window end (UTC, exclusive).
@@ -749,6 +764,9 @@ pub struct GenAiMetricsRequest {
 pub struct GenAiSpanFilters {
     /// Filter to spans from this service. None = all services.
     pub service_name: Option<String>,
+    pub service_namespace: Option<String>,
+    pub service_version: Option<String>,
+    pub service_instance_id: Option<String>,
     /// Window start (UTC, inclusive). None = no lower bound.
     pub start_time: Option<DateTime<Utc>>,
     /// Window end (UTC, exclusive). None = no upper bound.
@@ -901,6 +919,12 @@ pub struct ModelPricing {
 pub struct AgentDashboardRequest {
     /// Service to scope the dashboard to. None = all services.
     pub service_name: Option<String>,
+    #[serde(default)]
+    pub service_namespace: Option<String>,
+    #[serde(default)]
+    pub service_version: Option<String>,
+    #[serde(default)]
+    pub service_instance_id: Option<String>,
     /// Scouter entity UID (AgentEvalProfile or DriftProfile) to scope the dashboard to.
     /// None = all entities within the service. Set this when navigating from an eval profile page.
     pub entity_id: Option<String>,
@@ -1016,6 +1040,12 @@ pub struct AgentDashboardResponse {
 pub struct ToolDashboardRequest {
     /// Service the request is scoped to. None = all services.
     pub service_name: Option<String>,
+    #[serde(default)]
+    pub service_namespace: Option<String>,
+    #[serde(default)]
+    pub service_version: Option<String>,
+    #[serde(default)]
+    pub service_instance_id: Option<String>,
     /// Window start (UTC, inclusive).
     pub start_time: DateTime<Utc>,
     /// Window end (UTC, exclusive).
@@ -1096,6 +1126,9 @@ pub const GENAI_DASHBOARD_SCHEMA_VERSION: u32 = 1;
 pub struct AppliedFilters {
     /// Service the dashboard is scoped to.
     pub service_name: Option<String>,
+    pub service_namespace: Option<String>,
+    pub service_version: Option<String>,
+    pub service_instance_id: Option<String>,
     /// Entity UID filter applied. None = all entities.
     pub entity_id: Option<String>,
     /// Agent drilldown applied. None = service-wide view.
@@ -1166,6 +1199,9 @@ pub struct DistinctFilterValues {
 pub struct GenAiDashboardRequest {
     /// Service to scope the dashboard to. None = all services.
     pub service_name: Option<String>,
+    pub service_namespace: Option<String>,
+    pub service_version: Option<String>,
+    pub service_instance_id: Option<String>,
     /// Scouter entity UID (AgentEvalProfile or DriftProfile) to scope the dashboard to.
     /// None = all entities within the service. Set this when navigating from an eval profile page.
     pub entity_id: Option<String>,

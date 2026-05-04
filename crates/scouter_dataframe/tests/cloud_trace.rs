@@ -81,6 +81,9 @@ async fn run_cloud_integration_test(settings: &ObjectStorageSettings, label: &st
         .get_trace_spans(
             Some(first_trace_id.as_bytes()),
             None,
+            None,
+            None,
+            None,
             Some(&start),
             Some(&end),
             None,

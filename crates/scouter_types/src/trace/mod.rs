@@ -49,6 +49,9 @@ pub const SCOUTER_TRACING_INPUT: &str = "scouter.tracing.input";
 pub const SCOUTER_TRACING_OUTPUT: &str = "scouter.tracing.output";
 pub const SCOUTER_TRACING_LABEL: &str = "scouter.tracing.label";
 pub const SERVICE_NAME: &str = "service.name";
+pub const SERVICE_NAMESPACE: &str = "service.namespace";
+pub const SERVICE_VERSION: &str = "service.version";
+pub const SERVICE_INSTANCE_ID: &str = "service.instance.id";
 pub const SCOUTER_TAG_PREFIX: &str = "scouter.tracing.tag";
 pub const BAGGAGE_PREFIX: &str = "baggage";
 pub const TRACE_START_TIME_KEY: &str = "scouter.tracing.start_time";
@@ -396,6 +399,17 @@ pub struct TraceSpanRecord {
     pub service_name: String,
     #[pyo3(get)]
     pub resource_attributes: Vec<Attribute>,
+
+    // Promoted OTel Resource service fields (denormalized for fast Delta Lake filter/stats)
+    #[pyo3(get)]
+    #[serde(default)]
+    pub service_namespace: Option<String>,
+    #[pyo3(get)]
+    #[serde(default)]
+    pub service_version: Option<String>,
+    #[pyo3(get)]
+    #[serde(default)]
+    pub service_instance_id: Option<String>,
 }
 
 #[pymethods]
@@ -823,6 +837,26 @@ impl TraceServerRecord {
             })
     }
 
+    fn get_resource_string(
+        resource: &Option<opentelemetry_proto::tonic::resource::v1::Resource>,
+        key: &str,
+    ) -> Option<String> {
+        resource
+            .as_ref()
+            .and_then(|r| r.attributes.iter().find(|attr| attr.key == key))
+            .and_then(|attr| attr.value.as_ref())
+            .and_then(|v| {
+                if let Some(
+                    opentelemetry_proto::tonic::common::v1::any_value::Value::StringValue(s),
+                ) = &v.value
+                {
+                    Some(s.clone())
+                } else {
+                    None
+                }
+            })
+    }
+
     /// Filter and extract trace start time attribute from span attributes
     /// This is a global scouter attribute that indicates the trace start time and is set across all spans
     pub fn get_trace_start_time_attribute(
@@ -915,6 +949,12 @@ impl TraceServerRecord {
             // process metadata only once per resource span
             let service_name =
                 Self::get_service_name_from_resource(&resource_span.resource, "unknown");
+            let service_namespace =
+                Self::get_resource_string(&resource_span.resource, SERVICE_NAMESPACE);
+            let service_version =
+                Self::get_resource_string(&resource_span.resource, SERVICE_VERSION);
+            let service_instance_id =
+                Self::get_resource_string(&resource_span.resource, SERVICE_INSTANCE_ID);
             let resource_attributes = Attribute::from_resources(&resource_span.resource);
 
             for scope_span in &resource_span.scope_spans {
@@ -975,6 +1015,9 @@ impl TraceServerRecord {
                         output,
                         service_name: service_name.clone(),
                         resource_attributes: resource_attributes.clone(),
+                        service_namespace: service_namespace.clone(),
+                        service_version: service_version.clone(),
+                        service_instance_id: service_instance_id.clone(),
                     });
                 }
             }
@@ -1016,14 +1059,18 @@ impl Attribute {
     fn from_resources(
         resource: &Option<opentelemetry_proto::tonic::resource::v1::Resource>,
     ) -> Vec<Attribute> {
-        match resource {
-            Some(res) => res
-                .attributes
-                .iter()
-                .map(|kv| Attribute::from_otel_value(kv.key.clone(), kv.value.as_ref().unwrap()))
-                .collect(),
-            None => vec![],
+        let Some(res) = resource else {
+            return vec![];
+        };
+        let mut attrs = Vec::with_capacity(res.attributes.len());
+        for kv in &res.attributes {
+            let Some(any_value) = &kv.value else {
+                tracing::warn!(key = %kv.key, "skipping resource attribute with missing value");
+                continue;
+            };
+            attrs.push(Attribute::from_otel_value(kv.key.clone(), any_value));
         }
+        attrs
     }
 }
 
@@ -1290,6 +1337,9 @@ fn record_to_trace_span(
         path,
         root_span_id: root_span_id_hex.to_string(),
         service_name: record.service_name.clone(),
+        service_namespace: record.service_namespace.clone(),
+        service_version: record.service_version.clone(),
+        service_instance_id: record.service_instance_id.clone(),
         span_order,
         input,
         output,
@@ -1318,6 +1368,9 @@ pub struct TraceSummaryRecord {
     pub entity_ids: Vec<String>,
     /// Queue record UIDs associated with this trace (from `scouter.queue.record` attributes).
     pub queue_ids: Vec<String>,
+    pub service_namespace: Option<String>,
+    pub service_version: Option<String>,
+    pub service_instance_id: Option<String>,
 }
 
 #[cfg(test)]

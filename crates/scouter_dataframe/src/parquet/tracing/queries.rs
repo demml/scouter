@@ -52,6 +52,9 @@ pub const START_TIME_COL: &str = "start_time";
 pub const PARTITION_DATE_COL: &str = "partition_date";
 pub const END_TIME_COL: &str = "end_time";
 pub const SERVICE_NAME_COL: &str = "service_name";
+pub const SERVICE_NAMESPACE_COL: &str = "service_namespace";
+pub const SERVICE_VERSION_COL: &str = "service_version";
+pub const SERVICE_INSTANCE_ID_COL: &str = "service_instance_id";
 pub const TRACE_ID_COL: &str = "trace_id";
 pub const SPAN_ID_COL: &str = "span_id";
 pub const PARENT_SPAN_ID_COL: &str = "parent_span_id";
@@ -80,6 +83,9 @@ const SPAN_COLUMNS: &[&str] = &[
     SPAN_ID_COL,
     PARENT_SPAN_ID_COL,
     SERVICE_NAME_COL,
+    SERVICE_NAMESPACE_COL,
+    SERVICE_VERSION_COL,
+    SERVICE_INSTANCE_ID_COL,
     SPAN_NAME_COL,
     SPAN_KIND_COL,
     START_TIME_COL,
@@ -101,6 +107,9 @@ struct FlatSpan {
     span_id: [u8; 8],
     parent_span_id: Option<[u8; 8]>,
     service_name: String,
+    service_namespace: Option<String>,
+    service_version: Option<String>,
+    service_instance_id: Option<String>,
     span_name: String,
     span_kind: Option<String>,
     start_time: DateTime<Utc>,
@@ -372,6 +381,33 @@ fn batches_to_flat_spans(batches: Vec<RecordBatch>) -> Result<Vec<FlatSpan>, Tra
             .ok_or_else(|| {
                 TraceEngineError::BatchConversion("service_name not StringArray".into())
             })?;
+        let svc_ns_col = if let Ok(idx) = schema.index_of("service_namespace") {
+            let arr = cast(batch.column(idx).as_ref(), &DataType::Utf8)
+                .map_err(|e| TraceEngineError::BatchConversion(format!("service_namespace cast: {e}")))?;
+            Some(arr.as_any().downcast_ref::<StringArray>().ok_or_else(|| {
+                TraceEngineError::BatchConversion("service_namespace not StringArray".into())
+            })?.clone())
+        } else {
+            None
+        };
+        let svc_ver_col = if let Ok(idx) = schema.index_of("service_version") {
+            let arr = cast(batch.column(idx).as_ref(), &DataType::Utf8)
+                .map_err(|e| TraceEngineError::BatchConversion(format!("service_version cast: {e}")))?;
+            Some(arr.as_any().downcast_ref::<StringArray>().ok_or_else(|| {
+                TraceEngineError::BatchConversion("service_version not StringArray".into())
+            })?.clone())
+        } else {
+            None
+        };
+        let svc_inst_col = if let Ok(idx) = schema.index_of("service_instance_id") {
+            let arr = cast(batch.column(idx).as_ref(), &DataType::Utf8)
+                .map_err(|e| TraceEngineError::BatchConversion(format!("service_instance_id cast: {e}")))?;
+            Some(arr.as_any().downcast_ref::<StringArray>().ok_or_else(|| {
+                TraceEngineError::BatchConversion("service_instance_id not StringArray".into())
+            })?.clone())
+        } else {
+            None
+        };
         let span_name_arr = cast(
             batch.column(col_idx!("span_name")).as_ref(),
             &DataType::Utf8,
@@ -500,6 +536,15 @@ fn batches_to_flat_spans(batches: Vec<RecordBatch>) -> Result<Vec<FlatSpan>, Tra
                 span_id: sid_bytes,
                 parent_span_id: parent_id,
                 service_name: svc_col.value(i).to_string(),
+                service_namespace: svc_ns_col.as_ref().and_then(|col| {
+                    if col.is_null(i) { None } else { Some(col.value(i).to_string()) }
+                }),
+                service_version: svc_ver_col.as_ref().and_then(|col| {
+                    if col.is_null(i) { None } else { Some(col.value(i).to_string()) }
+                }),
+                service_instance_id: svc_inst_col.as_ref().and_then(|col| {
+                    if col.is_null(i) { None } else { Some(col.value(i).to_string()) }
+                }),
                 span_name: span_name_col.value(i).to_string(),
                 span_kind: if span_kind_col.is_null(i) {
                     None
@@ -675,6 +720,9 @@ fn flat_to_trace_span(
         path,
         root_span_id: root_span_id_hex.to_string(),
         service_name: span.service_name.clone(),
+        service_namespace: span.service_namespace.clone(),
+        service_version: span.service_version.clone(),
+        service_instance_id: span.service_instance_id.clone(),
         span_order,
         input: span.input.clone(),
         output: span.output.clone(),
@@ -715,6 +763,9 @@ pub struct TraceQueries {
 #[allow(clippy::too_many_arguments)]
 fn metrics_cache_key(
     service_name: Option<&str>,
+    service_namespace: Option<&str>,
+    service_version: Option<&str>,
+    service_instance_id: Option<&str>,
     start_time: &DateTime<Utc>,
     end_time: &DateTime<Utc>,
     bucket_interval: &str,
@@ -725,6 +776,9 @@ fn metrics_cache_key(
 ) -> u64 {
     let mut h = ahash::AHasher::default();
     service_name.hash(&mut h);
+    service_namespace.hash(&mut h);
+    service_version.hash(&mut h);
+    service_instance_id.hash(&mut h);
     start_time.timestamp_micros().hash(&mut h);
     end_time.timestamp_micros().hash(&mut h);
     bucket_interval.hash(&mut h);
@@ -764,15 +818,21 @@ impl TraceQueries {
     /// When `trace_id_bytes` is 16 bytes, results are cached for 5 minutes — repeat detail
     /// clicks (common in the UI) return in <1µs without hitting Delta Lake.
     #[instrument(skip_all)]
+    #[allow(clippy::too_many_arguments)]
     pub async fn get_trace_spans(
         &self,
         trace_id_bytes: Option<&[u8]>,
         service_name: Option<&str>,
+        service_namespace: Option<&str>,
+        service_version: Option<&str>,
+        service_instance_id: Option<&str>,
         start_time: Option<&DateTime<Utc>>,
         end_time: Option<&DateTime<Utc>>,
         limit: Option<usize>,
     ) -> Result<Vec<TraceSpan>, TraceEngineError> {
         // Cache lookup for by-id trace detail queries (the hot interactive path).
+        // Span cache is trace_id-keyed: spans within a single trace are bounded and nearly
+        // always share the same service tuple, so post-filter is correct and cheap here.
         if let Some(tid) = trace_id_bytes
             && let Ok(key) = <[u8; 16]>::try_from(tid)
         {
@@ -781,7 +841,16 @@ impl TraceQueries {
             }
 
             let result = self
-                .query_spans(Some(tid), service_name, start_time, end_time, limit)
+                .query_spans(
+                    Some(tid),
+                    service_name,
+                    service_namespace,
+                    service_version,
+                    service_instance_id,
+                    start_time,
+                    end_time,
+                    limit,
+                )
                 .await?;
             if !result.is_empty() {
                 self.span_cache.insert(key, Arc::new(result.clone()));
@@ -790,15 +859,28 @@ impl TraceQueries {
         }
 
         // No trace_id or non-16-byte ID — uncached scan path (time/service/attribute queries).
-        self.query_spans(trace_id_bytes, service_name, start_time, end_time, limit)
-            .await
+        self.query_spans(
+            trace_id_bytes,
+            service_name,
+            service_namespace,
+            service_version,
+            service_instance_id,
+            start_time,
+            end_time,
+            limit,
+        )
+        .await
     }
 
     /// Execute the actual DataFusion query without cache logic.
+    #[allow(clippy::too_many_arguments)]
     pub async fn query_spans(
         &self,
         trace_id_bytes: Option<&[u8]>,
         service_name: Option<&str>,
+        service_namespace: Option<&str>,
+        service_version: Option<&str>,
+        service_instance_id: Option<&str>,
         start_time: Option<&DateTime<Utc>>,
         end_time: Option<&DateTime<Utc>>,
         limit: Option<usize>,
@@ -829,6 +911,15 @@ impl TraceQueries {
 
         if let Some(svc) = service_name {
             builder = builder.add_filter(col(SERVICE_NAME_COL).eq(lit(svc)))?;
+        }
+        if let Some(ns) = service_namespace {
+            builder = builder.add_filter(col(SERVICE_NAMESPACE_COL).eq(lit(ns)))?;
+        }
+        if let Some(ver) = service_version {
+            builder = builder.add_filter(col(SERVICE_VERSION_COL).eq(lit(ver)))?;
+        }
+        if let Some(iid) = service_instance_id {
+            builder = builder.add_filter(col(SERVICE_INSTANCE_ID_COL).eq(lit(iid)))?;
         }
 
         builder = builder.select_columns(SPAN_COLUMNS)?;
@@ -865,6 +956,9 @@ impl TraceQueries {
     pub async fn get_trace_metrics(
         &self,
         service_name: Option<&str>,
+        service_namespace: Option<&str>,
+        service_version: Option<&str>,
+        service_instance_id: Option<&str>,
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
         bucket_interval: &str,
@@ -876,6 +970,9 @@ impl TraceQueries {
         // Cache hit: return immediately without touching Delta Lake.
         let cache_key = metrics_cache_key(
             service_name,
+            service_namespace,
+            service_version,
+            service_instance_id,
             &start_time,
             &end_time,
             bucket_interval,
@@ -914,6 +1011,17 @@ impl TraceQueries {
         // use Parquet column min/max stats within the surviving partition directories.
         spans_df = spans_df.filter(col(START_TIME_COL).gt_eq(ts_lit(&start_time)))?;
         spans_df = spans_df.filter(col(START_TIME_COL).lt(ts_lit(&end_time)))?;
+
+        // Service dimension filters applied pre-aggregation — enables bloom + stats pushdown.
+        if let Some(ns) = service_namespace {
+            spans_df = spans_df.filter(col(SERVICE_NAMESPACE_COL).eq(lit(ns)))?;
+        }
+        if let Some(ver) = service_version {
+            spans_df = spans_df.filter(col(SERVICE_VERSION_COL).eq(lit(ver)))?;
+        }
+        if let Some(iid) = service_instance_id {
+            spans_df = spans_df.filter(col(SERVICE_INSTANCE_ID_COL).eq(lit(iid)))?;
+        }
 
         // ── Phase 2: Entity filter — optional INNER JOIN against summary table ──
         //
@@ -1191,6 +1299,16 @@ impl TraceQueries {
         }
         if let Some(ref svc) = filters.service_name {
             summary_df = summary_df.filter(col(SERVICE_NAME_COL).eq(lit(svc.as_str())))?;
+        }
+        if let Some(ref ns) = filters.service_namespace {
+            summary_df = summary_df.filter(col(SERVICE_NAMESPACE_COL).eq(lit(ns.as_str())))?;
+        }
+        if let Some(ref ver) = filters.service_version {
+            summary_df = summary_df.filter(col(SERVICE_VERSION_COL).eq(lit(ver.as_str())))?;
+        }
+        if let Some(ref iid) = filters.service_instance_id {
+            summary_df =
+                summary_df.filter(col(SERVICE_INSTANCE_ID_COL).eq(lit(iid.as_str())))?;
         }
         match filters.has_errors {
             Some(true) => {

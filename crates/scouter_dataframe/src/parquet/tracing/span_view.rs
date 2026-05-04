@@ -3,6 +3,9 @@
 //! Hierarchy fields (depth, span_order, path, root_span_id) are NOT stored in Delta Lake —
 //! they are computed at query time by `build_span_tree()` in `queries.rs`.
 
+use crate::parquet::tracing::queries::{
+    SERVICE_INSTANCE_ID_COL, SERVICE_NAMESPACE_COL, SERVICE_VERSION_COL,
+};
 use arrow::array::*;
 use chrono::{DateTime, TimeZone, Utc};
 use scouter_types::{Attribute, SpanId, TraceId};
@@ -57,6 +60,9 @@ pub struct TraceSpanBatch {
     scope_versions: Arc<StringArray>,
     span_names: Arc<StringArray>,
     service_names: Arc<StringArray>,
+    service_namespaces: Arc<StringArray>,
+    service_versions: Arc<StringArray>,
+    service_instance_ids: Arc<StringArray>,
     span_kinds: Arc<StringArray>,
     start_times: Arc<TimestampMicrosecondArray>,
     end_times: Arc<TimestampMicrosecondArray>,
@@ -116,6 +122,9 @@ impl TraceSpanBatch {
             scope_versions: get_col!("scope_version", StringArray),
             span_names: get_col!("span_name", StringArray),
             service_names: get_col!("service_name", StringArray),
+            service_namespaces: get_col!(SERVICE_NAMESPACE_COL, StringArray),
+            service_versions: get_col!(SERVICE_VERSION_COL, StringArray),
+            service_instance_ids: get_col!(SERVICE_INSTANCE_ID_COL, StringArray),
             span_kinds: get_col!("span_kind", StringArray),
             start_times: get_col!("start_time", TimestampMicrosecondArray),
             end_times: get_col!("end_time", TimestampMicrosecondArray),
@@ -221,6 +230,30 @@ impl<'a> TraceSpanView<'a> {
 
     pub fn service_name(&self) -> &str {
         self.batch.service_names.value(self.idx)
+    }
+
+    pub fn service_namespace(&self) -> Option<&str> {
+        if self.batch.service_namespaces.is_null(self.idx) {
+            None
+        } else {
+            Some(self.batch.service_namespaces.value(self.idx))
+        }
+    }
+
+    pub fn service_version(&self) -> Option<&str> {
+        if self.batch.service_versions.is_null(self.idx) {
+            None
+        } else {
+            Some(self.batch.service_versions.value(self.idx))
+        }
+    }
+
+    pub fn service_instance_id(&self) -> Option<&str> {
+        if self.batch.service_instance_ids.is_null(self.idx) {
+            None
+        } else {
+            Some(self.batch.service_instance_ids.value(self.idx))
+        }
     }
 
     pub fn span_kind(&self) -> Option<&str> {

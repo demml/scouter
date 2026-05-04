@@ -54,6 +54,9 @@ pub async fn get_token_metrics(
         .query_service
         .get_token_metrics(
             body.service_name.as_deref(),
+            body.service_namespace.as_deref(),
+            body.service_version.as_deref(),
+            body.service_instance_id.as_deref(),
             None,
             body.start_time,
             body.end_time,
@@ -95,6 +98,9 @@ pub async fn get_operation_breakdown(
         .query_service
         .get_operation_breakdown(
             body.service_name.as_deref(),
+            body.service_namespace.as_deref(),
+            body.service_version.as_deref(),
+            body.service_instance_id.as_deref(),
             None,
             body.start_time,
             body.end_time,
@@ -134,6 +140,9 @@ pub async fn get_model_usage(
         .query_service
         .get_model_usage(
             body.service_name.as_deref(),
+            body.service_namespace.as_deref(),
+            body.service_version.as_deref(),
+            body.service_instance_id.as_deref(),
             None,
             body.start_time,
             body.end_time,
@@ -175,6 +184,9 @@ pub async fn get_agent_activity(
         .query_service
         .get_agent_activity(
             body.service_name.as_deref(),
+            body.service_namespace.as_deref(),
+            body.service_version.as_deref(),
+            body.service_instance_id.as_deref(),
             None,
             body.start_time,
             body.end_time,
@@ -213,6 +225,9 @@ pub async fn get_tool_activity(
         .query_service
         .get_tool_activity(
             body.service_name.as_deref(),
+            body.service_namespace.as_deref(),
+            body.service_version.as_deref(),
+            body.service_instance_id.as_deref(),
             None,
             body.start_time,
             body.end_time,
@@ -251,6 +266,9 @@ pub async fn get_error_breakdown(
         .query_service
         .get_error_breakdown(
             body.service_name.as_deref(),
+            body.service_namespace.as_deref(),
+            body.service_version.as_deref(),
+            body.service_instance_id.as_deref(),
             None,
             body.start_time,
             body.end_time,
@@ -555,6 +573,9 @@ pub async fn get_agent_dashboard(
     let (response, _) = build_agent_panel(
         q,
         body.service_name.as_deref(),
+        body.service_namespace.as_deref(),
+        body.service_version.as_deref(),
+        body.service_instance_id.as_deref(),
         body.entity_id.as_deref(),
         body.start_time,
         body.end_time,
@@ -630,6 +651,9 @@ pub async fn get_tool_dashboard(
     let (tool_dashboard, _) = build_tool_panel(
         q,
         body.service_name.as_deref(),
+        body.service_namespace.as_deref(),
+        body.service_version.as_deref(),
+        body.service_instance_id.as_deref(),
         None,
         body.start_time,
         body.end_time,
@@ -722,6 +746,9 @@ pub async fn get_genai_dashboard(
 
     let q = &data.genai_service.query_service;
     let svc = body.service_name.as_deref();
+    let ns = body.service_namespace.as_deref();
+    let ver = body.service_version.as_deref();
+    let iid = body.service_instance_id.as_deref();
     let eid = body.entity_id.as_deref();
     let agent = body.agent_name.as_deref();
     let provider = body.provider_name.as_deref();
@@ -741,6 +768,9 @@ pub async fn get_genai_dashboard(
     ) = tokio::try_join!(
         q.get_token_metrics(
             svc,
+            ns,
+            ver,
+            iid,
             eid,
             body.start_time,
             body.end_time,
@@ -752,6 +782,9 @@ pub async fn get_genai_dashboard(
         ),
         q.get_operation_breakdown(
             svc,
+            ns,
+            ver,
+            iid,
             eid,
             body.start_time,
             body.end_time,
@@ -761,6 +794,9 @@ pub async fn get_genai_dashboard(
         ),
         q.get_model_usage(
             svc,
+            ns,
+            ver,
+            iid,
             eid,
             body.start_time,
             body.end_time,
@@ -771,6 +807,9 @@ pub async fn get_genai_dashboard(
         build_agent_panel(
             q,
             svc,
+            ns,
+            ver,
+            iid,
             eid,
             body.start_time,
             body.end_time,
@@ -783,6 +822,9 @@ pub async fn get_genai_dashboard(
         build_tool_panel(
             q,
             svc,
+            ns,
+            ver,
+            iid,
             eid,
             body.start_time,
             body.end_time,
@@ -793,6 +835,9 @@ pub async fn get_genai_dashboard(
         ),
         q.get_error_breakdown(
             svc,
+            ns,
+            ver,
+            iid,
             eid,
             body.start_time,
             body.end_time,
@@ -800,7 +845,7 @@ pub async fn get_genai_dashboard(
             agent,
             model
         ),
-        q.get_agent_activity(svc, eid, body.start_time, body.end_time, None, provider),
+        q.get_agent_activity(svc, ns, ver, iid, eid, body.start_time, body.end_time, None, provider),
         q.get_distinct_filter_values(svc, eid, body.start_time, body.end_time),
         q.count_total_spans(
             svc,
@@ -1047,6 +1092,9 @@ mod tests {
         let end = Utc::now();
         let request = GenAiDashboardRequest {
             service_name: None,
+            service_namespace: None,
+            service_version: None,
+            service_instance_id: None,
             entity_id: None,
             start_time: start,
             end_time: end,

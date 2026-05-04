@@ -74,9 +74,13 @@ pub struct ScouterSetupComponents {
 
 fn build_filter(log_level: &str) -> EnvFilter {
     EnvFilter::try_new(format!(
-        "{log_level},delta_kernel=warn,deltalake=warn,object_store=warn"
+        "{log_level},delta_kernel=warn,deltalake=warn,object_store=warn,buoyant_kernel=warn"
     ))
-    .unwrap_or_else(|_| EnvFilter::new("info,delta_kernel=warn,deltalake=warn,object_store=warn"))
+    .unwrap_or_else(|_| {
+        EnvFilter::new(
+            "info,delta_kernel=warn,deltalake=warn,object_store=warn,buoyant_kernel=warn",
+        )
+    })
 }
 
 fn build_tracer(filter: EnvFilter) -> AnyhowResult<()> {
