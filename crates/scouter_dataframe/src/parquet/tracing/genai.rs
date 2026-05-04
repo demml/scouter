@@ -5,7 +5,7 @@ use crate::parquet::tracing::queries::{
     SERVICE_INSTANCE_ID_COL, SERVICE_NAMESPACE_COL, SERVICE_VERSION_COL, date_lit, ts_lit,
 };
 use crate::parquet::tracing::traits::arrow_schema_to_delta;
-use crate::parquet::utils::{register_cloud_logstore_factories, run_delta_init};
+use crate::parquet::utils::register_cloud_logstore_factories;
 use crate::storage::ObjectStore;
 use ahash::AHasher;
 use arrow::array::*;
@@ -654,7 +654,7 @@ async fn build_or_create_genai_table(
     schema: SchemaRef,
 ) -> Result<DeltaTable, TraceEngineError> {
     let object_store = object_store.clone();
-    run_delta_init(build_or_create_genai_table_inner(object_store, schema)).await?
+    build_or_create_genai_table_inner(object_store, schema).await
 }
 
 async fn build_or_create_genai_table_inner(

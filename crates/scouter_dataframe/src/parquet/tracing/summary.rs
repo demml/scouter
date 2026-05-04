@@ -3,7 +3,7 @@ use crate::parquet::control::{ControlTableEngine, get_pod_id};
 use crate::parquet::tracing::catalog::TraceCatalogProvider;
 use crate::parquet::tracing::traits::{arrow_schema_to_delta, resource_attribute_field};
 use crate::parquet::utils::match_attr_expr;
-use crate::parquet::utils::{register_cloud_logstore_factories, run_delta_init};
+use crate::parquet::utils::register_cloud_logstore_factories;
 use crate::storage::ObjectStore;
 use arrow::array::*;
 use arrow::compute;
@@ -351,7 +351,7 @@ async fn build_or_create_summary_table(
     schema: SchemaRef,
 ) -> Result<DeltaTable, TraceEngineError> {
     let object_store = object_store.clone();
-    run_delta_init(build_or_create_summary_table_inner(object_store, schema)).await?
+    build_or_create_summary_table_inner(object_store, schema).await
 }
 
 async fn build_or_create_summary_table_inner(

@@ -5,9 +5,7 @@ use crate::parquet::tracing::queries::{SERVICE_NAMESPACE_COL, SERVICE_VERSION_CO
 use crate::parquet::tracing::traits::TraceSchemaExt;
 use crate::parquet::tracing::traits::arrow_schema_to_delta;
 use crate::parquet::tracing::traits::attribute_field;
-use crate::parquet::utils::{
-    create_attr_match_udf, register_cloud_logstore_factories, run_delta_init,
-};
+use crate::parquet::utils::{create_attr_match_udf, register_cloud_logstore_factories};
 use crate::storage::ObjectStore;
 use arrow::array::*;
 use arrow::datatypes::*;
@@ -116,7 +114,7 @@ async fn build_or_create_table(
     schema: SchemaRef,
 ) -> Result<DeltaTable, TraceEngineError> {
     let object_store = object_store.clone();
-    run_delta_init(build_or_create_table_inner(object_store, schema)).await?
+    build_or_create_table_inner(object_store, schema).await
 }
 
 async fn build_or_create_table_inner(
