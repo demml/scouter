@@ -173,6 +173,9 @@ pub enum TypeError {
     #[error("{0}")]
     InvalidLength(String),
 
+    #[error("parse error: {0}")]
+    ParseError(String),
+
     #[error(transparent)]
     FromHexError(#[from] hex::FromHexError),
 

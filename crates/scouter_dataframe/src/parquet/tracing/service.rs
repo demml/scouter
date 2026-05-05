@@ -394,7 +394,9 @@ mod tests {
     use datafusion::logical_expr::col;
     use scouter_mocks::generate_trace_with_spans;
     use scouter_settings::ObjectStorageSettings;
+    use scouter_types::TraceMetricsRequest;
     use scouter_types::sql::TraceSpan;
+    use scouter_types::trace::query::FilterClause;
     use scouter_types::{Attribute, SpanId, TraceId, TraceSpanRecord};
     use serde_json::Value;
     use tracing_subscriber;
@@ -409,6 +411,20 @@ mod tests {
         let storage_path = current_dir.join(storage_settings.storage_root());
         if storage_path.exists() {
             let _ = std::fs::remove_dir_all(storage_path);
+        }
+    }
+
+    fn trace_metrics_request(
+        start_time: chrono::DateTime<Utc>,
+        end_time: chrono::DateTime<Utc>,
+        clause: Option<FilterClause>,
+    ) -> TraceMetricsRequest {
+        TraceMetricsRequest {
+            start_time,
+            end_time,
+            bucket_interval: "hour".to_string(),
+            clause,
+            entity_uid: None,
         }
     }
 
@@ -685,9 +701,7 @@ mod tests {
 
         let metrics = service
             .query_service
-            .get_trace_metrics(
-                None, None, None, None, start, end, "hour", None, None, None, None,
-            )
+            .get_trace_metrics(&trace_metrics_request(start, end, None), "hour")
             .await?;
 
         assert!(!metrics.is_empty(), "Expected at least one metric bucket");
@@ -737,17 +751,12 @@ mod tests {
         let metrics_alpha = service
             .query_service
             .get_trace_metrics(
-                Some("service_alpha"),
-                None,
-                None,
-                None,
-                start,
-                end,
+                &trace_metrics_request(
+                    start,
+                    end,
+                    Some(FilterClause::Service("service_alpha".to_string())),
+                ),
                 "hour",
-                None,
-                None,
-                None,
-                None,
             )
             .await?;
 
@@ -755,17 +764,12 @@ mod tests {
         let metrics_beta = service
             .query_service
             .get_trace_metrics(
-                Some("service_beta"),
-                None,
-                None,
-                None,
-                start,
-                end,
+                &trace_metrics_request(
+                    start,
+                    end,
+                    Some(FilterClause::Service("service_beta".to_string())),
+                ),
                 "hour",
-                None,
-                None,
-                None,
-                None,
             )
             .await?;
 
@@ -779,17 +783,12 @@ mod tests {
         let metrics_none = service
             .query_service
             .get_trace_metrics(
-                Some("nonexistent_svc"),
-                None,
-                None,
-                None,
-                start,
-                end,
+                &trace_metrics_request(
+                    start,
+                    end,
+                    Some(FilterClause::Service("nonexistent_svc".to_string())),
+                ),
                 "hour",
-                None,
-                None,
-                None,
-                None,
             )
             .await?;
         assert!(
@@ -932,7 +931,7 @@ mod tests {
         Ok(())
     }
 
-    /// Verify `get_trace_metrics` with attribute_filters narrows results to matching spans.
+    /// Verify `get_trace_metrics` with a clause narrows results to matching spans.
     #[tokio::test]
     async fn test_trace_metrics_with_attribute_filter() -> Result<(), TraceEngineError> {
         cleanup();
@@ -973,23 +972,19 @@ mod tests {
 
         let start = Utc::now() - chrono::Duration::hours(1);
         let end = Utc::now() + chrono::Duration::hours(1);
-        let kafka_filter = vec!["component:kafka".to_string()];
-
         // With filter, only kafka trace should appear
         let filtered = service
             .query_service
             .get_trace_metrics(
-                None,
-                None,
-                None,
-                None,
-                start,
-                end,
+                &trace_metrics_request(
+                    start,
+                    end,
+                    Some(FilterClause::Attr {
+                        key: "component".to_string(),
+                        value: "kafka".to_string(),
+                    }),
+                ),
                 "hour",
-                Some(&kafka_filter),
-                None,
-                None,
-                None,
             )
             .await?;
 
@@ -1002,9 +997,7 @@ mod tests {
         // Without filter, both traces appear
         let unfiltered = service
             .query_service
-            .get_trace_metrics(
-                None, None, None, None, start, end, "hour", None, None, None, None,
-            )
+            .get_trace_metrics(&trace_metrics_request(start, end, None), "hour")
             .await?;
         let unfiltered_count: i64 = unfiltered.iter().map(|m| m.trace_count).sum();
         assert!(
@@ -1126,9 +1119,7 @@ mod tests {
 
         let trace_metrics = service
             .query_service
-            .get_trace_metrics(
-                None, None, None, None, start, end, "hour", None, None, None, None,
-            )
+            .get_trace_metrics(&trace_metrics_request(start, end, None), "hour")
             .await?;
         let total_traces: i64 = trace_metrics.iter().map(|m| m.trace_count).sum();
         assert_eq!(total_traces, 2, "Expected 2 traces (both plain + genai)");

@@ -25,7 +25,7 @@ pub use scouter_types::{
     DriftAlertPaginationRequest, DriftAlertPaginationResponse, DriftProfile, DriftRequest,
     DriftType, EntityIdTagsRequest, EntityIdTagsResponse, EntityType, EqualWidthBinning,
     EvalRecord, EvalRecordPaginationRequest, EvalRecordPaginationResponse, EvalTaskResult, Feature,
-    FeatureMap, Features, FreedmanDiaconis, GEN_AI_AGENT_ID, GEN_AI_AGENT_NAME,
+    FeatureMap, Features, FilterClause, FreedmanDiaconis, GEN_AI_AGENT_ID, GEN_AI_AGENT_NAME,
     GEN_AI_CONVERSATION_ID, GEN_AI_ERROR_TYPE, GEN_AI_OPERATION_NAME, GEN_AI_OUTPUT_TYPE,
     GEN_AI_PROVIDER_NAME, GEN_AI_REQUEST_MAX_TOKENS, GEN_AI_REQUEST_MODEL,
     GEN_AI_REQUEST_TEMPERATURE, GEN_AI_REQUEST_TOP_P, GEN_AI_RESPONSE_FINISH_REASONS,

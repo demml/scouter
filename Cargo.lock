@@ -1019,7 +1019,7 @@ dependencies = [
  "rustc_version",
  "serde",
  "serde_json",
- "strum 0.27.2",
+ "strum",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -2505,7 +2505,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlparser",
- "strum 0.27.2",
+ "strum",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -5582,7 +5582,7 @@ dependencies = [
 
 [[package]]
 name = "py-scouter"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "ndarray-stats",
  "num-traits",
@@ -6571,7 +6571,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "scouter-auth"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "jsonwebtoken 9.3.1",
  "password-auth",
@@ -6585,7 +6585,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-client"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "arrow",
  "arrow-json",
@@ -6623,7 +6623,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-dataframe"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "ahash",
  "arrow",
@@ -6661,7 +6661,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-dispatch"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "futures",
  "mockito",
@@ -6677,13 +6677,13 @@ dependencies = [
 
 [[package]]
 name = "scouter-drift"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "approx",
  "chrono",
  "futures",
  "indicatif",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "ndarray",
  "ndarray-rand",
  "num-traits",
@@ -6709,10 +6709,10 @@ dependencies = [
 
 [[package]]
 name = "scouter-evaluate"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "chrono",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "ndarray",
  "num-traits",
  "owo-colors",
@@ -6738,7 +6738,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-events"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "arrow",
  "async-trait",
@@ -6780,7 +6780,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-http"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "pyo3",
  "reqwest 0.12.28",
@@ -6794,14 +6794,14 @@ dependencies = [
 
 [[package]]
 name = "scouter-macro"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "thiserror 2.0.18",
 ]
 
 [[package]]
 name = "scouter-mocks"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "chrono",
  "mockito",
@@ -6830,9 +6830,9 @@ dependencies = [
 
 [[package]]
 name = "scouter-observability"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "ndarray",
  "ndarray-stats",
  "noisy_float",
@@ -6847,12 +6847,12 @@ dependencies = [
 
 [[package]]
 name = "scouter-profile"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "approx",
  "chrono",
  "indicatif",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "ndarray",
  "ndarray-rand",
  "ndarray-stats",
@@ -6871,7 +6871,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-semver"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "pyo3",
  "semver",
@@ -6881,7 +6881,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-server"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "anyhow",
  "approx",
@@ -6925,7 +6925,7 @@ dependencies = [
  "serde_json",
  "serde_qs",
  "sqlx",
- "strum 0.28.0",
+ "strum",
  "test-utils",
  "thiserror 2.0.18",
  "time",
@@ -6947,7 +6947,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-settings"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "base64",
  "chrono",
@@ -6960,14 +6960,14 @@ dependencies = [
 
 [[package]]
 name = "scouter-sql"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
  "cron",
  "dashmap 6.1.0",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "mini-moka",
  "potato-head",
  "rand 0.9.4",
@@ -6990,7 +6990,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-state"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "thiserror 2.0.18",
  "tokio",
@@ -6999,7 +6999,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-tonic"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "prost",
  "prost-types",
@@ -7017,7 +7017,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-tracing"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "chrono",
  "opentelemetry",
@@ -7044,7 +7044,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-types"
-version = "0.25.0"
+version = "0.26.0"
 dependencies = [
  "approx",
  "arrow",
@@ -7075,8 +7075,8 @@ dependencies = [
  "sha2",
  "sqlx",
  "statrs",
- "strum 0.28.0",
- "strum_macros 0.28.0",
+ "strum",
+ "strum_macros",
  "tabled",
  "tempfile",
  "test-utils",
@@ -7760,32 +7760,14 @@ version = "0.27.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af23d6f6c1a224baef9d3f61e287d2761385a5b88fdab4eb4c6f11aeb54c4bcf"
 dependencies = [
- "strum_macros 0.27.2",
+ "strum_macros",
 ]
-
-[[package]]
-name = "strum"
-version = "0.28.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9628de9b8791db39ceda2b119bbe13134770b56c138ec1d3af810d045c04f9bd"
 
 [[package]]
 name = "strum_macros"
 version = "0.27.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7695ce3845ea4b33927c055a39dc438a45b059f7c1b3d91d38d10355fb8cbca7"
-dependencies = [
- "heck",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "strum_macros"
-version = "0.28.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab85eea0270ee17587ed4156089e10b9e6880ee688791d45a905f5b1ca36f664"
 dependencies = [
  "heck",
  "proc-macro2",

@@ -1,4 +1,5 @@
 #![allow(clippy::useless_conversion)]
+use chrono::{DateTime, Utc};
 use pyo3::{IntoPyObjectExt, prelude::*};
 use scouter_evaluate::scenario::EvalScenarios;
 use scouter_http::error::ClientError;
@@ -179,6 +180,61 @@ impl ScouterClient {
         let body = response.bytes()?;
 
         // Parse JSON response
+        let response: TracePaginationResponse = serde_json::from_slice(&body)?;
+        Ok(response)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn search_traces(
+        &self,
+        q: &str,
+        start_time: Option<DateTime<Utc>>,
+        end_time: Option<DateTime<Utc>>,
+        limit: Option<i32>,
+        cursor_start_time: Option<DateTime<Utc>>,
+        cursor_trace_id: Option<String>,
+        direction: Option<String>,
+    ) -> Result<TracePaginationResponse, ClientError> {
+        #[derive(serde::Serialize)]
+        struct SearchParams {
+            q: String,
+            start_time: Option<String>,
+            end_time: Option<String>,
+            limit: Option<i32>,
+            cursor_start_time: Option<String>,
+            cursor_trace_id: Option<String>,
+            direction: Option<String>,
+        }
+
+        let query_string = serde_qs::to_string(&SearchParams {
+            q: q.to_string(),
+            start_time: start_time.map(|dt| dt.to_rfc3339()),
+            end_time: end_time.map(|dt| dt.to_rfc3339()),
+            limit,
+            cursor_start_time: cursor_start_time.map(|dt| dt.to_rfc3339()),
+            cursor_trace_id,
+            direction,
+        })?;
+
+        let response = self.client.request(
+            Routes::SearchTraces,
+            RequestType::Get,
+            None,
+            Some(query_string),
+            None,
+        )?;
+
+        if !response.status().is_success() {
+            let status_code = response.status();
+            let err_msg = response.text().unwrap_or_default();
+            error!(
+                "Failed to search traces. Status: {:?}, Error: {}",
+                status_code, err_msg
+            );
+            return Err(ClientError::GetPaginatedTracesError);
+        }
+
+        let body = response.bytes()?;
         let response: TracePaginationResponse = serde_json::from_slice(&body)?;
         Ok(response)
     }
@@ -517,6 +573,37 @@ impl PyScouterClient {
         filters: TraceFilters,
     ) -> Result<TracePaginationResponse, ClientError> {
         self.client.get_paginated_traces(&filters)
+    }
+
+    #[pyo3(signature = (
+        q,
+        start_time=None,
+        end_time=None,
+        limit=None,
+        cursor_start_time=None,
+        cursor_trace_id=None,
+        direction=None
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    pub fn search_traces(
+        &self,
+        q: &str,
+        start_time: Option<DateTime<Utc>>,
+        end_time: Option<DateTime<Utc>>,
+        limit: Option<i32>,
+        cursor_start_time: Option<DateTime<Utc>>,
+        cursor_trace_id: Option<String>,
+        direction: Option<String>,
+    ) -> Result<TracePaginationResponse, ClientError> {
+        self.client.search_traces(
+            q,
+            start_time,
+            end_time,
+            limit,
+            cursor_start_time,
+            cursor_trace_id,
+            direction,
+        )
     }
 
     /// Get trace spans for a given trace ID

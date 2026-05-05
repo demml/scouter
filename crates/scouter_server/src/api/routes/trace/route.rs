@@ -21,48 +21,86 @@ use scouter_sql::sql::traits::{TagSqlLogic, TraceSqlLogic};
 use scouter_types::{
     SpansFromTagsRequest, Tag, TraceBaggageResponse, TraceFacetsResponse, TraceId,
     TraceMetricsRequest, TraceMetricsResponse, TracePaginationResponse, TraceRequest,
-    TraceServerRecord, TraceSpansResponse, contracts::ScouterServerError, sql::TraceFilters,
+    TraceServerRecord, TraceSpansResponse,
+    contracts::ScouterServerError,
+    sql::TraceFilters,
+    trace::query::{FilterClause, parse_search_query},
 };
+use std::collections::HashSet;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 use tracing::instrument;
 use tracing::{debug, error};
 
-fn validate_duration_bounds(
-    min: Option<i64>,
-    max: Option<i64>,
-) -> Result<(), (StatusCode, Json<ScouterServerError>)> {
-    if let Some(v) = min
-        && v < 0
-    {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ScouterServerError::new(
-                "duration_min_ms must be >= 0".to_string(),
-            )),
-        ));
+#[derive(Debug, serde::Deserialize)]
+pub struct SearchQ {
+    pub q: Option<String>,
+}
+
+fn invalid_search_query(err: impl std::fmt::Display) -> (StatusCode, Json<ScouterServerError>) {
+    (
+        StatusCode::BAD_REQUEST,
+        Json(ScouterServerError::new(format!(
+            "Invalid search query: {err}"
+        ))),
+    )
+}
+
+fn merge_q_into_filters(
+    q: Option<String>,
+    body: TraceFilters,
+) -> Result<TraceFilters, (StatusCode, Json<ScouterServerError>)> {
+    let Some(q) = q.as_deref().map(str::trim).filter(|s| !s.is_empty()) else {
+        return Ok(body);
+    };
+    let parsed = parse_search_query(q).map_err(invalid_search_query)?;
+    Ok(merge_filters(parsed, body))
+}
+
+fn merge_filters(parsed: TraceFilters, body: TraceFilters) -> TraceFilters {
+    let merge_vec = |parsed: Option<Vec<String>>, body: Option<Vec<String>>| match (parsed, body) {
+        (None, None) => None,
+        (Some(values), None) | (None, Some(values)) => Some(values),
+        (Some(mut parsed), Some(body)) => {
+            let mut seen = parsed.iter().cloned().collect::<HashSet<_>>();
+            for value in body {
+                if seen.insert(value.clone()) {
+                    parsed.push(value);
+                }
+            }
+            Some(parsed)
+        }
+    };
+
+    TraceFilters {
+        clause: FilterClause::and_merge(parsed.clause, body.clause),
+        start_time: body.start_time.or(parsed.start_time),
+        end_time: body.end_time.or(parsed.end_time),
+        limit: body.limit.or(parsed.limit),
+        cursor_start_time: body.cursor_start_time.or(parsed.cursor_start_time),
+        cursor_trace_id: body.cursor_trace_id.or(parsed.cursor_trace_id),
+        direction: body.direction.or(parsed.direction),
+        trace_ids: merge_vec(parsed.trace_ids, body.trace_ids),
+        entity_uid: body.entity_uid.or(parsed.entity_uid),
+        queue_uid: body.queue_uid.or(parsed.queue_uid),
     }
-    if let Some(v) = max
-        && v < 0
-    {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ScouterServerError::new(
-                "duration_max_ms must be >= 0".to_string(),
-            )),
-        ));
-    }
-    if let (Some(mn), Some(mx)) = (min, max)
-        && mn > mx
-    {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ScouterServerError::new(
-                "duration_min_ms must be <= duration_max_ms".to_string(),
-            )),
-        ));
-    }
-    Ok(())
+}
+
+fn merge_q_into_metrics(
+    q: Option<String>,
+    body: TraceMetricsRequest,
+) -> Result<TraceMetricsRequest, (StatusCode, Json<ScouterServerError>)> {
+    let Some(q) = q.as_deref().map(str::trim).filter(|s| !s.is_empty()) else {
+        return Ok(body);
+    };
+    let parsed = parse_search_query(q).map_err(invalid_search_query)?;
+    Ok(TraceMetricsRequest {
+        start_time: body.start_time,
+        end_time: body.end_time,
+        bucket_interval: body.bucket_interval,
+        clause: FilterClause::and_merge(parsed.clause, body.clause),
+        entity_uid: body.entity_uid.or(parsed.entity_uid),
+    })
 }
 
 #[utoipa::path(
@@ -97,6 +135,7 @@ pub async fn get_trace_baggage(
     post,
     path = "/scouter/trace/paginated",
     request_body = TraceFilters,
+    params(("q" = Option<String>, Query, description = "Optional Lucene-style search query")),
     responses(
         (status = 200, description = "Paginated traces", body = TracePaginationResponse),
         (status = 500, description = "Internal server error", body = ScouterServerError),
@@ -107,10 +146,11 @@ pub async fn get_trace_baggage(
 #[instrument(skip_all)]
 pub async fn paginated_traces(
     State(data): State<Arc<AppState>>,
+    Query(search): Query<SearchQ>,
     Json(body): Json<TraceFilters>,
 ) -> Result<Json<TracePaginationResponse>, (StatusCode, Json<ScouterServerError>)> {
+    let body = merge_q_into_filters(search.q, body)?;
     debug!("Getting paginated traces with filters: {:?}", body);
-    validate_duration_bounds(body.duration_min_ms, body.duration_max_ms)?;
 
     // entity_uid is passed directly to the Delta Lake query where it is applied as a
     // column predicate on the `entity_id` column, enabling file-level Z-ORDER skipping.
@@ -342,6 +382,7 @@ pub async fn query_trace_spans_from_tags(
     post,
     path = "/scouter/trace/metrics",
     request_body = TraceMetricsRequest,
+    params(("q" = Option<String>, Query, description = "Optional Lucene-style search query")),
     responses(
         (status = 200, description = "Trace metrics", body = TraceMetricsResponse),
         (status = 500, description = "Internal server error", body = ScouterServerError),
@@ -352,13 +393,11 @@ pub async fn query_trace_spans_from_tags(
 #[instrument(skip_all)]
 pub async fn trace_metrics(
     State(data): State<Arc<AppState>>,
+    Query(search): Query<SearchQ>,
     Json(body): Json<TraceMetricsRequest>,
 ) -> Result<Json<TraceMetricsResponse>, (StatusCode, Json<ScouterServerError>)> {
+    let body = merge_q_into_metrics(search.q, body)?;
     debug!("Getting trace metrics for request: {:?}", body);
-    validate_duration_bounds(body.duration_min_ms, body.duration_max_ms)?;
-
-    let attr_filters_ref: Option<&[String]> =
-        body.attribute_filters.as_deref().filter(|f| !f.is_empty());
 
     // Normalize legacy interval strings like "1 minutes" → "minute" for DataFusion DATE_TRUNC.
     let bucket_interval = body
@@ -374,19 +413,7 @@ pub async fn trace_metrics(
     let metrics = data
         .trace_service
         .query_service
-        .get_trace_metrics(
-            body.service_name.as_deref(),
-            body.service_namespace.as_deref(),
-            body.service_version.as_deref(),
-            body.service_instance_id.as_deref(),
-            body.start_time,
-            body.end_time,
-            &bucket_interval,
-            attr_filters_ref,
-            body.entity_uid.as_deref(),
-            body.duration_min_ms,
-            body.duration_max_ms,
-        )
+        .get_trace_metrics(&body, &bucket_interval)
         .await
         .map_err(|e| {
             error!("Failed to get trace metrics: {:?}", e);
@@ -403,6 +430,7 @@ pub async fn trace_metrics(
     post,
     path = "/scouter/trace/facets",
     request_body = TraceFilters,
+    params(("q" = Option<String>, Query, description = "Optional Lucene-style search query")),
     responses(
         (status = 200, description = "Trace facets", body = TraceFacetsResponse),
         (status = 500, description = "Internal server error", body = ScouterServerError),
@@ -413,10 +441,11 @@ pub async fn trace_metrics(
 #[instrument(skip_all)]
 pub async fn get_trace_facets(
     State(data): State<Arc<AppState>>,
+    Query(search): Query<SearchQ>,
     Json(body): Json<TraceFilters>,
 ) -> Result<Json<TraceFacetsResponse>, (StatusCode, Json<ScouterServerError>)> {
+    let body = merge_q_into_filters(search.q, body)?;
     debug!("Getting trace facets with filters: {:?}", body);
-    validate_duration_bounds(body.duration_min_ms, body.duration_max_ms)?;
     let facets = data
         .trace_summary_service
         .query_service
@@ -436,6 +465,7 @@ pub async fn get_trace_facets(
     post,
     path = "/scouter/trace/spans/filters",
     request_body = TraceFilters,
+    params(("q" = Option<String>, Query, description = "Optional Lucene-style search query")),
     responses(
         (status = 200, description = "Trace spans matching filters", body = TraceSpansResponse),
         (status = 500, description = "Internal server error", body = ScouterServerError),
@@ -446,8 +476,10 @@ pub async fn get_trace_facets(
 #[instrument(skip_all)]
 pub async fn query_spans_from_filters(
     State(data): State<Arc<AppState>>,
+    Query(search): Query<SearchQ>,
     Json(body): Json<TraceFilters>,
 ) -> Result<Json<TraceSpansResponse>, (StatusCode, Json<ScouterServerError>)> {
+    let body = merge_q_into_filters(search.q, body)?;
     let spans = data
         .trace_service
         .query_service
@@ -536,6 +568,82 @@ pub async fn v1_otel_traces(
         .into_response())
 }
 
+#[derive(Debug, serde::Deserialize, utoipa::IntoParams)]
+pub struct SearchTracesParams {
+    pub q: String,
+    pub start_time: Option<String>,
+    pub end_time: Option<String>,
+    pub limit: Option<i32>,
+    pub cursor_start_time: Option<String>,
+    pub cursor_trace_id: Option<String>,
+    pub direction: Option<String>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/scouter/v1/traces/search",
+    params(SearchTracesParams),
+    responses(
+        (status = 200, description = "Paginated traces matching search query", body = TracePaginationResponse),
+        (status = 400, description = "Invalid search query", body = ScouterServerError),
+        (status = 500, description = "Internal server error", body = ScouterServerError),
+    ),
+    tag = "traces",
+    security(("bearer_token" = []))
+)]
+#[instrument(skip_all)]
+pub async fn search_traces(
+    State(data): State<Arc<AppState>>,
+    Query(params): Query<SearchTracesParams>,
+) -> Result<Json<TracePaginationResponse>, (StatusCode, Json<ScouterServerError>)> {
+    let mut filters = parse_search_query(&params.q).map_err(invalid_search_query)?;
+
+    let parse_ts = |value: &str| {
+        chrono::DateTime::parse_from_rfc3339(value)
+            .map(|dt| dt.with_timezone(&chrono::Utc))
+            .map_err(|e| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    Json(ScouterServerError::new(format!("Invalid timestamp: {e}"))),
+                )
+            })
+    };
+
+    if let Some(start_time) = params.start_time.as_deref() {
+        filters.start_time = Some(parse_ts(start_time)?);
+    }
+    if let Some(end_time) = params.end_time.as_deref() {
+        filters.end_time = Some(parse_ts(end_time)?);
+    }
+    if let Some(cursor_start_time) = params.cursor_start_time.as_deref() {
+        filters.cursor_start_time = Some(parse_ts(cursor_start_time)?);
+    }
+    if let Some(cursor_trace_id) = params.cursor_trace_id {
+        filters.cursor_trace_id = Some(cursor_trace_id);
+    }
+    if let Some(direction) = params.direction {
+        filters.direction = Some(direction);
+    }
+    if let Some(limit) = params.limit {
+        filters.limit = Some(limit);
+    }
+
+    let response = data
+        .trace_summary_service
+        .query_service
+        .get_paginated_traces(&filters)
+        .await
+        .map_err(|e| {
+            error!("search_traces failed: {:?}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::get_paginated_traces_error(e)),
+            )
+        })?;
+
+    Ok(Json(response))
+}
+
 #[cfg(debug_assertions)]
 #[utoipa::path(
     get,
@@ -595,6 +703,7 @@ pub async fn get_trace_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
             .route(&format!("{prefix}/trace/metrics"), post(trace_metrics))
             .route(&format!("{prefix}/trace/facets"), post(get_trace_facets))
             .route(&format!("{prefix}/v1/traces"), post(v1_otel_traces))
+            .route(&format!("{prefix}/v1/traces/search"), get(search_traces))
             .route(
                 &(format!("{prefix}/v1/traces/") + "{id}/spans"),
                 get(get_trace_spans_by_id),

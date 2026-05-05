@@ -82,60 +82,32 @@ class TraceBaggageRecord:
 class TraceFilters:
     """A struct for filtering traces, generated from Rust pyclass."""
 
-    service_name: Optional[str]
-    service_namespace: Optional[str]
-    service_version: Optional[str]
-    service_instance_id: Optional[str]
-    has_errors: Optional[bool]
-    status_code: Optional[int]
+    clause: Optional[Any]
     start_time: Optional[datetime.datetime]
     end_time: Optional[datetime.datetime]
     limit: Optional[int]
     cursor_start_time: Optional[datetime.datetime]
     cursor_trace_id: Optional[str]
     direction: Optional[str]
-    attribute_filters: Optional[List[str]]
     trace_ids: Optional[List[str]]
     entity_uid: Optional[str]
     queue_uid: Optional[str]
-    duration_min_ms: Optional[int]
-    duration_max_ms: Optional[int]
 
     def __init__(
         self,
-        service_name: Optional[str] = None,
-        service_namespace: Optional[str] = None,
-        service_version: Optional[str] = None,
-        service_instance_id: Optional[str] = None,
-        has_errors: Optional[bool] = None,
-        status_code: Optional[int] = None,
         start_time: Optional[datetime.datetime] = None,
         end_time: Optional[datetime.datetime] = None,
         limit: Optional[int] = None,
         cursor_start_time: Optional[datetime.datetime] = None,
         cursor_trace_id: Optional[str] = None,
-        attribute_filters: Optional[List[str]] = None,
+        direction: Optional[str] = None,
         trace_ids: Optional[List[str]] = None,
         entity_uid: Optional[str] = None,
         queue_uid: Optional[str] = None,
-        duration_min_ms: Optional[int] = None,
-        duration_max_ms: Optional[int] = None,
     ) -> None:
         """Initialize trace filters.
 
         Args:
-            service_name:
-                Service name filter
-            service_namespace:
-                OTel service.namespace filter
-            service_version:
-                OTel service.version filter
-            service_instance_id:
-                OTel service.instance.id filter
-            has_errors:
-                Filter by presence of errors
-            status_code:
-                Filter by root span status code
             start_time:
                 Start time boundary (UTC)
             end_time:
@@ -146,19 +118,28 @@ class TraceFilters:
                 Pagination cursor: trace start timestamp
             cursor_trace_id:
                 Pagination cursor: trace ID
-            attribute_filters:
-                List of attribute filters in the format "key=value" or "key!=value"
+            direction:
+                Pagination direction
             trace_ids:
                 List of trace IDs to filter by
             entity_uid:
                 Filter by associated entity UID
             queue_uid:
                 Filter by associated queue UID
-            duration_min_ms:
-                Minimum trace duration (inclusive)
-            duration_max_ms:
-                Maximum trace duration (inclusive)
         """
+
+    @classmethod
+    def from_query(
+        cls,
+        q: str,
+        start_time: Optional[datetime.datetime] = None,
+        end_time: Optional[datetime.datetime] = None,
+        limit: Optional[int] = None,
+        cursor_start_time: Optional[datetime.datetime] = None,
+        cursor_trace_id: Optional[str] = None,
+        direction: Optional[str] = None,
+    ) -> "TraceFilters":
+        """Build TraceFilters from the trace search DSL."""
 
 class TraceMetricBucket:
     """Represents aggregated trace metrics for a specific time bucket."""

@@ -1013,62 +1013,55 @@ pub struct SpansFromTagsRequest {
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[pyclass(from_py_object)]
 pub struct TraceMetricsRequest {
-    pub service_name: Option<String>,
-    pub service_namespace: Option<String>,
-    pub service_version: Option<String>,
-    pub service_instance_id: Option<String>,
     pub start_time: DateTime<Utc>,
     pub end_time: DateTime<Utc>,
     pub bucket_interval: String,
-    pub attribute_filters: Option<Vec<String>>,
+    #[serde(default)]
+    pub clause: Option<crate::trace::query::FilterClause>,
+    #[serde(default)]
     pub entity_uid: Option<String>,
-    pub duration_min_ms: Option<i64>,
-    pub duration_max_ms: Option<i64>,
 }
 
 #[pymethods]
-#[allow(clippy::too_many_arguments)]
 impl TraceMetricsRequest {
     #[new]
     #[pyo3(signature = (
         start_time,
         end_time,
         bucket_interval,
-        service_name=None,
-        service_namespace=None,
-        service_version=None,
-        service_instance_id=None,
-        attribute_filters=None,
-        entity_uid=None,
-        duration_min_ms=None,
-        duration_max_ms=None
+        entity_uid=None
     ))]
     pub fn new(
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
         bucket_interval: String,
-        service_name: Option<String>,
-        service_namespace: Option<String>,
-        service_version: Option<String>,
-        service_instance_id: Option<String>,
-        attribute_filters: Option<Vec<String>>,
         entity_uid: Option<String>,
-        duration_min_ms: Option<i64>,
-        duration_max_ms: Option<i64>,
     ) -> Self {
         TraceMetricsRequest {
-            service_name,
-            service_namespace,
-            service_version,
-            service_instance_id,
             start_time,
             end_time,
             bucket_interval,
-            attribute_filters,
+            clause: None,
             entity_uid,
-            duration_min_ms,
-            duration_max_ms,
         }
+    }
+
+    #[classmethod]
+    pub fn from_query(
+        _cls: &pyo3::Bound<'_, pyo3::types::PyType>,
+        q: &str,
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
+        bucket_interval: String,
+    ) -> Result<Self, crate::error::TypeError> {
+        let parsed = crate::trace::query::parse_search_query(q)?;
+        Ok(TraceMetricsRequest {
+            start_time,
+            end_time,
+            bucket_interval,
+            clause: parsed.clause,
+            entity_uid: parsed.entity_uid,
+        })
     }
 }
 

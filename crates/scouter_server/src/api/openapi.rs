@@ -74,6 +74,7 @@ impl utoipa::Modify for SecurityAddon {
         crate::api::routes::trace::route::trace_metrics,
         crate::api::routes::trace::route::query_spans_from_filters,
         crate::api::routes::trace::route::v1_otel_traces,
+        crate::api::routes::trace::route::search_traces,
         // message
         crate::api::routes::message::route::insert_message,
         // agent
@@ -151,6 +152,7 @@ impl utoipa::Modify for SecurityAddon {
         scouter_types::contracts::TraceMetricsResponse,
         scouter_types::contracts::TraceReceivedResponse,
         scouter_types::contracts::TraceCursor,
+        scouter_types::trace::query::FilterClause,
         scouter_types::contracts::BinnedMetrics,
         scouter_types::contracts::BinnedMetric,
         scouter_types::contracts::BinnedMetricStats,
