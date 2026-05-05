@@ -62,6 +62,7 @@ SerializedType: TypeAlias = Union[str, int, float, dict, list]
 P = ParamSpec("P")
 R = TypeVar("R")
 SCOUTER_ACTIVE_ENTITY_UID_BAGGAGE_KEY = "scouter.active.entity_uid"
+_OTEL_PROVIDER_RESET_LOCK = threading.Lock()
 HAS_OPENTELEMETRY = True
 if TYPE_CHECKING:
     from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
@@ -914,17 +915,18 @@ class ScouterInstrumentor(BaseInstrumentor):
 
         from opentelemetry import trace
 
-        try:
-            trace._TRACER_PROVIDER_SET_ONCE._done = False  # pylint: disable=protected-access
-            trace._TRACER_PROVIDER_SET_ONCE._lock = __import__("threading").Lock()  # pylint: disable=protected-access
-        except AttributeError:
-            import logging as _logging
+        with _OTEL_PROVIDER_RESET_LOCK:
+            try:
+                trace._TRACER_PROVIDER_SET_ONCE._done = False  # pylint: disable=protected-access
+                trace._TRACER_PROVIDER_SET_ONCE._lock = threading.Lock()  # pylint: disable=protected-access
+            except AttributeError:
+                import logging as _logging
 
-            _logging.getLogger("scouter.tracing").warning(
-                "Could not reset OTel provider guard — opentelemetry-api internals may have "
-                "changed. Proceeding anyway."
-            )
-        set_tracer_provider(self._provider)
+                _logging.getLogger("scouter.tracing").warning(
+                    "Could not reset OTel provider guard — opentelemetry-api internals may have "
+                    "changed. Proceeding anyway."
+                )
+            set_tracer_provider(self._provider)
 
         propagate_baggage = kwargs.pop("propagate_baggage", True)
 

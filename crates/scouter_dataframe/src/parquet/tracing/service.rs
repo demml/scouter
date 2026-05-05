@@ -482,7 +482,16 @@ mod tests {
         let trace_id_bytes = first_trace_id.as_bytes();
         let result_spans: Vec<TraceSpan> = service
             .query_service
-            .get_trace_spans(Some(trace_id_bytes.as_slice()), None, None, None, None, None, None, None)
+            .get_trace_spans(
+                Some(trace_id_bytes.as_slice()),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
             .await?;
 
         assert!(
@@ -507,7 +516,16 @@ mod tests {
 
         let initial: Vec<TraceSpan> = service
             .query_service
-            .get_trace_spans(Some(trace_id_bytes.as_slice()), None, None, None, None, None, None, None)
+            .get_trace_spans(
+                Some(trace_id_bytes.as_slice()),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
             .await?;
         assert!(
             initial.is_empty(),
@@ -527,7 +545,16 @@ mod tests {
 
         let after_write: Vec<TraceSpan> = service
             .query_service
-            .get_trace_spans(Some(trace_id_bytes.as_slice()), None, None, None, None, None, None, None)
+            .get_trace_spans(
+                Some(trace_id_bytes.as_slice()),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
             .await?;
         assert!(
             !after_write.is_empty(),
@@ -584,7 +611,16 @@ mod tests {
 
         let spans: Vec<TraceSpan> = service
             .query_service
-            .get_trace_spans(Some(trace_id.as_bytes().as_slice()), None, None, None, None, None, None, None)
+            .get_trace_spans(
+                Some(trace_id.as_bytes().as_slice()),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
             .await?;
 
         assert_eq!(spans.len(), 3, "Expected 3 spans");
@@ -649,7 +685,9 @@ mod tests {
 
         let metrics = service
             .query_service
-            .get_trace_metrics(None, None, None, None, start, end, "hour", None, None, None, None)
+            .get_trace_metrics(
+                None, None, None, None, start, end, "hour", None, None, None, None,
+            )
             .await?;
 
         assert!(!metrics.is_empty(), "Expected at least one metric bucket");
@@ -964,7 +1002,9 @@ mod tests {
         // Without filter, both traces appear
         let unfiltered = service
             .query_service
-            .get_trace_metrics(None, None, None, None, start, end, "hour", None, None, None, None)
+            .get_trace_metrics(
+                None, None, None, None, start, end, "hour", None, None, None, None,
+            )
             .await?;
         let unfiltered_count: i64 = unfiltered.iter().map(|m| m.trace_count).sum();
         assert!(
@@ -1086,14 +1126,18 @@ mod tests {
 
         let trace_metrics = service
             .query_service
-            .get_trace_metrics(None, None, None, None, start, end, "hour", None, None, None, None)
+            .get_trace_metrics(
+                None, None, None, None, start, end, "hour", None, None, None, None,
+            )
             .await?;
         let total_traces: i64 = trace_metrics.iter().map(|m| m.trace_count).sum();
         assert_eq!(total_traces, 2, "Expected 2 traces (both plain + genai)");
 
         let genai_metrics = genai_service
             .query_service
-            .get_token_metrics(None, None, None, None, None, start, end, "hour", None, None, None, None)
+            .get_token_metrics(
+                None, None, None, None, None, start, end, "hour", None, None, None, None,
+            )
             .await?;
         let total_input: i64 = genai_metrics.iter().map(|m| m.total_input_tokens).sum();
         assert_eq!(
@@ -1151,7 +1195,16 @@ mod tests {
         // Reader should now see the data written by the writer
         let results = reader
             .query_service
-            .get_trace_spans(Some(trace_id.as_bytes()), None, None, None, None, None, None, None)
+            .get_trace_spans(
+                Some(trace_id.as_bytes()),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
             .await?;
 
         assert!(

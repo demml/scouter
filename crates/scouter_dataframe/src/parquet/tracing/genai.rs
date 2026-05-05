@@ -710,25 +710,23 @@ async fn build_or_create_genai_table_inner(
             .await
             .map_err(TraceEngineError::from)?;
 
-        let current_arrow = table
-            .table_provider()
-            .await
-            .map(|p| p.schema())
-            .unwrap_or_else(|_| schema.clone());
+        let current_arrow = table.table_provider().await?.schema();
 
         let missing_fields: Vec<deltalake::kernel::StructField> = schema
             .fields()
             .iter()
             .filter(|f| current_arrow.field_with_name(f.name()).is_err())
             .map(|f| {
-                let delta_ty =
-                    crate::parquet::tracing::traits::arrow_type_to_delta(f.data_type());
+                let delta_ty = crate::parquet::tracing::traits::arrow_type_to_delta(f.data_type());
                 deltalake::kernel::StructField::new(f.name().clone(), delta_ty, true)
             })
             .collect();
 
         if !missing_fields.is_empty() {
-            info!(?missing_fields, "adding missing gen_ai_spans columns via Delta schema evolution");
+            info!(
+                ?missing_fields,
+                "adding missing gen_ai_spans columns via Delta schema evolution"
+            );
             table = table
                 .add_columns()
                 .with_fields(missing_fields)
@@ -2382,7 +2380,6 @@ impl GenAiQueries {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[allow(clippy::too_many_arguments)]
     pub async fn get_agent_metrics_by_bucket(
         &self,
         service_name: Option<&str>,
@@ -2639,7 +2636,6 @@ impl GenAiQueries {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[allow(clippy::too_many_arguments)]
     pub async fn get_agent_cost_by_model(
         &self,
         service_name: Option<&str>,
@@ -2771,7 +2767,6 @@ impl GenAiQueries {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[allow(clippy::too_many_arguments)]
     pub async fn get_agent_window_percentiles(
         &self,
         service_name: Option<&str>,
@@ -2876,7 +2871,6 @@ impl GenAiQueries {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[allow(clippy::too_many_arguments)]
     pub async fn get_agent_unique_counts(
         &self,
         service_name: Option<&str>,
@@ -2971,7 +2965,6 @@ impl GenAiQueries {
         Ok((unique_agents, unique_conversations))
     }
 
-    #[allow(clippy::too_many_arguments)]
     #[allow(clippy::too_many_arguments)]
     pub async fn get_tool_metrics_timeseries(
         &self,
@@ -3794,7 +3787,9 @@ mod tests {
         let end = Utc::now() + chrono::Duration::hours(1);
         let metrics = service
             .query_service
-            .get_token_metrics(None, None, None, None, None, start, end, "hour", None, None, None, None)
+            .get_token_metrics(
+                None, None, None, None, None, start, end, "hour", None, None, None, None,
+            )
             .await?;
 
         assert!(!metrics.is_empty(), "Expected at least one bucket");
@@ -3890,7 +3885,9 @@ mod tests {
         let end = Utc::now() + chrono::Duration::hours(1);
         let metrics = service
             .query_service
-            .get_token_metrics(None, None, None, None, None, start, end, "hour", None, None, None, None)
+            .get_token_metrics(
+                None, None, None, None, None, start, end, "hour", None, None, None, None,
+            )
             .await?;
 
         let total_spans: i64 = metrics.iter().map(|b| b.span_count).sum();
@@ -4150,7 +4147,18 @@ mod tests {
         let end = Utc::now() + chrono::Duration::hours(1);
         let breakdown = service
             .query_service
-            .get_operation_breakdown(Some("test_service"), None, None, None, None, start, end, None, None, None)
+            .get_operation_breakdown(
+                Some("test_service"),
+                None,
+                None,
+                None,
+                None,
+                start,
+                end,
+                None,
+                None,
+                None,
+            )
             .await?;
 
         assert_eq!(breakdown.len(), 2, "Expected 2 operation rows");
@@ -4830,7 +4838,18 @@ mod tests {
         let end = now + chrono::Duration::hours(1);
         let (unique_agents, unique_convos) = service
             .query_service
-            .get_agent_unique_counts(Some("count-svc"), None, None, None, None, start, end, None, None, None)
+            .get_agent_unique_counts(
+                Some("count-svc"),
+                None,
+                None,
+                None,
+                None,
+                start,
+                end,
+                None,
+                None,
+                None,
+            )
             .await?;
 
         // approx_distinct has some error margin but should be ≥ 1 for each
@@ -5004,7 +5023,19 @@ mod tests {
         let end = now + chrono::Duration::hours(1);
         let rows = service
             .query_service
-            .get_agent_metrics_by_bucket(Some("svc-a"), None, None, None, None, start, end, "hour", None, None, None)
+            .get_agent_metrics_by_bucket(
+                Some("svc-a"),
+                None,
+                None,
+                None,
+                None,
+                start,
+                end,
+                "hour",
+                None,
+                None,
+                None,
+            )
             .await?;
 
         let total_spans: i64 = rows.iter().map(|r| r.span_count).sum();
@@ -5282,7 +5313,18 @@ mod tests {
 
         let cost_rows = service
             .query_service
-            .get_agent_cost_by_model(Some("svc-null-model"), None, None, None, None, start, end, None, None, None)
+            .get_agent_cost_by_model(
+                Some("svc-null-model"),
+                None,
+                None,
+                None,
+                None,
+                start,
+                end,
+                None,
+                None,
+                None,
+            )
             .await?;
 
         let unknown_row = cost_rows.iter().find(|r| r.model == "unknown");
@@ -5378,6 +5420,159 @@ mod tests {
         assert!(ep99.is_none(), "p99 should be None for empty result set");
 
         service.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_genai_query_filters_by_service_namespace() -> Result<(), TraceEngineError> {
+        let env = make_test_env();
+        let service =
+            GenAiSpanService::new(&env.object_store, 24, env.ctx, env.catalog, 10, None).await?;
+
+        let now = Utc::now();
+        let mut records = Vec::new();
+        for i in 0..3u8 {
+            records.push(GenAiSpanRecord {
+                trace_id: TraceId::from_bytes([80 + i; 16]),
+                span_id: SpanId::from_bytes([80 + i; 8]),
+                service_name: "svc".to_string(),
+                service_namespace: Some("ns-a".to_string()),
+                service_version: Some("1.0".to_string()),
+                start_time: now,
+                end_time: Some(now + chrono::Duration::milliseconds(100)),
+                duration_ms: 100,
+                input_tokens: Some(10),
+                output_tokens: Some(20),
+                ..Default::default()
+            });
+        }
+        for i in 0..2u8 {
+            records.push(GenAiSpanRecord {
+                trace_id: TraceId::from_bytes([90 + i; 16]),
+                span_id: SpanId::from_bytes([90 + i; 8]),
+                service_name: "svc".to_string(),
+                service_namespace: Some("ns-b".to_string()),
+                service_version: Some("2.0".to_string()),
+                start_time: now,
+                end_time: Some(now + chrono::Duration::milliseconds(100)),
+                duration_ms: 100,
+                input_tokens: Some(15),
+                output_tokens: Some(25),
+                ..Default::default()
+            });
+        }
+        service.write_records(records).await?;
+        tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+
+        let start = Utc::now() - chrono::Duration::hours(1);
+        let end = Utc::now() + chrono::Duration::hours(1);
+
+        let ns_a = service
+            .query_service
+            .get_token_metrics(
+                None,
+                Some("ns-a"),
+                None,
+                None,
+                None,
+                start,
+                end,
+                "hour",
+                None,
+                None,
+                None,
+                None,
+            )
+            .await?;
+        assert_eq!(
+            ns_a.iter().map(|b| b.span_count).sum::<i64>(),
+            3,
+            "ns-a filter should return 3 spans"
+        );
+
+        let ns_b = service
+            .query_service
+            .get_token_metrics(
+                None,
+                Some("ns-b"),
+                None,
+                None,
+                None,
+                start,
+                end,
+                "hour",
+                None,
+                None,
+                None,
+                None,
+            )
+            .await?;
+        assert_eq!(
+            ns_b.iter().map(|b| b.span_count).sum::<i64>(),
+            2,
+            "ns-b filter should return 2 spans"
+        );
+
+        let v1 = service
+            .query_service
+            .get_token_metrics(
+                None,
+                None,
+                Some("1.0"),
+                None,
+                None,
+                start,
+                end,
+                "hour",
+                None,
+                None,
+                None,
+                None,
+            )
+            .await?;
+        assert_eq!(
+            v1.iter().map(|b| b.span_count).sum::<i64>(),
+            3,
+            "version 1.0 filter should return 3 spans"
+        );
+
+        service.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_genai_service_reinit_does_not_error() -> Result<(), TraceEngineError> {
+        let env = make_test_env();
+        {
+            let service = GenAiSpanService::new(
+                &env.object_store,
+                24,
+                Arc::clone(&env.ctx),
+                Arc::clone(&env.catalog),
+                10,
+                None,
+            )
+            .await?;
+            service.shutdown().await?;
+        }
+        let service2 =
+            GenAiSpanService::new(&env.object_store, 24, env.ctx, env.catalog, 10, None).await?;
+        service2.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_genai_service_init_does_not_panic() -> Result<(), TraceEngineError> {
+        let env1 = make_test_env();
+        let env2 = make_test_env();
+        let (r1, r2) = tokio::join!(
+            GenAiSpanService::new(&env1.object_store, 24, env1.ctx, env1.catalog, 10, None),
+            GenAiSpanService::new(&env2.object_store, 24, env2.ctx, env2.catalog, 10, None),
+        );
+        let s1 = r1?;
+        let s2 = r2?;
+        s1.shutdown().await?;
+        s2.shutdown().await?;
         Ok(())
     }
 }

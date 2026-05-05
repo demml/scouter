@@ -413,8 +413,7 @@ async fn build_or_create_summary_table_inner(
             .iter()
             .filter(|f| current_arrow.field_with_name(f.name()).is_err())
             .map(|f| {
-                let delta_ty =
-                    crate::parquet::tracing::traits::arrow_type_to_delta(f.data_type());
+                let delta_ty = crate::parquet::tracing::traits::arrow_type_to_delta(f.data_type());
                 deltalake::kernel::StructField::new(f.name().clone(), delta_ty, true)
             })
             .collect();
@@ -424,10 +423,7 @@ async fn build_or_create_summary_table_inner(
                 ?missing_fields,
                 "adding missing trace_summaries columns via Delta schema evolution"
             );
-            table = table
-                .add_columns()
-                .with_fields(missing_fields)
-                .await?;
+            table = table.add_columns().with_fields(missing_fields).await?;
         }
 
         Ok(table)

@@ -127,7 +127,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let t = Instant::now();
             let _ = service
                 .query_service
-                .query_spans(Some(id), None, None, None, None, Some(&start_t), Some(&end_t), None)
+                .query_spans(
+                    Some(id),
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some(&start_t),
+                    Some(&end_t),
+                    None,
+                )
                 .await?;
             timings.push(t.elapsed());
         }

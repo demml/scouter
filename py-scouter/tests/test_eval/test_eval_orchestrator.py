@@ -30,6 +30,13 @@ from scouter.tracing import (
     get_tracer,
 )
 
+
+@pytest.fixture(autouse=True)
+def _clear_instrumentor():
+    yield
+    ScouterInstrumentor().uninstrument()
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

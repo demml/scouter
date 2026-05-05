@@ -154,7 +154,16 @@ fn bench_query_performance(c: &mut Criterion) {
                         for _ in 0..iters {
                             let _ = black_box(
                                 svc.query_service
-                                    .get_trace_spans(Some(&id), None, None, None, None, None, None, None)
+                                    .get_trace_spans(
+                                        Some(&id),
+                                        None,
+                                        None,
+                                        None,
+                                        None,
+                                        None,
+                                        None,
+                                        None,
+                                    )
                                     .await
                                     .unwrap(),
                             );
@@ -268,7 +277,16 @@ fn bench_query_at_scale(c: &mut Criterion) {
                         for _ in 0..iters {
                             let _ = black_box(
                                 svc.query_service
-                                    .get_trace_spans(Some(&id), None, None, None, None, None, None, None)
+                                    .get_trace_spans(
+                                        Some(&id),
+                                        None,
+                                        None,
+                                        None,
+                                        None,
+                                        None,
+                                        None,
+                                        None,
+                                    )
                                     .await
                                     .unwrap(),
                             );
@@ -498,7 +516,16 @@ fn bench_cold_query(c: &mut Criterion) {
                     let end_t = now - chrono::Duration::hours(*hour as i64);
                     let _ = black_box(
                         svc.query_service
-                            .query_spans(Some(id), None, None, None, None, Some(&start_t), Some(&end_t), None)
+                            .query_spans(
+                                Some(id),
+                                None,
+                                None,
+                                None,
+                                None,
+                                Some(&start_t),
+                                Some(&end_t),
+                                None,
+                            )
                             .await
                             .unwrap(),
                     );
@@ -645,7 +672,16 @@ fn bench_at_scale_1m(c: &mut Criterion) {
                     let end_t = now - chrono::Duration::hours(*hour as i64);
                     let _ = black_box(
                         svc.query_service
-                            .query_spans(Some(id), None, None, None, None, Some(&start_t), Some(&end_t), None)
+                            .query_spans(
+                                Some(id),
+                                None,
+                                None,
+                                None,
+                                None,
+                                Some(&start_t),
+                                Some(&end_t),
+                                None,
+                            )
                             .await
                             .unwrap(),
                     );
@@ -779,7 +815,16 @@ fn bench_at_scale_10m(c: &mut Criterion) {
                     let end_t = now - chrono::Duration::hours(*hour as i64);
                     let _ = black_box(
                         svc.query_service
-                            .query_spans(Some(id), None, None, None, None, Some(&start_t), Some(&end_t), None)
+                            .query_spans(
+                                Some(id),
+                                None,
+                                None,
+                                None,
+                                None,
+                                Some(&start_t),
+                                Some(&end_t),
+                                None,
+                            )
                             .await
                             .unwrap(),
                     );

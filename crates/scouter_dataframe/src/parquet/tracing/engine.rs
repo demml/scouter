@@ -187,10 +187,7 @@ async fn build_or_create_table_inner(
                 ?missing_fields,
                 "adding missing trace_spans columns via Delta schema evolution"
             );
-            table = table
-                .add_columns()
-                .with_fields(missing_fields)
-                .await?;
+            table = table.add_columns().with_fields(missing_fields).await?;
         }
 
         Ok(table)
@@ -339,7 +336,10 @@ impl TraceSpanDBEngine {
                 ColumnPath::new(vec![SERVICE_VERSION_COL.to_string()]),
                 0.01,
             )
-            .set_column_bloom_filter_ndv(ColumnPath::new(vec![SERVICE_VERSION_COL.to_string()]), 256)
+            .set_column_bloom_filter_ndv(
+                ColumnPath::new(vec![SERVICE_VERSION_COL.to_string()]),
+                256,
+            )
             // span_name: high cardinality equality queries (e.g. "grpc.unary/method")
             .set_column_bloom_filter_enabled(ColumnPath::new(vec!["span_name".to_string()]), true)
             .set_column_bloom_filter_fpp(ColumnPath::new(vec!["span_name".to_string()]), 0.01)

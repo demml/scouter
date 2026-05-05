@@ -382,29 +382,51 @@ fn batches_to_flat_spans(batches: Vec<RecordBatch>) -> Result<Vec<FlatSpan>, Tra
                 TraceEngineError::BatchConversion("service_name not StringArray".into())
             })?;
         let svc_ns_col = if let Ok(idx) = schema.index_of("service_namespace") {
-            let arr = cast(batch.column(idx).as_ref(), &DataType::Utf8)
-                .map_err(|e| TraceEngineError::BatchConversion(format!("service_namespace cast: {e}")))?;
-            Some(arr.as_any().downcast_ref::<StringArray>().ok_or_else(|| {
-                TraceEngineError::BatchConversion("service_namespace not StringArray".into())
-            })?.clone())
+            let arr = cast(batch.column(idx).as_ref(), &DataType::Utf8).map_err(|e| {
+                TraceEngineError::BatchConversion(format!("service_namespace cast: {e}"))
+            })?;
+            Some(
+                arr.as_any()
+                    .downcast_ref::<StringArray>()
+                    .ok_or_else(|| {
+                        TraceEngineError::BatchConversion(
+                            "service_namespace not StringArray".into(),
+                        )
+                    })?
+                    .clone(),
+            )
         } else {
             None
         };
         let svc_ver_col = if let Ok(idx) = schema.index_of("service_version") {
-            let arr = cast(batch.column(idx).as_ref(), &DataType::Utf8)
-                .map_err(|e| TraceEngineError::BatchConversion(format!("service_version cast: {e}")))?;
-            Some(arr.as_any().downcast_ref::<StringArray>().ok_or_else(|| {
-                TraceEngineError::BatchConversion("service_version not StringArray".into())
-            })?.clone())
+            let arr = cast(batch.column(idx).as_ref(), &DataType::Utf8).map_err(|e| {
+                TraceEngineError::BatchConversion(format!("service_version cast: {e}"))
+            })?;
+            Some(
+                arr.as_any()
+                    .downcast_ref::<StringArray>()
+                    .ok_or_else(|| {
+                        TraceEngineError::BatchConversion("service_version not StringArray".into())
+                    })?
+                    .clone(),
+            )
         } else {
             None
         };
         let svc_inst_col = if let Ok(idx) = schema.index_of("service_instance_id") {
-            let arr = cast(batch.column(idx).as_ref(), &DataType::Utf8)
-                .map_err(|e| TraceEngineError::BatchConversion(format!("service_instance_id cast: {e}")))?;
-            Some(arr.as_any().downcast_ref::<StringArray>().ok_or_else(|| {
-                TraceEngineError::BatchConversion("service_instance_id not StringArray".into())
-            })?.clone())
+            let arr = cast(batch.column(idx).as_ref(), &DataType::Utf8).map_err(|e| {
+                TraceEngineError::BatchConversion(format!("service_instance_id cast: {e}"))
+            })?;
+            Some(
+                arr.as_any()
+                    .downcast_ref::<StringArray>()
+                    .ok_or_else(|| {
+                        TraceEngineError::BatchConversion(
+                            "service_instance_id not StringArray".into(),
+                        )
+                    })?
+                    .clone(),
+            )
         } else {
             None
         };
@@ -537,13 +559,25 @@ fn batches_to_flat_spans(batches: Vec<RecordBatch>) -> Result<Vec<FlatSpan>, Tra
                 parent_span_id: parent_id,
                 service_name: svc_col.value(i).to_string(),
                 service_namespace: svc_ns_col.as_ref().and_then(|col| {
-                    if col.is_null(i) { None } else { Some(col.value(i).to_string()) }
+                    if col.is_null(i) {
+                        None
+                    } else {
+                        Some(col.value(i).to_string())
+                    }
                 }),
                 service_version: svc_ver_col.as_ref().and_then(|col| {
-                    if col.is_null(i) { None } else { Some(col.value(i).to_string()) }
+                    if col.is_null(i) {
+                        None
+                    } else {
+                        Some(col.value(i).to_string())
+                    }
                 }),
                 service_instance_id: svc_inst_col.as_ref().and_then(|col| {
-                    if col.is_null(i) { None } else { Some(col.value(i).to_string()) }
+                    if col.is_null(i) {
+                        None
+                    } else {
+                        Some(col.value(i).to_string())
+                    }
                 }),
                 span_name: span_name_col.value(i).to_string(),
                 span_kind: if span_kind_col.is_null(i) {
@@ -1307,8 +1341,7 @@ impl TraceQueries {
             summary_df = summary_df.filter(col(SERVICE_VERSION_COL).eq(lit(ver.as_str())))?;
         }
         if let Some(ref iid) = filters.service_instance_id {
-            summary_df =
-                summary_df.filter(col(SERVICE_INSTANCE_ID_COL).eq(lit(iid.as_str())))?;
+            summary_df = summary_df.filter(col(SERVICE_INSTANCE_ID_COL).eq(lit(iid.as_str())))?;
         }
         match filters.has_errors {
             Some(true) => {

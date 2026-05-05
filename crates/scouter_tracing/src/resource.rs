@@ -268,6 +268,34 @@ mod tests {
     }
 
     #[test]
+    fn explicit_namespace_version_instance_id_in_resource() {
+        with_env(
+            &[
+                (ENV_OTEL_SERVICE_NAME, None),
+                (ENV_OTEL_RESOURCE_ATTRIBUTES, None),
+            ],
+            || {
+                let cfg = ScouterResourceConfig {
+                    service_name: Some("svc".into()),
+                    service_namespace: Some("my-ns".into()),
+                    service_version: Some("3.1.4".into()),
+                    service_instance_id: Some("inst-1".into()),
+                    ..Default::default()
+                };
+                let r = cfg.build_resource();
+                let get = |key: &str| {
+                    r.get(&opentelemetry::Key::from(key.to_string()))
+                        .map(|v| v.to_string())
+                        .unwrap_or_default()
+                };
+                assert_eq!(get("service.namespace"), "my-ns");
+                assert_eq!(get("service.version"), "3.1.4");
+                assert_eq!(get("service.instance.id"), "inst-1");
+            },
+        );
+    }
+
+    #[test]
     fn url_decode_in_resource_attrs() {
         with_env(
             &[

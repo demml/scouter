@@ -166,7 +166,16 @@ pub async fn get_trace_spans_by_id(
     let spans = data
         .trace_service
         .query_service
-        .get_trace_spans(Some(trace_id_bytes.as_slice()), None, None, None, None, None, None, None)
+        .get_trace_spans(
+            Some(trace_id_bytes.as_slice()),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
         .await
         .map_err(|e| {
             error!("Failed to get trace spans: {:?}", e);

@@ -49,6 +49,25 @@ pub async fn get_token_metrics(
     State(data): State<Arc<AppState>>,
     Json(body): Json<GenAiMetricsRequest>,
 ) -> Result<Json<GenAiTokenMetricsResponse>, (StatusCode, Json<ScouterServerError>)> {
+    for (field_name, val) in [
+        ("service_name", body.service_name.as_deref()),
+        ("service_namespace", body.service_namespace.as_deref()),
+        ("service_version", body.service_version.as_deref()),
+        ("service_instance_id", body.service_instance_id.as_deref()),
+        ("operation_name", body.operation_name.as_deref()),
+        ("provider_name", body.provider_name.as_deref()),
+        ("agent_name", body.agent_name.as_deref()),
+        ("model", body.model.as_deref()),
+    ] {
+        if val.is_some_and(|v| v.len() > 256) {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(ScouterServerError::new(format!(
+                    "{field_name} exceeds maximum length of 256 characters"
+                ))),
+            ));
+        }
+    }
     let buckets = data
         .genai_service
         .query_service
@@ -93,6 +112,24 @@ pub async fn get_operation_breakdown(
     State(data): State<Arc<AppState>>,
     Json(body): Json<GenAiMetricsRequest>,
 ) -> Result<Json<GenAiOperationBreakdownResponse>, (StatusCode, Json<ScouterServerError>)> {
+    for (field_name, val) in [
+        ("service_name", body.service_name.as_deref()),
+        ("service_namespace", body.service_namespace.as_deref()),
+        ("service_version", body.service_version.as_deref()),
+        ("service_instance_id", body.service_instance_id.as_deref()),
+        ("provider_name", body.provider_name.as_deref()),
+        ("agent_name", body.agent_name.as_deref()),
+        ("model", body.model.as_deref()),
+    ] {
+        if val.is_some_and(|v| v.len() > 256) {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(ScouterServerError::new(format!(
+                    "{field_name} exceeds maximum length of 256 characters"
+                ))),
+            ));
+        }
+    }
     let operations = data
         .genai_service
         .query_service
@@ -135,6 +172,24 @@ pub async fn get_model_usage(
     State(data): State<Arc<AppState>>,
     Json(body): Json<GenAiMetricsRequest>,
 ) -> Result<Json<GenAiModelUsageResponse>, (StatusCode, Json<ScouterServerError>)> {
+    for (field_name, val) in [
+        ("service_name", body.service_name.as_deref()),
+        ("service_namespace", body.service_namespace.as_deref()),
+        ("service_version", body.service_version.as_deref()),
+        ("service_instance_id", body.service_instance_id.as_deref()),
+        ("provider_name", body.provider_name.as_deref()),
+        ("agent_name", body.agent_name.as_deref()),
+        ("model", body.model.as_deref()),
+    ] {
+        if val.is_some_and(|v| v.len() > 256) {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(ScouterServerError::new(format!(
+                    "{field_name} exceeds maximum length of 256 characters"
+                ))),
+            ));
+        }
+    }
     let models = data
         .genai_service
         .query_service
@@ -179,6 +234,23 @@ pub async fn get_agent_activity(
     Query(params): Query<AgentActivityQuery>,
     Json(body): Json<GenAiMetricsRequest>,
 ) -> Result<Json<GenAiAgentActivityResponse>, (StatusCode, Json<ScouterServerError>)> {
+    for (field_name, val) in [
+        ("service_name", body.service_name.as_deref()),
+        ("service_namespace", body.service_namespace.as_deref()),
+        ("service_version", body.service_version.as_deref()),
+        ("service_instance_id", body.service_instance_id.as_deref()),
+        ("provider_name", body.provider_name.as_deref()),
+        ("agent_name", params.agent_name.as_deref()),
+    ] {
+        if val.is_some_and(|v| v.len() > 256) {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(ScouterServerError::new(format!(
+                    "{field_name} exceeds maximum length of 256 characters"
+                ))),
+            ));
+        }
+    }
     let agents = data
         .genai_service
         .query_service
@@ -220,6 +292,23 @@ pub async fn get_tool_activity(
     State(data): State<Arc<AppState>>,
     Json(body): Json<GenAiMetricsRequest>,
 ) -> Result<Json<GenAiToolActivityResponse>, (StatusCode, Json<ScouterServerError>)> {
+    for (field_name, val) in [
+        ("service_name", body.service_name.as_deref()),
+        ("service_namespace", body.service_namespace.as_deref()),
+        ("service_version", body.service_version.as_deref()),
+        ("service_instance_id", body.service_instance_id.as_deref()),
+        ("agent_name", body.agent_name.as_deref()),
+        ("model", body.model.as_deref()),
+    ] {
+        if val.is_some_and(|v| v.len() > 256) {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(ScouterServerError::new(format!(
+                    "{field_name} exceeds maximum length of 256 characters"
+                ))),
+            ));
+        }
+    }
     let tools = data
         .genai_service
         .query_service
@@ -261,6 +350,24 @@ pub async fn get_error_breakdown(
     State(data): State<Arc<AppState>>,
     Json(body): Json<GenAiMetricsRequest>,
 ) -> Result<Json<GenAiErrorBreakdownResponse>, (StatusCode, Json<ScouterServerError>)> {
+    for (field_name, val) in [
+        ("service_name", body.service_name.as_deref()),
+        ("service_namespace", body.service_namespace.as_deref()),
+        ("service_version", body.service_version.as_deref()),
+        ("service_instance_id", body.service_instance_id.as_deref()),
+        ("operation_name", body.operation_name.as_deref()),
+        ("agent_name", body.agent_name.as_deref()),
+        ("model", body.model.as_deref()),
+    ] {
+        if val.is_some_and(|v| v.len() > 256) {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(ScouterServerError::new(format!(
+                    "{field_name} exceeds maximum length of 256 characters"
+                ))),
+            ));
+        }
+    }
     let raw_errors = data
         .genai_service
         .query_service
@@ -845,7 +952,17 @@ pub async fn get_genai_dashboard(
             agent,
             model
         ),
-        q.get_agent_activity(svc, ns, ver, iid, eid, body.start_time, body.end_time, None, provider),
+        q.get_agent_activity(
+            svc,
+            ns,
+            ver,
+            iid,
+            eid,
+            body.start_time,
+            body.end_time,
+            None,
+            provider
+        ),
         q.get_distinct_filter_values(svc, eid, body.start_time, body.end_time),
         q.count_total_spans(
             svc,

@@ -10051,6 +10051,9 @@ class TraceFilters:
     """A struct for filtering traces, generated from Rust pyclass."""
 
     service_name: Optional[str]
+    service_namespace: Optional[str]
+    service_version: Optional[str]
+    service_instance_id: Optional[str]
     has_errors: Optional[bool]
     status_code: Optional[int]
     start_time: Optional[datetime.datetime]
@@ -10069,6 +10072,9 @@ class TraceFilters:
     def __init__(
         self,
         service_name: Optional[str] = None,
+        service_namespace: Optional[str] = None,
+        service_version: Optional[str] = None,
+        service_instance_id: Optional[str] = None,
         has_errors: Optional[bool] = None,
         status_code: Optional[int] = None,
         start_time: Optional[datetime.datetime] = None,
@@ -10088,6 +10094,12 @@ class TraceFilters:
         Args:
             service_name:
                 Service name filter
+            service_namespace:
+                OTel service.namespace filter
+            service_version:
+                OTel service.version filter
+            service_instance_id:
+                OTel service.instance.id filter
             has_errors:
                 Filter by presence of errors
             status_code:
