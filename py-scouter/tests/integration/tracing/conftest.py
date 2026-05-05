@@ -173,6 +173,7 @@ def setup_instrumentor_http(isolated_server_config):
     with ScouterTestServer(**isolated_server_config) as server:
         instrumentor = ScouterInstrumentor()
         instrumentor.instrument(
+            service_name=INSTRUMENTOR_HTTP_SERVICE,
             transport_config=GrpcConfig(),
             batch_config=BatchConfig(scheduled_delay_ms=200),
         )
@@ -193,6 +194,7 @@ def setup_instrumentor_with_default_attrs(isolated_server_config):
     with ScouterTestServer(**isolated_server_config) as server:
         instrumentor = ScouterInstrumentor()
         instrumentor.instrument(
+            service_name=INSTRUMENTOR_ATTRS_SERVICE,
             transport_config=GrpcConfig(),
             batch_config=BatchConfig(scheduled_delay_ms=200),
             attributes=DEFAULT_TEST_ATTRIBUTES,
