@@ -197,12 +197,24 @@ impl ScouterClient {
     ) -> Result<TracePaginationResponse, ClientError> {
         let mut filters =
             TraceFilters::parse(q).map_err(|err| ClientError::PyError(err.to_string()))?;
-        filters.start_time = start_time;
-        filters.end_time = end_time;
-        filters.limit = limit;
-        filters.cursor_start_time = cursor_start_time;
-        filters.cursor_trace_id = cursor_trace_id;
-        filters.direction = direction;
+        if let Some(start_time) = start_time {
+            filters.start_time = Some(start_time);
+        }
+        if let Some(end_time) = end_time {
+            filters.end_time = Some(end_time);
+        }
+        if let Some(limit) = limit {
+            filters.limit = Some(limit);
+        }
+        if let Some(cursor_start_time) = cursor_start_time {
+            filters.cursor_start_time = Some(cursor_start_time);
+        }
+        if let Some(cursor_trace_id) = cursor_trace_id {
+            filters.cursor_trace_id = Some(cursor_trace_id);
+        }
+        if let Some(direction) = direction {
+            filters.direction = Some(direction);
+        }
 
         let response = self.client.request(
             Routes::PaginatedTraces,

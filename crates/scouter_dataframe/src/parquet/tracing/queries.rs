@@ -19,6 +19,7 @@ use scouter_types::{Attribute, SpanEvent, SpanId, SpanLink, TraceId};
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tracing::{error, info, instrument};
 
@@ -75,6 +76,8 @@ pub(crate) const SUMMARY_TABLE_NAME: &str = "trace_summaries";
 pub(crate) const ERROR_COUNT_COL: &str = "error_count";
 pub(crate) const ENTITY_IDS_COL: &str = "entity_ids";
 pub(crate) const QUEUE_IDS_COL: &str = "queue_ids";
+
+static METRICS_SUMMARY_VIEW_SEQ: AtomicU64 = AtomicU64::new(0);
 
 /// Columns needed to reconstruct a `TraceSpan` (all fields except search_blob).
 const SPAN_COLUMNS: &[&str] = &[
@@ -1091,7 +1094,8 @@ impl TraceQueries {
             .with_column("duration_ms", duration_expr)?;
 
         if let Some(clause) = &request.clause {
-            let summary_table_name = format!("_metrics_summary_{cache_key}");
+            let summary_view_seq = METRICS_SUMMARY_VIEW_SEQ.fetch_add(1, Ordering::Relaxed);
+            let summary_table_name = format!("_metrics_summary_{cache_key}_{summary_view_seq}");
             self.ctx
                 .register_table(&summary_table_name, service_filtered_df.clone().into_view())
                 .map_err(TraceEngineError::DatafusionError)?;
@@ -1107,11 +1111,24 @@ impl TraceQueries {
             )
             .await;
 
-            self.ctx
+            let deregister_result = self
+                .ctx
                 .deregister_table(&summary_table_name)
-                .map_err(TraceEngineError::DatafusionError)?;
+                .map_err(TraceEngineError::DatafusionError);
 
-            let matching_trace_ids = matching_trace_ids?
+            let matching_trace_ids = match (matching_trace_ids, deregister_result) {
+                (Ok(df), Ok(_)) => df,
+                (Ok(_), Err(err)) => return Err(err),
+                (Err(err), Ok(_)) => return Err(err),
+                (Err(err), Err(cleanup_err)) => {
+                    error!(
+                        "Failed to deregister metrics summary view {summary_table_name}: {cleanup_err:?}"
+                    );
+                    return Err(err);
+                }
+            };
+
+            let matching_trace_ids = matching_trace_ids
                 .select(vec![col(TRACE_ID_COL).alias("_metrics_clause_tid")])?
                 .distinct()?;
 

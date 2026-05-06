@@ -1084,6 +1084,94 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_trace_metrics_attribute_filter_concurrent_requests()
+    -> Result<(), TraceEngineError> {
+        cleanup();
+
+        let storage_settings = ObjectStorageSettings::default();
+        let service = std::sync::Arc::new(
+            TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?,
+        );
+
+        let trace_id = TraceId::from_bytes([0x56u8; 16]);
+        let root_span_id = SpanId::from_bytes([0x20u8; 8]);
+        let now = Utc::now();
+
+        let mut root = make_span(
+            &trace_id,
+            root_span_id.clone(),
+            None,
+            "root_service",
+            "root",
+            vec![],
+        );
+        root.start_time = now;
+        root.end_time = now + chrono::Duration::milliseconds(100);
+        root.duration_ms = 100;
+
+        let mut child = make_span(
+            &trace_id,
+            SpanId::from_bytes([0x21u8; 8]),
+            Some(root_span_id),
+            "worker_service",
+            "kafka_child",
+            vec![Attribute {
+                key: "component".to_string(),
+                value: Value::String("kafka".to_string()),
+            }],
+        );
+        child.start_time = now + chrono::Duration::milliseconds(900);
+        child.end_time = now + chrono::Duration::milliseconds(1200);
+        child.duration_ms = 300;
+
+        service.write_spans(vec![root, child]).await?;
+        tokio::time::sleep(Duration::from_secs(4)).await;
+
+        let request = trace_metrics_request(
+            now - chrono::Duration::hours(1),
+            now + chrono::Duration::hours(1),
+            Some(FilterClause::Attr {
+                key: "component".to_string(),
+                value: "kafka".to_string(),
+            }),
+        );
+        let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(8));
+        let mut handles = Vec::new();
+
+        for _ in 0..8 {
+            let service = service.clone();
+            let request = request.clone();
+            let barrier = barrier.clone();
+            handles.push(tokio::spawn(async move {
+                barrier.wait().await;
+                service
+                    .query_service
+                    .get_trace_metrics(&request, "hour")
+                    .await
+            }));
+        }
+
+        for handle in handles {
+            let metrics = handle.await.expect("metrics task should not panic")?;
+            let trace_count: i64 = metrics.iter().map(|m| m.trace_count).sum();
+            assert_eq!(trace_count, 1);
+            assert!(
+                metrics
+                    .iter()
+                    .any(|bucket| bucket.avg_duration_ms >= 1000.0),
+                "concurrent metrics queries must preserve full trace aggregation"
+            );
+        }
+
+        match std::sync::Arc::try_unwrap(service) {
+            Ok(service) => service.shutdown().await?,
+            Err(_) => panic!("all metrics query service references should be dropped"),
+        }
+        cleanup();
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_flush_buffer_genai_integration() -> Result<(), TraceEngineError> {
         cleanup();
 

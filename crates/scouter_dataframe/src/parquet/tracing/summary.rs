@@ -956,9 +956,12 @@ impl TraceSummaryQueries {
         {
             let binary_ids: Vec<Expr> = ids
                 .iter()
-                .filter_map(|hex| TraceId::hex_to_bytes(hex).ok())
-                .map(|b| lit(ScalarValue::Binary(Some(b))))
-                .collect();
+                .map(|hex| {
+                    TraceId::hex_to_bytes(hex)
+                        .map(|b| lit(ScalarValue::Binary(Some(b))))
+                        .map_err(|err| TraceEngineError::InvalidHexId(hex.clone(), err.to_string()))
+                })
+                .collect::<Result<_, _>>()?;
             if !binary_ids.is_empty() {
                 df = df.filter(col(TRACE_ID_COL).in_list(binary_ids, false))?;
             }
@@ -969,8 +972,10 @@ impl TraceSummaryQueries {
         // for "next" or `> (cursor_time, cursor_id)` for "previous".
         if let (Some(cursor_time), Some(cursor_id)) =
             (filters.cursor_start_time, &filters.cursor_trace_id)
-            && let Ok(cursor_bytes) = TraceId::hex_to_bytes(cursor_id)
         {
+            let cursor_bytes = TraceId::hex_to_bytes(cursor_id).map_err(|err| {
+                TraceEngineError::InvalidHexId(cursor_id.clone(), err.to_string())
+            })?;
             let cursor_ts = lit(ScalarValue::TimestampMicrosecond(
                 Some(cursor_time.timestamp_micros()),
                 Some("UTC".into()),
@@ -1858,6 +1863,20 @@ mod tests {
             "Should not have returned unwanted trace_id"
         );
 
+        let invalid_filters = TraceFilters {
+            start_time: Some(start),
+            end_time: Some(end),
+            limit: Some(25),
+            trace_ids: Some(vec!["not-a-hex-id".to_string()]),
+            ..Default::default()
+        };
+        let err = service
+            .query_service
+            .get_paginated_traces(&invalid_filters)
+            .await
+            .expect_err("invalid trace_ids must fail closed");
+        assert!(matches!(err, TraceEngineError::InvalidHexId(_, _)));
+
         service.shutdown().await?;
         cleanup();
         Ok(())
@@ -1919,6 +1938,14 @@ mod tests {
         filters.direction = Some("previous".to_string());
         let prev = service.query_service.get_paginated_traces(&filters).await?;
         assert_eq!(prev.items.len(), 50, "previous page: 50 items");
+
+        filters.cursor_trace_id = Some("not-a-hex-id".to_string());
+        let err = service
+            .query_service
+            .get_paginated_traces(&filters)
+            .await
+            .expect_err("invalid cursor_trace_id must fail closed");
+        assert!(matches!(err, TraceEngineError::InvalidHexId(_, _)));
 
         service.shutdown().await?;
         cleanup();

@@ -74,7 +74,6 @@ impl utoipa::Modify for SecurityAddon {
         crate::api::routes::trace::route::trace_metrics,
         crate::api::routes::trace::route::query_spans_from_filters,
         crate::api::routes::trace::route::v1_otel_traces,
-        crate::api::routes::trace::route::search_traces,
         // message
         crate::api::routes::message::route::insert_message,
         // agent

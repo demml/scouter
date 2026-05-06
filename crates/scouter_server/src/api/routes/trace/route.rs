@@ -70,6 +70,20 @@ fn validate_filters(filters: &TraceFilters) -> Result<(), (StatusCode, Json<Scou
             Json(ScouterServerError::new(format!("invalid direction: {d}"))),
         ));
     }
+    filters.parsed_trace_ids().map_err(|err| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ScouterServerError::new(format!("invalid trace_ids: {err}"))),
+        )
+    })?;
+    filters.parsed_cursor_trace_id().map_err(|err| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ScouterServerError::new(format!(
+                "invalid cursor_trace_id: {err}"
+            ))),
+        )
+    })?;
     if let Some(clause) = &filters.clause {
         validate_clause(clause)
             .map_err(|msg| (StatusCode::BAD_REQUEST, Json(ScouterServerError::new(msg))))?;
@@ -136,42 +150,6 @@ fn merge_q_into_metrics(
         clause: FilterClause::and_merge(parsed.clause, body.clause),
         entity_uid: body.entity_uid.or(parsed.entity_uid),
     })
-}
-
-fn parse_search_traces_params(
-    params: SearchTracesParams,
-) -> Result<TraceFilters, (StatusCode, Json<ScouterServerError>)> {
-    let parsed = parse_search_query(&params.q).map_err(invalid_search_query)?;
-
-    let parse_ts = |value: &str| {
-        chrono::DateTime::parse_from_rfc3339(value)
-            .map(|dt| dt.with_timezone(&chrono::Utc))
-            .map_err(|e| {
-                (
-                    StatusCode::BAD_REQUEST,
-                    Json(ScouterServerError::new(format!("Invalid timestamp: {e}"))),
-                )
-            })
-    };
-
-    let explicit = TraceFilters {
-        clause: None,
-        start_time: params.start_time.as_deref().map(parse_ts).transpose()?,
-        end_time: params.end_time.as_deref().map(parse_ts).transpose()?,
-        limit: params.limit,
-        cursor_start_time: params
-            .cursor_start_time
-            .as_deref()
-            .map(parse_ts)
-            .transpose()?,
-        cursor_trace_id: params.cursor_trace_id,
-        direction: params.direction,
-        trace_ids: None,
-        entity_uid: None,
-        queue_uid: None,
-    };
-
-    Ok(merge_filters(parsed, explicit))
 }
 
 #[utoipa::path(
@@ -671,59 +649,6 @@ pub async fn v1_otel_traces(
         .into_response())
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::IntoParams)]
-pub struct SearchTracesParams {
-    /// Compatibility search query. Prefer POST `/scouter/trace/paginated` for sensitive terms.
-    pub q: String,
-    pub start_time: Option<String>,
-    pub end_time: Option<String>,
-    pub limit: Option<i32>,
-    pub cursor_start_time: Option<String>,
-    pub cursor_trace_id: Option<String>,
-    pub direction: Option<String>,
-}
-
-#[utoipa::path(
-    get,
-    path = "/scouter/v1/traces/search",
-    params(SearchTracesParams),
-    responses(
-        (status = 200, description = "Paginated traces matching search query", body = TracePaginationResponse),
-        (status = 400, description = "Invalid search query", body = ScouterServerError),
-        (status = 500, description = "Internal server error", body = ScouterServerError),
-    ),
-    tag = "traces",
-    security(("bearer_token" = []))
-)]
-#[instrument(skip_all)]
-pub async fn search_traces(
-    State(data): State<Arc<AppState>>,
-    Query(params): Query<SearchTracesParams>,
-) -> Result<Json<TracePaginationResponse>, (StatusCode, Json<ScouterServerError>)> {
-    let filters = parse_search_traces_params(params)?;
-
-    validate_filters(&filters)?;
-
-    let response = data
-        .trace_summary_service
-        .query_service
-        .get_paginated_traces(&filters)
-        .await
-        .map_err(|e| {
-            error!("search_traces failed: {:?}", e);
-            let (status, message) = trace_query_status(&e);
-            (
-                status,
-                Json(match message {
-                    Some(message) => ScouterServerError::new(message),
-                    None => ScouterServerError::get_paginated_traces_error(e),
-                }),
-            )
-        })?;
-
-    Ok(Json(response))
-}
-
 #[cfg(debug_assertions)]
 #[utoipa::path(
     get,
@@ -787,7 +712,6 @@ pub async fn get_trace_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
             .route(&format!("{prefix}/trace/metrics"), post(trace_metrics))
             .route(&format!("{prefix}/trace/facets"), post(get_trace_facets))
             .route(&format!("{prefix}/v1/traces"), post(v1_otel_traces))
-            .route(&format!("{prefix}/v1/traces/search"), get(search_traces))
             .route(
                 &(format!("{prefix}/v1/traces/") + "{id}/spans"),
                 get(get_trace_spans_by_id),

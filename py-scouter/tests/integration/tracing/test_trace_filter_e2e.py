@@ -107,6 +107,33 @@ def test_trace_filter_planner_python_e2e(setup_instrumentor_http) -> None:
 
     assert {kafka_trace_id, redis_trace_id, quoted_service_trace_id}.issubset(service_ids)
 
+    pagination_query = " ".join(
+        [
+            f"start_time:{start_time.isoformat()}",
+            f"end_time:{end_time.isoformat()}",
+            "limit:2",
+            f"e2e_filter_id:{token}",
+        ]
+    )
+    first_page = client.search_traces(pagination_query)
+    first_ids = {item.trace_id for item in first_page.items}
+    next_cursor = getattr(first_page, "next_cursor")
+    assert 0 < len(first_ids) <= 2
+    assert getattr(first_page, "has_next")
+    assert next_cursor is not None
+
+    second_page = client.search_traces(
+        pagination_query,
+        cursor_start_time=next_cursor.start_time,
+        cursor_trace_id=next_cursor.trace_id,
+        direction="next",
+    )
+    second_ids = {item.trace_id for item in second_page.items}
+    assert second_ids
+    assert first_ids.isdisjoint(second_ids)
+    assert getattr(second_page, "has_previous")
+    assert getattr(second_page, "previous_cursor") is not None
+
     mixed_ids = _wait_for_trace_ids(
         client,
         f"service:no-such-service OR (e2e_filter_id:{token} AND component:kafka)",

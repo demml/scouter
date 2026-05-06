@@ -61,7 +61,7 @@ const MAX_QUERY_LEN: usize = 4096;
 
 pub fn validate_filter_clause(clause: &FilterClause) -> Result<(), TypeError> {
     let mut stats = ClauseValidationStats::default();
-    validate_clause_node(clause, 0, &mut stats)
+    validate_clause_node(clause, 0, &mut stats).map(|_| ())
 }
 
 #[derive(Default)]
@@ -69,11 +69,39 @@ struct ClauseValidationStats {
     nodes: usize,
 }
 
+#[derive(Default, Copy, Clone)]
+struct DurationBounds {
+    min: Option<i64>,
+    max: Option<i64>,
+}
+
+impl DurationBounds {
+    fn merge_and(&mut self, other: DurationBounds) {
+        if let Some(min) = other.min {
+            self.min = Some(self.min.map_or(min, |current| current.max(min)));
+        }
+        if let Some(max) = other.max {
+            self.max = Some(self.max.map_or(max, |current| current.min(max)));
+        }
+    }
+
+    fn validate(self) -> Result<(), TypeError> {
+        if let (Some(lo), Some(hi)) = (self.min, self.max)
+            && lo > hi
+        {
+            return Err(TypeError::ParseError(format!(
+                "impossible duration range: min {lo}ms > max {hi}ms"
+            )));
+        }
+        Ok(())
+    }
+}
+
 fn validate_clause_node(
     clause: &FilterClause,
     depth: usize,
     stats: &mut ClauseValidationStats,
-) -> Result<(), TypeError> {
+) -> Result<DurationBounds, TypeError> {
     if depth > MAX_DEPTH {
         return Err(TypeError::ParseError(format!(
             "filter clause nesting too deep (max {MAX_DEPTH})"
@@ -89,45 +117,57 @@ fn validate_clause_node(
     }
 
     match clause {
-        FilterClause::And(parts) | FilterClause::Or(parts) => {
+        FilterClause::And(parts) => {
             validate_fanout(parts.len())?;
 
-            let mut min: Option<i64> = None;
-            let mut max: Option<i64> = None;
+            let mut bounds = DurationBounds::default();
             for part in parts {
-                match part {
-                    FilterClause::DurationMinMs(value) => min = Some(*value),
-                    FilterClause::DurationMaxMs(value) => max = Some(*value),
-                    _ => {}
-                }
+                bounds.merge_and(validate_clause_node(part, depth + 1, stats)?);
+            }
+            bounds.validate()?;
+            Ok(bounds)
+        }
+        FilterClause::Or(parts) => {
+            validate_fanout(parts.len())?;
+
+            for part in parts {
                 validate_clause_node(part, depth + 1, stats)?;
             }
-
-            if let (Some(lo), Some(hi)) = (min, max)
-                && lo > hi
-            {
-                return Err(TypeError::ParseError(format!(
-                    "impossible duration range: min {lo}ms > max {hi}ms"
-                )));
-            }
+            Ok(DurationBounds::default())
         }
-        FilterClause::Not(inner) => validate_clause_node(inner, depth + 1, stats)?,
+        FilterClause::Not(inner) => {
+            validate_clause_node(inner, depth + 1, stats)?;
+            Ok(DurationBounds::default())
+        }
         FilterClause::Phrase(value)
         | FilterClause::Service(value)
         | FilterClause::ServiceNamespace(value)
         | FilterClause::ServiceVersion(value)
-        | FilterClause::ServiceInstanceId(value) => validate_leaf_string(value)?,
+        | FilterClause::ServiceInstanceId(value) => {
+            validate_leaf_string(value)?;
+            Ok(DurationBounds::default())
+        }
         FilterClause::Attr { key, value } => {
             validate_leaf_string(key)?;
             validate_leaf_string(value)?;
+            Ok(DurationBounds::default())
         }
-        FilterClause::StatusCode(_)
-        | FilterClause::HasErrors(_)
-        | FilterClause::DurationMinMs(_)
-        | FilterClause::DurationMaxMs(_) => {}
+        FilterClause::DurationMinMs(value) => {
+            validate_duration_value(*value)?;
+            Ok(DurationBounds {
+                min: Some(*value),
+                max: None,
+            })
+        }
+        FilterClause::DurationMaxMs(value) => {
+            validate_duration_value(*value)?;
+            Ok(DurationBounds {
+                min: None,
+                max: Some(*value),
+            })
+        }
+        FilterClause::StatusCode(_) | FilterClause::HasErrors(_) => Ok(DurationBounds::default()),
     }
-
-    Ok(())
 }
 
 fn validate_fanout(len: usize) -> Result<(), TypeError> {
@@ -144,6 +184,15 @@ fn validate_leaf_string(value: &str) -> Result<(), TypeError> {
         return Err(TypeError::ParseError(format!(
             "filter clause string too long: {} chars (max {MAX_CLAUSE_LEAF_STRING_LEN})",
             value.len()
+        )));
+    }
+    Ok(())
+}
+
+fn validate_duration_value(value: i64) -> Result<(), TypeError> {
+    if value < 0 {
+        return Err(TypeError::ParseError(format!(
+            "duration must be >= 0: {value}ms"
         )));
     }
     Ok(())
@@ -816,6 +865,19 @@ mod tests {
 
         let large_leaf = FilterClause::Phrase("x".repeat(MAX_CLAUSE_LEAF_STRING_LEN + 1));
         assert!(validate_filter_clause(&large_leaf).is_err());
+
+        let too_many_nodes = FilterClause::And(
+            (0..MAX_CLAUSE_FANOUT)
+                .map(|branch| {
+                    FilterClause::And(
+                        (0..8)
+                            .map(|leaf| FilterClause::Phrase(format!("leaf-{branch}-{leaf}")))
+                            .collect(),
+                    )
+                })
+                .collect(),
+        );
+        assert!(validate_filter_clause(&too_many_nodes).is_err());
     }
 
     #[test]
@@ -826,5 +888,31 @@ mod tests {
         ]);
 
         assert!(validate_filter_clause(&clause).is_err());
+    }
+
+    #[test]
+    fn validates_direct_clause_nested_conjunctive_duration_range() {
+        let clause = FilterClause::And(vec![
+            FilterClause::DurationMinMs(500),
+            FilterClause::And(vec![FilterClause::DurationMaxMs(100)]),
+        ]);
+
+        assert!(validate_filter_clause(&clause).is_err());
+    }
+
+    #[test]
+    fn validates_direct_clause_duration_non_negative() {
+        assert!(validate_filter_clause(&FilterClause::DurationMinMs(-1)).is_err());
+        assert!(validate_filter_clause(&FilterClause::DurationMaxMs(-1)).is_err());
+    }
+
+    #[test]
+    fn accepts_direct_clause_disjunctive_duration_alternatives() {
+        let clause = FilterClause::Or(vec![
+            FilterClause::DurationMinMs(500),
+            FilterClause::DurationMaxMs(100),
+        ]);
+
+        assert!(validate_filter_clause(&clause).is_ok());
     }
 }
