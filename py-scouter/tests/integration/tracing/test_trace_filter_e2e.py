@@ -7,10 +7,7 @@ from typing import Any
 
 from scouter.client import ScouterClient
 
-from .conftest import (
-    INSTRUMENTOR_HTTP_SERVICE,
-    _wait_for_export,
-)
+from .conftest import INSTRUMENTOR_HTTP_SERVICE, _wait_for_export
 
 
 def _trace_id(value: Any) -> str:
@@ -44,8 +41,7 @@ def _trace_has_attributes(
 ) -> bool:
     response = client.get_trace_spans(trace_id)
     return any(
-        all(_attribute_map(span).get(key) == value for key, value in expected.items())
-        for span in response.spans
+        all(_attribute_map(span).get(key) == value for key, value in expected.items()) for span in response.spans
     )
 
 
@@ -104,9 +100,7 @@ def test_trace_filter_planner_python_e2e(setup_instrumentor_http) -> None:
         minimum_count=3,
     )
 
-    assert {kafka_trace_id, redis_trace_id, quoted_service_trace_id}.issubset(
-        service_ids
-    )
+    assert {kafka_trace_id, redis_trace_id, quoted_service_trace_id}.issubset(service_ids)
 
     mixed_ids = _wait_for_trace_ids(
         client,
