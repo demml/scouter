@@ -2,6 +2,7 @@ pub mod catalog;
 pub mod dispatch;
 pub mod engine;
 pub mod genai;
+pub(crate) mod planner;
 pub mod queries;
 pub mod service;
 pub mod span_view;

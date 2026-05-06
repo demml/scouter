@@ -46,11 +46,24 @@ fn invalid_search_query(err: impl std::fmt::Display) -> (StatusCode, Json<Scoute
     )
 }
 
-fn validate_filters(
-    filters: &TraceFilters,
-) -> Result<(), (StatusCode, Json<ScouterServerError>)> {
+fn trace_query_status(
+    err: &scouter_dataframe::error::TraceEngineError,
+) -> (StatusCode, Option<String>) {
+    match err {
+        scouter_dataframe::error::TraceEngineError::IntermediateSetTooLarge { actual, limit } => (
+            StatusCode::BAD_REQUEST,
+            Some(format!(
+                "filter resolved to {actual} traces, exceeds cap of {limit}; narrow the time window or refine the query"
+            )),
+        ),
+        _ => (StatusCode::INTERNAL_SERVER_ERROR, None),
+    }
+}
+
+fn validate_filters(filters: &TraceFilters) -> Result<(), (StatusCode, Json<ScouterServerError>)> {
     if let Some(ref d) = filters.direction
-        && d != "next" && d != "previous"
+        && d != "next"
+        && d != "previous"
     {
         return Err((
             StatusCode::BAD_REQUEST,
@@ -58,12 +71,8 @@ fn validate_filters(
         ));
     }
     if let Some(clause) = &filters.clause {
-        validate_clause(clause).map_err(|msg| {
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ScouterServerError::new(msg)),
-            )
-        })?;
+        validate_clause(clause)
+            .map_err(|msg| (StatusCode::BAD_REQUEST, Json(ScouterServerError::new(msg))))?;
     }
     Ok(())
 }
@@ -209,9 +218,13 @@ pub async fn paginated_traces(
         .await
         .map_err(|e| {
             error!("Failed to get paginated traces: {:?}", e);
+            let (status, message) = trace_query_status(&e);
             (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ScouterServerError::get_paginated_traces_error(e)),
+                status,
+                Json(match message {
+                    Some(message) => ScouterServerError::new(message),
+                    None => ScouterServerError::get_paginated_traces_error(e),
+                }),
             )
         })?;
 
@@ -446,9 +459,8 @@ pub async fn trace_metrics(
 ) -> Result<Json<TraceMetricsResponse>, (StatusCode, Json<ScouterServerError>)> {
     let body = merge_q_into_metrics(search.q, body)?;
     if let Some(clause) = &body.clause {
-        validate_clause(clause).map_err(|msg| {
-            (StatusCode::BAD_REQUEST, Json(ScouterServerError::new(msg)))
-        })?;
+        validate_clause(clause)
+            .map_err(|msg| (StatusCode::BAD_REQUEST, Json(ScouterServerError::new(msg))))?;
     }
     debug!(
         "trace_metrics: start={:?} end={:?} interval={}",
@@ -473,9 +485,13 @@ pub async fn trace_metrics(
         .await
         .map_err(|e| {
             error!("Failed to get trace metrics: {:?}", e);
+            let (status, message) = trace_query_status(&e);
             (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ScouterServerError::get_trace_metrics_error(e)),
+                status,
+                Json(match message {
+                    Some(message) => ScouterServerError::new(message),
+                    None => ScouterServerError::get_trace_metrics_error(e),
+                }),
             )
         })?;
 
@@ -513,9 +529,13 @@ pub async fn get_trace_facets(
         .await
         .map_err(|e| {
             error!("Failed to get trace facets: {:?}", e);
+            let (status, message) = trace_query_status(&e);
             (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ScouterServerError::get_trace_facets_error(e)),
+                status,
+                Json(match message {
+                    Some(message) => ScouterServerError::new(message),
+                    None => ScouterServerError::get_trace_facets_error(e),
+                }),
             )
         })?;
     Ok(Json(facets))
@@ -548,9 +568,13 @@ pub async fn query_spans_from_filters(
         .await
         .map_err(|e| {
             error!("Failed to get spans from trace filters: {:?}", e);
+            let (status, message) = trace_query_status(&e);
             (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ScouterServerError::get_trace_spans_error(e)),
+                status,
+                Json(match message {
+                    Some(message) => ScouterServerError::new(message),
+                    None => ScouterServerError::get_trace_spans_error(e),
+                }),
             )
         })?;
 
@@ -698,9 +722,13 @@ pub async fn search_traces(
         .await
         .map_err(|e| {
             error!("search_traces failed: {:?}", e);
+            let (status, message) = trace_query_status(&e);
             (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ScouterServerError::get_paginated_traces_error(e)),
+                status,
+                Json(match message {
+                    Some(message) => ScouterServerError::new(message),
+                    None => ScouterServerError::get_paginated_traces_error(e),
+                }),
             )
         })?;
 
@@ -740,9 +768,13 @@ pub async fn debug_recent_traces(
         .await
         .map_err(|e| {
             error!("Failed to get debug recent traces: {:?}", e);
+            let (status, message) = trace_query_status(&e);
             (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ScouterServerError::get_paginated_traces_error(e)),
+                status,
+                Json(match message {
+                    Some(message) => ScouterServerError::new(message),
+                    None => ScouterServerError::get_paginated_traces_error(e),
+                }),
             )
         })?;
 
@@ -890,7 +922,10 @@ mod tests {
                 direction: Some(dir.into()),
                 ..Default::default()
             };
-            assert!(validate_filters(&filters).is_ok(), "failed for direction={dir}");
+            assert!(
+                validate_filters(&filters).is_ok(),
+                "failed for direction={dir}"
+            );
         }
     }
 }

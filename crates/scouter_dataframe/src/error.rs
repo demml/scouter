@@ -133,6 +133,9 @@ pub enum TraceEngineError {
 
     #[error("Failed to convert RecordBatch to TraceSpanBatch: {0}")]
     BatchConversion(String),
+
+    #[error("filter resolution exceeded {limit} traces (got {actual})")]
+    IntermediateSetTooLarge { actual: usize, limit: usize },
 }
 
 #[derive(Error, Debug)]

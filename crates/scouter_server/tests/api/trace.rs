@@ -89,6 +89,29 @@ async fn fetch_spans_from_filters(
     serde_json::from_slice(&body).unwrap()
 }
 
+async fn fetch_spans_from_filters_raw(
+    helper: &TestHelper,
+    filters: &TraceFilters,
+) -> (StatusCode, Vec<u8>) {
+    let body = serde_json::to_string(filters).unwrap();
+    let request = Request::builder()
+        .uri("/scouter/trace/spans/filters")
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body))
+        .unwrap();
+    let response = helper.send_oneshot(request).await;
+    let status = response.status();
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes()
+        .to_vec();
+    (status, body)
+}
+
 async fn fetch_facets(helper: &TestHelper, filters: &TraceFilters) -> TraceFacetsResponse {
     let body = serde_json::to_string(filters).unwrap();
     let request = Request::builder()
@@ -413,6 +436,52 @@ async fn test_trace_search_q_and_body_are_and_merged() {
     let empty_q: TracePaginationResponse = serde_json::from_slice(&empty_body).unwrap();
     let default_page = fetch_paginated(&helper, &TraceFilters::default()).await;
     assert_eq!(empty_q.items.len(), default_page.items.len());
+}
+
+#[tokio::test]
+async fn test_spans_from_filters_accepts_mixed_or_clause() {
+    let helper = setup_test().await;
+    helper.generate_trace_data().await.unwrap();
+    wait_for_paginated_count(&helper, 100).await;
+
+    let all = fetch_paginated(
+        &helper,
+        &TraceFilters {
+            limit: Some(200),
+            ..Default::default()
+        },
+    )
+    .await;
+    let service_name = all
+        .items
+        .first()
+        .expect("generated traces should include at least one summary")
+        .service_name
+        .clone();
+
+    let filters = TraceFilters {
+        clause: Some(FilterClause::Or(vec![
+            FilterClause::Service(service_name),
+            FilterClause::Attr {
+                key: "component".to_string(),
+                value: "kafka".to_string(),
+            },
+        ])),
+        limit: Some(25),
+        ..Default::default()
+    };
+    let (status, body) = fetch_spans_from_filters_raw(&helper, &filters).await;
+
+    // This route uses the fourth planner consumer; mixed OR must remain a legal
+    // query shape instead of failing during summary/span planning.
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "unexpected response: {}",
+        String::from_utf8_lossy(&body)
+    );
+    let spans: TraceSpansResponse = serde_json::from_slice(&body).unwrap();
+    assert!(!spans.spans.is_empty());
 }
 
 #[tokio::test]

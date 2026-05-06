@@ -318,11 +318,33 @@ impl Parser {
             }
             Some(Tok::Quoted(s)) => {
                 self.bump();
+                if let Some(value) = self.parse_quoted_key_value()? {
+                    return Ok(Some(FilterClause::Attr { key: s, value }));
+                }
                 Ok(Some(FilterClause::Phrase(s)))
             }
             Some(Tok::Word(w)) => {
                 self.bump();
                 classify_word(&w, top, depth)
+            }
+            _ => Ok(None),
+        }
+    }
+
+    fn parse_quoted_key_value(&mut self) -> Result<Option<String>, TypeError> {
+        match self.peek().cloned() {
+            Some(Tok::Word(separator)) if separator == ":" => {
+                self.bump();
+                match self.bump() {
+                    Some(Tok::Quoted(value)) | Some(Tok::Word(value)) => Ok(Some(value)),
+                    other => Err(TypeError::ParseError(format!(
+                        "expected value after quoted field separator, got {other:?}"
+                    ))),
+                }
+            }
+            Some(Tok::Word(value)) if value.starts_with(':') && value.len() > 1 => {
+                self.bump();
+                Ok(Some(value[1..].to_string()))
             }
             _ => Ok(None),
         }
@@ -459,6 +481,9 @@ fn apply_kv(
                 .push(value.to_string());
             Ok(None)
         }
+        // `service:` is a shorthand for the canonical summary-column filter.
+        // Quoted `"service":"foo"` still falls through as an attribute search.
+        "service" => Ok(Some(FilterClause::Service(value.to_string()))),
         "service_name" => Ok(Some(FilterClause::Service(value.to_string()))),
         "service_namespace" => Ok(Some(FilterClause::ServiceNamespace(value.to_string()))),
         "service_version" => Ok(Some(FilterClause::ServiceVersion(value.to_string()))),
@@ -608,7 +633,13 @@ mod tests {
     #[test]
     fn structured_fields() {
         assert!(
+            matches!(parse("service:foo").clause, Some(FilterClause::Service(s)) if s == "foo")
+        );
+        assert!(
             matches!(parse("service_name:foo").clause, Some(FilterClause::Service(s)) if s == "foo")
+        );
+        assert!(
+            matches!(parse("\"service\":\"foo\"").clause, Some(FilterClause::Attr { key, value }) if key == "service" && value == "foo")
         );
         assert!(
             matches!(parse("component:kafka").clause, Some(FilterClause::Attr { key, value }) if key == "component" && value == "kafka")
