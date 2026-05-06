@@ -1477,13 +1477,13 @@ mod tests {
     #[test]
     fn empty_and_is_true() {
         let expr = lower_clause(&FilterClause::And(vec![]));
-        assert_eq!(format!("{expr}"), "true");
+        assert_eq!(format!("{expr}"), "Boolean(true)");
     }
 
     #[test]
     fn empty_or_is_false() {
         let expr = lower_clause(&FilterClause::Or(vec![]));
-        assert_eq!(format!("{expr}"), "false");
+        assert_eq!(format!("{expr}"), "Boolean(false)");
     }
 
     // ── DataFusion integration tests: span-table lowering ────────────────────
