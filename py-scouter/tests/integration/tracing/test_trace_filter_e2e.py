@@ -58,7 +58,12 @@ def _wait_for_trace_ids(
     last_ids: set[str] = set()
 
     while time.monotonic() < deadline:
-        response = client.search_traces(query, start_time, end_time, 20)
+        response = client.search_traces(
+            query,
+            start_time=start_time,
+            end_time=end_time,
+            limit=20,
+        )
         last_ids = {item.trace_id for item in response.items}
         if len(last_ids) >= minimum_count:
             return last_ids

@@ -1101,6 +1101,7 @@ class ScouterClient:
     def search_traces(
         self,
         q: str,
+        *,
         start_time: Optional[datetime.datetime] = None,
         end_time: Optional[datetime.datetime] = None,
         limit: Optional[int] = None,

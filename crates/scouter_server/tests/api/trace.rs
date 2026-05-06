@@ -55,8 +55,12 @@ async fn fetch_paginated_with_q(
 }
 
 async fn search_traces_with_q(helper: &TestHelper, q: &str) -> (StatusCode, Vec<u8>) {
+    search_traces_raw(helper, &format!("q={q}&limit=200")).await
+}
+
+async fn search_traces_raw(helper: &TestHelper, query: &str) -> (StatusCode, Vec<u8>) {
     let request = Request::builder()
-        .uri(format!("/scouter/v1/traces/search?q={q}&limit=200"))
+        .uri(format!("/scouter/v1/traces/search?{query}"))
         .method("GET")
         .body(Body::empty())
         .unwrap();
@@ -91,11 +95,12 @@ async fn fetch_spans_from_filters(
 
 async fn fetch_spans_from_filters_raw(
     helper: &TestHelper,
+    uri: &str,
     filters: &TraceFilters,
 ) -> (StatusCode, Vec<u8>) {
     let body = serde_json::to_string(filters).unwrap();
     let request = Request::builder()
-        .uri("/scouter/trace/spans/filters")
+        .uri(uri)
         .method("POST")
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(body))
@@ -127,16 +132,56 @@ async fn fetch_facets(helper: &TestHelper, filters: &TraceFilters) -> TraceFacet
 }
 
 async fn fetch_metrics(helper: &TestHelper, request: &TraceMetricsRequest) -> TraceMetricsResponse {
+    let (status, body) = fetch_metrics_raw(helper, "/scouter/trace/metrics", request).await;
+    assert_eq!(status, StatusCode::OK);
+    serde_json::from_slice(&body).unwrap()
+}
+
+async fn fetch_metrics_raw(
+    helper: &TestHelper,
+    uri: &str,
+    request: &TraceMetricsRequest,
+) -> (StatusCode, Vec<u8>) {
     let req = Request::builder()
-        .uri("/scouter/trace/metrics")
+        .uri(uri)
         .method("POST")
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(serde_json::to_string(request).unwrap()))
         .unwrap();
     let response = helper.send_oneshot(req).await;
-    assert_eq!(response.status(), StatusCode::OK);
-    let body = response.into_body().collect().await.unwrap().to_bytes();
-    serde_json::from_slice(&body).unwrap()
+    let status = response.status();
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes()
+        .to_vec();
+    (status, body)
+}
+
+async fn fetch_facets_raw(
+    helper: &TestHelper,
+    uri: &str,
+    filters: &TraceFilters,
+) -> (StatusCode, Vec<u8>) {
+    let body = serde_json::to_string(filters).unwrap();
+    let request = Request::builder()
+        .uri(uri)
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body))
+        .unwrap();
+    let response = helper.send_oneshot(request).await;
+    let status = response.status();
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes()
+        .to_vec();
+    (status, body)
 }
 
 async fn wait_for_paginated_count(helper: &TestHelper, expected_count: usize) {
@@ -439,6 +484,150 @@ async fn test_trace_search_q_and_body_are_and_merged() {
 }
 
 #[tokio::test]
+async fn test_trace_q_is_merged_for_metrics_facets_and_spans() {
+    let helper = setup_test().await;
+    helper.generate_trace_data().await.unwrap();
+    wait_for_paginated_count(&helper, 100).await;
+
+    let now = Utc::now();
+    let metrics_base = TraceMetricsRequest {
+        start_time: now - chrono::Duration::hours(24),
+        end_time: now + chrono::Duration::hours(1),
+        bucket_interval: "hour".to_string(),
+        clause: None,
+        entity_uid: None,
+    };
+    let metrics_body = TraceMetricsRequest {
+        clause: TraceFilters::parse("component:kafka").unwrap().clause,
+        ..metrics_base.clone()
+    };
+
+    let metrics_from_body = fetch_metrics(&helper, &metrics_body).await;
+    let (status, metrics_q_body) = fetch_metrics_raw(
+        &helper,
+        "/scouter/trace/metrics?q=component:kafka",
+        &metrics_base,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let metrics_from_q: TraceMetricsResponse = serde_json::from_slice(&metrics_q_body).unwrap();
+    assert_eq!(
+        metrics_from_q
+            .metrics
+            .iter()
+            .map(|bucket| bucket.trace_count)
+            .sum::<i64>(),
+        metrics_from_body
+            .metrics
+            .iter()
+            .map(|bucket| bucket.trace_count)
+            .sum::<i64>()
+    );
+
+    let metrics_and_body = TraceMetricsRequest {
+        clause: Some(FilterClause::HasErrors(false)),
+        ..metrics_base
+    };
+    let (status, metrics_merged_body) = fetch_metrics_raw(
+        &helper,
+        "/scouter/trace/metrics?q=component:kafka",
+        &metrics_and_body,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let metrics_merged: TraceMetricsResponse =
+        serde_json::from_slice(&metrics_merged_body).unwrap();
+    assert!(
+        metrics_merged
+            .metrics
+            .iter()
+            .map(|bucket| bucket.trace_count)
+            .sum::<i64>()
+            <= metrics_from_q
+                .metrics
+                .iter()
+                .map(|bucket| bucket.trace_count)
+                .sum::<i64>()
+    );
+
+    let body_filters = TraceFilters::parse("component:kafka").unwrap();
+    let body_facets = fetch_facets(&helper, &body_filters).await;
+    let (status, facets_q_body) = fetch_facets_raw(
+        &helper,
+        "/scouter/trace/facets?q=component:kafka",
+        &TraceFilters::default(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let facets_from_q: TraceFacetsResponse = serde_json::from_slice(&facets_q_body).unwrap();
+    assert_eq!(facets_from_q.total_count, body_facets.total_count);
+
+    let merged_filters = TraceFilters {
+        clause: Some(FilterClause::HasErrors(false)),
+        ..Default::default()
+    };
+    let (status, merged_facets_body) = fetch_facets_raw(
+        &helper,
+        "/scouter/trace/facets?q=component:kafka",
+        &merged_filters,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let merged_facets: TraceFacetsResponse = serde_json::from_slice(&merged_facets_body).unwrap();
+    assert!(merged_facets.total_count <= facets_from_q.total_count);
+
+    let body_spans = fetch_spans_from_filters(&helper, &body_filters).await;
+    let (status, spans_q_body) = fetch_spans_from_filters_raw(
+        &helper,
+        "/scouter/trace/spans/filters?q=component:kafka",
+        &TraceFilters::default(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let spans_from_q: TraceSpansResponse = serde_json::from_slice(&spans_q_body).unwrap();
+    assert_eq!(spans_from_q.spans.len(), body_spans.spans.len());
+
+    let (status, merged_spans_body) = fetch_spans_from_filters_raw(
+        &helper,
+        "/scouter/trace/spans/filters?q=component:kafka",
+        &merged_filters,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let merged_spans: TraceSpansResponse = serde_json::from_slice(&merged_spans_body).unwrap();
+    assert!(merged_spans.spans.len() <= spans_from_q.spans.len());
+
+    let invalid_q = "%28start_time:2026-01-01T00%3A00%3A00Z%20component:kafka%29";
+    let (status, _) = fetch_metrics_raw(
+        &helper,
+        &format!("/scouter/trace/metrics?q={invalid_q}"),
+        &TraceMetricsRequest {
+            start_time: now - chrono::Duration::hours(24),
+            end_time: now + chrono::Duration::hours(1),
+            bucket_interval: "hour".to_string(),
+            clause: None,
+            entity_uid: None,
+        },
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (status, _) = fetch_facets_raw(
+        &helper,
+        &format!("/scouter/trace/facets?q={invalid_q}"),
+        &TraceFilters::default(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (status, _) = fetch_spans_from_filters_raw(
+        &helper,
+        &format!("/scouter/trace/spans/filters?q={invalid_q}"),
+        &TraceFilters::default(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
 async fn test_spans_from_filters_accepts_mixed_or_clause() {
     let helper = setup_test().await;
     helper.generate_trace_data().await.unwrap();
@@ -470,7 +659,8 @@ async fn test_spans_from_filters_accepts_mixed_or_clause() {
         limit: Some(25),
         ..Default::default()
     };
-    let (status, body) = fetch_spans_from_filters_raw(&helper, &filters).await;
+    let (status, body) =
+        fetch_spans_from_filters_raw(&helper, "/scouter/trace/spans/filters", &filters).await;
 
     // This route uses the fourth planner consumer; mixed OR must remain a legal
     // query shape instead of failing during summary/span planning.
@@ -598,6 +788,64 @@ async fn test_trace_pagination() {
         backward_ids, forward_ids,
         "Backward walk should cover the same trace_ids as forward walk"
     );
+}
+
+#[tokio::test]
+async fn test_get_trace_search_cursor_and_validation_paths() {
+    let helper = setup_test().await;
+    helper.generate_trace_data().await.unwrap();
+    wait_for_paginated_count(&helper, 100).await;
+
+    let (status, body) = search_traces_raw(&helper, "q=component:kafka&limit=2").await;
+    assert_eq!(status, StatusCode::OK);
+    let first_page: TracePaginationResponse = serde_json::from_slice(&body).unwrap();
+    assert_eq!(first_page.items.len(), 2);
+    assert!(first_page.has_next);
+
+    let next_cursor = first_page.next_cursor.as_ref().unwrap();
+    let cursor_start_time = next_cursor.start_time.to_rfc3339().replace("+00:00", "Z");
+    let (status, body) = search_traces_raw(
+        &helper,
+        &format!(
+            "q=component:kafka&limit=2&cursor_start_time={cursor_start_time}&cursor_trace_id={}&direction=next",
+            next_cursor.trace_id
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let second_page: TracePaginationResponse = serde_json::from_slice(&body).unwrap();
+    assert!(!second_page.items.is_empty());
+    assert!(second_page.has_previous);
+
+    let first_ids: HashSet<String> = first_page
+        .items
+        .iter()
+        .map(|item| item.trace_id.clone())
+        .collect();
+    let second_ids: HashSet<String> = second_page
+        .items
+        .iter()
+        .map(|item| item.trace_id.clone())
+        .collect();
+    assert!(first_ids.is_disjoint(&second_ids));
+
+    let mut previous_start = first_page.items[0].start_time;
+    for item in first_page
+        .items
+        .iter()
+        .skip(1)
+        .chain(second_page.items.iter())
+    {
+        assert!(item.start_time <= previous_start);
+        previous_start = item.start_time;
+    }
+
+    let (status, _) =
+        search_traces_raw(&helper, "q=component:kafka&start_time=not-a-timestamp").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    let (status, _) = search_traces_raw(&helper, "q=component:kafka&direction=sideways").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
 }
 
 #[tokio::test]

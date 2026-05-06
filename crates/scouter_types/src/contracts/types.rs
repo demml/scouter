@@ -1,15 +1,18 @@
 use std::fmt::Display;
 
 use crate::error::{ContractError, TypeError};
+use crate::json_to_pyobject_value;
 use crate::sql::{TraceListItem, TraceMetricBucket, TraceSpan};
 use crate::{AgentEvalWorkflowResult, Alert, EvalTaskResult};
 use crate::{CustomInterval, DriftProfile, EvalRecord, Status, Tag, TagRecord, TraceBaggageRecord};
 use crate::{DriftType, PyHelperFuncs, TimeInterval};
 use chrono::{DateTime, Utc};
+use pyo3::IntoPyObjectExt;
 use pyo3::prelude::*;
 use scouter_semver::VersionType;
 use serde::Deserialize;
 use serde::Serialize;
+use serde_json::Value;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use tracing::error;
@@ -1013,12 +1016,16 @@ pub struct SpansFromTagsRequest {
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[pyclass(from_py_object)]
 pub struct TraceMetricsRequest {
+    #[pyo3(get, set)]
     pub start_time: DateTime<Utc>,
+    #[pyo3(get, set)]
     pub end_time: DateTime<Utc>,
+    #[pyo3(get, set)]
     pub bucket_interval: String,
     #[serde(default)]
     pub clause: Option<crate::trace::query::FilterClause>,
     #[serde(default)]
+    #[pyo3(get, set)]
     pub entity_uid: Option<String>,
 }
 
@@ -1054,6 +1061,28 @@ impl TraceMetricsRequest {
         end_time: DateTime<Utc>,
         bucket_interval: String,
     ) -> Result<Self, crate::error::TypeError> {
+        Self::try_from_query(q, start_time, end_time, bucket_interval)
+    }
+
+    #[getter]
+    pub fn clause<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TypeError> {
+        let value = match &self.clause {
+            Some(clause) => serde_json::to_value(clause)?,
+            None => Value::Null,
+        };
+        Ok(json_to_pyobject_value(py, &value)?
+            .into_bound_py_any(py)?
+            .clone())
+    }
+}
+
+impl TraceMetricsRequest {
+    pub fn try_from_query(
+        q: &str,
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
+        bucket_interval: String,
+    ) -> Result<Self, crate::error::TypeError> {
         let parsed = crate::trace::query::parse_search_query(q)?;
         Ok(TraceMetricsRequest {
             start_time,
@@ -1062,6 +1091,37 @@ impl TraceMetricsRequest {
             clause: parsed.clause,
             entity_uid: parsed.entity_uid,
         })
+    }
+}
+
+#[cfg(test)]
+mod trace_metrics_request_tests {
+    use super::*;
+    use crate::trace::query::FilterClause;
+
+    #[test]
+    fn from_query_preserves_entity_uid_and_clause_shape() {
+        let now = Utc::now();
+        let request = TraceMetricsRequest::try_from_query(
+            "entity_uid:entity-1 service:checkout OR component:kafka",
+            now - chrono::Duration::hours(1),
+            now + chrono::Duration::hours(1),
+            "hour".to_string(),
+        )
+        .expect("query should parse");
+
+        assert_eq!(request.entity_uid.as_deref(), Some("entity-1"));
+        assert!(matches!(
+            request.clause,
+            Some(FilterClause::Or(ref parts))
+                if parts.len() == 2
+                    && matches!(parts[0], FilterClause::Service(ref service) if service == "checkout")
+                    && matches!(
+                        parts[1],
+                        FilterClause::Attr { ref key, ref value }
+                            if key == "component" && value == "kafka"
+                    )
+        ));
     }
 }
 

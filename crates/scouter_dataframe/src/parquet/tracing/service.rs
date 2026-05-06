@@ -1013,6 +1013,77 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_trace_metrics_attribute_filter_aggregates_full_trace()
+    -> Result<(), TraceEngineError> {
+        cleanup();
+
+        let storage_settings = ObjectStorageSettings::default();
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+
+        let trace_id = TraceId::from_bytes([0x55u8; 16]);
+        let root_span_id = SpanId::from_bytes([0x10u8; 8]);
+        let now = Utc::now();
+
+        let mut root = make_span(
+            &trace_id,
+            root_span_id.clone(),
+            None,
+            "root_service",
+            "root",
+            vec![],
+        );
+        root.start_time = now;
+        root.end_time = now + chrono::Duration::milliseconds(100);
+        root.duration_ms = 100;
+
+        let mut child = make_span(
+            &trace_id,
+            SpanId::from_bytes([0x11u8; 8]),
+            Some(root_span_id),
+            "worker_service",
+            "kafka_child",
+            vec![Attribute {
+                key: "component".to_string(),
+                value: Value::String("kafka".to_string()),
+            }],
+        );
+        child.start_time = now + chrono::Duration::milliseconds(900);
+        child.end_time = now + chrono::Duration::milliseconds(1200);
+        child.duration_ms = 300;
+
+        service.write_spans(vec![root, child]).await?;
+        tokio::time::sleep(Duration::from_secs(4)).await;
+
+        let metrics = service
+            .query_service
+            .get_trace_metrics(
+                &trace_metrics_request(
+                    now - chrono::Duration::hours(1),
+                    now + chrono::Duration::hours(1),
+                    Some(FilterClause::Attr {
+                        key: "component".to_string(),
+                        value: "kafka".to_string(),
+                    }),
+                ),
+                "hour",
+            )
+            .await?;
+
+        let trace_count: i64 = metrics.iter().map(|m| m.trace_count).sum();
+        assert_eq!(trace_count, 1);
+        assert!(
+            metrics
+                .iter()
+                .any(|bucket| bucket.avg_duration_ms >= 1000.0),
+            "metrics must aggregate the full trace duration, not only the matching child span"
+        );
+
+        service.shutdown().await?;
+        cleanup();
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_flush_buffer_genai_integration() -> Result<(), TraceEngineError> {
         cleanup();
 

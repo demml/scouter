@@ -195,32 +195,20 @@ impl ScouterClient {
         cursor_trace_id: Option<String>,
         direction: Option<String>,
     ) -> Result<TracePaginationResponse, ClientError> {
-        #[derive(serde::Serialize)]
-        struct SearchParams {
-            q: String,
-            start_time: Option<String>,
-            end_time: Option<String>,
-            limit: Option<i32>,
-            cursor_start_time: Option<String>,
-            cursor_trace_id: Option<String>,
-            direction: Option<String>,
-        }
-
-        let query_string = serde_qs::to_string(&SearchParams {
-            q: q.to_string(),
-            start_time: start_time.map(|dt| dt.to_rfc3339()),
-            end_time: end_time.map(|dt| dt.to_rfc3339()),
-            limit,
-            cursor_start_time: cursor_start_time.map(|dt| dt.to_rfc3339()),
-            cursor_trace_id,
-            direction,
-        })?;
+        let mut filters =
+            TraceFilters::parse(q).map_err(|err| ClientError::PyError(err.to_string()))?;
+        filters.start_time = start_time;
+        filters.end_time = end_time;
+        filters.limit = limit;
+        filters.cursor_start_time = cursor_start_time;
+        filters.cursor_trace_id = cursor_trace_id;
+        filters.direction = direction;
 
         let response = self.client.request(
-            Routes::SearchTraces,
-            RequestType::Get,
+            Routes::PaginatedTraces,
+            RequestType::Post,
+            Some(serde_json::to_value(&filters)?),
             None,
-            Some(query_string),
             None,
         )?;
 
@@ -577,6 +565,7 @@ impl PyScouterClient {
 
     #[pyo3(signature = (
         q,
+        *,
         start_time=None,
         end_time=None,
         limit=None,

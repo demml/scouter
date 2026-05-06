@@ -23,6 +23,9 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 const MAX_DEPTH: usize = 32;
+const MAX_CLAUSE_NODES: usize = 512;
+const MAX_CLAUSE_FANOUT: usize = 64;
+const MAX_CLAUSE_LEAF_STRING_LEN: usize = MAX_QUERY_LEN;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "utoipa", derive(ToSchema))]
@@ -55,6 +58,96 @@ impl FilterClause {
 }
 
 const MAX_QUERY_LEN: usize = 4096;
+
+pub fn validate_filter_clause(clause: &FilterClause) -> Result<(), TypeError> {
+    let mut stats = ClauseValidationStats::default();
+    validate_clause_node(clause, 0, &mut stats)
+}
+
+#[derive(Default)]
+struct ClauseValidationStats {
+    nodes: usize,
+}
+
+fn validate_clause_node(
+    clause: &FilterClause,
+    depth: usize,
+    stats: &mut ClauseValidationStats,
+) -> Result<(), TypeError> {
+    if depth > MAX_DEPTH {
+        return Err(TypeError::ParseError(format!(
+            "filter clause nesting too deep (max {MAX_DEPTH})"
+        )));
+    }
+
+    stats.nodes += 1;
+    if stats.nodes > MAX_CLAUSE_NODES {
+        return Err(TypeError::ParseError(format!(
+            "filter clause has too many nodes: {} (max {MAX_CLAUSE_NODES})",
+            stats.nodes
+        )));
+    }
+
+    match clause {
+        FilterClause::And(parts) | FilterClause::Or(parts) => {
+            validate_fanout(parts.len())?;
+
+            let mut min: Option<i64> = None;
+            let mut max: Option<i64> = None;
+            for part in parts {
+                match part {
+                    FilterClause::DurationMinMs(value) => min = Some(*value),
+                    FilterClause::DurationMaxMs(value) => max = Some(*value),
+                    _ => {}
+                }
+                validate_clause_node(part, depth + 1, stats)?;
+            }
+
+            if let (Some(lo), Some(hi)) = (min, max)
+                && lo > hi
+            {
+                return Err(TypeError::ParseError(format!(
+                    "impossible duration range: min {lo}ms > max {hi}ms"
+                )));
+            }
+        }
+        FilterClause::Not(inner) => validate_clause_node(inner, depth + 1, stats)?,
+        FilterClause::Phrase(value)
+        | FilterClause::Service(value)
+        | FilterClause::ServiceNamespace(value)
+        | FilterClause::ServiceVersion(value)
+        | FilterClause::ServiceInstanceId(value) => validate_leaf_string(value)?,
+        FilterClause::Attr { key, value } => {
+            validate_leaf_string(key)?;
+            validate_leaf_string(value)?;
+        }
+        FilterClause::StatusCode(_)
+        | FilterClause::HasErrors(_)
+        | FilterClause::DurationMinMs(_)
+        | FilterClause::DurationMaxMs(_) => {}
+    }
+
+    Ok(())
+}
+
+fn validate_fanout(len: usize) -> Result<(), TypeError> {
+    if len > MAX_CLAUSE_FANOUT {
+        return Err(TypeError::ParseError(format!(
+            "filter clause boolean fanout too large: {len} (max {MAX_CLAUSE_FANOUT})"
+        )));
+    }
+    Ok(())
+}
+
+fn validate_leaf_string(value: &str) -> Result<(), TypeError> {
+    if value.len() > MAX_CLAUSE_LEAF_STRING_LEN {
+        return Err(TypeError::ParseError(format!(
+            "filter clause string too long: {} chars (max {MAX_CLAUSE_LEAF_STRING_LEN})",
+            value.len()
+        )));
+    }
+    Ok(())
+}
 
 pub fn parse_search_query(q: &str) -> Result<TraceFilters, TypeError> {
     let mut filters = TraceFilters::default();
@@ -704,5 +797,34 @@ mod tests {
         assert!(parse_search_query("a OR b)").is_err());
         let q = "(".repeat(40) + "foo" + &")".repeat(40);
         assert!(parse_search_query(&q).is_err());
+    }
+
+    #[test]
+    fn validates_direct_clause_complexity() {
+        let mut deep = FilterClause::Phrase("leaf".into());
+        for _ in 0..=MAX_DEPTH {
+            deep = FilterClause::Not(Box::new(deep));
+        }
+        assert!(validate_filter_clause(&deep).is_err());
+
+        let wide = FilterClause::Or(
+            (0..=MAX_CLAUSE_FANOUT)
+                .map(|idx| FilterClause::Phrase(format!("leaf-{idx}")))
+                .collect(),
+        );
+        assert!(validate_filter_clause(&wide).is_err());
+
+        let large_leaf = FilterClause::Phrase("x".repeat(MAX_CLAUSE_LEAF_STRING_LEN + 1));
+        assert!(validate_filter_clause(&large_leaf).is_err());
+    }
+
+    #[test]
+    fn validates_direct_clause_duration_range() {
+        let clause = FilterClause::And(vec![
+            FilterClause::DurationMinMs(500),
+            FilterClause::DurationMaxMs(100),
+        ]);
+
+        assert!(validate_filter_clause(&clause).is_err());
     }
 }

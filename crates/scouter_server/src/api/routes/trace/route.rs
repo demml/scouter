@@ -24,7 +24,7 @@ use scouter_types::{
     TraceServerRecord, TraceSpansResponse,
     contracts::ScouterServerError,
     sql::TraceFilters,
-    trace::query::{FilterClause, parse_search_query},
+    trace::query::{FilterClause, parse_search_query, validate_filter_clause},
 };
 use std::collections::HashSet;
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -78,25 +78,7 @@ fn validate_filters(filters: &TraceFilters) -> Result<(), (StatusCode, Json<Scou
 }
 
 fn validate_clause(clause: &FilterClause) -> Result<(), String> {
-    if let FilterClause::And(parts) = clause {
-        let mut min: Option<i64> = None;
-        let mut max: Option<i64> = None;
-        for part in parts {
-            match part {
-                FilterClause::DurationMinMs(v) => min = Some(*v),
-                FilterClause::DurationMaxMs(v) => max = Some(*v),
-                _ => validate_clause(part)?,
-            }
-        }
-        if let (Some(lo), Some(hi)) = (min, max)
-            && lo > hi
-        {
-            return Err(format!(
-                "impossible duration range: min {lo}ms > max {hi}ms"
-            ));
-        }
-    }
-    Ok(())
+    validate_filter_clause(clause).map_err(|err| err.to_string())
 }
 
 fn merge_q_into_filters(
@@ -154,6 +136,42 @@ fn merge_q_into_metrics(
         clause: FilterClause::and_merge(parsed.clause, body.clause),
         entity_uid: body.entity_uid.or(parsed.entity_uid),
     })
+}
+
+fn parse_search_traces_params(
+    params: SearchTracesParams,
+) -> Result<TraceFilters, (StatusCode, Json<ScouterServerError>)> {
+    let parsed = parse_search_query(&params.q).map_err(invalid_search_query)?;
+
+    let parse_ts = |value: &str| {
+        chrono::DateTime::parse_from_rfc3339(value)
+            .map(|dt| dt.with_timezone(&chrono::Utc))
+            .map_err(|e| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    Json(ScouterServerError::new(format!("Invalid timestamp: {e}"))),
+                )
+            })
+    };
+
+    let explicit = TraceFilters {
+        clause: None,
+        start_time: params.start_time.as_deref().map(parse_ts).transpose()?,
+        end_time: params.end_time.as_deref().map(parse_ts).transpose()?,
+        limit: params.limit,
+        cursor_start_time: params
+            .cursor_start_time
+            .as_deref()
+            .map(parse_ts)
+            .transpose()?,
+        cursor_trace_id: params.cursor_trace_id,
+        direction: params.direction,
+        trace_ids: None,
+        entity_uid: None,
+        queue_uid: None,
+    };
+
+    Ok(merge_filters(parsed, explicit))
 }
 
 #[utoipa::path(
@@ -655,6 +673,7 @@ pub async fn v1_otel_traces(
 
 #[derive(Debug, serde::Deserialize, utoipa::IntoParams)]
 pub struct SearchTracesParams {
+    /// Compatibility search query. Prefer POST `/scouter/trace/paginated` for sensitive terms.
     pub q: String,
     pub start_time: Option<String>,
     pub end_time: Option<String>,
@@ -681,37 +700,7 @@ pub async fn search_traces(
     State(data): State<Arc<AppState>>,
     Query(params): Query<SearchTracesParams>,
 ) -> Result<Json<TracePaginationResponse>, (StatusCode, Json<ScouterServerError>)> {
-    let mut filters = parse_search_query(&params.q).map_err(invalid_search_query)?;
-
-    let parse_ts = |value: &str| {
-        chrono::DateTime::parse_from_rfc3339(value)
-            .map(|dt| dt.with_timezone(&chrono::Utc))
-            .map_err(|e| {
-                (
-                    StatusCode::BAD_REQUEST,
-                    Json(ScouterServerError::new(format!("Invalid timestamp: {e}"))),
-                )
-            })
-    };
-
-    if let Some(start_time) = params.start_time.as_deref() {
-        filters.start_time = Some(parse_ts(start_time)?);
-    }
-    if let Some(end_time) = params.end_time.as_deref() {
-        filters.end_time = Some(parse_ts(end_time)?);
-    }
-    if let Some(cursor_start_time) = params.cursor_start_time.as_deref() {
-        filters.cursor_start_time = Some(parse_ts(cursor_start_time)?);
-    }
-    if let Some(cursor_trace_id) = params.cursor_trace_id {
-        filters.cursor_trace_id = Some(cursor_trace_id);
-    }
-    if let Some(direction) = params.direction {
-        filters.direction = Some(direction);
-    }
-    if let Some(limit) = params.limit {
-        filters.limit = Some(limit);
-    }
+    let filters = parse_search_traces_params(params)?;
 
     validate_filters(&filters)?;
 

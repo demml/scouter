@@ -2,7 +2,7 @@ use crate::error::TraceEngineError;
 use crate::parquet::tracing::queries::{
     DURATION_MS_COL, ERROR_COUNT_COL, PARTITION_DATE_COL, SEARCH_BLOB_COL, SERVICE_INSTANCE_ID_COL,
     SERVICE_NAME_COL, SERVICE_NAMESPACE_COL, SERVICE_VERSION_COL, SPAN_TABLE_NAME, START_TIME_COL,
-    STATUS_CODE_COL, TRACE_ID_COL, date_lit, ts_lit,
+    STATUS_CODE_COL, SUMMARY_TABLE_NAME, TRACE_ID_COL, date_lit, ts_lit,
 };
 use crate::parquet::utils::match_attr_expr;
 use chrono::{DateTime, Utc};
@@ -17,7 +17,7 @@ type PlannerFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, TraceEngineErr
 
 /// MUST BUMP IF SEMANTICS CHANGE: metrics cache keys include this value so a
 /// deployment never reuses buckets produced by an older logical planner.
-pub(crate) const PLANNER_VERSION: u64 = 1;
+pub(crate) const PLANNER_VERSION: u64 = 2;
 
 /// Hard ceiling for trace-id sets the planner resolves before joining.
 /// The cap protects DataFusion from planning massive intermediate joins for
@@ -30,15 +30,12 @@ pub(crate) struct TimeWindow {
     pub end: Option<DateTime<Utc>>,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub(crate) enum ClauseResolution {
     SummaryExpr(Expr),
-    SpanExpr(Expr),
-    TraceIdSet {
-        span_predicate: Expr,
-        complement: bool,
-    },
+    SpanExpr,
+    TraceIdSet { complement: bool },
     Tautology,
     Contradiction,
 }
@@ -49,9 +46,10 @@ pub(crate) enum ClauseResolution {
 /// reviewers. `node` keeps the full boolean tree so the executor can preserve
 /// mixed-table `AND`, mixed-table `OR`, and `NOT` without rebuilding from text.
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub(crate) struct ClausePlan {
+    #[cfg(test)]
     pub root: ClauseResolution,
+    #[cfg(test)]
     pub or_branches: Vec<ClauseResolution>,
     node: PlannedNode,
 }
@@ -96,25 +94,21 @@ pub(crate) fn plan_clause(clause: &FilterClause) -> ClausePlan {
     // lost the boolean topology for mixed `OR`. This plan keeps the tree intact
     // and lets the executor decide where trace-id joins are needed.
     let node = plan_node(clause);
+    #[cfg(test)]
     let root = resolution_for_node(&node);
+    #[cfg(test)]
     let or_branches = match &node {
         PlannedNode::Or(parts) => parts.iter().map(resolution_for_node).collect(),
         _ => Vec::new(),
     };
 
     ClausePlan {
+        #[cfg(test)]
         root,
+        #[cfg(test)]
         or_branches,
         node,
     }
-}
-
-pub(crate) fn span_filter_for_metrics(clause: &FilterClause) -> Expr {
-    // Metrics are computed from the raw span table before per-trace aggregation.
-    // Summary-only leaves are therefore lowered to their span-column equivalents
-    // here instead of forcing metrics to depend on the asynchronously maintained
-    // summary table.
-    span_expr_for_clause(clause)
 }
 
 pub(crate) async fn execute_plan(
@@ -122,7 +116,38 @@ pub(crate) async fn execute_plan(
     ctx: &SessionContext,
     time_window: TimeWindow,
 ) -> Result<ResolvedPlan, TraceEngineError> {
-    execute_node(&plan.node, ctx, time_window).await
+    execute_plan_with_summary_table(plan, ctx, time_window, SUMMARY_TABLE_NAME).await
+}
+
+pub(crate) async fn execute_plan_with_summary_table(
+    plan: &ClausePlan,
+    ctx: &SessionContext,
+    time_window: TimeWindow,
+    summary_table: &str,
+) -> Result<ResolvedPlan, TraceEngineError> {
+    execute_node(&plan.node, ctx, time_window, summary_table).await
+}
+
+pub(crate) async fn trace_ids_for_clause_with_summary_table(
+    clause: &FilterClause,
+    ctx: &SessionContext,
+    time_window: TimeWindow,
+    summary_table: &str,
+) -> Result<DataFrame, TraceEngineError> {
+    let plan = plan_clause(clause);
+    let resolved = execute_plan_with_summary_table(&plan, ctx, time_window, summary_table).await?;
+    let mut df =
+        summary_trace_ids_df(ctx, time_window, resolved.summary_filter, summary_table).await?;
+
+    if resolved.contradiction {
+        df = df.filter(lit(false))?;
+    } else {
+        for constraint in resolved.id_constraints {
+            df = apply_id_constraint(df, constraint).await?;
+        }
+    }
+
+    Ok(df.select_columns(&[TRACE_ID_COL])?.distinct()?)
 }
 
 pub(crate) async fn apply_id_constraint(
@@ -156,6 +181,7 @@ fn execute_node<'a>(
     node: &'a PlannedNode,
     ctx: &'a SessionContext,
     time_window: TimeWindow,
+    summary_table: &'a str,
 ) -> PlannerFuture<'a, ResolvedPlan> {
     Box::pin(async move {
         match node {
@@ -179,9 +205,9 @@ fn execute_node<'a>(
                 ],
                 contradiction: false,
             }),
-            PlannedNode::And(parts) => execute_and(parts, ctx, time_window).await,
+            PlannedNode::And(parts) => execute_and(parts, ctx, time_window, summary_table).await,
             PlannedNode::Or(_) | PlannedNode::Complement(_) => {
-                let df = trace_ids_for_node(ctx, time_window, node).await?;
+                let df = trace_ids_for_node(ctx, time_window, node, summary_table).await?;
                 Ok(ResolvedPlan {
                     summary_filter: None,
                     id_constraints: vec![bounded_constraint(df, false).await?],
@@ -206,12 +232,13 @@ async fn execute_and(
     parts: &[PlannedNode],
     ctx: &SessionContext,
     time_window: TimeWindow,
+    summary_table: &str,
 ) -> Result<ResolvedPlan, TraceEngineError> {
     let mut summary_filter: Option<Expr> = None;
     let mut id_constraints = Vec::new();
 
     for part in parts {
-        let resolved = execute_node(part, ctx, time_window).await?;
+        let resolved = execute_node(part, ctx, time_window, summary_table).await?;
         if resolved.contradiction {
             return Ok(ResolvedPlan {
                 summary_filter: None,
@@ -277,45 +304,6 @@ fn plan_node(clause: &FilterClause) -> PlannedNode {
                 col(SEARCH_BLOB_COL),
                 lit(format!("%|{safe_key}={safe_val}|%")),
             ))
-        }
-    }
-}
-
-fn span_expr_for_clause(clause: &FilterClause) -> Expr {
-    match clause {
-        FilterClause::And(parts) => parts
-            .iter()
-            .map(span_expr_for_clause)
-            .reduce(|left, right| left.and(right))
-            .unwrap_or_else(|| lit(true)),
-        FilterClause::Or(parts) => parts
-            .iter()
-            .map(span_expr_for_clause)
-            .reduce(|left, right| left.or(right))
-            .unwrap_or_else(|| lit(false)),
-        FilterClause::Not(inner) => datafusion::logical_expr::not(span_expr_for_clause(inner)),
-        FilterClause::Phrase(value) => {
-            let safe = sanitize_search_value(value);
-            match_attr_expr(col(SEARCH_BLOB_COL), lit(format!("%{safe}%")))
-        }
-        FilterClause::Service(value) => col(SERVICE_NAME_COL).eq(lit(value.as_str())),
-        FilterClause::ServiceNamespace(value) => col(SERVICE_NAMESPACE_COL).eq(lit(value.as_str())),
-        FilterClause::ServiceVersion(value) => col(SERVICE_VERSION_COL).eq(lit(value.as_str())),
-        FilterClause::ServiceInstanceId(value) => {
-            col(SERVICE_INSTANCE_ID_COL).eq(lit(value.as_str()))
-        }
-        FilterClause::StatusCode(value) => col(STATUS_CODE_COL).eq(lit(*value)),
-        FilterClause::HasErrors(true) => col(STATUS_CODE_COL).eq(lit(2_i32)),
-        FilterClause::HasErrors(false) => col(STATUS_CODE_COL).not_eq(lit(2_i32)),
-        FilterClause::DurationMinMs(value) => col(DURATION_MS_COL).gt_eq(lit(*value)),
-        FilterClause::DurationMaxMs(value) => col(DURATION_MS_COL).lt_eq(lit(*value)),
-        FilterClause::Attr { key, value } => {
-            let safe_key = sanitize_search_value(key);
-            let safe_val = sanitize_search_value(value);
-            match_attr_expr(
-                col(SEARCH_BLOB_COL),
-                lit(format!("%|{safe_key}={safe_val}|%")),
-            )
         }
     }
 }
@@ -450,15 +438,12 @@ fn plan_not(inner: &FilterClause) -> PlannedNode {
     }
 }
 
+#[cfg(test)]
 fn resolution_for_node(node: &PlannedNode) -> ClauseResolution {
     match node {
         PlannedNode::Summary(expr) => ClauseResolution::SummaryExpr(expr.clone()),
-        PlannedNode::Span(expr) => ClauseResolution::SpanExpr(expr.clone()),
-        PlannedNode::TraceIdSet {
-            span_predicate,
-            complement,
-        } => ClauseResolution::TraceIdSet {
-            span_predicate: span_predicate.clone(),
+        PlannedNode::Span(_) => ClauseResolution::SpanExpr,
+        PlannedNode::TraceIdSet { complement, .. } => ClauseResolution::TraceIdSet {
             complement: *complement,
         },
         PlannedNode::Tautology => ClauseResolution::Tautology,
@@ -473,11 +458,12 @@ fn trace_ids_for_node<'a>(
     ctx: &'a SessionContext,
     time_window: TimeWindow,
     node: &'a PlannedNode,
+    summary_table: &'a str,
 ) -> PlannerFuture<'a, DataFrame> {
     Box::pin(async move {
         match node {
             PlannedNode::Summary(expr) => {
-                summary_trace_ids_df(ctx, time_window, Some(expr.clone())).await
+                summary_trace_ids_df(ctx, time_window, Some(expr.clone()), summary_table).await
             }
             PlannedNode::Span(expr) => {
                 span_trace_ids_df(ctx, time_window, Some(expr.clone())).await
@@ -491,24 +477,33 @@ fn trace_ids_for_node<'a>(
                         ctx,
                         time_window,
                         span_predicate.clone(),
+                        summary_table,
                     )
                     .await
                 } else {
                     span_trace_ids_df(ctx, time_window, Some(span_predicate.clone())).await
                 }
             }
-            PlannedNode::And(parts) => trace_ids_for_and(ctx, time_window, parts).await,
-            PlannedNode::Or(parts) => trace_ids_for_or(ctx, time_window, parts).await,
+            PlannedNode::And(parts) => {
+                trace_ids_for_and(ctx, time_window, parts, summary_table).await
+            }
+            PlannedNode::Or(parts) => {
+                trace_ids_for_or(ctx, time_window, parts, summary_table).await
+            }
             PlannedNode::Complement(inner) => {
-                let universe = summary_trace_ids_df(ctx, time_window, None).await?;
-                let matched = trace_ids_for_node(ctx, time_window, inner).await?;
+                let universe = summary_trace_ids_df(ctx, time_window, None, summary_table).await?;
+                let matched = trace_ids_for_node(ctx, time_window, inner, summary_table).await?;
                 anti_join_trace_ids(universe, matched)
             }
-            PlannedNode::Tautology => summary_trace_ids_df(ctx, time_window, None).await,
-            PlannedNode::Contradiction => summary_trace_ids_df(ctx, time_window, None)
-                .await?
-                .filter(lit(false))
-                .map_err(TraceEngineError::DatafusionError),
+            PlannedNode::Tautology => {
+                summary_trace_ids_df(ctx, time_window, None, summary_table).await
+            }
+            PlannedNode::Contradiction => {
+                summary_trace_ids_df(ctx, time_window, None, summary_table)
+                    .await?
+                    .filter(lit(false))
+                    .map_err(TraceEngineError::DatafusionError)
+            }
         }
     })
 }
@@ -517,8 +512,9 @@ async fn trace_ids_for_and(
     ctx: &SessionContext,
     time_window: TimeWindow,
     parts: &[PlannedNode],
+    summary_table: &str,
 ) -> Result<DataFrame, TraceEngineError> {
-    let mut df = super::summary::deduped_summary_df(ctx, time_window).await?;
+    let mut df = summary_trace_ids_df(ctx, time_window, None, summary_table).await?;
 
     for part in parts {
         match part {
@@ -530,7 +526,7 @@ async fn trace_ids_for_and(
                 df = df.filter(expr.clone())?;
             }
             node => {
-                let right = trace_ids_for_node(ctx, time_window, node).await?;
+                let right = trace_ids_for_node(ctx, time_window, node, summary_table).await?;
                 df = join_trace_ids(df, right, JoinType::Inner)?;
             }
         }
@@ -543,18 +539,19 @@ async fn trace_ids_for_or(
     ctx: &SessionContext,
     time_window: TimeWindow,
     parts: &[PlannedNode],
+    summary_table: &str,
 ) -> Result<DataFrame, TraceEngineError> {
     let mut iter = parts.iter();
     let Some(first) = iter.next() else {
-        return summary_trace_ids_df(ctx, time_window, None)
+        return summary_trace_ids_df(ctx, time_window, None, summary_table)
             .await?
             .filter(lit(false))
             .map_err(TraceEngineError::DatafusionError);
     };
 
-    let mut df = trace_ids_for_node(ctx, time_window, first).await?;
+    let mut df = trace_ids_for_node(ctx, time_window, first, summary_table).await?;
     for part in iter {
-        df = df.union(trace_ids_for_node(ctx, time_window, part).await?)?;
+        df = df.union(trace_ids_for_node(ctx, time_window, part, summary_table).await?)?;
     }
 
     Ok(df.distinct()?)
@@ -564,8 +561,13 @@ async fn summary_trace_ids_df(
     ctx: &SessionContext,
     time_window: TimeWindow,
     filter: Option<Expr>,
+    summary_table: &str,
 ) -> Result<DataFrame, TraceEngineError> {
-    let mut df = super::summary::deduped_summary_df(ctx, time_window).await?;
+    let mut df = if summary_table == SUMMARY_TABLE_NAME {
+        super::summary::deduped_summary_df(ctx, time_window).await?
+    } else {
+        apply_summary_time_window(ctx.table(summary_table).await?, time_window)?
+    };
     if let Some(expr) = filter {
         df = df.filter(expr)?;
     }
@@ -589,8 +591,9 @@ async fn complement_trace_ids_for_span_predicate(
     ctx: &SessionContext,
     time_window: TimeWindow,
     span_predicate: Expr,
+    summary_table: &str,
 ) -> Result<DataFrame, TraceEngineError> {
-    let universe = summary_trace_ids_df(ctx, time_window, None).await?;
+    let universe = summary_trace_ids_df(ctx, time_window, None, summary_table).await?;
     let matched = span_trace_ids_df(ctx, time_window, Some(span_predicate)).await?;
     anti_join_trace_ids(universe, matched)
 }
@@ -607,6 +610,19 @@ fn apply_time_window(
     }
     if let Some(end) = time_window.end {
         df = df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end)))?;
+        df = df.filter(col(START_TIME_COL).lt(ts_lit(&end)))?;
+    }
+    Ok(df)
+}
+
+fn apply_summary_time_window(
+    mut df: DataFrame,
+    time_window: TimeWindow,
+) -> Result<DataFrame, TraceEngineError> {
+    if let Some(start) = time_window.start {
+        df = df.filter(col(START_TIME_COL).gt_eq(ts_lit(&start)))?;
+    }
+    if let Some(end) = time_window.end {
         df = df.filter(col(START_TIME_COL).lt(ts_lit(&end)))?;
     }
     Ok(df)
@@ -638,7 +654,13 @@ async fn span_constraint(
     complement: bool,
 ) -> Result<TraceIdConstraint, TraceEngineError> {
     let df = if complement {
-        complement_trace_ids_for_span_predicate(ctx, time_window, span_predicate).await?
+        complement_trace_ids_for_span_predicate(
+            ctx,
+            time_window,
+            span_predicate,
+            SUMMARY_TABLE_NAME,
+        )
+        .await?
     } else {
         span_trace_ids_df(ctx, time_window, Some(span_predicate)).await?
     };
@@ -677,7 +699,7 @@ mod tests {
     }
 
     fn is_span(resolution: &ClauseResolution) -> bool {
-        matches!(resolution, ClauseResolution::SpanExpr(_))
+        matches!(resolution, ClauseResolution::SpanExpr)
     }
 
     #[test]

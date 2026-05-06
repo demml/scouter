@@ -1023,10 +1023,6 @@ impl TraceQueries {
             )?;
         }
 
-        if let Some(clause) = &request.clause {
-            spans_df = spans_df.filter(planner::span_filter_for_metrics(clause))?;
-        }
-
         // ── Phase 3: trace_level — aggregate per-trace ───────────────────────
         //
         // Replaces the `trace_level` CTE:
@@ -1048,12 +1044,33 @@ impl TraceQueries {
             df_cast(col(SERVICE_NAME_COL), DataType::Utf8),
         )
         .end()?;
+        let root_namespace_case = when(
+            col(PARENT_SPAN_ID_COL).is_null(),
+            df_cast(col(SERVICE_NAMESPACE_COL), DataType::Utf8),
+        )
+        .end()?;
+        let root_version_case = when(
+            col(PARENT_SPAN_ID_COL).is_null(),
+            df_cast(col(SERVICE_VERSION_COL), DataType::Utf8),
+        )
+        .end()?;
+        let root_instance_case = when(
+            col(PARENT_SPAN_ID_COL).is_null(),
+            df_cast(col(SERVICE_INSTANCE_ID_COL), DataType::Utf8),
+        )
+        .end()?;
+        let error_count_case =
+            when(col(STATUS_CODE_COL).eq(lit(2i32)), lit(1i64)).otherwise(lit(0i64))?;
 
         let agg_exprs: Vec<Expr> = vec![
-            min(col(START_TIME_COL)).alias("trace_start"),
+            min(col(START_TIME_COL)).alias(START_TIME_COL),
             max(col(END_TIME_COL)).alias("trace_end"),
-            max(root_service_case).alias("root_service"),
-            max(col(STATUS_CODE_COL)).alias("status_code"),
+            max(root_service_case).alias(SERVICE_NAME_COL),
+            max(root_namespace_case).alias(SERVICE_NAMESPACE_COL),
+            max(root_version_case).alias(SERVICE_VERSION_COL),
+            max(root_instance_case).alias(SERVICE_INSTANCE_ID_COL),
+            max(col(STATUS_CODE_COL)).alias(STATUS_CODE_COL),
+            max(error_count_case).alias(ERROR_COUNT_COL),
         ];
 
         let trace_level_df = spans_df.aggregate(vec![col(TRACE_ID_COL)], agg_exprs)?;
@@ -1066,18 +1083,52 @@ impl TraceQueries {
         // Computed here (after the per-trace aggregate) to avoid the DataFusion
         // restriction on duplicate aggregate expressions in the same SELECT.
         let duration_expr = (df_cast(col("trace_end"), DataType::Int64)
-            - df_cast(col("trace_start"), DataType::Int64))
+            - df_cast(col(START_TIME_COL), DataType::Int64))
             / lit(1000i64);
 
-        let service_filtered_df = trace_level_df
+        let mut service_filtered_df = trace_level_df
             .filter(col("trace_end").is_not_null())?
             .with_column("duration_ms", duration_expr)?;
+
+        if let Some(clause) = &request.clause {
+            let summary_table_name = format!("_metrics_summary_{cache_key}");
+            self.ctx
+                .register_table(&summary_table_name, service_filtered_df.clone().into_view())
+                .map_err(TraceEngineError::DatafusionError)?;
+
+            let matching_trace_ids = planner::trace_ids_for_clause_with_summary_table(
+                clause,
+                &self.ctx,
+                planner::TimeWindow {
+                    start: Some(request.start_time),
+                    end: Some(request.end_time),
+                },
+                &summary_table_name,
+            )
+            .await;
+
+            self.ctx
+                .deregister_table(&summary_table_name)
+                .map_err(TraceEngineError::DatafusionError)?;
+
+            let matching_trace_ids = matching_trace_ids?
+                .select(vec![col(TRACE_ID_COL).alias("_metrics_clause_tid")])?
+                .distinct()?;
+
+            service_filtered_df = service_filtered_df.join(
+                matching_trace_ids,
+                JoinType::Inner,
+                &[TRACE_ID_COL],
+                &["_metrics_clause_tid"],
+                None,
+            )?;
+        }
 
         // ── Phase 5: DATE_TRUNC bucket ───────────────────────────────────────
         //
         // Replaces the `bucketed` CTE.
         // date_trunc(precision_literal, timestamp_expr) — precision is a Utf8 scalar.
-        let bucket_expr = date_trunc(lit(bucket_interval), col("trace_start"));
+        let bucket_expr = date_trunc(lit(bucket_interval), col(START_TIME_COL));
         let bucketed_df = service_filtered_df.with_column("bucket_start", bucket_expr)?;
 
         // ── Phase 6: Final bucketed aggregation ─────────────────────────────
