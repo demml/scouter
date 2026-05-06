@@ -777,7 +777,7 @@ async fn test_spans_from_filters_duration() {
 }
 
 #[tokio::test]
-async fn test_paginated_traces_inverted_range_returns_empty() {
+async fn test_paginated_traces_inverted_range_rejected() {
     let helper = setup_test().await;
     helper
         .generate_traces_with_durations(&[100, 200, 300])
@@ -785,7 +785,6 @@ async fn test_paginated_traces_inverted_range_returns_empty() {
         .unwrap();
     wait_for_paginated_count(&helper, 3).await;
 
-    // min > max is represented as an unsatisfiable clause and returns no rows.
     let body = serde_json::to_string(&TraceFilters {
         clause: Some(FilterClause::And(vec![
             FilterClause::DurationMinMs(500),
@@ -801,10 +800,7 @@ async fn test_paginated_traces_inverted_range_returns_empty() {
         .body(Body::from(body))
         .unwrap();
     let response = helper.send_oneshot(request).await;
-    assert_eq!(response.status(), StatusCode::OK);
-    let body = response.into_body().collect().await.unwrap().to_bytes();
-    let page: TracePaginationResponse = serde_json::from_slice(&body).unwrap();
-    assert!(page.items.is_empty());
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
 
 #[tokio::test]

@@ -129,16 +129,7 @@ class TraceFilters:
         """
 
     @classmethod
-    def from_query(
-        cls,
-        q: str,
-        start_time: Optional[datetime.datetime] = None,
-        end_time: Optional[datetime.datetime] = None,
-        limit: Optional[int] = None,
-        cursor_start_time: Optional[datetime.datetime] = None,
-        cursor_trace_id: Optional[str] = None,
-        direction: Optional[str] = None,
-    ) -> "TraceFilters":
+    def from_query(cls, q: str) -> "TraceFilters":
         """Build TraceFilters from the trace search DSL."""
 
 class TraceMetricBucket:

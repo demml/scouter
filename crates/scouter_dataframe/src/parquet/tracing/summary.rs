@@ -126,10 +126,15 @@ fn split_clause_for_summary(clause: &FilterClause) -> (Option<FilterClause>, Opt
         }
         FilterClause::Or(parts) => {
             let split_parts: Vec<_> = parts.iter().map(split_clause_for_summary).collect();
-            if split_parts
+            let all_summary = split_parts
                 .iter()
-                .all(|(_summary_clause, span_clause)| span_clause.is_none())
-            {
+                .all(|(_summary_clause, span_clause)| span_clause.is_none());
+            let all_span = split_parts
+                .iter()
+                .all(|(summary_clause, _span_clause)| summary_clause.is_none());
+
+            if all_summary {
+                // Pure summary — push to summary table only
                 (
                     merge_clause_parts(
                         split_parts
@@ -140,8 +145,21 @@ fn split_clause_for_summary(clause: &FilterClause) -> (Option<FilterClause>, Opt
                     ),
                     None,
                 )
-            } else {
+            } else if all_span {
+                // Pure span — push to span table only
                 (None, Some(clause.clone()))
+            } else {
+                // Mixed Or — push summary-capable parts to summary table AND full Or to span
+                // table. The summary filter narrows to traces with any matching summary
+                // predicate; the span filter ensures span-level predicates are satisfied too.
+                let summary_parts: Vec<_> = split_parts
+                    .into_iter()
+                    .filter_map(|(summary_clause, _span_clause)| summary_clause)
+                    .collect();
+                (
+                    merge_clause_parts(summary_parts, false),
+                    Some(clause.clone()),
+                )
             }
         }
         FilterClause::Not(inner) => {
@@ -2623,5 +2641,270 @@ mod tests {
 
         let result = extract_total_count(vec![batch]).unwrap();
         assert_eq!(result, 42);
+    }
+
+    // ── lower_summary_clause DataFusion integration tests ────────────────────
+    //
+    // Uses a 4-row in-memory table covering the columns lower_summary_clause touches.
+    // Key difference from span tests: HasErrors uses ERROR_COUNT_COL, not STATUS_CODE_COL.
+    //
+    //   row 1: auth / prod / 1.0.0 / pod-1 / status=0 / error_count=0 / dur=100
+    //   row 2: kafka / staging / 2.0.0 / pod-2 / status=2 / error_count=3 / dur=500
+    //   row 3: auth / prod / 1.0.0 / pod-1 / status=1 / error_count=0 / dur=250
+    //   row 4: metrics / prod / 3.0.0 / pod-3 / status=0 / error_count=0 / dur=50
+
+    fn summary_test_schema() -> arrow::datatypes::Schema {
+        use arrow::datatypes::{DataType, Field};
+        arrow::datatypes::Schema::new(vec![
+            Field::new("row_id", DataType::Int32, false),
+            Field::new(SERVICE_NAME_COL, DataType::Utf8, false),
+            Field::new(SERVICE_NAMESPACE_COL, DataType::Utf8, true),
+            Field::new(SERVICE_VERSION_COL, DataType::Utf8, true),
+            Field::new(SERVICE_INSTANCE_ID_COL, DataType::Utf8, true),
+            Field::new(STATUS_CODE_COL, DataType::Int32, false),
+            Field::new(ERROR_COUNT_COL, DataType::Int64, false),
+            Field::new(DURATION_MS_COL, DataType::Int64, false),
+        ])
+    }
+
+    fn summary_test_batch() -> RecordBatch {
+        use arrow::array::{Int32Array, Int64Array, StringArray};
+        let schema = Arc::new(summary_test_schema());
+        RecordBatch::try_new(
+            schema,
+            vec![
+                Arc::new(Int32Array::from(vec![1, 2, 3, 4])),
+                Arc::new(StringArray::from(vec!["auth", "kafka", "auth", "metrics"])),
+                Arc::new(StringArray::from(vec![
+                    Some("prod"),
+                    Some("staging"),
+                    Some("prod"),
+                    Some("prod"),
+                ])),
+                Arc::new(StringArray::from(vec![
+                    Some("1.0.0"),
+                    Some("2.0.0"),
+                    Some("1.0.0"),
+                    Some("3.0.0"),
+                ])),
+                Arc::new(StringArray::from(vec![
+                    Some("pod-1"),
+                    Some("pod-2"),
+                    Some("pod-1"),
+                    Some("pod-3"),
+                ])),
+                Arc::new(Int32Array::from(vec![0, 2, 1, 0])),
+                Arc::new(Int64Array::from(vec![0, 3, 0, 0])),
+                Arc::new(Int64Array::from(vec![100, 500, 250, 50])),
+            ],
+        )
+        .unwrap()
+    }
+
+    async fn make_summary_ctx() -> datafusion::prelude::SessionContext {
+        use datafusion::datasource::MemTable;
+        let schema = Arc::new(summary_test_schema());
+        let batch = summary_test_batch();
+        let table = MemTable::try_new(schema, vec![vec![batch]]).unwrap();
+        let ctx = datafusion::prelude::SessionContext::new();
+        ctx.register_table("summaries", Arc::new(table)).unwrap();
+        ctx
+    }
+
+    async fn summary_row_ids_for(
+        ctx: &datafusion::prelude::SessionContext,
+        clause: &FilterClause,
+    ) -> Vec<i32> {
+        use arrow::array::Int32Array;
+        let df = ctx
+            .table("summaries")
+            .await
+            .unwrap()
+            .filter(lower_summary_clause(clause))
+            .unwrap();
+        let batches = df.collect().await.unwrap();
+        let mut ids = Vec::new();
+        for batch in &batches {
+            let col = batch
+                .column_by_name("row_id")
+                .unwrap()
+                .as_any()
+                .downcast_ref::<Int32Array>()
+                .unwrap();
+            ids.extend(col.iter().flatten());
+        }
+        ids.sort_unstable();
+        ids
+    }
+
+    #[tokio::test]
+    async fn summary_filter_service() {
+        let ctx = make_summary_ctx().await;
+        assert_eq!(
+            summary_row_ids_for(&ctx, &FilterClause::Service("auth".into())).await,
+            vec![1, 3]
+        );
+    }
+
+    #[tokio::test]
+    async fn summary_filter_service_namespace() {
+        let ctx = make_summary_ctx().await;
+        assert_eq!(
+            summary_row_ids_for(&ctx, &FilterClause::ServiceNamespace("prod".into())).await,
+            vec![1, 3, 4]
+        );
+    }
+
+    #[tokio::test]
+    async fn summary_filter_service_version() {
+        let ctx = make_summary_ctx().await;
+        assert_eq!(
+            summary_row_ids_for(&ctx, &FilterClause::ServiceVersion("2.0.0".into())).await,
+            vec![2]
+        );
+    }
+
+    #[tokio::test]
+    async fn summary_filter_service_instance_id() {
+        let ctx = make_summary_ctx().await;
+        assert_eq!(
+            summary_row_ids_for(&ctx, &FilterClause::ServiceInstanceId("pod-1".into())).await,
+            vec![1, 3]
+        );
+    }
+
+    #[tokio::test]
+    async fn summary_filter_status_code() {
+        let ctx = make_summary_ctx().await;
+        assert_eq!(
+            summary_row_ids_for(&ctx, &FilterClause::StatusCode(2)).await,
+            vec![2]
+        );
+    }
+
+    // Key test: HasErrors on the summary table uses ERROR_COUNT_COL, not STATUS_CODE_COL.
+    // Row 2 has error_count=3; row 3 has status_code=1 but error_count=0.
+    #[tokio::test]
+    async fn summary_filter_has_errors_true_uses_error_count_not_status_code() {
+        let ctx = make_summary_ctx().await;
+        // Only row 2 has error_count > 0. Row 3 has status_code=1 but error_count=0 — excluded.
+        assert_eq!(
+            summary_row_ids_for(&ctx, &FilterClause::HasErrors(true)).await,
+            vec![2]
+        );
+    }
+
+    #[tokio::test]
+    async fn summary_filter_has_errors_false() {
+        let ctx = make_summary_ctx().await;
+        assert_eq!(
+            summary_row_ids_for(&ctx, &FilterClause::HasErrors(false)).await,
+            vec![1, 3, 4]
+        );
+    }
+
+    #[tokio::test]
+    async fn summary_filter_duration_min() {
+        let ctx = make_summary_ctx().await;
+        assert_eq!(
+            summary_row_ids_for(&ctx, &FilterClause::DurationMinMs(200)).await,
+            vec![2, 3]
+        );
+    }
+
+    #[tokio::test]
+    async fn summary_filter_duration_max() {
+        let ctx = make_summary_ctx().await;
+        assert_eq!(
+            summary_row_ids_for(&ctx, &FilterClause::DurationMaxMs(150)).await,
+            vec![1, 4]
+        );
+    }
+
+    // Phrase/Attr on summary table are no-ops (lit(true)) — all rows pass.
+    #[tokio::test]
+    async fn summary_filter_phrase_is_noop() {
+        let ctx = make_summary_ctx().await;
+        assert_eq!(
+            summary_row_ids_for(&ctx, &FilterClause::Phrase("anything".into())).await,
+            vec![1, 2, 3, 4]
+        );
+    }
+
+    #[tokio::test]
+    async fn summary_filter_attr_is_noop() {
+        let ctx = make_summary_ctx().await;
+        assert_eq!(
+            summary_row_ids_for(
+                &ctx,
+                &FilterClause::Attr {
+                    key: "k".into(),
+                    value: "v".into(),
+                }
+            )
+            .await,
+            vec![1, 2, 3, 4]
+        );
+    }
+
+    #[tokio::test]
+    async fn summary_filter_and_combinator() {
+        let ctx = make_summary_ctx().await;
+        assert_eq!(
+            summary_row_ids_for(
+                &ctx,
+                &FilterClause::And(vec![
+                    FilterClause::Service("kafka".into()),
+                    FilterClause::DurationMinMs(400),
+                ])
+            )
+            .await,
+            vec![2]
+        );
+    }
+
+    #[tokio::test]
+    async fn summary_filter_or_combinator() {
+        let ctx = make_summary_ctx().await;
+        assert_eq!(
+            summary_row_ids_for(
+                &ctx,
+                &FilterClause::Or(vec![
+                    FilterClause::Service("auth".into()),
+                    FilterClause::HasErrors(true),
+                ])
+            )
+            .await,
+            vec![1, 2, 3]
+        );
+    }
+
+    #[tokio::test]
+    async fn summary_filter_not_combinator() {
+        let ctx = make_summary_ctx().await;
+        assert_eq!(
+            summary_row_ids_for(
+                &ctx,
+                &FilterClause::Not(Box::new(FilterClause::Service("auth".into())))
+            )
+            .await,
+            vec![2, 4]
+        );
+    }
+
+    #[tokio::test]
+    async fn summary_filter_and_empty_matches_all() {
+        let ctx = make_summary_ctx().await;
+        assert_eq!(
+            summary_row_ids_for(&ctx, &FilterClause::And(vec![])).await,
+            vec![1, 2, 3, 4]
+        );
+    }
+
+    #[tokio::test]
+    async fn summary_filter_or_empty_matches_none() {
+        let ctx = make_summary_ctx().await;
+        let ids: Vec<i32> = summary_row_ids_for(&ctx, &FilterClause::Or(vec![])).await;
+        assert!(ids.is_empty());
     }
 }

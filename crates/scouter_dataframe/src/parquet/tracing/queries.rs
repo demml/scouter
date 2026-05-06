@@ -77,6 +77,14 @@ const SUMMARY_TABLE_NAME: &str = "trace_summaries";
 const ENTITY_IDS_COL: &str = "entity_ids";
 const QUEUE_IDS_COL: &str = "queue_ids";
 
+/// Strip `|` from user-supplied search values. `|` is the delimiter in `search_blob`
+/// (`|key=value|`); a literal `|` in key/value would produce a malformed pattern that
+/// matches broader than intended.
+#[inline]
+fn sanitize_search_value(s: &str) -> String {
+    s.replace('|', "")
+}
+
 pub(crate) fn lower_clause(clause: &FilterClause) -> Expr {
     match clause {
         FilterClause::And(parts) => parts
@@ -91,7 +99,8 @@ pub(crate) fn lower_clause(clause: &FilterClause) -> Expr {
             .unwrap_or_else(|| lit(false)),
         FilterClause::Not(inner) => datafusion::logical_expr::not(lower_clause(inner)),
         FilterClause::Phrase(value) => {
-            match_attr_expr(col(SEARCH_BLOB_COL), lit(format!("%{value}%")))
+            let safe = sanitize_search_value(value);
+            match_attr_expr(col(SEARCH_BLOB_COL), lit(format!("%{safe}%")))
         }
         FilterClause::Service(value) => col(SERVICE_NAME_COL).eq(lit(value.as_str())),
         FilterClause::ServiceNamespace(value) => col(SERVICE_NAMESPACE_COL).eq(lit(value.as_str())),
@@ -105,7 +114,9 @@ pub(crate) fn lower_clause(clause: &FilterClause) -> Expr {
         FilterClause::DurationMinMs(value) => col(DURATION_MS_COL).gt_eq(lit(*value)),
         FilterClause::DurationMaxMs(value) => col(DURATION_MS_COL).lt_eq(lit(*value)),
         FilterClause::Attr { key, value } => {
-            match_attr_expr(col(SEARCH_BLOB_COL), lit(format!("%|{key}={value}|%")))
+            let safe_key = sanitize_search_value(key);
+            let safe_val = sanitize_search_value(value);
+            match_attr_expr(col(SEARCH_BLOB_COL), lit(format!("%|{safe_key}={safe_val}|%")))
         }
     }
 }
@@ -1358,5 +1369,296 @@ impl TraceQueries {
 
         let flat_spans = batches_to_flat_spans(batches)?;
         Ok(build_span_tree(flat_spans))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use arrow::array::{Int32Array, Int64Array, StringArray};
+    use arrow::datatypes::{DataType, Field, Schema};
+    use crate::parquet::utils::create_attr_match_udf;
+    use datafusion::datasource::MemTable;
+    use scouter_types::trace::query::FilterClause;
+
+    // ── Test table setup ─────────────────────────────────────────────────────
+    //
+    // 4-row span table covering all FilterClause variants:
+    //   row 1: auth / prod / 1.0.0 / pod-1 / status=0 / dur=100 / search=|component=http|
+    //   row 2: kafka / staging / 2.0.0 / pod-2 / status=2 / dur=500 / search=|component=kafka||topic=events|
+    //   row 3: auth / prod / 1.0.0 / pod-1 / status=1 / dur=250 / search=|component=http|
+    //   row 4: metrics / prod / 3.0.0 / pod-3 / status=0 / dur=50 / search=metrics collection
+
+    fn test_schema() -> Schema {
+        Schema::new(vec![
+            Field::new("row_id", DataType::Int32, false),
+            Field::new(SERVICE_NAME_COL, DataType::Utf8, false),
+            Field::new(SERVICE_NAMESPACE_COL, DataType::Utf8, true),
+            Field::new(SERVICE_VERSION_COL, DataType::Utf8, true),
+            Field::new(SERVICE_INSTANCE_ID_COL, DataType::Utf8, true),
+            Field::new(STATUS_CODE_COL, DataType::Int32, false),
+            Field::new(DURATION_MS_COL, DataType::Int64, false),
+            Field::new(SEARCH_BLOB_COL, DataType::Utf8, true),
+        ])
+    }
+
+    fn test_batch() -> RecordBatch {
+        let schema = Arc::new(test_schema());
+        RecordBatch::try_new(
+            schema,
+            vec![
+                Arc::new(Int32Array::from(vec![1, 2, 3, 4])),
+                Arc::new(StringArray::from(vec!["auth", "kafka", "auth", "metrics"])),
+                Arc::new(StringArray::from(vec![
+                    Some("prod"),
+                    Some("staging"),
+                    Some("prod"),
+                    Some("prod"),
+                ])),
+                Arc::new(StringArray::from(vec![
+                    Some("1.0.0"),
+                    Some("2.0.0"),
+                    Some("1.0.0"),
+                    Some("3.0.0"),
+                ])),
+                Arc::new(StringArray::from(vec![
+                    Some("pod-1"),
+                    Some("pod-2"),
+                    Some("pod-1"),
+                    Some("pod-3"),
+                ])),
+                Arc::new(Int32Array::from(vec![0, 2, 1, 0])),
+                Arc::new(Int64Array::from(vec![100, 500, 250, 50])),
+                Arc::new(StringArray::from(vec![
+                    Some("|component=http|"),
+                    Some("|component=kafka||topic=events|"),
+                    Some("|component=http|"),
+                    Some("metrics collection"),
+                ])),
+            ],
+        )
+        .unwrap()
+    }
+
+    async fn make_ctx() -> SessionContext {
+        let schema = Arc::new(test_schema());
+        let batch = test_batch();
+        let table = MemTable::try_new(schema, vec![vec![batch]]).unwrap();
+        let ctx = SessionContext::new();
+        ctx.register_udf(create_attr_match_udf());
+        ctx.register_table("spans", Arc::new(table)).unwrap();
+        ctx
+    }
+
+    async fn row_ids_for(ctx: &SessionContext, clause: FilterClause) -> Vec<i32> {
+        let df = ctx
+            .table("spans")
+            .await
+            .unwrap()
+            .filter(lower_clause(&clause))
+            .unwrap();
+        let batches = df.collect().await.unwrap();
+        let mut ids = Vec::new();
+        for batch in &batches {
+            let col = batch
+                .column_by_name("row_id")
+                .unwrap()
+                .as_any()
+                .downcast_ref::<Int32Array>()
+                .unwrap();
+            ids.extend(col.iter().flatten());
+        }
+        ids.sort_unstable();
+        ids
+    }
+
+    // ── Sentinel tests (pure logic, no SessionContext) ───────────────────────
+
+    #[test]
+    fn empty_and_is_true() {
+        let expr = lower_clause(&FilterClause::And(vec![]));
+        assert_eq!(format!("{expr}"), "true");
+    }
+
+    #[test]
+    fn empty_or_is_false() {
+        let expr = lower_clause(&FilterClause::Or(vec![]));
+        assert_eq!(format!("{expr}"), "false");
+    }
+
+    // ── DataFusion integration tests: span-table lowering ────────────────────
+
+    #[tokio::test]
+    async fn filter_service() {
+        let ctx = make_ctx().await;
+        assert_eq!(
+            row_ids_for(&ctx, FilterClause::Service("auth".into())).await,
+            vec![1, 3]
+        );
+    }
+
+    #[tokio::test]
+    async fn filter_service_namespace() {
+        let ctx = make_ctx().await;
+        assert_eq!(
+            row_ids_for(&ctx, FilterClause::ServiceNamespace("prod".into())).await,
+            vec![1, 3, 4]
+        );
+    }
+
+    #[tokio::test]
+    async fn filter_service_version() {
+        let ctx = make_ctx().await;
+        assert_eq!(
+            row_ids_for(&ctx, FilterClause::ServiceVersion("2.0.0".into())).await,
+            vec![2]
+        );
+    }
+
+    #[tokio::test]
+    async fn filter_service_instance_id() {
+        let ctx = make_ctx().await;
+        assert_eq!(
+            row_ids_for(&ctx, FilterClause::ServiceInstanceId("pod-1".into())).await,
+            vec![1, 3]
+        );
+    }
+
+    #[tokio::test]
+    async fn filter_status_code() {
+        let ctx = make_ctx().await;
+        assert_eq!(
+            row_ids_for(&ctx, FilterClause::StatusCode(2)).await,
+            vec![2]
+        );
+    }
+
+    #[tokio::test]
+    async fn filter_has_errors_true() {
+        let ctx = make_ctx().await;
+        assert_eq!(
+            row_ids_for(&ctx, FilterClause::HasErrors(true)).await,
+            vec![2]
+        );
+    }
+
+    #[tokio::test]
+    async fn filter_has_errors_false() {
+        let ctx = make_ctx().await;
+        assert_eq!(
+            row_ids_for(&ctx, FilterClause::HasErrors(false)).await,
+            vec![1, 3, 4]
+        );
+    }
+
+    #[tokio::test]
+    async fn filter_duration_min() {
+        let ctx = make_ctx().await;
+        assert_eq!(
+            row_ids_for(&ctx, FilterClause::DurationMinMs(200)).await,
+            vec![2, 3]
+        );
+    }
+
+    #[tokio::test]
+    async fn filter_duration_max() {
+        let ctx = make_ctx().await;
+        assert_eq!(
+            row_ids_for(&ctx, FilterClause::DurationMaxMs(150)).await,
+            vec![1, 4]
+        );
+    }
+
+    #[tokio::test]
+    async fn filter_phrase() {
+        let ctx = make_ctx().await;
+        assert_eq!(
+            row_ids_for(&ctx, FilterClause::Phrase("http".into())).await,
+            vec![1, 3]
+        );
+    }
+
+    #[tokio::test]
+    async fn filter_attr() {
+        let ctx = make_ctx().await;
+        assert_eq!(
+            row_ids_for(
+                &ctx,
+                FilterClause::Attr {
+                    key: "component".into(),
+                    value: "kafka".into(),
+                }
+            )
+            .await,
+            vec![2]
+        );
+    }
+
+    #[tokio::test]
+    async fn filter_and_combinator() {
+        let ctx = make_ctx().await;
+        assert_eq!(
+            row_ids_for(
+                &ctx,
+                FilterClause::And(vec![
+                    FilterClause::Service("kafka".into()),
+                    FilterClause::DurationMinMs(400),
+                ])
+            )
+            .await,
+            vec![2]
+        );
+    }
+
+    #[tokio::test]
+    async fn filter_or_combinator() {
+        let ctx = make_ctx().await;
+        assert_eq!(
+            row_ids_for(
+                &ctx,
+                FilterClause::Or(vec![
+                    FilterClause::Service("auth".into()),
+                    FilterClause::HasErrors(true),
+                ])
+            )
+            .await,
+            vec![1, 2, 3]
+        );
+    }
+
+    #[tokio::test]
+    async fn filter_not_combinator() {
+        let ctx = make_ctx().await;
+        assert_eq!(
+            row_ids_for(
+                &ctx,
+                FilterClause::Not(Box::new(FilterClause::Service("auth".into())))
+            )
+            .await,
+            vec![2, 4]
+        );
+    }
+
+    #[tokio::test]
+    async fn filter_and_empty_matches_all() {
+        let ctx = make_ctx().await;
+        assert_eq!(
+            row_ids_for(&ctx, FilterClause::And(vec![])).await,
+            vec![1, 2, 3, 4]
+        );
+    }
+
+    #[tokio::test]
+    async fn filter_or_empty_matches_none() {
+        let ctx = make_ctx().await;
+        let ids: Vec<i32> = row_ids_for(&ctx, FilterClause::Or(vec![])).await;
+        assert!(ids.is_empty());
+    }
+
+    #[test]
+    fn sanitize_strips_pipe() {
+        assert_eq!(sanitize_search_value("val|ue"), "value");
+        assert_eq!(sanitize_search_value("clean"), "clean");
+        assert_eq!(sanitize_search_value("|"), "");
     }
 }

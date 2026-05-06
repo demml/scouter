@@ -54,11 +54,19 @@ impl FilterClause {
     }
 }
 
+const MAX_QUERY_LEN: usize = 4096;
+
 pub fn parse_search_query(q: &str) -> Result<TraceFilters, TypeError> {
     let mut filters = TraceFilters::default();
     let trimmed = q.trim();
     if trimmed.is_empty() {
         return Ok(filters);
+    }
+    if trimmed.len() > MAX_QUERY_LEN {
+        return Err(TypeError::ParseError(format!(
+            "query too long: {} chars (max {MAX_QUERY_LEN})",
+            trimmed.len()
+        )));
     }
 
     let toks = tokenize(trimmed)?;
@@ -502,7 +510,8 @@ fn parse_duration_ms(value: &str) -> Result<i64, TypeError> {
     if n < 0 {
         return Err(TypeError::ParseError("duration must be >= 0".into()));
     }
-    Ok(n.saturating_mul(multiplier))
+    n.checked_mul(multiplier)
+        .ok_or_else(|| TypeError::ParseError("duration value overflows i64".into()))
 }
 
 fn strip_suffix_ci<'a>(s: &'a str, suffix: &str) -> Option<&'a str> {
