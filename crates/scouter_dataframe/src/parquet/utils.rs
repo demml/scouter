@@ -1,4 +1,4 @@
-use crate::error::{DataFrameError, TraceEngineError};
+use crate::error::DataFrameError;
 use arrow::array::AsArray;
 use arrow::array::{BooleanBuilder, StringArray};
 use arrow::datatypes::DataType;
@@ -21,38 +21,10 @@ use deltalake::logstore::{
     LogStore, LogStoreFactory, ObjectStoreRef, StorageConfig, default_logstore, logstore_factories,
 };
 use scouter_types::{BinnedMetric, BinnedMetricStats, BinnedMetrics};
-use std::future::Future;
 use std::sync::Arc;
 use tracing::{debug, error, instrument};
 use url::Url;
 
-/// Run a Delta Lake initialization future on a clean OS thread.
-///
-/// `std::thread::spawn` creates threads with no ambient Tokio handle, so
-/// `Handle::try_current()` returns `Err` inside the spawned closure. Delta Lake's
-/// `TokioBackgroundExecutor::block_on` takes the non-nested path and skips the
-/// "called in a nested fashion" warning that fires when table init runs directly
-/// inside an active Tokio runtime (e.g., `#[tokio::main]` or `#[tokio::test]`).
-pub async fn run_delta_init<F, T>(fut: F) -> std::result::Result<T, TraceEngineError>
-where
-    F: Future<Output = T> + Send + 'static,
-    T: Send + 'static,
-{
-    let (tx, rx) = tokio::sync::oneshot::channel();
-    std::thread::spawn(move || {
-        let result = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .map_err(|e| {
-                TraceEngineError::UnsupportedOperation(format!(
-                    "failed to build delta-init runtime: {e}"
-                ))
-            })
-            .map(|rt| rt.block_on(fut));
-        let _ = tx.send(result);
-    });
-    rx.await.map_err(|_| TraceEngineError::ChannelClosed)?
-}
 /// Now that we have at least 2 metric types that calculate avg, lower_bound, and upper_bound as part of their stats,
 /// it makes sense to implement a generic trait that we can use.
 pub struct ParquetHelper {}

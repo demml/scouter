@@ -18,8 +18,9 @@ from scouter.mock import ScouterTestServer
 from scouter.tracing import (
     BatchConfig,
     GrpcSpanExporter,
+    ScouterInstrumentor,
+    ScouterResourceConfig,
     get_tracer,
-    init_tracer,
     shutdown_tracer,
 )
 from scouter.transport import GrpcConfig
@@ -30,6 +31,7 @@ from scouter.transport import GrpcConfig
 
 FLUSH_WAIT_SECS = 8  # buffer flush (1s) + Delta write + refresh (1s) + margin
 SERVICE_NAME = "genai-test-service"
+SERVICE_NAMESPACE = "genai-test-ns"
 CONVERSATION_ID = "conv-genai-test-001"
 
 
@@ -135,7 +137,7 @@ def _seed_genai_spans(tracer) -> None:
 def genai_server_with_data(isolated_server_config):
     """Start ScouterTestServer, seed GenAI spans, wait for flush, yield session."""
     with ScouterTestServer(**isolated_server_config) as _server:
-        init_tracer(
+        ScouterInstrumentor().instrument(
             service_name=SERVICE_NAME,
             transport_config=GrpcConfig(),
             exporter=GrpcSpanExporter(),
@@ -298,3 +300,69 @@ def test_genai_conversation_bad_timestamp(genai_server_with_data):
     session, base_url, _ = genai_server_with_data
     resp = session.get(f"{base_url}/scouter/genai/conversation/test-id?start_time=not-a-date")
     assert resp.status_code == 400
+
+
+@pytest.fixture()
+def genai_server_with_namespace_data(isolated_server_config):
+    """Start ScouterTestServer, seed GenAI spans with a specific service namespace."""
+    with ScouterTestServer(**isolated_server_config) as _server:
+        ScouterInstrumentor().instrument(
+            service_name=SERVICE_NAME,
+            transport_config=GrpcConfig(),
+            exporter=GrpcSpanExporter(),
+            batch_config=BatchConfig(scheduled_delay_ms=200),
+            resource_config=ScouterResourceConfig(
+                service_namespace=SERVICE_NAMESPACE,
+                service_version="2.0.0",
+            ),
+        )
+        tracer = get_tracer(SERVICE_NAME)
+        _seed_genai_spans(tracer)
+        time.sleep(FLUSH_WAIT_SECS)
+        url = _server_url()
+        session = _make_session(url)
+        try:
+            yield session, url
+        finally:
+            shutdown_tracer()
+
+
+def test_service_namespace_filter_narrows_results(genai_server_with_namespace_data):
+    """service_namespace filter returns data when it matches and empty when it does not."""
+    session, url = genai_server_with_namespace_data
+    base_body = {**_time_range(), "bucket_interval": "hour"}
+
+    matching = session.post(
+        f"{url}/scouter/genai/metrics/tokens",
+        json={**base_body, "service_namespace": SERVICE_NAMESPACE},
+        timeout=15,
+    )
+    assert matching.status_code == 200, matching.text
+    data = matching.json()
+    assert "buckets" in data
+    assert (
+        sum(b["span_count"] for b in data["buckets"]) > 0
+    ), "namespace filter should return spans seeded with that namespace"
+
+    non_matching = session.post(
+        f"{url}/scouter/genai/metrics/tokens",
+        json={**base_body, "service_namespace": "no-such-namespace"},
+        timeout=15,
+    )
+    assert non_matching.status_code == 200, non_matching.text
+    empty_data = non_matching.json()
+    assert (
+        sum(b["span_count"] for b in empty_data.get("buckets", [])) == 0
+    ), "non-matching namespace filter should return 0 spans"
+
+
+def test_service_namespace_field_length_validation(genai_server_with_data):
+    """Oversized service_namespace returns 400."""
+    session, url, _ = genai_server_with_data
+    body = {
+        **_time_range(),
+        "bucket_interval": "hour",
+        "service_namespace": "x" * 257,
+    }
+    resp = session.post(f"{url}/scouter/genai/metrics/tokens", json=body, timeout=15)
+    assert resp.status_code == 400, resp.text

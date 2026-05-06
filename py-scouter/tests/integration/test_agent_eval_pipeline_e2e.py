@@ -25,7 +25,7 @@ from scouter.tracing import (
     ScouterInstrumentor,
     active_profile,
     flush_tracer,
-    init_tracer,
+    get_tracer,
     shutdown_tracer,
 )
 from scouter.transport import GrpcConfig
@@ -249,11 +249,8 @@ def test_agent_eval_pipeline_e2e_with_instrumentor(
             eval_profiles=[profile],
         )
 
-        tracer = init_tracer(
-            service_name="agent-e2e-pipeline",
-            transport_config=GrpcConfig(),
-            exporter=GrpcSpanExporter(),
-            batch_config=BatchConfig(scheduled_delay_ms=200),
+        tracer = get_tracer(
+            "agent-e2e-pipeline",
             scouter_queue=queue,
             default_entity_uid=profile.config.uid,
         )

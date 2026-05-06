@@ -89,7 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let id = &ids[0];
         let _ = service
             .query_service
-            .query_spans(Some(id), None, None, None, None)
+            .query_spans(Some(id), None, None, None, None, None, None, None)
             .await?;
     }
 
@@ -104,7 +104,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let t = Instant::now();
             let _ = service
                 .query_service
-                .query_spans(Some(id), None, None, None, None)
+                .query_spans(Some(id), None, None, None, None, None, None, None)
                 .await?;
             timings.push(t.elapsed());
         }
@@ -127,7 +127,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let t = Instant::now();
             let _ = service
                 .query_service
-                .query_spans(Some(id), None, Some(&start_t), Some(&end_t), None)
+                .query_spans(
+                    Some(id),
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some(&start_t),
+                    Some(&end_t),
+                    None,
+                )
                 .await?;
             timings.push(t.elapsed());
         }
@@ -147,7 +156,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let t = Instant::now();
             let _ = service
                 .query_service
-                .query_spans(None, None, Some(&start_t), Some(&end_t), Some(1000))
+                .query_spans(
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some(&start_t),
+                    Some(&end_t),
+                    Some(1000),
+                )
                 .await?;
             timings.push(t.elapsed());
         }
@@ -166,7 +184,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let t = Instant::now();
             let _ = service
                 .query_service
-                .query_spans(Some(id), None, None, None, None)
+                .query_spans(Some(id), None, None, None, None, None, None, None)
                 .await?;
             timings.push(t.elapsed());
         }

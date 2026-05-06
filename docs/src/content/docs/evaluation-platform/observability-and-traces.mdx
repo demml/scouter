@@ -16,7 +16,7 @@ For tracing setup and instrumentation, see [Distributed tracing](/tracing/overvi
 
 Scouter's tracing is a standard OpenTelemetry implementation, not a proprietary format. `ScouterInstrumentor` implements the OTEL `BaseInstrumentor` interface and registers as the global `TracerProvider`. Any OTEL auto-instrumentation library (httpx, FastAPI, Starlette) works automatically once the instrumentor is active.
 
-The architecture splits across two languages. Python owns the API surface: `init_tracer()`, `get_tracer()`, span context managers, attribute setting. Rust owns the performance path: span lifecycle, batching, export, and serialization. The boundary is PyO3. When you call `tracer.start_as_current_span()`, Python creates a thin wrapper around a Rust `ActiveSpan`. Attribute writes, event recording, and status updates cross the FFI boundary into Rust. The GIL is released during export.
+The architecture splits across two languages. Python owns the API surface: `ScouterInstrumentor`, `get_tracer()`, span context managers, attribute setting. Rust owns the performance path: span lifecycle, batching, export, and serialization. The boundary is PyO3. When you call `tracer.start_as_current_span()`, Python creates a thin wrapper around a Rust `ActiveSpan`. Attribute writes, event recording, and status updates cross the FFI boundary into Rust. The GIL is released during export.
 
 ```mermaid
 graph LR

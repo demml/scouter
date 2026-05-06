@@ -99,14 +99,14 @@ tracer = trace.get_tracer("my-service")
 
 ````python
 from scouter import KafkaConfig
-from scouter.tracing import ScouterTracer, init_tracer
+from scouter.tracing import ScouterInstrumentor, get_tracer
 
-base_tracer = init_tracer(
+ScouterInstrumentor().instrument(
     service_name="my-service",
     transport_config=KafkaConfig(brokers="kafka:9092")
 )
 
-tracer = ScouterTracer(base_tracer)
+tracer = get_tracer("my-service")
 ````
 
   </TabItem>
@@ -218,19 +218,18 @@ ScouterInstrumentor().uninstrument()
 
 `uninstrument()` flushes pending spans, shuts down the provider, and resets the global OTEL tracer provider. The singleton is also reset, so the next call to `ScouterInstrumentor()` creates a fresh instance.
 
-### ScouterInstrumentor vs init_tracer
+### ScouterInstrumentor Lifecycle
 
-Both paths use the same Rust tracing core. The difference is lifecycle and integration scope:
+`ScouterInstrumentor` uses the Rust tracing core and registers Scouter as the process-wide OTEL provider:
 
-| | `init_tracer()` | `ScouterInstrumentor` |
-|--|-----------------|----------------------|
-| Registers global OTEL provider | No | Yes |
-| Works with OTEL auto-instrumentation libraries | No | Yes |
-| Recommended for application/runtime code | No | Yes |
-| Useful for low-level/manual tests | Yes | Sometimes |
-| Follows OTel `BaseInstrumentor` lifecycle | No | Yes |
+| Capability | `ScouterInstrumentor` |
+|--|----------------------|
+| Registers global OTEL provider | Yes |
+| Works with OTEL auto-instrumentation libraries | Yes |
+| Recommended for application/runtime code | Yes |
+| Follows OTel `BaseInstrumentor` lifecycle | Yes |
 
-Use `ScouterInstrumentor` for normal application code, especially when third-party OTEL libraries are involved. Use `init_tracer()` when you need a low-level tracer in tests or in narrowly controlled manual setups.
+Use `ScouterInstrumentor` for application code and tests, especially when third-party OTEL libraries are involved.
 
 ### Using Scouter as a TracerProvider
 
@@ -647,7 +646,7 @@ ScouterInstrumentor().instrument(
 ```
 
 :::note
-Exporter-level `sample_ratio` only affects the optional OTEL exporter. To enforce the same ratio for both Scouter and OTEL export, set `sample_ratio` on `instrument()` or `init_tracer()` directly.
+Exporter-level `sample_ratio` only affects the optional OTEL exporter. To enforce the same ratio for both Scouter and OTEL export, set `sample_ratio` on `instrument()` directly.
 :::
 **Enforce Global Sampling Ratio** for both Scouter and OTEL exporters:
 

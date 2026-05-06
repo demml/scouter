@@ -599,6 +599,9 @@ pub const MAX_DASHBOARD_BUCKETS: usize = 5_000;
 pub async fn build_agent_panel(
     q: &GenAiQueries,
     service_name: Option<&str>,
+    service_namespace: Option<&str>,
+    service_version: Option<&str>,
+    service_instance_id: Option<&str>,
     entity_id: Option<&str>,
     start_time: DateTime<Utc>,
     end_time: DateTime<Utc>,
@@ -611,6 +614,9 @@ pub async fn build_agent_panel(
     let (rows, cost_rows, (unique_agent_count, unique_conversation_count), window_percentiles) = tokio::try_join!(
         q.get_agent_metrics_by_bucket(
             service_name,
+            service_namespace,
+            service_version,
+            service_instance_id,
             entity_id,
             start_time,
             end_time,
@@ -621,6 +627,9 @@ pub async fn build_agent_panel(
         ),
         q.get_agent_cost_by_model(
             service_name,
+            service_namespace,
+            service_version,
+            service_instance_id,
             entity_id,
             start_time,
             end_time,
@@ -630,6 +639,9 @@ pub async fn build_agent_panel(
         ),
         q.get_agent_unique_counts(
             service_name,
+            service_namespace,
+            service_version,
+            service_instance_id,
             entity_id,
             start_time,
             end_time,
@@ -639,6 +651,9 @@ pub async fn build_agent_panel(
         ),
         q.get_agent_window_percentiles(
             service_name,
+            service_namespace,
+            service_version,
+            service_instance_id,
             entity_id,
             start_time,
             end_time,
@@ -667,6 +682,9 @@ pub async fn build_agent_panel(
 pub async fn build_tool_panel(
     q: &GenAiQueries,
     service_name: Option<&str>,
+    service_namespace: Option<&str>,
+    service_version: Option<&str>,
+    service_instance_id: Option<&str>,
     entity_id: Option<&str>,
     start_time: DateTime<Utc>,
     end_time: DateTime<Utc>,
@@ -678,6 +696,9 @@ pub async fn build_tool_panel(
     let (aggregates, mut time_series) = tokio::try_join!(
         q.get_tool_activity(
             service_name,
+            service_namespace,
+            service_version,
+            service_instance_id,
             entity_id,
             start_time,
             end_time,
@@ -686,6 +707,9 @@ pub async fn build_tool_panel(
         ),
         q.get_tool_metrics_timeseries(
             service_name,
+            service_namespace,
+            service_version,
+            service_instance_id,
             entity_id,
             start_time,
             end_time,
@@ -727,6 +751,9 @@ pub fn build_genai_dashboard_response(
 ) -> GenAiDashboardResponse {
     let applied_filters = AppliedFilters {
         service_name: request.service_name.clone(),
+        service_namespace: request.service_namespace.clone(),
+        service_version: request.service_version.clone(),
+        service_instance_id: request.service_instance_id.clone(),
         entity_id: request.entity_id.clone(),
         agent_name: request.agent_name.clone(),
         provider_name: request.provider_name.clone(),

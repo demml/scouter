@@ -22,7 +22,7 @@ from scouter.evaluate import (
 )
 from scouter.transport import MockConfig
 from scouter.queue import ScouterQueue
-from scouter.tracing import init_tracer
+from scouter.tracing import ScouterInstrumentor, get_tracer
 
 # 1. Define what to evaluate about your agent's outputs
 profile = AgentEvalProfile(
@@ -43,8 +43,9 @@ queue = ScouterQueue.from_profile(
     transport_config=MockConfig(),
 )
 
-# 3. Initialize a tracer — your agent emits EvalRecords inside traced spans
-tracer = init_tracer(service_name="my-eval", scouter_queue=queue)
+# 3. Initialize tracing — your agent emits EvalRecords inside traced spans
+ScouterInstrumentor().instrument(service_name="my-eval", scouter_queue=queue)
+tracer = get_tracer("my-eval", scouter_queue=queue)
 
 # 4. Your agent — emits an EvalRecord, returns a response string
 def my_agent(query: str) -> str:
@@ -233,7 +234,7 @@ from scouter.evaluate import (
 )
 from scouter.transport import MockConfig
 from scouter.queue import ScouterQueue
-from scouter.tracing import ScouterInstrumentor, init_tracer
+from scouter.tracing import ScouterInstrumentor, get_tracer
 
 retriever_profile = AgentEvalProfile(
     alias="retriever",
@@ -271,10 +272,9 @@ queue = ScouterQueue.from_profile(
 )
 
 # ScouterInstrumentor is required when your profiles include TraceAssertionTask.
-# For AssertionTask and LLMJudgeTask only, init_tracer alone is sufficient.
 instrumentor = ScouterInstrumentor().instrument(scouter_queue=queue)
 
-tracer = init_tracer(service_name="my-agent", scouter_queue=queue)
+tracer = get_tracer("my-agent", scouter_queue=queue)
 
 def retriever_callback(query: str) -> dict:
     with tracer.start_as_current_span("retriever_call") as span:

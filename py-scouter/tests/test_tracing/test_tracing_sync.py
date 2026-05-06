@@ -5,7 +5,7 @@ import pytest
 from .conftest import ChatInput
 
 
-def test_init_tracer(tracer, span_exporter):
+def test_configured_tracer(tracer, span_exporter):
     span_exporter.clear()
     with tracer.start_as_current_span(
         name="task_one",

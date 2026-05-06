@@ -166,7 +166,16 @@ pub async fn get_trace_spans_by_id(
     let spans = data
         .trace_service
         .query_service
-        .get_trace_spans(Some(trace_id_bytes.as_slice()), None, None, None, None)
+        .get_trace_spans(
+            Some(trace_id_bytes.as_slice()),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
         .await
         .map_err(|e| {
             error!("Failed to get trace spans: {:?}", e);
@@ -230,6 +239,9 @@ pub async fn get_trace_spans(
         .get_trace_spans(
             Some(trace_id_bytes.as_slice()),
             params.service_name.as_deref(),
+            params.service_namespace.as_deref(),
+            params.service_version.as_deref(),
+            params.service_instance_id.as_deref(),
             Some(&start_time),
             Some(&end_time),
             None,
@@ -305,6 +317,9 @@ pub async fn query_trace_spans_from_tags(
             .get_trace_spans(
                 Some(trace_id_bytes.as_slice()),
                 params.service_name.as_deref(),
+                params.service_namespace.as_deref(),
+                params.service_version.as_deref(),
+                params.service_instance_id.as_deref(),
                 None,
                 None,
                 None,
@@ -361,6 +376,9 @@ pub async fn trace_metrics(
         .query_service
         .get_trace_metrics(
             body.service_name.as_deref(),
+            body.service_namespace.as_deref(),
+            body.service_version.as_deref(),
+            body.service_instance_id.as_deref(),
             body.start_time,
             body.end_time,
             &bucket_interval,

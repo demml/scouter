@@ -120,7 +120,7 @@ class GrpcConfig:
         """
 ```
 
-When passed as a transport configuration to a `ScouterQueue` or `init_tracer`, the `GrpcConfig` will be used to initialize a gRPC client and producer that sends monitoring data to the Scouter server over gRPC.
+When passed as a transport configuration to a `ScouterQueue` or `ScouterInstrumentor`, the `GrpcConfig` will be used to initialize a gRPC client and producer that sends monitoring data to the Scouter server over gRPC.
 
 ```python
 from scouter import ScouterQueue, Features, Feature

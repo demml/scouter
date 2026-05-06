@@ -3,7 +3,7 @@ use crate::parquet::control::{ControlTableEngine, get_pod_id};
 use crate::parquet::tracing::catalog::TraceCatalogProvider;
 use crate::parquet::tracing::traits::{arrow_schema_to_delta, resource_attribute_field};
 use crate::parquet::utils::match_attr_expr;
-use crate::parquet::utils::{register_cloud_logstore_factories, run_delta_init};
+use crate::parquet::utils::register_cloud_logstore_factories;
 use crate::storage::ObjectStore;
 use arrow::array::*;
 use arrow::compute;
@@ -14,6 +14,9 @@ use chrono::{DateTime, Datelike, Utc};
 use datafusion::logical_expr::{SortExpr, cast as df_cast, col, lit};
 use datafusion::prelude::*;
 use datafusion::scalar::ScalarValue;
+use deltalake::datafusion::parquet::basic::{Compression, ZstdLevel};
+use deltalake::datafusion::parquet::file::properties::WriterProperties;
+use deltalake::datafusion::parquet::schema::types::ColumnPath;
 use deltalake::operations::optimize::OptimizeType;
 use deltalake::{DeltaTable, DeltaTableBuilder, TableProperty};
 use scouter_types::sql::{TraceFilters, TraceListItem};
@@ -40,6 +43,9 @@ const TASK_SUMMARY_OPTIMIZE: &str = "summary_optimize";
 // ── Column name constants ────────────────────────────────────────────────────
 const TRACE_ID_COL: &str = "trace_id";
 const SERVICE_NAME_COL: &str = "service_name";
+const SERVICE_NAMESPACE_COL: &str = "service_namespace";
+const SERVICE_VERSION_COL: &str = "service_version";
+const SERVICE_INSTANCE_ID_COL: &str = "service_instance_id";
 const SCOPE_NAME_COL: &str = "scope_name";
 const SCOPE_VERSION_COL: &str = "scope_version";
 const ROOT_OPERATION_COL: &str = "root_operation";
@@ -67,6 +73,21 @@ fn create_summary_schema() -> Schema {
             SERVICE_NAME_COL,
             DataType::Dictionary(Box::new(DataType::Int32), Box::new(DataType::Utf8)),
             false,
+        ),
+        Field::new(
+            SERVICE_NAMESPACE_COL,
+            DataType::Dictionary(Box::new(DataType::Int32), Box::new(DataType::Utf8)),
+            true,
+        ),
+        Field::new(
+            SERVICE_VERSION_COL,
+            DataType::Dictionary(Box::new(DataType::Int32), Box::new(DataType::Utf8)),
+            true,
+        ),
+        Field::new(
+            SERVICE_INSTANCE_ID_COL,
+            DataType::Dictionary(Box::new(DataType::Int32), Box::new(DataType::Utf8)),
+            true,
         ),
         Field::new(SCOPE_NAME_COL, DataType::Utf8, false),
         Field::new(SCOPE_VERSION_COL, DataType::Utf8, true),
@@ -107,6 +128,9 @@ struct TraceSummaryBatchBuilder {
     schema: Arc<Schema>,
     trace_id: FixedSizeBinaryBuilder,
     service_name: StringDictionaryBuilder<Int32Type>,
+    service_namespace: StringDictionaryBuilder<Int32Type>,
+    service_version: StringDictionaryBuilder<Int32Type>,
+    service_instance_id: StringDictionaryBuilder<Int32Type>,
     scope_name: StringBuilder,
     scope_version: StringBuilder,
     root_operation: StringBuilder,
@@ -139,6 +163,9 @@ impl TraceSummaryBatchBuilder {
             schema,
             trace_id: FixedSizeBinaryBuilder::with_capacity(capacity, 16),
             service_name: StringDictionaryBuilder::new(),
+            service_namespace: StringDictionaryBuilder::new(),
+            service_version: StringDictionaryBuilder::new(),
+            service_instance_id: StringDictionaryBuilder::new(),
             scope_name: StringBuilder::with_capacity(capacity, capacity * 16),
             scope_version: StringBuilder::with_capacity(capacity, capacity * 8),
             root_operation: StringBuilder::with_capacity(capacity, capacity * 32),
@@ -159,6 +186,18 @@ impl TraceSummaryBatchBuilder {
     fn append(&mut self, rec: &TraceSummaryRecord) -> Result<(), TraceEngineError> {
         self.trace_id.append_value(rec.trace_id.as_bytes())?;
         self.service_name.append_value(&rec.service_name);
+        match &rec.service_namespace {
+            Some(s) => self.service_namespace.append_value(s),
+            None => self.service_namespace.append_null(),
+        }
+        match &rec.service_version {
+            Some(s) => self.service_version.append_value(s),
+            None => self.service_version.append_null(),
+        }
+        match &rec.service_instance_id {
+            Some(s) => self.service_instance_id.append_value(s),
+            None => self.service_instance_id.append_null(),
+        }
         self.scope_name.append_value(&rec.scope_name);
         if rec.scope_version.is_empty() {
             self.scope_version.append_null();
@@ -224,6 +263,9 @@ impl TraceSummaryBatchBuilder {
         let columns: Vec<Arc<dyn Array>> = vec![
             Arc::new(self.trace_id.finish()),
             Arc::new(self.service_name.finish()),
+            Arc::new(self.service_namespace.finish()),
+            Arc::new(self.service_version.finish()),
+            Arc::new(self.service_instance_id.finish()),
             Arc::new(self.scope_name.finish()),
             Arc::new(self.scope_version.finish()),
             Arc::new(self.root_operation.finish()),
@@ -298,7 +340,7 @@ async fn create_summary_table(
         // trace_id (FixedSizeBinary) has no meaningful ordering for file-level pruning.
         .with_configuration_property(
             TableProperty::DataSkippingStatsColumns,
-            Some("start_time,end_time,service_name,duration_ms,status_code,span_count,error_count,partition_date"),
+            Some("start_time,end_time,service_name,service_namespace,service_version,service_instance_id,duration_ms,status_code,span_count,error_count,partition_date"),
         )
         .await
         .map_err(Into::into)
@@ -309,7 +351,7 @@ async fn build_or_create_summary_table(
     schema: SchemaRef,
 ) -> Result<DeltaTable, TraceEngineError> {
     let object_store = object_store.clone();
-    run_delta_init(build_or_create_summary_table_inner(object_store, schema)).await?
+    build_or_create_summary_table_inner(object_store, schema).await
 }
 
 async fn build_or_create_summary_table_inner(
@@ -359,11 +401,32 @@ async fn build_or_create_summary_table_inner(
                 .unwrap_or(SUMMARY_TABLE_NAME)
         );
         let store = object_store.as_dyn_object_store();
-        DeltaTableBuilder::from_url(table_url.clone())?
+        let mut table = DeltaTableBuilder::from_url(table_url.clone())?
             .with_storage_backend(store, table_url)
             .load()
-            .await
-            .map_err(Into::into)
+            .await?;
+
+        let current_arrow = table.table_provider().await?.schema();
+        let desired_schema = create_summary_schema();
+        let missing_fields: Vec<deltalake::kernel::StructField> = desired_schema
+            .fields()
+            .iter()
+            .filter(|f| current_arrow.field_with_name(f.name()).is_err())
+            .map(|f| {
+                let delta_ty = crate::parquet::tracing::traits::arrow_type_to_delta(f.data_type());
+                deltalake::kernel::StructField::new(f.name().clone(), delta_ty, true)
+            })
+            .collect();
+
+        if !missing_fields.is_empty() {
+            info!(
+                ?missing_fields,
+                "adding missing trace_summaries columns via Delta schema evolution"
+            );
+            table = table.add_columns().with_fields(missing_fields).await?;
+        }
+
+        Ok(table)
     } else {
         info!("Summary table does not exist, creating new table");
         create_summary_table(&object_store, table_url, schema).await
@@ -423,6 +486,42 @@ impl TraceSummaryDBEngine {
         builder.finish()
     }
 
+    fn build_writer_props() -> WriterProperties {
+        WriterProperties::builder()
+            .set_column_bloom_filter_enabled(
+                ColumnPath::new(vec!["service_name".to_string()]),
+                true,
+            )
+            .set_column_bloom_filter_fpp(ColumnPath::new(vec!["service_name".to_string()]), 0.01)
+            .set_column_bloom_filter_ndv(ColumnPath::new(vec!["service_name".to_string()]), 256)
+            .set_column_bloom_filter_enabled(
+                ColumnPath::new(vec![SERVICE_NAMESPACE_COL.to_string()]),
+                true,
+            )
+            .set_column_bloom_filter_fpp(
+                ColumnPath::new(vec![SERVICE_NAMESPACE_COL.to_string()]),
+                0.01,
+            )
+            .set_column_bloom_filter_ndv(
+                ColumnPath::new(vec![SERVICE_NAMESPACE_COL.to_string()]),
+                256,
+            )
+            .set_column_bloom_filter_enabled(
+                ColumnPath::new(vec![SERVICE_VERSION_COL.to_string()]),
+                true,
+            )
+            .set_column_bloom_filter_fpp(
+                ColumnPath::new(vec![SERVICE_VERSION_COL.to_string()]),
+                0.01,
+            )
+            .set_column_bloom_filter_ndv(
+                ColumnPath::new(vec![SERVICE_VERSION_COL.to_string()]),
+                256,
+            )
+            .set_compression(Compression::ZSTD(ZstdLevel::try_new(3).unwrap()))
+            .build()
+    }
+
     async fn write_records(
         &self,
         records: Vec<TraceSummaryRecord>,
@@ -444,6 +543,7 @@ impl TraceSummaryDBEngine {
         let updated_table = current_table
             .write(vec![batch])
             .with_save_mode(deltalake::protocol::SaveMode::Append)
+            .with_writer_properties(Self::build_writer_props())
             .with_partition_columns(vec![PARTITION_DATE_COL.to_string()])
             .await?;
 
@@ -760,6 +860,20 @@ impl TraceSummaryQueries {
             df = df.filter(col(START_TIME_COL).lt(ts_lit(&end)))?;
         }
 
+        // Service dimension pre-filters — applied before aggregation for bloom/stats pushdown.
+        if let Some(ref svc) = filters.service_name {
+            df = df.filter(col(SERVICE_NAME_COL).eq(lit(svc.as_str())))?;
+        }
+        if let Some(ref ns) = filters.service_namespace {
+            df = df.filter(col(SERVICE_NAMESPACE_COL).eq(lit(ns.as_str())))?;
+        }
+        if let Some(ref ver) = filters.service_version {
+            df = df.filter(col(SERVICE_VERSION_COL).eq(lit(ver.as_str())))?;
+        }
+        if let Some(ref iid) = filters.service_instance_id {
+            df = df.filter(col(SERVICE_INSTANCE_ID_COL).eq(lit(iid.as_str())))?;
+        }
+
         // ORDER BY specs for FIRST_VALUE aggregates
         // span_count DESC NULLS LAST, end_time DESC NULLS LAST
         let by_span_end: Vec<SortExpr> = vec![
@@ -835,9 +949,6 @@ impl TraceSummaryQueries {
         }
 
         // ── Secondary filters ────────────────────────────────────────────────
-        if let Some(ref svc) = filters.service_name {
-            df = df.filter(col(SERVICE_NAME_COL).eq(lit(svc.as_str())))?;
-        }
         match filters.has_errors {
             Some(true) => {
                 df = df.filter(col(ERROR_COUNT_COL).gt(lit(0i64)))?;
@@ -1113,6 +1224,15 @@ impl TraceSummaryQueries {
 
         if let Some(ref svc) = filters.service_name {
             df = df.filter(col(SERVICE_NAME_COL).eq(lit(svc.as_str())))?;
+        }
+        if let Some(ref ns) = filters.service_namespace {
+            df = df.filter(col(SERVICE_NAMESPACE_COL).eq(lit(ns.as_str())))?;
+        }
+        if let Some(ref ver) = filters.service_version {
+            df = df.filter(col(SERVICE_VERSION_COL).eq(lit(ver.as_str())))?;
+        }
+        if let Some(ref iid) = filters.service_instance_id {
+            df = df.filter(col(SERVICE_INSTANCE_ID_COL).eq(lit(iid.as_str())))?;
         }
         match filters.has_errors {
             Some(true) => {
@@ -1661,6 +1781,9 @@ mod tests {
         TraceSummaryRecord {
             trace_id: TraceId::from_bytes(trace_id_bytes),
             service_name: service_name.to_string(),
+            service_namespace: None,
+            service_version: None,
+            service_instance_id: None,
             scope_name: "test.scope".to_string(),
             scope_version: String::new(),
             root_operation: "root_op".to_string(),
@@ -1699,21 +1822,10 @@ mod tests {
         let start = Utc::now() - chrono::Duration::hours(1);
         let end = Utc::now() + chrono::Duration::hours(1);
         let filters = TraceFilters {
-            service_name: None,
-            has_errors: None,
-            status_code: None,
             start_time: Some(start),
             end_time: Some(end),
             limit: Some(25),
-            cursor_start_time: None,
-            cursor_trace_id: None,
-            direction: None,
-            attribute_filters: None,
-            trace_ids: None,
-            entity_uid: None,
-            queue_uid: None,
-            duration_min_ms: None,
-            duration_max_ms: None,
+            ..Default::default()
         };
 
         let response = service.query_service.get_paginated_traces(&filters).await?;
@@ -1750,21 +1862,10 @@ mod tests {
         let end = Utc::now() + chrono::Duration::hours(1);
 
         let base_filters = TraceFilters {
-            service_name: None,
-            has_errors: None,
-            status_code: None,
             start_time: Some(start),
             end_time: Some(end),
             limit: Some(25),
-            cursor_start_time: None,
-            cursor_trace_id: None,
-            direction: None,
-            attribute_filters: None,
-            trace_ids: None,
-            entity_uid: None,
-            queue_uid: None,
-            duration_min_ms: None,
-            duration_max_ms: None,
+            ..Default::default()
         };
 
         // has_errors = true → only error trace
@@ -1830,20 +1931,10 @@ mod tests {
         let end = Utc::now() + chrono::Duration::hours(1);
         let filters = TraceFilters {
             service_name: Some("alpha_service".to_string()),
-            has_errors: None,
-            status_code: None,
             start_time: Some(start),
             end_time: Some(end),
             limit: Some(25),
-            cursor_start_time: None,
-            cursor_trace_id: None,
-            direction: None,
-            attribute_filters: None,
-            trace_ids: None,
-            entity_uid: None,
-            queue_uid: None,
-            duration_min_ms: None,
-            duration_max_ms: None,
+            ..Default::default()
         };
 
         let response = service.query_service.get_paginated_traces(&filters).await?;
@@ -1886,21 +1977,11 @@ mod tests {
         let start = Utc::now() - chrono::Duration::hours(1);
         let end = Utc::now() + chrono::Duration::hours(1);
         let filters = TraceFilters {
-            service_name: None,
-            has_errors: None,
-            status_code: None,
             start_time: Some(start),
             end_time: Some(end),
             limit: Some(25),
-            cursor_start_time: None,
-            cursor_trace_id: None,
-            direction: None,
-            attribute_filters: None,
             trace_ids: Some(vec![wanted_id.to_hex()]),
-            entity_uid: None,
-            queue_uid: None,
-            duration_min_ms: None,
-            duration_max_ms: None,
+            ..Default::default()
         };
 
         let response = service.query_service.get_paginated_traces(&filters).await?;
@@ -2173,6 +2254,9 @@ mod tests {
             .get_trace_spans(
                 Some(returned_trace_id.as_bytes()),
                 None,
+                None,
+                None,
+                None,
                 Some(&(now - chrono::Duration::hours(1))),
                 Some(&(now + chrono::Duration::hours(1))),
                 None,
@@ -2221,6 +2305,9 @@ mod tests {
             input: serde_json::Value::Null,
             output: serde_json::Value::Null,
             service_name: service_name.to_string(),
+            service_namespace: None,
+            service_version: None,
+            service_instance_id: None,
             resource_attributes: vec![],
         }
     }
@@ -2247,21 +2334,11 @@ mod tests {
         let start = Utc::now() - chrono::Duration::hours(1);
         let end = Utc::now() + chrono::Duration::hours(1);
         let filters = TraceFilters {
-            service_name: None,
-            has_errors: None,
-            status_code: None,
             start_time: Some(start),
             end_time: Some(end),
             limit: Some(25),
-            cursor_start_time: None,
-            cursor_trace_id: None,
-            direction: None,
-            attribute_filters: None,
             trace_ids: Some(vec![TraceId::from_bytes([9u8; 16]).to_hex()]),
-            entity_uid: None,
-            queue_uid: None,
-            duration_min_ms: None,
-            duration_max_ms: None,
+            ..Default::default()
         };
 
         let response = service.query_service.get_paginated_traces(&filters).await?;
@@ -2408,20 +2485,10 @@ mod tests {
         let end = Utc::now() + chrono::Duration::hours(1);
         let filters = TraceFilters {
             service_name: Some("distributed-svc".to_string()),
-            has_errors: None,
-            status_code: None,
             start_time: Some(start),
             end_time: Some(end),
             limit: Some(25),
-            cursor_start_time: None,
-            cursor_trace_id: None,
-            direction: None,
-            attribute_filters: None,
-            trace_ids: None,
-            entity_uid: None,
-            queue_uid: None,
-            duration_min_ms: None,
-            duration_max_ms: None,
+            ..Default::default()
         };
 
         let response = reader.query_service.get_paginated_traces(&filters).await?;

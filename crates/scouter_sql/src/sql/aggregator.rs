@@ -85,6 +85,9 @@ pub struct TraceAggregator {
     pub entity_tags: HashSet<UuidBytea>,
     pub queue_tags: HashSet<UuidBytea>,
     pub queue_owned_entity_tags: HashSet<UuidBytea>,
+    pub service_namespace: Option<String>,
+    pub service_version: Option<String>,
+    pub service_instance_id: Option<String>,
 }
 
 fn extract_value_to_set(attr: &Attribute, set: &mut HashSet<UuidBytea>) -> Option<UuidBytea> {
@@ -196,6 +199,9 @@ impl TraceAggregator {
             entity_tags: HashSet::new(),
             queue_tags: HashSet::new(),
             queue_owned_entity_tags: HashSet::new(),
+            service_namespace: span.service_namespace.clone(),
+            service_version: span.service_version.clone(),
+            service_instance_id: span.service_instance_id.clone(),
         };
         aggregator.add_ids(span);
         aggregator
@@ -221,6 +227,9 @@ impl TraceAggregator {
                 self.scope_version = version.clone();
             }
             self.resource_attributes = span.resource_attributes.clone();
+            self.service_namespace = span.service_namespace.clone();
+            self.service_version = span.service_version.clone();
+            self.service_instance_id = span.service_instance_id.clone();
         }
 
         if span.status_code == 2 {
@@ -270,6 +279,9 @@ impl TraceAggregator {
             resource_attributes: self.resource_attributes.clone(),
             entity_ids,
             queue_ids,
+            service_namespace: self.service_namespace.clone(),
+            service_version: self.service_version.clone(),
+            service_instance_id: self.service_instance_id.clone(),
         }
     }
 }

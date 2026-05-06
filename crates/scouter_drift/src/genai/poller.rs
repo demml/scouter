@@ -29,7 +29,16 @@ async fn get_trace_spans_by_id(trace_id: &TraceId) -> Result<Arc<Vec<TraceSpan>>
 
     let spans = span_service
         .query_service
-        .get_trace_spans(Some(trace_id.as_bytes().as_slice()), None, None, None, None)
+        .get_trace_spans(
+            Some(trace_id.as_bytes().as_slice()),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
         .await
         .map_err(|e| DriftError::AgentEvaluatorError(format!("Error fetching spans: {}", e)))?;
 
@@ -83,7 +92,16 @@ async fn wait_for_trace_spans(
 
                 match span_service
                     .query_service
-                    .get_trace_spans(Some(trace_id_bytes.as_slice()), None, None, None, None)
+                    .get_trace_spans(
+                        Some(trace_id_bytes.as_slice()),
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                    )
                     .await
                 {
                     Ok(spans) if !spans.is_empty() => {

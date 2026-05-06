@@ -984,6 +984,9 @@ pub struct InsertTagsRequest {
 pub struct TraceRequest {
     pub trace_id: String,
     pub service_name: Option<String>,
+    pub service_namespace: Option<String>,
+    pub service_version: Option<String>,
+    pub service_instance_id: Option<String>,
     /// ISO 8601 lower bound — enables Delta Lake time pruning when supplied by the UI.
     pub start_time: Option<String>,
     /// ISO 8601 upper bound — enables Delta Lake time pruning when supplied by the UI.
@@ -998,6 +1001,12 @@ pub struct SpansFromTagsRequest {
     pub tag_filters: Vec<HashMap<String, String>>,
     pub match_all: bool,
     pub service_name: Option<String>,
+    #[serde(default)]
+    pub service_namespace: Option<String>,
+    #[serde(default)]
+    pub service_version: Option<String>,
+    #[serde(default)]
+    pub service_instance_id: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -1005,6 +1014,9 @@ pub struct SpansFromTagsRequest {
 #[pyclass(from_py_object)]
 pub struct TraceMetricsRequest {
     pub service_name: Option<String>,
+    pub service_namespace: Option<String>,
+    pub service_version: Option<String>,
+    pub service_instance_id: Option<String>,
     pub start_time: DateTime<Utc>,
     pub end_time: DateTime<Utc>,
     pub bucket_interval: String,
@@ -1023,6 +1035,9 @@ impl TraceMetricsRequest {
         end_time,
         bucket_interval,
         service_name=None,
+        service_namespace=None,
+        service_version=None,
+        service_instance_id=None,
         attribute_filters=None,
         entity_uid=None,
         duration_min_ms=None,
@@ -1033,6 +1048,9 @@ impl TraceMetricsRequest {
         end_time: DateTime<Utc>,
         bucket_interval: String,
         service_name: Option<String>,
+        service_namespace: Option<String>,
+        service_version: Option<String>,
+        service_instance_id: Option<String>,
         attribute_filters: Option<Vec<String>>,
         entity_uid: Option<String>,
         duration_min_ms: Option<i64>,
@@ -1040,6 +1058,9 @@ impl TraceMetricsRequest {
     ) -> Self {
         TraceMetricsRequest {
             service_name,
+            service_namespace,
+            service_version,
+            service_instance_id,
             start_time,
             end_time,
             bucket_interval,

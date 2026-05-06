@@ -26,7 +26,6 @@ from scouter.tracing import (
     ScouterTracer,
     active_profile,
     get_tracer,
-    init_tracer,
     shutdown_tracer,
 )
 from scouter.transport import GrpcConfig
@@ -654,7 +653,7 @@ def test_trace_eval_dispatch_mixed_queue_and_synthetic_entities(
         )
 
         try:
-            init_tracer(
+            ScouterInstrumentor().instrument(
                 service_name="mixed-trace-eval-test",
                 exporter=GrpcSpanExporter(),
                 batch_config=BatchConfig(scheduled_delay_ms=200),
