@@ -1,5 +1,4 @@
 use crate::error::TraceEngineError;
-use scouter_macro::append_opt_str;
 use crate::parquet::control::{ControlTableEngine, get_pod_id};
 use crate::parquet::tracing::catalog::TraceCatalogProvider;
 use crate::parquet::tracing::queries::{
@@ -38,6 +37,15 @@ use tokio::sync::{RwLock as AsyncRwLock, mpsc};
 use tokio::time::interval;
 use tracing::{debug, error, info, instrument};
 use url::Url;
+
+macro_rules! append_opt_str {
+    ($self:expr, $field:ident, $src:expr) => {
+        match &$src {
+            Some(v) => $self.$field.append_value(v),
+            None => $self.$field.append_null(),
+        }
+    };
+}
 
 const GEN_AI_TABLE_NAME: &str = "gen_ai_spans";
 const TASK_GENAI_OPTIMIZE: &str = "genai_optimize";
@@ -3778,6 +3786,51 @@ mod tests {
         }
     }
 
+    fn legacy_genai_schema() -> Schema {
+        let new_columns = [
+            TOOL_DESCRIPTION_COL,
+            TOOL_CALL_ARGUMENTS_COL,
+            TOOL_CALL_RESULT_COL,
+            REQUEST_STREAM_COL,
+            REQUEST_TOP_K_COL,
+            REQUEST_ENCODING_FORMATS_COL,
+            RESPONSE_TIME_TO_FIRST_CHUNK_COL,
+            REASONING_OUTPUT_TOKENS_COL,
+            PROMPT_NAME_COL,
+            WORKFLOW_NAME_COL,
+            EMBEDDINGS_DIMENSION_COUNT_COL,
+            RETRIEVAL_DOCUMENTS_COL,
+            RETRIEVAL_QUERY_TEXT_COL,
+        ];
+        Schema::new(
+            create_genai_schema()
+                .fields()
+                .iter()
+                .filter(|field| !new_columns.contains(&field.name().as_str()))
+                .map(|field| field.as_ref().clone())
+                .collect::<Vec<_>>(),
+        )
+    }
+
+    fn legacy_batch_from_record(record: GenAiSpanRecord) -> Result<RecordBatch, TraceEngineError> {
+        let full_schema = Arc::new(create_genai_schema());
+        let mut builder = GenAiBatchBuilder::new(full_schema, 1);
+        builder.append(&record)?;
+        let full_batch = builder.finish()?;
+        let legacy_schema = Arc::new(legacy_genai_schema());
+        let columns = legacy_schema
+            .fields()
+            .iter()
+            .map(|field| {
+                full_batch
+                    .column_by_name(field.name())
+                    .expect("legacy column should exist in full batch")
+                    .clone()
+            })
+            .collect::<Vec<_>>();
+        RecordBatch::try_new(legacy_schema, columns).map_err(Into::into)
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn make_genai_span(
         trace_id: &TraceId,
@@ -4785,6 +4838,79 @@ mod tests {
             Some(r#"[{"id":"doc-1"}]"#)
         );
         assert_eq!(span.retrieval_query_text.as_deref(), Some("what is otel"));
+
+        service.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_existing_legacy_table_schema_evolves_for_new_nullable_fields()
+    -> Result<(), TraceEngineError> {
+        let env = make_test_env();
+        let legacy_schema = Arc::new(legacy_genai_schema());
+        let table_url = build_genai_url(&env.object_store).await?;
+        let table = create_genai_table(&env.object_store, table_url.clone(), legacy_schema).await?;
+        let trace_id = TraceId::from_bytes([110u8; 16]);
+        let record = make_genai_record(
+            &trace_id,
+            SpanId::from_bytes([110u8; 8]),
+            "legacy-schema-service",
+            "chat",
+            "openai",
+            "gpt-4",
+            10,
+            20,
+        );
+        let legacy_batch = legacy_batch_from_record(record)?;
+        table
+            .write(vec![legacy_batch])
+            .with_save_mode(deltalake::protocol::SaveMode::Append)
+            .await?;
+
+        let service =
+            GenAiSpanService::new(&env.object_store, 24, env.ctx, env.catalog, 10, None).await?;
+
+        let evolved_table = DeltaTableBuilder::from_url(table_url.clone())?
+            .with_storage_backend(env.object_store.as_dyn_object_store(), table_url)
+            .load()
+            .await?;
+        let evolved_schema = evolved_table.table_provider().await?.schema();
+        for col in [
+            REQUEST_STREAM_COL,
+            REQUEST_TOP_K_COL,
+            RESPONSE_TIME_TO_FIRST_CHUNK_COL,
+            REASONING_OUTPUT_TOKENS_COL,
+            RETRIEVAL_DOCUMENTS_COL,
+            RETRIEVAL_QUERY_TEXT_COL,
+        ] {
+            evolved_schema.field_with_name(col)?;
+        }
+
+        let spans = service
+            .query_service
+            .get_genai_spans_with_projection(
+                &GenAiSpanFilters {
+                    service_name: Some("legacy-schema-service".to_string()),
+                    start_time: Some(Utc::now() - chrono::Duration::hours(1)),
+                    end_time: Some(Utc::now() + chrono::Duration::hours(1)),
+                    ..Default::default()
+                },
+                true,
+            )
+            .await?;
+
+        assert_eq!(spans.len(), 1);
+        let span = &spans[0];
+        assert_eq!(span.request_model.as_deref(), Some("gpt-4"));
+        assert_eq!(span.input_tokens, Some(10));
+        assert_eq!(span.output_tokens, Some(20));
+        assert!(span.request_stream.is_none());
+        assert!(span.request_top_k.is_none());
+        assert!(span.request_encoding_formats.is_empty());
+        assert!(span.response_time_to_first_chunk.is_none());
+        assert!(span.reasoning_output_tokens.is_none());
+        assert!(span.retrieval_documents.is_none());
+        assert!(span.retrieval_query_text.is_none());
 
         service.shutdown().await?;
         Ok(())

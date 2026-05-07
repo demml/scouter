@@ -1,8 +1,37 @@
-use super::{Attribute, SCOUTER_ENTITY, SpanId, TraceId, TraceSpanRecord};
-use scouter_macro::{extract_f64, extract_i64, extract_json_str, extract_str, or_fallback};
+use super::{Attribute, SCOUTER_ENTITY, SpanId, TraceId, TraceSpanRecord, sql::TraceSpan};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+macro_rules! extract_str {
+    ($out:expr, $field:ident, $value:expr) => {{
+        if let serde_json::Value::String(s) = $value {
+            $out.$field = Some(s.clone());
+        }
+    }};
+}
+
+macro_rules! extract_i64 {
+    ($out:expr, $field:ident, $value:expr) => {{ $out.$field = attr_as_i64($value) }};
+}
+
+macro_rules! extract_f64 {
+    ($out:expr, $field:ident, $value:expr) => {{ $out.$field = attr_as_f64($value) }};
+}
+
+macro_rules! extract_json_str {
+    ($out:expr, $field:ident, $value:expr) => {{ $out.$field = value_to_json_string($value) }};
+}
+
+macro_rules! or_fallback {
+    ($out:expr, $src:expr, $($field:ident),+ $(,)?) => {
+        $(
+            if $out.$field.is_none() {
+                $out.$field = $src.$field.take();
+            }
+        )+
+    };
+}
 
 // ── Span attribute key constants ─────────────────────────────────────────────
 pub const GEN_AI_OPERATION_NAME: &str = "gen_ai.operation.name";
@@ -63,12 +92,15 @@ pub const GEN_AI_RETRIEVAL_DOCUMENTS: &str = "gen_ai.retrieval.documents";
 pub const GEN_AI_RETRIEVAL_QUERY_TEXT: &str = "gen_ai.retrieval.query.text";
 
 pub(crate) const GCP_VERTEX_AGENT_SYSTEM: &str = "gcp.vertex.agent";
+pub(crate) const GCP_VERTEX_AI_PROVIDER: &str = "gcp.vertex_ai";
 pub(crate) const GCP_VERTEX_AGENT_PREFIX: &str = "gcp.vertex.agent.";
 pub(crate) const GCP_VERTEX_INVOCATION_ID: &str = "gcp.vertex.agent.invocation_id";
 pub(crate) const GCP_VERTEX_SESSION_ID: &str = "gcp.vertex.agent.session_id";
 pub(crate) const GCP_VERTEX_EVENT_ID: &str = "gcp.vertex.agent.event_id";
 pub(crate) const GCP_VERTEX_LLM_REQUEST: &str = "gcp.vertex.agent.llm_request";
 pub(crate) const GCP_VERTEX_LLM_RESPONSE: &str = "gcp.vertex.agent.llm_response";
+const GCP_VERTEX_LLM_REQUEST_PREFIX: &str = "gcp.vertex.agent.llm_request.";
+const GCP_VERTEX_LLM_RESPONSE_PREFIX: &str = "gcp.vertex.agent.llm_response.";
 pub(crate) const GCP_VERTEX_TOOL_CALL_ARGS: &str = "gcp.vertex.agent.tool_call_args";
 pub(crate) const GCP_VERTEX_TOOL_RESPONSE: &str = "gcp.vertex.agent.tool_response";
 pub(crate) const GCP_VERTEX_DATA: &str = "gcp.vertex.agent.data";
@@ -478,17 +510,11 @@ pub(crate) struct GenAiFallbackAttributes {
     pub tool_call_result: Option<String>,
 }
 
-pub(crate) trait GenAiVendorFallback {
-    fn mapped_attributes(&self, record: &TraceSpanRecord) -> GenAiFallbackAttributes;
-}
-
 // Selector matches the ADK vendor-instrumentation marker `gcp.vertex.agent`.
 // NOTE: this is not the OTel canonical Vertex provider value, which is `gcp.vertex_ai`.
 // ADK emits `gcp.vertex.agent` on deprecated `gen_ai.system` plus the
 // `gcp.vertex.agent.*` attribute namespace.
-pub(crate) fn select_genai_vendor_fallback(
-    record: &TraceSpanRecord,
-) -> Option<Box<dyn GenAiVendorFallback>> {
+fn uses_gcp_vertex_vendor_fallback(record: &TraceSpanRecord) -> bool {
     let mut system_match = false;
     let mut prefix_match = false;
     for attr in &record.attributes {
@@ -505,42 +531,40 @@ pub(crate) fn select_genai_vendor_fallback(
             break;
         }
     }
-    if system_match || prefix_match {
-        Some(Box::new(GcpVertexFallback))
-    } else {
-        None
-    }
+    system_match || prefix_match
 }
 
-struct GcpVertexFallback;
-
-impl GenAiVendorFallback for GcpVertexFallback {
-    fn mapped_attributes(&self, record: &TraceSpanRecord) -> GenAiFallbackAttributes {
-        let mut out = GenAiFallbackAttributes::default();
-        for attr in &record.attributes {
-            match attr.key.as_str() {
-                GCP_VERTEX_SESSION_ID => {
-                    if let serde_json::Value::String(s) = &attr.value {
-                        out.conversation_id = Some(s.clone());
-                    }
-                }
-                GCP_VERTEX_TOOL_CALL_ARGS => {
-                    out.tool_call_arguments = value_to_json_string(&attr.value);
-                }
-                GCP_VERTEX_TOOL_RESPONSE => {
-                    out.tool_call_result = value_to_json_string(&attr.value);
-                }
-                GCP_VERTEX_LLM_REQUEST => apply_vertex_llm_request(&attr.value, &mut out),
-                GCP_VERTEX_LLM_RESPONSE => apply_vertex_llm_response(&attr.value, &mut out),
-                GCP_VERTEX_INVOCATION_ID
-                | GCP_VERTEX_EVENT_ID
-                | GCP_VERTEX_DATA
-                | GCP_MCP_SERVER_DESTINATION_ID => {}
-                _ => {}
-            }
-        }
-        out
+pub(crate) fn gcp_vertex_fallback_attributes(
+    record: &TraceSpanRecord,
+) -> Option<GenAiFallbackAttributes> {
+    if !uses_gcp_vertex_vendor_fallback(record) {
+        return None;
     }
+
+    let mut out = GenAiFallbackAttributes::default();
+    for attr in &record.attributes {
+        match attr.key.as_str() {
+            GCP_VERTEX_SESSION_ID => {
+                if let serde_json::Value::String(s) = &attr.value {
+                    out.conversation_id = Some(s.clone());
+                }
+            }
+            GCP_VERTEX_TOOL_CALL_ARGS => {
+                out.tool_call_arguments = value_to_json_string(&attr.value);
+            }
+            GCP_VERTEX_TOOL_RESPONSE => {
+                out.tool_call_result = value_to_json_string(&attr.value);
+            }
+            GCP_VERTEX_LLM_REQUEST => apply_vertex_llm_request(&attr.value, &mut out),
+            GCP_VERTEX_LLM_RESPONSE => apply_vertex_llm_response(&attr.value, &mut out),
+            GCP_VERTEX_INVOCATION_ID
+            | GCP_VERTEX_EVENT_ID
+            | GCP_VERTEX_DATA
+            | GCP_MCP_SERVER_DESTINATION_ID => {}
+            _ => {}
+        }
+    }
+    Some(out)
 }
 
 fn vendor_value_to_json(value: &serde_json::Value) -> Option<serde_json::Value> {
@@ -607,6 +631,46 @@ fn apply_vertex_llm_response(value: &serde_json::Value, out: &mut GenAiFallbackA
     }
 }
 
+fn is_sensitive_gen_ai_trace_key(key: &str) -> bool {
+    matches!(
+        key,
+        GEN_AI_INPUT_MESSAGES
+            | GEN_AI_OUTPUT_MESSAGES
+            | GEN_AI_SYSTEM_INSTRUCTIONS
+            | GEN_AI_TOOL_DEFINITIONS
+            | GEN_AI_TOOL_CALL_ARGUMENTS
+            | GEN_AI_TOOL_CALL_RESULT
+            | GEN_AI_RETRIEVAL_DOCUMENTS
+            | GEN_AI_RETRIEVAL_QUERY_TEXT
+            | GCP_VERTEX_TOOL_CALL_ARGS
+            | GCP_VERTEX_TOOL_RESPONSE
+            | GCP_VERTEX_LLM_REQUEST
+            | GCP_VERTEX_LLM_RESPONSE
+    ) || key.starts_with(GCP_VERTEX_LLM_REQUEST_PREFIX)
+        || key.starts_with(GCP_VERTEX_LLM_RESPONSE_PREFIX)
+}
+
+pub fn redact_sensitive_gen_ai_trace_content(record: &mut TraceSpanRecord) {
+    record
+        .attributes
+        .retain(|attr| !is_sensitive_gen_ai_trace_key(&attr.key));
+    for event in &mut record.events {
+        event
+            .attributes
+            .retain(|attr| !is_sensitive_gen_ai_trace_key(&attr.key));
+    }
+}
+
+pub fn redact_sensitive_gen_ai_trace_span(span: &mut TraceSpan) {
+    span.attributes
+        .retain(|attr| !is_sensitive_gen_ai_trace_key(&attr.key));
+    for event in &mut span.events {
+        event
+            .attributes
+            .retain(|attr| !is_sensitive_gen_ai_trace_key(&attr.key));
+    }
+}
+
 // ── Span extraction ───────────────────────────────────────────────────────────
 
 /// Returns None if gen_ai.operation.name is not present in span attributes.
@@ -635,7 +699,11 @@ pub fn extract_gen_ai_span(record: &TraceSpanRecord) -> Option<GenAiSpanRecord> 
             GEN_AI_PROVIDER_NAME => extract_str!(out, provider_name, value),
             GEN_AI_SYSTEM if out.provider_name.is_none() => {
                 if let serde_json::Value::String(s) = value {
-                    out.provider_name = Some(s.clone());
+                    out.provider_name = Some(if s == GCP_VERTEX_AGENT_SYSTEM {
+                        GCP_VERTEX_AI_PROVIDER.to_string()
+                    } else {
+                        s.clone()
+                    });
                 }
             }
             GEN_AI_REQUEST_MODEL => extract_str!(out, request_model, value),
@@ -643,8 +711,12 @@ pub fn extract_gen_ai_span(record: &TraceSpanRecord) -> Option<GenAiSpanRecord> 
             GEN_AI_RESPONSE_ID => extract_str!(out, response_id, value),
             GEN_AI_USAGE_INPUT_TOKENS => extract_i64!(out, input_tokens, value),
             GEN_AI_USAGE_OUTPUT_TOKENS => extract_i64!(out, output_tokens, value),
-            GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS => extract_i64!(out, cache_creation_input_tokens, value),
-            GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS => extract_i64!(out, cache_read_input_tokens, value),
+            GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS => {
+                extract_i64!(out, cache_creation_input_tokens, value)
+            }
+            GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS => {
+                extract_i64!(out, cache_read_input_tokens, value)
+            }
             GEN_AI_RESPONSE_FINISH_REASONS => {
                 out.finish_reasons = parse_finish_reasons(value);
             }
@@ -687,11 +759,17 @@ pub fn extract_gen_ai_span(record: &TraceSpanRecord) -> Option<GenAiSpanRecord> 
             GEN_AI_REQUEST_ENCODING_FORMATS => {
                 out.request_encoding_formats = parse_stop_sequences(value);
             }
-            GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK => extract_f64!(out, response_time_to_first_chunk, value),
-            GEN_AI_USAGE_REASONING_OUTPUT_TOKENS => extract_i64!(out, reasoning_output_tokens, value),
+            GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK => {
+                extract_f64!(out, response_time_to_first_chunk, value)
+            }
+            GEN_AI_USAGE_REASONING_OUTPUT_TOKENS => {
+                extract_i64!(out, reasoning_output_tokens, value)
+            }
             GEN_AI_PROMPT_NAME => extract_str!(out, prompt_name, value),
             GEN_AI_WORKFLOW_NAME => extract_str!(out, workflow_name, value),
-            GEN_AI_EMBEDDINGS_DIMENSION_COUNT => extract_i64!(out, embeddings_dimension_count, value),
+            GEN_AI_EMBEDDINGS_DIMENSION_COUNT => {
+                extract_i64!(out, embeddings_dimension_count, value)
+            }
             GEN_AI_RETRIEVAL_DOCUMENTS => extract_json_str!(out, retrieval_documents, value),
             GEN_AI_RETRIEVAL_QUERY_TEXT => extract_json_str!(out, retrieval_query_text, value),
             _ => {}
@@ -731,17 +809,33 @@ pub fn extract_gen_ai_span(record: &TraceSpanRecord) -> Option<GenAiSpanRecord> 
     // Scalars: span attrs authoritative. Opt-in content: span wins, event fallback.
     // Eval results always come from events.
     let mut event_data = extract_gen_ai_events(record);
-    or_fallback!(out, event_data, input_messages, output_messages, system_instructions, tool_definitions);
+    or_fallback!(
+        out,
+        event_data,
+        input_messages,
+        output_messages,
+        system_instructions,
+        tool_definitions
+    );
     out.eval_results = event_data.eval_results;
 
-    if let Some(fallback) = select_genai_vendor_fallback(record) {
-        let mut vendor = fallback.mapped_attributes(record);
+    if let Some(mut vendor) = gcp_vertex_fallback_attributes(record) {
         or_fallback!(
-            out, vendor,
-            conversation_id, request_model, input_messages, system_instructions,
-            tool_definitions, request_top_p, request_max_tokens, output_messages,
-            input_tokens, output_tokens, reasoning_output_tokens,
-            tool_call_arguments, tool_call_result,
+            out,
+            vendor,
+            conversation_id,
+            request_model,
+            input_messages,
+            system_instructions,
+            tool_definitions,
+            request_top_p,
+            request_max_tokens,
+            output_messages,
+            input_tokens,
+            output_tokens,
+            reasoning_output_tokens,
+            tool_call_arguments,
+            tool_call_result,
         );
         if out.finish_reasons.is_empty() {
             out.finish_reasons = vendor.finish_reasons;
@@ -1515,6 +1609,31 @@ mod tests {
     }
 
     #[test]
+    fn test_extract_gen_ai_span_maps_adk_system_marker_to_vertex_provider() {
+        let span = make_span(vec![
+            (
+                GEN_AI_OPERATION_NAME,
+                serde_json::Value::String("generate_content".to_string()),
+            ),
+            (
+                GEN_AI_SYSTEM,
+                serde_json::Value::String(GCP_VERTEX_AGENT_SYSTEM.to_string()),
+            ),
+            (
+                GCP_VERTEX_SESSION_ID,
+                serde_json::Value::String("session-1".to_string()),
+            ),
+        ]);
+
+        let result = extract_gen_ai_span(&span).expect("should extract");
+        assert_eq!(
+            result.provider_name.as_deref(),
+            Some(GCP_VERTEX_AI_PROVIDER)
+        );
+        assert_eq!(result.conversation_id.as_deref(), Some("session-1"));
+    }
+
+    #[test]
     fn test_extract_gen_ai_span_keeps_provider_name_over_system() {
         let span = make_span(vec![
             (
@@ -1533,6 +1652,27 @@ mod tests {
 
         let result = extract_gen_ai_span(&span).expect("should extract");
         assert_eq!(result.provider_name.as_deref(), Some("google"));
+    }
+
+    #[test]
+    fn test_extract_gen_ai_span_keeps_provider_name_over_adk_system_marker() {
+        let span = make_span(vec![
+            (
+                GEN_AI_OPERATION_NAME,
+                serde_json::Value::String("generate_content".to_string()),
+            ),
+            (
+                GEN_AI_PROVIDER_NAME,
+                serde_json::Value::String("gcp.gemini".to_string()),
+            ),
+            (
+                GEN_AI_SYSTEM,
+                serde_json::Value::String(GCP_VERTEX_AGENT_SYSTEM.to_string()),
+            ),
+        ]);
+
+        let result = extract_gen_ai_span(&span).expect("should extract");
+        assert_eq!(result.provider_name.as_deref(), Some("gcp.gemini"));
     }
 
     #[test]
@@ -2006,7 +2146,7 @@ mod tests {
             GEN_AI_SYSTEM,
             serde_json::json!(GCP_VERTEX_AGENT_SYSTEM),
         )]);
-        assert!(select_genai_vendor_fallback(&span).is_some());
+        assert!(gcp_vertex_fallback_attributes(&span).is_some());
     }
 
     #[test]
@@ -2015,13 +2155,13 @@ mod tests {
             GCP_VERTEX_SESSION_ID,
             serde_json::json!("session-1"),
         )]);
-        assert!(select_genai_vendor_fallback(&span).is_some());
+        assert!(gcp_vertex_fallback_attributes(&span).is_some());
     }
 
     #[test]
     fn test_select_vendor_fallback_returns_none_for_other_systems() {
         let span = make_span(vec![(GEN_AI_SYSTEM, serde_json::json!("openai"))]);
-        assert!(select_genai_vendor_fallback(&span).is_none());
+        assert!(gcp_vertex_fallback_attributes(&span).is_none());
     }
 
     #[test]
@@ -2199,6 +2339,76 @@ mod tests {
         assert!(result.request_model.is_none());
         assert!(result.tool_call_arguments.is_none());
         assert!(result.tool_call_result.is_none());
+    }
+
+    #[test]
+    fn test_redact_sensitive_gen_ai_trace_content_removes_span_and_event_attrs() {
+        let event = make_event(
+            GEN_AI_EVENT_INFERENCE_DETAILS,
+            vec![
+                (GEN_AI_INPUT_MESSAGES, serde_json::json!([{"role": "user"}])),
+                (
+                    GEN_AI_TOOL_CALL_RESULT,
+                    serde_json::json!({"result": "secret"}),
+                ),
+                (GEN_AI_TOOL_NAME, serde_json::json!("search")),
+                (
+                    GCP_VERTEX_LLM_RESPONSE_PREFIX,
+                    serde_json::json!({"content": "not matched"}),
+                ),
+                (
+                    "gcp.vertex.agent.llm_response.content",
+                    serde_json::json!("secret"),
+                ),
+            ],
+        );
+        let mut span = make_span_with_events(
+            vec![
+                (GEN_AI_OPERATION_NAME, serde_json::json!("execute_tool")),
+                (GEN_AI_PROVIDER_NAME, serde_json::json!("gcp.vertex_ai")),
+                (
+                    GEN_AI_TOOL_CALL_ARGUMENTS,
+                    serde_json::json!({"query": "secret"}),
+                ),
+                (GEN_AI_RETRIEVAL_QUERY_TEXT, serde_json::json!("secret")),
+                (
+                    GCP_VERTEX_TOOL_RESPONSE,
+                    serde_json::json!({"result": "secret"}),
+                ),
+                (
+                    "gcp.vertex.agent.llm_request.contents",
+                    serde_json::json!([{"role": "user"}]),
+                ),
+                (GEN_AI_TOOL_NAME, serde_json::json!("search")),
+                (GCP_VERTEX_SESSION_ID, serde_json::json!("session-1")),
+            ],
+            vec![event],
+        );
+
+        redact_sensitive_gen_ai_trace_content(&mut span);
+
+        let span_keys: Vec<_> = span
+            .attributes
+            .iter()
+            .map(|attr| attr.key.as_str())
+            .collect();
+        assert!(!span_keys.contains(&GEN_AI_TOOL_CALL_ARGUMENTS));
+        assert!(!span_keys.contains(&GEN_AI_RETRIEVAL_QUERY_TEXT));
+        assert!(!span_keys.contains(&GCP_VERTEX_TOOL_RESPONSE));
+        assert!(!span_keys.contains(&"gcp.vertex.agent.llm_request.contents"));
+        assert!(span_keys.contains(&GEN_AI_OPERATION_NAME));
+        assert!(span_keys.contains(&GEN_AI_TOOL_NAME));
+        assert!(span_keys.contains(&GCP_VERTEX_SESSION_ID));
+
+        let event_keys: Vec<_> = span.events[0]
+            .attributes
+            .iter()
+            .map(|attr| attr.key.as_str())
+            .collect();
+        assert!(!event_keys.contains(&GEN_AI_INPUT_MESSAGES));
+        assert!(!event_keys.contains(&GEN_AI_TOOL_CALL_RESULT));
+        assert!(!event_keys.contains(&"gcp.vertex.agent.llm_response.content"));
+        assert!(event_keys.contains(&GEN_AI_TOOL_NAME));
     }
 
     #[test]

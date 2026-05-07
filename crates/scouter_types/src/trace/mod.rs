@@ -23,7 +23,8 @@ pub use genai::{
     GenAiTokenBucket, GenAiTokenMetricsResponse, GenAiToolActivity, GenAiToolActivityResponse,
     GenAiTraceMetricsRequest, GenAiTraceMetricsResponse, ModelCostBreakdown, ModelPricing,
     OPENAI_API_TYPE, OPENAI_SERVICE_TIER, ToolDashboardRequest, ToolDashboardResponse,
-    ToolTimeBucket, extract_gen_ai_span,
+    ToolTimeBucket, extract_gen_ai_span, redact_sensitive_gen_ai_trace_content,
+    redact_sensitive_gen_ai_trace_span,
 };
 pub use query::{FilterClause, parse_search_query};
 

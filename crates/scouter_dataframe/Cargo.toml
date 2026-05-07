@@ -13,7 +13,6 @@ description = "DataFusion client for long-term storage of scouter data"
 doctest = false
 
 [dependencies]
-scouter-macro = { workspace = true }
 scouter-settings = { workspace = true }
 scouter-types = { workspace = true }
 ahash = "0.8"

@@ -3,7 +3,7 @@ use crate::api::state::AppState;
 use anyhow::{Context, Result};
 use axum::{
     Json, Router,
-    extract::{Query, State},
+    extract::{Extension, Query, State},
     http::StatusCode,
     routing::{get, post},
 };
@@ -16,6 +16,7 @@ use opentelemetry_proto::tonic::collector::trace::v1::{
     ExportTraceServiceRequest, ExportTraceServiceResponse,
 };
 use prost::Message;
+use scouter_auth::permission::UserPermissions;
 use scouter_sql::PostgresClient;
 use scouter_sql::sql::traits::{TagSqlLogic, TraceSqlLogic};
 use scouter_types::{
@@ -23,7 +24,8 @@ use scouter_types::{
     TraceMetricsRequest, TraceMetricsResponse, TracePaginationResponse, TraceRequest,
     TraceServerRecord, TraceSpansResponse,
     contracts::ScouterServerError,
-    sql::TraceFilters,
+    redact_sensitive_gen_ai_trace_span,
+    sql::{TraceFilters, TraceSpan},
     trace::query::{FilterClause, parse_search_query, validate_filter_clause},
 };
 use std::collections::HashSet;
@@ -58,6 +60,19 @@ fn trace_query_status(
         ),
         _ => (StatusCode::INTERNAL_SERVER_ERROR, None),
     }
+}
+
+fn redact_trace_spans_for_permissions(
+    mut spans: Vec<TraceSpan>,
+    perms: &UserPermissions,
+) -> Vec<TraceSpan> {
+    if perms.has_permission("read:all") {
+        return spans;
+    }
+    for span in &mut spans {
+        redact_sensitive_gen_ai_trace_span(span);
+    }
+    spans
 }
 
 fn validate_filters(filters: &TraceFilters) -> Result<(), (StatusCode, Json<ScouterServerError>)> {
@@ -248,6 +263,7 @@ pub async fn paginated_traces(
 #[instrument(skip_all)]
 pub async fn get_trace_spans_by_id(
     State(data): State<Arc<AppState>>,
+    Extension(perms): Extension<UserPermissions>,
     Path(id): Path<String>,
 ) -> Result<Json<TraceSpansResponse>, (StatusCode, Json<ScouterServerError>)> {
     debug!("Getting trace spans for trace_id: {}", id);
@@ -281,7 +297,9 @@ pub async fn get_trace_spans_by_id(
             )
         })?;
 
-    Ok(Json(TraceSpansResponse { spans }))
+    Ok(Json(TraceSpansResponse {
+        spans: redact_trace_spans_for_permissions(spans, &perms),
+    }))
 }
 
 #[utoipa::path(
@@ -299,6 +317,7 @@ pub async fn get_trace_spans_by_id(
 #[instrument(skip_all)]
 pub async fn get_trace_spans(
     State(data): State<Arc<AppState>>,
+    Extension(perms): Extension<UserPermissions>,
     Query(params): Query<TraceRequest>,
 ) -> Result<Json<TraceSpansResponse>, (StatusCode, Json<ScouterServerError>)> {
     debug!(
@@ -351,7 +370,9 @@ pub async fn get_trace_spans(
             )
         })?;
 
-    Ok(Json(TraceSpansResponse { spans }))
+    Ok(Json(TraceSpansResponse {
+        spans: redact_trace_spans_for_permissions(spans, &perms),
+    }))
 }
 
 #[utoipa::path(
@@ -368,6 +389,7 @@ pub async fn get_trace_spans(
 #[instrument(skip_all)]
 pub async fn query_trace_spans_from_tags(
     State(data): State<Arc<AppState>>,
+    Extension(perms): Extension<UserPermissions>,
     Json(params): Json<SpansFromTagsRequest>,
 ) -> Result<Json<TraceSpansResponse>, (StatusCode, Json<ScouterServerError>)> {
     // Step 1: resolve tags → trace_id hex strings via PostgreSQL
@@ -431,7 +453,9 @@ pub async fn query_trace_spans_from_tags(
         all_spans.extend(spans);
     }
 
-    Ok(Json(TraceSpansResponse { spans: all_spans }))
+    Ok(Json(TraceSpansResponse {
+        spans: redact_trace_spans_for_permissions(all_spans, &perms),
+    }))
 }
 
 // Get trace metrics aggregated into buckets by time interval, optionally filtered by request-body query.
@@ -550,6 +574,7 @@ pub async fn get_trace_facets(
 #[instrument(skip_all)]
 pub async fn query_spans_from_filters(
     State(data): State<Arc<AppState>>,
+    Extension(perms): Extension<UserPermissions>,
     Query(search): Query<SearchQ>,
     Json(body): Json<TraceFilters>,
 ) -> Result<Json<TraceSpansResponse>, (StatusCode, Json<ScouterServerError>)> {
@@ -572,7 +597,9 @@ pub async fn query_spans_from_filters(
             )
         })?;
 
-    Ok(Json(TraceSpansResponse { spans }))
+    Ok(Json(TraceSpansResponse {
+        spans: redact_trace_spans_for_permissions(spans, &perms),
+    }))
 }
 
 #[utoipa::path(

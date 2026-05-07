@@ -9,9 +9,9 @@ use http_body_util::BodyExt;
 use scouter_server::api::routes::user::schema::CreateUserRequest;
 use scouter_sql::sql::aggregator::shutdown_trace_cache;
 use scouter_types::{
-    GenAiSpanRecord, SpanId, SpansFromTagsRequest, TraceFacetsResponse, TraceId,
-    TraceMetricsRequest, TraceMetricsResponse, TracePaginationResponse, TraceRequest,
-    TraceSpansResponse, sql::TraceFilters, trace::query::FilterClause,
+    Attribute, GenAiSpanRecord, SpanEvent, SpanId, SpansFromTagsRequest, TraceFacetsResponse,
+    TraceId, TraceMetricsRequest, TraceMetricsResponse, TracePaginationResponse, TraceRequest,
+    TraceSpanRecord, TraceSpansResponse, sql::TraceFilters, trace::query::FilterClause,
 };
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
@@ -90,6 +90,28 @@ async fn fetch_spans_from_filters_raw(
         .body(Body::from(body))
         .unwrap();
     let response = helper.send_oneshot(request).await;
+    let status = response.status();
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes()
+        .to_vec();
+    (status, body)
+}
+
+async fn fetch_trace_spans_by_id_raw_with_token(
+    helper: &TestHelper,
+    trace_id: &TraceId,
+    token: &str,
+) -> (StatusCode, Vec<u8>) {
+    let request = Request::builder()
+        .uri(format!("/scouter/v1/traces/{}/spans", trace_id.to_hex()))
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let response = helper.send_oneshot_with_token(request, token).await;
     let status = response.status();
     let body = response
         .into_body()
@@ -252,6 +274,114 @@ fn build_genai_span(
     }
 }
 
+fn attr(key: &str, value: serde_json::Value) -> Attribute {
+    Attribute {
+        key: key.to_string(),
+        value,
+    }
+}
+
+fn raw_genai_span_with_sensitive_attrs(
+    trace_id: TraceId,
+    span_id: u8,
+    start_time: chrono::DateTime<Utc>,
+) -> TraceSpanRecord {
+    TraceSpanRecord {
+        trace_id,
+        span_id: SpanId::from_bytes([span_id; 8]),
+        service_name: "raw-genai-service".to_string(),
+        span_name: "execute_tool".to_string(),
+        start_time,
+        end_time: start_time + chrono::Duration::milliseconds(80),
+        duration_ms: 80,
+        status_code: 0,
+        attributes: vec![
+            attr("gen_ai.operation.name", serde_json::json!("execute_tool")),
+            attr("gen_ai.provider.name", serde_json::json!("gcp.vertex_ai")),
+            attr("gen_ai.tool.name", serde_json::json!("search")),
+            attr(
+                "gcp.vertex.agent.session_id",
+                serde_json::json!("session-1"),
+            ),
+            attr(
+                "gen_ai.tool.call.arguments",
+                serde_json::json!({"query": "secret"}),
+            ),
+            attr("gen_ai.retrieval.query.text", serde_json::json!("secret")),
+            attr(
+                "gcp.vertex.agent.tool_response",
+                serde_json::json!({"result": "secret"}),
+            ),
+            attr(
+                "gcp.vertex.agent.llm_request.contents",
+                serde_json::json!([{"role": "user", "parts": [{"text": "secret"}]}]),
+            ),
+        ],
+        events: vec![SpanEvent {
+            timestamp: start_time,
+            name: "gen_ai.client.inference.operation.details".to_string(),
+            attributes: vec![
+                attr(
+                    "gen_ai.input.messages",
+                    serde_json::json!([{"role": "user", "content": "secret"}]),
+                ),
+                attr("gen_ai.tool.name", serde_json::json!("search")),
+                attr(
+                    "gcp.vertex.agent.llm_response.content",
+                    serde_json::json!({"text": "secret"}),
+                ),
+            ],
+            dropped_attributes_count: 0,
+        }],
+        ..Default::default()
+    }
+}
+
+fn response_attribute_keys(body: &[u8]) -> (Vec<String>, Vec<String>) {
+    let response_json: serde_json::Value = serde_json::from_slice(body).unwrap();
+    let span = &response_json["spans"].as_array().unwrap()[0];
+    let span_keys = span["attributes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|attr| attr["key"].as_str().unwrap().to_string())
+        .collect();
+    let event_keys = span["events"][0]["attributes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|attr| attr["key"].as_str().unwrap().to_string())
+        .collect();
+    (span_keys, event_keys)
+}
+
+fn response_span_count(body: &[u8]) -> usize {
+    let response_json: serde_json::Value = serde_json::from_slice(body).unwrap();
+    response_json["spans"].as_array().unwrap().len()
+}
+
+async fn wait_for_trace_spans_by_id_with_token(
+    helper: &TestHelper,
+    trace_id: &TraceId,
+    token: &str,
+) -> Vec<u8> {
+    let deadline = Instant::now() + Duration::from_secs(8);
+    loop {
+        let (status, body) = fetch_trace_spans_by_id_raw_with_token(helper, trace_id, token).await;
+        assert_eq!(status, StatusCode::OK);
+        if response_span_count(&body) > 0 {
+            return body;
+        }
+
+        assert!(
+            Instant::now() < deadline,
+            "Timed out waiting for raw trace spans for {}",
+            trace_id.to_hex()
+        );
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
+
 #[tokio::test]
 async fn test_tracing() {
     let helper = setup_test().await;
@@ -378,6 +508,78 @@ async fn test_tracing() {
         !attr_batch.items.is_empty(),
         "Should return records with attribute filter"
     );
+}
+
+#[tokio::test]
+async fn test_raw_trace_span_routes_redact_sensitive_genai_attrs_for_limited_users() {
+    let helper = setup_test().await;
+    let trace_id = TraceId::from_bytes([60u8; 16]);
+    let now = Utc::now();
+    helper
+        .trace_service
+        .write_spans_direct(vec![raw_genai_span_with_sensitive_attrs(trace_id, 1, now)])
+        .await
+        .unwrap();
+
+    let limited_username = format!(
+        "raw_trace_limited_{}",
+        now.timestamp_nanos_opt().unwrap_or(0)
+    );
+    let limited_password = "raw_trace_limited_pw";
+    let create_req = CreateUserRequest {
+        username: limited_username.clone(),
+        password: limited_password.to_string(),
+        email: format!("{limited_username}@example.com"),
+        permissions: Some(vec!["read:space".to_string()]),
+        group_permissions: Some(vec!["user".to_string()]),
+        role: Some("user".to_string()),
+        active: Some(true),
+    };
+    let create_user_request = Request::builder()
+        .uri("/scouter/user")
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(serde_json::to_string(&create_req).unwrap()))
+        .unwrap();
+    let create_user_response = helper.send_oneshot(create_user_request).await;
+    assert_eq!(create_user_response.status(), StatusCode::OK);
+
+    let limited_token = helper
+        .login_with_credentials(&limited_username, limited_password)
+        .await;
+
+    let limited_v1_body =
+        wait_for_trace_spans_by_id_with_token(&helper, &trace_id, &limited_token.token).await;
+    let (limited_v1_span_keys, limited_v1_event_keys) = response_attribute_keys(&limited_v1_body);
+    assert!(!limited_v1_span_keys.contains(&"gen_ai.tool.call.arguments".to_string()));
+    assert!(!limited_v1_span_keys.contains(&"gen_ai.retrieval.query.text".to_string()));
+    assert!(!limited_v1_span_keys.contains(&"gcp.vertex.agent.tool_response".to_string()));
+    assert!(!limited_v1_span_keys.contains(&"gcp.vertex.agent.llm_request.contents".to_string()));
+    assert!(limited_v1_span_keys.contains(&"gen_ai.operation.name".to_string()));
+    assert!(limited_v1_span_keys.contains(&"gen_ai.tool.name".to_string()));
+    assert!(limited_v1_span_keys.contains(&"gcp.vertex.agent.session_id".to_string()));
+    assert!(!limited_v1_event_keys.contains(&"gen_ai.input.messages".to_string()));
+    assert!(!limited_v1_event_keys.contains(&"gcp.vertex.agent.llm_response.content".to_string()));
+    assert!(limited_v1_event_keys.contains(&"gen_ai.tool.name".to_string()));
+
+    let admin_request = Request::builder()
+        .uri(format!("/scouter/v1/traces/{}/spans", trace_id.to_hex()))
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let admin_response = helper.send_oneshot(admin_request).await;
+    assert_eq!(admin_response.status(), StatusCode::OK);
+    let admin_body = admin_response
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes();
+    let (admin_span_keys, admin_event_keys) = response_attribute_keys(&admin_body);
+    assert!(admin_span_keys.contains(&"gen_ai.tool.call.arguments".to_string()));
+    assert!(admin_span_keys.contains(&"gcp.vertex.agent.llm_request.contents".to_string()));
+    assert!(admin_event_keys.contains(&"gen_ai.input.messages".to_string()));
+    assert!(admin_event_keys.contains(&"gcp.vertex.agent.llm_response.content".to_string()));
 }
 
 #[tokio::test]
