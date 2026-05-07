@@ -244,6 +244,10 @@ fn build_genai_span(
         output_messages: Some(r#"[{"role":"assistant","content":"hello"}]"#.to_string()),
         system_instructions: Some("be concise".to_string()),
         tool_definitions: Some(r#"[{"name":"search"}]"#.to_string()),
+        tool_call_arguments: Some(r#"{"query":"hi"}"#.to_string()),
+        tool_call_result: Some(r#"{"result":"hello"}"#.to_string()),
+        retrieval_documents: Some(r#"[{"id":"doc-1"}]"#.to_string()),
+        retrieval_query_text: Some("hi".to_string()),
         ..Default::default()
     }
 }
@@ -1205,6 +1209,94 @@ async fn test_genai_trace_metrics_route() {
     assert!(spans[0]["output_messages"].is_null());
     assert!(spans[0]["system_instructions"].is_null());
     assert!(spans[0]["tool_definitions"].is_null());
+    assert!(spans[0]["tool_call_arguments"].is_null());
+    assert!(spans[0]["tool_call_result"].is_null());
+    assert!(spans[0]["retrieval_documents"].is_null());
+    assert!(spans[0]["retrieval_query_text"].is_null());
+}
+
+#[tokio::test]
+async fn test_genai_traces_redacts_new_sensitive_fields() {
+    let helper = setup_test().await;
+    let trace_id = TraceId::from_bytes([57u8; 16]);
+    let now = Utc::now();
+    let mut span = build_genai_span(trace_id, 1, now);
+    span.tool_description = Some("Searches docs".to_string());
+
+    helper
+        .genai_service
+        .write_records(vec![span])
+        .await
+        .unwrap();
+    wait_for_genai_trace_spans(
+        &helper,
+        &trace_id,
+        now - chrono::Duration::hours(1),
+        now + chrono::Duration::hours(1),
+        1,
+    )
+    .await;
+
+    let base_body = serde_json::json!({
+        "start_time": (now - chrono::Duration::hours(1)).to_rfc3339(),
+        "end_time": (now + chrono::Duration::hours(1)).to_rfc3339(),
+        "bucket_interval": "hour",
+        "model_pricing": {},
+        "span_limit": 10
+    });
+
+    let mut redacted_body = base_body.clone();
+    redacted_body["include_sensitive_content"] = serde_json::json!(false);
+    let redacted_request = Request::builder()
+        .uri(format!(
+            "/scouter/genai/traces/{}/metrics",
+            trace_id.to_hex()
+        ))
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(serde_json::to_string(&redacted_body).unwrap()))
+        .unwrap();
+    let redacted_response = helper.send_oneshot(redacted_request).await;
+    assert_eq!(redacted_response.status(), StatusCode::OK);
+    let redacted_body = redacted_response
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes();
+    let redacted_json: serde_json::Value = serde_json::from_slice(&redacted_body).unwrap();
+    let redacted_spans = redacted_json["spans"].as_array().unwrap();
+    assert!(redacted_spans[0]["tool_call_arguments"].is_null());
+    assert!(redacted_spans[0]["tool_call_result"].is_null());
+    assert!(redacted_spans[0]["retrieval_documents"].is_null());
+    assert!(redacted_spans[0]["retrieval_query_text"].is_null());
+    assert_eq!(redacted_spans[0]["tool_description"], "Searches docs");
+
+    let mut sensitive_body = base_body;
+    sensitive_body["include_sensitive_content"] = serde_json::json!(true);
+    let sensitive_request = Request::builder()
+        .uri(format!(
+            "/scouter/genai/traces/{}/metrics",
+            trace_id.to_hex()
+        ))
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(serde_json::to_string(&sensitive_body).unwrap()))
+        .unwrap();
+    let sensitive_response = helper.send_oneshot(sensitive_request).await;
+    assert_eq!(sensitive_response.status(), StatusCode::OK);
+    let sensitive_body = sensitive_response
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes();
+    let sensitive_json: serde_json::Value = serde_json::from_slice(&sensitive_body).unwrap();
+    let sensitive_spans = sensitive_json["spans"].as_array().unwrap();
+    assert!(sensitive_spans[0]["tool_call_arguments"].is_string());
+    assert!(sensitive_spans[0]["tool_call_result"].is_string());
+    assert!(sensitive_spans[0]["retrieval_documents"].is_string());
+    assert!(sensitive_spans[0]["retrieval_query_text"].is_string());
 }
 
 #[tokio::test]
@@ -1297,6 +1389,10 @@ async fn test_genai_trace_metrics_route_sensitive_content_auth() {
     assert!(spans[0]["output_messages"].is_string());
     assert!(spans[0]["system_instructions"].is_string());
     assert!(spans[0]["tool_definitions"].is_string());
+    assert!(spans[0]["tool_call_arguments"].is_string());
+    assert!(spans[0]["tool_call_result"].is_string());
+    assert!(spans[0]["retrieval_documents"].is_string());
+    assert!(spans[0]["retrieval_query_text"].is_string());
 }
 
 #[tokio::test]

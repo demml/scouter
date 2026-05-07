@@ -1,4 +1,5 @@
 use super::{Attribute, SCOUTER_ENTITY, SpanId, TraceId, TraceSpanRecord};
+use scouter_macro::{extract_f64, extract_i64, extract_json_str, extract_str, or_fallback};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -47,6 +48,31 @@ pub const GEN_AI_INPUT_MESSAGES: &str = "gen_ai.input.messages";
 pub const GEN_AI_OUTPUT_MESSAGES: &str = "gen_ai.output.messages";
 pub const GEN_AI_SYSTEM_INSTRUCTIONS: &str = "gen_ai.system_instructions";
 pub const GEN_AI_TOOL_DEFINITIONS: &str = "gen_ai.tool.definitions";
+pub const GEN_AI_TOOL_DESCRIPTION: &str = "gen_ai.tool.description";
+pub const GEN_AI_TOOL_CALL_ARGUMENTS: &str = "gen_ai.tool.call.arguments";
+pub const GEN_AI_TOOL_CALL_RESULT: &str = "gen_ai.tool.call.result";
+pub const GEN_AI_REQUEST_STREAM: &str = "gen_ai.request.stream";
+pub const GEN_AI_REQUEST_TOP_K: &str = "gen_ai.request.top_k";
+pub const GEN_AI_REQUEST_ENCODING_FORMATS: &str = "gen_ai.request.encoding_formats";
+pub const GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK: &str = "gen_ai.response.time_to_first_chunk";
+pub const GEN_AI_USAGE_REASONING_OUTPUT_TOKENS: &str = "gen_ai.usage.reasoning.output_tokens";
+pub const GEN_AI_PROMPT_NAME: &str = "gen_ai.prompt.name";
+pub const GEN_AI_WORKFLOW_NAME: &str = "gen_ai.workflow.name";
+pub const GEN_AI_EMBEDDINGS_DIMENSION_COUNT: &str = "gen_ai.embeddings.dimension.count";
+pub const GEN_AI_RETRIEVAL_DOCUMENTS: &str = "gen_ai.retrieval.documents";
+pub const GEN_AI_RETRIEVAL_QUERY_TEXT: &str = "gen_ai.retrieval.query.text";
+
+pub(crate) const GCP_VERTEX_AGENT_SYSTEM: &str = "gcp.vertex.agent";
+pub(crate) const GCP_VERTEX_AGENT_PREFIX: &str = "gcp.vertex.agent.";
+pub(crate) const GCP_VERTEX_INVOCATION_ID: &str = "gcp.vertex.agent.invocation_id";
+pub(crate) const GCP_VERTEX_SESSION_ID: &str = "gcp.vertex.agent.session_id";
+pub(crate) const GCP_VERTEX_EVENT_ID: &str = "gcp.vertex.agent.event_id";
+pub(crate) const GCP_VERTEX_LLM_REQUEST: &str = "gcp.vertex.agent.llm_request";
+pub(crate) const GCP_VERTEX_LLM_RESPONSE: &str = "gcp.vertex.agent.llm_response";
+pub(crate) const GCP_VERTEX_TOOL_CALL_ARGS: &str = "gcp.vertex.agent.tool_call_args";
+pub(crate) const GCP_VERTEX_TOOL_RESPONSE: &str = "gcp.vertex.agent.tool_response";
+pub(crate) const GCP_VERTEX_DATA: &str = "gcp.vertex.agent.data";
+pub(crate) const GCP_MCP_SERVER_DESTINATION_ID: &str = "gcp.mcp.server.destination.id";
 
 // ── OTel event names ──────────────────────────────────────────────────────────
 // Source: https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-events/
@@ -194,6 +220,32 @@ pub struct GenAiSpanRecord {
     pub system_instructions: Option<String>,
     /// Tool definitions (gen_ai.tool.definitions). JSON string. Redacted unless caller has sensitive-content permission.
     pub tool_definitions: Option<String>,
+    /// Tool description (gen_ai.tool.description).
+    pub tool_description: Option<String>,
+    /// Tool call arguments (gen_ai.tool.call.arguments). JSON string. Redacted unless caller has sensitive-content permission.
+    pub tool_call_arguments: Option<String>,
+    /// Tool call result (gen_ai.tool.call.result). JSON string. Redacted unless caller has sensitive-content permission.
+    pub tool_call_result: Option<String>,
+    /// Whether streaming was requested (gen_ai.request.stream).
+    pub request_stream: Option<bool>,
+    /// Top-k sampling parameter (gen_ai.request.top_k).
+    pub request_top_k: Option<f64>,
+    /// Requested encoding formats (gen_ai.request.encoding_formats).
+    pub request_encoding_formats: Vec<String>,
+    /// Time to first streamed chunk in seconds (gen_ai.response.time_to_first_chunk).
+    pub response_time_to_first_chunk: Option<f64>,
+    /// Reasoning output token count (gen_ai.usage.reasoning.output_tokens).
+    pub reasoning_output_tokens: Option<i64>,
+    /// Prompt name (gen_ai.prompt.name).
+    pub prompt_name: Option<String>,
+    /// Workflow name (gen_ai.workflow.name).
+    pub workflow_name: Option<String>,
+    /// Embedding dimension count (gen_ai.embeddings.dimension.count).
+    pub embeddings_dimension_count: Option<i64>,
+    /// Retrieval documents (gen_ai.retrieval.documents). JSON string. Redacted unless caller has sensitive-content permission.
+    pub retrieval_documents: Option<String>,
+    /// Retrieval query text (gen_ai.retrieval.query.text). Redacted unless caller has sensitive-content permission.
+    pub retrieval_query_text: Option<String>,
     /// Evaluation results extracted from gen_ai.evaluation.result events.
     pub eval_results: Vec<GenAiEvalResult>,
 }
@@ -220,6 +272,18 @@ fn attr_as_f64(v: &serde_json::Value) -> Option<f64> {
     match v {
         serde_json::Value::Number(n) => n.as_f64(),
         serde_json::Value::String(s) => s.parse().ok(),
+        _ => None,
+    }
+}
+
+fn attr_as_bool(value: &serde_json::Value) -> Option<bool> {
+    match value {
+        serde_json::Value::Bool(b) => Some(*b),
+        serde_json::Value::String(s) => match s.as_str() {
+            "true" => Some(true),
+            "false" => Some(false),
+            _ => None,
+        },
         _ => None,
     }
 }
@@ -396,6 +460,153 @@ pub fn extract_gen_ai_events(record: &TraceSpanRecord) -> GenAiEventData {
     }
 }
 
+#[derive(Debug, Default)]
+pub(crate) struct GenAiFallbackAttributes {
+    pub conversation_id: Option<String>,
+    pub request_model: Option<String>,
+    pub input_messages: Option<String>,
+    pub system_instructions: Option<String>,
+    pub tool_definitions: Option<String>,
+    pub request_top_p: Option<f64>,
+    pub request_max_tokens: Option<i64>,
+    pub output_messages: Option<String>,
+    pub input_tokens: Option<i64>,
+    pub output_tokens: Option<i64>,
+    pub reasoning_output_tokens: Option<i64>,
+    pub finish_reasons: Vec<String>,
+    pub tool_call_arguments: Option<String>,
+    pub tool_call_result: Option<String>,
+}
+
+pub(crate) trait GenAiVendorFallback {
+    fn mapped_attributes(&self, record: &TraceSpanRecord) -> GenAiFallbackAttributes;
+}
+
+// Selector matches the ADK vendor-instrumentation marker `gcp.vertex.agent`.
+// NOTE: this is not the OTel canonical Vertex provider value, which is `gcp.vertex_ai`.
+// ADK emits `gcp.vertex.agent` on deprecated `gen_ai.system` plus the
+// `gcp.vertex.agent.*` attribute namespace.
+pub(crate) fn select_genai_vendor_fallback(
+    record: &TraceSpanRecord,
+) -> Option<Box<dyn GenAiVendorFallback>> {
+    let mut system_match = false;
+    let mut prefix_match = false;
+    for attr in &record.attributes {
+        if attr.key == GEN_AI_SYSTEM
+            && let serde_json::Value::String(s) = &attr.value
+            && s == GCP_VERTEX_AGENT_SYSTEM
+        {
+            system_match = true;
+        }
+        if attr.key.starts_with(GCP_VERTEX_AGENT_PREFIX) {
+            prefix_match = true;
+        }
+        if system_match && prefix_match {
+            break;
+        }
+    }
+    if system_match || prefix_match {
+        Some(Box::new(GcpVertexFallback))
+    } else {
+        None
+    }
+}
+
+struct GcpVertexFallback;
+
+impl GenAiVendorFallback for GcpVertexFallback {
+    fn mapped_attributes(&self, record: &TraceSpanRecord) -> GenAiFallbackAttributes {
+        let mut out = GenAiFallbackAttributes::default();
+        for attr in &record.attributes {
+            match attr.key.as_str() {
+                GCP_VERTEX_SESSION_ID => {
+                    if let serde_json::Value::String(s) = &attr.value {
+                        out.conversation_id = Some(s.clone());
+                    }
+                }
+                GCP_VERTEX_TOOL_CALL_ARGS => {
+                    out.tool_call_arguments = value_to_json_string(&attr.value);
+                }
+                GCP_VERTEX_TOOL_RESPONSE => {
+                    out.tool_call_result = value_to_json_string(&attr.value);
+                }
+                GCP_VERTEX_LLM_REQUEST => apply_vertex_llm_request(&attr.value, &mut out),
+                GCP_VERTEX_LLM_RESPONSE => apply_vertex_llm_response(&attr.value, &mut out),
+                GCP_VERTEX_INVOCATION_ID
+                | GCP_VERTEX_EVENT_ID
+                | GCP_VERTEX_DATA
+                | GCP_MCP_SERVER_DESTINATION_ID => {}
+                _ => {}
+            }
+        }
+        out
+    }
+}
+
+fn vendor_value_to_json(value: &serde_json::Value) -> Option<serde_json::Value> {
+    match value {
+        serde_json::Value::String(s) => serde_json::from_str(s).ok(),
+        serde_json::Value::Object(_) | serde_json::Value::Array(_) => Some(value.clone()),
+        _ => None,
+    }
+}
+
+fn apply_vertex_llm_request(value: &serde_json::Value, out: &mut GenAiFallbackAttributes) {
+    let Some(req) = vendor_value_to_json(value) else {
+        return;
+    };
+    if let Some(model) = req.get("model").and_then(|v| v.as_str()) {
+        out.request_model = Some(model.to_string());
+    }
+    if let Some(contents) = req.get("contents") {
+        out.input_messages = serde_json::to_string(contents).ok();
+    }
+    if let Some(config) = req.get("config") {
+        if let Some(sys) = config.get("system_instruction") {
+            out.system_instructions = serde_json::to_string(sys).ok();
+        }
+        if let Some(tools) = config.get("tools") {
+            out.tool_definitions = serde_json::to_string(tools).ok();
+        }
+        if let Some(top_p) = config.get("top_p").and_then(|v| v.as_f64()) {
+            out.request_top_p = Some(top_p);
+        }
+        if let Some(max_tokens) = config.get("max_output_tokens").and_then(|v| v.as_i64()) {
+            out.request_max_tokens = Some(max_tokens);
+        }
+    }
+}
+
+fn apply_vertex_llm_response(value: &serde_json::Value, out: &mut GenAiFallbackAttributes) {
+    let Some(resp) = vendor_value_to_json(value) else {
+        return;
+    };
+    if let Some(content) = resp.get("content") {
+        out.output_messages = serde_json::to_string(content).ok();
+    }
+    if let Some(usage) = resp.get("usage_metadata") {
+        if let Some(input) = usage.get("prompt_token_count").and_then(|v| v.as_i64()) {
+            out.input_tokens = Some(input);
+        }
+        if let Some(output) = usage.get("candidates_token_count").and_then(|v| v.as_i64()) {
+            out.output_tokens = Some(output);
+        }
+        if let Some(reasoning) = usage.get("thoughts_token_count").and_then(|v| v.as_i64()) {
+            out.reasoning_output_tokens = Some(reasoning);
+        }
+    }
+    if let Some(reason) = resp.get("finish_reason") {
+        if let Some(arr) = reason.as_array() {
+            out.finish_reasons = arr
+                .iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect();
+        } else if let Some(s) = reason.as_str() {
+            out.finish_reasons = vec![s.to_string()];
+        }
+    }
+}
+
 // ── Span extraction ───────────────────────────────────────────────────────────
 
 /// Returns None if gen_ai.operation.name is not present in span attributes.
@@ -420,161 +631,69 @@ pub fn extract_gen_ai_span(record: &TraceSpanRecord) -> Option<GenAiSpanRecord> 
 
     for Attribute { key, value } in &record.attributes {
         match key.as_str() {
-            GEN_AI_OPERATION_NAME => {
-                if let serde_json::Value::String(s) = value {
-                    out.operation_name = Some(s.clone());
-                }
-            }
-            GEN_AI_PROVIDER_NAME => {
-                if let serde_json::Value::String(s) = value {
-                    out.provider_name = Some(s.clone());
-                }
-            }
+            GEN_AI_OPERATION_NAME => extract_str!(out, operation_name, value),
+            GEN_AI_PROVIDER_NAME => extract_str!(out, provider_name, value),
             GEN_AI_SYSTEM if out.provider_name.is_none() => {
                 if let serde_json::Value::String(s) = value {
                     out.provider_name = Some(s.clone());
                 }
             }
-            GEN_AI_REQUEST_MODEL => {
-                if let serde_json::Value::String(s) = value {
-                    out.request_model = Some(s.clone());
-                }
-            }
-            GEN_AI_RESPONSE_MODEL => {
-                if let serde_json::Value::String(s) = value {
-                    out.response_model = Some(s.clone());
-                }
-            }
-            GEN_AI_RESPONSE_ID => {
-                if let serde_json::Value::String(s) = value {
-                    out.response_id = Some(s.clone());
-                }
-            }
-            GEN_AI_USAGE_INPUT_TOKENS => {
-                out.input_tokens = attr_as_i64(value);
-            }
-            GEN_AI_USAGE_OUTPUT_TOKENS => {
-                out.output_tokens = attr_as_i64(value);
-            }
-            GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS => {
-                out.cache_creation_input_tokens = attr_as_i64(value);
-            }
-            GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS => {
-                out.cache_read_input_tokens = attr_as_i64(value);
-            }
+            GEN_AI_REQUEST_MODEL => extract_str!(out, request_model, value),
+            GEN_AI_RESPONSE_MODEL => extract_str!(out, response_model, value),
+            GEN_AI_RESPONSE_ID => extract_str!(out, response_id, value),
+            GEN_AI_USAGE_INPUT_TOKENS => extract_i64!(out, input_tokens, value),
+            GEN_AI_USAGE_OUTPUT_TOKENS => extract_i64!(out, output_tokens, value),
+            GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS => extract_i64!(out, cache_creation_input_tokens, value),
+            GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS => extract_i64!(out, cache_read_input_tokens, value),
             GEN_AI_RESPONSE_FINISH_REASONS => {
                 out.finish_reasons = parse_finish_reasons(value);
             }
-            GEN_AI_OUTPUT_TYPE => {
-                if let serde_json::Value::String(s) = value {
-                    out.output_type = Some(s.clone());
-                }
-            }
-            GEN_AI_CONVERSATION_ID => {
-                if let serde_json::Value::String(s) = value {
-                    out.conversation_id = Some(s.clone());
-                }
-            }
-            GEN_AI_AGENT_NAME => {
-                if let serde_json::Value::String(s) = value {
-                    out.agent_name = Some(s.clone());
-                }
-            }
-            GEN_AI_AGENT_ID => {
-                if let serde_json::Value::String(s) = value {
-                    out.agent_id = Some(s.clone());
-                }
-            }
-            GEN_AI_AGENT_DESCRIPTION => {
-                if let serde_json::Value::String(s) = value {
-                    out.agent_description = Some(s.clone());
-                }
-            }
-            GEN_AI_AGENT_VERSION => {
-                if let serde_json::Value::String(s) = value {
-                    out.agent_version = Some(s.clone());
-                }
-            }
-            GEN_AI_DATA_SOURCE_ID => {
-                if let serde_json::Value::String(s) = value {
-                    out.data_source_id = Some(s.clone());
-                }
-            }
-            GEN_AI_TOOL_NAME => {
-                if let serde_json::Value::String(s) = value {
-                    out.tool_name = Some(s.clone());
-                }
-            }
-            GEN_AI_TOOL_TYPE => {
-                if let serde_json::Value::String(s) = value {
-                    out.tool_type = Some(s.clone());
-                }
-            }
-            GEN_AI_TOOL_CALL_ID => {
-                if let serde_json::Value::String(s) = value {
-                    out.tool_call_id = Some(s.clone());
-                }
-            }
-            GEN_AI_REQUEST_TEMPERATURE => {
-                out.request_temperature = attr_as_f64(value);
-            }
-            GEN_AI_REQUEST_MAX_TOKENS => {
-                out.request_max_tokens = attr_as_i64(value);
-            }
-            GEN_AI_REQUEST_TOP_P => {
-                out.request_top_p = attr_as_f64(value);
-            }
-            GEN_AI_REQUEST_CHOICE_COUNT => {
-                out.request_choice_count = attr_as_i64(value);
-            }
-            GEN_AI_REQUEST_SEED => {
-                out.request_seed = attr_as_i64(value);
-            }
-            GEN_AI_REQUEST_FREQUENCY_PENALTY => {
-                out.request_frequency_penalty = attr_as_f64(value);
-            }
-            GEN_AI_REQUEST_PRESENCE_PENALTY => {
-                out.request_presence_penalty = attr_as_f64(value);
-            }
+            GEN_AI_OUTPUT_TYPE => extract_str!(out, output_type, value),
+            GEN_AI_CONVERSATION_ID => extract_str!(out, conversation_id, value),
+            GEN_AI_AGENT_NAME => extract_str!(out, agent_name, value),
+            GEN_AI_AGENT_ID => extract_str!(out, agent_id, value),
+            GEN_AI_AGENT_DESCRIPTION => extract_str!(out, agent_description, value),
+            GEN_AI_AGENT_VERSION => extract_str!(out, agent_version, value),
+            GEN_AI_DATA_SOURCE_ID => extract_str!(out, data_source_id, value),
+            GEN_AI_TOOL_NAME => extract_str!(out, tool_name, value),
+            GEN_AI_TOOL_TYPE => extract_str!(out, tool_type, value),
+            GEN_AI_TOOL_CALL_ID => extract_str!(out, tool_call_id, value),
+            GEN_AI_REQUEST_TEMPERATURE => extract_f64!(out, request_temperature, value),
+            GEN_AI_REQUEST_MAX_TOKENS => extract_i64!(out, request_max_tokens, value),
+            GEN_AI_REQUEST_TOP_P => extract_f64!(out, request_top_p, value),
+            GEN_AI_REQUEST_CHOICE_COUNT => extract_i64!(out, request_choice_count, value),
+            GEN_AI_REQUEST_SEED => extract_i64!(out, request_seed, value),
+            GEN_AI_REQUEST_FREQUENCY_PENALTY => extract_f64!(out, request_frequency_penalty, value),
+            GEN_AI_REQUEST_PRESENCE_PENALTY => extract_f64!(out, request_presence_penalty, value),
             GEN_AI_REQUEST_STOP_SEQUENCES => {
                 out.request_stop_sequences = parse_stop_sequences(value);
             }
-            SERVER_ADDRESS => {
-                if let serde_json::Value::String(s) = value {
-                    out.server_address = Some(s.clone());
-                }
+            SERVER_ADDRESS => extract_str!(out, server_address, value),
+            SERVER_PORT => extract_i64!(out, server_port, value),
+            GEN_AI_ERROR_TYPE => extract_str!(out, error_type, value),
+            OPENAI_API_TYPE => extract_str!(out, openai_api_type, value),
+            OPENAI_SERVICE_TIER => extract_str!(out, openai_service_tier, value),
+            GEN_AI_INPUT_MESSAGES => extract_json_str!(out, input_messages, value),
+            GEN_AI_OUTPUT_MESSAGES => extract_json_str!(out, output_messages, value),
+            GEN_AI_SYSTEM_INSTRUCTIONS => extract_json_str!(out, system_instructions, value),
+            GEN_AI_TOOL_DEFINITIONS => extract_json_str!(out, tool_definitions, value),
+            GEN_AI_TOOL_DESCRIPTION => extract_str!(out, tool_description, value),
+            GEN_AI_TOOL_CALL_ARGUMENTS => extract_json_str!(out, tool_call_arguments, value),
+            GEN_AI_TOOL_CALL_RESULT => extract_json_str!(out, tool_call_result, value),
+            GEN_AI_REQUEST_STREAM => {
+                out.request_stream = attr_as_bool(value);
             }
-            SERVER_PORT => {
-                out.server_port = attr_as_i64(value);
+            GEN_AI_REQUEST_TOP_K => extract_f64!(out, request_top_k, value),
+            GEN_AI_REQUEST_ENCODING_FORMATS => {
+                out.request_encoding_formats = parse_stop_sequences(value);
             }
-            GEN_AI_ERROR_TYPE => {
-                if let serde_json::Value::String(s) = value {
-                    out.error_type = Some(s.clone());
-                }
-            }
-            OPENAI_API_TYPE => {
-                if let serde_json::Value::String(s) = value {
-                    out.openai_api_type = Some(s.clone());
-                }
-            }
-            OPENAI_SERVICE_TIER => {
-                if let serde_json::Value::String(s) = value {
-                    out.openai_service_tier = Some(s.clone());
-                }
-            }
-            // Opt-in content on span attributes (JSON-serialized string per spec)
-            GEN_AI_INPUT_MESSAGES => {
-                out.input_messages = value_to_json_string(value);
-            }
-            GEN_AI_OUTPUT_MESSAGES => {
-                out.output_messages = value_to_json_string(value);
-            }
-            GEN_AI_SYSTEM_INSTRUCTIONS => {
-                out.system_instructions = value_to_json_string(value);
-            }
-            GEN_AI_TOOL_DEFINITIONS => {
-                out.tool_definitions = value_to_json_string(value);
-            }
+            GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK => extract_f64!(out, response_time_to_first_chunk, value),
+            GEN_AI_USAGE_REASONING_OUTPUT_TOKENS => extract_i64!(out, reasoning_output_tokens, value),
+            GEN_AI_PROMPT_NAME => extract_str!(out, prompt_name, value),
+            GEN_AI_WORKFLOW_NAME => extract_str!(out, workflow_name, value),
+            GEN_AI_EMBEDDINGS_DIMENSION_COUNT => extract_i64!(out, embeddings_dimension_count, value),
+            GEN_AI_RETRIEVAL_DOCUMENTS => extract_json_str!(out, retrieval_documents, value),
+            GEN_AI_RETRIEVAL_QUERY_TEXT => extract_json_str!(out, retrieval_query_text, value),
             _ => {}
         }
     }
@@ -609,24 +728,25 @@ pub fn extract_gen_ai_span(record: &TraceSpanRecord) -> Option<GenAiSpanRecord> 
             });
     }
 
-    // Merge event data.
-    // Scalars: span attrs are authoritative — no event fallback.
-    // Opt-in content (4 fields): span attr wins; event is fallback if span attr absent.
-    // Eval results: always from events (no span attribute equivalent).
-    let event_data = extract_gen_ai_events(record);
-    if out.input_messages.is_none() {
-        out.input_messages = event_data.input_messages;
-    }
-    if out.output_messages.is_none() {
-        out.output_messages = event_data.output_messages;
-    }
-    if out.system_instructions.is_none() {
-        out.system_instructions = event_data.system_instructions;
-    }
-    if out.tool_definitions.is_none() {
-        out.tool_definitions = event_data.tool_definitions;
-    }
+    // Scalars: span attrs authoritative. Opt-in content: span wins, event fallback.
+    // Eval results always come from events.
+    let mut event_data = extract_gen_ai_events(record);
+    or_fallback!(out, event_data, input_messages, output_messages, system_instructions, tool_definitions);
     out.eval_results = event_data.eval_results;
+
+    if let Some(fallback) = select_genai_vendor_fallback(record) {
+        let mut vendor = fallback.mapped_attributes(record);
+        or_fallback!(
+            out, vendor,
+            conversation_id, request_model, input_messages, system_instructions,
+            tool_definitions, request_top_p, request_max_tokens, output_messages,
+            input_tokens, output_tokens, reasoning_output_tokens,
+            tool_call_arguments, tool_call_result,
+        );
+        if out.finish_reasons.is_empty() {
+            out.finish_reasons = vendor.finish_reasons;
+        }
+    }
 
     Some(out)
 }
@@ -1787,6 +1907,298 @@ mod tests {
         assert!(result.system_instructions.is_none());
         assert!(result.tool_definitions.is_none());
         assert!(result.eval_results.is_empty());
+    }
+
+    #[test]
+    fn test_extract_new_standard_fields_all_present() {
+        let span = make_span(vec![
+            (GEN_AI_OPERATION_NAME, serde_json::json!("embedding")),
+            (GEN_AI_TOOL_DESCRIPTION, serde_json::json!("Searches docs")),
+            (
+                GEN_AI_TOOL_CALL_ARGUMENTS,
+                serde_json::json!({"query": "otel"}),
+            ),
+            (GEN_AI_TOOL_CALL_RESULT, serde_json::json!({"count": 2})),
+            (GEN_AI_REQUEST_STREAM, serde_json::json!(true)),
+            (GEN_AI_REQUEST_TOP_K, serde_json::json!(40.0)),
+            (
+                GEN_AI_REQUEST_ENCODING_FORMATS,
+                serde_json::json!(["float", "base64"]),
+            ),
+            (GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK, serde_json::json!(0.25)),
+            (GEN_AI_USAGE_REASONING_OUTPUT_TOKENS, serde_json::json!(11)),
+            (GEN_AI_PROMPT_NAME, serde_json::json!("planner")),
+            (GEN_AI_WORKFLOW_NAME, serde_json::json!("agent-loop")),
+            (GEN_AI_EMBEDDINGS_DIMENSION_COUNT, serde_json::json!(1536)),
+            (
+                GEN_AI_RETRIEVAL_DOCUMENTS,
+                serde_json::json!([{"id": "doc-1"}]),
+            ),
+            (
+                GEN_AI_RETRIEVAL_QUERY_TEXT,
+                serde_json::json!("what is otel"),
+            ),
+        ]);
+
+        let result = extract_gen_ai_span(&span).expect("should extract");
+        assert_eq!(result.tool_description.as_deref(), Some("Searches docs"));
+        assert_eq!(
+            result.tool_call_arguments.as_deref(),
+            Some(r#"{"query":"otel"}"#)
+        );
+        assert_eq!(result.tool_call_result.as_deref(), Some(r#"{"count":2}"#));
+        assert_eq!(result.request_stream, Some(true));
+        assert_eq!(result.request_top_k, Some(40.0));
+        assert_eq!(result.request_encoding_formats, vec!["float", "base64"]);
+        assert_eq!(result.response_time_to_first_chunk, Some(0.25));
+        assert_eq!(result.reasoning_output_tokens, Some(11));
+        assert_eq!(result.prompt_name.as_deref(), Some("planner"));
+        assert_eq!(result.workflow_name.as_deref(), Some("agent-loop"));
+        assert_eq!(result.embeddings_dimension_count, Some(1536));
+        assert_eq!(
+            result.retrieval_documents.as_deref(),
+            Some(r#"[{"id":"doc-1"}]"#)
+        );
+        assert_eq!(result.retrieval_query_text.as_deref(), Some("what is otel"));
+    }
+
+    #[test]
+    fn test_request_stream_bool_parsing() {
+        assert_eq!(attr_as_bool(&serde_json::json!(true)), Some(true));
+        assert_eq!(attr_as_bool(&serde_json::json!(false)), Some(false));
+        assert_eq!(attr_as_bool(&serde_json::json!("true")), Some(true));
+        assert_eq!(attr_as_bool(&serde_json::json!("false")), Some(false));
+        assert_eq!(attr_as_bool(&serde_json::json!("TRUE")), None);
+    }
+
+    #[test]
+    fn test_request_encoding_formats_array_and_json_string() {
+        let array_span = make_span(vec![
+            (GEN_AI_OPERATION_NAME, serde_json::json!("embedding")),
+            (
+                GEN_AI_REQUEST_ENCODING_FORMATS,
+                serde_json::json!(["float", "base64"]),
+            ),
+        ]);
+        let array_result = extract_gen_ai_span(&array_span).expect("should extract");
+        assert_eq!(
+            array_result.request_encoding_formats,
+            vec!["float", "base64"]
+        );
+
+        let string_span = make_span(vec![
+            (GEN_AI_OPERATION_NAME, serde_json::json!("embedding")),
+            (
+                GEN_AI_REQUEST_ENCODING_FORMATS,
+                serde_json::json!(r#"["float","base64"]"#),
+            ),
+        ]);
+        let string_result = extract_gen_ai_span(&string_span).expect("should extract");
+        assert_eq!(
+            string_result.request_encoding_formats,
+            vec!["float", "base64"]
+        );
+    }
+
+    #[test]
+    fn test_select_vendor_fallback_via_system_attr() {
+        let span = make_span(vec![(
+            GEN_AI_SYSTEM,
+            serde_json::json!(GCP_VERTEX_AGENT_SYSTEM),
+        )]);
+        assert!(select_genai_vendor_fallback(&span).is_some());
+    }
+
+    #[test]
+    fn test_select_vendor_fallback_via_prefix() {
+        let span = make_span(vec![(
+            GCP_VERTEX_SESSION_ID,
+            serde_json::json!("session-1"),
+        )]);
+        assert!(select_genai_vendor_fallback(&span).is_some());
+    }
+
+    #[test]
+    fn test_select_vendor_fallback_returns_none_for_other_systems() {
+        let span = make_span(vec![(GEN_AI_SYSTEM, serde_json::json!("openai"))]);
+        assert!(select_genai_vendor_fallback(&span).is_none());
+    }
+
+    #[test]
+    fn test_vendor_fallback_does_not_overwrite_standard() {
+        let span = make_span(vec![
+            (GEN_AI_OPERATION_NAME, serde_json::json!("generate_content")),
+            (GEN_AI_REQUEST_MODEL, serde_json::json!("standard-model")),
+            (GEN_AI_USAGE_INPUT_TOKENS, serde_json::json!(5)),
+            (GEN_AI_USAGE_OUTPUT_TOKENS, serde_json::json!(6)),
+            (
+                GEN_AI_RESPONSE_FINISH_REASONS,
+                serde_json::json!(["standard-stop"]),
+            ),
+            (
+                GCP_VERTEX_LLM_REQUEST,
+                serde_json::json!({"model": "vendor-model"}),
+            ),
+            (
+                GCP_VERTEX_LLM_RESPONSE,
+                serde_json::json!({
+                    "usage_metadata": {
+                        "prompt_token_count": 50,
+                        "candidates_token_count": 60
+                    },
+                    "finish_reason": "vendor-stop"
+                }),
+            ),
+        ]);
+
+        let result = extract_gen_ai_span(&span).expect("should extract");
+        assert_eq!(result.request_model.as_deref(), Some("standard-model"));
+        assert_eq!(result.input_tokens, Some(5));
+        assert_eq!(result.output_tokens, Some(6));
+        assert_eq!(result.finish_reasons, vec!["standard-stop"]);
+    }
+
+    #[test]
+    fn test_event_content_wins_over_vendor() {
+        let event_content = r#"[{"role":"user","content":"event"}]"#;
+        let event = make_event(
+            GEN_AI_EVENT_INFERENCE_DETAILS,
+            vec![(GEN_AI_INPUT_MESSAGES, serde_json::json!(event_content))],
+        );
+        let span = make_span_with_events(
+            vec![
+                (GEN_AI_OPERATION_NAME, serde_json::json!("generate_content")),
+                (
+                    GCP_VERTEX_LLM_REQUEST,
+                    serde_json::json!({"contents": [{"role": "user", "content": "vendor"}]}),
+                ),
+            ],
+            vec![event],
+        );
+
+        let result = extract_gen_ai_span(&span).expect("should extract");
+        assert_eq!(result.input_messages.as_deref(), Some(event_content));
+    }
+
+    #[test]
+    fn test_vendor_session_id_to_conversation_id() {
+        let span = make_span(vec![
+            (GEN_AI_OPERATION_NAME, serde_json::json!("generate_content")),
+            (GCP_VERTEX_SESSION_ID, serde_json::json!("session-123")),
+        ]);
+
+        let result = extract_gen_ai_span(&span).expect("should extract");
+        assert_eq!(result.conversation_id.as_deref(), Some("session-123"));
+    }
+
+    #[test]
+    fn test_vendor_llm_request_subfields() {
+        let span = make_span(vec![
+            (GEN_AI_OPERATION_NAME, serde_json::json!("generate_content")),
+            (
+                GCP_VERTEX_LLM_REQUEST,
+                serde_json::json!({
+                    "model": "gemini-2.5-pro",
+                    "contents": [{"role": "user", "parts": [{"text": "hi"}]}],
+                    "config": {
+                        "system_instruction": {"parts": [{"text": "be concise"}]},
+                        "tools": [{"function_declarations": [{"name": "search"}]}],
+                        "top_p": 0.8,
+                        "max_output_tokens": 1024
+                    }
+                }),
+            ),
+        ]);
+
+        let result = extract_gen_ai_span(&span).expect("should extract");
+        assert_eq!(result.request_model.as_deref(), Some("gemini-2.5-pro"));
+        assert!(result.input_messages.as_deref().unwrap().contains("user"));
+        assert!(
+            result
+                .system_instructions
+                .as_deref()
+                .unwrap()
+                .contains("be concise")
+        );
+        assert!(
+            result
+                .tool_definitions
+                .as_deref()
+                .unwrap()
+                .contains("search")
+        );
+        assert_eq!(result.request_top_p, Some(0.8));
+        assert_eq!(result.request_max_tokens, Some(1024));
+    }
+
+    #[test]
+    fn test_vendor_llm_response_subfields() {
+        let span = make_span(vec![
+            (GEN_AI_OPERATION_NAME, serde_json::json!("generate_content")),
+            (
+                GCP_VERTEX_LLM_RESPONSE,
+                serde_json::json!({
+                    "content": {"role": "model", "parts": [{"text": "hello"}]},
+                    "usage_metadata": {
+                        "prompt_token_count": 12,
+                        "candidates_token_count": 24,
+                        "thoughts_token_count": 7
+                    },
+                    "finish_reason": ["STOP", "SAFETY"]
+                }),
+            ),
+        ]);
+
+        let result = extract_gen_ai_span(&span).expect("should extract");
+        assert!(result.output_messages.as_deref().unwrap().contains("hello"));
+        assert_eq!(result.input_tokens, Some(12));
+        assert_eq!(result.output_tokens, Some(24));
+        assert_eq!(result.reasoning_output_tokens, Some(7));
+        assert_eq!(result.finish_reasons, vec!["STOP", "SAFETY"]);
+    }
+
+    #[test]
+    fn test_vendor_thoughts_token_to_reasoning_output_tokens() {
+        let span = make_span(vec![
+            (GEN_AI_OPERATION_NAME, serde_json::json!("generate_content")),
+            (
+                GCP_VERTEX_LLM_RESPONSE,
+                serde_json::json!({"usage_metadata": {"thoughts_token_count": 9}}),
+            ),
+        ]);
+
+        let result = extract_gen_ai_span(&span).expect("should extract");
+        assert_eq!(result.reasoning_output_tokens, Some(9));
+    }
+
+    #[test]
+    fn test_malformed_vendor_json_is_ignored() {
+        let span = make_span(vec![
+            (GEN_AI_OPERATION_NAME, serde_json::json!("generate_content")),
+            (GCP_VERTEX_LLM_REQUEST, serde_json::json!("{not-json")),
+        ]);
+
+        let result = extract_gen_ai_span(&span).expect("span should still extract");
+        assert!(result.request_model.is_none());
+        assert!(result.input_messages.is_none());
+    }
+
+    #[test]
+    fn test_raw_only_vendor_fields_not_structured() {
+        let span = make_span(vec![
+            (GEN_AI_OPERATION_NAME, serde_json::json!("generate_content")),
+            (GEN_AI_SYSTEM, serde_json::json!(GCP_VERTEX_AGENT_SYSTEM)),
+            (GCP_VERTEX_INVOCATION_ID, serde_json::json!("invoke-1")),
+            (GCP_VERTEX_EVENT_ID, serde_json::json!("event-1")),
+            (GCP_VERTEX_DATA, serde_json::json!({"raw": true})),
+            (GCP_MCP_SERVER_DESTINATION_ID, serde_json::json!("mcp-1")),
+        ]);
+
+        let result = extract_gen_ai_span(&span).expect("should extract");
+        assert!(result.conversation_id.is_none());
+        assert!(result.request_model.is_none());
+        assert!(result.tool_call_arguments.is_none());
+        assert!(result.tool_call_result.is_none());
     }
 
     #[test]

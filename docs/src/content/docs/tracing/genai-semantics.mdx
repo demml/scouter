@@ -59,8 +59,83 @@ This mirrors the OTel spec, where `gen_ai.operation.name` is the required attrib
 | `gen_ai.output.messages` | `output_messages` | Opt-in; see [Opt-in content](#opt-in-content) |
 | `gen_ai.system_instructions` | `system_instructions` | Opt-in; see [Opt-in content](#opt-in-content) |
 | `gen_ai.tool.definitions` | `tool_definitions` | Opt-in; see [Opt-in content](#opt-in-content) |
+| `gen_ai.tool.description` | `tool_description` | Free-form tool description |
+| `gen_ai.tool.call.arguments` | `tool_call_arguments` | Sensitive tool-call input; redacted without sensitive-content access |
+| `gen_ai.tool.call.result` | `tool_call_result` | Sensitive tool result; redacted without sensitive-content access |
+| `gen_ai.request.stream` | `request_stream` | Boolean or `"true"` / `"false"` string |
+| `gen_ai.request.top_k` | `request_top_k` | |
+| `gen_ai.request.encoding_formats` | `request_encoding_formats` | String array; accepts JSON-encoded array or raw array value |
+| `gen_ai.response.time_to_first_chunk` | `response_time_to_first_chunk` | Streaming latency |
+| `gen_ai.usage.reasoning.output_tokens` | `reasoning_output_tokens` | Already included in `output_tokens`; exposed separately |
+| `gen_ai.prompt.name` | `prompt_name` | Prompt template or prompt registry name |
+| `gen_ai.workflow.name` | `workflow_name` | Workflow or graph name |
+| `gen_ai.embeddings.dimension.count` | `embeddings_dimension_count` | Embedding vector size |
+| `gen_ai.retrieval.documents` | `retrieval_documents` | Sensitive retrieval payload; redacted without sensitive-content access |
+| `gen_ai.retrieval.query.text` | `retrieval_query_text` | Sensitive retrieval query; redacted without sensitive-content access |
 
 Token fields accept JSON numbers, floats, or numeric strings. `finish_reasons` handles all three of: a JSON array, a JSON-encoded array string, and a bare string.
+
+---
+
+## GCP/Vertex ADK fallback mapping
+
+Google ADK can emit the deprecated `gen_ai.system="gcp.vertex.agent"` marker plus `gcp.vertex.agent.*` attributes. Scouter treats that marker as vendor instrumentation, not as the canonical OTel Vertex provider value. The canonical provider value is `gcp.vertex_ai`.
+
+When standard `gen_ai.*` fields are missing, Scouter maps these vendor fields:
+
+| Vendor attribute | Structured field | Sensitive |
+|---|---|---|
+| `gcp.vertex.agent.session_id` | `conversation_id` | No |
+| `gcp.vertex.agent.tool_call_args` | `tool_call_arguments` | Yes |
+| `gcp.vertex.agent.tool_response` | `tool_call_result` | Yes |
+| `gcp.vertex.agent.llm_request.model` | `request_model` | No |
+| `gcp.vertex.agent.llm_request.contents` | `input_messages` | Yes |
+| `gcp.vertex.agent.llm_request.config.system_instruction` | `system_instructions` | Yes |
+| `gcp.vertex.agent.llm_request.config.tools` | `tool_definitions` | Yes |
+| `gcp.vertex.agent.llm_request.config.top_p` | `request_top_p` | No |
+| `gcp.vertex.agent.llm_request.config.max_output_tokens` | `request_max_tokens` | No |
+| `gcp.vertex.agent.llm_response.content` | `output_messages` | Yes |
+| `gcp.vertex.agent.llm_response.usage_metadata.prompt_token_count` | `input_tokens` | No |
+| `gcp.vertex.agent.llm_response.usage_metadata.candidates_token_count` | `output_tokens` | No |
+| `gcp.vertex.agent.llm_response.usage_metadata.thoughts_token_count` | `reasoning_output_tokens` | No |
+| `gcp.vertex.agent.llm_response.finish_reason` | `finish_reasons` | No |
+
+`gcp.vertex.agent.invocation_id`, `gcp.vertex.agent.event_id`, `gcp.vertex.agent.data`, and `gcp.mcp.server.destination.id` stay raw-only on `TraceSpanRecord.attributes`.
+
+### Extraction precedence
+
+Scouter resolves fields in this order:
+
+1. Standard `gen_ai.*` span attributes.
+2. Standard `gen_ai.client.inference.operation.details` event content for `input_messages`, `output_messages`, `system_instructions`, and `tool_definitions`.
+3. Vendor fallback, which fills only fields still missing.
+
+### Sensitive content
+
+Sensitive fields are `input_messages`, `output_messages`, `system_instructions`, `tool_definitions`, `tool_call_arguments`, `tool_call_result`, `retrieval_documents`, and `retrieval_query_text`. They are redacted unless the caller has sensitive-content access.
+
+The new non-sensitive fields are `tool_description`, `request_stream`, `request_top_k`, `request_encoding_formats`, `response_time_to_first_chunk`, `reasoning_output_tokens`, `prompt_name`, `workflow_name`, and `embeddings_dimension_count`.
+
+### Provider name resolution
+
+`gen_ai.provider.name` is canonical and wins when present. Common values include `openai`, `anthropic`, `aws.bedrock`, `gcp.gemini`, `gcp.gen_ai`, and `gcp.vertex_ai`.
+
+`gen_ai.system` is deprecated and used only as a fallback provider name. The value `gcp.vertex.agent` is a Google ADK vendor/instrumentation marker and is not the canonical Vertex provider value. Seeing that marker or any `gcp.vertex.agent.*` key enables the vendor fallback above.
+
+### Other relevant deprecations
+
+Scouter reads the replacement forms only:
+
+| Deprecated | Replacement |
+|---|---|
+| `gen_ai.usage.prompt_tokens` | `gen_ai.usage.input_tokens` |
+| `gen_ai.usage.completion_tokens` | `gen_ai.usage.output_tokens` |
+| `gen_ai.completion` / `gen_ai.prompt` | GenAI event API content |
+| `gen_ai.openai.response.service_tier` | `openai.response.service_tier` |
+
+### Token aggregation
+
+`gen_ai.usage.cache_creation.input_tokens` and `gen_ai.usage.cache_read.input_tokens` are already included in `gen_ai.usage.input_tokens`. `gen_ai.usage.reasoning.output_tokens` is already included in `gen_ai.usage.output_tokens`. Scouter exposes those fields separately but does not add them again in aggregate token totals.
 
 ---
 

@@ -6643,6 +6643,7 @@ dependencies = [
  "potato-head",
  "rand 0.9.4",
  "regex",
+ "scouter-macro",
  "scouter-mocks",
  "scouter-settings",
  "scouter-types",
