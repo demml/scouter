@@ -54,6 +54,28 @@ fn build_registry_url(object_store: &ObjectStore) -> Result<Url, DatasetEngineEr
     Ok(base)
 }
 
+async fn create_registry_table(
+    table_url: Url,
+    store: Arc<dyn object_store::ObjectStore>,
+) -> Result<DeltaTable, DatasetEngineError> {
+    info!("Creating new dataset registry");
+    let schema = registry_schema();
+    let delta_fields = arrow_schema_to_delta(&schema);
+
+    let table = DeltaTableBuilder::from_url(table_url.clone())?
+        .with_storage_backend(store, table_url)
+        .build()?;
+
+    let table = table
+        .create()
+        .with_table_name(REGISTRY_TABLE_NAME)
+        .with_columns(delta_fields)
+        .with_configuration_property(TableProperty::CheckpointInterval, Some("5"))
+        .await?;
+
+    Ok(table)
+}
+
 async fn build_or_create_registry(
     object_store: &ObjectStore,
 ) -> Result<DeltaTable, DatasetEngineError> {
@@ -66,6 +88,7 @@ async fn build_or_create_registry(
         && !path.exists()
     {
         std::fs::create_dir_all(&path)?;
+        return create_registry_table(table_url, object_store.as_dyn_object_store()).await;
     }
 
     // Try to load existing table first
@@ -79,24 +102,7 @@ async fn build_or_create_registry(
             info!("Loaded existing dataset registry");
             Ok(table)
         }
-        Err(_) => {
-            info!("Creating new dataset registry");
-            let schema = registry_schema();
-            let delta_fields = arrow_schema_to_delta(&schema);
-
-            let table = DeltaTableBuilder::from_url(table_url.clone())?
-                .with_storage_backend(store, table_url)
-                .build()?;
-
-            let table = table
-                .create()
-                .with_table_name(REGISTRY_TABLE_NAME)
-                .with_columns(delta_fields)
-                .with_configuration_property(TableProperty::CheckpointInterval, Some("5"))
-                .await?;
-
-            Ok(table)
-        }
+        Err(_) => create_registry_table(table_url, store).await,
     }
 }
 
@@ -193,7 +199,11 @@ impl DatasetRegistry {
     pub async fn load_all(&self) -> Result<(), DatasetEngineError> {
         {
             let mut table_guard = self.table.write().await;
-            let _ = table_guard.update_incremental(None).await;
+            if matches!(table_guard.version(), Some(version) if version > 0)
+                && let Err(e) = table_guard.update_incremental(None).await
+            {
+                warn!("Registry incremental refresh failed: {}", e);
+            }
         }
         self.populate_cache().await
     }

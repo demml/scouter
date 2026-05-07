@@ -21,48 +21,134 @@ use scouter_sql::sql::traits::{TagSqlLogic, TraceSqlLogic};
 use scouter_types::{
     SpansFromTagsRequest, Tag, TraceBaggageResponse, TraceFacetsResponse, TraceId,
     TraceMetricsRequest, TraceMetricsResponse, TracePaginationResponse, TraceRequest,
-    TraceServerRecord, TraceSpansResponse, contracts::ScouterServerError, sql::TraceFilters,
+    TraceServerRecord, TraceSpansResponse,
+    contracts::ScouterServerError,
+    sql::TraceFilters,
+    trace::query::{FilterClause, parse_search_query, validate_filter_clause},
 };
+use std::collections::HashSet;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 use tracing::instrument;
 use tracing::{debug, error};
 
-fn validate_duration_bounds(
-    min: Option<i64>,
-    max: Option<i64>,
-) -> Result<(), (StatusCode, Json<ScouterServerError>)> {
-    if let Some(v) = min
-        && v < 0
+#[derive(Debug, serde::Deserialize)]
+pub struct SearchQ {
+    pub q: Option<String>,
+}
+
+fn invalid_search_query(err: impl std::fmt::Display) -> (StatusCode, Json<ScouterServerError>) {
+    (
+        StatusCode::BAD_REQUEST,
+        Json(ScouterServerError::new(format!(
+            "Invalid search query: {err}"
+        ))),
+    )
+}
+
+fn trace_query_status(
+    err: &scouter_dataframe::error::TraceEngineError,
+) -> (StatusCode, Option<String>) {
+    match err {
+        scouter_dataframe::error::TraceEngineError::IntermediateSetTooLarge { actual, limit } => (
+            StatusCode::BAD_REQUEST,
+            Some(format!(
+                "filter resolved to {actual} traces, exceeds cap of {limit}; narrow the time window or refine the query"
+            )),
+        ),
+        _ => (StatusCode::INTERNAL_SERVER_ERROR, None),
+    }
+}
+
+fn validate_filters(filters: &TraceFilters) -> Result<(), (StatusCode, Json<ScouterServerError>)> {
+    if let Some(ref d) = filters.direction
+        && d != "next"
+        && d != "previous"
     {
         return Err((
             StatusCode::BAD_REQUEST,
-            Json(ScouterServerError::new(
-                "duration_min_ms must be >= 0".to_string(),
-            )),
+            Json(ScouterServerError::new(format!("invalid direction: {d}"))),
         ));
     }
-    if let Some(v) = max
-        && v < 0
-    {
-        return Err((
+    filters.parsed_trace_ids().map_err(|err| {
+        (
             StatusCode::BAD_REQUEST,
-            Json(ScouterServerError::new(
-                "duration_max_ms must be >= 0".to_string(),
-            )),
-        ));
-    }
-    if let (Some(mn), Some(mx)) = (min, max)
-        && mn > mx
-    {
-        return Err((
+            Json(ScouterServerError::new(format!("invalid trace_ids: {err}"))),
+        )
+    })?;
+    filters.parsed_cursor_trace_id().map_err(|err| {
+        (
             StatusCode::BAD_REQUEST,
-            Json(ScouterServerError::new(
-                "duration_min_ms must be <= duration_max_ms".to_string(),
-            )),
-        ));
+            Json(ScouterServerError::new(format!(
+                "invalid cursor_trace_id: {err}"
+            ))),
+        )
+    })?;
+    if let Some(clause) = &filters.clause {
+        validate_clause(clause)
+            .map_err(|msg| (StatusCode::BAD_REQUEST, Json(ScouterServerError::new(msg))))?;
     }
     Ok(())
+}
+
+fn validate_clause(clause: &FilterClause) -> Result<(), String> {
+    validate_filter_clause(clause).map_err(|err| err.to_string())
+}
+
+fn merge_q_into_filters(
+    q: Option<String>,
+    body: TraceFilters,
+) -> Result<TraceFilters, (StatusCode, Json<ScouterServerError>)> {
+    let Some(q) = q.as_deref().map(str::trim).filter(|s| !s.is_empty()) else {
+        return Ok(body);
+    };
+    let parsed = parse_search_query(q).map_err(invalid_search_query)?;
+    Ok(merge_filters(parsed, body))
+}
+
+fn merge_filters(parsed: TraceFilters, body: TraceFilters) -> TraceFilters {
+    let merge_vec = |parsed: Option<Vec<String>>, body: Option<Vec<String>>| match (parsed, body) {
+        (None, None) => None,
+        (Some(values), None) | (None, Some(values)) => Some(values),
+        (Some(mut parsed), Some(body)) => {
+            let mut seen = parsed.iter().cloned().collect::<HashSet<_>>();
+            for value in body {
+                if seen.insert(value.clone()) {
+                    parsed.push(value);
+                }
+            }
+            Some(parsed)
+        }
+    };
+
+    TraceFilters {
+        clause: FilterClause::and_merge(parsed.clause, body.clause),
+        start_time: body.start_time.or(parsed.start_time),
+        end_time: body.end_time.or(parsed.end_time),
+        limit: body.limit.or(parsed.limit),
+        cursor_start_time: body.cursor_start_time.or(parsed.cursor_start_time),
+        cursor_trace_id: body.cursor_trace_id.or(parsed.cursor_trace_id),
+        direction: body.direction.or(parsed.direction),
+        trace_ids: merge_vec(parsed.trace_ids, body.trace_ids),
+        entity_uid: body.entity_uid.or(parsed.entity_uid),
+        queue_uid: body.queue_uid.or(parsed.queue_uid),
+    }
+}
+
+fn normalize_metrics_request(
+    mut body: TraceMetricsRequest,
+) -> Result<TraceMetricsRequest, (StatusCode, Json<ScouterServerError>)> {
+    let Some(query) = body.query.take() else {
+        return Ok(body);
+    };
+    let query = query.trim();
+    if query.is_empty() {
+        return Ok(body);
+    }
+    let parsed = parse_search_query(query).map_err(invalid_search_query)?;
+    body.clause = FilterClause::and_merge(parsed.clause, body.clause);
+    body.entity_uid = body.entity_uid.or(parsed.entity_uid);
+    Ok(body)
 }
 
 #[utoipa::path(
@@ -97,6 +183,7 @@ pub async fn get_trace_baggage(
     post,
     path = "/scouter/trace/paginated",
     request_body = TraceFilters,
+    params(("q" = Option<String>, Query, description = "Optional Lucene-style search query")),
     responses(
         (status = 200, description = "Paginated traces", body = TracePaginationResponse),
         (status = 500, description = "Internal server error", body = ScouterServerError),
@@ -107,10 +194,15 @@ pub async fn get_trace_baggage(
 #[instrument(skip_all)]
 pub async fn paginated_traces(
     State(data): State<Arc<AppState>>,
+    Query(search): Query<SearchQ>,
     Json(body): Json<TraceFilters>,
 ) -> Result<Json<TracePaginationResponse>, (StatusCode, Json<ScouterServerError>)> {
-    debug!("Getting paginated traces with filters: {:?}", body);
-    validate_duration_bounds(body.duration_min_ms, body.duration_max_ms)?;
+    let body = merge_q_into_filters(search.q, body)?;
+    validate_filters(&body)?;
+    debug!(
+        "paginated_traces: limit={:?} start={:?} end={:?}",
+        body.limit, body.start_time, body.end_time
+    );
 
     // entity_uid is passed directly to the Delta Lake query where it is applied as a
     // column predicate on the `entity_id` column, enabling file-level Z-ORDER skipping.
@@ -121,9 +213,13 @@ pub async fn paginated_traces(
         .await
         .map_err(|e| {
             error!("Failed to get paginated traces: {:?}", e);
+            let (status, message) = trace_query_status(&e);
             (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ScouterServerError::get_paginated_traces_error(e)),
+                status,
+                Json(match message {
+                    Some(message) => ScouterServerError::new(message),
+                    None => ScouterServerError::get_paginated_traces_error(e),
+                }),
             )
         })?;
 
@@ -338,6 +434,7 @@ pub async fn query_trace_spans_from_tags(
     Ok(Json(TraceSpansResponse { spans: all_spans }))
 }
 
+// Get trace metrics aggregated into buckets by time interval, optionally filtered by request-body query.
 #[utoipa::path(
     post,
     path = "/scouter/trace/metrics",
@@ -354,11 +451,15 @@ pub async fn trace_metrics(
     State(data): State<Arc<AppState>>,
     Json(body): Json<TraceMetricsRequest>,
 ) -> Result<Json<TraceMetricsResponse>, (StatusCode, Json<ScouterServerError>)> {
-    debug!("Getting trace metrics for request: {:?}", body);
-    validate_duration_bounds(body.duration_min_ms, body.duration_max_ms)?;
-
-    let attr_filters_ref: Option<&[String]> =
-        body.attribute_filters.as_deref().filter(|f| !f.is_empty());
+    let body = normalize_metrics_request(body)?;
+    if let Some(clause) = &body.clause {
+        validate_clause(clause)
+            .map_err(|msg| (StatusCode::BAD_REQUEST, Json(ScouterServerError::new(msg))))?;
+    }
+    debug!(
+        "trace_metrics: start={:?} end={:?} interval={}",
+        body.start_time, body.end_time, body.bucket_interval
+    );
 
     // Normalize legacy interval strings like "1 minutes" → "minute" for DataFusion DATE_TRUNC.
     let bucket_interval = body
@@ -374,25 +475,17 @@ pub async fn trace_metrics(
     let metrics = data
         .trace_service
         .query_service
-        .get_trace_metrics(
-            body.service_name.as_deref(),
-            body.service_namespace.as_deref(),
-            body.service_version.as_deref(),
-            body.service_instance_id.as_deref(),
-            body.start_time,
-            body.end_time,
-            &bucket_interval,
-            attr_filters_ref,
-            body.entity_uid.as_deref(),
-            body.duration_min_ms,
-            body.duration_max_ms,
-        )
+        .get_trace_metrics(&body, &bucket_interval)
         .await
         .map_err(|e| {
             error!("Failed to get trace metrics: {:?}", e);
+            let (status, message) = trace_query_status(&e);
             (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ScouterServerError::get_trace_metrics_error(e)),
+                status,
+                Json(match message {
+                    Some(message) => ScouterServerError::new(message),
+                    None => ScouterServerError::get_trace_metrics_error(e),
+                }),
             )
         })?;
 
@@ -403,6 +496,7 @@ pub async fn trace_metrics(
     post,
     path = "/scouter/trace/facets",
     request_body = TraceFilters,
+    params(("q" = Option<String>, Query, description = "Optional Lucene-style search query")),
     responses(
         (status = 200, description = "Trace facets", body = TraceFacetsResponse),
         (status = 500, description = "Internal server error", body = ScouterServerError),
@@ -413,10 +507,15 @@ pub async fn trace_metrics(
 #[instrument(skip_all)]
 pub async fn get_trace_facets(
     State(data): State<Arc<AppState>>,
+    Query(search): Query<SearchQ>,
     Json(body): Json<TraceFilters>,
 ) -> Result<Json<TraceFacetsResponse>, (StatusCode, Json<ScouterServerError>)> {
-    debug!("Getting trace facets with filters: {:?}", body);
-    validate_duration_bounds(body.duration_min_ms, body.duration_max_ms)?;
+    let body = merge_q_into_filters(search.q, body)?;
+    validate_filters(&body)?;
+    debug!(
+        "trace_facets: limit={:?} start={:?} end={:?}",
+        body.limit, body.start_time, body.end_time
+    );
     let facets = data
         .trace_summary_service
         .query_service
@@ -424,9 +523,13 @@ pub async fn get_trace_facets(
         .await
         .map_err(|e| {
             error!("Failed to get trace facets: {:?}", e);
+            let (status, message) = trace_query_status(&e);
             (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ScouterServerError::get_trace_facets_error(e)),
+                status,
+                Json(match message {
+                    Some(message) => ScouterServerError::new(message),
+                    None => ScouterServerError::get_trace_facets_error(e),
+                }),
             )
         })?;
     Ok(Json(facets))
@@ -436,6 +539,7 @@ pub async fn get_trace_facets(
     post,
     path = "/scouter/trace/spans/filters",
     request_body = TraceFilters,
+    params(("q" = Option<String>, Query, description = "Optional Lucene-style search query")),
     responses(
         (status = 200, description = "Trace spans matching filters", body = TraceSpansResponse),
         (status = 500, description = "Internal server error", body = ScouterServerError),
@@ -446,8 +550,11 @@ pub async fn get_trace_facets(
 #[instrument(skip_all)]
 pub async fn query_spans_from_filters(
     State(data): State<Arc<AppState>>,
+    Query(search): Query<SearchQ>,
     Json(body): Json<TraceFilters>,
 ) -> Result<Json<TraceSpansResponse>, (StatusCode, Json<ScouterServerError>)> {
+    let body = merge_q_into_filters(search.q, body)?;
+    validate_filters(&body)?;
     let spans = data
         .trace_service
         .query_service
@@ -455,9 +562,13 @@ pub async fn query_spans_from_filters(
         .await
         .map_err(|e| {
             error!("Failed to get spans from trace filters: {:?}", e);
+            let (status, message) = trace_query_status(&e);
             (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ScouterServerError::get_trace_spans_error(e)),
+                status,
+                Json(match message {
+                    Some(message) => ScouterServerError::new(message),
+                    None => ScouterServerError::get_trace_spans_error(e),
+                }),
             )
         })?;
 
@@ -569,9 +680,13 @@ pub async fn debug_recent_traces(
         .await
         .map_err(|e| {
             error!("Failed to get debug recent traces: {:?}", e);
+            let (status, message) = trace_query_status(&e);
             (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ScouterServerError::get_paginated_traces_error(e)),
+                status,
+                Json(match message {
+                    Some(message) => ScouterServerError::new(message),
+                    None => ScouterServerError::get_paginated_traces_error(e),
+                }),
             )
         })?;
 
@@ -615,6 +730,138 @@ pub async fn get_trace_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
             // panic
             Err(anyhow::anyhow!("Failed to create tag router"))
                 .context("Panic occurred while creating the router")
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+    use scouter_types::trace::query::FilterClause;
+
+    fn make_filters(start_time: Option<chrono::DateTime<Utc>>) -> TraceFilters {
+        TraceFilters {
+            start_time,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn body_start_time_beats_dsl() {
+        let body_ts = Utc::now();
+        let dsl_ts = body_ts - chrono::Duration::hours(1);
+
+        let parsed = make_filters(Some(dsl_ts));
+        let body = make_filters(Some(body_ts));
+
+        let merged = merge_filters(parsed, body);
+        // body.start_time wins over parsed.start_time
+        assert_eq!(merged.start_time, Some(body_ts));
+    }
+
+    #[test]
+    fn dsl_start_time_used_when_body_absent() {
+        let dsl_ts = Utc::now();
+
+        let parsed = make_filters(Some(dsl_ts));
+        let body = make_filters(None);
+
+        let merged = merge_filters(parsed, body);
+        assert_eq!(merged.start_time, Some(dsl_ts));
+    }
+
+    #[test]
+    fn trace_ids_union_dedup() {
+        let parsed = TraceFilters {
+            trace_ids: Some(vec!["aaa".into(), "bbb".into()]),
+            ..Default::default()
+        };
+        let body = TraceFilters {
+            trace_ids: Some(vec!["bbb".into(), "ccc".into()]),
+            ..Default::default()
+        };
+
+        let merged = merge_filters(parsed, body);
+        let mut ids = merged.trace_ids.unwrap();
+        ids.sort();
+        assert_eq!(ids, vec!["aaa", "bbb", "ccc"]);
+    }
+
+    #[test]
+    fn empty_q_returns_body_unchanged() {
+        let body = TraceFilters {
+            limit: Some(25),
+            ..Default::default()
+        };
+        let result = merge_q_into_filters(None, body.clone()).unwrap();
+        assert_eq!(result.limit, Some(25));
+        assert!(result.clause.is_none());
+    }
+
+    #[test]
+    fn metrics_body_query_merges_supported_fields_and_keeps_body_precedence() {
+        let start_time = Utc::now();
+        let end_time = start_time + chrono::Duration::hours(1);
+        let body = TraceMetricsRequest {
+            start_time,
+            end_time,
+            bucket_interval: "hour".to_string(),
+            clause: Some(FilterClause::Service("checkout".to_string())),
+            entity_uid: Some("body-entity".to_string()),
+            query: Some(
+                "start_time:2026-01-01T00:00:00Z entity_uid:query-entity component:kafka"
+                    .to_string(),
+            ),
+        };
+
+        let result = normalize_metrics_request(body).unwrap();
+        assert_eq!(result.start_time, start_time);
+        assert_eq!(result.end_time, end_time);
+        assert_eq!(result.bucket_interval, "hour");
+        assert_eq!(result.entity_uid.as_deref(), Some("body-entity"));
+        assert!(matches!(result.clause, Some(FilterClause::And(parts)) if parts.len() == 2));
+        assert!(result.query.is_none());
+    }
+
+    #[test]
+    fn validate_clause_rejects_impossible_duration_range() {
+        let clause = FilterClause::And(vec![
+            FilterClause::DurationMinMs(500),
+            FilterClause::DurationMaxMs(100),
+        ]);
+        assert!(validate_clause(&clause).is_err());
+    }
+
+    #[test]
+    fn validate_clause_accepts_valid_duration_range() {
+        let clause = FilterClause::And(vec![
+            FilterClause::DurationMinMs(100),
+            FilterClause::DurationMaxMs(500),
+        ]);
+        assert!(validate_clause(&clause).is_ok());
+    }
+
+    #[test]
+    fn validate_direction_rejects_unknown() {
+        let filters = TraceFilters {
+            direction: Some("sideways".into()),
+            ..Default::default()
+        };
+        assert!(validate_filters(&filters).is_err());
+    }
+
+    #[test]
+    fn validate_direction_accepts_next_and_previous() {
+        for dir in ["next", "previous"] {
+            let filters = TraceFilters {
+                direction: Some(dir.into()),
+                ..Default::default()
+            };
+            assert!(
+                validate_filters(&filters).is_ok(),
+                "failed for direction={dir}"
+            );
         }
     }
 }

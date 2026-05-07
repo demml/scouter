@@ -11,10 +11,16 @@ use scouter_sql::sql::aggregator::shutdown_trace_cache;
 use scouter_types::{
     GenAiSpanRecord, SpanId, SpansFromTagsRequest, TraceFacetsResponse, TraceId,
     TraceMetricsRequest, TraceMetricsResponse, TracePaginationResponse, TraceRequest,
-    TraceSpansResponse, sql::TraceFilters,
+    TraceSpansResponse, sql::TraceFilters, trace::query::FilterClause,
 };
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
+
+fn with_q(path: &str, q: &str) -> String {
+    let mut serializer = url::form_urlencoded::Serializer::new(String::new());
+    serializer.append_pair("q", q);
+    format!("{path}?{}", serializer.finish())
+}
 
 async fn fetch_paginated(helper: &TestHelper, filters: &TraceFilters) -> TracePaginationResponse {
     let body = serde_json::to_string(filters).unwrap();
@@ -28,6 +34,30 @@ async fn fetch_paginated(helper: &TestHelper, filters: &TraceFilters) -> TracePa
     assert_eq!(response.status(), StatusCode::OK);
     let body = response.into_body().collect().await.unwrap().to_bytes();
     serde_json::from_slice(&body).unwrap()
+}
+
+async fn fetch_paginated_with_query(
+    helper: &TestHelper,
+    q: &str,
+    filters: &TraceFilters,
+) -> (StatusCode, Vec<u8>) {
+    let body = serde_json::to_string(&filters).unwrap();
+    let request = Request::builder()
+        .uri(with_q("/scouter/trace/paginated", q))
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body))
+        .unwrap();
+    let response = helper.send_oneshot(request).await;
+    let status = response.status();
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes()
+        .to_vec();
+    (status, body)
 }
 
 async fn fetch_spans_from_filters(
@@ -47,6 +77,30 @@ async fn fetch_spans_from_filters(
     serde_json::from_slice(&body).unwrap()
 }
 
+async fn fetch_spans_from_filters_raw(
+    helper: &TestHelper,
+    uri: &str,
+    filters: &TraceFilters,
+) -> (StatusCode, Vec<u8>) {
+    let body = serde_json::to_string(filters).unwrap();
+    let request = Request::builder()
+        .uri(uri)
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body))
+        .unwrap();
+    let response = helper.send_oneshot(request).await;
+    let status = response.status();
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes()
+        .to_vec();
+    (status, body)
+}
+
 async fn fetch_facets(helper: &TestHelper, filters: &TraceFilters) -> TraceFacetsResponse {
     let body = serde_json::to_string(filters).unwrap();
     let request = Request::builder()
@@ -62,16 +116,56 @@ async fn fetch_facets(helper: &TestHelper, filters: &TraceFilters) -> TraceFacet
 }
 
 async fn fetch_metrics(helper: &TestHelper, request: &TraceMetricsRequest) -> TraceMetricsResponse {
+    let (status, body) = fetch_metrics_raw(helper, "/scouter/trace/metrics", request).await;
+    assert_eq!(status, StatusCode::OK);
+    serde_json::from_slice(&body).unwrap()
+}
+
+async fn fetch_metrics_raw(
+    helper: &TestHelper,
+    uri: &str,
+    request: &TraceMetricsRequest,
+) -> (StatusCode, Vec<u8>) {
     let req = Request::builder()
-        .uri("/scouter/trace/metrics")
+        .uri(uri)
         .method("POST")
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(serde_json::to_string(request).unwrap()))
         .unwrap();
     let response = helper.send_oneshot(req).await;
-    assert_eq!(response.status(), StatusCode::OK);
-    let body = response.into_body().collect().await.unwrap().to_bytes();
-    serde_json::from_slice(&body).unwrap()
+    let status = response.status();
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes()
+        .to_vec();
+    (status, body)
+}
+
+async fn fetch_facets_raw(
+    helper: &TestHelper,
+    uri: &str,
+    filters: &TraceFilters,
+) -> (StatusCode, Vec<u8>) {
+    let body = serde_json::to_string(filters).unwrap();
+    let request = Request::builder()
+        .uri(uri)
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body))
+        .unwrap();
+    let response = helper.send_oneshot(request).await;
+    let status = response.status();
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes()
+        .to_vec();
+    (status, body)
 }
 
 async fn wait_for_paginated_count(helper: &TestHelper, expected_count: usize) {
@@ -219,17 +313,12 @@ async fn test_tracing() {
 
     // make request for trace metrics
     let metrics_request = TraceMetricsRequest {
-        service_name: None,
-        service_namespace: None,
-        service_version: None,
-        service_instance_id: None,
         start_time,
         end_time,
         bucket_interval: "hour".to_string(),
-        attribute_filters: None,
+        clause: None,
         entity_uid: None,
-        duration_min_ms: None,
-        duration_max_ms: None,
+        query: None,
     };
 
     let request = Request::builder()
@@ -279,15 +368,292 @@ async fn test_tracing() {
     );
 
     // Attribute filter: tests the DataFusion JOIN path (component=kafka spans)
-    let attr_filters = TraceFilters {
-        attribute_filters: Some(vec!["component=kafka".to_string()]),
-        ..Default::default()
-    };
+    let attr_filters = TraceFilters::parse("component:kafka").unwrap();
     let attr_batch = fetch_paginated(&helper, &attr_filters).await;
     assert!(
         !attr_batch.items.is_empty(),
         "Should return records with attribute filter"
     );
+}
+
+#[tokio::test]
+async fn test_trace_search_query_user_flow() {
+    let helper = setup_test().await;
+    helper.generate_trace_data().await.unwrap();
+    wait_for_paginated_count(&helper, 100).await;
+
+    let body_filters = TraceFilters {
+        limit: Some(200),
+        ..TraceFilters::parse("component:kafka").unwrap()
+    };
+    let body_page = fetch_paginated(&helper, &body_filters).await;
+    assert!(
+        !body_page.items.is_empty(),
+        "component:kafka should match seeded traces"
+    );
+
+    let (status, post_body) = fetch_paginated_with_query(
+        &helper,
+        "component:kafka",
+        &TraceFilters {
+            limit: Some(200),
+            ..Default::default()
+        },
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let post_page: TracePaginationResponse = serde_json::from_slice(&post_body).unwrap();
+    assert_eq!(
+        post_page.items.len(),
+        body_page.items.len(),
+        "POST URL query should merge into an empty body as the parsed clause"
+    );
+
+    let (status, _body) = fetch_paginated_with_query(
+        &helper,
+        "(start_time:2026-01-01T00:00:00Z component:kafka)",
+        &TraceFilters::default(),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "top-level-only fields inside groups must be rejected"
+    );
+}
+
+#[tokio::test]
+async fn test_trace_search_q_and_body_are_and_merged() {
+    let helper = setup_test().await;
+    helper.generate_trace_data().await.unwrap();
+    wait_for_paginated_count(&helper, 100).await;
+
+    let q_only = fetch_paginated(
+        &helper,
+        &TraceFilters {
+            limit: Some(200),
+            ..TraceFilters::parse("component:kafka").unwrap()
+        },
+    )
+    .await;
+    assert!(
+        !q_only.items.is_empty(),
+        "component:kafka should match seeded traces"
+    );
+
+    let body = TraceFilters {
+        clause: Some(FilterClause::Service("__no_such_service__".to_string())),
+        limit: Some(200),
+        ..Default::default()
+    };
+    let (status, merged_body) = fetch_paginated_with_query(&helper, "component:kafka", &body).await;
+    assert_eq!(status, StatusCode::OK);
+    let merged: TracePaginationResponse = serde_json::from_slice(&merged_body).unwrap();
+
+    assert!(
+        merged.items.is_empty(),
+        "AND-merged query/body filters should return the exact empty intersection"
+    );
+
+    let (status, empty_body) =
+        fetch_paginated_with_query(&helper, "   ", &TraceFilters::default()).await;
+    assert_eq!(status, StatusCode::OK);
+    let empty_query: TracePaginationResponse = serde_json::from_slice(&empty_body).unwrap();
+    let default_page = fetch_paginated(&helper, &TraceFilters::default()).await;
+    assert_eq!(empty_query.items.len(), default_page.items.len());
+}
+
+#[tokio::test]
+async fn test_trace_query_is_merged_for_metrics_facets_and_spans() {
+    let helper = setup_test().await;
+    helper.generate_trace_data().await.unwrap();
+    wait_for_paginated_count(&helper, 100).await;
+
+    let now = Utc::now();
+    let metrics_base = TraceMetricsRequest {
+        start_time: now - chrono::Duration::hours(24),
+        end_time: now + chrono::Duration::hours(1),
+        bucket_interval: "hour".to_string(),
+        clause: None,
+        entity_uid: None,
+        query: None,
+    };
+    let metrics_body = TraceMetricsRequest {
+        clause: TraceFilters::parse("component:kafka").unwrap().clause,
+        ..metrics_base.clone()
+    };
+
+    let metrics_from_body = fetch_metrics(&helper, &metrics_body).await;
+    let metrics_query_body = TraceMetricsRequest {
+        query: Some("component:kafka".to_string()),
+        ..metrics_base.clone()
+    };
+    let (status, metrics_q_body) =
+        fetch_metrics_raw(&helper, "/scouter/trace/metrics", &metrics_query_body).await;
+    assert_eq!(status, StatusCode::OK);
+    let metrics_from_q: TraceMetricsResponse = serde_json::from_slice(&metrics_q_body).unwrap();
+    assert_eq!(
+        metrics_from_q
+            .metrics
+            .iter()
+            .map(|bucket| bucket.trace_count)
+            .sum::<i64>(),
+        metrics_from_body
+            .metrics
+            .iter()
+            .map(|bucket| bucket.trace_count)
+            .sum::<i64>()
+    );
+
+    let metrics_and_body = TraceMetricsRequest {
+        clause: Some(FilterClause::Service("__no_such_service__".to_string())),
+        query: Some("component:kafka".to_string()),
+        ..metrics_base
+    };
+    let (status, metrics_merged_body) =
+        fetch_metrics_raw(&helper, "/scouter/trace/metrics", &metrics_and_body).await;
+    assert_eq!(status, StatusCode::OK);
+    let metrics_merged: TraceMetricsResponse =
+        serde_json::from_slice(&metrics_merged_body).unwrap();
+    assert_eq!(
+        metrics_merged
+            .metrics
+            .iter()
+            .map(|bucket| bucket.trace_count)
+            .sum::<i64>(),
+        0,
+        "metrics query/body merge should return the exact empty intersection"
+    );
+
+    let body_filters = TraceFilters::parse("component:kafka").unwrap();
+    let body_facets = fetch_facets(&helper, &body_filters).await;
+    let (status, facets_q_body) = fetch_facets_raw(
+        &helper,
+        &with_q("/scouter/trace/facets", "component:kafka"),
+        &TraceFilters::default(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let facets_from_q: TraceFacetsResponse = serde_json::from_slice(&facets_q_body).unwrap();
+    assert_eq!(facets_from_q.total_count, body_facets.total_count);
+
+    let merged_filters = TraceFilters {
+        clause: Some(FilterClause::Service("__no_such_service__".to_string())),
+        ..Default::default()
+    };
+    let (status, merged_facets_body) = fetch_facets_raw(
+        &helper,
+        &with_q("/scouter/trace/facets", "component:kafka"),
+        &merged_filters,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let merged_facets: TraceFacetsResponse = serde_json::from_slice(&merged_facets_body).unwrap();
+    assert_eq!(
+        merged_facets.total_count, 0,
+        "facets query/body merge should return the exact empty intersection"
+    );
+
+    let body_spans = fetch_spans_from_filters(&helper, &body_filters).await;
+    let (status, spans_q_body) = fetch_spans_from_filters_raw(
+        &helper,
+        &with_q("/scouter/trace/spans/filters", "component:kafka"),
+        &TraceFilters::default(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let spans_from_q: TraceSpansResponse = serde_json::from_slice(&spans_q_body).unwrap();
+    assert_eq!(spans_from_q.spans.len(), body_spans.spans.len());
+
+    let (status, merged_spans_body) = fetch_spans_from_filters_raw(
+        &helper,
+        &with_q("/scouter/trace/spans/filters", "component:kafka"),
+        &merged_filters,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let merged_spans: TraceSpansResponse = serde_json::from_slice(&merged_spans_body).unwrap();
+    assert!(
+        merged_spans.spans.is_empty(),
+        "spans query/body merge should return the exact empty intersection"
+    );
+
+    let invalid_q = "(start_time:2026-01-01T00:00:00Z component:kafka)";
+    let (status, _) = fetch_metrics_raw(
+        &helper,
+        "/scouter/trace/metrics",
+        &TraceMetricsRequest {
+            start_time: now - chrono::Duration::hours(24),
+            end_time: now + chrono::Duration::hours(1),
+            bucket_interval: "hour".to_string(),
+            clause: None,
+            entity_uid: None,
+            query: Some(invalid_q.to_string()),
+        },
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (status, _) = fetch_facets_raw(
+        &helper,
+        &with_q("/scouter/trace/facets", invalid_q),
+        &TraceFilters::default(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (status, _) = fetch_spans_from_filters_raw(
+        &helper,
+        &with_q("/scouter/trace/spans/filters", invalid_q),
+        &TraceFilters::default(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn test_spans_from_filters_accepts_mixed_or_clause() {
+    let helper = setup_test().await;
+    helper.generate_trace_data().await.unwrap();
+    wait_for_paginated_count(&helper, 100).await;
+
+    let all = fetch_paginated(
+        &helper,
+        &TraceFilters {
+            limit: Some(200),
+            ..Default::default()
+        },
+    )
+    .await;
+    let service_name = all
+        .items
+        .first()
+        .expect("generated traces should include at least one summary")
+        .service_name
+        .clone();
+
+    let filters = TraceFilters {
+        clause: Some(FilterClause::Or(vec![
+            FilterClause::Service(service_name),
+            FilterClause::Attr {
+                key: "component".to_string(),
+                value: "kafka".to_string(),
+            },
+        ])),
+        limit: Some(25),
+        ..Default::default()
+    };
+    let (status, body) =
+        fetch_spans_from_filters_raw(&helper, "/scouter/trace/spans/filters", &filters).await;
+
+    // This route uses the fourth planner consumer; mixed OR must remain a legal
+    // query shape instead of failing during summary/span planning.
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "unexpected response: {}",
+        String::from_utf8_lossy(&body)
+    );
+    let spans: TraceSpansResponse = serde_json::from_slice(&body).unwrap();
+    assert!(!spans.spans.is_empty());
 }
 
 #[tokio::test]
@@ -407,6 +773,102 @@ async fn test_trace_pagination() {
 }
 
 #[tokio::test]
+async fn test_post_trace_search_cursor_and_validation_paths() {
+    let helper = setup_test().await;
+    helper.generate_trace_data().await.unwrap();
+    wait_for_paginated_count(&helper, 100).await;
+
+    let first_filters = TraceFilters {
+        limit: Some(2),
+        ..Default::default()
+    };
+    let (status, body) =
+        fetch_paginated_with_query(&helper, "component:kafka", &first_filters).await;
+    assert_eq!(status, StatusCode::OK);
+    let first_page: TracePaginationResponse = serde_json::from_slice(&body).unwrap();
+    assert_eq!(first_page.items.len(), 2);
+    assert!(first_page.has_next);
+
+    let next_cursor = first_page.next_cursor.as_ref().unwrap();
+    let second_filters = TraceFilters {
+        limit: Some(2),
+        cursor_start_time: Some(next_cursor.start_time),
+        cursor_trace_id: Some(next_cursor.trace_id.clone()),
+        direction: Some("next".to_string()),
+        ..Default::default()
+    };
+    let (status, body) =
+        fetch_paginated_with_query(&helper, "component:kafka", &second_filters).await;
+    assert_eq!(status, StatusCode::OK);
+    let second_page: TracePaginationResponse = serde_json::from_slice(&body).unwrap();
+    assert!(!second_page.items.is_empty());
+    assert!(second_page.has_previous);
+
+    let first_ids: HashSet<String> = first_page
+        .items
+        .iter()
+        .map(|item| item.trace_id.clone())
+        .collect();
+    let second_ids: HashSet<String> = second_page
+        .items
+        .iter()
+        .map(|item| item.trace_id.clone())
+        .collect();
+    assert!(first_ids.is_disjoint(&second_ids));
+
+    let mut previous_start = first_page.items[0].start_time;
+    for item in first_page
+        .items
+        .iter()
+        .skip(1)
+        .chain(second_page.items.iter())
+    {
+        assert!(item.start_time <= previous_start);
+        previous_start = item.start_time;
+    }
+
+    let (status, _) =
+        fetch_paginated_with_query(&helper, "trace_id:not-a-hex-id", &TraceFilters::default())
+            .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    let (status, _) = fetch_paginated_with_query(
+        &helper,
+        "component:kafka",
+        &TraceFilters {
+            trace_ids: Some(vec!["not-a-hex-id".to_string()]),
+            ..Default::default()
+        },
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    let (status, _) = fetch_paginated_with_query(
+        &helper,
+        "component:kafka",
+        &TraceFilters {
+            cursor_start_time: Some(next_cursor.start_time),
+            cursor_trace_id: Some("not-a-hex-id".to_string()),
+            direction: Some("next".to_string()),
+            ..Default::default()
+        },
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    let (status, _) = fetch_paginated_with_query(
+        &helper,
+        "component:kafka",
+        &TraceFilters {
+            direction: Some("sideways".to_string()),
+            ..Default::default()
+        },
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
 async fn test_paginated_traces_duration_min() {
     let helper = setup_test().await;
     helper
@@ -417,7 +879,7 @@ async fn test_paginated_traces_duration_min() {
     wait_for_paginated_count(&helper, 4).await;
 
     let filters = TraceFilters {
-        duration_min_ms: Some(500),
+        clause: Some(FilterClause::DurationMinMs(500)),
         limit: Some(50),
         ..Default::default()
     };
@@ -443,7 +905,7 @@ async fn test_paginated_traces_duration_max() {
     wait_for_paginated_count(&helper, 4).await;
 
     let filters = TraceFilters {
-        duration_max_ms: Some(300),
+        clause: Some(FilterClause::DurationMaxMs(300)),
         limit: Some(50),
         ..Default::default()
     };
@@ -465,8 +927,10 @@ async fn test_paginated_traces_duration_range_inclusive() {
     wait_for_paginated_count(&helper, 5).await;
 
     let filters = TraceFilters {
-        duration_min_ms: Some(100),
-        duration_max_ms: Some(500),
+        clause: Some(FilterClause::And(vec![
+            FilterClause::DurationMinMs(100),
+            FilterClause::DurationMaxMs(500),
+        ])),
         limit: Some(50),
         ..Default::default()
     };
@@ -491,17 +955,12 @@ async fn test_trace_metrics_duration_filter() {
     let unfiltered = fetch_metrics(
         &helper,
         &TraceMetricsRequest {
-            service_name: None,
-            service_namespace: None,
-            service_version: None,
-            service_instance_id: None,
             start_time: now - chrono::Duration::hours(2),
             end_time: now + chrono::Duration::hours(1),
             bucket_interval: "hour".to_string(),
-            attribute_filters: None,
+            clause: None,
             entity_uid: None,
-            duration_min_ms: None,
-            duration_max_ms: None,
+            query: None,
         },
     )
     .await;
@@ -510,17 +969,12 @@ async fn test_trace_metrics_duration_filter() {
     let min_only = fetch_metrics(
         &helper,
         &TraceMetricsRequest {
-            service_name: None,
-            service_namespace: None,
-            service_version: None,
-            service_instance_id: None,
             start_time: now - chrono::Duration::hours(2),
             end_time: now + chrono::Duration::hours(1),
             bucket_interval: "hour".to_string(),
-            attribute_filters: None,
+            clause: Some(FilterClause::DurationMinMs(500)),
             entity_uid: None,
-            duration_min_ms: Some(500),
-            duration_max_ms: None,
+            query: None,
         },
     )
     .await;
@@ -538,17 +992,12 @@ async fn test_trace_metrics_duration_filter() {
     let max_only = fetch_metrics(
         &helper,
         &TraceMetricsRequest {
-            service_name: None,
-            service_namespace: None,
-            service_version: None,
-            service_instance_id: None,
             start_time: now - chrono::Duration::hours(2),
             end_time: now + chrono::Duration::hours(1),
             bucket_interval: "hour".to_string(),
-            attribute_filters: None,
+            clause: Some(FilterClause::DurationMaxMs(300)),
             entity_uid: None,
-            duration_min_ms: None,
-            duration_max_ms: Some(300),
+            query: None,
         },
     )
     .await;
@@ -561,17 +1010,15 @@ async fn test_trace_metrics_duration_filter() {
     let bounded = fetch_metrics(
         &helper,
         &TraceMetricsRequest {
-            service_name: None,
-            service_namespace: None,
-            service_version: None,
-            service_instance_id: None,
             start_time: now - chrono::Duration::hours(2),
             end_time: now + chrono::Duration::hours(1),
             bucket_interval: "hour".to_string(),
-            attribute_filters: None,
+            clause: Some(FilterClause::And(vec![
+                FilterClause::DurationMinMs(200),
+                FilterClause::DurationMaxMs(800),
+            ])),
             entity_uid: None,
-            duration_min_ms: Some(200),
-            duration_max_ms: Some(800),
+            query: None,
         },
     )
     .await;
@@ -584,17 +1031,12 @@ async fn test_trace_metrics_duration_filter() {
     let wider_max = fetch_metrics(
         &helper,
         &TraceMetricsRequest {
-            service_name: None,
-            service_namespace: None,
-            service_version: None,
-            service_instance_id: None,
             start_time: now - chrono::Duration::hours(2),
             end_time: now + chrono::Duration::hours(1),
             bucket_interval: "hour".to_string(),
-            attribute_filters: None,
+            clause: Some(FilterClause::DurationMaxMs(1_000)),
             entity_uid: None,
-            duration_min_ms: None,
-            duration_max_ms: Some(1_000),
+            query: None,
         },
     )
     .await;
@@ -616,7 +1058,7 @@ async fn test_spans_from_filters_duration() {
     wait_for_paginated_count(&helper, 2).await;
 
     let min_only_filters = TraceFilters {
-        duration_min_ms: Some(1000),
+        clause: Some(FilterClause::DurationMinMs(1000)),
         ..Default::default()
     };
     let min_only_response = fetch_spans_from_filters(&helper, &min_only_filters).await;
@@ -639,7 +1081,7 @@ async fn test_spans_from_filters_duration() {
     let max_only_response = fetch_spans_from_filters(
         &helper,
         &TraceFilters {
-            duration_max_ms: Some(200),
+            clause: Some(FilterClause::DurationMaxMs(200)),
             ..Default::default()
         },
     )
@@ -655,8 +1097,10 @@ async fn test_spans_from_filters_duration() {
     let bounded_response = fetch_spans_from_filters(
         &helper,
         &TraceFilters {
-            duration_min_ms: Some(1200),
-            duration_max_ms: Some(2000),
+            clause: Some(FilterClause::And(vec![
+                FilterClause::DurationMinMs(1200),
+                FilterClause::DurationMaxMs(2000),
+            ])),
             ..Default::default()
         },
     )
@@ -683,10 +1127,11 @@ async fn test_paginated_traces_inverted_range_rejected() {
         .unwrap();
     wait_for_paginated_count(&helper, 3).await;
 
-    // min > max → 400 Bad Request
     let body = serde_json::to_string(&TraceFilters {
-        duration_min_ms: Some(500),
-        duration_max_ms: Some(100),
+        clause: Some(FilterClause::And(vec![
+            FilterClause::DurationMinMs(500),
+            FilterClause::DurationMaxMs(100),
+        ])),
         ..Default::default()
     })
     .unwrap();
@@ -1034,7 +1479,7 @@ async fn test_trace_facets() {
     let svc_facets = fetch_facets(
         &helper,
         &TraceFilters {
-            service_name: Some(first_svc),
+            clause: Some(FilterClause::Service(first_svc)),
             ..Default::default()
         },
     )
@@ -1049,7 +1494,7 @@ async fn test_trace_facets() {
     let duration_facets = fetch_facets(
         &helper,
         &TraceFilters {
-            duration_min_ms: Some(500),
+            clause: Some(FilterClause::DurationMinMs(500)),
             ..Default::default()
         },
     )
@@ -1063,7 +1508,7 @@ async fn test_trace_facets() {
     let error_facets = fetch_facets(
         &helper,
         &TraceFilters {
-            has_errors: Some(true),
+            clause: Some(FilterClause::HasErrors(true)),
             ..Default::default()
         },
     )
@@ -1084,7 +1529,7 @@ async fn test_trace_facets() {
     let no_error_facets = fetch_facets(
         &helper,
         &TraceFilters {
-            has_errors: Some(false),
+            clause: Some(FilterClause::HasErrors(false)),
             ..Default::default()
         },
     )
@@ -1097,15 +1542,8 @@ async fn test_trace_facets() {
         "no-error filter should not return ERROR bucket"
     );
 
-    // attribute_filters: component=kafka matches ~10% of mock spans
-    let attr_facets = fetch_facets(
-        &helper,
-        &TraceFilters {
-            attribute_filters: Some(vec!["component=kafka".to_string()]),
-            ..Default::default()
-        },
-    )
-    .await;
+    // component:kafka matches ~10% of mock spans
+    let attr_facets = fetch_facets(&helper, &TraceFilters::parse("component:kafka").unwrap()).await;
     assert!(
         attr_facets.total_count < facets.total_count,
         "attribute filter should reduce total_count below unfiltered"
@@ -1115,13 +1553,10 @@ async fn test_trace_facets() {
         "component=kafka should match at least one trace"
     );
 
-    // attribute_filters: nonexistent value → lit(false) branch → zero results
+    // nonexistent attribute value → lit(false) branch → zero results
     let empty_attr_facets = fetch_facets(
         &helper,
-        &TraceFilters {
-            attribute_filters: Some(vec!["component=nonexistent_xyz_abc".to_string()]),
-            ..Default::default()
-        },
+        &TraceFilters::parse("component:nonexistent_xyz_abc").unwrap(),
     )
     .await;
     assert_eq!(
@@ -1138,7 +1573,7 @@ async fn test_trace_facets() {
     );
 }
 
-// Regression: attribute_filters + time bounds must not fail with "column not found"
+// Regression: clause + time bounds must not fail with "column not found"
 // for PARTITION_DATE_COL. Previously, select_columns was called before the partition
 // filter, stripping the column from the schema.
 #[tokio::test]
@@ -1151,11 +1586,11 @@ async fn test_paginated_traces_attribute_filter_with_time_bounds() {
     let start = now - chrono::Duration::hours(2);
     let end = now + chrono::Duration::hours(1);
 
-    // attribute_filters + start_time + end_time: the combination that triggered the bug
+    // clause + start_time + end_time: the combination that triggered the bug
     let result = fetch_paginated(
         &helper,
         &TraceFilters {
-            attribute_filters: Some(vec!["component=kafka".to_string()]),
+            clause: TraceFilters::parse("component:kafka").unwrap().clause,
             start_time: Some(start),
             end_time: Some(end),
             ..Default::default()
@@ -1170,7 +1605,7 @@ async fn test_paginated_traces_attribute_filter_with_time_bounds() {
     let wide_result = fetch_paginated(
         &helper,
         &TraceFilters {
-            attribute_filters: Some(vec!["component=kafka".to_string()]),
+            clause: TraceFilters::parse("component:kafka").unwrap().clause,
             start_time: Some(now - chrono::Duration::hours(24)),
             end_time: Some(now + chrono::Duration::hours(1)),
             ..Default::default()
@@ -1183,7 +1618,7 @@ async fn test_paginated_traces_attribute_filter_with_time_bounds() {
     );
 }
 
-// Regression: same bug in get_trace_facets attribute_filters path.
+// Regression: same bug in get_trace_facets clause path.
 #[tokio::test]
 async fn test_trace_facets_attribute_filter_with_time_bounds() {
     let helper = setup_test().await;
@@ -1196,7 +1631,7 @@ async fn test_trace_facets_attribute_filter_with_time_bounds() {
     let narrow = fetch_facets(
         &helper,
         &TraceFilters {
-            attribute_filters: Some(vec!["component=kafka".to_string()]),
+            clause: TraceFilters::parse("component:kafka").unwrap().clause,
             start_time: Some(now - chrono::Duration::hours(1)),
             end_time: Some(now + chrono::Duration::minutes(5)),
             ..Default::default()
@@ -1209,7 +1644,7 @@ async fn test_trace_facets_attribute_filter_with_time_bounds() {
     let wide = fetch_facets(
         &helper,
         &TraceFilters {
-            attribute_filters: Some(vec!["component=kafka".to_string()]),
+            clause: TraceFilters::parse("component:kafka").unwrap().clause,
             start_time: Some(now - chrono::Duration::hours(24)),
             end_time: Some(now + chrono::Duration::hours(1)),
             ..Default::default()

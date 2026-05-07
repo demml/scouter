@@ -2,10 +2,11 @@ use crate::PyHelperFuncs;
 use crate::TraceCursor;
 use crate::error::TypeError;
 use crate::json_to_pyobject_value;
-use crate::trace::{Attribute, SpanEvent, SpanLink};
+use crate::trace::{Attribute, FilterClause, SpanEvent, SpanLink};
 use chrono::{DateTime, Utc};
 use pyo3::IntoPyObjectExt;
 use pyo3::prelude::*;
+use pyo3::types::PyType;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 #[cfg(feature = "server")]
@@ -203,12 +204,7 @@ impl FromRow<'_, PgRow> for TraceSpan {
 #[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[pyclass(from_py_object)]
 pub struct TraceFilters {
-    #[pyo3(get, set)]
-    pub service_name: Option<String>,
-    #[pyo3(get, set)]
-    pub has_errors: Option<bool>,
-    #[pyo3(get, set)]
-    pub status_code: Option<i32>,
+    pub clause: Option<FilterClause>,
     #[pyo3(get, set)]
     pub start_time: Option<DateTime<Utc>>,
     #[pyo3(get, set)]
@@ -222,23 +218,11 @@ pub struct TraceFilters {
     #[pyo3(get, set)]
     pub direction: Option<String>,
     #[pyo3(get, set)]
-    pub attribute_filters: Option<Vec<String>>,
-    #[pyo3(get, set)]
     pub trace_ids: Option<Vec<String>>,
     #[pyo3(get, set)]
     pub entity_uid: Option<String>,
     #[pyo3(get, set)]
     pub queue_uid: Option<String>,
-    #[pyo3(get, set)]
-    pub duration_min_ms: Option<i64>,
-    #[pyo3(get, set)]
-    pub duration_max_ms: Option<i64>,
-    #[pyo3(get, set)]
-    pub service_namespace: Option<String>,
-    #[pyo3(get, set)]
-    pub service_version: Option<String>,
-    #[pyo3(get, set)]
-    pub service_instance_id: Option<String>,
 }
 
 #[pymethods]
@@ -246,75 +230,74 @@ pub struct TraceFilters {
 impl TraceFilters {
     #[new]
     #[pyo3(signature = (
-        service_name=None,
-        has_errors=None,
-        status_code=None,
         start_time=None,
         end_time=None,
         limit=None,
         cursor_start_time=None,
         cursor_trace_id=None,
-        attribute_filters=None,
+        direction=None,
         trace_ids=None,
         entity_uid=None,
-        queue_uid=None,
-        duration_min_ms=None,
-        duration_max_ms=None,
-        service_namespace=None,
-        service_version=None,
-        service_instance_id=None
+        queue_uid=None
     ))]
     pub fn new(
-        service_name: Option<String>,
-        has_errors: Option<bool>,
-        status_code: Option<i32>,
         start_time: Option<DateTime<Utc>>,
         end_time: Option<DateTime<Utc>>,
         limit: Option<i32>,
         cursor_start_time: Option<DateTime<Utc>>,
         cursor_trace_id: Option<String>,
-        attribute_filters: Option<Vec<String>>,
+        direction: Option<String>,
         trace_ids: Option<Vec<String>>,
         entity_uid: Option<String>,
         queue_uid: Option<String>,
-        duration_min_ms: Option<i64>,
-        duration_max_ms: Option<i64>,
-        service_namespace: Option<String>,
-        service_version: Option<String>,
-        service_instance_id: Option<String>,
     ) -> Self {
         TraceFilters {
-            service_name,
-            has_errors,
-            status_code,
+            clause: None,
             start_time,
             end_time,
             limit,
             cursor_start_time,
             cursor_trace_id,
-            direction: None,
-            attribute_filters,
+            direction,
             trace_ids,
             entity_uid,
             queue_uid,
-            duration_min_ms,
-            duration_max_ms,
-            service_namespace,
-            service_version,
-            service_instance_id,
         }
+    }
+
+    #[classmethod]
+    pub fn from_query(_cls: &Bound<'_, PyType>, q: &str) -> Result<Self, TypeError> {
+        crate::trace::query::parse_search_query(q)
+    }
+
+    #[getter]
+    pub fn clause<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TypeError> {
+        let value = match &self.clause {
+            Some(clause) => serde_json::to_value(clause)?,
+            None => Value::Null,
+        };
+        Ok(json_to_pyobject_value(py, &value)?
+            .into_bound_py_any(py)?
+            .clone())
     }
 }
 
 impl TraceFilters {
-    pub fn with_service(mut self, service: impl Into<String>) -> Self {
-        self.service_name = Some(service.into());
+    pub fn parse(q: &str) -> Result<Self, TypeError> {
+        crate::trace::query::parse_search_query(q)
+    }
+
+    pub fn and_clause(mut self, clause: FilterClause) -> Self {
+        self.clause = FilterClause::and_merge(self.clause, Some(clause));
         self
     }
 
-    pub fn with_errors_only(mut self) -> Self {
-        self.has_errors = Some(true);
-        self
+    pub fn with_service(self, service: impl Into<String>) -> Self {
+        self.and_clause(FilterClause::Service(service.into()))
+    }
+
+    pub fn with_errors_only(self) -> Self {
+        self.and_clause(FilterClause::HasErrors(true))
     }
 
     pub fn with_time_range(mut self, start: DateTime<Utc>, end: DateTime<Utc>) -> Self {
@@ -324,8 +307,12 @@ impl TraceFilters {
     }
 
     pub fn with_duration_range(mut self, min_ms: Option<i64>, max_ms: Option<i64>) -> Self {
-        self.duration_min_ms = min_ms;
-        self.duration_max_ms = max_ms;
+        if let Some(min_ms) = min_ms {
+            self = self.and_clause(FilterClause::DurationMinMs(min_ms));
+        }
+        if let Some(max_ms) = max_ms {
+            self = self.and_clause(FilterClause::DurationMaxMs(max_ms));
+        }
         self
     }
 

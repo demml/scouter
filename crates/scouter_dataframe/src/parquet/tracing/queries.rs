@@ -1,5 +1,5 @@
 use crate::error::TraceEngineError;
-use crate::parquet::utils::match_attr_expr;
+use crate::parquet::tracing::planner::{self, TimeWindow, apply_id_constraint};
 use arrow::array::RecordBatch;
 use arrow::array::{
     BinaryArray, Int32Array, Int64Array, ListArray, MapArray, StringArray,
@@ -19,6 +19,7 @@ use scouter_types::{Attribute, SpanEvent, SpanId, SpanLink, TraceId};
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tracing::{error, info, instrument};
 
@@ -71,11 +72,12 @@ pub const OUTPUT_COL: &str = "output";
 pub const SEARCH_BLOB_COL: &str = "search_blob";
 pub const ENTITY_ID_COL: &str = "entity_id";
 pub const SPAN_TABLE_NAME: &str = "trace_spans";
+pub(crate) const SUMMARY_TABLE_NAME: &str = "trace_summaries";
+pub(crate) const ERROR_COUNT_COL: &str = "error_count";
+pub(crate) const ENTITY_IDS_COL: &str = "entity_ids";
+pub(crate) const QUEUE_IDS_COL: &str = "queue_ids";
 
-const SUMMARY_TABLE_NAME: &str = "trace_summaries";
-const ERROR_COUNT_COL: &str = "error_count";
-const ENTITY_IDS_COL: &str = "entity_ids";
-const QUEUE_IDS_COL: &str = "queue_ids";
+static METRICS_SUMMARY_VIEW_SEQ: AtomicU64 = AtomicU64::new(0);
 
 /// Columns needed to reconstruct a `TraceSpan` (all fields except search_blob).
 const SPAN_COLUMNS: &[&str] = &[
@@ -763,22 +765,6 @@ fn flat_to_trace_span(
     }
 }
 
-/// Normalize an attribute filter string for search_blob LIKE matching.
-///
-/// Converts `key:value` separator to `key=value` (standardized format) so filters match
-/// the pipe-bounded `|key=value|` blob written by `build_search_blob()`.
-///
-/// Note: URL-like patterns (`http://`) are left unchanged to avoid breaking URL values.
-pub(crate) fn normalize_attr_filter(filter: &str) -> String {
-    let normalized = match filter.find(':') {
-        Some(pos) if !filter[pos..].starts_with("://") => {
-            format!("{}={}", &filter[..pos], &filter[pos + 1..])
-        }
-        _ => filter.to_string(),
-    };
-    format!("%{}%", normalized)
-}
-
 /// High-performance query patterns for Delta Lake trace storage.
 ///
 /// Time predicates are always applied FIRST to enable Delta Lake partition pruning.
@@ -794,32 +780,16 @@ pub struct TraceQueries {
 }
 
 /// Compute a stable u64 cache key from all `get_trace_metrics` parameters.
-#[allow(clippy::too_many_arguments)]
-fn metrics_cache_key(
-    service_name: Option<&str>,
-    service_namespace: Option<&str>,
-    service_version: Option<&str>,
-    service_instance_id: Option<&str>,
-    start_time: &DateTime<Utc>,
-    end_time: &DateTime<Utc>,
-    bucket_interval: &str,
-    attribute_filters: Option<&[String]>,
-    entity_uid: Option<&str>,
-    duration_min_ms: Option<i64>,
-    duration_max_ms: Option<i64>,
-) -> u64 {
+fn metrics_cache_key(request: &scouter_types::TraceMetricsRequest, bucket_interval: &str) -> u64 {
     let mut h = ahash::AHasher::default();
-    service_name.hash(&mut h);
-    service_namespace.hash(&mut h);
-    service_version.hash(&mut h);
-    service_instance_id.hash(&mut h);
-    start_time.timestamp_micros().hash(&mut h);
-    end_time.timestamp_micros().hash(&mut h);
+    // Planner semantics affect which traces enter each bucket; versioning keeps
+    // short-lived cache entries from crossing a planner upgrade boundary.
+    planner::PLANNER_VERSION.hash(&mut h);
+    request.start_time.timestamp_micros().hash(&mut h);
+    request.end_time.timestamp_micros().hash(&mut h);
     bucket_interval.hash(&mut h);
-    attribute_filters.hash(&mut h);
-    entity_uid.hash(&mut h);
-    duration_min_ms.hash(&mut h);
-    duration_max_ms.hash(&mut h);
+    request.entity_uid.hash(&mut h);
+    request.clause.hash(&mut h);
     h.finish()
 }
 
@@ -983,38 +953,15 @@ impl TraceQueries {
     /// spans of a trace (not per-span `duration_ms`). Root service is the service of the span
     /// where `parent_span_id IS NULL`. Service filter applies to root spans only.
     ///
-    /// `attribute_filters` is a list of `"key:value"` strings OR-matched against `search_blob`.
     /// `entity_trace_ids` is an optional pre-resolved list of binary trace IDs (16 bytes each).
     #[instrument(skip_all)]
-    #[allow(clippy::too_many_arguments)]
     pub async fn get_trace_metrics(
         &self,
-        service_name: Option<&str>,
-        service_namespace: Option<&str>,
-        service_version: Option<&str>,
-        service_instance_id: Option<&str>,
-        start_time: DateTime<Utc>,
-        end_time: DateTime<Utc>,
+        request: &scouter_types::TraceMetricsRequest,
         bucket_interval: &str,
-        attribute_filters: Option<&[String]>,
-        entity_uid: Option<&str>,
-        duration_min_ms: Option<i64>,
-        duration_max_ms: Option<i64>,
     ) -> Result<Vec<TraceMetricBucket>, TraceEngineError> {
         // Cache hit: return immediately without touching Delta Lake.
-        let cache_key = metrics_cache_key(
-            service_name,
-            service_namespace,
-            service_version,
-            service_instance_id,
-            &start_time,
-            &end_time,
-            bucket_interval,
-            attribute_filters,
-            entity_uid,
-            duration_min_ms,
-            duration_max_ms,
-        );
+        let cache_key = metrics_cache_key(request, bucket_interval);
         if let Some(cached) = self.metrics_cache.get(&cache_key) {
             return Ok((*cached).clone());
         }
@@ -1038,30 +985,19 @@ impl TraceQueries {
 
         // Partition directory pruning — eliminates whole YYYY-MM-DD/ directories before
         // DataFusion reads a single file's metadata or Parquet column statistics.
-        spans_df = spans_df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start_time)))?;
-        spans_df = spans_df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end_time)))?;
+        spans_df = spans_df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&request.start_time)))?;
+        spans_df = spans_df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&request.end_time)))?;
 
         // Row-group pruning — typed Timestamp(Microsecond, UTC) literals let DataFusion
         // use Parquet column min/max stats within the surviving partition directories.
-        spans_df = spans_df.filter(col(START_TIME_COL).gt_eq(ts_lit(&start_time)))?;
-        spans_df = spans_df.filter(col(START_TIME_COL).lt(ts_lit(&end_time)))?;
-
-        // Service dimension filters applied pre-aggregation — enables bloom + stats pushdown.
-        if let Some(ns) = service_namespace {
-            spans_df = spans_df.filter(col(SERVICE_NAMESPACE_COL).eq(lit(ns)))?;
-        }
-        if let Some(ver) = service_version {
-            spans_df = spans_df.filter(col(SERVICE_VERSION_COL).eq(lit(ver)))?;
-        }
-        if let Some(iid) = service_instance_id {
-            spans_df = spans_df.filter(col(SERVICE_INSTANCE_ID_COL).eq(lit(iid)))?;
-        }
+        spans_df = spans_df.filter(col(START_TIME_COL).gt_eq(ts_lit(&request.start_time)))?;
+        spans_df = spans_df.filter(col(START_TIME_COL).lt(ts_lit(&request.end_time)))?;
 
         // ── Phase 2: Entity filter — optional INNER JOIN against summary table ──
         //
         // Resolves the set of matching trace IDs from the summary table (time-first),
         // then INNER JOIN into spans.  Replaces the `entity_traces` CTE + join.
-        if let Some(uid) = entity_uid {
+        if let Some(uid) = &request.entity_uid {
             let mut entity_df = self
                 .ctx
                 .table(SUMMARY_TABLE_NAME)
@@ -1069,11 +1005,11 @@ impl TraceQueries {
                 .map_err(TraceEngineError::DatafusionError)?;
 
             // Summary-side time pruning (same partition-pruning principle as spans).
-            entity_df = entity_df.filter(col(START_TIME_COL).gt_eq(ts_lit(&start_time)))?;
-            entity_df = entity_df.filter(col(START_TIME_COL).lt(ts_lit(&end_time)))?;
+            entity_df = entity_df.filter(col(START_TIME_COL).gt_eq(ts_lit(&request.start_time)))?;
+            entity_df = entity_df.filter(col(START_TIME_COL).lt(ts_lit(&request.end_time)))?;
             entity_df = entity_df.filter(datafusion::functions_nested::expr_fn::array_has(
                 col(ENTITY_IDS_COL),
-                lit(uid),
+                lit(uid.as_str()),
             ))?;
 
             // Alias to avoid ambiguous `trace_id` column in the JOIN output schema.
@@ -1111,43 +1047,36 @@ impl TraceQueries {
             df_cast(col(SERVICE_NAME_COL), DataType::Utf8),
         )
         .end()?;
+        let root_namespace_case = when(
+            col(PARENT_SPAN_ID_COL).is_null(),
+            df_cast(col(SERVICE_NAMESPACE_COL), DataType::Utf8),
+        )
+        .end()?;
+        let root_version_case = when(
+            col(PARENT_SPAN_ID_COL).is_null(),
+            df_cast(col(SERVICE_VERSION_COL), DataType::Utf8),
+        )
+        .end()?;
+        let root_instance_case = when(
+            col(PARENT_SPAN_ID_COL).is_null(),
+            df_cast(col(SERVICE_INSTANCE_ID_COL), DataType::Utf8),
+        )
+        .end()?;
+        let error_count_case =
+            when(col(STATUS_CODE_COL).eq(lit(2i32)), lit(1i64)).otherwise(lit(0i64))?;
 
-        let has_attr_filter = attribute_filters.is_some_and(|f| !f.is_empty());
-
-        let mut agg_exprs: Vec<Expr> = vec![
-            min(col(START_TIME_COL)).alias("trace_start"),
+        let agg_exprs: Vec<Expr> = vec![
+            min(col(START_TIME_COL)).alias(START_TIME_COL),
             max(col(END_TIME_COL)).alias("trace_end"),
-            max(root_service_case).alias("root_service"),
-            max(col(STATUS_CODE_COL)).alias("status_code"),
+            max(root_service_case).alias(SERVICE_NAME_COL),
+            max(root_namespace_case).alias(SERVICE_NAMESPACE_COL),
+            max(root_version_case).alias(SERVICE_VERSION_COL),
+            max(root_instance_case).alias(SERVICE_INSTANCE_ID_COL),
+            max(col(STATUS_CODE_COL)).alias(STATUS_CODE_COL),
+            max(error_count_case).alias(ERROR_COUNT_COL),
         ];
 
-        // Attribute filter: OR-chain match_attr() calls over search_blob, cast to Int64,
-        // then MAX to get 1 if any span in the trace matched.
-        // Single-pass: avoids a second table scan for attribute filtering.
-        // Post-aggregate .filter(attr_match = 1) replaces the SQL HAVING clause.
-        if has_attr_filter {
-            let filters = attribute_filters.unwrap();
-            let mut match_expr: Option<Expr> = None;
-            for f in filters {
-                let pattern = normalize_attr_filter(f);
-                let cond = match_attr_expr(col(SEARCH_BLOB_COL), lit(pattern));
-                match_expr = Some(match match_expr {
-                    None => cond,
-                    Some(e) => e.or(cond),
-                });
-            }
-            // CAST(bool OR-chain AS INT64): true → 1, false → 0.
-            // MAX over the group gives 1 if any span matched.
-            let attr_int = df_cast(match_expr.unwrap(), DataType::Int64);
-            agg_exprs.push(max(attr_int).alias("attr_match"));
-        }
-
-        let mut trace_level_df = spans_df.aggregate(vec![col(TRACE_ID_COL)], agg_exprs)?;
-
-        // HAVING attr_match = 1 — post-aggregate filter (SQL HAVING equivalent).
-        if has_attr_filter {
-            trace_level_df = trace_level_df.filter(col("attr_match").eq(lit(1i64)))?;
-        }
+        let trace_level_df = spans_df.aggregate(vec![col(TRACE_ID_COL)], agg_exprs)?;
 
         // ── Phase 4: service_filtered — duration_ms, null guard, service filter ──
         //
@@ -1157,31 +1086,66 @@ impl TraceQueries {
         // Computed here (after the per-trace aggregate) to avoid the DataFusion
         // restriction on duplicate aggregate expressions in the same SELECT.
         let duration_expr = (df_cast(col("trace_end"), DataType::Int64)
-            - df_cast(col("trace_start"), DataType::Int64))
+            - df_cast(col(START_TIME_COL), DataType::Int64))
             / lit(1000i64);
 
         let mut service_filtered_df = trace_level_df
             .filter(col("trace_end").is_not_null())?
             .with_column("duration_ms", duration_expr)?;
 
-        if let Some(min_ms) = duration_min_ms {
-            service_filtered_df =
-                service_filtered_df.filter(col("duration_ms").gt_eq(lit(min_ms)))?;
-        }
-        if let Some(max_ms) = duration_max_ms {
-            service_filtered_df =
-                service_filtered_df.filter(col("duration_ms").lt_eq(lit(max_ms)))?;
-        }
+        if let Some(clause) = &request.clause {
+            let summary_view_seq = METRICS_SUMMARY_VIEW_SEQ.fetch_add(1, Ordering::Relaxed);
+            let summary_table_name = format!("_metrics_summary_{cache_key}_{summary_view_seq}");
+            self.ctx
+                .register_table(&summary_table_name, service_filtered_df.clone().into_view())
+                .map_err(TraceEngineError::DatafusionError)?;
 
-        if let Some(svc) = service_name {
-            service_filtered_df = service_filtered_df.filter(col("root_service").eq(lit(svc)))?;
+            let matching_trace_ids = planner::trace_ids_for_clause_with_summary_table(
+                clause,
+                &self.ctx,
+                planner::TimeWindow {
+                    start: Some(request.start_time),
+                    end: Some(request.end_time),
+                },
+                &summary_table_name,
+            )
+            .await;
+
+            let deregister_result = self
+                .ctx
+                .deregister_table(&summary_table_name)
+                .map_err(TraceEngineError::DatafusionError);
+
+            let matching_trace_ids = match (matching_trace_ids, deregister_result) {
+                (Ok(df), Ok(_)) => df,
+                (Ok(_), Err(err)) => return Err(err),
+                (Err(err), Ok(_)) => return Err(err),
+                (Err(err), Err(cleanup_err)) => {
+                    error!(
+                        "Failed to deregister metrics summary view {summary_table_name}: {cleanup_err:?}"
+                    );
+                    return Err(err);
+                }
+            };
+
+            let matching_trace_ids = matching_trace_ids
+                .select(vec![col(TRACE_ID_COL).alias("_metrics_clause_tid")])?
+                .distinct()?;
+
+            service_filtered_df = service_filtered_df.join(
+                matching_trace_ids,
+                JoinType::Inner,
+                &[TRACE_ID_COL],
+                &["_metrics_clause_tid"],
+                None,
+            )?;
         }
 
         // ── Phase 5: DATE_TRUNC bucket ───────────────────────────────────────
         //
         // Replaces the `bucketed` CTE.
         // date_trunc(precision_literal, timestamp_expr) — precision is a Utf8 scalar.
-        let bucket_expr = date_trunc(lit(bucket_interval), col("trace_start"));
+        let bucket_expr = date_trunc(lit(bucket_interval), col(START_TIME_COL));
         let bucketed_df = service_filtered_df.with_column("bucket_start", bucket_expr)?;
 
         // ── Phase 6: Final bucketed aggregation ─────────────────────────────
@@ -1316,51 +1280,13 @@ impl TraceQueries {
         &self,
         filters: &TraceFilters,
     ) -> Result<Vec<TraceSpan>, TraceEngineError> {
-        // ── Phase 1: Summary filters (time-first for partition pruning) ─────
-        let mut summary_df = self
-            .ctx
-            .table(SUMMARY_TABLE_NAME)
-            .await
-            .map_err(TraceEngineError::DatafusionError)?;
+        // ── Phase 1: Summary filters over the same deduped rows as pagination ─
+        let time_window = TimeWindow {
+            start: filters.start_time,
+            end: filters.end_time,
+        };
+        let mut summary_df = super::summary::deduped_summary_df(&self.ctx, time_window).await?;
 
-        if let Some(start) = filters.start_time {
-            summary_df = summary_df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
-            summary_df = summary_df.filter(col(START_TIME_COL).gt_eq(ts_lit(&start)))?;
-        }
-        if let Some(end) = filters.end_time {
-            summary_df = summary_df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end)))?;
-            summary_df = summary_df.filter(col(START_TIME_COL).lt(ts_lit(&end)))?;
-        }
-        if let Some(ref svc) = filters.service_name {
-            summary_df = summary_df.filter(col(SERVICE_NAME_COL).eq(lit(svc.as_str())))?;
-        }
-        if let Some(ref ns) = filters.service_namespace {
-            summary_df = summary_df.filter(col(SERVICE_NAMESPACE_COL).eq(lit(ns.as_str())))?;
-        }
-        if let Some(ref ver) = filters.service_version {
-            summary_df = summary_df.filter(col(SERVICE_VERSION_COL).eq(lit(ver.as_str())))?;
-        }
-        if let Some(ref iid) = filters.service_instance_id {
-            summary_df = summary_df.filter(col(SERVICE_INSTANCE_ID_COL).eq(lit(iid.as_str())))?;
-        }
-        match filters.has_errors {
-            Some(true) => {
-                summary_df = summary_df.filter(col(ERROR_COUNT_COL).gt(lit(0i64)))?;
-            }
-            Some(false) => {
-                summary_df = summary_df.filter(col(ERROR_COUNT_COL).eq(lit(0i64)))?;
-            }
-            None => {}
-        }
-        if let Some(sc) = filters.status_code {
-            summary_df = summary_df.filter(col(STATUS_CODE_COL).eq(lit(sc)))?;
-        }
-        if let Some(min_ms) = filters.duration_min_ms {
-            summary_df = summary_df.filter(col(DURATION_MS_COL).gt_eq(lit(min_ms)))?;
-        }
-        if let Some(max_ms) = filters.duration_max_ms {
-            summary_df = summary_df.filter(col(DURATION_MS_COL).lt_eq(lit(max_ms)))?;
-        }
         if let Some(ref uid) = filters.entity_uid {
             summary_df = summary_df.filter(datafusion::functions_nested::expr_fn::array_has(
                 col(ENTITY_IDS_COL),
@@ -1374,54 +1300,19 @@ impl TraceQueries {
             ))?;
         }
 
-        // ── Phase 1b: Attribute filter join (keeps everything in DataFusion) ─
-        if let Some(ref attr_filters) = filters.attribute_filters
-            && !attr_filters.is_empty()
-        {
-            let mut attr_df = self
-                .ctx
-                .table(SPAN_TABLE_NAME)
-                .await
-                .map_err(TraceEngineError::DatafusionError)?;
-
-            // Time pruning on the span side
-            if let Some(start) = filters.start_time {
-                attr_df = attr_df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
-                attr_df = attr_df.filter(col(START_TIME_COL).gt_eq(ts_lit(&start)))?;
+        if let Some(clause) = &filters.clause {
+            let plan = planner::plan_clause(clause);
+            let resolved = planner::execute_plan(&plan, &self.ctx, time_window).await?;
+            if resolved.contradiction {
+                summary_df = summary_df.filter(lit(false))?;
+            } else {
+                if let Some(expr) = resolved.summary_filter {
+                    summary_df = summary_df.filter(expr)?;
+                }
+                for constraint in resolved.id_constraints {
+                    summary_df = apply_id_constraint(summary_df, constraint).await?;
+                }
             }
-            if let Some(end) = filters.end_time {
-                attr_df = attr_df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end)))?;
-                attr_df = attr_df.filter(col(START_TIME_COL).lt(ts_lit(&end)))?;
-            }
-
-            // OR-match search_blob against each filter pattern via match_attr UDF.
-            // match_attr_expr is a drop-in replacement for col(..).like(lit(pattern)):
-            // handles Utf8View natively and uses .contains() for LIKE '%inner%' semantics.
-            let mut attr_expr: Option<Expr> = None;
-            for f in attr_filters {
-                let pattern = normalize_attr_filter(f);
-                let cond = match_attr_expr(col(SEARCH_BLOB_COL), lit(pattern));
-                attr_expr = Some(match attr_expr {
-                    None => cond,
-                    Some(e) => e.or(cond),
-                });
-            }
-            if let Some(expr) = attr_expr {
-                attr_df = attr_df.filter(expr)?;
-            }
-
-            // Deduplicate and alias trace_id to avoid ambiguous column in join
-            let attr_df = attr_df
-                .select(vec![col(TRACE_ID_COL).alias("_attr_tid")])?
-                .distinct()?;
-
-            summary_df = summary_df.join(
-                attr_df,
-                JoinType::Inner,
-                &[TRACE_ID_COL],
-                &["_attr_tid"],
-                None,
-            )?;
         }
 
         // ── Phase 2: Sort DESC, limit 1, project trace_id → _match_tid ──────

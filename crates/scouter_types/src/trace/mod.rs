@@ -1,4 +1,5 @@
 pub mod genai;
+pub mod query;
 pub mod sql;
 pub use genai::{
     AgentActivityQuery, AgentBucketRow, AgentDashboardRequest, AgentDashboardResponse,
@@ -19,6 +20,7 @@ pub use genai::{
     ModelCostBreakdown, ModelPricing, OPENAI_API_TYPE, OPENAI_SERVICE_TIER, ToolDashboardRequest,
     ToolDashboardResponse, ToolTimeBucket, extract_gen_ai_span,
 };
+pub use query::{FilterClause, parse_search_query};
 
 use crate::PyHelperFuncs;
 use crate::error::RecordError;

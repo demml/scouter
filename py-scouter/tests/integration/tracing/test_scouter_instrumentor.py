@@ -80,7 +80,7 @@ def test_instrumentor_paginated_traces_filterable_by_service(setup_instrumentor_
     _wait_for_export()
 
     scouter_client = ScouterClient()
-    response = scouter_client.get_paginated_traces(TraceFilters(service_name=INSTRUMENTOR_HTTP_SERVICE))
+    response = scouter_client.get_paginated_traces(TraceFilters.from_query(f"service_name:{INSTRUMENTOR_HTTP_SERVICE}"))
 
     assert len(response.items) > 0, (
         f"No paginated traces found for service_name={INSTRUMENTOR_HTTP_SERVICE!r}. "
@@ -153,7 +153,9 @@ def test_instrumentor_default_attrs_service_queryable(
     _wait_for_export()
 
     scouter_client = ScouterClient()
-    response = scouter_client.get_paginated_traces(TraceFilters(service_name=INSTRUMENTOR_ATTRS_SERVICE))
+    response = scouter_client.get_paginated_traces(
+        TraceFilters.from_query(f"service_name:{INSTRUMENTOR_ATTRS_SERVICE}")
+    )
 
     assert len(response.items) > 0, (
         f"No records returned for service_name={INSTRUMENTOR_ATTRS_SERVICE!r} "

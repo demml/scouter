@@ -1,8 +1,8 @@
 use crate::error::TraceEngineError;
 use crate::parquet::control::{ControlTableEngine, get_pod_id};
 use crate::parquet::tracing::catalog::TraceCatalogProvider;
+use crate::parquet::tracing::planner::{self, TimeWindow, apply_id_constraint};
 use crate::parquet::tracing::traits::{arrow_schema_to_delta, resource_attribute_field};
-use crate::parquet::utils::match_attr_expr;
 use crate::parquet::utils::register_cloud_logstore_factories;
 use crate::storage::ObjectStore;
 use arrow::array::*;
@@ -56,7 +56,6 @@ const STATUS_CODE_COL: &str = "status_code";
 const STATUS_MESSAGE_COL: &str = "status_message";
 const SPAN_COUNT_COL: &str = "span_count";
 const ERROR_COUNT_COL: &str = "error_count";
-const SEARCH_BLOB_COL: &str = "search_blob";
 
 const RESOURCE_ATTRIBUTES_COL: &str = "resource_attributes";
 const ENTITY_IDS_COL: &str = "entity_ids";
@@ -817,7 +816,94 @@ pub struct TraceSummaryQueries {
 }
 
 const MAX_PAGE_LIMIT: usize = 500;
-const MAX_ATTR_FILTER_TRACE_IDS: usize = 1_000;
+
+/// Build one summary row per trace over the requested time window.
+///
+/// The summary table can contain multiple rows for a trace as late spans arrive.
+/// Clause planning must operate on the same deduped shape that pagination and
+/// facets serialize, otherwise aggregate predicates like `has_errors:false`
+/// are evaluated against individual fragments instead of the full trace.
+pub(crate) async fn deduped_summary_df(
+    ctx: &SessionContext,
+    time_window: TimeWindow,
+) -> Result<DataFrame, TraceEngineError> {
+    use crate::parquet::tracing::queries::{date_lit, ts_lit};
+    use datafusion::functions_aggregate::expr_fn::{array_agg, first_value, max, min, sum};
+    use datafusion::functions_nested::set_ops::array_distinct;
+
+    let mut df = ctx.table(SUMMARY_TABLE_NAME).await?;
+
+    // Time predicates stay first so Delta Lake can prune partitions and Parquet
+    // row groups before the aggregation merges summary fragments per trace.
+    if let Some(start) = time_window.start {
+        df = df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
+        df = df.filter(col(START_TIME_COL).gt_eq(ts_lit(&start)))?;
+    }
+    if let Some(end) = time_window.end {
+        df = df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end)))?;
+        df = df.filter(col(START_TIME_COL).lt(ts_lit(&end)))?;
+    }
+
+    let by_span_end: Vec<SortExpr> = vec![
+        col(SPAN_COUNT_COL).sort(false, false),
+        col(END_TIME_COL).sort(false, false),
+    ];
+    let by_status_span: Vec<SortExpr> = vec![
+        col(STATUS_CODE_COL).sort(false, false),
+        col(SPAN_COUNT_COL).sort(false, false),
+    ];
+
+    // Duration is derived after aggregation because DataFusion cannot reuse two
+    // aggregate outputs inside another aggregate expression in the same slot.
+    let df = df
+        .aggregate(
+            vec![col(TRACE_ID_COL)],
+            vec![
+                min(col(START_TIME_COL)).alias(START_TIME_COL),
+                max(col(END_TIME_COL)).alias(END_TIME_COL),
+                max(df_cast(col(END_TIME_COL), DataType::Int64)).alias("_max_end_us"),
+                min(df_cast(col(START_TIME_COL), DataType::Int64)).alias("_min_start_us"),
+                max(col(STATUS_CODE_COL)).alias(STATUS_CODE_COL),
+                sum(col(SPAN_COUNT_COL)).alias(SPAN_COUNT_COL),
+                sum(col(ERROR_COUNT_COL)).alias(ERROR_COUNT_COL),
+                first_value(col(SERVICE_NAME_COL), by_span_end.clone()).alias(SERVICE_NAME_COL),
+                first_value(col(SERVICE_NAMESPACE_COL), by_span_end.clone())
+                    .alias(SERVICE_NAMESPACE_COL),
+                first_value(col(SERVICE_VERSION_COL), by_span_end.clone())
+                    .alias(SERVICE_VERSION_COL),
+                first_value(col(SERVICE_INSTANCE_ID_COL), by_span_end.clone())
+                    .alias(SERVICE_INSTANCE_ID_COL),
+                first_value(col(SCOPE_NAME_COL), by_span_end.clone()).alias(SCOPE_NAME_COL),
+                first_value(col(SCOPE_VERSION_COL), by_span_end.clone()).alias(SCOPE_VERSION_COL),
+                first_value(col(ROOT_OPERATION_COL), by_span_end.clone()).alias(ROOT_OPERATION_COL),
+                first_value(col(STATUS_MESSAGE_COL), by_status_span).alias(STATUS_MESSAGE_COL),
+                first_value(col(RESOURCE_ATTRIBUTES_COL), by_span_end)
+                    .alias(RESOURCE_ATTRIBUTES_COL),
+                array_agg(col(ENTITY_IDS_COL)).alias("_entity_ids_raw"),
+                array_agg(col(QUEUE_IDS_COL)).alias("_queue_ids_raw"),
+            ],
+        )?
+        .with_column(
+            DURATION_MS_COL,
+            (col("_max_end_us") - col("_min_start_us")) / lit(1000i64),
+        )?
+        .with_column(
+            ENTITY_IDS_COL,
+            array_distinct(flatten(col("_entity_ids_raw"))),
+        )?
+        .with_column(
+            QUEUE_IDS_COL,
+            array_distinct(flatten(col("_queue_ids_raw"))),
+        )?
+        .drop_columns(&[
+            "_max_end_us",
+            "_min_start_us",
+            "_entity_ids_raw",
+            "_queue_ids_raw",
+        ])?;
+
+    Ok(df)
+}
 
 impl TraceSummaryQueries {
     pub fn new(ctx: Arc<SessionContext>) -> Self {
@@ -842,125 +928,11 @@ impl TraceSummaryQueries {
         let limit = (filters.limit.unwrap_or(50) as usize).min(MAX_PAGE_LIMIT);
         let direction = filters.direction.as_deref().unwrap_or("next");
 
-        // ── Dedup: time-filtered GROUP BY trace_id (DataFrame API) ───────────
-        use crate::parquet::tracing::queries::{date_lit, ts_lit};
-        use datafusion::functions_aggregate::expr_fn::{array_agg, first_value, max, min, sum};
-        use datafusion::functions_nested::set_ops::array_distinct;
-
-        let mut df = self.ctx.table(SUMMARY_TABLE_NAME).await?;
-
-        // ① Partition date — directory-level pruning (skips entire partition folders)
-        // ② start_time     — row-group-level pruning within matched files
-        if let Some(start) = filters.start_time {
-            df = df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
-            df = df.filter(col(START_TIME_COL).gt_eq(ts_lit(&start)))?;
-        }
-        if let Some(end) = filters.end_time {
-            df = df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end)))?;
-            df = df.filter(col(START_TIME_COL).lt(ts_lit(&end)))?;
-        }
-
-        // Service dimension pre-filters — applied before aggregation for bloom/stats pushdown.
-        if let Some(ref svc) = filters.service_name {
-            df = df.filter(col(SERVICE_NAME_COL).eq(lit(svc.as_str())))?;
-        }
-        if let Some(ref ns) = filters.service_namespace {
-            df = df.filter(col(SERVICE_NAMESPACE_COL).eq(lit(ns.as_str())))?;
-        }
-        if let Some(ref ver) = filters.service_version {
-            df = df.filter(col(SERVICE_VERSION_COL).eq(lit(ver.as_str())))?;
-        }
-        if let Some(ref iid) = filters.service_instance_id {
-            df = df.filter(col(SERVICE_INSTANCE_ID_COL).eq(lit(iid.as_str())))?;
-        }
-
-        // ORDER BY specs for FIRST_VALUE aggregates
-        // span_count DESC NULLS LAST, end_time DESC NULLS LAST
-        let by_span_end: Vec<SortExpr> = vec![
-            col(SPAN_COUNT_COL).sort(false, false),
-            col(END_TIME_COL).sort(false, false),
-        ];
-        // status_code DESC, span_count DESC
-        let by_status_span: Vec<SortExpr> = vec![
-            col(STATUS_CODE_COL).sort(false, false),
-            col(SPAN_COUNT_COL).sort(false, false),
-        ];
-
-        // Phase 1: aggregate
-        // _max_end_us / _min_start_us are hidden Int64 columns used to compute
-        // duration_ms post-aggregation (arithmetic across two aggregate exprs
-        // cannot be expressed in a single aggregate slot).
-        //
-        // entity_ids / queue_ids: array_agg without FILTER is intentional.
-        // array_flatten treats NULL outer-list elements as empty and skips them,
-        // giving identical results to FILTER (WHERE IS NOT NULL) for the GROUP BY
-        // case. Unlike the original SQL, this produces [] rather than NULL when
-        // ALL rows have null IDs — the safer outcome for downstream deserialization.
-        let mut df = df
-            .aggregate(
-                vec![col(TRACE_ID_COL)],
-                vec![
-                    min(col(START_TIME_COL)).alias(START_TIME_COL),
-                    max(col(END_TIME_COL)).alias(END_TIME_COL),
-                    max(df_cast(col(END_TIME_COL), DataType::Int64)).alias("_max_end_us"),
-                    min(df_cast(col(START_TIME_COL), DataType::Int64)).alias("_min_start_us"),
-                    max(col(STATUS_CODE_COL)).alias(STATUS_CODE_COL),
-                    sum(col(SPAN_COUNT_COL)).alias(SPAN_COUNT_COL),
-                    sum(col(ERROR_COUNT_COL)).alias(ERROR_COUNT_COL),
-                    first_value(col(SERVICE_NAME_COL), by_span_end.clone()).alias(SERVICE_NAME_COL),
-                    first_value(col(SCOPE_NAME_COL), by_span_end.clone()).alias(SCOPE_NAME_COL),
-                    first_value(col(SCOPE_VERSION_COL), by_span_end.clone())
-                        .alias(SCOPE_VERSION_COL),
-                    first_value(col(ROOT_OPERATION_COL), by_span_end.clone())
-                        .alias(ROOT_OPERATION_COL),
-                    first_value(col(STATUS_MESSAGE_COL), by_status_span).alias(STATUS_MESSAGE_COL),
-                    first_value(col(RESOURCE_ATTRIBUTES_COL), by_span_end)
-                        .alias(RESOURCE_ATTRIBUTES_COL),
-                    array_agg(col(ENTITY_IDS_COL)).alias("_entity_ids_raw"),
-                    array_agg(col(QUEUE_IDS_COL)).alias("_queue_ids_raw"),
-                ],
-            )?
-            // Phase 2: derive computed columns from hidden aggregates, then drop them
-            .with_column(
-                DURATION_MS_COL,
-                (col("_max_end_us") - col("_min_start_us")) / lit(1000i64),
-            )?
-            .with_column(
-                ENTITY_IDS_COL,
-                array_distinct(flatten(col("_entity_ids_raw"))),
-            )?
-            .with_column(
-                QUEUE_IDS_COL,
-                array_distinct(flatten(col("_queue_ids_raw"))),
-            )?
-            .drop_columns(&[
-                "_max_end_us",
-                "_min_start_us",
-                "_entity_ids_raw",
-                "_queue_ids_raw",
-            ])?;
-
-        // ── Duration range — applied after the post-aggregate `duration_ms` is materialized ──
-        if let Some(min_ms) = filters.duration_min_ms {
-            df = df.filter(col(DURATION_MS_COL).gt_eq(lit(min_ms)))?;
-        }
-        if let Some(max_ms) = filters.duration_max_ms {
-            df = df.filter(col(DURATION_MS_COL).lt_eq(lit(max_ms)))?;
-        }
-
-        // ── Secondary filters ────────────────────────────────────────────────
-        match filters.has_errors {
-            Some(true) => {
-                df = df.filter(col(ERROR_COUNT_COL).gt(lit(0i64)))?;
-            }
-            Some(false) => {
-                df = df.filter(col(ERROR_COUNT_COL).eq(lit(0i64)))?;
-            }
-            None => {}
-        }
-        if let Some(sc) = filters.status_code {
-            df = df.filter(col(STATUS_CODE_COL).eq(lit(sc)))?;
-        }
+        let time_window = TimeWindow {
+            start: filters.start_time,
+            end: filters.end_time,
+        };
+        let mut df = deduped_summary_df(&self.ctx, time_window).await?;
 
         // ── entity_uid filter via array_has on List column ────────────────
         if let Some(ref uid) = filters.entity_uid {
@@ -984,9 +956,12 @@ impl TraceSummaryQueries {
         {
             let binary_ids: Vec<Expr> = ids
                 .iter()
-                .filter_map(|hex| TraceId::hex_to_bytes(hex).ok())
-                .map(|b| lit(ScalarValue::Binary(Some(b))))
-                .collect();
+                .map(|hex| {
+                    TraceId::hex_to_bytes(hex)
+                        .map(|b| lit(ScalarValue::Binary(Some(b))))
+                        .map_err(|err| TraceEngineError::InvalidHexId(hex.clone(), err.to_string()))
+                })
+                .collect::<Result<_, _>>()?;
             if !binary_ids.is_empty() {
                 df = df.filter(col(TRACE_ID_COL).in_list(binary_ids, false))?;
             }
@@ -997,8 +972,10 @@ impl TraceSummaryQueries {
         // for "next" or `> (cursor_time, cursor_id)` for "previous".
         if let (Some(cursor_time), Some(cursor_id)) =
             (filters.cursor_start_time, &filters.cursor_trace_id)
-            && let Ok(cursor_bytes) = TraceId::hex_to_bytes(cursor_id)
         {
+            let cursor_bytes = TraceId::hex_to_bytes(cursor_id).map_err(|err| {
+                TraceEngineError::InvalidHexId(cursor_id.clone(), err.to_string())
+            })?;
             let cursor_ts = lit(ScalarValue::TimestampMicrosecond(
                 Some(cursor_time.timestamp_micros()),
                 Some("UTC".into()),
@@ -1020,87 +997,18 @@ impl TraceSummaryQueries {
             df = df.filter(cursor_expr)?;
         }
 
-        // ── Attribute filters via span lookup → IN list ──────────────────────
-        // Requires shared SessionContext (trace_spans must be registered in self.ctx).
-        // We execute the span query eagerly to collect matching trace IDs, then filter
-        // the summaries DataFrame with an IN-list predicate. This avoids a cross-table
-        // JOIN that causes DataFusion to report ambiguous `trace_id` column references.
-        if let Some(ref attr_filters) = filters.attribute_filters
-            && !attr_filters.is_empty()
-        {
-            let mut spans_df = self.ctx.table("trace_spans").await?;
-
-            // Time predicates on spans for partition pruning — applied before
-            // select_columns so PARTITION_DATE_COL is still in the schema.
-            if let Some(start) = filters.start_time {
-                spans_df = spans_df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
-                spans_df = spans_df.filter(col(START_TIME_COL).gt_eq(lit(
-                    ScalarValue::TimestampMicrosecond(
-                        Some(start.timestamp_micros()),
-                        Some("UTC".into()),
-                    ),
-                )))?;
-            }
-            if let Some(end) = filters.end_time {
-                spans_df = spans_df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end)))?;
-                spans_df = spans_df.filter(col(START_TIME_COL).lt(lit(
-                    ScalarValue::TimestampMicrosecond(
-                        Some(end.timestamp_micros()),
-                        Some("UTC".into()),
-                    ),
-                )))?;
-            }
-
-            let mut spans_df =
-                spans_df.select_columns(&[TRACE_ID_COL, START_TIME_COL, SEARCH_BLOB_COL])?;
-
-            // OR-match each filter against search_blob.
-            // normalize_attr_filter converts "key:value" → "%key=value%" so the LIKE
-            // pattern matches the new pipe-bounded `|key=value|` blob format.
-            let mut attr_expr: Option<Expr> = None;
-            for f in attr_filters {
-                let pattern = crate::parquet::tracing::queries::normalize_attr_filter(f);
-                let cond = match_attr_expr(col(SEARCH_BLOB_COL), lit(pattern));
-                attr_expr = Some(match attr_expr {
-                    None => cond,
-                    Some(e) => e.or(cond),
-                });
-            }
-            if let Some(expr) = attr_expr {
-                spans_df = spans_df.filter(expr)?;
-            }
-
-            // Collect matching trace IDs eagerly, then apply as IN-list filter.
-            // Use HashSet for O(1) dedup instead of O(n²) Vec::contains().
-            let span_batches = spans_df.select_columns(&[TRACE_ID_COL])?.collect().await?;
-            let mut seen_ids: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
-            let mut binary_ids: Vec<Expr> = Vec::new();
-            for batch in &span_batches {
-                // trace_id may be FixedSizeBinary(16) or Binary after Delta round-trip.
-                // Cast to Binary to handle both uniformly.
-                if let Some(col_ref) = batch.column_by_name(TRACE_ID_COL) {
-                    let casted = compute::cast(col_ref, &DataType::Binary)?;
-                    let col_arr =
-                        casted
-                            .as_any()
-                            .downcast_ref::<BinaryArray>()
-                            .ok_or_else(|| {
-                                TraceEngineError::DowncastError("trace_id to BinaryArray")
-                            })?;
-                    for i in 0..batch.num_rows() {
-                        let id_bytes = col_arr.value(i).to_vec();
-                        if seen_ids.insert(id_bytes.clone()) {
-                            binary_ids.push(lit(ScalarValue::Binary(Some(id_bytes))));
-                        }
-                    }
-                }
-            }
-
-            if !binary_ids.is_empty() {
-                df = df.filter(col(TRACE_ID_COL).in_list(binary_ids, false))?;
-            } else {
-                // No matching spans → return empty result
+        if let Some(clause) = &filters.clause {
+            let plan = planner::plan_clause(clause);
+            let resolved = planner::execute_plan(&plan, &self.ctx, time_window).await?;
+            if resolved.contradiction {
                 df = df.filter(lit(false))?;
+            } else {
+                if let Some(expr) = resolved.summary_filter {
+                    df = df.filter(expr)?;
+                }
+                for constraint in resolved.id_constraints {
+                    df = apply_id_constraint(df, constraint).await?;
+                }
             }
         }
 
@@ -1208,44 +1116,14 @@ impl TraceSummaryQueries {
         &self,
         filters: &TraceFilters,
     ) -> Result<TraceFacetsResponse, TraceEngineError> {
-        use crate::parquet::tracing::queries::{date_lit, ts_lit};
         use datafusion::functions_aggregate::expr_fn::count;
 
-        let mut df = self.ctx.table(SUMMARY_TABLE_NAME).await?;
+        let time_window = TimeWindow {
+            start: filters.start_time,
+            end: filters.end_time,
+        };
+        let mut df = deduped_summary_df(&self.ctx, time_window).await?;
 
-        if let Some(start) = filters.start_time {
-            df = df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
-            df = df.filter(col(START_TIME_COL).gt_eq(ts_lit(&start)))?;
-        }
-        if let Some(end) = filters.end_time {
-            df = df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end)))?;
-            df = df.filter(col(START_TIME_COL).lt(ts_lit(&end)))?;
-        }
-
-        if let Some(ref svc) = filters.service_name {
-            df = df.filter(col(SERVICE_NAME_COL).eq(lit(svc.as_str())))?;
-        }
-        if let Some(ref ns) = filters.service_namespace {
-            df = df.filter(col(SERVICE_NAMESPACE_COL).eq(lit(ns.as_str())))?;
-        }
-        if let Some(ref ver) = filters.service_version {
-            df = df.filter(col(SERVICE_VERSION_COL).eq(lit(ver.as_str())))?;
-        }
-        if let Some(ref iid) = filters.service_instance_id {
-            df = df.filter(col(SERVICE_INSTANCE_ID_COL).eq(lit(iid.as_str())))?;
-        }
-        match filters.has_errors {
-            Some(true) => {
-                df = df.filter(col(ERROR_COUNT_COL).gt(lit(0i64)))?;
-            }
-            Some(false) => {
-                df = df.filter(col(ERROR_COUNT_COL).eq(lit(0i64)))?;
-            }
-            None => {}
-        }
-        if let Some(sc) = filters.status_code {
-            df = df.filter(col(STATUS_CODE_COL).eq(lit(sc)))?;
-        }
         if let Some(ref uid) = filters.entity_uid {
             df = df.filter(datafusion::functions_nested::expr_fn::array_has(
                 col(ENTITY_IDS_COL),
@@ -1258,79 +1136,19 @@ impl TraceSummaryQueries {
                 lit(uid.as_str()),
             ))?;
         }
-        if let Some(min_ms) = filters.duration_min_ms {
-            df = df.filter(col(DURATION_MS_COL).gt_eq(lit(min_ms)))?;
-        }
-        if let Some(max_ms) = filters.duration_max_ms {
-            df = df.filter(col(DURATION_MS_COL).lt_eq(lit(max_ms)))?;
-        }
 
-        if let Some(ref attr_filters) = filters.attribute_filters
-            && !attr_filters.is_empty()
-        {
-            let mut spans_df = self.ctx.table("trace_spans").await?;
-
-            // Apply time/partition filters before select_columns so
-            // PARTITION_DATE_COL is still present in the schema.
-            if let Some(start) = filters.start_time {
-                spans_df = spans_df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
-                spans_df = spans_df.filter(col(START_TIME_COL).gt_eq(lit(
-                    ScalarValue::TimestampMicrosecond(
-                        Some(start.timestamp_micros()),
-                        Some("UTC".into()),
-                    ),
-                )))?;
-            }
-            if let Some(end) = filters.end_time {
-                spans_df = spans_df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end)))?;
-                spans_df = spans_df.filter(col(START_TIME_COL).lt(lit(
-                    ScalarValue::TimestampMicrosecond(
-                        Some(end.timestamp_micros()),
-                        Some("UTC".into()),
-                    ),
-                )))?;
-            }
-
-            let mut spans_df =
-                spans_df.select_columns(&[TRACE_ID_COL, START_TIME_COL, SEARCH_BLOB_COL])?;
-            let mut attr_expr: Option<Expr> = None;
-            for f in attr_filters {
-                let pattern = crate::parquet::tracing::queries::normalize_attr_filter(f);
-                let cond = match_attr_expr(col(SEARCH_BLOB_COL), lit(pattern));
-                attr_expr = Some(match attr_expr {
-                    None => cond,
-                    Some(e) => e.or(cond),
-                });
-            }
-            if let Some(expr) = attr_expr {
-                spans_df = spans_df.filter(expr)?;
-            }
-            let span_batches = spans_df.select_columns(&[TRACE_ID_COL])?.collect().await?;
-            let mut seen_ids: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
-            let mut binary_ids: Vec<Expr> = Vec::new();
-            for batch in &span_batches {
-                if let Some(col_ref) = batch.column_by_name(TRACE_ID_COL) {
-                    let casted = compute::cast(col_ref, &DataType::Binary)?;
-                    let col_arr =
-                        casted
-                            .as_any()
-                            .downcast_ref::<BinaryArray>()
-                            .ok_or_else(|| {
-                                TraceEngineError::DowncastError("trace_id to BinaryArray")
-                            })?;
-                    for i in 0..batch.num_rows() {
-                        let id_bytes = col_arr.value(i).to_vec();
-                        if seen_ids.insert(id_bytes.clone()) {
-                            binary_ids.push(lit(ScalarValue::Binary(Some(id_bytes))));
-                        }
-                    }
-                }
-            }
-            binary_ids.truncate(MAX_ATTR_FILTER_TRACE_IDS);
-            if !binary_ids.is_empty() {
-                df = df.filter(col(TRACE_ID_COL).in_list(binary_ids, false))?;
-            } else {
+        if let Some(clause) = &filters.clause {
+            let plan = planner::plan_clause(clause);
+            let resolved = planner::execute_plan(&plan, &self.ctx, time_window).await?;
+            if resolved.contradiction {
                 df = df.filter(lit(false))?;
+            } else {
+                if let Some(expr) = resolved.summary_filter {
+                    df = df.filter(expr)?;
+                }
+                for constraint in resolved.id_constraints {
+                    df = apply_id_constraint(df, constraint).await?;
+                }
             }
         }
 
@@ -1726,6 +1544,7 @@ mod tests {
     use crate::storage::ObjectStore;
     use scouter_settings::ObjectStorageSettings;
     use scouter_types::sql::TraceFilters;
+    use scouter_types::trace::query::FilterClause;
     use scouter_types::{Attribute, SpanId, TraceId, TraceSpanRecord};
     use tracing_subscriber;
 
@@ -1843,16 +1662,32 @@ mod tests {
     /// `has_errors = Some(true)` returns only error traces; `Some(false)` returns only non-errors.
     #[tokio::test]
     async fn test_summary_has_errors_filter() -> Result<(), TraceEngineError> {
+        use crate::parquet::tracing::service::TraceSpanService;
+
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let object_store = make_test_object_store(&storage_settings);
-        let ctx = make_test_ctx(&object_store);
-        let catalog = make_test_catalog(&ctx);
-        let service = TraceSummaryService::new(&object_store, 24, ctx, catalog, 10).await?;
+        let span_service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+        let service = TraceSummaryService::new(
+            &span_service.object_store,
+            24,
+            span_service.ctx.clone(),
+            span_service.catalog.clone(),
+            10,
+        )
+        .await?;
 
         let ok_summary = make_summary([3u8; 16], "svc", 0, vec![]);
         let err_summary = make_summary([4u8; 16], "svc", 2, vec![]);
+        let ok_trace = TraceId::from_bytes([3u8; 16]);
+        let err_trace = TraceId::from_bytes([4u8; 16]);
+        let ok_span = make_span_record(&ok_trace, SpanId::from_bytes([3u8; 8]), "svc", vec![]);
+        let mut err_span =
+            make_span_record(&err_trace, SpanId::from_bytes([4u8; 8]), "svc", vec![]);
+        err_span.status_code = 2;
+        err_span.status_message = "Internal Server Error".to_string();
+
+        span_service.write_spans(vec![ok_span, err_span]).await?;
         service
             .write_summaries(vec![ok_summary, err_summary])
             .await?;
@@ -1870,7 +1705,7 @@ mod tests {
 
         // has_errors = true → only error trace
         let mut filters_err = base_filters.clone();
-        filters_err.has_errors = Some(true);
+        filters_err.clause = Some(FilterClause::HasErrors(true));
         let errors_only = service
             .query_service
             .get_paginated_traces(&filters_err)
@@ -1889,7 +1724,7 @@ mod tests {
 
         // has_errors = false → only non-error traces
         let mut filters_ok = base_filters.clone();
-        filters_ok.has_errors = Some(false);
+        filters_ok.clause = Some(FilterClause::HasErrors(false));
         let no_errors = service
             .query_service
             .get_paginated_traces(&filters_ok)
@@ -1907,6 +1742,7 @@ mod tests {
         );
 
         service.shutdown().await?;
+        span_service.shutdown().await?;
         cleanup();
         Ok(())
     }
@@ -1914,23 +1750,48 @@ mod tests {
     /// service_name filter returns only matching service traces.
     #[tokio::test]
     async fn test_summary_service_name_filter() -> Result<(), TraceEngineError> {
+        use crate::parquet::tracing::service::TraceSpanService;
+
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let object_store = make_test_object_store(&storage_settings);
-        let ctx = make_test_ctx(&object_store);
-        let catalog = make_test_catalog(&ctx);
-        let service = TraceSummaryService::new(&object_store, 24, ctx, catalog, 10).await?;
+        let span_service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+        let service = TraceSummaryService::new(
+            &span_service.object_store,
+            24,
+            span_service.ctx.clone(),
+            span_service.catalog.clone(),
+            10,
+        )
+        .await?;
 
         let s_alpha = make_summary([5u8; 16], "alpha_service", 0, vec![]);
         let s_beta = make_summary([6u8; 16], "beta_service", 0, vec![]);
+        let alpha_trace = TraceId::from_bytes([5u8; 16]);
+        let beta_trace = TraceId::from_bytes([6u8; 16]);
+        let alpha_span = make_span_record(
+            &alpha_trace,
+            SpanId::from_bytes([5u8; 8]),
+            "alpha_service",
+            vec![],
+        );
+        let beta_span = make_span_record(
+            &beta_trace,
+            SpanId::from_bytes([6u8; 8]),
+            "beta_service",
+            vec![],
+        );
+
+        span_service
+            .write_spans(vec![alpha_span, beta_span])
+            .await?;
         service.write_summaries(vec![s_alpha, s_beta]).await?;
         tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
 
         let start = Utc::now() - chrono::Duration::hours(1);
         let end = Utc::now() + chrono::Duration::hours(1);
         let filters = TraceFilters {
-            service_name: Some("alpha_service".to_string()),
+            clause: Some(FilterClause::Service("alpha_service".to_string())),
             start_time: Some(start),
             end_time: Some(end),
             limit: Some(25),
@@ -1951,6 +1812,7 @@ mod tests {
         }
 
         service.shutdown().await?;
+        span_service.shutdown().await?;
         cleanup();
         Ok(())
     }
@@ -2000,6 +1862,20 @@ mod tests {
             unwanted_id.to_hex(),
             "Should not have returned unwanted trace_id"
         );
+
+        let invalid_filters = TraceFilters {
+            start_time: Some(start),
+            end_time: Some(end),
+            limit: Some(25),
+            trace_ids: Some(vec!["not-a-hex-id".to_string()]),
+            ..Default::default()
+        };
+        let err = service
+            .query_service
+            .get_paginated_traces(&invalid_filters)
+            .await
+            .expect_err("invalid trace_ids must fail closed");
+        assert!(matches!(err, TraceEngineError::InvalidHexId(_, _)));
 
         service.shutdown().await?;
         cleanup();
@@ -2063,6 +1939,14 @@ mod tests {
         let prev = service.query_service.get_paginated_traces(&filters).await?;
         assert_eq!(prev.items.len(), 50, "previous page: 50 items");
 
+        filters.cursor_trace_id = Some("not-a-hex-id".to_string());
+        let err = service
+            .query_service
+            .get_paginated_traces(&filters)
+            .await
+            .expect_err("invalid cursor_trace_id must fail closed");
+        assert!(matches!(err, TraceEngineError::InvalidHexId(_, _)));
+
         service.shutdown().await?;
         cleanup();
         Ok(())
@@ -2122,7 +2006,7 @@ mod tests {
         let filters = TraceFilters {
             start_time: Some(now - chrono::Duration::hours(1)),
             end_time: Some(now + chrono::Duration::hours(1)),
-            attribute_filters: Some(vec!["component:kafka".to_string()]),
+            clause: TraceFilters::parse("component:kafka").unwrap().clause,
             limit: Some(25),
             ..Default::default()
         };
@@ -2148,6 +2032,175 @@ mod tests {
                 .map(|i| &i.trace_id)
                 .collect::<Vec<_>>()
         );
+
+        span_service.shutdown().await?;
+        summary_service.shutdown().await?;
+        cleanup();
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_planner_mixed_or_unions_summary_and_span_matches() -> Result<(), TraceEngineError>
+    {
+        use crate::parquet::tracing::service::TraceSpanService;
+
+        cleanup();
+        let storage_settings = ObjectStorageSettings::default();
+        let span_service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+        let summary_service = TraceSummaryService::new(
+            &span_service.object_store,
+            24,
+            span_service.ctx.clone(),
+            span_service.catalog.clone(),
+            10,
+        )
+        .await?;
+
+        let now = Utc::now();
+        let service_trace = TraceId::from_bytes([110u8; 16]);
+        let attr_trace = TraceId::from_bytes([111u8; 16]);
+        let service_span = make_span_record(
+            &service_trace,
+            SpanId::from_bytes([110u8; 8]),
+            "planner_service",
+            vec![],
+        );
+        let attr_span = make_span_record(
+            &attr_trace,
+            SpanId::from_bytes([111u8; 8]),
+            "other_service",
+            vec![Attribute {
+                key: "planner.case".to_string(),
+                value: serde_json::Value::String("mixed_or".to_string()),
+            }],
+        );
+
+        span_service
+            .write_spans_direct(vec![service_span, attr_span])
+            .await?;
+
+        let mut service_summary = make_summary([110u8; 16], "planner_service", 0, vec![]);
+        service_summary.start_time = now;
+        let mut attr_summary = make_summary([111u8; 16], "other_service", 0, vec![]);
+        attr_summary.start_time = now + chrono::Duration::milliseconds(1);
+        summary_service
+            .write_summaries(vec![service_summary, attr_summary])
+            .await?;
+        tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+
+        let filters = TraceFilters {
+            start_time: Some(now - chrono::Duration::hours(1)),
+            end_time: Some(now + chrono::Duration::hours(1)),
+            clause: Some(FilterClause::Or(vec![
+                FilterClause::Service("planner_service".to_string()),
+                FilterClause::Attr {
+                    key: "planner.case".to_string(),
+                    value: "mixed_or".to_string(),
+                },
+            ])),
+            limit: Some(25),
+            ..Default::default()
+        };
+
+        let response = summary_service
+            .query_service
+            .get_paginated_traces(&filters)
+            .await?;
+        let trace_ids: std::collections::HashSet<_> = response
+            .items
+            .iter()
+            .map(|item| item.trace_id.clone())
+            .collect();
+
+        // Mixed OR must union branch trace IDs; applying summary and span halves
+        // independently would turn this into an intersection and lose both rows.
+        assert_eq!(
+            trace_ids.len(),
+            2,
+            "unexpected mixed OR result: {trace_ids:?}"
+        );
+        assert!(trace_ids.contains(&service_trace.to_hex()));
+        assert!(trace_ids.contains(&attr_trace.to_hex()));
+
+        span_service.shutdown().await?;
+        summary_service.shutdown().await?;
+        cleanup();
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_planner_not_span_uses_anti_join() -> Result<(), TraceEngineError> {
+        use crate::parquet::tracing::service::TraceSpanService;
+
+        cleanup();
+        let storage_settings = ObjectStorageSettings::default();
+        let span_service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+        let summary_service = TraceSummaryService::new(
+            &span_service.object_store,
+            24,
+            span_service.ctx.clone(),
+            span_service.catalog.clone(),
+            10,
+        )
+        .await?;
+
+        let now = Utc::now();
+        let blocked_trace = TraceId::from_bytes([112u8; 16]);
+        let kept_trace = TraceId::from_bytes([113u8; 16]);
+        let blocked_span = make_span_record(
+            &blocked_trace,
+            SpanId::from_bytes([112u8; 8]),
+            "planner_not",
+            vec![Attribute {
+                key: "planner.case".to_string(),
+                value: serde_json::Value::String("blocked".to_string()),
+            }],
+        );
+        let kept_span = make_span_record(
+            &kept_trace,
+            SpanId::from_bytes([113u8; 8]),
+            "planner_not",
+            vec![],
+        );
+
+        span_service
+            .write_spans_direct(vec![blocked_span, kept_span])
+            .await?;
+
+        let mut blocked_summary = make_summary([112u8; 16], "planner_not", 0, vec![]);
+        blocked_summary.start_time = now;
+        let mut kept_summary = make_summary([113u8; 16], "planner_not", 0, vec![]);
+        kept_summary.start_time = now + chrono::Duration::milliseconds(1);
+        summary_service
+            .write_summaries(vec![blocked_summary, kept_summary])
+            .await?;
+        tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+
+        let filters = TraceFilters {
+            start_time: Some(now - chrono::Duration::hours(1)),
+            end_time: Some(now + chrono::Duration::hours(1)),
+            clause: Some(FilterClause::Not(Box::new(FilterClause::Attr {
+                key: "planner.case".to_string(),
+                value: "blocked".to_string(),
+            }))),
+            limit: Some(25),
+            ..Default::default()
+        };
+
+        let response = summary_service
+            .query_service
+            .get_paginated_traces(&filters)
+            .await?;
+        let trace_ids: std::collections::HashSet<_> = response
+            .items
+            .iter()
+            .map(|item| item.trace_id.clone())
+            .collect();
+
+        // NOT over a span predicate is a complement against the time-windowed
+        // trace universe; it cannot be represented by dropping the span half.
+        assert_eq!(trace_ids.len(), 1, "unexpected NOT result: {trace_ids:?}");
+        assert!(trace_ids.contains(&kept_trace.to_hex()));
 
         span_service.shutdown().await?;
         summary_service.shutdown().await?;
@@ -2484,7 +2537,6 @@ mod tests {
         let start = Utc::now() - chrono::Duration::hours(1);
         let end = Utc::now() + chrono::Duration::hours(1);
         let filters = TraceFilters {
-            service_name: Some("distributed-svc".to_string()),
             start_time: Some(start),
             end_time: Some(end),
             limit: Some(25),
@@ -2609,5 +2661,251 @@ mod tests {
 
         let result = extract_total_count(vec![batch]).unwrap();
         assert_eq!(result, 42);
+    }
+
+    // ── summary-side planner DataFusion integration tests ────────────────────
+    //
+    // Uses a 4-row in-memory table covering the columns summary planner leaves touch.
+    // Key difference from span tests: HasErrors uses ERROR_COUNT_COL, not STATUS_CODE_COL.
+    //
+    //   row 1: auth / prod / 1.0.0 / pod-1 / status=0 / error_count=0 / dur=100
+    //   row 2: kafka / staging / 2.0.0 / pod-2 / status=2 / error_count=3 / dur=500
+    //   row 3: auth / prod / 1.0.0 / pod-1 / status=1 / error_count=0 / dur=250
+    //   row 4: metrics / prod / 3.0.0 / pod-3 / status=0 / error_count=0 / dur=50
+
+    fn summary_test_schema() -> arrow::datatypes::Schema {
+        use arrow::datatypes::{DataType, Field};
+        arrow::datatypes::Schema::new(vec![
+            Field::new("row_id", DataType::Int32, false),
+            Field::new(SERVICE_NAME_COL, DataType::Utf8, false),
+            Field::new(SERVICE_NAMESPACE_COL, DataType::Utf8, true),
+            Field::new(SERVICE_VERSION_COL, DataType::Utf8, true),
+            Field::new(SERVICE_INSTANCE_ID_COL, DataType::Utf8, true),
+            Field::new(STATUS_CODE_COL, DataType::Int32, false),
+            Field::new(ERROR_COUNT_COL, DataType::Int64, false),
+            Field::new(DURATION_MS_COL, DataType::Int64, false),
+        ])
+    }
+
+    fn summary_test_batch() -> RecordBatch {
+        use arrow::array::{Int32Array, Int64Array, StringArray};
+        let schema = Arc::new(summary_test_schema());
+        RecordBatch::try_new(
+            schema,
+            vec![
+                Arc::new(Int32Array::from(vec![1, 2, 3, 4])),
+                Arc::new(StringArray::from(vec!["auth", "kafka", "auth", "metrics"])),
+                Arc::new(StringArray::from(vec![
+                    Some("prod"),
+                    Some("staging"),
+                    Some("prod"),
+                    Some("prod"),
+                ])),
+                Arc::new(StringArray::from(vec![
+                    Some("1.0.0"),
+                    Some("2.0.0"),
+                    Some("1.0.0"),
+                    Some("3.0.0"),
+                ])),
+                Arc::new(StringArray::from(vec![
+                    Some("pod-1"),
+                    Some("pod-2"),
+                    Some("pod-1"),
+                    Some("pod-3"),
+                ])),
+                Arc::new(Int32Array::from(vec![0, 2, 1, 0])),
+                Arc::new(Int64Array::from(vec![0, 3, 0, 0])),
+                Arc::new(Int64Array::from(vec![100, 500, 250, 50])),
+            ],
+        )
+        .unwrap()
+    }
+
+    async fn make_summary_ctx() -> datafusion::prelude::SessionContext {
+        use datafusion::datasource::MemTable;
+        let schema = Arc::new(summary_test_schema());
+        let batch = summary_test_batch();
+        let table = MemTable::try_new(schema, vec![vec![batch]]).unwrap();
+        let ctx = datafusion::prelude::SessionContext::new();
+        ctx.register_table("summaries", Arc::new(table)).unwrap();
+        ctx
+    }
+
+    async fn summary_row_ids_for(
+        ctx: &datafusion::prelude::SessionContext,
+        clause: &FilterClause,
+    ) -> Vec<i32> {
+        use arrow::array::Int32Array;
+        let df = ctx
+            .table("summaries")
+            .await
+            .unwrap()
+            .filter(
+                match crate::parquet::tracing::planner::plan_clause(clause).root {
+                    crate::parquet::tracing::planner::ClauseResolution::SummaryExpr(expr) => expr,
+                    crate::parquet::tracing::planner::ClauseResolution::Tautology => lit(true),
+                    crate::parquet::tracing::planner::ClauseResolution::Contradiction => lit(false),
+                    other => panic!("expected summary expression, got {other:?}"),
+                },
+            )
+            .unwrap();
+        let batches = df.collect().await.unwrap();
+        let mut ids = Vec::new();
+        for batch in &batches {
+            let col = batch
+                .column_by_name("row_id")
+                .unwrap()
+                .as_any()
+                .downcast_ref::<Int32Array>()
+                .unwrap();
+            ids.extend(col.iter().flatten());
+        }
+        ids.sort_unstable();
+        ids
+    }
+
+    #[tokio::test]
+    async fn summary_filter_service() {
+        let ctx = make_summary_ctx().await;
+        assert_eq!(
+            summary_row_ids_for(&ctx, &FilterClause::Service("auth".into())).await,
+            vec![1, 3]
+        );
+    }
+
+    #[tokio::test]
+    async fn summary_filter_service_namespace() {
+        let ctx = make_summary_ctx().await;
+        assert_eq!(
+            summary_row_ids_for(&ctx, &FilterClause::ServiceNamespace("prod".into())).await,
+            vec![1, 3, 4]
+        );
+    }
+
+    #[tokio::test]
+    async fn summary_filter_service_version() {
+        let ctx = make_summary_ctx().await;
+        assert_eq!(
+            summary_row_ids_for(&ctx, &FilterClause::ServiceVersion("2.0.0".into())).await,
+            vec![2]
+        );
+    }
+
+    #[tokio::test]
+    async fn summary_filter_service_instance_id() {
+        let ctx = make_summary_ctx().await;
+        assert_eq!(
+            summary_row_ids_for(&ctx, &FilterClause::ServiceInstanceId("pod-1".into())).await,
+            vec![1, 3]
+        );
+    }
+
+    #[tokio::test]
+    async fn summary_filter_status_code() {
+        let ctx = make_summary_ctx().await;
+        assert_eq!(
+            summary_row_ids_for(&ctx, &FilterClause::StatusCode(2)).await,
+            vec![2]
+        );
+    }
+
+    // Key test: HasErrors on the summary table uses ERROR_COUNT_COL, not STATUS_CODE_COL.
+    // Row 2 has error_count=3; row 3 has status_code=1 but error_count=0.
+    #[tokio::test]
+    async fn summary_filter_has_errors_true_uses_error_count_not_status_code() {
+        let ctx = make_summary_ctx().await;
+        // Only row 2 has error_count > 0. Row 3 has status_code=1 but error_count=0 — excluded.
+        assert_eq!(
+            summary_row_ids_for(&ctx, &FilterClause::HasErrors(true)).await,
+            vec![2]
+        );
+    }
+
+    #[tokio::test]
+    async fn summary_filter_has_errors_false() {
+        let ctx = make_summary_ctx().await;
+        assert_eq!(
+            summary_row_ids_for(&ctx, &FilterClause::HasErrors(false)).await,
+            vec![1, 3, 4]
+        );
+    }
+
+    #[tokio::test]
+    async fn summary_filter_duration_min() {
+        let ctx = make_summary_ctx().await;
+        assert_eq!(
+            summary_row_ids_for(&ctx, &FilterClause::DurationMinMs(200)).await,
+            vec![2, 3]
+        );
+    }
+
+    #[tokio::test]
+    async fn summary_filter_duration_max() {
+        let ctx = make_summary_ctx().await;
+        assert_eq!(
+            summary_row_ids_for(&ctx, &FilterClause::DurationMaxMs(150)).await,
+            vec![1, 4]
+        );
+    }
+
+    #[tokio::test]
+    async fn summary_filter_and_combinator() {
+        let ctx = make_summary_ctx().await;
+        assert_eq!(
+            summary_row_ids_for(
+                &ctx,
+                &FilterClause::And(vec![
+                    FilterClause::Service("kafka".into()),
+                    FilterClause::DurationMinMs(400),
+                ])
+            )
+            .await,
+            vec![2]
+        );
+    }
+
+    #[tokio::test]
+    async fn summary_filter_or_combinator() {
+        let ctx = make_summary_ctx().await;
+        assert_eq!(
+            summary_row_ids_for(
+                &ctx,
+                &FilterClause::Or(vec![
+                    FilterClause::Service("auth".into()),
+                    FilterClause::HasErrors(true),
+                ])
+            )
+            .await,
+            vec![1, 2, 3]
+        );
+    }
+
+    #[tokio::test]
+    async fn summary_filter_not_combinator() {
+        let ctx = make_summary_ctx().await;
+        assert_eq!(
+            summary_row_ids_for(
+                &ctx,
+                &FilterClause::Not(Box::new(FilterClause::Service("auth".into())))
+            )
+            .await,
+            vec![2, 4]
+        );
+    }
+
+    #[tokio::test]
+    async fn summary_filter_and_empty_matches_all() {
+        let ctx = make_summary_ctx().await;
+        assert_eq!(
+            summary_row_ids_for(&ctx, &FilterClause::And(vec![])).await,
+            vec![1, 2, 3, 4]
+        );
+    }
+
+    #[tokio::test]
+    async fn summary_filter_or_empty_matches_none() {
+        let ctx = make_summary_ctx().await;
+        let ids: Vec<i32> = summary_row_ids_for(&ctx, &FilterClause::Or(vec![])).await;
+        assert!(ids.is_empty());
     }
 }

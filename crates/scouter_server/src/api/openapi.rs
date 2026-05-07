@@ -151,6 +151,7 @@ impl utoipa::Modify for SecurityAddon {
         scouter_types::contracts::TraceMetricsResponse,
         scouter_types::contracts::TraceReceivedResponse,
         scouter_types::contracts::TraceCursor,
+        scouter_types::trace::query::FilterClause,
         scouter_types::contracts::BinnedMetrics,
         scouter_types::contracts::BinnedMetric,
         scouter_types::contracts::BinnedMetricStats,

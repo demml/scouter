@@ -823,25 +823,20 @@ class TraceBaggageResponse:
 class TraceMetricsRequest:
     """Request payload for fetching trace metrics."""
 
-    service_name: Optional[str]
     start_time: datetime.datetime
     end_time: datetime.datetime
     bucket_interval: str
-    attribute_filters: Optional[List[str]]
+    clause: Optional[Any]
     entity_uid: Optional[str]
-    duration_min_ms: Optional[int]
-    duration_max_ms: Optional[int]
+    query: Optional[str]
 
     def __init__(
         self,
         start_time: datetime.datetime,
         end_time: datetime.datetime,
         bucket_interval: str,
-        service_name: Optional[str] = None,
-        attribute_filters: Optional[List[str]] = None,
         entity_uid: Optional[str] = None,
-        duration_min_ms: Optional[int] = None,
-        duration_max_ms: Optional[int] = None,
+        query: Optional[str] = None,
     ) -> None:
         """Initialize trace metrics request.
 
@@ -852,17 +847,21 @@ class TraceMetricsRequest:
                 End time boundary (UTC)
             bucket_interval:
                 The time interval for metric aggregation buckets (e.g., '1 minutes', '30 minutes')
-            service_name:
-                Service name filter
-            attribute_filters:
-                List of attribute filters in the format "key=value" or "key!=value"
             entity_uid:
                 Filter by associated entity UID
-            duration_min_ms:
-                Minimum trace duration (inclusive)
-            duration_max_ms:
-                Maximum trace duration (inclusive)
+            query:
+                Optional trace search DSL query to parse into metrics filters
         """
+
+    @classmethod
+    def from_query(
+        cls,
+        q: str,
+        start_time: datetime.datetime,
+        end_time: datetime.datetime,
+        bucket_interval: str,
+    ) -> "TraceMetricsRequest":
+        """Build TraceMetricsRequest from the trace search DSL."""
 
 class TraceMetricsResponse:
     """Response structure containing aggregated trace metrics."""
@@ -1102,6 +1101,19 @@ class ScouterClient:
         Returns:
             TracePaginationResponse
         """
+
+    def search_traces(
+        self,
+        q: str,
+        *,
+        start_time: Optional[datetime.datetime] = None,
+        end_time: Optional[datetime.datetime] = None,
+        limit: Optional[int] = None,
+        cursor_start_time: Optional[datetime.datetime] = None,
+        cursor_trace_id: Optional[str] = None,
+        direction: Optional[str] = None,
+    ) -> TracePaginationResponse:
+        """Search traces with the trace search DSL."""
 
     def get_trace_spans(
         self,

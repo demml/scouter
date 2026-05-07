@@ -71,3 +71,10 @@ harness = false
 name = "dataset_benchmark"
 harness = false
 
+[[bench]]
+name = "planner_bench"
+harness = false
+
+[[bench]]
+name = "hot_path_bench"
+harness = false
