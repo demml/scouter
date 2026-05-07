@@ -828,6 +828,7 @@ class TraceMetricsRequest:
     bucket_interval: str
     clause: Optional[Any]
     entity_uid: Optional[str]
+    query: Optional[str]
 
     def __init__(
         self,
@@ -835,6 +836,7 @@ class TraceMetricsRequest:
         end_time: datetime.datetime,
         bucket_interval: str,
         entity_uid: Optional[str] = None,
+        query: Optional[str] = None,
     ) -> None:
         """Initialize trace metrics request.
 
@@ -847,6 +849,8 @@ class TraceMetricsRequest:
                 The time interval for metric aggregation buckets (e.g., '1 minutes', '30 minutes')
             entity_uid:
                 Filter by associated entity UID
+            query:
+                Optional trace search DSL query to parse into metrics filters
         """
 
     @classmethod

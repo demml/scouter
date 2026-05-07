@@ -31,6 +31,7 @@ def test_trace_metrics_request_round_trips_clause() -> None:
     )
 
     assert request.entity_uid == "entity-1"
+    assert request.query is None
     assert request.clause == {
         "op": "or",
         "value": [
@@ -38,3 +39,16 @@ def test_trace_metrics_request_round_trips_clause() -> None:
             {"op": "attr", "value": {"key": "component", "value": "kafka"}},
         ],
     }
+
+
+def test_trace_metrics_request_accepts_body_query() -> None:
+    now = datetime.now(timezone.utc)
+
+    metrics = TraceMetricsRequest(
+        now - timedelta(hours=1),
+        now + timedelta(hours=1),
+        "hour",
+        query="service:checkout",
+    )
+
+    assert metrics.query == "service:checkout"

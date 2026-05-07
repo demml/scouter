@@ -1027,6 +1027,9 @@ pub struct TraceMetricsRequest {
     #[serde(default)]
     #[pyo3(get, set)]
     pub entity_uid: Option<String>,
+    #[serde(default)]
+    #[pyo3(get, set)]
+    pub query: Option<String>,
 }
 
 #[pymethods]
@@ -1036,13 +1039,15 @@ impl TraceMetricsRequest {
         start_time,
         end_time,
         bucket_interval,
-        entity_uid=None
+        entity_uid=None,
+        query=None
     ))]
     pub fn new(
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
         bucket_interval: String,
         entity_uid: Option<String>,
+        query: Option<String>,
     ) -> Self {
         TraceMetricsRequest {
             start_time,
@@ -1050,6 +1055,7 @@ impl TraceMetricsRequest {
             bucket_interval,
             clause: None,
             entity_uid,
+            query,
         }
     }
 
@@ -1090,6 +1096,7 @@ impl TraceMetricsRequest {
             bucket_interval,
             clause: parsed.clause,
             entity_uid: parsed.entity_uid,
+            query: None,
         })
     }
 }

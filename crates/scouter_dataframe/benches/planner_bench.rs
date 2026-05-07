@@ -100,6 +100,7 @@ fn metrics_request(clause: FilterClause) -> TraceMetricsRequest {
         bucket_interval: "minute".to_string(),
         clause: Some(clause),
         entity_uid: None,
+        query: None,
     }
 }
 

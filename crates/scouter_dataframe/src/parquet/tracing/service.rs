@@ -425,6 +425,7 @@ mod tests {
             bucket_interval: "hour".to_string(),
             clause,
             entity_uid: None,
+            query: None,
         }
     }
 

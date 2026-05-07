@@ -16,6 +16,12 @@ use scouter_types::{
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
+fn with_q(path: &str, q: &str) -> String {
+    let mut serializer = url::form_urlencoded::Serializer::new(String::new());
+    serializer.append_pair("q", q);
+    format!("{path}?{}", serializer.finish())
+}
+
 async fn fetch_paginated(helper: &TestHelper, filters: &TraceFilters) -> TracePaginationResponse {
     let body = serde_json::to_string(filters).unwrap();
     let request = Request::builder()
@@ -30,14 +36,14 @@ async fn fetch_paginated(helper: &TestHelper, filters: &TraceFilters) -> TracePa
     serde_json::from_slice(&body).unwrap()
 }
 
-async fn fetch_paginated_with_q(
+async fn fetch_paginated_with_query(
     helper: &TestHelper,
     q: &str,
     filters: &TraceFilters,
 ) -> (StatusCode, Vec<u8>) {
-    let body = serde_json::to_string(filters).unwrap();
+    let body = serde_json::to_string(&filters).unwrap();
     let request = Request::builder()
-        .uri(format!("/scouter/trace/paginated?q={q}"))
+        .uri(with_q("/scouter/trace/paginated", q))
         .method("POST")
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(body))
@@ -312,6 +318,7 @@ async fn test_tracing() {
         bucket_interval: "hour".to_string(),
         clause: None,
         entity_uid: None,
+        query: None,
     };
 
     let request = Request::builder()
@@ -385,7 +392,7 @@ async fn test_trace_search_query_user_flow() {
         "component:kafka should match seeded traces"
     );
 
-    let (status, post_body) = fetch_paginated_with_q(
+    let (status, post_body) = fetch_paginated_with_query(
         &helper,
         "component:kafka",
         &TraceFilters {
@@ -399,12 +406,12 @@ async fn test_trace_search_query_user_flow() {
     assert_eq!(
         post_page.items.len(),
         body_page.items.len(),
-        "POST ?q= should merge into an empty body as the parsed clause"
+        "POST URL query should merge into an empty body as the parsed clause"
     );
 
-    let (status, _body) = fetch_paginated_with_q(
+    let (status, _body) = fetch_paginated_with_query(
         &helper,
-        "%28start_time:2026-01-01T00%3A00%3A00Z%20component:kafka%29",
+        "(start_time:2026-01-01T00:00:00Z component:kafka)",
         &TraceFilters::default(),
     )
     .await;
@@ -439,25 +446,25 @@ async fn test_trace_search_q_and_body_are_and_merged() {
         limit: Some(200),
         ..Default::default()
     };
-    let (status, merged_body) = fetch_paginated_with_q(&helper, "component:kafka", &body).await;
+    let (status, merged_body) = fetch_paginated_with_query(&helper, "component:kafka", &body).await;
     assert_eq!(status, StatusCode::OK);
     let merged: TracePaginationResponse = serde_json::from_slice(&merged_body).unwrap();
 
     assert!(
         merged.items.is_empty(),
-        "AND-merged q/body filters should return the exact empty intersection"
+        "AND-merged query/body filters should return the exact empty intersection"
     );
 
     let (status, empty_body) =
-        fetch_paginated_with_q(&helper, "%20%20%20", &TraceFilters::default()).await;
+        fetch_paginated_with_query(&helper, "   ", &TraceFilters::default()).await;
     assert_eq!(status, StatusCode::OK);
-    let empty_q: TracePaginationResponse = serde_json::from_slice(&empty_body).unwrap();
+    let empty_query: TracePaginationResponse = serde_json::from_slice(&empty_body).unwrap();
     let default_page = fetch_paginated(&helper, &TraceFilters::default()).await;
-    assert_eq!(empty_q.items.len(), default_page.items.len());
+    assert_eq!(empty_query.items.len(), default_page.items.len());
 }
 
 #[tokio::test]
-async fn test_trace_q_is_merged_for_metrics_facets_and_spans() {
+async fn test_trace_query_is_merged_for_metrics_facets_and_spans() {
     let helper = setup_test().await;
     helper.generate_trace_data().await.unwrap();
     wait_for_paginated_count(&helper, 100).await;
@@ -469,6 +476,7 @@ async fn test_trace_q_is_merged_for_metrics_facets_and_spans() {
         bucket_interval: "hour".to_string(),
         clause: None,
         entity_uid: None,
+        query: None,
     };
     let metrics_body = TraceMetricsRequest {
         clause: TraceFilters::parse("component:kafka").unwrap().clause,
@@ -476,12 +484,12 @@ async fn test_trace_q_is_merged_for_metrics_facets_and_spans() {
     };
 
     let metrics_from_body = fetch_metrics(&helper, &metrics_body).await;
-    let (status, metrics_q_body) = fetch_metrics_raw(
-        &helper,
-        "/scouter/trace/metrics?q=component:kafka",
-        &metrics_base,
-    )
-    .await;
+    let metrics_query_body = TraceMetricsRequest {
+        query: Some("component:kafka".to_string()),
+        ..metrics_base.clone()
+    };
+    let (status, metrics_q_body) =
+        fetch_metrics_raw(&helper, "/scouter/trace/metrics", &metrics_query_body).await;
     assert_eq!(status, StatusCode::OK);
     let metrics_from_q: TraceMetricsResponse = serde_json::from_slice(&metrics_q_body).unwrap();
     assert_eq!(
@@ -499,14 +507,11 @@ async fn test_trace_q_is_merged_for_metrics_facets_and_spans() {
 
     let metrics_and_body = TraceMetricsRequest {
         clause: Some(FilterClause::Service("__no_such_service__".to_string())),
+        query: Some("component:kafka".to_string()),
         ..metrics_base
     };
-    let (status, metrics_merged_body) = fetch_metrics_raw(
-        &helper,
-        "/scouter/trace/metrics?q=component:kafka",
-        &metrics_and_body,
-    )
-    .await;
+    let (status, metrics_merged_body) =
+        fetch_metrics_raw(&helper, "/scouter/trace/metrics", &metrics_and_body).await;
     assert_eq!(status, StatusCode::OK);
     let metrics_merged: TraceMetricsResponse =
         serde_json::from_slice(&metrics_merged_body).unwrap();
@@ -517,14 +522,14 @@ async fn test_trace_q_is_merged_for_metrics_facets_and_spans() {
             .map(|bucket| bucket.trace_count)
             .sum::<i64>(),
         0,
-        "metrics q/body merge should return the exact empty intersection"
+        "metrics query/body merge should return the exact empty intersection"
     );
 
     let body_filters = TraceFilters::parse("component:kafka").unwrap();
     let body_facets = fetch_facets(&helper, &body_filters).await;
     let (status, facets_q_body) = fetch_facets_raw(
         &helper,
-        "/scouter/trace/facets?q=component:kafka",
+        &with_q("/scouter/trace/facets", "component:kafka"),
         &TraceFilters::default(),
     )
     .await;
@@ -538,7 +543,7 @@ async fn test_trace_q_is_merged_for_metrics_facets_and_spans() {
     };
     let (status, merged_facets_body) = fetch_facets_raw(
         &helper,
-        "/scouter/trace/facets?q=component:kafka",
+        &with_q("/scouter/trace/facets", "component:kafka"),
         &merged_filters,
     )
     .await;
@@ -546,13 +551,13 @@ async fn test_trace_q_is_merged_for_metrics_facets_and_spans() {
     let merged_facets: TraceFacetsResponse = serde_json::from_slice(&merged_facets_body).unwrap();
     assert_eq!(
         merged_facets.total_count, 0,
-        "facets q/body merge should return the exact empty intersection"
+        "facets query/body merge should return the exact empty intersection"
     );
 
     let body_spans = fetch_spans_from_filters(&helper, &body_filters).await;
     let (status, spans_q_body) = fetch_spans_from_filters_raw(
         &helper,
-        "/scouter/trace/spans/filters?q=component:kafka",
+        &with_q("/scouter/trace/spans/filters", "component:kafka"),
         &TraceFilters::default(),
     )
     .await;
@@ -562,7 +567,7 @@ async fn test_trace_q_is_merged_for_metrics_facets_and_spans() {
 
     let (status, merged_spans_body) = fetch_spans_from_filters_raw(
         &helper,
-        "/scouter/trace/spans/filters?q=component:kafka",
+        &with_q("/scouter/trace/spans/filters", "component:kafka"),
         &merged_filters,
     )
     .await;
@@ -570,33 +575,34 @@ async fn test_trace_q_is_merged_for_metrics_facets_and_spans() {
     let merged_spans: TraceSpansResponse = serde_json::from_slice(&merged_spans_body).unwrap();
     assert!(
         merged_spans.spans.is_empty(),
-        "spans q/body merge should return the exact empty intersection"
+        "spans query/body merge should return the exact empty intersection"
     );
 
-    let invalid_q = "%28start_time:2026-01-01T00%3A00%3A00Z%20component:kafka%29";
+    let invalid_q = "(start_time:2026-01-01T00:00:00Z component:kafka)";
     let (status, _) = fetch_metrics_raw(
         &helper,
-        &format!("/scouter/trace/metrics?q={invalid_q}"),
+        "/scouter/trace/metrics",
         &TraceMetricsRequest {
             start_time: now - chrono::Duration::hours(24),
             end_time: now + chrono::Duration::hours(1),
             bucket_interval: "hour".to_string(),
             clause: None,
             entity_uid: None,
+            query: Some(invalid_q.to_string()),
         },
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     let (status, _) = fetch_facets_raw(
         &helper,
-        &format!("/scouter/trace/facets?q={invalid_q}"),
+        &with_q("/scouter/trace/facets", invalid_q),
         &TraceFilters::default(),
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     let (status, _) = fetch_spans_from_filters_raw(
         &helper,
-        &format!("/scouter/trace/spans/filters?q={invalid_q}"),
+        &with_q("/scouter/trace/spans/filters", invalid_q),
         &TraceFilters::default(),
     )
     .await;
@@ -776,7 +782,8 @@ async fn test_post_trace_search_cursor_and_validation_paths() {
         limit: Some(2),
         ..Default::default()
     };
-    let (status, body) = fetch_paginated_with_q(&helper, "component:kafka", &first_filters).await;
+    let (status, body) =
+        fetch_paginated_with_query(&helper, "component:kafka", &first_filters).await;
     assert_eq!(status, StatusCode::OK);
     let first_page: TracePaginationResponse = serde_json::from_slice(&body).unwrap();
     assert_eq!(first_page.items.len(), 2);
@@ -790,7 +797,8 @@ async fn test_post_trace_search_cursor_and_validation_paths() {
         direction: Some("next".to_string()),
         ..Default::default()
     };
-    let (status, body) = fetch_paginated_with_q(&helper, "component:kafka", &second_filters).await;
+    let (status, body) =
+        fetch_paginated_with_query(&helper, "component:kafka", &second_filters).await;
     assert_eq!(status, StatusCode::OK);
     let second_page: TracePaginationResponse = serde_json::from_slice(&body).unwrap();
     assert!(!second_page.items.is_empty());
@@ -820,10 +828,11 @@ async fn test_post_trace_search_cursor_and_validation_paths() {
     }
 
     let (status, _) =
-        fetch_paginated_with_q(&helper, "trace_id:not-a-hex-id", &TraceFilters::default()).await;
+        fetch_paginated_with_query(&helper, "trace_id:not-a-hex-id", &TraceFilters::default())
+            .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 
-    let (status, _) = fetch_paginated_with_q(
+    let (status, _) = fetch_paginated_with_query(
         &helper,
         "component:kafka",
         &TraceFilters {
@@ -834,7 +843,7 @@ async fn test_post_trace_search_cursor_and_validation_paths() {
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 
-    let (status, _) = fetch_paginated_with_q(
+    let (status, _) = fetch_paginated_with_query(
         &helper,
         "component:kafka",
         &TraceFilters {
@@ -847,7 +856,7 @@ async fn test_post_trace_search_cursor_and_validation_paths() {
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 
-    let (status, _) = fetch_paginated_with_q(
+    let (status, _) = fetch_paginated_with_query(
         &helper,
         "component:kafka",
         &TraceFilters {
@@ -951,6 +960,7 @@ async fn test_trace_metrics_duration_filter() {
             bucket_interval: "hour".to_string(),
             clause: None,
             entity_uid: None,
+            query: None,
         },
     )
     .await;
@@ -964,6 +974,7 @@ async fn test_trace_metrics_duration_filter() {
             bucket_interval: "hour".to_string(),
             clause: Some(FilterClause::DurationMinMs(500)),
             entity_uid: None,
+            query: None,
         },
     )
     .await;
@@ -986,6 +997,7 @@ async fn test_trace_metrics_duration_filter() {
             bucket_interval: "hour".to_string(),
             clause: Some(FilterClause::DurationMaxMs(300)),
             entity_uid: None,
+            query: None,
         },
     )
     .await;
@@ -1006,6 +1018,7 @@ async fn test_trace_metrics_duration_filter() {
                 FilterClause::DurationMaxMs(800),
             ])),
             entity_uid: None,
+            query: None,
         },
     )
     .await;
@@ -1023,6 +1036,7 @@ async fn test_trace_metrics_duration_filter() {
             bucket_interval: "hour".to_string(),
             clause: Some(FilterClause::DurationMaxMs(1_000)),
             entity_uid: None,
+            query: None,
         },
     )
     .await;

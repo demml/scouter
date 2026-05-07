@@ -172,6 +172,7 @@ fn metrics_request(
         bucket_interval: "minute".to_string(),
         clause,
         entity_uid: None,
+        query: None,
     }
 }
 

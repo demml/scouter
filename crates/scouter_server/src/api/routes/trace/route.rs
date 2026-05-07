@@ -135,21 +135,20 @@ fn merge_filters(parsed: TraceFilters, body: TraceFilters) -> TraceFilters {
     }
 }
 
-fn merge_q_into_metrics(
-    q: Option<String>,
-    body: TraceMetricsRequest,
+fn normalize_metrics_request(
+    mut body: TraceMetricsRequest,
 ) -> Result<TraceMetricsRequest, (StatusCode, Json<ScouterServerError>)> {
-    let Some(q) = q.as_deref().map(str::trim).filter(|s| !s.is_empty()) else {
+    let Some(query) = body.query.take() else {
         return Ok(body);
     };
-    let parsed = parse_search_query(q).map_err(invalid_search_query)?;
-    Ok(TraceMetricsRequest {
-        start_time: body.start_time,
-        end_time: body.end_time,
-        bucket_interval: body.bucket_interval,
-        clause: FilterClause::and_merge(parsed.clause, body.clause),
-        entity_uid: body.entity_uid.or(parsed.entity_uid),
-    })
+    let query = query.trim();
+    if query.is_empty() {
+        return Ok(body);
+    }
+    let parsed = parse_search_query(query).map_err(invalid_search_query)?;
+    body.clause = FilterClause::and_merge(parsed.clause, body.clause);
+    body.entity_uid = body.entity_uid.or(parsed.entity_uid);
+    Ok(body)
 }
 
 #[utoipa::path(
@@ -435,11 +434,11 @@ pub async fn query_trace_spans_from_tags(
     Ok(Json(TraceSpansResponse { spans: all_spans }))
 }
 
+// Get trace metrics aggregated into buckets by time interval, optionally filtered by request-body query.
 #[utoipa::path(
     post,
     path = "/scouter/trace/metrics",
     request_body = TraceMetricsRequest,
-    params(("q" = Option<String>, Query, description = "Optional Lucene-style search query")),
     responses(
         (status = 200, description = "Trace metrics", body = TraceMetricsResponse),
         (status = 500, description = "Internal server error", body = ScouterServerError),
@@ -450,10 +449,9 @@ pub async fn query_trace_spans_from_tags(
 #[instrument(skip_all)]
 pub async fn trace_metrics(
     State(data): State<Arc<AppState>>,
-    Query(search): Query<SearchQ>,
     Json(body): Json<TraceMetricsRequest>,
 ) -> Result<Json<TraceMetricsResponse>, (StatusCode, Json<ScouterServerError>)> {
-    let body = merge_q_into_metrics(search.q, body)?;
+    let body = normalize_metrics_request(body)?;
     if let Some(clause) = &body.clause {
         validate_clause(clause)
             .map_err(|msg| (StatusCode::BAD_REQUEST, Json(ScouterServerError::new(msg))))?;
@@ -799,6 +797,31 @@ mod tests {
         let result = merge_q_into_filters(None, body.clone()).unwrap();
         assert_eq!(result.limit, Some(25));
         assert!(result.clause.is_none());
+    }
+
+    #[test]
+    fn metrics_body_query_merges_supported_fields_and_keeps_body_precedence() {
+        let start_time = Utc::now();
+        let end_time = start_time + chrono::Duration::hours(1);
+        let body = TraceMetricsRequest {
+            start_time,
+            end_time,
+            bucket_interval: "hour".to_string(),
+            clause: Some(FilterClause::Service("checkout".to_string())),
+            entity_uid: Some("body-entity".to_string()),
+            query: Some(
+                "start_time:2026-01-01T00:00:00Z entity_uid:query-entity component:kafka"
+                    .to_string(),
+            ),
+        };
+
+        let result = normalize_metrics_request(body).unwrap();
+        assert_eq!(result.start_time, start_time);
+        assert_eq!(result.end_time, end_time);
+        assert_eq!(result.bucket_interval, "hour");
+        assert_eq!(result.entity_uid.as_deref(), Some("body-entity"));
+        assert!(matches!(result.clause, Some(FilterClause::And(parts)) if parts.len() == 2));
+        assert!(result.query.is_none());
     }
 
     #[test]
