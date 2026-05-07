@@ -21,6 +21,15 @@ POLL_TIMEOUT_SECS = 30
 POLL_INTERVAL_SECS = 1
 MODEL_NAME = "gemini-2.0-flash"
 AGENT_NAME = "google_interactive_agent"
+TOOL_NAME = "dinner_lookup"
+
+
+def dinner_lookup(ingredient: str) -> dict[str, str]:
+    """Return a deterministic dinner suggestion for an ingredient."""
+    return {
+        "ingredient": ingredient,
+        "dish": "tofu, broccoli, and rice with a soy ginger glaze",
+    }
 
 
 def _cleanup_tracing_state() -> None:
@@ -49,6 +58,25 @@ class DeterministicGoogleLlm(BaseLlm):
         stream: bool = False,
     ) -> AsyncGenerator[LlmResponse, None]:
         assert stream is False
+        calls = getattr(self, "_calls", 0)
+        object.__setattr__(self, "_calls", calls + 1)
+        if calls == 0:
+            yield LlmResponse(
+                model_version=llm_request.model,
+                content=types.Content(
+                    role="model",
+                    parts=[
+                        types.Part.from_function_call(
+                            name=TOOL_NAME,
+                            args={"ingredient": "tofu"},
+                        )
+                    ],
+                ),
+                partial=False,
+                finish_reason=types.FinishReason.STOP,
+            )
+            return
+
         yield LlmResponse(
             model_version=llm_request.model,
             content=types.Content(
@@ -72,6 +100,7 @@ class DeterministicGoogleAgent(Agent):
             name=AGENT_NAME,
             description="Interactive assistant",
             instruction="Answer the user's cooking question with one concise sentence.",
+            tools=[dinner_lookup],
         )
 
 
@@ -126,7 +155,7 @@ def _wait_for_adk_genai_spans(
     while time.monotonic() < deadline:
         last_spans = _fetch_genai_spans(server)
         operations = {span["operation_name"] for span in last_spans}
-        if {"invoke_agent", "generate_content"}.issubset(operations):
+        if {"invoke_agent", "generate_content", "execute_tool"}.issubset(operations):
             return last_spans
         time.sleep(POLL_INTERVAL_SECS)
 
@@ -166,6 +195,7 @@ async def test_google_adk_agent_writes_parseable_genai_trace_metrics() -> None:
 
             invoke_span = _span_with_operation(spans, "invoke_agent")
             generate_span = _span_with_operation(spans, "generate_content")
+            tool_span = _span_with_operation(spans, "execute_tool")
             trace_id = generate_span["trace_id"]
 
             assert invoke_span["trace_id"] == trace_id
@@ -180,6 +210,12 @@ async def test_google_adk_agent_writes_parseable_genai_trace_metrics() -> None:
             assert generate_span["input_tokens"] == 21
             assert generate_span["output_tokens"] == 13
             assert generate_span["finish_reasons"] == ["stop"]
+
+            assert tool_span["trace_id"] == trace_id
+            assert tool_span["tool_call_arguments"]
+            assert tool_span["tool_call_result"]
+            assert json.loads(tool_span["tool_call_arguments"])["ingredient"] == "tofu"
+            assert json.loads(tool_span["tool_call_result"])["dish"].startswith("tofu")
 
             metrics = json.loads(
                 server.genai_trace_metrics_json(
@@ -210,3 +246,10 @@ async def test_google_adk_agent_writes_parseable_genai_trace_metrics() -> None:
             assert AGENT_NAME in agents
         finally:
             instrumentor.uninstrument()
+
+
+def test_adk_raw_vendor_attrs_preserved() -> None:
+    pytest.skip(
+        "ScouterDataFrameTestServer exposes canonical GenAI spans only; raw trace attributes "
+        "remain stored on TraceSpanRecord and are covered by Rust extraction tests."
+    )

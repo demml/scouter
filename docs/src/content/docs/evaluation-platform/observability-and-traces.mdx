@@ -91,16 +91,21 @@ The attributes stored as dedicated columns:
 |---|---|
 | Operation | `gen_ai.operation.name`, `gen_ai.provider.name` |
 | Model | `gen_ai.request.model`, `gen_ai.response.model`, `gen_ai.response.id` |
-| Token usage | `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `gen_ai.usage.cache_creation.input_tokens`, `gen_ai.usage.cache_read.input_tokens` |
-| Request params | `gen_ai.request.temperature`, `gen_ai.request.max_tokens`, `gen_ai.request.top_p`, `gen_ai.request.seed`, `gen_ai.request.frequency_penalty`, `gen_ai.request.presence_penalty`, `gen_ai.request.stop_sequences`, `gen_ai.request.choice.count` |
-| Response | `gen_ai.response.finish_reasons`, `gen_ai.output.type` |
+| Token usage | `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `gen_ai.usage.cache_creation.input_tokens`, `gen_ai.usage.cache_read.input_tokens`, `gen_ai.usage.reasoning.output_tokens` |
+| Request params | `gen_ai.request.temperature`, `gen_ai.request.max_tokens`, `gen_ai.request.top_p`, `gen_ai.request.top_k`, `gen_ai.request.stream`, `gen_ai.request.encoding_formats`, `gen_ai.request.seed`, `gen_ai.request.frequency_penalty`, `gen_ai.request.presence_penalty`, `gen_ai.request.stop_sequences`, `gen_ai.request.choice.count` |
+| Response | `gen_ai.response.finish_reasons`, `gen_ai.response.time_to_first_chunk`, `gen_ai.output.type` |
 | Agent | `gen_ai.agent.name`, `gen_ai.agent.id`, `gen_ai.agent.description`, `gen_ai.agent.version` |
 | Conversation | `gen_ai.conversation.id`, `gen_ai.data_source.id` |
-| Tool calls | `gen_ai.tool.name`, `gen_ai.tool.type`, `gen_ai.tool.call.id` |
+| Tool calls | `gen_ai.tool.name`, `gen_ai.tool.type`, `gen_ai.tool.description`, `gen_ai.tool.call.id`, `gen_ai.tool.call.arguments`, `gen_ai.tool.call.result` |
+| Prompt / Workflow | `gen_ai.prompt.name`, `gen_ai.workflow.name` |
+| Embeddings | `gen_ai.embeddings.dimension.count` |
+| Retrieval | `gen_ai.retrieval.documents`, `gen_ai.retrieval.query.text` |
 | Content (opt-in) | `gen_ai.input.messages`, `gen_ai.output.messages`, `gen_ai.system_instructions`, `gen_ai.tool.definitions` |
 | Server | `server.address`, `server.port` |
 | Error | `error.type` |
 | Evaluation | `gen_ai.evaluation.result` events with `name`, `score.label`, `score.value`, `explanation` |
+
+See the [GenAI semantic conventions](/tracing/genai-semantics/) page for Google ADK / Vertex vendor fallback details and sensitive-content redaction rules.
 
 These attributes are set by your application code on spans. Scouter doesn't auto-instrument LLM calls; your framework or manual instrumentation provides the attributes. What Scouter does is store them in a columnar layout where each attribute is a typed column with dictionary encoding on high-repetition fields (`provider_name`, `request_model`, `response_model`, `operation_name`, `output_type`). Token columns use delta encoding. The result: queries like "average input tokens by model over the last 24 hours" scan compressed, sorted columns instead of parsing JSON blobs.
 

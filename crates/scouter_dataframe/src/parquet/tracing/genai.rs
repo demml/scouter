@@ -38,6 +38,15 @@ use tokio::time::interval;
 use tracing::{debug, error, info, instrument};
 use url::Url;
 
+macro_rules! append_opt_str {
+    ($self:expr, $field:ident, $src:expr) => {
+        match &$src {
+            Some(v) => $self.$field.append_value(v),
+            None => $self.$field.append_null(),
+        }
+    };
+}
+
 const GEN_AI_TABLE_NAME: &str = "gen_ai_spans";
 const TASK_GENAI_OPTIMIZE: &str = "genai_optimize";
 const TASK_GENAI_RETENTION: &str = "genai_retention";
@@ -89,6 +98,19 @@ const INPUT_MESSAGES_COL: &str = "input_messages";
 const OUTPUT_MESSAGES_COL: &str = "output_messages";
 const SYSTEM_INSTRUCTIONS_COL: &str = "system_instructions";
 const TOOL_DEFINITIONS_COL: &str = "tool_definitions";
+const TOOL_DESCRIPTION_COL: &str = "tool_description";
+const TOOL_CALL_ARGUMENTS_COL: &str = "tool_call_arguments";
+const TOOL_CALL_RESULT_COL: &str = "tool_call_result";
+const REQUEST_STREAM_COL: &str = "request_stream";
+const REQUEST_TOP_K_COL: &str = "request_top_k";
+const REQUEST_ENCODING_FORMATS_COL: &str = "request_encoding_formats";
+const RESPONSE_TIME_TO_FIRST_CHUNK_COL: &str = "response_time_to_first_chunk";
+const REASONING_OUTPUT_TOKENS_COL: &str = "reasoning_output_tokens";
+const PROMPT_NAME_COL: &str = "prompt_name";
+const WORKFLOW_NAME_COL: &str = "workflow_name";
+const EMBEDDINGS_DIMENSION_COUNT_COL: &str = "embeddings_dimension_count";
+const RETRIEVAL_DOCUMENTS_COL: &str = "retrieval_documents";
+const RETRIEVAL_QUERY_TEXT_COL: &str = "retrieval_query_text";
 const EVAL_RESULTS_COL: &str = "eval_results";
 const ENTITY_ID_COL: &str = "entity_id";
 const PARTITION_DATE_COL: &str = "partition_date";
@@ -217,6 +239,31 @@ fn create_genai_schema() -> Schema {
         Field::new(OUTPUT_MESSAGES_COL, DataType::Utf8View, true),
         Field::new(SYSTEM_INSTRUCTIONS_COL, DataType::Utf8View, true),
         Field::new(TOOL_DEFINITIONS_COL, DataType::Utf8View, true),
+        Field::new(TOOL_DESCRIPTION_COL, DataType::Utf8View, true),
+        Field::new(TOOL_CALL_ARGUMENTS_COL, DataType::Utf8View, true),
+        Field::new(TOOL_CALL_RESULT_COL, DataType::Utf8View, true),
+        Field::new(REQUEST_STREAM_COL, DataType::Boolean, true),
+        Field::new(REQUEST_TOP_K_COL, DataType::Float64, true),
+        Field::new(
+            REQUEST_ENCODING_FORMATS_COL,
+            DataType::List(Arc::new(Field::new("item", DataType::Utf8, true))),
+            true,
+        ),
+        Field::new(RESPONSE_TIME_TO_FIRST_CHUNK_COL, DataType::Float64, true),
+        Field::new(REASONING_OUTPUT_TOKENS_COL, DataType::Int64, true),
+        Field::new(
+            PROMPT_NAME_COL,
+            DataType::Dictionary(Box::new(DataType::Int16), Box::new(DataType::Utf8)),
+            true,
+        ),
+        Field::new(
+            WORKFLOW_NAME_COL,
+            DataType::Dictionary(Box::new(DataType::Int16), Box::new(DataType::Utf8)),
+            true,
+        ),
+        Field::new(EMBEDDINGS_DIMENSION_COUNT_COL, DataType::Int64, true),
+        Field::new(RETRIEVAL_DOCUMENTS_COL, DataType::Utf8View, true),
+        Field::new(RETRIEVAL_QUERY_TEXT_COL, DataType::Utf8View, true),
         Field::new(EVAL_RESULTS_COL, DataType::Utf8View, true),
         Field::new(
             ENTITY_ID_COL,
@@ -279,6 +326,19 @@ struct GenAiBatchBuilder {
     output_messages: StringViewBuilder,
     system_instructions: StringViewBuilder,
     tool_definitions: StringViewBuilder,
+    tool_description: StringViewBuilder,
+    tool_call_arguments: StringViewBuilder,
+    tool_call_result: StringViewBuilder,
+    request_stream: BooleanBuilder,
+    request_top_k: Float64Builder,
+    request_encoding_formats: ListBuilder<StringBuilder>,
+    response_time_to_first_chunk: Float64Builder,
+    reasoning_output_tokens: Int64Builder,
+    prompt_name: StringDictionaryBuilder<Int16Type>,
+    workflow_name: StringDictionaryBuilder<Int16Type>,
+    embeddings_dimension_count: Int64Builder,
+    retrieval_documents: StringViewBuilder,
+    retrieval_query_text: StringViewBuilder,
     eval_results: StringViewBuilder,
     entity_id: StringDictionaryBuilder<Int8Type>,
     partition_date: Date32Builder,
@@ -336,6 +396,19 @@ impl GenAiBatchBuilder {
             output_messages: StringViewBuilder::new(),
             system_instructions: StringViewBuilder::new(),
             tool_definitions: StringViewBuilder::new(),
+            tool_description: StringViewBuilder::new(),
+            tool_call_arguments: StringViewBuilder::new(),
+            tool_call_result: StringViewBuilder::new(),
+            request_stream: BooleanBuilder::with_capacity(capacity),
+            request_top_k: Float64Builder::with_capacity(capacity),
+            request_encoding_formats: ListBuilder::new(StringBuilder::new()),
+            response_time_to_first_chunk: Float64Builder::with_capacity(capacity),
+            reasoning_output_tokens: Int64Builder::with_capacity(capacity),
+            prompt_name: StringDictionaryBuilder::new(),
+            workflow_name: StringDictionaryBuilder::new(),
+            embeddings_dimension_count: Int64Builder::with_capacity(capacity),
+            retrieval_documents: StringViewBuilder::new(),
+            retrieval_query_text: StringViewBuilder::new(),
             eval_results: StringViewBuilder::new(),
             entity_id: StringDictionaryBuilder::new(),
             partition_date: Date32Builder::with_capacity(capacity),
@@ -346,18 +419,9 @@ impl GenAiBatchBuilder {
         self.trace_id.append_value(rec.trace_id.as_bytes())?;
         self.span_id.append_value(rec.span_id.as_bytes())?;
         self.service_name.append_value(&rec.service_name);
-        match &rec.service_namespace {
-            Some(v) => self.service_namespace.append_value(v),
-            None => self.service_namespace.append_null(),
-        }
-        match &rec.service_version {
-            Some(v) => self.service_version.append_value(v),
-            None => self.service_version.append_null(),
-        }
-        match &rec.service_instance_id {
-            Some(v) => self.service_instance_id.append_value(v),
-            None => self.service_instance_id.append_null(),
-        }
+        append_opt_str!(self, service_namespace, rec.service_namespace);
+        append_opt_str!(self, service_version, rec.service_version);
+        append_opt_str!(self, service_instance_id, rec.service_instance_id);
         self.start_time
             .append_value(rec.start_time.timestamp_micros());
         match rec.end_time {
@@ -367,26 +431,11 @@ impl GenAiBatchBuilder {
         self.duration_ms.append_value(rec.duration_ms);
         self.status_code.append_value(rec.status_code);
 
-        match &rec.operation_name {
-            Some(v) => self.operation_name.append_value(v),
-            None => self.operation_name.append_null(),
-        }
-        match &rec.provider_name {
-            Some(v) => self.provider_name.append_value(v),
-            None => self.provider_name.append_null(),
-        }
-        match &rec.request_model {
-            Some(v) => self.request_model.append_value(v),
-            None => self.request_model.append_null(),
-        }
-        match &rec.response_model {
-            Some(v) => self.response_model.append_value(v),
-            None => self.response_model.append_null(),
-        }
-        match &rec.response_id {
-            Some(v) => self.response_id.append_value(v),
-            None => self.response_id.append_null(),
-        }
+        append_opt_str!(self, operation_name, rec.operation_name);
+        append_opt_str!(self, provider_name, rec.provider_name);
+        append_opt_str!(self, request_model, rec.request_model);
+        append_opt_str!(self, response_model, rec.response_model);
+        append_opt_str!(self, response_id, rec.response_id);
         self.input_tokens.append_option(rec.input_tokens);
         self.output_tokens.append_option(rec.output_tokens);
         self.cache_creation_input_tokens
@@ -403,69 +452,26 @@ impl GenAiBatchBuilder {
             self.finish_reasons.append(true);
         }
 
-        match &rec.output_type {
-            Some(v) => self.output_type.append_value(v),
-            None => self.output_type.append_null(),
-        }
-        match &rec.conversation_id {
-            Some(v) => self.conversation_id.append_value(v),
-            None => self.conversation_id.append_null(),
-        }
-        match &rec.agent_name {
-            Some(v) => self.agent_name.append_value(v),
-            None => self.agent_name.append_null(),
-        }
-        match &rec.agent_id {
-            Some(v) => self.agent_id.append_value(v),
-            None => self.agent_id.append_null(),
-        }
-        match &rec.tool_name {
-            Some(v) => self.tool_name.append_value(v),
-            None => self.tool_name.append_null(),
-        }
-        match &rec.tool_type {
-            Some(v) => self.tool_type.append_value(v),
-            None => self.tool_type.append_null(),
-        }
-        match &rec.tool_call_id {
-            Some(v) => self.tool_call_id.append_value(v),
-            None => self.tool_call_id.append_null(),
-        }
+        append_opt_str!(self, output_type, rec.output_type);
+        append_opt_str!(self, conversation_id, rec.conversation_id);
+        append_opt_str!(self, agent_name, rec.agent_name);
+        append_opt_str!(self, agent_id, rec.agent_id);
+        append_opt_str!(self, tool_name, rec.tool_name);
+        append_opt_str!(self, tool_type, rec.tool_type);
+        append_opt_str!(self, tool_call_id, rec.tool_call_id);
         self.request_temperature
             .append_option(rec.request_temperature);
         self.request_max_tokens
             .append_option(rec.request_max_tokens);
         self.request_top_p.append_option(rec.request_top_p);
 
-        match &rec.error_type {
-            Some(v) => self.error_type.append_value(v),
-            None => self.error_type.append_null(),
-        }
-        match &rec.openai_api_type {
-            Some(v) => self.openai_api_type.append_value(v),
-            None => self.openai_api_type.append_null(),
-        }
-        match &rec.openai_service_tier {
-            Some(v) => self.openai_service_tier.append_value(v),
-            None => self.openai_service_tier.append_null(),
-        }
-        match &rec.label {
-            Some(v) => self.label.append_value(v),
-            None => self.label.append_null(),
-        }
-
-        match &rec.agent_description {
-            Some(v) => self.agent_description.append_value(v),
-            None => self.agent_description.append_null(),
-        }
-        match &rec.agent_version {
-            Some(v) => self.agent_version.append_value(v),
-            None => self.agent_version.append_null(),
-        }
-        match &rec.data_source_id {
-            Some(v) => self.data_source_id.append_value(v),
-            None => self.data_source_id.append_null(),
-        }
+        append_opt_str!(self, error_type, rec.error_type);
+        append_opt_str!(self, openai_api_type, rec.openai_api_type);
+        append_opt_str!(self, openai_service_tier, rec.openai_service_tier);
+        append_opt_str!(self, label, rec.label);
+        append_opt_str!(self, agent_description, rec.agent_description);
+        append_opt_str!(self, agent_version, rec.agent_version);
+        append_opt_str!(self, data_source_id, rec.data_source_id);
         self.request_choice_count
             .append_option(rec.request_choice_count);
         self.request_seed.append_option(rec.request_seed);
@@ -483,28 +489,38 @@ impl GenAiBatchBuilder {
             self.request_stop_sequences.append(true);
         }
 
-        match &rec.server_address {
-            Some(v) => self.server_address.append_value(v),
-            None => self.server_address.append_null(),
-        }
+        append_opt_str!(self, server_address, rec.server_address);
         self.server_port.append_option(rec.server_port);
 
-        match &rec.input_messages {
-            Some(v) => self.input_messages.append_value(v),
-            None => self.input_messages.append_null(),
+        append_opt_str!(self, input_messages, rec.input_messages);
+        append_opt_str!(self, output_messages, rec.output_messages);
+        append_opt_str!(self, system_instructions, rec.system_instructions);
+        append_opt_str!(self, tool_definitions, rec.tool_definitions);
+        append_opt_str!(self, tool_description, rec.tool_description);
+        append_opt_str!(self, tool_call_arguments, rec.tool_call_arguments);
+        append_opt_str!(self, tool_call_result, rec.tool_call_result);
+        self.request_stream.append_option(rec.request_stream);
+        self.request_top_k.append_option(rec.request_top_k);
+
+        if rec.request_encoding_formats.is_empty() {
+            self.request_encoding_formats.append(false);
+        } else {
+            for format in &rec.request_encoding_formats {
+                self.request_encoding_formats.values().append_value(format);
+            }
+            self.request_encoding_formats.append(true);
         }
-        match &rec.output_messages {
-            Some(v) => self.output_messages.append_value(v),
-            None => self.output_messages.append_null(),
-        }
-        match &rec.system_instructions {
-            Some(v) => self.system_instructions.append_value(v),
-            None => self.system_instructions.append_null(),
-        }
-        match &rec.tool_definitions {
-            Some(v) => self.tool_definitions.append_value(v),
-            None => self.tool_definitions.append_null(),
-        }
+
+        self.response_time_to_first_chunk
+            .append_option(rec.response_time_to_first_chunk);
+        self.reasoning_output_tokens
+            .append_option(rec.reasoning_output_tokens);
+        append_opt_str!(self, prompt_name, rec.prompt_name);
+        append_opt_str!(self, workflow_name, rec.workflow_name);
+        self.embeddings_dimension_count
+            .append_option(rec.embeddings_dimension_count);
+        append_opt_str!(self, retrieval_documents, rec.retrieval_documents);
+        append_opt_str!(self, retrieval_query_text, rec.retrieval_query_text);
 
         let eval_json = if rec.eval_results.is_empty() {
             None
@@ -513,10 +529,7 @@ impl GenAiBatchBuilder {
         };
         self.eval_results.append_option(eval_json.as_deref());
 
-        match &rec.entity_id {
-            Some(v) => self.entity_id.append_value(v),
-            None => self.entity_id.append_null(),
-        }
+        append_opt_str!(self, entity_id, rec.entity_id);
 
         let days = rec.start_time.date_naive().num_days_from_ce() - UNIX_EPOCH_DAYS;
         self.partition_date.append_value(days);
@@ -573,6 +586,19 @@ impl GenAiBatchBuilder {
             Arc::new(self.output_messages.finish()),
             Arc::new(self.system_instructions.finish()),
             Arc::new(self.tool_definitions.finish()),
+            Arc::new(self.tool_description.finish()),
+            Arc::new(self.tool_call_arguments.finish()),
+            Arc::new(self.tool_call_result.finish()),
+            Arc::new(self.request_stream.finish()),
+            Arc::new(self.request_top_k.finish()),
+            Arc::new(self.request_encoding_formats.finish()),
+            Arc::new(self.response_time_to_first_chunk.finish()),
+            Arc::new(self.reasoning_output_tokens.finish()),
+            Arc::new(self.prompt_name.finish()),
+            Arc::new(self.workflow_name.finish()),
+            Arc::new(self.embeddings_dimension_count.finish()),
+            Arc::new(self.retrieval_documents.finish()),
+            Arc::new(self.retrieval_query_text.finish()),
             Arc::new(self.eval_results.finish()),
             Arc::new(self.entity_id.finish()),
             Arc::new(self.partition_date.finish()),
@@ -1307,6 +1333,15 @@ impl GenAiQueries {
             col(REQUEST_STOP_SEQUENCES_COL),
             col(SERVER_ADDRESS_COL),
             col(SERVER_PORT_COL),
+            col(TOOL_DESCRIPTION_COL),
+            col(REQUEST_STREAM_COL),
+            col(REQUEST_TOP_K_COL),
+            col(REQUEST_ENCODING_FORMATS_COL),
+            col(RESPONSE_TIME_TO_FIRST_CHUNK_COL),
+            col(REASONING_OUTPUT_TOKENS_COL),
+            col(PROMPT_NAME_COL),
+            col(WORKFLOW_NAME_COL),
+            col(EMBEDDINGS_DIMENSION_COUNT_COL),
         ];
 
         if include_sensitive_content {
@@ -1315,6 +1350,10 @@ impl GenAiQueries {
                 col(OUTPUT_MESSAGES_COL),
                 col(SYSTEM_INSTRUCTIONS_COL),
                 col(TOOL_DEFINITIONS_COL),
+                col(TOOL_CALL_ARGUMENTS_COL),
+                col(TOOL_CALL_RESULT_COL),
+                col(RETRIEVAL_DOCUMENTS_COL),
+                col(RETRIEVAL_QUERY_TEXT_COL),
             ]);
         } else {
             projection.extend([
@@ -1322,6 +1361,10 @@ impl GenAiQueries {
                 lit(ScalarValue::Utf8(None)).alias(OUTPUT_MESSAGES_COL),
                 lit(ScalarValue::Utf8(None)).alias(SYSTEM_INSTRUCTIONS_COL),
                 lit(ScalarValue::Utf8(None)).alias(TOOL_DEFINITIONS_COL),
+                lit(ScalarValue::Utf8(None)).alias(TOOL_CALL_ARGUMENTS_COL),
+                lit(ScalarValue::Utf8(None)).alias(TOOL_CALL_RESULT_COL),
+                lit(ScalarValue::Utf8(None)).alias(RETRIEVAL_DOCUMENTS_COL),
+                lit(ScalarValue::Utf8(None)).alias(RETRIEVAL_QUERY_TEXT_COL),
             ]);
         }
 
@@ -3278,6 +3321,36 @@ fn nullable_f64(arr: &Float64Array, i: usize) -> Option<f64> {
     }
 }
 
+fn nullable_bool(arr: &BooleanArray, i: usize) -> Option<bool> {
+    if arr.is_null(i) {
+        None
+    } else {
+        Some(arr.value(i))
+    }
+}
+
+fn nullable_string_list(list: Option<&ListArray>, i: usize) -> Vec<String> {
+    if let Some(list) = list {
+        if list.is_null(i) {
+            vec![]
+        } else {
+            let inner = list.value(i);
+            let str_arr = compute::cast(&inner, &DataType::Utf8)
+                .ok()
+                .and_then(|a| a.as_any().downcast_ref::<StringArray>().cloned());
+            match str_arr {
+                Some(arr) => (0..arr.len())
+                    .filter(|j| !arr.is_null(*j))
+                    .map(|j| arr.value(j).to_string())
+                    .collect(),
+                None => vec![],
+            }
+        }
+    } else {
+        vec![]
+    }
+}
+
 fn cast_to_string_array(
     batch: &RecordBatch,
     col_name: &str,
@@ -3347,6 +3420,13 @@ fn batches_to_genai_records(
         let openai_api_types = cast_to_string_array(batch, OPENAI_API_TYPE_COL)?;
         let openai_service_tiers = cast_to_string_array(batch, OPENAI_SERVICE_TIER_COL)?;
         let labels = cast_to_string_array(batch, LABEL_COL)?;
+        let tool_descriptions = cast_to_string_array(batch, TOOL_DESCRIPTION_COL)?;
+        let tool_call_arguments = cast_to_string_array(batch, TOOL_CALL_ARGUMENTS_COL)?;
+        let tool_call_results = cast_to_string_array(batch, TOOL_CALL_RESULT_COL)?;
+        let prompt_names = cast_to_string_array(batch, PROMPT_NAME_COL)?;
+        let workflow_names = cast_to_string_array(batch, WORKFLOW_NAME_COL)?;
+        let retrieval_documents = cast_to_string_array(batch, RETRIEVAL_DOCUMENTS_COL)?;
+        let retrieval_query_texts = cast_to_string_array(batch, RETRIEVAL_QUERY_TEXT_COL)?;
 
         let start_times = batch
             .column_by_name(START_TIME_COL)
@@ -3417,6 +3497,45 @@ fn batches_to_genai_records(
             .and_then(|c| c.as_any().downcast_ref::<Float64Array>())
             .ok_or_else(|| {
                 TraceEngineError::UnsupportedOperation("missing request_top_p column".into())
+            })?;
+        let request_streams = batch
+            .column_by_name(REQUEST_STREAM_COL)
+            .and_then(|c| c.as_any().downcast_ref::<BooleanArray>())
+            .ok_or_else(|| {
+                TraceEngineError::UnsupportedOperation("missing request_stream column".into())
+            })?;
+        let request_top_ks = batch
+            .column_by_name(REQUEST_TOP_K_COL)
+            .and_then(|c| c.as_any().downcast_ref::<Float64Array>())
+            .ok_or_else(|| {
+                TraceEngineError::UnsupportedOperation("missing request_top_k column".into())
+            })?;
+        let request_encoding_formats_list = batch
+            .column_by_name(REQUEST_ENCODING_FORMATS_COL)
+            .and_then(|c| c.as_any().downcast_ref::<ListArray>());
+        let response_time_to_first_chunks = batch
+            .column_by_name(RESPONSE_TIME_TO_FIRST_CHUNK_COL)
+            .and_then(|c| c.as_any().downcast_ref::<Float64Array>())
+            .ok_or_else(|| {
+                TraceEngineError::UnsupportedOperation(
+                    "missing response_time_to_first_chunk column".into(),
+                )
+            })?;
+        let reasoning_output_tokens = batch
+            .column_by_name(REASONING_OUTPUT_TOKENS_COL)
+            .and_then(|c| c.as_any().downcast_ref::<Int64Array>())
+            .ok_or_else(|| {
+                TraceEngineError::UnsupportedOperation(
+                    "missing reasoning_output_tokens column".into(),
+                )
+            })?;
+        let embeddings_dimension_counts = batch
+            .column_by_name(EMBEDDINGS_DIMENSION_COUNT_COL)
+            .and_then(|c| c.as_any().downcast_ref::<Int64Array>())
+            .ok_or_else(|| {
+                TraceEngineError::UnsupportedOperation(
+                    "missing embeddings_dimension_count column".into(),
+                )
             })?;
 
         let finish_reasons_list = batch
@@ -3506,45 +3625,9 @@ fn batches_to_genai_records(
                 )?)
             };
 
-            let finish_reasons = if let Some(list) = finish_reasons_list {
-                if list.is_null(i) {
-                    vec![]
-                } else {
-                    let inner = list.value(i);
-                    let str_arr = compute::cast(&inner, &DataType::Utf8)
-                        .ok()
-                        .and_then(|a| a.as_any().downcast_ref::<StringArray>().cloned());
-                    match str_arr {
-                        Some(arr) => (0..arr.len())
-                            .filter(|j| !arr.is_null(*j))
-                            .map(|j| arr.value(j).to_string())
-                            .collect(),
-                        None => vec![],
-                    }
-                }
-            } else {
-                vec![]
-            };
-
-            let request_stop_sequences = if let Some(list) = stop_sequences_list {
-                if list.is_null(i) {
-                    vec![]
-                } else {
-                    let inner = list.value(i);
-                    let str_arr = compute::cast(&inner, &DataType::Utf8)
-                        .ok()
-                        .and_then(|a| a.as_any().downcast_ref::<StringArray>().cloned());
-                    match str_arr {
-                        Some(arr) => (0..arr.len())
-                            .filter(|j| !arr.is_null(*j))
-                            .map(|j| arr.value(j).to_string())
-                            .collect(),
-                        None => vec![],
-                    }
-                }
-            } else {
-                vec![]
-            };
+            let finish_reasons = nullable_string_list(finish_reasons_list, i);
+            let request_stop_sequences = nullable_string_list(stop_sequences_list, i);
+            let request_encoding_formats = nullable_string_list(request_encoding_formats_list, i);
 
             let eval_results: Vec<GenAiEvalResult> = if eval_results_col.is_null(i) {
                 vec![]
@@ -3602,6 +3685,19 @@ fn batches_to_genai_records(
                 output_messages: nullable_string(&output_messages_col, i),
                 system_instructions: nullable_string(&system_instructions_col, i),
                 tool_definitions: nullable_string(&tool_definitions_col, i),
+                tool_description: nullable_string(&tool_descriptions, i),
+                tool_call_arguments: nullable_string(&tool_call_arguments, i),
+                tool_call_result: nullable_string(&tool_call_results, i),
+                request_stream: nullable_bool(request_streams, i),
+                request_top_k: nullable_f64(request_top_ks, i),
+                request_encoding_formats,
+                response_time_to_first_chunk: nullable_f64(response_time_to_first_chunks, i),
+                reasoning_output_tokens: nullable_i64(reasoning_output_tokens, i),
+                prompt_name: nullable_string(&prompt_names, i),
+                workflow_name: nullable_string(&workflow_names, i),
+                embeddings_dimension_count: nullable_i64(embeddings_dimension_counts, i),
+                retrieval_documents: nullable_string(&retrieval_documents, i),
+                retrieval_query_text: nullable_string(&retrieval_query_texts, i),
                 eval_results,
             });
         }
@@ -3688,6 +3784,51 @@ mod tests {
             output_tokens: Some(output_tokens),
             ..Default::default()
         }
+    }
+
+    fn legacy_genai_schema() -> Schema {
+        let new_columns = [
+            TOOL_DESCRIPTION_COL,
+            TOOL_CALL_ARGUMENTS_COL,
+            TOOL_CALL_RESULT_COL,
+            REQUEST_STREAM_COL,
+            REQUEST_TOP_K_COL,
+            REQUEST_ENCODING_FORMATS_COL,
+            RESPONSE_TIME_TO_FIRST_CHUNK_COL,
+            REASONING_OUTPUT_TOKENS_COL,
+            PROMPT_NAME_COL,
+            WORKFLOW_NAME_COL,
+            EMBEDDINGS_DIMENSION_COUNT_COL,
+            RETRIEVAL_DOCUMENTS_COL,
+            RETRIEVAL_QUERY_TEXT_COL,
+        ];
+        Schema::new(
+            create_genai_schema()
+                .fields()
+                .iter()
+                .filter(|field| !new_columns.contains(&field.name().as_str()))
+                .map(|field| field.as_ref().clone())
+                .collect::<Vec<_>>(),
+        )
+    }
+
+    fn legacy_batch_from_record(record: GenAiSpanRecord) -> Result<RecordBatch, TraceEngineError> {
+        let full_schema = Arc::new(create_genai_schema());
+        let mut builder = GenAiBatchBuilder::new(full_schema, 1);
+        builder.append(&record)?;
+        let full_batch = builder.finish()?;
+        let legacy_schema = Arc::new(legacy_genai_schema());
+        let columns = legacy_schema
+            .fields()
+            .iter()
+            .map(|field| {
+                full_batch
+                    .column_by_name(field.name())
+                    .expect("legacy column should exist in full batch")
+                    .clone()
+            })
+            .collect::<Vec<_>>();
+        RecordBatch::try_new(legacy_schema, columns).map_err(Into::into)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -4517,6 +4658,19 @@ mod tests {
                 output_messages: Some(r#"[{"role":"assistant","content":"hello"}]"#.to_string()),
                 system_instructions: Some("be concise".to_string()),
                 tool_definitions: Some(r#"[{"name":"search"}]"#.to_string()),
+                tool_description: Some("Searches indexed documents".to_string()),
+                tool_call_arguments: Some(r#"{"query":"hello"}"#.to_string()),
+                tool_call_result: Some(r#"{"results":1}"#.to_string()),
+                request_stream: Some(true),
+                request_top_k: Some(40.0),
+                request_encoding_formats: vec!["float".to_string(), "base64".to_string()],
+                response_time_to_first_chunk: Some(0.42),
+                reasoning_output_tokens: Some(7),
+                prompt_name: Some("support-prompt".to_string()),
+                workflow_name: Some("support-workflow".to_string()),
+                embeddings_dimension_count: Some(1536),
+                retrieval_documents: Some(r#"[{"id":"doc-1"}]"#.to_string()),
+                retrieval_query_text: Some("hello".to_string()),
                 eval_results: vec![GenAiEvalResult {
                     name: "quality".to_string(),
                     score_label: Some("pass".to_string()),
@@ -4563,6 +4717,28 @@ mod tests {
             span.tool_definitions.as_deref(),
             Some(r#"[{"name":"search"}]"#)
         );
+        assert_eq!(
+            span.tool_description.as_deref(),
+            Some("Searches indexed documents")
+        );
+        assert_eq!(
+            span.tool_call_arguments.as_deref(),
+            Some(r#"{"query":"hello"}"#)
+        );
+        assert_eq!(span.tool_call_result.as_deref(), Some(r#"{"results":1}"#));
+        assert_eq!(span.request_stream, Some(true));
+        assert_eq!(span.request_top_k, Some(40.0));
+        assert_eq!(span.request_encoding_formats, vec!["float", "base64"]);
+        assert_eq!(span.response_time_to_first_chunk, Some(0.42));
+        assert_eq!(span.reasoning_output_tokens, Some(7));
+        assert_eq!(span.prompt_name.as_deref(), Some("support-prompt"));
+        assert_eq!(span.workflow_name.as_deref(), Some("support-workflow"));
+        assert_eq!(span.embeddings_dimension_count, Some(1536));
+        assert_eq!(
+            span.retrieval_documents.as_deref(),
+            Some(r#"[{"id":"doc-1"}]"#)
+        );
+        assert_eq!(span.retrieval_query_text.as_deref(), Some("hello"));
         assert_eq!(span.eval_results.len(), 1);
 
         let aggregate_spans = service
@@ -4579,7 +4755,229 @@ mod tests {
         assert!(aggregate_span.output_messages.is_none());
         assert!(aggregate_span.system_instructions.is_none());
         assert!(aggregate_span.tool_definitions.is_none());
+        assert!(aggregate_span.tool_call_arguments.is_none());
+        assert!(aggregate_span.tool_call_result.is_none());
+        assert!(aggregate_span.retrieval_documents.is_none());
+        assert!(aggregate_span.retrieval_query_text.is_none());
+        assert_eq!(
+            aggregate_span.tool_description.as_deref(),
+            Some("Searches indexed documents")
+        );
+        assert_eq!(aggregate_span.reasoning_output_tokens, Some(7));
         assert_eq!(aggregate_span.response_model.as_deref(), Some("gpt-4o"));
+
+        service.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_new_standard_fields_roundtrip() -> Result<(), TraceEngineError> {
+        let env = make_test_env();
+        let service =
+            GenAiSpanService::new(&env.object_store, 24, env.ctx, env.catalog, 10, None).await?;
+
+        let trace_id = TraceId::from_bytes([108u8; 16]);
+        let mut record = make_genai_record(
+            &trace_id,
+            SpanId::from_bytes([108u8; 8]),
+            "new-field-service",
+            "execute_tool",
+            "gcp.vertex_ai",
+            "gemini-2.5-pro",
+            100,
+            200,
+        );
+        record.tool_description = Some("Searches docs".to_string());
+        record.tool_call_arguments = Some(r#"{"query":"otel"}"#.to_string());
+        record.tool_call_result = Some(r#"{"count":2}"#.to_string());
+        record.request_stream = Some(true);
+        record.request_top_k = Some(32.0);
+        record.request_encoding_formats = vec!["float".to_string(), "base64".to_string()];
+        record.response_time_to_first_chunk = Some(0.17);
+        record.reasoning_output_tokens = Some(13);
+        record.prompt_name = Some("planner".to_string());
+        record.workflow_name = Some("agent-workflow".to_string());
+        record.embeddings_dimension_count = Some(768);
+        record.retrieval_documents = Some(r#"[{"id":"doc-1"}]"#.to_string());
+        record.retrieval_query_text = Some("what is otel".to_string());
+
+        service.write_records(vec![record]).await?;
+        tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+
+        let spans = service
+            .query_service
+            .get_genai_spans_with_projection(
+                &GenAiSpanFilters {
+                    service_name: Some("new-field-service".to_string()),
+                    start_time: Some(Utc::now() - chrono::Duration::hours(1)),
+                    end_time: Some(Utc::now() + chrono::Duration::hours(1)),
+                    ..Default::default()
+                },
+                true,
+            )
+            .await?;
+
+        assert_eq!(spans.len(), 1);
+        let span = &spans[0];
+        assert_eq!(span.tool_description.as_deref(), Some("Searches docs"));
+        assert_eq!(
+            span.tool_call_arguments.as_deref(),
+            Some(r#"{"query":"otel"}"#)
+        );
+        assert_eq!(span.tool_call_result.as_deref(), Some(r#"{"count":2}"#));
+        assert_eq!(span.request_stream, Some(true));
+        assert_eq!(span.request_top_k, Some(32.0));
+        assert_eq!(span.request_encoding_formats, vec!["float", "base64"]);
+        assert_eq!(span.response_time_to_first_chunk, Some(0.17));
+        assert_eq!(span.reasoning_output_tokens, Some(13));
+        assert_eq!(span.prompt_name.as_deref(), Some("planner"));
+        assert_eq!(span.workflow_name.as_deref(), Some("agent-workflow"));
+        assert_eq!(span.embeddings_dimension_count, Some(768));
+        assert_eq!(
+            span.retrieval_documents.as_deref(),
+            Some(r#"[{"id":"doc-1"}]"#)
+        );
+        assert_eq!(span.retrieval_query_text.as_deref(), Some("what is otel"));
+
+        service.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_existing_legacy_table_schema_evolves_for_new_nullable_fields()
+    -> Result<(), TraceEngineError> {
+        let env = make_test_env();
+        let legacy_schema = Arc::new(legacy_genai_schema());
+        let table_url = build_genai_url(&env.object_store).await?;
+        let table = create_genai_table(&env.object_store, table_url.clone(), legacy_schema).await?;
+        let trace_id = TraceId::from_bytes([110u8; 16]);
+        let record = make_genai_record(
+            &trace_id,
+            SpanId::from_bytes([110u8; 8]),
+            "legacy-schema-service",
+            "chat",
+            "openai",
+            "gpt-4",
+            10,
+            20,
+        );
+        let legacy_batch = legacy_batch_from_record(record)?;
+        table
+            .write(vec![legacy_batch])
+            .with_save_mode(deltalake::protocol::SaveMode::Append)
+            .await?;
+
+        let service =
+            GenAiSpanService::new(&env.object_store, 24, env.ctx, env.catalog, 10, None).await?;
+
+        let evolved_table = DeltaTableBuilder::from_url(table_url.clone())?
+            .with_storage_backend(env.object_store.as_dyn_object_store(), table_url)
+            .load()
+            .await?;
+        let evolved_schema = evolved_table.table_provider().await?.schema();
+        for col in [
+            REQUEST_STREAM_COL,
+            REQUEST_TOP_K_COL,
+            RESPONSE_TIME_TO_FIRST_CHUNK_COL,
+            REASONING_OUTPUT_TOKENS_COL,
+            RETRIEVAL_DOCUMENTS_COL,
+            RETRIEVAL_QUERY_TEXT_COL,
+        ] {
+            evolved_schema.field_with_name(col)?;
+        }
+
+        let spans = service
+            .query_service
+            .get_genai_spans_with_projection(
+                &GenAiSpanFilters {
+                    service_name: Some("legacy-schema-service".to_string()),
+                    start_time: Some(Utc::now() - chrono::Duration::hours(1)),
+                    end_time: Some(Utc::now() + chrono::Duration::hours(1)),
+                    ..Default::default()
+                },
+                true,
+            )
+            .await?;
+
+        assert_eq!(spans.len(), 1);
+        let span = &spans[0];
+        assert_eq!(span.request_model.as_deref(), Some("gpt-4"));
+        assert_eq!(span.input_tokens, Some(10));
+        assert_eq!(span.output_tokens, Some(20));
+        assert!(span.request_stream.is_none());
+        assert!(span.request_top_k.is_none());
+        assert!(span.request_encoding_formats.is_empty());
+        assert!(span.response_time_to_first_chunk.is_none());
+        assert!(span.reasoning_output_tokens.is_none());
+        assert!(span.retrieval_documents.is_none());
+        assert!(span.retrieval_query_text.is_none());
+
+        service.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_sensitive_projection_excludes_new_fields() -> Result<(), TraceEngineError> {
+        let env = make_test_env();
+        let service =
+            GenAiSpanService::new(&env.object_store, 24, env.ctx, env.catalog, 10, None).await?;
+
+        let trace_id = TraceId::from_bytes([109u8; 16]);
+        let mut record = make_genai_record(
+            &trace_id,
+            SpanId::from_bytes([109u8; 8]),
+            "redaction-service",
+            "execute_tool",
+            "gcp.vertex_ai",
+            "gemini-2.5-pro",
+            100,
+            200,
+        );
+        record.tool_description = Some("Searches docs".to_string());
+        record.tool_call_arguments = Some(r#"{"query":"otel"}"#.to_string());
+        record.tool_call_result = Some(r#"{"count":2}"#.to_string());
+        record.request_stream = Some(false);
+        record.request_top_k = Some(32.0);
+        record.request_encoding_formats = vec!["float".to_string()];
+        record.response_time_to_first_chunk = Some(0.17);
+        record.reasoning_output_tokens = Some(13);
+        record.prompt_name = Some("planner".to_string());
+        record.workflow_name = Some("agent-workflow".to_string());
+        record.embeddings_dimension_count = Some(768);
+        record.retrieval_documents = Some(r#"[{"id":"doc-1"}]"#.to_string());
+        record.retrieval_query_text = Some("what is otel".to_string());
+
+        service.write_records(vec![record]).await?;
+        tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+
+        let spans = service
+            .query_service
+            .get_genai_spans_with_projection(
+                &GenAiSpanFilters {
+                    service_name: Some("redaction-service".to_string()),
+                    start_time: Some(Utc::now() - chrono::Duration::hours(1)),
+                    end_time: Some(Utc::now() + chrono::Duration::hours(1)),
+                    ..Default::default()
+                },
+                false,
+            )
+            .await?;
+
+        assert_eq!(spans.len(), 1);
+        let span = &spans[0];
+        assert!(span.tool_call_arguments.is_none());
+        assert!(span.tool_call_result.is_none());
+        assert!(span.retrieval_documents.is_none());
+        assert!(span.retrieval_query_text.is_none());
+        assert_eq!(span.tool_description.as_deref(), Some("Searches docs"));
+        assert_eq!(span.request_stream, Some(false));
+        assert_eq!(span.request_top_k, Some(32.0));
+        assert_eq!(span.request_encoding_formats, vec!["float"]);
+        assert_eq!(span.response_time_to_first_chunk, Some(0.17));
+        assert_eq!(span.reasoning_output_tokens, Some(13));
+        assert_eq!(span.prompt_name.as_deref(), Some("planner"));
+        assert_eq!(span.workflow_name.as_deref(), Some("agent-workflow"));
+        assert_eq!(span.embeddings_dimension_count, Some(768));
 
         service.shutdown().await?;
         Ok(())
