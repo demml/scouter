@@ -3,6 +3,7 @@
 
 import builtins
 import datetime
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Sequence, Union, overload
 
@@ -1879,6 +1880,36 @@ class ScouterQueue:
     def agent_profiles(self) -> Dict[str, AgentEvalProfile]:
         """Returns a mapping of alias → AgentEvalProfile for all AgentEvalProfiles registered in the queue."""
 
+class EvalMediaKind:
+    Image: "EvalMediaKind"
+    Document: "EvalMediaKind"
+
+class EvalMedia:
+    id: str
+    kind: EvalMediaKind
+
+class ImageMedia:
+    def __init__(
+        self,
+        id: str,
+        *,
+        url: Optional[str] = None,
+        bytes: Optional[bytes] = None,
+        path: Optional[Union[str, os.PathLike[str]]] = None,
+        mime_type: Optional[str] = None,
+    ) -> None: ...
+
+class DocumentMedia:
+    def __init__(
+        self,
+        id: str,
+        *,
+        url: Optional[str] = None,
+        bytes: Optional[bytes] = None,
+        path: Optional[Union[str, os.PathLike[str]]] = None,
+        mime_type: Optional[str] = None,
+    ) -> None: ...
+
 class EvalRecord:
     """LLM record containing context tied to a Large Language Model interaction
     that is used to evaluate drift in LLM responses.
@@ -1901,6 +1932,7 @@ class EvalRecord:
         id: Optional[str] = None,
         session_id: Optional[str] = None,
         trace_id: Optional[str] = None,
+        media: Optional[List[Union[EvalMedia, ImageMedia, DocumentMedia]]] = None,
     ) -> None:
         """Creates a new LLM record to associate with an `AgentEvalProfile`.
         The record is sent to the `Scouter` server via the `ScouterQueue` and is
@@ -1917,6 +1949,9 @@ class EvalRecord:
                 Optional unique identifier for the record.
             session_id (Optional[str], optional):
                 Optional session identifier to group related records.
+            media:
+                Optional media attachments referenced by LLMJudgeTask prompts via
+                `${media:id}` placeholders.
 
         Raises:
             TypeError: If context is not a dict or a pydantic BaseModel.
@@ -1961,6 +1996,10 @@ class EvalRecord:
     @property
     def tags(self) -> List[str]:
         """Get the tags list (e.g. ``["scenario_id=s1", "env=test"]``)."""
+
+    @property
+    def media(self) -> List[EvalMedia]:
+        """Get media attachments for this eval record."""
 
     def add_tag(self, key: str, value: str) -> None:
         """Append a tag in ``"key=value"`` format.

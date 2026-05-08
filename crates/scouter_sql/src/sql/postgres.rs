@@ -1107,6 +1107,18 @@ mod tests {
                 uid: format!("test_{}", j),
                 entity_uid: uid.clone(),
                 entity_id,
+                media: if j == 0 {
+                    vec![EvalMedia {
+                        id: "chart".to_string(),
+                        kind: EvalMediaKind::Image,
+                        source: EvalMediaSource::Url {
+                            url: "https://example.com/chart.png".to_string(),
+                            mime_type: Some("image/png".to_string()),
+                        },
+                    }]
+                } else {
+                    Vec::new()
+                },
                 ..Default::default()
             };
 
@@ -1123,6 +1135,12 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(features.len(), 10);
+        let media_record = features
+            .iter()
+            .find(|record| record.uid == "test_0")
+            .expect("media record should round-trip");
+        assert_eq!(media_record.media.len(), 1);
+        assert_eq!(media_record.media[0].id, "chart");
 
         // get pending task
         let pending_tasks = PostgresClient::get_pending_agent_eval_record(&pool, 3)

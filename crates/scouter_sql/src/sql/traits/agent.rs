@@ -52,6 +52,7 @@ pub trait AgentDriftSqlLogic {
             .bind(record.record.trace_id.map(|t| t.as_bytes().to_vec()))
             .bind(EvalRecordSource::Queue.as_str())
             .bind(&record.record.tags)
+            .bind(Json(&record.record.media))
             .execute(pool)
             .await
             .map_err(SqlError::SqlxError)
@@ -778,6 +779,7 @@ pub trait AgentDriftSqlLogic {
         let uid = create_uuid7();
         let now = Utc::now();
         let tags: Vec<String> = Vec::new();
+        let media: Vec<scouter_types::EvalMedia> = Vec::new();
 
         let mut tx = pool.begin().await.map_err(SqlError::SqlxError)?;
 
@@ -822,6 +824,7 @@ pub trait AgentDriftSqlLogic {
             .bind(trace_id.as_bytes().as_slice())
             .bind(EvalRecordSource::TraceDispatch.as_str())
             .bind(&tags)
+            .bind(Json(&media))
             .execute(&mut *tx)
             .await
             .map_err(SqlError::SqlxError)?;

@@ -1,5 +1,5 @@
 use pyo3::PyErr;
-use pyo3::exceptions::PyRuntimeError;
+use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::pyclass::PyClassGuardError;
 use pythonize::PythonizeError;
 use thiserror::Error;
@@ -108,6 +108,12 @@ pub enum EvaluationError {
     #[error("Task not found: {0}")]
     TaskNotFound(String),
 
+    #[error("Agent not found: {0}")]
+    AgentNotFound(String),
+
+    #[error("task lock poisoned")]
+    TaskLockError,
+
     #[error("Failed to acquire read lock on workflow")]
     ReadLockAcquireError,
 
@@ -191,6 +197,15 @@ pub enum EvaluationError {
 
     #[error("Parse error on line {line}: {reason}")]
     ParseLineError { line: usize, reason: String },
+
+    #[error("eval record {record_id} missing media for prompt placeholders: {missing_ids:?}")]
+    MissingMediaForRecord {
+        record_id: String,
+        missing_ids: Vec<String>,
+    },
+
+    #[error(transparent)]
+    PromptType(#[from] potato_head::TypeError),
 }
 
 impl From<pythonize::PythonizeError> for EvaluationError {
@@ -209,7 +224,11 @@ impl From<EvaluationError> for PyErr {
     fn from(err: EvaluationError) -> PyErr {
         let msg = err.to_string();
         error!("{}", msg);
-        PyRuntimeError::new_err(msg)
+        match err {
+            EvaluationError::MissingMediaForRecord { .. } => PyValueError::new_err(msg),
+            EvaluationError::PromptType(source) => source.into(),
+            _ => PyRuntimeError::new_err(msg),
+        }
     }
 }
 

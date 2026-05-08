@@ -18,6 +18,7 @@ pub mod util;
 
 pub mod binning;
 
+pub use agent::{DocumentMedia, EvalMedia, EvalMediaKind, EvalMediaSource, ImageMedia};
 pub use alert::*;
 pub use archive::*;
 pub use binning::*;

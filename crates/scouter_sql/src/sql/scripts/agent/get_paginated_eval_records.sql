@@ -14,7 +14,8 @@ SELECT
     retry_count,
     trace_id,
     record_source,
-    tags
+    tags,
+    media
 FROM scouter.agent_eval_record
 WHERE entity_id = $1
   AND ($2::VARCHAR IS NULL OR status = $2)

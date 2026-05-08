@@ -5,6 +5,7 @@
 
 import builtins
 import datetime
+import os
 from pathlib import Path
 from types import TracebackType
 from typing import (
@@ -405,6 +406,24 @@ class Score:
 
     def __str__(self): ...
 
+class MediaKind:
+    Image: "MediaKind"
+    Document: "MediaKind"
+
+class MediaRef:
+    @staticmethod
+    def image_url(url: str, mime_type: Optional[str] = None) -> "MediaRef": ...
+    @staticmethod
+    def image_bytes(mime_type: str, data: bytes) -> "MediaRef": ...
+    @staticmethod
+    def image_path(path: Union[str, Path]) -> "MediaRef": ...
+    @staticmethod
+    def document_url(url: str, mime_type: Optional[str] = None) -> "MediaRef": ...
+    @staticmethod
+    def document_bytes(mime_type: str, data: bytes) -> "MediaRef": ...
+    @staticmethod
+    def document_path(path: Union[str, Path]) -> "MediaRef": ...
+
 PromptMessage: TypeAlias = Union[
     str,
     "ChatMessage",
@@ -495,6 +514,16 @@ class Prompt(Generic[OutputType]):
             )
             ```
         """
+
+    @property
+    def media_parameters(self) -> List[str]:
+        """Media placeholder IDs extracted from the prompt."""
+
+    def bind_media(self, name: str, media: MediaRef) -> "Prompt[OutputType]":
+        """Return a copy of this prompt with a media placeholder bound."""
+
+    def bind_media_mut(self, name: str, media: MediaRef) -> None:
+        """Bind a media placeholder in this prompt."""
 
     @property
     def model_settings(self) -> ModelSettings:
@@ -15942,6 +15971,36 @@ class ScouterQueue:
     def agent_profiles(self) -> Dict[str, AgentEvalProfile]:
         """Returns a mapping of alias → AgentEvalProfile for all AgentEvalProfiles registered in the queue."""
 
+class EvalMediaKind:
+    Image: "EvalMediaKind"
+    Document: "EvalMediaKind"
+
+class EvalMedia:
+    id: str
+    kind: EvalMediaKind
+
+class ImageMedia:
+    def __init__(
+        self,
+        id: str,
+        *,
+        url: Optional[str] = None,
+        bytes: Optional[bytes] = None,
+        path: Optional[Union[str, os.PathLike[str]]] = None,
+        mime_type: Optional[str] = None,
+    ) -> None: ...
+
+class DocumentMedia:
+    def __init__(
+        self,
+        id: str,
+        *,
+        url: Optional[str] = None,
+        bytes: Optional[bytes] = None,
+        path: Optional[Union[str, os.PathLike[str]]] = None,
+        mime_type: Optional[str] = None,
+    ) -> None: ...
+
 class EvalRecord:
     """LLM record containing context tied to a Large Language Model interaction
     that is used to evaluate drift in LLM responses.
@@ -15964,6 +16023,7 @@ class EvalRecord:
         id: Optional[str] = None,
         session_id: Optional[str] = None,
         trace_id: Optional[str] = None,
+        media: Optional[List[Union[EvalMedia, ImageMedia, DocumentMedia]]] = None,
     ) -> None:
         """Creates a new LLM record to associate with an `AgentEvalProfile`.
         The record is sent to the `Scouter` server via the `ScouterQueue` and is
@@ -15980,6 +16040,9 @@ class EvalRecord:
                 Optional unique identifier for the record.
             session_id (Optional[str], optional):
                 Optional session identifier to group related records.
+            media:
+                Optional media attachments referenced by LLMJudgeTask prompts via
+                `${media:id}` placeholders.
 
         Raises:
             TypeError: If context is not a dict or a pydantic BaseModel.
@@ -16024,6 +16087,10 @@ class EvalRecord:
     @property
     def tags(self) -> List[str]:
         """Get the tags list (e.g. ``["scenario_id=s1", "env=test"]``)."""
+
+    @property
+    def media(self) -> List[EvalMedia]:
+        """Get media attachments for this eval record."""
 
     def add_tag(self, key: str, value: str) -> None:
         """Append a tag in ``"key=value"`` format.
@@ -19390,6 +19457,8 @@ __all__ = [
     "Manual",
     "ManualRoutingMode",
     "Maps",
+    "MediaKind",
+    "MediaRef",
     "MediaResolution",
     "MessageParam",
     "Metadata",

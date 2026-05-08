@@ -15,7 +15,8 @@ SELECT
     retry_count,
     encode(trace_id, 'hex') as trace_id,
     record_source,
-    tags
+    tags,
+    media
 FROM scouter.agent_eval_record
 WHERE 1=1
   AND entity_id = $1

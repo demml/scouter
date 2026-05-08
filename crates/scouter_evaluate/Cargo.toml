@@ -37,6 +37,7 @@ tracing = { workspace = true }
 
 
 [dev-dependencies]
+base64 = { workspace = true }
 potato-head = { workspace = true, features = ["mock"] }
 scouter-mocks = { workspace = true, features = ["server"] }
 tempfile = { workspace = true }

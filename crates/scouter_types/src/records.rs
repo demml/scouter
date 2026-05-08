@@ -1,6 +1,7 @@
 use crate::agent::{
     AgentAssertion, ComparisonOperator, EvaluationTaskType, ExecutionPlan, TraceAssertion,
 };
+use crate::agent::{DocumentMedia, EvalMedia, ImageMedia};
 use crate::error::RecordError;
 use crate::trace::TraceServerRecord;
 use crate::{DriftType, Status, TraceId, depythonize_object_to_value};
@@ -10,13 +11,14 @@ use chrono::Utc;
 use owo_colors::OwoColorize;
 use potato_head::PyHelperFuncs;
 use potato_head::create_uuid7;
+use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pythonize::pythonize;
 use scouter_macro::impl_mask_entity_id;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 #[cfg(feature = "server")]
-use sqlx::{FromRow, Row, postgres::PgRow};
+use sqlx::{FromRow, Row, postgres::PgRow, types::Json};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Display;
@@ -258,12 +260,15 @@ pub struct EvalRecord {
     #[pyo3(get)]
     #[serde(default)]
     pub tags: Vec<String>,
+    #[pyo3(get)]
+    #[serde(default)]
+    pub media: Vec<EvalMedia>,
 }
 
 #[pymethods]
 impl EvalRecord {
     #[new]
-    #[pyo3(signature = (context=None, id = None, session_id = None, trace_id = None))]
+    #[pyo3(signature = (context=None, id = None, session_id = None, trace_id = None, media = None))]
 
     /// Creates a new EvalRecord instance.
     /// The context is either a python dictionary or a pydantic basemodel.
@@ -273,12 +278,16 @@ impl EvalRecord {
         id: Option<String>,
         session_id: Option<String>,
         trace_id: Option<String>,
-    ) -> Result<Self, RecordError> {
+        media: Option<Vec<Bound<'_, PyAny>>>,
+    ) -> PyResult<Self> {
         // check if context is a PyDict or PyObject(Pydantic model)
         let context_val = match context {
             Some(ctx) => depythonize_object_to_value(py, &ctx)?,
             None => Value::Object(serde_json::Map::new()),
         };
+
+        let media_vec = extract_media_vec(media)?;
+        validate_media_record_cap(&media_vec)?;
 
         Ok(EvalRecord {
             uid: create_uuid7(),
@@ -289,6 +298,7 @@ impl EvalRecord {
             trace_id: trace_id
                 .as_deref()
                 .and_then(|tid| TraceId::from_hex(tid).ok()),
+            media: media_vec,
             ..Default::default()
         })
     }
@@ -403,6 +413,7 @@ impl EvalRecord {
             trace_id: None,
             record_source: EvalRecordSource::User,
             tags: Vec::new(),
+            media: Vec::new(),
         }
     }
 
@@ -434,8 +445,46 @@ impl Default for EvalRecord {
             trace_id: None,
             record_source: EvalRecordSource::User,
             tags: Vec::new(),
+            media: Vec::new(),
         }
     }
+}
+
+const MEDIA_RECORD_CAP_BYTES: usize = 10 * 1024 * 1024;
+
+fn extract_media_vec(media: Option<Vec<Bound<'_, PyAny>>>) -> PyResult<Vec<EvalMedia>> {
+    let Some(media) = media else {
+        return Ok(Vec::new());
+    };
+
+    media
+        .into_iter()
+        .map(|item| {
+            if let Ok(media) = item.extract::<EvalMedia>() {
+                return Ok(media);
+            }
+            if let Ok(wrapper) = item.extract::<PyRef<ImageMedia>>() {
+                return Ok(wrapper.0.clone());
+            }
+            if let Ok(wrapper) = item.extract::<PyRef<DocumentMedia>>() {
+                return Ok(wrapper.0.clone());
+            }
+            Err(PyTypeError::new_err(
+                "media items must be EvalMedia, ImageMedia, or DocumentMedia",
+            ))
+        })
+        .collect()
+}
+
+fn validate_media_record_cap(media: &[EvalMedia]) -> Result<(), RecordError> {
+    let total: usize = media.iter().map(EvalMedia::decoded_byte_len).sum();
+    if total > MEDIA_RECORD_CAP_BYTES {
+        return Err(RecordError::ValidationError(
+            "media payload exceeds 10 MiB; provide a URL instead of inline bytes for larger payloads"
+                .into(),
+        ));
+    }
+    Ok(())
 }
 
 #[cfg(feature = "server")]
@@ -481,6 +530,10 @@ impl FromRow<'_, PgRow> for EvalRecord {
                 .and_then(|value| EvalRecordSource::from_str(&value).ok())
                 .unwrap_or(EvalRecordSource::User),
             tags: row.try_get::<Vec<String>, &str>("tags").unwrap_or_default(),
+            media: row
+                .try_get::<Json<Vec<EvalMedia>>, _>("media")
+                .map(|j| j.0)
+                .unwrap_or_default(),
         })
     }
 }
@@ -1444,5 +1497,129 @@ mod tests {
         json_val.as_object_mut().unwrap().remove("tags");
         let deserialized: EvalRecord = serde_json::from_value(json_val).unwrap();
         assert!(deserialized.tags.is_empty());
+    }
+
+    #[test]
+    fn eval_record_accepts_eval_media_directly() {
+        use crate::agent::{EvalMediaKind, EvalMediaSource};
+
+        let media = EvalMedia {
+            id: "chart".to_string(),
+            kind: EvalMediaKind::Image,
+            source: EvalMediaSource::Url {
+                url: "https://example.com/chart.png".to_string(),
+                mime_type: Some("image/png".to_string()),
+            },
+        };
+        let record = EvalRecord {
+            media: vec![media.clone()],
+            ..Default::default()
+        };
+
+        assert_eq!(record.media, vec![media]);
+    }
+
+    #[test]
+    fn eval_record_accepts_image_media_wrapper() {
+        use crate::agent::{EvalMediaKind, EvalMediaSource};
+
+        let wrapper = ImageMedia(EvalMedia {
+            id: "chart".to_string(),
+            kind: EvalMediaKind::Image,
+            source: EvalMediaSource::Url {
+                url: "https://example.com/chart.png".to_string(),
+                mime_type: None,
+            },
+        });
+        let record = EvalRecord {
+            media: vec![wrapper.clone().into_eval_media()],
+            ..Default::default()
+        };
+
+        assert_eq!(record.media, vec![wrapper.0]);
+    }
+
+    #[test]
+    fn eval_record_accepts_document_media_wrapper() {
+        use crate::agent::{EvalMediaKind, EvalMediaSource};
+
+        let wrapper = DocumentMedia(EvalMedia {
+            id: "report".to_string(),
+            kind: EvalMediaKind::Document,
+            source: EvalMediaSource::Base64 {
+                mime_type: "application/pdf".to_string(),
+                data: "JVBERg==".to_string(),
+            },
+        });
+        let record = EvalRecord {
+            media: vec![wrapper.clone().into_eval_media()],
+            ..Default::default()
+        };
+
+        assert_eq!(record.media, vec![wrapper.0]);
+    }
+
+    #[test]
+    fn eval_record_media_missing_in_json_defaults_empty() {
+        use crate::agent::{EvalMediaKind, EvalMediaSource};
+
+        let record = EvalRecord {
+            media: vec![EvalMedia {
+                id: "chart".to_string(),
+                kind: EvalMediaKind::Image,
+                source: EvalMediaSource::Url {
+                    url: "https://example.com/chart.png".to_string(),
+                    mime_type: None,
+                },
+            }],
+            ..Default::default()
+        };
+        let mut json_val: serde_json::Value = serde_json::to_value(&record).unwrap();
+        json_val.as_object_mut().unwrap().remove("media");
+        let deserialized: EvalRecord = serde_json::from_value(json_val).unwrap();
+
+        assert!(deserialized.media.is_empty());
+    }
+
+    #[test]
+    fn eval_record_rejects_oversized_media() {
+        use crate::agent::{EvalMediaKind, EvalMediaSource};
+
+        let media = EvalMedia {
+            id: "chart".to_string(),
+            kind: EvalMediaKind::Image,
+            source: EvalMediaSource::Base64 {
+                mime_type: "image/png".to_string(),
+                data: "a".repeat((MEDIA_RECORD_CAP_BYTES + 1) * 4 / 3 + 4),
+            },
+        };
+
+        let err = validate_media_record_cap(&[media]).unwrap_err();
+
+        assert!(matches!(err, RecordError::ValidationError(_)));
+    }
+
+    #[test]
+    fn eval_record_url_media_does_not_count_toward_cap() {
+        use crate::agent::{EvalMediaKind, EvalMediaSource};
+
+        let inline = EvalMedia {
+            id: "chart".to_string(),
+            kind: EvalMediaKind::Image,
+            source: EvalMediaSource::Base64 {
+                mime_type: "image/png".to_string(),
+                data: "a".repeat(9 * 1024 * 1024 * 4 / 3),
+            },
+        };
+        let url = EvalMedia {
+            id: "report".to_string(),
+            kind: EvalMediaKind::Document,
+            source: EvalMediaSource::Url {
+                url: "https://example.com/report.pdf".to_string(),
+                mime_type: Some("application/pdf".to_string()),
+            },
+        };
+
+        validate_media_record_cap(&[url, inline]).unwrap();
     }
 }
