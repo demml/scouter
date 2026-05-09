@@ -512,6 +512,17 @@ class ActiveSpan:
             ```
         """
 
+    def attach_eval(
+        self,
+        profile_uid: str,
+        context: Any,
+        record_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        media: Optional[List[Any]] = None,
+        tags: Optional[List[str]] = None,
+    ) -> None:
+        """Build and insert a trace-anchored EvalRecord for this span."""
+
     def set_status(self, status: str, description: Optional[str] = None) -> None:
         """Set the status of the active span.
 

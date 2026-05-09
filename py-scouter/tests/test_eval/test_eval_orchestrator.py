@@ -141,7 +141,7 @@ def test_single_turn():
         with tracer.start_as_current_span("agent_call") as span:
             span.add_queue_item(
                 "agent",
-                EvalRecord(context={"response": {"quality": 9, "text": "4"}}, id="rec_1"),
+                EvalRecord(context={"response": {"quality": 9, "text": "4"}}, record_id="rec_1"),
             )
         return "4"
 
@@ -184,7 +184,7 @@ def test_multi_turn():
                 "agent",
                 EvalRecord(
                     context={"response": {"quality": 8, "text": query}},
-                    id=f"rec_{len(call_log)}",
+                    record_id=f"rec_{len(call_log)}",
                 ),
             )
         return f"Response to: {query}"
@@ -223,7 +223,7 @@ def test_subclass_override():
             with tracer.start_as_current_span("agent_call") as span:
                 span.add_queue_item(
                     "agent",
-                    EvalRecord(context={"response": {"quality": 9, "text": "4"}}, id="rec_1"),
+                    EvalRecord(context={"response": {"quality": 9, "text": "4"}}, record_id="rec_1"),
                 )
             return "4"
 
@@ -359,7 +359,7 @@ def test_hook_order():
                     "agent",
                     EvalRecord(
                         context={"response": {"quality": 8, "text": "answer"}},
-                        id="rec_1",
+                        record_id="rec_1",
                     ),
                 )
             return "answer"
@@ -539,7 +539,7 @@ def test_trace_only_eval_does_not_duplicate_queue_backed_trace():
         with tracer.start_as_current_span("trace_only_work") as span:
             span.set_attribute("scouter.eval.scenario_id", "scenario_1")
             span.set_attribute(entity_key, profile.config.uid)
-            span.add_queue_item("agent", EvalRecord(context={"response": "ok"}, id="queue-record"))
+            span.add_queue_item("agent", EvalRecord(context={"response": "ok"}, record_id="queue-record"))
         return "queue-backed response"
 
     results = EvalOrchestrator(queue=queue, scenarios=scenarios, agent_fn=queue_backed_agent).run()
@@ -768,7 +768,7 @@ def _retriever_callback(tracer, query):
             "retriever",
             EvalRecord(
                 context={"results": {"count": data["count"], "source": data["source"]}},
-                id=f"retriever_{query[:10]}",
+                record_id=f"retriever_{query[:10]}",
             ),
         )
     return data
@@ -781,7 +781,7 @@ def _synthesizer_callback(tracer, query, data_override=None):
             "synthesizer",
             EvalRecord(
                 context={"response": {"quality": data["quality"], "text": data["text"]}},
-                id=f"synthesizer_{query[:10]}",
+                record_id=f"synthesizer_{query[:10]}",
             ),
         )
     return data
@@ -1039,10 +1039,10 @@ def test_multi_agent_trace_assertions():
     def mock_adk(query):
         with tracer.start_as_current_span("router.generate") as span:
             span.set_attribute("gen_ai.response", GEMINI_FUNC.model_dump_json())
-            span.add_queue_item("agent", EvalRecord(context={"query": query}, id="r1"))
+            span.add_queue_item("agent", EvalRecord(context={"query": query}, record_id="r1"))
         with tracer.start_as_current_span("recipe.generate") as span:
             span.set_attribute("gen_ai.response", GEMINI_TEXT.model_dump_json())
-            span.add_queue_item("agent", EvalRecord(context={"query": query}, id="r2"))
+            span.add_queue_item("agent", EvalRecord(context={"query": query}, record_id="r2"))
         return "Steak recipe"
 
     results = EvalOrchestrator(queue=queue, scenarios=scenarios, agent_fn=mock_adk).run()

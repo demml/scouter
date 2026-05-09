@@ -132,35 +132,35 @@ def baseline_records():
                 "metrics": {"quality_score": 5, "accuracy_score": 6},
                 "response": {"provides_solution": False, "acknowledges_concern": False},
             },
-            id="record_1",
+            record_id="record_1",
         ),
         EvalRecord(
             context={
                 "metrics": {"quality_score": 7, "accuracy_score": 8},
                 "response": {"provides_solution": True, "acknowledges_concern": True},
             },
-            id="record_2",
+            record_id="record_2",
         ),
         EvalRecord(
             context={
                 "metrics": {"quality_score": 6, "accuracy_score": 7},
                 "response": {"provides_solution": True, "acknowledges_concern": False},
             },
-            id="record_3",
+            record_id="record_3",
         ),
         EvalRecord(
             context={
                 "metrics": {"quality_score": 8, "accuracy_score": 9},
                 "response": {"provides_solution": True, "acknowledges_concern": True},
             },
-            id="record_4",
+            record_id="record_4",
         ),
         EvalRecord(
             context={
                 "metrics": {"quality_score": 5, "accuracy_score": 6},
                 "response": {"provides_solution": False, "acknowledges_concern": True},
             },
-            id="record_5",
+            record_id="record_5",
         ),
     ]
 
@@ -174,35 +174,35 @@ def improved_records():
                 "metrics": {"quality_score": 8, "accuracy_score": 9},
                 "response": {"provides_solution": True, "acknowledges_concern": True},
             },
-            id="record_1",
+            record_id="record_1",
         ),
         EvalRecord(
             context={
                 "metrics": {"quality_score": 9, "accuracy_score": 10},
                 "response": {"provides_solution": True, "acknowledges_concern": True},
             },
-            id="record_2",
+            record_id="record_2",
         ),
         EvalRecord(
             context={
                 "metrics": {"quality_score": 7, "accuracy_score": 8},
                 "response": {"provides_solution": True, "acknowledges_concern": True},
             },
-            id="record_3",
+            record_id="record_3",
         ),
         EvalRecord(
             context={
                 "metrics": {"quality_score": 9, "accuracy_score": 10},
                 "response": {"provides_solution": True, "acknowledges_concern": True},
             },
-            id="record_4",
+            record_id="record_4",
         ),
         EvalRecord(
             context={
                 "metrics": {"quality_score": 8, "accuracy_score": 9},
                 "response": {"provides_solution": True, "acknowledges_concern": True},
             },
-            id="record_5",
+            record_id="record_5",
         ),
     ]
 
@@ -216,35 +216,35 @@ def regressed_records():
                 "metrics": {"quality_score": 4, "accuracy_score": 5},
                 "response": {"provides_solution": False, "acknowledges_concern": False},
             },
-            id="record_1",
+            record_id="record_1",
         ),
         EvalRecord(
             context={
                 "metrics": {"quality_score": 6, "accuracy_score": 7},
                 "response": {"provides_solution": True, "acknowledges_concern": False},
             },
-            id="record_2",
+            record_id="record_2",
         ),
         EvalRecord(
             context={
                 "metrics": {"quality_score": 5, "accuracy_score": 6},
                 "response": {"provides_solution": False, "acknowledges_concern": True},
             },
-            id="record_3",
+            record_id="record_3",
         ),
         EvalRecord(
             context={
                 "metrics": {"quality_score": 7, "accuracy_score": 8},
                 "response": {"provides_solution": True, "acknowledges_concern": True},
             },
-            id="record_4",
+            record_id="record_4",
         ),
         EvalRecord(
             context={
                 "metrics": {"quality_score": 4, "accuracy_score": 5},
                 "response": {"provides_solution": False, "acknowledges_concern": False},
             },
-            id="record_5",
+            record_id="record_5",
         ),
     ]
 

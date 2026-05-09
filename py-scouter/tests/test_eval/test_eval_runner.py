@@ -113,14 +113,14 @@ def test_eval_runner_full_e2e(tracer):
             EvalRecord(
                 context={"results": {"count": count, "query": query}},
                 trace_id=trace_id_hex,
-                id=record_id,
+                record_id=record_id,
             )
         ]
         synthesizer_records = [
             EvalRecord(
                 context={"response": {"quality": quality, "text": f"Answer for {query}"}},
                 trace_id=trace_id_hex,
-                id=record_id,
+                record_id=record_id,
             )
         ]
 
@@ -211,7 +211,7 @@ def test_eval_runner_no_trace_tasks():
         profiles={"retriever": retriever_profile},
     )
 
-    records = [EvalRecord(context={"results": {"count": 2}}, id="rec_1")]
+    records = [EvalRecord(context={"results": {"count": 2}}, record_id="rec_1")]
     runner.collect_scenario_data(
         records={"retriever": records},
         response="The answer is 4",
@@ -320,14 +320,14 @@ def test_mock_adk_agent_e2e():
                 "retriever",
                 EvalRecord(
                     context={"results": {"count": count, "query": query}},
-                    id=f"retriever_{i + 1}",
+                    record_id=f"retriever_{i + 1}",
                 ),
             )
             span.add_queue_item(
                 "synthesizer",
                 EvalRecord(
                     context={"response": {"quality": quality, "text": f"Answer for {query}"}},
-                    id=f"synthesizer_{i + 1}",
+                    record_id=f"synthesizer_{i + 1}",
                 ),
             )
         # Drain immediately after span ends — records carry trace_id from the span
@@ -408,7 +408,7 @@ def _run_eval(scenario_data: list[tuple[str, int, int]]) -> ScenarioEvalResults:
                 "agent": [
                     EvalRecord(
                         context={"response": {"quality": quality, "text": query}},
-                        id=f"rec_{i + 1}",
+                        record_id=f"rec_{i + 1}",
                     )
                 ]
             },

@@ -1839,6 +1839,9 @@ class ScouterQueue:
 
         """
 
+    def get_by_entity_uid(self, profile_uid: str) -> Queue:
+        """Get the queue whose entity UID matches an eval profile UID."""
+
     def shutdown(self) -> None:
         """Shutdown the queue. This will close and flush all queues and transports"""
 
@@ -1929,12 +1932,12 @@ class EvalRecord:
     def __init__(
         self,
         context: Optional[Context] = None,
-        id: Optional[str] = None,
+        record_id: Optional[str] = None,
         session_id: Optional[str] = None,
-        trace_id: Optional[str] = None,
         media: Optional[List[Union[EvalMedia, ImageMedia, DocumentMedia]]] = None,
         profile_uid: Optional[str] = None,
-        trace_context: Any = None,
+        tags: Optional[List[str]] = None,
+        trace_id: Optional[str] = None,
     ) -> None:
         """Creates a new LLM record to associate with an `AgentEvalProfile`.
         The record is sent to the `Scouter` server via the `ScouterQueue` and is
@@ -1947,8 +1950,8 @@ class EvalRecord:
                 evaluation prompts. So if you're evaluation prompts expect additional context via
                 bound variables (e.g., `${foo}`), you can pass that here as key value pairs.
                 {"foo": "bar"}
-            id (Optional[str], optional):
-                Optional unique identifier for the record.
+            record_id (Optional[str], optional):
+                Optional user-defined scenario, turn, step, or callback identifier.
             session_id (Optional[str], optional):
                 Optional session identifier to group related records.
             media:
@@ -1956,9 +1959,11 @@ class EvalRecord:
                 `${media:id}` placeholders.
             profile_uid:
                 Optional AgentEvalProfile UID. Sets the record entity UID for queue insertion.
-            trace_context:
-                Optional OpenTelemetry SpanContext. When provided, this fills both
-                trace_id and span_id and takes priority over the legacy trace_id kwarg.
+            tags:
+                Optional key=value tags for run or scenario metadata.
+            trace_id:
+                Optional legacy/manual trace ID. `span.attach_eval(...)` should be used
+                for trace-attached online eval records.
 
         Raises:
             TypeError: If context is not a dict or a pydantic BaseModel.
@@ -1988,6 +1993,10 @@ class EvalRecord:
     @property
     def uid(self) -> str:
         """Get the unique identifier for the record."""
+
+    @property
+    def entity_uid(self) -> str:
+        """Get the associated eval profile UID."""
 
     @property
     def trace_id(self) -> Optional[str]:

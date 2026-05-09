@@ -735,7 +735,7 @@ def test_eval_dataset_with_agent_assertions():
                 },
             }
         },
-        id="openai_test",
+        record_id="openai_test",
     )
 
     dataset = EvalDataset(records=[record], tasks=tasks)
@@ -807,7 +807,7 @@ def test_eval_dataset_google_adk_format():
                 },
             },
         },
-        id="google_test",
+        record_id="google_test",
     )
 
     dataset = EvalDataset(records=[record], tasks=tasks)
@@ -866,7 +866,7 @@ def test_eval_dataset_mixed_task_types():
                 ]
             },
         },
-        id="mixed_test",
+        record_id="mixed_test",
     )
 
     dataset = EvalDataset(records=[record], tasks=tasks)

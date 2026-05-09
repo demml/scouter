@@ -23,7 +23,7 @@ def test_agent_eval_no_embedding(
     with LLMTestServer():
         record = EvalRecord(
             context={"input": {"foo": "bar", "bar": 42, "baz": [1, 2, 3]}},
-            id="test_id_1",
+            record_id="test_id_1",
         )
 
         dataset = EvalDataset(
@@ -65,7 +65,7 @@ def test_agent_eval_no_embedding_one_fail(
         for i in range(5):
             record = EvalRecord(
                 context={"input": {"foo": "bar", "bar": 42, "baz": [1, 2, 3]}},
-                id=f"test_id_{i}",
+                record_id=f"test_id_{i}",
             )
             records.append(record)
 
@@ -100,7 +100,7 @@ def test_agent_eval_no_embedding_all_assertion(
         for i in range(5):
             record = EvalRecord(
                 context={"input": {"foo": "bar", "bar": 42, "baz": [1, 2, 3]}},
-                id=f"test_id_{i}",
+                record_id=f"test_id_{i}",
             )
             records.append(record)
 
@@ -143,7 +143,7 @@ def test_agent_eval_embedding_all_assertion(
                     "input": {"foo": "bar", "bar": 42, "baz": [1, 2, 3]},
                     "response": "my response",
                 },
-                id=f"test_id_{i}",
+                record_id=f"test_id_{i}",
             )
             records.append(record)
 
@@ -189,7 +189,7 @@ def test_array_of_objects_not_empty_pass() -> None:
     """Array of objects is non-empty → PASS."""
     record = EvalRecord(
         context={"responses": [{"text": "hello"}, {"text": "world"}, {"text": "foo"}]},
-        id="array_obj_not_empty_pass",
+        record_id="array_obj_not_empty_pass",
     )
     task = AssertionTask(
         id="responses_not_empty",
@@ -208,7 +208,7 @@ def test_array_of_objects_not_empty_fail() -> None:
     """Array of objects is empty (no items) → FAIL."""
     record = EvalRecord(
         context={"responses": []},
-        id="array_obj_not_empty_fail",
+        record_id="array_obj_not_empty_fail",
     )
     task = AssertionTask(
         id="responses_not_empty",
@@ -226,7 +226,7 @@ def test_array_items_greater_than_pass() -> None:
     """All numeric values in the array are >= 5 → PASS."""
     record = EvalRecord(
         context={"scores": [8, 6, 10]},
-        id="attr_gte_pass",
+        record_id="attr_gte_pass",
     )
     task = AssertionTask(
         id="score_gte_5",
@@ -244,7 +244,7 @@ def test_array_items_greater_than_fail() -> None:
     """One numeric value in the array is < 5 → FAIL."""
     record = EvalRecord(
         context={"scores": [8, 3, 10]},
-        id="attr_gte_fail",
+        record_id="attr_gte_fail",
     )
     task = AssertionTask(
         id="score_gte_5",
@@ -262,7 +262,7 @@ def test_array_items_less_than_pass() -> None:
     """All numeric values in the array are < 500 → PASS."""
     record = EvalRecord(
         context={"latencies": [120, 200, 450]},
-        id="attr_lt_pass",
+        record_id="attr_lt_pass",
     )
     task = AssertionTask(
         id="latency_lt_500",
@@ -280,7 +280,7 @@ def test_array_items_less_than_fail() -> None:
     """One numeric value in the array is >= 500 → FAIL."""
     record = EvalRecord(
         context={"latencies": [120, 600, 450]},
-        id="attr_lt_fail",
+        record_id="attr_lt_fail",
     )
     task = AssertionTask(
         id="latency_lt_500",
@@ -298,7 +298,7 @@ def test_array_of_scalars_greater_than_pass() -> None:
     """All scalar values in the array are > 0 → PASS."""
     record = EvalRecord(
         context={"scores": [5, 8, 10, 7]},
-        id="scalar_gt_pass",
+        record_id="scalar_gt_pass",
     )
     task = AssertionTask(
         id="scores_positive",
@@ -316,7 +316,7 @@ def test_array_of_scalars_greater_than_fail() -> None:
     """One scalar value is not > 0 → FAIL."""
     record = EvalRecord(
         context={"scores": [5, 8, -1, 7]},
-        id="scalar_gt_fail",
+        record_id="scalar_gt_fail",
     )
     task = AssertionTask(
         id="scores_positive",
@@ -334,7 +334,7 @@ def test_array_of_scalars_less_than_pass() -> None:
     """All scalar values are < 100 → PASS."""
     record = EvalRecord(
         context={"percentages": [10, 45, 99, 72]},
-        id="scalar_lt_pass",
+        record_id="scalar_lt_pass",
     )
     task = AssertionTask(
         id="pct_lt_100",
@@ -352,7 +352,7 @@ def test_array_of_scalars_less_than_fail() -> None:
     """One scalar value is >= 100 → FAIL."""
     record = EvalRecord(
         context={"percentages": [10, 45, 100, 72]},
-        id="scalar_lt_fail",
+        record_id="scalar_lt_fail",
     )
     task = AssertionTask(
         id="pct_lt_100",
@@ -370,7 +370,7 @@ def test_array_native_has_length_unaffected() -> None:
     """HasLengthEqual operates on the array as a whole, not its items."""
     record = EvalRecord(
         context={"tags": ["a", "b", "c"]},
-        id="has_length_native",
+        record_id="has_length_native",
     )
     task = AssertionTask(
         id="tags_length",
@@ -443,7 +443,7 @@ def test_agent_conditional_assertions():
 
     record = EvalRecord(
         context={"input": "bar", "response": "bar_bar"},
-        id="test_conditional_1",
+        record_id="test_conditional_1",
     )
 
     dataset = EvalDataset(

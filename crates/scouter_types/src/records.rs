@@ -249,6 +249,7 @@ pub struct EvalRecord {
     pub processing_ended_at: Option<DateTime<Utc>>,
     pub processing_duration: Option<i32>,
     pub entity_id: i32,
+    #[pyo3(get)]
     pub entity_uid: String,
     pub status: Status,
     #[pyo3(get)]
@@ -271,12 +272,13 @@ impl EvalRecord {
     #[new]
     #[pyo3(signature = (
         context = None,
-        id = None,
+        record_id = None,
+        *,
         session_id = None,
-        trace_id = None,
         media = None,
         profile_uid = None,
-        trace_context = None,
+        tags = None,
+        trace_id = None,
     ))]
 
     /// Creates a new EvalRecord instance.
@@ -285,44 +287,26 @@ impl EvalRecord {
     pub fn new(
         py: Python<'_>,
         context: Option<Bound<'_, PyAny>>,
-        id: Option<String>,
+        record_id: Option<String>,
         session_id: Option<String>,
-        trace_id: Option<String>,
         media: Option<Vec<Bound<'_, PyAny>>>,
         profile_uid: Option<String>,
-        trace_context: Option<Bound<'_, PyAny>>,
+        tags: Option<Vec<String>>,
+        trace_id: Option<String>,
     ) -> PyResult<Self> {
-        // check if context is a PyDict or PyObject(Pydantic model)
-        let context_val = match context {
-            Some(ctx) => depythonize_object_to_value(py, &ctx)?,
-            None => Value::Object(serde_json::Map::new()),
-        };
-
-        let media_vec = extract_media_vec(media)?;
-        validate_media_record_cap(&media_vec)?;
-
-        let (trace_id_resolved, span_id_resolved) = match trace_context {
-            Some(ctx) => extract_span_context(py, &ctx)?,
-            None => (
-                trace_id
-                    .as_deref()
-                    .and_then(|tid| TraceId::from_hex(tid).ok()),
-                None,
-            ),
-        };
-
-        Ok(EvalRecord {
-            uid: create_uuid7(),
-            created_at: Utc::now(),
-            context: context_val,
-            record_id: id.unwrap_or_default(),
-            session_id: session_id.unwrap_or_else(create_uuid7),
-            trace_id: trace_id_resolved,
-            span_id: span_id_resolved,
-            entity_uid: profile_uid.unwrap_or_default(),
-            media: media_vec,
-            ..Default::default()
-        })
+        Self::build(
+            py,
+            context,
+            record_id,
+            session_id,
+            media,
+            profile_uid.unwrap_or_default(),
+            tags,
+            trace_id
+                .as_deref()
+                .and_then(|tid| TraceId::from_hex(tid).ok()),
+            None,
+        )
     }
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
@@ -383,6 +367,66 @@ impl EvalRecord {
 }
 
 impl EvalRecord {
+    #[allow(clippy::too_many_arguments)]
+    fn build(
+        py: Python<'_>,
+        context: Option<Bound<'_, PyAny>>,
+        record_id: Option<String>,
+        session_id: Option<String>,
+        media: Option<Vec<Bound<'_, PyAny>>>,
+        profile_uid: String,
+        tags: Option<Vec<String>>,
+        trace_id: Option<TraceId>,
+        span_id: Option<SpanId>,
+    ) -> PyResult<Self> {
+        let context_val = match context {
+            Some(ctx) => depythonize_object_to_value(py, &ctx)?,
+            None => Value::Object(serde_json::Map::new()),
+        };
+
+        let media_vec = extract_media_vec(media)?;
+        validate_media_record_cap(&media_vec)?;
+
+        Ok(EvalRecord {
+            uid: create_uuid7(),
+            created_at: Utc::now(),
+            context: context_val,
+            record_id: record_id.unwrap_or_default(),
+            session_id: session_id.unwrap_or_else(create_uuid7),
+            trace_id,
+            span_id,
+            entity_uid: profile_uid,
+            tags: tags.unwrap_or_default(),
+            media: media_vec,
+            ..Default::default()
+        })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_trace_attached(
+        py: Python<'_>,
+        context: Option<Bound<'_, PyAny>>,
+        record_id: Option<String>,
+        session_id: Option<String>,
+        media: Option<Vec<Bound<'_, PyAny>>>,
+        profile_uid: String,
+        tags: Option<Vec<String>>,
+        trace_id: TraceId,
+        span_id: SpanId,
+    ) -> PyResult<Self> {
+        Self::build(
+            py,
+            context,
+            record_id,
+            session_id,
+            media,
+            profile_uid,
+            tags,
+            Some(trace_id),
+            Some(span_id),
+        )
+    }
+
     /// will update the entire context of the record
     /// If new context is a map, update context fields individually
     /// if not, replace entire context
@@ -539,52 +583,6 @@ mod eval_record_tests {
         assert_eq!(record.status, Status::Failed);
         assert_eq!(record.context["error"], "EvalRequiresTrace");
     }
-}
-
-fn extract_span_context(
-    _py: Python<'_>,
-    ctx: &Bound<'_, PyAny>,
-) -> PyResult<(Option<TraceId>, Option<SpanId>)> {
-    let is_valid = ctx
-        .getattr("is_valid")
-        .ok()
-        .and_then(|value| value.extract::<bool>().ok())
-        .unwrap_or(false);
-    if !is_valid {
-        return Ok((None, None));
-    }
-
-    let Some(trace_id) = ctx.getattr("trace_id").ok().and_then(|value| {
-        value
-            .extract::<u128>()
-            .ok()
-            .map(|id| TraceId::from_bytes(id.to_be_bytes()))
-            .or_else(|| {
-                value
-                    .extract::<String>()
-                    .ok()
-                    .and_then(|hex| TraceId::from_hex(hex.trim_start_matches("0x")).ok())
-            })
-    }) else {
-        return Ok((None, None));
-    };
-
-    let Some(span_id) = ctx.getattr("span_id").ok().and_then(|value| {
-        value
-            .extract::<u64>()
-            .ok()
-            .map(|id| SpanId::from_bytes(id.to_be_bytes()))
-            .or_else(|| {
-                value
-                    .extract::<String>()
-                    .ok()
-                    .and_then(|hex| SpanId::from_hex(hex.trim_start_matches("0x")).ok())
-            })
-    }) else {
-        return Ok((None, None));
-    };
-
-    Ok((Some(trace_id), Some(span_id)))
 }
 
 #[cfg(feature = "server")]

@@ -40,14 +40,14 @@ use scouter_events::queue::ScouterQueue;
 use scouter_events::queue::types::TransportConfig;
 use scouter_settings::grpc::GrpcConfig;
 
-use scouter_types::SCOUTER_QUEUE_RECORD;
 use scouter_types::{
     BAGGAGE_PREFIX, EXCEPTION_TRACEBACK, EntityType, EvalRecord,
     SCOUTER_ACTIVE_ENTITY_UID_BAGGAGE_KEY, SCOUTER_ENTITY, SCOUTER_QUEUE_EVENT, SCOUTER_TAG_PREFIX,
     SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL, SCOUTER_TRACING_OUTPUT, SPAN_ERROR,
-    TRACE_START_TIME_KEY, TraceId as ScouterTraceId, TraceSpanRecord, pyobject_to_otel_value,
-    pyobject_to_tracing_json,
+    SpanId as ScouterSpanId, TRACE_START_TIME_KEY, TraceId as ScouterTraceId, TraceSpanRecord,
+    pyobject_to_otel_value, pyobject_to_tracing_json,
 };
+use scouter_types::{SCOUTER_EVAL_PROFILE_UID, SCOUTER_EVAL_RECORD_UID, SCOUTER_QUEUE_RECORD};
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, OnceLock, RwLock};
@@ -525,6 +525,108 @@ impl ActiveSpan {
                 }
             },
         )?
+    }
+
+    /// Build a trace-anchored EvalRecord from this span's context and insert it
+    /// into the tracer's attached queue.
+    ///
+    /// This is the Path A API for agentic eval records. The trace anchor is
+    /// taken from the live span handle, not ambient OTel context, baggage, or a
+    /// caller-provided EvalRecord. If the trace sampled flag is false, no record
+    /// is inserted because no trace commit event will arrive to release the row
+    /// from `awaiting_trace`.
+    ///
+    /// # Arguments
+    /// * `profile_uid` - The eval profile UID this record is associated with.
+    /// * `context` - The record context. Either a `dict` or a pydantic BaseModel.
+    /// * `record_id` - Optional caller-defined scenario, turn, step, or callback ID.
+    /// * `session_id` - Optional session/thread/conversation ID.
+    /// * `media` - Optional per-record multimodal evidence.
+    /// * `tags` - Optional `key=value` tags stored with the eval record.
+    ///
+    /// # Errors
+    /// Returns `RuntimeError` if the tracer this span belongs to has no queue
+    /// attached, if queue lookup by profile UID fails, or if the record cannot
+    /// be constructed from the supplied context/media.
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (profile_uid, context, record_id=None, session_id=None, media=None, tags=None))]
+    fn attach_eval(
+        &self,
+        py: Python<'_>,
+        profile_uid: String,
+        context: Bound<'_, PyAny>,
+        record_id: Option<String>,
+        session_id: Option<String>,
+        media: Option<Vec<Bound<'_, PyAny>>>,
+        tags: Option<Vec<String>>,
+    ) -> Result<(), TraceError> {
+        debug!(
+            "Attaching eval record (profile_uid={}) to span {}",
+            profile_uid,
+            self.context_id()?
+        );
+
+        let trace_sampled =
+            self.with_inner(|inner| inner.span.span_context().trace_flags().is_sampled())?;
+        if !trace_sampled {
+            debug!(
+                "Skipping attach_eval for profile_uid={} because the trace is not sampled",
+                profile_uid
+            );
+            return Ok(());
+        }
+
+        let (trace_id, span_id) = self.with_inner(|inner| {
+            let span_context = inner.span.span_context();
+            (
+                ScouterTraceId::from_bytes(span_context.trace_id().to_bytes()),
+                ScouterSpanId::from_bytes(span_context.span_id().to_bytes()),
+            )
+        })?;
+
+        let record = EvalRecord::new_trace_attached(
+            py,
+            Some(context),
+            record_id,
+            session_id,
+            media,
+            profile_uid.clone(),
+            tags,
+            trace_id,
+            span_id,
+        )?;
+
+        if record.trace_id.is_none() || record.span_id.is_none() {
+            return Err(TraceError::SpanError(
+                "attach_eval could not build a valid trace anchor from the active span".to_string(),
+            ));
+        }
+
+        let record_uid = record.uid.clone();
+
+        self.with_inner_mut(|inner| -> Result<(), TraceError> {
+            let queue = inner.queue.as_ref().ok_or_else(|| {
+                TraceError::QueueNotConfigured(
+                    "attach_eval called on a span whose tracer has no queue. Pass `scouter_queue=...` to `get_tracer(...)` or set it via `tracer.set_scouter_queue(queue)`."
+                        .to_string(),
+                )
+            })?;
+
+            let bound_queue = queue
+                .bind(py)
+                .call_method1("get_by_entity_uid", (&profile_uid,))?;
+            let py_record = Py::new(py, record)?;
+            bound_queue.call_method1("insert", (py_record.bind(py),))?;
+
+            inner
+                .span
+                .set_attribute(KeyValue::new(SCOUTER_EVAL_RECORD_UID, record_uid));
+            inner
+                .span
+                .set_attribute(KeyValue::new(SCOUTER_EVAL_PROFILE_UID, profile_uid));
+
+            Ok(())
+        })?
     }
 
     /// Set the status of the span

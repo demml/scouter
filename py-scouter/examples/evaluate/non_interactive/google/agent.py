@@ -53,7 +53,7 @@ def _emit_eval_record(query: str, response: str) -> None:
         span.add_queue_item(
             "support_agent",
             EvalRecord(
-                id=f"google_{abs(hash((query, response))) % 1_000_000}",
+                record_id=f"google_{abs(hash((query, response))) % 1_000_000}",
                 context={"query": query, "response": response},
             ),
         )
