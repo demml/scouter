@@ -37,6 +37,12 @@ def test_eval_record_rejects_public_id_alias() -> None:
         EvalRecord(**kwargs)
 
 
+def test_eval_record_rejects_public_trace_context_kwarg() -> None:
+    kwargs: dict[str, Any] = {"trace_context": object()}
+    with pytest.raises(TypeError):
+        EvalRecord(**kwargs)
+
+
 def test_eval_record_accepts_tags() -> None:
     record = EvalRecord(tags=["run_id=abc", "scenario_id=s1"])
 

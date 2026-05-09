@@ -96,7 +96,9 @@ class DeterministicGoogleLlm(BaseLlm):
         )
 
 
-async def _run_sequential_agent(profile: AgentEvalProfile, queue: ScouterQueue) -> str:
+async def _run_sequential_agent(
+    profile: AgentEvalProfile, queue: ScouterQueue
+) -> tuple[str, dict[str, tuple[str, str]]]:
     instrumentor = ScouterInstrumentor()
     instrumentor.instrument(
         transport_config=MockConfig(),
@@ -104,6 +106,7 @@ async def _run_sequential_agent(profile: AgentEvalProfile, queue: ScouterQueue) 
         scouter_queue=queue,
     )
     tracer = get_tracer("test.adk.attach_eval")
+    callback_anchors: dict[str, tuple[str, str]] = {}
 
     def attach_callback(callback_context: Any) -> None:
         agent_name = callback_context.agent_name
@@ -119,6 +122,7 @@ async def _run_sequential_agent(profile: AgentEvalProfile, queue: ScouterQueue) 
                 session_id=session_id,
                 tags=["source=google_adk", f"agent={agent_name}"],
             )
+            callback_anchors[agent_name] = (span.trace_id, span.span_id)
 
     first = Agent(
         model=DeterministicGoogleLlm(model=MODEL_NAME),
@@ -164,7 +168,7 @@ async def _run_sequential_agent(profile: AgentEvalProfile, queue: ScouterQueue) 
         if event.is_final_response() and event.content and event.content.parts:
             response = "".join(part.text or "" for part in event.content.parts)
 
-    return response
+    return response, callback_anchors
 
 
 @pytest.mark.asyncio
@@ -172,7 +176,7 @@ async def test_google_adk_sequential_agent_attach_eval_records_callback_anchors(
     profile: AgentEvalProfile,
     queue: ScouterQueue,
 ) -> None:
-    response = await _run_sequential_agent(profile, queue)
+    response, callback_anchors = await _run_sequential_agent(profile, queue)
 
     assert "completed" in response
 
@@ -181,10 +185,11 @@ async def test_google_adk_sequential_agent_attach_eval_records_callback_anchors(
     by_agent = {record.context["agent_name"]: record for record in records}
 
     assert set(by_agent) == {"triage_agent", "responder_agent"}
-    assert by_agent["triage_agent"].trace_id is not None
-    assert by_agent["triage_agent"].span_id is not None
-    assert by_agent["responder_agent"].trace_id is not None
-    assert by_agent["responder_agent"].span_id is not None
+    assert set(callback_anchors) == {"triage_agent", "responder_agent"}
+    assert by_agent["triage_agent"].trace_id == callback_anchors["triage_agent"][0]
+    assert by_agent["triage_agent"].span_id == callback_anchors["triage_agent"][1]
+    assert by_agent["responder_agent"].trace_id == callback_anchors["responder_agent"][0]
+    assert by_agent["responder_agent"].span_id == callback_anchors["responder_agent"][1]
     assert by_agent["triage_agent"].span_id != by_agent["responder_agent"].span_id
     assert by_agent["triage_agent"].session_id == by_agent["responder_agent"].session_id
     assert "source=google_adk" in by_agent["triage_agent"].tags

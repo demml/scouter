@@ -516,6 +516,7 @@ class ActiveSpan:
         self,
         profile_uid: str,
         context: Any,
+        *,
         record_id: Optional[str] = None,
         session_id: Optional[str] = None,
         media: Optional[List[Any]] = None,

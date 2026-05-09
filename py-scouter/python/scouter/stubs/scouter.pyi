@@ -1933,6 +1933,7 @@ class EvalRecord:
         self,
         context: Optional[Context] = None,
         record_id: Optional[str] = None,
+        *,
         session_id: Optional[str] = None,
         media: Optional[List[Union[EvalMedia, ImageMedia, DocumentMedia]]] = None,
         profile_uid: Optional[str] = None,

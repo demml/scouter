@@ -303,7 +303,14 @@ class ScouterSpan(_OtelSpan):
         media: Optional[list[Any]] = None,
         tags: Optional[list[str]] = None,
     ) -> None:
-        """Attach a trace-anchored EvalRecord to this span."""
+        """Attach an eval record to this span's trace.
+
+        `profile_uid` is the target AgentEvalProfile UID. `context` accepts the
+        same dict or Pydantic model payloads as EvalRecord. `record_id` is a
+        caller-defined scenario, turn, step, or callback ID, not the database
+        row ID. `session_id`, `media`, and `tags` are preserved on the created
+        EvalRecord. If this trace is not sampled, no eval record is inserted.
+        """
         self._active.attach_eval(
             profile_uid,
             context,

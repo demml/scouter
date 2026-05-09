@@ -549,7 +549,7 @@ impl ActiveSpan {
     /// attached, if queue lookup by profile UID fails, or if the record cannot
     /// be constructed from the supplied context/media.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (profile_uid, context, record_id=None, session_id=None, media=None, tags=None))]
+    #[pyo3(signature = (profile_uid, context, *, record_id=None, session_id=None, media=None, tags=None))]
     fn attach_eval(
         &self,
         py: Python<'_>,
