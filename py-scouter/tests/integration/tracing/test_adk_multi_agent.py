@@ -19,6 +19,7 @@ from scouter.queue import ScouterQueue
 from scouter.tracing import ScouterInstrumentor
 from scouter.tracing import TestSpanExporter as _TestSpanExporter
 from scouter.tracing import get_tracer, shutdown_tracer
+from tests.integration.tracing.adk_helpers import refresh_google_adk_cached_tracers
 
 MODEL_NAME = "gemini-2.0-flash"
 
@@ -101,6 +102,7 @@ async def _run_sequential_agent(
         exporter=_TestSpanExporter(batch_export=False),
         scouter_queue=queue,
     )
+    refresh_google_adk_cached_tracers()
     tracer = get_tracer("test.adk.attach_eval")
     callback_anchors: dict[str, tuple[str, str]] = {}
 

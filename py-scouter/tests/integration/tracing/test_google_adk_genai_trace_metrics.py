@@ -16,6 +16,7 @@ from google.genai import types
 from scouter.mock import ScouterDataFrameTestServer
 from scouter.tracing import BatchConfig, ScouterInstrumentor, shutdown_tracer
 from scouter.transport import GrpcConfig
+from tests.integration.tracing.adk_helpers import refresh_google_adk_cached_tracers
 
 POLL_TIMEOUT_SECS = 30
 POLL_INTERVAL_SECS = 1
@@ -183,6 +184,7 @@ async def test_google_adk_agent_writes_parseable_genai_trace_metrics() -> None:
             batch_config=BatchConfig(scheduled_delay_ms=200),
             attributes={"service.name": service_name},
         )
+        refresh_google_adk_cached_tracers()
 
         try:
             response = await _run_google_adk_agent()
