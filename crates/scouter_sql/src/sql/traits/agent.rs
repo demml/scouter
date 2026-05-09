@@ -911,6 +911,8 @@ pub trait AgentDriftSqlLogic {
         let empty_context = serde_json::Value::Object(Default::default());
         let uid = create_uuid7();
         let now = Utc::now();
+        let ready_at =
+            now + scouter_settings::polling::AgentPollerSettings::trace_visibility_buffer();
         let tags: Vec<String> = Vec::new();
         let media: Vec<scouter_types::EvalMedia> = Vec::new();
 
@@ -960,6 +962,7 @@ pub trait AgentDriftSqlLogic {
             .bind(Json(&media))
             .bind(Option::<Vec<u8>>::None)
             .bind(Status::Pending.as_str())
+            .bind(ready_at)
             .execute(&mut *tx)
             .await
             .map_err(SqlError::SqlxError)?;

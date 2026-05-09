@@ -416,6 +416,9 @@ mod tests {
     }
 
     pub async fn db_pool() -> Pool<Postgres> {
+        unsafe {
+            std::env::set_var("SCOUTER_TRACE_VISIBILITY_BUFFER_SECS", "0");
+        }
         let pool = PostgresClient::create_db_pool(&DatabaseSettings::default())
             .await
             .unwrap();
