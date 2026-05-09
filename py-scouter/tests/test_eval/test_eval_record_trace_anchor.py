@@ -17,6 +17,16 @@ class MockSpanContext:
         self.trace_state = {}
 
 
+class StringSpanContext:
+    def __init__(self, trace_id: str = TRACE_ID, span_id: str = SPAN_ID, is_valid: bool = True) -> None:
+        self.trace_id = trace_id
+        self.span_id = span_id
+        self.is_valid = is_valid
+        self.trace_flags = 1
+        self.is_remote = False
+        self.trace_state = {}
+
+
 def _dump(record: EvalRecord) -> dict:
     return json.loads(record.model_dump_json())
 
@@ -51,6 +61,23 @@ def test_eval_record_trace_context_wins_over_legacy_trace_id() -> None:
 
 def test_eval_record_invalid_trace_context_degrades_to_no_anchor() -> None:
     record = EvalRecord(trace_id=OTHER_TRACE_ID, trace_context=MockSpanContext(is_valid=False))
+
+    assert record.trace_id is None
+    assert record.span_id is None
+
+
+def test_eval_record_reads_hex_string_trace_context() -> None:
+    record = EvalRecord(trace_context=StringSpanContext())
+
+    assert record.trace_id == TRACE_ID
+    assert record.span_id == SPAN_ID
+
+
+def test_eval_record_malformed_valid_trace_context_degrades_to_no_anchor() -> None:
+    record = EvalRecord(
+        trace_id=OTHER_TRACE_ID,
+        trace_context=StringSpanContext(trace_id="not-hex", span_id="also-not-hex", is_valid=True),
+    )
 
     assert record.trace_id is None
     assert record.span_id is None

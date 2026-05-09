@@ -7,6 +7,7 @@ use crate::sql::traits::{
     ObservabilitySqlLogic, ProfileSqlLogic, PsiSqlLogic, SpcSqlLogic, TagSqlLogic, TraceSqlLogic,
     UserSqlLogic,
 };
+use chrono::Duration as ChronoDuration;
 use scouter_settings::DatabaseSettings;
 use scouter_types::agent::profile::AgentEvalProfile;
 use scouter_types::{
@@ -172,26 +173,28 @@ impl MessageHandler {
             RecordType::AgentEval => {
                 debug!("Agent eval record count: {:?}", records.len());
                 let records = records.to_agent_eval_records()?;
-                for mut record in records {
-                    let needs_trace =
-                        match PostgresClient::get_drift_profile(pool, &entity_id).await {
-                            Ok(Some(value)) => {
-                                match serde_json::from_value::<AgentEvalProfile>(value) {
-                                    Ok(profile) => profile.has_trace_assertions(),
-                                    Err(_) => false,
-                                }
-                            }
-                            Ok(None) => false,
-                            Err(e) => return Err(e),
-                        };
+                let needs_trace = match PostgresClient::get_drift_profile(pool, &entity_id).await {
+                    Ok(Some(value)) => match serde_json::from_value::<AgentEvalProfile>(value) {
+                        Ok(profile) => profile.has_trace_assertions(),
+                        Err(_) => false,
+                    },
+                    Ok(None) => false,
+                    Err(e) => return Err(e),
+                };
+                let trace_visibility_buffer =
+                    scouter_settings::polling::AgentPollerSettings::trace_visibility_buffer();
 
-                    let status = if needs_trace {
+                for mut record in records {
+                    let (status, ready_delay) = if needs_trace {
                         match record.record.trace_id.as_ref() {
                             None => {
                                 record.record.set_failed_with_error("EvalRequiresTrace");
-                                Status::Failed
+                                (Status::Failed, ChronoDuration::zero())
                             }
                             Some(trace_id) => {
+                                // Trace anchors are minted by trusted Scouter runtime
+                                // instrumentation. If future public APIs allow arbitrary
+                                // tenant-supplied anchors, validate ownership at ingestion.
                                 let already_committed =
                                     PostgresClient::trace_commit_event_exists(pool, trace_id)
                                         .await
@@ -203,22 +206,27 @@ impl MessageHandler {
                                             false
                                         });
                                 if already_committed {
-                                    Status::Pending
+                                    (Status::Pending, trace_visibility_buffer)
                                 } else {
-                                    Status::AwaitingTrace
+                                    (Status::AwaitingTrace, ChronoDuration::zero())
                                 }
                             }
                         }
                     } else {
-                        Status::Pending
+                        (Status::Pending, ChronoDuration::zero())
                     };
 
-                    let _ =
-                        PostgresClient::insert_agent_eval_record(pool, record, &entity_id, status)
-                            .await
-                            .map_err(|e| {
-                                error!("Failed to insert agent eval record: {:?}", e);
-                            });
+                    let _ = PostgresClient::insert_agent_eval_record_with_ready_delay(
+                        pool,
+                        record,
+                        &entity_id,
+                        status,
+                        ready_delay,
+                    )
+                    .await
+                    .map_err(|e| {
+                        error!("Failed to insert agent eval record: {:?}", e);
+                    });
                 }
             }
 
@@ -339,6 +347,7 @@ mod tests {
     use scouter_types::spc::SpcDriftProfile;
     use scouter_types::*;
     use serde_json::Value;
+    use std::collections::HashSet;
 
     const SPACE: &str = "space";
     const NAME: &str = "name";
@@ -1285,7 +1294,7 @@ mod tests {
             .await
             .unwrap();
 
-        let flipped = PostgresClient::flip_awaiting_evals(&mut tx, &trace_ids)
+        let flipped = PostgresClient::flip_awaiting_evals(&mut tx, &trace_ids, Duration::zero())
             .await
             .unwrap();
         assert_eq!(flipped.rows_affected(), 1);
@@ -1310,6 +1319,91 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(processed_count, 2);
+    }
+
+    #[tokio::test]
+    async fn test_trace_commit_event_claim_uses_skip_locked() {
+        let pool = db_pool().await;
+        let trace_ids = [
+            TraceId::from_bytes([0xA1; 16]),
+            TraceId::from_bytes([0xA2; 16]),
+            TraceId::from_bytes([0xA3; 16]),
+            TraceId::from_bytes([0xA4; 16]),
+        ];
+        PostgresClient::insert_trace_commit_events(&pool, &trace_ids)
+            .await
+            .unwrap();
+
+        let mut tx1 = pool.begin().await.unwrap();
+        let tx1_claimed = PostgresClient::claim_trace_commit_events(&mut tx1, 2)
+            .await
+            .unwrap();
+        assert_eq!(tx1_claimed.len(), 2);
+
+        let mut tx2 = pool.begin().await.unwrap();
+        let tx2_claimed = PostgresClient::claim_trace_commit_events(&mut tx2, 4)
+            .await
+            .unwrap();
+        assert_eq!(tx2_claimed.len(), 2);
+
+        let tx1_ids: HashSet<i64> = tx1_claimed.iter().map(|(id, _)| *id).collect();
+        let tx2_ids: HashSet<i64> = tx2_claimed.iter().map(|(id, _)| *id).collect();
+        assert!(tx1_ids.is_disjoint(&tx2_ids));
+
+        tx2.rollback().await.unwrap();
+        tx1.rollback().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_pending_agent_eval_record_waits_for_ready_at() {
+        let pool = db_pool().await;
+        let (_uid, entity_id) = PostgresClient::create_entity(
+            &pool,
+            SPACE,
+            NAME,
+            VERSION,
+            DriftType::Agent.to_string(),
+        )
+        .await
+        .unwrap();
+
+        let record = EvalRecord {
+            created_at: Utc::now(),
+            context: serde_json::json!({"input": "hello"}),
+            status: Status::Pending,
+            uid: "ready-at-record".to_string(),
+            entity_id,
+            ..Default::default()
+        };
+
+        PostgresClient::insert_agent_eval_record_with_ready_delay(
+            &pool,
+            BoxedEvalRecord::new(record),
+            &entity_id,
+            Status::Pending,
+            Duration::seconds(30),
+        )
+        .await
+        .unwrap();
+
+        let pending = PostgresClient::get_pending_agent_eval_record(&pool, 3)
+            .await
+            .unwrap();
+        assert!(pending.is_none());
+
+        sqlx::query(
+            "UPDATE scouter.agent_eval_record SET ready_at = now() - interval '1 second' WHERE uid = $1",
+        )
+        .bind("ready-at-record")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let pending = PostgresClient::get_pending_agent_eval_record(&pool, 3)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(pending.uid, "ready-at-record");
     }
 
     #[tokio::test]

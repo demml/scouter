@@ -12,8 +12,10 @@ WITH selected_task AS (
         AND status = 'pending'
         AND (retry_count IS NULL OR retry_count < $1)
         AND scheduled_at <= CURRENT_TIMESTAMP
+        AND ready_at <= CURRENT_TIMESTAMP
     ORDER BY
         COALESCE(retry_count, 0) ASC,
+        ready_at ASC,
         scheduled_at ASC
     LIMIT 1
     FOR UPDATE SKIP LOCKED

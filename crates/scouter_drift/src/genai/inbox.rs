@@ -13,6 +13,8 @@ const EVENT_BATCH_LIMIT: i64 = 500;
 const SWEEP_TICKS: u32 = 60;
 const AWAITING_TRACE_TIMEOUT: chrono::Duration = chrono::Duration::minutes(5);
 const TRACE_COMMIT_EVENT_RETENTION: chrono::Duration = chrono::Duration::days(1);
+const COMMIT_INSERT_INITIAL_BACKOFF: Duration = Duration::from_millis(100);
+const COMMIT_INSERT_MAX_BACKOFF: Duration = Duration::from_secs(5);
 
 pub async fn run_commit_consumer_loop(
     pool: Pool<Postgres>,
@@ -31,13 +33,42 @@ pub async fn run_commit_consumer_loop(
                 if trace_ids.is_empty() {
                     continue;
                 }
-                if let Err(e) = PostgresClient::insert_trace_commit_events(&pool, &trace_ids).await {
-                    error!(
-                        error = ?e,
-                        trace_count = trace_ids.len(),
-                        "insert_trace_commit_events failed; affected eval rows will hit timeout sweep"
-                    );
-                }
+                insert_trace_commit_events_with_retry(&pool, &trace_ids, &mut shutdown).await;
+            }
+        }
+    }
+}
+
+async fn insert_trace_commit_events_with_retry(
+    pool: &Pool<Postgres>,
+    trace_ids: &[TraceId],
+    shutdown: &mut watch::Receiver<()>,
+) -> bool {
+    let mut backoff = COMMIT_INSERT_INITIAL_BACKOFF;
+
+    loop {
+        match PostgresClient::insert_trace_commit_events(pool, trace_ids).await {
+            Ok(_) => return true,
+            Err(e) => {
+                error!(
+                    error = ?e,
+                    trace_count = trace_ids.len(),
+                    backoff_ms = backoff.as_millis(),
+                    "insert_trace_commit_events failed; retrying"
+                );
+            }
+        }
+
+        tokio::select! {
+            _ = shutdown.changed() => {
+                warn!(
+                    trace_count = trace_ids.len(),
+                    "trace-commit consumer shutting down before commit events were inserted"
+                );
+                return false;
+            }
+            _ = tokio::time::sleep(backoff) => {
+                backoff = std::cmp::min(backoff.saturating_mul(2), COMMIT_INSERT_MAX_BACKOFF);
             }
         }
     }
@@ -45,6 +76,7 @@ pub async fn run_commit_consumer_loop(
 
 pub async fn run_trace_commit_event_worker_loop(
     pool: Pool<Postgres>,
+    trace_visibility_buffer: chrono::Duration,
     mut shutdown: watch::Receiver<()>,
 ) {
     let mut tick = tokio::time::interval(EVENT_WORKER_INTERVAL);
@@ -62,7 +94,7 @@ pub async fn run_trace_commit_event_worker_loop(
                 break;
             }
             _ = tick.tick() => {
-                if let Err(e) = drain_once(&pool).await {
+                if let Err(e) = drain_once(&pool, trace_visibility_buffer).await {
                     warn!("event worker drain failed: {:?}", e);
                 }
                 counter = counter.wrapping_add(1);
@@ -74,7 +106,10 @@ pub async fn run_trace_commit_event_worker_loop(
     }
 }
 
-pub(crate) async fn drain_once(pool: &Pool<Postgres>) -> Result<(), DriftError> {
+pub(crate) async fn drain_once(
+    pool: &Pool<Postgres>,
+    trace_visibility_buffer: chrono::Duration,
+) -> Result<(), DriftError> {
     loop {
         let mut tx = pool.begin().await.map_err(SqlError::from)?;
         let claimed =
@@ -94,7 +129,9 @@ pub(crate) async fn drain_once(pool: &Pool<Postgres>) -> Result<(), DriftError> 
         let event_ids: Vec<i64> = claimed.iter().map(|(id, _)| *id).collect();
         let trace_ids: Vec<TraceId> = claimed.iter().map(|(_, trace_id)| *trace_id).collect();
 
-        let flipped = PostgresClient::flip_awaiting_evals(&mut tx, &trace_ids).await?;
+        let flipped =
+            PostgresClient::flip_awaiting_evals(&mut tx, &trace_ids, trace_visibility_buffer)
+                .await?;
         let _ = PostgresClient::mark_events_processed(&mut tx, &event_ids).await?;
         tx.commit().await.map_err(SqlError::from)?;
 

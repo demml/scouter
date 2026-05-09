@@ -4,6 +4,7 @@ use scouter_drift::genai::AgentPoller;
 use scouter_settings::polling::AgentPollerSettings;
 use scouter_types::TraceId;
 use sqlx::{Pool, Postgres};
+use std::future::Future;
 use tokio::sync::{mpsc, watch};
 use tokio::task::JoinHandle;
 use tracing::{Instrument, Level, debug, error, info, span};
@@ -34,11 +35,11 @@ impl BackgroundAgentDriftManager {
             );
             let worker_shutdown_rx = shutdown_rx.clone();
 
-            workers.push(tokio::spawn(Self::start_worker(
-                id,
-                agent_poller,
-                worker_shutdown_rx,
-            )));
+            workers.push(Self::spawn_monitored_worker(
+                "agent eval worker",
+                Self::start_worker(id, agent_poller, worker_shutdown_rx),
+                shutdown_rx.clone(),
+            ));
 
             // sleep for a bit to stagger the start of the workers
             tokio::time::sleep(std::time::Duration::from_millis(200)).await;
@@ -46,20 +47,45 @@ impl BackgroundAgentDriftManager {
 
         debug!("✅ Started {} drift workers", num_workers);
 
-        tokio::spawn(scouter_drift::genai::inbox::run_commit_consumer_loop(
-            db_pool.clone(),
-            commit_rx,
-            shutdown_rx.clone(),
-        ));
-
-        tokio::spawn(
-            scouter_drift::genai::inbox::run_trace_commit_event_worker_loop(
+        Self::spawn_monitored_worker(
+            "trace-commit consumer",
+            scouter_drift::genai::inbox::run_commit_consumer_loop(
                 db_pool.clone(),
+                commit_rx,
                 shutdown_rx.clone(),
             ),
+            shutdown_rx.clone(),
+        );
+
+        Self::spawn_monitored_worker(
+            "trace-commit event worker",
+            scouter_drift::genai::inbox::run_trace_commit_event_worker_loop(
+                db_pool.clone(),
+                poll_settings.trace_visibility_buffer,
+                shutdown_rx.clone(),
+            ),
+            shutdown_rx.clone(),
         );
 
         Ok(())
+    }
+
+    fn spawn_monitored_worker<F>(
+        name: &'static str,
+        future: F,
+        shutdown: watch::Receiver<()>,
+    ) -> JoinHandle<()>
+    where
+        F: Future<Output = ()> + Send + 'static,
+    {
+        tokio::spawn(async move {
+            future.await;
+            if shutdown.has_changed().unwrap_or(true) {
+                info!("{name} exited after shutdown signal");
+            } else {
+                error!("{name} exited unexpectedly");
+            }
+        })
     }
 
     async fn start_worker(

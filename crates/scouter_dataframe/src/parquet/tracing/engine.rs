@@ -643,12 +643,15 @@ impl TraceSpanDBEngine {
                                     Ok(_) => {
                                         if let Some(tx) = &self.commit_tx
                                             && !trace_ids.is_empty()
-                                            && let Err(e) = tx.try_send(trace_ids)
                                         {
-                                            tracing::warn!(
-                                                "trace-arrival commit_tx full or closed ({:?}); timeout sweep will recover affected eval rows",
-                                                e
-                                            );
+                                            let trace_count = trace_ids.len();
+                                            if let Err(e) = tx.send(trace_ids).await {
+                                                tracing::warn!(
+                                                    trace_count,
+                                                    "trace-arrival commit_tx closed after Delta commit ({:?}); timeout sweep will recover affected eval rows",
+                                                    e
+                                                );
+                                            }
                                         }
                                         let _ = respond_to.send(Ok(()));
                                     }

@@ -80,6 +80,7 @@ pub struct AgentPollerSettings {
     pub trace_wait_timeout: Duration,
     pub trace_backoff: Duration,
     pub trace_reschedule_delay: Duration,
+    pub trace_visibility_buffer: Duration,
 }
 
 impl Default for AgentPollerSettings {
@@ -115,12 +116,33 @@ impl Default for AgentPollerSettings {
                 .unwrap(),
         );
 
+        let trace_visibility_buffer = Self::trace_visibility_buffer();
+
         Self {
             max_retries,
             trace_wait_timeout,
             trace_backoff,
             trace_reschedule_delay,
+            trace_visibility_buffer,
             genai_workers,
         }
+    }
+}
+
+impl AgentPollerSettings {
+    pub fn trace_visibility_buffer() -> Duration {
+        let default_secs = std::env::var("SCOUTER_TRACE_REFRESH_INTERVAL_SECS")
+            .ok()
+            .and_then(|v| v.parse::<i64>().ok())
+            .unwrap_or(10)
+            + 2;
+
+        Duration::seconds(
+            std::env::var("SCOUTER_TRACE_VISIBILITY_BUFFER_SECS")
+                .ok()
+                .and_then(|v| v.parse::<i64>().ok())
+                .unwrap_or(default_secs)
+                .max(0),
+        )
     }
 }

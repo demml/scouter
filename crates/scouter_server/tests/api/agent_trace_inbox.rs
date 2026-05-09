@@ -1,6 +1,7 @@
 use crate::common::{NAME, SPACE, VERSION, setup_test};
 use chrono::Utc;
 use potato_head::create_uuid7;
+use scouter_drift::genai::AgentPoller;
 use scouter_mocks::generate_trace_with_spans;
 use scouter_sql::PostgresClient;
 use scouter_sql::sql::traits::{AgentDriftSqlLogic, EntitySqlLogic};
@@ -34,6 +35,78 @@ async fn trace_profile() -> AgentEvalProfile {
     AgentEvalProfile::new(config, EvaluationTasks::new().add_task(task).build())
         .await
         .unwrap()
+}
+
+#[tokio::test]
+async fn test_direct_pending_trace_record_poller_processes() {
+    let helper = setup_test().await;
+    let trace_profile_uid = helper
+        .register_drift_profile(trace_profile().await.create_profile_request().unwrap())
+        .await;
+    let entity_id = PostgresClient::get_entity_id_from_uid(&helper.pool, &trace_profile_uid)
+        .await
+        .unwrap();
+
+    let (trace, spans, _) = generate_trace_with_spans(2, 0);
+    let span_id = spans[0].span_id.clone();
+    helper
+        .trace_service
+        .write_spans_direct(spans)
+        .await
+        .unwrap();
+
+    let record_uid = create_uuid7();
+    let record = EvalRecord {
+        created_at: Utc::now(),
+        uid: record_uid.clone(),
+        entity_id,
+        context: json!({"input": "hello"}),
+        trace_id: Some(trace.trace_id),
+        span_id: Some(span_id),
+        ..Default::default()
+    };
+    PostgresClient::insert_agent_eval_record(
+        &helper.pool,
+        BoxedEvalRecord::new(record),
+        &entity_id,
+        Status::Pending,
+    )
+    .await
+    .unwrap();
+
+    let mut poller = AgentPoller::new(
+        &helper.pool,
+        3,
+        chrono::Duration::seconds(1),
+        chrono::Duration::milliseconds(10),
+        chrono::Duration::seconds(1),
+    );
+    assert!(poller.do_poll().await.unwrap());
+
+    let status: String =
+        sqlx::query_scalar("SELECT status FROM scouter.agent_eval_record WHERE uid = $1")
+            .bind(&record_uid)
+            .fetch_one(&helper.pool)
+            .await
+            .unwrap();
+    assert_eq!(status, "processed");
+
+    let task_count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM scouter.agent_eval_task WHERE record_uid = $1")
+            .bind(&record_uid)
+            .fetch_one(&helper.pool)
+            .await
+            .unwrap();
+    assert_eq!(task_count, 1);
+
+    let workflow_count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM scouter.agent_eval_workflow WHERE record_uid = $1",
+    )
+    .bind(&record_uid)
+    .fetch_one(&helper.pool)
+    .await
+    .unwrap();
+    assert_eq!(workflow_count, 1);
 }
 
 async fn content_profile() -> AgentEvalProfile {

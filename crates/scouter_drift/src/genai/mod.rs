@@ -27,7 +27,7 @@ pub mod test_helpers {
     use super::inbox;
 
     pub async fn drain_once(pool: &Pool<Postgres>) -> Result<(), DriftError> {
-        inbox::drain_once(pool).await
+        inbox::drain_once(pool, chrono::Duration::zero()).await
     }
 
     pub async fn run_sweeps(pool: &Pool<Postgres>) {

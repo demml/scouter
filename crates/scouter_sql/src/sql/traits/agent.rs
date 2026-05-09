@@ -41,7 +41,25 @@ pub trait AgentDriftSqlLogic {
         entity_id: &i32,
         status: Status,
     ) -> Result<PgQueryResult, SqlError> {
+        Self::insert_agent_eval_record_with_ready_delay(
+            pool,
+            record,
+            entity_id,
+            status,
+            Duration::zero(),
+        )
+        .await
+    }
+
+    async fn insert_agent_eval_record_with_ready_delay(
+        pool: &Pool<Postgres>,
+        record: BoxedEvalRecord,
+        entity_id: &i32,
+        status: Status,
+        ready_delay: Duration,
+    ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertEvalRecord.get_query();
+        let ready_at = Utc::now() + ready_delay;
 
         sqlx::query(query)
             .bind(record.record.uid)
@@ -56,6 +74,7 @@ pub trait AgentDriftSqlLogic {
             .bind(Json(&record.record.media))
             .bind(record.record.span_id.map(|s| s.as_bytes().to_vec()))
             .bind(status.as_str())
+            .bind(ready_at)
             .execute(pool)
             .await
             .map_err(SqlError::SqlxError)
@@ -113,10 +132,17 @@ pub trait AgentDriftSqlLogic {
     async fn flip_awaiting_evals(
         tx: &mut Transaction<'_, Postgres>,
         trace_ids: &[TraceId],
+        ready_delay: chrono::Duration,
     ) -> Result<PgQueryResult, SqlError> {
         let bytes: Vec<Vec<u8>> = trace_ids.iter().map(|t| t.as_bytes().to_vec()).collect();
+        let pg_interval = sqlx::postgres::types::PgInterval {
+            months: 0,
+            days: 0,
+            microseconds: ready_delay.num_microseconds().unwrap_or(0),
+        };
         sqlx::query(Queries::FlipAwaitingEvals.get_query())
             .bind(bytes)
+            .bind(pg_interval)
             .execute(&mut **tx)
             .await
             .map_err(SqlError::SqlxError)

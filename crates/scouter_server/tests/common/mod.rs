@@ -182,10 +182,12 @@ impl TestHelper {
             env::set_var("LOG_LEVEL", "inf");
             env::set_var("LOG_JSON", "false");
             env::set_var("POLLING_WORKER_COUNT", "1");
+            env::set_var("GENAI_WORKER_COUNT", "0");
             env::set_var("MAX_POOL_SIZE", "100");
             env::set_var("DATA_RETENTION_PERIOD", "5");
             std::env::set_var("OPENAI_API_KEY", "test_key");
             std::env::set_var("SCOUTER_DATASET_FLUSH_INTERVAL_SECS", "1");
+            std::env::set_var("SCOUTER_TRACE_VISIBILITY_BUFFER_SECS", "0");
         }
 
         if enable_kafka {
