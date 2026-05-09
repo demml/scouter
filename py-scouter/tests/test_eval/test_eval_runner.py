@@ -228,7 +228,7 @@ def test_eval_runner_no_trace_tasks():
 
 
 def test_mock_adk_agent_e2e():
-    """Mock Google ADK agent: ScouterQueue capture + span.add_queue_item + EvalRunner."""
+    """Mock Google ADK agent: ScouterQueue capture + span.attach_eval + EvalRunner."""
     ADK_SCENARIO_DATA = [
         ("What is RAG?", 8, 3),
         ("How does LLM work?", 7, 2),
@@ -274,7 +274,7 @@ def test_mock_adk_agent_e2e():
     queue.enable_capture()
 
     # 3. Wire queue into tracer (idempotent: provider not re-created;
-    #    new BaseTracer instance returned with queue so add_queue_item works)
+    #    new BaseTracer instance returned with queue so attach_eval works)
     ScouterInstrumentor().instrument(
         service_name="mock-adk-agent",
         transport_config=MockConfig(),
@@ -309,28 +309,24 @@ def test_mock_adk_agent_e2e():
         capture_run_id=capture_run_id,
     )
 
-    # 5. Simulate mock ADK agent — span.add_queue_item auto-stamps trace_id onto EvalRecord
+    # 5. Simulate mock ADK agent — attach_eval builds trace anchors from the live span
     for i, (query, quality, count) in enumerate(ADK_SCENARIO_DATA):
         scenario = scenarios.scenarios[i]
         with adk_tracer.start_as_current_span(
             "agent_call",
             baggage=[{"scouter.eval.run_id": capture_run_id}],
         ) as span:
-            span.add_queue_item(
-                "retriever",
-                EvalRecord(
-                    context={"results": {"count": count, "query": query}},
-                    record_id=f"retriever_{i + 1}",
-                ),
+            span.attach_eval(
+                profile_uid=retriever_profile.config.uid,
+                context={"results": {"count": count, "query": query}},
+                record_id=f"retriever_{i + 1}",
             )
-            span.add_queue_item(
-                "synthesizer",
-                EvalRecord(
-                    context={"response": {"quality": quality, "text": f"Answer for {query}"}},
-                    record_id=f"synthesizer_{i + 1}",
-                ),
+            span.attach_eval(
+                profile_uid=synthesizer_profile.config.uid,
+                context={"response": {"quality": quality, "text": f"Answer for {query}"}},
+                record_id=f"synthesizer_{i + 1}",
             )
-        # Drain immediately after span ends — records carry trace_id from the span
+        # Drain immediately after span ends — records carry trace_id/span_id from the span
         scenario_records = queue.drain_all_records()
         runner.collect_scenario_data(
             records=scenario_records,

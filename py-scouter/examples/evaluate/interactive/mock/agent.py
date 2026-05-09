@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from scouter import trace
 from scouter.agent.mock import AfterModelCallback, MockTool, ScouterMockAgent
-from scouter.evaluate import EvalRecord
 
 from ..shared import get_shared_config
 
@@ -40,9 +39,9 @@ def _route_response(query: str) -> str:
 def _emit_eval_record(query: str, response: str) -> None:
     tracer = trace.get_tracer("evaluate.agent.mock")
     with tracer.start_as_current_span("mock.callback") as span:
-        span.add_queue_item(
-            _ALIAS,
-            EvalRecord(context={"query": query, "response": response}),
+        span.attach_eval(
+            profile_uid=config.eval_profile.config.uid,
+            context={"query": query, "response": response},
         )
 
 

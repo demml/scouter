@@ -607,13 +607,6 @@ fn apply_kv(
             top.entity_uid = Some(value.to_string());
             Ok(None)
         }
-        "queue_uid" => {
-            if depth > 0 {
-                return Err(top_only(key));
-            }
-            top.queue_uid = Some(value.to_string());
-            Ok(None)
-        }
         "trace_id" => {
             if depth > 0 {
                 return Err(top_only(key));

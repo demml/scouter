@@ -24,7 +24,6 @@ from google.adk.sessions import InMemorySessionService
 from google.genai import types
 from pydantic import BaseModel
 from scouter import trace
-from scouter.evaluate import EvalRecord
 
 from ..shared import get_shared_config, teardown_shared_config
 
@@ -50,12 +49,10 @@ def _emit_eval_record(query: str, response: str) -> None:
     """Emit the record users would normally send from a production callback."""
     tracer = trace.get_tracer("evaluate.non_interactive.google")
     with tracer.start_as_current_span("google.callback") as span:
-        span.add_queue_item(
-            "support_agent",
-            EvalRecord(
-                record_id=f"google_{abs(hash((query, response))) % 1_000_000}",
-                context={"query": query, "response": response},
-            ),
+        span.attach_eval(
+            profile_uid=config.eval_profile.config.uid,
+            record_id=f"google_{abs(hash((query, response))) % 1_000_000}",
+            context={"query": query, "response": response},
         )
 
 

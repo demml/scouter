@@ -43,10 +43,6 @@ pub struct TraceListItem {
     pub error_count: i64,
     #[pyo3(get)]
     pub resource_attributes: Vec<Attribute>,
-    #[pyo3(get)]
-    pub entity_ids: Vec<String>,
-    #[pyo3(get)]
-    pub queue_ids: Vec<String>,
 }
 
 #[cfg(feature = "server")]
@@ -69,8 +65,6 @@ impl FromRow<'_, PgRow> for TraceListItem {
             has_errors: row.try_get("has_errors")?,
             error_count: row.try_get("error_count")?,
             resource_attributes,
-            entity_ids: vec![],
-            queue_ids: vec![],
         })
     }
 }
@@ -221,8 +215,6 @@ pub struct TraceFilters {
     pub trace_ids: Option<Vec<String>>,
     #[pyo3(get, set)]
     pub entity_uid: Option<String>,
-    #[pyo3(get, set)]
-    pub queue_uid: Option<String>,
 }
 
 #[pymethods]
@@ -237,8 +229,7 @@ impl TraceFilters {
         cursor_trace_id=None,
         direction=None,
         trace_ids=None,
-        entity_uid=None,
-        queue_uid=None
+        entity_uid=None
     ))]
     pub fn new(
         start_time: Option<DateTime<Utc>>,
@@ -249,7 +240,6 @@ impl TraceFilters {
         direction: Option<String>,
         trace_ids: Option<Vec<String>>,
         entity_uid: Option<String>,
-        queue_uid: Option<String>,
     ) -> Self {
         TraceFilters {
             clause: None,
@@ -261,7 +251,6 @@ impl TraceFilters {
             direction,
             trace_ids,
             entity_uid,
-            queue_uid,
         }
     }
 
@@ -349,11 +338,6 @@ impl TraceFilters {
 
     pub fn with_entity_uid(mut self, entity_uid: impl Into<String>) -> Self {
         self.entity_uid = Some(entity_uid.into());
-        self
-    }
-
-    pub fn with_queue_uid(mut self, queue_uid: impl Into<String>) -> Self {
-        self.queue_uid = Some(queue_uid.into());
         self
     }
 

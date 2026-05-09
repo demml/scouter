@@ -42,13 +42,13 @@ def test_agent_tracing_api(_fast_agent_tracing_env: None, scouter_grpc_openai_se
             time.sleep(0.5)
         time.sleep(5)
 
-    record_uid = response.json().get("record_uid")
-    assert record_uid is not None
+    trace_id = response.json().get("trace_id")
+    assert trace_id is not None
 
     deadline = time.time() + 30
     spans = None
     while time.time() < deadline:
-        spans = scouter_client.get_trace_spans_from_filters(filters=TraceFilters(queue_uid=record_uid))
+        spans = scouter_client.get_trace_spans_from_filters(filters=TraceFilters(trace_ids=[trace_id]))
         if spans.spans:
             break
         time.sleep(1)

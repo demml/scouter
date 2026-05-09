@@ -192,6 +192,7 @@ def create_and_register_agent_drift_profile(
 class TestResponse(BaseModel):
     message: str
     record_uid: str = ""
+    trace_id: str = ""
 
 
 class PredictRequest(BaseModel, FeatureMixin):
@@ -377,6 +378,7 @@ def create_tracing_agent_app(tracer: ScouterTracer, profile_path: Path) -> FastA
             path={"agent": profile_path},
             transport_config=config,
         )
+        app.state.profile_uid = queue.agent_profiles()["agent"].config.uid
         tracer.set_scouter_queue(queue)
         yield
 
@@ -397,18 +399,21 @@ def create_tracing_agent_app(tracer: ScouterTracer, profile_path: Path) -> FastA
             bound_prompt = prompt.bind(question=payload.question)
 
             response = agent.execute_prompt(prompt=bound_prompt)
-            queue_record = EvalRecord(
+            record_id = f"chat-{abs(hash(payload.question)) % 1_000_000}"
+            active_span.attach_eval(
+                profile_uid=request.app.state.profile_uid,
+                record_id=record_id,
                 context={
                     "input": bound_prompt.messages[0].text,
                     "response": response.response_text(),
                     "assertion": 10,
                 },
             )
-            active_span.add_queue_item(alias="agent", item=queue_record)
 
             return TestResponse(
                 message="success",
-                record_uid=queue_record.uid,
+                record_uid=record_id,
+                trace_id=active_span.trace_id,
             )
 
     return app
