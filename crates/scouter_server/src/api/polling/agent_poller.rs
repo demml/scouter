@@ -2,8 +2,9 @@
 use crate::api::error::ServerError;
 use scouter_drift::genai::AgentPoller;
 use scouter_settings::polling::AgentPollerSettings;
+use scouter_types::TraceId;
 use sqlx::{Pool, Postgres};
-use tokio::sync::watch;
+use tokio::sync::{mpsc, watch};
 use tokio::task::JoinHandle;
 use tracing::{Instrument, Level, debug, error, info, span};
 
@@ -15,6 +16,7 @@ impl BackgroundAgentDriftManager {
     pub async fn start_workers(
         db_pool: &Pool<Postgres>,
         poll_settings: &AgentPollerSettings,
+        commit_rx: mpsc::Receiver<Vec<TraceId>>,
         shutdown_rx: watch::Receiver<()>,
     ) -> Result<(), ServerError> {
         let num_workers = poll_settings.genai_workers;
@@ -43,6 +45,19 @@ impl BackgroundAgentDriftManager {
         }
 
         debug!("✅ Started {} drift workers", num_workers);
+
+        tokio::spawn(scouter_drift::genai::inbox::run_commit_consumer_loop(
+            db_pool.clone(),
+            commit_rx,
+            shutdown_rx.clone(),
+        ));
+
+        tokio::spawn(
+            scouter_drift::genai::inbox::run_trace_commit_event_worker_loop(
+                db_pool.clone(),
+                shutdown_rx.clone(),
+            ),
+        );
 
         Ok(())
     }

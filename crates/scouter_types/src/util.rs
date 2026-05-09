@@ -751,6 +751,7 @@ pub enum Status {
     Processing,
     Processed,
     Failed,
+    AwaitingTrace,
 }
 
 impl Status {
@@ -761,6 +762,7 @@ impl Status {
             Status::Processing => Some("processing"),
             Status::Processed => Some("processed"),
             Status::Failed => Some("failed"),
+            Status::AwaitingTrace => Some("awaiting_trace"),
         }
     }
 }
@@ -783,6 +785,7 @@ impl std::str::FromStr for Status {
             "processing" => Ok(Status::Processing),
             "processed" => Ok(Status::Processed),
             "failed" => Ok(Status::Failed),
+            "awaiting_trace" => Ok(Status::AwaitingTrace),
             _ => Err(format!("Unknown status: {}", s)),
         }
     }
@@ -796,6 +799,7 @@ impl Display for Status {
             Status::Processing => write!(f, "processing"),
             Status::Processed => write!(f, "processed"),
             Status::Failed => write!(f, "failed"),
+            Status::AwaitingTrace => write!(f, "awaiting_trace"),
         }
     }
 }
@@ -803,6 +807,7 @@ impl Display for Status {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
 
     pub struct TestStruct;
     impl ValidateAlertConfig for TestStruct {}
@@ -822,5 +827,13 @@ mod tests {
         let result = TestStruct::resolve_schedule(invalid_schedule);
 
         assert_eq!(result, default_schedule);
+    }
+
+    #[test]
+    fn test_status_awaiting_trace_round_trip() {
+        let status = Status::from_str("awaiting_trace").unwrap();
+        assert_eq!(status, Status::AwaitingTrace);
+        assert_eq!(status.as_str(), Some("awaiting_trace"));
+        assert_eq!(status.to_string(), "awaiting_trace");
     }
 }

@@ -15,7 +15,8 @@ SELECT
     trace_id,
     record_source,
     tags,
-    media
+    media,
+    span_id
 FROM scouter.agent_eval_record
 WHERE entity_id = $1
   AND ($2::VARCHAR IS NULL OR status = $2)

@@ -727,9 +727,14 @@ mod tests {
             // Insert eval record for poller to pick up
 
             runtime.block_on(async {
-                PostgresClient::insert_agent_eval_record(&db_pool, record, &entity_id)
-                    .await
-                    .unwrap();
+                PostgresClient::insert_agent_eval_record(
+                    &db_pool,
+                    record,
+                    &entity_id,
+                    scouter_types::Status::Pending,
+                )
+                .await
+                .unwrap();
 
                 poller.do_poll().await.unwrap();
             });

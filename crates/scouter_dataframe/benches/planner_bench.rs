@@ -113,7 +113,7 @@ fn benchmark_planner_queries(c: &mut Criterion) {
     let tmp_dir = tempfile::tempdir().unwrap();
     let settings = storage_settings(tmp_dir.path().to_string_lossy().to_string());
     let service = rt.block_on(async {
-        let service = TraceSpanService::new(&settings, 999, Some(1), None, 10)
+        let service = TraceSpanService::new(&settings, 999, Some(1), None, 10, None)
             .await
             .unwrap();
         write_fixture(&service, PLANNER_BENCH_SPANS).await;

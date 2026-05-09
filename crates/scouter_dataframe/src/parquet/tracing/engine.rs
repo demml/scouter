@@ -24,6 +24,7 @@ use scouter_types::TraceId;
 use scouter_types::TraceSpanRecord;
 use scouter_types::{Attribute, SpanEvent, SpanLink};
 use serde_json::Value;
+use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::oneshot;
 use tokio::sync::{RwLock as AsyncRwLock, mpsc};
@@ -220,12 +221,16 @@ pub struct TraceSpanDBEngine {
     /// respective `TableProvider`s without a deregister/register gap.
     pub catalog: Arc<TraceCatalogProvider>,
     control: ControlTableEngine,
+    commit_tx: Option<mpsc::Sender<Vec<TraceId>>>,
 }
 
 impl TraceSchemaExt for TraceSpanDBEngine {}
 
 impl TraceSpanDBEngine {
-    pub async fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, TraceEngineError> {
+    pub async fn new(
+        storage_settings: &ObjectStorageSettings,
+        commit_tx: Option<mpsc::Sender<Vec<TraceId>>>,
+    ) -> Result<Self, TraceEngineError> {
         let object_store = ObjectStore::new(storage_settings)?;
         let schema = Arc::new(Self::create_schema());
         let delta_table = build_or_create_table(&object_store, schema.clone()).await?;
@@ -262,6 +267,7 @@ impl TraceSpanDBEngine {
             ctx: Arc::new(ctx),
             catalog,
             control,
+            commit_tx,
         })
     }
 
@@ -623,8 +629,29 @@ impl TraceSpanDBEngine {
                     Some(cmd) = rx.recv() => {
                         match cmd {
                             TableCommand::Write { spans, respond_to } => {
+                                let trace_ids: Vec<TraceId> = if self.commit_tx.is_some() {
+                                    let mut seen = HashSet::with_capacity(spans.len());
+                                    for span in &spans {
+                                        seen.insert(span.trace_id);
+                                    }
+                                    seen.into_iter().collect()
+                                } else {
+                                    Vec::new()
+                                };
+
                                 match self.write_spans(spans).await {
-                                    Ok(_) => { let _ = respond_to.send(Ok(())); }
+                                    Ok(_) => {
+                                        if let Some(tx) = &self.commit_tx
+                                            && !trace_ids.is_empty()
+                                            && let Err(e) = tx.try_send(trace_ids)
+                                        {
+                                            tracing::warn!(
+                                                "trace-arrival commit_tx full or closed ({:?}); timeout sweep will recover affected eval rows",
+                                                e
+                                            );
+                                        }
+                                        let _ = respond_to.send(Ok(()));
+                                    }
                                     Err(e) => {
                                         tracing::error!("Write failed: {}", e);
                                         let _ = respond_to.send(Err(e));

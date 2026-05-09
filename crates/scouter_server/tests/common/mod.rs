@@ -93,6 +93,9 @@ pub async fn cleanup_tables(pool: &Pool<Postgres>) -> Result<(), anyhow::Error> 
         FROM scouter.agent_eval_task;
 
         DELETE
+        FROM scouter.trace_commit_event;
+
+        DELETE
         FROM scouter.spans;
 
         DELETE

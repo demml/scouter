@@ -5,7 +5,8 @@ WITH selected_task AS (
         created_at,
         context,
         retry_count,
-        scheduled_at
+        scheduled_at,
+        span_id
     FROM scouter.agent_eval_record
     WHERE 1=1
         AND status = 'pending'

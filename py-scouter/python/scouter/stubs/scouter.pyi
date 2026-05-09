@@ -1928,11 +1928,13 @@ class EvalRecord:
 
     def __init__(
         self,
-        context: Context,
+        context: Optional[Context] = None,
         id: Optional[str] = None,
         session_id: Optional[str] = None,
         trace_id: Optional[str] = None,
         media: Optional[List[Union[EvalMedia, ImageMedia, DocumentMedia]]] = None,
+        profile_uid: Optional[str] = None,
+        trace_context: Any = None,
     ) -> None:
         """Creates a new LLM record to associate with an `AgentEvalProfile`.
         The record is sent to the `Scouter` server via the `ScouterQueue` and is
@@ -1952,6 +1954,11 @@ class EvalRecord:
             media:
                 Optional media attachments referenced by LLMJudgeTask prompts via
                 `${media:id}` placeholders.
+            profile_uid:
+                Optional AgentEvalProfile UID. Sets the record entity UID for queue insertion.
+            trace_context:
+                Optional OpenTelemetry SpanContext. When provided, this fills both
+                trace_id and span_id and takes priority over the legacy trace_id kwarg.
 
         Raises:
             TypeError: If context is not a dict or a pydantic BaseModel.
@@ -1981,6 +1988,14 @@ class EvalRecord:
     @property
     def uid(self) -> str:
         """Get the unique identifier for the record."""
+
+    @property
+    def trace_id(self) -> Optional[str]:
+        """Get the trace ID hex string, if attached."""
+
+    @property
+    def span_id(self) -> Optional[str]:
+        """Get the span ID hex string, if attached."""
 
     @property
     def context(self) -> Dict[str, Any]:

@@ -16,7 +16,8 @@ SELECT
     encode(trace_id, 'hex') as trace_id,
     record_source,
     tags,
-    media
+    media,
+    span_id
 FROM scouter.agent_eval_record
 WHERE 1=1
   AND entity_id = $1

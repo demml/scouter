@@ -340,9 +340,10 @@ mod tests {
 
     async fn init_dispatch_service() -> Arc<TraceDispatchService> {
         let storage_settings = test_storage_settings();
-        let trace_service = init_trace_span_service(&storage_settings, 24, Some(1), Some(7), 1)
-            .await
-            .unwrap();
+        let trace_service =
+            init_trace_span_service(&storage_settings, 24, Some(1), Some(7), 1, None)
+                .await
+                .unwrap();
         let dispatch_service = Arc::new(
             TraceDispatchService::new(
                 &trace_service.object_store,

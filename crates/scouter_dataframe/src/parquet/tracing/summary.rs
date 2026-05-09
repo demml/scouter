@@ -1667,7 +1667,8 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let span_service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+        let span_service =
+            TraceSpanService::new(&storage_settings, 24, Some(2), None, 10, None).await?;
         let service = TraceSummaryService::new(
             &span_service.object_store,
             24,
@@ -1755,7 +1756,8 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let span_service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+        let span_service =
+            TraceSpanService::new(&storage_settings, 24, Some(2), None, 10, None).await?;
         let service = TraceSummaryService::new(
             &span_service.object_store,
             24,
@@ -1961,7 +1963,8 @@ mod tests {
         let storage_settings = ObjectStorageSettings::default();
 
         // TraceSpanService owns the SessionContext (trace_spans registered in it)
-        let span_service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+        let span_service =
+            TraceSpanService::new(&storage_settings, 24, Some(2), None, 10, None).await?;
         let shared_ctx = span_service.ctx.clone();
 
         // TraceSummaryService shares the same ctx + catalog — JOIN to trace_spans will work
@@ -2046,7 +2049,8 @@ mod tests {
 
         cleanup();
         let storage_settings = ObjectStorageSettings::default();
-        let span_service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+        let span_service =
+            TraceSpanService::new(&storage_settings, 24, Some(2), None, 10, None).await?;
         let summary_service = TraceSummaryService::new(
             &span_service.object_store,
             24,
@@ -2134,7 +2138,8 @@ mod tests {
 
         cleanup();
         let storage_settings = ObjectStorageSettings::default();
-        let span_service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+        let span_service =
+            TraceSpanService::new(&storage_settings, 24, Some(2), None, 10, None).await?;
         let summary_service = TraceSummaryService::new(
             &span_service.object_store,
             24,
@@ -2218,7 +2223,8 @@ mod tests {
         let storage_settings = ObjectStorageSettings::default();
 
         // TraceSpanService owns the SessionContext
-        let span_service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+        let span_service =
+            TraceSpanService::new(&storage_settings, 24, Some(2), None, 10, None).await?;
         let shared_ctx = span_service.ctx.clone();
 
         // TraceSummaryService shares the same ctx + catalog so JOIN path works
@@ -2507,7 +2513,8 @@ mod tests {
         }
 
         // "Writer pod" — owns writes; standard refresh interval (not needed on the writer)
-        let writer_spans = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+        let writer_spans =
+            TraceSpanService::new(&storage_settings, 24, Some(2), None, 10, None).await?;
         let writer = TraceSummaryService::new(
             &writer_spans.object_store,
             24,
@@ -2518,7 +2525,8 @@ mod tests {
         .await?;
 
         // "Reader pod" — separate ObjectStore + SessionContext; 1s refresh for fast turnaround
-        let reader_spans = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+        let reader_spans =
+            TraceSpanService::new(&storage_settings, 24, Some(2), None, 10, None).await?;
         let reader = TraceSummaryService::new(
             &reader_spans.object_store,
             24,

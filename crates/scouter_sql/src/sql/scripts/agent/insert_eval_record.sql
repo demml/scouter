@@ -8,7 +8,9 @@ INSERT INTO scouter.agent_eval_record (
     trace_id,
     record_source,
     tags,
-    media
+    media,
+    span_id,
+    status
 )
 VALUES (
     $1, -- uid
@@ -20,5 +22,7 @@ VALUES (
     $7, -- trace_id
     $8, -- record_source
     $9, -- tags
-    $10 -- media
+    $10, -- media
+    $11, -- span_id
+    $12 -- status
 );

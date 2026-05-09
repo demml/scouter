@@ -6,7 +6,7 @@ use crate::parquet::tracing::queries::TraceQueries;
 use crate::storage::ObjectStore;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::{TraceSpanRecord, extract_gen_ai_span};
+use scouter_types::{TraceId, TraceSpanRecord, extract_gen_ai_span};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::time::{Duration, interval};
@@ -32,6 +32,7 @@ pub async fn init_trace_span_service(
     flush_interval_secs: Option<u64>,
     retention_days: Option<u32>,
     refresh_interval_secs: u64,
+    commit_tx: Option<mpsc::Sender<Vec<TraceId>>>,
 ) -> Result<Arc<TraceSpanService>, TraceEngineError> {
     // Shut down any existing service before replacing
     let old_service = {
@@ -50,6 +51,7 @@ pub async fn init_trace_span_service(
             flush_interval_secs,
             retention_days,
             refresh_interval_secs,
+            commit_tx,
         )
         .await?,
     );
@@ -107,9 +109,10 @@ impl TraceSpanService {
         flush_interval_secs: Option<u64>,
         retention_days: Option<u32>,
         refresh_interval_secs: u64,
+        commit_tx: Option<mpsc::Sender<Vec<TraceId>>>,
     ) -> Result<Self, TraceEngineError> {
         let buffer_size = storage_settings.trace_buffer_size();
-        let engine = TraceSpanDBEngine::new(storage_settings).await?;
+        let engine = TraceSpanDBEngine::new(storage_settings, commit_tx).await?;
 
         info!(
             "TraceSpanService initialized with buffer_size: {}",
@@ -474,7 +477,41 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10, None).await?;
+        service.shutdown().await?;
+        cleanup();
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_write_spans_direct_emits_trace_commit_after_success()
+    -> Result<(), TraceEngineError> {
+        cleanup();
+
+        let storage_settings = ObjectStorageSettings::default();
+        let (commit_tx, mut commit_rx) = mpsc::channel::<Vec<TraceId>>(1);
+        let service =
+            TraceSpanService::new(&storage_settings, 24, Some(2), None, 10, Some(commit_tx))
+                .await?;
+
+        let trace_id = TraceId::from_bytes([0xAB; 16]);
+        let span = make_span(
+            &trace_id,
+            SpanId::from_bytes([0x01; 8]),
+            None,
+            "svc",
+            "op",
+            vec![],
+        );
+
+        service.write_spans_direct(vec![span]).await?;
+
+        let committed = tokio::time::timeout(std::time::Duration::from_secs(2), commit_rx.recv())
+            .await
+            .map_err(|_| TraceEngineError::ChannelClosed)?
+            .ok_or(TraceEngineError::ChannelClosed)?;
+        assert_eq!(committed, vec![trace_id]);
+
         service.shutdown().await?;
         cleanup();
         Ok(())
@@ -485,7 +522,7 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10, None).await?;
 
         let (_trace_record, spans, _tags) = generate_trace_with_spans(3, 0);
         info!("Test: writing {} spans", spans.len());
@@ -526,7 +563,7 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10, None).await?;
 
         let trace_id = TraceId::from_bytes([0xAB_u8; 16]);
         let trace_id_bytes = trace_id.as_bytes();
@@ -590,7 +627,7 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10, None).await?;
 
         // Build a deterministic tree: root → child → grandchild
         let trace_id = TraceId::from_bytes([1u8; 16]);
@@ -691,7 +728,7 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10, None).await?;
 
         let (_record, spans, _tags) = generate_trace_with_spans(5, 0);
         service.write_spans(spans).await?;
@@ -719,7 +756,7 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10, None).await?;
 
         // Write spans for two distinct services using deterministic IDs
         let trace_a = TraceId::from_bytes([10u8; 16]);
@@ -818,7 +855,7 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10, None).await?;
 
         // Write a known batch directly so it is immediately queryable
         // Use distinct byte values that don't collide with other tests.
@@ -938,7 +975,7 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10, None).await?;
 
         let trace_kafka = TraceId::from_bytes([30u8; 16]);
         let trace_http = TraceId::from_bytes([40u8; 16]);
@@ -1019,7 +1056,7 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10, None).await?;
 
         let trace_id = TraceId::from_bytes([0x55u8; 16]);
         let root_span_id = SpanId::from_bytes([0x10u8; 8]);
@@ -1091,7 +1128,7 @@ mod tests {
 
         let storage_settings = ObjectStorageSettings::default();
         let service = std::sync::Arc::new(
-            TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?,
+            TraceSpanService::new(&storage_settings, 24, Some(2), None, 10, None).await?,
         );
 
         let trace_id = TraceId::from_bytes([0x56u8; 16]);
@@ -1179,7 +1216,7 @@ mod tests {
         use crate::parquet::tracing::genai::GenAiSpanService;
 
         let storage_settings = ObjectStorageSettings::default();
-        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10, None).await?;
 
         let genai_service = GenAiSpanService::new(
             &service.object_store,
@@ -1323,10 +1360,10 @@ mod tests {
         let storage_settings = ObjectStorageSettings::default();
 
         // "Writer pod" — standard refresh interval (won't need to refresh since it's the writer)
-        let writer = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+        let writer = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10, None).await?;
 
         // "Reader pod" — 1s refresh interval for fast test turnaround
-        let reader = TraceSpanService::new(&storage_settings, 24, Some(2), None, 1).await?;
+        let reader = TraceSpanService::new(&storage_settings, 24, Some(2), None, 1, None).await?;
 
         // Write spans via the writer using a deterministic trace ID
         let trace_id = TraceId::from_bytes([0xDD_u8; 16]);
@@ -1380,7 +1417,7 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10).await?;
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10, None).await?;
 
         let start = Utc::now() - chrono::Duration::hours(1);
         let end = Utc::now() + chrono::Duration::hours(1);

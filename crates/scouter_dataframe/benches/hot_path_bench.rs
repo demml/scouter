@@ -128,7 +128,7 @@ fn span_chunk(
 }
 
 async fn seed_fixture(settings: &ObjectStorageSettings) -> HotFixture {
-    let service = TraceSpanService::new(settings, 999, Some(1), None, 10)
+    let service = TraceSpanService::new(settings, 999, Some(1), None, 10, None)
         .await
         .unwrap();
     let base_time = Utc::now() - chrono::Duration::hours(24);

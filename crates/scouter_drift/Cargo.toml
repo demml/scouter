@@ -50,6 +50,7 @@ scouter-settings = { workspace = true }
 [features]
 default = ["sql"]
 sql = ["scouter-sql", "scouter-dataframe", "sqlx"]
+test-helpers = ["sql"]
 
 [profile.release]
 lto = "fat"

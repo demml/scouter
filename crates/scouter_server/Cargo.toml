@@ -81,6 +81,7 @@ url = { workspace = true }
 scouter-tonic = { workspace = true, features = ["client"] }
 scouter-mocks = { workspace = true, features = ["server"] }
 test-utils = { workspace = true }
+scouter-drift = { workspace = true, features = ["test-helpers"] }
 
 [features]
 default = []

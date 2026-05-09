@@ -947,6 +947,7 @@ impl ScouterDataFrameTestServer {
                     Some(1),
                     None,
                     1,
+                    None,
                 ))
                 .map(Arc::new)
                 .map_err(|e| DatasetServerError::StartError(e.to_string()))?;
