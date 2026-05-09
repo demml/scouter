@@ -166,14 +166,14 @@ def test_comparison_with_conditional_tasks():
                 "customer": {"tier": "premium"},
                 "metrics": {"quality_score": 8},
             },
-            id="premium_1",
+            record_id="premium_1",
         ),
         EvalRecord(
             context={
                 "customer": {"tier": "standard"},
                 "metrics": {"quality_score": 6},
             },
-            id="standard_1",
+            record_id="standard_1",
         ),
     ]
 
@@ -183,14 +183,14 @@ def test_comparison_with_conditional_tasks():
                 "customer": {"tier": "premium"},
                 "metrics": {"quality_score": 10},
             },
-            id="premium_1",
+            record_id="premium_1",
         ),
         EvalRecord(
             context={
                 "customer": {"tier": "standard"},
                 "metrics": {"quality_score": 8},
             },
-            id="standard_1",
+            record_id="standard_1",
         ),
     ]
 
@@ -221,17 +221,17 @@ def test_comparison_mixed_results():
         ),
     ]
     baseline_records = [
-        EvalRecord(context={"score": 5}, id="workflow_1"),
-        EvalRecord(context={"score": 8}, id="workflow_2"),
-        EvalRecord(context={"score": 6}, id="workflow_3"),
-        EvalRecord(context={"score": 9}, id="workflow_4"),
+        EvalRecord(context={"score": 5}, record_id="workflow_1"),
+        EvalRecord(context={"score": 8}, record_id="workflow_2"),
+        EvalRecord(context={"score": 6}, record_id="workflow_3"),
+        EvalRecord(context={"score": 9}, record_id="workflow_4"),
     ]
 
     mixed_records = [
-        EvalRecord(context={"score": 8}, id="workflow_1"),
-        EvalRecord(context={"score": 5}, id="workflow_2"),
-        EvalRecord(context={"score": 7}, id="workflow_3"),
-        EvalRecord(context={"score": 10}, id="workflow_4"),
+        EvalRecord(context={"score": 8}, record_id="workflow_1"),
+        EvalRecord(context={"score": 5}, record_id="workflow_2"),
+        EvalRecord(context={"score": 7}, record_id="workflow_3"),
+        EvalRecord(context={"score": 10}, record_id="workflow_4"),
     ]
 
     baseline_dataset = EvalDataset(records=baseline_records, tasks=tasks)

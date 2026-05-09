@@ -123,7 +123,7 @@ def test_scenarios_have_distinct_trace_ids(queue: ScouterQueue, tracer: Any) -> 
 
     def agent(query: str) -> str:
         with tracer.start_as_current_span("agent_call") as span:
-            span.add_queue_item("agent", EvalRecord(context={"response": query}, id=f"rec_{query}"))
+            span.add_queue_item("agent", EvalRecord(context={"response": query}, record_id=f"rec_{query}"))
         return query
 
     results = EvalOrchestrator(queue=queue, scenarios=scenarios, agent_fn=agent).run()
@@ -137,7 +137,7 @@ def test_scenarios_pass_with_correct_spans(queue: ScouterQueue, tracer: Any) -> 
 
     def agent(query: str) -> str:
         with tracer.start_as_current_span("agent_call") as span:
-            span.add_queue_item("agent", EvalRecord(context={"response": query}, id=f"rec_{query}"))
+            span.add_queue_item("agent", EvalRecord(context={"response": query}, record_id=f"rec_{query}"))
         return query
 
     results = EvalOrchestrator(queue=queue, scenarios=scenarios, agent_fn=agent).run()
@@ -158,7 +158,7 @@ def test_async_agent_fn_preserves_isolation(queue: ScouterQueue, tracer: Any) ->
         with tracer.start_as_current_span("async_child_1"):
             await asyncio.sleep(0)
         with tracer.start_as_current_span("async_child_2") as span:
-            span.add_queue_item("agent", EvalRecord(context={"response": query}, id=f"rec_{query}"))
+            span.add_queue_item("agent", EvalRecord(context={"response": query}, record_id=f"rec_{query}"))
             await asyncio.sleep(0)
         return query
 
@@ -187,7 +187,7 @@ def test_nested_sync_spans_preserve_isolation(queue: ScouterQueue, tracer: Any) 
                 with tracer.start_as_current_span("sync_deep") as span:
                     span.add_queue_item(
                         "agent",
-                        EvalRecord(context={"response": query}, id=f"rec_{query}"),
+                        EvalRecord(context={"response": query}, record_id=f"rec_{query}"),
                     )
         return query
 
@@ -214,7 +214,7 @@ def test_nested_async_spans_preserve_isolation(queue: ScouterQueue, tracer: Any)
                 with tracer.start_as_current_span("async_deep") as span:
                     span.add_queue_item(
                         "agent",
-                        EvalRecord(context={"response": query}, id=f"rec_{query}"),
+                        EvalRecord(context={"response": query}, record_id=f"rec_{query}"),
                     )
                     await asyncio.sleep(0)
         return query
@@ -265,7 +265,7 @@ def test_third_party_spans_captured_per_scenario() -> None:
                 lib_tracer = otel_trace.get_tracer("third-party-lib")
                 with lib_tracer.start_as_current_span("third-party-call"):
                     pass
-                span.add_queue_item("agent", EvalRecord(context={"response": query}, id=f"rec_{query}"))
+                span.add_queue_item("agent", EvalRecord(context={"response": query}, record_id=f"rec_{query}"))
             return query
 
         results = EvalOrchestrator(queue=q, scenarios=scenarios, agent_fn=agent).run()
@@ -320,7 +320,7 @@ def test_third_party_async_spans_captured_per_scenario() -> None:
         def agent(query: str) -> str:
             with tracer.start_as_current_span("wrapper") as span:
                 result = asyncio.run(_async_agent(query))
-                span.add_queue_item("agent", EvalRecord(context={"response": result}, id=f"rec_{query}"))
+                span.add_queue_item("agent", EvalRecord(context={"response": result}, record_id=f"rec_{query}"))
             return result
 
         results = EvalOrchestrator(queue=q, scenarios=scenarios, agent_fn=agent).run()
@@ -348,7 +348,7 @@ def test_all_captured_spans_carry_run_id(queue: ScouterQueue, tracer: Any) -> No
     def agent(query: str) -> str:
         with tracer.start_as_current_span("outer"):
             with tracer.start_as_current_span("inner") as span:
-                span.add_queue_item("agent", EvalRecord(context={"response": query}, id=f"rec_{query}"))
+                span.add_queue_item("agent", EvalRecord(context={"response": query}, record_id=f"rec_{query}"))
         return query
 
     orch = EvalOrchestrator(queue=queue, scenarios=scenarios, agent_fn=agent)

@@ -371,6 +371,35 @@ impl ScouterQueue {
         }
     }
 
+    /// Return the queue whose entity_uid matches an eval profile UID.
+    ///
+    /// Alias-based lookup remains the behavior of `__getitem__`; this helper
+    /// exists for trace-attached eval records that should be keyed by profile UID.
+    pub fn get_by_entity_uid<'py>(
+        &self,
+        py: Python<'py>,
+        profile_uid: &str,
+    ) -> Result<&Bound<'py, QueueBus>, PyEventError> {
+        let mut matched: Option<&Bound<'py, QueueBus>> = None;
+
+        for queue in self.queues.values() {
+            let bound = queue.bind(py);
+            if bound.borrow().entity_uid != profile_uid {
+                continue;
+            }
+
+            if matched.is_some() {
+                return Err(PyEventError::Error(format!(
+                    "multiple queues found for eval profile uid {profile_uid}"
+                )));
+            }
+
+            matched = Some(bound);
+        }
+
+        matched.ok_or_else(|| PyEventError::MissingQueueError(profile_uid.to_string()))
+    }
+
     #[getter]
     /// Get the transport config for the ScouterQueue
     pub fn transport_config<'py>(
