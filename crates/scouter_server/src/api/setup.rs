@@ -48,13 +48,14 @@ use scouter_events::consumer::redis::RedisConsumerManager;
 use crate::api::task_manager::TaskManager;
 use scouter_events::consumer::http::consumer::MessageConsumerManager;
 use scouter_settings::events::HttpConsumerSettings;
-use scouter_types::{ServerRecords, TagRecord, TraceServerRecord};
+use scouter_types::{ServerRecords, TagRecord, TraceId, TraceServerRecord};
 
 type TraceServices = (
     Arc<TraceSpanService>,
     Arc<TraceSummaryService>,
     Arc<TraceDispatchService>,
     Arc<GenAiSpanService>,
+    tokio::sync::mpsc::Receiver<Vec<TraceId>>,
 );
 
 pub struct ScouterSetupComponents {
@@ -189,8 +190,13 @@ impl ScouterSetupComponents {
         }
 
         // Initialize Delta Lake trace services (retention is now handled inside the actor)
-        let (trace_service, trace_summary_service, trace_dispatch_service, genai_service) =
-            Self::start_trace_services(&config).await?;
+        let (
+            trace_service,
+            trace_summary_service,
+            trace_dispatch_service,
+            genai_service,
+            commit_rx,
+        ) = Self::start_trace_services(&config).await?;
 
         // Start agent eval workers when GenAI is configured or trace eval is enabled.
         // TraceAssertionTask records don't need an LLM provider — the AgentPoller handles both.
@@ -200,6 +206,7 @@ impl ScouterSetupComponents {
             Self::setup_background_genai_drift_workers(
                 &db_pool,
                 &config.genai_polling_settings,
+                commit_rx,
                 tokio_shutdown_rx.clone(),
             )
             .await?;
@@ -263,12 +270,14 @@ impl ScouterSetupComponents {
         let refresh_secs = config.storage_settings.trace_refresh_interval_secs;
 
         let retention_days = Some(config.database_settings.trace_retention_period as u32);
+        let (commit_tx, commit_rx) = tokio::sync::mpsc::channel::<Vec<TraceId>>(1024);
         let trace_service = init_trace_span_service(
             &config.storage_settings,
             compaction_hours,
             Some(flush_secs),
             retention_days,
             refresh_secs,
+            Some(commit_tx),
         )
         .await
         .context("❌ Failed to initialize TraceSpanService")?;
@@ -319,6 +328,7 @@ impl ScouterSetupComponents {
             trace_summary_service,
             trace_dispatch_service,
             genai_service,
+            commit_rx,
         ))
     }
     #[instrument(skip_all)]
@@ -624,9 +634,11 @@ impl ScouterSetupComponents {
     async fn setup_background_genai_drift_workers(
         db_pool: &Pool<Postgres>,
         poll_settings: &AgentPollerSettings,
+        commit_rx: tokio::sync::mpsc::Receiver<Vec<TraceId>>,
         shutdown_rx: tokio::sync::watch::Receiver<()>,
     ) -> AnyhowResult<()> {
-        BackgroundAgentDriftManager::start_workers(db_pool, poll_settings, shutdown_rx).await?;
+        BackgroundAgentDriftManager::start_workers(db_pool, poll_settings, commit_rx, shutdown_rx)
+            .await?;
         info!("✅ Started background genai workers");
 
         Ok(())

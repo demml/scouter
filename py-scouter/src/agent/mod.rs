@@ -17,6 +17,8 @@ pub fn add_agent_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Provider>()?;
     m.add_class::<Score>()?;
     m.add_class::<ResponseType>()?;
+    m.add_class::<MediaKind>()?;
+    m.add_class::<MediaRef>()?;
 
     // workflow
     m.add_class::<TaskEvent>()?;

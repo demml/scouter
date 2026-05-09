@@ -59,6 +59,15 @@ const RESCHEDULE_AGENT_EVAL_RECORD: &str =
 const GET_ACTIVE_AGENT_PROFILES: &str = include_str!("scripts/agent/get_active_agent_profiles.sql");
 const GET_KNOWN_TRACE_IDS_FOR_ENTITY: &str =
     include_str!("scripts/agent/get_known_trace_ids_for_entity.sql");
+const INSERT_TRACE_COMMIT_EVENTS: &str =
+    include_str!("scripts/inbox/insert_trace_commit_events.sql");
+const TRACE_COMMIT_EVENT_EXISTS: &str = include_str!("scripts/inbox/trace_commit_event_exists.sql");
+const CLAIM_TRACE_COMMIT_EVENTS: &str = include_str!("scripts/inbox/claim_trace_commit_events.sql");
+const FLIP_AWAITING_EVALS: &str = include_str!("scripts/inbox/flip_awaiting_evals.sql");
+const MARK_EVENTS_PROCESSED: &str = include_str!("scripts/inbox/mark_events_processed.sql");
+const SWEEP_AWAITING_TRACE_TIMEOUTS: &str =
+    include_str!("scripts/inbox/sweep_awaiting_trace_timeouts.sql");
+const PRUNE_PROCESSED_EVENTS: &str = include_str!("scripts/inbox/prune_processed_events.sql");
 
 // agent paginated query
 const GET_PAGINATED_AGENT_EVAL_RECORDS: &str =
@@ -215,6 +224,13 @@ pub enum Queries {
     InsertAgentTaskResultsBatch,
     InsertAgentWorkflowResult,
     InsertEvalRecord,
+    InsertTraceCommitEvents,
+    TraceCommitEventExists,
+    ClaimTraceCommitEvents,
+    FlipAwaitingEvals,
+    MarkEventsProcessed,
+    SweepAwaitingTraceTimeouts,
+    PruneProcessedEvents,
 
     // agent - update
     UpdateAgentEvalTask,
@@ -309,6 +325,13 @@ impl Queries {
             Queries::InsertAgentTaskResultsBatch => INSERT_AGENT_TASK_RESULTS_BATCH,
             Queries::InsertAgentWorkflowResult => INSERT_AGENT_WORKFLOW_RESULT,
             Queries::InsertEvalRecord => INSERT_AGENT_EVAL_RECORD,
+            Queries::InsertTraceCommitEvents => INSERT_TRACE_COMMIT_EVENTS,
+            Queries::TraceCommitEventExists => TRACE_COMMIT_EVENT_EXISTS,
+            Queries::ClaimTraceCommitEvents => CLAIM_TRACE_COMMIT_EVENTS,
+            Queries::FlipAwaitingEvals => FLIP_AWAITING_EVALS,
+            Queries::MarkEventsProcessed => MARK_EVENTS_PROCESSED,
+            Queries::SweepAwaitingTraceTimeouts => SWEEP_AWAITING_TRACE_TIMEOUTS,
+            Queries::PruneProcessedEvents => PRUNE_PROCESSED_EVENTS,
 
             Queries::GetEvalRecords => GET_AGENT_EVAL_RECORDS,
             Queries::GetPaginatedEvalRecords => GET_PAGINATED_AGENT_EVAL_RECORDS,

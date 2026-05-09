@@ -217,6 +217,24 @@ class Score:
 
     def __str__(self): ...
 
+class MediaKind:
+    Image: "MediaKind"
+    Document: "MediaKind"
+
+class MediaRef:
+    @staticmethod
+    def image_url(url: str, mime_type: Optional[str] = None) -> "MediaRef": ...
+    @staticmethod
+    def image_bytes(mime_type: str, data: bytes) -> "MediaRef": ...
+    @staticmethod
+    def image_path(path: Union[str, Path]) -> "MediaRef": ...
+    @staticmethod
+    def document_url(url: str, mime_type: Optional[str] = None) -> "MediaRef": ...
+    @staticmethod
+    def document_bytes(mime_type: str, data: bytes) -> "MediaRef": ...
+    @staticmethod
+    def document_path(path: Union[str, Path]) -> "MediaRef": ...
+
 PromptMessage: TypeAlias = Union[
     str,
     "ChatMessage",
@@ -307,6 +325,16 @@ class Prompt(Generic[OutputType]):
             )
             ```
         """
+
+    @property
+    def media_parameters(self) -> List[str]:
+        """Media placeholder IDs extracted from the prompt."""
+
+    def bind_media(self, name: str, media: MediaRef) -> "Prompt[OutputType]":
+        """Return a copy of this prompt with a media placeholder bound."""
+
+    def bind_media_mut(self, name: str, media: MediaRef) -> None:
+        """Bind a media placeholder in this prompt."""
 
     @property
     def model_settings(self) -> ModelSettings:
@@ -9823,6 +9851,8 @@ __all__ = [
     "Prompt",
     "Role",
     "ModelSettings",
+    "MediaKind",
+    "MediaRef",
     "Provider",
     "Score",
     "ResponseType",

@@ -335,31 +335,15 @@ impl AgentPoller {
         }
 
         let spans = if genai_profile.has_trace_assertions() {
-            if let Some(ref trace_id) = task.trace_id {
-                let validate_entity =
-                    !matches!(task.record_source, EvalRecordSource::TraceDispatch);
-                match wait_for_trace_spans_by_id_with_reschedule(
-                    &self.db_pool,
-                    &task,
-                    &self.max_retries,
-                    trace_id,
-                    &genai_profile.config.uid,
-                    validate_entity,
-                    self.trace_reschedule_delay,
-                )
-                .await?
-                {
-                    TraceSpanResult::Ready(spans) => spans,
-                    TraceSpanResult::Reschedule => {
-                        debug!(
+            match (&task.trace_id, &task.span_id) {
+                (Some(trace_id), Some(_span_id)) => match get_trace_spans_by_id(trace_id).await {
+                    Ok(spans) if !spans.is_empty() => spans,
+                    Ok(_) | Err(_) => {
+                        error!(
                             trace_id = %trace_id.to_hex(),
-                            "Traces not yet available for task {}, rescheduled",
+                            "Direct fetch returned no spans for task {} despite inbox flip",
                             task.uid
                         );
-                        return Ok(true);
-                    }
-                    TraceSpanResult::Failed => {
-                        error!("Max retries exceeded for task {}", task.uid);
                         PostgresClient::update_agent_eval_record_status(
                             &self.db_pool,
                             &task,
@@ -369,9 +353,44 @@ impl AgentPoller {
                         .await?;
                         return Err(DriftError::TraceSpansNotAvailable(task.uid.clone()));
                     }
+                },
+                (Some(trace_id), None) => {
+                    let validate_entity =
+                        !matches!(task.record_source, EvalRecordSource::TraceDispatch);
+                    match wait_for_trace_spans_by_id_with_reschedule(
+                        &self.db_pool,
+                        &task,
+                        &self.max_retries,
+                        trace_id,
+                        &genai_profile.config.uid,
+                        validate_entity,
+                        self.trace_reschedule_delay,
+                    )
+                    .await?
+                    {
+                        TraceSpanResult::Ready(spans) => spans,
+                        TraceSpanResult::Reschedule => {
+                            debug!(
+                                trace_id = %trace_id.to_hex(),
+                                "Traces not yet available for task {}, rescheduled",
+                                task.uid
+                            );
+                            return Ok(true);
+                        }
+                        TraceSpanResult::Failed => {
+                            error!("Max retries exceeded for task {}", task.uid);
+                            PostgresClient::update_agent_eval_record_status(
+                                &self.db_pool,
+                                &task,
+                                Status::Failed,
+                                &0,
+                            )
+                            .await?;
+                            return Err(DriftError::TraceSpansNotAvailable(task.uid.clone()));
+                        }
+                    }
                 }
-            } else {
-                match wait_for_trace_spans_with_reschedule(
+                (None, _) => match wait_for_trace_spans_with_reschedule(
                     &self.db_pool,
                     &task,
                     &self.max_retries,
@@ -400,7 +419,7 @@ impl AgentPoller {
                         .await?;
                         return Err(DriftError::TraceSpansNotAvailable(task.uid.clone()));
                     }
-                }
+                },
             }
         } else {
             Arc::new(vec![])

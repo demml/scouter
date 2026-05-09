@@ -5,14 +5,17 @@ WITH selected_task AS (
         created_at,
         context,
         retry_count,
-        scheduled_at
+        scheduled_at,
+        span_id
     FROM scouter.agent_eval_record
     WHERE 1=1
         AND status = 'pending'
         AND (retry_count IS NULL OR retry_count < $1)
         AND scheduled_at <= CURRENT_TIMESTAMP
+        AND ready_at <= CURRENT_TIMESTAMP
     ORDER BY
         COALESCE(retry_count, 0) ASC,
+        ready_at ASC,
         scheduled_at ASC
     LIMIT 1
     FOR UPDATE SKIP LOCKED

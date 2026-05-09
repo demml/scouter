@@ -21,7 +21,7 @@ use scouter_types::{
     RecordCursor, RecordType, TraceId,
 };
 use sqlx::types::Json;
-use sqlx::{Pool, Postgres, Row, postgres::PgQueryResult};
+use sqlx::{Pool, Postgres, Row, Transaction, postgres::PgQueryResult};
 use std::collections::{HashMap, HashSet};
 use tracing::error;
 use tracing::{debug, instrument};
@@ -39,8 +39,27 @@ pub trait AgentDriftSqlLogic {
         pool: &Pool<Postgres>,
         record: BoxedEvalRecord,
         entity_id: &i32,
+        status: Status,
+    ) -> Result<PgQueryResult, SqlError> {
+        Self::insert_agent_eval_record_with_ready_delay(
+            pool,
+            record,
+            entity_id,
+            status,
+            Duration::zero(),
+        )
+        .await
+    }
+
+    async fn insert_agent_eval_record_with_ready_delay(
+        pool: &Pool<Postgres>,
+        record: BoxedEvalRecord,
+        entity_id: &i32,
+        status: Status,
+        ready_delay: Duration,
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertEvalRecord.get_query();
+        let ready_at = Utc::now() + ready_delay;
 
         sqlx::query(query)
             .bind(record.record.uid)
@@ -52,6 +71,121 @@ pub trait AgentDriftSqlLogic {
             .bind(record.record.trace_id.map(|t| t.as_bytes().to_vec()))
             .bind(EvalRecordSource::Queue.as_str())
             .bind(&record.record.tags)
+            .bind(Json(&record.record.media))
+            .bind(record.record.span_id.map(|s| s.as_bytes().to_vec()))
+            .bind(status.as_str())
+            .bind(ready_at)
+            .execute(pool)
+            .await
+            .map_err(SqlError::SqlxError)
+    }
+
+    async fn insert_trace_commit_events(
+        pool: &Pool<Postgres>,
+        trace_ids: &[TraceId],
+    ) -> Result<PgQueryResult, SqlError> {
+        if trace_ids.is_empty() {
+            return Ok(PgQueryResult::default());
+        }
+
+        let bytes: Vec<Vec<u8>> = trace_ids.iter().map(|t| t.as_bytes().to_vec()).collect();
+        sqlx::query(Queries::InsertTraceCommitEvents.get_query())
+            .bind(bytes)
+            .execute(pool)
+            .await
+            .map_err(SqlError::SqlxError)
+    }
+
+    async fn trace_commit_event_exists(
+        pool: &Pool<Postgres>,
+        trace_id: &TraceId,
+    ) -> Result<bool, SqlError> {
+        let row = sqlx::query(Queries::TraceCommitEventExists.get_query())
+            .bind(trace_id.as_bytes().to_vec())
+            .fetch_one(pool)
+            .await
+            .map_err(SqlError::SqlxError)?;
+        Ok(row.try_get::<bool, _>("exists")?)
+    }
+
+    async fn claim_trace_commit_events(
+        tx: &mut Transaction<'_, Postgres>,
+        limit: i64,
+    ) -> Result<Vec<(i64, TraceId)>, SqlError> {
+        let rows = sqlx::query(Queries::ClaimTraceCommitEvents.get_query())
+            .bind(limit)
+            .fetch_all(&mut **tx)
+            .await
+            .map_err(SqlError::SqlxError)?;
+
+        rows.into_iter()
+            .map(|row| {
+                let id: i64 = row.try_get("id")?;
+                let bytes: Vec<u8> = row.try_get("trace_id")?;
+                let trace_id = TraceId::from_slice(&bytes)
+                    .map_err(|e| SqlError::InvalidInboxData(format!("invalid trace_id: {e}")))?;
+                Ok((id, trace_id))
+            })
+            .collect()
+    }
+
+    async fn flip_awaiting_evals(
+        tx: &mut Transaction<'_, Postgres>,
+        trace_ids: &[TraceId],
+        ready_delay: chrono::Duration,
+    ) -> Result<PgQueryResult, SqlError> {
+        let bytes: Vec<Vec<u8>> = trace_ids.iter().map(|t| t.as_bytes().to_vec()).collect();
+        let pg_interval = sqlx::postgres::types::PgInterval {
+            months: 0,
+            days: 0,
+            microseconds: ready_delay.num_microseconds().unwrap_or(0),
+        };
+        sqlx::query(Queries::FlipAwaitingEvals.get_query())
+            .bind(bytes)
+            .bind(pg_interval)
+            .execute(&mut **tx)
+            .await
+            .map_err(SqlError::SqlxError)
+    }
+
+    async fn mark_events_processed(
+        tx: &mut Transaction<'_, Postgres>,
+        event_ids: &[i64],
+    ) -> Result<PgQueryResult, SqlError> {
+        sqlx::query(Queries::MarkEventsProcessed.get_query())
+            .bind(event_ids)
+            .execute(&mut **tx)
+            .await
+            .map_err(SqlError::SqlxError)
+    }
+
+    async fn sweep_awaiting_trace_timeouts(
+        pool: &Pool<Postgres>,
+        timeout: chrono::Duration,
+    ) -> Result<PgQueryResult, SqlError> {
+        let pg_interval = sqlx::postgres::types::PgInterval {
+            months: 0,
+            days: 0,
+            microseconds: timeout.num_microseconds().unwrap_or(0),
+        };
+        sqlx::query(Queries::SweepAwaitingTraceTimeouts.get_query())
+            .bind(pg_interval)
+            .execute(pool)
+            .await
+            .map_err(SqlError::SqlxError)
+    }
+
+    async fn prune_processed_events(
+        pool: &Pool<Postgres>,
+        retention: chrono::Duration,
+    ) -> Result<PgQueryResult, SqlError> {
+        let pg_interval = sqlx::postgres::types::PgInterval {
+            months: 0,
+            days: 0,
+            microseconds: retention.num_microseconds().unwrap_or(0),
+        };
+        sqlx::query(Queries::PruneProcessedEvents.get_query())
+            .bind(pg_interval)
             .execute(pool)
             .await
             .map_err(SqlError::SqlxError)
@@ -777,7 +911,10 @@ pub trait AgentDriftSqlLogic {
         let empty_context = serde_json::Value::Object(Default::default());
         let uid = create_uuid7();
         let now = Utc::now();
+        let ready_at =
+            now + scouter_settings::polling::AgentPollerSettings::trace_visibility_buffer();
         let tags: Vec<String> = Vec::new();
+        let media: Vec<scouter_types::EvalMedia> = Vec::new();
 
         let mut tx = pool.begin().await.map_err(SqlError::SqlxError)?;
 
@@ -822,6 +959,10 @@ pub trait AgentDriftSqlLogic {
             .bind(trace_id.as_bytes().as_slice())
             .bind(EvalRecordSource::TraceDispatch.as_str())
             .bind(&tags)
+            .bind(Json(&media))
+            .bind(Option::<Vec<u8>>::None)
+            .bind(Status::Pending.as_str())
+            .bind(ready_at)
             .execute(&mut *tx)
             .await
             .map_err(SqlError::SqlxError)?;

@@ -7,6 +7,8 @@ from .._scouter import Embedder  # PyEmbedder
 from .._scouter import Workflow  # PyWorkflow
 from .._scouter import (  # Prompt interface types; Workflow types; Agent types; Python-exposed classes (Py prefix in Rust)
     EventDetails,
+    MediaKind,
+    MediaRef,
     ModelSettings,
     Prompt,
     Provider,
@@ -38,6 +40,8 @@ __all__ = [
     "Provider",
     "Score",
     "ResponseType",
+    "MediaKind",
+    "MediaRef",
     # Workflow
     "TaskEvent",
     "EventDetails",

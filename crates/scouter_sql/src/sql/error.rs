@@ -48,6 +48,9 @@ pub enum SqlError {
     #[error("Empty batch of records")]
     EmptyBatchError,
 
+    #[error("Invalid inbox data: {0}")]
+    InvalidInboxData(String),
+
     #[error("Record batch type is not supported")]
     UnsupportedBatchTypeError,
 

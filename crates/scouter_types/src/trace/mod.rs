@@ -67,6 +67,8 @@ pub const SPAN_ERROR: &str = "span.error";
 pub const EXCEPTION_TRACEBACK: &str = "exception.traceback";
 pub const SCOUTER_EVAL_SCENARIO_ID_ATTR: &str = "scouter.eval.scenario_id";
 pub const SCOUTER_EVAL_RUN_ID_ATTR: &str = "scouter.eval.run_id";
+pub const SCOUTER_EVAL_RECORD_UID: &str = "scouter.eval.record_uid";
+pub const SCOUTER_EVAL_PROFILE_UID: &str = "scouter.eval.profile_uid";
 pub const SCOUTER_QUEUE_RECORD: &str = "scouter.queue.record";
 pub const SCOUTER_QUEUE_EVENT: &str = "scouter.queue.event";
 pub const SCOUTER_ENTITY: &str = "scouter.entity";
@@ -1402,6 +1404,18 @@ mod tests {
             duration_ms: 100,
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn span_id_round_trips_hex_bytes_and_slice() {
+        let bytes = [0xCD; 8];
+        let span_id = SpanId::from_bytes(bytes);
+        let hex = span_id.to_hex();
+
+        assert_eq!(hex, "cdcdcdcdcdcdcdcd");
+        assert_eq!(SpanId::from_hex(&hex).unwrap(), span_id);
+        assert_eq!(SpanId::from_slice(&bytes).unwrap(), span_id);
+        assert_eq!(span_id.as_bytes(), &bytes);
     }
 
     #[test]

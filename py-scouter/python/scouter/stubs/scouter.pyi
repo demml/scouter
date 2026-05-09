@@ -3,6 +3,7 @@
 
 import builtins
 import datetime
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Sequence, Union, overload
 
@@ -1879,6 +1880,36 @@ class ScouterQueue:
     def agent_profiles(self) -> Dict[str, AgentEvalProfile]:
         """Returns a mapping of alias → AgentEvalProfile for all AgentEvalProfiles registered in the queue."""
 
+class EvalMediaKind:
+    Image: "EvalMediaKind"
+    Document: "EvalMediaKind"
+
+class EvalMedia:
+    id: str
+    kind: EvalMediaKind
+
+class ImageMedia:
+    def __init__(
+        self,
+        id: str,
+        *,
+        url: Optional[str] = None,
+        bytes: Optional[bytes] = None,
+        path: Optional[Union[str, os.PathLike[str]]] = None,
+        mime_type: Optional[str] = None,
+    ) -> None: ...
+
+class DocumentMedia:
+    def __init__(
+        self,
+        id: str,
+        *,
+        url: Optional[str] = None,
+        bytes: Optional[bytes] = None,
+        path: Optional[Union[str, os.PathLike[str]]] = None,
+        mime_type: Optional[str] = None,
+    ) -> None: ...
+
 class EvalRecord:
     """LLM record containing context tied to a Large Language Model interaction
     that is used to evaluate drift in LLM responses.
@@ -1897,10 +1928,13 @@ class EvalRecord:
 
     def __init__(
         self,
-        context: Context,
+        context: Optional[Context] = None,
         id: Optional[str] = None,
         session_id: Optional[str] = None,
         trace_id: Optional[str] = None,
+        media: Optional[List[Union[EvalMedia, ImageMedia, DocumentMedia]]] = None,
+        profile_uid: Optional[str] = None,
+        trace_context: Any = None,
     ) -> None:
         """Creates a new LLM record to associate with an `AgentEvalProfile`.
         The record is sent to the `Scouter` server via the `ScouterQueue` and is
@@ -1917,6 +1951,14 @@ class EvalRecord:
                 Optional unique identifier for the record.
             session_id (Optional[str], optional):
                 Optional session identifier to group related records.
+            media:
+                Optional media attachments referenced by LLMJudgeTask prompts via
+                `${media:id}` placeholders.
+            profile_uid:
+                Optional AgentEvalProfile UID. Sets the record entity UID for queue insertion.
+            trace_context:
+                Optional OpenTelemetry SpanContext. When provided, this fills both
+                trace_id and span_id and takes priority over the legacy trace_id kwarg.
 
         Raises:
             TypeError: If context is not a dict or a pydantic BaseModel.
@@ -1948,6 +1990,14 @@ class EvalRecord:
         """Get the unique identifier for the record."""
 
     @property
+    def trace_id(self) -> Optional[str]:
+        """Get the trace ID hex string, if attached."""
+
+    @property
+    def span_id(self) -> Optional[str]:
+        """Get the span ID hex string, if attached."""
+
+    @property
     def context(self) -> Dict[str, Any]:
         """Get the contextual information.
 
@@ -1961,6 +2011,10 @@ class EvalRecord:
     @property
     def tags(self) -> List[str]:
         """Get the tags list (e.g. ``["scenario_id=s1", "env=test"]``)."""
+
+    @property
+    def media(self) -> List[EvalMedia]:
+        """Get media attachments for this eval record."""
 
     def add_tag(self, key: str, value: str) -> None:
         """Append a tag in ``"key=value"`` format.

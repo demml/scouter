@@ -1,5 +1,5 @@
 use pyo3::PyErr;
-use pyo3::exceptions::PyRuntimeError;
+use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::pyclass::PyClassGuardError;
 use pythonize::PythonizeError;
 use thiserror::Error;
@@ -127,6 +127,9 @@ pub enum TypeError {
 
     #[error("Failed to supply either input or response for the genai record")]
     MissingInputOrResponse,
+
+    #[error("{0}")]
+    ValidationError(String),
 
     #[error("Invalid context type. Context must be a PyDict or a Pydantic BaseModel")]
     MustBeDictOrBaseModel,
@@ -268,6 +271,9 @@ pub enum RecordError {
     #[error("Failed to supply either input or response for the genai record")]
     MissingInputOrResponse,
 
+    #[error("{0}")]
+    ValidationError(String),
+
     #[error(transparent)]
     PotatoUtilError(#[from] potato_head::UtilError),
 
@@ -302,7 +308,10 @@ impl From<pythonize::PythonizeError> for RecordError {
 impl From<RecordError> for PyErr {
     fn from(err: RecordError) -> PyErr {
         let msg = err.to_string();
-        PyRuntimeError::new_err(msg)
+        match err {
+            RecordError::ValidationError(_) => PyValueError::new_err(msg),
+            _ => PyRuntimeError::new_err(msg),
+        }
     }
 }
 

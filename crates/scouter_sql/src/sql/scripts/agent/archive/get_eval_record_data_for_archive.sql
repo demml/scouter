@@ -14,7 +14,8 @@ SELECT
     retry_count,
     trace_id,
     record_source,
-    tags
+    tags,
+    media
 FROM scouter.agent_eval_record
 WHERE 1=1
     AND created_at BETWEEN $1 AND $2

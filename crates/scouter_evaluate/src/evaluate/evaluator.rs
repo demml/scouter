@@ -4,7 +4,9 @@ use crate::evaluate::store::{AssertionResultStore, LLMResponseStore, TaskRegistr
 use crate::evaluate::trace::TraceContextBuilder;
 use crate::tasks::trace::execute_trace_assertions;
 use crate::tasks::traits::EvaluationTask;
+use crate::tasks::{build_media_refs, execute_task_with_media};
 use chrono::{DateTime, Utc};
+use scouter_types::agent::EvalMedia;
 use scouter_types::agent::traits::ProfileExt;
 use scouter_types::agent::{
     AgentEvalProfile, AssertionResult, EvalSet, ExecutionPlan, TraceAssertionTask,
@@ -259,6 +261,7 @@ struct TaskExecutor {
     context: ExecutionContext,
     profile: Arc<AgentEvalProfile>,
     trace_context_builder: TraceContextBuilder,
+    record_media: Arc<Vec<EvalMedia>>,
 }
 
 impl TaskExecutor {
@@ -266,12 +269,14 @@ impl TaskExecutor {
         context: ExecutionContext,
         profile: Arc<AgentEvalProfile>,
         spans: Arc<Vec<TraceSpan>>,
+        record_media: Arc<Vec<EvalMedia>>,
     ) -> Self {
         debug!("Creating TaskExecutor");
         Self {
             context,
             profile,
             trace_context_builder: TraceContextBuilder::new(spans),
+            record_media,
         }
     }
 
@@ -454,9 +459,10 @@ impl TaskExecutor {
             let task_id = task_id.to_string();
             let context = self.context.clone();
             let profile = self.profile.clone();
+            let record_media = self.record_media.clone();
 
             join_set.spawn(async move {
-                Self::execute_llm_judge_task(&task_id, &context, &profile).await
+                Self::execute_llm_judge_task(&task_id, &context, &profile, &record_media).await
             });
         }
 
@@ -499,6 +505,7 @@ impl TaskExecutor {
         task_id: &str,
         context: &ExecutionContext,
         profile: &AgentEvalProfile,
+        record_media: &[EvalMedia],
     ) -> Result<(String, DateTime<Utc>, serde_json::Value), EvaluationError> {
         debug!("Starting LLM judge task: {}", task_id);
         let start_time = Utc::now();
@@ -516,10 +523,18 @@ impl TaskExecutor {
         debug!("Executing workflow task: {}", task_id);
 
         // This is where the actual LLM call happens - ensure it's awaited
-        let response = workflow
-            .execute_task(task_id, &scoped_context)
-            .await
-            .inspect_err(|e| error!("LLM task {} failed: {:?}", task_id, e))?;
+        let unbound_media_ids = unbound_media_parameters(judge)?;
+        let response = if record_media.is_empty() || unbound_media_ids.is_empty() {
+            workflow
+                .execute_task(task_id, &scoped_context)
+                .await
+                .inspect_err(|e| error!("LLM task {} failed: {:?}", task_id, e))?
+        } else {
+            let bindings = build_media_refs(record_media);
+            execute_task_with_media(workflow, task_id, &scoped_context, &bindings)
+                .await
+                .inspect_err(|e| error!("LLM task {} failed: {:?}", task_id, e))?
+        };
 
         debug!("Successfully completed LLM judge task: {}", task_id);
         Ok((task_id.to_string(), start_time, response))
@@ -751,9 +766,15 @@ impl AgentEvaluator {
         Self::register_tasks(&mut registry, &profile);
 
         let execution_plan = profile.get_execution_plan()?;
+        Self::validate_record_media(record, &profile)?;
 
         let context = ExecutionContext::new(record.context.clone(), registry, &execution_plan);
-        let executor = TaskExecutor::new(context.clone(), profile.clone(), spans);
+        let executor = TaskExecutor::new(
+            context.clone(),
+            profile.clone(),
+            spans,
+            Arc::new(record.media.clone()),
+        );
 
         debug!(
             "Starting evaluation for record: {} with {} stages",
@@ -813,6 +834,54 @@ impl AgentEvaluator {
             }
         }
     }
+
+    fn validate_record_media(
+        record: &EvalRecord,
+        profile: &AgentEvalProfile,
+    ) -> Result<(), EvaluationError> {
+        for task in &profile.tasks.judge {
+            let missing_ids = unbound_media_parameters(task)?
+                .into_iter()
+                .filter(|media_id| {
+                    !record
+                        .media
+                        .iter()
+                        .any(|media| media.id.as_str() == media_id.as_str())
+                })
+                .collect::<Vec<_>>();
+
+            if !missing_ids.is_empty() {
+                let record_id = if record.record_id.is_empty() {
+                    record.uid.clone()
+                } else {
+                    record.record_id.clone()
+                };
+                return Err(EvaluationError::MissingMediaForRecord {
+                    record_id,
+                    missing_ids,
+                });
+            }
+        }
+
+        Ok(())
+    }
+}
+
+fn unbound_media_parameters(
+    task: &scouter_types::agent::LLMJudgeTask,
+) -> Result<Vec<String>, EvaluationError> {
+    if task.prompt.media_parameters.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let prompt_json = serde_json::to_string(&task.prompt)?;
+    Ok(task
+        .prompt
+        .media_parameters
+        .iter()
+        .filter(|media_id| prompt_json.contains(&format!("${{media:{media_id}}}")))
+        .cloned()
+        .collect())
 }
 
 #[cfg(test)]

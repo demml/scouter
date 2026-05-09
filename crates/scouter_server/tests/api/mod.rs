@@ -1,4 +1,5 @@
 pub mod agent;
+pub mod agent_trace_inbox;
 pub mod alert;
 pub mod archive;
 pub mod archive_cloud;
