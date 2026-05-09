@@ -2,7 +2,7 @@
   "name": "scouter-docs",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@9.12.1",
+  "packageManager": "pnpm@11.0.9",
   "scripts": {
     "predev": "python3 scripts/generate_api_docs.py",
     "dev": "astro dev",

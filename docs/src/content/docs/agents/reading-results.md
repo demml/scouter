@@ -74,27 +74,27 @@ The `response` context key is populated automatically from the string your agent
 
 Printed when you call `results.as_table(show_workflow=True)`. One row per `EvalRecord` emitted by a sub-agent across all scenarios.
 
-Tasks come from `AgentEvalProfile(tasks=[...])`, the profile attached to your `ScouterQueue`. Each sub-agent that calls `span.add_queue_item(alias, record)` during execution produces rows here.
+Tasks come from `AgentEvalProfile(tasks=[...])`, the profile attached to your `ScouterQueue`. Each sub-agent that calls `span.attach_eval(profile_uid, context)` during execution produces rows here.
 
 | Column | What it shows |
 |--------|--------------|
 | **Scenario ID** | Which scenario produced this record |
 | **Record UID** | Last 8 chars of the record UUID (enough to distinguish records within a scenario) |
-| **Alias** | The sub-agent name (matches what you passed to `span.add_queue_item`) |
+| **Profile** | The profile name and version (space/name/version triple) |
 | **Task** | Which profile task was evaluated |
 | **Passed** | Whether that task passed for this record |
 | **Pass Rate** | Pass rate across all tasks for this record |
 
 ```python
 # During agent execution, a sub-agent emits a record:
-span.add_queue_item(
-    "retriever",
-    EvalRecord(context={"results": {"count": 5, "source": "arxiv"}}),
+span.attach_eval(
+    profile_uid="offline/retriever/1.0.0",
+    context={"results": {"count": 5, "source": "arxiv"}},
 )
 
 # AgentEvalProfile defines what to check on that record:
 AgentEvalProfile(
-    alias="retriever",
+    config=AgentEvalConfig(space="offline", name="retriever", version="1.0.0"),
     tasks=[
         AssertionTask(
             id="has_results",

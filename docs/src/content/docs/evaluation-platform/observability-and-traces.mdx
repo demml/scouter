@@ -4,7 +4,7 @@ description: "Tie evaluation decisions back to trace data and runtime evidence."
 ---
 Agents are multi-step pipelines. The final output tells you *what* happened. Traces tell you *how*. Without them, you can't answer: did the retriever call the right API? Did the agent retry too many times? Was the right model used? Did latency exceed the SLA? Did total token usage blow the budget?
 
-Scouter treats traces as first-class evaluation data, not a separate observability concern. `TraceAssertionTask` runs assertions directly on OpenTelemetry span properties, and a background worker (`TraceEvalPoller`) automatically creates evaluation records from production traces. The same span that shows up in your trace viewer feeds into your evaluation pipeline.
+Scouter treats traces as first-class evaluation data, not a separate observability concern. `TraceAssertionTask` runs assertions directly on OpenTelemetry span properties, and records attached to spans via `span.attach_eval()` correlate with traces automatically. The same span that shows up in your trace viewer feeds into your evaluation pipeline.
 
 For tracing setup and instrumentation, see [Distributed tracing](/tracing/overview/). For the full task type reference, see [Building blocks](/evaluation-platform/eval-profiles-and-tasks/).
 
@@ -53,8 +53,7 @@ Beyond standard OTEL attributes, Scouter adds:
 - `set_input(value)` / `set_output(value)`: capture function arguments and return values (truncated to configurable max length)
 - `set_entity(entity_id)`: link the span to an evaluation entity (profile UID)
 - `set_tag(key, value)`: indexed tags stored in PostgreSQL for fast lookup
-- `add_queue_item(alias, record)`: insert an `EvalRecord` into the queue and correlate it with the active trace via `trace_id`
-- `active_profile(profile)`: context manager that propagates the profile UID via OTEL baggage to all child spans
+- `attach_eval(profile_uid, context, *, record_id, session_id, media, tags)`: insert an `EvalRecord` with trace correlation, setting `trace_id` and `span_id` from the active span
 
 For the full instrumentor API, see [Instrumentor guide](/tracing/instrumentor/).
 
@@ -296,83 +295,110 @@ The DataFusion `SessionContext` is tuned for trace workloads:
 
 ---
 
-## The trace-eval bridge: TraceEvalPoller
+## Trace-aware evaluation architecture
 
-This is the piece that connects the observability engine to the evaluation pipeline. No other platform does this automatically: traces arrive, match profiles, and trigger evaluations without any user action.
+Scouter connects traces to evaluation through an inbox pattern. When you call `span.attach_eval()`, the evaluation record references the active span's `trace_id` and `span_id`. The server stores the record in one of three states based on trace arrival status.
 
 ```mermaid
 graph LR
-    subgraph "Delta Lake"
-        TS["trace_spans"]
-        TD["trace_dispatch table"]
+    subgraph "Client"
+        S["span.attach_eval<br/>(profile_uid, context)"]
     end
 
-    subgraph "TraceEvalPoller (1 worker)"
-        TD -->|"poll every 30s"| PC["Profile cache<br/>(TTL 60s)"]
-        PC -->|"match entity UID"| SR["Create synthetic<br/>EvalRecord"]
-        SR -->|"advisory lock<br/>dedup"| PG["PostgreSQL<br/>agent_eval_record<br/>(status: pending)"]
-        SR -->|"write Ack"| TD
+    subgraph "Server ingestion"
+        S -->|"if trace exists in Delta"| P["Record → pending"]
+        S -->|"if trace not yet committed"| A["Record → awaiting_trace"]
+    end
+
+    subgraph "Inbox worker (scheduled)"
+        TCE["trace_commit_event<br/>arrives for trace_id"]
+        AT["awaiting_trace rows<br/>for that trace_id"]
+        TCE -->|"match on trace_id"| AT
+        AT -->|"flip status"| P
+    end
+
+    subgraph "Timeout sweep"
+        TM["awaiting_trace rows<br/>older than 5 min"]
+        TM -->|"no trace commit event"| F["failed(TraceArrivalTimeout)"]
     end
 
     subgraph "AgentPoller"
-        PG -->|"SELECT FOR UPDATE<br/>SKIP LOCKED"| AP["Evaluation worker"]
-        TS -->|"fetch spans<br/>by trace_id"| AP
+        P -->|"SELECT FOR UPDATE"| AP["Evaluation worker"]
         AP --> RS["Results + alerts"]
     end
 ```
 
-### How it works
+### Two paths for record insertion
 
-The `TraceEvalPoller` is a background worker that scans for traces matching evaluation profiles. It runs as a single worker (forced to 1, regardless of config) to serialize access to the dispatch outbox.
+**Path A — Trace-attached (with span correlation):**
 
-Every 30 seconds, the poller:
+```python
+with tracer.start_as_current_span("agent.callback") as span:
+    span.attach_eval(
+        profile_uid=profile.config.uid,
+        context={"query": query, "response": response},
+        record_id="turn-7",      # optional: scenario/turn/step ID
+        session_id="sess-123",   # optional: session/conversation ID
+        media=None,              # optional: multimodal evidence
+        tags=["run=abc"],        # optional: key=value tags
+    )
+```
 
-1. Refreshes its cache of active profiles that have `TraceAssertionTask` definitions.
+- `trace_id` and `span_id` are set once by the Rust constructor from the active span context.
+- Server immediately checks if trace has committed to Delta Lake (within ~5 seconds of span.attach_eval call).
+- If trace found: record inserted as `pending` for immediate evaluation.
+- If trace not yet committed: record inserted as `awaiting_trace` with a reference timestamp.
+- `ready_at` column provides a visibility window before the poller processes the record, allowing time for task-upstream data to stabilize.
 
-2. Queries the `trace_dispatch` Delta table for recent candidates: traces with a `Candidate` event but no `Ack` event. The query groups by `(trace_id, entity_uid)` and pages results (250 per batch).
+**Path B — Standalone/content-only (no trace needed):**
 
-3. For each candidate that matches a cached profile, creates a synthetic `EvalRecord` in PostgreSQL. The record has `record_source = TraceDispatch`, an empty context (spans are fetched separately during evaluation), and the trace_id from the dispatch record.
+```python
+queue.insert(EvalRecord(
+    profile_uid=profile.config.uid,
+    context={"query": query, "response": response},
+    record_id="turn-7",
+    session_id="sess-123",
+))
+```
 
-4. Deduplication uses PostgreSQL advisory locks with a deterministic key (`trace-dispatch:{entity_id}:{trace_uuid}`). If the record already exists, it's skipped. If the lock is contended, it retries next cycle.
+- No `trace_id`, no `span_id`. Record inserted as `pending` immediately.
+- If profile has `TraceAssertionTask` but record has no `trace_id`: record fails with `failed(EvalRequiresTrace)` during evaluation.
 
-5. Writes an `Ack` event back to the dispatch table so the same trace/entity pair isn't processed again.
+### Trace arrival coordination
 
-The `AgentPoller` picks up these synthetic records the same way it picks up queue-inserted records. It fetches spans from Delta Lake by `trace_id`, executes `TraceAssertionTask` definitions, stores results, and triggers alerts if conditions are met.
+The `trace_commit_event` table records when traces land in Delta Lake. After a successful Delta append, the server writes a commit event with the trace's `trace_id`, `partition_date`, and timestamp. The inbox worker polls for new commit events and flips matching `awaiting_trace` rows to `pending`.
+
+**Failure modes:**
+
+| Scenario | Behavior |
+|---|---|
+| Trace commits before record arrives | Short-circuit: record inserted as `pending` directly (0 retry latency) |
+| Trace commits after record inserted as `awaiting_trace` | Inbox worker matches trace_id and flips to `pending` within 1-2 poll intervals |
+| Trace never commits (client crashed, network partition) | Record remains `awaiting_trace` for 5 minutes, then marked `failed(TraceArrivalTimeout)` |
+| Profile requires trace assertions but record has no trace_id | Record fails immediately with `failed(EvalRequiresTrace)` during evaluation |
+
+### Scheduled maintenance
+
+**Inbox worker:** Polls for `trace_commit_event` rows matching `awaiting_trace` records. Configurable poll interval (default every 10 seconds). Flips status to `pending` and marks the trace_commit_event as processed.
+
+**Timeout sweep:** Background task that scans `awaiting_trace` rows older than 5 minutes (configurable via `TRACE_ARRIVAL_TIMEOUT_SECS`). Marks them as `failed(TraceArrivalTimeout)` and emits a metric for alerting.
+
+**Prune sweep:** Removes old `trace_commit_event` rows after processing (default: 24 hours). Keeps the table bounded.
 
 ### Configuration
 
 | Variable | Default | Effect |
 |---|---|---|
-| `TRACE_EVAL_POLL_INTERVAL_SECS` | 30 | How often the poller checks for new dispatch candidates |
-| `TRACE_EVAL_LOOKBACK_SECS` | 7200 | Only process traces newer than this (2 hours) |
-| `TRACE_EVAL_DISPATCH_PAGE_SIZE` | 250 | Batch size per poll cycle |
-| `TRACE_EVAL_PROFILE_CACHE_TTL_SECS` | 60 | How long the profile cache is valid before refresh |
-
-### Two record sources, one evaluation path
-
-Records in `agent_eval_record` come from two sources:
-
-- `Queue`: your application called `queue.insert(alias, record)`. The record has explicit context you set.
-- `TraceDispatch`: the `TraceEvalPoller` created a synthetic record from a matching trace. The context is empty; spans are fetched during evaluation.
-
-Both sources flow through the same `AgentPoller`, the same task DAG execution engine, and the same alert pipeline. The evaluation code doesn't know or care where the record came from.
-
-### Failure modes
-
-| Scenario | Behavior |
-|---|---|
-| Profile cache stale (new profile added) | Candidate skipped until cache refreshes (60s default) |
-| Advisory lock contention | Returns `RetryLater`; next poll cycle retries |
-| Delta Lake query fails | Error logged; next 30-second interval retries |
-| Spans not found during AgentPoller evaluation | Record rescheduled with backoff (same as queue records, see [online evaluation](/evaluation-platform/online-evaluation/)) |
-| Ack write fails | Error logged; record already inserted. Next poll may re-process but dedup catches it. |
+| `TRACE_ARRIVAL_TIMEOUT_SECS` | 300 | How long to wait for a trace to commit before failing the record |
+| `INBOX_POLL_INTERVAL_SECS` | 10 | How often the inbox worker checks for new commit events |
+| `TRACE_COMMIT_EVENT_RETENTION_HOURS` | 24 | How long to keep processed commit event rows before pruning |
 
 ---
 
-## Same data, two pipelines
+## Same data, unified evaluation
 
-Scouter's observability engine and evaluation pipeline share the same trace data. A span stored in Delta Lake can be viewed in the trace UI *and* evaluated by `TraceAssertionTask`. A `TraceEvalPoller` candidate record triggers evaluation *and* the results feed into the alert system.
+Scouter's observability engine and evaluation pipeline share the same trace data. Spans in Delta Lake feed `TraceAssertionTask` evaluations. An evaluation record attached to a trace is evaluated with that trace's spans available. Results flow into the alert system.
 
-The trace storage, evaluation engine, and alert pipeline are stages of a single data path. Spans arrive, get stored, match profiles, trigger evaluations, produce results, and fire alerts.
+The trace storage, evaluation engine, and alert pipeline are stages of a single data path. Spans arrive, get stored, records correlate with traces, evaluations run, results get stored, and alerts fire.
 
 For Delta Lake schema details and compaction internals, see [Storage architecture](/tracing/storage-architecture/).

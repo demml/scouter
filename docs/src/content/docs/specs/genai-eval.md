@@ -40,20 +40,24 @@ Alert conditions checked → dispatch if threshold crossed
 
 ### EvalRecord
 
-A `EvalRecord` captures the context of a single inference call. It accepts a Python `dict` or Pydantic `BaseModel` as context, and an optional `Prompt`.
+A `EvalRecord` captures the context of a single inference call. It accepts a Python `dict` or Pydantic `BaseModel` as context, and optional metadata fields.
 
 ```python
 from scouter import EvalRecord
 
 record = EvalRecord(
+    profile_uid="production/my-model/1.0.0",
     context={
         "input": user_message,
         "response": model_response,
         "model": "gpt-4o",
-    }
+    },
+    record_id="turn-1",
+    session_id="session-abc",
+    tags=["model=gpt-4o"],
 )
 
-queue["my-genai-profile"].insert(record)
+queue.insert(record)
 ```
 
 ### AgentEvalProfile
@@ -174,10 +178,9 @@ The `AgentPollerSettings` controls the server-side worker that processes queued 
 | Setting | Env Var | Default | Description |
 |---------|---------|---------|-------------|
 | Worker count | `GENAI_WORKER_COUNT` | `2` | Number of concurrent evaluation workers |
-| Max retries | `GENAI_MAX_RETRIES` | `3` | Retries on task failure |
-| Trace wait timeout | `GENAI_TRACE_WAIT_TIMEOUT_SECS` | `10` | Seconds to wait for an associated trace before giving up |
-| Trace backoff | `GENAI_TRACE_BACKOFF_MILLIS` | `100` | Delay between trace polling attempts |
-| Reschedule delay | `GENAI_TRACE_RESCHEDULE_DELAY_SECS` | `30` | Delay before rescheduling a failed evaluation task |
+| Max retries | `GENAI_MAX_RETRIES` | `3` | Max reschedule attempts per record |
+| Trace arrival timeout | `TRACE_ARRIVAL_TIMEOUT_SECS` | `300` | How long to wait for a trace to commit before failing the record |
+| Inbox poll interval | `INBOX_POLL_INTERVAL_SECS` | `10` | How often the inbox worker checks for new commit events |
 
 ---
 

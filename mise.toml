@@ -1,0 +1,23 @@
+[tools]
+node = "latest"
+python = "3.12"
+uv = "latest"
+rust = "stable"
+"npm:pnpm" = "latest"
+
+[tasks."docs:install"]
+description = "Install docs dependencies"
+run = "pnpm --dir docs install"
+
+[tasks."docs:build"]
+description = "Build docs site"
+run = "pnpm --dir docs build"
+
+[tasks."docs:dev"]
+description = "Start docs dev server"
+run = "pnpm --dir docs dev --host"
+
+[tasks."docs:preview"]
+description = "Build and preview docs site"
+depends = ["docs:build"]
+run = "pnpm --dir docs preview --host"
