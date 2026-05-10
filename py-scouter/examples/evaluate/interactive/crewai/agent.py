@@ -8,7 +8,6 @@ from openinference.instrumentation.crewai import CrewAIInstrumentor
 from opentelemetry.trace import get_tracer_provider
 from pydantic import BaseModel
 from scouter import trace
-from scouter.evaluate import EvalRecord
 
 from ..shared import get_shared_config, teardown
 
@@ -30,12 +29,10 @@ class AgentResponse(BaseModel):
 def _emit_eval_record(query: str, response: str) -> None:
     tracer = trace.get_tracer("evaluate.interactive.crewai")
     with tracer.start_as_current_span("crewai.callback") as span:
-        span.add_queue_item(
-            "interactive_support_agent",
-            EvalRecord(
-                record_id=f"crewai_interactive_{abs(hash((query, response))) % 1_000_000}",
-                context={"query": query, "response": response},
-            ),
+        span.attach_eval(
+            profile_uid=config.eval_profile.config.uid,
+            record_id=f"crewai_interactive_{abs(hash((query, response))) % 1_000_000}",
+            context={"query": query, "response": response},
         )
 
 

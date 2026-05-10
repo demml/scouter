@@ -41,13 +41,12 @@ use scouter_events::queue::types::TransportConfig;
 use scouter_settings::grpc::GrpcConfig;
 
 use scouter_types::{
-    BAGGAGE_PREFIX, EXCEPTION_TRACEBACK, EntityType, EvalRecord,
-    SCOUTER_ACTIVE_ENTITY_UID_BAGGAGE_KEY, SCOUTER_ENTITY, SCOUTER_QUEUE_EVENT, SCOUTER_TAG_PREFIX,
-    SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL, SCOUTER_TRACING_OUTPUT, SPAN_ERROR,
-    SpanId as ScouterSpanId, TRACE_START_TIME_KEY, TraceId as ScouterTraceId, TraceSpanRecord,
-    pyobject_to_otel_value, pyobject_to_tracing_json,
+    BAGGAGE_PREFIX, EXCEPTION_TRACEBACK, EvalRecord, SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT,
+    SCOUTER_TRACING_LABEL, SCOUTER_TRACING_OUTPUT, SPAN_ERROR, SpanId as ScouterSpanId,
+    TRACE_START_TIME_KEY, TraceId as ScouterTraceId, TraceSpanRecord, pyobject_to_otel_value,
+    pyobject_to_tracing_json,
 };
-use scouter_types::{SCOUTER_EVAL_PROFILE_UID, SCOUTER_EVAL_RECORD_UID, SCOUTER_QUEUE_RECORD};
+use scouter_types::{SCOUTER_EVAL_PROFILE_UID, SCOUTER_EVAL_RECORD_UID};
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, OnceLock, RwLock};
@@ -280,7 +279,6 @@ pub fn configure_tracing(
     schema_url = None,
     scope_attributes = None,
     default_attributes = None,
-    default_entity_uid = None,
     scouter_queue = None,
 ))]
 #[instrument(skip_all)]
@@ -292,7 +290,6 @@ pub fn get_tracer(
     schema_url: Option<String>,
     scope_attributes: Option<Bound<'_, PyAny>>,
     default_attributes: Option<Bound<'_, PyAny>>,
-    default_entity_uid: Option<String>,
     scouter_queue: Option<Py<ScouterQueue>>,
 ) -> Result<BaseTracer, TraceError> {
     let provider_exists = TRACER_PROVIDER_STORE
@@ -312,7 +309,6 @@ pub fn get_tracer(
         schema_url,
         scope_attributes,
         default_attributes,
-        default_entity_uid,
         scouter_queue,
     )
 }
@@ -324,35 +320,6 @@ fn reset_current_context(py: Python, token: &Py<PyAny>) -> PyResult<()> {
         Err(e) if e.is_instance_of::<pyo3::exceptions::PyValueError>(py) => Ok(()),
         Err(e) => Err(e),
     }
-}
-
-/// Helper function to create an entity event on a span when adding an item to a queue.
-/// This allows us to correlate spans with queue items in the Scouter backend.
-/// # Arguments
-/// * `queue_item` - The item being added to the queue (must have an entity
-///   type attribute for correlation)
-/// * `inner` - The inner span data to add the event to
-fn add_entity_event_to_span(
-    queue_item: &Bound<'_, PyAny>,
-    queue_bus: &Bound<'_, PyAny>,
-    inner: &mut ActiveSpanInner,
-) -> Result<(), TraceError> {
-    let mut attributes = vec![];
-
-    if let Ok(record_uid) = queue_item.getattr("uid") {
-        let entity_type_py = queue_item.getattr("entity_type")?;
-        let entity_uid = queue_bus.getattr("entity_uid")?.str()?.to_string();
-        let entity_type = entity_type_py.extract::<EntityType>()?;
-        let record_uid_str = record_uid.str()?.to_string();
-
-        // set attributes for events
-        attributes.push(KeyValue::new(SCOUTER_QUEUE_RECORD, record_uid_str.clone()));
-        attributes.push(KeyValue::new("entity", entity_type));
-        attributes.push(KeyValue::new(SCOUTER_ENTITY, entity_uid.clone()));
-        inner.span.add_event(SCOUTER_QUEUE_EVENT, attributes);
-    };
-
-    Ok(())
 }
 
 /// ActiveSpan where all the magic happens
@@ -421,17 +388,6 @@ impl ActiveSpan {
         self.with_inner_mut(|inner| inner.span.set_attribute(KeyValue::new(key, value)))
     }
 
-    /// Set the entity associated with this span for correlation in Scouter
-    /// # Arguments
-    /// * `entity_id` - The ID of the entity to associate with this span (e.g. a record UID)
-    pub fn set_entity(&self, entity_id: String) -> Result<(), TraceError> {
-        self.with_inner_mut(|inner| {
-            inner
-                .span
-                .set_attribute(KeyValue::new(SCOUTER_ENTITY, entity_id))
-        })
-    }
-
     /// Set a tag on the span (alias for set_attribute)
     /// Tags are slightly different in that they are often used for indexing and searching
     /// On export, tags are exported and stored in a separate table in Scouter for easier
@@ -468,63 +424,6 @@ impl ActiveSpan {
                 inner.span.add_event(name, pairs);
             }
         })
-    }
-
-    /// Add an entity into the Scouter queue associated with this span
-    /// # Arguments
-    /// * `alias` - The queue alias to add into
-    /// * `item` - The item to add
-    /// # Returns
-    /// * `Result<(), TraceError>` - Ok if successful, Err otherwise
-    fn add_queue_item(
-        &self,
-        py: Python<'_>,
-        alias: String,
-        item: &Bound<'_, PyAny>,
-    ) -> Result<(), TraceError> {
-        // check if sampling allows for this span to be sent
-        debug!(
-            "Attempting to add item to queue '{}' for span {}",
-            alias,
-            self.context_id()?
-        );
-        self.with_inner_mut(
-            |inner| match &inner.span.span_context().trace_flags().is_sampled() {
-                true => {
-                    if let Some(queue) = &inner.queue {
-                        let bound_queue = queue.bind(py).get_item(&alias)?;
-                        if let Ok(py_record) = item.cast::<EvalRecord>() {
-                            let mut borrowed = py_record.borrow_mut();
-                            if borrowed.trace_id.is_none() {
-                                borrowed.trace_id = Some(ScouterTraceId::from_bytes(
-                                    inner.span.span_context().trace_id().to_bytes(),
-                                ));
-                            }
-                        }
-
-                        // insert into queue
-                        bound_queue.call_method1("insert", (item,))?;
-
-                        // add event
-                        // event attributes include entity uid and queue record uid
-                        // these will also be extracted in trace aggregation layer
-                        add_entity_event_to_span(item, &bound_queue, inner)?;
-
-                        Ok(())
-                    } else {
-                        warn!(
-                            "Queue not initialized for span {}. Skipping",
-                            inner.context_id
-                        );
-                        Ok(())
-                    }
-                }
-                false => {
-                    debug!("Span is not sampled, skipping insert into queue");
-                    Ok(())
-                }
-            },
-        )?
     }
 
     /// Build a trace-anchored EvalRecord from this span's context and insert it
@@ -961,7 +860,6 @@ pub struct BaseTracer {
     tracer: SdkTracer,
     queue: Option<Py<ScouterQueue>>,
     default_attributes: Vec<KeyValue>,
-    default_entity_uid: Option<String>,
 }
 
 impl BaseTracer {
@@ -1055,56 +953,6 @@ impl BaseTracer {
             base_ctx.with_baggage(all_items)
         }
     }
-
-    fn has_entity_attribute(attributes: &[KeyValue]) -> bool {
-        attributes
-            .iter()
-            .any(|kv| kv.key.as_str().starts_with(SCOUTER_ENTITY))
-    }
-
-    fn extract_active_entity_uid_from_context(
-        py: Python<'_>,
-        context: Option<&Bound<'_, PyAny>>,
-    ) -> Option<String> {
-        let baggage_mod = py.import("opentelemetry.baggage").ok()?;
-
-        let value = if let Some(context) = context {
-            let kwargs = PyDict::new(py);
-            kwargs.set_item("context", context).ok()?;
-            baggage_mod
-                .call_method(
-                    "get_baggage",
-                    (SCOUTER_ACTIVE_ENTITY_UID_BAGGAGE_KEY,),
-                    Some(&kwargs),
-                )
-                .ok()?
-        } else {
-            baggage_mod
-                .call_method1("get_baggage", (SCOUTER_ACTIVE_ENTITY_UID_BAGGAGE_KEY,))
-                .ok()?
-        };
-
-        value.extract::<Option<String>>().ok().flatten()
-    }
-
-    fn resolve_entity_attribute(
-        &self,
-        py: Python<'_>,
-        context: Option<&Bound<'_, PyAny>>,
-        explicit_attributes: &[KeyValue],
-    ) -> Option<KeyValue> {
-        if Self::has_entity_attribute(explicit_attributes) {
-            return None;
-        }
-
-        let entity_uid = Self::extract_active_entity_uid_from_context(py, context)
-            .or_else(|| self.default_entity_uid.clone())?;
-
-        Some(KeyValue::new(
-            format!("{}.{}", SCOUTER_ENTITY, entity_uid),
-            entity_uid,
-        ))
-    }
 }
 
 #[pymethods]
@@ -1116,7 +964,6 @@ impl BaseTracer {
         schema_url = None,
         scope_attributes = None,
         default_attributes = None,
-        default_entity_uid = None,
         queue = None,
     ))]
     #[instrument(skip_all)]
@@ -1128,7 +975,6 @@ impl BaseTracer {
         schema_url: Option<String>,
         scope_attributes: Option<Bound<'_, PyAny>>,
         default_attributes: Option<Bound<'_, PyAny>>,
-        default_entity_uid: Option<String>,
         queue: Option<Py<ScouterQueue>>,
     ) -> Result<Self, TraceError> {
         debug!("Creating new BaseTracer instance");
@@ -1164,7 +1010,6 @@ impl BaseTracer {
             tracer,
             queue: final_queue,
             default_attributes,
-            default_entity_uid,
         })
     }
 
@@ -1337,10 +1182,6 @@ impl BaseTracer {
             .cloned()
             .for_each(|kv| span.set_attribute(kv));
 
-        if let Some(entity_kv) = self.resolve_entity_attribute(py, context, &explicit_attributes) {
-            span.set_attribute(entity_kv);
-        }
-
         // set default attributes from tracer configuration
         self.default_attributes.iter().for_each(|kv| {
             span.set_attribute(kv.clone());
@@ -1503,10 +1344,6 @@ impl BaseTracer {
             .iter()
             .cloned()
             .for_each(|kv| span.set_attribute(kv));
-
-        if let Some(entity_kv) = self.resolve_entity_attribute(py, context, &explicit_attributes) {
-            span.set_attribute(entity_kv);
-        }
 
         self.default_attributes.iter().for_each(|kv| {
             span.set_attribute(kv.clone());

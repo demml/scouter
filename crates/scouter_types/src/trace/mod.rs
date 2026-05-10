@@ -69,10 +69,6 @@ pub const SCOUTER_EVAL_SCENARIO_ID_ATTR: &str = "scouter.eval.scenario_id";
 pub const SCOUTER_EVAL_RUN_ID_ATTR: &str = "scouter.eval.run_id";
 pub const SCOUTER_EVAL_RECORD_UID: &str = "scouter.eval.record_uid";
 pub const SCOUTER_EVAL_PROFILE_UID: &str = "scouter.eval.profile_uid";
-pub const SCOUTER_QUEUE_RECORD: &str = "scouter.queue.record";
-pub const SCOUTER_QUEUE_EVENT: &str = "scouter.queue.event";
-pub const SCOUTER_ENTITY: &str = "scouter.entity";
-pub const SCOUTER_ACTIVE_ENTITY_UID_BAGGAGE_KEY: &str = "scouter.active.entity_uid";
 
 // patterns for identifying baggage and tags
 pub const BAGGAGE_PATTERN: &str = "baggage.";
@@ -1359,7 +1355,7 @@ fn record_to_trace_span(
 /// Lightweight trace summary record written to the Delta Lake `trace_summaries` table.
 ///
 /// Produced by converting a `TraceAggregator` (in `scouter_sql`) after the in-memory
-/// aggregation phase. Entity tags are written separately to Postgres and are not included here.
+/// aggregation phase. Eval/profile associations are not carried by trace summaries.
 #[derive(Clone, Debug)]
 pub struct TraceSummaryRecord {
     pub trace_id: TraceId,
@@ -1374,10 +1370,6 @@ pub struct TraceSummaryRecord {
     pub span_count: i64,
     pub error_count: i64,
     pub resource_attributes: Vec<Attribute>,
-    /// Entity UIDs associated with this trace (from `scouter.entity` attributes).
-    pub entity_ids: Vec<String>,
-    /// Queue record UIDs associated with this trace (from `scouter.queue.record` attributes).
-    pub queue_ids: Vec<String>,
     pub service_namespace: Option<String>,
     pub service_version: Option<String>,
     pub service_instance_id: Option<String>,

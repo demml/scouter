@@ -140,7 +140,7 @@ The operator count matters less than what you can compose with it. Scouter's fou
 
 **Online evaluation with zero application impact.** Non-blocking queue insertion (sub-microsecond), server-side async evaluation via `AgentPoller` workers, configurable sampling via `sample_ratio`, and scheduled alert dispatch (Slack, OpsGenie, Console) on a cron. Records flow through gRPC or HTTP to PostgreSQL, and the poller picks them up independently.
 
-**Trace storage on Delta Lake.** Spans land in a columnar store queried via DataFusion. Bloom filters on trace_id, time-partitioned, auto-compacted. `TraceEvalPoller` creates synthetic `EvalRecord`s from traces, bridging the observability and evaluation pipelines.
+**Trace storage on Delta Lake.** Spans land in a columnar store queried via DataFusion. Bloom filters on trace_id, time-partitioned, auto-compacted. Records attached to traces via `span.attach_eval()` are correlated by `trace_id`, bridging the observability and evaluation pipelines.
 
 **Profile versioning and registration.** Profiles are identified by a `(space, name, version)` triple. Register once at deployment, and the server knows which evaluation to run against which agent version.
 

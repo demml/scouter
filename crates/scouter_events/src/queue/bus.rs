@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::error::{EventError, PyEventError};
 use pyo3::prelude::*;
@@ -238,6 +239,7 @@ pub struct QueueBus {
 
     /// Capture store: `None` = disabled (default), `Some(Vec)` = enabled.
     record_store: Arc<RwLock<Option<Vec<PyQueueItem>>>>,
+    capture_enabled: AtomicBool,
 }
 
 impl QueueBus {
@@ -250,6 +252,7 @@ impl QueueBus {
             identifier,
             entity_uid,
             record_store: Arc::new(RwLock::new(None)),
+            capture_enabled: AtomicBool::new(false),
         }
     }
 
@@ -277,7 +280,7 @@ impl QueueBus {
             self.identifier, extracted_item
         );
 
-        {
+        if self.capture_enabled.load(Ordering::Relaxed) {
             let mut store = self.record_store.write().unwrap();
             if let Some(store) = store.as_mut()
                 && matches!(extracted_item, QueueItem::Agent(_))
@@ -300,18 +303,24 @@ impl QueueBus {
         if guard.is_none() {
             *guard = Some(Vec::new());
         }
+        self.capture_enabled.store(true, Ordering::Release);
     }
 
     /// Disable record capture and discard any buffered records.
     pub fn disable_capture(&self) {
         let mut guard = self.record_store.write().unwrap();
         *guard = None;
+        self.capture_enabled.store(false, Ordering::Release);
     }
 
     /// Drain and return all captured `EvalRecord`s, clearing the internal buffer.
     ///
     /// Returns an empty list when capture is disabled.
     pub fn drain(&self) -> PyResult<Vec<PyQueueItem>> {
+        if !self.capture_enabled.load(Ordering::Acquire) {
+            return Ok(Vec::new());
+        }
+
         let records: Vec<PyQueueItem> = {
             let mut guard = self.record_store.write().unwrap();
             if let Some(store) = guard.as_mut() {

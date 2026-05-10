@@ -33,7 +33,7 @@ sequenceDiagram
     loop each scenario
         O->>O: on_scenario_start()
         O->>A: execute_agent(scenario)
-        A->>Q: span.add_queue_item(alias, record)
+        A->>Q: span.attach_eval(profile_uid, context, ...)
         O->>Q: drain_all_records()
         O->>R: collect_scenario_data(records, response, scenario)
         O->>O: on_scenario_complete()
@@ -83,27 +83,27 @@ Records are drained once at the end of the loop, not per-turn. All `EvalRecord` 
 
 ## Record collection and trace correlation
 
-During scenario execution, your agent emits `EvalRecord` objects through the queue. Inside a traced span, you call `span.add_queue_item(alias, record)`, and the record is automatically stamped with the active span's `trace_id`. This stamp connects records to trace spans for `TraceAssertionTask` evaluation later.
+During scenario execution, your agent emits `EvalRecord` objects through the queue. Inside a traced span, you call `span.attach_eval(profile_uid, context, ...)`, and the record is automatically stamped with the active span's `trace_id` and `span_id`. This connection allows `TraceAssertionTask` to match records to spans during evaluation.
 
-The queue is in capture mode, so records accumulate in an in-memory buffer. After each scenario completes, the orchestrator calls `drain_all_records()`, which returns a dict of `alias` to `List[EvalRecord]`. These records, along with the agent's response, are passed to the Rust engine via `collect_scenario_data()`.
+The queue is in capture mode, so records accumulate in an in-memory buffer. After each scenario completes, the orchestrator calls `drain_all_records()`, which returns a list of `EvalRecord` objects. These records, along with the agent's response, are passed to the Rust engine via `collect_scenario_data()`.
 
 Trace spans follow a similar path. The orchestrator enables a run-scoped local span capture buffer at the start of `run()`. Spans accumulate there during scenario execution. After all scenarios complete, `flush_tracer()` ensures every span has landed in that run's buffer before evaluation begins.
 
-The Rust engine matches records to spans by `trace_id` during evaluation. It also handles a subtlety: spans that have entity UIDs but no queue record marker. These represent traced work (tool calls, LLM calls) that happened within a sub-agent's scope but didn't produce an explicit `EvalRecord`. The engine synthesizes `EvalRecord` objects for these spans so that `TraceAssertionTask` evaluation can still run against them.
+The Rust engine matches records to spans by `trace_id` during evaluation. It uses the span's `trace_id` and `span_id` to resolve `TraceAssertionTask` definitions against the captured span data.
 
 ```mermaid
 graph LR
     subgraph "During scenario execution"
         AF["agent_fn()"] --> S["Traced span"]
-        S --> QI["span.add_queue_item(alias, record)"]
-        QI --> TID["record.trace_id = span.trace_id"]
+        S --> QI["span.attach_eval(profile_uid, context)"]
+        QI --> TID["record.trace_id<br/>record.span_id<br/>(set by span constructor)"]
         S --> SB["Span buffer"]
     end
 
     subgraph "After all scenarios"
-        DR["drain_all_records()"] --> RR["Records by alias"]
+        DR["drain_all_records()"] --> RR["Records (with trace_id)"]
         SB --> FT["flush_tracer()"]
-        FT --> SS["Spans by scenario"]
+        FT --> SS["Spans (with trace_id)"]
     end
 
     subgraph "EvalRunner.evaluate()"

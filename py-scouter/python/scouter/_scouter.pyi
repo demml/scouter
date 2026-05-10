@@ -10088,7 +10088,6 @@ class TraceFilters:
     direction: Optional[str]
     trace_ids: Optional[List[str]]
     entity_uid: Optional[str]
-    queue_uid: Optional[str]
 
     def __init__(
         self,
@@ -10100,7 +10099,6 @@ class TraceFilters:
         direction: Optional[str] = None,
         trace_ids: Optional[List[str]] = None,
         entity_uid: Optional[str] = None,
-        queue_uid: Optional[str] = None,
     ) -> None:
         """Initialize trace filters.
 
@@ -10121,8 +10119,6 @@ class TraceFilters:
                 List of trace IDs to filter by
             entity_uid:
                 Filter by associated entity UID
-            queue_uid:
-                Filter by associated queue UID
         """
 
     @classmethod
@@ -10343,7 +10339,6 @@ def get_tracer(
     schema_url: Optional[str] = None,
     scope_attributes: Optional[Dict[str, Any]] = None,
     default_attributes: Optional[Dict[str, Any]] = None,
-    default_entity_uid: Optional[str] = None,
     scouter_queue: Optional[Any] = None,
 ) -> "BaseTracer":
     """Get a tracer for an instrumenting library/module.
@@ -10368,8 +10363,6 @@ def get_tracer(
             Optional attributes attached to the InstrumentationScope.
         default_attributes:
             Optional attributes to apply to every span created by this tracer.
-        default_entity_uid:
-            Optional default Scouter entity UID to materialize on every span.
         scouter_queue:
             Optional queue used to correlate queue records with spans.
 
@@ -10439,15 +10432,6 @@ class ActiveSpan:
                 The attribute value.
         """
 
-    def set_entity(self, entity_id: str) -> None:
-        """Convenience method to set attributes on the active span for a specific entity.
-        This allows for easy indexing and querying of spans associated with specific entities in the backend.
-
-        Args:
-            entity_id (str):
-                The unique identifier for the entity.
-        """
-
     def set_tag(self, key: str, value: str) -> None:
         """Set a tag on the active span. Tags are similar to attributes
         except they are often used for indexing and searching spans/traces.
@@ -10477,36 +10461,6 @@ class ActiveSpan:
                 Can be any serializable type or pydantic `BaseModel`.
             timestamp (Optional[int]):
                 Optional timestamp for the event. Defaults to None.
-        """
-
-    def add_queue_item(
-        self,
-        alias: str,
-        item: Union[Features, Metrics, EvalRecord],
-    ) -> None:
-        """Helpers to add queue entities into a specified queue associated with the active span.
-        This is an convenience method that abstracts away the details of queue management and
-        leverages tracing's sampling capabilities to control data ingestion. Thus, correlated queue
-        records and spans/traces can be sampled together based on the same sampling decision.
-
-        Args:
-            alias (str):
-                Alias of the queue to add the item into.
-            item (Union[Features, Metrics, EvalRecord]):
-                Item to add into the queue.
-                Can be an instance for Features, Metrics, or EvalRecord.
-
-        Example:
-            ```python
-            features = Features(
-                features=[
-                    Feature("feature_1", 1),
-                    Feature("feature_2", 2.0),
-                    Feature("feature_3", "value"),
-                ]
-            )
-            span.add_queue_item(alias, features)
-            ```
         """
 
     def attach_eval(
@@ -10633,7 +10587,6 @@ class BaseTracer:
         schema_url: Optional[str] = None,
         scope_attributes: Optional[Dict[str, SerializedType]] = None,
         default_attributes: Optional[Dict[str, SerializedType]] = None,
-        default_entity_uid: Optional[str] = None,
         queue: Optional[ScouterQueue] = None,
     ) -> None:
         """Initialize the BaseTracer with an instrumentation scope.
@@ -10649,8 +10602,6 @@ class BaseTracer:
                 Optional dictionary of attributes to set on the instrumentation scope.
             default_attributes (Optional[Dict[str, SerializedType]]):
                 Optional dictionary of attributes to set on every span.
-            default_entity_uid (Optional[str]):
-                Optional default entity UID to materialize on every span.
             queue (Optional[ScouterQueue]):
                 Optional ScouterQueue to associate with the tracer.
         """

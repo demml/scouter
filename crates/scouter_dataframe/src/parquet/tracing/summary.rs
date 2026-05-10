@@ -58,8 +58,6 @@ const SPAN_COUNT_COL: &str = "span_count";
 const ERROR_COUNT_COL: &str = "error_count";
 
 const RESOURCE_ATTRIBUTES_COL: &str = "resource_attributes";
-const ENTITY_IDS_COL: &str = "entity_ids";
-const QUEUE_IDS_COL: &str = "queue_ids";
 
 const PARTITION_DATE_COL: &str = "partition_date";
 
@@ -107,16 +105,6 @@ fn create_summary_schema() -> Schema {
         Field::new(SPAN_COUNT_COL, DataType::Int64, false),
         Field::new(ERROR_COUNT_COL, DataType::Int64, false),
         resource_attribute_field(),
-        Field::new(
-            ENTITY_IDS_COL,
-            DataType::List(Arc::new(Field::new("item", DataType::Utf8, true))),
-            true,
-        ),
-        Field::new(
-            QUEUE_IDS_COL,
-            DataType::List(Arc::new(Field::new("item", DataType::Utf8, true))),
-            true,
-        ),
         Field::new(PARTITION_DATE_COL, DataType::Date32, false),
     ])
 }
@@ -141,8 +129,6 @@ struct TraceSummaryBatchBuilder {
     span_count: Int64Builder,
     error_count: Int64Builder,
     resource_attributes: MapBuilder<StringBuilder, StringViewBuilder>,
-    entity_ids: ListBuilder<StringBuilder>,
-    queue_ids: ListBuilder<StringBuilder>,
     partition_date: Date32Builder,
 }
 
@@ -176,8 +162,6 @@ impl TraceSummaryBatchBuilder {
             span_count: Int64Builder::with_capacity(capacity),
             error_count: Int64Builder::with_capacity(capacity),
             resource_attributes,
-            entity_ids: ListBuilder::new(StringBuilder::new()),
-            queue_ids: ListBuilder::new(StringBuilder::new()),
             partition_date: Date32Builder::with_capacity(capacity),
         }
     }
@@ -236,22 +220,6 @@ impl TraceSummaryBatchBuilder {
             }
             self.resource_attributes.append(true)?;
         }
-        if rec.entity_ids.is_empty() {
-            self.entity_ids.append_null();
-        } else {
-            for id in &rec.entity_ids {
-                self.entity_ids.values().append_value(id);
-            }
-            self.entity_ids.append(true);
-        }
-        if rec.queue_ids.is_empty() {
-            self.queue_ids.append_null();
-        } else {
-            for id in &rec.queue_ids {
-                self.queue_ids.values().append_value(id);
-            }
-            self.queue_ids.append(true);
-        }
         // Partition key — days since Unix epoch, derived from start_time
         let days = rec.start_time.date_naive().num_days_from_ce() - UNIX_EPOCH_DAYS;
         self.partition_date.append_value(days);
@@ -276,8 +244,6 @@ impl TraceSummaryBatchBuilder {
             Arc::new(self.span_count.finish()),
             Arc::new(self.error_count.finish()),
             Arc::new(self.resource_attributes.finish()),
-            Arc::new(self.entity_ids.finish()),
-            Arc::new(self.queue_ids.finish()),
             Arc::new(self.partition_date.finish()),
         ];
         RecordBatch::try_new(self.schema, columns).map_err(Into::into)
@@ -828,8 +794,7 @@ pub(crate) async fn deduped_summary_df(
     time_window: TimeWindow,
 ) -> Result<DataFrame, TraceEngineError> {
     use crate::parquet::tracing::queries::{date_lit, ts_lit};
-    use datafusion::functions_aggregate::expr_fn::{array_agg, first_value, max, min, sum};
-    use datafusion::functions_nested::set_ops::array_distinct;
+    use datafusion::functions_aggregate::expr_fn::{first_value, max, min, sum};
 
     let mut df = ctx.table(SUMMARY_TABLE_NAME).await?;
 
@@ -879,28 +844,13 @@ pub(crate) async fn deduped_summary_df(
                 first_value(col(STATUS_MESSAGE_COL), by_status_span).alias(STATUS_MESSAGE_COL),
                 first_value(col(RESOURCE_ATTRIBUTES_COL), by_span_end)
                     .alias(RESOURCE_ATTRIBUTES_COL),
-                array_agg(col(ENTITY_IDS_COL)).alias("_entity_ids_raw"),
-                array_agg(col(QUEUE_IDS_COL)).alias("_queue_ids_raw"),
             ],
         )?
         .with_column(
             DURATION_MS_COL,
             (col("_max_end_us") - col("_min_start_us")) / lit(1000i64),
         )?
-        .with_column(
-            ENTITY_IDS_COL,
-            array_distinct(flatten(col("_entity_ids_raw"))),
-        )?
-        .with_column(
-            QUEUE_IDS_COL,
-            array_distinct(flatten(col("_queue_ids_raw"))),
-        )?
-        .drop_columns(&[
-            "_max_end_us",
-            "_min_start_us",
-            "_entity_ids_raw",
-            "_queue_ids_raw",
-        ])?;
+        .drop_columns(&["_max_end_us", "_min_start_us"])?;
 
     Ok(df)
 }
@@ -916,11 +866,10 @@ impl TraceSummaryQueries {
     /// rows (from late-arriving spans) using the same rules as `TraceAggregator`:
     ///   - `SUM` for span/error counts, `MIN`/`MAX` for times, `MAX` for status_code
     ///   - `FIRST_VALUE` ordered by `span_count DESC` for string fields
-    ///   - `array_distinct(flatten(array_agg(...)))` for entity/queue ID lists (full union)
     ///
-    ///   Time filters are pushed into the SQL WHERE clause for partition pruning.
+    /// Time filters are pushed into the SQL WHERE clause for partition pruning.
     ///
-    ///   Secondary filters (service, errors, cursor) apply to the deduplicated DataFrame.
+    /// Secondary filters (service, errors, cursor) apply to the deduplicated DataFrame.
     pub async fn get_paginated_traces(
         &self,
         filters: &TraceFilters,
@@ -933,22 +882,6 @@ impl TraceSummaryQueries {
             end: filters.end_time,
         };
         let mut df = deduped_summary_df(&self.ctx, time_window).await?;
-
-        // ── entity_uid filter via array_has on List column ────────────────
-        if let Some(ref uid) = filters.entity_uid {
-            df = df.filter(datafusion::functions_nested::expr_fn::array_has(
-                col(ENTITY_IDS_COL),
-                lit(uid.as_str()),
-            ))?;
-        }
-
-        // ── queue_uid filter via array_has on List column ─────────────────
-        if let Some(ref uid) = filters.queue_uid {
-            df = df.filter(datafusion::functions_nested::expr_fn::array_has(
-                col(QUEUE_IDS_COL),
-                lit(uid.as_str()),
-            ))?;
-        }
 
         // ── trace_ids IN filter ──────────────────────────────────────────────
         if let Some(ref ids) = filters.trace_ids
@@ -1124,19 +1057,6 @@ impl TraceSummaryQueries {
         };
         let mut df = deduped_summary_df(&self.ctx, time_window).await?;
 
-        if let Some(ref uid) = filters.entity_uid {
-            df = df.filter(datafusion::functions_nested::expr_fn::array_has(
-                col(ENTITY_IDS_COL),
-                lit(uid.as_str()),
-            ))?;
-        }
-        if let Some(ref uid) = filters.queue_uid {
-            df = df.filter(datafusion::functions_nested::expr_fn::array_has(
-                col(QUEUE_IDS_COL),
-                lit(uid.as_str()),
-            ))?;
-        }
-
         if let Some(clause) = &filters.clause {
             let plan = planner::plan_clause(clause);
             let resolved = planner::execute_plan(&plan, &self.ctx, time_window).await?;
@@ -1224,27 +1144,6 @@ fn extract_map_attributes(map_array: &MapArray, row_idx: usize) -> Vec<Attribute
             value: serde_json::from_str(values.value(i)).unwrap_or(serde_json::Value::Null),
         })
         .collect()
-}
-
-/// Extract a `Vec<String>` from a nullable `ListArray` at a given row index.
-fn extract_list_strings(list: Option<&ListArray>, row_idx: usize) -> Vec<String> {
-    let Some(list) = list else {
-        return Vec::new();
-    };
-    if list.is_null(row_idx) {
-        return Vec::new();
-    }
-    let inner = list.value(row_idx);
-    let str_arr = compute::cast(&inner, &DataType::Utf8)
-        .ok()
-        .and_then(|a| a.as_any().downcast_ref::<StringArray>().cloned());
-    match str_arr {
-        Some(arr) => (0..arr.len())
-            .filter(|i| !arr.is_null(*i))
-            .map(|i| arr.value(i).to_string())
-            .collect(),
-        None => Vec::new(),
-    }
 }
 
 fn batches_to_trace_list_items(
@@ -1350,14 +1249,6 @@ fn batches_to_trace_list_items(
                 TraceEngineError::UnsupportedOperation("missing resource_attributes column".into())
             })?;
 
-        let entity_ids_list = batch
-            .column_by_name(ENTITY_IDS_COL)
-            .and_then(|c| c.as_any().downcast_ref::<ListArray>());
-
-        let queue_ids_list = batch
-            .column_by_name(QUEUE_IDS_COL)
-            .and_then(|c| c.as_any().downcast_ref::<ListArray>());
-
         let start_times = batch
             .column_by_name(START_TIME_COL)
             .and_then(|c| c.as_any().downcast_ref::<TimestampMicrosecondArray>())
@@ -1418,9 +1309,6 @@ fn batches_to_trace_list_items(
 
             let resource_attributes = extract_map_attributes(resource_attrs_map, i);
 
-            let entity_ids = extract_list_strings(entity_ids_list, i);
-            let queue_ids = extract_list_strings(queue_ids_list, i);
-
             items.push(TraceListItem {
                 trace_id: trace_id_hex,
                 service_name: service_names.value(i).to_string(),
@@ -1440,8 +1328,6 @@ fn batches_to_trace_list_items(
                 has_errors: error_count > 0,
                 error_count,
                 resource_attributes,
-                entity_ids,
-                queue_ids,
             });
         }
     }
@@ -1617,8 +1503,6 @@ mod tests {
             span_count: 3,
             error_count,
             resource_attributes,
-            entity_ids: vec![],
-            queue_ids: vec![],
         }
     }
 
@@ -1655,6 +1539,38 @@ mod tests {
         );
 
         service.shutdown().await?;
+        cleanup();
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_clean_start_summary_schema_excludes_legacy_association_columns()
+    -> Result<(), TraceEngineError> {
+        cleanup();
+
+        let storage_settings = ObjectStorageSettings::default();
+        let object_store = make_test_object_store(&storage_settings);
+        let ctx = make_test_ctx(&object_store);
+        let catalog = make_test_catalog(&ctx);
+        let service = TraceSummaryService::new(&object_store, 24, ctx.clone(), catalog, 10).await?;
+
+        let schema = ctx.table(SUMMARY_TABLE_NAME).await?.schema().clone();
+        assert!(schema.field_with_name(None, "queue_ids").is_err());
+        assert!(schema.field_with_name(None, "entity_ids").is_err());
+
+        let summary = make_summary([42u8; 16], "svc_clean", 0, vec![]);
+        service.write_summaries(vec![summary]).await?;
+        tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+
+        let filters = TraceFilters {
+            start_time: Some(Utc::now() - chrono::Duration::hours(1)),
+            end_time: Some(Utc::now() + chrono::Duration::hours(1)),
+            limit: Some(10),
+            ..Default::default()
+        };
+        let page = service.query_service.get_paginated_traces(&filters).await?;
+        assert_eq!(page.items.len(), 1);
+
         cleanup();
         Ok(())
     }
@@ -2206,126 +2122,6 @@ mod tests {
         // trace universe; it cannot be represented by dropping the span half.
         assert_eq!(trace_ids.len(), 1, "unexpected NOT result: {trace_ids:?}");
         assert!(trace_ids.contains(&kept_trace.to_hex()));
-
-        span_service.shutdown().await?;
-        summary_service.shutdown().await?;
-        cleanup();
-        Ok(())
-    }
-
-    /// queue_uid filter: only traces whose queue_ids contain the target UID are returned,
-    /// and the matching trace's spans can be fetched by trace_id.
-    #[tokio::test]
-    async fn test_summary_queue_id_filter_and_span_lookup() -> Result<(), TraceEngineError> {
-        use crate::parquet::tracing::service::TraceSpanService;
-
-        cleanup();
-        let storage_settings = ObjectStorageSettings::default();
-
-        // TraceSpanService owns the SessionContext
-        let span_service =
-            TraceSpanService::new(&storage_settings, 24, Some(2), None, 10, None).await?;
-        let shared_ctx = span_service.ctx.clone();
-
-        // TraceSummaryService shares the same ctx + catalog so JOIN path works
-        let summary_service = TraceSummaryService::new(
-            &span_service.object_store,
-            24,
-            shared_ctx,
-            span_service.catalog.clone(),
-            10,
-        )
-        .await?;
-
-        let now = Utc::now();
-        let queue_trace = TraceId::from_bytes([90u8; 16]);
-        let plain_trace = TraceId::from_bytes([91u8; 16]);
-        let target_queue_uid = "queue-record-abc123";
-
-        // Write spans for both traces
-        let queue_span = make_span_record(
-            &queue_trace,
-            SpanId::from_bytes([90u8; 8]),
-            "svc_queue",
-            vec![],
-        );
-        let plain_span = make_span_record(
-            &plain_trace,
-            SpanId::from_bytes([91u8; 8]),
-            "svc_queue",
-            vec![],
-        );
-        span_service
-            .write_spans_direct(vec![queue_span, plain_span])
-            .await?;
-
-        // Write summaries: one with a matching queue_id, one without
-        let mut queue_summary = make_summary([90u8; 16], "svc_queue", 0, vec![]);
-        queue_summary.start_time = now;
-        queue_summary.queue_ids = vec![target_queue_uid.to_string()];
-
-        let mut plain_summary = make_summary([91u8; 16], "svc_queue", 0, vec![]);
-        plain_summary.start_time = now;
-        // queue_ids left empty — should not appear in results
-
-        summary_service
-            .write_summaries(vec![queue_summary, plain_summary])
-            .await?;
-
-        tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
-
-        // ── Step 1: query summaries by queue_uid ─────────────────────────────────
-        let filters = TraceFilters {
-            start_time: Some(now - chrono::Duration::hours(1)),
-            end_time: Some(now + chrono::Duration::hours(1)),
-            queue_uid: Some(target_queue_uid.to_string()),
-            limit: Some(25),
-            ..Default::default()
-        };
-
-        let response = summary_service
-            .query_service
-            .get_paginated_traces(&filters)
-            .await?;
-
-        assert!(
-            !response.items.is_empty(),
-            "queue_uid filter must return at least one result"
-        );
-        assert!(
-            response
-                .items
-                .iter()
-                .all(|i| i.trace_id == queue_trace.to_hex()),
-            "only the queue trace should appear; got {:?}",
-            response
-                .items
-                .iter()
-                .map(|i| &i.trace_id)
-                .collect::<Vec<_>>()
-        );
-
-        // ── Step 2: fetch spans for the returned trace_id ─────────────────────────
-        let returned_trace_id =
-            TraceId::from_hex(&response.items[0].trace_id).expect("trace_id must be valid hex");
-        let spans = span_service
-            .query_service
-            .get_trace_spans(
-                Some(returned_trace_id.as_bytes()),
-                None,
-                None,
-                None,
-                None,
-                Some(&(now - chrono::Duration::hours(1))),
-                Some(&(now + chrono::Duration::hours(1))),
-                None,
-            )
-            .await?;
-
-        assert!(
-            !spans.is_empty(),
-            "should find spans for the returned trace_id"
-        );
 
         span_service.shutdown().await?;
         summary_service.shutdown().await?;

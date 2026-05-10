@@ -70,12 +70,9 @@ pub const LINKS_COL: &str = "links";
 pub const INPUT_COL: &str = "input";
 pub const OUTPUT_COL: &str = "output";
 pub const SEARCH_BLOB_COL: &str = "search_blob";
-pub const ENTITY_ID_COL: &str = "entity_id";
 pub const SPAN_TABLE_NAME: &str = "trace_spans";
 pub(crate) const SUMMARY_TABLE_NAME: &str = "trace_summaries";
 pub(crate) const ERROR_COUNT_COL: &str = "error_count";
-pub(crate) const ENTITY_IDS_COL: &str = "entity_ids";
-pub(crate) const QUEUE_IDS_COL: &str = "queue_ids";
 
 static METRICS_SUMMARY_VIEW_SEQ: AtomicU64 = AtomicU64::new(0);
 
@@ -993,39 +990,6 @@ impl TraceQueries {
         spans_df = spans_df.filter(col(START_TIME_COL).gt_eq(ts_lit(&request.start_time)))?;
         spans_df = spans_df.filter(col(START_TIME_COL).lt(ts_lit(&request.end_time)))?;
 
-        // ── Phase 2: Entity filter — optional INNER JOIN against summary table ──
-        //
-        // Resolves the set of matching trace IDs from the summary table (time-first),
-        // then INNER JOIN into spans.  Replaces the `entity_traces` CTE + join.
-        if let Some(uid) = &request.entity_uid {
-            let mut entity_df = self
-                .ctx
-                .table(SUMMARY_TABLE_NAME)
-                .await
-                .map_err(TraceEngineError::DatafusionError)?;
-
-            // Summary-side time pruning (same partition-pruning principle as spans).
-            entity_df = entity_df.filter(col(START_TIME_COL).gt_eq(ts_lit(&request.start_time)))?;
-            entity_df = entity_df.filter(col(START_TIME_COL).lt(ts_lit(&request.end_time)))?;
-            entity_df = entity_df.filter(datafusion::functions_nested::expr_fn::array_has(
-                col(ENTITY_IDS_COL),
-                lit(uid.as_str()),
-            ))?;
-
-            // Alias to avoid ambiguous `trace_id` column in the JOIN output schema.
-            let entity_df = entity_df
-                .select(vec![col(TRACE_ID_COL).alias("_entity_tid")])?
-                .distinct()?;
-
-            spans_df = spans_df.join(
-                entity_df,
-                JoinType::Inner,
-                &[TRACE_ID_COL],
-                &["_entity_tid"],
-                None,
-            )?;
-        }
-
         // ── Phase 3: trace_level — aggregate per-trace ───────────────────────
         //
         // Replaces the `trace_level` CTE:
@@ -1273,7 +1237,7 @@ impl TraceQueries {
     }
 
     /// Look up traces from the summary table that match aggregate-level filters
-    /// (e.g. `entity_uid`, `queue_uid`, `has_errors`) and return spans for the
+    /// (e.g. `entity_uid`, `has_errors`) and return spans for the
     /// most-recent matching trace. The entire pipeline runs as a single DataFusion
     /// JOIN — no intermediate collection, no Postgres round-trip.
     pub async fn query_spans_from_trace_filters(
@@ -1286,19 +1250,6 @@ impl TraceQueries {
             end: filters.end_time,
         };
         let mut summary_df = super::summary::deduped_summary_df(&self.ctx, time_window).await?;
-
-        if let Some(ref uid) = filters.entity_uid {
-            summary_df = summary_df.filter(datafusion::functions_nested::expr_fn::array_has(
-                col(ENTITY_IDS_COL),
-                lit(uid.as_str()),
-            ))?;
-        }
-        if let Some(ref uid) = filters.queue_uid {
-            summary_df = summary_df.filter(datafusion::functions_nested::expr_fn::array_has(
-                col(QUEUE_IDS_COL),
-                lit(uid.as_str()),
-            ))?;
-        }
 
         if let Some(clause) = &filters.clause {
             let plan = planner::plan_clause(clause);

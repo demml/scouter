@@ -11,13 +11,14 @@ from google.adk.sessions import InMemorySessionService
 from google.genai import types
 from pydantic import BaseModel
 from scouter import trace
-from scouter.evaluate import EvalRecord
 
 from ..shared import get_shared_config, teardown
 
 config = get_shared_config()
 QUERY_STATE_KEY = "query"
-ADK_RESPONSE_KEY = "adk_response"  # key under which llm_response is stored in EvalRecord context
+ADK_RESPONSE_KEY = (
+    "adk_response"  # key under which llm_response is stored in EvalRecord context
+)
 
 AgentCallback = Callable[[str, str], None]
 
@@ -40,9 +41,9 @@ def _emit_eval_record(query: str, response: str) -> None:
 
     with tracer.start_as_current_span("google.callback") as span:
         context: dict = {"query": query, "response": response}
-        span.add_queue_item(
-            "interactive_support_agent",
-            EvalRecord(context=context),
+        span.attach_eval(
+            profile_uid=config.eval_profile.config.uid,
+            context=context,
         )
 
 
@@ -53,7 +54,9 @@ class GoogleAgentService:
         self._callback = callback or _emit_eval_record
         self._service = self._build_service()
 
-    def _after_agent_callback(self, callback_context: CallbackContext) -> types.Content | None:
+    def _after_agent_callback(
+        self, callback_context: CallbackContext
+    ) -> types.Content | None:
         events = callback_context.session.events
         query = str(callback_context.state.get(QUERY_STATE_KEY, ""))
         final_event = next((e for e in reversed(events) if e.is_final_response()), None)
@@ -127,7 +130,7 @@ def build_agent_service(callback: AgentCallback | None = None) -> GoogleAgentSer
 
 _api_service = build_agent_service()
 
-app = FastAPI(title="Espresso AI Google ADK Agent")
+app = FastAPI(title="AI Google ADK Agent")
 
 
 @app.post("/ask", response_model=AgentResponse)

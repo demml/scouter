@@ -36,10 +36,9 @@ except ImportError:  # pragma: no cover - tracing optional
 # Baggage key injected into each scenario span so ScouterQueue can tag EvalRecords by scenario.
 SCENARIO_TAG_BAGGAGE_KEY = "scouter.eval.scenario_id"
 RUN_ID_BAGGAGE_KEY = "scouter.eval.run_id"
-# Scenario wrapper spans carry infrastructure metadata only. Setting an explicit
-# scouter.entity* attribute (non-string) suppresses default entity auto-tagging
-# so per-agent active_profile selection remains authoritative.
-SCENARIO_WRAPPER_ENTITY_SUPPRESS_ATTR = {"scouter.entity.suppressed": True}
+# Scenario wrapper spans carry infrastructure metadata only; eval records are
+# emitted explicitly by span.attach_eval(...) inside agent/callback code.
+SCENARIO_WRAPPER_ATTR = {"scouter.eval.wrapper": True}
 
 AgentFn = Callable[[str], Any]
 # (initial_query, agent_response, history) -> next user message or termination signal
@@ -287,7 +286,7 @@ class EvalOrchestrator:
                     {RUN_ID_BAGGAGE_KEY: self._capture_run_id},
                     {SCENARIO_TAG_BAGGAGE_KEY: scenario.id},
                 ],
-                attributes=SCENARIO_WRAPPER_ENTITY_SUPPRESS_ATTR,
+                attributes=SCENARIO_WRAPPER_ATTR,
             )
         except Exception:  # noqa: BLE001 pylint: disable=broad-except
             logger.warning(

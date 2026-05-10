@@ -834,6 +834,7 @@ dependencies = [
 [[package]]
 name = "baked-potato"
 version = "0.25.0"
+source = "git+https://github.com/demml/potatohead?tag=v0.25.0#e05f6a6ff1d6602d42678aaab2b8184bc09c4b2f"
 dependencies = [
  "async-trait",
  "chrono",
@@ -1301,7 +1302,7 @@ version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "faf9468729b8cbcea668e36183cb69d317348c2e08e994829fb56ebfdfbaac34"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2634,7 +2635,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2756,7 +2757,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4403,7 +4404,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5248,6 +5249,7 @@ dependencies = [
 [[package]]
 name = "potato-agent"
 version = "0.25.0"
+source = "git+https://github.com/demml/potatohead?tag=v0.25.0#e05f6a6ff1d6602d42678aaab2b8184bc09c4b2f"
 dependencies = [
  "async-trait",
  "base64",
@@ -5273,6 +5275,7 @@ dependencies = [
 [[package]]
 name = "potato-head"
 version = "0.25.0"
+source = "git+https://github.com/demml/potatohead?tag=v0.25.0#e05f6a6ff1d6602d42678aaab2b8184bc09c4b2f"
 dependencies = [
  "baked-potato",
  "potato-agent",
@@ -5286,6 +5289,7 @@ dependencies = [
 [[package]]
 name = "potato-provider"
 version = "0.25.0"
+source = "git+https://github.com/demml/potatohead?tag=v0.25.0#e05f6a6ff1d6602d42678aaab2b8184bc09c4b2f"
 dependencies = [
  "base64",
  "gcloud-auth",
@@ -5307,6 +5311,7 @@ dependencies = [
 [[package]]
 name = "potato-spec"
 version = "0.25.0"
+source = "git+https://github.com/demml/potatohead?tag=v0.25.0#e05f6a6ff1d6602d42678aaab2b8184bc09c4b2f"
 dependencies = [
  "potato-agent",
  "potato-type",
@@ -5322,6 +5327,7 @@ dependencies = [
 [[package]]
 name = "potato-state"
 version = "0.25.0"
+source = "git+https://github.com/demml/potatohead?tag=v0.25.0#e05f6a6ff1d6602d42678aaab2b8184bc09c4b2f"
 dependencies = [
  "thiserror 2.0.18",
  "tokio",
@@ -5331,6 +5337,7 @@ dependencies = [
 [[package]]
 name = "potato-type"
 version = "0.25.0"
+source = "git+https://github.com/demml/potatohead?tag=v0.25.0#e05f6a6ff1d6602d42678aaab2b8184bc09c4b2f"
 dependencies = [
  "async-trait",
  "base64",
@@ -5350,6 +5357,7 @@ dependencies = [
 [[package]]
 name = "potato-util"
 version = "0.25.0"
+source = "git+https://github.com/demml/potatohead?tag=v0.25.0#e05f6a6ff1d6602d42678aaab2b8184bc09c4b2f"
 dependencies = [
  "colored_json",
  "pyo3",
@@ -5365,6 +5373,7 @@ dependencies = [
 [[package]]
 name = "potato-workflow"
 version = "0.25.0"
+source = "git+https://github.com/demml/potatohead?tag=v0.25.0#e05f6a6ff1d6602d42678aaab2b8184bc09c4b2f"
 dependencies = [
  "chrono",
  "potato-agent",
@@ -5384,6 +5393,7 @@ dependencies = [
 [[package]]
 name = "potatohead-macro"
 version = "0.25.0"
+source = "git+https://github.com/demml/potatohead?tag=v0.25.0#e05f6a6ff1d6602d42678aaab2b8184bc09c4b2f"
 dependencies = [
  "thiserror 2.0.18",
 ]
@@ -6341,7 +6351,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6435,7 +6445,7 @@ dependencies = [
  "security-framework 3.7.0",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -7891,7 +7901,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix 1.1.4",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -7901,7 +7911,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "230a1b821ccbd75b185820a1f1ff7b14d21da1e442e22c0863ea5f08771a8874"
 dependencies = [
  "rustix 1.1.4",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -8926,7 +8936,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

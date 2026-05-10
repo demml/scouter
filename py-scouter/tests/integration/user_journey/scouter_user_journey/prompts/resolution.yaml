@@ -1,0 +1,37 @@
+name: resolution_prompt
+instruction: >-
+  You are the resolution agent. The router agent has already classified the
+  query and stored the intent in shared state. Call the intent-specific tool,
+  then write a concise final answer using the tool result.
+tasks:
+  - task_type: Assertion
+    id: response_is_string
+    context_path: response
+    operator: IsString
+    expected_value: true
+
+  - task_type: Assertion
+    id: resolution_tool_called
+    context_path: tool_call_names
+    operator: ContainsAny
+    expected_value: ["lookup_latency_runbook", "collect_quality_signals"]
+
+  - task_type: Assertion
+    id: tool_call_path_matches
+    context_path: tool_call_path
+    operator: MatchesRegex
+    expected_value: "^classify_support_intent -> (lookup_latency_runbook|collect_quality_signals)$"
+    depends_on: ["resolution_tool_called"]
+
+  - task_type: TraceAssertion
+    id: resolution_latency_budget
+    operator: LessThan
+    expected_value: 7000.0
+    assertion:
+      TraceDuration: {}
+
+  - task_type: Assertion
+    id: quality_score_present
+    context_path: quality_score
+    operator: Equals
+    expected_value: 1

@@ -14,9 +14,6 @@ use pyo3::pyfunction;
 use rand::Rng;
 
 #[cfg(feature = "server")]
-use scouter_types::{SCOUTER_ENTITY, SCOUTER_QUEUE_RECORD};
-
-#[cfg(feature = "server")]
 const SCOPE: &str = "scope";
 
 #[cfg(feature = "server")]
@@ -390,18 +387,10 @@ fn random_span_record(
     let span_kind = span_kind_options[rng.random_range(0..span_kind_options.len())].to_string();
     let mut attributes = vec![];
 
-    // randomly add SCOUTER_ENTITY to attributes based on 30% chance
-    if rng.random_bool(0.3) {
-        attributes.push(Attribute {
-            key: SCOUTER_ENTITY.to_string(),
-            value: Value::String(format!("{:032x}", rng.random::<u128>())),
-        });
-    } else {
-        attributes.push(Attribute {
-            key: "random_attribute".to_string(),
-            value: Value::String(format!("value_{}", rng.random_range(0..100))),
-        });
-    }
+    attributes.push(Attribute {
+        key: "random_attribute".to_string(),
+        value: Value::String(format!("value_{}", rng.random_range(0..100))),
+    });
 
     if rng.random_bool(0.1) {
         attributes.push(Attribute {
@@ -459,19 +448,12 @@ pub fn generate_trace_with_spans(num_spans: usize, minutes_offset: i64) -> Trace
         } else {
             Some(&spans[rng.random_range(0..spans.len())].span_id)
         };
-        let mut span_record = random_span_record(
+        let span_record = random_span_record(
             &trace_record.trace_id,
             parent_span_id,
             &trace_record.service_name,
             minutes_offset,
         );
-        // Root span carries a queue record attribute so the aggregator populates queue_ids.
-        if i == 0 {
-            span_record.attributes.push(Attribute {
-                key: SCOUTER_QUEUE_RECORD.to_string(),
-                value: Value::String(trace_record.trace_id.to_hex()),
-            });
-        }
         spans.push(span_record);
     }
 
@@ -480,7 +462,7 @@ pub fn generate_trace_with_spans(num_spans: usize, minutes_offset: i64) -> Trace
     let tag_record = TagRecord {
         entity_type: "trace".to_string(),
         entity_id: trace_record.trace_id.to_hex(),
-        key: "scouter.queue.record".to_string(),
+        key: "trace.record".to_string(),
         value: trace_record.trace_id.to_hex(),
     };
 
@@ -517,10 +499,7 @@ pub fn generate_trace_with_fixed_duration(minutes_offset: i64, duration_ms: i64)
         duration_ms,
         status_code: 0,
         status_message: "OK".to_string(),
-        attributes: vec![Attribute {
-            key: SCOUTER_QUEUE_RECORD.to_string(),
-            value: Value::String(trace_record.trace_id.to_hex()),
-        }],
+        attributes: vec![],
         events: vec![],
         links: vec![],
         label: None,
@@ -532,19 +511,14 @@ pub fn generate_trace_with_fixed_duration(minutes_offset: i64, duration_ms: i64)
     let tag_record = TagRecord {
         entity_type: "trace".to_string(),
         entity_id: trace_record.trace_id.to_hex(),
-        key: "scouter.queue.record".to_string(),
+        key: "trace.record".to_string(),
         value: trace_record.trace_id.to_hex(),
     };
 
     (trace_record, vec![span], vec![tag_record])
 }
 
-/// Generate a trace where the root span always carries a deterministic `entity_uid`.
-///
-/// All spans are timestamped at `now - minutes_offset`. The root span (index 0) has
-/// its `attributes` set to `[{key: SCOUTER_ENTITY, value: entity_uid}]` so the
-/// ingest pipeline promotes it to the top-level `entity_id` column — enabling
-/// DataFusion file-level skipping in benchmarks.
+/// Generate a trace where the root span carries a deterministic benchmark UID.
 #[cfg(feature = "server")]
 pub fn generate_trace_with_entity(
     num_spans: usize,
@@ -569,10 +543,10 @@ pub fn generate_trace_with_entity(
             &trace_record.service_name,
             minutes_offset,
         );
-        // Root span always carries the deterministic entity UID.
+        // Root span always carries deterministic benchmark metadata.
         if i == 0 {
             span_record.attributes = vec![Attribute {
-                key: SCOUTER_ENTITY.to_string(),
+                key: "benchmark.entity_uid".to_string(),
                 value: Value::String(entity_uid.to_string()),
             }];
         }
@@ -582,7 +556,7 @@ pub fn generate_trace_with_entity(
     let tag_record = TagRecord {
         entity_type: "trace".to_string(),
         entity_id: trace_record.trace_id.to_hex(),
-        key: "scouter.queue.record".to_string(),
+        key: "trace.record".to_string(),
         value: trace_record.trace_id.to_hex(),
     };
 

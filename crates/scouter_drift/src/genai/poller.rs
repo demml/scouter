@@ -4,22 +4,16 @@ use chrono::Duration;
 use scouter_dataframe::parquet::tracing::service::get_trace_span_service;
 use scouter_evaluate::evaluate::AgentEvaluator;
 use scouter_sql::PostgresClient;
-use scouter_sql::sql::aggregator::{get_trace_dispatch_service, get_trace_summary_service};
 use scouter_sql::sql::traits::{AgentDriftSqlLogic, ProfileSqlLogic};
-use scouter_sql::sql::utils::UuidBytea;
 use scouter_types::agent::{AgentEvalProfile, EvalSet};
-use scouter_types::sql::{TraceFilters, TraceSpan};
-use scouter_types::{EvalRecord, EvalRecordSource, Status, TraceId};
+use scouter_types::sql::TraceSpan;
+use scouter_types::{
+    EvalRecord, SCOUTER_EVAL_PROFILE_UID, SCOUTER_EVAL_RECORD_UID, Status, TraceId,
+};
 use sqlx::{Pool, Postgres};
 use std::sync::Arc;
 use tokio::time::sleep;
 use tracing::{debug, error, instrument};
-
-enum TraceSpanResult {
-    Ready(Arc<Vec<TraceSpan>>),
-    Reschedule,
-    Failed,
-}
 
 #[instrument(skip_all)]
 async fn get_trace_spans_by_id(trace_id: &TraceId) -> Result<Arc<Vec<TraceSpan>>, DriftError> {
@@ -45,185 +39,42 @@ async fn get_trace_spans_by_id(trace_id: &TraceId) -> Result<Arc<Vec<TraceSpan>>
     Ok(Arc::new(spans))
 }
 
-#[instrument(skip_all)]
-/// Helper function to wait for trace spans associated with a task UID.
-/// Queries Delta Lake: first finds the trace summary by queue_uid, then fetches
-/// full spans from the trace_spans table.
-async fn wait_for_trace_spans(
-    task_uid: &str,
-    max_wait: Duration,
-    initial_backoff: Duration,
-) -> Result<Arc<Vec<TraceSpan>>, DriftError> {
-    let start = chrono::Utc::now();
-    let mut backoff = initial_backoff;
-
-    let summary_service = get_trace_summary_service().ok_or_else(|| {
-        DriftError::AgentEvaluatorError("TraceSummaryService not initialized".to_string())
-    })?;
-
-    let span_service = get_trace_span_service().ok_or_else(|| {
-        DriftError::AgentEvaluatorError("TraceSpanService not initialized".to_string())
-    })?;
-
-    loop {
-        // Query summaries by queue_uid to find the trace_id
-        let filters = TraceFilters {
-            queue_uid: Some(task_uid.to_string()),
-            limit: Some(1),
-            ..Default::default()
-        };
-
-        match summary_service
-            .query_service
-            .get_paginated_traces(&filters)
-            .await
-        {
-            Ok(response) if !response.items.is_empty() => {
-                let trace_id_hex = &response.items[0].trace_id;
-                debug!(
-                    "Found trace summary for task {}, trace_id={}",
-                    task_uid, trace_id_hex
-                );
-
-                // Fetch full spans from Delta Lake
-                let trace_id_bytes = TraceId::hex_to_bytes(trace_id_hex).map_err(|e| {
-                    DriftError::AgentEvaluatorError(format!("Invalid trace_id hex: {}", e))
-                })?;
-
-                match span_service
-                    .query_service
-                    .get_trace_spans(
-                        Some(trace_id_bytes.as_slice()),
-                        None,
-                        None,
-                        None,
-                        None,
-                        None,
-                        None,
-                        None,
-                    )
-                    .await
-                {
-                    Ok(spans) if !spans.is_empty() => {
-                        debug!("Found {} spans for task {}", spans.len(), task_uid);
-                        return Ok(Arc::new(spans));
-                    }
-                    Ok(_) => {
-                        debug!(
-                            "Trace summary found but spans not yet available for {}",
-                            task_uid
-                        );
-                    }
-                    Err(e) => {
-                        error!("Error fetching spans from Delta Lake: {:?}", e);
-                    }
-                }
-            }
-            Ok(_) => {
-                // No summary found yet
-            }
-            Err(e) => {
-                error!("Error querying trace summaries: {:?}", e);
-            }
-        }
-
-        if (chrono::Utc::now() - start) >= max_wait {
-            error!(
-                "Timeout waiting for trace spans after {:?} for task {}",
-                max_wait, task_uid
-            );
-            return Err(DriftError::TraceSpansNotAvailable(task_uid.to_string()));
-        }
-
-        debug!(
-            "No spans found yet for {}, waiting {:?} before retry",
-            task_uid, backoff
-        );
-        sleep(
-            backoff
-                .to_std()
-                .unwrap_or(std::time::Duration::from_millis(100)),
-        )
-        .await;
-        backoff = std::cmp::min(backoff * 2, Duration::seconds(5));
-    }
+fn span_has_attribute(span: &TraceSpan, key: &str, expected: &str) -> bool {
+    span.attributes
+        .iter()
+        .any(|attr| attr.key == key && attr.value.as_str() == Some(expected))
 }
 
-#[instrument(skip_all)]
-async fn wait_for_trace_spans_with_reschedule(
-    pool: &Pool<Postgres>,
+fn validate_trace_anchor(
     task: &EvalRecord,
-    max_retries: &i32,
-    trace_wait_timeout: Duration,
-    trace_backoff: Duration,
-    trace_reschedule_delay: Duration,
-) -> Result<TraceSpanResult, DriftError> {
-    let retry_count = task.retry_count;
+    profile: &AgentEvalProfile,
+    spans: &[TraceSpan],
+) -> Result<(), DriftError> {
+    let Some(span_id) = &task.span_id else {
+        return Err(DriftError::AgentEvaluatorError(format!(
+            "Trace-attached eval record {} is missing span_id",
+            task.uid
+        )));
+    };
 
-    if retry_count >= *max_retries {
-        return Ok(TraceSpanResult::Failed);
+    let expected_span_id = span_id.to_hex();
+    let Some(span) = spans.iter().find(|span| span.span_id == expected_span_id) else {
+        return Err(DriftError::AgentEvaluatorError(format!(
+            "Trace was found for eval record {} but span {} was not present",
+            task.uid, expected_span_id
+        )));
+    };
+
+    if !span_has_attribute(span, SCOUTER_EVAL_RECORD_UID, &task.uid)
+        || !span_has_attribute(span, SCOUTER_EVAL_PROFILE_UID, &profile.config.uid)
+    {
+        return Err(DriftError::AgentEvaluatorError(format!(
+            "Trace was found for eval record {} but failed eval association validation",
+            task.uid
+        )));
     }
 
-    match wait_for_trace_spans(&task.uid, trace_wait_timeout, trace_backoff).await {
-        Ok(spans) => Ok(TraceSpanResult::Ready(spans)),
-        Err(DriftError::TraceSpansNotAvailable(_)) => {
-            PostgresClient::reschedule_agent_eval_record(pool, &task.uid, trace_reschedule_delay)
-                .await?;
-            Ok(TraceSpanResult::Reschedule)
-        }
-        Err(e) => Err(e),
-    }
-}
-
-#[instrument(skip_all)]
-async fn wait_for_trace_spans_by_id_with_reschedule(
-    pool: &Pool<Postgres>,
-    task: &EvalRecord,
-    max_retries: &i32,
-    trace_id: &TraceId,
-    entity_uid: &str,
-    validate_entity: bool,
-    trace_reschedule_delay: Duration,
-) -> Result<TraceSpanResult, DriftError> {
-    if task.retry_count >= *max_retries {
-        return Ok(TraceSpanResult::Failed);
-    }
-
-    if validate_entity {
-        let dispatch_service = get_trace_dispatch_service().ok_or_else(|| {
-            DriftError::AgentEvaluatorError("TraceDispatchService not initialized".to_string())
-        })?;
-
-        let entity_uid = UuidBytea::from_uuid(entity_uid).map_err(|e| {
-            DriftError::AgentEvaluatorError(format!(
-                "Invalid profile entity uid '{}': {}",
-                entity_uid, e
-            ))
-        })?;
-
-        let belongs_to_entity = dispatch_service
-            .query_service
-            .trace_belongs_to_entity(trace_id.as_bytes(), entity_uid.as_bytes())
-            .await
-            .map_err(|e| {
-                DriftError::AgentEvaluatorError(format!("Dispatch entity lookup failed: {}", e))
-            })?;
-
-        if !belongs_to_entity {
-            PostgresClient::reschedule_agent_eval_record(pool, &task.uid, trace_reschedule_delay)
-                .await?;
-            return Ok(TraceSpanResult::Reschedule);
-        }
-    }
-
-    let spans = get_trace_spans_by_id(trace_id).await?;
-    if spans.is_empty() {
-        PostgresClient::reschedule_agent_eval_record(pool, &task.uid, trace_reschedule_delay)
-            .await?;
-        return Ok(TraceSpanResult::Reschedule);
-    }
-
-    Ok(TraceSpanResult::Ready(spans))
+    Ok(())
 }
 
 /// Poller struct for processing GenAI drift records
@@ -236,25 +87,19 @@ async fn wait_for_trace_spans_by_id_with_reschedule(
 pub struct AgentPoller {
     db_pool: Pool<Postgres>,
     max_retries: i32,
-    trace_wait_timeout: Duration,
-    trace_backoff: Duration,
-    trace_reschedule_delay: Duration,
 }
 
 impl AgentPoller {
     pub fn new(
         db_pool: &Pool<Postgres>,
         max_retries: i32,
-        trace_wait_timeout: Duration,
-        trace_backoff: Duration,
-        trace_reschedule_delay: Duration,
+        _trace_wait_timeout: Duration,
+        _trace_backoff: Duration,
+        _trace_reschedule_delay: Duration,
     ) -> Self {
         AgentPoller {
             db_pool: db_pool.clone(),
             max_retries,
-            trace_wait_timeout,
-            trace_backoff,
-            trace_reschedule_delay,
         }
     }
 
@@ -337,7 +182,25 @@ impl AgentPoller {
         let spans = if genai_profile.has_trace_assertions() {
             match (&task.trace_id, &task.span_id) {
                 (Some(trace_id), Some(_span_id)) => match get_trace_spans_by_id(trace_id).await {
-                    Ok(spans) if !spans.is_empty() => spans,
+                    Ok(spans) if !spans.is_empty() => {
+                        if let Err(e) = validate_trace_anchor(&task, &genai_profile, &spans) {
+                            error!(
+                                trace_id = %trace_id.to_hex(),
+                                task_uid = %task.uid,
+                                error = %e,
+                                "Trace anchor failed eval association validation"
+                            );
+                            PostgresClient::update_agent_eval_record_status(
+                                &self.db_pool,
+                                &task,
+                                Status::Failed,
+                                &0,
+                            )
+                            .await?;
+                            return Err(e);
+                        }
+                        spans
+                    }
                     Ok(_) | Err(_) => {
                         error!(
                             trace_id = %trace_id.to_hex(),
@@ -351,75 +214,29 @@ impl AgentPoller {
                             &0,
                         )
                         .await?;
-                        return Err(DriftError::TraceSpansNotAvailable(task.uid.clone()));
+                        return Err(DriftError::AgentEvaluatorError(format!(
+                            "Trace spans not available for task: {}",
+                            task.uid
+                        )));
                     }
                 },
-                (Some(trace_id), None) => {
-                    let validate_entity =
-                        !matches!(task.record_source, EvalRecordSource::TraceDispatch);
-                    match wait_for_trace_spans_by_id_with_reschedule(
+                _ => {
+                    error!(
+                        "Trace assertions require records created by span.attach_eval with both trace_id and span_id; task {} is missing a complete trace anchor",
+                        task.uid
+                    );
+                    PostgresClient::update_agent_eval_record_status(
                         &self.db_pool,
                         &task,
-                        &self.max_retries,
-                        trace_id,
-                        &genai_profile.config.uid,
-                        validate_entity,
-                        self.trace_reschedule_delay,
+                        Status::Failed,
+                        &0,
                     )
-                    .await?
-                    {
-                        TraceSpanResult::Ready(spans) => spans,
-                        TraceSpanResult::Reschedule => {
-                            debug!(
-                                trace_id = %trace_id.to_hex(),
-                                "Traces not yet available for task {}, rescheduled",
-                                task.uid
-                            );
-                            return Ok(true);
-                        }
-                        TraceSpanResult::Failed => {
-                            error!("Max retries exceeded for task {}", task.uid);
-                            PostgresClient::update_agent_eval_record_status(
-                                &self.db_pool,
-                                &task,
-                                Status::Failed,
-                                &0,
-                            )
-                            .await?;
-                            return Err(DriftError::TraceSpansNotAvailable(task.uid.clone()));
-                        }
-                    }
+                    .await?;
+                    return Err(DriftError::AgentEvaluatorError(format!(
+                        "Trace-attached eval record {} is missing trace_id or span_id",
+                        task.uid
+                    )));
                 }
-                (None, _) => match wait_for_trace_spans_with_reschedule(
-                    &self.db_pool,
-                    &task,
-                    &self.max_retries,
-                    self.trace_wait_timeout,
-                    self.trace_backoff,
-                    self.trace_reschedule_delay,
-                )
-                .await?
-                {
-                    TraceSpanResult::Ready(spans) => spans,
-                    TraceSpanResult::Reschedule => {
-                        debug!(
-                            "Traces not yet available for task {}, rescheduled",
-                            task.uid
-                        );
-                        return Ok(true);
-                    }
-                    TraceSpanResult::Failed => {
-                        error!("Max retries exceeded for task {}", task.uid);
-                        PostgresClient::update_agent_eval_record_status(
-                            &self.db_pool,
-                            &task,
-                            Status::Failed,
-                            &0,
-                        )
-                        .await?;
-                        return Err(DriftError::TraceSpansNotAvailable(task.uid.clone()));
-                    }
-                },
             }
         } else {
             Arc::new(vec![])
@@ -495,6 +312,9 @@ impl AgentPoller {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Utc;
+    use scouter_types::{Attribute, SpanId};
+    use serde_json::json;
 
     #[tokio::test]
     async fn get_trace_spans_by_id_fails_when_service_not_initialized() {
@@ -527,5 +347,77 @@ mod tests {
         };
         assert!(record.trace_id.is_some());
         assert_eq!(record.trace_id.unwrap().to_hex(), trace_id.to_hex());
+    }
+
+    fn make_span(span_id: &SpanId, record_uid: &str, profile_uid: &str) -> TraceSpan {
+        let now = Utc::now();
+        TraceSpan {
+            trace_id: TraceId::from_bytes([1; 16]).to_hex(),
+            span_id: span_id.to_hex(),
+            parent_span_id: None,
+            span_name: "agent.run".to_string(),
+            span_kind: None,
+            start_time: now,
+            end_time: now,
+            duration_ms: 0,
+            status_code: 0,
+            status_message: None,
+            attributes: vec![
+                Attribute {
+                    key: SCOUTER_EVAL_RECORD_UID.to_string(),
+                    value: json!(record_uid),
+                },
+                Attribute {
+                    key: SCOUTER_EVAL_PROFILE_UID.to_string(),
+                    value: json!(profile_uid),
+                },
+            ],
+            events: Vec::new(),
+            links: Vec::new(),
+            depth: 0,
+            path: Vec::new(),
+            root_span_id: span_id.to_hex(),
+            service_name: "svc".to_string(),
+            service_namespace: None,
+            service_version: None,
+            service_instance_id: None,
+            span_order: 0,
+            input: None,
+            output: None,
+        }
+    }
+
+    #[test]
+    fn validate_trace_anchor_rejects_profile_mismatch() {
+        let span_id = SpanId::from_bytes([9; 8]);
+        let mut profile = AgentEvalProfile::default();
+        profile.config.uid = "profile-a".to_string();
+        let task = EvalRecord {
+            uid: "record-a".to_string(),
+            span_id: Some(span_id.clone()),
+            ..Default::default()
+        };
+        let spans = vec![make_span(&span_id, "record-a", "profile-b")];
+
+        let err = validate_trace_anchor(&task, &profile, &spans).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("failed eval association validation")
+        );
+    }
+
+    #[test]
+    fn validate_trace_anchor_accepts_exact_record_and_profile_match() {
+        let span_id = SpanId::from_bytes([8; 8]);
+        let mut profile = AgentEvalProfile::default();
+        profile.config.uid = "profile-a".to_string();
+        let task = EvalRecord {
+            uid: "record-a".to_string(),
+            span_id: Some(span_id.clone()),
+            ..Default::default()
+        };
+        let spans = vec![make_span(&span_id, "record-a", "profile-a")];
+
+        validate_trace_anchor(&task, &profile, &spans).unwrap();
     }
 }

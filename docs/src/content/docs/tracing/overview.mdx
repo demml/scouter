@@ -597,15 +597,17 @@ def monitoring_task(app: FastAPI):
     tracer = app.state.tracer
 
     with tracer.start_as_current_span("monitoring_task") as span:
-        # insert items into queue with the span
-        span.insert_queue_item(
-            "alias",  # (1)
-            EvalRecord(...) # (2)
+        # attach evaluation record to trace
+        span.attach_eval(
+            profile_uid="production/agent/1.0.0",  # (1)
+            context={...},                          # (2)
+            record_id="turn-1",
+            session_id="session-abc",
         )
 ```
 
-1. Alias to identify the queue
-2. Any Scouter entity record type can be inserted into the queue
+1. Profile UID (space/name/version triple)
+2. Evaluation context as a dict or Pydantic model
 
 ## Performance Considerations
 

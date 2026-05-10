@@ -146,7 +146,6 @@ fn merge_filters(parsed: TraceFilters, body: TraceFilters) -> TraceFilters {
         direction: body.direction.or(parsed.direction),
         trace_ids: merge_vec(parsed.trace_ids, body.trace_ids),
         entity_uid: body.entity_uid.or(parsed.entity_uid),
-        queue_uid: body.queue_uid.or(parsed.queue_uid),
     }
 }
 

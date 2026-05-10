@@ -8,26 +8,16 @@ use crate::evaluate::types::{EvalResults, EvaluationConfig};
 use crate::scenario::EvalScenarios;
 use pyo3::prelude::*;
 use scouter_state::app_state;
-use scouter_types::TraceId as ScouterTraceId;
+use scouter_types::EvalRecord;
 use scouter_types::agent::EvalScenario;
 use scouter_types::agent::{AgentEvalConfig, AgentEvalProfile};
 use scouter_types::depythonize_object_to_value;
 use scouter_types::trace::sql::TraceSpan;
-use scouter_types::trace::{
-    SCOUTER_ENTITY, SCOUTER_EVAL_SCENARIO_ID_ATTR, SCOUTER_QUEUE_RECORD, TraceSpanRecord,
-    build_trace_spans,
-};
-use scouter_types::{EvalRecord, EvalRecordSource};
+use scouter_types::trace::{SCOUTER_EVAL_SCENARIO_ID_ATTR, TraceSpanRecord, build_trace_spans};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 use tracing::{debug, error};
-
-#[derive(Default)]
-struct TraceDispatchCandidate {
-    has_queue_path: bool,
-    entity_uids: HashSet<String>,
-}
 
 /// Stateful evaluation engine that orchestrates scenario evaluation.
 ///
@@ -168,136 +158,6 @@ impl EvalRunner {
         }
     }
 
-    fn has_valid_queue_marker(span: &TraceSpanRecord) -> bool {
-        let has_marker = |key: &str, value: &Value| {
-            key == SCOUTER_QUEUE_RECORD
-                && value.as_str().map(|val| !val.is_empty()).unwrap_or(false)
-        };
-
-        span.attributes
-            .iter()
-            .any(|attr| has_marker(&attr.key, &attr.value))
-            || span
-                .events
-                .iter()
-                .flat_map(|event| event.attributes.iter())
-                .any(|attr| has_marker(&attr.key, &attr.value))
-    }
-
-    fn extract_entity_uids(span: &TraceSpanRecord) -> HashSet<String> {
-        let mut uids = HashSet::new();
-        let collect_uid = |key: &str, value: &Value, out: &mut HashSet<String>| {
-            if key.starts_with(SCOUTER_ENTITY)
-                && let Some(entity_uid) = value.as_str()
-            {
-                out.insert(entity_uid.to_string());
-            }
-        };
-
-        for attr in &span.attributes {
-            collect_uid(&attr.key, &attr.value, &mut uids);
-        }
-        for attr in span.events.iter().flat_map(|event| event.attributes.iter()) {
-            collect_uid(&attr.key, &attr.value, &mut uids);
-        }
-
-        uids
-    }
-
-    fn build_dispatch_candidates(
-        scenario_spans: &[TraceSpanRecord],
-    ) -> HashMap<ScouterTraceId, TraceDispatchCandidate> {
-        let mut candidates: HashMap<ScouterTraceId, TraceDispatchCandidate> = HashMap::new();
-        for span in scenario_spans {
-            let candidate = candidates.entry(span.trace_id).or_default();
-            if Self::has_valid_queue_marker(span) {
-                candidate.has_queue_path = true;
-            }
-            candidate
-                .entity_uids
-                .extend(Self::extract_entity_uids(span));
-        }
-        candidates
-    }
-
-    fn build_synthetic_trace_dispatch_record(
-        scenario_id: &str,
-        entity_uid: &str,
-        trace_id: ScouterTraceId,
-    ) -> EvalRecord {
-        let synthetic_key = format!("trace-dispatch:{}:{}", entity_uid, trace_id.to_hex());
-
-        EvalRecord {
-            context: Value::Object(Default::default()),
-            record_id: synthetic_key.clone(),
-            session_id: synthetic_key,
-            trace_id: Some(trace_id),
-            record_source: EvalRecordSource::TraceDispatch,
-            tags: vec![format!("{}={}", SCOUTER_EVAL_SCENARIO_ID_ATTR, scenario_id)],
-            entity_uid: entity_uid.to_string(),
-            ..Default::default()
-        }
-    }
-
-    fn synthesize_trace_dispatch_records(
-        &mut self,
-        raw_by_scenario: &HashMap<String, Vec<TraceSpanRecord>>,
-    ) {
-        let mut aliases_by_entity_uid: HashMap<String, Vec<(String, Arc<AgentEvalProfile>)>> =
-            HashMap::new();
-        for (alias, profile) in &self.profiles {
-            if profile.has_trace_assertions() {
-                aliases_by_entity_uid
-                    .entry(profile.config.uid.clone())
-                    .or_default()
-                    .push((alias.clone(), Arc::clone(profile)));
-            }
-        }
-
-        for (scenario_id, scenario_spans) in raw_by_scenario {
-            let Some(datasets) = self.scenarios.scenario_datasets.get_mut(scenario_id) else {
-                continue;
-            };
-            let candidates = Self::build_dispatch_candidates(scenario_spans);
-
-            for (trace_id, candidate) in candidates {
-                if candidate.has_queue_path || candidate.entity_uids.is_empty() {
-                    continue;
-                }
-                for entity_uid in &candidate.entity_uids {
-                    let Some(alias_profiles) = aliases_by_entity_uid.get(entity_uid) else {
-                        continue;
-                    };
-
-                    for (alias, profile) in alias_profiles {
-                        let dataset =
-                            datasets
-                                .entry(alias.clone())
-                                .or_insert_with(|| EvalDataset {
-                                    records: Arc::new(vec![]),
-                                    profile: Arc::clone(profile),
-                                    spans: Arc::new(vec![]),
-                                });
-                        if dataset
-                            .records
-                            .iter()
-                            .any(|record| record.trace_id == Some(trace_id))
-                        {
-                            continue;
-                        }
-                        Arc::make_mut(&mut dataset.records).push(
-                            Self::build_synthetic_trace_dispatch_record(
-                                scenario_id,
-                                entity_uid,
-                                trace_id,
-                            ),
-                        );
-                    }
-                }
-            }
-        }
-    }
-
     fn scenario_ids(&self) -> HashSet<String> {
         self.scenarios
             .scenarios
@@ -323,7 +183,6 @@ impl EvalRunner {
                 spans
             })
             .unwrap_or_default();
-        self.synthesize_trace_dispatch_records(&raw_by_scenario);
         self.spans_by_scenario = Some(build_spans_by_scenario(raw_by_scenario));
     }
 
@@ -347,12 +206,64 @@ impl EvalRunner {
         } else {
             HashMap::from([(scenario_id.to_string(), raw_spans)])
         };
-        self.synthesize_trace_dispatch_records(&raw_by_scenario);
         raw_by_scenario
             .into_values()
             .next()
             .map(|spans| Arc::new(build_trace_spans(spans)))
             .unwrap_or_else(|| Arc::new(Vec::new()))
+    }
+
+    fn scoped_spans_for_record(
+        record: &EvalRecord,
+        scenario_spans: &Arc<Vec<TraceSpan>>,
+    ) -> Arc<Vec<TraceSpan>> {
+        let Some(trace_id) = &record.trace_id else {
+            return Arc::new(Vec::new());
+        };
+        let trace_id = trace_id.to_hex();
+        Arc::new(
+            scenario_spans
+                .iter()
+                .filter(|span| span.trace_id == trace_id)
+                .cloned()
+                .collect(),
+        )
+    }
+
+    async fn evaluate_dataset_with_scoped_spans(
+        dataset: &EvalDataset,
+        scenario_spans: &Arc<Vec<TraceSpan>>,
+        config: &Arc<EvaluationConfig>,
+    ) -> Result<EvalResults, EvaluationError> {
+        if !dataset.profile.has_trace_assertions() {
+            return evaluate_genai_dataset(dataset, config).await;
+        }
+
+        let mut merged = EvalResults::new();
+        for record in dataset.records.iter() {
+            let scoped_dataset = EvalDataset {
+                records: Arc::new(vec![record.clone()]),
+                profile: Arc::clone(&dataset.profile),
+                spans: Self::scoped_spans_for_record(record, scenario_spans),
+            };
+            let mut result = evaluate_genai_dataset(&scoped_dataset, config).await?;
+            for aligned in result.aligned_results.drain(..) {
+                let index = merged.aligned_results.len();
+                if !aligned.record_id.is_empty() {
+                    merged
+                        .results_by_id
+                        .insert(aligned.record_id.clone(), index);
+                }
+                merged.aligned_results.push(aligned);
+            }
+            merged.errored_tasks.extend(result.errored_tasks);
+        }
+
+        if config.compute_histograms {
+            merged.finalize(config)?;
+        }
+
+        Ok(merged)
     }
 
     async fn evaluate_scenario_async(
@@ -401,7 +312,7 @@ impl EvalRunner {
                     "Evaluating sub-agent dataset for alias '{}' in scenario '{}'",
                     alias, scenario_id
                 );
-                match evaluate_genai_dataset(dataset, &config).await {
+                match Self::evaluate_dataset_with_scoped_spans(dataset, &spans_arc, &config).await {
                     Ok(eval_results) => {
                         dataset_results.insert(alias.clone(), eval_results);
                     }
@@ -739,16 +650,12 @@ mod tests {
     use chrono::Utc;
     use scouter_types::agent::EvalScenario;
     use scouter_types::agent::utils::AssertionTasks;
-    use scouter_types::agent::{
-        AgentEvalConfig, ComparisonOperator, EvaluationTaskType, SpanFilter, TraceAssertion,
-        TraceAssertionTask,
-    };
     use scouter_types::span_capture::{
         buffer_captured_spans, disable_capture, drain_captured_spans, peek_spans_for_scenario,
     };
     use scouter_types::trace::{
-        Attribute, SCOUTER_EVAL_RUN_ID_ATTR, SCOUTER_EVAL_SCENARIO_ID_ATTR, SCOUTER_QUEUE_EVENT,
-        SpanEvent, SpanId, TraceId,
+        Attribute, SCOUTER_EVAL_RUN_ID_ATTR, SCOUTER_EVAL_SCENARIO_ID_ATTR, SpanEvent, SpanId,
+        TraceId,
     };
 
     fn empty_tasks() -> AssertionTasks {
@@ -842,37 +749,6 @@ mod tests {
         EvalRunner::with_capture_run_id(scenarios, profiles, Some(run_id.to_string()))
     }
 
-    fn make_trace_profile(alias: &str, uid: &str, span_name: &str) -> AgentEvalProfile {
-        let config = AgentEvalConfig {
-            uid: uid.to_string(),
-            ..Default::default()
-        };
-
-        let task = TraceAssertionTask {
-            id: format!("trace_exists_{}", alias),
-            assertion: TraceAssertion::span_count(SpanFilter::by_name(span_name.to_string())),
-            operator: ComparisonOperator::GreaterThanOrEqual,
-            expected_value: json!(1),
-            description: None,
-            depends_on: vec![],
-            task_type: EvaluationTaskType::TraceAssertion,
-            result: None,
-            condition: false,
-        };
-
-        AgentEvalProfile::build_from_parts(
-            config,
-            AssertionTasks {
-                assertion: vec![],
-                judge: vec![],
-                trace: vec![task],
-                agent: vec![],
-            },
-            Some(alias.to_string()),
-        )
-        .unwrap()
-    }
-
     fn make_span(
         trace_id: TraceId,
         span_id_seed: u8,
@@ -909,44 +785,6 @@ mod tests {
                 value: Value::String(scenario_id.to_string()),
             }],
             vec![],
-        )
-    }
-
-    fn make_entity_span(
-        trace_id: TraceId,
-        entity_uid: &str,
-        scenario_id: &str,
-        with_queue_marker: bool,
-    ) -> TraceSpanRecord {
-        let mut events = vec![];
-        if with_queue_marker {
-            events.push(SpanEvent {
-                timestamp: Utc::now(),
-                name: SCOUTER_QUEUE_EVENT.to_string(),
-                attributes: vec![Attribute {
-                    key: SCOUTER_QUEUE_RECORD.to_string(),
-                    value: Value::String("00000000-0000-0000-0000-000000000999".to_string()),
-                }],
-                dropped_attributes_count: 0,
-            });
-        }
-
-        make_span(
-            trace_id,
-            2,
-            Some(1),
-            "trace_only_work",
-            vec![
-                Attribute {
-                    key: format!("{}.{}", SCOUTER_ENTITY, entity_uid),
-                    value: Value::String(entity_uid.to_string()),
-                },
-                Attribute {
-                    key: SCOUTER_EVAL_SCENARIO_ID_ATTR.to_string(),
-                    value: Value::String(scenario_id.to_string()),
-                },
-            ],
-            events,
         )
     }
 
@@ -1309,156 +1147,6 @@ mod tests {
     }
 
     #[test]
-    fn evaluate_synthesizes_trace_dispatch_records_for_trace_only_spans() {
-        let run_id = "test_synthesize";
-        clear_capture_buffer(run_id);
-        let scenario = make_scenario("s1", "Hello");
-        let entity_uid = "00000000-0000-0000-0000-000000000001".to_string();
-        let profile = make_trace_profile("agent_a", &entity_uid, "trace_only_work");
-        let mut runner = runner_with_capture(
-            run_id,
-            EvalScenarios::new(vec![scenario.clone()]),
-            HashMap::from([("agent_a".to_string(), profile)]),
-        );
-
-        runner
-            .collect_scenario_data_value(HashMap::new(), json!("trace only response"), &scenario)
-            .unwrap();
-
-        let trace_id = TraceId::from_bytes([1; 16]);
-        push_captured_spans(
-            run_id,
-            vec![
-                make_scenario_marker_span(trace_id, &scenario.id),
-                make_entity_span(trace_id, &entity_uid, &scenario.id, false),
-            ],
-        );
-
-        let result = runner.evaluate(None).unwrap();
-        let scenario_datasets = runner.scenarios.scenario_datasets.get("s1").unwrap();
-        let records = &scenario_datasets["agent_a"].records;
-        assert_eq!(records.len(), 1);
-        assert_eq!(records[0].record_source.as_str(), "trace_dispatch");
-        assert_eq!(records[0].trace_id, Some(trace_id));
-        assert_eq!(records[0].entity_uid, entity_uid);
-        assert!(records[0].record_id.starts_with("trace-dispatch:"));
-        assert_eq!(records[0].record_id, records[0].session_id);
-        assert!(result.dataset_results.contains_key("agent_a"));
-        clear_capture_buffer(run_id);
-    }
-
-    #[test]
-    fn evaluate_does_not_synthesize_trace_dispatch_when_queue_marker_exists() {
-        let run_id = "test_no_queue_marker";
-        clear_capture_buffer(run_id);
-        let scenario = make_scenario("s1", "Hello");
-        let entity_uid = "00000000-0000-0000-0000-000000000002".to_string();
-        let profile = make_trace_profile("agent_a", &entity_uid, "trace_only_work");
-        let mut runner = runner_with_capture(
-            run_id,
-            EvalScenarios::new(vec![scenario.clone()]),
-            HashMap::from([("agent_a".to_string(), profile)]),
-        );
-
-        runner
-            .collect_scenario_data_value(HashMap::new(), json!("trace only response"), &scenario)
-            .unwrap();
-
-        let trace_id = TraceId::from_bytes([2; 16]);
-        push_captured_spans(
-            run_id,
-            vec![
-                make_scenario_marker_span(trace_id, &scenario.id),
-                make_entity_span(trace_id, &entity_uid, &scenario.id, true),
-            ],
-        );
-
-        let result = runner.evaluate(None).unwrap();
-        assert!(!result.dataset_results.contains_key("agent_a"));
-        let scenario_datasets = runner.scenarios.scenario_datasets.get("s1").unwrap();
-        assert!(!scenario_datasets.contains_key("agent_a"));
-        clear_capture_buffer(run_id);
-    }
-
-    #[test]
-    fn evaluate_dedupes_synthesized_trace_dispatch_records() {
-        let run_id = "test_dedupes";
-        clear_capture_buffer(run_id);
-        let scenario = make_scenario("s1", "Hello");
-        let entity_uid = "00000000-0000-0000-0000-000000000003".to_string();
-        let profile = make_trace_profile("agent_a", &entity_uid, "trace_only_work");
-        let mut runner = runner_with_capture(
-            run_id,
-            EvalScenarios::new(vec![scenario.clone()]),
-            HashMap::from([("agent_a".to_string(), profile)]),
-        );
-
-        runner
-            .collect_scenario_data_value(HashMap::new(), json!("trace only response"), &scenario)
-            .unwrap();
-
-        let trace_id = TraceId::from_bytes([3; 16]);
-        push_captured_spans(
-            run_id,
-            vec![
-                make_scenario_marker_span(trace_id, &scenario.id),
-                make_entity_span(trace_id, &entity_uid, &scenario.id, false),
-                make_entity_span(trace_id, &entity_uid, &scenario.id, false),
-            ],
-        );
-
-        runner.evaluate(None).unwrap();
-        let scenario_datasets = runner.scenarios.scenario_datasets.get("s1").unwrap();
-        let records = &scenario_datasets["agent_a"].records;
-        assert_eq!(records.len(), 1);
-        clear_capture_buffer(run_id);
-    }
-
-    #[test]
-    fn evaluate_skips_synthesis_when_trace_record_already_exists() {
-        let run_id = "test_skip_synthesis";
-        clear_capture_buffer(run_id);
-        let scenario = make_scenario("s1", "Hello");
-        let entity_uid = "00000000-0000-0000-0000-000000000004".to_string();
-        let profile = make_trace_profile("agent_a", &entity_uid, "trace_only_work");
-        let mut runner = runner_with_capture(
-            run_id,
-            EvalScenarios::new(vec![scenario.clone()]),
-            HashMap::from([("agent_a".to_string(), profile)]),
-        );
-
-        let trace_id = TraceId::from_bytes([4; 16]);
-        let existing = EvalRecord {
-            trace_id: Some(trace_id),
-            record_id: "user-record".to_string(),
-            session_id: "user-session".to_string(),
-            ..Default::default()
-        };
-        runner
-            .collect_scenario_data_value(
-                HashMap::from([("agent_a".to_string(), vec![existing])]),
-                json!("trace only response"),
-                &scenario,
-            )
-            .unwrap();
-
-        push_captured_spans(
-            run_id,
-            vec![
-                make_scenario_marker_span(trace_id, &scenario.id),
-                make_entity_span(trace_id, &entity_uid, &scenario.id, false),
-            ],
-        );
-
-        runner.evaluate(None).unwrap();
-        let scenario_datasets = runner.scenarios.scenario_datasets.get("s1").unwrap();
-        let records = &scenario_datasets["agent_a"].records;
-        assert_eq!(records.len(), 1);
-        assert_eq!(records[0].record_source.as_str(), "user");
-        clear_capture_buffer(run_id);
-    }
-
-    #[test]
     fn merge_dataset_results_concatenates_and_indexes() {
         use crate::evaluate::types::AlignedEvalResult;
         use scouter_types::EvalRecord;
@@ -1505,6 +1193,44 @@ mod tests {
         assert_eq!(agent_results.aligned_results.len(), 2);
         assert!(agent_results.results_by_id.contains_key("rec-a"));
         assert!(agent_results.results_by_id.contains_key("rec-b"));
+    }
+
+    #[test]
+    fn scoped_spans_for_record_does_not_borrow_sibling_trace_spans() {
+        let trace_a = TraceId::from_bytes([0xA; 16]);
+        let trace_b = TraceId::from_bytes([0xB; 16]);
+        let mut span_a = build_trace_spans(vec![make_span(
+            trace_a,
+            1,
+            None,
+            "agent_a_span",
+            vec![],
+            vec![],
+        )]);
+        let mut span_b = build_trace_spans(vec![make_span(
+            trace_b,
+            2,
+            None,
+            "agent_b_span",
+            vec![],
+            vec![],
+        )]);
+        let scenario_spans = Arc::new(vec![span_a.remove(0), span_b.remove(0)]);
+
+        let record_a = EvalRecord {
+            trace_id: Some(trace_a),
+            ..Default::default()
+        };
+        let scoped_a = EvalRunner::scoped_spans_for_record(&record_a, &scenario_spans);
+        assert_eq!(scoped_a.len(), 1);
+        assert_eq!(scoped_a[0].span_name, "agent_a_span");
+
+        let missing_record = EvalRecord {
+            trace_id: Some(TraceId::from_bytes([0xC; 16])),
+            ..Default::default()
+        };
+        let scoped_missing = EvalRunner::scoped_spans_for_record(&missing_record, &scenario_spans);
+        assert!(scoped_missing.is_empty());
     }
 
     #[test]
