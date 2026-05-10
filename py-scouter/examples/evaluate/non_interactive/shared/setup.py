@@ -18,6 +18,7 @@ TransportConfig = Union[GrpcConfig, MockConfig]
 
 class SharedConfig(BaseModel):
     queue: ScouterQueue
+    eval_profile: AgentEvalProfile
     prompt: Prompt
     scenarios: EvalScenarios
     instrumentor: ScouterInstrumentor
@@ -45,6 +46,7 @@ def get_shared_config() -> SharedConfig:
 
     return SharedConfig(
         queue=queue,
+        eval_profile=profile,
         prompt=prompt,
         scenarios=scenarios,
         instrumentor=instrumentor,

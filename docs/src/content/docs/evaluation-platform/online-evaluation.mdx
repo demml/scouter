@@ -51,7 +51,7 @@ Step by step:
 
 4. On the server, the message router dispatches records to dedicated flume channels by type. Eval records and drift profiles go to the server records channel (bounded at 1000, `SERVER_RECORD_CONSUMER_WORKERS` workers). Trace spans go to a separate trace channel (bounded at 500, `TRACE_CONSUMER_WORKERS` workers). Tags go to a third channel (bounded at 200). Each channel has its own worker pool, so traffic in one type doesn't starve the others.
 
-5. Server record workers process the `EvalRecord` and insert it into PostgreSQL's `agent_eval_record` table with `status=pending`.
+5. Server record workers process the `EvalRecord` and insert it into PostgreSQL's `agent_eval_record` table. The status is set based on trace arrival: `awaiting_trace` (if record has trace_id and trace not yet committed), `pending` (ready for evaluation), or `failed(EvalRequiresTrace)` (if profile needs trace assertions but record has no trace_id).
 
 6. `AgentPoller` workers continuously poll for pending records using `SELECT ... FOR UPDATE SKIP LOCKED`. A record locked by one worker is invisible to others. No external job queue needed.
 
@@ -85,19 +85,17 @@ N workers start at server boot, staggered 200ms apart to avoid a thundering herd
 
 The polling query uses PostgreSQL's `FOR UPDATE SKIP LOCKED`, which means a record locked by one worker is invisible to every other worker. This gives you work distribution across workers without an external job queue. Records are ordered by retry count (ascending) then scheduled time, so fresh records are preferred over retried ones.
 
-### Trace wait logic
+### Trace availability and record status
 
-EvalRecords typically arrive before their associated OpenTelemetry spans. The eval record hits PostgreSQL fast; spans go through Delta Lake writes with a flush interval measured in seconds.
+EvalRecords attached to traces arrive before their spans reach Delta Lake (Delta has a ~5-second flush interval). Records are stored in one of three states:
 
-If a profile has `TraceAssertionTask` instances, the poller must wait for spans before evaluation can proceed:
+**Awaiting trace.** If a record references a `trace_id` that hasn't yet committed to Delta Lake, it's inserted as `awaiting_trace`. The inbox worker monitors `trace_commit_event` rows and flips matching records to `pending` when the trace arrives. If the trace doesn't arrive within 5 minutes (configurable), the record fails with `TraceArrivalTimeout`.
 
-1. Look up the record's `trace_id` (either explicit on the record, or resolved from Delta Lake's trace summary using the `queue_uid`).
-2. Query Delta Lake for spans matching that `trace_id`.
-3. If spans aren't there yet, back off exponentially: 100ms, 200ms, 400ms, doubling up to a 5-second cap per attempt.
-4. If the total wait exceeds the timeout (default 10 seconds), reschedule the record. The record's status reverts to `pending` with `scheduled_at` pushed forward by the reschedule delay (default 30 seconds).
-5. After `max_retries` (default 3) rescheduled attempts with no spans, the record is marked `failed`.
+**Pending.** Ready for evaluation. Either the trace already committed when the record arrived (short-circuit), or the inbox worker flipped it from `awaiting_trace` after the trace committed.
 
-If your profiles don't use `TraceAssertionTask`, this entire wait path is skipped. Evaluation latency drops to whatever the task DAG takes to execute: nanoseconds for assertion-only profiles, seconds for profiles with `LLMJudgeTask`.
+**Failed (EvalRequiresTrace).** If a profile has `TraceAssertionTask` definitions but the record has no `trace_id`, evaluation fails immediately. This prevents incomplete evaluations.
+
+If your profiles don't use `TraceAssertionTask`, records go straight to `pending` (no trace correlation needed). Evaluation latency is just the task DAG execution: nanoseconds for assertion-only profiles, seconds for profiles with `LLMJudgeTask`.
 
 ### Configuration
 
@@ -105,11 +103,10 @@ If your profiles don't use `TraceAssertionTask`, this entire wait path is skippe
 |---|---|---|
 | `GENAI_WORKER_COUNT` | 2 | Number of concurrent evaluation workers |
 | `GENAI_MAX_RETRIES` | 3 | Max reschedule attempts per record |
-| `GENAI_TRACE_WAIT_TIMEOUT_SECS` | 10 | How long each attempt waits for spans |
-| `GENAI_TRACE_BACKOFF_MILLIS` | 100 | Initial backoff between span checks |
-| `GENAI_TRACE_RESCHEDULE_DELAY_SECS` | 30 | How far forward to push `scheduled_at` on timeout |
+| `TRACE_ARRIVAL_TIMEOUT_SECS` | 300 | How long to wait for a trace to commit before failing the record |
+| `INBOX_POLL_INTERVAL_SECS` | 10 | How often the inbox worker checks for new commit events |
 
-At default settings, worst-case latency from eval record insertion to stored result is roughly 90 seconds: 10-second trace wait, times 3 retries with 30-second reschedule delays between them. Typical latency for profiles without trace assertions is under a second.
+Typical latency: records without trace assertions are evaluated in <1 second. Records awaiting traces are processed once the trace commits (usually within 1-5 seconds). If a trace doesn't commit within 5 minutes, the record fails with `TraceArrivalTimeout`.
 
 ---
 

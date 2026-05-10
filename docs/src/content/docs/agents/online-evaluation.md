@@ -237,9 +237,44 @@ client.register_profile(
 )
 ```
 
+## Two evaluation paths
+
+**Path A — Trace-attached:** Associate an evaluation record with an OpenTelemetry span for trace-aware evaluation.
+
+```python
+with tracer.start_as_current_span("agent.callback") as span:
+    span.attach_eval(
+        profile_uid=profile.config.uid,
+        context={"query": query, "response": response},
+        record_id="turn-7",      # optional: scenario/turn/step ID
+        session_id="sess-123",   # optional: session/conversation ID
+        media=None,              # optional: multimodal evidence
+        tags=["run=abc"],        # optional: key=value tags
+    )
+```
+
+The `trace_id` and `span_id` are set once by the Rust span constructor. The server checks if the trace has committed to Delta Lake. If yes, the record is inserted as `pending` for immediate evaluation. If not, it's inserted as `awaiting_trace` and flipped to `pending` when the trace arrives (via the inbox worker). If the trace never arrives within 5 minutes, the record fails with `TraceArrivalTimeout`.
+
+**Path B — Standalone/content-only:** Insert an evaluation record without trace correlation.
+
+```python
+queue.insert(EvalRecord(
+    profile_uid=profile.config.uid,
+    context={"query": query, "response": response},
+    record_id="turn-7",
+    session_id="sess-123",
+))
+```
+
+No `trace_id`. Record inserted as `pending` immediately. If the profile has `TraceAssertionTask` definitions but the record has no trace, evaluation fails with `failed(EvalRequiresTrace)`.
+
+Use Path A when you need to correlate records with traces (most common for agents). Use Path B for stateless evaluation that doesn't depend on execution internals.
+
+---
+
 ## Inserting records for evaluation
 
-For each request your service handles, create an `EvalRecord` and insert it into the queue. The queue is non-blocking; insertion takes nanoseconds and doesn't affect your application's response time. The Scouter server picks up records asynchronously and evaluates the sampled ones.
+For each request your service handles, choose either path above. The queue is non-blocking; insertion takes nanoseconds and doesn't affect your application's response time. The Scouter server picks up records asynchronously and evaluates the sampled ones.
 
 The typical setup:
 1. Load your `ScouterQueue` on application startup
@@ -251,12 +286,22 @@ The typical setup:
 ```python
 from scouter.queue import EvalRecord
 
-# Simple context
+# Simple context (Path B)
 record = EvalRecord(
+    profile_uid="production/chatbot/1.0.0",
     context={
         "user_query": "How do I reset my password?",
         "response": "To reset your password, go to Settings > Security..."
     }
+)
+
+# With optional metadata
+record = EvalRecord(
+    profile_uid="production/chatbot/1.0.0",
+    context={"user_query": query, "response": response},
+    record_id="interaction-123",
+    session_id="session-abc",
+    tags=["model=gpt-4o", "region=us-east"],
 )
 
 # With Pydantic models
@@ -273,7 +318,10 @@ context = QueryContext(
     metadata={"session_id": "abc123"}
 )
 
-record = EvalRecord(context=context)
+record = EvalRecord(
+    profile_uid="production/chatbot/1.0.0",
+    context=context,
+)
 ```
 
 ### Inserting into queue
@@ -284,10 +332,10 @@ from scouter.queue import ScouterQueue
 queue = ScouterQueue()
 
 # Insert record (non-blocking)
-queue["chatbot_service"].insert(record)
+queue.insert(record)
 ```
 
-Context keys must match the `${variable}` names in your prompt templates (e.g., `${user_query}` requires `"user_query"` in the context dict). The queue name must match the `alias` in your `ScouterQueue` path configuration.
+Context keys must match the `${variable}` names in your prompt templates (e.g., `${user_query}` requires `"user_query"` in the context dict). The `profile_uid` should match the profile's `space/name/version` triple.
 
 ## Evaluation flow
 

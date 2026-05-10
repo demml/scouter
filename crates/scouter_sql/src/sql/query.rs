@@ -56,9 +56,6 @@ const GET_BINNED_AGENT_TASK_VALUES: &str =
     include_str!("scripts/agent/data/get_binned_task_values.sql");
 const RESCHEDULE_AGENT_EVAL_RECORD: &str =
     include_str!("scripts/agent/reschedule_genai_record.sql");
-const GET_ACTIVE_AGENT_PROFILES: &str = include_str!("scripts/agent/get_active_agent_profiles.sql");
-const GET_KNOWN_TRACE_IDS_FOR_ENTITY: &str =
-    include_str!("scripts/agent/get_known_trace_ids_for_entity.sql");
 const INSERT_TRACE_COMMIT_EVENTS: &str =
     include_str!("scripts/inbox/insert_trace_commit_events.sql");
 const TRACE_COMMIT_EVENT_EXISTS: &str = include_str!("scripts/inbox/trace_commit_event_exists.sql");
@@ -211,8 +208,6 @@ pub enum Queries {
     GetPaginatedAgentEvalWorkflow,
     GetAgentEvalTasks,
     RescheduleEvalRecord,
-    GetActiveAgentProfiles,
-    GetKnownTraceIdsForEntity,
 
     // agent - data
     GetAgentWorkflowBinnedMetrics,
@@ -339,8 +334,6 @@ impl Queries {
             Queries::GetPendingAgentEvalTask => GET_PENDING_AGENT_EVAL_TASK,
             Queries::GetAgentEvalTasks => GET_AGENT_EVAL_TASKS,
             Queries::RescheduleEvalRecord => RESCHEDULE_AGENT_EVAL_RECORD,
-            Queries::GetActiveAgentProfiles => GET_ACTIVE_AGENT_PROFILES,
-            Queries::GetKnownTraceIdsForEntity => GET_KNOWN_TRACE_IDS_FOR_ENTITY,
 
             Queries::GetEvalRecordEntitiesForArchive => GET_AGENT_EVAL_RECORD_ENTITIES,
             Queries::GetEvalRecordDataForArchive => GET_AGENT_EVAL_RECORD_DATA_FOR_ARCHIVE,

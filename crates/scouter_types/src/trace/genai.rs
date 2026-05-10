@@ -1,4 +1,6 @@
-use super::{Attribute, SCOUTER_ENTITY, SpanId, TraceId, TraceSpanRecord, sql::TraceSpan};
+use super::{
+    Attribute, SCOUTER_EVAL_PROFILE_UID, SpanId, TraceId, TraceSpanRecord, sql::TraceSpan,
+};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -778,12 +780,11 @@ pub fn extract_gen_ai_span(record: &TraceSpanRecord) -> Option<GenAiSpanRecord> 
 
     out.operation_name.as_ref()?;
 
-    // Extract entity_id: span attributes first (stamped at creation via default_entity_uid or
-    // active_profile baggage), then event attributes as fallback (queue-item path).
+    // Extract profile UID from attach_eval span metadata when present.
     out.entity_id = record
         .attributes
         .iter()
-        .find(|a| a.key.starts_with(SCOUTER_ENTITY))
+        .find(|a| a.key == SCOUTER_EVAL_PROFILE_UID)
         .and_then(|a| {
             if let serde_json::Value::String(s) = &a.value {
                 Some(s.clone())
@@ -796,7 +797,7 @@ pub fn extract_gen_ai_span(record: &TraceSpanRecord) -> Option<GenAiSpanRecord> 
             .events
             .iter()
             .flat_map(|e| e.attributes.iter())
-            .find(|a| a.key.starts_with(SCOUTER_ENTITY))
+            .find(|a| a.key == SCOUTER_EVAL_PROFILE_UID)
             .and_then(|a| {
                 if let serde_json::Value::String(s) = &a.value {
                     Some(s.clone())

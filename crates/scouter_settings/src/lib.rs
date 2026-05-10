@@ -18,7 +18,7 @@ pub use database::DatabaseSettings;
 pub use events::{KafkaSettings, RabbitMQSettings, RedisSettings};
 pub use genai::GenAISettings;
 pub use http::HttpConfig;
-pub use polling::{PollingSettings, TraceEvalPollerSettings};
+pub use polling::PollingSettings;
 pub use storage::ObjectStorageSettings;
 
 fn generate_default_secret() -> String {
@@ -37,7 +37,6 @@ fn generate_default_secret() -> String {
 pub struct ScouterServerConfig {
     pub polling_settings: PollingSettings,
     pub genai_polling_settings: AgentPollerSettings,
-    pub trace_eval_poller_settings: TraceEvalPollerSettings,
     pub database_settings: DatabaseSettings,
     pub kafka_settings: Option<KafkaSettings>,
     pub rabbitmq_settings: Option<RabbitMQSettings>,
@@ -68,7 +67,6 @@ impl ScouterServerConfig {
     pub async fn new() -> Self {
         let polling = PollingSettings::default();
         let genai_polling = AgentPollerSettings::default();
-        let trace_eval_poller = TraceEvalPollerSettings::default();
         let database = DatabaseSettings::default();
         let kafka = if env::var("KAFKA_BROKERS").is_ok() {
             Some(KafkaSettings::default())
@@ -115,7 +113,6 @@ impl ScouterServerConfig {
         Self {
             polling_settings: polling,
             genai_polling_settings: genai_polling,
-            trace_eval_poller_settings: trace_eval_poller,
             database_settings: database,
             kafka_settings: kafka,
             rabbitmq_settings: rabbitmq,

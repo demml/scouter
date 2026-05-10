@@ -5,9 +5,6 @@ pub mod poller;
 pub mod drift;
 
 #[cfg(feature = "sql")]
-pub mod trace_poller;
-
-#[cfg(feature = "sql")]
 pub mod inbox;
 
 #[cfg(feature = "sql")]
@@ -15,9 +12,6 @@ pub use drift::AgentDrifter;
 
 #[cfg(feature = "sql")]
 pub use poller::AgentPoller;
-
-#[cfg(feature = "sql")]
-pub use trace_poller::TraceEvalPoller;
 
 #[cfg(any(test, feature = "test-helpers"))]
 pub mod test_helpers {

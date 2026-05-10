@@ -21,11 +21,19 @@ jobs:
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
-      - name: Install, build, and upload the Astro site
-        uses: withastro/action@v6
+      - name: Install tools
+        uses: jdx/mise-action@v2
+
+      - name: Install docs dependencies
+        run: mise run docs:install
+
+      - name: Build docs
+        run: mise run docs:build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          path: docs
-          node-version: 22
+          path: docs/dist
 
   deploy:
     needs: build

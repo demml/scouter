@@ -472,7 +472,7 @@ async fn test_tracing() {
 
     // get trace by tags
     let mut map = HashMap::new();
-    map.insert("key".to_string(), "scouter.queue.record".to_string());
+    map.insert("key".to_string(), "trace.record".to_string());
     map.insert("value".to_string(), first_trace_id.clone());
 
     let trace_request = SpansFromTagsRequest {

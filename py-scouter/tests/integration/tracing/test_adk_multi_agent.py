@@ -5,17 +5,6 @@ from contextlib import suppress
 from typing import Any
 
 import pytest
-from scouter.drift import AgentEvalConfig, AgentEvalProfile
-from scouter.evaluate import ComparisonOperator, TraceAssertion, TraceAssertionTask
-from scouter.mock import MockConfig
-from scouter.queue import ScouterQueue
-from scouter.tracing import ScouterInstrumentor
-from scouter.tracing import TestSpanExporter as _TestSpanExporter
-from scouter.tracing import get_tracer, shutdown_tracer
-
-pytest.importorskip("google.adk")
-pytest.importorskip("google.genai")
-
 from google.adk.agents import Agent, SequentialAgent  # noqa: E402
 from google.adk.models.base_llm import BaseLlm  # noqa: E402
 from google.adk.models.llm_request import LlmRequest  # noqa: E402
@@ -23,6 +12,14 @@ from google.adk.models.llm_response import LlmResponse  # noqa: E402
 from google.adk.runners import Runner  # noqa: E402
 from google.adk.sessions import InMemorySessionService  # noqa: E402
 from google.genai import types  # noqa: E402
+from scouter.drift import AgentEvalConfig, AgentEvalProfile
+from scouter.evaluate import ComparisonOperator, TraceAssertion, TraceAssertionTask
+from scouter.mock import MockConfig
+from scouter.queue import ScouterQueue
+from scouter.tracing import ScouterInstrumentor
+from scouter.tracing import TestSpanExporter as _TestSpanExporter
+from scouter.tracing import get_tracer, shutdown_tracer
+from tests.integration.tracing.adk_helpers import refresh_google_adk_cached_tracers
 
 MODEL_NAME = "gemini-2.0-flash"
 
@@ -105,6 +102,7 @@ async def _run_sequential_agent(
         exporter=_TestSpanExporter(batch_export=False),
         scouter_queue=queue,
     )
+    refresh_google_adk_cached_tracers()
     tracer = get_tracer("test.adk.attach_eval")
     callback_anchors: dict[str, tuple[str, str]] = {}
 
@@ -126,21 +124,21 @@ async def _run_sequential_agent(
 
     first = Agent(
         model=DeterministicGoogleLlm(model=MODEL_NAME),
-        name="triage_agent",
+        name="classifier_agent",
         description="Classifies the request",
         instruction="Classify the request.",
         after_agent_callback=attach_callback,
     )
     second = Agent(
         model=DeterministicGoogleLlm(model=MODEL_NAME),
-        name="responder_agent",
+        name="solution_agent",
         description="Answers the request",
         instruction="Answer the request.",
         after_agent_callback=attach_callback,
     )
     root = SequentialAgent(
         name="root_sequence",
-        description="Runs triage then response",
+        description="Runs classification then solution generation",
         sub_agents=[first, second],
     )
 
@@ -156,7 +154,7 @@ async def _run_sequential_agent(
     )
     message = types.Content(
         role="user",
-        parts=[types.Part(text="Help me plan dinner.")],
+        parts=[types.Part(text="Help investigate a slow model response.")],
     )
     response = ""
 
@@ -184,12 +182,12 @@ async def test_google_adk_sequential_agent_attach_eval_records_callback_anchors(
     assert len(records) == 2
     by_agent = {record.context["agent_name"]: record for record in records}
 
-    assert set(by_agent) == {"triage_agent", "responder_agent"}
-    assert set(callback_anchors) == {"triage_agent", "responder_agent"}
-    assert by_agent["triage_agent"].trace_id == callback_anchors["triage_agent"][0]
-    assert by_agent["triage_agent"].span_id == callback_anchors["triage_agent"][1]
-    assert by_agent["responder_agent"].trace_id == callback_anchors["responder_agent"][0]
-    assert by_agent["responder_agent"].span_id == callback_anchors["responder_agent"][1]
-    assert by_agent["triage_agent"].span_id != by_agent["responder_agent"].span_id
-    assert by_agent["triage_agent"].session_id == by_agent["responder_agent"].session_id
-    assert "source=google_adk" in by_agent["triage_agent"].tags
+    assert set(by_agent) == {"classifier_agent", "solution_agent"}
+    assert set(callback_anchors) == {"classifier_agent", "solution_agent"}
+    assert by_agent["classifier_agent"].trace_id == callback_anchors["classifier_agent"][0]
+    assert by_agent["classifier_agent"].span_id == callback_anchors["classifier_agent"][1]
+    assert by_agent["solution_agent"].trace_id == callback_anchors["solution_agent"][0]
+    assert by_agent["solution_agent"].span_id == callback_anchors["solution_agent"][1]
+    assert by_agent["classifier_agent"].span_id != by_agent["solution_agent"].span_id
+    assert by_agent["classifier_agent"].session_id == by_agent["solution_agent"].session_id
+    assert "source=google_adk" in by_agent["classifier_agent"].tags

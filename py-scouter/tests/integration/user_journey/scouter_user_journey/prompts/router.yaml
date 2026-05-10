@@ -1,0 +1,34 @@
+name: router_prompt
+instruction: >-
+  You are the router agent in a multi-agent pipeline. Call classify_support_intent
+  exactly once with the user's query. The resolution agent will handle the
+  final user-facing answer.
+tasks:
+  - task_type: Assertion
+    id: classify_support_intent_tool_called
+    context_path: tool_call_names
+    operator: Contains
+    expected_value: classify_support_intent
+
+  - task_type: Assertion
+    id: intent_valid
+    context_path: intent
+    operator: ContainsAny
+    expected_value: ["latency", "quality"]
+
+  - task_type: TraceAssertion
+    id: classify_tool_span_emitted
+    operator: GreaterThanOrEqual
+    expected_value: 1
+    assertion:
+      SpanCount:
+        filter:
+          ByName:
+            name: tool.classify_support_intent
+
+  - task_type: TraceAssertion
+    id: router_latency_budget
+    operator: LessThan
+    expected_value: 3000.0
+    assertion:
+      TraceDuration: {}

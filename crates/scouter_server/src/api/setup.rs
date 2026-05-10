@@ -1,7 +1,6 @@
 use crate::api::archive::DataArchiver;
 use crate::api::polling::agent_poller::BackgroundAgentDriftManager;
 use crate::api::polling::drift_poller::BackgroundDriftManager;
-use crate::api::polling::trace_eval_poller::BackgroundTraceEvalManager;
 use anyhow::{Context, Result as AnyhowResult};
 use flume::Sender;
 use password_auth::generate_hash;
@@ -13,8 +12,7 @@ use scouter_dataframe::parquet::tracing::genai::GenAiSpanService;
 use scouter_dataframe::parquet::tracing::service::{TraceSpanService, init_trace_span_service};
 use scouter_dataframe::parquet::tracing::summary::TraceSummaryService;
 use scouter_settings::{
-    DatabaseSettings, PollingSettings, ScouterServerConfig, TraceEvalPollerSettings,
-    polling::AgentPollerSettings,
+    DatabaseSettings, PollingSettings, ScouterServerConfig, polling::AgentPollerSettings,
 };
 use scouter_sql::PostgresClient;
 use scouter_sql::sql::schema::User;
@@ -131,10 +129,6 @@ fn build_json_tracer(filter: EnvFilter) -> AnyhowResult<()> {
 }
 
 impl ScouterSetupComponents {
-    fn trace_eval_workers_enabled(settings: &TraceEvalPollerSettings) -> bool {
-        settings.num_workers > 0
-    }
-
     pub async fn new() -> AnyhowResult<Self> {
         let config = Arc::new(ScouterServerConfig::new().await);
 
@@ -198,29 +192,14 @@ impl ScouterSetupComponents {
             commit_rx,
         ) = Self::start_trace_services(&config).await?;
 
-        // Start agent eval workers when GenAI is configured or trace eval is enabled.
-        // TraceAssertionTask records don't need an LLM provider — the AgentPoller handles both.
-        if config.genai_enabled()
-            || Self::trace_eval_workers_enabled(&config.trace_eval_poller_settings)
-        {
-            Self::setup_background_genai_drift_workers(
-                &db_pool,
-                &config.genai_polling_settings,
-                commit_rx,
-                tokio_shutdown_rx.clone(),
-            )
-            .await?;
-        }
-
-        // Set up the trace eval poller workers
-        if Self::trace_eval_workers_enabled(&config.trace_eval_poller_settings) {
-            Self::setup_background_trace_eval_workers(
-                &db_pool,
-                &config.trace_eval_poller_settings,
-                tokio_shutdown_rx.clone(),
-            )
-            .await?;
-        }
+        // Agent eval workers own the PR1 inbox path and also handle trace-only evals.
+        Self::setup_background_genai_drift_workers(
+            &db_pool,
+            &config.genai_polling_settings,
+            commit_rx,
+            tokio_shutdown_rx.clone(),
+        )
+        .await?;
 
         // Set up the background drift workers
         Self::setup_background_drift_workers(
@@ -305,9 +284,6 @@ impl ScouterSetupComponents {
             .await
             .context("❌ Failed to initialize TraceDispatchService")?,
         );
-        scouter_sql::sql::aggregator::init_trace_dispatch_service(trace_dispatch_service.clone())
-            .context("❌ Failed to register TraceDispatchService")?;
-
         let genai_service = Arc::new(
             GenAiSpanService::new(
                 &trace_service.object_store,
@@ -644,29 +620,6 @@ impl ScouterSetupComponents {
         Ok(())
     }
 
-    /// Helper to setup the background trace eval worker
-    /// This worker will continually run and check if there are any trace eval records to process
-    /// and will run the trace eval tasks
-    ///
-    /// Arguments:
-    /// * `db_pool` - The database pool to use for the worker
-    /// * `poll_settings` - The polling settings to use for the worker
-    /// * `shutdown_rx` - The shutdown receiver to use for the worker
-    ///
-    /// Returns:
-    /// * `AnyhowResult<()>` - The result of the setup
-    #[instrument(skip_all)]
-    async fn setup_background_trace_eval_workers(
-        db_pool: &Pool<Postgres>,
-        poll_settings: &TraceEvalPollerSettings,
-        shutdown_rx: tokio::sync::watch::Receiver<()>,
-    ) -> AnyhowResult<()> {
-        BackgroundTraceEvalManager::start_workers(db_pool, poll_settings, shutdown_rx).await?;
-        info!("✅ Started background trace eval workers");
-
-        Ok(())
-    }
-
     #[cfg(feature = "redis_events")]
     #[instrument(skip_all)]
     pub async fn setup_redis(
@@ -679,33 +632,5 @@ impl ScouterSetupComponents {
         info!("✅ Started Redis workers");
 
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::ScouterSetupComponents;
-    use scouter_settings::TraceEvalPollerSettings;
-
-    #[test]
-    fn trace_eval_workers_disabled_when_zero() {
-        let settings = TraceEvalPollerSettings {
-            num_workers: 0,
-            ..TraceEvalPollerSettings::default()
-        };
-        assert!(!ScouterSetupComponents::trace_eval_workers_enabled(
-            &settings
-        ));
-    }
-
-    #[test]
-    fn trace_eval_workers_enabled_when_non_zero() {
-        let settings = TraceEvalPollerSettings {
-            num_workers: 1,
-            ..TraceEvalPollerSettings::default()
-        };
-        assert!(ScouterSetupComponents::trace_eval_workers_enabled(
-            &settings
-        ));
     }
 }

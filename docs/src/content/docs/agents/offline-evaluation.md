@@ -26,7 +26,11 @@ from scouter.tracing import ScouterInstrumentor, get_tracer
 
 # 1. Define what to evaluate about your agent's outputs
 profile = AgentEvalProfile(
-    alias="my_agent",  # matches the alias in span.add_queue_item()
+    config=AgentEvalConfig(
+        space="offline",
+        name="my_agent",
+        version="1.0.0",
+    ),
     tasks=[
         AssertionTask(
             id="quality_check",
@@ -51,7 +55,10 @@ tracer = get_tracer("my-eval", scouter_queue=queue)
 def my_agent(query: str) -> str:
     with tracer.start_as_current_span("agent_call") as span:
         result = {"quality": 9, "text": "Paris is the capital of France."}
-        span.add_queue_item("my_agent", EvalRecord(context={"response": result}))
+        span.attach_eval(
+            profile_uid=profile.config.uid,
+            context={"response": result},
+        )
     return result["text"]
 
 # 5. Define test scenarios
@@ -84,13 +91,13 @@ EvalOrchestrator.run()
 │   ├── on_scenario_start(scenario)
 │   │
 │   ├── [non-interactive] execute_agent(scenario)
-│   │     └── agent emits EvalRecords via span.add_queue_item()
+│   │     └── agent emits EvalRecords via span.attach_eval(profile_uid, context)
 │   ├── [non-interactive] queue.drain_all_records()   ← per scenario
 │   ├── [non-interactive] EvalRunner.collect_scenario_data()
 │   │
 │   ├── [interactive] for each turn (up to max_turns):
 │   │   ├── execute_agent_turn(scenario, message)
-│   │   │     └── agent emits EvalRecords via span.add_queue_item()
+│   │   │     └── agent emits EvalRecords via span.attach_eval(profile_uid, context)
 │   │   ├── execute_simulated_user_turn(scenario, initial_query, response, history)
 │   │   └── check termination_signal → break if matched
 │   ├── [interactive] queue.drain_all_records()       ← once, after all turns
@@ -143,12 +150,12 @@ EvalMetrics:
 
 ### How `trace_id` correlation works
 
-When your agent calls `span.add_queue_item(alias, record)` inside a traced span, the `trace_id` from the active OTel span is automatically stamped onto the `EvalRecord`. This is what connects records to spans for `TraceAssertionTask`.
+When your agent calls `span.attach_eval(profile_uid, context)` inside a traced span, the `trace_id` and `span_id` from the active OTel span are automatically set on the `EvalRecord`. This connects records to spans for `TraceAssertionTask`.
 
 ```
-span "agent_call"  →  trace_id = "abc123"
-  span.add_queue_item("retriever", record)
-    └── record.trace_id is auto-set to "abc123"
+span "agent_call"  →  trace_id = "abc123", span_id = "xyz789"
+  span.attach_eval(profile_uid, context)
+    └── record.trace_id = "abc123", record.span_id = "xyz789"
 
 During evaluate():
   scenario "q1" has records with trace_id = "abc123"
@@ -184,11 +191,15 @@ Scenario `tasks` evaluate the agent's **final response string**. They're separat
 
 ### `AgentEvalProfile`
 
-Defines evaluation tasks for one sub-agent. The `alias` must match what you pass to `span.add_queue_item(alias, ...)`.
+Defines evaluation tasks for one sub-agent. The `config.uid` (derived from `space`, `name`, and `version`) identifies the profile uniquely.
 
 ```python
 AgentEvalProfile(
-    alias="retriever",
+    config=AgentEvalConfig(
+        space="offline",
+        name="retriever",
+        version="1.0.0",
+    ),
     tasks=[
         AssertionTask(
             id="has_results",
@@ -202,15 +213,17 @@ AgentEvalProfile(
 
 ### `EvalRecord`
 
-The data your sub-agent emits during execution. Contains a `context` dict that tasks read via `context_path`.
+The data your sub-agent emits during execution. Contains a `context` dict that tasks read via `context_path`. Optional fields: `record_id` (scenario/turn ID), `session_id` (conversation ID), `media` (multimodal evidence), `tags` (key=value metadata).
 
 ```python
 # Inside a traced span:
-span.add_queue_item(
-    "retriever",
-    EvalRecord(context={"results": {"count": 5, "source": "arxiv"}}),
+span.attach_eval(
+    profile_uid="offline/retriever/1.0.0",
+    context={"results": {"count": 5, "source": "arxiv"}},
+    record_id="turn-1",
+    session_id="session-abc",
 )
-# trace_id is stamped automatically from the active span
+# trace_id and span_id are set automatically from the active span
 ```
 
 ---
@@ -237,7 +250,11 @@ from scouter.queue import ScouterQueue
 from scouter.tracing import ScouterInstrumentor, get_tracer
 
 retriever_profile = AgentEvalProfile(
-    alias="retriever",
+    config=AgentEvalConfig(
+        space="offline",
+        name="retriever",
+        version="1.0.0",
+    ),
     tasks=[
         AssertionTask(
             id="has_results",
@@ -255,7 +272,11 @@ retriever_profile = AgentEvalProfile(
 )
 
 synthesizer_profile = AgentEvalProfile(
-    alias="synthesizer",
+    config=AgentEvalConfig(
+        space="offline",
+        name="synthesizer",
+        version="1.0.0",
+    ),
     tasks=[
         AssertionTask(
             id="quality_score",
@@ -279,13 +300,19 @@ tracer = get_tracer("my-agent", scouter_queue=queue)
 def retriever_callback(query: str) -> dict:
     with tracer.start_as_current_span("retriever_call") as span:
         results = {"count": 5, "source": "internal_db"}
-        span.add_queue_item("retriever", EvalRecord(context={"results": results}))
+        span.attach_eval(
+            profile_uid=retriever_profile.config.uid,
+            context={"results": results},
+        )
     return results
 
 def synthesizer_callback(query: str, context: dict) -> dict:
     with tracer.start_as_current_span("synthesizer_call") as span:
         output = {"quality": 9, "text": f"Answer for: {query}"}
-        span.add_queue_item("synthesizer", EvalRecord(context={"response": output}))
+        span.attach_eval(
+            profile_uid=synthesizer_profile.config.uid,
+            context={"response": output},
+        )
     return output
 
 def agent_fn(query: str) -> str:

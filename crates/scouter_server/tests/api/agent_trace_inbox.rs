@@ -10,8 +10,8 @@ use scouter_types::agent::{
     EvaluationTaskType, EvaluationTasks, TraceAssertion, TraceAssertionTask,
 };
 use scouter_types::{
-    BoxedEvalRecord, DriftType, EvalRecord, MessageRecord, ServerRecord, ServerRecords, SpanId,
-    Status, TraceId,
+    Attribute, BoxedEvalRecord, DriftType, EvalRecord, MessageRecord, SCOUTER_EVAL_PROFILE_UID,
+    SCOUTER_EVAL_RECORD_UID, ServerRecord, ServerRecords, SpanId, Status, TraceId,
 };
 use serde_json::{Value, json};
 use sqlx::{Pool, Postgres};
@@ -47,15 +47,25 @@ async fn test_direct_pending_trace_record_poller_processes() {
         .await
         .unwrap();
 
-    let (trace, spans, _) = generate_trace_with_spans(2, 0);
+    let (trace, mut spans, _) = generate_trace_with_spans(2, 0);
     let span_id = spans[0].span_id.clone();
+    let record_uid = create_uuid7();
+    spans[0].attributes.extend([
+        Attribute {
+            key: SCOUTER_EVAL_RECORD_UID.to_string(),
+            value: json!(record_uid.clone()),
+        },
+        Attribute {
+            key: SCOUTER_EVAL_PROFILE_UID.to_string(),
+            value: json!(trace_profile_uid.clone()),
+        },
+    ]);
     helper
         .trace_service
         .write_spans_direct(spans)
         .await
         .unwrap();
 
-    let record_uid = create_uuid7();
     let record = EvalRecord {
         created_at: Utc::now(),
         uid: record_uid.clone(),
