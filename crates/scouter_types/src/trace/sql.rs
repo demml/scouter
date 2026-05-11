@@ -215,6 +215,9 @@ pub struct TraceFilters {
     pub trace_ids: Option<Vec<String>>,
     #[pyo3(get, set)]
     pub entity_uid: Option<String>,
+    #[serde(default)]
+    #[pyo3(get, set)]
+    pub query: Option<String>,
 }
 
 #[pymethods]
@@ -229,7 +232,8 @@ impl TraceFilters {
         cursor_trace_id=None,
         direction=None,
         trace_ids=None,
-        entity_uid=None
+        entity_uid=None,
+        query=None
     ))]
     pub fn new(
         start_time: Option<DateTime<Utc>>,
@@ -240,6 +244,7 @@ impl TraceFilters {
         direction: Option<String>,
         trace_ids: Option<Vec<String>>,
         entity_uid: Option<String>,
+        query: Option<String>,
     ) -> Self {
         TraceFilters {
             clause: None,
@@ -251,6 +256,7 @@ impl TraceFilters {
             direction,
             trace_ids,
             entity_uid,
+            query,
         }
     }
 
