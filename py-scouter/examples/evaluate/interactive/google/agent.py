@@ -16,9 +16,7 @@ from ..shared import get_shared_config, teardown
 
 config = get_shared_config()
 QUERY_STATE_KEY = "query"
-ADK_RESPONSE_KEY = (
-    "adk_response"  # key under which llm_response is stored in EvalRecord context
-)
+ADK_RESPONSE_KEY = "adk_response"  # key under which llm_response is stored in EvalRecord context
 
 AgentCallback = Callable[[str, str], None]
 
@@ -54,9 +52,7 @@ class GoogleAgentService:
         self._callback = callback or _emit_eval_record
         self._service = self._build_service()
 
-    def _after_agent_callback(
-        self, callback_context: CallbackContext
-    ) -> types.Content | None:
+    def _after_agent_callback(self, callback_context: CallbackContext) -> types.Content | None:
         events = callback_context.session.events
         query = str(callback_context.state.get(QUERY_STATE_KEY, ""))
         final_event = next((e for e in reversed(events) if e.is_final_response()), None)

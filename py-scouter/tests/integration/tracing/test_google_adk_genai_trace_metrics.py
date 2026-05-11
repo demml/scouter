@@ -16,6 +16,7 @@ from google.genai import types
 from scouter.mock import ScouterDataFrameTestServer
 from scouter.tracing import BatchConfig, ScouterInstrumentor, shutdown_tracer
 from scouter.transport import GrpcConfig
+
 from tests.integration.tracing.adk_helpers import refresh_google_adk_cached_tracers
 
 POLL_TIMEOUT_SECS = 30
