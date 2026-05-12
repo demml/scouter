@@ -112,7 +112,7 @@ There are a few different ways to deploy the Scouter server in production.
 
 ### Prerequisites
 
-Scouter requires a **PostgreSQL 16.3+** database with the `pg_partman` and `pg_cron` extensions. See the [PostgreSQL setup guide](/scouter/server/postgres/) for details.
+Scouter requires a **PostgreSQL 16.3+** database with the `pg_partman` and `pg_cron` extensions. See the [PostgreSQL setup guide](/server/postgres/) for details.
 
 Set the following environment variable before starting the server:
 

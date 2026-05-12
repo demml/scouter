@@ -32,7 +32,7 @@ In addition to `ObjectStorageSettings`, `DatabaseSettings` now takes on an addit
 
 ## Component Architecture
 
-<img src="/scouter/images/specs/scouter-data-retention.png" alt="Data Archive Architecture" style="display: block; margin: 0 auto;" width="1000"/>
+<img src="/images/specs/scouter-data-retention.png" alt="Data Archive Architecture" style="display: block; margin: 0 auto;" width="1000"/>
 
 ## Implementation Details
 

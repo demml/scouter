@@ -7,7 +7,7 @@ The Scouter Queue is the primary interface for sending real-time data to the Sco
 
 ## Component Architecture
 
-<img src="/scouter/images/specs/scouter-queue.png" alt="Scouter Queue Architecture" style="display: block; margin: 0 auto;" width="500"/>
+<img src="/images/specs/scouter-queue.png" alt="Scouter Queue Architecture" style="display: block; margin: 0 auto;" width="500"/>
 
 ## How it works
 

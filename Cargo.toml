@@ -106,7 +106,7 @@ serde_json = "1.*"
 serde_yaml = "0.*"
 serde_qs = "0.*"
 simsimd = "6.5.*"
-sqlx = { version = "0.*", features = [ "runtime-tokio", "tls-native-tls", "postgres", "chrono", "json", "uuid"] }
+sqlx = { version = "0.*", features = [ "runtime-tokio", "tls-native-tls", "postgres", "chrono", "json"] }
 strum = "0.*"
 strum_macros = "0.*"
 tabled = { version = "0.*", features = ["ansi"] }
@@ -122,7 +122,7 @@ utoipa-swagger-ui = { version = "9", features = ["axum"] }
 tokio-util = "0.*"
 tracing = "0.*"
 tracing-subscriber = {version = "0.*", features = ["json", "time", "env-filter"] }
-uuid = { version = "1.*", features = ["v4", "v7"] }
+uuid = { version = "1.*", features = ["v7"] }
 url = "2.*"
 statrs = "0.18.0"
 

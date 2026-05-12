@@ -349,7 +349,7 @@ Profile for LLM evaluation and drift detection.
 #### `EvalRecord`
 
 ```python
-EvalRecord(context: Optional[Context] = None, record_id: Optional[str] = None, *, session_id: Optional[str] = None, media: Optional[List[Union[EvalMedia, ImageMedia, DocumentMedia]]] = None, profile_uid: Optional[str] = None, tags: Optional[List[str]] = None, trace_id: Optional[str] = None)
+EvalRecord(context: Context, id: Optional[str] = None, session_id: Optional[str] = None, trace_id: Optional[str] = None)
 ```
 
 LLM record containing context tied to a Large Language Model interaction that is used to evaluate drift in LLM responses.
@@ -517,13 +517,3 @@ ServiceMapMiddleware
 ```
 
 No stub docstring was found for this export.
-
-### Other exports
-
-#### `ScouterEnv`
-
-```python
-class ScouterEnv
-```
-
-See the signature above and the guide docs for usage examples.

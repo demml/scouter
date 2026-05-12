@@ -69,15 +69,6 @@ pub const SCOUTER_EVAL_SCENARIO_ID_ATTR: &str = "scouter.eval.scenario_id";
 pub const SCOUTER_EVAL_RUN_ID_ATTR: &str = "scouter.eval.run_id";
 pub const SCOUTER_EVAL_RECORD_UID: &str = "scouter.eval.record_uid";
 pub const SCOUTER_EVAL_PROFILE_UID: &str = "scouter.eval.profile_uid";
-pub const TRACE_COMMIT_ANCHOR_UID_MAX_LEN: usize = 128;
-
-pub fn is_valid_trace_commit_anchor_uid(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= TRACE_COMMIT_ANCHOR_UID_MAX_LEN
-        && value
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b':'))
-}
 
 // patterns for identifying baggage and tags
 pub const BAGGAGE_PATTERN: &str = "baggage.";
@@ -300,62 +291,6 @@ impl sqlx::Encode<'_, sqlx::Postgres> for SpanId {
     ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
         <&[u8] as sqlx::Encode<sqlx::Postgres>>::encode(&self.0[..], buf)
     }
-}
-
-/// Anchor tuple emitted when a committed span carries eval readiness attributes.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct TraceCommitAnchor {
-    pub trace_id: TraceId,
-    pub span_id: SpanId,
-    pub record_uid: String,
-    pub profile_uid: String,
-}
-
-impl TraceCommitAnchor {
-    pub fn new(
-        trace_id: TraceId,
-        span_id: SpanId,
-        record_uid: String,
-        profile_uid: String,
-    ) -> Option<Self> {
-        if !is_valid_trace_commit_anchor_uid(&record_uid)
-            || !is_valid_trace_commit_anchor_uid(&profile_uid)
-        {
-            return None;
-        }
-
-        Some(Self {
-            trace_id,
-            span_id,
-            record_uid,
-            profile_uid,
-        })
-    }
-}
-
-/// Leased trace commit event claimed from the durable inbox queue.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ClaimedTraceCommitEvent {
-    pub id: i64,
-    pub attempt_count: i32,
-    pub claim_token: uuid::Uuid,
-    pub anchor: TraceCommitAnchor,
-}
-
-/// Queue row this worker still owns after lease-fenced completion.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CompletedTraceCommitEvent {
-    pub id: i64,
-    pub anchor: TraceCommitAnchor,
-}
-
-/// Awaiting eval row used by the Delta-backed inbox reconciliation sweep.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AwaitingTraceCommit {
-    pub record_uid: String,
-    pub trace_id: TraceId,
-    pub span_id: SpanId,
-    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]

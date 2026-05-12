@@ -15,10 +15,7 @@ use datafusion::prelude::*;
 use datafusion::scalar::ScalarValue;
 use mini_moka::sync::Cache;
 use scouter_types::sql::{TraceFilters, TraceMetricBucket, TraceSpan};
-use scouter_types::{
-    Attribute, AwaitingTraceCommit, SCOUTER_EVAL_PROFILE_UID, SCOUTER_EVAL_RECORD_UID, SpanEvent,
-    SpanId, SpanLink, TraceCommitAnchor, TraceId,
-};
+use scouter_types::{Attribute, SpanEvent, SpanId, SpanLink, TraceId};
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
@@ -770,7 +767,6 @@ fn flat_to_trace_span(
 /// Time predicates are always applied FIRST to enable Delta Lake partition pruning.
 /// `span_cache` provides sub-millisecond repeat reads for trace detail clicks.
 /// `metrics_cache` provides sub-millisecond repeat reads for dashboard metric charts.
-#[derive(Clone)]
 pub struct TraceQueries {
     ctx: Arc<SessionContext>,
     /// LRU cache keyed by 16-byte trace ID. TTL=5 min — archived span data is immutable.
@@ -943,150 +939,6 @@ impl TraceQueries {
 
         let flat_spans = batches_to_flat_spans(batches)?;
         Ok(build_span_tree(flat_spans))
-    }
-
-    /// Find committed anchor spans for awaiting eval rows.
-    ///
-    /// Reconciliation bounds partition_date by the supported anchor span duration and end_time by
-    /// the eval arrival window before ID filters. Anchor spans can start long before attach_eval,
-    /// but they only commit after ending.
-    pub async fn find_anchor_spans_for_records(
-        &self,
-        records: &[AwaitingTraceCommit],
-        lookback: chrono::Duration,
-        trace_arrival_timeout: chrono::Duration,
-    ) -> Result<Vec<TraceCommitAnchor>, TraceEngineError> {
-        if records.is_empty() {
-            return Ok(Vec::new());
-        }
-
-        let mut by_trace: HashMap<TraceId, Vec<&AwaitingTraceCommit>> = HashMap::new();
-        for record in records {
-            by_trace.entry(record.trace_id).or_default().push(record);
-        }
-
-        let mut anchors = Vec::new();
-        for (trace_id, trace_records) in by_trace {
-            let Some(window_start) = trace_records
-                .iter()
-                .map(|record| record.created_at - lookback)
-                .min()
-            else {
-                continue;
-            };
-            let Some(window_end) = trace_records
-                .iter()
-                .map(|record| record.created_at + trace_arrival_timeout)
-                .max()
-            else {
-                continue;
-            };
-
-            let expected: HashMap<SpanId, &AwaitingTraceCommit> = trace_records
-                .iter()
-                .map(|record| (record.span_id.clone(), *record))
-                .collect();
-            let span_literals: Vec<Expr> = expected
-                .keys()
-                .map(|span_id| lit(ScalarValue::Binary(Some(span_id.as_bytes().to_vec()))))
-                .collect();
-
-            let mut builder =
-                TraceQueryBuilder::set_table(self.ctx.clone(), SPAN_TABLE_NAME).await?;
-            builder = builder.add_filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&window_start)))?;
-            builder = builder.add_filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&window_end)))?;
-            builder = builder.add_filter(col(END_TIME_COL).gt_eq(ts_lit(&window_start)))?;
-            builder = builder.add_filter(col(END_TIME_COL).lt(ts_lit(&window_end)))?;
-            builder = builder.add_filter(
-                col(TRACE_ID_COL).eq(lit(ScalarValue::Binary(Some(trace_id.as_bytes().to_vec())))),
-            )?;
-            builder = builder.add_filter(col(SPAN_ID_COL).in_list(span_literals, false))?;
-            builder = builder.select_columns(&[TRACE_ID_COL, SPAN_ID_COL, ATTRIBUTES_COL])?;
-
-            for batch in builder.execute().await? {
-                let schema = batch.schema();
-                let trace_idx = schema.index_of(TRACE_ID_COL).map_err(|_| {
-                    TraceEngineError::BatchConversion("Missing column: trace_id".into())
-                })?;
-                let span_idx = schema.index_of(SPAN_ID_COL).map_err(|_| {
-                    TraceEngineError::BatchConversion("Missing column: span_id".into())
-                })?;
-                let attrs_idx = schema.index_of(ATTRIBUTES_COL).map_err(|_| {
-                    TraceEngineError::BatchConversion("Missing column: attributes".into())
-                })?;
-
-                let trace_arr =
-                    cast(batch.column(trace_idx).as_ref(), &DataType::Binary).map_err(|e| {
-                        TraceEngineError::BatchConversion(format!("trace_id cast: {e}"))
-                    })?;
-                let trace_col = trace_arr
-                    .as_any()
-                    .downcast_ref::<BinaryArray>()
-                    .ok_or_else(|| {
-                        TraceEngineError::BatchConversion("trace_id not BinaryArray".into())
-                    })?;
-                let span_arr = cast(batch.column(span_idx).as_ref(), &DataType::Binary)
-                    .map_err(|e| TraceEngineError::BatchConversion(format!("span_id cast: {e}")))?;
-                let span_col =
-                    span_arr
-                        .as_any()
-                        .downcast_ref::<BinaryArray>()
-                        .ok_or_else(|| {
-                            TraceEngineError::BatchConversion("span_id not BinaryArray".into())
-                        })?;
-                let attrs_col = batch
-                    .column(attrs_idx)
-                    .as_any()
-                    .downcast_ref::<MapArray>()
-                    .ok_or_else(|| {
-                        TraceEngineError::BatchConversion("attributes not MapArray".into())
-                    })?;
-
-                for row_idx in 0..batch.num_rows() {
-                    let trace_bytes: [u8; 16] =
-                        trace_col.value(row_idx).try_into().map_err(|_| {
-                            TraceEngineError::BatchConversion(
-                                "trace_id must be exactly 16 bytes".into(),
-                            )
-                        })?;
-                    let span_bytes: [u8; 8] = span_col.value(row_idx).try_into().map_err(|_| {
-                        TraceEngineError::BatchConversion("span_id must be exactly 8 bytes".into())
-                    })?;
-                    let row_trace_id = TraceId::from_bytes(trace_bytes);
-                    let row_span_id = SpanId::from_bytes(span_bytes);
-                    let Some(expected_record) = expected.get(&row_span_id) else {
-                        continue;
-                    };
-
-                    let attrs = extract_attributes(attrs_col, row_idx);
-                    let record_uid = attrs
-                        .iter()
-                        .find(|attr| attr.key == SCOUTER_EVAL_RECORD_UID)
-                        .and_then(|attr| attr.value.as_str());
-                    if record_uid != Some(expected_record.record_uid.as_str()) {
-                        continue;
-                    }
-                    let Some(profile_uid) = attrs
-                        .iter()
-                        .find(|attr| attr.key == SCOUTER_EVAL_PROFILE_UID)
-                        .and_then(|attr| attr.value.as_str())
-                    else {
-                        continue;
-                    };
-
-                    if let Some(anchor) = TraceCommitAnchor::new(
-                        row_trace_id,
-                        row_span_id,
-                        expected_record.record_uid.clone(),
-                        profile_uid.to_string(),
-                    ) {
-                        anchors.push(anchor);
-                    }
-                }
-            }
-        }
-
-        Ok(anchors)
     }
 
     /// Get trace metrics over a time range, bucketed by the given interval string.

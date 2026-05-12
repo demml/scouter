@@ -253,18 +253,13 @@ h3 {
 /* ═══════════════════════════════════════════════════════
    TABLES
    ═══════════════════════════════════════════════════════ */
-.sl-markdown-content table {
-  display: block;
-  width: max-content;
-  min-width: 100%;
-  max-width: 100%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+table {
+  display: table;
+  width: 100%;
   border-collapse: collapse;
-  white-space: nowrap;
 }
 
-.sl-markdown-content table th {
+table th {
   background: var(--sl-color-bg-nav);
   font-weight: 600;
   letter-spacing: 0.03em;
@@ -274,24 +269,24 @@ h3 {
   text-align: left;
 }
 
-.sl-markdown-content table td {
+table td {
   padding: 0.65rem 1rem;
 }
 
-.sl-markdown-content table td,
-.sl-markdown-content table th {
+table td,
+table th {
   border-bottom: 1px solid var(--sl-color-hairline-light);
 }
 
-.sl-markdown-content table tr:last-child td {
+table tr:last-child td {
   border-bottom: none;
 }
 
-.sl-markdown-content table tbody tr {
+table tbody tr {
   transition: background 100ms ease;
 }
 
-.sl-markdown-content table tbody tr:hover {
+table tbody tr:hover {
   background: color-mix(in srgb, var(--sl-color-accent) 5%, transparent);
 }
 

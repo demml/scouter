@@ -6639,7 +6639,6 @@ dependencies = [
  "deltalake",
  "futures",
  "hex",
- "metrics",
  "mini-moka",
  "object_store",
  "potato-head",
@@ -6686,7 +6685,6 @@ dependencies = [
  "futures",
  "indicatif",
  "itertools 0.13.0",
- "metrics",
  "ndarray",
  "ndarray-rand",
  "num-traits",
@@ -7564,7 +7562,6 @@ dependencies = [
  "tokio-stream",
  "tracing",
  "url",
- "uuid",
 ]
 
 [[package]]
@@ -7645,7 +7642,6 @@ dependencies = [
  "stringprep",
  "thiserror 2.0.18",
  "tracing",
- "uuid",
  "whoami",
 ]
 
@@ -7684,7 +7680,6 @@ dependencies = [
  "stringprep",
  "thiserror 2.0.18",
  "tracing",
- "uuid",
  "whoami",
 ]
 
@@ -7711,7 +7706,6 @@ dependencies = [
  "thiserror 2.0.18",
  "tracing",
  "url",
- "uuid",
 ]
 
 [[package]]

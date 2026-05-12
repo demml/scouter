@@ -46,14 +46,14 @@ use scouter_events::consumer::redis::RedisConsumerManager;
 use crate::api::task_manager::TaskManager;
 use scouter_events::consumer::http::consumer::MessageConsumerManager;
 use scouter_settings::events::HttpConsumerSettings;
-use scouter_types::{ServerRecords, TagRecord, TraceCommitAnchor, TraceServerRecord};
+use scouter_types::{ServerRecords, TagRecord, TraceId, TraceServerRecord};
 
 type TraceServices = (
     Arc<TraceSpanService>,
     Arc<TraceSummaryService>,
     Arc<TraceDispatchService>,
     Arc<GenAiSpanService>,
-    tokio::sync::mpsc::Receiver<Vec<TraceCommitAnchor>>,
+    tokio::sync::mpsc::Receiver<Vec<TraceId>>,
 );
 
 pub struct ScouterSetupComponents {
@@ -197,7 +197,6 @@ impl ScouterSetupComponents {
             &db_pool,
             &config.genai_polling_settings,
             commit_rx,
-            Arc::new(trace_service.query_service.clone()),
             tokio_shutdown_rx.clone(),
         )
         .await?;
@@ -250,7 +249,7 @@ impl ScouterSetupComponents {
         let refresh_secs = config.storage_settings.trace_refresh_interval_secs;
 
         let retention_days = Some(config.database_settings.trace_retention_period as u32);
-        let (commit_tx, commit_rx) = tokio::sync::mpsc::channel::<Vec<TraceCommitAnchor>>(1024);
+        let (commit_tx, commit_rx) = tokio::sync::mpsc::channel::<Vec<TraceId>>(1024);
         let trace_service = init_trace_span_service(
             &config.storage_settings,
             compaction_hours,
@@ -611,18 +610,11 @@ impl ScouterSetupComponents {
     async fn setup_background_genai_drift_workers(
         db_pool: &Pool<Postgres>,
         poll_settings: &AgentPollerSettings,
-        commit_rx: tokio::sync::mpsc::Receiver<Vec<TraceCommitAnchor>>,
-        trace_query: Arc<scouter_dataframe::parquet::tracing::queries::TraceQueries>,
+        commit_rx: tokio::sync::mpsc::Receiver<Vec<TraceId>>,
         shutdown_rx: tokio::sync::watch::Receiver<()>,
     ) -> AnyhowResult<()> {
-        BackgroundAgentDriftManager::start_workers(
-            db_pool,
-            poll_settings,
-            commit_rx,
-            trace_query,
-            shutdown_rx,
-        )
-        .await?;
+        BackgroundAgentDriftManager::start_workers(db_pool, poll_settings, commit_rx, shutdown_rx)
+            .await?;
         info!("✅ Started background genai workers");
 
         Ok(())

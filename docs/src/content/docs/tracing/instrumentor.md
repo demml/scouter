@@ -4,7 +4,7 @@ description: "Reference for the OpenTelemetry-compatible Scouter instrumentor."
 ---
 `ScouterInstrumentor` implements the standard OpenTelemetry `BaseInstrumentor` interface. Once instrumented, it registers Scouter's `TracerProvider` as the global OTEL provider, so any library that calls `opentelemetry.trace.get_tracer()` routes spans through Scouter automatically.
 
-See the [overview](/scouter/tracing/overview/#scouterinstrumentor-lifecycle) for details on the `ScouterInstrumentor` lifecycle.
+See the [overview](/tracing/overview/#scouterinstrumentor-lifecycle) for details on the `ScouterInstrumentor` lifecycle.
 
 For normal application code, this is the recommended tracing entrypoint. Call `instrument()` once at startup, get tracers from `opentelemetry.trace`, and shut the provider down once at process exit.
 

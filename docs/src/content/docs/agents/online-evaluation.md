@@ -237,11 +237,9 @@ client.register_profile(
 )
 ```
 
-## Inserting records with or without trace correlation
+## Two evaluation paths
 
-Online evals run through the same server-side workflow whether or not a record has trace IDs. Tracing is optional correlation data until the profile includes a `TraceAssertionTask`.
-
-**Trace-correlated record:** Attach the eval record to the active OpenTelemetry span.
+**Path A — Trace-attached:** Associate an evaluation record with an OpenTelemetry span for trace-aware evaluation.
 
 ```python
 with tracer.start_as_current_span("agent.callback") as span:
@@ -255,9 +253,9 @@ with tracer.start_as_current_span("agent.callback") as span:
     )
 ```
 
-`attach_eval()` creates the `EvalRecord`, sets `trace_id` and `span_id` from the active span, and stamps the span with the eval `record_uid` and `profile_uid`. Once the record reaches the server, its path depends on the profile. If the profile has no `TraceAssertionTask`, the record is inserted as `pending` immediately. If the profile does have trace assertions, the server waits until that specific anchor span has committed to Delta Lake before letting the poller run the workflow. Dropped live inbox notifications are recovered by a Delta-backed reconciliation sweep.
+The `trace_id` and `span_id` are set once by the Rust span constructor. The server checks if the trace has committed to Delta Lake. If yes, the record is inserted as `pending` for immediate evaluation. If not, it's inserted as `awaiting_trace` and flipped to `pending` when the trace arrives (via the inbox worker). If the trace never arrives within 5 minutes, the record fails with `TraceArrivalTimeout`.
 
-**Content-only record:** Insert an evaluation record without trace correlation.
+**Path B — Standalone/content-only:** Insert an evaluation record without trace correlation.
 
 ```python
 queue.insert(EvalRecord(
@@ -268,9 +266,9 @@ queue.insert(EvalRecord(
 ))
 ```
 
-No `trace_id` is attached. If the profile has no `TraceAssertionTask`, the record is inserted as `pending` immediately. If the profile has trace assertions, the record fails with `failed(EvalRequiresTrace)` because the workflow requires span data.
+No `trace_id`. Record inserted as `pending` immediately. If the profile has `TraceAssertionTask` definitions but the record has no trace, evaluation fails with `failed(EvalRequiresTrace)`.
 
-Use trace correlation when you want to inspect execution internals or run `TraceAssertionTask`. Use content-only records for evaluations that depend only on the record context.
+Use Path A when you need to correlate records with traces (most common for agents). Use Path B for stateless evaluation that doesn't depend on execution internals.
 
 ---
 
@@ -469,7 +467,7 @@ for user_query, model_response in production_requests:
 
 ## Best practices
 
-**Sampling**: High-traffic services should use lower `sample_ratio` values. For statistically meaningful alerts, ensure you're collecting enough samples per evaluation window. The right number depends on your traffic volume and how tight your thresholds are. To correlate evaluations with distributed traces, pass your `ScouterQueue` to the Scouter tracer. See [Tracing overview](/scouter/tracing/overview/).
+**Sampling**: High-traffic services should use lower `sample_ratio` values. For statistically meaningful alerts, ensure you're collecting enough samples per evaluation window. The right number depends on your traffic volume and how tight your thresholds are. To correlate evaluations with distributed traces, pass your `ScouterQueue` to the Scouter tracer. See [Tracing overview](/tracing/overview/).
 
 **Task design**: Lead with `AssertionTask` before `LLMJudgeTask`. Use `condition=True` to skip expensive LLM calls when cheap preconditions fail. Set `expected_value` thresholds based on what you observed in offline evaluation runs, not guesses.
 

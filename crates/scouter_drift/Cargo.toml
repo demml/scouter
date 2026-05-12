@@ -36,7 +36,6 @@ sqlx = { workspace = true, optional = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
-metrics = { workspace = true }
 
 
 [dev-dependencies]

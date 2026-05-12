@@ -45,7 +45,7 @@ In addition to the HTTP transport config, Scouter also support the following tra
 - **RabbitMQ**: `from_path(path, transport_config=RabbitMQConfig())`
 - **Redis**: `from_path(path, transport_config=RedisConfig())`
 
-For more information on how to configure these transports, please refer to the [queue](/scouter/api/) documentation and the server documentation.
+For more information on how to configure these transports, please refer to the [queue](/api/) documentation and the server documentation.
 
 ## Inserting data
 
@@ -230,8 +230,8 @@ qa_record = QARecord(
 record = EvalRecord(context=qa_record)
 ```
 
-For more information on creating `EvalRecord` objects, please refer to the [Agent Tasks Documentation](/scouter/agents/tasks/).
+For more information on creating `EvalRecord` objects, please refer to the [Agent Tasks Documentation](/agents/tasks/).
 
 ### Ready to go!
 
-And that's all you need to get started for real-time model monitoring with Scouter. For more technical discussion on the ScouterQueue, please refer to the [ScouterQueue](/scouter/specs/scouter-queue/) documentation.
+And that's all you need to get started for real-time model monitoring with Scouter. For more technical discussion on the ScouterQueue, please refer to the [ScouterQueue](/specs/scouter-queue/) documentation.

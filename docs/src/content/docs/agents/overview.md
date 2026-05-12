@@ -20,9 +20,9 @@ Scouter formalizes this split:
 
 **Workflow evaluation (the mechanic's view)** opens the hood. Each sub-agent in your pipeline emits structured `EvalRecord`s during execution — intermediate outputs, tool results, context data. Tasks on your `AgentEvalProfile` evaluate those records, giving you per-component health signals independent of whether the final output passed.
 
-Both run in a single [`EvalOrchestrator`](/scouter/agents/offline-evaluation/) pass. You don't have to choose between them, and you'll want both. A passing scenario with failing workflow tasks means you got lucky, not that your agent is healthy.
+Both run in a single [`EvalOrchestrator`](/agents/offline-evaluation/) pass. You don't have to choose between them, and you'll want both. A passing scenario with failing workflow tasks means you got lucky, not that your agent is healthy.
 
-The tasks and profiles you define for these two views are the same components whether you're running offline batch evaluation or online production monitoring. Define your evaluation once, reuse it everywhere. See [reading your results](/scouter/agents/reading-results/) for how the two views show up in the output tables.
+The tasks and profiles you define for these two views are the same components whether you're running offline batch evaluation or online production monitoring. Define your evaluation once, reuse it everywhere. See [reading your results](/agents/reading-results/) for how the two views show up in the output tables.
 
 ---
 
@@ -34,7 +34,7 @@ Offline evaluation runs your agent against a fixed set of test scenarios before 
 
 Use it to gate releases, catch regressions between model versions or prompt changes, and establish a quality baseline you can compare future runs against. The comparison API diffs pass rates across runs and flags regressions above a configurable threshold.
 
-If you already have records from a previous run or a production log export and don't need a live agent, [`EvalDataset`](/scouter/agents/eval-dataset/) is the lighter-weight option. Same task engine, no orchestrator.
+If you already have records from a previous run or a production log export and don't need a live agent, [`EvalDataset`](/agents/eval-dataset/) is the lighter-weight option. Same task engine, no orchestrator.
 
 ### Online
 
@@ -50,17 +50,17 @@ The task definitions are identical across offline and online. Write them once an
 
 ## What you get
 
-- **Four task types.** Deterministic assertions, LLM-powered semantic judges, OpenTelemetry span assertions, and agent-specific tool call / response checks. All four work in both offline and online modes. → [Evaluation tasks](/scouter/agents/tasks/)
+- **Four task types.** Deterministic assertions, LLM-powered semantic judges, OpenTelemetry span assertions, and agent-specific tool call / response checks. All four work in both offline and online modes. → [Evaluation tasks](/agents/tasks/)
 
 - **Bring your own context.** `EvalRecord` takes a freeform dict. Put whatever you want in it: model outputs, metadata, ground truth labels, intermediate results. Tasks read from it via `context_path` (dot-notation into nested fields). No fixed schema to conform to.
 
-- **Dependency chains and conditional gates.** Tasks can depend on upstream results and act as gates that short-circuit expensive downstream work. If a format check fails, the LLM judge never runs. → [Conditional gates](/scouter/agents/gates/)
+- **Dependency chains and conditional gates.** Tasks can depend on upstream results and act as gates that short-circuit expensive downstream work. If a format check fails, the LLM judge never runs. → [Conditional gates](/agents/gates/)
 
-- **Multi-agent evaluation.** One profile per sub-agent in your pipeline. Each gets its own task set, its own results, and its own pass rate. → [Multi-agent setup](/scouter/agents/offline-evaluation/#multi-agent-setup)
+- **Multi-agent evaluation.** One profile per sub-agent in your pipeline. Each gets its own task set, its own results, and its own pass rate. → [Multi-agent setup](/agents/offline-evaluation/#multi-agent-setup)
 
-- **Regression comparison.** Save results from a known-good run, then diff against new runs. The comparison flags regressions above a configurable threshold and tells you which aliases degraded. → [Comparing runs](/scouter/agents/offline-evaluation/#saving-loading-and-comparing-results)
+- **Regression comparison.** Save results from a known-good run, then diff against new runs. The comparison flags regressions above a configurable threshold and tells you which aliases degraded. → [Comparing runs](/agents/offline-evaluation/#saving-loading-and-comparing-results)
 
-- **Scheduled alerting.** Online profiles evaluate on a cron schedule and dispatch alerts when pass rates drop below your baseline. Slack, OpsGenie, and Console are supported out of the box. → [Online evaluation](/scouter/agents/online-evaluation/)
+- **Scheduled alerting.** Online profiles evaluate on a cron schedule and dispatch alerts when pass rates drop below your baseline. Slack, OpsGenie, and Console are supported out of the box. → [Online evaluation](/agents/online-evaluation/)
 
 - **Portable definitions.** Profiles, tasks, and thresholds move between offline batch runs and online production monitoring without modification.
 
@@ -70,12 +70,12 @@ The task definitions are identical across offline and online. Write them once an
 
 | What you have | Where to go |
 |---|---|
-| A callable agent function and test scenarios | [Offline evaluation](/scouter/agents/offline-evaluation/) |
-| Scenarios in a file (JSONL, JSON, YAML) | [Loading from a file](/scouter/agents/offline-evaluation/#loading-scenarios-from-a-file) |
-| Pre-generated records, no live agent | [EvalDataset](/scouter/agents/eval-dataset/) |
-| A deployed agent you want to monitor | [Online evaluation](/scouter/agents/online-evaluation/) |
+| A callable agent function and test scenarios | [Offline evaluation](/agents/offline-evaluation/) |
+| Scenarios in a file (JSONL, JSON, YAML) | [Loading from a file](/agents/offline-evaluation/#loading-scenarios-from-a-file) |
+| Pre-generated records, no live agent | [EvalDataset](/agents/eval-dataset/) |
+| A deployed agent you want to monitor | [Online evaluation](/agents/online-evaluation/) |
 
-If you're unsure, start with [offline evaluation](/scouter/agents/offline-evaluation/). It's the fastest way to see how tasks, scenarios, and results fit together.
+If you're unsure, start with [offline evaluation](/agents/offline-evaluation/). It's the fastest way to see how tasks, scenarios, and results fit together.
 
 ---
 
@@ -85,9 +85,9 @@ Tasks are what Scouter runs against your agent's outputs or records. They work t
 
 | Task | What it checks | Cost |
 |------|---------------|------|
-| [`AssertionTask`](/scouter/agents/tasks/#assertiontask) | Deterministic rules: format, threshold, presence, pattern matching | None |
-| [`LLMJudgeTask`](/scouter/agents/tasks/#llmjudgetask) | Semantic quality (relevance, faithfulness, tone) via an LLM call | One LLM call |
-| [`TraceAssertionTask`](/scouter/agents/tasks/#traceassertiontask) | Span properties: execution order, retry counts, token budgets | None |
-| [`AgentAssertionTask`](/scouter/agents/tasks/#agentassertiontask) | Tool calls and response structure: which tools ran, with what args, what they returned | None |
+| [`AssertionTask`](/agents/tasks/#assertiontask) | Deterministic rules: format, threshold, presence, pattern matching | None |
+| [`LLMJudgeTask`](/agents/tasks/#llmjudgetask) | Semantic quality (relevance, faithfulness, tone) via an LLM call | One LLM call |
+| [`TraceAssertionTask`](/agents/tasks/#traceassertiontask) | Span properties: execution order, retry counts, token budgets | None |
+| [`AgentAssertionTask`](/agents/tasks/#agentassertiontask) | Tool calls and response structure: which tools ran, with what args, what they returned | None |
 
-Tasks can depend on each other and act as conditional gates to prevent expensive downstream work when preconditions fail. Full reference: [Evaluation tasks](/scouter/agents/tasks/) · [Conditional gates](/scouter/agents/gates/).
+Tasks can depend on each other and act as conditional gates to prevent expensive downstream work when preconditions fail. Full reference: [Evaluation tasks](/agents/tasks/) · [Conditional gates](/agents/gates/).

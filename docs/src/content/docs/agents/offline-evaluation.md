@@ -4,7 +4,7 @@ description: "Run agent evaluations against a dataset before you ship changes."
 ---
 Offline evaluation runs your agent against a fixed set of test scenarios and measures quality before anything reaches production. Use it to catch regressions between model versions, validate prompt changes, and build a quality baseline to compare future runs against.
 
-For pre-generated records without a live agent, see [EvalDataset](/scouter/agents/eval-dataset/).
+For pre-generated records without a live agent, see [EvalDataset](/agents/eval-dataset/).
 
 ---
 
@@ -697,7 +697,7 @@ print(detail.pass_rate)
 print(detail.passed)
 ```
 
-For a full explanation of what each table shows, see [Reading your results](/scouter/agents/reading-results/).
+For a full explanation of what each table shows, see [Reading your results](/agents/reading-results/).
 
 ---
 
@@ -705,4 +705,4 @@ For a full explanation of what each table shows, see [Reading your results](/sco
 
 If you have records from a previous run or a separate data pipeline (no live agent needed), use `EvalDataset` instead. It takes `EvalRecord` objects directly alongside evaluation tasks.
 
-→ [EvalDataset reference](/scouter/agents/eval-dataset/)
+→ [EvalDataset reference](/agents/eval-dataset/)

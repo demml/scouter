@@ -6,7 +6,7 @@ import { Tabs, TabItem } from "@astrojs/starlight/components";
 
 Scouter provides OpenTelemetry-compatible distributed tracing built on a Rust core with Python OTEL wrappers. The recommended setup is to install Scouter as the process-wide OpenTelemetry `TracerProvider` with `ScouterInstrumentor()`, then get tracers from `opentelemetry.trace`.
 
-Traces captured by Scouter can be evaluated offline or in production using [`TraceAssertionTask`](/scouter/agents/tasks/#traceassertiontask) — validating span execution order, latency SLAs, token budgets, and more.
+Traces captured by Scouter can be evaluated offline or in production using [`TraceAssertionTask`](/agents/tasks/#traceassertiontask) — validating span execution order, latency SLAs, token budgets, and more.
 
 ## Architecture
 
@@ -161,7 +161,7 @@ Scouter's tracing layer is built on top of the OpenTelemetry SDK. You can use Sc
 
 `ScouterInstrumentor` is a singleton — calling it multiple times returns the same instance.
 
-Full API reference, framework integration examples (OpenAI Agents SDK, LangChain, LlamaIndex, CrewAI, FastAPI), default attributes, and local span capture patterns are covered in the [ScouterInstrumentor guide](/scouter/tracing/instrumentor/).
+Full API reference, framework integration examples (OpenAI Agents SDK, LangChain, LlamaIndex, CrewAI, FastAPI), default attributes, and local span capture patterns are covered in the [ScouterInstrumentor guide](/tracing/instrumentor/).
 
 ```python
 from scouter.tracing import ScouterInstrumentor

@@ -217,10 +217,5 @@ Scouter accepts: Pandas DataFrames, NumPy 2D arrays, Polars DataFrames, Pydantic
 | `REDIS_ADDR` | — | Redis URL |
 | `SCOUTER_STORAGE_URI` | `./scouter_storage` | Object storage (S3, GCS, Azure, local) |
 | `SCOUTER_TRACE_REFRESH_INTERVAL_SECS` | `10` | How often each pod refreshes its Delta table snapshot from shared storage. Set lower (e.g. `5`) for faster cross-pod visibility; set higher to reduce object-store LIST calls. Only relevant in multi-pod deployments. |
-| `SCOUTER_TRACE_VISIBILITY_BUFFER_SECS` | refresh + 2 | Minimum delay before trace-backed evals are polled. Startup panics if this is lower than `SCOUTER_TRACE_REFRESH_INTERVAL_SECS + 2`, because a smaller buffer can make the poller fetch before a pod sees the committed anchor span. |
-| `SCOUTER_INBOX_RECONCILE_AFTER_SECS` | `15` | Age floor before reconciliation scans `awaiting_trace` rows for missing anchor queue events. |
-| `SCOUTER_INBOX_RECONCILE_LOOKBACK_SECS` | `86400` | Maximum supported anchor span start lookback used when reconciliation queries Delta for anchor spans. Increase for evals attached to spans that can run longer than 24 hours. |
-| `SCOUTER_INBOX_RECONCILE_INTERVAL_SECS` | `60` | How often reconciliation recovers dropped live inbox notifications from Delta. |
-| `SCOUTER_INBOX_RECONCILE_BATCH` | `200` | Maximum `awaiting_trace` rows scanned per reconciliation tick. |
 | `SCOUTER_ENCRYPT_SECRET` | — | HMAC-SHA256 key (32 bytes) |
 | `SCOUTER_BOOTSTRAP_KEY` | — | Initial admin bootstrap key |
