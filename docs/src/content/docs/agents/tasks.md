@@ -1201,6 +1201,6 @@ client.register_profile(profile, set_active=True)
 
 Now that you understand evaluation tasks, explore how to build complete agent evaluation workflows:
 
-- [Offline Evaluation](/agents/offline-evaluation/) - Batch evaluation with complex task chains
-- [Online Monitoring](/agents/online-evaluation/) - Production monitoring setup
-- [Distributed Tracing](/tracing/overview/) - Capture trace data that `TraceAssertionTask` evaluates
+- [Offline Evaluation](/scouter/agents/offline-evaluation/) - Batch evaluation with complex task chains
+- [Online Monitoring](/scouter/agents/online-evaluation/) - Production monitoring setup
+- [Distributed Tracing](/scouter/tracing/overview/) - Capture trace data that `TraceAssertionTask` evaluates

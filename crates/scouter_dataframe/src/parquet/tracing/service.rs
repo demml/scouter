@@ -6,7 +6,7 @@ use crate::parquet::tracing::queries::TraceQueries;
 use crate::storage::ObjectStore;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::{TraceId, TraceSpanRecord, extract_gen_ai_span};
+use scouter_types::{TraceCommitAnchor, TraceSpanRecord, extract_gen_ai_span};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::time::{Duration, interval};
@@ -32,7 +32,7 @@ pub async fn init_trace_span_service(
     flush_interval_secs: Option<u64>,
     retention_days: Option<u32>,
     refresh_interval_secs: u64,
-    commit_tx: Option<mpsc::Sender<Vec<TraceId>>>,
+    commit_tx: Option<mpsc::Sender<Vec<TraceCommitAnchor>>>,
 ) -> Result<Arc<TraceSpanService>, TraceEngineError> {
     // Shut down any existing service before replacing
     let old_service = {
@@ -109,7 +109,7 @@ impl TraceSpanService {
         flush_interval_secs: Option<u64>,
         retention_days: Option<u32>,
         refresh_interval_secs: u64,
-        commit_tx: Option<mpsc::Sender<Vec<TraceId>>>,
+        commit_tx: Option<mpsc::Sender<Vec<TraceCommitAnchor>>>,
     ) -> Result<Self, TraceEngineError> {
         let buffer_size = storage_settings.trace_buffer_size();
         let engine = TraceSpanDBEngine::new(storage_settings, commit_tx).await?;
@@ -400,7 +400,10 @@ mod tests {
     use scouter_types::TraceMetricsRequest;
     use scouter_types::sql::TraceSpan;
     use scouter_types::trace::query::FilterClause;
-    use scouter_types::{Attribute, SpanId, TraceId, TraceSpanRecord};
+    use scouter_types::{
+        Attribute, SCOUTER_EVAL_PROFILE_UID, SCOUTER_EVAL_RECORD_UID, SpanId, TraceCommitAnchor,
+        TraceId, TraceSpanRecord,
+    };
     use serde_json::Value;
     use tracing_subscriber;
 
@@ -489,7 +492,7 @@ mod tests {
         cleanup();
 
         let storage_settings = ObjectStorageSettings::default();
-        let (commit_tx, mut commit_rx) = mpsc::channel::<Vec<TraceId>>(1);
+        let (commit_tx, mut commit_rx) = mpsc::channel::<Vec<TraceCommitAnchor>>(1);
         let service =
             TraceSpanService::new(&storage_settings, 24, Some(2), None, 10, Some(commit_tx))
                 .await?;
@@ -501,7 +504,16 @@ mod tests {
             None,
             "svc",
             "op",
-            vec![],
+            vec![
+                Attribute {
+                    key: SCOUTER_EVAL_RECORD_UID.to_string(),
+                    value: serde_json::json!("record-a"),
+                },
+                Attribute {
+                    key: SCOUTER_EVAL_PROFILE_UID.to_string(),
+                    value: serde_json::json!("profile-a"),
+                },
+            ],
         );
 
         service.write_spans_direct(vec![span]).await?;
@@ -510,7 +522,112 @@ mod tests {
             .await
             .map_err(|_| TraceEngineError::ChannelClosed)?
             .ok_or(TraceEngineError::ChannelClosed)?;
-        assert_eq!(committed, vec![trace_id]);
+        assert_eq!(
+            committed,
+            vec![TraceCommitAnchor {
+                trace_id,
+                span_id: SpanId::from_bytes([0x01; 8]),
+                record_uid: "record-a".to_string(),
+                profile_uid: "profile-a".to_string(),
+            }]
+        );
+
+        service.shutdown().await?;
+        cleanup();
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_write_spans_direct_drops_invalid_trace_commit_anchor()
+    -> Result<(), TraceEngineError> {
+        cleanup();
+
+        let storage_settings = ObjectStorageSettings::default();
+        let (commit_tx, mut commit_rx) = mpsc::channel::<Vec<TraceCommitAnchor>>(1);
+        let service =
+            TraceSpanService::new(&storage_settings, 24, Some(2), None, 10, Some(commit_tx))
+                .await?;
+
+        let trace_id = TraceId::from_bytes([0xAC; 16]);
+        let span = make_span(
+            &trace_id,
+            SpanId::from_bytes([0x01; 8]),
+            None,
+            "svc",
+            "op",
+            vec![
+                Attribute {
+                    key: SCOUTER_EVAL_RECORD_UID.to_string(),
+                    value: serde_json::json!("record with spaces"),
+                },
+                Attribute {
+                    key: SCOUTER_EVAL_PROFILE_UID.to_string(),
+                    value: serde_json::json!("profile-a"),
+                },
+            ],
+        );
+
+        service.write_spans_direct(vec![span]).await?;
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(250), commit_rx.recv())
+                .await
+                .is_err()
+        );
+
+        service.shutdown().await?;
+        cleanup();
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_write_spans_direct_drops_when_trace_commit_channel_full()
+    -> Result<(), TraceEngineError> {
+        cleanup();
+
+        let storage_settings = ObjectStorageSettings::default();
+        let (commit_tx, mut commit_rx) = mpsc::channel::<Vec<TraceCommitAnchor>>(1);
+        commit_tx
+            .try_send(vec![TraceCommitAnchor {
+                trace_id: TraceId::from_bytes([0xAD; 16]),
+                span_id: SpanId::from_bytes([0xAD; 8]),
+                record_uid: "pre-filled".to_string(),
+                profile_uid: "profile-a".to_string(),
+            }])
+            .unwrap();
+        let service =
+            TraceSpanService::new(&storage_settings, 24, Some(2), None, 10, Some(commit_tx))
+                .await?;
+
+        let trace_id = TraceId::from_bytes([0xAE; 16]);
+        let span = make_span(
+            &trace_id,
+            SpanId::from_bytes([0x01; 8]),
+            None,
+            "svc",
+            "op",
+            vec![
+                Attribute {
+                    key: SCOUTER_EVAL_RECORD_UID.to_string(),
+                    value: serde_json::json!("record-a"),
+                },
+                Attribute {
+                    key: SCOUTER_EVAL_PROFILE_UID.to_string(),
+                    value: serde_json::json!("profile-a"),
+                },
+            ],
+        );
+
+        service.write_spans_direct(vec![span]).await?;
+        let queued = commit_rx
+            .recv()
+            .await
+            .ok_or(TraceEngineError::ChannelClosed)?;
+        assert_eq!(queued[0].record_uid, "pre-filled");
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(250), commit_rx.recv())
+                .await
+                .is_err()
+        );
 
         service.shutdown().await?;
         cleanup();

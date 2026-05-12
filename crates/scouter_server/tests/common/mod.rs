@@ -187,7 +187,8 @@ impl TestHelper {
             env::set_var("DATA_RETENTION_PERIOD", "5");
             std::env::set_var("OPENAI_API_KEY", "test_key");
             std::env::set_var("SCOUTER_DATASET_FLUSH_INTERVAL_SECS", "1");
-            std::env::set_var("SCOUTER_TRACE_VISIBILITY_BUFFER_SECS", "0");
+            std::env::set_var("SCOUTER_TRACE_REFRESH_INTERVAL_SECS", "1");
+            std::env::set_var("SCOUTER_TRACE_VISIBILITY_BUFFER_SECS", "3");
         }
 
         if enable_kafka {

@@ -270,5 +270,5 @@ Writers (`DatasetProducer`) and readers (`DatasetClient`) can operate on the sam
 
 ## Next Steps
 
-- [Writing Data](/bifrost/writing-data/) -- `DatasetProducer` configuration and patterns
-- [Schema Reference](/bifrost/schema/) -- type mapping, fingerprinting, `TableConfig` utilities
+- [Writing Data](/scouter/bifrost/writing-data/) -- `DatasetProducer` configuration and patterns
+- [Schema Reference](/scouter/bifrost/schema/) -- type mapping, fingerprinting, `TableConfig` utilities

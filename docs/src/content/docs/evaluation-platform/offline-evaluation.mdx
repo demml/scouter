@@ -6,9 +6,9 @@ Offline evaluation gates releases. You run your agent against a suite of test sc
 
 Scouter splits this into two layers: a Python orchestrator that handles the messy parts (calling your agent, managing sessions, simulating users) and a Rust evaluation engine that handles the compute (parallel task execution, comparison operators, trace matching). The orchestrator collects data; the engine evaluates it.
 
-For the complete usage guide with code examples, see [Offline evaluation](/agents/offline-evaluation/).
+For the complete usage guide with code examples, see [Offline evaluation](/scouter/agents/offline-evaluation/).
 
-> For how these building blocks (task types, DAGs, operators) work, see [Building blocks](/evaluation-platform/eval-profiles-and-tasks/).
+> For how these building blocks (task types, DAGs, operators) work, see [Building blocks](/scouter/evaluation-platform/eval-profiles-and-tasks/).
 
 ---
 
@@ -207,4 +207,4 @@ When you already have records (from a previous run, a production log export, or 
 
 Use for: re-evaluating historical data with updated task definitions, evaluating exported production records offline, quick iteration on tasks without running your agent.
 
-For details, see [EvalDataset](/agents/eval-dataset/).
+For details, see [EvalDataset](/scouter/agents/eval-dataset/).

@@ -244,6 +244,6 @@ def predict(request: Request, payload: PredictRequest):
 
 ## Next Steps
 
-- [Writing Data](/bifrost/writing-data/) -- batching behavior, backpressure, shutdown patterns
-- [Reading Data](/bifrost/reading-data/) -- `DatasetClient`, `QueryResult`, SQL reference
-- [Schema Reference](/bifrost/schema/) -- type mapping, fingerprinting, `TableConfig` utilities
+- [Writing Data](/scouter/bifrost/writing-data/) -- batching behavior, backpressure, shutdown patterns
+- [Reading Data](/scouter/bifrost/reading-data/) -- `DatasetClient`, `QueryResult`, SQL reference
+- [Schema Reference](/scouter/bifrost/schema/) -- type mapping, fingerprinting, `TableConfig` utilities

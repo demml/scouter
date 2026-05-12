@@ -10,7 +10,7 @@ Use `EvalDataset` when:
 - You're doing post-hoc analysis on production samples.
 - You want to run tasks against records that were generated separately from the eval run.
 
-`EvalDataset` doesn't support regression comparison, multi-agent structure, or trace correlation. For those, use [`EvalOrchestrator`](/agents/offline-evaluation/).
+`EvalDataset` doesn't support regression comparison, multi-agent structure, or trace correlation. For those, use [`EvalOrchestrator`](/scouter/agents/offline-evaluation/).
 
 ---
 
@@ -186,7 +186,7 @@ category_classification (always runs)
           └── outdoor_expert_validation → outdoor_durability_score
 ```
 
-See [Conditional gates](/agents/gates/) for a full explanation of how gates interact with `depends_on`.
+See [Conditional gates](/scouter/agents/gates/) for a full explanation of how gates interact with `depends_on`.
 
 ---
 
