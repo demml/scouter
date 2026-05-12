@@ -88,6 +88,7 @@ class TraceFilters:
     direction: Optional[str]
     trace_ids: Optional[List[str]]
     entity_uid: Optional[str]
+    query: Optional[str]
 
     def __init__(
         self,
@@ -99,6 +100,7 @@ class TraceFilters:
         direction: Optional[str] = None,
         trace_ids: Optional[List[str]] = None,
         entity_uid: Optional[str] = None,
+        query: Optional[str] = None,
     ) -> None:
         """Initialize trace filters.
 
@@ -119,6 +121,8 @@ class TraceFilters:
                 List of trace IDs to filter by
             entity_uid:
                 Filter by associated entity UID
+            query:
+                Optional trace search DSL query to parse into trace filters
         """
 
     @classmethod

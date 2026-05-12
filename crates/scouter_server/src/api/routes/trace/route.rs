@@ -34,11 +34,6 @@ use std::sync::Arc;
 use tracing::instrument;
 use tracing::{debug, error};
 
-#[derive(Debug, serde::Deserialize)]
-pub struct SearchQ {
-    pub q: Option<String>,
-}
-
 fn invalid_search_query(err: impl std::fmt::Display) -> (StatusCode, Json<ScouterServerError>) {
     (
         StatusCode::BAD_REQUEST,
@@ -110,14 +105,17 @@ fn validate_clause(clause: &FilterClause) -> Result<(), String> {
     validate_filter_clause(clause).map_err(|err| err.to_string())
 }
 
-fn merge_q_into_filters(
-    q: Option<String>,
-    body: TraceFilters,
+fn normalize_trace_filters(
+    mut body: TraceFilters,
 ) -> Result<TraceFilters, (StatusCode, Json<ScouterServerError>)> {
-    let Some(q) = q.as_deref().map(str::trim).filter(|s| !s.is_empty()) else {
+    let Some(query) = body.query.take() else {
         return Ok(body);
     };
-    let parsed = parse_search_query(q).map_err(invalid_search_query)?;
+    let query = query.trim();
+    if query.is_empty() {
+        return Ok(body);
+    }
+    let parsed = parse_search_query(query).map_err(invalid_search_query)?;
     Ok(merge_filters(parsed, body))
 }
 
@@ -146,6 +144,7 @@ fn merge_filters(parsed: TraceFilters, body: TraceFilters) -> TraceFilters {
         direction: body.direction.or(parsed.direction),
         trace_ids: merge_vec(parsed.trace_ids, body.trace_ids),
         entity_uid: body.entity_uid.or(parsed.entity_uid),
+        query: None,
     }
 }
 
@@ -197,7 +196,6 @@ pub async fn get_trace_baggage(
     post,
     path = "/scouter/trace/paginated",
     request_body = TraceFilters,
-    params(("q" = Option<String>, Query, description = "Optional Lucene-style search query")),
     responses(
         (status = 200, description = "Paginated traces", body = TracePaginationResponse),
         (status = 500, description = "Internal server error", body = ScouterServerError),
@@ -208,10 +206,9 @@ pub async fn get_trace_baggage(
 #[instrument(skip_all)]
 pub async fn paginated_traces(
     State(data): State<Arc<AppState>>,
-    Query(search): Query<SearchQ>,
     Json(body): Json<TraceFilters>,
 ) -> Result<Json<TracePaginationResponse>, (StatusCode, Json<ScouterServerError>)> {
-    let body = merge_q_into_filters(search.q, body)?;
+    let body = normalize_trace_filters(body)?;
     validate_filters(&body)?;
     debug!(
         "paginated_traces: limit={:?} start={:?} end={:?}",
@@ -519,7 +516,6 @@ pub async fn trace_metrics(
     post,
     path = "/scouter/trace/facets",
     request_body = TraceFilters,
-    params(("q" = Option<String>, Query, description = "Optional Lucene-style search query")),
     responses(
         (status = 200, description = "Trace facets", body = TraceFacetsResponse),
         (status = 500, description = "Internal server error", body = ScouterServerError),
@@ -530,10 +526,9 @@ pub async fn trace_metrics(
 #[instrument(skip_all)]
 pub async fn get_trace_facets(
     State(data): State<Arc<AppState>>,
-    Query(search): Query<SearchQ>,
     Json(body): Json<TraceFilters>,
 ) -> Result<Json<TraceFacetsResponse>, (StatusCode, Json<ScouterServerError>)> {
-    let body = merge_q_into_filters(search.q, body)?;
+    let body = normalize_trace_filters(body)?;
     validate_filters(&body)?;
     debug!(
         "trace_facets: limit={:?} start={:?} end={:?}",
@@ -562,7 +557,6 @@ pub async fn get_trace_facets(
     post,
     path = "/scouter/trace/spans/filters",
     request_body = TraceFilters,
-    params(("q" = Option<String>, Query, description = "Optional Lucene-style search query")),
     responses(
         (status = 200, description = "Trace spans matching filters", body = TraceSpansResponse),
         (status = 500, description = "Internal server error", body = ScouterServerError),
@@ -574,10 +568,9 @@ pub async fn get_trace_facets(
 pub async fn query_spans_from_filters(
     State(data): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
-    Query(search): Query<SearchQ>,
     Json(body): Json<TraceFilters>,
 ) -> Result<Json<TraceSpansResponse>, (StatusCode, Json<ScouterServerError>)> {
-    let body = merge_q_into_filters(search.q, body)?;
+    let body = normalize_trace_filters(body)?;
     validate_filters(&body)?;
     let spans = data
         .trace_service
@@ -815,14 +808,34 @@ mod tests {
     }
 
     #[test]
-    fn empty_q_returns_body_unchanged() {
+    fn empty_query_returns_body_unchanged() {
         let body = TraceFilters {
             limit: Some(25),
             ..Default::default()
         };
-        let result = merge_q_into_filters(None, body.clone()).unwrap();
+        let result = normalize_trace_filters(body.clone()).unwrap();
         assert_eq!(result.limit, Some(25));
         assert!(result.clause.is_none());
+    }
+
+    #[test]
+    fn trace_filter_body_query_merges_supported_fields_and_keeps_body_precedence() {
+        let body_ts = Utc::now();
+        let body = TraceFilters {
+            start_time: Some(body_ts),
+            entity_uid: Some("body-entity".to_string()),
+            query: Some(
+                "start_time:2026-01-01T00:00:00Z entity_uid:query-entity component:kafka"
+                    .to_string(),
+            ),
+            ..Default::default()
+        };
+
+        let result = normalize_trace_filters(body).unwrap();
+        assert_eq!(result.start_time, Some(body_ts));
+        assert_eq!(result.entity_uid.as_deref(), Some("body-entity"));
+        assert!(matches!(result.clause, Some(FilterClause::Attr { .. })));
+        assert!(result.query.is_none());
     }
 
     #[test]

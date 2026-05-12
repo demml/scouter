@@ -16,12 +16,6 @@ use scouter_types::{
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
-fn with_q(path: &str, q: &str) -> String {
-    let mut serializer = url::form_urlencoded::Serializer::new(String::new());
-    serializer.append_pair("q", q);
-    format!("{path}?{}", serializer.finish())
-}
-
 async fn fetch_paginated(helper: &TestHelper, filters: &TraceFilters) -> TracePaginationResponse {
     let body = serde_json::to_string(filters).unwrap();
     let request = Request::builder()
@@ -38,12 +32,14 @@ async fn fetch_paginated(helper: &TestHelper, filters: &TraceFilters) -> TracePa
 
 async fn fetch_paginated_with_query(
     helper: &TestHelper,
-    q: &str,
+    query: &str,
     filters: &TraceFilters,
 ) -> (StatusCode, Vec<u8>) {
+    let mut filters = filters.clone();
+    filters.query = Some(query.to_string());
     let body = serde_json::to_string(&filters).unwrap();
     let request = Request::builder()
-        .uri(with_q("/scouter/trace/paginated", q))
+        .uri("/scouter/trace/paginated")
         .method("POST")
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(body))
@@ -612,7 +608,7 @@ async fn test_trace_search_query_user_flow() {
     assert_eq!(
         post_page.items.len(),
         body_page.items.len(),
-        "POST URL query should merge into an empty body as the parsed clause"
+        "POST body query should merge into an empty body as the parsed clause"
     );
 
     let (status, _body) = fetch_paginated_with_query(
@@ -629,7 +625,7 @@ async fn test_trace_search_query_user_flow() {
 }
 
 #[tokio::test]
-async fn test_trace_search_q_and_body_are_and_merged() {
+async fn test_trace_search_query_and_body_are_and_merged() {
     let helper = setup_test().await;
     helper.generate_trace_data().await.unwrap();
     wait_for_paginated_count(&helper, 100).await;
@@ -735,8 +731,11 @@ async fn test_trace_query_is_merged_for_metrics_facets_and_spans() {
     let body_facets = fetch_facets(&helper, &body_filters).await;
     let (status, facets_q_body) = fetch_facets_raw(
         &helper,
-        &with_q("/scouter/trace/facets", "component:kafka"),
-        &TraceFilters::default(),
+        "/scouter/trace/facets",
+        &TraceFilters {
+            query: Some("component:kafka".to_string()),
+            ..Default::default()
+        },
     )
     .await;
     assert_eq!(status, StatusCode::OK);
@@ -749,8 +748,11 @@ async fn test_trace_query_is_merged_for_metrics_facets_and_spans() {
     };
     let (status, merged_facets_body) = fetch_facets_raw(
         &helper,
-        &with_q("/scouter/trace/facets", "component:kafka"),
-        &merged_filters,
+        "/scouter/trace/facets",
+        &TraceFilters {
+            query: Some("component:kafka".to_string()),
+            ..merged_filters.clone()
+        },
     )
     .await;
     assert_eq!(status, StatusCode::OK);
@@ -763,8 +765,11 @@ async fn test_trace_query_is_merged_for_metrics_facets_and_spans() {
     let body_spans = fetch_spans_from_filters(&helper, &body_filters).await;
     let (status, spans_q_body) = fetch_spans_from_filters_raw(
         &helper,
-        &with_q("/scouter/trace/spans/filters", "component:kafka"),
-        &TraceFilters::default(),
+        "/scouter/trace/spans/filters",
+        &TraceFilters {
+            query: Some("component:kafka".to_string()),
+            ..Default::default()
+        },
     )
     .await;
     assert_eq!(status, StatusCode::OK);
@@ -773,8 +778,11 @@ async fn test_trace_query_is_merged_for_metrics_facets_and_spans() {
 
     let (status, merged_spans_body) = fetch_spans_from_filters_raw(
         &helper,
-        &with_q("/scouter/trace/spans/filters", "component:kafka"),
-        &merged_filters,
+        "/scouter/trace/spans/filters",
+        &TraceFilters {
+            query: Some("component:kafka".to_string()),
+            ..merged_filters
+        },
     )
     .await;
     assert_eq!(status, StatusCode::OK);
@@ -801,15 +809,21 @@ async fn test_trace_query_is_merged_for_metrics_facets_and_spans() {
     assert_eq!(status, StatusCode::BAD_REQUEST);
     let (status, _) = fetch_facets_raw(
         &helper,
-        &with_q("/scouter/trace/facets", invalid_q),
-        &TraceFilters::default(),
+        "/scouter/trace/facets",
+        &TraceFilters {
+            query: Some(invalid_q.to_string()),
+            ..Default::default()
+        },
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     let (status, _) = fetch_spans_from_filters_raw(
         &helper,
-        &with_q("/scouter/trace/spans/filters", invalid_q),
-        &TraceFilters::default(),
+        "/scouter/trace/spans/filters",
+        &TraceFilters {
+            query: Some(invalid_q.to_string()),
+            ..Default::default()
+        },
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);

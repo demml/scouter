@@ -21,6 +21,12 @@ def test_quoted_service_key_remains_attribute_clause() -> None:
     }
 
 
+def test_trace_filters_accepts_body_query() -> None:
+    filters = TraceFilters(query="service:checkout")
+
+    assert filters.query == "service:checkout"
+
+
 def test_trace_metrics_request_round_trips_clause() -> None:
     now = datetime.now(timezone.utc)
     request = TraceMetricsRequest.from_query(
