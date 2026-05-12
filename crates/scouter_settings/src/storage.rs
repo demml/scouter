@@ -3,6 +3,13 @@ use scouter_types::StorageType;
 use serde::Serialize;
 use std::path::PathBuf;
 
+pub fn trace_refresh_interval_secs_from_env() -> u64 {
+    std::env::var("SCOUTER_TRACE_REFRESH_INTERVAL_SECS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(10)
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ObjectStorageSettings {
     pub storage_uri: String,
@@ -42,10 +49,7 @@ impl Default for ObjectStorageSettings {
             .and_then(|v| v.parse().ok())
             .unwrap_or(5u64);
 
-        let trace_refresh_interval_secs = std::env::var("SCOUTER_TRACE_REFRESH_INTERVAL_SECS")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(10u64);
+        let trace_refresh_interval_secs = trace_refresh_interval_secs_from_env();
 
         Self {
             storage_uri,

@@ -4,7 +4,7 @@ description: "Design tradeoffs behind Scouter’s evaluation architecture."
 ---
 This section covers the things you need to know before running Scouter in production. The previous sections describe how the system works; this one describes where it gets interesting under load, what it costs, and where the sharp edges are.
 
-For system-wide architecture constraints, see [Architecture](/architecture/overview/). For the regression comparison API, see [Comparing runs](/agents/offline-evaluation/#saving-loading-and-comparing-results).
+For system-wide architecture constraints, see [Architecture](/scouter/architecture/overview/). For the regression comparison API, see [Comparing runs](/scouter/agents/offline-evaluation/#saving-loading-and-comparing-results).
 
 ---
 
@@ -183,7 +183,7 @@ Scouter is designed to be extended at specific points:
 
 ## Known constraints
 
-These are documented here and in the [architecture overview](/architecture/overview/). Linking for completeness:
+These are documented here and in the [architecture overview](/scouter/architecture/overview/). Linking for completeness:
 
 - `EvalRunner.evaluate()` calls `block_on` internally. It checks for an existing async runtime and returns an error if one is detected. You cannot call it from inside an async context. Use `evaluate_async()` from async code, or call `evaluate()` from synchronous Python.
 - Queue insert errors are logged at ERROR level, not returned to the caller. No counter is exported by default. Monitor server logs for `Error inserting entity into queue`.

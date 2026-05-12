@@ -15,8 +15,9 @@ use scouter_types::EvalTaskResult;
 use scouter_types::Status;
 use scouter_types::contracts::DriftRequest;
 use scouter_types::{
-    BinnedMetrics, EvalRecordPaginationRequest, EvalRecordPaginationResponse, EvalRecordSource,
-    RecordCursor, RecordType, TraceId,
+    AwaitingTraceCommit, BinnedMetrics, ClaimedTraceCommitEvent, CompletedTraceCommitEvent,
+    EvalRecordPaginationRequest, EvalRecordPaginationResponse, EvalRecordSource, RecordCursor,
+    RecordType, SpanId, TraceCommitAnchor, TraceId,
 };
 use sqlx::types::Json;
 use sqlx::{Pool, Postgres, Row, Transaction, postgres::PgQueryResult};
@@ -73,15 +74,29 @@ pub trait AgentDriftSqlLogic {
 
     async fn insert_trace_commit_events(
         pool: &Pool<Postgres>,
-        trace_ids: &[TraceId],
+        anchors: &[TraceCommitAnchor],
     ) -> Result<PgQueryResult, SqlError> {
-        if trace_ids.is_empty() {
+        if anchors.is_empty() {
             return Ok(PgQueryResult::default());
         }
 
-        let bytes: Vec<Vec<u8>> = trace_ids.iter().map(|t| t.as_bytes().to_vec()).collect();
+        let n = anchors.len();
+        let mut trace_ids: Vec<Vec<u8>> = Vec::with_capacity(n);
+        let mut span_ids: Vec<Vec<u8>> = Vec::with_capacity(n);
+        let mut record_uids: Vec<&str> = Vec::with_capacity(n);
+        let mut profile_uids: Vec<&str> = Vec::with_capacity(n);
+        for anchor in anchors {
+            trace_ids.push(anchor.trace_id.as_bytes().to_vec());
+            span_ids.push(anchor.span_id.as_bytes().to_vec());
+            record_uids.push(anchor.record_uid.as_str());
+            profile_uids.push(anchor.profile_uid.as_str());
+        }
+
         sqlx::query(Queries::InsertTraceCommitEvents.get_query())
-            .bind(bytes)
+            .bind(trace_ids)
+            .bind(span_ids)
+            .bind(record_uids)
+            .bind(profile_uids)
             .execute(pool)
             .await
             .map_err(SqlError::SqlxError)
@@ -89,10 +104,13 @@ pub trait AgentDriftSqlLogic {
 
     async fn trace_commit_event_exists(
         pool: &Pool<Postgres>,
-        trace_id: &TraceId,
+        anchor: &TraceCommitAnchor,
     ) -> Result<bool, SqlError> {
         let row = sqlx::query(Queries::TraceCommitEventExists.get_query())
-            .bind(trace_id.as_bytes().to_vec())
+            .bind(&anchor.record_uid)
+            .bind(anchor.trace_id.as_bytes().as_slice())
+            .bind(anchor.span_id.as_bytes().as_slice())
+            .bind(&anchor.profile_uid)
             .fetch_one(pool)
             .await
             .map_err(SqlError::SqlxError)?;
@@ -100,54 +118,182 @@ pub trait AgentDriftSqlLogic {
     }
 
     async fn claim_trace_commit_events(
-        tx: &mut Transaction<'_, Postgres>,
+        pool: &Pool<Postgres>,
         limit: i64,
-    ) -> Result<Vec<(i64, TraceId)>, SqlError> {
+        claimed_by: &str,
+    ) -> Result<Vec<ClaimedTraceCommitEvent>, SqlError> {
+        let claim_token = uuid::Uuid::new_v4();
         let rows = sqlx::query(Queries::ClaimTraceCommitEvents.get_query())
             .bind(limit)
-            .fetch_all(&mut **tx)
+            .bind(claimed_by)
+            .bind(claim_token)
+            .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError)?;
 
         rows.into_iter()
             .map(|row| {
                 let id: i64 = row.try_get("id")?;
-                let bytes: Vec<u8> = row.try_get("trace_id")?;
-                let trace_id = TraceId::from_slice(&bytes)
+                let attempt_count: i32 = row.try_get("attempt_count")?;
+                let claim_token: uuid::Uuid = row.try_get("claim_token")?;
+                let trace_bytes: Vec<u8> = row.try_get("trace_id")?;
+                let span_bytes: Vec<u8> = row.try_get("span_id")?;
+                let record_uid: String = row.try_get("record_uid")?;
+                let profile_uid: String = row.try_get("profile_uid")?;
+                let trace_id = TraceId::from_slice(&trace_bytes)
                     .map_err(|e| SqlError::InvalidInboxData(format!("invalid trace_id: {e}")))?;
-                Ok((id, trace_id))
+                let span_id = SpanId::from_slice(&span_bytes)
+                    .map_err(|e| SqlError::InvalidInboxData(format!("invalid span_id: {e}")))?;
+                Ok(ClaimedTraceCommitEvent {
+                    id,
+                    attempt_count,
+                    claim_token,
+                    anchor: TraceCommitAnchor {
+                        trace_id,
+                        span_id,
+                        record_uid,
+                        profile_uid,
+                    },
+                })
             })
             .collect()
     }
 
     async fn flip_awaiting_evals(
         tx: &mut Transaction<'_, Postgres>,
-        trace_ids: &[TraceId],
+        completed: &[CompletedTraceCommitEvent],
         ready_delay: chrono::Duration,
     ) -> Result<PgQueryResult, SqlError> {
-        let bytes: Vec<Vec<u8>> = trace_ids.iter().map(|t| t.as_bytes().to_vec()).collect();
+        let n = completed.len();
+        let mut record_uids: Vec<&str> = Vec::with_capacity(n);
+        let mut trace_ids: Vec<Vec<u8>> = Vec::with_capacity(n);
+        let mut span_ids: Vec<Vec<u8>> = Vec::with_capacity(n);
+        for event in completed {
+            record_uids.push(event.anchor.record_uid.as_str());
+            trace_ids.push(event.anchor.trace_id.as_bytes().to_vec());
+            span_ids.push(event.anchor.span_id.as_bytes().to_vec());
+        }
+
         let pg_interval = sqlx::postgres::types::PgInterval {
             months: 0,
             days: 0,
             microseconds: ready_delay.num_microseconds().unwrap_or(0),
         };
         sqlx::query(Queries::FlipAwaitingEvals.get_query())
-            .bind(bytes)
+            .bind(record_uids)
+            .bind(trace_ids)
+            .bind(span_ids)
             .bind(pg_interval)
             .execute(&mut **tx)
             .await
             .map_err(SqlError::SqlxError)
     }
 
-    async fn mark_events_processed(
+    async fn complete_trace_commit_events(
         tx: &mut Transaction<'_, Postgres>,
         event_ids: &[i64],
-    ) -> Result<PgQueryResult, SqlError> {
-        sqlx::query(Queries::MarkEventsProcessed.get_query())
+        claim_token: uuid::Uuid,
+    ) -> Result<Vec<CompletedTraceCommitEvent>, SqlError> {
+        let rows = sqlx::query(Queries::CompleteTraceCommitEvents.get_query())
             .bind(event_ids)
-            .execute(&mut **tx)
+            .bind(claim_token)
+            .fetch_all(&mut **tx)
             .await
-            .map_err(SqlError::SqlxError)
+            .map_err(SqlError::SqlxError)?;
+        rows.into_iter()
+            .map(|row| {
+                let trace_bytes: Vec<u8> = row.try_get("trace_id")?;
+                let span_bytes: Vec<u8> = row.try_get("span_id")?;
+                let trace_id = TraceId::from_slice(&trace_bytes)
+                    .map_err(|e| SqlError::InvalidInboxData(format!("invalid trace_id: {e}")))?;
+                let span_id = SpanId::from_slice(&span_bytes)
+                    .map_err(|e| SqlError::InvalidInboxData(format!("invalid span_id: {e}")))?;
+                Ok(CompletedTraceCommitEvent {
+                    id: row.try_get("id")?,
+                    anchor: TraceCommitAnchor {
+                        trace_id,
+                        span_id,
+                        record_uid: row.try_get("record_uid")?,
+                        profile_uid: row.try_get("profile_uid")?,
+                    },
+                })
+            })
+            .collect()
+    }
+
+    async fn fail_trace_commit_events(
+        pool: &Pool<Postgres>,
+        event_ids: &[i64],
+        max_attempts: i32,
+        last_error: &str,
+        claim_token: uuid::Uuid,
+    ) -> Result<Vec<(i64, String)>, SqlError> {
+        let rows = sqlx::query(Queries::FailTraceCommitEvents.get_query())
+            .bind(event_ids)
+            .bind(max_attempts)
+            .bind(last_error)
+            .bind(claim_token)
+            .fetch_all(pool)
+            .await
+            .map_err(SqlError::SqlxError)?;
+        rows.into_iter()
+            .map(|row| Ok((row.try_get("id")?, row.try_get("status")?)))
+            .collect()
+    }
+
+    async fn recover_stale_processing(
+        pool: &Pool<Postgres>,
+        lease_ttl: chrono::Duration,
+        max_attempts: i32,
+    ) -> Result<Vec<(i64, String)>, SqlError> {
+        let pg_interval = sqlx::postgres::types::PgInterval {
+            months: 0,
+            days: 0,
+            microseconds: lease_ttl.num_microseconds().unwrap_or(0),
+        };
+        let rows = sqlx::query(Queries::RecoverStaleProcessing.get_query())
+            .bind(pg_interval)
+            .bind(max_attempts)
+            .fetch_all(pool)
+            .await
+            .map_err(SqlError::SqlxError)?;
+        rows.into_iter()
+            .map(|row| Ok((row.try_get("id")?, row.try_get("status")?)))
+            .collect()
+    }
+
+    async fn list_awaiting_record_uids(
+        pool: &Pool<Postgres>,
+        reconcile_after: chrono::Duration,
+        limit: i64,
+    ) -> Result<Vec<AwaitingTraceCommit>, SqlError> {
+        let pg_interval = sqlx::postgres::types::PgInterval {
+            months: 0,
+            days: 0,
+            microseconds: reconcile_after.num_microseconds().unwrap_or(0),
+        };
+        let rows = sqlx::query(Queries::ListAwaitingRecordUids.get_query())
+            .bind(pg_interval)
+            .bind(limit)
+            .fetch_all(pool)
+            .await
+            .map_err(SqlError::SqlxError)?;
+        rows.into_iter()
+            .map(|row| {
+                let trace_bytes: Vec<u8> = row.try_get("trace_id")?;
+                let span_bytes: Vec<u8> = row.try_get("span_id")?;
+                let trace_id = TraceId::from_slice(&trace_bytes)
+                    .map_err(|e| SqlError::InvalidInboxData(format!("invalid trace_id: {e}")))?;
+                let span_id = SpanId::from_slice(&span_bytes)
+                    .map_err(|e| SqlError::InvalidInboxData(format!("invalid span_id: {e}")))?;
+                Ok(AwaitingTraceCommit {
+                    record_uid: row.try_get("uid")?,
+                    trace_id,
+                    span_id,
+                    created_at: row.try_get("created_at")?,
+                })
+            })
+            .collect()
     }
 
     async fn sweep_awaiting_trace_timeouts(

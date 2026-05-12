@@ -6,7 +6,7 @@ description: "How Scouter compares to the surrounding evaluation tool landscape.
 
 This page compares Scouter's evaluation platform against five alternatives: LangSmith, Langfuse, MLflow, Datadog LLM Observability, and Google ADK. We focus on architectural differences and trade-offs rather than feature checklists. Every platform on this list does something well; the question is which set of trade-offs matches your requirements.
 
-For the problem Scouter's evaluation platform solves and how it works, see the [evaluation platform overview](/evaluation-platform/).
+For the problem Scouter's evaluation platform solves and how it works, see the [evaluation platform overview](/scouter/evaluation-platform/).
 
 ---
 

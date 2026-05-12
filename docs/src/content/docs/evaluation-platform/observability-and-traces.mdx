@@ -4,11 +4,13 @@ description: "Tie evaluation decisions back to trace data and runtime evidence."
 ---
 Agents are multi-step pipelines. The final output tells you *what* happened. Traces tell you *how*. Without them, you can't answer: did the retriever call the right API? Did the agent retry too many times? Was the right model used? Did latency exceed the SLA? Did total token usage blow the budget?
 
-Scouter treats traces as first-class evaluation data, not a separate observability concern. `TraceAssertionTask` runs assertions directly on OpenTelemetry span properties, and records attached to spans via `span.attach_eval()` correlate with traces automatically. The same span that shows up in your trace viewer feeds into your evaluation pipeline.
+Scouter does not make every evaluation depend on tracing. `span.attach_eval()` creates an `EvalRecord` and records correlation metadata. The record still follows the normal online eval path unless its registered profile includes `TraceAssertionTask`.
 
-For tracing setup and instrumentation, see [Distributed tracing](/tracing/overview/). For the full task type reference, see [Building blocks](/evaluation-platform/eval-profiles-and-tasks/).
+When a profile does include trace assertions, spans become part of the eval input. `TraceAssertionTask` runs assertions directly on OpenTelemetry span properties, so Scouter uses the inbox pattern below to wait for the specific anchor span before the poller runs that workflow.
 
-> For system-wide ingestion pipeline details, see [Architecture](/architecture/overview/).
+For tracing setup and instrumentation, see [Distributed tracing](/scouter/tracing/overview/). For the full task type reference, see [Building blocks](/scouter/evaluation-platform/eval-profiles-and-tasks/).
+
+> For system-wide ingestion pipeline details, see [Architecture](/scouter/architecture/overview/).
 
 ---
 
@@ -55,7 +57,7 @@ Beyond standard OTEL attributes, Scouter adds:
 - `set_tag(key, value)`: indexed tags stored in PostgreSQL for fast lookup
 - `attach_eval(profile_uid, context, *, record_id, session_id, media, tags)`: insert an `EvalRecord` with trace correlation, setting `trace_id` and `span_id` from the active span
 
-For the full instrumentor API, see [Instrumentor guide](/tracing/instrumentor/).
+For the full instrumentor API, see [Instrumentor guide](/scouter/tracing/instrumentor/).
 
 ### Instrumentation approaches: where Scouter differs
 
@@ -104,7 +106,7 @@ The attributes stored as dedicated columns:
 | Error | `error.type` |
 | Evaluation | `gen_ai.evaluation.result` events with `name`, `score.label`, `score.value`, `explanation` |
 
-See the [GenAI semantic conventions](/tracing/genai-semantics/) page for Google ADK / Vertex vendor fallback details and sensitive-content redaction rules.
+See the [GenAI semantic conventions](/scouter/tracing/genai-semantics/) page for Google ADK / Vertex vendor fallback details and sensitive-content redaction rules.
 
 These attributes are set by your application code on spans. Scouter doesn't auto-instrument LLM calls; your framework or manual instrumentation provides the attributes. What Scouter does is store them in a columnar layout where each attribute is a typed column with dictionary encoding on high-repetition fields (`provider_name`, `request_model`, `response_model`, `operation_name`, `output_type`). Token columns use delta encoding. The result: queries like "average input tokens by model over the last 24 hours" scan compressed, sorted columns instead of parsing JSON blobs.
 
@@ -297,40 +299,111 @@ The DataFusion `SessionContext` is tuned for trace workloads:
 
 ## Trace-aware evaluation architecture
 
-Scouter connects traces to evaluation through an inbox pattern. When you call `span.attach_eval()`, the evaluation record references the active span's `trace_id` and `span_id`. The server stores the record in one of three states based on trace arrival status.
+Evaluation does not depend on tracing by default. `span.attach_eval()` creates an `EvalRecord`, fills in `trace_id` and `span_id` from the active span, and stamps the span with `scouter.eval.record_uid` and `scouter.eval.profile_uid`. That is correlation metadata. It does not, by itself, make the record wait for trace storage.
+
+The server decides whether trace availability gates the workflow by reading the registered `AgentEvalProfile`. If the profile has no `TraceAssertionTask`, the record is inserted as `pending` immediately and evaluated like any other online record. The trace IDs remain useful for later lookup, but they do not slow down evaluation.
+
+The inbox pattern exists for one case: profiles that include `TraceAssertionTask`. Those tasks read spans from Delta Lake, so Scouter must make sure the specific anchor span is committed before the poller runs the workflow. For those profiles, readiness means the exact `(record_uid, trace_id, span_id)` anchor has committed to Delta Lake, not merely that some span with the same `trace_id` exists.
+
+The important split for trace-assertion workflows is this: Delta Lake is the source of truth, PostgreSQL is the eval workflow state machine, and the in-memory channel is only a latency path. If the channel drops an anchor event, correctness still comes from reconciliation scanning Delta and recreating the queue row.
+
+### End-to-end inbox flow
 
 ```mermaid
-graph LR
-    subgraph "Client"
-        S["span.attach_eval<br/>(profile_uid, context)"]
+flowchart TD
+    subgraph APP["Application process"]
+        SP["Active span"]
+        AE["span.attach_eval()<br/>creates EvalRecord<br/>stamps span metadata"]
+        ER["EvalRecord<br/>context + trace_id + span_id"]
+        END["span.end()"]
+        SP --> AE --> ER
+        SP --> END
     end
 
-    subgraph "Server ingestion"
-        S -->|"if trace exists in Delta"| P["Record → pending"]
-        S -->|"if trace not yet committed"| A["Record → awaiting_trace"]
+    subgraph EVAL_INGEST["Eval record ingestion"]
+        MR["Message router"]
+        INSERT["insert agent_eval_record"]
+        NEEDS_TRACE{"workflow includes<br/>TraceAssertionTask?"}
+        PROBE["probe trace_commit_event<br/>by anchor tuple"]
+        FAIL_TRACE["failed(EvalRequiresTrace)"]
+        FAIL_ANCHOR["failed(EvalRequiresAnchorSpan)"]
+        FAIL_TIMEOUT["failed(TraceArrivalTimeout)"]
+        AWAIT["agent_eval_record<br/>status = awaiting_trace"]
+        PENDING_FAST["agent_eval_record<br/>status = pending"]
+        PENDING_TRACE["agent_eval_record<br/>status = pending<br/>ready_at = now + visibility buffer"]
     end
 
-    subgraph "Inbox worker (scheduled)"
-        TCE["trace_commit_event<br/>arrives for trace_id"]
-        AT["awaiting_trace rows<br/>for that trace_id"]
-        TCE -->|"match on trace_id"| AT
-        AT -->|"flip status"| P
+    subgraph TRACE_INGEST["Trace ingestion"]
+        EXPORT["BatchSpanProcessor / exporter"]
+        TRACE_CH["trace channel"]
+        BUFFER["TraceSpanService<br/>buffer actor"]
+        ENGINE["TraceSpanDBEngine<br/>Arrow + Delta append"]
+        EXTRACT["extract committed anchors<br/>only spans with record_uid + profile_uid"]
     end
 
-    subgraph "Timeout sweep"
-        TM["awaiting_trace rows<br/>older than 5 min"]
-        TM -->|"no trace commit event"| F["failed(TraceArrivalTimeout)"]
+    subgraph STORES["Durable stores"]
+        DELTA["Delta Lake trace_spans<br/>source of truth"]
+        QUEUE["PostgreSQL trace_commit_event<br/>durable queue + audit log"]
     end
 
-    subgraph "AgentPoller"
-        P -->|"SELECT FOR UPDATE"| AP["Evaluation worker"]
-        AP --> RS["Results + alerts"]
+    subgraph LIVE["Live latency path"]
+        COMMIT_TX["bounded commit_tx<br/>try_send, may drop"]
+        WRITER["inbox writer<br/>ON CONFLICT DO NOTHING"]
     end
+
+    subgraph WORKERS["Background workers"]
+        DRAIN["inbox drain<br/>claim pending rows<br/>FOR UPDATE SKIP LOCKED"]
+        COMPLETE["complete owned rows<br/>claim_token fenced"]
+        RECON["reconciliation sweep<br/>old awaiting_trace rows"]
+        LEASE["lease recovery<br/>stale processing rows"]
+        TIMEOUT["timeout sweep<br/>TraceArrivalTimeout"]
+        POLLER["AgentPoller<br/>SELECT pending rows"]
+        EVAL["task DAG + TraceAssertionTask"]
+        RESULTS["workflow results + alerts"]
+    end
+
+    ER --> MR --> INSERT --> NEEDS_TRACE
+    NEEDS_TRACE -->|"no"| PENDING_FAST
+    NEEDS_TRACE -->|"yes, missing trace_id"| FAIL_TRACE
+    NEEDS_TRACE -->|"yes, trace_id present,<br/>missing span_id"| FAIL_ANCHOR
+    NEEDS_TRACE -->|"yes, complete anchor"| PROBE
+    PROBE -->|"exact anchor queued"| PENDING_TRACE
+    PROBE -->|"not seen yet"| AWAIT
+
+    END --> EXPORT --> TRACE_CH --> BUFFER --> ENGINE --> DELTA
+    ENGINE --> EXTRACT --> COMMIT_TX
+    COMMIT_TX -->|"delivered"| WRITER --> QUEUE
+    COMMIT_TX -.->|"dropped / pod died"| RECON
+
+    AWAIT --> RECON
+    RECON -->|"query Delta by record_uid,<br/>trace_id, span_id, time window"| DELTA
+    RECON -->|"insert missing anchors"| QUEUE
+
+    QUEUE --> DRAIN --> COMPLETE
+    COMPLETE -->|"flip matching anchor tuple only"| PENDING_TRACE
+    QUEUE --> LEASE -->|"retry or dead_lettered"| QUEUE
+    AWAIT --> TIMEOUT -->|"older than timeout"| FAIL_TIMEOUT
+
+    PENDING_FAST --> POLLER
+    PENDING_TRACE -->|"after ready_at"| POLLER --> EVAL
+    EVAL -->|"fetch spans by trace_id"| DELTA
+    EVAL --> RESULTS
 ```
 
-### Two paths for record insertion
+Read the diagram left to right by concern:
 
-**Path A — Trace-attached (with span correlation):**
+- **Eval record ingestion** writes `agent_eval_record`. If the workflow has no `TraceAssertionTask`, the record goes straight to `pending`. If trace assertions are present, ingestion never guesses that a trace is ready because some span in the trace exists; it either finds the exact anchor tuple or leaves the record in `awaiting_trace`.
+- **Trace ingestion** writes spans to Delta first. Only after the Delta commit succeeds does the engine extract anchor spans and send them toward the inbox writer.
+- **The live path** is deliberately best-effort. `commit_tx` is bounded and uses `try_send`; dropping an event is acceptable because the event can be rebuilt from Delta.
+- **The durable queue** is `trace_commit_event`. The inbox worker claims queue rows, completes the rows it owns, and flips only eval rows that match the returned `(record_uid, trace_id, span_id)` anchor.
+- **Reconciliation** is the correctness path. It scans older `awaiting_trace` rows, queries Delta for their anchor spans, and inserts any missing queue rows. It does not update `agent_eval_record` directly.
+- **The poller** evaluates pending records. Only records that were gated for trace assertions receive the `ready_at` visibility buffer; normal eval records do not wait on tracing.
+
+### Two server-side paths after insertion
+
+Both examples below create eval records for the same online evaluation system. The difference is whether the record includes trace correlation metadata.
+
+**Trace-correlated record:**
 
 ```python
 with tracer.start_as_current_span("agent.callback") as span:
@@ -344,13 +417,13 @@ with tracer.start_as_current_span("agent.callback") as span:
     )
 ```
 
-- `trace_id` and `span_id` are set once by the Rust constructor from the active span context.
-- Server immediately checks if trace has committed to Delta Lake (within ~5 seconds of span.attach_eval call).
-- If trace found: record inserted as `pending` for immediate evaluation.
-- If trace not yet committed: record inserted as `awaiting_trace` with a reference timestamp.
-- `ready_at` column provides a visibility window before the poller processes the record, allowing time for task-upstream data to stabilize.
+- `attach_eval()` creates the `EvalRecord`; the server still owns workflow routing.
+- If the registered profile has no `TraceAssertionTask`, the record is inserted as `pending`.
+- If the profile has `TraceAssertionTask`, the server checks `trace_commit_event` for the exact `(record_uid, trace_id, span_id, profile_uid)` anchor.
+- If the anchor queue row already exists, the record is inserted as `pending` with a visibility delay.
+- If the anchor has not been delivered yet, the record is inserted as `awaiting_trace`.
 
-**Path B — Standalone/content-only (no trace needed):**
+**Content-only record:**
 
 ```python
 queue.insert(EvalRecord(
@@ -361,29 +434,44 @@ queue.insert(EvalRecord(
 ))
 ```
 
-- No `trace_id`, no `span_id`. Record inserted as `pending` immediately.
-- If profile has `TraceAssertionTask` but record has no `trace_id`: record fails with `failed(EvalRequiresTrace)` during evaluation.
+- No `trace_id` or `span_id` is attached.
+- If the profile has no `TraceAssertionTask`, the record is inserted as `pending`.
+- If the profile has `TraceAssertionTask`, the record fails with `failed(EvalRequiresTrace)` because the workflow asked for span data that this record cannot provide.
 
 ### Trace arrival coordination
 
-The `trace_commit_event` table records when traces land in Delta Lake. After a successful Delta append, the server writes a commit event with the trace's `trace_id`, `partition_date`, and timestamp. The inbox worker polls for new commit events and flips matching `awaiting_trace` rows to `pending`.
+The `trace_commit_event` table is a durable queue and audit log for anchor spans. It is only used to unblock eval records waiting on trace assertions. Rows move through `pending → processing → processed | dead_lettered` and carry `attempt_count`, `claimed_at`, `claimed_by`, `claim_token`, and `last_error`. The inbox worker claims rows with `FOR UPDATE SKIP LOCKED`, completes owned queue rows, then flips only eval rows that match the returned anchor tuple.
+
+Delta Lake remains the source of truth. The live channel from the engine actor is a latency optimization: it uses bounded `try_send`, may drop when full or closed, and increments `scouter_trace_commit_event_channel_drop_total`. A reconciliation sweep recovers correctness by scanning old `awaiting_trace` eval rows, querying Delta with bounded time predicates, and inserting missing queue rows with `ON CONFLICT DO NOTHING`. Reconciliation never writes `agent_eval_record`.
 
 **Failure modes:**
 
 | Scenario | Behavior |
 |---|---|
-| Trace commits before record arrives | Short-circuit: record inserted as `pending` directly (0 retry latency) |
-| Trace commits after record inserted as `awaiting_trace` | Inbox worker matches trace_id and flips to `pending` within 1-2 poll intervals |
+| Record has trace IDs but workflow has no trace assertions | Record inserts as `pending`; tracing is correlation metadata only |
+| Anchor commits before record arrives | Short-circuit: record inserted as `pending` by probing the exact anchor |
+| Anchor commits after record inserted as `awaiting_trace` | Inbox worker completes the owned queue row, then flips the eval row that matches `(record_uid, trace_id, span_id)` to `pending` |
+| Live anchor channel drops | Reconciliation finds the anchor in Delta and inserts the missing queue row |
+| Worker dies while processing | Lease recovery returns the row to `pending` or moves it to `dead_lettered` after max attempts |
 | Trace never commits (client crashed, network partition) | Record remains `awaiting_trace` for 5 minutes, then marked `failed(TraceArrivalTimeout)` |
-| Profile requires trace assertions but record has no trace_id | Record fails immediately with `failed(EvalRequiresTrace)` during evaluation |
+| Profile requires trace assertions but record has no trace_id | Record fails immediately with `failed(EvalRequiresTrace)` |
+| Profile requires trace assertions and record has trace_id but no span_id | Record fails immediately with `failed(EvalRequiresAnchorSpan)` |
 
 ### Scheduled maintenance
 
-**Inbox worker:** Polls for `trace_commit_event` rows matching `awaiting_trace` records. Configurable poll interval (default every 10 seconds). Flips status to `pending` and marks the trace_commit_event as processed.
+**Inbox worker:** Claims `pending` queue rows, completes rows fenced by `claim_token`, and flips only eval rows matching the returned `(record_uid, trace_id, span_id)` anchors to `pending`.
+
+**Reconciliation sweep:** Scans old `awaiting_trace` rows and queries Delta for their anchor spans. It inserts missing `trace_commit_event` rows only.
+
+**Lease recovery sweep:** Recovers stuck `processing` rows after the lease TTL. Rows are retried until `max_attempts`, then kept as `dead_lettered` for operator triage.
 
 **Timeout sweep:** Background task that scans `awaiting_trace` rows older than 5 minutes (configurable via `TRACE_ARRIVAL_TIMEOUT_SECS`). Marks them as `failed(TraceArrivalTimeout)` and emits a metric for alerting.
 
-**Prune sweep:** Removes old `trace_commit_event` rows after processing (default: 24 hours). Keeps the table bounded.
+**Prune sweep:** Removes old `processed` queue rows after 24 hours. Pending, processing, and dead-lettered rows are not pruned automatically.
+
+Operators should alert on sustained channel drops, non-zero dead-lettered rows, rising pending count, and oldest pending age above the reconciliation interval. The main metrics are `scouter_trace_commit_event_pending_count`, `scouter_trace_commit_event_oldest_pending_age_seconds`, `scouter_trace_commit_event_channel_drop_total`, `scouter_trace_commit_event_reconciled_total`, `scouter_trace_commit_event_dead_lettered_total`, `scouter_trace_commit_event_lease_recovered_total`, and the claim/flip histograms.
+
+Migration note: `20260512000000_trace_commit_anchor_queue.sql` is forward-only. Stop the server during the migration; the old trace-level inbox rows are intentionally dropped and any remaining `awaiting_trace` rows are recovered by reconciliation or failed by the timeout sweep.
 
 ### Configuration
 
@@ -392,13 +480,19 @@ The `trace_commit_event` table records when traces land in Delta Lake. After a s
 | `TRACE_ARRIVAL_TIMEOUT_SECS` | 300 | How long to wait for a trace to commit before failing the record |
 | `INBOX_POLL_INTERVAL_SECS` | 10 | How often the inbox worker checks for new commit events |
 | `TRACE_COMMIT_EVENT_RETENTION_HOURS` | 24 | How long to keep processed commit event rows before pruning |
+| `SCOUTER_TRACE_REFRESH_INTERVAL_SECS` | 10 | How often each pod refreshes its Delta snapshot |
+| `SCOUTER_TRACE_VISIBILITY_BUFFER_SECS` | refresh + 2 | Delay before pending trace evals are polled; startup fails if below refresh + 2 |
+| `SCOUTER_INBOX_RECONCILE_AFTER_SECS` | 15 | How old an `awaiting_trace` row must be before reconciliation scans for it |
+| `SCOUTER_INBOX_RECONCILE_LOOKBACK_SECS` | 86400 | Maximum supported anchor span start lookback used by reconciliation Delta queries |
+| `SCOUTER_INBOX_RECONCILE_INTERVAL_SECS` | 60 | Reconciliation tick interval |
+| `SCOUTER_INBOX_RECONCILE_BATCH` | 200 | Awaiting rows scanned per reconciliation tick |
 
 ---
 
 ## Same data, unified evaluation
 
-Scouter's observability engine and evaluation pipeline share the same trace data. Spans in Delta Lake feed `TraceAssertionTask` evaluations. An evaluation record attached to a trace is evaluated with that trace's spans available. Results flow into the alert system.
+Scouter's observability engine and evaluation pipeline share the same trace data, but only trace-assertion workflows are gated on it. Spans in Delta Lake feed `TraceAssertionTask` evaluations. Records for profiles without trace assertions can still carry trace IDs for lookup, but they are evaluated without waiting for trace storage.
 
-The trace storage, evaluation engine, and alert pipeline are stages of a single data path. Spans arrive, get stored, records correlate with traces, evaluations run, results get stored, and alerts fire.
+For trace-assertion workflows, the trace storage, evaluation engine, and alert pipeline become one data path: spans arrive, anchor events unblock matching records, evaluations run, results get stored, and alerts fire.
 
-For Delta Lake schema details and compaction internals, see [Storage architecture](/tracing/storage-architecture/).
+For Delta Lake schema details and compaction internals, see [Storage architecture](/scouter/tracing/storage-architecture/).
