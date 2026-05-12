@@ -11,7 +11,8 @@ use chrono::Duration as ChronoDuration;
 use scouter_settings::DatabaseSettings;
 use scouter_types::agent::profile::AgentEvalProfile;
 use scouter_types::{
-    RecordType, ServerRecords, Status, TagRecord, ToDriftRecords, TraceServerRecord,
+    RecordType, ServerRecords, Status, TagRecord, ToDriftRecords, TraceCommitAnchor,
+    TraceServerRecord,
 };
 use sqlx::ConnectOptions;
 use sqlx::{Pool, Postgres, postgres::PgConnectOptions};
@@ -192,23 +193,38 @@ impl MessageHandler {
                                 (Status::Failed, ChronoDuration::zero())
                             }
                             Some(trace_id) => {
-                                // Trace anchors are minted by trusted Scouter runtime
-                                // instrumentation. If future public APIs allow arbitrary
-                                // tenant-supplied anchors, validate ownership at ingestion.
-                                let already_committed =
-                                    PostgresClient::trace_commit_event_exists(pool, trace_id)
-                                        .await
-                                        .unwrap_or_else(|e| {
-                                            warn!(
-                                                "trace_commit_event_exists probe failed ({:?}); falling back to AwaitingTrace",
-                                                e
-                                            );
-                                            false
-                                        });
-                                if already_committed {
-                                    (Status::Pending, trace_visibility_buffer)
+                                if let Some(span_id) = record.record.span_id.as_ref() {
+                                    if let Some(anchor) = TraceCommitAnchor::new(
+                                        *trace_id,
+                                        span_id.clone(),
+                                        record.record.uid.clone(),
+                                        record.record.entity_uid.clone(),
+                                    ) {
+                                        let already_committed =
+                                            PostgresClient::trace_commit_event_exists(pool, &anchor)
+                                            .await
+                                            .unwrap_or_else(|e| {
+                                                warn!(
+                                                    "trace_commit_event_exists probe failed ({:?}); falling back to AwaitingTrace",
+                                                    e
+                                                );
+                                                false
+                                            });
+
+                                        if already_committed {
+                                            (Status::Pending, trace_visibility_buffer)
+                                        } else {
+                                            (Status::AwaitingTrace, ChronoDuration::zero())
+                                        }
+                                    } else {
+                                        record.record.set_failed_with_error("InvalidTraceAnchor");
+                                        (Status::Failed, ChronoDuration::zero())
+                                    }
                                 } else {
-                                    (Status::AwaitingTrace, ChronoDuration::zero())
+                                    record
+                                        .record
+                                        .set_failed_with_error("EvalRequiresAnchorSpan");
+                                    (Status::Failed, ChronoDuration::zero())
                                 }
                             }
                         }
@@ -353,6 +369,20 @@ mod tests {
     const NAME: &str = "name";
     const VERSION: &str = "1.0.0";
     const ENTITY_ID: i32 = 9999;
+
+    fn anchor(
+        trace_id: TraceId,
+        span_id_byte: u8,
+        record_uid: &str,
+        profile_uid: &str,
+    ) -> TraceCommitAnchor {
+        TraceCommitAnchor {
+            trace_id,
+            span_id: SpanId::from_bytes([span_id_byte; 8]),
+            record_uid: record_uid.to_string(),
+            profile_uid: profile_uid.to_string(),
+        }
+    }
 
     pub async fn cleanup(pool: &Pool<Postgres>) {
         sqlx::raw_sql(
@@ -1244,34 +1274,37 @@ mod tests {
         let pool = db_pool().await;
         let trace_a = TraceId::from_bytes([0xAA; 16]);
         let trace_b = TraceId::from_bytes([0xBB; 16]);
+        let anchor_a = anchor(trace_a, 0x11, "awaiting-record", "profile-a");
+        let anchor_b = anchor(trace_b, 0x22, "other-record", "profile-a");
 
         let empty = PostgresClient::insert_trace_commit_events(&pool, &[])
             .await
             .unwrap();
         assert_eq!(empty.rows_affected(), 0);
 
-        let inserted = PostgresClient::insert_trace_commit_events(&pool, &[trace_a, trace_b])
-            .await
-            .unwrap();
+        let inserted =
+            PostgresClient::insert_trace_commit_events(&pool, &[anchor_a.clone(), anchor_b])
+                .await
+                .unwrap();
         assert_eq!(inserted.rows_affected(), 2);
         assert!(
-            PostgresClient::trace_commit_event_exists(&pool, &trace_a)
+            PostgresClient::trace_commit_event_exists(&pool, &anchor_a)
                 .await
                 .unwrap()
         );
+        let missing_anchor = anchor(trace_a, 0x11, "missing-record", "profile-a");
         assert!(
-            !PostgresClient::trace_commit_event_exists(&pool, &TraceId::from_bytes([0xCC; 16]))
+            !PostgresClient::trace_commit_event_exists(&pool, &missing_anchor)
                 .await
                 .unwrap()
         );
 
-        let mut tx = pool.begin().await.unwrap();
-        let claimed = PostgresClient::claim_trace_commit_events(&mut tx, 100)
+        let claimed = PostgresClient::claim_trace_commit_events(&pool, 100, "test-worker")
             .await
             .unwrap();
         assert_eq!(claimed.len(), 2);
-        let event_ids: Vec<i64> = claimed.iter().map(|(id, _)| *id).collect();
-        let trace_ids: Vec<TraceId> = claimed.iter().map(|(_, trace_id)| *trace_id).collect();
+        let claim_token = claimed[0].claim_token;
+        let event_ids: Vec<i64> = claimed.iter().map(|claim| claim.id).collect();
 
         let (_uid, entity_id) = PostgresClient::create_entity(
             &pool,
@@ -1297,14 +1330,15 @@ mod tests {
             .await
             .unwrap();
 
-        let flipped = PostgresClient::flip_awaiting_evals(&mut tx, &trace_ids, Duration::zero())
+        let mut tx = pool.begin().await.unwrap();
+        let completed =
+            PostgresClient::complete_trace_commit_events(&mut tx, &event_ids, claim_token)
+                .await
+                .unwrap();
+        let flipped = PostgresClient::flip_awaiting_evals(&mut tx, &completed, Duration::zero())
             .await
             .unwrap();
         assert_eq!(flipped.rows_affected(), 1);
-        let marked = PostgresClient::mark_events_processed(&mut tx, &event_ids)
-            .await
-            .unwrap();
-        assert_eq!(marked.rows_affected(), 2);
         tx.commit().await.unwrap();
 
         let status: String =
@@ -1316,7 +1350,7 @@ mod tests {
         assert_eq!(status, "pending");
 
         let processed_count: i64 = sqlx::query_scalar(
-            "SELECT count(*) FROM scouter.trace_commit_event WHERE processed_at IS NOT NULL",
+            "SELECT count(*) FROM scouter.trace_commit_event WHERE status = 'processed'",
         )
         .fetch_one(&pool)
         .await
@@ -1325,36 +1359,191 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_trace_commit_event_claim_uses_skip_locked() {
+    async fn test_trace_commit_event_flip_requires_full_anchor_tuple() {
         let pool = db_pool().await;
-        let trace_ids = [
-            TraceId::from_bytes([0xA1; 16]),
-            TraceId::from_bytes([0xA2; 16]),
-            TraceId::from_bytes([0xA3; 16]),
-            TraceId::from_bytes([0xA4; 16]),
-        ];
-        PostgresClient::insert_trace_commit_events(&pool, &trace_ids)
+        let trace_id = TraceId::from_bytes([0xAC; 16]);
+        let anchor = anchor(trace_id, 0x11, "tuple-record", "profile-a");
+        PostgresClient::insert_trace_commit_events(&pool, &[anchor])
             .await
             .unwrap();
 
-        let mut tx1 = pool.begin().await.unwrap();
-        let tx1_claimed = PostgresClient::claim_trace_commit_events(&mut tx1, 2)
+        let claimed = PostgresClient::claim_trace_commit_events(&pool, 1, "tuple-worker")
+            .await
+            .unwrap();
+        let claim_token = claimed[0].claim_token;
+        let event_ids: Vec<i64> = claimed.iter().map(|claim| claim.id).collect();
+
+        let (_uid, entity_id) = PostgresClient::create_entity(
+            &pool,
+            SPACE,
+            "tuple-fence",
+            VERSION,
+            DriftType::Agent.to_string(),
+        )
+        .await
+        .unwrap();
+        let record = EvalRecord {
+            created_at: Utc::now(),
+            context: serde_json::json!({"input": "hello"}),
+            status: Status::AwaitingTrace,
+            uid: "tuple-record".to_string(),
+            entity_id,
+            trace_id: Some(trace_id),
+            span_id: Some(SpanId::from_bytes([0x22; 8])),
+            ..Default::default()
+        };
+        PostgresClient::insert_agent_eval_record(
+            &pool,
+            BoxedEvalRecord::new(record),
+            &entity_id,
+            Status::AwaitingTrace,
+        )
+        .await
+        .unwrap();
+
+        let mut tx = pool.begin().await.unwrap();
+        let completed =
+            PostgresClient::complete_trace_commit_events(&mut tx, &event_ids, claim_token)
+                .await
+                .unwrap();
+        let flipped = PostgresClient::flip_awaiting_evals(&mut tx, &completed, Duration::zero())
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+        assert_eq!(flipped.rows_affected(), 0);
+
+        let status: String =
+            sqlx::query_scalar("SELECT status FROM scouter.agent_eval_record WHERE uid = $1")
+                .bind("tuple-record")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(status, "awaiting_trace");
+    }
+
+    #[tokio::test]
+    async fn test_trace_commit_event_lease_fencing_and_dead_letter() {
+        let pool = db_pool().await;
+        let trace_id = TraceId::from_bytes([0xAD; 16]);
+        PostgresClient::insert_trace_commit_events(
+            &pool,
+            &[anchor(trace_id, 0x11, "lease-record", "profile-a")],
+        )
+        .await
+        .unwrap();
+
+        let worker_a = PostgresClient::claim_trace_commit_events(&pool, 1, "worker-a")
+            .await
+            .unwrap();
+        let event_ids: Vec<i64> = worker_a.iter().map(|claim| claim.id).collect();
+        let stale_token = worker_a[0].claim_token;
+        sqlx::query(
+            "UPDATE scouter.trace_commit_event SET claimed_at = now() - interval '10 minutes' WHERE id = $1",
+        )
+        .bind(event_ids[0])
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let recovered = PostgresClient::recover_stale_processing(&pool, Duration::seconds(1), 5)
+            .await
+            .unwrap();
+        assert_eq!(recovered, vec![(event_ids[0], "pending".to_string())]);
+
+        let worker_b = PostgresClient::claim_trace_commit_events(&pool, 1, "worker-b")
+            .await
+            .unwrap();
+        let live_token = worker_b[0].claim_token;
+        assert_ne!(stale_token, live_token);
+
+        let mut tx = pool.begin().await.unwrap();
+        let stale_complete =
+            PostgresClient::complete_trace_commit_events(&mut tx, &event_ids, stale_token)
+                .await
+                .unwrap();
+        tx.commit().await.unwrap();
+        assert!(stale_complete.is_empty());
+
+        let stale_fail = PostgresClient::fail_trace_commit_events(
+            &pool,
+            &event_ids,
+            5,
+            "stale failure",
+            stale_token,
+        )
+        .await
+        .unwrap();
+        assert!(stale_fail.is_empty());
+
+        let row: (String, uuid::Uuid) = sqlx::query_as(
+            "SELECT status, claim_token FROM scouter.trace_commit_event WHERE id = $1",
+        )
+        .bind(event_ids[0])
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(row.0, "processing");
+        assert_eq!(row.1, live_token);
+
+        sqlx::query(
+            "UPDATE scouter.trace_commit_event SET claimed_at = now() - interval '10 minutes' WHERE id = $1",
+        )
+        .bind(event_ids[0])
+        .execute(&pool)
+        .await
+        .unwrap();
+        let dead = PostgresClient::recover_stale_processing(&pool, Duration::seconds(1), 2)
+            .await
+            .unwrap();
+        assert_eq!(dead, vec![(event_ids[0], "dead_lettered".to_string())]);
+    }
+
+    #[tokio::test]
+    async fn test_trace_commit_event_claim_uses_skip_locked() {
+        let pool = db_pool().await;
+        let anchors = [
+            anchor(
+                TraceId::from_bytes([0xA1; 16]),
+                0xA1,
+                "record-a1",
+                "profile-a",
+            ),
+            anchor(
+                TraceId::from_bytes([0xA2; 16]),
+                0xA2,
+                "record-a2",
+                "profile-a",
+            ),
+            anchor(
+                TraceId::from_bytes([0xA3; 16]),
+                0xA3,
+                "record-a3",
+                "profile-a",
+            ),
+            anchor(
+                TraceId::from_bytes([0xA4; 16]),
+                0xA4,
+                "record-a4",
+                "profile-a",
+            ),
+        ];
+        PostgresClient::insert_trace_commit_events(&pool, &anchors)
+            .await
+            .unwrap();
+
+        let tx1_claimed = PostgresClient::claim_trace_commit_events(&pool, 2, "worker-a")
             .await
             .unwrap();
         assert_eq!(tx1_claimed.len(), 2);
 
-        let mut tx2 = pool.begin().await.unwrap();
-        let tx2_claimed = PostgresClient::claim_trace_commit_events(&mut tx2, 4)
+        let tx2_claimed = PostgresClient::claim_trace_commit_events(&pool, 4, "worker-b")
             .await
             .unwrap();
         assert_eq!(tx2_claimed.len(), 2);
 
-        let tx1_ids: HashSet<i64> = tx1_claimed.iter().map(|(id, _)| *id).collect();
-        let tx2_ids: HashSet<i64> = tx2_claimed.iter().map(|(id, _)| *id).collect();
+        let tx1_ids: HashSet<i64> = tx1_claimed.iter().map(|claim| claim.id).collect();
+        let tx2_ids: HashSet<i64> = tx2_claimed.iter().map(|claim| claim.id).collect();
         assert!(tx1_ids.is_disjoint(&tx2_ids));
-
-        tx2.rollback().await.unwrap();
-        tx1.rollback().await.unwrap();
     }
 
     #[tokio::test]
@@ -1478,21 +1667,32 @@ mod tests {
         assert_eq!(fresh_status, "awaiting_trace");
 
         sqlx::query(
-            "INSERT INTO scouter.trace_commit_event (trace_id, processed_at) VALUES ($1, now() - interval '25 hours')",
+            "INSERT INTO scouter.trace_commit_event (trace_id, span_id, record_uid, profile_uid, status, processed_at) VALUES ($1, $2, $3, $4, 'processed', now() - interval '25 hours')",
         )
         .bind(TraceId::from_bytes([0x01; 16]).as_bytes().to_vec())
+        .bind(SpanId::from_bytes([0x01; 8]).as_bytes().to_vec())
+        .bind("old-processed")
+        .bind("profile")
         .execute(&pool)
         .await
         .unwrap();
         sqlx::query(
-            "INSERT INTO scouter.trace_commit_event (trace_id, processed_at) VALUES ($1, now() - interval '1 hour')",
+            "INSERT INTO scouter.trace_commit_event (trace_id, span_id, record_uid, profile_uid, status, processed_at) VALUES ($1, $2, $3, $4, 'processed', now() - interval '1 hour')",
         )
         .bind(TraceId::from_bytes([0x02; 16]).as_bytes().to_vec())
+        .bind(SpanId::from_bytes([0x02; 8]).as_bytes().to_vec())
+        .bind("fresh-processed")
+        .bind("profile")
         .execute(&pool)
         .await
         .unwrap();
-        sqlx::query("INSERT INTO scouter.trace_commit_event (trace_id) VALUES ($1)")
+        sqlx::query(
+            "INSERT INTO scouter.trace_commit_event (trace_id, span_id, record_uid, profile_uid) VALUES ($1, $2, $3, $4)",
+        )
             .bind(TraceId::from_bytes([0x03; 16]).as_bytes().to_vec())
+            .bind(SpanId::from_bytes([0x03; 8]).as_bytes().to_vec())
+            .bind("pending")
+            .bind("profile")
             .execute(&pool)
             .await
             .unwrap();

@@ -2,6 +2,8 @@ use chrono::Duration;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::storage::trace_refresh_interval_secs_from_env;
+
 #[derive(Debug, Clone, Serialize)]
 pub struct PollingSettings {
     pub num_workers: usize,
@@ -85,18 +87,57 @@ impl Default for AgentPollerSettings {
 
 impl AgentPollerSettings {
     pub fn trace_visibility_buffer() -> Duration {
-        let default_secs = std::env::var("SCOUTER_TRACE_REFRESH_INTERVAL_SECS")
+        let refresh_secs = trace_refresh_interval_secs_from_env() as i64;
+        let min_floor = refresh_secs + 2;
+
+        let configured = std::env::var("SCOUTER_TRACE_VISIBILITY_BUFFER_SECS")
             .ok()
             .and_then(|v| v.parse::<i64>().ok())
-            .unwrap_or(10)
-            + 2;
+            .unwrap_or(min_floor)
+            .max(0);
 
-        Duration::seconds(
-            std::env::var("SCOUTER_TRACE_VISIBILITY_BUFFER_SECS")
-                .ok()
-                .and_then(|v| v.parse::<i64>().ok())
-                .unwrap_or(default_secs)
-                .max(0),
-        )
+        if configured < min_floor {
+            panic!(
+                "SCOUTER_TRACE_VISIBILITY_BUFFER_SECS={} is below the safe minimum {} \
+                 (SCOUTER_TRACE_REFRESH_INTERVAL_SECS + 2). A smaller buffer can cause \
+                 the eval poller to fetch spans before the local Delta snapshot sees the anchor.",
+                configured, min_floor
+            );
+        }
+
+        Duration::seconds(configured)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AgentPollerSettings;
+
+    #[test]
+    fn trace_visibility_buffer_floor() {
+        unsafe {
+            std::env::set_var("SCOUTER_TRACE_REFRESH_INTERVAL_SECS", "10");
+            std::env::set_var("SCOUTER_TRACE_VISIBILITY_BUFFER_SECS", "1");
+        }
+        let result = std::panic::catch_unwind(AgentPollerSettings::trace_visibility_buffer);
+        unsafe {
+            std::env::remove_var("SCOUTER_TRACE_REFRESH_INTERVAL_SECS");
+            std::env::remove_var("SCOUTER_TRACE_VISIBILITY_BUFFER_SECS");
+        }
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn trace_visibility_buffer_ignores_negative_refresh_like_storage_settings() {
+        unsafe {
+            std::env::set_var("SCOUTER_TRACE_REFRESH_INTERVAL_SECS", "-10");
+            std::env::set_var("SCOUTER_TRACE_VISIBILITY_BUFFER_SECS", "1");
+        }
+        let result = std::panic::catch_unwind(AgentPollerSettings::trace_visibility_buffer);
+        unsafe {
+            std::env::remove_var("SCOUTER_TRACE_REFRESH_INTERVAL_SECS");
+            std::env::remove_var("SCOUTER_TRACE_VISIBILITY_BUFFER_SECS");
+        }
+        assert!(result.is_err());
     }
 }

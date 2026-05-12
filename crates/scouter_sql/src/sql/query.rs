@@ -61,7 +61,11 @@ const INSERT_TRACE_COMMIT_EVENTS: &str =
 const TRACE_COMMIT_EVENT_EXISTS: &str = include_str!("scripts/inbox/trace_commit_event_exists.sql");
 const CLAIM_TRACE_COMMIT_EVENTS: &str = include_str!("scripts/inbox/claim_trace_commit_events.sql");
 const FLIP_AWAITING_EVALS: &str = include_str!("scripts/inbox/flip_awaiting_evals.sql");
-const MARK_EVENTS_PROCESSED: &str = include_str!("scripts/inbox/mark_events_processed.sql");
+const COMPLETE_TRACE_COMMIT_EVENTS: &str =
+    include_str!("scripts/inbox/complete_trace_commit_events.sql");
+const FAIL_TRACE_COMMIT_EVENTS: &str = include_str!("scripts/inbox/fail_trace_commit_events.sql");
+const RECOVER_STALE_PROCESSING: &str = include_str!("scripts/inbox/recover_stale_processing.sql");
+const LIST_AWAITING_RECORD_UIDS: &str = include_str!("scripts/inbox/list_awaiting_record_uids.sql");
 const SWEEP_AWAITING_TRACE_TIMEOUTS: &str =
     include_str!("scripts/inbox/sweep_awaiting_trace_timeouts.sql");
 const PRUNE_PROCESSED_EVENTS: &str = include_str!("scripts/inbox/prune_processed_events.sql");
@@ -223,7 +227,10 @@ pub enum Queries {
     TraceCommitEventExists,
     ClaimTraceCommitEvents,
     FlipAwaitingEvals,
-    MarkEventsProcessed,
+    CompleteTraceCommitEvents,
+    FailTraceCommitEvents,
+    RecoverStaleProcessing,
+    ListAwaitingRecordUids,
     SweepAwaitingTraceTimeouts,
     PruneProcessedEvents,
 
@@ -324,7 +331,10 @@ impl Queries {
             Queries::TraceCommitEventExists => TRACE_COMMIT_EVENT_EXISTS,
             Queries::ClaimTraceCommitEvents => CLAIM_TRACE_COMMIT_EVENTS,
             Queries::FlipAwaitingEvals => FLIP_AWAITING_EVALS,
-            Queries::MarkEventsProcessed => MARK_EVENTS_PROCESSED,
+            Queries::CompleteTraceCommitEvents => COMPLETE_TRACE_COMMIT_EVENTS,
+            Queries::FailTraceCommitEvents => FAIL_TRACE_COMMIT_EVENTS,
+            Queries::RecoverStaleProcessing => RECOVER_STALE_PROCESSING,
+            Queries::ListAwaitingRecordUids => LIST_AWAITING_RECORD_UIDS,
             Queries::SweepAwaitingTraceTimeouts => SWEEP_AWAITING_TRACE_TIMEOUTS,
             Queries::PruneProcessedEvents => PRUNE_PROCESSED_EVENTS,
 
