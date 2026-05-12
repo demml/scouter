@@ -4,9 +4,9 @@ description: "Evaluate sampled production traffic and raise alerts from live beh
 ---
 Online evaluation monitors agents in production. You sample live traffic, evaluate it asynchronously on the server, and fire alerts when quality degrades. The application never blocks on evaluation; the monitoring infrastructure is invisible to your users.
 
-This page walks through the full data path, from client-side queue insertion to alert dispatch. For setup and configuration, see [Online evaluation](/agents/online-evaluation/).
+This page walks through the full data path, from client-side queue insertion to alert dispatch. For setup and configuration, see [Online evaluation](/scouter/agents/online-evaluation/).
 
-> For system-wide ingestion pipeline details, see [Architecture](/architecture/overview/).
+> For system-wide ingestion pipeline details, see [Architecture](/scouter/architecture/overview/).
 
 ---
 
@@ -51,11 +51,11 @@ Step by step:
 
 4. On the server, the message router dispatches records to dedicated flume channels by type. Eval records and drift profiles go to the server records channel (bounded at 1000, `SERVER_RECORD_CONSUMER_WORKERS` workers). Trace spans go to a separate trace channel (bounded at 500, `TRACE_CONSUMER_WORKERS` workers). Tags go to a third channel (bounded at 200). Each channel has its own worker pool, so traffic in one type doesn't starve the others.
 
-5. Server record workers process the `EvalRecord` and insert it into PostgreSQL's `agent_eval_record` table. The status is set based on trace arrival: `awaiting_trace` (if record has trace_id and trace not yet committed), `pending` (ready for evaluation), or `failed(EvalRequiresTrace)` (if profile needs trace assertions but record has no trace_id).
+5. Server record workers process the `EvalRecord` and inspect the registered profile. Trace IDs on the record are correlation metadata unless the workflow includes `TraceAssertionTask`. Profiles without trace assertions insert as `pending` immediately. Profiles with trace assertions use the inbox path: `awaiting_trace` (complete anchor, not committed yet), `pending` (ready for evaluation), `failed(EvalRequiresTrace)`, or `failed(EvalRequiresAnchorSpan)`.
 
 6. `AgentPoller` workers continuously poll for pending records using `SELECT ... FOR UPDATE SKIP LOCKED`. A record locked by one worker is invisible to others. No external job queue needed.
 
-7. If the profile has `TraceAssertionTask` instances, the poller queries Delta Lake for spans matching the record's `trace_id`. Spans often arrive after eval records (Delta Lake has a 5-second flush interval), so the poller uses exponential backoff: 100ms, 200ms, 400ms, up to a 5-second cap. If spans still aren't available after the timeout, the record is rescheduled with a 30-second delay and retried later.
+7. If the profile has `TraceAssertionTask` instances, the poller queries Delta Lake for spans matching the record's `trace_id`. The inbox path already waited for the anchor span; the poller still uses short backoff while the local Delta snapshot catches up to the committed trace data. If spans still aren't available after the timeout, the record is rescheduled with a 30-second delay and retried later.
 
 8. The task DAG executes. Same engine as offline evaluation: topological sort into stages, parallel execution within stages via Tokio `JoinSet`, sequential across stages.
 
@@ -87,15 +87,15 @@ The polling query uses PostgreSQL's `FOR UPDATE SKIP LOCKED`, which means a reco
 
 ### Trace availability and record status
 
-EvalRecords attached to traces arrive before their spans reach Delta Lake (Delta has a ~5-second flush interval). Records are stored in one of three states:
+EvalRecords can carry `trace_id` and `span_id`, but evals run independently of tracing unless the workflow asks for trace data. The inbox path only applies to profiles with `TraceAssertionTask`. Profiles without trace assertions go straight to `pending`, even when the record carries trace correlation IDs.
 
-**Awaiting trace.** If a record references a `trace_id` that hasn't yet committed to Delta Lake, it's inserted as `awaiting_trace`. The inbox worker monitors `trace_commit_event` rows and flips matching records to `pending` when the trace arrives. If the trace doesn't arrive within 5 minutes (configurable), the record fails with `TraceArrivalTimeout`.
+**Awaiting trace.** If a trace-assertion profile receives a record that references a trace anchor whose span has not yet committed to Delta Lake, it's inserted as `awaiting_trace`. The engine emits inbox events only for spans stamped with both `scouter.eval.record_uid` and `scouter.eval.profile_uid`; the inbox worker completes owned queue rows, then flips only eval rows that match the returned `(record_uid, trace_id, span_id)` anchor. If the anchor does not arrive within 5 minutes, the record fails with `TraceArrivalTimeout`.
 
-**Pending.** Ready for evaluation. Either the trace already committed when the record arrived (short-circuit), or the inbox worker flipped it from `awaiting_trace` after the trace committed.
+**Pending.** Ready for evaluation. Either the exact anchor already committed when the record arrived, or the inbox worker flipped it from `awaiting_trace` after the anchor committed.
 
 **Failed (EvalRequiresTrace).** If a profile has `TraceAssertionTask` definitions but the record has no `trace_id`, evaluation fails immediately. This prevents incomplete evaluations.
 
-If your profiles don't use `TraceAssertionTask`, records go straight to `pending` (no trace correlation needed). Evaluation latency is just the task DAG execution: nanoseconds for assertion-only profiles, seconds for profiles with `LLMJudgeTask`.
+If your profiles don't use `TraceAssertionTask`, records go straight to `pending`; trace correlation can still be stored, but it does not gate evaluation. Evaluation latency is just the task DAG execution: nanoseconds for assertion-only profiles, seconds for profiles with `LLMJudgeTask`.
 
 ### Configuration
 
@@ -105,8 +105,10 @@ If your profiles don't use `TraceAssertionTask`, records go straight to `pending
 | `GENAI_MAX_RETRIES` | 3 | Max reschedule attempts per record |
 | `TRACE_ARRIVAL_TIMEOUT_SECS` | 300 | How long to wait for a trace to commit before failing the record |
 | `INBOX_POLL_INTERVAL_SECS` | 10 | How often the inbox worker checks for new commit events |
+| `SCOUTER_TRACE_VISIBILITY_BUFFER_SECS` | refresh + 2 | Delay before trace-backed evals are polled; startup fails below `SCOUTER_TRACE_REFRESH_INTERVAL_SECS + 2` |
+| `SCOUTER_INBOX_RECONCILE_INTERVAL_SECS` | 60 | How often the reconciliation sweep recovers dropped live inbox events from Delta |
 
-Typical latency: records without trace assertions are evaluated in <1 second. Records awaiting traces are processed once the trace commits (usually within 1-5 seconds). If a trace doesn't commit within 5 minutes, the record fails with `TraceArrivalTimeout`.
+Typical latency: records without trace assertions are evaluated in less than 1 second. Records awaiting traces are processed once the trace commits (usually within 1-5 seconds). If a trace doesn't commit within 5 minutes, the record fails with `TraceArrivalTimeout`.
 
 ---
 

@@ -4,9 +4,9 @@ description: "Define profiles, tasks, and dependencies for the evaluation runtim
 ---
 Scouter's evaluation system is built from a small set of composable primitives. An `AgentEvalProfile` packages configuration and tasks into a single unit. Four task types cover different evaluation concerns. Tasks compose into dependency DAGs with conditional gates that control execution flow and cost.
 
-This page covers the primitives and how they fit together. For full API reference with code examples, see [Evaluation tasks](/agents/tasks/).
+This page covers the primitives and how they fit together. For full API reference with code examples, see [Evaluation tasks](/scouter/agents/tasks/).
 
-> For the problem this solves, see the [evaluation platform overview](/evaluation-platform/).
+> For the problem this solves, see the [evaluation platform overview](/scouter/evaluation-platform/).
 
 ---
 
@@ -126,7 +126,7 @@ Use for: verifying correct tools were called, argument validation, call ordering
 
 The comparison engine handles type coercion automatically. Floats and ints normalize for comparison (`300.0` equals `300`). Strings parse to numbers when the other operand is numeric. Arrays extract their length for `HasLength*` operators. Template variable substitution (`${field.path}`) works with all operators.
 
-For the full operator reference, see [Evaluation tasks](/agents/tasks/).
+For the full operator reference, see [Evaluation tasks](/scouter/agents/tasks/).
 
 ---
 
@@ -169,7 +169,7 @@ Tasks without `condition=True` are regular dependencies. Their downstream tasks 
 
 Each task sees the base evaluation context plus the outputs of its declared dependencies. Not the full context of every upstream task. This scoping is intentional: it keeps task inputs predictable and avoids accidental coupling between unrelated branches of the DAG.
 
-For detailed gate usage with code examples, see [Conditional gates](/agents/gates/).
+For detailed gate usage with code examples, see [Conditional gates](/scouter/agents/gates/).
 
 ### Circular dependency detection
 
@@ -204,4 +204,4 @@ Independent checks run in parallel regardless of layer. A token budget check (Tr
 | Is the response faithful to the source documents? | LLMJudgeTask |
 | Does the tone match the persona? | LLMJudgeTask |
 
-The rest of this technical overview covers how these building blocks execute in [offline evaluation](/evaluation-platform/offline-evaluation/) and [online evaluation](/evaluation-platform/online-evaluation/).
+The rest of this technical overview covers how these building blocks execute in [offline evaluation](/scouter/evaluation-platform/offline-evaluation/) and [online evaluation](/scouter/evaluation-platform/online-evaluation/).

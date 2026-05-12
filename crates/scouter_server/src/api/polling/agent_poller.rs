@@ -1,10 +1,12 @@
 // Module to process GenAI drift record tasks
 use crate::api::error::ServerError;
+use scouter_dataframe::parquet::tracing::queries::TraceQueries;
 use scouter_drift::genai::AgentPoller;
 use scouter_settings::polling::AgentPollerSettings;
-use scouter_types::TraceId;
+use scouter_types::TraceCommitAnchor;
 use sqlx::{Pool, Postgres};
 use std::future::Future;
+use std::sync::Arc;
 use tokio::sync::{mpsc, watch};
 use tokio::task::JoinHandle;
 use tracing::{Instrument, Level, debug, error, info, span};
@@ -17,7 +19,8 @@ impl BackgroundAgentDriftManager {
     pub async fn start_workers(
         db_pool: &Pool<Postgres>,
         poll_settings: &AgentPollerSettings,
-        commit_rx: mpsc::Receiver<Vec<TraceId>>,
+        commit_rx: mpsc::Receiver<Vec<TraceCommitAnchor>>,
+        trace_query: Arc<TraceQueries>,
         shutdown_rx: watch::Receiver<()>,
     ) -> Result<(), ServerError> {
         let num_workers = poll_settings.genai_workers;
@@ -62,6 +65,7 @@ impl BackgroundAgentDriftManager {
             scouter_drift::genai::inbox::run_trace_commit_event_worker_loop(
                 db_pool.clone(),
                 poll_settings.trace_visibility_buffer,
+                trace_query,
                 shutdown_rx.clone(),
             ),
             shutdown_rx.clone(),

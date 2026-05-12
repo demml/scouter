@@ -3,7 +3,7 @@ title: "System architecture"
 description: "High-level layout of Scouter components and data flow."
 ---
 
-Scouter is a dual-protocol Rust server — Axum HTTP on `:8000`, Tonic gRPC on `:50051` — backed by PostgreSQL for recent drift and evaluation data, and Delta Lake for long-term trace storage. Three subsystems (model monitoring, distributed tracing, and agentic evaluation) share a single ingestion pipeline. Records enter through the same channel, get routed in a single consumer layer, and diverge to storage at the `MessageHandler` fork point. Background workers then consume from storage on independent schedules.
+Scouter is a dual-protocol Rust server — Axum HTTP on `:8000`, Tonic gRPC on `:50051` — backed by PostgreSQL for recent drift and evaluation data, and Delta Lake for long-term trace storage. Model monitoring, distributed tracing, and agent evaluation run in the same server process, but ingestion is split into typed channels after the request handler: server records, trace records, and tag records each have their own queue and worker pool. Background workers consume from storage on independent schedules.
 
 ---
 
@@ -17,17 +17,23 @@ flowchart LR
         SCC[ScouterClient]
     end
 
-    subgraph SI ["Server shared ingestion"]
+    subgraph SI ["Server ingress"]
         GRPC["gRPC :50051\nMessageGrpcService"]
         HTTP["HTTP :8000\nPOST /scouter/message"]
-        FC["flume channel\nhttp_consumer_tx"]
-        WK["HttpConsumerWorkers\nN configurable"]
-        MH[MessageHandler]
+        OTLP["HTTP :8000\nPOST /scouter/v1/traces"]
+        ROUTER["record router"]
+        SR["server_record_tx\nbounded 1000"]
+        TR["trace_record_tx\nbounded 500"]
+        TG["tag_record_tx\nbounded 200"]
+        SW["server-record workers"]
+        TW["trace workers"]
+        GW["tag workers"]
     end
 
     subgraph BW ["Background workers"]
         DE["DriftExecutor\nN workers"]
         AP["AgentPoller\nN workers"]
+        INBOX["Trace inbox workers\ncommit events + sweeps"]
     end
 
     AD["Alert dispatch\nSlack / OpsGenie / Console"]
@@ -39,23 +45,27 @@ flowchart LR
 
     SQ -->|"gRPC InsertMessageRequest"| GRPC
     SQ -->|"HTTP POST /scouter/message"| HTTP
-    SCT -->|"TraceServerRecord\nsame pipeline"| GRPC
+    SCT -->|"TraceServerRecord\ngRPC MessageService"| GRPC
+    SCT -->|"OTLP protobuf"| OTLP
     SCC -->|"register profiles\nquery results"| HTTP
-    GRPC --> FC
-    HTTP --> FC
-    FC --> WK
-    WK --> MH
-    MH -->|"drift + eval rows"| PG
-    MH -->|"TraceSpanService\nTraceSummaryService"| DL
+    GRPC --> ROUTER
+    HTTP --> ROUTER
+    OTLP --> TR
+    ROUTER --> SR & TR & TG
+    SR --> SW -->|"drift + eval rows"| PG
+    TR --> TW -->|"TraceSpanService\nTraceSummaryService"| DL
+    TG --> GW --> PG
     DE -->|"SELECT skip lock\ncompute drift\nalert if triggered"| PG
     AP -->|"SELECT pending eval\nexecute tasks\nstore results"| PG
     AP --> DL
+    INBOX -->|"flip awaiting_trace\nrecover missed anchors\ntimeout stale rows"| PG
+    INBOX -->|"reconcile anchors"| DL
     DE --> AD
     AP --> AD
 
 ```
 
-The important thing this diagram shows: `ScouterTracer` does not have a dedicated ingest path. A `TraceServerRecord` enters the same `flume::Sender<MessageRecord>` as an `SpcRecord` or an `EvalRecord`. The `MessageHandler` is the only place the paths diverge. Under write pressure, trace ingest competes with drift record ingest for consumer worker bandwidth.
+The important thing this diagram shows: traces have dedicated routes and workers, but not a separate trace ingest service. The HTTP OTLP endpoint (`POST /scouter/v1/traces`) accepts protobuf `ExportTraceServiceRequest` batches directly. gRPC uses the generic `MessageService.InsertMessage`; there is no separate gRPC `TraceService` in the protobuf. Once a trace record reaches `AppState`, it goes to `trace_record_tx`, not the server-record queue used for drift and eval rows.
 
 ---
 
@@ -69,9 +79,13 @@ Every HTTP handler, gRPC handler, and background worker holds an `Arc<AppState>`
 | `auth_manager` | `AuthManager` | JWT verification on every authenticated request |
 | `task_manager` | `TaskManager` | Coordinates all background workers; `watch::channel` broadcasts shutdown |
 | `config` | `Arc<ScouterServerConfig>` | Typed env-var config, frozen at startup |
-| `http_consumer_tx` | `Sender<MessageRecord>` | flume channel sender; both HTTP and gRPC handlers drop records here |
+| `server_record_tx` | `Sender<ServerRecords>` | Bounded channel for drift records, eval records, and profile updates |
+| `trace_record_tx` | `Sender<TraceServerRecord>` | Bounded channel for OTLP trace batches |
+| `tag_record_tx` | `Sender<TagRecord>` | Bounded channel for indexed tag writes |
 | `trace_service` | `Arc<TraceSpanService>` | Owns both Delta Lake actors; singleton for the lifetime of the server |
 | `trace_summary_service` | `Arc<TraceSummaryService>` | Hour-bucketed summary table; feeds the paginated trace list |
+| `trace_dispatch_service` | `Arc<TraceDispatchService>` | Runs trace retention and dispatch queries |
+| `genai_service` | `Arc<GenAiSpanService>` | Owns GenAI span extraction and query support |
 | `dataset_manager` | `Arc<DatasetEngineManager>` | Bifrost offline dataset engine |
 | `eval_scenario_service` | `Arc<EvalScenarioService>` | Offline eval scenario orchestration |
 
@@ -123,30 +137,38 @@ Queue insert errors are logged but not returned to the caller. The `ScouterQueue
 
 ```mermaid
 graph TD
-    CH["flume channel\nhttp_consumer_tx"]
-    W1["Worker 1"]
-    W2["Worker 2"]
-    WN["Worker N"]
-    PR["process_message_record()"]
+    GRPC["gRPC MessageService\nInsertMessage"]
+    MSG["HTTP /scouter/message"]
+    OTLP["HTTP /scouter/v1/traces\nOTLP protobuf"]
+    ROUTER["MessageRecord router"]
+
+    SR["server_record_tx\nbounded 1000"]
+    TR["trace_record_tx\nbounded 500"]
+    TG["tag_record_tx\nbounded 200"]
+
+    SW["server-record workers"]
+    TW["trace workers"]
+    GW["tag workers"]
 
     R1["SPC features → spc_drift"]
     R2["PSI features → psi_drift"]
     R3["Custom metrics → custom_drift"]
     R4["EvalRecord → agent_eval_record"]
-    R5["TraceServerRecord → Delta Lake\n(TraceSpanService + TraceSummaryService)"]
+    R5["TraceServerRecord → Delta Lake\nTraceSpanService + TraceSummaryService"]
+    R6["TagRecord → PostgreSQL tag index"]
 
-    CH --> W1 & W2 & WN
-    W1 & W2 & WN --> PR
-    PR --> R1
-    PR --> R2
-    PR --> R3
-    PR --> R4
-    PR --> R5
+    GRPC --> ROUTER
+    MSG --> ROUTER
+    ROUTER --> SR & TR & TG
+    OTLP --> TR
+    SR --> SW --> R1 & R2 & R3 & R4
+    TR --> TW --> R5
+    TG --> GW --> R6
 ```
 
-`MessageRecord` is an enum. The variant determines where the record goes. `TraceServerRecord` is the only type that routes to Delta Lake; everything else goes to PostgreSQL. The worker count is configurable at startup (`HTTP_CONSUMER_WORKERS`, defaults to 4).
+The generic message routes deserialize `MessageRecord` and send each variant to the matching channel. The OTLP route skips the enum wrapper: it decodes protobuf bytes into `ExportTraceServiceRequest` and sends a `TraceServerRecord` directly to `trace_record_tx`.
 
-There is no separate ingest service for traces. The same `HttpConsumerWorker` that handles drift records handles spans. If you're sizing worker pools, account for trace volume alongside drift and eval volume.
+There is no separate trace ingest service or gRPC `TraceService`. There is a dedicated HTTP OTLP route and a dedicated trace worker pool. Size `TRACE_CONSUMER_WORKERS` for span volume separately from `SERVER_RECORD_CONSUMER_WORKERS`, which handles drift and eval records.
 
 ---
 
@@ -188,28 +210,37 @@ Drift computation reads from PostgreSQL only. Delta Lake is trace-only.
 
 ## Agent evaluation: AgentPoller
 
-N workers, same structure as drift workers. Agent eval is more complex because it may need to wait for trace spans to arrive before it can execute `TraceAssertionTask` entries.
+Agent evaluation is split across three background paths:
+
+- `AgentPoller` claims `pending` eval records and executes the task DAG.
+- The trace commit consumer writes anchor events emitted after Delta commits.
+- The trace inbox worker flips `awaiting_trace` records to `pending`, reconciles dropped anchor events from Delta, recovers stale queue leases, and times out records whose traces never arrive.
+
+`AgentPoller` no longer waits and reschedules records while polling for trace spans. Trace readiness is handled before a record becomes pollable.
 
 ```mermaid
 flowchart TD
-    A([poll_for_tasks]) --> B["get_pending_agent_eval_record()\nstatus = Pending"]
+    A([poll_for_tasks]) --> B["get_pending_agent_eval_record()\nstatus = pending\nready_at <= now()"]
     B -- None --> C["sleep 1s"]
     C --> A
     B -- "Some(record)" --> D["fetch AgentEvalProfile\nfrom Postgres"]
     D --> E{has TraceAssertionTasks?}
     E -- No --> H
-    E -- Yes --> F["wait_for_trace_spans_with_reschedule()\nquery Delta Lake for trace_id"]
-    F -- Found --> H["execute task DAG\nrespecting depends_on order"]
-    F -- "Not found (attempt N)" --> G["exponential backoff\n100ms → 5s"]
-    G --> F
-    F -- "timeout exceeded" --> R["reschedule record\nstatus = Pending, next_run_at += delay"]
-    R --> A
+    E -- Yes --> F{trace_id + span_id present?}
+    F -- No --> X["mark failed\nmissing trace anchor"]
+    F -- Yes --> G["fetch spans by trace_id\nfrom TraceSpanService"]
+    G -- "no spans or anchor invalid" --> X
+    G -- Found --> H["execute task DAG\nrespecting depends_on order"]
     H --> I["AssertionTask (in-process)\nLLMJudgeTask (external LLM)\nAgentAssertionTask (vendor-agnostic)\nTraceAssertionTask (span-based)"]
     I --> J["insert_eval_task_results_batch()\ninsert_agent_eval_workflow_record()"]
-    J --> A
+    J --> K["mark record processed"]
+    X --> A
+    K --> A
 ```
 
-The trace wait exists because `EvalRecord`s often arrive before their associated OTEL spans — the eval record hits PostgreSQL fast, but spans go through Delta Lake writes with a 5-second flush interval. At default settings (`GENAI_TRACE_WAIT_TIMEOUT_SECS=10`, `GENAI_TRACE_BACKOFF_MILLIS=100`, `GENAI_TRACE_RESCHEDULE_DELAY_SECS=30`), worst-case latency from eval record insertion to stored result is around 90 seconds. Tune these based on your span arrival p95 in production.
+The SQL poller only sees rows with `status = 'pending'`, `scheduled_at <= now()`, and `ready_at <= now()`. Records that need trace assertions are inserted as `awaiting_trace` until the inbox path proves the exact `(record_uid, trace_id, span_id)` anchor committed to Delta Lake. When the inbox worker completes the matching `trace_commit_event`, it flips that eval row to `pending` and sets `ready_at = now() + SCOUTER_TRACE_VISIBILITY_BUFFER_SECS`.
+
+This changes the failure mode. A record with `TraceAssertionTask` and no `trace_id` fails as `EvalRequiresTrace`. A record with `trace_id` but no `span_id` fails as `EvalRequiresAnchorSpan`. A record with a complete anchor that never commits stays `awaiting_trace` until the timeout sweep marks it `TraceArrivalTimeout`.
 
 Task execution follows the declared `depends_on` DAG. Each task sees base context plus explicitly declared dependency outputs — not the full context of every upstream task. This is intentional scoping.
 
@@ -232,9 +263,9 @@ graph TB
         EX["ScouterSpanExporter\nbatch: 512 spans / 5s flush"]
     end
 
-    subgraph "Server — same ingest pipeline as drift"
-        MSG["MessageRecord::TraceServerRecord\nsame flume channel + HttpConsumerWorkers"]
-        MH["MessageHandler forks"]
+    subgraph "Server trace ingest"
+        MSG["TraceServerRecord\ntrace_record_tx"]
+        TW["trace workers"]
         TSS["TraceSpanService"]
         SUM["TraceSummaryService\nhour-bucketed summaries"]
     end
@@ -248,8 +279,8 @@ graph TB
 
     OT --> EX
     EX -->|"TraceServerRecord\ngRPC or HTTP"| MSG
-    MSG --> MH
-    MH --> TSS & SUM
+    MSG --> TW
+    TW --> TSS & SUM
     TSS --> BUF
     BUF --> ENG
     ENG --> BB
@@ -257,7 +288,7 @@ graph TB
     SUM --> DL
 ```
 
-For full schema, compaction schedule, bloom filter configuration, and multi-pod deployment details, see [Trace Storage Architecture](/tracing/storage-architecture/).
+For full schema, compaction schedule, bloom filter configuration, and multi-pod deployment details, see [Trace Storage Architecture](/scouter/tracing/storage-architecture/).
 
 Two callouts that aren't in the storage doc:
 
@@ -276,7 +307,7 @@ sequenceDiagram
     participant DL as Delta Lake (Parquet)
     participant DF as DataFusion SessionContext
 
-    CL->>RT: GET /scouter/trace/{trace_id}
+    CL->>RT: GET /scouter/v1/traces/{id}/spans
     RT->>TQ: get_trace_spans_by_id(trace_id)
     TQ->>DF: SQL with time filter first
     Note over DF: time filter prunes Delta log files\nbloom filter (FPP 0.01) skips row groups
@@ -313,10 +344,15 @@ graph LR
 
     subgraph "Online — production traffic"
         SQ["ScouterQueue.insert(EvalRecord)\nnon-blocking, samples at sample_ratio"]
+        EVALPG[("PostgreSQL\nagent_eval_record")]
+        INBOX["Trace inbox\nonly for TraceAssertionTask"]
         AGP["AgentPoller\nN workers"]
         PG[("PostgreSQL\neval results + alert records")]
         AL["Alert dispatch"]
-        SQ --> AGP --> PG --> AL
+        SQ --> EVALPG
+        EVALPG -->|"no trace gate"| AGP
+        EVALPG -->|"awaiting_trace"| INBOX -->|"pending + ready_at"| AGP
+        AGP --> PG --> AL
     end
 
     AT & LJ & AA & TA -.->|same task types| EO
@@ -363,7 +399,7 @@ Step 7 must come last. The trace cache flush at step 2 still needs a live pool. 
 
 **`SKIP LOCKED` is not a durable job queue.** Drift profile tasks live in Postgres. The window between `SELECT ... SKIP LOCKED` and `update_drift_profile_run_dates()` is not transactional. If a drift worker crashes mid-computation, the task will be picked up again on the next tick — but double-computation is possible if the crash happens at exactly the right moment.
 
-**Trace wait adds latency to agent eval.** At default config, worst-case lag from `EvalRecord` insertion to stored eval result is ~90 seconds (10s timeout × 3 retries + reschedule delays). Tune `GENAI_TRACE_WAIT_TIMEOUT_SECS`, `GENAI_TRACE_BACKOFF_MILLIS`, and `GENAI_TRACE_RESCHEDULE_DELAY_SECS` based on your span arrival p95. If your agents don't use `TraceAssertionTask`, this entire path is skipped.
+**Trace-backed eval waits in the inbox, not inside `AgentPoller`.** Records without `TraceAssertionTask` go straight to `pending`. Records with trace assertions stay `awaiting_trace` until the matching anchor span commits to Delta and the inbox worker flips the row to `pending` with a visibility buffer. Tune `SCOUTER_TRACE_VISIBILITY_BUFFER_SECS`, `SCOUTER_INBOX_RECONCILE_INTERVAL_SECS`, and `TRACE_ARRIVAL_TIMEOUT_SECS` around your Delta refresh and span arrival behavior.
 
 **Queue errors are logged, not returned.** The `QueueBus` insert path intentionally swallows errors. In production, monitor server logs for `Error inserting entity into queue` — there's no counter exported by default.
 

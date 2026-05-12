@@ -19,12 +19,12 @@ use deltalake::datafusion::parquet::schema::types::ColumnPath;
 use deltalake::operations::optimize::OptimizeType;
 use deltalake::{DeltaTable, DeltaTableBuilder, TableProperty};
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::SpanId;
-use scouter_types::TraceId;
-use scouter_types::TraceSpanRecord;
 use scouter_types::{Attribute, SpanEvent, SpanLink};
+use scouter_types::{
+    SCOUTER_EVAL_PROFILE_UID, SCOUTER_EVAL_RECORD_UID, SpanId, TraceCommitAnchor, TraceId,
+    TraceSpanRecord,
+};
 use serde_json::Value;
-use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::oneshot;
 use tokio::sync::{RwLock as AsyncRwLock, mpsc};
@@ -221,7 +221,7 @@ pub struct TraceSpanDBEngine {
     /// respective `TableProvider`s without a deregister/register gap.
     pub catalog: Arc<TraceCatalogProvider>,
     control: ControlTableEngine,
-    commit_tx: Option<mpsc::Sender<Vec<TraceId>>>,
+    commit_tx: Option<mpsc::Sender<Vec<TraceCommitAnchor>>>,
 }
 
 impl TraceSchemaExt for TraceSpanDBEngine {}
@@ -229,7 +229,7 @@ impl TraceSchemaExt for TraceSpanDBEngine {}
 impl TraceSpanDBEngine {
     pub async fn new(
         storage_settings: &ObjectStorageSettings,
-        commit_tx: Option<mpsc::Sender<Vec<TraceId>>>,
+        commit_tx: Option<mpsc::Sender<Vec<TraceCommitAnchor>>>,
     ) -> Result<Self, TraceEngineError> {
         let object_store = ObjectStore::new(storage_settings)?;
         let schema = Arc::new(Self::create_schema());
@@ -629,12 +629,49 @@ impl TraceSpanDBEngine {
                     Some(cmd) = rx.recv() => {
                         match cmd {
                             TableCommand::Write { spans, respond_to } => {
-                                let trace_ids: Vec<TraceId> = if self.commit_tx.is_some() {
-                                    let mut seen = HashSet::with_capacity(spans.len());
+                                let anchors: Vec<TraceCommitAnchor> = if self.commit_tx.is_some() {
+                                    let mut out = Vec::new();
                                     for span in &spans {
-                                        seen.insert(span.trace_id);
+                                        let mut record_uid: Option<String> = None;
+                                        let mut profile_uid: Option<String> = None;
+                                        for attr in &span.attributes {
+                                            if attr.key == SCOUTER_EVAL_RECORD_UID {
+                                                if let Some(value) = attr.value.as_str() {
+                                                    record_uid = Some(value.to_string());
+                                                }
+                                            } else if attr.key == SCOUTER_EVAL_PROFILE_UID
+                                                && let Some(value) = attr.value.as_str()
+                                            {
+                                                profile_uid = Some(value.to_string());
+                                            }
+
+                                            if record_uid.is_some() && profile_uid.is_some() {
+                                                break;
+                                            }
+                                        }
+                                        if let (Some(record_uid), Some(profile_uid)) =
+                                            (record_uid, profile_uid)
+                                        {
+                                            if let Some(anchor) = TraceCommitAnchor::new(
+                                                span.trace_id,
+                                                span.span_id.clone(),
+                                                record_uid,
+                                                profile_uid,
+                                            ) {
+                                                out.push(anchor);
+                                            } else {
+                                                metrics::counter!(
+                                                    "scouter_trace_commit_event_invalid_total"
+                                                )
+                                                .increment(1);
+                                                tracing::warn!(
+                                                    span_id = %span.span_id,
+                                                    "dropping invalid trace eval anchor attributes"
+                                                );
+                                            }
+                                        }
                                     }
-                                    seen.into_iter().collect()
+                                    out
                                 } else {
                                     Vec::new()
                                 };
@@ -642,15 +679,40 @@ impl TraceSpanDBEngine {
                                 match self.write_spans(spans).await {
                                     Ok(_) => {
                                         if let Some(tx) = &self.commit_tx
-                                            && !trace_ids.is_empty()
+                                            && !anchors.is_empty()
                                         {
-                                            let trace_count = trace_ids.len();
-                                            if let Err(e) = tx.send(trace_ids).await {
-                                                tracing::warn!(
-                                                    trace_count,
-                                                    "trace-arrival commit_tx closed after Delta commit ({:?}); timeout sweep will recover affected eval rows",
-                                                    e
-                                                );
+                                            let anchor_count = anchors.len();
+                                            match tx.try_send(anchors) {
+                                                Ok(()) => {
+                                                    metrics::counter!(
+                                                        "scouter_trace_commit_event_channel_sent_total"
+                                                    )
+                                                    .increment(anchor_count as u64);
+                                                }
+                                                Err(tokio::sync::mpsc::error::TrySendError::Full(
+                                                    _,
+                                                )) => {
+                                                    metrics::counter!(
+                                                        "scouter_trace_commit_event_channel_drop_total"
+                                                    )
+                                                    .increment(anchor_count as u64);
+                                                    tracing::warn!(
+                                                        anchor_count,
+                                                        "trace-anchor channel full; dropping live notification, reconciliation sweep will recover"
+                                                    );
+                                                }
+                                                Err(tokio::sync::mpsc::error::TrySendError::Closed(
+                                                    _,
+                                                )) => {
+                                                    metrics::counter!(
+                                                        "scouter_trace_commit_event_channel_drop_total"
+                                                    )
+                                                    .increment(anchor_count as u64);
+                                                    tracing::error!(
+                                                        anchor_count,
+                                                        "trace-anchor channel closed; inbox consumer is dead, reconciliation sweep is now the sole recovery path"
+                                                    );
+                                                }
                                             }
                                         }
                                         let _ = respond_to.send(Ok(()));
