@@ -395,7 +395,22 @@ async fn test_agent_trace_inbox_end_to_end_paths() {
     let context = wait_for_status(&helper.pool, &missing_trace_uid, "failed").await;
     assert_eq!(context["error"], "EvalRequiresTrace");
 
-    // 6. Timeout sweep fails stale awaiting_trace rows.
+    // 6. Trace-needing profile with trace_id but no span_id fails terminally.
+    let missing_span_uid = create_uuid7();
+    insert_message(
+        &helper,
+        eval_message(
+            &trace_profile_uid,
+            Some(TraceId::from_bytes([0x45; 16])),
+            None,
+            &missing_span_uid,
+        ),
+    )
+    .await;
+    let context = wait_for_status(&helper.pool, &missing_span_uid, "failed").await;
+    assert_eq!(context["error"], "EvalRequiresAnchorSpan");
+
+    // 7. Timeout sweep fails stale awaiting_trace rows.
     let timeout_uid = create_uuid7();
     insert_awaiting_record(&helper.pool, &timeout_uid, TraceId::from_bytes([0x66; 16])).await;
     sqlx::query(
@@ -409,7 +424,7 @@ async fn test_agent_trace_inbox_end_to_end_paths() {
     let context = wait_for_status(&helper.pool, &timeout_uid, "failed").await;
     assert_eq!(context["error"], "TraceArrivalTimeout");
 
-    // 7. Processed inbox prune keeps recent and unprocessed rows.
+    // 8. Processed inbox prune keeps recent and unprocessed rows.
     let prune_old = anchor(
         TraceId::from_bytes([0x77; 16]),
         SpanId::from_bytes([0x77; 8]),
@@ -475,7 +490,7 @@ async fn test_agent_trace_inbox_end_to_end_paths() {
             .unwrap()
     );
 
-    // 8. Poll SQL hydrates span_id into EvalRecord for the direct trace-id arm.
+    // 9. Poll SQL hydrates span_id into EvalRecord for the direct trace-id arm.
     sqlx::query(
         "UPDATE scouter.agent_eval_record SET status = 'processed' WHERE status = 'pending'",
     )
@@ -516,7 +531,7 @@ async fn test_agent_trace_inbox_end_to_end_paths() {
         .unwrap();
     assert_eq!(pending.span_id, Some(poll_span));
 
-    // 9. Lost event acceptance: no inbox row means stale awaiting_trace times out.
+    // 10. Lost event acceptance: no inbox row means stale awaiting_trace times out.
     let lost_uid = create_uuid7();
     insert_awaiting_record(&helper.pool, &lost_uid, TraceId::from_bytes([0x99; 16])).await;
     sqlx::query(
@@ -530,7 +545,7 @@ async fn test_agent_trace_inbox_end_to_end_paths() {
     let context = wait_for_status(&helper.pool, &lost_uid, "failed").await;
     assert_eq!(context["error"], "TraceArrivalTimeout");
 
-    // 10. Multi-pod claim concurrency: two drains process one shared inbox without double-work.
+    // 11. Multi-pod claim concurrency: two drains process one shared inbox without double-work.
     let mut anchors = Vec::new();
     let mut record_uids = Vec::new();
     for offset in 0u8..100 {
