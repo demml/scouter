@@ -1,3 +1,6 @@
+mod tiers;
+mod utils;
+
 use arrow::array::{Date32Array, Float64Array, StringArray, TimestampMicrosecondArray};
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow_array::RecordBatch;
@@ -7,10 +10,15 @@ use scouter_dataframe::parquet::bifrost::manager::DatasetEngineManager;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::StorageType;
 use scouter_types::dataset::{DatasetFingerprint, DatasetNamespace, DatasetRegistration};
+use std::collections::BTreeMap;
 use std::hint::black_box;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
+use tiers::ObjectStoreCountSnapshot;
 use tokio::runtime::Runtime;
+
+const DF_COLLECT_SPAN: &str = "df.collect";
+const DELTA_SNAPSHOT_REFRESH_SPAN: &str = "delta.snapshot.refresh";
 
 fn bench_schema() -> Schema {
     Schema::new(vec![
@@ -73,6 +81,10 @@ fn make_storage_settings(dir: &tempfile::TempDir) -> ObjectStorageSettings {
 }
 
 fn bench_write_throughput(c: &mut Criterion) {
+    if !tiers::tier_guard_for("dataset_benchmark", "dataset_write") {
+        return;
+    }
+
     let mut group = c.benchmark_group("dataset_write");
     group.sample_size(10);
     group.measurement_time(Duration::from_secs(30));
@@ -113,6 +125,10 @@ fn bench_write_throughput(c: &mut Criterion) {
 }
 
 fn bench_query(c: &mut Criterion) {
+    if !tiers::tier_guard_for("dataset_benchmark", "dataset_query") {
+        return;
+    }
+
     let rt = Runtime::new().unwrap();
     let dir = tempfile::tempdir().unwrap();
     let schema = bench_schema();
@@ -178,5 +194,84 @@ fn bench_query(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, bench_write_throughput, bench_query);
+fn span_metric(duration: Duration) -> tiers::SpanMetric {
+    let micros = duration.as_micros().min(u64::MAX as u128) as u64;
+    tiers::SpanMetric {
+        count: 1,
+        p50_us: micros,
+        p95_us: micros,
+        p99_us: micros,
+        sum_us: micros,
+    }
+}
+
+fn bench_t0_bifrost_smoke(c: &mut Criterion) {
+    const GROUP: &str = "t0_bifrost_smoke";
+    if !tiers::tier_guard_for("dataset_benchmark", GROUP) {
+        return;
+    }
+
+    let setup_start = Instant::now();
+    let rt = Runtime::new().unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let schema = bench_schema();
+    let (manager, namespace) = rt.block_on(async {
+        let settings = make_storage_settings(&dir);
+        let manager = DatasetEngineManager::with_config(&settings, 1800, 10, 1, 50_000, 30)
+            .await
+            .unwrap();
+        let reg = make_registration(&schema);
+        manager.register_dataset(&reg).await.unwrap();
+        manager
+            .insert_batch(&reg.namespace, &reg.fingerprint, make_batch(&schema, 1_000))
+            .await
+            .unwrap();
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+        (Arc::new(manager), reg.namespace.clone())
+    });
+    let fqn = namespace.fqn();
+    let sql = format!("SELECT COUNT(*) as cnt FROM {fqn}");
+
+    let smoke_start = Instant::now();
+    rt.block_on(async {
+        let _ = manager.query(&sql).await.unwrap();
+    });
+    let smoke_runtime = smoke_start.elapsed();
+
+    let mut spans = BTreeMap::new();
+    spans.insert(DF_COLLECT_SPAN.to_string(), span_metric(smoke_runtime));
+    spans.insert(
+        DELTA_SNAPSHOT_REFRESH_SPAN.to_string(),
+        tiers::SpanMetric::default(),
+    );
+    utils::write_bench_artifact(
+        "dataset_benchmark",
+        GROUP,
+        setup_start.elapsed(),
+        spans,
+        ObjectStoreCountSnapshot::default(),
+        0,
+    );
+
+    c.bench_function(GROUP, |b| {
+        let mgr = Arc::clone(&manager);
+        let sql = sql.clone();
+        b.to_async(&rt)
+            .iter(|| async { black_box(mgr.query(&sql).await.unwrap()) });
+    });
+
+    rt.block_on(async {
+        Arc::try_unwrap(manager)
+            .unwrap_or_else(|_| panic!("manager still referenced"))
+            .shutdown()
+            .await;
+    });
+}
+
+criterion_group!(
+    benches,
+    bench_t0_bifrost_smoke,
+    bench_write_throughput,
+    bench_query
+);
 criterion_main!(benches);

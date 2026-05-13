@@ -1,3 +1,6 @@
+mod tiers;
+mod utils;
+
 use chrono::{DateTime, Utc};
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use scouter_dataframe::parquet::tracing::queries::TraceQueries;
@@ -7,9 +10,11 @@ use scouter_types::{
     Attribute, FilterClause, SpanId, StorageType, TraceId, TraceMetricsRequest, TraceSpanRecord,
 };
 use serde_json::json;
+use std::collections::BTreeMap;
 use std::hint::black_box;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use tiers::ObjectStoreCountSnapshot;
 use tokio::runtime::Runtime;
 
 const TOTAL_SPANS: usize = 1_000_000;
@@ -17,6 +22,8 @@ const SPANS_PER_TRACE: usize = 5;
 const WRITE_CHUNK_SPANS: usize = 50_000;
 const SERVICE_COUNT: usize = 20;
 const HOT_SERVICE: &str = "service_03";
+const DF_COLLECT_SPAN: &str = "df.collect";
+const DELTA_SNAPSHOT_REFRESH_SPAN: &str = "delta.snapshot.refresh";
 
 #[derive(Clone)]
 struct HotFixture {
@@ -161,6 +168,35 @@ async fn seed_fixture(settings: &ObjectStorageSettings) -> HotFixture {
     }
 }
 
+async fn seed_small_fixture(settings: &ObjectStorageSettings, total_spans: usize) -> HotFixture {
+    let service = TraceSpanService::new(settings, 999, Some(1), None, 10, None)
+        .await
+        .unwrap();
+    let base_time = Utc::now() - chrono::Duration::hours(24);
+
+    for start in (0..total_spans).step_by(2_000) {
+        let end = (start + 2_000).min(total_spans);
+        service
+            .write_spans_direct(span_chunk(start, end, base_time))
+            .await
+            .unwrap();
+    }
+    service.optimize().await.unwrap();
+
+    let trace_idx = 24 * 100 + 3;
+    let trace_start = base_time
+        + chrono::Duration::hours((trace_idx % 24) as i64)
+        + chrono::Duration::milliseconds(((trace_idx / 24) % 3_600_000) as i64);
+
+    HotFixture {
+        service: Arc::new(service),
+        trace_id: Arc::new(trace_id(trace_idx).as_bytes().to_vec()),
+        trace_start,
+        window_start: base_time + chrono::Duration::hours(3),
+        window_end: base_time + chrono::Duration::hours(4),
+    }
+}
+
 fn metrics_request(
     start_time: DateTime<Utc>,
     end_time: DateTime<Utc>,
@@ -177,6 +213,12 @@ fn metrics_request(
 }
 
 fn benchmark_trace_hot_paths(c: &mut Criterion) {
+    let run_trace_group = tiers::tier_guard_for("hot_path_bench", "trace_hot_paths_1m");
+    let run_metrics_group = tiers::tier_guard_for("hot_path_bench", "metrics_hot_paths_1m");
+    if !run_trace_group && !run_metrics_group {
+        return;
+    }
+
     let rt = Runtime::new().unwrap();
     let tmp_dir = tempfile::tempdir().unwrap();
     let settings = storage_settings(tmp_dir.path().to_string_lossy().to_string());
@@ -423,5 +465,102 @@ fn benchmark_trace_hot_paths(c: &mut Criterion) {
     drop(tmp_dir);
 }
 
-criterion_group!(benches, benchmark_trace_hot_paths);
+fn span_metric(duration: Duration) -> tiers::SpanMetric {
+    let micros = duration.as_micros().min(u64::MAX as u128) as u64;
+    tiers::SpanMetric {
+        count: 1,
+        p50_us: micros,
+        p95_us: micros,
+        p99_us: micros,
+        sum_us: micros,
+    }
+}
+
+fn benchmark_t0_cold_query_smoke(c: &mut Criterion) {
+    const GROUP: &str = "t0_hot_path_cold_query_smoke";
+    if !tiers::tier_guard_for("hot_path_bench", GROUP) {
+        return;
+    }
+
+    let setup_start = Instant::now();
+    let rt = Runtime::new().unwrap();
+    let tmp_dir = tempfile::tempdir().unwrap();
+    let settings = storage_settings(tmp_dir.path().to_string_lossy().to_string());
+    let fixture = rt.block_on(seed_small_fixture(&settings, 10_000));
+
+    let smoke_start = Instant::now();
+    rt.block_on(async {
+        let _ = fixture
+            .service
+            .query_service
+            .query_spans(
+                Some(&fixture.trace_id),
+                None,
+                None,
+                None,
+                None,
+                Some(&fixture.trace_start),
+                Some(&(fixture.trace_start + chrono::Duration::minutes(1))),
+                None,
+            )
+            .await
+            .unwrap();
+    });
+    let smoke_runtime = smoke_start.elapsed();
+
+    let mut spans = BTreeMap::new();
+    spans.insert(DF_COLLECT_SPAN.to_string(), span_metric(smoke_runtime));
+    spans.insert(
+        DELTA_SNAPSHOT_REFRESH_SPAN.to_string(),
+        tiers::SpanMetric::default(),
+    );
+    utils::write_bench_artifact(
+        "hot_path_bench",
+        GROUP,
+        setup_start.elapsed(),
+        spans,
+        ObjectStoreCountSnapshot::default(),
+        0,
+    );
+
+    c.bench_function(GROUP, |b| {
+        b.to_async(&rt).iter_custom(|iters| {
+            let fixture = fixture.clone();
+            async move {
+                let start = Instant::now();
+                for _ in 0..iters {
+                    let _ = black_box(
+                        fixture
+                            .service
+                            .query_service
+                            .query_spans(
+                                Some(&fixture.trace_id),
+                                None,
+                                None,
+                                None,
+                                None,
+                                Some(&fixture.trace_start),
+                                Some(&(fixture.trace_start + chrono::Duration::minutes(1))),
+                                None,
+                            )
+                            .await
+                            .unwrap(),
+                    );
+                }
+                start.elapsed()
+            }
+        });
+    });
+
+    let service = Arc::try_unwrap(fixture.service)
+        .unwrap_or_else(|_| panic!("Arc still has multiple owners"));
+    rt.block_on(async { service.shutdown().await.unwrap() });
+    drop(tmp_dir);
+}
+
+criterion_group!(
+    benches,
+    benchmark_t0_cold_query_smoke,
+    benchmark_trace_hot_paths
+);
 criterion_main!(benches);
