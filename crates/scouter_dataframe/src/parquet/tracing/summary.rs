@@ -1,9 +1,11 @@
 use crate::error::TraceEngineError;
 use crate::parquet::control::{ControlTableEngine, get_pod_id};
+use crate::parquet::maintenance::{trace_vacuum_retention_hours, validate_trace_vacuum_retention};
 use crate::parquet::tracing::catalog::TraceCatalogProvider;
 use crate::parquet::tracing::planner::{self, TimeWindow, apply_id_constraint};
 use crate::parquet::tracing::traits::{arrow_schema_to_delta, resource_attribute_field};
 use crate::parquet::utils::register_cloud_logstore_factories;
+use crate::parquet::writer_props::trace_summary_writer_props;
 use crate::storage::ObjectStore;
 use arrow::array::*;
 use arrow::compute;
@@ -14,9 +16,6 @@ use chrono::{DateTime, Datelike, Utc};
 use datafusion::logical_expr::{SortExpr, cast as df_cast, col, lit};
 use datafusion::prelude::*;
 use datafusion::scalar::ScalarValue;
-use deltalake::datafusion::parquet::basic::{Compression, ZstdLevel};
-use deltalake::datafusion::parquet::file::properties::WriterProperties;
-use deltalake::datafusion::parquet::schema::types::ColumnPath;
 use deltalake::operations::optimize::OptimizeType;
 use deltalake::{DeltaTable, DeltaTableBuilder, TableProperty};
 use scouter_types::sql::{TraceFilters, TraceListItem};
@@ -462,42 +461,6 @@ impl TraceSummaryDBEngine {
         builder.finish()
     }
 
-    fn build_writer_props() -> WriterProperties {
-        WriterProperties::builder()
-            .set_column_bloom_filter_enabled(
-                ColumnPath::new(vec!["service_name".to_string()]),
-                true,
-            )
-            .set_column_bloom_filter_fpp(ColumnPath::new(vec!["service_name".to_string()]), 0.01)
-            .set_column_bloom_filter_ndv(ColumnPath::new(vec!["service_name".to_string()]), 256)
-            .set_column_bloom_filter_enabled(
-                ColumnPath::new(vec![SERVICE_NAMESPACE_COL.to_string()]),
-                true,
-            )
-            .set_column_bloom_filter_fpp(
-                ColumnPath::new(vec![SERVICE_NAMESPACE_COL.to_string()]),
-                0.01,
-            )
-            .set_column_bloom_filter_ndv(
-                ColumnPath::new(vec![SERVICE_NAMESPACE_COL.to_string()]),
-                256,
-            )
-            .set_column_bloom_filter_enabled(
-                ColumnPath::new(vec![SERVICE_VERSION_COL.to_string()]),
-                true,
-            )
-            .set_column_bloom_filter_fpp(
-                ColumnPath::new(vec![SERVICE_VERSION_COL.to_string()]),
-                0.01,
-            )
-            .set_column_bloom_filter_ndv(
-                ColumnPath::new(vec![SERVICE_VERSION_COL.to_string()]),
-                256,
-            )
-            .set_compression(Compression::ZSTD(ZstdLevel::try_new(3).unwrap()))
-            .build()
-    }
-
     async fn write_records(
         &self,
         records: Vec<TraceSummaryRecord>,
@@ -519,7 +482,7 @@ impl TraceSummaryDBEngine {
         let updated_table = current_table
             .write(vec![batch])
             .with_save_mode(deltalake::protocol::SaveMode::Append)
-            .with_writer_properties(Self::build_writer_props())
+            .with_writer_properties(trace_summary_writer_props())
             .with_partition_columns(vec![PARTITION_DATE_COL.to_string()])
             .await?;
 
@@ -543,6 +506,7 @@ impl TraceSummaryDBEngine {
                 START_TIME_COL.to_string(),
                 SERVICE_NAME_COL.to_string(),
             ]))
+            .with_writer_properties(trace_summary_writer_props())
             .await?;
 
         self.catalog
@@ -553,6 +517,7 @@ impl TraceSummaryDBEngine {
     }
 
     async fn vacuum_table(&self, retention_hours: u64) -> Result<(), TraceEngineError> {
+        let retention_hours = validate_trace_vacuum_retention(retention_hours)?;
         let mut table_guard = self.table.write().await;
         let (updated_table, _metrics) = table_guard
             .clone()
@@ -607,7 +572,7 @@ impl TraceSummaryDBEngine {
         match self.control.try_claim_task(TASK_SUMMARY_OPTIMIZE).await {
             Ok(true) => match self.optimize_table().await {
                 Ok(()) => {
-                    if let Err(e) = self.vacuum_table(0).await {
+                    if let Err(e) = self.vacuum_table(trace_vacuum_retention_hours()).await {
                         error!("Post-optimize vacuum failed: {}", e);
                     }
 
@@ -672,7 +637,9 @@ impl TraceSummaryDBEngine {
                                 // Response is sent before vacuum so callers aren't blocked
                                 // on the potentially slow file-deletion pass.
                                 let _ = respond_to.send(self.optimize_table().await);
-                                if let Err(e) = self.vacuum_table(0).await {
+                                if let Err(e) =
+                                    self.vacuum_table(trace_vacuum_retention_hours()).await
+                                {
                                     error!("Post-optimize vacuum failed: {}", e);
                                 }
                             }

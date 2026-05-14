@@ -3,16 +3,14 @@ use crate::parquet::control::{ControlTableEngine, get_pod_id};
 use crate::parquet::tracing::catalog::TraceCatalogProvider;
 use crate::parquet::tracing::traits::arrow_schema_to_delta;
 use crate::parquet::utils::register_cloud_logstore_factories;
+use crate::parquet::writer_props::eval_scenario_writer_props;
 use crate::storage::ObjectStore;
-use arrow::array::{LargeStringBuilder, StringBuilder, TimestampMicrosecondBuilder};
+use arrow::array::{Date32Builder, LargeStringBuilder, StringBuilder, TimestampMicrosecondBuilder};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit};
 use arrow_array::RecordBatch;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Datelike, Utc};
 use datafusion::catalog::CatalogProvider;
 use datafusion::prelude::SessionContext;
-use deltalake::datafusion::parquet::basic::{Compression, ZstdLevel};
-use deltalake::datafusion::parquet::file::properties::WriterProperties;
-use deltalake::datafusion::parquet::schema::types::ColumnPath;
 use deltalake::operations::optimize::OptimizeType;
 use deltalake::protocol::SaveMode;
 use deltalake::{DeltaTable, DeltaTableBuilder, TableProperty};
@@ -26,6 +24,7 @@ use url::Url;
 pub const EVAL_SCENARIO_TABLE_NAME: &str = "eval_scenarios";
 pub const EVAL_SCENARIO_CATALOG_NAME: &str = "scouter_eval_scenarios";
 const EVAL_SCENARIO_DEFAULT_SCHEMA: &str = "default";
+const UNIX_EPOCH_DAYS: i32 = 719_163;
 
 const TASK_OPTIMIZE: &str = "eval_scenario_optimize";
 
@@ -34,6 +33,7 @@ pub const COLLECTION_ID_COL: &str = "collection_id";
 pub const SCENARIO_ID_COL: &str = "scenario_id";
 pub const SCENARIO_JSON_COL: &str = "scenario_json";
 pub const CREATED_AT_COL: &str = "created_at";
+pub const PARTITION_DATE_COL: &str = "partition_date";
 
 /// Ingest record — one row per `EvalScenario`.
 #[derive(Debug, Clone)]
@@ -62,6 +62,7 @@ fn create_schema() -> Schema {
             DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".into())),
             false,
         ),
+        Field::new(PARTITION_DATE_COL, DataType::Date32, false),
     ])
 }
 
@@ -71,6 +72,7 @@ struct EvalScenarioBatchBuilder {
     scenario_id: StringBuilder,
     scenario_json: LargeStringBuilder,
     created_at: TimestampMicrosecondBuilder,
+    partition_date: Date32Builder,
 }
 
 impl EvalScenarioBatchBuilder {
@@ -81,6 +83,7 @@ impl EvalScenarioBatchBuilder {
             scenario_id: StringBuilder::new(),
             scenario_json: LargeStringBuilder::new(),
             created_at: TimestampMicrosecondBuilder::new().with_timezone("UTC".to_string()),
+            partition_date: Date32Builder::new(),
         }
     }
 
@@ -90,6 +93,8 @@ impl EvalScenarioBatchBuilder {
         self.scenario_json.append_value(&record.scenario_json);
         self.created_at
             .append_value(record.created_at.timestamp_micros());
+        let days = record.created_at.date_naive().num_days_from_ce() - UNIX_EPOCH_DAYS;
+        self.partition_date.append_value(days);
     }
 
     fn finish(mut self) -> Result<RecordBatch, EvalScenarioEngineError> {
@@ -100,19 +105,10 @@ impl EvalScenarioBatchBuilder {
                 Arc::new(self.scenario_id.finish()),
                 Arc::new(self.scenario_json.finish()),
                 Arc::new(self.created_at.finish()),
+                Arc::new(self.partition_date.finish()),
             ],
         )?)
     }
-}
-
-fn build_writer_props() -> WriterProperties {
-    WriterProperties::builder()
-        .set_max_row_group_row_count(Some(32_768))
-        .set_column_bloom_filter_enabled(ColumnPath::new(vec![COLLECTION_ID_COL.to_string()]), true)
-        .set_column_bloom_filter_fpp(ColumnPath::new(vec![COLLECTION_ID_COL.to_string()]), 0.01)
-        .set_column_bloom_filter_ndv(ColumnPath::new(vec![COLLECTION_ID_COL.to_string()]), 10_000)
-        .set_compression(Compression::ZSTD(ZstdLevel::try_new(3).unwrap()))
-        .build()
 }
 
 async fn build_url(object_store: &ObjectStore) -> Result<Url, EvalScenarioEngineError> {
@@ -151,10 +147,11 @@ async fn create_table(
         .create()
         .with_table_name(EVAL_SCENARIO_TABLE_NAME)
         .with_columns(delta_fields)
+        .with_partition_columns(vec![PARTITION_DATE_COL.to_string()])
         .with_configuration_property(TableProperty::CheckpointInterval, Some("5"))
         .with_configuration_property(
             TableProperty::DataSkippingStatsColumns,
-            Some("collection_id,created_at"),
+            Some("collection_id,created_at,partition_date"),
         )
         .await
         .map_err(Into::into)
@@ -199,10 +196,28 @@ async fn build_or_create_table(
 
     if is_delta_table {
         let store = object_store.as_dyn_object_store();
-        let table = DeltaTableBuilder::from_url(table_url.clone())?
+        let mut table = DeltaTableBuilder::from_url(table_url.clone())?
             .with_storage_backend(store, table_url)
             .load()
             .await?;
+        if let Ok(provider) = table.table_provider().await {
+            let current_arrow = provider.schema();
+            let desired_schema = create_schema();
+            let missing_fields: Vec<deltalake::kernel::StructField> = desired_schema
+                .fields()
+                .iter()
+                .filter(|f| current_arrow.field_with_name(f.name()).is_err())
+                .map(|f| {
+                    let delta_ty =
+                        crate::parquet::tracing::traits::arrow_type_to_delta(f.data_type());
+                    deltalake::kernel::StructField::new(f.name().clone(), delta_ty, true)
+                })
+                .collect();
+
+            if !missing_fields.is_empty() {
+                table = table.add_columns().with_fields(missing_fields).await?;
+            }
+        }
         Ok(table)
     } else {
         create_table(object_store, table_url, schema).await
@@ -287,7 +302,8 @@ impl EvalScenarioDBEngine {
         let updated_table = current_table
             .write(vec![batch])
             .with_save_mode(SaveMode::Append)
-            .with_writer_properties(build_writer_props())
+            .with_writer_properties(eval_scenario_writer_props())
+            .with_partition_columns(vec![PARTITION_DATE_COL.to_string()])
             .await?;
 
         let new_provider = updated_table.table_provider().await?;
@@ -311,7 +327,7 @@ impl EvalScenarioDBEngine {
             .with_type(OptimizeType::ZOrder(vec![COLLECTION_ID_COL.to_string()]))
             // Bloom filters must be re-specified — compaction rewrites all Parquet files
             // from scratch, silently discarding existing bloom filters without this.
-            .with_writer_properties(build_writer_props())
+            .with_writer_properties(eval_scenario_writer_props())
             .await?;
 
         self.catalog.swap(

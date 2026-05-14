@@ -14,6 +14,10 @@ use datafusion::logical_expr::{SortExpr, cast as df_cast, col, lit, when};
 use datafusion::prelude::*;
 use datafusion::scalar::ScalarValue;
 use mini_moka::sync::Cache;
+use scouter_settings::storage::{
+    trace_span_cache_max_entries_from_env, trace_span_cache_max_mb_from_env,
+    trace_span_cache_ttl_secs_from_env,
+};
 use scouter_types::sql::{TraceFilters, TraceMetricBucket, TraceSpan};
 use scouter_types::{
     Attribute, AwaitingTraceCommit, SCOUTER_EVAL_PROFILE_UID, SCOUTER_EVAL_RECORD_UID, SpanEvent,
@@ -223,6 +227,73 @@ impl TraceQueryBuilder {
     async fn execute(self) -> Result<Vec<RecordBatch>, TraceEngineError> {
         let batches = collect_with_phase0(self.df, self.endpoint, self.table_name).await?;
         Ok(batches)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::TimeZone;
+
+    fn base_key() -> SpanCacheKey {
+        let start = Utc.with_ymd_and_hms(2026, 5, 14, 12, 0, 0).unwrap();
+        let end = Utc.with_ymd_and_hms(2026, 5, 14, 13, 0, 0).unwrap();
+        SpanCacheKey::new(
+            &[7; 16],
+            Some("api"),
+            Some("shop"),
+            Some("1.2.3"),
+            Some("pod-a"),
+            Some(&start),
+            Some(&end),
+            Some(100),
+            true,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn span_cache_key_separates_bounded_query_shape() {
+        let base = base_key();
+
+        let mut service_name = base.clone();
+        service_name.service_name = Some("worker".to_string());
+        assert_ne!(base, service_name);
+
+        let mut namespace = base.clone();
+        namespace.service_namespace = Some("payments".to_string());
+        assert_ne!(base, namespace);
+
+        let mut version = base.clone();
+        version.service_version = Some("2.0.0".to_string());
+        assert_ne!(base, version);
+
+        let mut instance = base.clone();
+        instance.service_instance_id = Some("pod-b".to_string());
+        assert_ne!(base, instance);
+
+        let mut start_time = base.clone();
+        start_time.start_time_us = base.start_time_us.map(|v| v + 1);
+        assert_ne!(base, start_time);
+
+        let mut end_time = base.clone();
+        end_time.end_time_us = base.end_time_us.map(|v| v + 1);
+        assert_ne!(base, end_time);
+
+        let mut limit = base.clone();
+        limit.limit = Some(10);
+        assert_ne!(base, limit);
+
+        let mut payloads = base.clone();
+        payloads.include_payloads = false;
+        assert_ne!(base, payloads);
+    }
+
+    #[test]
+    fn span_cache_key_bypasses_non_binary_trace_ids() {
+        assert!(
+            SpanCacheKey::new(&[1; 15], None, None, None, None, None, None, None, true).is_none()
+        );
     }
 }
 
@@ -852,11 +923,95 @@ fn flat_to_trace_span(
 /// Time predicates are always applied FIRST to enable Delta Lake partition pruning.
 /// `span_cache` provides sub-millisecond repeat reads for trace detail clicks.
 /// `metrics_cache` provides sub-millisecond repeat reads for dashboard metric charts.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub(crate) struct SpanCacheKey {
+    trace_id: [u8; 16],
+    start_time_us: Option<i64>,
+    end_time_us: Option<i64>,
+    service_name: Option<String>,
+    service_namespace: Option<String>,
+    service_version: Option<String>,
+    service_instance_id: Option<String>,
+    limit: Option<usize>,
+    include_payloads: bool,
+}
+
+impl SpanCacheKey {
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        trace_id_bytes: &[u8],
+        service_name: Option<&str>,
+        service_namespace: Option<&str>,
+        service_version: Option<&str>,
+        service_instance_id: Option<&str>,
+        start_time: Option<&DateTime<Utc>>,
+        end_time: Option<&DateTime<Utc>>,
+        limit: Option<usize>,
+        include_payloads: bool,
+    ) -> Option<Self> {
+        let trace_id = <[u8; 16]>::try_from(trace_id_bytes).ok()?;
+        Some(Self {
+            trace_id,
+            start_time_us: start_time.map(DateTime::timestamp_micros),
+            end_time_us: end_time.map(DateTime::timestamp_micros),
+            service_name: service_name.map(ToOwned::to_owned),
+            service_namespace: service_namespace.map(ToOwned::to_owned),
+            service_version: service_version.map(ToOwned::to_owned),
+            service_instance_id: service_instance_id.map(ToOwned::to_owned),
+            limit,
+            include_payloads,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct SpanCachePolicy {
+    max_bytes: u64,
+    max_entries: u64,
+    ttl_secs: u64,
+}
+
+impl SpanCachePolicy {
+    fn from_env() -> Self {
+        Self {
+            max_bytes: trace_span_cache_max_mb_from_env().saturating_mul(1024 * 1024),
+            max_entries: trace_span_cache_max_entries_from_env().max(1),
+            ttl_secs: trace_span_cache_ttl_secs_from_env().max(1),
+        }
+    }
+
+    fn entry_floor_bytes(self) -> u32 {
+        let floor = self.max_bytes / self.max_entries;
+        floor.clamp(1, u32::MAX as u64) as u32
+    }
+}
+
+fn estimate_span_cache_weight(spans: &[TraceSpan], entry_floor_bytes: u32) -> u32 {
+    let mut bytes = std::mem::size_of_val(spans) as u64;
+    for span in spans {
+        bytes = bytes
+            .saturating_add(std::mem::size_of::<TraceSpan>() as u64)
+            .saturating_add(span.service_name.len() as u64)
+            .saturating_add(span.service_namespace.as_ref().map_or(0, String::len) as u64)
+            .saturating_add(span.service_version.as_ref().map_or(0, String::len) as u64)
+            .saturating_add(span.service_instance_id.as_ref().map_or(0, String::len) as u64)
+            .saturating_add(span.span_name.len() as u64)
+            .saturating_add(span.span_kind.as_ref().map_or(0, String::len) as u64)
+            .saturating_add(span.status_message.as_ref().map_or(0, String::len) as u64)
+            .saturating_add(span.path.iter().map(String::len).sum::<usize>() as u64)
+            .saturating_add(span.root_span_id.len() as u64)
+            .saturating_add(serde_json::to_string(&span.input).map_or(0, |s| s.len()) as u64)
+            .saturating_add(serde_json::to_string(&span.output).map_or(0, |s| s.len()) as u64);
+    }
+
+    bytes.clamp(entry_floor_bytes as u64, u32::MAX as u64) as u32
+}
+
 #[derive(Clone)]
 pub struct TraceQueries {
     ctx: Arc<SessionContext>,
-    /// LRU cache keyed by 16-byte trace ID. TTL=5 min — archived span data is immutable.
-    span_cache: Cache<[u8; 16], Arc<Vec<TraceSpan>>>,
+    /// LRU cache keyed by fully represented trace lookup shape.
+    span_cache: Cache<SpanCacheKey, Arc<Vec<TraceSpan>>>,
     /// LRU cache keyed by hash of (service, start, end, interval, filters, entity).
     /// TTL=60s — short enough to reflect new archive writes, long enough to absorb UI refreshes.
     metrics_cache: Cache<u64, Arc<Vec<TraceMetricBucket>>>,
@@ -878,9 +1033,16 @@ fn metrics_cache_key(request: &scouter_types::TraceMetricsRequest, bucket_interv
 
 impl TraceQueries {
     pub fn new(ctx: Arc<SessionContext>) -> Self {
+        let span_cache_policy = SpanCachePolicy::from_env();
+        let span_entry_floor_bytes = span_cache_policy.entry_floor_bytes();
         let span_cache = Cache::builder()
-            .max_capacity(1_000)
-            .time_to_live(Duration::from_secs(300))
+            .max_capacity(span_cache_policy.max_bytes.max(1))
+            .weigher(
+                move |_key: &SpanCacheKey, value: &Arc<Vec<TraceSpan>>| -> u32 {
+                    estimate_span_cache_weight(value.as_slice(), span_entry_floor_bytes)
+                },
+            )
+            .time_to_live(Duration::from_secs(span_cache_policy.ttl_secs))
             .build();
         let metrics_cache = Cache::builder()
             .max_capacity(500)
@@ -902,8 +1064,8 @@ impl TraceQueries {
     /// * `end_time` - Optional upper time bound
     /// * `limit` - Optional row limit
     ///
-    /// When `trace_id_bytes` is 16 bytes, results are cached for 5 minutes — repeat detail
-    /// clicks (common in the UI) return in <1µs without hitting Delta Lake.
+    /// When `trace_id_bytes` is 16 bytes, results are cached according to the trace span cache
+    /// policy — repeat detail clicks avoid hitting Delta Lake.
     #[instrument(skip_all, name = "scouter.trace.query.spans")]
     #[allow(clippy::too_many_arguments)]
     pub async fn get_trace_spans(
@@ -917,11 +1079,20 @@ impl TraceQueries {
         end_time: Option<&DateTime<Utc>>,
         limit: Option<usize>,
     ) -> Result<Vec<TraceSpan>, TraceEngineError> {
-        // Cache lookup for by-id trace detail queries (the hot interactive path).
-        // Span cache is trace_id-keyed: spans within a single trace are bounded and nearly
-        // always share the same service tuple, so post-filter is correct and cheap here.
+        // Cache lookup for by-id trace detail queries. If a query shape cannot be fully
+        // represented by SpanCacheKey, this path must bypass cache rather than share entries.
         if let Some(tid) = trace_id_bytes
-            && let Ok(key) = <[u8; 16]>::try_from(tid)
+            && let Some(key) = SpanCacheKey::new(
+                tid,
+                service_name,
+                service_namespace,
+                service_version,
+                service_instance_id,
+                start_time,
+                end_time,
+                limit,
+                true,
+            )
         {
             if let Some(cached) = self.span_cache.get(&key) {
                 return Ok((*cached).clone());

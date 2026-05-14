@@ -1,11 +1,13 @@
 use crate::error::TraceEngineError;
 use crate::parquet::control::{ControlTableEngine, get_pod_id};
+use crate::parquet::maintenance::{trace_vacuum_retention_hours, validate_trace_vacuum_retention};
 use crate::parquet::tracing::catalog::TraceCatalogProvider;
 use crate::parquet::tracing::queries::{
     SERVICE_INSTANCE_ID_COL, SERVICE_NAMESPACE_COL, SERVICE_VERSION_COL, date_lit, ts_lit,
 };
 use crate::parquet::tracing::traits::arrow_schema_to_delta;
 use crate::parquet::utils::register_cloud_logstore_factories;
+use crate::parquet::writer_props::genai_span_writer_props;
 use crate::storage::ObjectStore;
 use ahash::AHasher;
 use arrow::array::*;
@@ -18,9 +20,6 @@ use datafusion::functions_aggregate::expr_fn::{avg, count, sum};
 use datafusion::logical_expr::{Expr, col, lit};
 use datafusion::prelude::*;
 use datafusion::scalar::ScalarValue;
-use deltalake::datafusion::parquet::basic::{Compression, Encoding, ZstdLevel};
-use deltalake::datafusion::parquet::file::properties::WriterProperties;
-use deltalake::datafusion::parquet::schema::types::ColumnPath;
 use deltalake::operations::optimize::OptimizeType;
 use deltalake::{DeltaTable, DeltaTableBuilder, TableProperty};
 use mini_moka::sync::Cache;
@@ -804,85 +803,6 @@ impl GenAiSpanDBEngine {
         })
     }
 
-    fn build_writer_props() -> WriterProperties {
-        WriterProperties::builder()
-            .set_max_row_group_row_count(Some(32_768))
-            // Bloom filter on trace_id
-            .set_column_bloom_filter_enabled(ColumnPath::new(vec![TRACE_ID_COL.to_string()]), true)
-            .set_column_bloom_filter_fpp(ColumnPath::new(vec![TRACE_ID_COL.to_string()]), 0.01)
-            .set_column_bloom_filter_ndv(ColumnPath::new(vec![TRACE_ID_COL.to_string()]), 32_768)
-            // Bloom filter on service_name
-            .set_column_bloom_filter_enabled(
-                ColumnPath::new(vec![SERVICE_NAME_COL.to_string()]),
-                true,
-            )
-            .set_column_bloom_filter_fpp(ColumnPath::new(vec![SERVICE_NAME_COL.to_string()]), 0.01)
-            .set_column_bloom_filter_ndv(ColumnPath::new(vec![SERVICE_NAME_COL.to_string()]), 256)
-            // Bloom filter on service_namespace
-            .set_column_bloom_filter_enabled(
-                ColumnPath::new(vec![SERVICE_NAMESPACE_COL.to_string()]),
-                true,
-            )
-            .set_column_bloom_filter_fpp(
-                ColumnPath::new(vec![SERVICE_NAMESPACE_COL.to_string()]),
-                0.01,
-            )
-            .set_column_bloom_filter_ndv(
-                ColumnPath::new(vec![SERVICE_NAMESPACE_COL.to_string()]),
-                256,
-            )
-            // Bloom filter on service_version
-            .set_column_bloom_filter_enabled(
-                ColumnPath::new(vec![SERVICE_VERSION_COL.to_string()]),
-                true,
-            )
-            .set_column_bloom_filter_fpp(
-                ColumnPath::new(vec![SERVICE_VERSION_COL.to_string()]),
-                0.01,
-            )
-            .set_column_bloom_filter_ndv(
-                ColumnPath::new(vec![SERVICE_VERSION_COL.to_string()]),
-                256,
-            )
-            // Bloom filter on conversation_id
-            .set_column_bloom_filter_enabled(
-                ColumnPath::new(vec![CONVERSATION_ID_COL.to_string()]),
-                true,
-            )
-            .set_column_bloom_filter_fpp(
-                ColumnPath::new(vec![CONVERSATION_ID_COL.to_string()]),
-                0.01,
-            )
-            .set_column_bloom_filter_ndv(
-                ColumnPath::new(vec![CONVERSATION_ID_COL.to_string()]),
-                8_192,
-            )
-            // Bloom filter on entity_id (eval profile UID — high-cardinality UUIDs)
-            .set_column_bloom_filter_enabled(ColumnPath::new(vec![ENTITY_ID_COL.to_string()]), true)
-            .set_column_bloom_filter_fpp(ColumnPath::new(vec![ENTITY_ID_COL.to_string()]), 0.01)
-            .set_column_bloom_filter_ndv(ColumnPath::new(vec![ENTITY_ID_COL.to_string()]), 128)
-            // Delta encoding on near-sorted integer columns
-            .set_column_encoding(
-                ColumnPath::new(vec![START_TIME_COL.to_string()]),
-                Encoding::DELTA_BINARY_PACKED,
-            )
-            .set_column_encoding(
-                ColumnPath::new(vec![DURATION_MS_COL.to_string()]),
-                Encoding::DELTA_BINARY_PACKED,
-            )
-            .set_column_encoding(
-                ColumnPath::new(vec![INPUT_TOKENS_COL.to_string()]),
-                Encoding::DELTA_BINARY_PACKED,
-            )
-            .set_column_encoding(
-                ColumnPath::new(vec![OUTPUT_TOKENS_COL.to_string()]),
-                Encoding::DELTA_BINARY_PACKED,
-            )
-            // ZSTD level 3 compression
-            .set_compression(Compression::ZSTD(ZstdLevel::try_new(3).unwrap()))
-            .build()
-    }
-
     fn build_batch(&self, records: Vec<GenAiSpanRecord>) -> Result<RecordBatch, TraceEngineError> {
         let mut builder = GenAiBatchBuilder::new(self.schema.clone(), records.len());
         for rec in &records {
@@ -902,7 +822,7 @@ impl GenAiSpanDBEngine {
         let updated_table = current_table
             .write(vec![batch])
             .with_save_mode(deltalake::protocol::SaveMode::Append)
-            .with_writer_properties(Self::build_writer_props())
+            .with_writer_properties(genai_span_writer_props())
             .with_partition_columns(vec![PARTITION_DATE_COL.to_string()])
             .await?;
 
@@ -926,7 +846,7 @@ impl GenAiSpanDBEngine {
                 SERVICE_NAME_COL.to_string(),
                 ENTITY_ID_COL.to_string(),
             ]))
-            .with_writer_properties(Self::build_writer_props())
+            .with_writer_properties(genai_span_writer_props())
             .await?;
 
         self.catalog
@@ -937,6 +857,7 @@ impl GenAiSpanDBEngine {
     }
 
     async fn vacuum_table(&self, retention_hours: u64) -> Result<(), TraceEngineError> {
+        let retention_hours = validate_trace_vacuum_retention(retention_hours)?;
         let mut table_guard = self.table.write().await;
         let (updated_table, _metrics) = table_guard
             .clone()
@@ -1006,7 +927,7 @@ impl GenAiSpanDBEngine {
         match self.control.try_claim_task(TASK_GENAI_OPTIMIZE).await {
             Ok(true) => match self.optimize_table().await {
                 Ok(()) => {
-                    if let Err(e) = self.vacuum_table(0).await {
+                    if let Err(e) = self.vacuum_table(trace_vacuum_retention_hours()).await {
                         error!("Post-optimize vacuum failed (gen_ai): {}", e);
                     }
                     let _ = self
@@ -1037,7 +958,7 @@ impl GenAiSpanDBEngine {
                     (Utc::now() - chrono::Duration::days(retention_days as i64)).date_naive();
                 match self.expire_table(cutoff).await {
                     Ok(()) => {
-                        if let Err(e) = self.vacuum_table(0).await {
+                        if let Err(e) = self.vacuum_table(trace_vacuum_retention_hours()).await {
                             error!("Failed to vacuum after retention: {}", e);
                         }
                         let _ = self
@@ -1095,7 +1016,9 @@ impl GenAiSpanDBEngine {
                             }
                             GenAiTableCommand::Optimize { respond_to } => {
                                 let _ = respond_to.send(self.optimize_table().await);
-                                if let Err(e) = self.vacuum_table(0).await {
+                                if let Err(e) =
+                                    self.vacuum_table(trace_vacuum_retention_hours()).await
+                                {
                                     error!("Post-optimize vacuum failed (gen_ai): {}", e);
                                 }
                             }

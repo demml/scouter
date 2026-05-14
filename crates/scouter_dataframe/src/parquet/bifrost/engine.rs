@@ -2,19 +2,15 @@ use crate::error::DatasetEngineError;
 use crate::parquet::bifrost::catalog::DatasetCatalogProvider;
 use crate::parquet::tracing::traits::arrow_schema_to_delta;
 use crate::parquet::utils::register_cloud_logstore_factories;
+use crate::parquet::writer_props::bifrost_writer_props;
 use crate::storage::ObjectStore;
-use arrow::datatypes::{DataType, Schema, SchemaRef};
+use arrow::datatypes::{Schema, SchemaRef};
 use arrow_array::RecordBatch;
 use datafusion::prelude::SessionContext;
-use deltalake::datafusion::parquet::basic::{Compression, Encoding, ZstdLevel};
-use deltalake::datafusion::parquet::file::properties::{EnabledStatistics, WriterProperties};
-use deltalake::datafusion::parquet::schema::types::ColumnPath;
 use deltalake::operations::optimize::OptimizeType;
 use deltalake::{DeltaTable, DeltaTableBuilder, TableProperty};
 use scouter_types::dataset::DatasetNamespace;
-use scouter_types::dataset::schema::{
-    SCOUTER_BATCH_ID, SCOUTER_CREATED_AT, SCOUTER_PARTITION_DATE,
-};
+use scouter_types::dataset::schema::SCOUTER_PARTITION_DATE;
 use std::sync::Arc;
 use tokio::sync::oneshot;
 use tokio::sync::{RwLock as AsyncRwLock, mpsc};
@@ -129,45 +125,6 @@ fn build_data_skipping_columns(partition_columns: &[String]) -> String {
     cols.join(",")
 }
 
-/// Build Parquet writer properties for a dataset with a dynamic schema.
-///
-/// System columns get hardcoded optimizations. User columns ending in `_id`
-/// or `_key` (Utf8/Utf8View) get bloom filters automatically.
-pub fn build_writer_props(schema: &Schema) -> WriterProperties {
-    let mut builder = WriterProperties::builder()
-        .set_max_row_group_row_count(Some(32_768))
-        .set_compression(Compression::ZSTD(ZstdLevel::try_new(3).unwrap()))
-        .set_column_encoding(
-            ColumnPath::new(vec![SCOUTER_CREATED_AT.to_string()]),
-            Encoding::DELTA_BINARY_PACKED,
-        )
-        .set_column_bloom_filter_enabled(ColumnPath::new(vec![SCOUTER_BATCH_ID.to_string()]), true)
-        .set_column_bloom_filter_fpp(ColumnPath::new(vec![SCOUTER_BATCH_ID.to_string()]), 0.01)
-        .set_column_bloom_filter_ndv(ColumnPath::new(vec![SCOUTER_BATCH_ID.to_string()]), 10_000)
-        .set_column_statistics_enabled(
-            ColumnPath::new(vec![SCOUTER_CREATED_AT.to_string()]),
-            EnabledStatistics::Page,
-        );
-
-    for field in schema.fields() {
-        let name = field.name();
-        if (name.ends_with("_id") || name.ends_with("_key"))
-            && matches!(
-                field.data_type(),
-                DataType::Utf8 | DataType::Utf8View | DataType::LargeUtf8
-            )
-            && name != SCOUTER_BATCH_ID
-        {
-            builder = builder
-                .set_column_bloom_filter_enabled(ColumnPath::new(vec![name.clone()]), true)
-                .set_column_bloom_filter_fpp(ColumnPath::new(vec![name.clone()]), 0.01)
-                .set_column_bloom_filter_ndv(ColumnPath::new(vec![name.clone()]), 10_000);
-        }
-    }
-
-    builder.build()
-}
-
 /// Per-table dataset engine actor.
 ///
 /// Owns a single `DeltaTable` and serializes all writes through an mpsc channel
@@ -247,7 +204,7 @@ impl DatasetEngine {
         let updated_table = current_table
             .write(batches)
             .with_save_mode(deltalake::protocol::SaveMode::Append)
-            .with_writer_properties(build_writer_props(&self.schema))
+            .with_writer_properties(bifrost_writer_props(&self.schema))
             .with_partition_columns(self.partition_columns.clone())
             .await?;
 
@@ -296,7 +253,7 @@ impl DatasetEngine {
             .optimize()
             .with_target_size(std::num::NonZero::new(128 * 1024 * 1024).unwrap())
             .with_type(OptimizeType::ZOrder(z_order_cols))
-            .with_writer_properties(build_writer_props(&self.schema))
+            .with_writer_properties(bifrost_writer_props(&self.schema))
             .await?;
 
         let write_name = Self::write_table_name(&self.namespace);

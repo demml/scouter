@@ -10,6 +10,41 @@ pub fn trace_refresh_interval_secs_from_env() -> u64 {
         .unwrap_or(10)
 }
 
+pub fn trace_span_cache_max_mb_from_env() -> u64 {
+    std::env::var("SCOUTER_TRACE_SPAN_CACHE_MAX_MB")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(256)
+}
+
+pub fn trace_span_cache_max_entries_from_env() -> u64 {
+    std::env::var("SCOUTER_TRACE_SPAN_CACHE_MAX_ENTRIES")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(10_000)
+}
+
+pub fn trace_span_cache_ttl_secs_from_env() -> u64 {
+    std::env::var("SCOUTER_TRACE_SPAN_CACHE_TTL_SECS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(300)
+}
+
+pub fn trace_vacuum_retention_hours_from_env() -> u64 {
+    std::env::var("SCOUTER_TRACE_VACUUM_RETENTION_HOURS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(24)
+}
+
+pub fn trace_unsafe_vacuum_allow_zero_from_env() -> bool {
+    std::env::var("SCOUTER_TRACE_UNSAFE_VACUUM_ALLOW_ZERO")
+        .ok()
+        .and_then(|v| v.parse::<bool>().ok())
+        .unwrap_or(false)
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ObjectStorageSettings {
     pub storage_uri: String,

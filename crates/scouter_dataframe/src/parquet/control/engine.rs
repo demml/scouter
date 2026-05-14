@@ -1,6 +1,7 @@
 use crate::error::TraceEngineError;
 use crate::parquet::tracing::traits::arrow_schema_to_delta;
 use crate::parquet::utils::register_cloud_logstore_factories;
+use crate::parquet::writer_props::control_writer_props;
 use crate::storage::ObjectStore;
 use arrow::array::*;
 use arrow::datatypes::*;
@@ -474,6 +475,7 @@ impl ControlTableEngine {
                 let updated_table = updated_table
                     .write(vec![batch])
                     .with_save_mode(deltalake::protocol::SaveMode::Append)
+                    .with_writer_properties(control_writer_props())
                     .await?;
 
                 let _ = self.ctx.deregister_table(CONTROL_TABLE_NAME);
@@ -499,6 +501,7 @@ impl ControlTableEngine {
                     .clone()
                     .write(vec![batch])
                     .with_save_mode(deltalake::protocol::SaveMode::Append)
+                    .with_writer_properties(control_writer_props())
                     .await?;
 
                 let _ = self.ctx.deregister_table(CONTROL_TABLE_NAME);
