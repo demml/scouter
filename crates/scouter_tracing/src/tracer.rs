@@ -9,6 +9,7 @@ use crate::error::TraceError;
 use crate::exporter::SpanExporterNum;
 use crate::exporter::processor::BatchConfig;
 use crate::exporter::scouter::ScouterSpanExporter;
+use crate::resource::ScouterResourceConfig;
 use crate::utils::BoxedSpan;
 use crate::utils::py_obj_to_otel_keyvalue;
 use crate::utils::{
@@ -29,9 +30,14 @@ use opentelemetry::{
     trace::{Span, SpanContext, Status, TraceContextExt, TraceState},
 };
 use opentelemetry::{SpanId, TraceFlags, TraceId};
+use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::propagation::TraceContextPropagator;
+use opentelemetry_sdk::trace::BatchConfigBuilder as OTelBatchConfigBuilder;
+use opentelemetry_sdk::trace::BatchSpanProcessor;
+use opentelemetry_sdk::trace::Sampler;
 use opentelemetry_sdk::trace::SdkTracer;
 use opentelemetry_sdk::trace::SdkTracerProvider;
+use opentelemetry_sdk::trace::SpanExporter;
 use potato_head::create_uuid7;
 use pyo3::IntoPyObjectExt;
 use pyo3::prelude::*;
@@ -39,6 +45,7 @@ use pyo3::types::{PyDict, PyList, PyTuple};
 use scouter_events::queue::ScouterQueue;
 use scouter_events::queue::types::TransportConfig;
 use scouter_settings::grpc::GrpcConfig;
+use scouter_settings::otel::{OtelProtocol as ScouterOtelProtocol, OtelSettings};
 
 use scouter_types::{
     BAGGAGE_PREFIX, EXCEPTION_TRACEBACK, EvalRecord, SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT,
@@ -50,7 +57,7 @@ use scouter_types::{SCOUTER_EVAL_PROFILE_UID, SCOUTER_EVAL_RECORD_UID};
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, OnceLock, RwLock};
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 use tracing::{debug, info, instrument, warn};
 
 /// Global static instance of the tracer provider.
@@ -63,6 +70,89 @@ static SCOUTER_QUEUE_STORE: RwLock<Option<Py<ScouterQueue>>> = RwLock::new(None)
 
 // Re-export span capture state from scouter-types for use within this crate.
 pub use scouter_types::span_capture::{CAPTURE_BUFFER_MAX, CAPTURE_BUFFERS, CAPTURING};
+
+#[derive(Clone, Debug)]
+pub struct OtlpTracingHandle {
+    provider: SdkTracerProvider,
+    export_timeout: Duration,
+    service_name: String,
+}
+
+impl OtlpTracingHandle {
+    fn new(provider: SdkTracerProvider, export_timeout: Duration, service_name: String) -> Self {
+        Self {
+            provider,
+            export_timeout,
+            service_name,
+        }
+    }
+
+    pub fn tracer(&self) -> SdkTracer {
+        self.provider.tracer(self.service_name.clone())
+    }
+
+    pub fn force_flush(&self) -> Result<(), TraceError> {
+        self.provider.force_flush()?;
+        Ok(())
+    }
+
+    pub fn shutdown(&self) -> Result<(), TraceError> {
+        self.force_flush()?;
+        self.provider.shutdown_with_timeout(self.export_timeout)?;
+        Ok(())
+    }
+}
+
+pub fn init_server_otlp_tracing(
+    settings: &OtelSettings,
+) -> Result<Option<OtlpTracingHandle>, TraceError> {
+    if !settings.enabled {
+        return Ok(None);
+    }
+
+    match settings.protocol {
+        ScouterOtelProtocol::Grpc => build_server_grpc_otlp_tracing(settings).map(Some),
+    }
+}
+
+fn build_server_grpc_otlp_tracing(
+    settings: &OtelSettings,
+) -> Result<OtlpTracingHandle, TraceError> {
+    let export_timeout = Duration::from_secs(settings.export_timeout_secs);
+    let resource = ScouterResourceConfig {
+        service_name: Some(settings.service_name.clone()),
+        ..Default::default()
+    }
+    .build_resource();
+
+    let mut exporter = opentelemetry_otlp::SpanExporter::builder()
+        .with_tonic()
+        .with_export_config(opentelemetry_otlp::ExportConfig {
+            endpoint: Some(settings.endpoint.clone()),
+            protocol: opentelemetry_otlp::Protocol::Grpc,
+            timeout: Some(export_timeout),
+        })
+        .build()?;
+    exporter.set_resource(&resource);
+
+    let batch_config = OTelBatchConfigBuilder::default()
+        .with_max_export_timeout(export_timeout)
+        .build();
+    let span_processor = BatchSpanProcessor::builder(exporter)
+        .with_batch_config(batch_config)
+        .build();
+    let provider = SdkTracerProvider::builder()
+        .with_span_processor(span_processor)
+        .with_sampler(Sampler::TraceIdRatioBased(settings.sample_ratio))
+        .with_resource(resource)
+        .build();
+
+    Ok(OtlpTracingHandle::new(
+        provider,
+        export_timeout,
+        settings.service_name.clone(),
+    ))
+}
 
 /// Stable Phase 0 OLAP observability contract.
 ///
@@ -2140,6 +2230,26 @@ pub fn try_set_span_attribute(py: Python<'_>, key: &str, value: &str) -> Result<
 
     span.call_method1("set_attribute", (key, value))?;
     Ok(true)
+}
+
+#[cfg(test)]
+mod server_otlp_tests {
+    use super::*;
+
+    #[test]
+    fn disabled_server_otlp_returns_no_handle() {
+        let settings = OtelSettings {
+            enabled: false,
+            endpoint: "http://localhost:4317".to_string(),
+            protocol: ScouterOtelProtocol::Grpc,
+            service_name: "scouter-server".to_string(),
+            sample_ratio: 1.0,
+            export_timeout_secs: 10,
+        };
+
+        let handle = init_server_otlp_tracing(&settings).unwrap();
+        assert!(handle.is_none());
+    }
 }
 
 #[cfg(test)]

@@ -52,6 +52,7 @@ pub async fn create_app_state() -> Result<Arc<AppState>, anyhow::Error> {
         genai_service: scouter_components.genai_service,
         dataset_manager: scouter_components.dataset_manager,
         eval_scenario_service: scouter_components.eval_scenario_service,
+        otlp_tracing: scouter_components.otlp_tracing,
     });
 
     Ok(app_state)
@@ -97,7 +98,9 @@ pub async fn start_server_with_mode(mode: ServeMode) -> Result<(), anyhow::Error
             info!("HTTP server shut down gracefully");
         }
         ServeMode::Grpc => {
-            start_grpc_server(app_state).await?;
+            let result = start_grpc_server(Arc::clone(&app_state)).await;
+            app_state.shutdown().await;
+            result?;
             info!("gRPC server shut down gracefully");
         }
         ServeMode::Both => {

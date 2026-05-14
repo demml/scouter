@@ -13,6 +13,7 @@ use scouter_dataframe::parquet::tracing::summary::TraceSummaryService;
 use scouter_settings::ScouterServerConfig;
 use scouter_sql::sql::aggregator::shutdown_trace_cache;
 use scouter_sql::sql::cache::entity_cache;
+use scouter_tracing::tracer::OtlpTracingHandle;
 use scouter_types::{
     DriftType, ServerRecords, TagRecord, TraceServerRecord, contracts::ScouterServerError,
 };
@@ -34,6 +35,7 @@ pub struct AppState {
     pub genai_service: Arc<GenAiSpanService>,
     pub dataset_manager: Arc<DatasetEngineManager>,
     pub eval_scenario_service: Arc<EvalScenarioService>,
+    pub otlp_tracing: Option<OtlpTracingHandle>,
 }
 
 impl AppState {
@@ -52,6 +54,11 @@ impl AppState {
         self.genai_service.signal_shutdown().await;
         self.dataset_manager.shutdown().await;
         self.eval_scenario_service.signal_shutdown().await;
+        if let Some(otlp_tracing) = &self.otlp_tracing {
+            otlp_tracing.shutdown().unwrap_or_else(|e| {
+                error!("Failed to shutdown OTLP tracing: {:?}", e);
+            });
+        }
         self.db_pool.close().await;
     }
 
