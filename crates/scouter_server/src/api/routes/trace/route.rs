@@ -31,91 +31,8 @@ use scouter_types::{
 use std::collections::HashSet;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
-use tracing::field::Empty;
 use tracing::instrument;
-use tracing::{Span, debug, error, info_span};
-
-mod phase0 {
-    #[allow(dead_code)]
-    pub mod attrs {
-        pub const TRACE_QUERY_ENDPOINT: &str = "trace.query.endpoint";
-        pub const TRACE_QUERY_KIND: &str = "trace.query.kind";
-        pub const TRACE_QUERY_HAS_START_TIME: &str = "trace.query.has_start_time";
-        pub const TRACE_QUERY_HAS_END_TIME: &str = "trace.query.has_end_time";
-        pub const TRACE_QUERY_WINDOW_MS: &str = "trace.query.window_ms";
-        pub const TRACE_QUERY_LIMIT: &str = "trace.query.limit";
-        pub const TRACE_QUERY_OFFSET: &str = "trace.query.offset";
-        pub const TRACE_QUERY_TRACE_ID_PRESENT: &str = "trace.query.trace_id_present";
-        pub const TRACE_QUERY_UNBOUNDED: &str = "trace.query.unbounded";
-        pub const TRACE_QUERY_CACHE_HIT: &str = "trace.query.cache.hit";
-        pub const TRACE_QUERY_CACHE_NAME: &str = "trace.query.cache.name";
-        pub const TRACE_QUERY_RESULT_ROWS: &str = "trace.query.result.rows";
-        pub const TRACE_QUERY_RESULT_BYTES_ESTIMATE: &str = "trace.query.result.bytes_estimate";
-        pub const TRACE_QUERY_TABLE_VERSION: &str = "trace.query.table_version";
-        pub const TRACE_QUERY_STORAGE_BACKEND: &str = "trace.query.storage_backend";
-        pub const TRACE_QUERY_REFRESH_ORIGIN: &str = "trace.query.refresh_origin";
-    }
-
-    pub mod routes {
-        pub const TRACE_PAGINATED_PATH: &str = "{prefix}/trace/paginated";
-        pub const TRACE_SPANS_PATH: &str = "{prefix}/trace/spans";
-        pub const TRACE_METRICS_PATH: &str = "{prefix}/trace/metrics";
-        pub const V1_TRACE_SPANS_PATH: &str = "{prefix}/v1/traces/{id}/spans";
-        pub const V1_TRACES_PATH: &str = "{prefix}/v1/traces";
-    }
-}
-
-fn window_ms(
-    start_time: Option<chrono::DateTime<chrono::Utc>>,
-    end_time: Option<chrono::DateTime<chrono::Utc>>,
-) -> Option<i64> {
-    match (start_time, end_time) {
-        (Some(start), Some(end)) => Some((end - start).num_milliseconds()),
-        _ => None,
-    }
-}
-
-struct TraceQueryAttrs {
-    endpoint: &'static str,
-    kind: &'static str,
-    has_start_time: bool,
-    has_end_time: bool,
-    window_ms: Option<i64>,
-    limit: Option<i64>,
-    offset: Option<i64>,
-    trace_id_present: bool,
-    unbounded: bool,
-}
-
-fn record_trace_query_common(attrs: TraceQueryAttrs) {
-    let span = Span::current();
-    span.record(phase0::attrs::TRACE_QUERY_ENDPOINT, attrs.endpoint);
-    span.record(phase0::attrs::TRACE_QUERY_KIND, attrs.kind);
-    span.record(
-        phase0::attrs::TRACE_QUERY_HAS_START_TIME,
-        attrs.has_start_time,
-    );
-    span.record(phase0::attrs::TRACE_QUERY_HAS_END_TIME, attrs.has_end_time);
-    if let Some(window_ms) = attrs.window_ms {
-        span.record(phase0::attrs::TRACE_QUERY_WINDOW_MS, window_ms);
-    }
-    if let Some(limit) = attrs.limit {
-        span.record(phase0::attrs::TRACE_QUERY_LIMIT, limit);
-    }
-    if let Some(offset) = attrs.offset {
-        span.record(phase0::attrs::TRACE_QUERY_OFFSET, offset);
-    }
-    span.record(
-        phase0::attrs::TRACE_QUERY_TRACE_ID_PRESENT,
-        attrs.trace_id_present,
-    );
-    span.record(phase0::attrs::TRACE_QUERY_UNBOUNDED, attrs.unbounded);
-    span.record(phase0::attrs::TRACE_QUERY_STORAGE_BACKEND, "delta");
-}
-
-fn record_trace_query_result(row_count: usize) {
-    Span::current().record(phase0::attrs::TRACE_QUERY_RESULT_ROWS, row_count as i64);
-}
+use tracing::{debug, error};
 
 fn invalid_search_query(err: impl std::fmt::Display) -> (StatusCode, Json<ScouterServerError>) {
     (
@@ -286,45 +203,13 @@ pub async fn get_trace_baggage(
     tag = "traces",
     security(("bearer_token" = []))
 )]
-#[instrument(
-    skip_all,
-    name = "paginated_traces",
-    fields(
-        trace.query.endpoint = Empty,
-        trace.query.kind = Empty,
-        trace.query.has_start_time = Empty,
-        trace.query.has_end_time = Empty,
-        trace.query.window_ms = Empty,
-        trace.query.limit = Empty,
-        trace.query.offset = Empty,
-        trace.query.trace_id_present = Empty,
-        trace.query.unbounded = Empty,
-        trace.query.cache.hit = Empty,
-        trace.query.cache.name = Empty,
-        trace.query.result.rows = Empty,
-        trace.query.result.bytes_estimate = Empty,
-        trace.query.table_version = Empty,
-        trace.query.storage_backend = Empty,
-        trace.query.refresh_origin = Empty,
-    )
-)]
+#[instrument(skip_all)]
 pub async fn paginated_traces(
     State(data): State<Arc<AppState>>,
     Json(body): Json<TraceFilters>,
 ) -> Result<Json<TracePaginationResponse>, (StatusCode, Json<ScouterServerError>)> {
     let body = normalize_trace_filters(body)?;
     validate_filters(&body)?;
-    record_trace_query_common(TraceQueryAttrs {
-        endpoint: phase0::routes::TRACE_PAGINATED_PATH,
-        kind: "paginated",
-        has_start_time: body.start_time.is_some(),
-        has_end_time: body.end_time.is_some(),
-        window_ms: window_ms(body.start_time, body.end_time),
-        limit: body.limit.map(i64::from),
-        offset: None,
-        trace_id_present: body.trace_ids.as_ref().is_some_and(|ids| !ids.is_empty()),
-        unbounded: body.start_time.is_none() && body.end_time.is_none(),
-    });
     debug!(
         "paginated_traces: limit={:?} start={:?} end={:?}",
         body.limit, body.start_time, body.end_time
@@ -354,8 +239,6 @@ pub async fn paginated_traces(
         pagination_response.items.len()
     );
 
-    record_trace_query_result(pagination_response.items.len());
-    let _response_span = info_span!("response.serialize").entered();
     Ok(Json(pagination_response))
 }
 
@@ -373,44 +256,12 @@ pub async fn paginated_traces(
     tag = "traces",
     security(("bearer_token" = []))
 )]
-#[instrument(
-    skip_all,
-    name = "get_trace_spans_by_id",
-    fields(
-        trace.query.endpoint = Empty,
-        trace.query.kind = Empty,
-        trace.query.has_start_time = Empty,
-        trace.query.has_end_time = Empty,
-        trace.query.window_ms = Empty,
-        trace.query.limit = Empty,
-        trace.query.offset = Empty,
-        trace.query.trace_id_present = Empty,
-        trace.query.unbounded = Empty,
-        trace.query.cache.hit = Empty,
-        trace.query.cache.name = Empty,
-        trace.query.result.rows = Empty,
-        trace.query.result.bytes_estimate = Empty,
-        trace.query.table_version = Empty,
-        trace.query.storage_backend = Empty,
-        trace.query.refresh_origin = Empty,
-    )
-)]
+#[instrument(skip_all)]
 pub async fn get_trace_spans_by_id(
     State(data): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
     Path(id): Path<String>,
 ) -> Result<Json<TraceSpansResponse>, (StatusCode, Json<ScouterServerError>)> {
-    record_trace_query_common(TraceQueryAttrs {
-        endpoint: phase0::routes::V1_TRACE_SPANS_PATH,
-        kind: "spans_by_id",
-        has_start_time: false,
-        has_end_time: false,
-        window_ms: None,
-        limit: None,
-        offset: None,
-        trace_id_present: true,
-        unbounded: true,
-    });
     debug!("Getting trace spans for trace_id: {}", id);
     let trace_id_bytes = TraceId::hex_to_bytes(&id).map_err(|e| {
         error!("Invalid trace_id hex: {:?}", e);
@@ -442,8 +293,6 @@ pub async fn get_trace_spans_by_id(
             )
         })?;
 
-    record_trace_query_result(spans.len());
-    let _response_span = info_span!("response.serialize").entered();
     Ok(Json(TraceSpansResponse {
         spans: redact_trace_spans_for_permissions(spans, &perms),
     }))
@@ -461,44 +310,12 @@ pub async fn get_trace_spans_by_id(
     tag = "traces",
     security(("bearer_token" = []))
 )]
-#[instrument(
-    skip_all,
-    name = "get_trace_spans",
-    fields(
-        trace.query.endpoint = Empty,
-        trace.query.kind = Empty,
-        trace.query.has_start_time = Empty,
-        trace.query.has_end_time = Empty,
-        trace.query.window_ms = Empty,
-        trace.query.limit = Empty,
-        trace.query.offset = Empty,
-        trace.query.trace_id_present = Empty,
-        trace.query.unbounded = Empty,
-        trace.query.cache.hit = Empty,
-        trace.query.cache.name = Empty,
-        trace.query.result.rows = Empty,
-        trace.query.result.bytes_estimate = Empty,
-        trace.query.table_version = Empty,
-        trace.query.storage_backend = Empty,
-        trace.query.refresh_origin = Empty,
-    )
-)]
+#[instrument(skip_all)]
 pub async fn get_trace_spans(
     State(data): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
     Query(params): Query<TraceRequest>,
 ) -> Result<Json<TraceSpansResponse>, (StatusCode, Json<ScouterServerError>)> {
-    record_trace_query_common(TraceQueryAttrs {
-        endpoint: phase0::routes::TRACE_SPANS_PATH,
-        kind: "spans",
-        has_start_time: params.start_time.is_some(),
-        has_end_time: params.end_time.is_some(),
-        window_ms: None,
-        limit: None,
-        offset: None,
-        trace_id_present: true,
-        unbounded: params.start_time.is_none() && params.end_time.is_none(),
-    });
     debug!(
         "Getting trace spans for trace_id: {}, service_name: {:?}",
         params.trace_id, params.service_name,
@@ -549,8 +366,6 @@ pub async fn get_trace_spans(
             )
         })?;
 
-    record_trace_query_result(spans.len());
-    let _response_span = info_span!("response.serialize").entered();
     Ok(Json(TraceSpansResponse {
         spans: redact_trace_spans_for_permissions(spans, &perms),
     }))
@@ -651,44 +466,12 @@ pub async fn query_trace_spans_from_tags(
     tag = "traces",
     security(("bearer_token" = []))
 )]
-#[instrument(
-    skip_all,
-    name = "trace_metrics",
-    fields(
-        trace.query.endpoint = Empty,
-        trace.query.kind = Empty,
-        trace.query.has_start_time = Empty,
-        trace.query.has_end_time = Empty,
-        trace.query.window_ms = Empty,
-        trace.query.limit = Empty,
-        trace.query.offset = Empty,
-        trace.query.trace_id_present = Empty,
-        trace.query.unbounded = Empty,
-        trace.query.cache.hit = Empty,
-        trace.query.cache.name = Empty,
-        trace.query.result.rows = Empty,
-        trace.query.result.bytes_estimate = Empty,
-        trace.query.table_version = Empty,
-        trace.query.storage_backend = Empty,
-        trace.query.refresh_origin = Empty,
-    )
-)]
+#[instrument(skip_all)]
 pub async fn trace_metrics(
     State(data): State<Arc<AppState>>,
     Json(body): Json<TraceMetricsRequest>,
 ) -> Result<Json<TraceMetricsResponse>, (StatusCode, Json<ScouterServerError>)> {
     let body = normalize_metrics_request(body)?;
-    record_trace_query_common(TraceQueryAttrs {
-        endpoint: phase0::routes::TRACE_METRICS_PATH,
-        kind: "metrics",
-        has_start_time: true,
-        has_end_time: true,
-        window_ms: Some((body.end_time - body.start_time).num_milliseconds()),
-        limit: None,
-        offset: None,
-        trace_id_present: false,
-        unbounded: false,
-    });
     if let Some(clause) = &body.clause {
         validate_clause(clause)
             .map_err(|msg| (StatusCode::BAD_REQUEST, Json(ScouterServerError::new(msg))))?;
@@ -726,8 +509,6 @@ pub async fn trace_metrics(
             )
         })?;
 
-    record_trace_query_result(metrics.len());
-    let _response_span = info_span!("response.serialize").entered();
     Ok(Json(TraceMetricsResponse { metrics }))
 }
 
@@ -830,44 +611,12 @@ pub async fn query_spans_from_filters(
     ),
     tag = "traces"
 )]
-#[instrument(
-    skip_all,
-    name = "v1_otel_traces",
-    fields(
-        trace.query.endpoint = Empty,
-        trace.query.kind = Empty,
-        trace.query.has_start_time = Empty,
-        trace.query.has_end_time = Empty,
-        trace.query.window_ms = Empty,
-        trace.query.limit = Empty,
-        trace.query.offset = Empty,
-        trace.query.trace_id_present = Empty,
-        trace.query.unbounded = Empty,
-        trace.query.cache.hit = Empty,
-        trace.query.cache.name = Empty,
-        trace.query.result.rows = Empty,
-        trace.query.result.bytes_estimate = Empty,
-        trace.query.table_version = Empty,
-        trace.query.storage_backend = Empty,
-        trace.query.refresh_origin = Empty,
-    )
-)]
+#[instrument(skip_all)]
 pub async fn v1_otel_traces(
     State(data): State<Arc<AppState>>,
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<axum::response::Response, (StatusCode, Json<ScouterServerError>)> {
-    record_trace_query_common(TraceQueryAttrs {
-        endpoint: phase0::routes::V1_TRACES_PATH,
-        kind: "otel_ingest",
-        has_start_time: false,
-        has_end_time: false,
-        window_ms: None,
-        limit: None,
-        offset: None,
-        trace_id_present: false,
-        unbounded: false,
-    });
     let content_type = headers
         .get(axum::http::header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
@@ -891,12 +640,6 @@ pub async fn v1_otel_traces(
             ))),
         )
     })?;
-    let span_count = request
-        .resource_spans
-        .iter()
-        .flat_map(|resource| &resource.scope_spans)
-        .map(|scope| scope.spans.len())
-        .sum::<usize>();
 
     data.trace_record_tx
         .try_send(TraceServerRecord { request })
@@ -915,12 +658,6 @@ pub async fn v1_otel_traces(
         })?;
 
     let response_bytes = ExportTraceServiceResponse::default().encode_to_vec();
-    record_trace_query_result(span_count);
-    Span::current().record(
-        phase0::attrs::TRACE_QUERY_RESULT_BYTES_ESTIMATE,
-        response_bytes.len() as i64,
-    );
-    let _response_span = info_span!("response.serialize").entered();
     Ok((
         StatusCode::OK,
         [(axum::http::header::CONTENT_TYPE, "application/x-protobuf")],

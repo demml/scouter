@@ -28,20 +28,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
-use tracing::{Instrument, Level, error, info, instrument, span};
-
-mod phase0 {
-    pub mod spans {
-        pub const TRACE_QUERY_METRICS: &str = "scouter.trace.query.metrics";
-        pub const TRACE_QUERY_SPANS: &str = "scouter.trace.query.spans";
-        pub const DF_TABLE_RESOLVE: &str = "df.table.resolve";
-        pub const DF_LOGICAL_BUILD: &str = "df.logical.build";
-        pub const DF_PHYSICAL_PLAN: &str = "df.physical.plan";
-        pub const DF_COLLECT: &str = "df.collect";
-        pub const ARROW_CONVERT: &str = "arrow.convert";
-        pub const TRACE_TREE_BUILD: &str = "trace.tree.build";
-    }
-}
+use tracing::{error, info, instrument};
 
 /// Days from year-0001 to Unix epoch (1970-01-01), used to convert chrono → Arrow Date32.
 const UNIX_EPOCH_DAYS: i32 = 719_163;
@@ -145,87 +132,46 @@ struct FlatSpan {
 
 struct TraceQueryBuilder {
     df: DataFrame,
-    endpoint: &'static str,
-    table_name: &'static str,
 }
 
 impl TraceQueryBuilder {
     async fn set_table(
         ctx: Arc<SessionContext>,
         table_name: &str,
-        endpoint: &'static str,
     ) -> Result<Self, TraceEngineError> {
         let df = ctx
             .table(table_name)
-            .instrument(span!(
-                Level::INFO,
-                phase0::spans::DF_TABLE_RESOLVE,
-                endpoint,
-                table = table_name
-            ))
             .await
             .inspect_err(|e| error!("Failed to load table {}: {}", table_name, e))?;
-        Ok(Self {
-            df,
-            endpoint,
-            table_name: SPAN_TABLE_NAME,
-        })
+        Ok(Self { df })
     }
 
     fn select_columns(mut self, columns: &[&str]) -> Result<Self, TraceEngineError> {
-        let _span = span!(
-            Level::INFO,
-            phase0::spans::DF_LOGICAL_BUILD,
-            endpoint = self.endpoint,
-            table = self.table_name,
-            phase = "select_columns"
-        )
-        .entered();
         self.df = self.df.select_columns(columns)?;
         Ok(self)
     }
 
     fn add_filter(mut self, expr: Expr) -> Result<Self, TraceEngineError> {
-        let _span = span!(
-            Level::INFO,
-            phase0::spans::DF_LOGICAL_BUILD,
-            endpoint = self.endpoint,
-            table = self.table_name,
-            phase = "filter"
-        )
-        .entered();
         self.df = self.df.filter(expr)?;
         Ok(self)
     }
 
     fn add_sort(mut self, sort: Vec<SortExpr>) -> Result<Self, TraceEngineError> {
-        let _span = span!(
-            Level::INFO,
-            phase0::spans::DF_LOGICAL_BUILD,
-            endpoint = self.endpoint,
-            table = self.table_name,
-            phase = "sort"
-        )
-        .entered();
         self.df = self.df.sort(sort)?;
         Ok(self)
     }
 
     fn with_limit(mut self, n: Option<usize>) -> Result<Self, TraceEngineError> {
-        let _span = span!(
-            Level::INFO,
-            phase0::spans::DF_LOGICAL_BUILD,
-            endpoint = self.endpoint,
-            table = self.table_name,
-            phase = "limit"
-        )
-        .entered();
         self.df = self.df.limit(0, n)?;
         Ok(self)
     }
 
     async fn execute(self) -> Result<Vec<RecordBatch>, TraceEngineError> {
-        let batches = collect_with_phase0(self.df, self.endpoint, self.table_name).await?;
+        let batches = self
+            .df
+            .collect()
+            .await
+            .inspect_err(|e| error!("Failed to collect query results: {}", e))?;
         Ok(batches)
     }
 }
@@ -295,34 +241,6 @@ mod tests {
             SpanCacheKey::new(&[1; 15], None, None, None, None, None, None, None, true).is_none()
         );
     }
-}
-
-async fn collect_with_phase0(
-    df: DataFrame,
-    endpoint: &'static str,
-    table_name: &'static str,
-) -> Result<Vec<RecordBatch>, TraceEngineError> {
-    df.clone()
-        .create_physical_plan()
-        .instrument(span!(
-            Level::INFO,
-            phase0::spans::DF_PHYSICAL_PLAN,
-            endpoint,
-            table = table_name
-        ))
-        .await
-        .map_err(TraceEngineError::DatafusionError)?;
-
-    df.collect()
-        .instrument(span!(
-            Level::INFO,
-            phase0::spans::DF_COLLECT,
-            endpoint,
-            table = table_name
-        ))
-        .await
-        .inspect_err(|e| error!("Failed to collect query results: {}", e))
-        .map_err(TraceEngineError::DatafusionError)
 }
 
 /// Extract attributes from a MapArray at a given row index.
@@ -1143,12 +1061,7 @@ impl TraceQueries {
         end_time: Option<&DateTime<Utc>>,
         limit: Option<usize>,
     ) -> Result<Vec<TraceSpan>, TraceEngineError> {
-        let mut builder = TraceQueryBuilder::set_table(
-            self.ctx.clone(),
-            SPAN_TABLE_NAME,
-            phase0::spans::TRACE_QUERY_SPANS,
-        )
-        .await?;
+        let mut builder = TraceQueryBuilder::set_table(self.ctx.clone(), SPAN_TABLE_NAME).await?;
 
         // Partition filters FIRST — eliminates whole partition_date=YYYY-MM-DD/ directories
         // at directory level before any file metadata or Parquet statistics are read.
@@ -1199,26 +1112,8 @@ impl TraceQueries {
             batches.len()
         );
 
-        let flat_spans = {
-            let _span = span!(
-                Level::INFO,
-                phase0::spans::ARROW_CONVERT,
-                endpoint = phase0::spans::TRACE_QUERY_SPANS,
-                table = SPAN_TABLE_NAME
-            )
-            .entered();
-            batches_to_flat_spans(batches)?
-        };
-        let spans = {
-            let _span = span!(
-                Level::INFO,
-                phase0::spans::TRACE_TREE_BUILD,
-                endpoint = phase0::spans::TRACE_QUERY_SPANS
-            )
-            .entered();
-            build_span_tree(flat_spans)
-        };
-        Ok(spans)
+        let flat_spans = batches_to_flat_spans(batches)?;
+        Ok(build_span_tree(flat_spans))
     }
 
     /// Find committed anchor spans for awaiting eval rows.
@@ -1267,12 +1162,8 @@ impl TraceQueries {
                 .map(|span_id| lit(ScalarValue::Binary(Some(span_id.as_bytes().to_vec()))))
                 .collect();
 
-            let mut builder = TraceQueryBuilder::set_table(
-                self.ctx.clone(),
-                SPAN_TABLE_NAME,
-                phase0::spans::TRACE_QUERY_SPANS,
-            )
-            .await?;
+            let mut builder =
+                TraceQueryBuilder::set_table(self.ctx.clone(), SPAN_TABLE_NAME).await?;
             builder = builder.add_filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&window_start)))?;
             builder = builder.add_filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&window_end)))?;
             builder = builder.add_filter(col(END_TIME_COL).gt_eq(ts_lit(&window_start)))?;
@@ -1379,7 +1270,7 @@ impl TraceQueries {
     /// where `parent_span_id IS NULL`. Service filter applies to root spans only.
     ///
     /// `entity_trace_ids` is an optional pre-resolved list of binary trace IDs (16 bytes each).
-    #[instrument(skip_all, name = "scouter.trace.query.metrics")]
+    #[instrument(skip_all)]
     pub async fn get_trace_metrics(
         &self,
         request: &scouter_types::TraceMetricsRequest,
@@ -1405,36 +1296,18 @@ impl TraceQueries {
         let mut spans_df = self
             .ctx
             .table(SPAN_TABLE_NAME)
-            .instrument(span!(
-                Level::INFO,
-                phase0::spans::DF_TABLE_RESOLVE,
-                endpoint = phase0::spans::TRACE_QUERY_METRICS,
-                table = SPAN_TABLE_NAME
-            ))
             .await
             .map_err(TraceEngineError::DatafusionError)?;
 
-        {
-            let _span = span!(
-                Level::INFO,
-                phase0::spans::DF_LOGICAL_BUILD,
-                endpoint = phase0::spans::TRACE_QUERY_METRICS,
-                table = SPAN_TABLE_NAME,
-                phase = "time_filters"
-            )
-            .entered();
-            // Partition directory pruning — eliminates whole YYYY-MM-DD/ directories before
-            // DataFusion reads a single file's metadata or Parquet column statistics.
-            spans_df =
-                spans_df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&request.start_time)))?;
-            spans_df =
-                spans_df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&request.end_time)))?;
+        // Partition directory pruning — eliminates whole YYYY-MM-DD/ directories before
+        // DataFusion reads a single file's metadata or Parquet column statistics.
+        spans_df = spans_df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&request.start_time)))?;
+        spans_df = spans_df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&request.end_time)))?;
 
-            // Row-group pruning — typed Timestamp(Microsecond, UTC) literals let DataFusion
-            // use Parquet column min/max stats within the surviving partition directories.
-            spans_df = spans_df.filter(col(START_TIME_COL).gt_eq(ts_lit(&request.start_time)))?;
-            spans_df = spans_df.filter(col(START_TIME_COL).lt(ts_lit(&request.end_time)))?;
-        }
+        // Row-group pruning — typed Timestamp(Microsecond, UTC) literals let DataFusion
+        // use Parquet column min/max stats within the surviving partition directories.
+        spans_df = spans_df.filter(col(START_TIME_COL).gt_eq(ts_lit(&request.start_time)))?;
+        spans_df = spans_df.filter(col(START_TIME_COL).lt(ts_lit(&request.end_time)))?;
 
         // ── Phase 3: trace_level — aggregate per-trace ───────────────────────
         //
@@ -1486,17 +1359,7 @@ impl TraceQueries {
             max(error_count_case).alias(ERROR_COUNT_COL),
         ];
 
-        let trace_level_df = {
-            let _span = span!(
-                Level::INFO,
-                phase0::spans::DF_LOGICAL_BUILD,
-                endpoint = phase0::spans::TRACE_QUERY_METRICS,
-                table = SPAN_TABLE_NAME,
-                phase = "trace_level_aggregate"
-            )
-            .entered();
-            spans_df.aggregate(vec![col(TRACE_ID_COL)], agg_exprs)?
-        };
+        let trace_level_df = spans_df.aggregate(vec![col(TRACE_ID_COL)], agg_exprs)?;
 
         // ── Phase 4: service_filtered — duration_ms, null guard, service filter ──
         //
@@ -1509,19 +1372,9 @@ impl TraceQueries {
             - df_cast(col(START_TIME_COL), DataType::Int64))
             / lit(1000i64);
 
-        let mut service_filtered_df = {
-            let _span = span!(
-                Level::INFO,
-                phase0::spans::DF_LOGICAL_BUILD,
-                endpoint = phase0::spans::TRACE_QUERY_METRICS,
-                table = SPAN_TABLE_NAME,
-                phase = "service_filter"
-            )
-            .entered();
-            trace_level_df
-                .filter(col("trace_end").is_not_null())?
-                .with_column("duration_ms", duration_expr)?
-        };
+        let mut service_filtered_df = trace_level_df
+            .filter(col("trace_end").is_not_null())?
+            .with_column("duration_ms", duration_expr)?;
 
         if let Some(clause) = &request.clause {
             let summary_view_seq = METRICS_SUMMARY_VIEW_SEQ.fetch_add(1, Ordering::Relaxed);
@@ -1576,17 +1429,7 @@ impl TraceQueries {
         // Replaces the `bucketed` CTE.
         // date_trunc(precision_literal, timestamp_expr) — precision is a Utf8 scalar.
         let bucket_expr = date_trunc(lit(bucket_interval), col(START_TIME_COL));
-        let bucketed_df = {
-            let _span = span!(
-                Level::INFO,
-                phase0::spans::DF_LOGICAL_BUILD,
-                endpoint = phase0::spans::TRACE_QUERY_METRICS,
-                table = SPAN_TABLE_NAME,
-                phase = "bucket"
-            )
-            .entered();
-            service_filtered_df.with_column("bucket_start", bucket_expr)?
-        };
+        let bucketed_df = service_filtered_df.with_column("bucket_start", bucket_expr)?;
 
         // ── Phase 6: Final bucketed aggregation ─────────────────────────────
         let duration_f64 = df_cast(col("duration_ms"), DataType::Float64);
@@ -1595,138 +1438,115 @@ impl TraceQueries {
 
         // approx_percentile_cont in DataFusion 52: (SortExpr, percentile, limit: Option<Expr>)
         // SortExpr is col.sort(asc, nulls_first); None limit = no row-count cap.
-        let final_df = {
-            let _span = span!(
-                Level::INFO,
-                phase0::spans::DF_LOGICAL_BUILD,
-                endpoint = phase0::spans::TRACE_QUERY_METRICS,
-                table = SPAN_TABLE_NAME,
-                phase = "final_aggregate"
-            )
-            .entered();
-            bucketed_df
-                .aggregate(
-                    vec![col("bucket_start")],
-                    vec![
-                        count(lit(1i64)).alias("trace_count"),
-                        avg(duration_f64.clone()).alias("avg_duration_ms"),
-                        approx_percentile_cont(
-                            duration_f64.clone().sort(true, false),
-                            lit(0.50f64),
-                            None,
-                        )
-                        .alias("p50_duration_ms"),
-                        approx_percentile_cont(
-                            duration_f64.clone().sort(true, false),
-                            lit(0.95f64),
-                            None,
-                        )
-                        .alias("p95_duration_ms"),
-                        approx_percentile_cont(duration_f64.sort(true, false), lit(0.99f64), None)
-                            .alias("p99_duration_ms"),
-                        avg(error_rate_case).alias("error_rate"),
-                    ],
-                )?
-                .sort(vec![col("bucket_start").sort(true, true)])?
-        };
+        let final_df = bucketed_df
+            .aggregate(
+                vec![col("bucket_start")],
+                vec![
+                    count(lit(1i64)).alias("trace_count"),
+                    avg(duration_f64.clone()).alias("avg_duration_ms"),
+                    approx_percentile_cont(
+                        duration_f64.clone().sort(true, false),
+                        lit(0.50f64),
+                        None,
+                    )
+                    .alias("p50_duration_ms"),
+                    approx_percentile_cont(
+                        duration_f64.clone().sort(true, false),
+                        lit(0.95f64),
+                        None,
+                    )
+                    .alias("p95_duration_ms"),
+                    approx_percentile_cont(duration_f64.sort(true, false), lit(0.99f64), None)
+                        .alias("p99_duration_ms"),
+                    avg(error_rate_case).alias("error_rate"),
+                ],
+            )?
+            .sort(vec![col("bucket_start").sort(true, true)])?;
 
-        let batches = collect_with_phase0(
-            final_df,
-            phase0::spans::TRACE_QUERY_METRICS,
-            SPAN_TABLE_NAME,
-        )
-        .await?;
+        let batches = final_df
+            .collect()
+            .await
+            .map_err(TraceEngineError::DatafusionError)?;
 
         let mut metrics = Vec::new();
-        {
-            let _span = span!(
-                Level::INFO,
-                phase0::spans::ARROW_CONVERT,
-                endpoint = phase0::spans::TRACE_QUERY_METRICS,
-                table = SPAN_TABLE_NAME
+        for batch in &batches {
+            let schema = batch.schema();
+
+            // DATE_TRUNC may return Timestamp(Nanosecond) when string literals in the WHERE
+            // clause cause DataFusion to upcast the column. Cast explicitly to
+            // Timestamp(Microsecond, UTC) so Arrow handles the ns→µs division correctly,
+            // regardless of the sub-type returned by the query plan.
+            let raw_bucket = batch.column(schema.index_of("bucket_start").unwrap());
+            let bucket_arr = arrow::compute::cast(
+                raw_bucket,
+                &arrow::datatypes::DataType::Timestamp(
+                    arrow::datatypes::TimeUnit::Microsecond,
+                    Some("UTC".into()),
+                ),
             )
-            .entered();
-            for batch in &batches {
-                let schema = batch.schema();
+            .map_err(|e| TraceEngineError::BatchConversion(format!("bucket_start cast: {}", e)))?;
+            let bucket_col = bucket_arr
+                .as_any()
+                .downcast_ref::<TimestampMicrosecondArray>()
+                .ok_or_else(|| TraceEngineError::BatchConversion("bucket_start".into()))?;
+            let count_col = batch
+                .column(schema.index_of("trace_count").unwrap())
+                .as_any()
+                .downcast_ref::<Int64Array>()
+                .ok_or_else(|| TraceEngineError::BatchConversion("trace_count".into()))?;
+            let avg_col = batch
+                .column(schema.index_of("avg_duration_ms").unwrap())
+                .as_any()
+                .downcast_ref::<arrow::array::Float64Array>()
+                .ok_or_else(|| TraceEngineError::BatchConversion("avg_duration_ms".into()))?;
+            let p50_col = batch
+                .column(schema.index_of("p50_duration_ms").unwrap())
+                .as_any()
+                .downcast_ref::<arrow::array::Float64Array>()
+                .ok_or_else(|| TraceEngineError::BatchConversion("p50_duration_ms".into()))?;
+            let p95_col = batch
+                .column(schema.index_of("p95_duration_ms").unwrap())
+                .as_any()
+                .downcast_ref::<arrow::array::Float64Array>()
+                .ok_or_else(|| TraceEngineError::BatchConversion("p95_duration_ms".into()))?;
+            let p99_col = batch
+                .column(schema.index_of("p99_duration_ms").unwrap())
+                .as_any()
+                .downcast_ref::<arrow::array::Float64Array>()
+                .ok_or_else(|| TraceEngineError::BatchConversion("p99_duration_ms".into()))?;
+            let err_col = batch
+                .column(schema.index_of("error_rate").unwrap())
+                .as_any()
+                .downcast_ref::<arrow::array::Float64Array>()
+                .ok_or_else(|| TraceEngineError::BatchConversion("error_rate".into()))?;
 
-                // DATE_TRUNC may return Timestamp(Nanosecond) when string literals in the WHERE
-                // clause cause DataFusion to upcast the column. Cast explicitly to
-                // Timestamp(Microsecond, UTC) so Arrow handles the ns→µs division correctly,
-                // regardless of the sub-type returned by the query plan.
-                let raw_bucket = batch.column(schema.index_of("bucket_start").unwrap());
-                let bucket_arr = arrow::compute::cast(
-                    raw_bucket,
-                    &arrow::datatypes::DataType::Timestamp(
-                        arrow::datatypes::TimeUnit::Microsecond,
-                        Some("UTC".into()),
-                    ),
-                )
-                .map_err(|e| {
-                    TraceEngineError::BatchConversion(format!("bucket_start cast: {}", e))
-                })?;
-                let bucket_col = bucket_arr
-                    .as_any()
-                    .downcast_ref::<TimestampMicrosecondArray>()
-                    .ok_or_else(|| TraceEngineError::BatchConversion("bucket_start".into()))?;
-                let count_col = batch
-                    .column(schema.index_of("trace_count").unwrap())
-                    .as_any()
-                    .downcast_ref::<Int64Array>()
-                    .ok_or_else(|| TraceEngineError::BatchConversion("trace_count".into()))?;
-                let avg_col = batch
-                    .column(schema.index_of("avg_duration_ms").unwrap())
-                    .as_any()
-                    .downcast_ref::<arrow::array::Float64Array>()
-                    .ok_or_else(|| TraceEngineError::BatchConversion("avg_duration_ms".into()))?;
-                let p50_col = batch
-                    .column(schema.index_of("p50_duration_ms").unwrap())
-                    .as_any()
-                    .downcast_ref::<arrow::array::Float64Array>()
-                    .ok_or_else(|| TraceEngineError::BatchConversion("p50_duration_ms".into()))?;
-                let p95_col = batch
-                    .column(schema.index_of("p95_duration_ms").unwrap())
-                    .as_any()
-                    .downcast_ref::<arrow::array::Float64Array>()
-                    .ok_or_else(|| TraceEngineError::BatchConversion("p95_duration_ms".into()))?;
-                let p99_col = batch
-                    .column(schema.index_of("p99_duration_ms").unwrap())
-                    .as_any()
-                    .downcast_ref::<arrow::array::Float64Array>()
-                    .ok_or_else(|| TraceEngineError::BatchConversion("p99_duration_ms".into()))?;
-                let err_col = batch
-                    .column(schema.index_of("error_rate").unwrap())
-                    .as_any()
-                    .downcast_ref::<arrow::array::Float64Array>()
-                    .ok_or_else(|| TraceEngineError::BatchConversion("error_rate".into()))?;
+            for i in 0..batch.num_rows() {
+                let micros = bucket_col.value(i);
+                let bucket_start = DateTime::from_timestamp_micros(micros)
+                    .unwrap_or_default()
+                    .with_timezone(&Utc);
 
-                for i in 0..batch.num_rows() {
-                    let micros = bucket_col.value(i);
-                    let bucket_start = DateTime::from_timestamp_micros(micros)
-                        .unwrap_or_default()
-                        .with_timezone(&Utc);
-
-                    metrics.push(TraceMetricBucket {
-                        bucket_start,
-                        trace_count: count_col.value(i),
-                        avg_duration_ms: avg_col.value(i),
-                        p50_duration_ms: if p50_col.is_null(i) {
-                            None
-                        } else {
-                            Some(p50_col.value(i))
-                        },
-                        p95_duration_ms: if p95_col.is_null(i) {
-                            None
-                        } else {
-                            Some(p95_col.value(i))
-                        },
-                        p99_duration_ms: if p99_col.is_null(i) {
-                            None
-                        } else {
-                            Some(p99_col.value(i))
-                        },
-                        error_rate: err_col.value(i),
-                    });
-                }
+                metrics.push(TraceMetricBucket {
+                    bucket_start,
+                    trace_count: count_col.value(i),
+                    avg_duration_ms: avg_col.value(i),
+                    p50_duration_ms: if p50_col.is_null(i) {
+                        None
+                    } else {
+                        Some(p50_col.value(i))
+                    },
+                    p95_duration_ms: if p95_col.is_null(i) {
+                        None
+                    } else {
+                        Some(p95_col.value(i))
+                    },
+                    p99_duration_ms: if p99_col.is_null(i) {
+                        None
+                    } else {
+                        Some(p99_col.value(i))
+                    },
+                    error_rate: err_col.value(i),
+                });
             }
         }
 
@@ -1778,82 +1598,39 @@ impl TraceQueries {
         let mut spans_df = self
             .ctx
             .table(SPAN_TABLE_NAME)
-            .instrument(span!(
-                Level::INFO,
-                phase0::spans::DF_TABLE_RESOLVE,
-                endpoint = phase0::spans::TRACE_QUERY_SPANS,
-                table = SPAN_TABLE_NAME
-            ))
             .await
             .map_err(TraceEngineError::DatafusionError)?;
 
-        {
-            let _span = span!(
-                Level::INFO,
-                phase0::spans::DF_LOGICAL_BUILD,
-                endpoint = phase0::spans::TRACE_QUERY_SPANS,
-                table = SPAN_TABLE_NAME,
-                phase = "filter_trace_spans"
-            )
-            .entered();
-            if let Some(start) = filters.start_time {
-                spans_df = spans_df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
-                spans_df = spans_df.filter(col(START_TIME_COL).gt_eq(ts_lit(&start)))?;
-            }
-            if let Some(end) = filters.end_time {
-                spans_df = spans_df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end)))?;
-                spans_df = spans_df.filter(col(START_TIME_COL).lt(ts_lit(&end)))?;
-            }
-            spans_df = spans_df.select_columns(SPAN_COLUMNS)?;
-            spans_df = spans_df.sort(vec![col(START_TIME_COL).sort(true, true)])?;
+        if let Some(start) = filters.start_time {
+            spans_df = spans_df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
+            spans_df = spans_df.filter(col(START_TIME_COL).gt_eq(ts_lit(&start)))?;
         }
+        if let Some(end) = filters.end_time {
+            spans_df = spans_df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end)))?;
+            spans_df = spans_df.filter(col(START_TIME_COL).lt(ts_lit(&end)))?;
+        }
+        spans_df = spans_df.select_columns(SPAN_COLUMNS)?;
+        spans_df = spans_df.sort(vec![col(START_TIME_COL).sort(true, true)])?;
 
         // ── Phase 4: Inner join — spans filtered to the single matching trace ─
-        let result_df = {
-            let _span = span!(
-                Level::INFO,
-                phase0::spans::DF_LOGICAL_BUILD,
-                endpoint = phase0::spans::TRACE_QUERY_SPANS,
-                table = SPAN_TABLE_NAME,
-                phase = "join_matching_trace"
-            )
-            .entered();
-            spans_df.join(
-                first_trace_df,
-                JoinType::Inner,
-                &[TRACE_ID_COL],
-                &["_match_tid"],
-                None,
-            )?
-        };
+        let result_df = spans_df.join(
+            first_trace_df,
+            JoinType::Inner,
+            &[TRACE_ID_COL],
+            &["_match_tid"],
+            None,
+        )?;
 
-        let batches =
-            collect_with_phase0(result_df, phase0::spans::TRACE_QUERY_SPANS, SPAN_TABLE_NAME)
-                .await?;
+        let batches = result_df
+            .collect()
+            .await
+            .map_err(TraceEngineError::DatafusionError)?;
 
         if batches.is_empty() || batches.iter().all(|b| b.num_rows() == 0) {
             return Ok(Vec::new());
         }
 
-        let flat_spans = {
-            let _span = span!(
-                Level::INFO,
-                phase0::spans::ARROW_CONVERT,
-                endpoint = phase0::spans::TRACE_QUERY_SPANS,
-                table = SPAN_TABLE_NAME
-            )
-            .entered();
-            batches_to_flat_spans(batches)?
-        };
-        let spans = {
-            let _span = span!(
-                Level::INFO,
-                phase0::spans::TRACE_TREE_BUILD,
-                endpoint = phase0::spans::TRACE_QUERY_SPANS
-            )
-            .entered();
-            build_span_tree(flat_spans)
-        };
-        Ok(spans)
+        let flat_spans = batches_to_flat_spans(batches)?;
+        Ok(build_span_tree(flat_spans))
     }
 }

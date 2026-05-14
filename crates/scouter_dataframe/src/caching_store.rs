@@ -1,9 +1,3 @@
-use crate::parquet::utils::{
-    OBJECT_STORE_OPERATION_COPY, OBJECT_STORE_OPERATION_DELETE, OBJECT_STORE_OPERATION_GET_RANGE,
-    OBJECT_STORE_OPERATION_LIST, OBJECT_STORE_OPERATION_LIST_WITH_DELIMITER,
-    OBJECT_STORE_OPERATION_PUT, ObjectStoreRequestTelemetry, get_options_range,
-    observe_object_meta_stream, observed_get_result_bytes,
-};
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::StreamExt;
@@ -18,7 +12,6 @@ use object_store::{
 use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::Instrument;
 
 /// Cache key for range reads: (path, start, end).
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
@@ -32,7 +25,6 @@ struct RangeCacheKey {
 /// Parquet footers are typically well under this; column data reads are larger
 /// and will pass through uncached.
 const MAX_CACHEABLE_BYTES: u64 = 2 * 1024 * 1024;
-const CACHING_STORE_BACKEND: &str = "cache";
 
 /// An `ObjectStore` wrapper that caches `head()` and small `get_range()` responses.
 ///
@@ -107,25 +99,7 @@ impl<T: ObjectStore> ObjectStore for CachingStore<T> {
         payload: PutPayload,
         opts: PutOptions,
     ) -> Result<PutResult> {
-        let bytes = payload.content_length() as u64;
-        let telemetry = ObjectStoreRequestTelemetry::new(
-            CACHING_STORE_BACKEND,
-            OBJECT_STORE_OPERATION_PUT,
-            Some(location),
-            None,
-            Some(bytes),
-            None,
-        );
-        let result = self
-            .inner
-            .put_opts(location, payload, opts)
-            .instrument(telemetry.span())
-            .await;
-        match &result {
-            Ok(_) => telemetry.finish_success(bytes),
-            Err(error) => telemetry.finish_error(error),
-        }
-        result
+        self.inner.put_opts(location, payload, opts).await
     }
 
     async fn put_multipart_opts(
@@ -133,48 +107,14 @@ impl<T: ObjectStore> ObjectStore for CachingStore<T> {
         location: &Path,
         opts: PutMultipartOptions,
     ) -> Result<Box<dyn MultipartUpload>> {
-        let telemetry = ObjectStoreRequestTelemetry::new(
-            CACHING_STORE_BACKEND,
-            OBJECT_STORE_OPERATION_PUT,
-            Some(location),
-            None,
-            None,
-            None,
-        );
-        let result = self
-            .inner
-            .put_multipart_opts(location, opts)
-            .instrument(telemetry.span())
-            .await;
-        match &result {
-            Ok(_) => telemetry.finish_success(0),
-            Err(error) => telemetry.finish_error(error),
-        }
-        result
+        self.inner.put_multipart_opts(location, opts).await
     }
 
     async fn get_opts(&self, location: &Path, options: GetOptions) -> Result<GetResult> {
         let key: Arc<str> = location.to_string().into();
-        let operation = if options.head && options.range.is_none() {
-            crate::parquet::utils::OBJECT_STORE_OPERATION_HEAD
-        } else if options.range.is_some() {
-            OBJECT_STORE_OPERATION_GET_RANGE
-        } else {
-            crate::parquet::utils::OBJECT_STORE_OPERATION_GET
-        };
-        let (range_start, range_len) = get_options_range(&options);
 
         if options.head && options.range.is_none() && is_plain_request(&options) {
             if let Some(meta) = self.head_cache.get(&key) {
-                let telemetry = ObjectStoreRequestTelemetry::new(
-                    CACHING_STORE_BACKEND,
-                    operation,
-                    Some(location),
-                    range_start,
-                    range_len,
-                    Some(true),
-                );
-                telemetry.finish_success(0);
                 return Ok(GetResult {
                     payload: GetResultPayload::Stream(futures::stream::empty().boxed()),
                     meta,
@@ -183,26 +123,7 @@ impl<T: ObjectStore> ObjectStore for CachingStore<T> {
                 });
             }
 
-            let telemetry = ObjectStoreRequestTelemetry::new(
-                CACHING_STORE_BACKEND,
-                operation,
-                Some(location),
-                range_start,
-                range_len,
-                Some(false),
-            );
-            let result = self
-                .inner
-                .get_opts(location, options)
-                .instrument(telemetry.span())
-                .await;
-            match &result {
-                Ok(result) => {
-                    telemetry.finish_success(observed_get_result_bytes(operation, result))
-                }
-                Err(error) => telemetry.finish_error(error),
-            }
-            let result = result?;
+            let result = self.inner.get_opts(location, options).await?;
             self.head_cache.insert(key, result.meta.clone());
             return Ok(result);
         }
@@ -213,24 +134,7 @@ impl<T: ObjectStore> ObjectStore for CachingStore<T> {
                 let meta = match self.head_cache.get(&key) {
                     Some(meta) => meta,
                     None => {
-                        let head_telemetry = ObjectStoreRequestTelemetry::new(
-                            CACHING_STORE_BACKEND,
-                            crate::parquet::utils::OBJECT_STORE_OPERATION_HEAD,
-                            Some(location),
-                            None,
-                            None,
-                            Some(false),
-                        );
-                        let meta = self
-                            .inner
-                            .head(location)
-                            .instrument(head_telemetry.span())
-                            .await;
-                        match &meta {
-                            Ok(_) => head_telemetry.finish_success(0),
-                            Err(error) => head_telemetry.finish_error(error),
-                        }
-                        let meta = meta?;
+                        let meta = self.inner.head(location).await?;
                         self.head_cache.insert(key.clone(), meta.clone());
                         meta
                     }
@@ -244,15 +148,6 @@ impl<T: ObjectStore> ObjectStore for CachingStore<T> {
                     };
 
                     if let Some(bytes) = self.range_cache.get(&range_key) {
-                        let telemetry = ObjectStoreRequestTelemetry::new(
-                            CACHING_STORE_BACKEND,
-                            operation,
-                            Some(location),
-                            range_start,
-                            range_len,
-                            Some(true),
-                        );
-                        telemetry.finish_success(bytes.len() as u64);
                         return Ok(GetResult {
                             payload: GetResultPayload::Stream(
                                 futures::stream::once(async move { Ok(bytes) }).boxed(),
@@ -263,24 +158,7 @@ impl<T: ObjectStore> ObjectStore for CachingStore<T> {
                         });
                     }
 
-                    let telemetry = ObjectStoreRequestTelemetry::new(
-                        CACHING_STORE_BACKEND,
-                        operation,
-                        Some(location),
-                        range_start,
-                        range_len,
-                        Some(false),
-                    );
-                    let bytes = self
-                        .inner
-                        .get_range(location, range.clone())
-                        .instrument(telemetry.span())
-                        .await;
-                    match &bytes {
-                        Ok(bytes) => telemetry.finish_success(bytes.len() as u64),
-                        Err(error) => telemetry.finish_error(error),
-                    }
-                    let bytes = bytes?;
+                    let bytes = self.inner.get_range(location, range.clone()).await?;
                     self.range_cache.insert(range_key, bytes.clone());
                     return Ok(GetResult {
                         payload: GetResultPayload::Stream(
@@ -294,24 +172,7 @@ impl<T: ObjectStore> ObjectStore for CachingStore<T> {
             }
         }
 
-        let telemetry = ObjectStoreRequestTelemetry::new(
-            CACHING_STORE_BACKEND,
-            operation,
-            Some(location),
-            range_start,
-            range_len,
-            Some(false),
-        );
-        let result = self
-            .inner
-            .get_opts(location, options)
-            .instrument(telemetry.span())
-            .await;
-        match &result {
-            Ok(result) => telemetry.finish_success(observed_get_result_bytes(operation, result)),
-            Err(error) => telemetry.finish_error(error),
-        }
-        result
+        self.inner.get_opts(location, options).await
     }
 
     fn delete_stream(
@@ -324,16 +185,6 @@ impl<T: ObjectStore> ObjectStore for CachingStore<T> {
             .delete_stream(locations)
             .map(move |result| {
                 if let Ok(location) = &result {
-                    let telemetry = ObjectStoreRequestTelemetry::new(
-                        CACHING_STORE_BACKEND,
-                        OBJECT_STORE_OPERATION_DELETE,
-                        Some(location),
-                        None,
-                        None,
-                        None,
-                    );
-                    let _entered = telemetry.enter();
-                    telemetry.finish_success(0);
                     let key: Arc<str> = location.to_string().into();
                     head_cache.invalidate(&key);
                     range_cache.invalidate_all();
@@ -344,63 +195,15 @@ impl<T: ObjectStore> ObjectStore for CachingStore<T> {
     }
 
     fn list(&self, prefix: Option<&Path>) -> BoxStream<'static, Result<ObjectMeta>> {
-        let telemetry = ObjectStoreRequestTelemetry::new(
-            CACHING_STORE_BACKEND,
-            OBJECT_STORE_OPERATION_LIST,
-            prefix,
-            None,
-            None,
-            None,
-        );
-        observe_object_meta_stream(self.inner.list(prefix), telemetry)
+        self.inner.list(prefix)
     }
 
     async fn list_with_delimiter(&self, prefix: Option<&Path>) -> Result<ListResult> {
-        let telemetry = ObjectStoreRequestTelemetry::new(
-            CACHING_STORE_BACKEND,
-            OBJECT_STORE_OPERATION_LIST_WITH_DELIMITER,
-            prefix,
-            None,
-            None,
-            None,
-        );
-        let result = self
-            .inner
-            .list_with_delimiter(prefix)
-            .instrument(telemetry.span())
-            .await;
-        match &result {
-            Ok(result) => {
-                let object_bytes = result
-                    .objects
-                    .iter()
-                    .fold(0_u64, |bytes, meta| bytes.saturating_add(meta.size));
-                telemetry.finish_success(object_bytes);
-            }
-            Err(error) => telemetry.finish_error(error),
-        }
-        result
+        self.inner.list_with_delimiter(prefix).await
     }
 
     async fn copy_opts(&self, from: &Path, to: &Path, options: CopyOptions) -> Result<()> {
-        let telemetry = ObjectStoreRequestTelemetry::new(
-            CACHING_STORE_BACKEND,
-            OBJECT_STORE_OPERATION_COPY,
-            Some(from),
-            None,
-            None,
-            None,
-        );
-        let result = self
-            .inner
-            .copy_opts(from, to, options)
-            .instrument(telemetry.span())
-            .await;
-        match &result {
-            Ok(_) => telemetry.finish_success(0),
-            Err(error) => telemetry.finish_error(error),
-        }
-        result?;
+        self.inner.copy_opts(from, to, options).await?;
         let to_key: Arc<str> = to.to_string().into();
         self.head_cache.invalidate(&to_key);
         self.range_cache.invalidate_all();
