@@ -1,28 +1,72 @@
 {
-  "commit": "411693235a19c2dc7680102042d9a5f062f8e1d7",
+  "commit": "553a607685000971ef06678e913db7429d263148",
   "bench_group": "t0_hot_path_cold_query_smoke",
   "tier": 0,
   "blocking": true,
   "scenario_class": "cold_query",
   "runtime_budget_secs": 120,
-  "actual_runtime_secs": 0.132162208,
+  "actual_runtime_secs": 9.834912333,
   "fixture_rows": 10000,
   "fixture_spans": 10000,
   "storage_profile": "P1_local_nvme",
+  "query_entrypoint": "trace_query_service.query_spans",
+  "result_rows": 5,
   "spans": {
-    "delta.snapshot.refresh": {
-      "count": 0,
-      "p50_us": 0,
-      "p95_us": 0,
-      "p99_us": 0,
-      "sum_us": 0
+    "arrow.convert": {
+      "count": 2223,
+      "p50_us": 43,
+      "p95_us": 57,
+      "p99_us": 97,
+      "sum_us": 101569
+    },
+    "bench.query.end_to_end": {
+      "count": 2223,
+      "p50_us": 4059,
+      "p95_us": 4956,
+      "p99_us": 7507,
+      "sum_us": 9469517
     },
     "df.collect": {
-      "count": 1,
-      "p50_us": 5425,
-      "p95_us": 5425,
-      "p99_us": 5425,
-      "sum_us": 5425
+      "count": 2223,
+      "p50_us": 2797,
+      "p95_us": 3462,
+      "p99_us": 4834,
+      "sum_us": 6512581
+    },
+    "df.logical.build": {
+      "count": 17784,
+      "p50_us": 1,
+      "p95_us": 33,
+      "p99_us": 39,
+      "sum_us": 108283
+    },
+    "df.physical.plan": {
+      "count": 2223,
+      "p50_us": 1050,
+      "p95_us": 1392,
+      "p99_us": 2041,
+      "sum_us": 2530619
+    },
+    "df.table.resolve": {
+      "count": 2223,
+      "p50_us": 22,
+      "p95_us": 34,
+      "p99_us": 67,
+      "sum_us": 52642
+    },
+    "object_store.request": {
+      "count": 8892,
+      "p50_us": 1,
+      "p95_us": 2,
+      "p99_us": 3,
+      "sum_us": 6310
+    },
+    "trace.tree.build": {
+      "count": 2223,
+      "p50_us": 10,
+      "p95_us": 14,
+      "p99_us": 22,
+      "sum_us": 23339
     }
   },
   "object_store_counts": {
@@ -30,7 +74,7 @@
     "list_with_delimiter": 0,
     "head": 0,
     "get": 0,
-    "get_range": 0,
+    "get_range": 8892,
     "put": 0,
     "delete": 0,
     "copy": 0,

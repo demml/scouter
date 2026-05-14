@@ -10,20 +10,17 @@ use scouter_types::{
     Attribute, FilterClause, SpanId, StorageType, TraceId, TraceMetricsRequest, TraceSpanRecord,
 };
 use serde_json::json;
-use std::collections::BTreeMap;
 use std::hint::black_box;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tiers::ObjectStoreCountSnapshot;
 use tokio::runtime::Runtime;
+use tracing::Instrument;
 
 const TOTAL_SPANS: usize = 1_000_000;
 const SPANS_PER_TRACE: usize = 5;
 const WRITE_CHUNK_SPANS: usize = 50_000;
 const SERVICE_COUNT: usize = 20;
 const HOT_SERVICE: &str = "service_03";
-const DF_COLLECT_SPAN: &str = "df.collect";
-const DELTA_SNAPSHOT_REFRESH_SPAN: &str = "delta.snapshot.refresh";
 
 #[derive(Clone)]
 struct HotFixture {
@@ -183,7 +180,7 @@ async fn seed_small_fixture(settings: &ObjectStorageSettings, total_spans: usize
     }
     service.optimize().await.unwrap();
 
-    let trace_idx = 24 * 100 + 3;
+    let trace_idx = 24 * 50 + 3;
     let trace_start = base_time
         + chrono::Duration::hours((trace_idx % 24) as i64)
         + chrono::Duration::milliseconds(((trace_idx / 24) % 3_600_000) as i64);
@@ -465,32 +462,21 @@ fn benchmark_trace_hot_paths(c: &mut Criterion) {
     drop(tmp_dir);
 }
 
-fn span_metric(duration: Duration) -> tiers::SpanMetric {
-    let micros = duration.as_micros().min(u64::MAX as u128) as u64;
-    tiers::SpanMetric {
-        count: 1,
-        p50_us: micros,
-        p95_us: micros,
-        p99_us: micros,
-        sum_us: micros,
-    }
-}
-
 fn benchmark_t0_cold_query_smoke(c: &mut Criterion) {
     const GROUP: &str = "t0_hot_path_cold_query_smoke";
     if !tiers::tier_guard_for("hot_path_bench", GROUP) {
         return;
     }
 
-    let setup_start = Instant::now();
+    let collector = utils::install_bench_span_collector();
     let rt = Runtime::new().unwrap();
     let tmp_dir = tempfile::tempdir().unwrap();
     let settings = storage_settings(tmp_dir.path().to_string_lossy().to_string());
     let fixture = rt.block_on(seed_small_fixture(&settings, 10_000));
 
-    let smoke_start = Instant::now();
-    rt.block_on(async {
-        let _ = fixture
+    // Probe once so fixture or query failures fail before Criterion starts measuring.
+    let probe_rows = rt.block_on(async {
+        fixture
             .service
             .query_service
             .query_spans(
@@ -504,28 +490,17 @@ fn benchmark_t0_cold_query_smoke(c: &mut Criterion) {
                 None,
             )
             .await
-            .unwrap();
+            .unwrap()
+            .len() as u64
     });
-    let smoke_runtime = smoke_start.elapsed();
 
-    let mut spans = BTreeMap::new();
-    spans.insert(DF_COLLECT_SPAN.to_string(), span_metric(smoke_runtime));
-    spans.insert(
-        DELTA_SNAPSHOT_REFRESH_SPAN.to_string(),
-        tiers::SpanMetric::default(),
-    );
-    utils::write_bench_artifact(
-        "hot_path_bench",
-        GROUP,
-        setup_start.elapsed(),
-        spans,
-        ObjectStoreCountSnapshot::default(),
-        0,
-    );
-
+    let object_store_start = collector.records_len();
+    let collector_start = collector.records_len();
+    let bench_start = Instant::now();
+    let fixture_for_bench = fixture.clone();
     c.bench_function(GROUP, |b| {
         b.to_async(&rt).iter_custom(|iters| {
-            let fixture = fixture.clone();
+            let fixture = fixture_for_bench.clone();
             async move {
                 let start = Instant::now();
                 for _ in 0..iters {
@@ -543,6 +518,7 @@ fn benchmark_t0_cold_query_smoke(c: &mut Criterion) {
                                 Some(&(fixture.trace_start + chrono::Duration::minutes(1))),
                                 None,
                             )
+                            .instrument(tracing::info_span!(tiers::END_TO_END_SPAN))
                             .await
                             .unwrap(),
                     );
@@ -552,6 +528,21 @@ fn benchmark_t0_cold_query_smoke(c: &mut Criterion) {
         });
     });
 
+    let actual_runtime = bench_start.elapsed();
+    let spans = utils::summarize_spans(&collector.records_since(collector_start));
+    let object_store_counts = collector.object_store_counts_since(object_store_start);
+    utils::write_bench_artifact(
+        "hot_path_bench",
+        GROUP,
+        actual_runtime,
+        spans,
+        object_store_counts,
+        0,
+        Some("trace_query_service.query_spans"),
+        Some(probe_rows),
+    );
+
+    drop(fixture_for_bench);
     let service = Arc::try_unwrap(fixture.service)
         .unwrap_or_else(|_| panic!("Arc still has multiple owners"));
     rt.block_on(async { service.shutdown().await.unwrap() });

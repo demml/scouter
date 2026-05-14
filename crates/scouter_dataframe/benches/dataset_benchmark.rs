@@ -10,15 +10,11 @@ use scouter_dataframe::parquet::bifrost::manager::DatasetEngineManager;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::StorageType;
 use scouter_types::dataset::{DatasetFingerprint, DatasetNamespace, DatasetRegistration};
-use std::collections::BTreeMap;
 use std::hint::black_box;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tiers::ObjectStoreCountSnapshot;
 use tokio::runtime::Runtime;
-
-const DF_COLLECT_SPAN: &str = "df.collect";
-const DELTA_SNAPSHOT_REFRESH_SPAN: &str = "delta.snapshot.refresh";
+use tracing::Instrument;
 
 fn bench_schema() -> Schema {
     Schema::new(vec![
@@ -194,24 +190,13 @@ fn bench_query(c: &mut Criterion) {
     });
 }
 
-fn span_metric(duration: Duration) -> tiers::SpanMetric {
-    let micros = duration.as_micros().min(u64::MAX as u128) as u64;
-    tiers::SpanMetric {
-        count: 1,
-        p50_us: micros,
-        p95_us: micros,
-        p99_us: micros,
-        sum_us: micros,
-    }
-}
-
 fn bench_t0_bifrost_smoke(c: &mut Criterion) {
     const GROUP: &str = "t0_bifrost_smoke";
     if !tiers::tier_guard_for("dataset_benchmark", GROUP) {
         return;
     }
 
-    let setup_start = Instant::now();
+    let collector = utils::install_bench_span_collector();
     let rt = Runtime::new().unwrap();
     let dir = tempfile::tempdir().unwrap();
     let schema = bench_schema();
@@ -230,36 +215,53 @@ fn bench_t0_bifrost_smoke(c: &mut Criterion) {
         (Arc::new(manager), reg.namespace.clone())
     });
     let fqn = namespace.fqn();
-    let sql = format!("SELECT COUNT(*) as cnt FROM {fqn}");
+    let sql = format!("SELECT * FROM {fqn} LIMIT 256");
 
-    let smoke_start = Instant::now();
-    rt.block_on(async {
-        let _ = manager.query(&sql).await.unwrap();
+    // Probe once so fixture or query failures fail before Criterion starts measuring.
+    let probe_rows = rt.block_on(async {
+        let batches = manager.query(&sql).await.unwrap();
+        batches.iter().map(|batch| batch.num_rows()).sum::<usize>() as u64
     });
-    let smoke_runtime = smoke_start.elapsed();
 
-    let mut spans = BTreeMap::new();
-    spans.insert(DF_COLLECT_SPAN.to_string(), span_metric(smoke_runtime));
-    spans.insert(
-        DELTA_SNAPSHOT_REFRESH_SPAN.to_string(),
-        tiers::SpanMetric::default(),
-    );
+    let object_store_start = collector.records_len();
+    let collector_start = collector.records_len();
+    let bench_start = Instant::now();
+    let manager_for_bench = Arc::clone(&manager);
+    let sql_for_bench = sql.clone();
+    c.bench_function(GROUP, |b| {
+        b.to_async(&rt).iter_custom(|iters| {
+            let mgr = Arc::clone(&manager_for_bench);
+            let sql = sql_for_bench.clone();
+            async move {
+                let start = Instant::now();
+                for _ in 0..iters {
+                    let _ = black_box(
+                        mgr.query(&sql)
+                            .instrument(tracing::info_span!(tiers::END_TO_END_SPAN))
+                            .await
+                            .unwrap(),
+                    );
+                }
+                start.elapsed()
+            }
+        });
+    });
+
+    let actual_runtime = bench_start.elapsed();
+    let spans = utils::summarize_spans(&collector.records_since(collector_start));
+    let object_store_counts = collector.object_store_counts_since(object_store_start);
     utils::write_bench_artifact(
         "dataset_benchmark",
         GROUP,
-        setup_start.elapsed(),
+        actual_runtime,
         spans,
-        ObjectStoreCountSnapshot::default(),
+        object_store_counts,
         0,
+        Some("dataset_engine_manager.query"),
+        Some(probe_rows),
     );
 
-    c.bench_function(GROUP, |b| {
-        let mgr = Arc::clone(&manager);
-        let sql = sql.clone();
-        b.to_async(&rt)
-            .iter(|| async { black_box(mgr.query(&sql).await.unwrap()) });
-    });
-
+    drop(manager_for_bench);
     rt.block_on(async {
         Arc::try_unwrap(manager)
             .unwrap_or_else(|_| panic!("manager still referenced"))

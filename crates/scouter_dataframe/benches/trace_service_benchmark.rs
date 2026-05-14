@@ -6,15 +6,11 @@ use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_m
 use scouter_dataframe::parquet::tracing::service::TraceSpanService;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::{StorageType, TraceId, TraceSpanRecord};
-use std::collections::BTreeMap;
 use std::hint::black_box;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tiers::ObjectStoreCountSnapshot;
 use tokio::runtime::Runtime;
-
-const DF_COLLECT_SPAN: &str = "df.collect";
-const DELTA_SNAPSHOT_REFRESH_SPAN: &str = "delta.snapshot.refresh";
+use tracing::Instrument;
 
 fn generate_trace_batch(num_traces: usize, spans_per_trace: usize) -> Vec<TraceSpanRecord> {
     use scouter_mocks::generate_trace_with_spans;
@@ -888,28 +884,17 @@ fn bench_at_scale_10m(c: &mut Criterion) {
     drop(tmp_dir);
 }
 
-fn span_metric(duration: Duration) -> tiers::SpanMetric {
-    let micros = duration.as_micros().min(u64::MAX as u128) as u64;
-    tiers::SpanMetric {
-        count: 1,
-        p50_us: micros,
-        p95_us: micros,
-        p99_us: micros,
-        sum_us: micros,
-    }
-}
-
 fn bench_t0_cold_query_smoke(c: &mut Criterion) {
     const GROUP: &str = "t0_cold_query_smoke";
     if !tiers::tier_guard_for("trace_service_benchmark", GROUP) {
         return;
     }
 
+    let collector = utils::install_bench_span_collector();
     use scouter_mocks::generate_trace_with_spans;
 
     const HOURS: usize = 24;
     const SPANS_PER_HOUR: usize = 420;
-    let setup_start = Instant::now();
     let rt = Runtime::new().unwrap();
     let tmp_dir = tempfile::tempdir().unwrap();
     let storage_settings = ObjectStorageSettings {
@@ -945,36 +930,26 @@ fn bench_t0_cold_query_smoke(c: &mut Criterion) {
         (Arc::new(service), Arc::new(ids))
     });
 
-    let smoke_start = Instant::now();
-    rt.block_on(async {
+    // Probe once so setup failures fail before Criterion starts measuring.
+    let probe_rows = rt.block_on(async {
         let id = &ids[0];
-        let _ = service
+        service
             .query_service
             .query_spans(Some(id), None, None, None, None, None, None, None)
             .await
-            .unwrap();
+            .unwrap()
+            .len() as u64
     });
-    let smoke_runtime = smoke_start.elapsed();
 
-    let mut spans = BTreeMap::new();
-    spans.insert(DF_COLLECT_SPAN.to_string(), span_metric(smoke_runtime));
-    spans.insert(
-        DELTA_SNAPSHOT_REFRESH_SPAN.to_string(),
-        tiers::SpanMetric::default(),
-    );
-    utils::write_bench_artifact(
-        "trace_service_benchmark",
-        GROUP,
-        setup_start.elapsed(),
-        spans,
-        ObjectStoreCountSnapshot::default(),
-        0,
-    );
-
+    let object_store_start = collector.records_len();
+    let collector_start = collector.records_len();
+    let bench_start = Instant::now();
+    let service_for_bench = Arc::clone(&service);
+    let ids_for_bench = Arc::clone(&ids);
     c.bench_function(GROUP, |b| {
         b.to_async(&rt).iter_custom(|iters| {
-            let svc = Arc::clone(&service);
-            let ids = Arc::clone(&ids);
+            let svc = Arc::clone(&service_for_bench);
+            let ids = Arc::clone(&ids_for_bench);
             async move {
                 let start = Instant::now();
                 for i in 0..iters {
@@ -982,6 +957,7 @@ fn bench_t0_cold_query_smoke(c: &mut Criterion) {
                     let _ = black_box(
                         svc.query_service
                             .query_spans(Some(id), None, None, None, None, None, None, None)
+                            .instrument(tracing::info_span!(tiers::END_TO_END_SPAN))
                             .await
                             .unwrap(),
                     );
@@ -991,6 +967,22 @@ fn bench_t0_cold_query_smoke(c: &mut Criterion) {
         });
     });
 
+    let actual_runtime = bench_start.elapsed();
+    let spans = utils::summarize_spans(&collector.records_since(collector_start));
+    let object_store_counts = collector.object_store_counts_since(object_store_start);
+    utils::write_bench_artifact(
+        "trace_service_benchmark",
+        GROUP,
+        actual_runtime,
+        spans,
+        object_store_counts,
+        0,
+        Some("trace_query_service.query_spans"),
+        Some(probe_rows),
+    );
+
+    drop(service_for_bench);
+    drop(ids_for_bench);
     let service =
         Arc::try_unwrap(service).unwrap_or_else(|_| panic!("Arc still has multiple owners"));
     rt.block_on(async { service.shutdown().await.unwrap() });
@@ -1003,20 +995,19 @@ fn bench_t0_refresh_origin_sentinel(c: &mut Criterion) {
         return;
     }
 
+    let collector = utils::install_bench_span_collector();
+    let object_store_start = collector.records_len();
     let start = Instant::now();
-    let mut spans = BTreeMap::new();
-    spans.insert(DF_COLLECT_SPAN.to_string(), tiers::SpanMetric::default());
-    spans.insert(
-        DELTA_SNAPSHOT_REFRESH_SPAN.to_string(),
-        tiers::SpanMetric::default(),
-    );
+    let spans = utils::summarize_spans(&collector.records_since(object_store_start));
     utils::write_bench_artifact(
         "trace_service_benchmark",
         GROUP,
         start.elapsed(),
         spans,
-        ObjectStoreCountSnapshot::default(),
+        collector.object_store_counts_since(object_store_start),
         0,
+        None,
+        None,
     );
 
     c.bench_function(GROUP, |b| {

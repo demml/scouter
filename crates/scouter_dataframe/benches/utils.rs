@@ -7,14 +7,21 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use tracing::field::{Field, Visit};
 use tracing::span::{Attributes, Id, Record};
 use tracing::{Subscriber, warn};
 use tracing_subscriber::Layer;
 use tracing_subscriber::layer::Context;
+use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::registry::LookupSpan;
+use tracing_subscriber::util::SubscriberInitExt;
+
+const OBJECT_STORE_SPAN_NAME: &str = "object_store.request";
+const OBJECT_STORE_OPERATION_ATTR: &str = "object_store.operation";
+
+static BENCH_SPAN_COLLECTOR: OnceLock<BenchSpanCollector> = OnceLock::new();
 
 /// Create a simple 3-span trace as ingest records (ready for `write_spans()`).
 pub fn _create_simple_trace() -> Vec<TraceSpanRecord> {
@@ -158,9 +165,42 @@ impl BenchSpanCollector {
             .clone()
     }
 
+    pub fn records_len(&self) -> usize {
+        self.records
+            .lock()
+            .expect("bench span collector mutex poisoned")
+            .len()
+    }
+
+    pub fn records_since(&self, start: usize) -> Vec<SpanRecord> {
+        self.records
+            .lock()
+            .expect("bench span collector mutex poisoned")
+            .iter()
+            .skip(start)
+            .cloned()
+            .collect()
+    }
+
     pub fn summary(&self) -> BTreeMap<String, SpanMetric> {
         summarize_spans(&self.records())
     }
+
+    pub fn object_store_counts_since(&self, start: usize) -> ObjectStoreCountSnapshot {
+        object_store_counts(&self.records_since(start))
+    }
+}
+
+pub fn install_bench_span_collector() -> BenchSpanCollector {
+    BENCH_SPAN_COLLECTOR
+        .get_or_init(|| {
+            let collector = BenchSpanCollector::new();
+            let _ = tracing_subscriber::registry()
+                .with(collector.clone())
+                .try_init();
+            collector
+        })
+        .clone()
 }
 
 impl<S> Layer<S> for BenchSpanCollector
@@ -250,6 +290,51 @@ pub fn summarize_spans(records: &[SpanRecord]) -> BTreeMap<String, SpanMetric> {
         .collect()
 }
 
+pub fn span_metric_from_samples(samples_us: &[u64]) -> SpanMetric {
+    if samples_us.is_empty() {
+        return SpanMetric::default();
+    }
+
+    let mut values = samples_us.to_vec();
+    values.sort_unstable();
+    SpanMetric {
+        count: values.len() as u64,
+        p50_us: percentile_u64(&values, 50.0),
+        p95_us: percentile_u64(&values, 95.0),
+        p99_us: percentile_u64(&values, 99.0),
+        sum_us: values.iter().sum(),
+    }
+}
+
+pub fn object_store_counts(records: &[SpanRecord]) -> ObjectStoreCountSnapshot {
+    let mut counts = ObjectStoreCountSnapshot::default();
+    for record in records
+        .iter()
+        .filter(|record| record.name == OBJECT_STORE_SPAN_NAME)
+    {
+        match attr_value(record, OBJECT_STORE_OPERATION_ATTR).as_deref() {
+            Some("list") => counts.list += 1,
+            Some("list_with_delimiter") => counts.list_with_delimiter += 1,
+            Some("head") => counts.head += 1,
+            Some("get") => counts.get += 1,
+            Some("get_range") => counts.get_range += 1,
+            Some("put") => counts.put += 1,
+            Some("delete") => counts.delete += 1,
+            Some("copy") => counts.copy += 1,
+            _ => {}
+        }
+    }
+    counts
+}
+
+fn attr_value(record: &SpanRecord, key: &str) -> Option<String> {
+    record
+        .attrs
+        .iter()
+        .find(|(name, _)| name == key)
+        .map(|(_, value)| value.trim_matches('"').to_string())
+}
+
 fn percentile_u64(values: &[u64], percentile: f64) -> u64 {
     if values.is_empty() {
         return 0;
@@ -258,6 +343,7 @@ fn percentile_u64(values: &[u64], percentile: f64) -> u64 {
     values[index.min(values.len() - 1)]
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn write_bench_artifact(
     bench_binary: &'static str,
     group_name: &'static str,
@@ -265,6 +351,8 @@ pub fn write_bench_artifact(
     spans: BTreeMap<String, SpanMetric>,
     object_store_counts: ObjectStoreCountSnapshot,
     refresh_on_request_path_total: u64,
+    query_entrypoint: Option<&'static str>,
+    result_rows: Option<u64>,
 ) {
     let registration = registration_or_default(bench_binary, group_name);
     let artifact = BenchArtifact {
@@ -278,6 +366,8 @@ pub fn write_bench_artifact(
         fixture_rows: registration.fixture_rows,
         fixture_spans: registration.fixture_spans,
         storage_profile: registration.storage_profile.to_string(),
+        query_entrypoint: query_entrypoint.map(str::to_string),
+        result_rows,
         spans,
         object_store_counts,
         refresh_on_request_path_total,
@@ -362,5 +452,35 @@ mod tests {
         assert_eq!(metric.p95_us, 5);
         assert_eq!(metric.p99_us, 5);
         assert_eq!(metric.sum_us, 15);
+    }
+
+    #[test]
+    fn object_store_counts_are_derived_from_span_attrs() {
+        let records = vec![
+            SpanRecord {
+                name: "object_store.request".to_string(),
+                attrs: vec![("object_store.operation".to_string(), "list".to_string())],
+                duration_ns: 1_000,
+            },
+            SpanRecord {
+                name: "object_store.request".to_string(),
+                attrs: vec![(
+                    "object_store.operation".to_string(),
+                    "\"get_range\"".to_string(),
+                )],
+                duration_ns: 1_000,
+            },
+            SpanRecord {
+                name: "df.collect".to_string(),
+                attrs: Vec::new(),
+                duration_ns: 1_000,
+            },
+        ];
+
+        let counts = object_store_counts(&records);
+
+        assert_eq!(counts.list, 1);
+        assert_eq!(counts.get_range, 1);
+        assert_eq!(counts.total_operations(), 2);
     }
 }

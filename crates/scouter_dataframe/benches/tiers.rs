@@ -64,6 +64,19 @@ pub struct ObjectStoreCountSnapshot {
     pub bytes: u64,
 }
 
+impl ObjectStoreCountSnapshot {
+    pub fn total_operations(&self) -> u64 {
+        self.list
+            + self.list_with_delimiter
+            + self.head
+            + self.get
+            + self.get_range
+            + self.put
+            + self.delete
+            + self.copy
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BenchArtifact {
     pub commit: String,
@@ -76,11 +89,19 @@ pub struct BenchArtifact {
     pub fixture_rows: u64,
     pub fixture_spans: u64,
     pub storage_profile: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub query_entrypoint: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub result_rows: Option<u64>,
     pub spans: BTreeMap<String, SpanMetric>,
     pub object_store_counts: ObjectStoreCountSnapshot,
     #[serde(default)]
     pub refresh_on_request_path_total: u64,
 }
+
+pub const END_TO_END_SPAN: &str = "bench.query.end_to_end";
+pub const DF_COLLECT_SPAN: &str = "df.collect";
+pub const DELTA_SNAPSHOT_REFRESH_SPAN: &str = "delta.snapshot.refresh";
 
 pub const P1_LOCAL_NVME: &str = "P1_local_nvme";
 pub const P2_OBJECT_WARM: &str = "P2_object_warm";
@@ -432,6 +453,46 @@ fn compare_count(
     }
 }
 
+fn end_to_end_count(artifact: &BenchArtifact) -> Option<u64> {
+    artifact
+        .spans
+        .get(END_TO_END_SPAN)
+        .map(|metric| metric.count)
+}
+
+fn compare_rate(
+    failures: &mut Vec<String>,
+    label: &str,
+    run: u64,
+    run_denominator: u64,
+    baseline: u64,
+    baseline_denominator: u64,
+    tier: BenchTier,
+) {
+    if run_denominator == 0 || baseline_denominator == 0 {
+        compare_count(failures, label, run, baseline, tier);
+        return;
+    }
+
+    let run_rate = run as f64 / run_denominator as f64;
+    let baseline_rate = baseline as f64 / baseline_denominator as f64;
+    if baseline_rate == 0.0 {
+        if run_rate > 0.0 && tier == BenchTier::Tier0 {
+            failures.push(format!(
+                "{label} rate regressed from zero: run={run_rate:.4}, baseline=0.0000"
+            ));
+        }
+        return;
+    }
+
+    let percent = ((run_rate - baseline_rate) / baseline_rate) * 100.0;
+    if percent > 10.0 && tier == BenchTier::Tier0 {
+        failures.push(format!(
+            "{label} rate regressed by {percent:.1}%: run={run_rate:.4}, baseline={baseline_rate:.4}"
+        ));
+    }
+}
+
 fn compare_span(
     failures: &mut Vec<String>,
     name: &str,
@@ -453,6 +514,54 @@ fn compare_span(
         &format!("spans[{name}].p95_us"),
         run_span.p95_us,
         base_span.p95_us,
+        tier,
+    );
+}
+
+fn compare_artifacts(
+    failures: &mut Vec<String>,
+    run: &BenchArtifact,
+    baseline: &BenchArtifact,
+    tier: BenchTier,
+) {
+    if baseline.spans.contains_key(END_TO_END_SPAN) && !run.spans.contains_key(END_TO_END_SPAN) {
+        failures.push(format!(
+            "{} missing primary {END_TO_END_SPAN} metric present in baseline",
+            run.bench_group
+        ));
+    }
+
+    compare_span(failures, END_TO_END_SPAN, run, baseline, tier);
+
+    let run_end_to_end_count = end_to_end_count(run).unwrap_or(0);
+    let baseline_end_to_end_count = end_to_end_count(baseline).unwrap_or(0);
+    compare_span(failures, DELTA_SNAPSHOT_REFRESH_SPAN, run, baseline, tier);
+    compare_span(failures, DF_COLLECT_SPAN, run, baseline, tier);
+    compare_rate(
+        failures,
+        "object_store_counts.get_range",
+        run.object_store_counts.get_range,
+        run_end_to_end_count,
+        baseline.object_store_counts.get_range,
+        baseline_end_to_end_count,
+        tier,
+    );
+    compare_rate(
+        failures,
+        "object_store_counts.head",
+        run.object_store_counts.head,
+        run_end_to_end_count,
+        baseline.object_store_counts.head,
+        baseline_end_to_end_count,
+        tier,
+    );
+    compare_rate(
+        failures,
+        "object_store_counts.list",
+        run.object_store_counts.list,
+        run_end_to_end_count,
+        baseline.object_store_counts.list,
+        baseline_end_to_end_count,
         tier,
     );
 }
@@ -486,6 +595,8 @@ fn compare_artifact(run_path: &Path, requested_tier: BenchTier) -> Result<Vec<St
     let mut failures = Vec::new();
     let mut notes = Vec::new();
 
+    validate_artifact_execution(&run, run_tier, &mut failures);
+
     if run.actual_runtime_secs > run.runtime_budget_secs as f64 && run_tier == BenchTier::Tier0 {
         failures.push(format!(
             "{} exceeded runtime budget: {:.2}s > {}s",
@@ -508,35 +619,7 @@ fn compare_artifact(run_path: &Path, requested_tier: BenchTier) -> Result<Vec<St
         ));
     } else {
         let baseline = read_artifact(&baseline_path)?;
-        compare_count(
-            &mut failures,
-            "object_store_counts.get_range",
-            run.object_store_counts.get_range,
-            baseline.object_store_counts.get_range,
-            run_tier,
-        );
-        compare_count(
-            &mut failures,
-            "object_store_counts.head",
-            run.object_store_counts.head,
-            baseline.object_store_counts.head,
-            run_tier,
-        );
-        compare_count(
-            &mut failures,
-            "object_store_counts.list",
-            run.object_store_counts.list,
-            baseline.object_store_counts.list,
-            run_tier,
-        );
-        compare_span(&mut failures, "df.collect", &run, &baseline, run_tier);
-        compare_span(
-            &mut failures,
-            "delta.snapshot.refresh",
-            &run,
-            &baseline,
-            run_tier,
-        );
+        compare_artifacts(&mut failures, &run, &baseline, run_tier);
     }
 
     if run_tier != BenchTier::Tier0 && !failures.is_empty() {
@@ -554,14 +637,115 @@ fn compare_artifact(run_path: &Path, requested_tier: BenchTier) -> Result<Vec<St
     }
 }
 
+fn validate_artifact_execution(
+    run: &BenchArtifact,
+    run_tier: BenchTier,
+    failures: &mut Vec<String>,
+) {
+    if run_tier != BenchTier::Tier0 {
+        return;
+    }
+
+    let Some(registration) = REGISTRY
+        .iter()
+        .find(|entry| entry.group_name == run.bench_group && entry.tier == BenchTier::Tier0)
+    else {
+        failures.push(format!(
+            "{} is not registered as a Tier 0 benchmark group",
+            run.bench_group
+        ));
+        return;
+    };
+
+    if run.fixture_rows != registration.fixture_rows {
+        failures.push(format!(
+            "{} reported fixture_rows={} but registry expects {}",
+            run.bench_group, run.fixture_rows, registration.fixture_rows
+        ));
+    }
+
+    if run.fixture_spans != registration.fixture_spans {
+        failures.push(format!(
+            "{} reported fixture_spans={} but registry expects {}",
+            run.bench_group, run.fixture_spans, registration.fixture_spans
+        ));
+    }
+
+    if run.scenario_class != registration.scenario_class {
+        failures.push(format!(
+            "{} reported scenario_class={} but registry expects {}",
+            run.bench_group, run.scenario_class, registration.scenario_class
+        ));
+    }
+
+    if run.storage_profile != registration.storage_profile {
+        failures.push(format!(
+            "{} reported storage_profile={} but registry expects {}",
+            run.bench_group, run.storage_profile, registration.storage_profile
+        ));
+    }
+
+    if run.bench_group == "t0_refresh_origin_sentinel" {
+        if run.refresh_on_request_path_total != 0 {
+            failures.push(format!(
+                "{} recorded refresh_on_request_path_total={}",
+                run.bench_group, run.refresh_on_request_path_total
+            ));
+        }
+        return;
+    }
+
+    if run.query_entrypoint.is_none() {
+        failures.push(format!("{} missing query_entrypoint", run.bench_group));
+    }
+
+    match run.result_rows {
+        Some(rows) if rows > 0 => {}
+        _ => failures.push(format!("{} missing or zero result_rows", run.bench_group)),
+    }
+
+    match run.spans.get(END_TO_END_SPAN) {
+        Some(metric) if metric.count >= 10 && metric.sum_us > 0 => {}
+        Some(metric) => failures.push(format!(
+            "{} did not record a measured {END_TO_END_SPAN} workload: count={}, sum_us={}",
+            run.bench_group, metric.count, metric.sum_us
+        )),
+        None => failures.push(format!(
+            "{} did not record required {END_TO_END_SPAN} span metrics",
+            run.bench_group
+        )),
+    }
+
+    if run.actual_runtime_secs <= 0.0 {
+        failures.push(format!(
+            "{} reported non-positive actual_runtime_secs={}",
+            run.bench_group, run.actual_runtime_secs
+        ));
+    }
+
+    if run.object_store_counts.total_operations() == 0 {
+        failures.push(format!(
+            "{} did not record any object-store operations; this is a smoke artifact, not a baseline",
+            run.bench_group
+        ));
+    }
+}
+
 fn compare_requested_tier(tier: BenchTier) -> Result<(), String> {
     let dir = run_metrics_dir();
     if !dir.exists() {
+        if tier == BenchTier::Tier0 {
+            return Err(format!(
+                "missing Tier 0 bench artifacts directory {}; run make bench.core before comparing",
+                dir.display()
+            ));
+        }
         return Ok(());
     }
 
     let mut notes = Vec::new();
     let mut compared = 0usize;
+    let mut seen = BTreeSet::new();
     for entry in fs::read_dir(&dir).map_err(|err| format!("failed to read {dir:?}: {err}"))? {
         let entry = entry.map_err(|err| format!("failed to read dir entry: {err}"))?;
         let path = entry.path();
@@ -583,6 +767,7 @@ fn compare_requested_tier(tier: BenchTier) -> Result<(), String> {
             continue;
         }
         compared += 1;
+        seen.insert(stem.to_string());
         match compare_artifact(&path, tier) {
             Ok(artifact_notes) => notes.extend(artifact_notes),
             Err(err) if tier != BenchTier::Tier0 => notes.push(format!(
@@ -590,6 +775,21 @@ fn compare_requested_tier(tier: BenchTier) -> Result<(), String> {
                 path.display()
             )),
             Err(err) => return Err(err),
+        }
+    }
+
+    if tier == BenchTier::Tier0 {
+        let missing = REGISTRY
+            .iter()
+            .filter(|entry| entry.tier == BenchTier::Tier0)
+            .map(|entry| entry.group_name)
+            .filter(|group_name| !seen.contains(*group_name))
+            .collect::<Vec<_>>();
+        if !missing.is_empty() {
+            return Err(format!(
+                "missing Tier 0 bench artifact(s): {}",
+                missing.join(", ")
+            ));
         }
     }
 
@@ -653,6 +853,44 @@ fn main() {
 mod tests {
     use super::*;
 
+    fn tier0_artifact(group_name: &str) -> BenchArtifact {
+        let registration = REGISTRY
+            .iter()
+            .find(|entry| entry.group_name == group_name && entry.tier == BenchTier::Tier0)
+            .unwrap();
+        let mut spans = BTreeMap::new();
+        spans.insert(
+            END_TO_END_SPAN.to_string(),
+            SpanMetric {
+                count: 10,
+                p50_us: 100,
+                p95_us: 150,
+                p99_us: 200,
+                sum_us: 1_200,
+            },
+        );
+        BenchArtifact {
+            commit: "test".to_string(),
+            bench_group: group_name.to_string(),
+            tier: BenchTier::Tier0.as_u8(),
+            blocking: true,
+            scenario_class: registration.scenario_class.to_string(),
+            runtime_budget_secs: registration.runtime_budget_secs,
+            actual_runtime_secs: 1.0,
+            fixture_rows: registration.fixture_rows,
+            fixture_spans: registration.fixture_spans,
+            storage_profile: registration.storage_profile.to_string(),
+            query_entrypoint: Some("test_entrypoint".to_string()),
+            result_rows: Some(10),
+            spans,
+            object_store_counts: ObjectStoreCountSnapshot {
+                list: 1,
+                ..ObjectStoreCountSnapshot::default()
+            },
+            refresh_on_request_path_total: 0,
+        }
+    }
+
     #[test]
     fn tier0_filter_is_exactly_anchored() {
         let filter = filter_for(BenchTier::Tier0, "trace_service_benchmark").unwrap();
@@ -668,5 +906,172 @@ mod tests {
     #[test]
     fn unknown_groups_default_to_tier1() {
         assert_eq!(tier_for("not_registered"), BenchTier::Tier1);
+    }
+
+    #[test]
+    fn tier0_artifact_rejects_single_end_to_end_probe() {
+        let mut artifact = tier0_artifact("t0_hot_path_cold_query_smoke");
+        artifact.spans.insert(
+            END_TO_END_SPAN.to_string(),
+            SpanMetric {
+                count: 1,
+                p50_us: 5,
+                p95_us: 5,
+                p99_us: 5,
+                sum_us: 5,
+            },
+        );
+
+        let mut failures = Vec::new();
+        validate_artifact_execution(&artifact, BenchTier::Tier0, &mut failures);
+
+        assert!(
+            failures.iter().any(|failure| failure
+                .contains("did not record a measured bench.query.end_to_end workload")),
+            "{failures:?}"
+        );
+    }
+
+    #[test]
+    fn tier0_artifact_rejects_missing_bench_query_end_to_end() {
+        let mut artifact = tier0_artifact("t0_hot_path_cold_query_smoke");
+        artifact.spans.remove(END_TO_END_SPAN);
+        let mut failures = Vec::new();
+        validate_artifact_execution(&artifact, BenchTier::Tier0, &mut failures);
+        assert!(
+            failures
+                .iter()
+                .any(|failure| failure.contains("bench.query.end_to_end")),
+            "{failures:?}"
+        );
+    }
+
+    #[test]
+    fn tier0_artifact_rejects_missing_query_entrypoint() {
+        let mut artifact = tier0_artifact("t0_hot_path_cold_query_smoke");
+        artifact.query_entrypoint = None;
+        let mut failures = Vec::new();
+        validate_artifact_execution(&artifact, BenchTier::Tier0, &mut failures);
+        assert!(
+            failures
+                .iter()
+                .any(|failure| failure.contains("query_entrypoint")),
+            "{failures:?}"
+        );
+    }
+
+    #[test]
+    fn tier0_artifact_rejects_missing_result_rows() {
+        let mut artifact = tier0_artifact("t0_hot_path_cold_query_smoke");
+        artifact.result_rows = None;
+        let mut failures = Vec::new();
+        validate_artifact_execution(&artifact, BenchTier::Tier0, &mut failures);
+        assert!(
+            failures
+                .iter()
+                .any(|failure| failure.contains("result_rows")),
+            "{failures:?}"
+        );
+    }
+
+    #[test]
+    fn tier0_artifact_rejects_missing_object_store_counts() {
+        let mut artifact = tier0_artifact("t0_hot_path_cold_query_smoke");
+        artifact.object_store_counts = ObjectStoreCountSnapshot::default();
+
+        let mut failures = Vec::new();
+        validate_artifact_execution(&artifact, BenchTier::Tier0, &mut failures);
+
+        assert!(
+            failures
+                .iter()
+                .any(|failure| failure.contains("did not record any object-store operations")),
+            "{failures:?}"
+        );
+    }
+
+    #[test]
+    fn tier0_refresh_origin_sentinel_allows_zero_workload_metrics() {
+        let mut artifact = tier0_artifact("t0_refresh_origin_sentinel");
+        artifact.spans.clear();
+        artifact.object_store_counts = ObjectStoreCountSnapshot::default();
+
+        let mut failures = Vec::new();
+        validate_artifact_execution(&artifact, BenchTier::Tier0, &mut failures);
+
+        assert!(failures.is_empty(), "{failures:?}");
+    }
+
+    #[test]
+    fn tier0_end_to_end_regression_fails_even_if_df_collect_improves() {
+        let mut baseline = tier0_artifact("t0_hot_path_cold_query_smoke");
+        baseline.spans.insert(
+            END_TO_END_SPAN.to_string(),
+            SpanMetric {
+                count: 10,
+                p50_us: 100,
+                p95_us: 100,
+                p99_us: 100,
+                sum_us: 1_000,
+            },
+        );
+        baseline.spans.insert(
+            DF_COLLECT_SPAN.to_string(),
+            SpanMetric {
+                count: 10,
+                p50_us: 80,
+                p95_us: 80,
+                p99_us: 80,
+                sum_us: 800,
+            },
+        );
+
+        let mut run = baseline.clone();
+        run.spans.insert(
+            END_TO_END_SPAN.to_string(),
+            SpanMetric {
+                count: 10,
+                p50_us: 130,
+                p95_us: 130,
+                p99_us: 130,
+                sum_us: 1_300,
+            },
+        );
+        run.spans.insert(
+            DF_COLLECT_SPAN.to_string(),
+            SpanMetric {
+                count: 10,
+                p50_us: 40,
+                p95_us: 40,
+                p99_us: 40,
+                sum_us: 400,
+            },
+        );
+
+        let mut failures = Vec::new();
+        compare_artifacts(&mut failures, &run, &baseline, BenchTier::Tier0);
+
+        assert!(
+            failures
+                .iter()
+                .any(|failure| failure.contains("bench.query.end_to_end")),
+            "{failures:?}"
+        );
+    }
+
+    #[test]
+    fn object_store_comparison_uses_rate_per_end_to_end() {
+        let mut failures = Vec::new();
+        compare_rate(
+            &mut failures,
+            "object_store_counts.get_range",
+            2_000,
+            1_000,
+            1_000,
+            500,
+            BenchTier::Tier0,
+        );
+
+        assert!(failures.is_empty(), "{failures:?}");
     }
 }

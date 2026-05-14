@@ -1,30 +1,15 @@
 {
-  "commit": "411693235a19c2dc7680102042d9a5f062f8e1d7",
+  "commit": "553a607685000971ef06678e913db7429d263148",
   "bench_group": "t0_refresh_origin_sentinel",
   "tier": 0,
   "blocking": true,
   "scenario_class": "refresh_origin_sentinel",
   "runtime_budget_secs": 30,
-  "actual_runtime_secs": 4.59e-7,
+  "actual_runtime_secs": 9.58e-7,
   "fixture_rows": 0,
   "fixture_spans": 0,
   "storage_profile": "P1_local_nvme",
-  "spans": {
-    "delta.snapshot.refresh": {
-      "count": 0,
-      "p50_us": 0,
-      "p95_us": 0,
-      "p99_us": 0,
-      "sum_us": 0
-    },
-    "df.collect": {
-      "count": 0,
-      "p50_us": 0,
-      "p95_us": 0,
-      "p99_us": 0,
-      "sum_us": 0
-    }
-  },
+  "spans": {},
   "object_store_counts": {
     "list": 0,
     "list_with_delimiter": 0,
