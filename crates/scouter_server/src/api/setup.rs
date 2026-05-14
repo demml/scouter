@@ -17,9 +17,10 @@ use scouter_settings::{
 use scouter_sql::PostgresClient;
 use scouter_sql::sql::schema::User;
 use scouter_sql::sql::traits::UserSqlLogic;
+use scouter_tracing::tracer::{OtlpTracingHandle, init_server_otlp_tracing};
 use sqlx::{Pool, Postgres};
 use std::sync::Arc;
-use tracing::{debug, info, instrument};
+use tracing::{debug, info, instrument, warn};
 use tracing_subscriber::fmt::time::UtcTime;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{EnvFilter, fmt};
@@ -69,6 +70,7 @@ pub struct ScouterSetupComponents {
     pub genai_service: Arc<GenAiSpanService>,
     pub dataset_manager: Arc<DatasetEngineManager>,
     pub eval_scenario_service: Arc<EvalScenarioService>,
+    pub otlp_tracing: Option<OtlpTracingHandle>,
 }
 
 fn build_filter(log_level: &str) -> EnvFilter {
@@ -82,13 +84,20 @@ fn build_filter(log_level: &str) -> EnvFilter {
     })
 }
 
-fn build_tracer(filter: EnvFilter) -> AnyhowResult<()> {
+fn build_tracer(
+    filter: EnvFilter,
+    config: &ScouterServerConfig,
+) -> AnyhowResult<Option<OtlpTracingHandle>> {
     let timer = UtcTime::new(
         time::format_description::parse(
             "[year]-[month]-[day]T[hour repr:24]:[minute]:[second]::[subsecond digits:4]",
         )
         .context("Failed to parse time format")?,
     );
+    let (otlp_tracing, otlp_error) = match init_server_otlp_tracing(&config.otel_settings) {
+        Ok(handle) => (handle, None),
+        Err(err) => (None, Some(err)),
+    };
 
     tracing_subscriber::registry()
         .with(filter)
@@ -98,19 +107,35 @@ fn build_tracer(filter: EnvFilter) -> AnyhowResult<()> {
                 .with_thread_ids(true)
                 .with_timer(timer),
         )
+        .with(
+            otlp_tracing
+                .as_ref()
+                .map(|handle| tracing_opentelemetry::layer().with_tracer(handle.tracer())),
+        )
         .try_init()
         .ok();
 
-    Ok(())
+    if let Some(err) = otlp_error {
+        warn!("Failed to initialize OTLP tracing: {}", err);
+    }
+
+    Ok(otlp_tracing)
 }
 
-fn build_json_tracer(filter: EnvFilter) -> AnyhowResult<()> {
+fn build_json_tracer(
+    filter: EnvFilter,
+    config: &ScouterServerConfig,
+) -> AnyhowResult<Option<OtlpTracingHandle>> {
     let timer = UtcTime::new(
         time::format_description::parse(
             "[year]-[month]-[day]T[hour repr:24]:[minute]:[second]::[subsecond digits:4]",
         )
         .context("Failed to parse time format")?,
     );
+    let (otlp_tracing, otlp_error) = match init_server_otlp_tracing(&config.otel_settings) {
+        Ok(handle) => (handle, None),
+        Err(err) => (None, Some(err)),
+    };
 
     tracing_subscriber::registry()
         .with(filter)
@@ -122,10 +147,19 @@ fn build_json_tracer(filter: EnvFilter) -> AnyhowResult<()> {
                 .with_thread_ids(true)
                 .with_timer(timer),
         )
+        .with(
+            otlp_tracing
+                .as_ref()
+                .map(|handle| tracing_opentelemetry::layer().with_tracer(handle.tracer())),
+        )
         .try_init()
         .ok();
 
-    Ok(())
+    if let Some(err) = otlp_error {
+        warn!("Failed to initialize OTLP tracing: {}", err);
+    }
+
+    Ok(otlp_tracing)
 }
 
 impl ScouterSetupComponents {
@@ -133,10 +167,13 @@ impl ScouterSetupComponents {
         let config = Arc::new(ScouterServerConfig::new().await);
 
         // start logging
-        let logging = Self::setup_logging().await;
-        if logging.is_err() {
-            debug!("Failed to setup logging. {:?}", logging.err());
-        }
+        let otlp_tracing = match Self::setup_logging(&config).await {
+            Ok(handle) => handle,
+            Err(err) => {
+                debug!("Failed to setup logging. {:?}", err);
+                None
+            }
+        };
 
         let db_pool = Self::setup_database(&config.database_settings).await?;
 
@@ -238,6 +275,7 @@ impl ScouterSetupComponents {
             genai_service,
             dataset_manager,
             eval_scenario_service,
+            otlp_tracing,
         })
     }
 
@@ -319,7 +357,9 @@ impl ScouterSetupComponents {
         Ok(Arc::new(service))
     }
 
-    async fn setup_logging() -> AnyhowResult<()> {
+    async fn setup_logging(
+        config: &ScouterServerConfig,
+    ) -> AnyhowResult<Option<OtlpTracingHandle>> {
         let log_level = std::env::var("LOG_LEVEL").unwrap_or_else(|_| "info".to_string());
         let use_json = std::env::var("LOG_JSON")
             .unwrap_or_else(|_| "false".to_string())
@@ -327,14 +367,14 @@ impl ScouterSetupComponents {
 
         let filter = build_filter(&log_level);
 
-        if use_json {
-            build_json_tracer(filter)?;
+        let otlp_tracing = if use_json {
+            build_json_tracer(filter, config)?
         } else {
-            build_tracer(filter)?;
-        }
+            build_tracer(filter, config)?
+        };
 
         info!("Logging setup successfully");
-        Ok(())
+        Ok(otlp_tracing)
     }
 
     // setup default users

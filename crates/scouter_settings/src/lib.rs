@@ -9,6 +9,7 @@ pub mod events;
 pub mod genai;
 pub mod grpc;
 pub mod http;
+pub mod otel;
 pub mod polling;
 pub mod storage;
 
@@ -18,6 +19,7 @@ pub use database::DatabaseSettings;
 pub use events::{KafkaSettings, RabbitMQSettings, RedisSettings};
 pub use genai::GenAISettings;
 pub use http::HttpConfig;
+pub use otel::OtelSettings;
 pub use polling::PollingSettings;
 pub use storage::ObjectStorageSettings;
 
@@ -46,6 +48,7 @@ pub struct ScouterServerConfig {
     pub auth_settings: AuthSettings,
     pub bootstrap_key: String,
     pub storage_settings: ObjectStorageSettings,
+    pub otel_settings: OtelSettings,
 }
 
 impl ScouterServerConfig {
@@ -122,6 +125,7 @@ impl ScouterServerConfig {
             genai_settings,
             http_consumer_settings,
             storage_settings: ObjectStorageSettings::default(),
+            otel_settings: OtelSettings::default(),
         }
     }
 }

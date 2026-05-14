@@ -22,6 +22,7 @@ scouter-drift = { workspace = true, features = ["sql"] }
 scouter-observability = { workspace = true }
 scouter-sql = { workspace = true }
 scouter-tonic = { workspace = true, features = ["server"] }
+scouter-tracing = { workspace = true }
 
 
 arrow = { workspace = true }
@@ -55,6 +56,7 @@ thiserror = { workspace = true }
 tokio = { workspace = true }
 tower-http = { workspace = true }
 tracing = { workspace = true }
+tracing-opentelemetry = { workspace = true }
 tracing-subscriber = { workspace = true }
 utoipa = { workspace = true }
 utoipa-axum = { workspace = true }
