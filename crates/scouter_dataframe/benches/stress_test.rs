@@ -1,3 +1,4 @@
+mod tiers;
 mod utils;
 
 use chrono::Utc;
@@ -16,6 +17,10 @@ const ENTITY_TRACES: usize = 50;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    if !tiers::tier_guard_for("stress_test", "stress_test") {
+        return Ok(());
+    }
+
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::WARN)
         .init();

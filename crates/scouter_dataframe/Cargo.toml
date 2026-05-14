@@ -8,9 +8,13 @@ authors = [
 ]
 license = "MIT"
 description = "DataFusion client for long-term storage of scouter data"
+autobenches = false
 
 [lib]
 doctest = false
+
+[features]
+bench-jaeger = []
 
 [dependencies]
 scouter-settings = { workspace = true }
@@ -79,3 +83,11 @@ harness = false
 [[bench]]
 name = "hot_path_bench"
 harness = false
+
+[[bin]]
+name = "bench_tier_filter"
+path = "benches/tiers.rs"
+
+[[bin]]
+name = "bench_compare"
+path = "benches/tiers.rs"

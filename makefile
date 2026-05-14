@@ -120,6 +120,27 @@ test.dataframe.cloud.azure:
 	cargo test -p scouter-dataframe test_trace_service_azure_integration \
 	  --all-features -- --nocapture --test-threads=1
 
+.PHONY: bench.core
+bench.core:
+	SCOUTER_BENCH_TIER=0 cargo bench -p scouter-dataframe \
+		--bench trace_service_benchmark -- "$$(cargo run -q -p scouter-dataframe --bin bench_tier_filter -- --tier 0 --bench trace_service_benchmark)"
+	SCOUTER_BENCH_TIER=0 cargo bench -p scouter-dataframe \
+		--bench hot_path_bench -- "$$(cargo run -q -p scouter-dataframe --bin bench_tier_filter -- --tier 0 --bench hot_path_bench)"
+	SCOUTER_BENCH_TIER=0 cargo bench -p scouter-dataframe \
+		--bench dataset_benchmark -- "$$(cargo run -q -p scouter-dataframe --bin bench_tier_filter -- --tier 0 --bench dataset_benchmark)"
+	cargo run -q -p scouter-dataframe --bin bench_compare -- --tier 0
+
+.PHONY: bench.extended
+bench.extended:
+	SCOUTER_BENCH_TIER=1 cargo bench -p scouter-dataframe
+	cargo run -q -p scouter-dataframe --bin bench_compare -- --tier 1
+
+.PHONY: bench.certification
+bench.certification:
+	SCOUTER_BENCH_TIER=2 SCOUTER_BENCH_STORAGE_PROFILE=$${SCOUTER_BENCH_STORAGE_PROFILE:-P2_object_warm} \
+		cargo bench -p scouter-dataframe --bench stress_test --bench trace_service_benchmark
+	cargo run -q -p scouter-dataframe --bin bench_compare -- --tier 2
+
 
 .PHONY: test
 test: build.all_backends test.needs_sql test.unit build.shutdown

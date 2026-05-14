@@ -1,0 +1,25 @@
+{
+  "commit": "553a607685000971ef06678e913db7429d263148",
+  "bench_group": "t0_refresh_origin_sentinel",
+  "tier": 0,
+  "blocking": true,
+  "scenario_class": "refresh_origin_sentinel",
+  "runtime_budget_secs": 30,
+  "actual_runtime_secs": 9.58e-7,
+  "fixture_rows": 0,
+  "fixture_spans": 0,
+  "storage_profile": "P1_local_nvme",
+  "spans": {},
+  "object_store_counts": {
+    "list": 0,
+    "list_with_delimiter": 0,
+    "head": 0,
+    "get": 0,
+    "get_range": 0,
+    "put": 0,
+    "delete": 0,
+    "copy": 0,
+    "bytes": 0
+  },
+  "refresh_on_request_path_total": 0
+}

@@ -1,0 +1,56 @@
+{
+  "commit": "553a607685000971ef06678e913db7429d263148",
+  "bench_group": "t0_bifrost_smoke",
+  "tier": 0,
+  "blocking": true,
+  "scenario_class": "bifrost_smoke",
+  "runtime_budget_secs": 120,
+  "actual_runtime_secs": 51.151038333,
+  "fixture_rows": 1000,
+  "fixture_spans": 0,
+  "storage_profile": "P1_local_nvme",
+  "query_entrypoint": "dataset_engine_manager.query",
+  "result_rows": 256,
+  "spans": {
+    "bench.query.end_to_end": {
+      "count": 23341,
+      "p50_us": 927,
+      "p95_us": 5301,
+      "p99_us": 27795,
+      "sum_us": 49786477
+    },
+    "log.list": {
+      "count": 1,
+      "p50_us": 212,
+      "p95_us": 212,
+      "p99_us": 212,
+      "sum_us": 212
+    },
+    "object_store.request": {
+      "count": 23343,
+      "p50_us": 2,
+      "p95_us": 6,
+      "p99_us": 12,
+      "sum_us": 119172
+    },
+    "snap.build": {
+      "count": 1,
+      "p50_us": 221,
+      "p95_us": 221,
+      "p99_us": 221,
+      "sum_us": 221
+    }
+  },
+  "object_store_counts": {
+    "list": 1,
+    "list_with_delimiter": 0,
+    "head": 0,
+    "get": 1,
+    "get_range": 23341,
+    "put": 0,
+    "delete": 0,
+    "copy": 0,
+    "bytes": 0
+  },
+  "refresh_on_request_path_total": 0
+}
