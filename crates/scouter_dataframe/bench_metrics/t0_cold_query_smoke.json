@@ -1,0 +1,161 @@
+{
+  "commit": "553a607685000971ef06678e913db7429d263148",
+  "bench_group": "t0_cold_query_smoke",
+  "tier": 0,
+  "blocking": true,
+  "scenario_class": "cold_query",
+  "runtime_budget_secs": 120,
+  "actual_runtime_secs": 8.955178292,
+  "fixture_rows": 10080,
+  "fixture_spans": 10080,
+  "storage_profile": "P1_local_nvme",
+  "query_entrypoint": "trace_query_service.query_spans",
+  "result_rows": 5,
+  "spans": {
+    "arrow.convert": {
+      "count": 2423,
+      "p50_us": 44,
+      "p95_us": 57,
+      "p99_us": 98,
+      "sum_us": 113536
+    },
+    "bench.query.end_to_end": {
+      "count": 2423,
+      "p50_us": 3498,
+      "p95_us": 4237,
+      "p99_us": 4898,
+      "sum_us": 8610882
+    },
+    "create_checkpoint_for": {
+      "count": 1,
+      "p50_us": 4545,
+      "p95_us": 4545,
+      "p99_us": 4545,
+      "sum_us": 4545
+    },
+    "delta.catalog.swap": {
+      "count": 1,
+      "p50_us": 2,
+      "p95_us": 2,
+      "p99_us": 2,
+      "sum_us": 2
+    },
+    "delta.snapshot.refresh": {
+      "count": 1,
+      "p50_us": 4791,
+      "p95_us": 4791,
+      "p99_us": 4791,
+      "sum_us": 4791
+    },
+    "df.collect": {
+      "count": 2423,
+      "p50_us": 2406,
+      "p95_us": 3024,
+      "p99_us": 3417,
+      "sum_us": 5971006
+    },
+    "df.logical.build": {
+      "count": 9692,
+      "p50_us": 5,
+      "p95_us": 37,
+      "p99_us": 42,
+      "sum_us": 109562
+    },
+    "df.physical.plan": {
+      "count": 2423,
+      "p50_us": 884,
+      "p95_us": 1115,
+      "p99_us": 1337,
+      "sum_us": 2206267
+    },
+    "df.table.resolve": {
+      "count": 2423,
+      "p50_us": 22,
+      "p95_us": 33,
+      "p99_us": 52,
+      "sum_us": 57510
+    },
+    "last_checkpoint.read": {
+      "count": 1,
+      "p50_us": 172,
+      "p95_us": 172,
+      "p99_us": 172,
+      "sum_us": 172
+    },
+    "log.list": {
+      "count": 2,
+      "p50_us": 456,
+      "p95_us": 456,
+      "p99_us": 456,
+      "sum_us": 742
+    },
+    "log_seg.for_snap": {
+      "count": 1,
+      "p50_us": 465,
+      "p95_us": 465,
+      "p99_us": 465,
+      "sum_us": 465
+    },
+    "log_seg.load_p_m": {
+      "count": 2,
+      "p50_us": 1535,
+      "p95_us": 1535,
+      "p99_us": 1535,
+      "sum_us": 2427
+    },
+    "object_store.request": {
+      "count": 9691,
+      "p50_us": 1,
+      "p95_us": 2,
+      "p99_us": 4,
+      "sum_us": 13708
+    },
+    "snap": {
+      "count": 6,
+      "p50_us": 3435,
+      "p95_us": 10894,
+      "p99_us": 10894,
+      "sum_us": 24550
+    },
+    "snap.build": {
+      "count": 2,
+      "p50_us": 2064,
+      "p95_us": 2064,
+      "p99_us": 2064,
+      "sum_us": 3670
+    },
+    "snap.checkpoint": {
+      "count": 1,
+      "p50_us": 3425,
+      "p95_us": 3425,
+      "p99_us": 3425,
+      "sum_us": 3425
+    },
+    "trace.tree.build": {
+      "count": 2423,
+      "p50_us": 10,
+      "p95_us": 14,
+      "p99_us": 20,
+      "sum_us": 24851
+    },
+    "update_incremental": {
+      "count": 1,
+      "p50_us": 4749,
+      "p95_us": 4749,
+      "p99_us": 4749,
+      "sum_us": 4749
+    }
+  },
+  "object_store_counts": {
+    "list": 3,
+    "list_with_delimiter": 0,
+    "head": 1,
+    "get": 4,
+    "get_range": 9681,
+    "put": 2,
+    "delete": 0,
+    "copy": 0,
+    "bytes": 0
+  },
+  "refresh_on_request_path_total": 0
+}

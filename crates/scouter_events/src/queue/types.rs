@@ -49,6 +49,10 @@ impl TransportConfig {
         })
     }
 
+    pub fn is_mock(&self) -> bool {
+        matches!(self, TransportConfig::Mock(_))
+    }
+
     /// Create a TransportConfig from a python config object.
     /// Function will extract the transport type and then extract the corresponding config
     /// before returning the TransportConfig.

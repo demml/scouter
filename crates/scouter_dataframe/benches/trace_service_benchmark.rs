@@ -1,3 +1,7 @@
+mod counting_object_store;
+mod tiers;
+mod utils;
+
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use scouter_dataframe::parquet::tracing::service::TraceSpanService;
 use scouter_settings::ObjectStorageSettings;
@@ -6,6 +10,7 @@ use std::hint::black_box;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
+use tracing::Instrument;
 
 fn generate_trace_batch(num_traces: usize, spans_per_trace: usize) -> Vec<TraceSpanRecord> {
     use scouter_mocks::generate_trace_with_spans;
@@ -18,6 +23,10 @@ fn generate_trace_batch(num_traces: usize, spans_per_trace: usize) -> Vec<TraceS
 }
 
 fn bench_write_throughput(c: &mut Criterion) {
+    if !tiers::tier_guard_for("trace_service_benchmark", "write_throughput") {
+        return;
+    }
+
     let mut group = c.benchmark_group("write_throughput");
     group.sample_size(10);
     group.measurement_time(Duration::from_secs(20));
@@ -61,6 +70,10 @@ fn bench_write_throughput(c: &mut Criterion) {
 }
 
 fn bench_concurrent_writes(c: &mut Criterion) {
+    if !tiers::tier_guard_for("trace_service_benchmark", "concurrent_writes") {
+        return;
+    }
+
     let mut group = c.benchmark_group("concurrent_writes");
     group.sample_size(10);
     group.measurement_time(Duration::from_secs(20));
@@ -114,6 +127,10 @@ fn bench_concurrent_writes(c: &mut Criterion) {
 }
 
 fn bench_query_performance(c: &mut Criterion) {
+    if !tiers::tier_guard_for("trace_service_benchmark", "query_performance") {
+        return;
+    }
+
     let mut group = c.benchmark_group("query_performance");
     group.sample_size(20);
 
@@ -185,6 +202,10 @@ fn bench_query_performance(c: &mut Criterion) {
 }
 
 fn bench_sustained_load(c: &mut Criterion) {
+    if !tiers::tier_guard_for("trace_service_benchmark", "sustained_load") {
+        return;
+    }
+
     let mut group = c.benchmark_group("sustained_load");
     group.measurement_time(Duration::from_secs(30));
     group.sample_size(10);
@@ -224,6 +245,10 @@ fn bench_sustained_load(c: &mut Criterion) {
 }
 
 fn bench_query_at_scale(c: &mut Criterion) {
+    if !tiers::tier_guard_for("trace_service_benchmark", "query_at_scale") {
+        return;
+    }
+
     let mut group = c.benchmark_group("query_at_scale");
     // Sizes are intentionally moderate: the scaling curve (linear vs sub-linear)
     // is visible at [10K, 50K, 100K]. For absolute 1M-span latency numbers,
@@ -387,6 +412,10 @@ fn bench_query_at_scale(c: &mut Criterion) {
 /// - `by_id_with_time_bounds` — same traces but a 1-hour window per trace; proves ts_lit pruning
 /// - `by_entity`              — entity_id column predicate with a 1-hour window
 fn bench_cold_query(c: &mut Criterion) {
+    if !tiers::tier_guard_for("trace_service_benchmark", "cold_query") {
+        return;
+    }
+
     const HOURS: usize = 24;
     const SPANS_PER_HOUR: usize = 420; // ~10 080 total; 84 traces × 5 spans per hour
 
@@ -553,6 +582,10 @@ fn bench_cold_query(c: &mut Criterion) {
 /// Results are stored in `target/criterion/at_scale_1m/` and tracked across commits.
 /// Run with: `cargo bench -p scouter-dataframe --bench trace_service_benchmark at_scale_1m`
 fn bench_at_scale_1m(c: &mut Criterion) {
+    if !tiers::tier_guard_for("trace_service_benchmark", "at_scale_1m") {
+        return;
+    }
+
     use scouter_mocks::generate_trace_with_spans;
     use scouter_types::StorageType;
 
@@ -713,6 +746,10 @@ fn bench_at_scale_1m(c: &mut Criterion) {
 /// Results are stored in `target/criterion/at_scale_10m/` and tracked across commits.
 /// Run with: `cargo bench -p scouter-dataframe --bench trace_service_benchmark at_scale_10m`
 fn bench_at_scale_10m(c: &mut Criterion) {
+    if !tiers::tier_guard_for("trace_service_benchmark", "at_scale_10m") {
+        return;
+    }
+
     use chrono::Utc;
     use scouter_mocks::generate_trace_with_spans;
     use scouter_types::StorageType;
@@ -847,8 +884,141 @@ fn bench_at_scale_10m(c: &mut Criterion) {
     drop(tmp_dir);
 }
 
+fn bench_t0_cold_query_smoke(c: &mut Criterion) {
+    const GROUP: &str = "t0_cold_query_smoke";
+    if !tiers::tier_guard_for("trace_service_benchmark", GROUP) {
+        return;
+    }
+
+    let collector = utils::install_bench_span_collector();
+    use scouter_mocks::generate_trace_with_spans;
+
+    const HOURS: usize = 24;
+    const SPANS_PER_HOUR: usize = 420;
+    let rt = Runtime::new().unwrap();
+    let tmp_dir = tempfile::tempdir().unwrap();
+    let storage_settings = ObjectStorageSettings {
+        storage_uri: tmp_dir.path().to_str().unwrap().to_string(),
+        storage_type: StorageType::Local,
+        region: "us-east-1".to_string(),
+        trace_compaction_interval_hours: 999,
+        trace_flush_interval_secs: 1,
+        trace_refresh_interval_secs: 10,
+    };
+
+    let (service, ids) = rt.block_on(async {
+        let service = TraceSpanService::new(&storage_settings, 999, Some(1), None, 10, None)
+            .await
+            .unwrap();
+        let mut ids = Vec::new();
+        for hour in 0..HOURS {
+            let minutes_offset = (hour as i64) * 60;
+            let mut hour_spans = Vec::new();
+            for _ in 0..SPANS_PER_HOUR / 5 {
+                let (_record, spans, _tags) = generate_trace_with_spans(5, minutes_offset);
+                if let Some(first) = spans.first()
+                    && let Ok(id_bytes) = TraceId::hex_to_bytes(&first.trace_id.to_hex())
+                {
+                    ids.push(id_bytes);
+                }
+                hour_spans.extend(spans);
+            }
+            service.write_spans(hour_spans).await.unwrap();
+        }
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+        service.optimize().await.unwrap();
+        (Arc::new(service), Arc::new(ids))
+    });
+
+    // Probe once so setup failures fail before Criterion starts measuring.
+    let probe_rows = rt.block_on(async {
+        let id = &ids[0];
+        service
+            .query_service
+            .query_spans(Some(id), None, None, None, None, None, None, None)
+            .await
+            .unwrap()
+            .len() as u64
+    });
+
+    let object_store_start = collector.records_len();
+    let collector_start = collector.records_len();
+    let bench_start = Instant::now();
+    let service_for_bench = Arc::clone(&service);
+    let ids_for_bench = Arc::clone(&ids);
+    c.bench_function(GROUP, |b| {
+        b.to_async(&rt).iter_custom(|iters| {
+            let svc = Arc::clone(&service_for_bench);
+            let ids = Arc::clone(&ids_for_bench);
+            async move {
+                let start = Instant::now();
+                for i in 0..iters {
+                    let id = &ids[i as usize % ids.len()];
+                    let _ = black_box(
+                        svc.query_service
+                            .query_spans(Some(id), None, None, None, None, None, None, None)
+                            .instrument(tracing::info_span!(tiers::END_TO_END_SPAN))
+                            .await
+                            .unwrap(),
+                    );
+                }
+                start.elapsed()
+            }
+        });
+    });
+
+    let actual_runtime = bench_start.elapsed();
+    let spans = utils::summarize_spans(&collector.records_since(collector_start));
+    let object_store_counts = collector.object_store_counts_since(object_store_start);
+    utils::write_bench_artifact(
+        "trace_service_benchmark",
+        GROUP,
+        actual_runtime,
+        spans,
+        object_store_counts,
+        0,
+        Some("trace_query_service.query_spans"),
+        Some(probe_rows),
+    );
+
+    drop(service_for_bench);
+    drop(ids_for_bench);
+    let service =
+        Arc::try_unwrap(service).unwrap_or_else(|_| panic!("Arc still has multiple owners"));
+    rt.block_on(async { service.shutdown().await.unwrap() });
+    drop(tmp_dir);
+}
+
+fn bench_t0_refresh_origin_sentinel(c: &mut Criterion) {
+    const GROUP: &str = "t0_refresh_origin_sentinel";
+    if !tiers::tier_guard_for("trace_service_benchmark", GROUP) {
+        return;
+    }
+
+    let collector = utils::install_bench_span_collector();
+    let object_store_start = collector.records_len();
+    let start = Instant::now();
+    let spans = utils::summarize_spans(&collector.records_since(object_store_start));
+    utils::write_bench_artifact(
+        "trace_service_benchmark",
+        GROUP,
+        start.elapsed(),
+        spans,
+        collector.object_store_counts_since(object_store_start),
+        0,
+        None,
+        None,
+    );
+
+    c.bench_function(GROUP, |b| {
+        b.iter(|| black_box(0_u64));
+    });
+}
+
 criterion_group!(
     benches,
+    bench_t0_cold_query_smoke,
+    bench_t0_refresh_origin_sentinel,
     bench_write_throughput,
     bench_concurrent_writes,
     bench_query_performance,
