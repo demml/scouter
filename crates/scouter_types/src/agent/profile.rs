@@ -843,13 +843,6 @@ impl Default for AgentEvalProfile {
 }
 
 impl AgentEvalProfile {
-    pub async fn reset_workflow_agents(&mut self) -> Result<(), ProfileError> {
-        if let Some(workflow) = &mut self.workflow {
-            workflow.reset_agents().await?;
-        }
-        Ok(())
-    }
-
     /// Helper method to build profile from given tasks
     pub fn build_from_parts(
         config: AgentEvalConfig,

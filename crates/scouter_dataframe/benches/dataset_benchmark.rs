@@ -1,6 +1,3 @@
-mod tiers;
-mod utils;
-
 use arrow::array::{Date32Array, Float64Array, StringArray, TimestampMicrosecondArray};
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow_array::RecordBatch;
@@ -12,9 +9,8 @@ use scouter_types::StorageType;
 use scouter_types::dataset::{DatasetFingerprint, DatasetNamespace, DatasetRegistration};
 use std::hint::black_box;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::runtime::Runtime;
-use tracing::Instrument;
 
 fn bench_schema() -> Schema {
     Schema::new(vec![
@@ -77,10 +73,6 @@ fn make_storage_settings(dir: &tempfile::TempDir) -> ObjectStorageSettings {
 }
 
 fn bench_write_throughput(c: &mut Criterion) {
-    if !tiers::tier_guard_for("dataset_benchmark", "dataset_write") {
-        return;
-    }
-
     let mut group = c.benchmark_group("dataset_write");
     group.sample_size(10);
     group.measurement_time(Duration::from_secs(30));
@@ -121,10 +113,6 @@ fn bench_write_throughput(c: &mut Criterion) {
 }
 
 fn bench_query(c: &mut Criterion) {
-    if !tiers::tier_guard_for("dataset_benchmark", "dataset_query") {
-        return;
-    }
-
     let rt = Runtime::new().unwrap();
     let dir = tempfile::tempdir().unwrap();
     let schema = bench_schema();
@@ -190,90 +178,5 @@ fn bench_query(c: &mut Criterion) {
     });
 }
 
-fn bench_t0_bifrost_smoke(c: &mut Criterion) {
-    const GROUP: &str = "t0_bifrost_smoke";
-    if !tiers::tier_guard_for("dataset_benchmark", GROUP) {
-        return;
-    }
-
-    let collector = utils::install_bench_span_collector();
-    let rt = Runtime::new().unwrap();
-    let dir = tempfile::tempdir().unwrap();
-    let schema = bench_schema();
-    let (manager, namespace) = rt.block_on(async {
-        let settings = make_storage_settings(&dir);
-        let manager = DatasetEngineManager::with_config(&settings, 1800, 10, 1, 50_000, 30)
-            .await
-            .unwrap();
-        let reg = make_registration(&schema);
-        manager.register_dataset(&reg).await.unwrap();
-        manager
-            .insert_batch(&reg.namespace, &reg.fingerprint, make_batch(&schema, 1_000))
-            .await
-            .unwrap();
-        tokio::time::sleep(Duration::from_millis(1500)).await;
-        (Arc::new(manager), reg.namespace.clone())
-    });
-    let fqn = namespace.fqn();
-    let sql = format!("SELECT * FROM {fqn} LIMIT 256");
-
-    // Probe once so fixture or query failures fail before Criterion starts measuring.
-    let probe_rows = rt.block_on(async {
-        let batches = manager.query(&sql).await.unwrap();
-        batches.iter().map(|batch| batch.num_rows()).sum::<usize>() as u64
-    });
-
-    let object_store_start = collector.records_len();
-    let collector_start = collector.records_len();
-    let bench_start = Instant::now();
-    let manager_for_bench = Arc::clone(&manager);
-    let sql_for_bench = sql.clone();
-    c.bench_function(GROUP, |b| {
-        b.to_async(&rt).iter_custom(|iters| {
-            let mgr = Arc::clone(&manager_for_bench);
-            let sql = sql_for_bench.clone();
-            async move {
-                let start = Instant::now();
-                for _ in 0..iters {
-                    let _ = black_box(
-                        mgr.query(&sql)
-                            .instrument(tracing::info_span!(tiers::END_TO_END_SPAN))
-                            .await
-                            .unwrap(),
-                    );
-                }
-                start.elapsed()
-            }
-        });
-    });
-
-    let actual_runtime = bench_start.elapsed();
-    let spans = utils::summarize_spans(&collector.records_since(collector_start));
-    let object_store_counts = collector.object_store_counts_since(object_store_start);
-    utils::write_bench_artifact(
-        "dataset_benchmark",
-        GROUP,
-        actual_runtime,
-        spans,
-        object_store_counts,
-        0,
-        Some("dataset_engine_manager.query"),
-        Some(probe_rows),
-    );
-
-    drop(manager_for_bench);
-    rt.block_on(async {
-        Arc::try_unwrap(manager)
-            .unwrap_or_else(|_| panic!("manager still referenced"))
-            .shutdown()
-            .await;
-    });
-}
-
-criterion_group!(
-    benches,
-    bench_t0_bifrost_smoke,
-    bench_write_throughput,
-    bench_query
-);
+criterion_group!(benches, bench_write_throughput, bench_query);
 criterion_main!(benches);

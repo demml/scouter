@@ -28,7 +28,7 @@ use std::sync::Arc;
 use tokio::sync::oneshot;
 use tokio::sync::{RwLock as AsyncRwLock, mpsc};
 use tokio::time::{Duration, interval};
-use tracing::{Instrument, Level, debug, error, info, instrument, span};
+use tracing::{debug, error, info, instrument};
 use url::Url;
 
 /// Days from CE epoch to Unix epoch (1970-01-01).
@@ -39,17 +39,6 @@ const SUMMARY_TABLE_NAME: &str = "trace_summaries";
 
 /// Control table task name for summary compaction coordination.
 const TASK_SUMMARY_OPTIMIZE: &str = "summary_optimize";
-
-mod phase0 {
-    pub mod spans {
-        pub const TRACE_QUERY_PAGINATED: &str = "scouter.trace.query.paginated";
-        pub const DF_TABLE_RESOLVE: &str = "df.table.resolve";
-        pub const DF_LOGICAL_BUILD: &str = "df.logical.build";
-        pub const DF_PHYSICAL_PLAN: &str = "df.physical.plan";
-        pub const DF_COLLECT: &str = "df.collect";
-        pub const ARROW_CONVERT: &str = "arrow.convert";
-    }
-}
 
 // ── Column name constants ────────────────────────────────────────────────────
 const TRACE_ID_COL: &str = "trace_id";
@@ -794,33 +783,6 @@ pub struct TraceSummaryQueries {
 
 const MAX_PAGE_LIMIT: usize = 500;
 
-async fn collect_with_phase0(
-    df: DataFrame,
-    endpoint: &'static str,
-    table_name: &'static str,
-) -> Result<Vec<RecordBatch>, TraceEngineError> {
-    df.clone()
-        .create_physical_plan()
-        .instrument(span!(
-            Level::INFO,
-            phase0::spans::DF_PHYSICAL_PLAN,
-            endpoint,
-            table = table_name
-        ))
-        .await
-        .map_err(TraceEngineError::DatafusionError)?;
-
-    df.collect()
-        .instrument(span!(
-            Level::INFO,
-            phase0::spans::DF_COLLECT,
-            endpoint,
-            table = table_name
-        ))
-        .await
-        .map_err(TraceEngineError::DatafusionError)
-}
-
 /// Build one summary row per trace over the requested time window.
 ///
 /// The summary table can contain multiple rows for a trace as late spans arrive.
@@ -834,35 +796,17 @@ pub(crate) async fn deduped_summary_df(
     use crate::parquet::tracing::queries::{date_lit, ts_lit};
     use datafusion::functions_aggregate::expr_fn::{first_value, max, min, sum};
 
-    let mut df = ctx
-        .table(SUMMARY_TABLE_NAME)
-        .instrument(span!(
-            Level::INFO,
-            phase0::spans::DF_TABLE_RESOLVE,
-            endpoint = phase0::spans::TRACE_QUERY_PAGINATED,
-            table = SUMMARY_TABLE_NAME
-        ))
-        .await?;
+    let mut df = ctx.table(SUMMARY_TABLE_NAME).await?;
 
-    {
-        let _span = span!(
-            Level::INFO,
-            phase0::spans::DF_LOGICAL_BUILD,
-            endpoint = phase0::spans::TRACE_QUERY_PAGINATED,
-            table = SUMMARY_TABLE_NAME,
-            phase = "time_filters"
-        )
-        .entered();
-        // Time predicates stay first so Delta Lake can prune partitions and Parquet
-        // row groups before the aggregation merges summary fragments per trace.
-        if let Some(start) = time_window.start {
-            df = df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
-            df = df.filter(col(START_TIME_COL).gt_eq(ts_lit(&start)))?;
-        }
-        if let Some(end) = time_window.end {
-            df = df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end)))?;
-            df = df.filter(col(START_TIME_COL).lt(ts_lit(&end)))?;
-        }
+    // Time predicates stay first so Delta Lake can prune partitions and Parquet
+    // row groups before the aggregation merges summary fragments per trace.
+    if let Some(start) = time_window.start {
+        df = df.filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&start)))?;
+        df = df.filter(col(START_TIME_COL).gt_eq(ts_lit(&start)))?;
+    }
+    if let Some(end) = time_window.end {
+        df = df.filter(col(PARTITION_DATE_COL).lt_eq(date_lit(&end)))?;
+        df = df.filter(col(START_TIME_COL).lt(ts_lit(&end)))?;
     }
 
     let by_span_end: Vec<SortExpr> = vec![
@@ -876,16 +820,8 @@ pub(crate) async fn deduped_summary_df(
 
     // Duration is derived after aggregation because DataFusion cannot reuse two
     // aggregate outputs inside another aggregate expression in the same slot.
-    let df = {
-        let _span = span!(
-            Level::INFO,
-            phase0::spans::DF_LOGICAL_BUILD,
-            endpoint = phase0::spans::TRACE_QUERY_PAGINATED,
-            table = SUMMARY_TABLE_NAME,
-            phase = "dedupe_aggregate"
-        )
-        .entered();
-        df.aggregate(
+    let df = df
+        .aggregate(
             vec![col(TRACE_ID_COL)],
             vec![
                 min(col(START_TIME_COL)).alias(START_TIME_COL),
@@ -914,8 +850,7 @@ pub(crate) async fn deduped_summary_df(
             DURATION_MS_COL,
             (col("_max_end_us") - col("_min_start_us")) / lit(1000i64),
         )?
-        .drop_columns(&["_max_end_us", "_min_start_us"])?
-    };
+        .drop_columns(&["_max_end_us", "_min_start_us"])?;
 
     Ok(df)
 }
@@ -935,7 +870,6 @@ impl TraceSummaryQueries {
     /// Time filters are pushed into the SQL WHERE clause for partition pruning.
     ///
     /// Secondary filters (service, errors, cursor) apply to the deduplicated DataFrame.
-    #[instrument(skip_all, name = "scouter.trace.query.paginated")]
     pub async fn get_paginated_traces(
         &self,
         filters: &TraceFilters,
@@ -962,14 +896,6 @@ impl TraceSummaryQueries {
                 })
                 .collect::<Result<_, _>>()?;
             if !binary_ids.is_empty() {
-                let _span = span!(
-                    Level::INFO,
-                    phase0::spans::DF_LOGICAL_BUILD,
-                    endpoint = phase0::spans::TRACE_QUERY_PAGINATED,
-                    table = SUMMARY_TABLE_NAME,
-                    phase = "trace_id_filter"
-                )
-                .entered();
                 df = df.filter(col(TRACE_ID_COL).in_list(binary_ids, false))?;
             }
         }
@@ -1001,14 +927,6 @@ impl TraceSummaryQueries {
                         .eq(cursor_ts)
                         .and(col(TRACE_ID_COL).lt(cursor_tid)))
             };
-            let _span = span!(
-                Level::INFO,
-                phase0::spans::DF_LOGICAL_BUILD,
-                endpoint = phase0::spans::TRACE_QUERY_PAGINATED,
-                table = SUMMARY_TABLE_NAME,
-                phase = "cursor_filter"
-            )
-            .entered();
             df = df.filter(cursor_expr)?;
         }
 
@@ -1030,44 +948,23 @@ impl TraceSummaryQueries {
         // ── Sort: DESC for "next", ASC for "previous" ────────────────────────
         // "previous" direction fetches the oldest limit+1 items newer than the cursor,
         // which matches the original Rust post-reversal behavior.
-        {
-            let _span = span!(
-                Level::INFO,
-                phase0::spans::DF_LOGICAL_BUILD,
-                endpoint = phase0::spans::TRACE_QUERY_PAGINATED,
-                table = SUMMARY_TABLE_NAME,
-                phase = "sort_limit"
-            )
-            .entered();
-            df = if direction == "previous" {
-                df.sort(vec![
-                    col(START_TIME_COL).sort(true, true),
-                    col(TRACE_ID_COL).sort(true, true),
-                ])?
-            } else {
-                df.sort(vec![
-                    col(START_TIME_COL).sort(false, false),
-                    col(TRACE_ID_COL).sort(false, false),
-                ])?
-            };
-
-            // ── LIMIT pushed into DataFusion (fetch limit+1 to detect next page) ─
-            df = df.limit(0, Some(limit + 1))?;
-        }
-
-        let batches =
-            collect_with_phase0(df, phase0::spans::TRACE_QUERY_PAGINATED, SUMMARY_TABLE_NAME)
-                .await?;
-        let mut items = {
-            let _span = span!(
-                Level::INFO,
-                phase0::spans::ARROW_CONVERT,
-                endpoint = phase0::spans::TRACE_QUERY_PAGINATED,
-                table = SUMMARY_TABLE_NAME
-            )
-            .entered();
-            batches_to_trace_list_items(batches)?
+        df = if direction == "previous" {
+            df.sort(vec![
+                col(START_TIME_COL).sort(true, true),
+                col(TRACE_ID_COL).sort(true, true),
+            ])?
+        } else {
+            df.sort(vec![
+                col(START_TIME_COL).sort(false, false),
+                col(TRACE_ID_COL).sort(false, false),
+            ])?
         };
+
+        // ── LIMIT pushed into DataFusion (fetch limit+1 to detect next page) ─
+        df = df.limit(0, Some(limit + 1))?;
+
+        let batches = df.collect().await?;
+        let mut items = batches_to_trace_list_items(batches)?;
 
         let has_more = items.len() > limit;
         if has_more {

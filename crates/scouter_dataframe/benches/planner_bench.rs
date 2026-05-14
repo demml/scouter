@@ -1,5 +1,3 @@
-mod tiers;
-
 use chrono::Utc;
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use scouter_dataframe::parquet::tracing::queries::TraceQueries;
@@ -107,10 +105,6 @@ fn metrics_request(clause: FilterClause) -> TraceMetricsRequest {
 }
 
 fn benchmark_planner_queries(c: &mut Criterion) {
-    if !tiers::tier_guard_for("planner_bench", "planner_queries") {
-        return;
-    }
-
     let mut group = c.benchmark_group("planner_queries");
     group.sample_size(10);
     group.measurement_time(Duration::from_secs(3));

@@ -545,14 +545,15 @@ impl ScouterQueue {
     ) -> Result<Py<QueueBus>, PyEventError> {
         let settings = if let DriftProfile::Agent(genai_profile) = &drift_profile {
             let mut profile = genai_profile.clone();
-            if config.is_mock()
-                && let Err(error) = app_state()
+            if let Some(workflow) = &mut profile.workflow
+                && std::env::var("SCOUTER_OFFLINE").as_deref() == Ok("1")
+                && let Err(e) = app_state()
                     .handle()
-                    .block_on(async { profile.reset_workflow_agents().await })
+                    .block_on(async { workflow.reset_agents().await })
             {
                 error!(
                     "Failed to reset workflow agents for profile {}: {:?}",
-                    id, error
+                    id, e
                 );
             }
             registry

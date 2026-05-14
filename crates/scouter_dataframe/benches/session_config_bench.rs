@@ -10,7 +10,6 @@
 //! SCOUTER_STORAGE_URI=gs://your-bucket cargo bench -p scouter-dataframe --bench session_config_bench
 //! ```
 
-mod tiers;
 mod utils;
 
 use chrono::Utc;
@@ -27,10 +26,6 @@ const QUERY_ITERS: usize = 200;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    if !tiers::tier_guard_for("session_config_bench", "session_config_bench") {
-        return Ok(());
-    }
-
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::WARN)
         .init();
