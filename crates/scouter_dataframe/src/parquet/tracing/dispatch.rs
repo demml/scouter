@@ -2,6 +2,7 @@ use crate::error::TraceEngineError;
 use crate::parquet::tracing::catalog::TraceCatalogProvider;
 use crate::parquet::tracing::traits::arrow_schema_to_delta;
 use crate::parquet::utils::register_cloud_logstore_factories;
+use crate::parquet::writer_props::trace_dispatch_writer_props;
 use crate::storage::ObjectStore;
 use arrow::array::{
     Date32Builder, FixedSizeBinaryBuilder, Int8Builder, TimestampMicrosecondArray,
@@ -294,6 +295,7 @@ impl TraceDispatchDBEngine {
         let updated_table = current_table
             .write(vec![batch])
             .with_save_mode(deltalake::protocol::SaveMode::Append)
+            .with_writer_properties(trace_dispatch_writer_props())
             .with_partition_columns(vec![PARTITION_DATE_COL.to_string()])
             .await?;
 

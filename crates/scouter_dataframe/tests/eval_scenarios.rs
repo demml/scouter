@@ -1,4 +1,4 @@
-use chrono::Utc;
+use chrono::{TimeZone, Utc};
 use scouter_dataframe::{EvalScenarioRecord, EvalScenarioService};
 use scouter_settings::ObjectStorageSettings;
 
@@ -16,6 +16,17 @@ fn make_record(collection_id: &str, scenario_id: &str) -> EvalScenarioRecord {
         scenario_json: r#"{"id":"s1","input":{"prompt":"hi"},"expected_output":{"text":"hello"}}"#
             .to_string(),
         created_at: Utc::now(),
+    }
+}
+
+fn make_record_at(
+    collection_id: &str,
+    scenario_id: &str,
+    created_at: chrono::DateTime<Utc>,
+) -> EvalScenarioRecord {
+    EvalScenarioRecord {
+        created_at,
+        ..make_record(collection_id, scenario_id)
     }
 }
 
@@ -61,6 +72,32 @@ async fn test_two_collections_isolated() {
     assert_eq!(col_b.len(), 1);
     assert!(col_a.iter().all(|r| r.collection_id == "col-a"));
     assert!(col_b.iter().all(|r| r.collection_id == "col-b"));
+}
+
+#[tokio::test]
+async fn test_partition_date_is_written_from_created_at_utc_date() {
+    let dir = tempfile::tempdir().unwrap();
+    let settings = local_settings(dir.path());
+    let service = EvalScenarioService::new(&settings).await.unwrap();
+
+    let created_at = Utc.with_ymd_and_hms(2026, 5, 14, 23, 30, 0).unwrap();
+    service
+        .write_scenarios(vec![make_record_at("partition-col", "s1", created_at)])
+        .await
+        .unwrap();
+
+    let results = service.get_scenarios("partition-col").await.unwrap();
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].created_at, created_at);
+
+    let partition_dir = dir
+        .path()
+        .join("eval_scenarios")
+        .join("partition_date=2026-05-14");
+    assert!(
+        partition_dir.exists(),
+        "expected eval_scenarios to be partitioned by UTC created_at date"
+    );
 }
 
 #[tokio::test]

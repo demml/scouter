@@ -1,11 +1,12 @@
 use crate::error::TraceEngineError;
 use crate::parquet::control::{ControlTableEngine, get_pod_id};
+use crate::parquet::maintenance::{trace_vacuum_retention_hours, validate_trace_vacuum_retention};
 use crate::parquet::tracing::catalog::TraceCatalogProvider;
-use crate::parquet::tracing::queries::{SERVICE_NAMESPACE_COL, SERVICE_VERSION_COL};
 use crate::parquet::tracing::traits::TraceSchemaExt;
 use crate::parquet::tracing::traits::arrow_schema_to_delta;
 use crate::parquet::tracing::traits::attribute_field;
 use crate::parquet::utils::{create_attr_match_udf, register_cloud_logstore_factories};
+use crate::parquet::writer_props::trace_span_writer_props;
 use crate::storage::ObjectStore;
 use arrow::array::*;
 use arrow::datatypes::*;
@@ -13,9 +14,6 @@ use arrow_array::RecordBatch;
 use chrono::{Datelike, Utc};
 use datafusion::catalog::CatalogProvider;
 use datafusion::prelude::SessionContext;
-use deltalake::datafusion::parquet::basic::{Compression, Encoding, ZstdLevel};
-use deltalake::datafusion::parquet::file::properties::{EnabledStatistics, WriterProperties};
-use deltalake::datafusion::parquet::schema::types::ColumnPath;
 use deltalake::operations::optimize::OptimizeType;
 use deltalake::{DeltaTable, DeltaTableBuilder, TableProperty};
 use scouter_settings::ObjectStorageSettings;
@@ -335,80 +333,6 @@ impl TraceSpanDBEngine {
         Ok(record_batch)
     }
 
-    /// Build the shared `WriterProperties` used for both ingest writes and Z-ORDER compaction.
-    fn build_writer_props() -> WriterProperties {
-        WriterProperties::builder()
-            // Row group size: creates ~4 groups per 128MB file so bloom + page stats
-            // prune within files, not just across files.
-            .set_max_row_group_row_count(Some(32_768))
-            // Bloom filter on trace_id: skips ~99% of row groups for trace_id equality lookups.
-            .set_column_bloom_filter_enabled(ColumnPath::new(vec!["trace_id".to_string()]), true)
-            .set_column_bloom_filter_fpp(ColumnPath::new(vec!["trace_id".to_string()]), 0.01)
-            .set_column_bloom_filter_ndv(ColumnPath::new(vec!["trace_id".to_string()]), 32_768)
-            // service_name: low cardinality but hot lookup path — bloom skips row groups fast
-            .set_column_bloom_filter_enabled(
-                ColumnPath::new(vec!["service_name".to_string()]),
-                true,
-            )
-            .set_column_bloom_filter_fpp(ColumnPath::new(vec!["service_name".to_string()]), 0.01)
-            .set_column_bloom_filter_ndv(ColumnPath::new(vec!["service_name".to_string()]), 256)
-            .set_column_bloom_filter_enabled(
-                ColumnPath::new(vec![SERVICE_NAMESPACE_COL.to_string()]),
-                true,
-            )
-            .set_column_bloom_filter_fpp(
-                ColumnPath::new(vec![SERVICE_NAMESPACE_COL.to_string()]),
-                0.01,
-            )
-            .set_column_bloom_filter_ndv(
-                ColumnPath::new(vec![SERVICE_NAMESPACE_COL.to_string()]),
-                256,
-            )
-            .set_column_bloom_filter_enabled(
-                ColumnPath::new(vec![SERVICE_VERSION_COL.to_string()]),
-                true,
-            )
-            .set_column_bloom_filter_fpp(
-                ColumnPath::new(vec![SERVICE_VERSION_COL.to_string()]),
-                0.01,
-            )
-            .set_column_bloom_filter_ndv(
-                ColumnPath::new(vec![SERVICE_VERSION_COL.to_string()]),
-                256,
-            )
-            // span_name: high cardinality equality queries (e.g. "grpc.unary/method")
-            .set_column_bloom_filter_enabled(ColumnPath::new(vec!["span_name".to_string()]), true)
-            .set_column_bloom_filter_fpp(ColumnPath::new(vec!["span_name".to_string()]), 0.01)
-            .set_column_bloom_filter_ndv(ColumnPath::new(vec!["span_name".to_string()]), 32_768)
-            // Page-level stats on start_time: finest-grained time pruning within row groups.
-            .set_column_statistics_enabled(
-                ColumnPath::new(vec!["start_time".to_string()]),
-                EnabledStatistics::Page,
-            )
-            // status_code: page-level min/max prunes pages for error-only queries.
-            // Do NOT use bloom filter: only 3 possible values (0/1/2), overhead > benefit.
-            .set_column_statistics_enabled(
-                ColumnPath::new(vec!["status_code".to_string()]),
-                EnabledStatistics::Page,
-            )
-            // Delta encoding on near-sorted integer columns: 4-8x compression on timestamps
-            // after Z-ORDER compaction; 2-4x on durations within a service.
-            .set_column_encoding(
-                ColumnPath::new(vec!["start_time".to_string()]),
-                Encoding::DELTA_BINARY_PACKED,
-            )
-            .set_column_encoding(
-                ColumnPath::new(vec!["duration_ms".to_string()]),
-                Encoding::DELTA_BINARY_PACKED,
-            )
-            // ZSTD level 3: ~40% better compression than SNAPPY on text columns;
-            // marginal decompression overhead is offset by reduced I/O.
-            .set_compression(Compression::ZSTD(ZstdLevel::try_new(3).unwrap()))
-            // Dictionary hint on span_name: high repetition similar to service_name.
-            .set_column_dictionary_enabled(ColumnPath::new(vec!["span_name".to_string()]), true)
-            .build()
-    }
-
     /// Write spans to the Delta table (single-writer invariant via actor channel).
     async fn write_spans(&self, spans: Vec<TraceSpanRecord>) -> Result<(), TraceEngineError> {
         info!("Engine received write request for {} spans", spans.len());
@@ -436,7 +360,7 @@ impl TraceSpanDBEngine {
         let updated_table = current_table
             .write(vec![batch])
             .with_save_mode(deltalake::protocol::SaveMode::Append)
-            .with_writer_properties(Self::build_writer_props())
+            .with_writer_properties(trace_span_writer_props())
             // Always declare partition columns explicitly — do not rely solely on the
             // in-memory snapshot, which can be stale after a failed update_incremental.
             .with_partition_columns(vec!["partition_date".to_string()])
@@ -485,7 +409,7 @@ impl TraceSpanDBEngine {
                 // Bloom filters must be re-specified here — compaction rewrites all Parquet files
                 // from scratch using these properties. Without this, every compaction cycle
                 // silently discards all bloom filters on the rewritten files.
-                .with_writer_properties(Self::build_writer_props())
+                .with_writer_properties(trace_span_writer_props())
                 .await
         }
         .instrument(optimize_span)
@@ -509,6 +433,7 @@ impl TraceSpanDBEngine {
     }
 
     async fn vacuum_table(&self, retention_hours: u64) -> Result<(), TraceEngineError> {
+        let retention_hours = validate_trace_vacuum_retention(retention_hours)?;
         let mut table_guard = self.table.write().await;
 
         let (updated_table, _metrics) = table_guard
@@ -585,10 +510,7 @@ impl TraceSpanDBEngine {
         match self.control.try_claim_task(TASK_OPTIMIZE).await {
             Ok(true) => match self.optimize_table().await {
                 Ok(()) => {
-                    // Vacuum tombstoned files left behind by compaction.
-                    // retention_hours=0 is safe here because the single-writer invariant
-                    // guarantees no concurrent reader is using an older table version.
-                    if let Err(e) = self.vacuum_table(0).await {
+                    if let Err(e) = self.vacuum_table(trace_vacuum_retention_hours()).await {
                         error!("Post-optimize vacuum failed: {}", e);
                     }
                     let _ = self
@@ -617,8 +539,7 @@ impl TraceSpanDBEngine {
                     (Utc::now() - chrono::Duration::days(retention_days as i64)).date_naive();
                 match self.expire_table(cutoff).await {
                     Ok(()) => {
-                        // Reclaim disk space after logical delete
-                        let _ = self.vacuum_table(0).await;
+                        let _ = self.vacuum_table(trace_vacuum_retention_hours()).await;
                         let _ = self
                             .control
                             .release_task(TASK_RETENTION, chrono::Duration::hours(24))
@@ -815,7 +736,9 @@ impl TraceSpanDBEngine {
                                 // Response is sent before vacuum so callers aren't blocked
                                 // on the potentially slow file-deletion pass.
                                 let _ = respond_to.send(self.optimize_table().await);
-                                if let Err(e) = self.vacuum_table(0).await {
+                                if let Err(e) =
+                                    self.vacuum_table(trace_vacuum_retention_hours()).await
+                                {
                                     error!("Post-optimize vacuum failed: {}", e);
                                 }
                             }

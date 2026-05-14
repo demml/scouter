@@ -1,4 +1,5 @@
 use crate::error::TraceEngineError;
+use crate::parquet::maintenance::trace_vacuum_retention_hours;
 use crate::parquet::tracing::catalog::TraceCatalogProvider;
 use crate::parquet::tracing::engine::{TableCommand, TraceSpanDBEngine};
 use crate::parquet::tracing::genai::GenAiTableCommand;
@@ -347,10 +348,9 @@ impl TraceSpanService {
             .map_err(|_| TraceEngineError::ChannelClosed)?;
         rx.await.map_err(|_| TraceEngineError::ChannelClosed)??;
 
-        // Step 2: VACUUM — physically deletes orphaned files from storage.
-        // retention_hours=0 with enforce_retention_duration=false removes all
-        // post-DELETE orphans immediately.
-        self.vacuum(0).await
+        // Step 2: VACUUM — physically deletes orphaned files from storage after the
+        // configured safety window.
+        self.vacuum(trace_vacuum_retention_hours()).await
     }
 
     /// Signal shutdown without consuming `self` — safe to call from `Arc<TraceSpanService>`.
