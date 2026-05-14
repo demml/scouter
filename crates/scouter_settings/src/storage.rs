@@ -31,6 +31,22 @@ pub fn trace_span_cache_ttl_secs_from_env() -> u64 {
         .unwrap_or(300)
 }
 
+fn positive_u32_from_env(key: &str, default: u32) -> u32 {
+    std::env::var(key)
+        .ok()
+        .and_then(|v| v.parse::<u32>().ok())
+        .filter(|v| *v > 0)
+        .unwrap_or(default)
+}
+
+pub fn trace_lookup_padding_secs_from_env() -> u32 {
+    positive_u32_from_env("SCOUTER_TRACE_LOOKUP_PADDING_SECS", 60)
+}
+
+pub fn trace_lookup_hint_window_secs_from_env() -> u32 {
+    positive_u32_from_env("SCOUTER_TRACE_LOOKUP_HINT_WINDOW_SECS", 3600)
+}
+
 pub fn trace_vacuum_retention_hours_from_env() -> u64 {
     std::env::var("SCOUTER_TRACE_VACUUM_RETENTION_HOURS")
         .ok()
@@ -43,6 +59,21 @@ pub fn trace_unsafe_vacuum_allow_zero_from_env() -> bool {
         .ok()
         .and_then(|v| v.parse::<bool>().ok())
         .unwrap_or(false)
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TraceLookupSettings {
+    pub padding_secs: u32,
+    pub hint_window_secs: u32,
+}
+
+impl Default for TraceLookupSettings {
+    fn default() -> Self {
+        Self {
+            padding_secs: trace_lookup_padding_secs_from_env(),
+            hint_window_secs: trace_lookup_hint_window_secs_from_env(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]

@@ -119,6 +119,32 @@ async fn fetch_trace_spans_by_id_raw_with_token(
     (status, body)
 }
 
+async fn fetch_v1_trace_spans_by_id_raw(
+    helper: &TestHelper,
+    trace_id: &str,
+    query: Option<&str>,
+) -> (StatusCode, Vec<u8>) {
+    let uri = match query {
+        Some(query) if !query.is_empty() => format!("/scouter/v1/traces/{trace_id}/spans?{query}"),
+        _ => format!("/scouter/v1/traces/{trace_id}/spans"),
+    };
+    let request = Request::builder()
+        .uri(uri)
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+    let response = helper.send_oneshot(request).await;
+    let status = response.status();
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes()
+        .to_vec();
+    (status, body)
+}
+
 async fn fetch_facets(helper: &TestHelper, filters: &TraceFilters) -> TraceFacetsResponse {
     let body = serde_json::to_string(filters).unwrap();
     let request = Request::builder()
@@ -504,6 +530,68 @@ async fn test_tracing() {
         !attr_batch.items.is_empty(),
         "Should return records with attribute filter"
     );
+}
+
+#[tokio::test]
+async fn test_v1_trace_spans_by_id_accepts_bounded_params() {
+    let helper = setup_test().await;
+    helper.generate_trace_data().await.unwrap();
+    wait_for_paginated_count(&helper, 100).await;
+
+    let first_batch = fetch_paginated(
+        &helper,
+        &TraceFilters {
+            limit: Some(50),
+            ..Default::default()
+        },
+    )
+    .await;
+    let record = first_batch
+        .items
+        .iter()
+        .find(|record| record.span_count > 5)
+        .unwrap();
+    let trace_id = &record.trace_id;
+    let start = record.start_time - chrono::Duration::minutes(1);
+    let end = record.start_time + chrono::Duration::minutes(10);
+    let start_q = start.to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+    let end_q = end.to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+
+    for query in [
+        Some(format!("start_time={start_q}&end_time={end_q}")),
+        Some(format!("start_time={start_q}")),
+        Some(format!("end_time={end_q}")),
+        None,
+    ] {
+        let (status, body) =
+            fetch_v1_trace_spans_by_id_raw(&helper, trace_id, query.as_deref()).await;
+        assert_eq!(
+            status,
+            StatusCode::OK,
+            "unexpected response for query {:?}: {}",
+            query,
+            String::from_utf8_lossy(&body)
+        );
+        let spans: TraceSpansResponse = serde_json::from_slice(&body).unwrap();
+        assert!(
+            !spans.spans.is_empty(),
+            "Should return v1 spans for query {query:?}"
+        );
+        assert!(
+            spans.spans.iter().all(|span| span.trace_id == *trace_id),
+            "Should only return spans for the requested trace"
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_v1_trace_spans_by_id_rejects_invalid_timestamp() {
+    let helper = setup_test().await;
+    let trace_id = TraceId::from_bytes([1_u8; 16]).to_hex();
+    let (status, _body) =
+        fetch_v1_trace_spans_by_id_raw(&helper, &trace_id, Some("start_time=not-a-timestamp"))
+            .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
 }
 
 #[tokio::test]

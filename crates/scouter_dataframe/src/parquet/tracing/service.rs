@@ -390,11 +390,11 @@ impl TraceSpanService {
 mod tests {
     use super::*;
     use crate::parquet::tracing::queries::{
-        PARTITION_DATE_COL, SPAN_TABLE_NAME, START_TIME_COL, date_lit, ts_lit,
+        PARTITION_DATE_COL, SPAN_TABLE_NAME, START_TIME_COL, TRACE_ID_COL, date_lit, ts_lit,
     };
     use arrow_array::Array;
     use chrono::Utc;
-    use datafusion::logical_expr::col;
+    use datafusion::logical_expr::{col, lit};
     use scouter_mocks::generate_trace_with_spans;
     use scouter_settings::ObjectStorageSettings;
     use scouter_types::TraceMetricsRequest;
@@ -1022,6 +1022,11 @@ mod tests {
             )
             .map_err(TraceEngineError::DatafusionError)?;
 
+        // Trace-id lookup predicate is applied after time pruning in `query_spans`.
+        let df = df
+            .filter(col(TRACE_ID_COL).eq(lit(&trace_id.as_bytes()[..])))
+            .map_err(TraceEngineError::DatafusionError)?;
+
         // Collect the physical plan as a string via EXPLAIN
         let explain_df = df
             .explain(false, false)
@@ -1057,6 +1062,10 @@ mod tests {
         assert!(
             plan_text.contains("start_time"),
             "Row-group time filter not found in physical plan:\n{plan_text}"
+        );
+        assert!(
+            plan_text.contains("trace_id"),
+            "Trace-id filter not found in physical plan:\n{plan_text}"
         );
 
         // ── Layer 3: bloom filter — behavioral proof ──────────────────────────────

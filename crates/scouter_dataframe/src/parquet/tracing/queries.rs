@@ -290,6 +290,28 @@ mod tests {
     }
 
     #[test]
+    fn span_cache_key_separates_bounded_and_unbounded_trace_lookup() {
+        let start = Utc.with_ymd_and_hms(2026, 5, 14, 12, 0, 0).unwrap();
+        let end = Utc.with_ymd_and_hms(2026, 5, 14, 13, 0, 0).unwrap();
+        let bounded = SpanCacheKey::new(
+            &[7; 16],
+            None,
+            None,
+            None,
+            None,
+            Some(&start),
+            Some(&end),
+            None,
+            true,
+        )
+        .unwrap();
+        let unbounded =
+            SpanCacheKey::new(&[7; 16], None, None, None, None, None, None, None, true).unwrap();
+
+        assert_ne!(bounded, unbounded);
+    }
+
+    #[test]
     fn span_cache_key_bypasses_non_binary_trace_ids() {
         assert!(
             SpanCacheKey::new(&[1; 15], None, None, None, None, None, None, None, true).is_none()

@@ -4,10 +4,10 @@ mod utils;
 
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use scouter_dataframe::parquet::tracing::service::TraceSpanService;
-use scouter_settings::ObjectStorageSettings;
+use scouter_settings::{ObjectStorageSettings, TraceLookupSettings};
 use scouter_types::{StorageType, TraceId, TraceSpanRecord};
 use std::hint::black_box;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
 use tracing::Instrument;
@@ -989,6 +989,354 @@ fn bench_t0_cold_query_smoke(c: &mut Criterion) {
     drop(tmp_dir);
 }
 
+#[allow(clippy::too_many_arguments)]
+fn write_trace_lookup_artifact(
+    collector: &utils::BenchSpanCollector,
+    group_name: &'static str,
+    actual_runtime: Duration,
+    collector_start: usize,
+    object_store_start: usize,
+    query_entrypoint: &'static str,
+    result_rows: u64,
+    end_to_end_samples: &Arc<Mutex<Vec<u64>>>,
+) {
+    let mut spans = utils::summarize_spans(&collector.records_since(collector_start));
+    let end_to_end_samples = end_to_end_samples
+        .lock()
+        .expect("bench timing samples mutex poisoned");
+    spans.insert(
+        tiers::END_TO_END_SPAN.to_string(),
+        utils::span_metric_from_samples(&end_to_end_samples),
+    );
+    spans.entry(tiers::DF_COLLECT_SPAN.to_string()).or_default();
+    let object_store_counts = collector.object_store_counts_since(object_store_start);
+    utils::write_bench_artifact(
+        "trace_service_benchmark",
+        group_name,
+        actual_runtime,
+        spans,
+        object_store_counts,
+        0,
+        Some(query_entrypoint),
+        Some(result_rows),
+    );
+}
+
+fn bench_bounded_trace_id_lookup(c: &mut Criterion) {
+    const BOUNDED_FULL: &str = "bounded_full";
+    const START_TIME_HINT_ONLY: &str = "start_time_hint_only";
+    const CACHE_HIT: &str = "cache_hit";
+
+    let run_bounded = tiers::tier_guard_for("trace_service_benchmark", BOUNDED_FULL);
+    let run_hint = tiers::tier_guard_for("trace_service_benchmark", START_TIME_HINT_ONLY);
+    let run_cache = tiers::tier_guard_for("trace_service_benchmark", CACHE_HIT);
+    if !run_bounded && !run_hint && !run_cache {
+        return;
+    }
+
+    let collector = utils::install_bench_span_collector();
+    use scouter_mocks::generate_trace_with_spans;
+
+    const HOURS: usize = 24;
+    const SPANS_PER_HOUR: usize = 420;
+    let rt = Runtime::new().unwrap();
+    let tmp_dir = tempfile::tempdir().unwrap();
+    let storage_settings = ObjectStorageSettings {
+        storage_uri: tmp_dir.path().to_str().unwrap().to_string(),
+        storage_type: StorageType::Local,
+        region: "us-east-1".to_string(),
+        trace_compaction_interval_hours: 999,
+        trace_flush_interval_secs: 1,
+        trace_refresh_interval_secs: 10,
+    };
+    let lookup_settings = TraceLookupSettings::default();
+
+    let (service, trace_id, trace_start) = rt.block_on(async {
+        let service = TraceSpanService::new(&storage_settings, 999, Some(1), None, 10, None)
+            .await
+            .unwrap();
+        let mut target_id = None;
+        let mut target_start = None;
+        for hour in 0..HOURS {
+            let minutes_offset = (hour as i64) * 60;
+            let mut hour_spans = Vec::new();
+            for _ in 0..SPANS_PER_HOUR / 5 {
+                let (_record, spans, _tags) = generate_trace_with_spans(5, minutes_offset);
+                if target_id.is_none()
+                    && let Some(first) = spans.first()
+                    && let Ok(id_bytes) = TraceId::hex_to_bytes(&first.trace_id.to_hex())
+                {
+                    target_id = Some(id_bytes);
+                    target_start = Some(first.start_time);
+                }
+                hour_spans.extend(spans);
+            }
+            service.write_spans(hour_spans).await.unwrap();
+        }
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+        service.optimize().await.unwrap();
+        (
+            Arc::new(service),
+            Arc::new(target_id.unwrap()),
+            target_start.unwrap(),
+        )
+    });
+
+    let padding = chrono::Duration::seconds(lookup_settings.padding_secs as i64);
+    let hint_window = chrono::Duration::seconds(lookup_settings.hint_window_secs as i64);
+    let bounded_start = trace_start - padding;
+    let bounded_end = trace_start + chrono::Duration::minutes(5) + padding;
+    let hint_start = trace_start - padding;
+    let hint_end = trace_start + hint_window + padding;
+
+    let bounded_probe_rows = rt.block_on(async {
+        service
+            .query_service
+            .query_spans(
+                Some(&trace_id),
+                None,
+                None,
+                None,
+                None,
+                Some(&bounded_start),
+                Some(&bounded_end),
+                None,
+            )
+            .await
+            .unwrap()
+            .len() as u64
+    });
+    assert!(bounded_probe_rows > 0, "bounded fixture returned no rows");
+
+    if run_bounded {
+        let object_store_start = collector.records_len();
+        let collector_start = collector.records_len();
+        let service_for_bench = Arc::clone(&service);
+        let trace_id_for_bench = Arc::clone(&trace_id);
+        let end_to_end_samples = Arc::new(Mutex::new(Vec::new()));
+        let end_to_end_samples_for_bench = Arc::clone(&end_to_end_samples);
+        let collector_for_bench = collector.clone();
+        c.bench_function(BOUNDED_FULL, |b| {
+            b.to_async(&rt).iter_custom(|iters| {
+                let svc = Arc::clone(&service_for_bench);
+                let id = Arc::clone(&trace_id_for_bench);
+                let samples = Arc::clone(&end_to_end_samples_for_bench);
+                let collector = collector_for_bench.clone();
+                async move {
+                    let start = Instant::now();
+                    let mut loop_samples = Vec::with_capacity(iters as usize);
+                    for _ in 0..iters {
+                        let query_start = Instant::now();
+                        let rows = black_box(
+                            svc.query_service
+                                .query_spans(
+                                    Some(&id),
+                                    None,
+                                    None,
+                                    None,
+                                    None,
+                                    Some(&bounded_start),
+                                    Some(&bounded_end),
+                                    None,
+                                )
+                                .instrument(tracing::info_span!(tiers::END_TO_END_SPAN))
+                                .await
+                                .unwrap(),
+                        );
+                        loop_samples
+                            .push(query_start.elapsed().as_micros().min(u64::MAX as u128) as u64);
+                        assert_eq!(rows.len() as u64, bounded_probe_rows);
+                    }
+                    samples
+                        .lock()
+                        .expect("bench timing samples mutex poisoned")
+                        .extend(loop_samples);
+                    let elapsed = start.elapsed();
+                    write_trace_lookup_artifact(
+                        &collector,
+                        BOUNDED_FULL,
+                        elapsed,
+                        collector_start,
+                        object_store_start,
+                        "bounded_full",
+                        bounded_probe_rows,
+                        &samples,
+                    );
+                    elapsed
+                }
+            });
+        });
+        drop(service_for_bench);
+        drop(trace_id_for_bench);
+    }
+
+    if run_hint {
+        let hint_probe_rows = rt.block_on(async {
+            service
+                .query_service
+                .query_spans(
+                    Some(&trace_id),
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some(&hint_start),
+                    Some(&hint_end),
+                    None,
+                )
+                .await
+                .unwrap()
+                .len() as u64
+        });
+        assert_eq!(hint_probe_rows, bounded_probe_rows);
+
+        let object_store_start = collector.records_len();
+        let collector_start = collector.records_len();
+        let service_for_bench = Arc::clone(&service);
+        let trace_id_for_bench = Arc::clone(&trace_id);
+        let end_to_end_samples = Arc::new(Mutex::new(Vec::new()));
+        let end_to_end_samples_for_bench = Arc::clone(&end_to_end_samples);
+        let collector_for_bench = collector.clone();
+        c.bench_function(START_TIME_HINT_ONLY, |b| {
+            b.to_async(&rt).iter_custom(|iters| {
+                let svc = Arc::clone(&service_for_bench);
+                let id = Arc::clone(&trace_id_for_bench);
+                let samples = Arc::clone(&end_to_end_samples_for_bench);
+                let collector = collector_for_bench.clone();
+                async move {
+                    let start = Instant::now();
+                    let mut loop_samples = Vec::with_capacity(iters as usize);
+                    for _ in 0..iters {
+                        let query_start = Instant::now();
+                        let rows = black_box(
+                            svc.query_service
+                                .query_spans(
+                                    Some(&id),
+                                    None,
+                                    None,
+                                    None,
+                                    None,
+                                    Some(&hint_start),
+                                    Some(&hint_end),
+                                    None,
+                                )
+                                .instrument(tracing::info_span!(tiers::END_TO_END_SPAN))
+                                .await
+                                .unwrap(),
+                        );
+                        loop_samples
+                            .push(query_start.elapsed().as_micros().min(u64::MAX as u128) as u64);
+                        assert_eq!(rows.len() as u64, hint_probe_rows);
+                    }
+                    samples
+                        .lock()
+                        .expect("bench timing samples mutex poisoned")
+                        .extend(loop_samples);
+                    let elapsed = start.elapsed();
+                    write_trace_lookup_artifact(
+                        &collector,
+                        START_TIME_HINT_ONLY,
+                        elapsed,
+                        collector_start,
+                        object_store_start,
+                        "start_time_hint_only",
+                        hint_probe_rows,
+                        &samples,
+                    );
+                    elapsed
+                }
+            });
+        });
+        drop(service_for_bench);
+        drop(trace_id_for_bench);
+    }
+
+    if run_cache {
+        let cache_probe_rows = rt.block_on(async {
+            service
+                .query_service
+                .get_trace_spans(
+                    Some(&trace_id),
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some(&bounded_start),
+                    Some(&bounded_end),
+                    None,
+                )
+                .await
+                .unwrap()
+                .len() as u64
+        });
+        assert_eq!(cache_probe_rows, bounded_probe_rows);
+
+        let object_store_start = collector.records_len();
+        let collector_start = collector.records_len();
+        let service_for_bench = Arc::clone(&service);
+        let trace_id_for_bench = Arc::clone(&trace_id);
+        let end_to_end_samples = Arc::new(Mutex::new(Vec::new()));
+        let end_to_end_samples_for_bench = Arc::clone(&end_to_end_samples);
+        let collector_for_bench = collector.clone();
+        c.bench_function(CACHE_HIT, |b| {
+            b.to_async(&rt).iter_custom(|iters| {
+                let svc = Arc::clone(&service_for_bench);
+                let id = Arc::clone(&trace_id_for_bench);
+                let samples = Arc::clone(&end_to_end_samples_for_bench);
+                let collector = collector_for_bench.clone();
+                async move {
+                    let start = Instant::now();
+                    let mut loop_samples = Vec::with_capacity(iters as usize);
+                    for _ in 0..iters {
+                        let query_start = Instant::now();
+                        let rows = black_box(
+                            svc.query_service
+                                .get_trace_spans(
+                                    Some(&id),
+                                    None,
+                                    None,
+                                    None,
+                                    None,
+                                    Some(&bounded_start),
+                                    Some(&bounded_end),
+                                    None,
+                                )
+                                .instrument(tracing::info_span!(tiers::END_TO_END_SPAN))
+                                .await
+                                .unwrap(),
+                        );
+                        loop_samples
+                            .push(query_start.elapsed().as_micros().min(u64::MAX as u128) as u64);
+                        assert_eq!(rows.len() as u64, cache_probe_rows);
+                    }
+                    samples
+                        .lock()
+                        .expect("bench timing samples mutex poisoned")
+                        .extend(loop_samples);
+                    let elapsed = start.elapsed();
+                    write_trace_lookup_artifact(
+                        &collector,
+                        CACHE_HIT,
+                        elapsed,
+                        collector_start,
+                        object_store_start,
+                        "cache_hit",
+                        cache_probe_rows,
+                        &samples,
+                    );
+                    elapsed
+                }
+            });
+        });
+        drop(service_for_bench);
+        drop(trace_id_for_bench);
+    }
+
+    let service = Arc::try_unwrap(service).unwrap_or_else(|_| panic!("Arc still has owners"));
+    rt.block_on(async { service.shutdown().await.unwrap() });
+    drop(tmp_dir);
+}
+
 fn bench_t0_refresh_origin_sentinel(c: &mut Criterion) {
     const GROUP: &str = "t0_refresh_origin_sentinel";
     if !tiers::tier_guard_for("trace_service_benchmark", GROUP) {
@@ -1025,6 +1373,7 @@ criterion_group!(
     bench_sustained_load,
     bench_query_at_scale,
     bench_cold_query,
+    bench_bounded_trace_id_lookup,
     bench_at_scale_1m,
     bench_at_scale_10m,
 );

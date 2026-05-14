@@ -12,6 +12,7 @@ use axum::body::Bytes;
 use axum::extract::Path;
 use axum::http::HeaderMap;
 use axum::response::IntoResponse;
+use chrono::{DateTime, Utc};
 use opentelemetry_proto::tonic::collector::trace::v1::{
     ExportTraceServiceRequest, ExportTraceServiceResponse,
 };
@@ -54,6 +55,8 @@ mod phase0 {
         pub const TRACE_QUERY_TABLE_VERSION: &str = "trace.query.table_version";
         pub const TRACE_QUERY_STORAGE_BACKEND: &str = "trace.query.storage_backend";
         pub const TRACE_QUERY_REFRESH_ORIGIN: &str = "trace.query.refresh_origin";
+        pub const TRACE_QUERY_PADDING_SECS: &str = "trace.query.padding_secs";
+        pub const TRACE_QUERY_HINT_WINDOW_SECS: &str = "trace.query.hint_window_secs";
     }
 
     pub mod routes {
@@ -65,10 +68,7 @@ mod phase0 {
     }
 }
 
-fn window_ms(
-    start_time: Option<chrono::DateTime<chrono::Utc>>,
-    end_time: Option<chrono::DateTime<chrono::Utc>>,
-) -> Option<i64> {
+fn window_ms(start_time: Option<DateTime<Utc>>, end_time: Option<DateTime<Utc>>) -> Option<i64> {
     match (start_time, end_time) {
         (Some(start), Some(end)) => Some((end - start).num_milliseconds()),
         _ => None,
@@ -85,6 +85,8 @@ struct TraceQueryAttrs {
     offset: Option<i64>,
     trace_id_present: bool,
     unbounded: bool,
+    padding_secs: Option<u32>,
+    hint_window_secs: Option<u32>,
 }
 
 fn record_trace_query_common(attrs: TraceQueryAttrs) {
@@ -111,10 +113,64 @@ fn record_trace_query_common(attrs: TraceQueryAttrs) {
     );
     span.record(phase0::attrs::TRACE_QUERY_UNBOUNDED, attrs.unbounded);
     span.record(phase0::attrs::TRACE_QUERY_STORAGE_BACKEND, "delta");
+    if let Some(padding_secs) = attrs.padding_secs {
+        span.record(phase0::attrs::TRACE_QUERY_PADDING_SECS, padding_secs as i64);
+    }
+    if let Some(hint_window_secs) = attrs.hint_window_secs {
+        span.record(
+            phase0::attrs::TRACE_QUERY_HINT_WINDOW_SECS,
+            hint_window_secs as i64,
+        );
+    }
 }
 
 fn record_trace_query_result(row_count: usize) {
     Span::current().record(phase0::attrs::TRACE_QUERY_RESULT_ROWS, row_count as i64);
+}
+
+#[derive(Debug, Default, serde::Deserialize)]
+pub struct BoundedTraceIdParams {
+    pub start_time: Option<DateTime<Utc>>,
+    pub end_time: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct BoundedTraceWindow {
+    start_time: Option<DateTime<Utc>>,
+    end_time: Option<DateTime<Utc>>,
+    hint_window_secs: Option<u32>,
+}
+
+fn bounded_trace_window(
+    params: &BoundedTraceIdParams,
+    padding_secs: u32,
+    hint_window_secs: u32,
+) -> BoundedTraceWindow {
+    let padding = chrono::Duration::seconds(padding_secs as i64);
+    let hint_window = chrono::Duration::seconds(hint_window_secs as i64);
+
+    match (params.start_time, params.end_time) {
+        (Some(start), Some(end)) => BoundedTraceWindow {
+            start_time: Some(start - padding),
+            end_time: Some(end + padding),
+            hint_window_secs: None,
+        },
+        (Some(start), None) => BoundedTraceWindow {
+            start_time: Some(start - padding),
+            end_time: Some(start + hint_window + padding),
+            hint_window_secs: Some(hint_window_secs),
+        },
+        (None, Some(end)) => BoundedTraceWindow {
+            start_time: Some(end - hint_window - padding),
+            end_time: Some(end + padding),
+            hint_window_secs: Some(hint_window_secs),
+        },
+        (None, None) => BoundedTraceWindow {
+            start_time: None,
+            end_time: None,
+            hint_window_secs: None,
+        },
+    }
 }
 
 fn invalid_search_query(err: impl std::fmt::Display) -> (StatusCode, Json<ScouterServerError>) {
@@ -324,6 +380,8 @@ pub async fn paginated_traces(
         offset: None,
         trace_id_present: body.trace_ids.as_ref().is_some_and(|ids| !ids.is_empty()),
         unbounded: body.start_time.is_none() && body.end_time.is_none(),
+        padding_secs: None,
+        hint_window_secs: None,
     });
     debug!(
         "paginated_traces: limit={:?} start={:?} end={:?}",
@@ -393,23 +451,34 @@ pub async fn paginated_traces(
         trace.query.table_version = Empty,
         trace.query.storage_backend = Empty,
         trace.query.refresh_origin = Empty,
+        trace.query.padding_secs = Empty,
+        trace.query.hint_window_secs = Empty,
     )
 )]
 pub async fn get_trace_spans_by_id(
     State(data): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
     Path(id): Path<String>,
+    Query(params): Query<BoundedTraceIdParams>,
 ) -> Result<Json<TraceSpansResponse>, (StatusCode, Json<ScouterServerError>)> {
+    let lookup_settings = &data.config.trace_lookup_settings;
+    let bounded_window = bounded_trace_window(
+        &params,
+        lookup_settings.padding_secs,
+        lookup_settings.hint_window_secs,
+    );
     record_trace_query_common(TraceQueryAttrs {
         endpoint: phase0::routes::V1_TRACE_SPANS_PATH,
         kind: "spans_by_id",
-        has_start_time: false,
-        has_end_time: false,
-        window_ms: None,
+        has_start_time: params.start_time.is_some(),
+        has_end_time: params.end_time.is_some(),
+        window_ms: window_ms(bounded_window.start_time, bounded_window.end_time),
         limit: None,
         offset: None,
         trace_id_present: true,
-        unbounded: true,
+        unbounded: params.start_time.is_none() && params.end_time.is_none(),
+        padding_secs: Some(lookup_settings.padding_secs),
+        hint_window_secs: bounded_window.hint_window_secs,
     });
     debug!("Getting trace spans for trace_id: {}", id);
     let trace_id_bytes = TraceId::hex_to_bytes(&id).map_err(|e| {
@@ -429,8 +498,8 @@ pub async fn get_trace_spans_by_id(
             None,
             None,
             None,
-            None,
-            None,
+            bounded_window.start_time.as_ref(),
+            bounded_window.end_time.as_ref(),
             None,
         )
         .await
@@ -498,6 +567,8 @@ pub async fn get_trace_spans(
         offset: None,
         trace_id_present: true,
         unbounded: params.start_time.is_none() && params.end_time.is_none(),
+        padding_secs: None,
+        hint_window_secs: None,
     });
     debug!(
         "Getting trace spans for trace_id: {}, service_name: {:?}",
@@ -688,6 +759,8 @@ pub async fn trace_metrics(
         offset: None,
         trace_id_present: false,
         unbounded: false,
+        padding_secs: None,
+        hint_window_secs: None,
     });
     if let Some(clause) = &body.clause {
         validate_clause(clause)
@@ -867,6 +940,8 @@ pub async fn v1_otel_traces(
         offset: None,
         trace_id_present: false,
         unbounded: false,
+        padding_secs: None,
+        hint_window_secs: None,
     });
     let content_type = headers
         .get(axum::http::header::CONTENT_TYPE)
@@ -1019,7 +1094,7 @@ pub async fn get_trace_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Utc;
+    use chrono::{TimeZone, Utc};
     use scouter_types::trace::query::FilterClause;
 
     fn make_filters(start_time: Option<chrono::DateTime<Utc>>) -> TraceFilters {
@@ -1027,6 +1102,87 @@ mod tests {
             start_time,
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn bounded_trace_id_params_parse_all_bound_combinations() {
+        let none: BoundedTraceIdParams = serde_qs::from_str("").unwrap();
+        assert!(none.start_time.is_none());
+        assert!(none.end_time.is_none());
+
+        let start_only: BoundedTraceIdParams =
+            serde_qs::from_str("start_time=2026-05-14T12:00:00Z").unwrap();
+        assert_eq!(
+            start_only.start_time,
+            Some(Utc.with_ymd_and_hms(2026, 5, 14, 12, 0, 0).unwrap())
+        );
+        assert!(start_only.end_time.is_none());
+
+        let end_only: BoundedTraceIdParams =
+            serde_qs::from_str("end_time=2026-05-14T13:00:00Z").unwrap();
+        assert!(end_only.start_time.is_none());
+        assert_eq!(
+            end_only.end_time,
+            Some(Utc.with_ymd_and_hms(2026, 5, 14, 13, 0, 0).unwrap())
+        );
+
+        let both: BoundedTraceIdParams =
+            serde_qs::from_str("start_time=2026-05-14T12:00:00Z&end_time=2026-05-14T13:00:00Z")
+                .unwrap();
+        assert!(both.start_time.is_some());
+        assert!(both.end_time.is_some());
+    }
+
+    #[test]
+    fn bounded_trace_id_params_reject_invalid_timestamp() {
+        let parsed = serde_qs::from_str::<BoundedTraceIdParams>("start_time=not-a-timestamp");
+        assert!(parsed.is_err());
+    }
+
+    #[test]
+    fn bounded_trace_window_applies_padding_and_hint_rules() {
+        let start = Utc.with_ymd_and_hms(2026, 5, 14, 12, 0, 0).unwrap();
+        let end = Utc.with_ymd_and_hms(2026, 5, 14, 13, 0, 0).unwrap();
+
+        let both = bounded_trace_window(
+            &BoundedTraceIdParams {
+                start_time: Some(start),
+                end_time: Some(end),
+            },
+            60,
+            3600,
+        );
+        assert_eq!(both.start_time, Some(start - chrono::Duration::seconds(60)));
+        assert_eq!(both.end_time, Some(end + chrono::Duration::seconds(60)));
+        assert_eq!(both.hint_window_secs, None);
+
+        let start_only = bounded_trace_window(
+            &BoundedTraceIdParams {
+                start_time: Some(start),
+                end_time: None,
+            },
+            60,
+            3600,
+        );
+        assert_eq!(
+            start_only.end_time,
+            Some(start + chrono::Duration::seconds(3600 + 60))
+        );
+        assert_eq!(start_only.hint_window_secs, Some(3600));
+
+        let end_only = bounded_trace_window(
+            &BoundedTraceIdParams {
+                start_time: None,
+                end_time: Some(end),
+            },
+            60,
+            3600,
+        );
+        assert_eq!(
+            end_only.start_time,
+            Some(end - chrono::Duration::seconds(3600 + 60))
+        );
+        assert_eq!(end_only.hint_window_secs, Some(3600));
     }
 
     #[test]

@@ -21,7 +21,7 @@ pub use genai::GenAISettings;
 pub use http::HttpConfig;
 pub use otel::OtelSettings;
 pub use polling::PollingSettings;
-pub use storage::ObjectStorageSettings;
+pub use storage::{ObjectStorageSettings, TraceLookupSettings};
 
 fn generate_default_secret() -> String {
     // Creates a deterministic key for development purposes
@@ -48,6 +48,7 @@ pub struct ScouterServerConfig {
     pub auth_settings: AuthSettings,
     pub bootstrap_key: String,
     pub storage_settings: ObjectStorageSettings,
+    pub trace_lookup_settings: TraceLookupSettings,
     pub otel_settings: OtelSettings,
 }
 
@@ -125,6 +126,7 @@ impl ScouterServerConfig {
             genai_settings,
             http_consumer_settings,
             storage_settings: ObjectStorageSettings::default(),
+            trace_lookup_settings: TraceLookupSettings::default(),
             otel_settings: OtelSettings::default(),
         }
     }
