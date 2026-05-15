@@ -7,6 +7,7 @@ pub mod dataset;
 pub mod drift;
 pub mod error;
 pub mod http;
+pub mod observability_contract;
 pub mod psi;
 pub mod queue;
 pub mod records;

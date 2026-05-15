@@ -393,7 +393,7 @@ mod tests {
         PARTITION_DATE_COL, SPAN_TABLE_NAME, START_TIME_COL, TRACE_ID_COL, date_lit, ts_lit,
     };
     use arrow_array::Array;
-    use chrono::Utc;
+    use chrono::{TimeZone, Utc};
     use datafusion::logical_expr::{col, lit};
     use scouter_mocks::generate_trace_with_spans;
     use scouter_settings::ObjectStorageSettings;
@@ -730,6 +730,134 @@ mod tests {
         assert!(
             !after_write.is_empty(),
             "expected the second lookup to see newly written spans instead of a cached empty result"
+        );
+
+        service.shutdown().await?;
+        cleanup();
+        Ok(())
+    }
+
+    fn span_names(spans: &[TraceSpan]) -> Vec<&str> {
+        spans.iter().map(|span| span.span_name.as_str()).collect()
+    }
+
+    #[tokio::test]
+    async fn test_bounded_and_unbounded_trace_span_cache_entries_do_not_collide()
+    -> Result<(), TraceEngineError> {
+        cleanup();
+
+        let storage_settings = ObjectStorageSettings::default();
+        let service = TraceSpanService::new(&storage_settings, 24, Some(2), None, 10, None).await?;
+        let base = Utc.with_ymd_and_hms(2026, 5, 14, 12, 0, 0).unwrap();
+
+        let trace_unbounded_first = TraceId::from_bytes([0xB1_u8; 16]);
+        let trace_bounded_first = TraceId::from_bytes([0xB2_u8; 16]);
+        let mut spans = Vec::new();
+
+        for (trace_id, byte, prefix) in [
+            (trace_unbounded_first, 0xB1_u8, "unbounded_first"),
+            (trace_bounded_first, 0xB2_u8, "bounded_first"),
+        ] {
+            let mut early = make_span(
+                &trace_id,
+                SpanId::from_bytes([byte; 8]),
+                None,
+                "svc",
+                &format!("{prefix}_early"),
+                vec![],
+            );
+            early.start_time = base;
+            early.end_time = base + chrono::Duration::milliseconds(100);
+
+            let mut late = make_span(
+                &trace_id,
+                SpanId::from_bytes([byte.saturating_add(1); 8]),
+                None,
+                "svc",
+                &format!("{prefix}_late"),
+                vec![],
+            );
+            late.start_time = base + chrono::Duration::hours(2);
+            late.end_time = late.start_time + chrono::Duration::milliseconds(100);
+
+            spans.push(early);
+            spans.push(late);
+        }
+
+        service.write_spans(spans).await?;
+        tokio::time::sleep(Duration::from_secs(5)).await;
+
+        let bounded_start = base - chrono::Duration::minutes(1);
+        let bounded_end = base + chrono::Duration::minutes(1);
+        let unbounded_first_bytes = trace_unbounded_first.as_bytes();
+        let unbounded_first = service
+            .query_service
+            .get_trace_spans(
+                Some(unbounded_first_bytes.as_slice()),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
+            .await?;
+        assert_eq!(
+            span_names(&unbounded_first),
+            vec!["unbounded_first_early", "unbounded_first_late"]
+        );
+
+        let bounded_after_unbounded = service
+            .query_service
+            .get_trace_spans(
+                Some(unbounded_first_bytes.as_slice()),
+                None,
+                None,
+                None,
+                None,
+                Some(&bounded_start),
+                Some(&bounded_end),
+                None,
+            )
+            .await?;
+        assert_eq!(
+            span_names(&bounded_after_unbounded),
+            vec!["unbounded_first_early"]
+        );
+
+        let bounded_first_bytes = trace_bounded_first.as_bytes();
+        let bounded_first = service
+            .query_service
+            .get_trace_spans(
+                Some(bounded_first_bytes.as_slice()),
+                None,
+                None,
+                None,
+                None,
+                Some(&bounded_start),
+                Some(&bounded_end),
+                None,
+            )
+            .await?;
+        assert_eq!(span_names(&bounded_first), vec!["bounded_first_early"]);
+
+        let unbounded_after_bounded = service
+            .query_service
+            .get_trace_spans(
+                Some(bounded_first_bytes.as_slice()),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
+            .await?;
+        assert_eq!(
+            span_names(&unbounded_after_bounded),
+            vec!["bounded_first_early", "bounded_first_late"]
         );
 
         service.shutdown().await?;

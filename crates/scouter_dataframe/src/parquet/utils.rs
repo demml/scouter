@@ -30,6 +30,10 @@ use object_store::{
     MultipartUpload, ObjectMeta, ObjectStore, PutMultipartOptions, PutOptions, PutPayload,
     PutResult, Result as ObjectStoreResult,
 };
+use scouter_types::observability_contract::{
+    attribute_keys as object_store_attrs, attribute_values as object_store_attr_values,
+    metric_names as object_store_metric_names, span_names as object_store_span_names,
+};
 use scouter_types::{BinnedMetric, BinnedMetricStats, BinnedMetrics};
 use std::collections::hash_map::DefaultHasher;
 use std::fmt;
@@ -209,28 +213,42 @@ impl BinnedMetricsExtractor {
     }
 }
 
-pub(crate) const OBJECT_STORE_SPAN_NAME: &str = "object_store.request";
-pub(crate) const OBJECT_STORE_STATUS_ATTR: &str = "object_store.status";
-pub(crate) const OBJECT_STORE_ERROR_KIND_ATTR: &str = "object_store.error.kind";
+pub(crate) const OBJECT_STORE_SPAN_NAME: &str = object_store_span_names::OBJECT_STORE_REQUEST;
+pub(crate) const OBJECT_STORE_STATUS_ATTR: &str = object_store_attrs::OBJECT_STORE_STATUS;
+pub(crate) const OBJECT_STORE_ERROR_KIND_ATTR: &str = object_store_attrs::OBJECT_STORE_ERROR_KIND;
 
-pub(crate) const OBJECT_STORE_OPERATION_LIST: &str = "list";
-pub(crate) const OBJECT_STORE_OPERATION_LIST_WITH_DELIMITER: &str = "list_with_delimiter";
-pub(crate) const OBJECT_STORE_OPERATION_HEAD: &str = "head";
-pub(crate) const OBJECT_STORE_OPERATION_GET: &str = "get";
-pub(crate) const OBJECT_STORE_OPERATION_GET_RANGE: &str = "get_range";
-pub(crate) const OBJECT_STORE_OPERATION_PUT: &str = "put";
-pub(crate) const OBJECT_STORE_OPERATION_DELETE: &str = "delete";
-pub(crate) const OBJECT_STORE_OPERATION_COPY: &str = "copy";
+pub(crate) const OBJECT_STORE_OPERATION_LIST: &str =
+    object_store_attr_values::OBJECT_STORE_OPERATION_LIST;
+pub(crate) const OBJECT_STORE_OPERATION_LIST_WITH_DELIMITER: &str =
+    object_store_attr_values::OBJECT_STORE_OPERATION_LIST_WITH_DELIMITER;
+pub(crate) const OBJECT_STORE_OPERATION_HEAD: &str =
+    object_store_attr_values::OBJECT_STORE_OPERATION_HEAD;
+pub(crate) const OBJECT_STORE_OPERATION_GET: &str =
+    object_store_attr_values::OBJECT_STORE_OPERATION_GET;
+pub(crate) const OBJECT_STORE_OPERATION_GET_RANGE: &str =
+    object_store_attr_values::OBJECT_STORE_OPERATION_GET_RANGE;
+pub(crate) const OBJECT_STORE_OPERATION_PUT: &str =
+    object_store_attr_values::OBJECT_STORE_OPERATION_PUT;
+pub(crate) const OBJECT_STORE_OPERATION_DELETE: &str =
+    object_store_attr_values::OBJECT_STORE_OPERATION_DELETE;
+pub(crate) const OBJECT_STORE_OPERATION_COPY: &str =
+    object_store_attr_values::OBJECT_STORE_OPERATION_COPY;
 
-pub(crate) const OBJECT_STORE_PATH_KIND_DELTA_LOG: &str = "delta_log";
-pub(crate) const OBJECT_STORE_PATH_KIND_PARQUET_DATA: &str = "parquet_data";
-pub(crate) const OBJECT_STORE_PATH_KIND_CHECKPOINT: &str = "checkpoint";
-pub(crate) const OBJECT_STORE_PATH_KIND_UNKNOWN: &str = "unknown";
+pub(crate) const OBJECT_STORE_PATH_KIND_DELTA_LOG: &str =
+    object_store_attr_values::OBJECT_STORE_PATH_KIND_DELTA_LOG;
+pub(crate) const OBJECT_STORE_PATH_KIND_PARQUET_DATA: &str =
+    object_store_attr_values::OBJECT_STORE_PATH_KIND_PARQUET_DATA;
+pub(crate) const OBJECT_STORE_PATH_KIND_CHECKPOINT: &str =
+    object_store_attr_values::OBJECT_STORE_PATH_KIND_CHECKPOINT;
+pub(crate) const OBJECT_STORE_PATH_KIND_UNKNOWN: &str =
+    object_store_attr_values::OBJECT_STORE_PATH_KIND_UNKNOWN;
 
-const TRACE_OBJECT_STORE_REQUESTS_TOTAL: &str = "scouter_trace_object_store_requests_total";
+const TRACE_OBJECT_STORE_REQUESTS_TOTAL: &str =
+    object_store_metric_names::TRACE_OBJECT_STORE_REQUESTS_TOTAL;
 const TRACE_OBJECT_STORE_REQUEST_DURATION_MS: &str =
-    "scouter_trace_object_store_request_duration_ms";
-const TRACE_OBJECT_STORE_BYTES_TOTAL: &str = "scouter_trace_object_store_bytes_total";
+    object_store_metric_names::TRACE_OBJECT_STORE_REQUEST_DURATION_MS;
+const TRACE_OBJECT_STORE_BYTES_TOTAL: &str =
+    object_store_metric_names::TRACE_OBJECT_STORE_BYTES_TOTAL;
 const CACHE_HIT_UNKNOWN: &str = "unknown";
 const STATUS_OK: &str = "ok";
 const STATUS_ERROR: &str = "error";

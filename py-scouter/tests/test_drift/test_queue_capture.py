@@ -69,3 +69,21 @@ def test_disable_capture_frees_buffer(genai_queue: ScouterQueue, eval_record: Ev
     genai_queue["test"].insert(eval_record)
     genai_queue.disable_capture()
     assert genai_queue.drain_all_records() == {}
+
+
+def test_direct_mock_config_registers_reset_workflow_profile() -> None:
+    """Direct MockConfig construction stores a reset workflow-backed profile."""
+    with LLMTestServer():
+        profile = _minimal_profile()
+        queue = ScouterQueue.from_profile(
+            profile=profile,
+            transport_config=MockConfig(),
+            wait_for_startup=True,
+        )
+
+    registered = queue.agent_profiles()["test"]
+    registered_dump = registered.model_dump()
+
+    assert registered is not profile
+    assert registered_dump["workflow"] is not None
+    assert registered_dump["task_ids"] == ["query_relevance"]

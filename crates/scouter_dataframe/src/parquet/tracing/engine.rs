@@ -17,6 +17,7 @@ use datafusion::prelude::SessionContext;
 use deltalake::operations::optimize::OptimizeType;
 use deltalake::{DeltaTable, DeltaTableBuilder, TableProperty};
 use scouter_settings::ObjectStorageSettings;
+use scouter_types::observability_contract::span_names;
 use scouter_types::{Attribute, SpanEvent, SpanLink};
 use scouter_types::{
     SCOUTER_EVAL_PROFILE_UID, SCOUTER_EVAL_RECORD_UID, SpanId, TraceCommitAnchor, TraceId,
@@ -35,15 +36,6 @@ const TRACE_SPAN_TABLE_NAME: &str = "trace_spans";
 /// Control table task names for distributed coordination.
 const TASK_OPTIMIZE: &str = "trace_optimize";
 const TASK_RETENTION: &str = "trace_retention";
-
-#[allow(dead_code)]
-mod span_names {
-    pub const DELTA_TABLE_LOAD: &str = "delta.table.load";
-    pub const DELTA_SNAPSHOT_REFRESH: &str = "delta.snapshot.refresh";
-    pub const DELTA_CATALOG_SWAP: &str = "delta.catalog.swap";
-    pub const DELTA_OPTIMIZE: &str = "delta.optimize";
-    pub const UPDATE_INCREMENTAL: &str = "update_incremental";
-}
 
 /// Days from year-0001 to Unix epoch (1970-01-01), used to convert chrono → Arrow Date32.
 /// Equivalent to `NaiveDate::from_ymd_opt(1970, 1, 1).unwrap().num_days_from_ce()`.

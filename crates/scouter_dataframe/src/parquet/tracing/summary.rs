@@ -14,10 +14,12 @@ use arrow_array::Array;
 use arrow_array::RecordBatch;
 use chrono::{DateTime, Datelike, Utc};
 use datafusion::logical_expr::{SortExpr, cast as df_cast, col, lit};
+use datafusion::physical_plan::collect as collect_physical_plan;
 use datafusion::prelude::*;
 use datafusion::scalar::ScalarValue;
 use deltalake::operations::optimize::OptimizeType;
 use deltalake::{DeltaTable, DeltaTableBuilder, TableProperty};
+use scouter_types::observability_contract::span_names;
 use scouter_types::sql::{TraceFilters, TraceListItem};
 use scouter_types::{
     Attribute, TraceCursor, TraceFacetDimension, TraceFacetsResponse, TraceId,
@@ -38,15 +40,6 @@ const SUMMARY_TABLE_NAME: &str = "trace_summaries";
 
 /// Control table task name for summary compaction coordination.
 const TASK_SUMMARY_OPTIMIZE: &str = "summary_optimize";
-
-mod span_names {
-    pub const TRACE_QUERY_PAGINATED: &str = "scouter.trace.query.paginated";
-    pub const DF_TABLE_RESOLVE: &str = "df.table.resolve";
-    pub const DF_LOGICAL_BUILD: &str = "df.logical.build";
-    pub const DF_PHYSICAL_PLAN: &str = "df.physical.plan";
-    pub const DF_COLLECT: &str = "df.collect";
-    pub const ARROW_CONVERT: &str = "arrow.convert";
-}
 
 // ── Column name constants ────────────────────────────────────────────────────
 const TRACE_ID_COL: &str = "trace_id";
@@ -764,7 +757,8 @@ async fn collect_with_query_spans(
     endpoint: &'static str,
     table_name: &'static str,
 ) -> Result<Vec<RecordBatch>, TraceEngineError> {
-    df.clone()
+    let task_ctx = Arc::new(df.task_ctx());
+    let plan = df
         .create_physical_plan()
         .instrument(span!(
             Level::INFO,
@@ -775,7 +769,7 @@ async fn collect_with_query_spans(
         .await
         .map_err(TraceEngineError::DatafusionError)?;
 
-    df.collect()
+    collect_physical_plan(plan, task_ctx)
         .instrument(span!(
             Level::INFO,
             span_names::DF_COLLECT,

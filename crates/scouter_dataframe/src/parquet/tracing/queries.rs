@@ -11,6 +11,7 @@ use arrow_array::Array;
 use chrono::{DateTime, Datelike, TimeZone, Utc};
 use datafusion::common::JoinType;
 use datafusion::logical_expr::{SortExpr, cast as df_cast, col, lit, when};
+use datafusion::physical_plan::collect as collect_physical_plan;
 use datafusion::prelude::*;
 use datafusion::scalar::ScalarValue;
 use mini_moka::sync::Cache;
@@ -18,6 +19,7 @@ use scouter_settings::storage::{
     trace_span_cache_max_entries_from_env, trace_span_cache_max_mb_from_env,
     trace_span_cache_ttl_secs_from_env,
 };
+use scouter_types::observability_contract::span_names;
 use scouter_types::sql::{TraceFilters, TraceMetricBucket, TraceSpan};
 use scouter_types::{
     Attribute, AwaitingTraceCommit, SCOUTER_EVAL_PROFILE_UID, SCOUTER_EVAL_RECORD_UID, SpanEvent,
@@ -29,17 +31,6 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tracing::{Instrument, Level, error, info, instrument, span};
-
-mod span_names {
-    pub const TRACE_QUERY_METRICS: &str = "scouter.trace.query.metrics";
-    pub const TRACE_QUERY_SPANS: &str = "scouter.trace.query.spans";
-    pub const DF_TABLE_RESOLVE: &str = "df.table.resolve";
-    pub const DF_LOGICAL_BUILD: &str = "df.logical.build";
-    pub const DF_PHYSICAL_PLAN: &str = "df.physical.plan";
-    pub const DF_COLLECT: &str = "df.collect";
-    pub const ARROW_CONVERT: &str = "arrow.convert";
-    pub const TRACE_TREE_BUILD: &str = "trace.tree.build";
-}
 
 /// Days from year-0001 to Unix epoch (1970-01-01), used to convert chrono → Arrow Date32.
 const UNIX_EPOCH_DAYS: i32 = 719_163;
@@ -322,7 +313,8 @@ async fn collect_with_query_spans(
     endpoint: &'static str,
     table_name: &'static str,
 ) -> Result<Vec<RecordBatch>, TraceEngineError> {
-    df.clone()
+    let task_ctx = Arc::new(df.task_ctx());
+    let plan = df
         .create_physical_plan()
         .instrument(span!(
             Level::INFO,
@@ -333,7 +325,7 @@ async fn collect_with_query_spans(
         .await
         .map_err(TraceEngineError::DatafusionError)?;
 
-    df.collect()
+    collect_physical_plan(plan, task_ctx)
         .instrument(span!(
             Level::INFO,
             span_names::DF_COLLECT,

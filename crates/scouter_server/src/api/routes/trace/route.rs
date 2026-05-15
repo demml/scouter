@@ -20,6 +20,9 @@ use prost::Message;
 use scouter_auth::permission::UserPermissions;
 use scouter_sql::PostgresClient;
 use scouter_sql::sql::traits::{TagSqlLogic, TraceSqlLogic};
+use scouter_types::observability_contract::{
+    attribute_keys as trace_attrs, routes as trace_routes,
+};
 use scouter_types::{
     SpansFromTagsRequest, Tag, TraceBaggageResponse, TraceFacetsResponse, TraceId,
     TraceMetricsRequest, TraceMetricsResponse, TracePaginationResponse, TraceRequest,
@@ -35,31 +38,6 @@ use std::sync::Arc;
 use tracing::field::Empty;
 use tracing::instrument;
 use tracing::{Span, debug, error, info_span};
-
-mod trace_attrs {
-    pub const TRACE_QUERY_ENDPOINT: &str = "trace.query.endpoint";
-    pub const TRACE_QUERY_KIND: &str = "trace.query.kind";
-    pub const TRACE_QUERY_HAS_START_TIME: &str = "trace.query.has_start_time";
-    pub const TRACE_QUERY_HAS_END_TIME: &str = "trace.query.has_end_time";
-    pub const TRACE_QUERY_WINDOW_MS: &str = "trace.query.window_ms";
-    pub const TRACE_QUERY_LIMIT: &str = "trace.query.limit";
-    pub const TRACE_QUERY_OFFSET: &str = "trace.query.offset";
-    pub const TRACE_QUERY_TRACE_ID_PRESENT: &str = "trace.query.trace_id_present";
-    pub const TRACE_QUERY_UNBOUNDED: &str = "trace.query.unbounded";
-    pub const TRACE_QUERY_RESULT_ROWS: &str = "trace.query.result.rows";
-    pub const TRACE_QUERY_RESULT_BYTES_ESTIMATE: &str = "trace.query.result.bytes_estimate";
-    pub const TRACE_QUERY_STORAGE_BACKEND: &str = "trace.query.storage_backend";
-    pub const TRACE_QUERY_PADDING_SECS: &str = "trace.query.padding_secs";
-    pub const TRACE_QUERY_HINT_WINDOW_SECS: &str = "trace.query.hint_window_secs";
-}
-
-mod trace_routes {
-    pub const TRACE_PAGINATED_PATH: &str = "{prefix}/trace/paginated";
-    pub const TRACE_SPANS_PATH: &str = "{prefix}/trace/spans";
-    pub const TRACE_METRICS_PATH: &str = "{prefix}/trace/metrics";
-    pub const V1_TRACE_SPANS_PATH: &str = "{prefix}/v1/traces/{id}/spans";
-    pub const V1_TRACES_PATH: &str = "{prefix}/v1/traces";
-}
 
 fn window_ms(start_time: Option<DateTime<Utc>>, end_time: Option<DateTime<Utc>>) -> Option<i64> {
     match (start_time, end_time) {
