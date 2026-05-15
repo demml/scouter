@@ -36,7 +36,7 @@ use tracing::field::Empty;
 use tracing::instrument;
 use tracing::{Span, debug, error, info_span};
 
-mod phase0 {
+mod trace_instrumentation {
     #[allow(dead_code)]
     pub mod attrs {
         pub const TRACE_QUERY_ENDPOINT: &str = "trace.query.endpoint";
@@ -89,43 +89,64 @@ struct TraceQueryAttrs {
     hint_window_secs: Option<u32>,
 }
 
-fn record_trace_query_common(attrs: TraceQueryAttrs) {
+fn record_trace_query_span_attrs(attrs: TraceQueryAttrs) {
     let span = Span::current();
-    span.record(phase0::attrs::TRACE_QUERY_ENDPOINT, attrs.endpoint);
-    span.record(phase0::attrs::TRACE_QUERY_KIND, attrs.kind);
     span.record(
-        phase0::attrs::TRACE_QUERY_HAS_START_TIME,
+        trace_instrumentation::attrs::TRACE_QUERY_ENDPOINT,
+        attrs.endpoint,
+    );
+    span.record(trace_instrumentation::attrs::TRACE_QUERY_KIND, attrs.kind);
+    span.record(
+        trace_instrumentation::attrs::TRACE_QUERY_HAS_START_TIME,
         attrs.has_start_time,
     );
-    span.record(phase0::attrs::TRACE_QUERY_HAS_END_TIME, attrs.has_end_time);
+    span.record(
+        trace_instrumentation::attrs::TRACE_QUERY_HAS_END_TIME,
+        attrs.has_end_time,
+    );
     if let Some(window_ms) = attrs.window_ms {
-        span.record(phase0::attrs::TRACE_QUERY_WINDOW_MS, window_ms);
+        span.record(
+            trace_instrumentation::attrs::TRACE_QUERY_WINDOW_MS,
+            window_ms,
+        );
     }
     if let Some(limit) = attrs.limit {
-        span.record(phase0::attrs::TRACE_QUERY_LIMIT, limit);
+        span.record(trace_instrumentation::attrs::TRACE_QUERY_LIMIT, limit);
     }
     if let Some(offset) = attrs.offset {
-        span.record(phase0::attrs::TRACE_QUERY_OFFSET, offset);
+        span.record(trace_instrumentation::attrs::TRACE_QUERY_OFFSET, offset);
     }
     span.record(
-        phase0::attrs::TRACE_QUERY_TRACE_ID_PRESENT,
+        trace_instrumentation::attrs::TRACE_QUERY_TRACE_ID_PRESENT,
         attrs.trace_id_present,
     );
-    span.record(phase0::attrs::TRACE_QUERY_UNBOUNDED, attrs.unbounded);
-    span.record(phase0::attrs::TRACE_QUERY_STORAGE_BACKEND, "delta");
+    span.record(
+        trace_instrumentation::attrs::TRACE_QUERY_UNBOUNDED,
+        attrs.unbounded,
+    );
+    span.record(
+        trace_instrumentation::attrs::TRACE_QUERY_STORAGE_BACKEND,
+        "delta",
+    );
     if let Some(padding_secs) = attrs.padding_secs {
-        span.record(phase0::attrs::TRACE_QUERY_PADDING_SECS, padding_secs as i64);
+        span.record(
+            trace_instrumentation::attrs::TRACE_QUERY_PADDING_SECS,
+            padding_secs as i64,
+        );
     }
     if let Some(hint_window_secs) = attrs.hint_window_secs {
         span.record(
-            phase0::attrs::TRACE_QUERY_HINT_WINDOW_SECS,
+            trace_instrumentation::attrs::TRACE_QUERY_HINT_WINDOW_SECS,
             hint_window_secs as i64,
         );
     }
 }
 
 fn record_trace_query_result(row_count: usize) {
-    Span::current().record(phase0::attrs::TRACE_QUERY_RESULT_ROWS, row_count as i64);
+    Span::current().record(
+        trace_instrumentation::attrs::TRACE_QUERY_RESULT_ROWS,
+        row_count as i64,
+    );
 }
 
 #[derive(Debug, Default, serde::Deserialize)]
@@ -370,8 +391,8 @@ pub async fn paginated_traces(
 ) -> Result<Json<TracePaginationResponse>, (StatusCode, Json<ScouterServerError>)> {
     let body = normalize_trace_filters(body)?;
     validate_filters(&body)?;
-    record_trace_query_common(TraceQueryAttrs {
-        endpoint: phase0::routes::TRACE_PAGINATED_PATH,
+    record_trace_query_span_attrs(TraceQueryAttrs {
+        endpoint: trace_instrumentation::routes::TRACE_PAGINATED_PATH,
         kind: "paginated",
         has_start_time: body.start_time.is_some(),
         has_end_time: body.end_time.is_some(),
@@ -467,8 +488,8 @@ pub async fn get_trace_spans_by_id(
         lookup_settings.padding_secs,
         lookup_settings.hint_window_secs,
     );
-    record_trace_query_common(TraceQueryAttrs {
-        endpoint: phase0::routes::V1_TRACE_SPANS_PATH,
+    record_trace_query_span_attrs(TraceQueryAttrs {
+        endpoint: trace_instrumentation::routes::V1_TRACE_SPANS_PATH,
         kind: "spans_by_id",
         has_start_time: params.start_time.is_some(),
         has_end_time: params.end_time.is_some(),
@@ -557,8 +578,8 @@ pub async fn get_trace_spans(
     Extension(perms): Extension<UserPermissions>,
     Query(params): Query<TraceRequest>,
 ) -> Result<Json<TraceSpansResponse>, (StatusCode, Json<ScouterServerError>)> {
-    record_trace_query_common(TraceQueryAttrs {
-        endpoint: phase0::routes::TRACE_SPANS_PATH,
+    record_trace_query_span_attrs(TraceQueryAttrs {
+        endpoint: trace_instrumentation::routes::TRACE_SPANS_PATH,
         kind: "spans",
         has_start_time: params.start_time.is_some(),
         has_end_time: params.end_time.is_some(),
@@ -749,8 +770,8 @@ pub async fn trace_metrics(
     Json(body): Json<TraceMetricsRequest>,
 ) -> Result<Json<TraceMetricsResponse>, (StatusCode, Json<ScouterServerError>)> {
     let body = normalize_metrics_request(body)?;
-    record_trace_query_common(TraceQueryAttrs {
-        endpoint: phase0::routes::TRACE_METRICS_PATH,
+    record_trace_query_span_attrs(TraceQueryAttrs {
+        endpoint: trace_instrumentation::routes::TRACE_METRICS_PATH,
         kind: "metrics",
         has_start_time: true,
         has_end_time: true,
@@ -930,8 +951,8 @@ pub async fn v1_otel_traces(
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<axum::response::Response, (StatusCode, Json<ScouterServerError>)> {
-    record_trace_query_common(TraceQueryAttrs {
-        endpoint: phase0::routes::V1_TRACES_PATH,
+    record_trace_query_span_attrs(TraceQueryAttrs {
+        endpoint: trace_instrumentation::routes::V1_TRACES_PATH,
         kind: "otel_ingest",
         has_start_time: false,
         has_end_time: false,
@@ -992,7 +1013,7 @@ pub async fn v1_otel_traces(
     let response_bytes = ExportTraceServiceResponse::default().encode_to_vec();
     record_trace_query_result(span_count);
     Span::current().record(
-        phase0::attrs::TRACE_QUERY_RESULT_BYTES_ESTIMATE,
+        trace_instrumentation::attrs::TRACE_QUERY_RESULT_BYTES_ESTIMATE,
         response_bytes.len() as i64,
     );
     let _response_span = info_span!("response.serialize").entered();

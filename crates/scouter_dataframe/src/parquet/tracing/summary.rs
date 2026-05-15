@@ -39,7 +39,7 @@ const SUMMARY_TABLE_NAME: &str = "trace_summaries";
 /// Control table task name for summary compaction coordination.
 const TASK_SUMMARY_OPTIMIZE: &str = "summary_optimize";
 
-mod phase0 {
+mod trace_instrumentation {
     pub mod spans {
         pub const TRACE_QUERY_PAGINATED: &str = "scouter.trace.query.paginated";
         pub const DF_TABLE_RESOLVE: &str = "df.table.resolve";
@@ -761,7 +761,7 @@ pub struct TraceSummaryQueries {
 
 const MAX_PAGE_LIMIT: usize = 500;
 
-async fn collect_with_phase0(
+async fn collect_with_query_spans(
     df: DataFrame,
     endpoint: &'static str,
     table_name: &'static str,
@@ -770,7 +770,7 @@ async fn collect_with_phase0(
         .create_physical_plan()
         .instrument(span!(
             Level::INFO,
-            phase0::spans::DF_PHYSICAL_PLAN,
+            trace_instrumentation::spans::DF_PHYSICAL_PLAN,
             endpoint,
             table = table_name
         ))
@@ -780,7 +780,7 @@ async fn collect_with_phase0(
     df.collect()
         .instrument(span!(
             Level::INFO,
-            phase0::spans::DF_COLLECT,
+            trace_instrumentation::spans::DF_COLLECT,
             endpoint,
             table = table_name
         ))
@@ -805,8 +805,8 @@ pub(crate) async fn deduped_summary_df(
         .table(SUMMARY_TABLE_NAME)
         .instrument(span!(
             Level::INFO,
-            phase0::spans::DF_TABLE_RESOLVE,
-            endpoint = phase0::spans::TRACE_QUERY_PAGINATED,
+            trace_instrumentation::spans::DF_TABLE_RESOLVE,
+            endpoint = trace_instrumentation::spans::TRACE_QUERY_PAGINATED,
             table = SUMMARY_TABLE_NAME
         ))
         .await?;
@@ -814,8 +814,8 @@ pub(crate) async fn deduped_summary_df(
     {
         let _span = span!(
             Level::INFO,
-            phase0::spans::DF_LOGICAL_BUILD,
-            endpoint = phase0::spans::TRACE_QUERY_PAGINATED,
+            trace_instrumentation::spans::DF_LOGICAL_BUILD,
+            endpoint = trace_instrumentation::spans::TRACE_QUERY_PAGINATED,
             table = SUMMARY_TABLE_NAME,
             phase = "time_filters"
         )
@@ -846,8 +846,8 @@ pub(crate) async fn deduped_summary_df(
     let df = {
         let _span = span!(
             Level::INFO,
-            phase0::spans::DF_LOGICAL_BUILD,
-            endpoint = phase0::spans::TRACE_QUERY_PAGINATED,
+            trace_instrumentation::spans::DF_LOGICAL_BUILD,
+            endpoint = trace_instrumentation::spans::TRACE_QUERY_PAGINATED,
             table = SUMMARY_TABLE_NAME,
             phase = "dedupe_aggregate"
         )
@@ -931,8 +931,8 @@ impl TraceSummaryQueries {
             if !binary_ids.is_empty() {
                 let _span = span!(
                     Level::INFO,
-                    phase0::spans::DF_LOGICAL_BUILD,
-                    endpoint = phase0::spans::TRACE_QUERY_PAGINATED,
+                    trace_instrumentation::spans::DF_LOGICAL_BUILD,
+                    endpoint = trace_instrumentation::spans::TRACE_QUERY_PAGINATED,
                     table = SUMMARY_TABLE_NAME,
                     phase = "trace_id_filter"
                 )
@@ -970,8 +970,8 @@ impl TraceSummaryQueries {
             };
             let _span = span!(
                 Level::INFO,
-                phase0::spans::DF_LOGICAL_BUILD,
-                endpoint = phase0::spans::TRACE_QUERY_PAGINATED,
+                trace_instrumentation::spans::DF_LOGICAL_BUILD,
+                endpoint = trace_instrumentation::spans::TRACE_QUERY_PAGINATED,
                 table = SUMMARY_TABLE_NAME,
                 phase = "cursor_filter"
             )
@@ -1000,8 +1000,8 @@ impl TraceSummaryQueries {
         {
             let _span = span!(
                 Level::INFO,
-                phase0::spans::DF_LOGICAL_BUILD,
-                endpoint = phase0::spans::TRACE_QUERY_PAGINATED,
+                trace_instrumentation::spans::DF_LOGICAL_BUILD,
+                endpoint = trace_instrumentation::spans::TRACE_QUERY_PAGINATED,
                 table = SUMMARY_TABLE_NAME,
                 phase = "sort_limit"
             )
@@ -1022,14 +1022,17 @@ impl TraceSummaryQueries {
             df = df.limit(0, Some(limit + 1))?;
         }
 
-        let batches =
-            collect_with_phase0(df, phase0::spans::TRACE_QUERY_PAGINATED, SUMMARY_TABLE_NAME)
-                .await?;
+        let batches = collect_with_query_spans(
+            df,
+            trace_instrumentation::spans::TRACE_QUERY_PAGINATED,
+            SUMMARY_TABLE_NAME,
+        )
+        .await?;
         let mut items = {
             let _span = span!(
                 Level::INFO,
-                phase0::spans::ARROW_CONVERT,
-                endpoint = phase0::spans::TRACE_QUERY_PAGINATED,
+                trace_instrumentation::spans::ARROW_CONVERT,
+                endpoint = trace_instrumentation::spans::TRACE_QUERY_PAGINATED,
                 table = SUMMARY_TABLE_NAME
             )
             .entered();

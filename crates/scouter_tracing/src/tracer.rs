@@ -154,14 +154,14 @@ fn build_server_grpc_otlp_tracing(
     ))
 }
 
-/// Stable Phase 0 OLAP observability contract.
+/// Stable OLAP observability contract.
 ///
 /// These names are intentionally centralized before full instrumentation lands.
 /// Server, dataframe, Delta, and object-store instrumentation should use these
-/// constants instead of string literals so Phase 0 baseline artifacts remain
+/// constants instead of string literals so baseline artifacts remain
 /// comparable across later optimization phases.
-pub mod phase0_observability {
-    /// HTTP route contract for the five Phase 0 trace endpoints.
+pub mod observability_contract {
+    /// HTTP route contract for the five in-scope trace endpoints.
     pub mod routes {
         pub const TRACE_PAGINATED_METHOD: &str = "POST";
         pub const TRACE_PAGINATED_PATH: &str = "{prefix}/trace/paginated";
@@ -184,7 +184,7 @@ pub mod phase0_observability {
         pub const V1_TRACES_HANDLER: &str = "v1_otel_traces";
     }
 
-    /// Span names used by Phase 0 server and analytical query instrumentation.
+    /// Span names used by server and analytical query instrumentation.
     pub mod span_names {
         pub const PAGINATED_TRACES_HANDLER: &str = super::routes::TRACE_PAGINATED_HANDLER;
         pub const GET_TRACE_SPANS_HANDLER: &str = super::routes::TRACE_SPANS_HANDLER;
@@ -214,7 +214,7 @@ pub mod phase0_observability {
         pub const OBJECT_STORE_REQUEST: &str = "object_store.request";
     }
 
-    /// Attribute keys recorded on Phase 0 spans.
+    /// Attribute keys recorded on observability spans.
     pub mod attribute_keys {
         pub const TRACE_QUERY_ENDPOINT: &str = "trace.query.endpoint";
         pub const TRACE_QUERY_KIND: &str = "trace.query.kind";
@@ -245,7 +245,7 @@ pub mod phase0_observability {
         pub const PARQUET_FOOTER_CANDIDATE: &str = "parquet_footer_candidate";
     }
 
-    /// Low-cardinality attribute values used by the Phase 0 contract.
+    /// Low-cardinality attribute values used by the observability contract.
     pub mod attribute_values {
         pub const REFRESH_ORIGIN_BACKGROUND: &str = "background";
         pub const REFRESH_ORIGIN_MAINTENANCE: &str = "maintenance";
@@ -274,7 +274,7 @@ pub mod phase0_observability {
         pub const REFRESH_ENGINE_CONTROL: &str = "control";
     }
 
-    /// Prometheus metric names for Phase 0 trace OLAP observability.
+    /// Prometheus metric names for trace OLAP observability.
     pub mod metric_names {
         pub const TRACE_QUERY_DURATION_MS: &str = "scouter_trace_query_duration_ms";
         pub const TRACE_DF_COLLECT_DURATION_MS: &str = "scouter_trace_df_collect_duration_ms";
@@ -292,20 +292,20 @@ pub mod phase0_observability {
     }
 
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-    pub enum Phase0MetricKind {
+    pub enum MetricKind {
         Counter,
         Histogram,
     }
 
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-    pub struct Phase0MetricContract {
+    pub struct MetricContract {
         pub name: &'static str,
-        pub kind: Phase0MetricKind,
+        pub kind: MetricKind,
         pub description: &'static str,
         pub labels: &'static [&'static str],
     }
 
-    pub const PHASE0_SPAN_NAMES: &[&str] = &[
+    pub const SPAN_NAMES: &[&str] = &[
         span_names::PAGINATED_TRACES_HANDLER,
         span_names::GET_TRACE_SPANS_HANDLER,
         span_names::TRACE_METRICS_HANDLER,
@@ -328,7 +328,7 @@ pub mod phase0_observability {
         span_names::OBJECT_STORE_REQUEST,
     ];
 
-    pub const PHASE0_TRACE_QUERY_ATTRIBUTE_KEYS: &[&str] = &[
+    pub const TRACE_QUERY_ATTRIBUTE_KEYS: &[&str] = &[
         attribute_keys::TRACE_QUERY_ENDPOINT,
         attribute_keys::TRACE_QUERY_KIND,
         attribute_keys::TRACE_QUERY_HAS_START_TIME,
@@ -347,7 +347,7 @@ pub mod phase0_observability {
         attribute_keys::TRACE_QUERY_REFRESH_ORIGIN,
     ];
 
-    pub const PHASE0_OBJECT_STORE_ATTRIBUTE_KEYS: &[&str] = &[
+    pub const OBJECT_STORE_ATTRIBUTE_KEYS: &[&str] = &[
         attribute_keys::OBJECT_STORE_BACKEND,
         attribute_keys::OBJECT_STORE_OPERATION,
         attribute_keys::OBJECT_STORE_PATH_KIND,
@@ -360,76 +360,76 @@ pub mod phase0_observability {
         attribute_keys::PARQUET_FOOTER_CANDIDATE,
     ];
 
-    pub const PHASE0_METRIC_CONTRACTS: &[Phase0MetricContract] = &[
-        Phase0MetricContract {
+    pub const METRIC_CONTRACTS: &[MetricContract] = &[
+        MetricContract {
             name: metric_names::TRACE_QUERY_DURATION_MS,
-            kind: Phase0MetricKind::Histogram,
-            description: "End-to-end duration for Phase 0 trace query handlers.",
+            kind: MetricKind::Histogram,
+            description: "End-to-end duration for trace query handlers.",
             labels: &["endpoint", "kind", "unbounded"],
         },
-        Phase0MetricContract {
+        MetricContract {
             name: metric_names::TRACE_DF_COLLECT_DURATION_MS,
-            kind: Phase0MetricKind::Histogram,
+            kind: MetricKind::Histogram,
             description: "Duration spent in DataFusion collect() for trace queries.",
             labels: &["endpoint", "table"],
         },
-        Phase0MetricContract {
+        MetricContract {
             name: metric_names::TRACE_DF_PLAN_DURATION_MS,
-            kind: Phase0MetricKind::Histogram,
+            kind: MetricKind::Histogram,
             description: "Duration spent building DataFusion logical or physical plans.",
             labels: &["endpoint", "phase"],
         },
-        Phase0MetricContract {
+        MetricContract {
             name: metric_names::TRACE_DELTA_REFRESH_DURATION_MS,
-            kind: Phase0MetricKind::Histogram,
+            kind: MetricKind::Histogram,
             description: "Duration spent refreshing Delta snapshots for trace tables.",
             labels: &["engine", "origin"],
         },
-        Phase0MetricContract {
+        MetricContract {
             name: metric_names::TRACE_OBJECT_STORE_REQUESTS_TOTAL,
-            kind: Phase0MetricKind::Counter,
+            kind: MetricKind::Counter,
             description: "Object-store requests issued by trace analytical paths.",
             labels: &["backend", "operation", "path_kind", "status"],
         },
-        Phase0MetricContract {
+        MetricContract {
             name: metric_names::TRACE_OBJECT_STORE_REQUEST_DURATION_MS,
-            kind: Phase0MetricKind::Histogram,
+            kind: MetricKind::Histogram,
             description: "Object-store request duration for trace analytical paths.",
             labels: &["backend", "operation", "path_kind", "status"],
         },
-        Phase0MetricContract {
+        MetricContract {
             name: metric_names::TRACE_OBJECT_STORE_BYTES_TOTAL,
-            kind: Phase0MetricKind::Counter,
+            kind: MetricKind::Counter,
             description: "Object-store bytes read or written by trace analytical paths.",
             labels: &["backend", "operation", "path_kind"],
         },
-        Phase0MetricContract {
+        MetricContract {
             name: metric_names::TRACE_CACHE_HITS_TOTAL,
-            kind: Phase0MetricKind::Counter,
+            kind: MetricKind::Counter,
             description: "Cache hits observed by trace analytical paths.",
             labels: &["cache_name"],
         },
-        Phase0MetricContract {
+        MetricContract {
             name: metric_names::TRACE_CACHE_MISSES_TOTAL,
-            kind: Phase0MetricKind::Counter,
+            kind: MetricKind::Counter,
             description: "Cache misses observed by trace analytical paths.",
             labels: &["cache_name"],
         },
-        Phase0MetricContract {
+        MetricContract {
             name: metric_names::TRACE_UNBOUNDED_LOOKUP_TOTAL,
-            kind: Phase0MetricKind::Counter,
+            kind: MetricKind::Counter,
             description: "Trace lookups issued without explicit time bounds.",
             labels: &["endpoint", "kind"],
         },
-        Phase0MetricContract {
+        MetricContract {
             name: metric_names::REFRESH_ON_REQUEST_PATH_TOTAL,
-            kind: Phase0MetricKind::Counter,
+            kind: MetricKind::Counter,
             description: "Delta refreshes observed on synchronous request paths.",
             labels: &["engine"],
         },
     ];
 
-    pub const PHASE0_OBJECT_STORE_OPERATIONS: &[&str] = &[
+    pub const OBJECT_STORE_OPERATIONS: &[&str] = &[
         attribute_values::OBJECT_STORE_OPERATION_LIST,
         attribute_values::OBJECT_STORE_OPERATION_LIST_WITH_DELIMITER,
         attribute_values::OBJECT_STORE_OPERATION_HEAD,
@@ -440,7 +440,7 @@ pub mod phase0_observability {
         attribute_values::OBJECT_STORE_OPERATION_COPY,
     ];
 
-    pub const PHASE0_REFRESH_ON_REQUEST_ENGINES: &[&str] = &[
+    pub const REFRESH_ON_REQUEST_ENGINES: &[&str] = &[
         attribute_values::REFRESH_ENGINE_TRACE_SPANS,
         attribute_values::REFRESH_ENGINE_TRACE_SUMMARIES,
         attribute_values::REFRESH_ENGINE_GEN_AI_SPANS,
@@ -2393,8 +2393,8 @@ mod capture_tests {
     }
 
     #[test]
-    fn phase0_route_contract_preserves_in_scope_trace_endpoints() {
-        use phase0_observability::routes;
+    fn observability_contract_route_contract_preserves_in_scope_trace_endpoints() {
+        use observability_contract::routes;
 
         assert_eq!(routes::TRACE_PAGINATED_METHOD, "POST");
         assert_eq!(routes::TRACE_PAGINATED_PATH, "{prefix}/trace/paginated");
@@ -2409,8 +2409,8 @@ mod capture_tests {
     }
 
     #[test]
-    fn phase0_span_names_are_complete_and_unique() {
-        use phase0_observability::{PHASE0_SPAN_NAMES, span_names};
+    fn observability_contract_span_names_are_complete_and_unique() {
+        use observability_contract::{SPAN_NAMES, span_names};
 
         let expected = [
             span_names::PAGINATED_TRACES_HANDLER,
@@ -2435,18 +2435,15 @@ mod capture_tests {
             span_names::OBJECT_STORE_REQUEST,
         ];
 
-        assert_eq!(PHASE0_SPAN_NAMES, expected);
-        assert_unique(PHASE0_SPAN_NAMES);
+        assert_eq!(SPAN_NAMES, expected);
+        assert_unique(SPAN_NAMES);
     }
 
     #[test]
-    fn phase0_metric_contracts_are_complete_and_unique() {
-        use phase0_observability::{PHASE0_METRIC_CONTRACTS, Phase0MetricKind, metric_names};
+    fn observability_contract_metric_contracts_are_complete_and_unique() {
+        use observability_contract::{METRIC_CONTRACTS, MetricKind, metric_names};
 
-        let names: Vec<&str> = PHASE0_METRIC_CONTRACTS
-            .iter()
-            .map(|metric| metric.name)
-            .collect();
+        let names: Vec<&str> = METRIC_CONTRACTS.iter().map(|metric| metric.name).collect();
         assert_unique(&names);
 
         let expected = [
@@ -2464,18 +2461,18 @@ mod capture_tests {
         ];
         assert_eq!(names, expected);
 
-        let refresh_metric = PHASE0_METRIC_CONTRACTS
+        let refresh_metric = METRIC_CONTRACTS
             .iter()
             .find(|metric| metric.name == metric_names::REFRESH_ON_REQUEST_PATH_TOTAL)
             .unwrap();
-        assert_eq!(refresh_metric.kind, Phase0MetricKind::Counter);
+        assert_eq!(refresh_metric.kind, MetricKind::Counter);
         assert_eq!(refresh_metric.labels, ["engine"]);
     }
 
     #[test]
-    fn phase0_attribute_keys_are_complete_and_unique() {
-        use phase0_observability::{
-            PHASE0_OBJECT_STORE_ATTRIBUTE_KEYS, PHASE0_TRACE_QUERY_ATTRIBUTE_KEYS, attribute_keys,
+    fn observability_contract_attribute_keys_are_complete_and_unique() {
+        use observability_contract::{
+            OBJECT_STORE_ATTRIBUTE_KEYS, TRACE_QUERY_ATTRIBUTE_KEYS, attribute_keys,
         };
 
         let expected_trace_keys = [
@@ -2496,8 +2493,8 @@ mod capture_tests {
             attribute_keys::TRACE_QUERY_STORAGE_BACKEND,
             attribute_keys::TRACE_QUERY_REFRESH_ORIGIN,
         ];
-        assert_eq!(PHASE0_TRACE_QUERY_ATTRIBUTE_KEYS, expected_trace_keys);
-        assert_unique(PHASE0_TRACE_QUERY_ATTRIBUTE_KEYS);
+        assert_eq!(TRACE_QUERY_ATTRIBUTE_KEYS, expected_trace_keys);
+        assert_unique(TRACE_QUERY_ATTRIBUTE_KEYS);
 
         let expected_object_store_keys = [
             attribute_keys::OBJECT_STORE_BACKEND,
@@ -2511,11 +2508,8 @@ mod capture_tests {
             attribute_keys::OBJECT_STORE_ERROR_KIND,
             attribute_keys::PARQUET_FOOTER_CANDIDATE,
         ];
-        assert_eq!(
-            PHASE0_OBJECT_STORE_ATTRIBUTE_KEYS,
-            expected_object_store_keys
-        );
-        assert_unique(PHASE0_OBJECT_STORE_ATTRIBUTE_KEYS);
+        assert_eq!(OBJECT_STORE_ATTRIBUTE_KEYS, expected_object_store_keys);
+        assert_unique(OBJECT_STORE_ATTRIBUTE_KEYS);
     }
 
     fn assert_unique(values: &[&str]) {

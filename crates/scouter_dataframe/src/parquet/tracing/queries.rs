@@ -30,7 +30,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tracing::{Instrument, Level, error, info, instrument, span};
 
-mod phase0 {
+mod trace_instrumentation {
     pub mod spans {
         pub const TRACE_QUERY_METRICS: &str = "scouter.trace.query.metrics";
         pub const TRACE_QUERY_SPANS: &str = "scouter.trace.query.spans";
@@ -159,7 +159,7 @@ impl TraceQueryBuilder {
             .table(table_name)
             .instrument(span!(
                 Level::INFO,
-                phase0::spans::DF_TABLE_RESOLVE,
+                trace_instrumentation::spans::DF_TABLE_RESOLVE,
                 endpoint,
                 table = table_name
             ))
@@ -175,7 +175,7 @@ impl TraceQueryBuilder {
     fn select_columns(mut self, columns: &[&str]) -> Result<Self, TraceEngineError> {
         let _span = span!(
             Level::INFO,
-            phase0::spans::DF_LOGICAL_BUILD,
+            trace_instrumentation::spans::DF_LOGICAL_BUILD,
             endpoint = self.endpoint,
             table = self.table_name,
             phase = "select_columns"
@@ -188,7 +188,7 @@ impl TraceQueryBuilder {
     fn add_filter(mut self, expr: Expr) -> Result<Self, TraceEngineError> {
         let _span = span!(
             Level::INFO,
-            phase0::spans::DF_LOGICAL_BUILD,
+            trace_instrumentation::spans::DF_LOGICAL_BUILD,
             endpoint = self.endpoint,
             table = self.table_name,
             phase = "filter"
@@ -201,7 +201,7 @@ impl TraceQueryBuilder {
     fn add_sort(mut self, sort: Vec<SortExpr>) -> Result<Self, TraceEngineError> {
         let _span = span!(
             Level::INFO,
-            phase0::spans::DF_LOGICAL_BUILD,
+            trace_instrumentation::spans::DF_LOGICAL_BUILD,
             endpoint = self.endpoint,
             table = self.table_name,
             phase = "sort"
@@ -214,7 +214,7 @@ impl TraceQueryBuilder {
     fn with_limit(mut self, n: Option<usize>) -> Result<Self, TraceEngineError> {
         let _span = span!(
             Level::INFO,
-            phase0::spans::DF_LOGICAL_BUILD,
+            trace_instrumentation::spans::DF_LOGICAL_BUILD,
             endpoint = self.endpoint,
             table = self.table_name,
             phase = "limit"
@@ -225,7 +225,7 @@ impl TraceQueryBuilder {
     }
 
     async fn execute(self) -> Result<Vec<RecordBatch>, TraceEngineError> {
-        let batches = collect_with_phase0(self.df, self.endpoint, self.table_name).await?;
+        let batches = collect_with_query_spans(self.df, self.endpoint, self.table_name).await?;
         Ok(batches)
     }
 }
@@ -319,7 +319,7 @@ mod tests {
     }
 }
 
-async fn collect_with_phase0(
+async fn collect_with_query_spans(
     df: DataFrame,
     endpoint: &'static str,
     table_name: &'static str,
@@ -328,7 +328,7 @@ async fn collect_with_phase0(
         .create_physical_plan()
         .instrument(span!(
             Level::INFO,
-            phase0::spans::DF_PHYSICAL_PLAN,
+            trace_instrumentation::spans::DF_PHYSICAL_PLAN,
             endpoint,
             table = table_name
         ))
@@ -338,7 +338,7 @@ async fn collect_with_phase0(
     df.collect()
         .instrument(span!(
             Level::INFO,
-            phase0::spans::DF_COLLECT,
+            trace_instrumentation::spans::DF_COLLECT,
             endpoint,
             table = table_name
         ))
@@ -1168,7 +1168,7 @@ impl TraceQueries {
         let mut builder = TraceQueryBuilder::set_table(
             self.ctx.clone(),
             SPAN_TABLE_NAME,
-            phase0::spans::TRACE_QUERY_SPANS,
+            trace_instrumentation::spans::TRACE_QUERY_SPANS,
         )
         .await?;
 
@@ -1224,8 +1224,8 @@ impl TraceQueries {
         let flat_spans = {
             let _span = span!(
                 Level::INFO,
-                phase0::spans::ARROW_CONVERT,
-                endpoint = phase0::spans::TRACE_QUERY_SPANS,
+                trace_instrumentation::spans::ARROW_CONVERT,
+                endpoint = trace_instrumentation::spans::TRACE_QUERY_SPANS,
                 table = SPAN_TABLE_NAME
             )
             .entered();
@@ -1234,8 +1234,8 @@ impl TraceQueries {
         let spans = {
             let _span = span!(
                 Level::INFO,
-                phase0::spans::TRACE_TREE_BUILD,
-                endpoint = phase0::spans::TRACE_QUERY_SPANS
+                trace_instrumentation::spans::TRACE_TREE_BUILD,
+                endpoint = trace_instrumentation::spans::TRACE_QUERY_SPANS
             )
             .entered();
             build_span_tree(flat_spans)
@@ -1292,7 +1292,7 @@ impl TraceQueries {
             let mut builder = TraceQueryBuilder::set_table(
                 self.ctx.clone(),
                 SPAN_TABLE_NAME,
-                phase0::spans::TRACE_QUERY_SPANS,
+                trace_instrumentation::spans::TRACE_QUERY_SPANS,
             )
             .await?;
             builder = builder.add_filter(col(PARTITION_DATE_COL).gt_eq(date_lit(&window_start)))?;
@@ -1429,8 +1429,8 @@ impl TraceQueries {
             .table(SPAN_TABLE_NAME)
             .instrument(span!(
                 Level::INFO,
-                phase0::spans::DF_TABLE_RESOLVE,
-                endpoint = phase0::spans::TRACE_QUERY_METRICS,
+                trace_instrumentation::spans::DF_TABLE_RESOLVE,
+                endpoint = trace_instrumentation::spans::TRACE_QUERY_METRICS,
                 table = SPAN_TABLE_NAME
             ))
             .await
@@ -1439,8 +1439,8 @@ impl TraceQueries {
         {
             let _span = span!(
                 Level::INFO,
-                phase0::spans::DF_LOGICAL_BUILD,
-                endpoint = phase0::spans::TRACE_QUERY_METRICS,
+                trace_instrumentation::spans::DF_LOGICAL_BUILD,
+                endpoint = trace_instrumentation::spans::TRACE_QUERY_METRICS,
                 table = SPAN_TABLE_NAME,
                 phase = "time_filters"
             )
@@ -1511,8 +1511,8 @@ impl TraceQueries {
         let trace_level_df = {
             let _span = span!(
                 Level::INFO,
-                phase0::spans::DF_LOGICAL_BUILD,
-                endpoint = phase0::spans::TRACE_QUERY_METRICS,
+                trace_instrumentation::spans::DF_LOGICAL_BUILD,
+                endpoint = trace_instrumentation::spans::TRACE_QUERY_METRICS,
                 table = SPAN_TABLE_NAME,
                 phase = "trace_level_aggregate"
             )
@@ -1534,8 +1534,8 @@ impl TraceQueries {
         let mut service_filtered_df = {
             let _span = span!(
                 Level::INFO,
-                phase0::spans::DF_LOGICAL_BUILD,
-                endpoint = phase0::spans::TRACE_QUERY_METRICS,
+                trace_instrumentation::spans::DF_LOGICAL_BUILD,
+                endpoint = trace_instrumentation::spans::TRACE_QUERY_METRICS,
                 table = SPAN_TABLE_NAME,
                 phase = "service_filter"
             )
@@ -1601,8 +1601,8 @@ impl TraceQueries {
         let bucketed_df = {
             let _span = span!(
                 Level::INFO,
-                phase0::spans::DF_LOGICAL_BUILD,
-                endpoint = phase0::spans::TRACE_QUERY_METRICS,
+                trace_instrumentation::spans::DF_LOGICAL_BUILD,
+                endpoint = trace_instrumentation::spans::TRACE_QUERY_METRICS,
                 table = SPAN_TABLE_NAME,
                 phase = "bucket"
             )
@@ -1620,8 +1620,8 @@ impl TraceQueries {
         let final_df = {
             let _span = span!(
                 Level::INFO,
-                phase0::spans::DF_LOGICAL_BUILD,
-                endpoint = phase0::spans::TRACE_QUERY_METRICS,
+                trace_instrumentation::spans::DF_LOGICAL_BUILD,
+                endpoint = trace_instrumentation::spans::TRACE_QUERY_METRICS,
                 table = SPAN_TABLE_NAME,
                 phase = "final_aggregate"
             )
@@ -1652,9 +1652,9 @@ impl TraceQueries {
                 .sort(vec![col("bucket_start").sort(true, true)])?
         };
 
-        let batches = collect_with_phase0(
+        let batches = collect_with_query_spans(
             final_df,
-            phase0::spans::TRACE_QUERY_METRICS,
+            trace_instrumentation::spans::TRACE_QUERY_METRICS,
             SPAN_TABLE_NAME,
         )
         .await?;
@@ -1663,8 +1663,8 @@ impl TraceQueries {
         {
             let _span = span!(
                 Level::INFO,
-                phase0::spans::ARROW_CONVERT,
-                endpoint = phase0::spans::TRACE_QUERY_METRICS,
+                trace_instrumentation::spans::ARROW_CONVERT,
+                endpoint = trace_instrumentation::spans::TRACE_QUERY_METRICS,
                 table = SPAN_TABLE_NAME
             )
             .entered();
@@ -1802,8 +1802,8 @@ impl TraceQueries {
             .table(SPAN_TABLE_NAME)
             .instrument(span!(
                 Level::INFO,
-                phase0::spans::DF_TABLE_RESOLVE,
-                endpoint = phase0::spans::TRACE_QUERY_SPANS,
+                trace_instrumentation::spans::DF_TABLE_RESOLVE,
+                endpoint = trace_instrumentation::spans::TRACE_QUERY_SPANS,
                 table = SPAN_TABLE_NAME
             ))
             .await
@@ -1812,8 +1812,8 @@ impl TraceQueries {
         {
             let _span = span!(
                 Level::INFO,
-                phase0::spans::DF_LOGICAL_BUILD,
-                endpoint = phase0::spans::TRACE_QUERY_SPANS,
+                trace_instrumentation::spans::DF_LOGICAL_BUILD,
+                endpoint = trace_instrumentation::spans::TRACE_QUERY_SPANS,
                 table = SPAN_TABLE_NAME,
                 phase = "filter_trace_spans"
             )
@@ -1834,8 +1834,8 @@ impl TraceQueries {
         let result_df = {
             let _span = span!(
                 Level::INFO,
-                phase0::spans::DF_LOGICAL_BUILD,
-                endpoint = phase0::spans::TRACE_QUERY_SPANS,
+                trace_instrumentation::spans::DF_LOGICAL_BUILD,
+                endpoint = trace_instrumentation::spans::TRACE_QUERY_SPANS,
                 table = SPAN_TABLE_NAME,
                 phase = "join_matching_trace"
             )
@@ -1849,9 +1849,12 @@ impl TraceQueries {
             )?
         };
 
-        let batches =
-            collect_with_phase0(result_df, phase0::spans::TRACE_QUERY_SPANS, SPAN_TABLE_NAME)
-                .await?;
+        let batches = collect_with_query_spans(
+            result_df,
+            trace_instrumentation::spans::TRACE_QUERY_SPANS,
+            SPAN_TABLE_NAME,
+        )
+        .await?;
 
         if batches.is_empty() || batches.iter().all(|b| b.num_rows() == 0) {
             return Ok(Vec::new());
@@ -1860,8 +1863,8 @@ impl TraceQueries {
         let flat_spans = {
             let _span = span!(
                 Level::INFO,
-                phase0::spans::ARROW_CONVERT,
-                endpoint = phase0::spans::TRACE_QUERY_SPANS,
+                trace_instrumentation::spans::ARROW_CONVERT,
+                endpoint = trace_instrumentation::spans::TRACE_QUERY_SPANS,
                 table = SPAN_TABLE_NAME
             )
             .entered();
@@ -1870,8 +1873,8 @@ impl TraceQueries {
         let spans = {
             let _span = span!(
                 Level::INFO,
-                phase0::spans::TRACE_TREE_BUILD,
-                endpoint = phase0::spans::TRACE_QUERY_SPANS
+                trace_instrumentation::spans::TRACE_TREE_BUILD,
+                endpoint = trace_instrumentation::spans::TRACE_QUERY_SPANS
             )
             .entered();
             build_span_tree(flat_spans)
