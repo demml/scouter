@@ -1,0 +1,112 @@
+{
+  "commit": "05a42babf11e959d538c49a0baff55e4264d513f",
+  "bench_group": "start_time_hint_only",
+  "tier": 1,
+  "blocking": false,
+  "scenario_class": "selective_lookup",
+  "runtime_budget_secs": 1800,
+  "actual_runtime_secs": 0.052048209,
+  "fixture_rows": 10080,
+  "fixture_spans": 10080,
+  "storage_profile": "P1_local_nvme",
+  "query_entrypoint": "start_time_hint_only",
+  "result_rows": 5,
+  "spans": {
+    "arrow.convert": {
+      "count": 2423,
+      "p50_us": 46,
+      "p95_us": 58,
+      "p99_us": 103,
+      "sum_us": 120613
+    },
+    "bench.query.end_to_end": {
+      "count": 2423,
+      "p50_us": 3666,
+      "p95_us": 4524,
+      "p99_us": 6368,
+      "sum_us": 9248935
+    },
+    "delta.snapshot.refresh": {
+      "count": 1,
+      "p50_us": 537,
+      "p95_us": 537,
+      "p99_us": 537,
+      "sum_us": 537
+    },
+    "df.collect": {
+      "count": 2423,
+      "p50_us": 2415,
+      "p95_us": 2991,
+      "p99_us": 3733,
+      "sum_us": 6069854
+    },
+    "df.logical.build": {
+      "count": 19384,
+      "p50_us": 1,
+      "p95_us": 33,
+      "p99_us": 40,
+      "sum_us": 118442
+    },
+    "df.physical.plan": {
+      "count": 2423,
+      "p50_us": 1052,
+      "p95_us": 1381,
+      "p99_us": 1833,
+      "sum_us": 2700643
+    },
+    "df.table.resolve": {
+      "count": 2423,
+      "p50_us": 21,
+      "p95_us": 36,
+      "p99_us": 60,
+      "sum_us": 56874
+    },
+    "log.list": {
+      "count": 1,
+      "p50_us": 255,
+      "p95_us": 255,
+      "p99_us": 255,
+      "sum_us": 255
+    },
+    "object_store.request": {
+      "count": 9694,
+      "p50_us": 1,
+      "p95_us": 2,
+      "p99_us": 3,
+      "sum_us": 8720
+    },
+    "snap.build": {
+      "count": 1,
+      "p50_us": 269,
+      "p95_us": 269,
+      "p99_us": 269,
+      "sum_us": 269
+    },
+    "trace.tree.build": {
+      "count": 2423,
+      "p50_us": 9,
+      "p95_us": 13,
+      "p99_us": 21,
+      "sum_us": 22536
+    },
+    "update_incremental": {
+      "count": 1,
+      "p50_us": 535,
+      "p95_us": 535,
+      "p99_us": 535,
+      "sum_us": 535
+    }
+  },
+  "object_store_counts": {
+    "list": 1,
+    "list_with_delimiter": 0,
+    "head": 0,
+    "get": 1,
+    "get_range": 9692,
+    "put": 0,
+    "delete": 0,
+    "copy": 0,
+    "bytes": 0
+  },
+  "refresh_on_request_path_total": 0
+}
