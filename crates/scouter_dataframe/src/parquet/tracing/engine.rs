@@ -36,15 +36,13 @@ const TRACE_SPAN_TABLE_NAME: &str = "trace_spans";
 const TASK_OPTIMIZE: &str = "trace_optimize";
 const TASK_RETENTION: &str = "trace_retention";
 
-mod trace_instrumentation {
-    #[allow(dead_code)]
-    pub mod spans {
-        pub const DELTA_TABLE_LOAD: &str = "delta.table.load";
-        pub const DELTA_SNAPSHOT_REFRESH: &str = "delta.snapshot.refresh";
-        pub const DELTA_CATALOG_SWAP: &str = "delta.catalog.swap";
-        pub const DELTA_OPTIMIZE: &str = "delta.optimize";
-        pub const UPDATE_INCREMENTAL: &str = "update_incremental";
-    }
+#[allow(dead_code)]
+mod span_names {
+    pub const DELTA_TABLE_LOAD: &str = "delta.table.load";
+    pub const DELTA_SNAPSHOT_REFRESH: &str = "delta.snapshot.refresh";
+    pub const DELTA_CATALOG_SWAP: &str = "delta.catalog.swap";
+    pub const DELTA_OPTIMIZE: &str = "delta.optimize";
+    pub const UPDATE_INCREMENTAL: &str = "update_incremental";
 }
 
 /// Days from year-0001 to Unix epoch (1970-01-01), used to convert chrono → Arrow Date32.
@@ -160,7 +158,7 @@ async fn build_or_create_table_inner(
                 .load()
                 .instrument(span!(
                     Level::INFO,
-                    trace_instrumentation::spans::DELTA_TABLE_LOAD,
+                    span_names::DELTA_TABLE_LOAD,
                     table = TRACE_SPAN_TABLE_NAME,
                     mode = "probe"
                 ))
@@ -185,7 +183,7 @@ async fn build_or_create_table_inner(
             .load()
             .instrument(span!(
                 Level::INFO,
-                trace_instrumentation::spans::DELTA_TABLE_LOAD,
+                span_names::DELTA_TABLE_LOAD,
                 table = TRACE_SPAN_TABLE_NAME,
                 mode = "existing"
             ))
@@ -277,7 +275,7 @@ impl TraceSpanDBEngine {
         if let Ok(provider) = delta_table.table_provider().await {
             let _span = span!(
                 Level::INFO,
-                trace_instrumentation::spans::DELTA_CATALOG_SWAP,
+                span_names::DELTA_CATALOG_SWAP,
                 table = TRACE_SPAN_TABLE_NAME,
                 reason = "init"
             )
@@ -372,7 +370,7 @@ impl TraceSpanDBEngine {
         // Atomic single-step swap — no deregister/register gap where queries see "not found".
         let _catalog_span = span!(
             Level::INFO,
-            trace_instrumentation::spans::DELTA_CATALOG_SWAP,
+            span_names::DELTA_CATALOG_SWAP,
             table = TRACE_SPAN_TABLE_NAME,
             reason = "write"
         )
@@ -395,7 +393,7 @@ impl TraceSpanDBEngine {
 
         let optimize_span = span!(
             Level::INFO,
-            trace_instrumentation::spans::DELTA_OPTIMIZE,
+            span_names::DELTA_OPTIMIZE,
             table = TRACE_SPAN_TABLE_NAME
         );
         let (updated_table, _metrics) = async {
@@ -418,7 +416,7 @@ impl TraceSpanDBEngine {
         let new_provider = updated_table.table_provider().await?;
         let _catalog_span = span!(
             Level::INFO,
-            trace_instrumentation::spans::DELTA_CATALOG_SWAP,
+            span_names::DELTA_CATALOG_SWAP,
             table = TRACE_SPAN_TABLE_NAME,
             reason = "optimize"
         )
@@ -446,7 +444,7 @@ impl TraceSpanDBEngine {
         let new_provider = updated_table.table_provider().await?;
         let _catalog_span = span!(
             Level::INFO,
-            trace_instrumentation::spans::DELTA_CATALOG_SWAP,
+            span_names::DELTA_CATALOG_SWAP,
             table = TRACE_SPAN_TABLE_NAME,
             reason = "vacuum"
         )
@@ -489,7 +487,7 @@ impl TraceSpanDBEngine {
         let new_provider = updated_table.table_provider().await?;
         let _catalog_span = span!(
             Level::INFO,
-            trace_instrumentation::spans::DELTA_CATALOG_SWAP,
+            span_names::DELTA_CATALOG_SWAP,
             table = TRACE_SPAN_TABLE_NAME,
             reason = "expire"
         )
@@ -573,7 +571,7 @@ impl TraceSpanDBEngine {
             .update_incremental(None)
             .instrument(span!(
                 Level::INFO,
-                trace_instrumentation::spans::UPDATE_INCREMENTAL,
+                span_names::UPDATE_INCREMENTAL,
                 table = TRACE_SPAN_TABLE_NAME
             ))
             .await
@@ -589,7 +587,7 @@ impl TraceSpanDBEngine {
                     // Atomic swap — no gap between deregister and register.
                     let _catalog_span = span!(
                         Level::INFO,
-                        trace_instrumentation::spans::DELTA_CATALOG_SWAP,
+                        span_names::DELTA_CATALOG_SWAP,
                         table = TRACE_SPAN_TABLE_NAME,
                         reason = "refresh"
                     )

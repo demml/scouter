@@ -36,36 +36,29 @@ use tracing::field::Empty;
 use tracing::instrument;
 use tracing::{Span, debug, error, info_span};
 
-mod trace_instrumentation {
-    #[allow(dead_code)]
-    pub mod attrs {
-        pub const TRACE_QUERY_ENDPOINT: &str = "trace.query.endpoint";
-        pub const TRACE_QUERY_KIND: &str = "trace.query.kind";
-        pub const TRACE_QUERY_HAS_START_TIME: &str = "trace.query.has_start_time";
-        pub const TRACE_QUERY_HAS_END_TIME: &str = "trace.query.has_end_time";
-        pub const TRACE_QUERY_WINDOW_MS: &str = "trace.query.window_ms";
-        pub const TRACE_QUERY_LIMIT: &str = "trace.query.limit";
-        pub const TRACE_QUERY_OFFSET: &str = "trace.query.offset";
-        pub const TRACE_QUERY_TRACE_ID_PRESENT: &str = "trace.query.trace_id_present";
-        pub const TRACE_QUERY_UNBOUNDED: &str = "trace.query.unbounded";
-        pub const TRACE_QUERY_CACHE_HIT: &str = "trace.query.cache.hit";
-        pub const TRACE_QUERY_CACHE_NAME: &str = "trace.query.cache.name";
-        pub const TRACE_QUERY_RESULT_ROWS: &str = "trace.query.result.rows";
-        pub const TRACE_QUERY_RESULT_BYTES_ESTIMATE: &str = "trace.query.result.bytes_estimate";
-        pub const TRACE_QUERY_TABLE_VERSION: &str = "trace.query.table_version";
-        pub const TRACE_QUERY_STORAGE_BACKEND: &str = "trace.query.storage_backend";
-        pub const TRACE_QUERY_REFRESH_ORIGIN: &str = "trace.query.refresh_origin";
-        pub const TRACE_QUERY_PADDING_SECS: &str = "trace.query.padding_secs";
-        pub const TRACE_QUERY_HINT_WINDOW_SECS: &str = "trace.query.hint_window_secs";
-    }
+mod trace_attrs {
+    pub const TRACE_QUERY_ENDPOINT: &str = "trace.query.endpoint";
+    pub const TRACE_QUERY_KIND: &str = "trace.query.kind";
+    pub const TRACE_QUERY_HAS_START_TIME: &str = "trace.query.has_start_time";
+    pub const TRACE_QUERY_HAS_END_TIME: &str = "trace.query.has_end_time";
+    pub const TRACE_QUERY_WINDOW_MS: &str = "trace.query.window_ms";
+    pub const TRACE_QUERY_LIMIT: &str = "trace.query.limit";
+    pub const TRACE_QUERY_OFFSET: &str = "trace.query.offset";
+    pub const TRACE_QUERY_TRACE_ID_PRESENT: &str = "trace.query.trace_id_present";
+    pub const TRACE_QUERY_UNBOUNDED: &str = "trace.query.unbounded";
+    pub const TRACE_QUERY_RESULT_ROWS: &str = "trace.query.result.rows";
+    pub const TRACE_QUERY_RESULT_BYTES_ESTIMATE: &str = "trace.query.result.bytes_estimate";
+    pub const TRACE_QUERY_STORAGE_BACKEND: &str = "trace.query.storage_backend";
+    pub const TRACE_QUERY_PADDING_SECS: &str = "trace.query.padding_secs";
+    pub const TRACE_QUERY_HINT_WINDOW_SECS: &str = "trace.query.hint_window_secs";
+}
 
-    pub mod routes {
-        pub const TRACE_PAGINATED_PATH: &str = "{prefix}/trace/paginated";
-        pub const TRACE_SPANS_PATH: &str = "{prefix}/trace/spans";
-        pub const TRACE_METRICS_PATH: &str = "{prefix}/trace/metrics";
-        pub const V1_TRACE_SPANS_PATH: &str = "{prefix}/v1/traces/{id}/spans";
-        pub const V1_TRACES_PATH: &str = "{prefix}/v1/traces";
-    }
+mod trace_routes {
+    pub const TRACE_PAGINATED_PATH: &str = "{prefix}/trace/paginated";
+    pub const TRACE_SPANS_PATH: &str = "{prefix}/trace/spans";
+    pub const TRACE_METRICS_PATH: &str = "{prefix}/trace/metrics";
+    pub const V1_TRACE_SPANS_PATH: &str = "{prefix}/v1/traces/{id}/spans";
+    pub const V1_TRACES_PATH: &str = "{prefix}/v1/traces";
 }
 
 fn window_ms(start_time: Option<DateTime<Utc>>, end_time: Option<DateTime<Utc>>) -> Option<i64> {
@@ -91,62 +84,41 @@ struct TraceQueryAttrs {
 
 fn record_trace_query_span_attrs(attrs: TraceQueryAttrs) {
     let span = Span::current();
+    span.record(trace_attrs::TRACE_QUERY_ENDPOINT, attrs.endpoint);
+    span.record(trace_attrs::TRACE_QUERY_KIND, attrs.kind);
     span.record(
-        trace_instrumentation::attrs::TRACE_QUERY_ENDPOINT,
-        attrs.endpoint,
-    );
-    span.record(trace_instrumentation::attrs::TRACE_QUERY_KIND, attrs.kind);
-    span.record(
-        trace_instrumentation::attrs::TRACE_QUERY_HAS_START_TIME,
+        trace_attrs::TRACE_QUERY_HAS_START_TIME,
         attrs.has_start_time,
     );
-    span.record(
-        trace_instrumentation::attrs::TRACE_QUERY_HAS_END_TIME,
-        attrs.has_end_time,
-    );
+    span.record(trace_attrs::TRACE_QUERY_HAS_END_TIME, attrs.has_end_time);
     if let Some(window_ms) = attrs.window_ms {
-        span.record(
-            trace_instrumentation::attrs::TRACE_QUERY_WINDOW_MS,
-            window_ms,
-        );
+        span.record(trace_attrs::TRACE_QUERY_WINDOW_MS, window_ms);
     }
     if let Some(limit) = attrs.limit {
-        span.record(trace_instrumentation::attrs::TRACE_QUERY_LIMIT, limit);
+        span.record(trace_attrs::TRACE_QUERY_LIMIT, limit);
     }
     if let Some(offset) = attrs.offset {
-        span.record(trace_instrumentation::attrs::TRACE_QUERY_OFFSET, offset);
+        span.record(trace_attrs::TRACE_QUERY_OFFSET, offset);
     }
     span.record(
-        trace_instrumentation::attrs::TRACE_QUERY_TRACE_ID_PRESENT,
+        trace_attrs::TRACE_QUERY_TRACE_ID_PRESENT,
         attrs.trace_id_present,
     );
-    span.record(
-        trace_instrumentation::attrs::TRACE_QUERY_UNBOUNDED,
-        attrs.unbounded,
-    );
-    span.record(
-        trace_instrumentation::attrs::TRACE_QUERY_STORAGE_BACKEND,
-        "delta",
-    );
+    span.record(trace_attrs::TRACE_QUERY_UNBOUNDED, attrs.unbounded);
+    span.record(trace_attrs::TRACE_QUERY_STORAGE_BACKEND, "delta");
     if let Some(padding_secs) = attrs.padding_secs {
-        span.record(
-            trace_instrumentation::attrs::TRACE_QUERY_PADDING_SECS,
-            padding_secs as i64,
-        );
+        span.record(trace_attrs::TRACE_QUERY_PADDING_SECS, padding_secs as i64);
     }
     if let Some(hint_window_secs) = attrs.hint_window_secs {
         span.record(
-            trace_instrumentation::attrs::TRACE_QUERY_HINT_WINDOW_SECS,
+            trace_attrs::TRACE_QUERY_HINT_WINDOW_SECS,
             hint_window_secs as i64,
         );
     }
 }
 
 fn record_trace_query_result(row_count: usize) {
-    Span::current().record(
-        trace_instrumentation::attrs::TRACE_QUERY_RESULT_ROWS,
-        row_count as i64,
-    );
+    Span::current().record(trace_attrs::TRACE_QUERY_RESULT_ROWS, row_count as i64);
 }
 
 #[derive(Debug, Default, serde::Deserialize)]
@@ -392,7 +364,7 @@ pub async fn paginated_traces(
     let body = normalize_trace_filters(body)?;
     validate_filters(&body)?;
     record_trace_query_span_attrs(TraceQueryAttrs {
-        endpoint: trace_instrumentation::routes::TRACE_PAGINATED_PATH,
+        endpoint: trace_routes::TRACE_PAGINATED_PATH,
         kind: "paginated",
         has_start_time: body.start_time.is_some(),
         has_end_time: body.end_time.is_some(),
@@ -489,7 +461,7 @@ pub async fn get_trace_spans_by_id(
         lookup_settings.hint_window_secs,
     );
     record_trace_query_span_attrs(TraceQueryAttrs {
-        endpoint: trace_instrumentation::routes::V1_TRACE_SPANS_PATH,
+        endpoint: trace_routes::V1_TRACE_SPANS_PATH,
         kind: "spans_by_id",
         has_start_time: params.start_time.is_some(),
         has_end_time: params.end_time.is_some(),
@@ -579,7 +551,7 @@ pub async fn get_trace_spans(
     Query(params): Query<TraceRequest>,
 ) -> Result<Json<TraceSpansResponse>, (StatusCode, Json<ScouterServerError>)> {
     record_trace_query_span_attrs(TraceQueryAttrs {
-        endpoint: trace_instrumentation::routes::TRACE_SPANS_PATH,
+        endpoint: trace_routes::TRACE_SPANS_PATH,
         kind: "spans",
         has_start_time: params.start_time.is_some(),
         has_end_time: params.end_time.is_some(),
@@ -771,7 +743,7 @@ pub async fn trace_metrics(
 ) -> Result<Json<TraceMetricsResponse>, (StatusCode, Json<ScouterServerError>)> {
     let body = normalize_metrics_request(body)?;
     record_trace_query_span_attrs(TraceQueryAttrs {
-        endpoint: trace_instrumentation::routes::TRACE_METRICS_PATH,
+        endpoint: trace_routes::TRACE_METRICS_PATH,
         kind: "metrics",
         has_start_time: true,
         has_end_time: true,
@@ -952,7 +924,7 @@ pub async fn v1_otel_traces(
     body: Bytes,
 ) -> Result<axum::response::Response, (StatusCode, Json<ScouterServerError>)> {
     record_trace_query_span_attrs(TraceQueryAttrs {
-        endpoint: trace_instrumentation::routes::V1_TRACES_PATH,
+        endpoint: trace_routes::V1_TRACES_PATH,
         kind: "otel_ingest",
         has_start_time: false,
         has_end_time: false,
@@ -1013,7 +985,7 @@ pub async fn v1_otel_traces(
     let response_bytes = ExportTraceServiceResponse::default().encode_to_vec();
     record_trace_query_result(span_count);
     Span::current().record(
-        trace_instrumentation::attrs::TRACE_QUERY_RESULT_BYTES_ESTIMATE,
+        trace_attrs::TRACE_QUERY_RESULT_BYTES_ESTIMATE,
         response_bytes.len() as i64,
     );
     let _response_span = info_span!("response.serialize").entered();
